@@ -1,0 +1,6 @@
+{
+  "watch": ["src", "config.tsx"],
+  "ext": ".ts, .tsx, .js, .jsx, .css",
+  "ignore": [],
+  "exec": "bun run build & bun run server"
+}

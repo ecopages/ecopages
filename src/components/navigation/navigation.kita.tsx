@@ -15,5 +15,3 @@ export function Navigation() {
     </nav>
   );
 }
-
-Navigation.stylesheet = 'navigation.styles.css';

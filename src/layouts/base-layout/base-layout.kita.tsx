@@ -1,20 +1,14 @@
 import { Html } from "@elysiajs/html";
-import { BaseHead, BaseHeadProps } from "../head/base-head.kita";
-import { Navigation } from "@/components/navigation/navigation.kita";
+import { BaseHead, BaseHeadProps } from "@/includes/head/base-head.kita";
+import { getContextDependencies } from "root/lib/component-utils/get-context-dependencies";
+import Navigation from "@/components/navigation";
 
 export type BaseLayoutProps = {
   children: Html.Children;
   language?: string;
 } & BaseHeadProps;
 
-const contextStylesheet = [
-  'base-layout.css',
-  Navigation.stylesheet,
-];
-
-const contextScripts = [
-  "scripts/is-land.script"
-]
+const { contextStylesheets, contextScripts } = getContextDependencies([Navigation]);
 
 export function BaseLayout({
   children,
@@ -27,11 +21,11 @@ export function BaseLayout({
     <html lang={language}>
       <BaseHead
         metadata={metadata}
-        stylesheets={[...contextStylesheet, ...stylesheets]}
+        stylesheets={[...contextStylesheets, ...stylesheets]}
         scripts={[...contextScripts, ...scripts]}
       />
       <body>
-        <Navigation />
+        <Navigation.template />
         <main>
           {children}
         </main>

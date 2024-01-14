@@ -1,14 +1,12 @@
 import { Config } from "tailwindcss";
 
 const config: Config = {
-  content: ["./src/includes/layouts/base.layout.tsx"],
+  content: ["./src/**/*.tsx"],
   theme: {
     extend: {},
   },
   plugins: [],
-  safelist: [
-    'hidden'
-  ]
-}
+  safelist: ["hidden"],
+};
 
 export default config;

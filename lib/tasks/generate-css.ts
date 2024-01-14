@@ -7,11 +7,7 @@ import autoprefixer from "autoprefixer";
 import cssnano from "cssnano";
 import tailwindcss from "tailwindcss";
 import tailwindcssNesting from "tailwindcss/nesting/index.js";
-import { DIST_FOLDER_CSS } from "root/lib/eco.constants";
-
-if (!fs.existsSync(DIST_FOLDER_CSS)) {
-  fs.mkdirSync(DIST_FOLDER_CSS);
-}
+import { DIST_DIR_NAME } from "root/lib/eco.constants";
 
 const args = process.argv.slice(2);
 const watch = args.includes("--watch");
@@ -32,7 +28,7 @@ export const postcssMacro = async (path: string) => {
   return await processor.process(contents, { from: path }).then((result) => result.css);
 };
 
-const glob = new Glob("src/{components,pages,includes}/**/*.css");
+const glob = new Glob("src/{components,pages,layouts}/**/*.css");
 const TAILWIND_CSS = "src/global/css/tailwind.css";
 const ALPINE_CSS = "src/global/css/alpine.css";
 
@@ -41,8 +37,14 @@ const cssFiles = Array.from(scannedFiles).concat(TAILWIND_CSS).concat(ALPINE_CSS
 
 const buildCss = async (file: string) => {
   const content = await postcssMacro(file);
-  const fileName = file.split("/").pop();
-  const outputFileName = `${DIST_FOLDER_CSS}/${fileName}`;
+
+  const outputFileName = file.replace("src", DIST_DIR_NAME);
+  const directory = outputFileName.split("/").slice(0, -1).join("/");
+
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+  }
+
   fs.writeFileSync(outputFileName, content);
 
   const compressedData = Bun.gzipSync(Buffer.from(content));

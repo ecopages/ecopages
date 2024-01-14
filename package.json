@@ -8,7 +8,7 @@
     "generate-css": "bun run lib/tasks/generate-css.ts",
     "watch:build": "bun run lib/eco.builder.ts --watch",
     "watch:generate-css": "bun run lib/tasks/generate-css.ts --watch",
-    "watch:wds": "wds --config lib/web-dev-server/config.mjs"
+    "watch:wds": "wds --config lib/web-dev-server/config.mjs --watch"
   },
   "devDependencies": {
     "@11ty/is-land": "^3.0.0",

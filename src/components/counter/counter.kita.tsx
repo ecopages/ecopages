@@ -11,6 +11,3 @@ export function Counter() {
     </div>
   );
 }
-
-Counter.stylesheet = "counter.styles.css";
-Counter.script = "components/counter/counter.script";

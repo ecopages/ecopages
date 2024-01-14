@@ -1,7 +1,7 @@
-import { Counter } from "@/components/counter";
-import { BaseLayout, BaseLayoutProps } from "../../includes/layouts/base-layout.kita";
-
-type HomePageProps = Pick<BaseLayoutProps, "metadata"> & Partial<Pick<BaseLayoutProps, "language">>;
+import { getContextDependencies } from "root/lib/component-utils/get-context-dependencies";
+import Counter from "@/components/counter";
+import BaseLayout from "@/layouts/base-layout"
+import { PageWithBaseLayoutProps } from "@/types";
 
 export const metadata = {
   title: "Home page",
@@ -10,20 +10,18 @@ export const metadata = {
   keywords: ["typescript", "framework", "static"],
 };
 
-export const contextStylesheets = [Counter.stylesheet];
+const { contextStylesheets, contextScripts } = getContextDependencies([BaseLayout, Counter]);
 
-export const contextScripts = [Counter.script];
-
-export default function HomePage({ metadata, language }: HomePageProps) {
+export default function HomePage({ metadata, language }: PageWithBaseLayoutProps) {
   return (
-    <BaseLayout
+    <BaseLayout.template
       metadata={metadata}
       language={language}
       stylesheets={contextStylesheets}
       scripts={contextScripts}
     >
       <h1 class="main-title">Home</h1>
-      <Counter />
-    </BaseLayout>
+      <Counter.template />
+    </BaseLayout.template>
   );
 }

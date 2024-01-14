@@ -1,8 +1,10 @@
 import { getComponentConfig } from "root/lib/component-utils/get-component-config";
-import { Navigation } from "./navigation.kita";
+import { BaseLayout } from "./base-layout.kita";
+
+export type { BaseLayoutProps } from "./base-layout.kita";
 
 export default getComponentConfig({
-  template: Navigation,
+  template: BaseLayout,
   importMeta: import.meta,
   deps: ["stylesheet"],
 });

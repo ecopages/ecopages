@@ -1,4 +1,4 @@
-import { DIST_FOLDER } from "root/lib/eco.constants";
+import { DIST_DIR } from "root/lib/eco.constants";
 import { extname } from "node:path";
 import fs from "node:fs";
 

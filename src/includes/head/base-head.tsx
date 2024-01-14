@@ -1,30 +1,29 @@
-import { Html } from "@elysiajs/html";
-import { DsdPolyfillScript } from "../scripts/dsd-polyfill";
-import { LitHydrateSupportScript } from "../scripts/lit-hydrate-support";
-import { IsLandScript } from "../scripts/is-land";
 import { SeoHead, SeoHeadProps } from "../head/seo";
-
 
 export type BaseHeadProps = {
   metadata: SeoHeadProps;
-  headContent?: Html.Children;
   stylesheets?: string[];
+  scripts?: string[];
 };
 
-export function BaseHead({ headContent, metadata, stylesheets }: BaseHeadProps) {
+export function BaseHead({ metadata, stylesheets, scripts }: BaseHeadProps) {
   const safeStylesheets = stylesheets?.map((safeStylesheet) => (
-    <style type="text/css">{safeStylesheet}</style>
+    <link rel="stylesheet" href={`css/${safeStylesheet}`} />
   ));
+
+  const safeScripts = scripts?.map((script) => <script defer src={`js/${script}.js`} />);
 
   return (
     <head>
+      <meta charset="UTF-8"></meta>
+      <meta name="viewport" content="width=device-width, initial-scale=1"></meta>
       <SeoHead {...metadata} />
+      <link rel="robots" href="/robots.txt"></link>
+      {safeScripts}
+      <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
       <link rel="icon" type="image/x-icon" href="/public/assets/favicon.ico"></link>
-      <LitHydrateSupportScript />
-      <DsdPolyfillScript />
-      <IsLandScript />
+      <link href="/css/tailwind.css" rel="stylesheet"></link>
       {safeStylesheets}
-      {headContent}
     </head>
-  );
+  )
 }

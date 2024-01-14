@@ -1,11 +1,11 @@
+import { BaseLayout, BaseLayoutProps } from "@/includes/layouts/base.layout";
 import { Counter } from "@/components/counter";
-import { BaseLayout, BaseLayoutProps } from "../../includes/layouts/base.layout";
 
-type HomePageProps = Pick<BaseLayoutProps, "metadata"> & Partial<Pick<BaseLayoutProps, "language">>;
+type AboutPageProps = Pick<BaseLayoutProps, "metadata"> & Partial<Pick<BaseLayoutProps, "language">>;
 
 export const metadata = {
-  title: "Home page",
-  description: "This is the homepage of the website",
+  title: "About page",
+  description: "This is the about page of the website",
   image: "public/assets/images/bun-og.png",
   keywords: ["typescript", "framework", "static"],
 };
@@ -14,7 +14,7 @@ const contextStylesheets = [Counter.stylesheet];
 
 const contextScripts = [Counter.script];
 
-export default function HomePage({ metadata, language }: HomePageProps) {
+export default function AboutPage({ metadata, language }: AboutPageProps) {
   return (
     <BaseLayout
       metadata={metadata}
@@ -22,7 +22,7 @@ export default function HomePage({ metadata, language }: HomePageProps) {
       stylesheets={contextStylesheets}
       scripts={contextScripts}
     >
-      <h1 class="main-title">Home</h1>
+      <h1>About</h1>
       <Counter />
     </BaseLayout>
   );

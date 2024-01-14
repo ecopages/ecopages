@@ -1,5 +1,3 @@
-import { createStylesheets } from "macros/stylesheets.macro"  with { type: 'macro' };
-
 export function Navigation() {
   return (
     <nav class="navigation">
@@ -11,11 +9,11 @@ export function Navigation() {
           <a href="/about">About</a>
         </li>
         <li>
-          <a href="/stream-test">Stream Test</a>
+          <a href="/contact">Contact</a>
         </li>
       </ul>
     </nav>
   );
 }
 
-Navigation.stylesheets = await createStylesheets({ paths: ['@/src/components/navigation/navigation.styles.css'] }) as string[];
+Navigation.stylesheet = 'navigation.css';

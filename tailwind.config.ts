@@ -1,8 +1,14 @@
-import type { Config } from "tailwindcss";
+import { Config } from "tailwindcss";
 
-const tailwindConfig: Config = {
-  content: ["./src/**/*.tsx"],
-  darkMode: "class",
-};
+const config: Config = {
+  content: ["./src/includes/layouts/base.layout.tsx"],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+  safelist: [
+    'hidden'
+  ]
+}
 
-export default tailwindConfig;
+export default config;

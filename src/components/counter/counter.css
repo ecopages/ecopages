@@ -1,0 +1,10 @@
+.counter {
+  @apply flex gap-4 items-center bg-yellow-200 rounded-md max-w-fit p-2;
+  &__increment,
+  &__decrement {
+    @apply flex items-center justify-center bg-slate-300 rounded-full w-8 h-8;
+  }
+  span {
+    @apply text-slate-900 font-bold p-2 bg-slate-100 min-w-20 flex items-center justify-center;
+  }
+}

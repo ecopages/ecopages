@@ -1,6 +1,0 @@
-:host {
-  @apply flex gap-8 bg-slate-800 text-white p-8 rounded-md font-sans;
-  .wce-counter__count {
-    @apply text-3xl font-bold;
-  }
-}

@@ -82,7 +82,7 @@ function cleanImportCache() {
 }
 
 await createBuildStatic({
-  baseUrl: "http://localhost:" + (process.env.PORT || 3000),
+  baseUrl: "http://localhost:" + (import.meta.env.PORT || 3000),
 });
 
 /**
@@ -108,7 +108,7 @@ if (!WATCH_MODE) {
   templatesWatcher.on("all", async () => {
     cleanImportCache();
     await createBuildStatic({
-      baseUrl: "http://localhost:" + (process.env.PORT || 3000),
+      baseUrl: "http://localhost:" + (import.meta.env.PORT || 3000),
     });
   });
 

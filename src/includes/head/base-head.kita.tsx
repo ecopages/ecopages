@@ -1,4 +1,4 @@
-import { SeoHead, SeoHeadProps } from "../head/seo";
+import { SeoHead, SeoHeadProps } from "./seo.kita"
 
 export type BaseHeadProps = {
   metadata: SeoHeadProps;
@@ -8,10 +8,10 @@ export type BaseHeadProps = {
 
 export function BaseHead({ metadata, stylesheets, scripts }: BaseHeadProps) {
   const safeStylesheets = stylesheets?.map((safeStylesheet) => (
-    <link rel="stylesheet" href={`css/${safeStylesheet}`} />
+    <link rel="stylesheet" href={`/css/${safeStylesheet}`} />
   ));
 
-  const safeScripts = scripts?.map((script) => <script defer src={`js/${script}.js`} />);
+  const safeScripts = scripts?.map((script) => <script defer src={`/js/${script}.js`} />);
 
   return (
     <head>

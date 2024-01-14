@@ -1,5 +1,5 @@
 import { Counter } from "@/components/counter";
-import { BaseLayout, BaseLayoutProps } from "../../includes/layouts/base.layout";
+import { BaseLayout, BaseLayoutProps } from "../../includes/layouts/base-layout.kita";
 
 type HomePageProps = Pick<BaseLayoutProps, "metadata"> & Partial<Pick<BaseLayoutProps, "language">>;
 
@@ -10,9 +10,9 @@ export const metadata = {
   keywords: ["typescript", "framework", "static"],
 };
 
-const contextStylesheets = [Counter.stylesheet];
+export const contextStylesheets = [Counter.stylesheet];
 
-const contextScripts = [Counter.script];
+export const contextScripts = [Counter.script];
 
 export default function HomePage({ metadata, language }: HomePageProps) {
   return (

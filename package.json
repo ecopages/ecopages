@@ -2,18 +2,13 @@
   "name": "eco-pages",
   "version": "0.0.1",
   "scripts": {
-    "dev": "bun run watch:generate-css & bun run watch:build & bun run server",
-    "build": "bun run eco.builder.ts",
-    "server": "bun run eco.server.ts",
-    "generate-css": "bun run tasks/generate-css.ts",
-    "watch:build": "bun run eco.builder.ts --watch",
-    "watch:generate-css": "bun run tasks/generate-css.ts --watch"
-  },
-  "dependencies": {
-    "@luncheon/esbuild-plugin-gzip": "^0.1.0",
-    "alpinejs": "^3.13.3",
-    "compressible": "^2.0.18",
-    "elysia-compression": "^0.0.7"
+    "dev": "bun run watch:generate-css & bun run watch:build & bun run watch:wds",
+    "build": "bun run lib/eco.builder.ts",
+    "build-config": "bun run lib/eco.config.ts",
+    "generate-css": "bun run lib/tasks/generate-css.ts",
+    "watch:build": "bun run lib/eco.builder.ts --watch",
+    "watch:generate-css": "bun run lib/tasks/generate-css.ts --watch",
+    "watch:wds": "wds --config lib/web-dev-server/config.mjs"
   },
   "devDependencies": {
     "@11ty/is-land": "^3.0.0",
@@ -21,12 +16,12 @@
     "@elysiajs/static": "^0.8.1",
     "@gtrabanco/elysia-hmr-html": "1.0.0",
     "@kitajs/ts-html-plugin": "^1.3.3",
-    "@open-wc/dev-server-hmr": "next",
+    "@open-wc/dev-server-hmr": "^0.2.0",
     "@types/alpinejs": "^3.13.6",
-    "@types/compressible": "^2.0.2",
     "@types/postcss-import": "^14.0.3",
     "@web/dev-server": "^0.4.1",
     "@webcomponents/template-shadowroot": "^0.2.1",
+    "alpinejs": "^3.13.3",
     "autoprefixer": "^10.4.16",
     "bun-types": "latest",
     "chokidar": "^3.5.3",

@@ -32,11 +32,9 @@ const glob = new Glob("src/**/*.script.ts");
 const scannedFiles = glob.scanSync({ cwd: "." });
 const scripts = Array.from(scannedFiles);
 
-const entrypoints = scripts.map((file) => join(import.meta.dir, file));
-
 async function buildScripts() {
   const build = await Bun.build({
-    entrypoints,
+    entrypoints: scripts,
     outdir: DIST_FOLDER_JS,
     target: "browser",
     minify: true,
@@ -62,9 +60,9 @@ const TEMPLATES_TO_WATCH = ["./src/components/**/*", "./src/includes/**/*", "./s
 export async function createBuildStatic({ baseUrl }: { baseUrl: string }) {
   fs.cpSync(PUBLIC_FOLDER, DIST_FOLDER_PUBLIC, { recursive: true });
 
-  const { makeRoutes } = await import("./eco.config");
+  const { generateRoutes } = await import("./eco.routes");
 
-  const routesToRender = await makeRoutes({ baseUrl });
+  const routesToRender = await generateRoutes();
 
   for (const route of routesToRender) {
     const path = route.path === "/" ? "index.html" : `${route.path}.html`;
@@ -94,7 +92,7 @@ await createBuildStatic({
 if (!WATCH_MODE) {
   process.exit(0);
 } else {
-  const scriptsWatcher = chokidar.watch(entrypoints, {
+  const scriptsWatcher = chokidar.watch(scripts, {
     ignoreInitial: true,
   });
 
@@ -115,6 +113,7 @@ if (!WATCH_MODE) {
   });
 
   process.on("SIGINT", async () => {
+    await scriptsWatcher.close();
     await templatesWatcher.close();
     process.exit(0);
   });

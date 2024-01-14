@@ -9,11 +9,11 @@ export function Navigation() {
           <a href="/about">About</a>
         </li>
         <li>
-          <a href="/contact">Contact</a>
+          <a href="/about/me">Me</a>
         </li>
       </ul>
     </nav>
   );
 }
 
-Navigation.stylesheet = 'navigation.css';
+Navigation.stylesheet = 'navigation.styles.css';

@@ -5,6 +5,6 @@
     @apply flex items-center justify-center bg-slate-300 rounded-full w-8 h-8;
   }
   span {
-    @apply text-slate-900 font-bold p-2 bg-slate-100 min-w-20 flex items-center justify-center;
+    @apply text-slate-900 font-bold p-2 bg-slate-100 min-w-20 h-10 flex items-center justify-center;
   }
 }

@@ -1,5 +1,0 @@
-user-agent: *
-
-user-agent: Googlebot
-disallow: /public/assets/images/
-

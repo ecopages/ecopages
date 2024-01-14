@@ -1,6 +1,6 @@
 import { Html } from "@elysiajs/html";
-import { BaseHead, BaseHeadProps } from "../head/base-head";
-import { Navigation } from "@/components/navigation/navigation";
+import { BaseHead, BaseHeadProps } from "../head/base-head.kita";
+import { Navigation } from "@/components/navigation/navigation.kita";
 
 export type BaseLayoutProps = {
   children: Html.Children;
@@ -8,7 +8,7 @@ export type BaseLayoutProps = {
 } & BaseHeadProps;
 
 const contextStylesheet = [
-  'base.layout.css',
+  'base-layout.css',
   Navigation.stylesheet,
 ];
 

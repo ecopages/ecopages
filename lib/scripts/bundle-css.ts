@@ -12,7 +12,6 @@ import { executeScript } from "./execute-script";
 
 const args = process.argv.slice(2);
 const WATCH = args.includes("--watch");
-const WATCH_TAILWIND = args.includes("tailwindcss");
 
 export const postcssMacro = async (path: string) => {
   const rootUrl = import.meta.dir.split("/").slice(0, -2).join("/");
@@ -54,16 +53,21 @@ const buildCss = async (file: string) => {
   fs.writeFileSync(gzipFileName, compressedData);
 };
 
-for (const file of cssFiles) {
-  await buildCss(file);
+export async function buildInitialCss() {
+  executeScript(
+    "bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --minify"
+  );
+
+  for (const file of cssFiles) {
+    await buildCss(file);
+  }
 }
 
 if (WATCH) {
-  if (WATCH_TAILWIND) {
-    executeScript(
-      "bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch"
-    );
-  }
+  executeScript(
+    "bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch"
+  );
+
   const watchCss = chokidar.watch(cssFiles, {
     persistent: true,
     ignoreInitial: true,

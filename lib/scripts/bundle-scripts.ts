@@ -2,7 +2,6 @@ import { Glob } from "bun";
 import fs from "node:fs";
 import chokidar from "chokidar";
 import { DIST_DIR } from "root/lib/global/constants";
-import { generateRobotsTxt } from "root/lib/scripts/generate-robots-txt";
 
 const args = process.argv.slice(2);
 const WATCH_MODE = args.includes("--watch");
@@ -13,14 +12,6 @@ if (!fs.existsSync(DIST_DIR)) {
   fs.rmSync(DIST_DIR, { recursive: true });
   fs.mkdirSync(DIST_DIR);
 }
-
-generateRobotsTxt({
-  preferences: {
-    "*": [],
-    Googlebot: ["/public/assets/images/"],
-  },
-  directory: DIST_DIR,
-});
 
 const glob = new Glob("src/**/*.script.ts");
 const scannedFiles = glob.scanSync({ cwd: "." });
@@ -41,9 +32,7 @@ export async function buildScripts() {
   console.log(buildSuccesful ? "💫 Build succesful" : "🚨 Build failed");
 }
 
-if (!WATCH_MODE) {
-  process.exit(0);
-} else {
+if (WATCH_MODE) {
   const scriptsWatcher = chokidar.watch(scripts, {
     ignoreInitial: true,
   });

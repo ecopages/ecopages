@@ -9,21 +9,19 @@ const WATCH_MODE = args.includes("--watch");
 
 const TEMPLATES_TO_WATCH = ["./src/components/**/*", "./src/layouts/**/*", "./src/pages/**/*"];
 
-export async function createBuildStatic({ baseUrl }: { baseUrl: string }) {
+export async function buildPages({ baseUrl }: { baseUrl: string }) {
   fs.cpSync(PUBLIC_FOLDER, DIST_DIR_PUBLIC, { recursive: true });
 
   const routesToRender = await collectHtmlPages();
 
   for (const route of routesToRender) {
-    const path = route.path === "/" ? "index.html" : `${route.path}.html`;
+    const path = route.path === "/" ? "index.html" : `${route.path}/index.html`;
     const docType = "<!DOCTYPE html>";
     await Bun.write(`${DIST_DIR}/${path}`, docType + route.html.toString());
   }
 }
 
-if (!WATCH_MODE) {
-  process.exit(0);
-} else {
+if (WATCH_MODE) {
   const templatesWatcher = chokidar.watch(TEMPLATES_TO_WATCH, {
     persistent: true,
     ignoreInitial: true,
@@ -31,7 +29,7 @@ if (!WATCH_MODE) {
 
   templatesWatcher.on("all", async () => {
     cleanImportCache();
-    await createBuildStatic({
+    await buildPages({
       baseUrl: "http://localhost:" + (import.meta.env.PORT || 3000),
     });
   });

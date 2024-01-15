@@ -1,4 +1,4 @@
-import { exec } from "child_process";
+import { exec } from "node:child_process";
 
 export function executeScript(script: string) {
   exec(script, (error, stdout, stderr) => {

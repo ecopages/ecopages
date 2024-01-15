@@ -1,5 +1,5 @@
 .navigation {
-  @apply bg-slate-200 text-slate-900 font-sans;
+  @apply bg-slate-200 text-slate-900 font-sans px-4;
   ul {
     @apply flex list-none;
     li {

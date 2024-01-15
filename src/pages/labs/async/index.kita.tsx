@@ -26,7 +26,7 @@ export default function AboutMePage({ metadata, language }: PageWithBaseLayoutPr
       stylesheets={contextStylesheets}
       scripts={contextScripts}
     >
-      <div class="flex flex-col gap-2 p-2 bg-slate-100 border-l-4 border-l-slate-500">
+      <div class="flex flex-col gap-2 p-2 bg-slate-100 border-l-4 border-l-blue-500">
         <h1 class="text-2xl font-bold">Async Page</h1>
         <p>The metadata title is collected async.</p>
         <p>Styles are applied using tailwindcss on the <span class="text-red-500 font-bold">markup</span></p>

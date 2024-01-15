@@ -7,10 +7,12 @@ import autoprefixer from "autoprefixer";
 import cssnano from "cssnano";
 import tailwindcss from "tailwindcss";
 import tailwindcssNesting from "tailwindcss/nesting/index.js";
-import { DIST_DIR_NAME } from "root/lib/eco.constants";
+import { DIST_DIR_NAME } from "root/lib/global/constants";
+import { executeScript } from "./execute-script";
 
 const args = process.argv.slice(2);
-const watch = args.includes("--watch");
+const WATCH = args.includes("--watch");
+const WATCH_TAILWIND = args.includes("tailwindcss");
 
 export const postcssMacro = async (path: string) => {
   const rootUrl = import.meta.dir.split("/").slice(0, -2).join("/");
@@ -56,18 +58,23 @@ for (const file of cssFiles) {
   await buildCss(file);
 }
 
-if (watch) {
-  const watcherBase = chokidar.watch(cssFiles, {
+if (WATCH) {
+  if (WATCH_TAILWIND) {
+    executeScript(
+      "bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch"
+    );
+  }
+  const watchCss = chokidar.watch(cssFiles, {
     persistent: true,
     ignoreInitial: true,
   });
 
-  watcherBase.on("change", async (path) => {
+  watchCss.on("change", async (path) => {
     await buildCss(path);
   });
 
   process.on("SIGINT", async () => {
-    await watcherBase.close();
+    await watchCss.close();
     process.exit(0);
   });
 }

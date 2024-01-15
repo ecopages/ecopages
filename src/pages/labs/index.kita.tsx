@@ -22,9 +22,9 @@ export default function AboutPage({ metadata, language }: PageWithBaseLayoutProp
     >
       <div class="banner">
         <h1 class="banner__title inline-flex items-center gap-4">
-          <span class="relative flex h-3s w-3s">
+          <span class="relative flex h-3 w-3">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-3s w-3s bg-sky-500"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-sky-500"></span>
           </span>
           Labs Page
         </h1>

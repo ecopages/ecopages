@@ -8,7 +8,7 @@ import cssnano from "cssnano";
 import tailwindcss from "tailwindcss";
 import tailwindcssNesting from "tailwindcss/nesting/index.js";
 import { DIST_DIR_NAME } from "root/lib/global/constants";
-import { executeScript } from "./execute-script";
+import { exec } from "child_process";
 
 const args = process.argv.slice(2);
 const WATCH = args.includes("--watch");
@@ -54,19 +54,13 @@ const buildCss = async (file: string) => {
 };
 
 export async function buildInitialCss() {
-  executeScript(
-    "bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --minify"
-  );
-
   for (const file of cssFiles) {
     await buildCss(file);
   }
 }
 
 if (WATCH) {
-  executeScript(
-    "bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch"
-  );
+  exec("bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch");
 
   const watchCss = chokidar.watch(cssFiles, {
     persistent: true,

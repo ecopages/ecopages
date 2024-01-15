@@ -5,6 +5,7 @@ import { generateRobotsTxt } from "root/lib/scripts/generate-robots-txt";
 import { buildScripts } from "root/lib/scripts/bundle-scripts";
 import { buildPages } from "root/lib/scripts/bundle-pages";
 import { buildInitialCss } from "./bundle-css";
+import { exec } from "node:child_process";
 
 const args = process.argv.slice(2);
 const WATCH_MODE = args.includes("--watch");
@@ -33,5 +34,6 @@ await buildPages({
 });
 
 if (!WATCH_MODE) {
+  exec("bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --minify");
   gzipDirectory(DIST_DIR);
 }

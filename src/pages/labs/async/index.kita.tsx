@@ -5,7 +5,7 @@ import { PageWithBaseLayoutProps } from "@/types";
 const asyncTitle = await new Promise<string>((resolve) => {
   setTimeout(() => {
     resolve("Async page " + new Date().toISOString());
-  }, 1000);
+  }, 5);
 })
 
 export const { metadata, contextStylesheets, contextScripts } = getPageConfig({

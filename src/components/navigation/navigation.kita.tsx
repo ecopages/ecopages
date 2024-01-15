@@ -6,10 +6,10 @@ export function Navigation() {
           <a href="/">Home</a>
         </li>
         <li>
-          <a href="/about">About</a>
+          <a href="/labs">Labs</a>
         </li>
         <li>
-          <a href="/about/me">Me</a>
+          <a href="/labs/async">Async</a>
         </li>
       </ul>
     </nav>

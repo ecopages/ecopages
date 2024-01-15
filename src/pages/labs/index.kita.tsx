@@ -1,19 +1,18 @@
 import { getPageConfig } from "root/lib/component-utils/get-page-config";
-import Counter from "@/components/counter";
 import BaseLayout from "@/layouts/base-layout"
 import { PageWithBaseLayoutProps } from "@/types";
 
 export const { metadata, contextStylesheets, contextScripts } = getPageConfig({
   metadata: {
-    title: "Home page",
-    description: "This is the homepage of the website",
+    title: "Labs page",
+    description: "This is the a page to do experiments",
     image: "public/assets/images/bun-og.png",
     keywords: ["typescript", "framework", "static"],
   },
-  components: [BaseLayout, Counter]
-});;
+  components: [BaseLayout]
+});
 
-export default function HomePage({ metadata, language }: PageWithBaseLayoutProps) {
+export default function AboutPage({ metadata, language }: PageWithBaseLayoutProps) {
   return (
     <BaseLayout.template
       metadata={metadata}
@@ -21,8 +20,7 @@ export default function HomePage({ metadata, language }: PageWithBaseLayoutProps
       stylesheets={contextStylesheets}
       scripts={contextScripts}
     >
-      <h1 class="main-title">Home</h1>
-      <Counter.template />
+      <h1>Labs</h1>
     </BaseLayout.template>
   );
 }

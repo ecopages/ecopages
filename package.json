@@ -2,13 +2,16 @@
   "name": "eco-pages",
   "version": "0.0.1",
   "scripts": {
-    "dev": "bun run watch:generate-css & bun run watch:build & bun run watch:wds",
+    "dev": "bun run watch:generate-css & bun run watch:build & bun run watch:wds & bun run watch:tailwind",
     "build": "bun run lib/eco.builder.ts",
     "build-config": "bun run lib/eco.config.ts",
     "generate-css": "bun run lib/tasks/generate-css.ts",
+    "preview": "bun run build && bun run serve:build",
+    "serve:build": "wds --config lib/web-dev-server/config.mjs",
     "watch:build": "bun run lib/eco.builder.ts --watch",
     "watch:generate-css": "bun run lib/tasks/generate-css.ts --watch",
-    "watch:wds": "wds --config lib/web-dev-server/config.mjs --watch"
+    "watch:wds": "wds --config lib/web-dev-server/config.mjs --watch",
+    "watch:tailwind": "bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch"
   },
   "devDependencies": {
     "@11ty/is-land": "^3.0.0",

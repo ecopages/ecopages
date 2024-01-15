@@ -10,8 +10,8 @@ function getExtension(format: AcceptedDependencies) {
 }
 
 const getIndexPath = (url: string) => {
-  const [, indexPath] = url.split("src/");
-  return indexPath.split("/").slice(0, -1).join("/");
+  const [, pathWithExtension] = url.split("src/");
+  return pathWithExtension.split("/").slice(0, -1).join("/");
 };
 
 const getNameFromPath = (path: string) => {

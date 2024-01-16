@@ -1,10 +1,10 @@
-import { Html } from "@elysiajs/html";
+import { Html } from "root/lib/global/kita"
 import { BaseHead, BaseHeadProps } from "@/includes/head/base-head.kita";
 import { getContextDependencies } from "root/lib/component-utils/get-context-dependencies";
 import Navigation from "@/components/navigation";
 
 export type BaseLayoutProps = {
-  children: Html.Children;
+  children: () => string;
   language?: string;
 } & BaseHeadProps;
 

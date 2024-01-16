@@ -12,7 +12,7 @@ export const { metadata, contextStylesheets, contextScripts } = getPageConfig({
   components: [BaseLayout],
 });
 
-export default function AboutPage({ metadata, language }: PageWithBaseLayoutProps) {
+export default function LabsPage({ metadata, language }: PageWithBaseLayoutProps) {
   return (
     <BaseLayout.template
       metadata={metadata}
@@ -29,9 +29,10 @@ export default function AboutPage({ metadata, language }: PageWithBaseLayoutProp
           Labs Page
         </h1>
         <p>
-          Styles are applied using tailwindcss on the{" "}
-          <span class="text-red-500 font-bold">markup</span>
+          in this page styles are applied using tailwindcss on the{" "}
+          <span class="text-red-500 font-bold">markup</span>.
         </p>
+        <p>Please note the preferred way is to use it following the scaffolding pattern using "my-component.styles.css" and the "@apply" directive.</p>
       </div>
     </BaseLayout.template>
   );

@@ -47,10 +47,6 @@ const buildCss = async (file: string) => {
   }
 
   fs.writeFileSync(outputFileName, content);
-
-  const compressedData = Bun.gzipSync(Buffer.from(content));
-  const gzipFileName = `${outputFileName}.gz`;
-  fs.writeFileSync(gzipFileName, compressedData);
 };
 
 export async function buildInitialCss() {

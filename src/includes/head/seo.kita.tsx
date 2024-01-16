@@ -1,5 +1,3 @@
-import { Html } from "@elysiajs/html";
-
 export type SeoHeadProps = {
   title: string;
   description: string;

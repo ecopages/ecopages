@@ -6,10 +6,10 @@ function counterController() {
     },
     decrement() {
       this.count = this.count > 0 ? this.count - 1 : this.count;
-    }
-  }
+    },
+  };
 }
 
-document.addEventListener('alpine:init', () => {
+document.addEventListener("alpine:init", () => {
   window.Alpine.data("counter", counterController);
 });

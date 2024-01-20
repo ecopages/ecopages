@@ -1,70 +1,37 @@
-export const acceptedDependencies = {
-  stylesheet: "stylesheet",
-  script: "script",
-} as const;
+import fs from "fs";
+import { acceptedTemplateFormats } from "../scripts/collect-html-pages";
 
-export type AcceptedDependencies = (typeof acceptedDependencies)[keyof typeof acceptedDependencies];
-
-function getExtension(format: AcceptedDependencies) {
-  return format === "stylesheet" ? "styles.css" : "script.js";
-}
-
-const getIndexPath = (url: string) => {
-  const [, pathWithExtension] = url.split("src/");
-  return pathWithExtension.split("/").slice(0, -1).join("/");
-};
-
-const getNameFromPath = (path: string) => {
-  return path.split("/")[1];
-};
-
-const getDepPath = ({
-  importMeta,
-  format,
-}: {
+export type ComponentConfigOptions<T> = {
+  template: (args: T) => JSX.Element;
   importMeta: ImportMeta;
-  format: AcceptedDependencies;
-}) => {
-  const { url } = importMeta;
-  const path = getIndexPath(url);
-  const name = getNameFromPath(path);
-  return `${path}/${name}.${getExtension(format)}`;
 };
 
-export type ComponentConfigOptions = {
-  template: (args: any) => JSX.Element;
-  importMeta: ImportMeta;
-  deps?: AcceptedDependencies[];
+export type ComponentConfig<T> = {
+  template: (args: T) => JSX.Element;
+  dependencies: string[];
 };
 
-export type ComponentConfig = {
-  template: (args: any) => JSX.Element;
-  stylesheet?: string;
-  script?: string;
-};
-
-export function getComponentConfig({
+export function getComponentConfig<T>({
   template,
   importMeta,
-  deps = [],
-}: ComponentConfigOptions): ComponentConfig {
-  const stylesheet = deps.includes("stylesheet")
-    ? getDepPath({
-        importMeta,
-        format: "stylesheet",
-      })
-    : undefined;
+}: ComponentConfigOptions<T>): ComponentConfig<T> {
+  const dependenciesFileName = fs.readdirSync(importMeta.dir).filter((file) => {
+    const isIndex = file === "index.ts";
+    const isTemplate = Object.keys(acceptedTemplateFormats).some((format) =>
+      file.includes(`.${format}`)
+    );
+    return !(isIndex || isTemplate);
+  });
 
-  const script = deps.includes("script")
-    ? getDepPath({
-        importMeta,
-        format: "script",
-      })
-    : undefined;
+  const dependenciesServerPath = importMeta.dir.split("src/")[1];
+
+  const dependencies = dependenciesFileName.map((fileName) => {
+    const safeFileName = fileName.replace(".ts", ".js");
+    return `${dependenciesServerPath}/${safeFileName}`;
+  });
 
   return {
     template,
-    stylesheet,
-    script,
+    dependencies,
   };
 }

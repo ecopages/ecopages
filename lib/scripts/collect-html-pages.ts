@@ -1,6 +1,12 @@
 import fs from "fs";
 import path from "path";
 
+export const acceptedTemplateFormats = {
+  kita: "kita",
+} as const;
+
+export type AcceptedTemplateFormats = keyof typeof acceptedTemplateFormats;
+
 function getFiles(dir: string) {
   const dirents = fs.readdirSync(dir, { withFileTypes: true });
   const files: any[] = dirents.map((dirent) => {

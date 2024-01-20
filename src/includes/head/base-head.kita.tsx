@@ -1,17 +1,18 @@
-import { SeoHead, SeoHeadProps } from "./seo.kita"
+import { SeoHead, SeoHeadProps } from "./seo.kita";
 
 export type BaseHeadProps = {
   metadata: SeoHeadProps;
-  stylesheets?: string[];
-  scripts?: string[];
+  dependencies?: string[];
 };
 
-export function BaseHead({ metadata, stylesheets, scripts }: BaseHeadProps) {
-  const safeStylesheets = stylesheets?.map((safeStylesheet) => (
-    <link rel="stylesheet" href={`/${safeStylesheet}`} />
-  ));
+export function BaseHead({ metadata, dependencies }: BaseHeadProps) {
+  const safeStylesheets = dependencies
+    ?.filter((dependency) => dependency.endsWith(".css"))
+    .map((safeStylesheet) => <link rel="stylesheet" href={`/${safeStylesheet}`} />);
 
-  const safeScripts = scripts?.map((script) => <script defer src={`/${script}`} />);
+  const safeScripts = dependencies
+    ?.filter((dependency) => dependency.endsWith(".js"))
+    .map((script) => <script defer src={`/${script}`} />);
 
   return (
     <head>
@@ -26,5 +27,5 @@ export function BaseHead({ metadata, stylesheets, scripts }: BaseHeadProps) {
       <link href="/global/css/alpine.css" rel="stylesheet"></link>
       {safeStylesheets}
     </head>
-  )
+  );
 }

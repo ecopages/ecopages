@@ -36,4 +36,6 @@ await buildPages({
 if (!WATCH_MODE) {
   exec("bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --minify");
   gzipDirectory(DIST_DIR);
+} else {
+  exec("bun run lib/scripts/watch-dev.ts");
 }

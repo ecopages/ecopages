@@ -4,5 +4,4 @@ import { Navigation } from "./navigation.kita";
 export default getComponentConfig({
   template: Navigation,
   importMeta: import.meta,
-  deps: ["stylesheet"],
 });

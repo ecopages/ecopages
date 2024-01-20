@@ -1,8 +1,8 @@
 import { getPageConfig } from "root/lib/component-utils/get-page-config";
+import type { PageWithBaseLayoutProps } from "@/types";
 import BaseLayout from "@/layouts/base-layout";
-import { PageWithBaseLayoutProps } from "@/types";
 
-export const { metadata, contextStylesheets, contextScripts } = getPageConfig({
+export const { metadata, contextDependencies } = getPageConfig({
   metadata: {
     title: "Labs page",
     description: "This is the a page to do experiments",
@@ -14,12 +14,7 @@ export const { metadata, contextStylesheets, contextScripts } = getPageConfig({
 
 export default function LabsPage({ metadata, language }: PageWithBaseLayoutProps) {
   return (
-    <BaseLayout.template
-      metadata={metadata}
-      language={language}
-      stylesheets={contextStylesheets}
-      scripts={contextScripts}
-    >
+    <BaseLayout.template metadata={metadata} language={language} dependencies={contextDependencies}>
       <div class="banner">
         <h1 class="banner__title inline-flex items-center gap-4">
           <span class="relative flex h-3 w-3">
@@ -32,7 +27,10 @@ export default function LabsPage({ metadata, language }: PageWithBaseLayoutProps
           in this page styles are applied using tailwindcss on the{" "}
           <span class="text-red-500 font-bold">markup</span>.
         </p>
-        <p>Please note the preferred way is to use it following the scaffolding pattern using "my-component.styles.css" and the "@apply" directive.</p>
+        <p>
+          Please note the preferred way is to use it following the scaffolding pattern using
+          "my-component.styles.css" and the "@apply" directive.
+        </p>
       </div>
     </BaseLayout.template>
   );

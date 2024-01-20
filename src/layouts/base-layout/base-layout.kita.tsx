@@ -1,34 +1,27 @@
-import { Html } from "root/lib/global/kita"
-import { BaseHead, BaseHeadProps } from "@/includes/head/base-head.kita";
+import { Html } from "root/lib/global/kita";
+import { BaseHead, type BaseHeadProps } from "@/includes/head/base-head.kita";
 import { getContextDependencies } from "root/lib/component-utils/get-context-dependencies";
 import Navigation from "@/components/navigation";
 
 export type BaseLayoutProps = {
-  children: () => string;
+  children: JSX.Element;
   language?: string;
 } & BaseHeadProps;
 
-const { contextStylesheets, contextScripts } = getContextDependencies([Navigation]);
+const { contextDependencies } = getContextDependencies([Navigation]);
 
 export function BaseLayout({
   children,
   metadata,
-  stylesheets = [],
-  scripts = [],
-  language = 'en'
+  dependencies = [],
+  language = "en",
 }: BaseLayoutProps) {
   return (
     <html lang={language}>
-      <BaseHead
-        metadata={metadata}
-        stylesheets={[...contextStylesheets, ...stylesheets]}
-        scripts={[...contextScripts, ...scripts]}
-      />
+      <BaseHead metadata={metadata} dependencies={[...contextDependencies, ...dependencies]} />
       <body>
         <Navigation.template />
-        <main>
-          {children}
-        </main>
+        <main>{children}</main>
       </body>
     </html>
   );

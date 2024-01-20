@@ -1,0 +1,37 @@
+import { DIST_DIR_NAME } from "root/lib/global/constants";
+import { exec } from "child_process";
+import watcher from "@parcel/watcher";
+import { buildCss } from "./bundle-css";
+import { buildPages } from "./bundle-pages";
+import { buildScripts } from "./bundle-scripts";
+
+exec("bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch");
+
+function cssEventWatcher(event: watcher.Event) {
+  if (!event.path.endsWith(".css")) return;
+  if (event.type === "create" || event.type === "update") {
+    console.log(event, event.path);
+    buildCss(event.path);
+  } else if (event.type === "delete") {
+    console.log(event.path.replace("src", DIST_DIR_NAME));
+  }
+}
+
+const subscription = await watcher.subscribe("src", (err, events) => {
+  events.forEach(async (event) => {
+    if (event.path.endsWith(".css")) {
+      cssEventWatcher(event);
+    } else if (event.path.endsWith(".script.ts")) {
+      buildScripts();
+    } else if (event.path.endsWith(".tsx")) {
+      buildPages({
+        baseUrl: "http://localhost:" + (import.meta.env.PORT || 3000),
+      });
+    }
+  });
+});
+
+process.on("SIGINT", async () => {
+  await subscription.unsubscribe();
+  process.exit(0);
+});

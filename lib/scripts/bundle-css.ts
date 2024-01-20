@@ -1,6 +1,5 @@
 import fs from "fs";
 import { Glob } from "bun";
-import chokidar from "chokidar";
 import postcss from "postcss";
 import postCssImport from "postcss-import";
 import autoprefixer from "autoprefixer";
@@ -8,15 +7,12 @@ import cssnano from "cssnano";
 import tailwindcss from "tailwindcss";
 import tailwindcssNesting from "tailwindcss/nesting/index.js";
 import { DIST_DIR_NAME } from "root/lib/global/constants";
-import { exec } from "child_process";
 
 const args = process.argv.slice(2);
 const WATCH = args.includes("--watch");
 
 export const postcssMacro = async (path: string) => {
-  const rootUrl = import.meta.dir.split("/").slice(0, -2).join("/");
-  const fileUrl = `${rootUrl}/${path}`;
-  const contents = await Bun.file(fileUrl).text();
+  const contents = await Bun.file(path).text();
 
   const processor = postcss([
     postCssImport(),
@@ -36,7 +32,7 @@ const ALPINE_CSS = "src/global/css/alpine.css";
 const scannedFiles = glob.scanSync({ cwd: "." });
 const cssFiles = Array.from(scannedFiles).concat(TAILWIND_CSS).concat(ALPINE_CSS);
 
-const buildCss = async (file: string) => {
+export async function buildCss(file: string) {
   const content = await postcssMacro(file);
 
   const outputFileName = file.replace("src", DIST_DIR_NAME);
@@ -47,28 +43,10 @@ const buildCss = async (file: string) => {
   }
 
   fs.writeFileSync(outputFileName, content);
-};
+}
 
 export async function buildInitialCss() {
   for (const file of cssFiles) {
     await buildCss(file);
   }
-}
-
-if (WATCH) {
-  exec("bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch");
-
-  const watchCss = chokidar.watch(cssFiles, {
-    persistent: true,
-    ignoreInitial: true,
-  });
-
-  watchCss.on("change", async (path) => {
-    await buildCss(path);
-  });
-
-  process.on("SIGINT", async () => {
-    await watchCss.close();
-    process.exit(0);
-  });
 }

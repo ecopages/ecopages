@@ -4,5 +4,4 @@ import { Counter } from "./counter.kita";
 export default getComponentConfig({
   template: Counter,
   importMeta: import.meta,
-  deps: ["stylesheet", "script"],
 });

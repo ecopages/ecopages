@@ -1,20 +1,17 @@
-import { getPageConfig } from "root/lib/component-utils/get-page-config";
-import type { PageWithBaseLayoutProps } from "@/types";
-import BaseLayout from "@/layouts/base-layout";
+import type { EcoComponent } from "@/types";
+import { BaseLayout } from "@/layouts/base-layout";
+import { getComponentDependencies } from "root/lib/component-utils/get-component-config";
 
-export const { metadata, contextDependencies } = getPageConfig({
-  metadata: {
-    title: "Labs page",
-    description: "This is the a page to do experiments",
-    image: "public/assets/images/bun-og.png",
-    keywords: ["typescript", "framework", "static"],
-  },
-  components: [BaseLayout],
-});
+export const metadata = {
+  title: "Labs page",
+  description: "This is the a page to do experiments",
+  image: "public/assets/images/bun-og.png",
+  keywords: ["typescript", "framework", "static"],
+};
 
-export default function LabsPage({ metadata, language }: PageWithBaseLayoutProps) {
+const LabsPage: EcoComponent = () => {
   return (
-    <BaseLayout.template metadata={metadata} language={language} dependencies={contextDependencies}>
+    <BaseLayout>
       <div class="banner">
         <h1 class="banner__title inline-flex items-center gap-4">
           <span class="relative flex h-3 w-3">
@@ -29,9 +26,16 @@ export default function LabsPage({ metadata, language }: PageWithBaseLayoutProps
         </p>
         <p>
           Please note the preferred way is to use it following the scaffolding pattern using
-          "my-component.styles.css" and the "@apply" directive.
+          "my-component.css" and the "@apply" directive.
         </p>
       </div>
-    </BaseLayout.template>
+    </BaseLayout>
   );
-}
+};
+
+LabsPage.dependencies = getComponentDependencies({
+  importMeta: import.meta,
+  components: [BaseLayout],
+});
+
+export default LabsPage;

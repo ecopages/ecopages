@@ -1,3 +1,6 @@
+import type { MetadataProps } from "@/includes/head/seo.kita";
+import { HtmlTemplate } from "@/includes/html-template";
+import type { EcoComponent } from "@/types";
 import fs from "fs";
 import path from "path";
 
@@ -25,11 +28,14 @@ function getHtmlPath({ file, pagesDir }: { file: string; pagesDir: string }) {
 }
 
 async function createKitaRoute({ file, pagesDir }: { file: string; pagesDir: string }) {
-  const { default: Page, metadata } = await import(file);
+  const { default: Page, metadata } = (await import(file)) as {
+    default: EcoComponent;
+    metadata: MetadataProps;
+  };
 
   const config = {
     path: getHtmlPath({ file, pagesDir }),
-    html: Page({ metadata }),
+    html: HtmlTemplate({ metadata, dependencies: Page.dependencies, children: Page({}) }),
   };
 
   return config;

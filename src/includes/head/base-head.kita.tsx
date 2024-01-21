@@ -1,7 +1,7 @@
-import { SeoHead, SeoHeadProps } from "./seo.kita";
+import { SeoHead, type MetadataProps } from "./seo.kita";
 
 export type BaseHeadProps = {
-  metadata: SeoHeadProps;
+  metadata: MetadataProps;
   dependencies?: string[];
 };
 

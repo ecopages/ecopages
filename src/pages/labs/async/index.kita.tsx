@@ -1,6 +1,6 @@
-import { getPageConfig } from "root/lib/component-utils/get-page-config";
-import BaseLayout from "@/layouts/base-layout";
-import type { PageWithBaseLayoutProps } from "@/types";
+import { BaseLayout } from "@/layouts/base-layout";
+import type { EcoComponent } from "@/types";
+import { getComponentDependencies } from "root/lib/component-utils/get-component-config";
 
 const asyncTitle = await new Promise<string>((resolve) => {
   setTimeout(() => {
@@ -8,19 +8,16 @@ const asyncTitle = await new Promise<string>((resolve) => {
   }, 5);
 });
 
-export const { metadata, contextDependencies } = getPageConfig({
-  metadata: {
-    title: asyncTitle,
-    description: "This is the about me page of the website",
-    image: "public/assets/images/bun-og.png",
-    keywords: ["typescript", "framework", "static"],
-  },
-  components: [BaseLayout],
-});
+export const metadata = {
+  title: asyncTitle,
+  description: "This is the about me page of the website",
+  image: "public/assets/images/bun-og.png",
+  keywords: ["typescript", "framework", "static"],
+};
 
-export default function AboutMePage({ metadata, language }: PageWithBaseLayoutProps) {
+const LabsAsyncPage: EcoComponent = () => {
   return (
-    <BaseLayout.template metadata={metadata} language={language} dependencies={contextDependencies}>
+    <BaseLayout>
       <div class="banner">
         <h1 class="banner__title">Async Page</h1>
         <p>The metadata title is collected asyncronously</p>
@@ -28,6 +25,13 @@ export default function AboutMePage({ metadata, language }: PageWithBaseLayoutPr
           <i safe>{metadata.title}</i>
         </p>
       </div>
-    </BaseLayout.template>
+    </BaseLayout>
   );
-}
+};
+
+LabsAsyncPage.dependencies = getComponentDependencies({
+  importMeta: import.meta,
+  components: [BaseLayout],
+});
+
+export default LabsAsyncPage;

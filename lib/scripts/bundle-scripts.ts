@@ -14,8 +14,4 @@ export async function buildScripts() {
   });
 
   build.logs.forEach((log) => console.log(log));
-
-  const buildSuccesful = build.success;
-
-  console.log(buildSuccesful ? "💫 Build succesful" : "🚨 Build failed");
 }

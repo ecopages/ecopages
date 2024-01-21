@@ -1,20 +1,16 @@
 import fs from "fs";
 import { acceptedTemplateFormats } from "../scripts/collect-html-pages";
+import type { EcoComponent } from "@/types";
 
-export type ComponentConfigOptions<T> = {
-  template: (args: T) => JSX.Element;
+export type ComponentConfigOptions = {
   importMeta: ImportMeta;
+  components?: EcoComponent<any>[];
 };
 
-export type ComponentConfig<T> = {
-  template: (args: T) => JSX.Element;
-  dependencies: string[];
-};
-
-export function getComponentConfig<T>({
-  template,
+export function getComponentDependencies({
   importMeta,
-}: ComponentConfigOptions<T>): ComponentConfig<T> {
+  components = [],
+}: ComponentConfigOptions): string[] {
   const dependenciesFileName = fs.readdirSync(importMeta.dir).filter((file) => {
     const isIndex = file === "index.ts";
     const isTemplate = Object.keys(acceptedTemplateFormats).some((format) =>
@@ -30,8 +26,5 @@ export function getComponentConfig<T>({
     return `${dependenciesServerPath}/${safeFileName}`;
   });
 
-  return {
-    template,
-    dependencies,
-  };
+  return [...dependencies, ...components.flatMap((component) => component.dependencies ?? [])];
 }

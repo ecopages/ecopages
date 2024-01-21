@@ -5,7 +5,9 @@ import { buildCss } from "./bundle-css";
 import { buildPages } from "./bundle-pages";
 import { buildScripts } from "./bundle-scripts";
 
-exec("bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch");
+exec(
+  "bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch --minify"
+);
 
 function cssEventWatcher(event: watcher.Event) {
   if (!event.path.endsWith(".css")) return;

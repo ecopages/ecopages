@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import { DIST_DIR } from "root/lib/global/constants";
-import { gzipDirectory } from "root/lib/scripts/gzip-dist";
-import { generateRobotsTxt } from "root/lib/scripts/generate-robots-txt";
-import { buildScripts } from "root/lib/scripts/bundle-scripts";
-import { buildPages } from "root/lib/scripts/bundle-pages";
-import { buildInitialCss } from "./bundle-css";
+import { gzipDirectory } from "root/lib/scripts/build/utils/gzip-directory";
+import { generateRobotsTxt } from "root/lib/scripts/pages/generate-robots-txt";
+import { buildScripts } from "root/lib/scripts/build/build-scripts";
+import { buildPages } from "root/lib/scripts/build/build-pages";
+import { buildInitialCss } from "./build-css";
 import { exec } from "node:child_process";
 
 const args = process.argv.slice(2);

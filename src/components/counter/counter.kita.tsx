@@ -1,5 +1,5 @@
-import type { EcoComponent } from "@/types";
-import { getComponentDependencies } from "root/lib/component-utils/get-component-config";
+import type { EcoComponent } from "root/lib/eco-pages.types";
+import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
 
 export type CounterProps = {
   count?: number;
@@ -19,4 +19,4 @@ export const Counter: EcoComponent<CounterProps> = ({ count = 0 }) => {
   );
 };
 
-Counter.dependencies = getComponentDependencies({ importMeta: import.meta });
+Counter.dependencies = collectComponentDependencies({ importMeta: import.meta });

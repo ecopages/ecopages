@@ -8,9 +8,7 @@
     "useDefineForClassFields": true,
     "module": "ESNext",
     "moduleResolution": "node",
-    "types": [
-      "bun-types",
-    ],
+    "types": ["bun-types"],
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -19,15 +17,9 @@
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "root/*": [
-        "./*"
-      ],
-      "macros/*": [
-        "./macros/*"
-      ]
+      "@/*": ["./src/*"],
+      "root/*": ["./*"],
+      "macros/*": ["./macros/*"]
     },
     "plugins": [
       {

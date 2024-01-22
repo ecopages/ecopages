@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { PUBLIC_FOLDER, DIST_DIR_PUBLIC, DIST_DIR } from "root/lib/global/constants";
-import { collectHtmlPages } from "root/lib/scripts/collect-html-pages";
+import { collectHtmlPages } from "root/lib/scripts/pages/collect-html-pages";
 
 export async function buildPages({ baseUrl }: { baseUrl: string }) {
   fs.cpSync(PUBLIC_FOLDER, DIST_DIR_PUBLIC, { recursive: true });

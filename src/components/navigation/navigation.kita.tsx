@@ -1,5 +1,5 @@
-import type { EcoComponent } from "@/types";
-import { getComponentDependencies } from "root/lib/component-utils/get-component-config";
+import type { EcoComponent } from "root/lib/eco-pages.types";
+import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
 
 export type NavigationProps = {
   items: {
@@ -22,4 +22,4 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
   );
 };
 
-Navigation.dependencies = getComponentDependencies({ importMeta: import.meta });
+Navigation.dependencies = collectComponentDependencies({ importMeta: import.meta });

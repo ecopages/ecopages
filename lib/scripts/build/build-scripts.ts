@@ -10,6 +10,7 @@ export async function buildScripts() {
     entrypoints: scripts,
     outdir: DIST_DIR,
     target: "browser",
+    root: "./src",
     minify: true,
   });
 

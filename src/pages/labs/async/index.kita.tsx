@@ -1,6 +1,6 @@
 import { BaseLayout } from "@/layouts/base-layout";
-import type { EcoComponent } from "@/types";
-import { getComponentDependencies } from "root/lib/component-utils/get-component-config";
+import type { EcoComponent } from "root/lib/eco-pages.types";
+import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
 
 const asyncTitle = await new Promise<string>((resolve) => {
   setTimeout(() => {
@@ -29,7 +29,7 @@ const LabsAsyncPage: EcoComponent = () => {
   );
 };
 
-LabsAsyncPage.dependencies = getComponentDependencies({
+LabsAsyncPage.dependencies = collectComponentDependencies({
   importMeta: import.meta,
   components: [BaseLayout],
 });

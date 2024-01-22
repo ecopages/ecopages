@@ -1,6 +1,6 @@
-import type { EcoComponent } from "@/types";
+import type { EcoComponent } from "root/lib/eco-pages.types";
 import { BaseLayout } from "@/layouts/base-layout";
-import { getComponentDependencies } from "root/lib/component-utils/get-component-config";
+import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
 
 export const metadata = {
   title: "Labs page",
@@ -33,7 +33,7 @@ const LabsPage: EcoComponent = () => {
   );
 };
 
-LabsPage.dependencies = getComponentDependencies({
+LabsPage.dependencies = collectComponentDependencies({
   importMeta: import.meta,
   components: [BaseLayout],
 });

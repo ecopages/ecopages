@@ -1,7 +1,7 @@
 import { Counter } from "@/components/counter";
 import { BaseLayout } from "@/layouts/base-layout";
-import type { EcoComponent } from "@/types";
-import { getComponentDependencies } from "root/lib/component-utils/get-component-config";
+import type { EcoComponent } from "root/lib/eco-pages.types";
+import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
 
 export const metadata = {
   title: "Home page",
@@ -21,7 +21,7 @@ const HomePage: EcoComponent = () => {
   );
 };
 
-HomePage.dependencies = getComponentDependencies({
+HomePage.dependencies = collectComponentDependencies({
   importMeta: import.meta,
   components: [BaseLayout, Counter],
 });

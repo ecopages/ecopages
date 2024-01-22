@@ -6,6 +6,7 @@ export interface IsLandObserverProps {
   "on:interaction"?: string;
   "on:media"?: string;
   "on:save-data"?: true | "false";
+  children?: Html.Children;
 }
 
 declare global {

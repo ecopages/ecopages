@@ -1,10 +1,10 @@
 import { Html } from "root/lib/global/kita";
 import { Navigation } from "@/components/navigation";
-import { getComponentDependencies } from "root/lib/component-utils/get-component-config";
-import type { EcoComponent } from "@/types";
+import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
+import type { EcoComponent } from "root/lib/eco-pages.types";
 
 export type BaseLayoutProps = {
-  children: JSX.Element;
+  children: Html.Children;
 };
 
 export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children }) => {
@@ -22,7 +22,7 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children }) => {
   );
 };
 
-BaseLayout.dependencies = getComponentDependencies({
+BaseLayout.dependencies = collectComponentDependencies({
   importMeta: import.meta,
   components: [Navigation],
 });

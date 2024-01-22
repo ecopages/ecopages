@@ -5,13 +5,13 @@ const args = process.argv.slice(2);
 
 switch (args[0]) {
   case "dev":
-    await $`concurrently "bun run lib/scripts/bundle-all.ts --watch" "wds --config lib/web-dev-server/config.mjs --watch" --raw`;
+    await $`concurrently "bun run lib/scripts/build/build-all.ts --watch" "wds --config lib/web-dev-server/config.mjs --watch" --raw`;
     break;
   case "build":
-    await $`bun run lib/scripts/bundle-all.ts`;
+    await $`bun run lib/scripts/build/build-all.ts`;
     break;
   case "preview":
-    await $`bun run lib/scripts/bundle-all.ts"`;
+    await $`bun run lib/scripts/build/build-all.ts"`;
     await $`wds --config lib/web-dev-server/config.mjs --open`;
     break;
   default:
@@ -27,8 +27,8 @@ switch (args[0]) {
 // const args = process.argv.slice(2);
 
 // const baseScripts = {
-//   "bundle-all": "bun run lib/scripts/bundle-all.ts",
-//   "watch:build": "bun run lib/scripts/bundle-all.ts --watch",
+//   "build-all": "bun run lib/scripts/build/build-all.ts",
+//   "watch:build": "bun run lib/scripts/build/build-all.ts --watch",
 //   "watch:wds": "wds --config lib/web-dev-server/config.mjs --watch",
 //   "serve:wds": "wds --config lib/web-dev-server/config.mjs --open",
 // };
@@ -47,11 +47,11 @@ switch (args[0]) {
 //   },
 //   build: {
 //     type: commandTypes.series,
-//     commands: [baseScripts["bundle-all"]],
+//     commands: [baseScripts["build-all"]],
 //   },
 //   preview: {
 //     type: commandTypes.series,
-//     commands: [baseScripts["bundle-all"], baseScripts["serve:wds"]],
+//     commands: [baseScripts["build-all"], baseScripts["serve:wds"]],
 //   },
 // };
 

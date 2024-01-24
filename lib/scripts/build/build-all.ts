@@ -6,7 +6,7 @@ import { buildScripts } from "root/lib/scripts/build/build-scripts";
 import { buildPages } from "root/lib/scripts/build/build-pages";
 import { buildInitialCss } from "./build-css";
 import { exec } from "node:child_process";
-
+import { $ } from "bun";
 const args = process.argv.slice(2);
 const WATCH_MODE = args.includes("--watch");
 
@@ -37,5 +37,5 @@ if (!WATCH_MODE) {
   exec("bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --minify");
   gzipDirectory(DIST_DIR);
 } else {
-  exec("bun run lib/scripts/watch-dev.ts");
+  await $`bun run lib/scripts/build/watch-dev.ts`;
 }

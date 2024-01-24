@@ -4,6 +4,8 @@ import watcher from "@parcel/watcher";
 import { buildCssFromPath } from "./build-css";
 import { buildPages } from "./build-pages";
 import { buildScripts } from "./build-scripts";
+import { cleanImportCache } from "./utils/clean-import-cache";
+import fs from "node:fs";
 
 exec(
   "bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --watch --minify"
@@ -12,15 +14,16 @@ exec(
 function cssEventWatcher(event: watcher.Event) {
   if (!event.path.endsWith(".css")) return;
   if (event.type === "create" || event.type === "update") {
-    console.log(event, event.path);
     buildCssFromPath(event.path);
   } else if (event.type === "delete") {
-    console.log(event.path.replace("src", DIST_DIR_NAME));
+    const cssFilePath = event.path.replace("src", DIST_DIR_NAME);
+    fs.rmSync(cssFilePath);
   }
 }
 
 const subscription = await watcher.subscribe("src", (err, events) => {
   events.forEach(async (event) => {
+    cleanImportCache();
     if (event.path.endsWith(".css")) {
       cssEventWatcher(event);
     } else if (event.path.endsWith(".script.ts")) {

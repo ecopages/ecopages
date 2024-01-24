@@ -6,7 +6,7 @@
     "build": "eco-pages build",
     "preview": "eco-pages preview",
     "clean": "rm -rf dist node_modules bun.lockb && bun install && bun run simulate-lib",
-    "simulate-lib": "bun run cli/simulate-lib.ts"
+    "simulate-lib": "bun run lib/cli/simulate-lib.ts"
   },
   "devDependencies": {
     "@11ty/is-land": "^3.0.0",

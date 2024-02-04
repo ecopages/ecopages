@@ -22,11 +22,9 @@ if (!fs.existsSync(config.distDir)) {
   fs.mkdirSync(config.distDir);
 }
 
-fs.cpSync(
-  path.join(config.rootDir, config.publicDir),
-  path.join(config.distDir, config.publicDir),
-  { recursive: true }
-);
+fs.cpSync(path.join(config.srcDir, config.publicDir), path.join(config.distDir, config.publicDir), {
+  recursive: true,
+});
 
 generateRobotsTxt({
   preferences: config.robotsTxt.preferences,
@@ -41,12 +39,12 @@ await buildPages({ config });
 
 if (!WATCH_MODE) {
   exec(
-    `bunx tailwindcss -i ${config.rootDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --minify`
+    `bunx tailwindcss -i ${config.srcDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --minify`
   );
   gzipDirectory(config.distDir);
 } else {
   exec(
-    `bunx tailwindcss -i ${config.rootDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --watch --minify`
+    `bunx tailwindcss -i ${config.srcDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --watch --minify`
   );
 
   const subscription = await createWatcherSubscription({ config });

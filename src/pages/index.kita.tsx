@@ -1,8 +1,7 @@
-// import { Counter } from "@/components/counter";
+import { collectComponentDependencies, importFresh, type EcoComponent } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
-import type { EcoComponent } from "root/lib/eco-pages.types";
-import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
-import { importFresh } from "root/lib/scripts/build/utils/cache";
+// import { Counter } from "@/components/counter";
+import { CacheTest } from "@/components/cache-test";
 const { Counter } = await importFresh("@/components/counter");
 
 export const metadata = {
@@ -18,6 +17,7 @@ const HomePage: EcoComponent = () => {
       <>
         <h1 class="main-title">Home</h1>
         <Counter />
+        <CacheTest extraText="Hola" />
       </>
     </BaseLayout>
   );
@@ -25,7 +25,7 @@ const HomePage: EcoComponent = () => {
 
 HomePage.dependencies = collectComponentDependencies({
   importMeta: import.meta,
-  components: [BaseLayout, Counter],
+  components: [BaseLayout, Counter, CacheTest],
 });
 
 export default HomePage;

@@ -1,6 +1,5 @@
-import { Html } from "root/lib/global/kita";
+import { Html, type EcoComponent } from "@eco-pages/core";
 import { Head, type BaseHeadProps } from "@/includes/head.kita";
-import type { EcoComponent } from "root/lib/eco-pages.types";
 
 export type HtmlTemplateProps = {
   children: Html.Children;

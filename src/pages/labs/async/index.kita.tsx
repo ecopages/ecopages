@@ -1,6 +1,5 @@
+import { collectComponentDependencies, type EcoComponent } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
-import type { EcoComponent } from "root/lib/eco-pages.types";
-import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
 
 const asyncTitle = await new Promise<string>((resolve) => {
   setTimeout(() => {

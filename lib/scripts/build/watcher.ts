@@ -22,7 +22,7 @@ export async function createWatcherSubscription({ config }: { config: EcoPagesCo
         } else {
           const pathToDelete = event.path.includes(config.pagesDir)
             ? event.path.replace(config.pagesDir, config.distDir).split(".")[0] + ".html"
-            : event.path.replace(config.rootDir, config.distDir);
+            : event.path.replace(config.srcDir, config.distDir);
 
           fs.rmSync(pathToDelete);
         }

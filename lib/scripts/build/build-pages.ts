@@ -3,7 +3,7 @@ import { buildHtmlPages } from "root/lib/scripts/pages/build-html-pages.plugin";
 import { Glob } from "bun";
 
 export async function buildPages({ config }: { config: EcoPagesConfig }) {
-  const glob = new Glob(`${config.rootDir}/${config.pagesDir}/**/*.tsx`);
+  const glob = new Glob(`${config.srcDir}/${config.pagesDir}/**/*.tsx`);
   const scannedFiles = glob.scanSync({ cwd: "." });
   const scripts = Array.from(scannedFiles);
 
@@ -11,7 +11,7 @@ export async function buildPages({ config }: { config: EcoPagesConfig }) {
     entrypoints: scripts,
     outdir: config.distDir,
     target: "browser",
-    root: config.rootDir,
+    root: config.srcDir,
     minify: true,
     plugins: [buildHtmlPages({ config })],
   });

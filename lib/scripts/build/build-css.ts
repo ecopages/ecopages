@@ -12,7 +12,7 @@ export async function buildCssFromPath({
 }) {
   const content = await postcssProcessor(path);
 
-  const outputFileName = path.replace(config.rootDir, config.distDir);
+  const outputFileName = path.replace(config.srcDir, config.distDir);
   const directory = outputFileName.split("/").slice(0, -1).join("/");
 
   if (!fs.existsSync(directory)) {
@@ -24,7 +24,7 @@ export async function buildCssFromPath({
 
 export async function buildInitialCss({ config }: { config: EcoPagesConfig }) {
   const glob = new Glob(
-    `${config.rootDir}/{${config.componentsDir},${config.pagesDir},${config.globalDir},${config.layoutsDir}}/**/*.css`
+    `${config.srcDir}/{${config.componentsDir},${config.pagesDir},${config.globalDir},${config.layoutsDir}}/**/*.css`
   );
   const scannedFiles = glob.scanSync({ cwd: "." });
   const cssFiles = Array.from(scannedFiles);

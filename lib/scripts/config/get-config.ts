@@ -2,7 +2,8 @@ import type { EcoPagesConfig } from "root/lib/eco-pages.types";
 import fs from "node:fs";
 
 const defaultConfig: Omit<EcoPagesConfig, "baseUrl"> = {
-  rootDir: "src",
+  rootDir: ".",
+  srcDir: "src",
   pagesDir: "pages",
   globalDir: "global",
   includesDir: "includes",

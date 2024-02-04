@@ -10,16 +10,18 @@
     "moduleResolution": "node",
     "types": ["bun-types"],
     "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "root/*": ["./*"],
-      "macros/*": ["./macros/*"]
+      "@eco-pages/core": ["./lib"],
+      "root/*": ["./*"]
     },
     "plugins": [
       {

@@ -1,7 +1,5 @@
-import { Html } from "root/lib/global/kita";
+import { Html, collectComponentDependencies, type EcoComponent } from "@eco-pages/core";
 import { Navigation } from "@/components/navigation";
-import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
-import type { EcoComponent } from "root/lib/eco-pages.types";
 
 export type BaseLayoutProps = {
   children: Html.Children;

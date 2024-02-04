@@ -1,4 +1,8 @@
-import { type DefaultTemplateFormats, type EcoPagesConfig } from "root/lib/eco-pages.types";
+import {
+  type DefaultTemplateFormats,
+  type EcoPagesConfig,
+  type RenderRouteConfig,
+} from "root/lib/eco-pages.types";
 import type { BunPlugin } from "bun";
 import { createKitaRoute } from "./templates/create-kita-route";
 import path from "node:path";
@@ -11,12 +15,18 @@ export function getHtmlPath({ file, pagesDir }: { file: string; pagesDir: string
   return path;
 }
 
-export async function createRouteConfig({ file, pagesDir }: { file: string; pagesDir: string }) {
+export async function createRouteConfig({
+  file,
+  config,
+}: {
+  file: string;
+  config: EcoPagesConfig;
+}): Promise<RenderRouteConfig> {
   const renderType = file.split(".").at(-2) as DefaultTemplateFormats;
 
   switch (renderType) {
     case "kita":
-      return await createKitaRoute({ file, pagesDir });
+      return await createKitaRoute({ file, config });
     default:
       throw new Error(`Unknown render type: ${renderType}`);
   }
@@ -29,13 +39,13 @@ export function buildHtmlPages({ config }: { config: Required<EcoPagesConfig> })
       build.onLoad({ filter: /\.tsx$/ }, async (args) => {
         const route = await createRouteConfig({
           file: args.path,
-          pagesDir: path.join(config.rootDir, config.pagesDir),
+          config,
         });
 
         const docType = "<!DOCTYPE html>";
         const htmlPath = getHtmlPath({
           file: args.path,
-          pagesDir: path.join(config.rootDir, config.pagesDir),
+          pagesDir: path.join(config.srcDir, config.pagesDir),
         });
 
         const relativeUrl = `${htmlPath}/index.html`;

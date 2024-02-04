@@ -1,5 +1,4 @@
-import type { EcoComponent } from "root/lib/eco-pages.types";
-import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
+import { collectComponentDependencies, type EcoComponent } from "@eco-pages/core";
 
 export type CounterProps = {
   count?: number;

@@ -7,9 +7,14 @@ export type EcoPagesConfig = {
   baseUrl: string;
   /**
    * The root directory of the project
-   * @default "src"
+   * @default "."
    */
   rootDir: string;
+  /**
+   * The root directory of the project
+   * @default "src"
+   */
+  srcDir: string;
   /**
    * The directory where the public files are located
    * @default "public"
@@ -55,6 +60,13 @@ export type EcoPagesConfig = {
      */
     preferences: RobotsPreference;
   };
+  /**
+   * The TypeScript aliases
+   */
+  tsAliases: {
+    baseUrl: string;
+    paths: Record<string, string[]>;
+  };
 };
 
 export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, "baseUrl"> &
@@ -78,7 +90,7 @@ export type DefaultTemplateFormats = keyof typeof defaultTemplateFormats;
 
 export type RenderRouteOptions = {
   file: string;
-  pagesDir: string;
+  config: EcoPagesConfig;
 };
 
 export type RenderRouteConfig = {

@@ -1,7 +1,7 @@
 import type { MetadataProps } from "@/includes/seo.kita";
 import type { RenderRouteOptions, EcoComponent, RenderRouteConfig } from "root/lib/eco-pages.types";
 import { HtmlTemplate } from "@/includes/html-template.kita";
-import { getHtmlPath } from "root/lib/scripts/pages/utils/get-html-path";
+import { getHtmlPath } from "../build-html-pages.plugin";
 
 export async function createKitaRoute({
   file,

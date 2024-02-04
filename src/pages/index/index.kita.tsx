@@ -1,7 +1,9 @@
-import { Counter } from "@/components/counter";
+// import { Counter } from "@/components/counter";
 import { BaseLayout } from "@/layouts/base-layout";
 import type { EcoComponent } from "root/lib/eco-pages.types";
 import { collectComponentDependencies } from "root/lib/component-utils/collect-component-dependencies";
+import { importFresh } from "root/lib/scripts/build/utils/cache";
+const { Counter } = await importFresh("@/components/counter");
 
 export const metadata = {
   title: "Home page",

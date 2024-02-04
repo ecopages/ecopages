@@ -1,41 +1,58 @@
 import fs from "node:fs";
-import { DIST_DIR } from "root/lib/global/constants";
+import path from "node:path";
+import { exec } from "node:child_process";
 import { gzipDirectory } from "root/lib/scripts/build/utils/gzip-directory";
-import { generateRobotsTxt } from "root/lib/scripts/pages/generate-robots-txt";
+import { generateRobotsTxt } from "root/lib/scripts/robots/generate-robots-txt";
 import { buildScripts } from "root/lib/scripts/build/build-scripts";
 import { buildPages } from "root/lib/scripts/build/build-pages";
-import { buildInitialCss } from "./build-css";
-import { exec } from "node:child_process";
-import { $ } from "bun";
+import { buildInitialCss } from "root/lib/scripts/build/build-css";
+import { getConfig } from "root/lib/scripts/config/get-config";
+import { createWatcherSubscription } from "root/lib/scripts/build/watcher";
+
 const args = process.argv.slice(2);
 const WATCH_MODE = args.includes("--watch");
+const projectDir = args.find((arg) => arg.startsWith("--config="))?.split("=")[1];
 
-if (!fs.existsSync(DIST_DIR)) {
-  fs.mkdirSync(DIST_DIR);
+const config = await getConfig(projectDir);
+
+if (!fs.existsSync(config.distDir)) {
+  fs.mkdirSync(config.distDir);
 } else {
-  fs.rmSync(DIST_DIR, { recursive: true });
-  fs.mkdirSync(DIST_DIR);
+  fs.rmSync(config.distDir, { recursive: true });
+  fs.mkdirSync(config.distDir);
 }
 
+fs.cpSync(
+  path.join(config.rootDir, config.publicDir),
+  path.join(config.distDir, config.publicDir),
+  { recursive: true }
+);
+
 generateRobotsTxt({
-  preferences: {
-    "*": [],
-    Googlebot: ["/public/assets/images/"],
-  },
-  directory: DIST_DIR,
+  preferences: config.robotsTxt.preferences,
+  directory: config.distDir,
 });
 
-await buildInitialCss();
+await buildInitialCss({ config });
 
-await buildScripts();
+await buildScripts({ config });
 
-await buildPages({
-  baseUrl: "http://localhost:" + (import.meta.env.PORT || 3000),
-});
+await buildPages({ config });
 
 if (!WATCH_MODE) {
-  exec("bunx tailwindcss -i src/global/css/tailwind.css -o dist/global/css/tailwind.css --minify");
-  gzipDirectory(DIST_DIR);
+  exec(
+    `bunx tailwindcss -i ${config.rootDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --minify`
+  );
+  gzipDirectory(config.distDir);
 } else {
-  await $`bun run lib/scripts/build/watch-dev.ts`;
+  exec(
+    `bunx tailwindcss -i ${config.rootDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --watch --minify`
+  );
+
+  const subscription = await createWatcherSubscription({ config });
+
+  process.on("SIGINT", async () => {
+    await subscription.unsubscribe();
+    process.exit(0);
+  });
 }

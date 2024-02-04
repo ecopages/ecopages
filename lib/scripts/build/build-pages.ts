@@ -1,15 +1,20 @@
-import fs from "node:fs";
-import { PUBLIC_FOLDER, DIST_DIR_PUBLIC, DIST_DIR } from "root/lib/global/constants";
-import { collectHtmlPages } from "root/lib/scripts/pages/collect-html-pages";
+import type { EcoPagesConfig } from "root/lib/eco-pages.types";
+import { buildHtmlPages } from "root/lib/scripts/pages/build-html-pages.plugin";
+import { Glob } from "bun";
 
-export async function buildPages({ baseUrl }: { baseUrl: string }) {
-  fs.cpSync(PUBLIC_FOLDER, DIST_DIR_PUBLIC, { recursive: true });
+export async function buildPages({ config }: { config: EcoPagesConfig }) {
+  const glob = new Glob(`${config.rootDir}/${config.pagesDir}/**/*.tsx`);
+  const scannedFiles = glob.scanSync({ cwd: "." });
+  const scripts = Array.from(scannedFiles);
 
-  const routesToRender = await collectHtmlPages();
+  const build = await Bun.build({
+    entrypoints: scripts,
+    outdir: config.distDir,
+    target: "browser",
+    root: config.rootDir,
+    minify: true,
+    plugins: [buildHtmlPages({ config })],
+  });
 
-  for (const route of routesToRender) {
-    const path = route.path === "/" ? "index.html" : `${route.path}/index.html`;
-    const docType = "<!DOCTYPE html>";
-    await Bun.write(`${DIST_DIR}/${path}`, docType + route.html.toString());
-  }
+  build.logs.forEach((log) => console.log(log));
 }

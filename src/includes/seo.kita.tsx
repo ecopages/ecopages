@@ -1,3 +1,5 @@
+import { addBaseToUrl } from "root/lib/utils/url";
+
 export type MetadataProps = {
   title: string;
   description: string;
@@ -22,10 +24,10 @@ export function Seo({
       {keywords ? ((<meta name="keywords" content={keywords.join(",")} />) as "safe") : null}
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
-      <meta property="og:image" content={image} />
+      <meta property="og:image" content={addBaseToUrl(image)} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
-      {url ? ((<link rel="canonical" href={url} />) as "safe") : null}
+      {url ? ((<link rel="canonical" href={addBaseToUrl(url)} />) as "safe") : null}
     </>
   );
 }

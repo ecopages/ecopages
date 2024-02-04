@@ -1,19 +1,18 @@
 import fs from "fs";
 import { Glob } from "bun";
-import { DIST_DIR_NAME } from "root/lib/global/constants";
 import { postcssProcessor } from "../css/postcss-processor";
+import type { EcoPagesConfig } from "root/lib/eco-pages.types";
 
-const glob = new Glob("src/{components,pages,layouts}/**/*.css");
-const TAILWIND_CSS = "src/global/css/tailwind.css";
-const ALPINE_CSS = "src/global/css/alpine.css";
-
-const scannedFiles = glob.scanSync({ cwd: "." });
-const cssFiles = Array.from(scannedFiles).concat(TAILWIND_CSS).concat(ALPINE_CSS);
-
-export async function buildCssFromPath(path: string) {
+export async function buildCssFromPath({
+  path,
+  config,
+}: {
+  path: string;
+  config: Required<EcoPagesConfig>;
+}) {
   const content = await postcssProcessor(path);
 
-  const outputFileName = path.replace("src", DIST_DIR_NAME);
+  const outputFileName = path.replace(config.rootDir, config.distDir);
   const directory = outputFileName.split("/").slice(0, -1).join("/");
 
   if (!fs.existsSync(directory)) {
@@ -23,8 +22,13 @@ export async function buildCssFromPath(path: string) {
   fs.writeFileSync(outputFileName, content);
 }
 
-export async function buildInitialCss() {
-  for (const file of cssFiles) {
-    await buildCssFromPath(file);
+export async function buildInitialCss({ config }: { config: EcoPagesConfig }) {
+  const glob = new Glob(
+    `${config.rootDir}/{${config.componentsDir},${config.pagesDir},${config.globalDir},${config.layoutsDir}}/**/*.css`
+  );
+  const scannedFiles = glob.scanSync({ cwd: "." });
+  const cssFiles = Array.from(scannedFiles);
+  for (const path of cssFiles) {
+    await buildCssFromPath({ path, config });
   }
 }

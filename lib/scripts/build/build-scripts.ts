@@ -1,16 +1,16 @@
 import { Glob } from "bun";
-import { DIST_DIR } from "root/lib/global/constants";
+import type { EcoPagesConfig } from "root/lib/eco-pages.types";
 
-const glob = new Glob("src/**/*.script.ts");
-const scannedFiles = glob.scanSync({ cwd: "." });
-const scripts = Array.from(scannedFiles);
+export async function buildScripts({ config }: { config: EcoPagesConfig }) {
+  const glob = new Glob(`${config.rootDir}/**/*.script.ts`);
+  const scannedFiles = glob.scanSync({ cwd: "." });
+  const scripts = Array.from(scannedFiles);
 
-export async function buildScripts() {
   const build = await Bun.build({
     entrypoints: scripts,
-    outdir: DIST_DIR,
+    outdir: config.distDir,
     target: "browser",
-    root: "./src",
+    root: config.rootDir,
     minify: true,
   });
 

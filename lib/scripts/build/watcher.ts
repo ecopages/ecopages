@@ -4,7 +4,6 @@ import type { EcoPagesConfig } from "root/lib/eco-pages.types";
 import { buildCssFromPath } from "./build-css";
 import { buildPages } from "./build-pages";
 import { buildScripts } from "./build-scripts";
-import { cleanImportCache } from "./utils/cache";
 
 export async function createWatcherSubscription({ config }: { config: EcoPagesConfig }) {
   return watcher.subscribe("src", (err, events) => {
@@ -29,7 +28,6 @@ export async function createWatcherSubscription({ config }: { config: EcoPagesCo
         return;
       }
 
-      cleanImportCache();
       if (event.path.endsWith(".css")) {
         buildCssFromPath({ path: event.path, config });
       } else if (event.path.endsWith(".script.ts")) {

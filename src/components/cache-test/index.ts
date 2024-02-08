@@ -1,1 +1,1 @@
-export * from "./cache-test.kita";
+export { CacheTest, type CacheTestProps } from "./cache-test.kita";

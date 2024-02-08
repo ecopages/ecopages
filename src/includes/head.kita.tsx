@@ -1,5 +1,5 @@
 import { type EcoComponentDependencies } from "@eco-pages/core";
-import { type MetadataProps, Seo } from "./seo.kita";
+import { type MetadataProps, Seo } from "@/includes/seo.kita";
 
 export type BaseHeadProps = {
   metadata: MetadataProps;

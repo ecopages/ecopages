@@ -6,7 +6,7 @@ export type ComponentConfigOptions = {
   components?: EcoComponent<any>[];
 };
 
-export function collectComponentDependencies({
+export function DepsManager.collect({
   importMeta,
   components = [],
 }: ComponentConfigOptions): EcoComponent<any>["dependencies"] {

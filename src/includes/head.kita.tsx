@@ -11,7 +11,7 @@ export function Head({ metadata, dependencies }: BaseHeadProps) {
     <link rel="stylesheet" href={stylesheet} />
   ));
   const safeDependenciesScripts = dependencies?.scripts?.map((script) => (
-    <script defer src={script} />
+    <script defer type="module" src={script} />
   ));
 
   return (
@@ -20,7 +20,7 @@ export function Head({ metadata, dependencies }: BaseHeadProps) {
       <meta name="viewport" content="width=device-width, initial-scale=1"></meta>
       <Seo {...metadata} />
       {safeDependenciesScripts}
-      <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+      <script src="/components/script-injector/script-injector.script.js" />
       <link href="/global/css/tailwind.css" rel="stylesheet"></link>
       <link href="/global/css/alpine.css" rel="stylesheet"></link>
       {safeDependenciesStylesheets}

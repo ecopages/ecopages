@@ -1,7 +1,8 @@
-import { collectComponentDependencies, type EcoComponent } from "@eco-pages/core";
+import { DepsManager, type EcoComponent } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
 import { Counter } from "@/components/counter";
-import { CacheTest } from "@/components/cache-test";
+import { EcoCounter } from "@/components/eco-counter";
+import { ScriptInjector } from "@/components/script-injector";
 
 export const metadata = {
   title: "Home page",
@@ -12,19 +13,33 @@ export const metadata = {
 
 const HomePage: EcoComponent = () => {
   return (
-    <BaseLayout>
+    <BaseLayout class="main-content">
       <>
         <h1 class="main-title">Home</h1>
-        <Counter />
-        <CacheTest extraText="Clean" />
+        <ScriptInjector
+          on:interaction="mouseenter,focusin"
+          scripts={DepsManager.extract(Counter, "scripts").join()}
+        >
+          <Counter />
+        </ScriptInjector>
+        <ScriptInjector
+          on:interaction="mouseenter,focusin"
+          scripts={DepsManager.extract(EcoCounter, "scripts").join()}
+        >
+          <EcoCounter count={5} />
+        </ScriptInjector>
       </>
     </BaseLayout>
   );
 };
 
-HomePage.dependencies = collectComponentDependencies({
+HomePage.dependencies = DepsManager.collect({
   importMeta: import.meta,
-  components: [BaseLayout, Counter, CacheTest],
+  components: [
+    BaseLayout,
+    DepsManager.filter(Counter, "stylesheets"),
+    DepsManager.filter(EcoCounter, "stylesheets"),
+  ],
 });
 
 export default HomePage;

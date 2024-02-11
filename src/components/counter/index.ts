@@ -1,1 +1,1 @@
-export { Counter, type CounterProps } from "./counter.kita";
+export * from "./counter.kita";

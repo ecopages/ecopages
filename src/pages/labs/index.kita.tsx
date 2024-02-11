@@ -1,4 +1,4 @@
-import { collectComponentDependencies, type EcoComponent } from "@eco-pages/core";
+import { DepsManager, type EcoComponent } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
 
 export const metadata = {
@@ -32,7 +32,7 @@ const LabsPage: EcoComponent = () => {
   );
 };
 
-LabsPage.dependencies = collectComponentDependencies({
+LabsPage.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [BaseLayout],
 });

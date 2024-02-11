@@ -1,7 +1,8 @@
+import path from "node:path";
 import type { MetadataProps } from "@/includes/seo.kita";
 import type { RenderRouteOptions, EcoComponent, RenderRouteConfig } from "root/lib/eco-pages.types";
 import { getHtmlPath } from "../build-html-pages.plugin";
-import path from "node:path";
+import { uncacheModules } from "../utils/uncache-modules";
 
 export async function createKitaRoute({
   file,
@@ -9,15 +10,7 @@ export async function createKitaRoute({
 }: RenderRouteOptions): Promise<RenderRouteConfig> {
   const pagesDir = path.join(config.srcDir, config.pagesDir);
 
-  const regex = new RegExp(
-    `${config.srcDir}/(${config.componentsDir}|${config.layoutsDir}|${config.pagesDir}|${config.includesDir}|${config.globalDir})|\\.kita`
-  );
-
-  Object.keys(require.cache).forEach((key) => {
-    if (regex.test(key)) {
-      delete require.cache[key];
-    }
-  });
+  uncacheModules(config);
 
   const { HtmlTemplate } = await import("@/includes/html-template.kita");
 
@@ -26,8 +19,10 @@ export async function createKitaRoute({
     metadata: MetadataProps;
   };
 
+  const children = await Page({});
+
   return {
     path: getHtmlPath({ file, pagesDir }),
-    html: HtmlTemplate({ metadata, dependencies: Page.dependencies, children: Page({}) }),
+    html: HtmlTemplate({ metadata, dependencies: Page.dependencies, children }),
   };
 }

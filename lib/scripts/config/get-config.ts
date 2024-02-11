@@ -1,7 +1,7 @@
 import type { EcoPagesConfig } from "root/lib/eco-pages.types";
 import fs from "node:fs";
 
-const defaultConfig: Omit<EcoPagesConfig, "baseUrl"> = {
+const defaultConfig: Omit<EcoPagesConfig, "baseUrl" | "tsAliases"> = {
   rootDir: ".",
   srcDir: "src",
   pagesDir: "pages",
@@ -10,6 +10,7 @@ const defaultConfig: Omit<EcoPagesConfig, "baseUrl"> = {
   componentsDir: "components",
   layoutsDir: "layouts",
   publicDir: "public",
+  externalsDir: "externals",
   robotsTxt: {
     preferences: {
       "*": [],
@@ -17,6 +18,7 @@ const defaultConfig: Omit<EcoPagesConfig, "baseUrl"> = {
     },
   },
   distDir: ".eco",
+  externalDeps: [],
 };
 
 export async function getConfig(projectDir?: string): Promise<Required<EcoPagesConfig>> {

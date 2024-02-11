@@ -1,4 +1,4 @@
-import { collectComponentDependencies, type EcoComponent } from "@eco-pages/core";
+import { DepsManager, type EcoComponent } from "@eco-pages/core";
 
 export type CounterProps = {
   count?: number;
@@ -18,4 +18,4 @@ export const Counter: EcoComponent<CounterProps> = ({ count = 0 }) => {
   );
 };
 
-Counter.dependencies = collectComponentDependencies({ importMeta: import.meta });
+Counter.dependencies = DepsManager.collect({ importMeta: import.meta });

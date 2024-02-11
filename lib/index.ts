@@ -1,3 +1,3 @@
 export * from "./eco-pages.types";
-export { collectComponentDependencies } from "./component-utils/collect-component-dependencies";
+export { DepsManager } from "./component-utils/deps-manager";
 export { Html } from "./global/kita";

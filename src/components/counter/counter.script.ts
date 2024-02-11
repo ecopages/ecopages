@@ -1,3 +1,5 @@
+import { register } from "@/lib/alpine/register";
+
 function counterController() {
   return {
     count: 0,
@@ -10,6 +12,4 @@ function counterController() {
   };
 }
 
-document.addEventListener("alpine:init", () => {
-  window.Alpine.data("counter", counterController);
-});
+register("counter", counterController);

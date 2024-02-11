@@ -14,6 +14,7 @@ export async function buildPages({ config }: { config: EcoPagesConfig }) {
     root: config.srcDir,
     minify: true,
     plugins: [buildHtmlPages({ config })],
+    external: [...config.externalDeps],
   });
 
   build.logs.forEach((log) => console.log(log));

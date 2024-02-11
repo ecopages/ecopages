@@ -41,6 +41,11 @@ export type EcoPagesConfig = {
    */
   layoutsDir: string;
   /**
+   * The directory where the external files are located
+   * @default "externals"
+   */
+  externalsDir: string;
+  /**
    * The directory where the output will be located
    * @default "dist"
    */
@@ -67,6 +72,10 @@ export type EcoPagesConfig = {
     baseUrl: string;
     paths: Record<string, string[]>;
   };
+  /**
+   * The external dependencies
+   */
+  externalDeps: string[];
 };
 
 export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, "baseUrl"> &

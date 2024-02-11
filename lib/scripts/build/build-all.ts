@@ -8,6 +8,7 @@ import { buildPages } from "root/lib/scripts/build/build-pages";
 import { buildInitialCss } from "root/lib/scripts/build/build-css";
 import { getConfig } from "root/lib/scripts/config/get-config";
 import { createWatcherSubscription } from "root/lib/scripts/build/watcher";
+import { devServer } from "root/lib/dev/server";
 
 const args = process.argv.slice(2);
 const WATCH_MODE = args.includes("--watch");
@@ -46,6 +47,9 @@ if (!WATCH_MODE) {
   exec(
     `bunx tailwindcss -i ${config.srcDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --watch --minify`
   );
+
+  const server = devServer({ config });
+  console.log(`🌿 Server running at http://localhost:${server.port}`);
 
   const subscription = await createWatcherSubscription({ config });
 

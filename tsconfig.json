@@ -8,7 +8,7 @@
     "useDefineForClassFields": true,
     "module": "ESNext",
     "moduleResolution": "node",
-    "types": ["bun-types"],
+    "types": ["bun-types", "./lib/env.d.ts"],
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,

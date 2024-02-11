@@ -10,3 +10,7 @@
     @apply text-2xl font-bold text-gray-900;
   }
 }
+
+button {
+  @apply cursor-pointer;
+}

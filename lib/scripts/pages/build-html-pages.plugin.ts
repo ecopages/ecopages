@@ -55,8 +55,7 @@ export function buildHtmlPages({ config }: { config: Required<EcoPagesConfig> })
         await Bun.write(distPath, htmlPage);
 
         return {
-          then(onfulfilled, onrejected) {
-            if (onfulfilled) console.log(`🌿 Added page > ${relativeUrl}`);
+          then(_, onrejected) {
             if (onrejected) onrejected((reason: any) => console.error(reason));
           },
         };

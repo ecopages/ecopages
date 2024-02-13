@@ -1,4 +1,4 @@
-.eco-counter {
+.lite-counter {
   @apply flex gap-4 items-center bg-indigo-200 rounded-md max-w-fit p-2;
   &__increment,
   &__decrement {

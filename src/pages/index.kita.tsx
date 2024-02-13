@@ -1,7 +1,7 @@
 import { DepsManager, type EcoComponent } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
 import { Counter } from "@/components/counter";
-import { EcoCounter } from "@/components/eco-counter";
+import { LiteCounter } from "@/components/lite-counter";
 import { ScriptInjector } from "@/components/script-injector";
 
 export const metadata = {
@@ -24,9 +24,9 @@ const HomePage: EcoComponent = () => {
         </ScriptInjector>
         <ScriptInjector
           on:interaction="mouseenter,focusin"
-          scripts={DepsManager.extract(EcoCounter, "scripts").join()}
+          scripts={DepsManager.extract(LiteCounter, "scripts").join()}
         >
-          <EcoCounter count={5} />
+          <LiteCounter count={5} />
         </ScriptInjector>
       </>
     </BaseLayout>
@@ -38,7 +38,7 @@ HomePage.dependencies = DepsManager.collect({
   components: [
     BaseLayout,
     DepsManager.filter(Counter, "stylesheets"),
-    DepsManager.filter(EcoCounter, "stylesheets"),
+    DepsManager.filter(LiteCounter, "stylesheets"),
   ],
 });
 

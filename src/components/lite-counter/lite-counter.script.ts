@@ -1,12 +1,12 @@
-import { LightElement, onEvent, onUpdated, querySelector } from "@/lib/lit-light";
+import { LiteElement, onEvent, onUpdated, querySelector } from "@/lib/lite";
 import { customElement, property } from "lit/decorators.js";
 
-export type EcoCounterProps = {
+export type LiteCounterProps = {
   count?: number;
 };
 
-@customElement("eco-counter")
-export class EcoCounter extends LightElement {
+@customElement("lite-counter")
+export class LiteCounter extends LiteElement {
   @property({ type: Number }) count = 0;
   @querySelector("[data-text]") countText!: HTMLElement;
 
@@ -27,12 +27,9 @@ export class EcoCounter extends LightElement {
 }
 
 declare global {
-  interface HTMLElementTagNameMap {
-    "eco-counter": EcoCounter;
-  }
   namespace JSX {
     interface IntrinsicElements {
-      "eco-counter": HtmlTag & EcoCounterProps;
+      "lite-counter": HtmlTag & LiteCounterProps;
     }
   }
 }

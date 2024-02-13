@@ -9,6 +9,7 @@ import { buildInitialCss } from "root/lib/scripts/build/build-css";
 import { getConfig } from "root/lib/scripts/config/get-config";
 import { createWatcherSubscription } from "root/lib/scripts/build/watcher";
 import { devServer } from "root/lib/dev/server";
+import { $ } from "bun";
 
 const args = process.argv.slice(2);
 const WATCH_MODE = args.includes("--watch");
@@ -49,6 +50,7 @@ if (!WATCH_MODE) {
   );
 
   const server = devServer({ config });
+  await $`clear`;
   console.log(`🌿 Server running at http://localhost:${server.port}`);
 
   const subscription = await createWatcherSubscription({ config });

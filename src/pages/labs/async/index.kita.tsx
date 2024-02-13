@@ -14,7 +14,7 @@ const LabsAsyncPage: EcoComponent = async () => {
     const asyncTitle = await new Promise<string>((resolve) => {
       setTimeout(() => {
         resolve("Async page " + new Date().toISOString());
-      }, 2000);
+      }, 0);
     });
     return (
       <BaseLayout>

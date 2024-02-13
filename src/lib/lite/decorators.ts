@@ -1,13 +1,16 @@
-import { LightElement } from "./LightElement";
+import { LiteElement } from "./LiteElement";
 
 export function querySelector(selector: string, on?: "this" | "document") {
+  const values = new WeakMap<any, Element | null>();
+
   return function (target: any, propertyKey: string | symbol) {
-    let _val: Element | null;
     const getter = function (this: any) {
-      if (!_val) {
-        _val = on === "document" ? document.querySelector(selector) : this.querySelector(selector);
+      let val = values.get(this);
+      if (!val) {
+        val = on === "document" ? document.querySelector(selector) : this.querySelector(selector);
+        values.set(this, val || null);
       }
-      return _val;
+      return val || null;
     };
     Object.defineProperty(target, propertyKey, {
       get: getter,
@@ -18,14 +21,19 @@ export function querySelector(selector: string, on?: "this" | "document") {
 }
 
 export function querySelectorAll(selector: string, on?: "this" | "document") {
+  const values = new WeakMap<any, Element[]>();
+
   return function (target: any, propertyKey: string | symbol) {
-    let _val: Element | null;
     const getter = function (this: any) {
-      if (!_val) {
-        _val =
-          on === "document" ? document.querySelectorAll(selector) : this.querySelectorAll(selector);
+      let val = values.get(this);
+      if (!val) {
+        val =
+          on === "document"
+            ? [...document.querySelectorAll(selector)]
+            : [...this.querySelectorAll(selector)];
+        values.set(this, val || []);
       }
-      return _val;
+      return val || [];
     };
     Object.defineProperty(target, propertyKey, {
       get: getter,
@@ -50,11 +58,11 @@ export function onUpdated(key: string) {
 }
 
 export function onEvent(eventConfig: { target: string; type: string }) {
-  return function (classTarget: LightElement, propertyKey: string, descriptor: PropertyDescriptor) {
+  return function (classTarget: LiteElement, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
     const originalConnectedCallback = classTarget.connectedCallback;
 
-    classTarget.connectedCallback = function (this: LightElement) {
+    classTarget.connectedCallback = function (this: LiteElement) {
       originalConnectedCallback.call(this);
       const eventTarget = this.querySelector(eventConfig.target);
       if (!eventTarget) {

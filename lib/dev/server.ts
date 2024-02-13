@@ -41,6 +41,7 @@ function serveFromDir(config: { directory: string; path: string }): Response | n
         headers: { "Content-Type": getContentType(path.extname(pathWithSuffix)) },
       });
   } catch (err) {
+    console.log(path.join(basePath, "index.html"), "not found");
     console.error(err);
   }
 

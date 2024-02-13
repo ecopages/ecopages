@@ -1,6 +1,6 @@
 import { LitElement, type PropertyValueMap } from "lit";
 
-export type LightElementEventListener = {
+export type LiteElementEventListener = {
   target: EventTarget;
   type: string;
   listener: EventListener;
@@ -17,12 +17,12 @@ export interface ILightElement extends LitElement {
    * @param listener The event listener to subscribe.
    * @param options The options to pass to the event listener.
    */
-  subscribeEvent(event: LightElementEventListener): void;
+  subscribeEvent(event: LiteElementEventListener): void;
   /**
    * Subscribes to multiple events on the target element. The subscriptions will be removed when the element is disconnected.
    * @param events The events to subscribe to.
    */
-  subscribeEvents(events: LightElementEventListener[]): void;
+  subscribeEvents(events: LiteElementEventListener[]): void;
   /**
    * Unsubscribes from an event on the target element.
    * @param target The target element to unsubscribe from.
@@ -50,9 +50,9 @@ export interface ILightElement extends LitElement {
  * @param Base The LitElement class to power up.
  * @returns The powered up LitElement class.
  */
-export const Light = <T extends Constructor<LitElement>>(Base: T) => {
-  class LightElementClass extends Base implements ILightElement {
-    private eventSubscriptions: LightElementEventListener[] = [];
+export const Lite = <T extends Constructor<LitElement>>(Base: T) => {
+  class LiteElementClass extends Base implements ILightElement {
+    private eventSubscriptions: LiteElementEventListener[] = [];
     private onUpdatedCallbacks: { watch: string; callback: () => void }[] = [];
 
     override disconnectedCallback() {
@@ -71,12 +71,12 @@ export const Light = <T extends Constructor<LitElement>>(Base: T) => {
       });
     }
 
-    public subscribeEvent({ target, type, listener, options }: LightElementEventListener): void {
+    public subscribeEvent({ target, type, listener, options }: LiteElementEventListener): void {
       target.addEventListener(type, listener, options);
       this.eventSubscriptions.push({ target, type, listener });
     }
 
-    public subscribeEvents(events: LightElementEventListener[]): void {
+    public subscribeEvents(events: LiteElementEventListener[]): void {
       events.forEach((event) => this.subscribeEvent(event));
     }
 
@@ -109,7 +109,7 @@ export const Light = <T extends Constructor<LitElement>>(Base: T) => {
     }
   }
 
-  return LightElementClass;
+  return LiteElementClass;
 };
 
-export class LightElement extends Light(LitElement) {}
+export class LiteElement extends Lite(LitElement) {}

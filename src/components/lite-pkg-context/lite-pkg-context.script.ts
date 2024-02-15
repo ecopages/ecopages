@@ -1,4 +1,4 @@
-import { LiteContext, type LiteContextProps } from "@/lib/lite/lite-context";
+import { LiteContext, type LiteContextProps } from "@/lib/lite/context";
 import { customElement, state } from "lit/decorators.js";
 
 export type LitePkgContextStateProps = {
@@ -14,7 +14,7 @@ export type LitePkgContextStateProps = {
 
 @customElement("lite-pkg-context")
 export class LitePkgContext extends LiteContext<LitePkgContextStateProps> {
-  @state() protected override state: LitePkgContextStateProps = {
+  @state() protected override state = {
     name: "eco-pages",
     version: 0.1,
     templateSupport: ["kita"],

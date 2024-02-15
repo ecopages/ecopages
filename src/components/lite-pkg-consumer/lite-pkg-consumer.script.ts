@@ -1,7 +1,7 @@
-import { LiteElement, querySelector } from "@/lib/lite";
-import { LiteContextEvents, LiteContext } from "@/lib/lite/lite-context";
-
-import { customElement, property } from "lit/decorators.js";
+import { LiteElement, onEvent, querySelector } from "@/lib/lite";
+import { LiteContext, provider, subscribe } from "@/lib/lite/context";
+import { customElement } from "lit/decorators.js";
+import type { LitePkgContextStateProps } from "../lite-pkg-context/lite-pkg-context.script";
 
 export type LitePkgConsumerProps = {
   "context-id": string;
@@ -9,26 +9,29 @@ export type LitePkgConsumerProps = {
 
 @customElement("lite-pkg-consumer")
 export class LitePkgConsumer extends LiteElement {
-  @property({ type: String }) declare ["context-id"]: string;
   @querySelector("[data-name]") packageName!: HTMLSpanElement;
+  @querySelector("[data-version]") packageVersion!: HTMLSpanElement;
 
-  override connectedCallback(): void {
-    super.connectedCallback();
-    console.dir(this);
-    const context = document.querySelector(
-      `lite-pkg-context[context-id="${this["context-id"]}"]`
-    ) as LiteContext;
+  @provider<LitePkgContextStateProps>("eco-pages")
+  context!: LiteContext<LitePkgContextStateProps>;
 
-    if (!context) {
-      throw new Error(`No context found with id: ${this["context-id"]}`);
-    }
+  @subscribe({ contextId: "eco-pages", selector: "name" })
+  updateName({ name }: { name: string }) {
+    this.packageName.innerHTML = name;
+  }
 
-    context.subscriptions.push({
-      selector: "name",
-      callback: (name) => {
-        this.packageName.innerHTML = name as string;
-      },
-    });
+  @subscribe({ contextId: "eco-pages", selector: "version" })
+  updateVersion({ version }: { version: string }) {
+    this.packageVersion.innerHTML = version;
+  }
+
+  @onEvent({ target: "form", type: "submit" })
+  handleFormSubmit(event: Event) {
+    event.preventDefault();
+    const form = event.target as HTMLFormElement;
+    const key = form.querySelector<HTMLSelectElement>("[data-options]")?.value;
+    const value = form.querySelector<HTMLInputElement>("[data-input]")?.value;
+    this.context.setState({ [key as string]: value });
   }
 }
 

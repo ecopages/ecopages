@@ -1,4 +1,5 @@
 import { DepsManager } from "@eco-pages/core";
+import type { LitePkgContext } from "../lite-pkg-context";
 
 export function LitePkgConsumer({ contextId }: { contextId: string }) {
   return (
@@ -19,6 +20,33 @@ export function LitePkgConsumer({ contextId }: { contextId: string }) {
         <li>alpinejs</li>
         <li>lit-ssr</li>
       </ul>
+      <form class="grid gap-2">
+        <div class="flex flex-col gap-1">
+          <label for="input-key" class="font-bold text-sm">
+            Key
+          </label>
+          <select data-options class="h-10 px-2 py-1 max-w-min border border-gray-700 rounded-md">
+            <option value="name">name</option>
+            <option value="version">version</option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="input-value" class="font-bold text-sm">
+            Value
+          </label>
+          <input
+            data-input
+            id="input-value"
+            class="h-10 px-2 py-1 max-w-min border border-gray-700 rounded-md"
+          />
+        </div>
+        <button
+          data-button
+          class="h-10 px-2 py-1 max-w-min border bg-gray-700 text-white rounded-md"
+        >
+          Update
+        </button>
+      </form>
     </lite-pkg-consumer>
   );
 }

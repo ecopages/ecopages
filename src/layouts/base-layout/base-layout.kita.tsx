@@ -12,7 +12,7 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
       <Navigation
         items={[
           { label: "Home", url: "/" },
-          { label: "Labs", url: "/labs" },
+          { label: "Tailwind", url: "/labs/tailwind" },
           { label: "Async", url: "/labs/async" },
           { label: "Lite", url: "/labs/lite-context" },
         ]}

@@ -16,13 +16,12 @@ export type LiteContextProps = {
   "context-id": string;
 };
 
-export type SubscribedElement<State> = {
+export type SubscribedElement<State extends Record<string, unknown>> = {
   selector?: keyof State;
-  callback: (state: State | State[keyof State]) => void;
+  callback: (value: State | { [K in keyof State]: State[K] }) => void;
 };
 
-@customElement("lite-context")
-export class LiteContext<State = Record<string, any>> extends LiteElement {
+export class LiteContext<State extends Record<string, unknown>> extends LiteElement {
   @property({ type: String }) "context-id" = "default";
   protected declare state: State;
 
@@ -61,7 +60,7 @@ export class LiteContext<State = Record<string, any>> extends LiteElement {
       const newSelected = newState[sub.selector];
       const prevSelected = prevState[sub.selector];
       if (newSelected !== prevSelected) {
-        sub.callback(newSelected);
+        sub.callback({ [sub.selector]: newSelected } as { [K in keyof State]: State[K] });
       }
     });
   };

@@ -17,5 +17,5 @@ export async function buildPages({ config }: { config: EcoPagesConfig }) {
     external: [...config.externalDeps],
   });
 
-  build.logs.forEach((log) => console.log(log));
+  if (!build.success) build.logs.forEach((log) => console.log(log));
 }

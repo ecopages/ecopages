@@ -1,7 +1,7 @@
 import { DepsManager, type EcoComponent } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
-import { LitePkgContext } from "@/components/lite-pkg-context";
-import { LitePkgConsumer } from "@/components/lite-pkg-consumer";
+import { LitePkgContext } from "@/components/lite-package-context";
+import { LitePkgConsumer } from "@/components/lite-package-consumer";
 import { codeToHtml } from "shiki";
 
 const code = `
@@ -93,33 +93,35 @@ export class LiteCounter extends LiteElement {
   * ------------------- LITE CONTEXT PROVIDER -------------------- *
   * ------------------------------------------------------------- */
 
-Lite Context is a lightweight state management class that is built on top of Lite Element.
+LiteContext is a lightweight class that permits you to share context with other components in a similar way to React's Context API.
 It provides a simple way to create and manage data and methods that can be shared across the application.
 
-To be able to use the Lite Context, you need to create a new class that extends the LiteContext class and define the state of the context.
+To be able to use the LiteContext, you need to create a new class that extends the LiteContext class and define the state of the context.
 
 Then you can wrap your components in the context provider and use the a set of utility decorators to register a subscription or use the context.
+
+To create the context definition, you can use the createContext function that takes a name and a state object as arguments.
 
 
 /* ------------------- Example: LiteContext -------------------- */
 
-export type MyContextState = {
-  name: string;
-  version: number;
-};
+export const myContext = createContext("my-context", {
+  name: "eco-pages",
+  version: 0.1,
+});
+
+export type MyContext = typeof myContext;
 
 @customElement("lite-my-context")
-export class LitePkgContext extends LiteContext<MyContextState> {
-  @state() protected override state = {
-    name: "eco-pages",
-    version: 0.1,
-  };
+export class LitePkgContext extends LiteContext<MyContext> {
+  protected override name = litePackageContext.name;
+  protected override state = litePackageContext.initialValue!;
 }
 
 /* ---------------------- Example: Markup ---------------------- */
 
-<lite-my-context context-id="my-context-id">
-  <lite-my-consumer context-id="my-context-id"></lite-my-consumer>
+<lite-my-context>
+  <lite-my-consumer></lite-my-consumer>
 </lite-my-context>
 
 /* -------------------------------------------------------------- *
@@ -132,7 +134,8 @@ export class LitePkgContext extends LiteContext<MyContextState> {
   * it will look for it and register the subscription
   * -------------------------------------------------------------- */
 
-@subscribe({ contextId: "eco-pages", selector: "name" })
+
+@subscribe({ context: myContext, selector: "name" })
 updateName({ name }: { name: string }) {
   this.packageName.innerHTML = name;
 }
@@ -142,26 +145,9 @@ updateName({ name }: { name: string }) {
   * It will walk up the DOM tree to find the closest context with the given id
   * -------------------------------------------------------------- */
 
-@provider<LitePkgContextStateProps>("eco-pages")
-context!: LiteContext<LitePkgContextStateProps>;
+@provider<MyContext>(myContext)
+context!: LiteContext<MyContext>;
 
-/* -------------------- Manual Subscriptions ---------------------- *
-  * This is how you can subscribe to a context change manually, without decorators
-  * --------------------------------------------------------------- */
-
-connectedCallback(): void {
-  super.connectedCallback();
-  
-  this.context = this.closest(\`lite-pkg-context[context-id="$\{contextId}"]\`) as LiteContext<ContextState> | null;
-  if (!this.context) throw new Error(\`No context found with id: \${contextId}\`);
-
-  this.context.subscribe({
-    selector: "name",
-    callback: ({ name }) => {
-      this.packageName.innerHTML = name;
-    },
-  });
-}
   `;
 
 const safeHtml = await codeToHtml(code, {

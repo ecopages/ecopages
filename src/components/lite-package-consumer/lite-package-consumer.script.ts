@@ -1,26 +1,29 @@
 import { LiteElement, onEvent, querySelector } from "@/lib/lite";
 import { LiteContext, provider, subscribe } from "@/lib/lite/context";
 import { customElement } from "lit/decorators.js";
-import type { LitePkgContextStateProps } from "../lite-pkg-context/lite-pkg-context.script";
+import {
+  litePackageContext,
+  type LitePackageContextType,
+} from "../lite-package-context/lite-package-context.script";
 
 export type LitePkgConsumerProps = {
   "context-id": string;
 };
 
-@customElement("lite-pkg-consumer")
-export class LitePkgConsumer extends LiteElement {
+@customElement("lite-package-consumer")
+export class LitePackageConsumer extends LiteElement {
   @querySelector("[data-name]") packageName!: HTMLSpanElement;
   @querySelector("[data-version]") packageVersion!: HTMLSpanElement;
 
-  @provider<LitePkgContextStateProps>("eco-pages")
-  context!: LiteContext<LitePkgContextStateProps>;
+  @provider<LitePackageContextType>(litePackageContext)
+  packageContext!: LiteContext<LitePackageContextType>;
 
-  @subscribe({ contextId: "eco-pages", selector: "name" })
+  @subscribe({ context: litePackageContext, selector: "name" })
   updateName({ name }: { name: string }) {
     this.packageName.innerHTML = name;
   }
 
-  @subscribe({ contextId: "eco-pages", selector: "version" })
+  @subscribe({ context: litePackageContext, selector: "version" })
   updateVersion({ version }: { version: string }) {
     this.packageVersion.innerHTML = version;
   }
@@ -31,14 +34,15 @@ export class LitePkgConsumer extends LiteElement {
     const form = event.target as HTMLFormElement;
     const key = form.querySelector<HTMLSelectElement>("[data-options]")?.value;
     const value = form.querySelector<HTMLInputElement>("[data-input]")?.value;
-    this.context.setState({ [key as string]: value });
+    this.packageContext.setState({ [key as string]: value });
+    form.reset();
   }
 }
 
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      "lite-pkg-consumer": HtmlTag & LitePkgConsumerProps;
+      "lite-package-consumer": HtmlTag & LitePkgConsumerProps;
     }
   }
 }

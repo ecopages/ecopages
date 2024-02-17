@@ -55,7 +55,8 @@ export function buildHtmlPages({ config }: { config: Required<EcoPagesConfig> })
         await Bun.write(distPath, htmlPage);
 
         return {
-          then(_, onrejected) {
+          then(onresolved, onrejected) {
+            if (onresolved) onresolved({ contents: htmlPage, loader: "text" });
             if (onrejected) onrejected((reason: any) => console.error(reason));
           },
         };

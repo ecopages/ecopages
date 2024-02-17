@@ -10,9 +10,9 @@ export function LitePkgContext({
   class: string;
 }) {
   return (
-    <lite-pkg-context context-id={contextId} class={className}>
+    <lite-package-context context-id={contextId} class={className}>
       {children}
-    </lite-pkg-context>
+    </lite-package-context>
   );
 }
 

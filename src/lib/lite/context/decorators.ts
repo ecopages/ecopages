@@ -1,66 +1,51 @@
-import type { LiteElement } from "../LiteElement";
+import { LiteElement } from "../LiteElement";
 import type { LiteContext } from "./lite-context";
+import {
+  ContextEventSubscriptionRequest,
+  ContextEventProviderRequest,
+  type ContextType,
+  type UnknownContext,
+} from "./proposal";
 
-export function provider<ContextState extends Record<string, unknown>>(contextId: string) {
-  const contexts = new WeakMap<any, LiteContext<ContextState> | null>();
+export function provider<T extends UnknownContext>(contextToProvide: T) {
+  return function (classTarget: LiteElement, propertyKey: string) {
+    const originalConnectedCallback = classTarget.connectedCallback;
 
-  return function (target: any, propertyKey: string | symbol) {
-    const getter = function (this: any) {
-      let context = contexts.get(this);
-      if (!context) {
-        context = this.closest(
-          `lite-pkg-context[context-id="${contextId}"]`
-        ) as LiteContext<ContextState> | null;
-        if (!context) {
-          throw new Error(`No context found with id: ${contextId}`);
-        }
-        contexts.set(this, context);
-      }
-      return context;
+    classTarget["connectedCallback"] = function (this: LiteElement) {
+      originalConnectedCallback.call(this);
+      this.dispatchEvent(
+        new ContextEventProviderRequest(contextToProvide, (context: LiteContext<T>) => {
+          (this as any)[propertyKey] = context;
+        })
+      );
     };
-
-    Object.defineProperty(target, propertyKey, {
-      get: getter,
-      enumerable: true,
-      configurable: true,
-    });
   };
 }
 
-export function subscribe<ContextState extends Record<string, unknown>>(options: {
-  contextId: string;
-  selector: string;
+export function subscribe({
+  context,
+  selector,
+  subscribe = true,
+}: {
+  context: UnknownContext;
+  selector: keyof ContextType<UnknownContext>;
+  subscribe?: boolean;
 }) {
   return function (
-    classTarget: LiteElement & { context?: LiteContext<ContextState> },
+    classTarget: LiteElement & { context?: LiteContext<UnknownContext> },
     propertyKey: string,
     descriptor: PropertyDescriptor
   ) {
     const originalMethod = descriptor.value;
     const originalConnectedCallback = classTarget.connectedCallback;
-    // let targetContext = classTarget["context"];
 
-    console.log("Connected callback");
     classTarget["connectedCallback"] = function (
-      this: LiteElement & { context: LiteContext<ContextState> }
+      this: LiteElement & { context: LiteContext<UnknownContext> }
     ) {
       originalConnectedCallback.call(this);
-      console.log(this.context);
-
-      if (!this.context) {
-        this.context = this.closest(
-          `lite-pkg-context[context-id="${options.contextId}"]`
-        ) as LiteContext<ContextState>;
-
-        if (!this.context) {
-          throw new Error(`No context found with id: ${options.contextId}`);
-        }
-      }
-
-      this.context.subscribe({
-        selector: options.selector,
-        callback: originalMethod.bind(this),
-      });
+      this.dispatchEvent(
+        new ContextEventSubscriptionRequest(context, originalMethod.bind(this), selector, subscribe)
+      );
     };
 
     descriptor.value = function (...args: any[]) {

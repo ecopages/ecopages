@@ -32,10 +32,13 @@ export async function createWatcherSubscription({ config }: { config: EcoPagesCo
 
       if (event.path.endsWith(".css")) {
         buildCssFromPath({ path: event.path, config });
+        console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
       } else if (event.path.endsWith(".script.ts")) {
         buildScripts({ config });
+        console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
       } else if (event.path.endsWith(".tsx")) {
         buildPages({ config });
+        console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
       }
     });
   });

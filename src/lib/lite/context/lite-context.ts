@@ -1,72 +1,94 @@
 import { LiteElement } from "@/lib/lite";
-import type { PropertyValueMap } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import {
+  ContextEventsTypes,
+  ContextEventSubscriptionRequest,
+  type ContextSubscription,
+  type UnknownContext,
+  type ContextType,
+  ContextEventOnMount,
+  ContextEventProviderRequest,
+} from "./proposal";
 
-export enum LiteContextEvents {
-  CONTEXT_MOUNTED = "__lite-context-mounted__",
-}
+export class LiteContext<T extends UnknownContext> extends LiteElement {
+  protected declare name: string;
+  protected declare state: ContextType<T>;
 
-declare global {
-  interface HTMLElementEventMap {
-    [LiteContextEvents.CONTEXT_MOUNTED]: CustomEvent<{ "context-id": string }>;
-  }
-}
+  subscriptions: ContextSubscription<T>[] = [];
 
-export type LiteContextProps = {
-  "context-id": string;
-};
-
-export type SubscribedElement<State extends Record<string, unknown>> = {
-  selector?: keyof State;
-  callback: (value: State | { [K in keyof State]: State[K] }) => void;
-};
-
-export class LiteContext<State extends Record<string, unknown>> extends LiteElement {
-  @property({ type: String }) "context-id" = "default";
-  protected declare state: State;
-
-  subscriptions: SubscribedElement<State>[] = [];
-
-  override firstUpdated(
-    _changedProperties: PropertyValueMap<any> | Map<PropertyKey, unknown>
-  ): void {
-    super.firstUpdated(_changedProperties);
-    this.onMount();
+  constructor() {
+    super();
+    this.registerEvents();
   }
 
-  private onMount() {
-    const consumers = this.querySelectorAll(`[context-id="${this["context-id"]}"`);
-    const onMountEvent = new CustomEvent(LiteContextEvents.CONTEXT_MOUNTED, {
-      detail: { "context-id": this["context-id"] },
-    });
-    consumers.forEach((consumer) => {
-      consumer.dispatchEvent(onMountEvent);
-    });
+  override connectedCallback() {
+    super.connectedCallback();
+    this.dispatchEvent(new ContextEventOnMount(this.name));
   }
 
-  setState = (state: Partial<State>, callback?: (state: State) => void) => {
+  setState = (state: Partial<ContextType<T>>, callback?: (state: ContextType<T>) => void) => {
     const newState = { ...this.state, ...state };
     if (callback) callback(newState);
-    this.notifySubScribers(newState, this.state);
+    this.notifySubscribers(newState, this.state);
   };
 
   getState = () => {
     return this.state;
   };
 
-  private notifySubScribers = (newState: State, prevState: State) => {
+  private notifySubscribers = (newState: ContextType<T>, prevState: ContextType<T>) => {
     this.subscriptions.forEach((sub) => {
-      if (!sub.selector) return sub.callback(newState);
+      if (!sub.selector) return this.sendSubscriptionUpdate(sub, newState);
       const newSelected = newState[sub.selector];
       const prevSelected = prevState[sub.selector];
       if (newSelected !== prevSelected) {
-        sub.callback({ [sub.selector]: newSelected } as { [K in keyof State]: State[K] });
+        this.sendSubscriptionUpdate(sub, newState);
       }
     });
   };
 
-  subscribe = ({ selector, callback }: SubscribedElement<State>) => {
+  sendSubscriptionUpdate = (
+    { selector, callback }: ContextSubscription<T>,
+    state: ContextType<T>
+  ) => {
+    if (!selector) callback(state);
+    else
+      callback({ [selector]: state[selector] } as {
+        [K in keyof ContextType<T>]: ContextType<T>[K];
+      });
+  };
+
+  onSubscriptionRequest = (event: ContextEventSubscriptionRequest<UnknownContext>) => {
+    const { context, callback, subscribe, selector } = event;
+    if (context.name !== this.name) return;
+    event.stopPropagation();
+
+    if (subscribe) {
+      this.subscribe({ selector, callback });
+    }
+
+    if (selector) {
+      callback({ [selector]: this.state[selector] } as {
+        [K in keyof ContextType<T>]: ContextType<T>[K];
+      });
+    } else {
+      callback(this.state as ContextType<T>);
+    }
+  };
+
+  onProviderRequest = (event: ContextEventProviderRequest<UnknownContext>) => {
+    const { context, callback } = event;
+    if (context.name !== this.name) return;
+    event.stopPropagation();
+    callback(this);
+  };
+
+  subscribe = ({ selector, callback }: ContextSubscription<T>) => {
     this.subscriptions.push({ selector, callback });
+  };
+
+  registerEvents = () => {
+    this.addEventListener(ContextEventsTypes.SUBSCRIPTION_REQUEST, this.onSubscriptionRequest);
+    this.addEventListener(ContextEventsTypes.PROVIDER_REQUEST, this.onProviderRequest);
   };
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
@@ -77,7 +99,7 @@ export class LiteContext<State extends Record<string, unknown>> extends LiteElem
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      "lite-context": HtmlTag & LiteContextProps;
+      "lite-context": HtmlTag;
     }
   }
 }

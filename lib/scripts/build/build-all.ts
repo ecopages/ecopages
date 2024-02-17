@@ -51,7 +51,7 @@ if (!WATCH_MODE) {
 
   const server = devServer({ config });
   await $`clear`;
-  console.log(`🌿 Server running at http://localhost:${server.port}`);
+  console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
 
   const subscription = await createWatcherSubscription({ config });
 

@@ -85,7 +85,6 @@ export const withHtmlLiveReload = <
         if (watcher) {
           watcher.removeAllListeners("change");
           watcher.once("change", async () => {
-            console.log("File changed");
             ws.send(reloadCommand);
           });
         }

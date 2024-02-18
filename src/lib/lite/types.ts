@@ -6,3 +6,10 @@ export type AttributeTypeConstant =
   | typeof String;
 
 export type AttributeTypeDefault = Array<any> | boolean | number | Object | string;
+
+export type RenderInsertPosition =
+  | "replace"
+  | "beforebegin"
+  | "afterbegin"
+  | "beforeend"
+  | "afterend";

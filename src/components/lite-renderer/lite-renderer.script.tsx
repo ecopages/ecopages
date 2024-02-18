@@ -6,6 +6,8 @@ import { reactiveField } from "@/lib/lite/decorators/reactive-field";
 import { onEvent } from "@/lib/lite/decorators/on-event";
 import { onUpdated } from "@/lib/lite/decorators/on-updated";
 import { querySelector } from "@/lib/lite/decorators/query-selector";
+import { Message } from "./lite-renderer.templates.kita";
+import type { RenderInsertPosition } from "@/lib/lite/types";
 
 export type LiteRendererProps = {
   text?: string;
@@ -19,21 +21,15 @@ export class LiteRenderer extends WithKita(LiteElement) {
 
   constructor() {
     super();
-    this.renderMessage();
+    this.messageList.innerHTML = "";
+    this.renderMessage("replace");
   }
 
-  renderMessage() {
+  renderMessage(mode: RenderInsertPosition = "beforeend") {
     this.renderTemplate({
       target: this.messageList,
-      template: (
-        <div class="grig gap-2">
-          <h1 class="text-2xl font-bold" safe>
-            {`${this.text} - ${this.numberOfClicks} Times`}
-          </h1>
-          <p>This element has been rendered using @kitajs/html</p>
-        </div>
-      ),
-      mode: "beforeend",
+      template: <Message text={this.text} numberOfClicks={this.numberOfClicks} />,
+      mode,
     });
   }
 
@@ -52,6 +48,7 @@ export class LiteRenderer extends WithKita(LiteElement) {
   @onUpdated("numberOfClicks")
   addMessage() {
     this.renderMessage();
+    this.messageList.scrollTop = this.messageList.scrollHeight;
   }
 }
 

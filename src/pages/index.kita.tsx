@@ -29,6 +29,7 @@ const HomePage: EcoComponent = () => {
         >
           <LiteCounter count={5} />
         </ScriptInjector>
+        <LiteRenderer text="Hello from lite" withInitialMessage />
         <LiteRenderer text="Hello from lite" />
       </>
     </BaseLayout>

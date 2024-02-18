@@ -1,7 +1,13 @@
+import { e } from "@kitajs/html";
+
+/**
+ * A type that represents an event listener subscription.
+ */
 export type LiteElementEventListener = {
   target: EventTarget;
   type: string;
   listener: EventListener;
+  id: string;
   options?: AddEventListenerOptions;
 };
 
@@ -13,10 +19,12 @@ export interface ILightElement {
   updated(changedProperty: string, oldValue: unknown, newValue: unknown): void;
   /**
    * Subscribes to an event on the target element. The subscription will be removed when the element is disconnected.
+   * This method is intended to be mainly used by the `onEvent` decorator.
    * @param target The target element to subscribe to.
    * @param type The event type to subscribe to.
    * @param listener The event listener to subscribe.
    * @param options The options to pass to the event listener.
+   * @param id The id to assign to the event subscription.
    */
   subscribeEvent(event: LiteElementEventListener): void;
   /**
@@ -26,21 +34,25 @@ export interface ILightElement {
   subscribeEvents(events: LiteElementEventListener[]): void;
   /**
    * Unsubscribes from an event on the target element.
-   * @param target The target element to unsubscribe from.
-   * @param type The event type to unsubscribe from.
-   * @param listener The event listener to unsubscribe.
+   * This method is intended to be mainly used by the `onEvent` decorator.
+   * @param id The id assigned on the event subscription.
    */
-  unsubscribeEvent(target: EventTarget, type: string, listener: EventListener): void;
+  unsubscribeEvent(id: string): void;
   /**
    * Removes all event subscriptions.
    */
   removeAllSubscribedEvents(): void;
-  /**
-   * Subscribes to an updated callback when a watched property changes.
-   * @param watch The property to watch.
-   * @param callback The callback to trigger when the property changes.
+  /*
+   * Renders a template to the target element.
+   * @param target The target element to render the template to.
+   * @param template The template to render.
+   * @param mode The mode to render the template in.
    */
-  subscribeUpdate(watch: string, callback: () => void): void;
+  renderTemplate(options: {
+    target: HTMLElement;
+    template: string;
+    mode: "replace" | "beforeend" | "afterbegin";
+  }): void;
 }
 
 /**
@@ -49,8 +61,7 @@ export interface ILightElement {
  * @implements ILightElement
  */
 export class LiteElement extends HTMLElement implements ILightElement {
-  private eventSubscriptions: LiteElementEventListener[] = [];
-  private onUpdatedCallbacks: { watch: string; callback: () => void }[] = [];
+  private eventSubscriptions = new Map<string, LiteElementEventListener>();
 
   constructor() {
     super();
@@ -64,27 +75,47 @@ export class LiteElement extends HTMLElement implements ILightElement {
 
   updated(changedProperty: string, oldValue: unknown, value: unknown) {}
 
-  public subscribeEvent({ target, type, listener, options }: LiteElementEventListener): void {
-    target.addEventListener(type, listener, options);
-    this.eventSubscriptions.push({ target, type, listener });
+  renderTemplate({
+    target = this,
+    template,
+    mode = "replace",
+  }: {
+    target: HTMLElement;
+    template: string;
+    mode: "replace" | "beforeend" | "afterbegin";
+  }) {
+    switch (mode) {
+      case "replace":
+        target.innerHTML = template;
+        break;
+      case "beforeend":
+        target.insertAdjacentHTML("beforeend", template);
+        break;
+      case "afterbegin":
+        target.insertAdjacentHTML("afterbegin", template);
+        break;
+    }
   }
 
   public subscribeEvents(events: LiteElementEventListener[]): void {
     events.forEach((event) => this.subscribeEvent(event));
   }
 
-  public subscribeUpdate(watch: string, callback: () => void): void {
-    this.onUpdatedCallbacks.push({ watch, callback });
+  public subscribeEvent(event: LiteElementEventListener): void {
+    event.target.addEventListener(event.type, event.listener, event.options);
+    this.eventSubscriptions.set(event.id, event);
   }
 
-  public unsubscribeEvent(target: EventTarget, type: string, listener: EventListener): void {
-    target.removeEventListener(type, listener);
-    this.eventSubscriptions = this.eventSubscriptions.filter(
-      (eventSubscription) =>
-        eventSubscription.target !== target ||
-        eventSubscription.type !== type ||
-        eventSubscription.listener !== listener
-    );
+  public unsubscribeEvent(id: string): void {
+    const eventSubscription = this.eventSubscriptions.get(id);
+    if (eventSubscription) {
+      eventSubscription.target.removeEventListener(
+        eventSubscription.type,
+        eventSubscription.listener,
+        eventSubscription.options
+      );
+      this.eventSubscriptions.delete(id);
+    }
   }
 
   public removeAllSubscribedEvents(): void {
@@ -94,6 +125,6 @@ export class LiteElement extends HTMLElement implements ILightElement {
         eventSubscription.listener
       );
     });
-    this.eventSubscriptions = [];
+    this.eventSubscriptions.clear();
   }
 }

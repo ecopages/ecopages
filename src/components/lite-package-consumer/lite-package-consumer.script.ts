@@ -2,7 +2,7 @@ import { customElement } from "@/lib/lite/decorators/custom-element";
 import { LiteElement } from "@/lib/lite/LiteElement";
 import { onEvent } from "@/lib/lite/decorators/on-event";
 import { querySelector } from "@/lib/lite/decorators/query-selector";
-import { LiteContext } from "@/lib/lite/context";
+import { LiteContext } from "@/lib/lite/context/lite-context";
 import { contextProvider } from "@/lib/lite/context/decorators/context-provider";
 import { useContext } from "@/lib/lite/context/decorators/use-context";
 import {

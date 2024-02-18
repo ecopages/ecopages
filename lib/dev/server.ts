@@ -34,7 +34,7 @@ function serveFromDir(config: { directory: string; path: string; gzip: boolean }
         });
       }
     } catch (err) {
-      console.error(err);
+      console.error(`[eco-pages] Error: ${basePath}.gz not found`);
     }
   }
 
@@ -46,7 +46,7 @@ function serveFromDir(config: { directory: string; path: string; gzip: boolean }
           headers: { "Content-Type": contentType },
         });
     } catch (err) {
-      console.error(err);
+      console.error("[eco-pages] Error:", basePath, "not found");
     }
   }
 
@@ -58,8 +58,7 @@ function serveFromDir(config: { directory: string; path: string; gzip: boolean }
         headers: { "Content-Type": getContentType(path.extname(pathWithSuffix)) },
       });
   } catch (err) {
-    console.log(path.join(basePath, "index.html"), "not found");
-    console.error(err);
+    console.error("[eco-pages] Error:", path.join(basePath, "index.html"), "not found");
   }
 
   return null;

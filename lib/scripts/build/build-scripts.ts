@@ -8,7 +8,7 @@ export async function buildScripts({
   config: EcoPagesConfig;
   watch?: boolean;
 }) {
-  const glob = new Glob(`${config.srcDir}/**/*.{script.ts,lib.ts}`);
+  const glob = new Glob(`${config.srcDir}/**/*.script.{ts,tsx}`);
   const scannedFiles = glob.scanSync({ cwd: "." });
   const scripts = Array.from(scannedFiles);
 

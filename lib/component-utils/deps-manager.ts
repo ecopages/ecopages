@@ -20,13 +20,15 @@ export class DepsManager {
       const isTemplate = Object.keys(defaultTemplateFormats).some((format) =>
         file.includes(`.${format}`)
       );
+
       return !(isIndex || isTemplate);
     });
 
     const dependenciesServerPath = importMeta.dir.split("src/")[1];
 
     const dependencies = dependenciesFileName.map((fileName) => {
-      const safeFileName = fileName.replace(".ts", ".js");
+      const isJsx = fileName.includes(".tsx") || fileName.includes(".jsx");
+      const safeFileName = fileName.replace(isJsx ? ".tsx" : ".ts", ".js");
       return `/${dependenciesServerPath}/${safeFileName}`;
     });
 

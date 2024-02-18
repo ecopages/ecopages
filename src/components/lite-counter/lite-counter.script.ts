@@ -1,5 +1,9 @@
-import { LiteElement, onEvent, onUpdated, querySelector } from "@/lib/lite";
-import { customElement, property } from "lit/decorators.js";
+import { customElement } from "@/lib/lite/decorators/custom-element";
+import { LiteElement } from "@/lib/lite/LiteElement";
+import { onEvent } from "@/lib/lite/decorators/on-event";
+import { querySelector } from "@/lib/lite/decorators/query-selector";
+import { onUpdated } from "@/lib/lite/decorators/on-updated";
+import { reactiveAttribute } from "@/lib/lite/decorators/reactive-attribute";
 
 export type LiteCounterProps = {
   count?: number;
@@ -7,12 +11,12 @@ export type LiteCounterProps = {
 
 @customElement("lite-counter")
 export class LiteCounter extends LiteElement {
-  @property({ type: Number }) count = 0;
+  @reactiveAttribute({ type: Number, reflect: true }) declare count: number;
   @querySelector("[data-text]") countText!: HTMLElement;
 
   @onEvent({ target: "[data-decrement]", type: "click" })
   decrement() {
-    this.count--;
+    if (this.count > 0) this.count--;
   }
 
   @onEvent({ target: "[data-increment]", type: "click" })

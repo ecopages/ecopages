@@ -17,16 +17,33 @@ function getContentType(path: string) {
   return "text/plain";
 }
 
-function serveFromDir(config: { directory: string; path: string }): Response | null {
-  const basePath = path.join(config.directory, config.path);
-  const suffixes = ["index.html"];
+function serveFromDir(config: { directory: string; path: string; gzip: boolean }): Response | null {
+  let basePath = path.join(config.directory, config.path);
+  const contentType = getContentType(path.extname(basePath));
+
+  if (config.gzip && ["application/javascript", "text/css"].includes(contentType)) {
+    try {
+      const gzipPath = `${basePath}.gz`;
+      const stat = statSync(gzipPath);
+      if (stat && stat.isFile()) {
+        return new Response(Bun.file(gzipPath), {
+          headers: {
+            "Content-Type": contentType,
+            "Content-Encoding": "gzip",
+          },
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   if (config.path.includes(".")) {
     try {
       const stat = statSync(basePath);
       if (stat && stat.isFile())
         return new Response(Bun.file(basePath), {
-          headers: { "Content-Type": getContentType(path.extname(basePath)) },
+          headers: { "Content-Type": contentType },
         });
     } catch (err) {
       console.error(err);
@@ -48,7 +65,7 @@ function serveFromDir(config: { directory: string; path: string }): Response | n
   return null;
 }
 
-export const devServer = ({ config }: { config: EcoPagesConfig }) =>
+export const devServer = ({ config, gzip }: { config: EcoPagesConfig; gzip: boolean }) =>
   Bun.serve(
     withHtmlLiveReload(
       {
@@ -60,6 +77,7 @@ export const devServer = ({ config }: { config: EcoPagesConfig }) =>
           const response = serveFromDir({
             directory: path.join(config.distDir),
             path: reqPath,
+            gzip,
           });
 
           if (response) return response;

@@ -52,9 +52,9 @@ function PackageVisualizer() {
   );
 }
 
-export function LitePkgConsumer({ contextId }: { contextId: string }) {
+export function LitePkgConsumer() {
   return (
-    <lite-package-consumer context-id={contextId} class="flex flex-col gap-2">
+    <lite-package-consumer class="flex flex-col gap-2">
       <PackageVisualizer />
       <UpdateForm />
     </lite-package-consumer>

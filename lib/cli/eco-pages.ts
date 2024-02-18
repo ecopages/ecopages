@@ -14,7 +14,6 @@ switch (args[0]) {
     break;
   case "preview":
     await $`bun run lib/scripts/build/build-all.ts --config=${projectDir}"`;
-    await $`wds --config lib/web-dev-server/config.mjs --open`;
     break;
   default:
     console.log`"Command not found"`;

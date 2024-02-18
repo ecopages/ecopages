@@ -1,5 +1,5 @@
 import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from "bun";
-import { type FSWatcher, watch } from "fs";
+import { watch } from "fs";
 import type { EcoPagesConfig } from "../eco-pages.types";
 
 declare global {
@@ -11,7 +11,7 @@ const reloadCommand = "reload";
 globalThis.ws?.send(reloadCommand);
 
 const makeLiveReloadScript = (wsUrl: string) => `
-<!-- start bun live reload script -->
+<!-- [eco-pages] live reload start script -->
 <script type="text/javascript">
   (function() {
     const socket = new WebSocket("ws://${wsUrl}");
@@ -23,10 +23,10 @@ const makeLiveReloadScript = (wsUrl: string) => `
         console.error('Live reload connection error.',{error});
       }
     };
-    console.log('🌿 Live reload enabled.');
+    console.log('[eco-pages] Live reload enabled');
   })();
 </script>
-<!-- end bun live reload script -->
+<!-- [eco-pages] live reload end script -->
 `;
 
 export type PureWebSocketServeOptions<WebSocketDataType> = Omit<
@@ -69,9 +69,11 @@ export const withHtmlLiveReload = <
         return response;
       }
 
+      const closingTags = "</body></html>";
       const originalHtml = await response.text();
       const liveReloadScript = makeLiveReloadScript(wsUrl);
-      const htmlWithLiveReload = originalHtml + liveReloadScript;
+      const htmlWithLiveReload =
+        originalHtml.replace(closingTags, "") + liveReloadScript + closingTags;
 
       return new Response(htmlWithLiveReload, response);
     },

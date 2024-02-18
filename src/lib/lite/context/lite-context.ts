@@ -1,13 +1,13 @@
-import { LiteElement } from "@/lib/lite";
+import { LiteElement } from "@/lib/lite/LiteElement";
 import {
   ContextEventsTypes,
-  ContextEventSubscriptionRequest,
   type ContextSubscription,
   type UnknownContext,
   type ContextType,
-  ContextEventOnMount,
-  ContextEventProviderRequest,
-} from "./proposal";
+} from "@/lib/lite/context/types";
+import { ContextOnMountEvent } from "@/lib/lite/context/events/context-on-mount";
+import type { ContextProviderRequestEvent } from "@/lib/lite/context/events/context-provider-request";
+import type { ContextSubscriptionRequestEvent } from "@/lib/lite/context/events/context-subscription-request";
 
 export class LiteContext<T extends UnknownContext> extends LiteElement {
   protected declare name: string;
@@ -22,7 +22,7 @@ export class LiteContext<T extends UnknownContext> extends LiteElement {
 
   override connectedCallback() {
     super.connectedCallback();
-    this.dispatchEvent(new ContextEventOnMount(this.name));
+    this.dispatchEvent(new ContextOnMountEvent(this.name));
   }
 
   setState = (state: Partial<ContextType<T>>, callback?: (state: ContextType<T>) => void) => {
@@ -57,7 +57,7 @@ export class LiteContext<T extends UnknownContext> extends LiteElement {
       });
   };
 
-  onSubscriptionRequest = (event: ContextEventSubscriptionRequest<UnknownContext>) => {
+  onSubscriptionRequest = (event: ContextSubscriptionRequestEvent<UnknownContext>) => {
     const { context, callback, subscribe, selector } = event;
     if (context.name !== this.name) return;
     event.stopPropagation();
@@ -75,7 +75,7 @@ export class LiteContext<T extends UnknownContext> extends LiteElement {
     }
   };
 
-  onProviderRequest = (event: ContextEventProviderRequest<UnknownContext>) => {
+  onProviderRequest = (event: ContextProviderRequestEvent<UnknownContext>) => {
     const { context, callback } = event;
     if (context.name !== this.name) return;
     event.stopPropagation();
@@ -90,10 +90,6 @@ export class LiteContext<T extends UnknownContext> extends LiteElement {
     this.addEventListener(ContextEventsTypes.SUBSCRIPTION_REQUEST, this.onSubscriptionRequest);
     this.addEventListener(ContextEventsTypes.PROVIDER_REQUEST, this.onProviderRequest);
   };
-
-  protected override createRenderRoot(): HTMLElement | DocumentFragment {
-    return this;
-  }
 }
 
 declare global {

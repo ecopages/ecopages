@@ -1,5 +1,3 @@
-import { LitElement, type PropertyValueMap } from "lit";
-
 export type LiteElementEventListener = {
   target: EventTarget;
   type: string;
@@ -7,9 +5,12 @@ export type LiteElementEventListener = {
   options?: AddEventListenerOptions;
 };
 
-type Constructor<T = {}> = new (...args: any[]) => T;
-
-export interface ILightElement extends LitElement {
+export interface ILightElement {
+  /**
+   * A callback that is triggered when the element is connected to the DOM.
+   * @param changedProperty The properties that have changed.
+   */
+  updated(changedProperty: string, oldValue: unknown, newValue: unknown): void;
   /**
    * Subscribes to an event on the target element. The subscription will be removed when the element is disconnected.
    * @param target The target element to subscribe to.
@@ -43,73 +44,56 @@ export interface ILightElement extends LitElement {
 }
 
 /**
- * A mixin to power up a LitElement with:
- * - Event subscription management
- * - A render root that is the element itself
- * - An updated callback that triggers when a watched property changes
- * @param Base The LitElement class to power up.
- * @returns The powered up LitElement class.
+ * A base class for creating custom elements with reactive properties and event subscriptions.
+ * @extends HTMLElement
+ * @implements ILightElement
  */
-export const Lite = <T extends Constructor<LitElement>>(Base: T) => {
-  class LiteElementClass extends Base implements ILightElement {
-    private eventSubscriptions: LiteElementEventListener[] = [];
-    private onUpdatedCallbacks: { watch: string; callback: () => void }[] = [];
+export class LiteElement extends HTMLElement implements ILightElement {
+  private eventSubscriptions: LiteElementEventListener[] = [];
+  private onUpdatedCallbacks: { watch: string; callback: () => void }[] = [];
 
-    override disconnectedCallback() {
-      super.disconnectedCallback();
-      this.removeAllSubscribedEvents();
-    }
-
-    protected override updated(
-      _changedProperties: PropertyValueMap<any> | Map<PropertyKey, unknown>
-    ): void {
-      super.updated(_changedProperties);
-      this.onUpdatedCallbacks.forEach((record) => {
-        if (_changedProperties.has(record.watch)) {
-          record.callback();
-        }
-      });
-    }
-
-    public subscribeEvent({ target, type, listener, options }: LiteElementEventListener): void {
-      target.addEventListener(type, listener, options);
-      this.eventSubscriptions.push({ target, type, listener });
-    }
-
-    public subscribeEvents(events: LiteElementEventListener[]): void {
-      events.forEach((event) => this.subscribeEvent(event));
-    }
-
-    public subscribeUpdate(watch: string, callback: () => void): void {
-      this.onUpdatedCallbacks.push({ watch, callback });
-    }
-
-    public unsubscribeEvent(target: EventTarget, type: string, listener: EventListener): void {
-      target.removeEventListener(type, listener);
-      this.eventSubscriptions = this.eventSubscriptions.filter(
-        (eventSubscription) =>
-          eventSubscription.target !== target ||
-          eventSubscription.type !== type ||
-          eventSubscription.listener !== listener
-      );
-    }
-
-    public removeAllSubscribedEvents(): void {
-      this.eventSubscriptions.forEach((eventSubscription) => {
-        eventSubscription.target.removeEventListener(
-          eventSubscription.type,
-          eventSubscription.listener
-        );
-      });
-      this.eventSubscriptions = [];
-    }
-
-    protected override createRenderRoot(): HTMLElement | DocumentFragment {
-      return this;
-    }
+  constructor() {
+    super();
   }
 
-  return LiteElementClass;
-};
+  connectedCallback() {}
 
-export class LiteElement extends Lite(LitElement) {}
+  disconnectedCallback() {
+    this.removeAllSubscribedEvents();
+  }
+
+  updated(changedProperty: string, oldValue: unknown, value: unknown) {}
+
+  public subscribeEvent({ target, type, listener, options }: LiteElementEventListener): void {
+    target.addEventListener(type, listener, options);
+    this.eventSubscriptions.push({ target, type, listener });
+  }
+
+  public subscribeEvents(events: LiteElementEventListener[]): void {
+    events.forEach((event) => this.subscribeEvent(event));
+  }
+
+  public subscribeUpdate(watch: string, callback: () => void): void {
+    this.onUpdatedCallbacks.push({ watch, callback });
+  }
+
+  public unsubscribeEvent(target: EventTarget, type: string, listener: EventListener): void {
+    target.removeEventListener(type, listener);
+    this.eventSubscriptions = this.eventSubscriptions.filter(
+      (eventSubscription) =>
+        eventSubscription.target !== target ||
+        eventSubscription.type !== type ||
+        eventSubscription.listener !== listener
+    );
+  }
+
+  public removeAllSubscribedEvents(): void {
+    this.eventSubscriptions.forEach((eventSubscription) => {
+      eventSubscription.target.removeEventListener(
+        eventSubscription.type,
+        eventSubscription.listener
+      );
+    });
+    this.eventSubscriptions = [];
+  }
+}

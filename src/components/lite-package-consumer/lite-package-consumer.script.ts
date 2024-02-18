@@ -1,29 +1,29 @@
-import { LiteElement, onEvent, querySelector } from "@/lib/lite";
-import { LiteContext, provider, subscribe } from "@/lib/lite/context";
-import { customElement } from "lit/decorators.js";
+import { customElement } from "@/lib/lite/decorators/custom-element";
+import { LiteElement } from "@/lib/lite/LiteElement";
+import { onEvent } from "@/lib/lite/decorators/on-event";
+import { querySelector } from "@/lib/lite/decorators/query-selector";
+import { LiteContext } from "@/lib/lite/context";
+import { contextProvider } from "@/lib/lite/context/decorators/context-provider";
+import { useContext } from "@/lib/lite/context/decorators/use-context";
 import {
   litePackageContext,
   type LitePackageContextType,
 } from "../lite-package-context/lite-package-context.script";
-
-export type LitePkgConsumerProps = {
-  "context-id": string;
-};
 
 @customElement("lite-package-consumer")
 export class LitePackageConsumer extends LiteElement {
   @querySelector("[data-name]") packageName!: HTMLSpanElement;
   @querySelector("[data-version]") packageVersion!: HTMLSpanElement;
 
-  @provider<LitePackageContextType>(litePackageContext)
+  @contextProvider<LitePackageContextType>(litePackageContext)
   packageContext!: LiteContext<LitePackageContextType>;
 
-  @subscribe({ context: litePackageContext, selector: "name" })
+  @useContext({ context: litePackageContext, selector: "name" })
   updateName({ name }: { name: string }) {
     this.packageName.innerHTML = name;
   }
 
-  @subscribe({ context: litePackageContext, selector: "version" })
+  @useContext({ context: litePackageContext, selector: "version" })
   updateVersion({ version }: { version: string }) {
     this.packageVersion.innerHTML = version;
   }
@@ -42,7 +42,7 @@ export class LitePackageConsumer extends LiteElement {
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      "lite-package-consumer": HtmlTag & LitePkgConsumerProps;
+      "lite-package-consumer": HtmlTag;
     }
   }
 }

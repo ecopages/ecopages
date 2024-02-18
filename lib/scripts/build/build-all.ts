@@ -39,19 +39,25 @@ await buildScripts({ config });
 
 await buildPages({ config });
 
+async function runDevServer(gzip: boolean = !WATCH_MODE) {
+  const server = devServer({ config, gzip });
+  await $`clear`;
+  console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
+}
+
 if (!WATCH_MODE) {
   exec(
     `bunx tailwindcss -i ${config.srcDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --minify`
   );
   gzipDirectory(config.distDir);
+
+  runDevServer();
 } else {
   exec(
     `bunx tailwindcss -i ${config.srcDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --watch --minify`
   );
 
-  const server = devServer({ config });
-  await $`clear`;
-  console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
+  runDevServer();
 
   const subscription = await createWatcherSubscription({ config });
 

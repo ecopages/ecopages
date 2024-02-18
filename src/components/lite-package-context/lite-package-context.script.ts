@@ -1,6 +1,6 @@
-import { LiteContext } from "@/lib/lite/context";
-import { createContext } from "@/lib/lite/context/proposal";
-import { customElement } from "lit/decorators.js";
+import { LiteContext } from "@/lib/lite/context/lite-context";
+import { createContext } from "@/lib/lite/context/types";
+import { customElement } from "@/lib/lite/decorators/custom-element";
 
 class Logger {
   log(message: string) {
@@ -23,7 +23,7 @@ export const litePackageContext = createContext("lite-package-context", {
 export type LitePackageContextType = typeof litePackageContext;
 
 @customElement("lite-package-context")
-export class LitePkgContext extends LiteContext<LitePackageContextType> {
+export class LitePackageContext extends LiteContext<LitePackageContextType> {
   protected override name = litePackageContext.name;
   protected override state = litePackageContext.initialValue!;
 }

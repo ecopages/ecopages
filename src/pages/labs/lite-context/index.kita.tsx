@@ -45,7 +45,7 @@ doSomething() {...}
   * assign the element to. Behind the scenes, it uses querySelector
   * -------------------------------------------------------------- */
 
-@querySelector("[data-text]") countText!: HTMLElement;
+@querySelector("[data-text]") text!: HTMLElement;
 myText: string
 
 /* ----------------- @querySelectorAll decorator -------------------- *
@@ -54,8 +54,7 @@ myText: string
   * assign the element to. Behind the scenes, it uses querySelectorAll
   * -------------------------------------------------------------- */
 
-@querySelector("[data-text]") countText!: HTMLElement;
-myNotes: string[]
+@querySelectorAll("[data-text]") allTexts!: HTMLElement[];
 
 /* ----------------- @onUpdated decorator ----------------------- *
   * This is a decorator that allows you to register a method to 
@@ -167,15 +166,13 @@ const dependencies = DepsManager.collect({
   components: [BaseLayout, LitePkgContext, LitePkgConsumer],
 });
 
-const CONTEXT_ID = "eco-pages";
-
 const LiteElement: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
-      <LitePkgContext contextId={CONTEXT_ID} class="grid grid-cols-2 gap-4">
+      <LitePkgContext class="grid grid-cols-2 gap-4">
         <>
-          <LitePkgConsumer contextId={CONTEXT_ID} />
-          <LitePkgConsumer contextId={CONTEXT_ID} />
+          <LitePkgConsumer />
+          <LitePkgConsumer />
         </>
       </LitePkgContext>
       <div class="my-8 rounded-md grid grid-cols-6 [&_pre.shiki]:col-span-4 [&_pre.shiki]:col-start-2 [&_pre.shiki]:whitespace-pre-wrap [&_pre.shiki]:px-4 [&_pre.shiki]:rounded-md">

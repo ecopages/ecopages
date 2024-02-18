@@ -82,9 +82,10 @@ export const withHtmlLiveReload = <
       open: async (ws) => {
         globalThis.ws = ws;
         await serveOptions.websocket?.open?.(ws);
-
         if (watcher) {
+          watcher.removeAllListeners("change");
           watcher.once("change", async () => {
+            console.log("File changed");
             ws.send(reloadCommand);
           });
         }

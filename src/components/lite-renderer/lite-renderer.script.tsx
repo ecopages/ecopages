@@ -25,11 +25,11 @@ export class LiteRenderer extends WithKita(LiteElement) {
     this.renderMessage("replace");
   }
 
-  renderMessage(mode: RenderInsertPosition = "beforeend") {
+  renderMessage(insert: RenderInsertPosition = "beforeend") {
     this.renderTemplate({
       target: this.messageList,
       template: <Message text={this.text} numberOfClicks={this.numberOfClicks} />,
-      mode,
+      insert,
     });
   }
 

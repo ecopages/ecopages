@@ -1,4 +1,5 @@
 import { e } from "@kitajs/html";
+import type { RenderInsertPosition } from "./types";
 
 /**
  * A type that represents an event listener subscription.
@@ -51,7 +52,7 @@ export interface ILightElement {
   renderTemplate(options: {
     target: HTMLElement;
     template: string;
-    mode: "replace" | "beforeend" | "afterbegin";
+    insert: RenderInsertPosition;
   }): void;
 }
 
@@ -78,11 +79,11 @@ export class LiteElement extends HTMLElement implements ILightElement {
   renderTemplate({
     target = this,
     template,
-    mode = "replace",
+    insert: mode = "replace",
   }: {
     target: HTMLElement;
     template: string;
-    mode: "replace" | "beforeend" | "afterbegin";
+    insert: RenderInsertPosition;
   }) {
     switch (mode) {
       case "replace":

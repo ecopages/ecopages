@@ -20,9 +20,9 @@ export const LiteRenderer: EcoComponent<LiteRendererProps & { withInitialMessage
   withInitialMessage,
 }) => {
   return (
-    <lite-renderer class="grid gap-2 max-w-2xl bg-slate-200 rounded-md px-4 pt-4 pb-1" text={text}>
+    <lite-renderer class="grid gap-2 max-w-2xl bg-slate-200 rounded-md px-2 pt-3 pb-2" text={text}>
       <Controls />
-      <div class="grid gap-2 h-40 overflow-auto bg-slate-50 p-4" data-list>
+      <div class="grid gap-2 h-40 overflow-auto bg-slate-50 p-4 rounded-md" data-list>
         {withInitialMessage ? ((<Message text={text} />) as "safe") : <></>}
       </div>
       <p class="text-xs">

@@ -8,7 +8,7 @@ interface WithKitaMixin {
   renderTemplate: (props: {
     target: HTMLElement;
     template: JSX.Element | string;
-    mode: RenderInsertPosition;
+    insert: RenderInsertPosition;
   }) => Promise<void>;
 }
 export function WithKita<T extends Constructor<LiteElement>>(
@@ -18,11 +18,11 @@ export function WithKita<T extends Constructor<LiteElement>>(
     override async renderTemplate({
       target = this,
       template,
-      mode = "replace",
+      insert: mode = "replace",
     }: {
       target: HTMLElement;
       template: JSX.Element | string;
-      mode: RenderInsertPosition;
+      insert: RenderInsertPosition;
     }) {
       const safeTemplate = typeof template !== "string" ? template.toString() : template;
       switch (mode) {

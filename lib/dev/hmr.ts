@@ -37,8 +37,16 @@ export type PureWebSocketServeOptions<WebSocketDataType> = Omit<
   websocket?: WebSocketHandler<WebSocketDataType>;
 };
 
-const WS_PATH = "__bun_live_reload_websocket__";
+const WS_PATH = "__ecopages_live_reload_websocket__";
 
+/**
+ * @function withHtmlLiveReload
+ * @description
+ * This function returns the serve options with live reload.
+ * It will add the live reload script to the html pages.
+ * @param {PureWebSocketServeOptions} serveOptions
+ * @param {EcoPagesConfig} config
+ */
 export const withHtmlLiveReload = <
   WebSocketDataType,
   T extends PureWebSocketServeOptions<WebSocketDataType>

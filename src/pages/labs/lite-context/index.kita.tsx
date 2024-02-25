@@ -1,7 +1,10 @@
 import { DepsManager, type EcoComponent } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
-import { LitePkgContext } from "@/components/lite-package-context";
-import { LitePkgConsumer } from "@/components/lite-package-consumer";
+import {
+  LiteContextDemo,
+  LiteContextDemoEditor,
+  LiteContextDemoVisualizer,
+} from "@/components/lite-context-demo";
 import { codeToHtml } from "shiki";
 
 const code = `
@@ -112,7 +115,7 @@ export const myContext = createContext("my-context", {
 export type MyContext = typeof myContext;
 
 @customElement("lite-my-context")
-export class LitePkgContext extends LiteContext<MyContext> {
+export class LitePackageContext extends LiteContext<MyContext> {
   protected override name = litePackageContext.name;
   protected override state = litePackageContext.initialValue!;
 }
@@ -163,18 +166,16 @@ export const metadata = {
 
 const dependencies = DepsManager.collect({
   importMeta: import.meta,
-  components: [BaseLayout, LitePkgContext, LitePkgConsumer],
+  components: [BaseLayout, LiteContextDemo, LiteContextDemoVisualizer, LiteContextDemoEditor],
 });
 
 const LiteElement: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
-      <LitePkgContext class="grid grid-cols-2 gap-4">
-        <>
-          <LitePkgConsumer />
-          <LitePkgConsumer />
-        </>
-      </LitePkgContext>
+      <LiteContextDemo>
+        <LiteContextDemoVisualizer />
+        <LiteContextDemoEditor />
+      </LiteContextDemo>
       <div class="my-8 rounded-md grid grid-cols-6 [&_pre.shiki]:col-span-4 [&_pre.shiki]:col-start-2 [&_pre.shiki]:whitespace-pre-wrap [&_pre.shiki]:px-4 [&_pre.shiki]:rounded-md">
         {safeHtml}
       </div>

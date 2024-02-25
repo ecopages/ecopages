@@ -3,7 +3,7 @@ import { BaseLayout } from "@/layouts/base-layout";
 import { Counter } from "@/components/counter";
 import { LiteCounter } from "@/components/lite-counter";
 import { ScriptInjector } from "@/components/script-injector";
-import { LiteRenderer } from "@/components/lite-renderer";
+import { LiteRendererServer, LiteRendererClient } from "@/components/lite-renderer";
 
 export const metadata = {
   title: "Home page",
@@ -29,8 +29,8 @@ const HomePage: EcoComponent = () => {
         >
           <LiteCounter count={5} />
         </ScriptInjector>
-        <LiteRenderer text="Hello from lite" withInitialMessage />
-        <LiteRenderer text="Hello from lite" />
+        <LiteRendererServer text="Hello from the server" />
+        <LiteRendererClient text="Hello from the client" />
       </>
     </BaseLayout>
   );
@@ -40,7 +40,8 @@ HomePage.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [
     BaseLayout,
-    LiteRenderer,
+    LiteRendererServer,
+    LiteRendererClient,
     DepsManager.filter(Counter, "stylesheets"),
     DepsManager.filter(LiteCounter, "stylesheets"),
   ],

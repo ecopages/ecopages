@@ -9,6 +9,11 @@ export interface RobotsPreference {
   [key: string]: string[];
 }
 
+/**
+ * @function generateRobotsTxt
+ * @description
+ * This function generates the robots.txt file for the project.
+ */
 export function generateRobotsTxt({
   preferences,
   directory,

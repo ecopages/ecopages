@@ -1,8 +1,12 @@
 import { withHtmlLiveReload } from "./hmr";
 import path from "path";
 import { statSync } from "fs";
-import type { EcoPagesConfig } from "../eco-pages.types";
 
+/**
+ * @function getContentType
+ * @description
+ * This function returns the content type of the given path.
+ */
 function getContentType(path: string) {
   const ext = path.split(".").pop();
   if (ext === "js") return "application/javascript";
@@ -17,6 +21,12 @@ function getContentType(path: string) {
   return "text/plain";
 }
 
+/**
+ * @function serveFromDir
+ * @description
+ * This function serves the file from the directory.
+ * Optionally, it can serve the gzipped file if the gzip flag is set to true.
+ */
 function serveFromDir(config: { directory: string; path: string; gzip: boolean }): Response | null {
   let basePath = path.join(config.directory, config.path);
   const contentType = getContentType(path.extname(basePath));
@@ -64,7 +74,12 @@ function serveFromDir(config: { directory: string; path: string; gzip: boolean }
   return null;
 }
 
-export const devServer = ({ config, gzip }: { config: EcoPagesConfig; gzip: boolean }) =>
+/**
+ * @function createDevServer
+ * @description
+ * This function returns the development server.
+ */
+export const createDevServer = ({ gzip }: { gzip: boolean }) =>
   Bun.serve(
     withHtmlLiveReload(
       {
@@ -74,7 +89,7 @@ export const devServer = ({ config, gzip }: { config: EcoPagesConfig; gzip: bool
           if (reqPath === "/") reqPath = "/index.html";
 
           const response = serveFromDir({
-            directory: path.join(config.distDir),
+            directory: path.join(globalThis.ecoConfig.distDir),
             path: reqPath,
             gzip,
           });
@@ -86,6 +101,6 @@ export const devServer = ({ config, gzip }: { config: EcoPagesConfig; gzip: bool
           });
         },
       },
-      config
+      globalThis.ecoConfig
     )
   );

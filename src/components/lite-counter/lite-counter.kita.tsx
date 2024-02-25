@@ -15,4 +15,8 @@ export const LiteCounter: EcoComponent<LiteCounterProps> = ({ count }) => {
   );
 };
 
-LiteCounter.dependencies = DepsManager.collect({ importMeta: import.meta });
+LiteCounter.dependencies = DepsManager.import({
+  importMeta: import.meta,
+  scripts: ["./lite-counter.script.ts"],
+  stylesheets: ["./lite-counter.css"],
+});

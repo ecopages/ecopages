@@ -11,7 +11,7 @@ import type { ContextSubscriptionRequestEvent } from "@/lib/lite/context/events/
 
 export class LiteContext<T extends UnknownContext> extends LiteElement {
   protected declare name: string;
-  protected declare state: ContextType<T>;
+  protected declare context: ContextType<T>;
 
   subscriptions: ContextSubscription<T>[] = [];
 
@@ -25,34 +25,34 @@ export class LiteContext<T extends UnknownContext> extends LiteElement {
     this.dispatchEvent(new ContextOnMountEvent(this.name));
   }
 
-  setState = (state: Partial<ContextType<T>>, callback?: (state: ContextType<T>) => void) => {
-    const newState = { ...this.state, ...state };
-    if (callback) callback(newState);
-    this.notifySubscribers(newState, this.state);
+  setContext = (update: Partial<ContextType<T>>, callback?: (context: ContextType<T>) => void) => {
+    const newContext = { ...this.context, ...update };
+    if (callback) callback(newContext);
+    this.notifySubscribers(newContext, this.context);
   };
 
-  getState = () => {
-    return this.state;
+  getContext = () => {
+    return this.context;
   };
 
-  private notifySubscribers = (newState: ContextType<T>, prevState: ContextType<T>) => {
+  private notifySubscribers = (newContext: ContextType<T>, prevContext: ContextType<T>) => {
     this.subscriptions.forEach((sub) => {
-      if (!sub.selector) return this.sendSubscriptionUpdate(sub, newState);
-      const newSelected = newState[sub.selector];
-      const prevSelected = prevState[sub.selector];
+      if (!sub.selector) return this.sendSubscriptionUpdate(sub, newContext);
+      const newSelected = newContext[sub.selector];
+      const prevSelected = prevContext[sub.selector];
       if (newSelected !== prevSelected) {
-        this.sendSubscriptionUpdate(sub, newState);
+        this.sendSubscriptionUpdate(sub, newContext);
       }
     });
   };
 
   sendSubscriptionUpdate = (
     { selector, callback }: ContextSubscription<T>,
-    state: ContextType<T>
+    context: ContextType<T>
   ) => {
-    if (!selector) callback(state);
+    if (!selector) callback(context);
     else
-      callback({ [selector]: state[selector] } as {
+      callback({ [selector]: context[selector] } as {
         [K in keyof ContextType<T>]: ContextType<T>[K];
       });
   };
@@ -67,11 +67,11 @@ export class LiteContext<T extends UnknownContext> extends LiteElement {
     }
 
     if (selector) {
-      callback({ [selector]: this.state[selector] } as {
+      callback({ [selector]: this.context[selector] } as {
         [K in keyof ContextType<T>]: ContextType<T>[K];
       });
     } else {
-      callback(this.state as ContextType<T>);
+      callback(this.context as ContextType<T>);
     }
   };
 

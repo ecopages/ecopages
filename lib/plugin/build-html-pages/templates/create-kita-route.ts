@@ -3,7 +3,14 @@ import type { MetadataProps } from "@/includes/seo.kita";
 import type { RenderRouteOptions, EcoComponent, RenderRouteConfig } from "root/lib/eco-pages.types";
 import { getHtmlPath } from "../build-html-pages.plugin";
 import { uncacheModules } from "../utils/uncache-modules";
+import { HeadContentBuilder } from "../utils/head-content-builder";
 
+/**
+ * This function creates a route config based on the file and the eco config.
+ * It handles kita files and provides the html and the route data.
+ * @param file
+ * @param config
+ */
 export async function createKitaRoute({
   file,
   config,
@@ -21,8 +28,17 @@ export async function createKitaRoute({
 
   const children = await Page({});
 
+  const headContent = await new HeadContentBuilder(config).build({
+    dependencies: Page.dependencies,
+  });
+
   return {
     path: getHtmlPath({ file, pagesDir }),
-    html: HtmlTemplate({ metadata, dependencies: Page.dependencies, children }),
+    html: HtmlTemplate({
+      metadata,
+      dependencies: Page.dependencies,
+      headContent,
+      children,
+    }),
   };
 }

@@ -1,14 +1,16 @@
 import { Glob } from "bun";
-import type { EcoPagesConfig } from "root/lib/eco-pages.types";
 
-export async function buildScripts({
-  config,
-  watch = false,
-}: {
-  config: EcoPagesConfig;
-  watch?: boolean;
-}) {
-  const glob = new Glob(`${config.srcDir}/**/*.script.{ts,tsx}`);
+/**
+ * @function buildScripts
+ * @description
+ * Build the scripts based on the eco config.
+ * The glob pattern looks for all the files with the dependency prefix in the src directory.
+ * The dependency prefix is defined in the eco config, default is "script". i.e. "my-component.script.ts"
+ */
+export async function buildScripts() {
+  const { ecoConfig: config } = globalThis;
+
+  const glob = new Glob(`${config.srcDir}/**/*.${config.dependencyExtPrefix}.{ts,tsx}`);
   const scannedFiles = glob.scanSync({ cwd: "." });
   const scripts = Array.from(scannedFiles);
 
@@ -17,8 +19,10 @@ export async function buildScripts({
     outdir: config.distDir,
     root: config.srcDir,
     target: "browser",
-    minify: !watch,
+    minify: true, // !config.watchMode,
     format: "esm",
     splitting: true,
   });
+
+  if (!build.success) build.logs.forEach((log) => console.log(log));
 }

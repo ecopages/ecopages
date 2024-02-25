@@ -1,0 +1,31 @@
+lc-demo-editor,
+lc-demo-visualizer {
+  @apply grid gap-4 auto-rows-min bg-blue-200 rounded-md p-4 shadow-md;
+}
+
+.lc-demo__label {
+  @apply px-2 bg-red-800 text-blue-50 rounded-md text-center shadow-md;
+}
+
+lc-demo {
+  @apply grid grid-cols-2 gap-4 bg-blue-100 p-4 rounded-md shadow-md;
+  & > .lc-demo__label {
+    @apply col-span-2;
+  }
+}
+
+lc-demo-editor {
+  form {
+    @apply flex flex-col gap-4;
+    button[type="submit"] {
+      @apply h-10 px-2 py-1  border bg-gray-700 text-white rounded-md;
+    }
+  }
+  .input-group {
+    @apply flex flex-col gap-1 w-full;
+    select,
+    input {
+      @apply h-10 px-2 py-1 border border-gray-700 rounded-md;
+    }
+  }
+}

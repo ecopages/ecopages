@@ -1,3 +1,4 @@
+import { $ } from "bun";
 import fs from "node:fs";
 import path from "node:path";
 import { exec } from "node:child_process";
@@ -6,63 +7,159 @@ import { generateRobotsTxt } from "root/lib/scripts/robots/generate-robots-txt";
 import { buildScripts } from "root/lib/scripts/build/build-scripts";
 import { buildPages } from "root/lib/scripts/build/build-pages";
 import { buildInitialCss } from "root/lib/scripts/build/build-css";
-import { getConfig } from "root/lib/scripts/config/get-config";
+import { createGlobalConfig } from "root/lib/scripts/config/create-global-config";
 import { createWatcherSubscription } from "root/lib/scripts/build/watcher";
-import { devServer } from "root/lib/dev/server";
-import { $ } from "bun";
+import { createDevServer } from "root/lib/dev/server";
+import type { EcoPagesConfig } from "root/lib/eco-pages.types";
 
-const args = process.argv.slice(2);
-const WATCH_MODE = args.includes("--watch");
-const projectDir = args.find((arg) => arg.startsWith("--config="))?.split("=")[1];
+/**
+ * @class EcoPagesBuilder
+ * @description
+ * This class is responsible for building the eco-pages project.
+ */
+class EcoPagesBuilder {
+  watchMode: boolean;
+  projectDir?: string;
+  declare config: Required<EcoPagesConfig>;
 
-const config = await getConfig(projectDir);
+  constructor(args: string[]) {
+    this.watchMode = args.includes("--watch");
+    this.projectDir = args.find((arg) => arg.startsWith("--config="))?.split("=")[1];
+  }
 
-if (!fs.existsSync(config.distDir)) {
-  fs.mkdirSync(config.distDir);
-} else {
-  fs.rmSync(config.distDir, { recursive: true });
-  fs.mkdirSync(config.distDir);
+  /**
+   * @method createGlobalConfig
+   * @description
+   * This method creates the global config for the project.
+   */
+  async createGlobalConfig() {
+    this.config = await createGlobalConfig({
+      projectDir: this.projectDir,
+      watchMode: this.watchMode,
+    });
+  }
+
+  /**
+   * @method prepareDistDir
+   * @description
+   * This method prepares the dist directory for the project.
+   * It creates the dist directory if it doesn't exist and removes the dist directory if it exists.
+   * Then it creates the dist directory again.
+   **/
+  prepareDistDir() {
+    if (!fs.existsSync(this.config.distDir)) {
+      fs.mkdirSync(this.config.distDir);
+    } else {
+      fs.rmSync(this.config.distDir, { recursive: true });
+      fs.mkdirSync(this.config.distDir);
+    }
+  }
+
+  /**
+   * @method copyPublicDir
+   * @description
+   * This method copies the public directory to the dist directory.
+   */
+  copyPublicDir() {
+    fs.cpSync(
+      path.join(this.config.srcDir, this.config.publicDir),
+      path.join(this.config.distDir, this.config.publicDir),
+      {
+        recursive: true,
+      }
+    );
+  }
+
+  /**
+   * @method generateRobotsTxt
+   * @description
+   * This method generates the robots.txt file for the project.
+   */
+  generateRobotsTxt() {
+    generateRobotsTxt({
+      preferences: this.config.robotsTxt.preferences,
+      directory: this.config.distDir,
+    });
+  }
+
+  /**
+   * @method buildWatchMode
+   * @description
+   * This method builds the project in watch mode.
+   * It watches the tailwindcss file and the pages directory.
+   * It also runs the dev server.
+   */
+  async buildWatchMode() {
+    const { srcDir, globalDir, distDir } = this.config;
+
+    exec(
+      `bunx tailwindcss -i ${srcDir}/${globalDir}/css/tailwind.css -o ${distDir}/${globalDir}/css/tailwind.css --watch --minify`
+    );
+
+    this.runDevServer();
+
+    const subscription = await createWatcherSubscription();
+
+    process.on("SIGINT", async () => {
+      await subscription.unsubscribe();
+      process.exit(0);
+    });
+  }
+
+  /**
+   * @method buildProdMode
+   * @description
+   * This method builds the project in production mode.
+   * It minifies the tailwindcss file and gzips the dist directory.
+   * It also runs the dev server.
+   */
+  buildProdMode() {
+    const { srcDir, globalDir, distDir } = this.config;
+
+    exec(
+      `bunx tailwindcss -i ${srcDir}/${globalDir}/css/tailwind.css -o ${distDir}/${globalDir}/css/tailwind.css --minify`
+    );
+
+    gzipDirectory(distDir);
+
+    this.runDevServer();
+  }
+
+  /**
+   * @method run
+   * @description
+   * This method runs the eco-pages builder.
+   */
+  async run() {
+    await this.createGlobalConfig();
+
+    this.prepareDistDir();
+    this.copyPublicDir();
+    this.generateRobotsTxt();
+
+    await buildInitialCss();
+    await buildScripts();
+    await buildPages();
+
+    if (this.watchMode) {
+      await this.buildWatchMode();
+    } else {
+      this.buildProdMode();
+    }
+  }
+
+  /**
+   * @method runDevServer
+   * @description
+   * This method runs the dev server.
+   * @param {boolean} gzip - Whether to gzip the dist directory or not.
+   */
+  private async runDevServer(gzip: boolean = !this.watchMode) {
+    const server = createDevServer({ gzip });
+    await $`clear`;
+    console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
+  }
 }
 
-fs.cpSync(path.join(config.srcDir, config.publicDir), path.join(config.distDir, config.publicDir), {
-  recursive: true,
-});
-
-generateRobotsTxt({
-  preferences: config.robotsTxt.preferences,
-  directory: config.distDir,
-});
-
-await buildInitialCss({ config });
-
-await buildScripts({ config });
-
-await buildPages({ config });
-
-async function runDevServer(gzip: boolean = !WATCH_MODE) {
-  const server = devServer({ config, gzip });
-  await $`clear`;
-  console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
-}
-
-if (!WATCH_MODE) {
-  exec(
-    `bunx tailwindcss -i ${config.srcDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --minify`
-  );
-  gzipDirectory(config.distDir);
-
-  runDevServer();
-} else {
-  exec(
-    `bunx tailwindcss -i ${config.srcDir}/${config.globalDir}/css/tailwind.css -o ${config.distDir}/${config.globalDir}/css/tailwind.css --watch --minify`
-  );
-
-  runDevServer();
-
-  const subscription = await createWatcherSubscription({ config });
-
-  process.on("SIGINT", async () => {
-    await subscription.unsubscribe();
-    process.exit(0);
-  });
-}
+const ecoPages = new EcoPagesBuilder(process.argv.slice(2));
+ecoPages.run();

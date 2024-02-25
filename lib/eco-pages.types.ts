@@ -56,6 +56,12 @@ export type EcoPagesConfig = {
    */
   componentsDir: string;
   /**
+   * The prefix for the extensions that identifies a script that is a dependency of a template
+   * i.e. function.script.ts > will be recognised as a dependency and built accordingly
+   * @default "script"
+   */
+  dependencyExtPrefix: string;
+  /**
    * The robots.txt configuration
    */
   robotsTxt: {
@@ -76,6 +82,10 @@ export type EcoPagesConfig = {
    * The external dependencies
    */
   externalDeps: string[];
+  /**
+   * The watch mode
+   */
+  watchMode: boolean;
 };
 
 export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, "baseUrl"> &

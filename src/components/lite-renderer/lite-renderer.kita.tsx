@@ -15,24 +15,32 @@ const Controls = () => {
   );
 };
 
-export const LiteRenderer: EcoComponent<LiteRendererProps & { withInitialMessage?: boolean }> = ({
+export const LiteRendererServer: EcoComponent<LiteRendererProps> = ({
   text = "Hello from lite",
-  withInitialMessage,
 }) => {
   return (
-    <lite-renderer class="grid gap-2 max-w-2xl bg-slate-200 rounded-md px-2 pt-3 pb-2" text={text}>
+    <lite-renderer class="grid gap-2 max-w-2xl bg-slate-200 rounded-md px-2 pt-3 pb-2">
       <Controls />
       <div class="grid gap-2 h-40 overflow-auto bg-slate-50 p-4 rounded-md" data-list>
-        {withInitialMessage ? ((<Message text={text} />) as "safe") : <></>}
+        <Message text={text} />
       </div>
-      <p class="text-xs">
-        *
-        {withInitialMessage
-          ? "The first message has been sent via the server"
-          : "The first message has been rendered on the client"}
-      </p>
+      <p class="text-xs">*The first message has been sent via the server</p>
     </lite-renderer>
   );
 };
 
-LiteRenderer.dependencies = DepsManager.collect({ importMeta: import.meta });
+export const LiteRendererClient: EcoComponent<LiteRendererProps> = ({
+  text = "Hello from lite",
+}) => {
+  return (
+    <lite-renderer class="grid gap-2 max-w-2xl bg-slate-200 rounded-md px-2 pt-3 pb-2" text={text}>
+      <Controls />
+      <div class="grid gap-2 h-40 overflow-auto bg-slate-50 p-4 rounded-md" data-list></div>
+      <p class="text-xs">*The first message has been rendered on the client</p>
+    </lite-renderer>
+  );
+};
+
+LiteRendererServer.dependencies = DepsManager.collect({ importMeta: import.meta });
+
+LiteRendererClient.dependencies = DepsManager.collect({ importMeta: import.meta });

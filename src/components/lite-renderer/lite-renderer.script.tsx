@@ -21,8 +21,10 @@ export class LiteRenderer extends WithKita(LiteElement) {
 
   constructor() {
     super();
-    this.messageList.innerHTML = "";
-    this.renderMessage("replace");
+    if (this.text) {
+      this.messageList.innerHTML = "";
+      this.renderMessage("replace");
+    }
   }
 
   renderMessage(insert: RenderInsertPosition = "beforeend") {

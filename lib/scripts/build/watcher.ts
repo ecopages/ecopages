@@ -1,16 +1,22 @@
 import fs from "node:fs";
 import watcher from "@parcel/watcher";
-import type { EcoPagesConfig } from "root/lib/eco-pages.types";
 import { buildCssFromPath } from "./build-css";
 import { buildPages } from "./build-pages";
 import { buildScripts } from "./build-scripts";
 
-export async function createWatcherSubscription({ config }: { config: EcoPagesConfig }) {
+/**
+ * @function createWatcherSubscription
+ * @description
+ * This function creates a watcher subscription to watch for file changes.
+ */
+export async function createWatcherSubscription() {
   return watcher.subscribe("src", (err, events) => {
     if (err) {
       console.error("Error watching files", err);
       return;
     }
+
+    const { ecoConfig: config } = globalThis;
 
     events.forEach(async (event) => {
       if (event.type === "delete") {
@@ -31,13 +37,13 @@ export async function createWatcherSubscription({ config }: { config: EcoPagesCo
       }
 
       if (event.path.endsWith(".css")) {
-        buildCssFromPath({ path: event.path, config });
+        buildCssFromPath({ path: event.path });
         console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
       } else if (event.path.includes(".script.")) {
-        buildScripts({ config });
+        buildScripts();
         console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
       } else if (event.path.endsWith(".tsx")) {
-        buildPages({ config });
+        buildPages();
         console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
       }
     });

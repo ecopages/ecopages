@@ -7,6 +7,12 @@ import type { BunPlugin } from "bun";
 import { createKitaRoute } from "./templates/create-kita-route";
 import path from "node:path";
 
+/**
+ * Get the html path based on the file and the pagesDir.
+ * @param file
+ * @param pagesDir
+ * @returns
+ */
 export function getHtmlPath({ file, pagesDir }: { file: string; pagesDir: string }) {
   let startIndex = file.indexOf(pagesDir) + pagesDir.length;
   let endIndex = file.lastIndexOf("/");
@@ -15,6 +21,13 @@ export function getHtmlPath({ file, pagesDir }: { file: string; pagesDir: string
   return path;
 }
 
+/**
+ * Create a route config based on the file and the eco config.
+ * It will provide the html and the route data.
+ * @param file
+ * @param config
+ * @returns {Promise<RenderRouteConfig>}
+ */
 export async function createRouteConfig({
   file,
   config,
@@ -32,11 +45,17 @@ export async function createRouteConfig({
   }
 }
 
-export function buildHtmlPages({ config }: { config: Required<EcoPagesConfig> }): BunPlugin {
+/**
+ * Build the html pages based on the eco config.
+ * @returns {BunPlugin}
+ */
+export function buildHtmlPages(): BunPlugin {
   return {
     name: "Build Eco Pages",
     setup(build) {
       build.onLoad({ filter: /\.tsx$/ }, async (args) => {
+        const { ecoConfig: config } = globalThis;
+
         const route = await createRouteConfig({
           file: args.path,
           config,

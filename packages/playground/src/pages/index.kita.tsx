@@ -3,7 +3,8 @@ import { BaseLayout } from "@/layouts/base-layout";
 import { Counter } from "@/components/counter";
 import { LiteCounter } from "@/components/lite-counter";
 import { ScriptInjector } from "@/components/script-injector";
-import { LiteRendererServer, LiteRendererClient } from "@/components/lite-renderer";
+import { LiteRenderer } from "@/components/lite-renderer";
+import { Message } from "@/components/lite-renderer/lite-renderer.templates.kita";
 
 export const metadata = {
   title: "Home page",
@@ -29,8 +30,10 @@ const HomePage: EcoComponent = () => {
         >
           <LiteCounter count={5} />
         </ScriptInjector>
-        <LiteRendererServer text="Hello from the server" />
-        <LiteRendererClient text="Hello from the client" />
+        <LiteRenderer>
+          <Message text="Hello from the server" />
+        </LiteRenderer>
+        <LiteRenderer replace-on-load={true} />
       </>
     </BaseLayout>
   );
@@ -40,8 +43,7 @@ HomePage.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [
     BaseLayout,
-    LiteRendererServer,
-    LiteRendererClient,
+    LiteRenderer,
     DepsManager.filter(Counter, "stylesheets"),
     DepsManager.filter(LiteCounter, "stylesheets"),
   ],

@@ -60,7 +60,7 @@ export class LiteContext<T extends UnknownContext> extends LiteElement {
     const { context, callback, subscribe, selector, target } = event;
     if (context.name !== this.name) return;
     event.stopPropagation();
-    console.log("onSubscriptionRequest", event);
+
     (target as HTMLElement).dispatchEvent(new ContextOnMountEvent(this.name));
 
     if (subscribe) {

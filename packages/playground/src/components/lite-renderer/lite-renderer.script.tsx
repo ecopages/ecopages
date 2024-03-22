@@ -11,17 +11,21 @@ import type { RenderInsertPosition } from "@/lib/lite/types";
 
 export type LiteRendererProps = {
   text?: string;
+  "replace-on-load"?: boolean;
 };
 
 @customElement("lite-renderer")
 export class LiteRenderer extends WithKita(LiteElement) {
   @reactiveAttribute({ type: String, reflect: true }) declare text: string;
+  @reactiveAttribute({ type: Boolean, reflect: true }) declare "replace-on-load": boolean;
+
   @reactiveField numberOfClicks: number = 1;
   @querySelector("[data-list]") messageList!: HTMLDivElement;
 
   constructor() {
     super();
-    if (this.text) {
+    console.log(this["replace-on-load"]);
+    if (this["replace-on-load"]) {
       this.messageList.innerHTML = "";
       this.renderMessage("replace");
     }

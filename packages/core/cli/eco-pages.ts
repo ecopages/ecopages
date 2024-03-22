@@ -3,8 +3,9 @@ import { $ } from "bun";
 
 const args = process.argv.slice(2);
 
-const projectDir = process.env.PWD;
-const nodeModulesDir = `${projectDir}/node_modules`;
+const projectDir = import.meta.env.PWD;
+
+const nodeModulesDir = import.meta.env._.replace(".bin/eco-pages", "");
 
 switch (args[0]) {
   case "dev":

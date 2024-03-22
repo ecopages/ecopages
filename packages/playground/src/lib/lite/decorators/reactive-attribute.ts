@@ -13,7 +13,7 @@ export function reactiveAttribute({
   reflect,
 }: {
   type: AttributeTypeConstant;
-  reflect: boolean;
+  reflect?: boolean;
 }) {
   return function (proto: LiteElement, propertyKey: string) {
     const originalValues = new WeakMap<any, any>();
@@ -21,7 +21,12 @@ export function reactiveAttribute({
 
     Object.defineProperty(proto, propertyKey, {
       get: function () {
-        return this.getAttribute(attributeName);
+        switch (type) {
+          case Boolean:
+            return this.hasAttribute(attributeName);
+          default:
+            return readAttributeValue(this.getAttribute(attributeName), type);
+        }
       },
       set: function (newValue: string) {
         const oldValue = originalValues.get(this);

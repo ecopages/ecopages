@@ -1,0 +1,26 @@
+.lite-renderer {
+  @apply grid gap-2 max-w-2xl bg-slate-200 rounded-md px-2 pt-3 pb-2;
+  [data-list] {
+    @apply grid gap-2 h-40 overflow-auto bg-slate-50 p-4 rounded-md;
+  }
+  .small-print {
+    @apply text-xs text-gray-500;
+  }
+}
+
+.lite-renderer-message {
+  @apply flex flex-col gap-2;
+  span {
+    @apply text-2xl font-bold;
+  }
+}
+
+.lite-renderer-controls {
+  @apply flex gap-4 justify-between;
+  button {
+    @apply bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded;
+    &[data-reset] {
+      @apply bg-red-500 hover:bg-red-700;
+    }
+  }
+}

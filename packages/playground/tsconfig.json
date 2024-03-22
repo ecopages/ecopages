@@ -8,7 +8,7 @@
     "useDefineForClassFields": true,
     "module": "ESNext",
     "moduleResolution": "node",
-    "types": ["bun-types"],
+    "types": ["bun-types", "@eco-pages/core"],
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
@@ -17,6 +17,14 @@
     "skipLibCheck": true,
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "plugins": [
+      {
+        "name": "@kitajs/ts-html-plugin"
+      }
+    ]
   }
 }

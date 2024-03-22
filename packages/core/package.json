@@ -1,0 +1,24 @@
+{
+  "name": "@eco-pages/eco-pages",
+  "version": "0.0.1",
+  "bin": {
+    "eco-pages": "./cli/eco-pages.ts"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@kitajs/html": "^3.0.11",
+    "@kitajs/ts-html-plugin": "^1.3.3",
+    "@parcel/watcher": "^2.4.0",
+    "@types/postcss-import": "^14.0.3",
+    "autoprefixer": "^10.4.16",
+    "bun-types": "latest",
+    "cssnano": "^6.0.2",
+    "postcss": "^8.4.32",
+    "postcss-import": "^15.1.0",
+    "tailwindcss": "^3.4.1"
+  },
+  "repository": "https://github.com/andeeplus/eco-pages.git"
+}

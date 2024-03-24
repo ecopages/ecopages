@@ -101,18 +101,33 @@ export interface EcoComponent<T = {}> {
   dependencies?: EcoComponentDependencies;
 }
 
-export const defaultTemplateFormats = {
+export interface PageProps {
+  params: Record<string, string>;
+  query: Record<string, string>;
+}
+
+export const defaultTemplateEngines = {
   kita: "kita",
 } as const;
 
-export type DefaultTemplateFormats = keyof typeof defaultTemplateFormats;
+export type DefaultTemplateEngines = keyof typeof defaultTemplateEngines;
 
 export type RenderRouteOptions = {
   file: string;
   config: EcoPagesConfig;
+  params?: Record<string, string | string[]>;
+  query?: Record<string, string>;
 };
 
 export type RenderRouteConfig = {
   path: string;
   html: JSX.Element;
 };
+
+export interface PageMetadataProps {
+  title: string;
+  description: string;
+  image?: string;
+  url?: string;
+  keywords?: string[];
+}

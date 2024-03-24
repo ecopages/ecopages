@@ -1,4 +1,4 @@
-import { withHtmlLiveReload } from "./hmr";
+import { withHtmlLiveReload } from "./utils/hmr";
 import path from "path";
 import { statSync } from "fs";
 
@@ -7,7 +7,7 @@ import { statSync } from "fs";
  * @description
  * This function returns the content type of the given path.
  */
-function getContentType(path: string) {
+export function getContentType(path: string) {
   const ext = path.split(".").pop();
   if (ext === "js") return "application/javascript";
   if (ext === "css") return "text/css";

@@ -65,6 +65,9 @@ export class LitePackageConsumer extends LiteElement {
   @onEvent({ target: "[data-options]", type: "change" })
   updateInputType() {
     this.input.type = this.select.value === "version" ? "number" : "text";
+    this.input.type === "number"
+      ? this.input.setAttribute("step", "0.01")
+      : this.input.removeAttribute("step");
   }
 
   @onEvent({ target: "form", type: "submit" })

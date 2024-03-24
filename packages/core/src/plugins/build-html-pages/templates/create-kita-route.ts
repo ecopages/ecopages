@@ -1,6 +1,10 @@
 import path from "node:path";
-import type { MetadataProps } from "@/includes/seo.kita";
-import type { RenderRouteOptions, EcoComponent, RenderRouteConfig } from "@types";
+import type {
+  RenderRouteOptions,
+  EcoComponent,
+  RenderRouteConfig,
+  PageMetadataProps,
+} from "@types";
 import { getHtmlPath } from "../build-html-pages.plugin";
 import { uncacheModules } from "../utils/uncache-modules";
 import { HeadContentBuilder } from "../utils/head-content-builder";
@@ -14,6 +18,8 @@ import { HeadContentBuilder } from "../utils/head-content-builder";
 export async function createKitaRoute({
   file,
   config,
+  params,
+  query,
 }: RenderRouteOptions): Promise<RenderRouteConfig> {
   const projectSrcDir = path.join(config.rootDir, config.srcDir);
   const pagesDir = path.join(projectSrcDir, config.pagesDir);
@@ -24,10 +30,10 @@ export async function createKitaRoute({
 
   const { default: Page, metadata } = (await import(file)) as {
     default: EcoComponent;
-    metadata: MetadataProps;
+    metadata: PageMetadataProps;
   };
 
-  const children = await Page({});
+  const children = await Page({ params, query });
 
   const headContent = await new HeadContentBuilder(config).build({
     dependencies: Page.dependencies,
@@ -35,7 +41,7 @@ export async function createKitaRoute({
 
   return {
     path: getHtmlPath({ file, pagesDir }),
-    html: HtmlTemplate({
+    html: await HtmlTemplate({
       metadata,
       dependencies: Page.dependencies,
       headContent,

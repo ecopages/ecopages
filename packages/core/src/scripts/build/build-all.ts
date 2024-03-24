@@ -9,8 +9,9 @@ import { buildPages } from "@/scripts/build/build-pages";
 import { buildInitialCss } from "@/scripts/build/build-css";
 import { createGlobalConfig } from "@/scripts/config/create-global-config";
 import { createWatcherSubscription } from "@/scripts/build/watcher";
-import { createDevServer } from "@/dev/server";
+import { createDevServer } from "@/server/dev-server";
 import type { EcoPagesConfig } from "@types";
+import { createFsDevServer } from "@/server/fs-server";
 
 /**
  * @class EcoPagesBuilder
@@ -113,7 +114,7 @@ class EcoPagesBuilder {
    * It minifies the tailwindcss file and gzips the dist directory.
    * It also runs the dev server.
    */
-  buildProdMode() {
+  async buildProdMode() {
     const { srcDir, globalDir, distDir } = this.config;
 
     exec(
@@ -122,7 +123,44 @@ class EcoPagesBuilder {
 
     gzipDirectory(distDir);
 
-    this.runDevServer();
+    await this.generateStaticPages();
+
+    createDevServer({ gzip: true });
+  }
+
+  async generateStaticPages() {
+    const { router, server } = await createFsDevServer({ gzip: false });
+
+    for (const route of Object.keys(router.routes)) {
+      try {
+        /**
+         * @todo handle dynamic routes [slug] [...catchAll]
+         */
+        if (route.includes("[")) continue;
+
+        const response = await fetch(route);
+
+        if (!response.ok) {
+          console.error(`Failed to fetch ${route}. Status: ${response.status}`);
+          continue;
+        }
+
+        const filePath = path.join(
+          globalThis.ecoConfig.rootDir,
+          globalThis.ecoConfig.distDir,
+          router.routes[route].pathname,
+          "index.html"
+        );
+
+        await Bun.write(filePath, response);
+
+        console.log(`Successfully fetched and saved ${route} to ${filePath}`);
+      } catch (error) {
+        console.error(`Error fetching or writing ${route}:`, error);
+      }
+    }
+
+    server.stop();
   }
 
   /**
@@ -139,12 +177,12 @@ class EcoPagesBuilder {
 
     await buildInitialCss();
     await buildScripts();
-    await buildPages();
+    // await buildPages();
 
     if (this.watchMode) {
       await this.buildWatchMode();
     } else {
-      this.buildProdMode();
+      await this.buildProdMode();
     }
   }
 
@@ -155,8 +193,8 @@ class EcoPagesBuilder {
    * @param {boolean} gzip - Whether to gzip the dist directory or not.
    */
   private async runDevServer(gzip: boolean = !this.watchMode) {
-    const server = createDevServer({ gzip });
-    // await $`clear`;
+    const { server } = await createFsDevServer({ gzip });
+    await $`clear`;
     console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
   }
 }

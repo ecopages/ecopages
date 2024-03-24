@@ -4,9 +4,7 @@
   "scripts": {
     "dev": "eco-pages dev",
     "build": "eco-pages build",
-    "preview": "eco-pages preview",
-    "clean": "rm -rf .eco node_modules bun.lockb && bun install && bun run simulate-lib",
-    "simulate-lib": "bun run lib/cli/simulate-lib.ts"
+    "preview": "eco-pages preview"
   },
   "devDependencies": {
     "@eco-pages/core": "workspace:*",

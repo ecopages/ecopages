@@ -1,4 +1,4 @@
-import { defaultTemplateFormats, type EcoComponent, type EcoComponentDependencies } from "@types";
+import { defaultTemplateEngines, type EcoComponent, type EcoComponentDependencies } from "@types";
 import fs from "fs";
 import path from "path";
 
@@ -87,7 +87,7 @@ export class DepsManager {
   }: ComponentConfigOptions): EcoComponent<any>["dependencies"] {
     const dependenciesFileName = fs.readdirSync(importMeta.dir).filter((file) => {
       const isIndex = file === "index.ts";
-      const isTemplate = Object.keys(defaultTemplateFormats).some((format) =>
+      const isTemplate = Object.keys(defaultTemplateEngines).some((format) =>
         file.includes(`.${format}`)
       );
 

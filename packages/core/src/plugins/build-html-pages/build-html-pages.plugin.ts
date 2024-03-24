@@ -1,4 +1,4 @@
-import { type DefaultTemplateFormats, type EcoPagesConfig, type RenderRouteConfig } from "@types";
+import { type DefaultTemplateEngines, type EcoPagesConfig, type RenderRouteConfig } from "@types";
 import type { BunPlugin } from "bun";
 import { createKitaRoute } from "./templates/create-kita-route";
 import path from "node:path";
@@ -31,13 +31,13 @@ export async function createRouteConfig({
   file: string;
   config: EcoPagesConfig;
 }): Promise<RenderRouteConfig> {
-  const renderType = file.split(".").at(-2) as DefaultTemplateFormats;
+  const templateEngine = file.split(".").at(-2) as DefaultTemplateEngines;
 
-  switch (renderType) {
+  switch (templateEngine) {
     case "kita":
       return await createKitaRoute({ file, config });
     default:
-      throw new Error(`Unknown render type: ${renderType}`);
+      throw new Error(`Unknown render type: ${templateEngine}`);
   }
 }
 
@@ -50,36 +50,31 @@ export function buildHtmlPages(): BunPlugin {
     name: "Build Eco Pages",
     setup(build) {
       build.onLoad({ filter: /\.tsx$/ }, async (args) => {
-        try {
-          const { ecoConfig: config } = globalThis;
+        const { ecoConfig: config } = globalThis;
 
-          const route = await createRouteConfig({
-            file: args.path,
-            config,
-          });
+        const route = await createRouteConfig({
+          file: args.path,
+          config,
+        });
 
-          const docType = "<!DOCTYPE html>";
-          const htmlPath = getHtmlPath({
-            file: args.path,
-            pagesDir: path.join(config.rootDir, config.srcDir, config.pagesDir),
-          });
+        const docType = "<!DOCTYPE html>";
+        const htmlPath = getHtmlPath({
+          file: args.path,
+          pagesDir: path.join(config.rootDir, config.srcDir, config.pagesDir),
+        });
 
-          const relativeUrl = `${htmlPath}/index.html`;
-          const distPath = `${config.distDir}${relativeUrl}`;
-          const htmlPage = docType + route.html.toString();
+        const relativeUrl = `${htmlPath}/index.html`;
+        const distPath = `${config.distDir}${relativeUrl}`;
+        const htmlPage = docType + route.html.toString();
 
-          await Bun.write(distPath, htmlPage);
+        await Bun.write(distPath, htmlPage);
 
-          return {
-            then(onresolved, onrejected) {
-              if (onresolved) onresolved({ contents: htmlPage, loader: "text" });
-              if (onrejected) onrejected((reason: any) => console.error(reason));
-            },
-          };
-        } catch (error) {
-          console.error(error);
-          return null;
-        }
+        return {
+          then(onresolved, onrejected) {
+            if (onresolved) onresolved({ contents: htmlPage, loader: "text" });
+            if (onrejected) onrejected((reason: any) => console.error(reason));
+          },
+        };
       });
     },
   };

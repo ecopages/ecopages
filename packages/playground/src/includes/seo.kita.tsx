@@ -1,12 +1,4 @@
-import { addBaseToUrl } from "@eco-pages/core";
-
-export type MetadataProps = {
-  title: string;
-  description: string;
-  image?: string;
-  url?: string;
-  keywords?: string[];
-};
+import { addBaseToUrl, type PageMetadataProps } from "@eco-pages/core";
 
 export function Seo({
   title,
@@ -14,7 +6,7 @@ export function Seo({
   image = "/public/assets/images/bun-og.webp",
   url,
   keywords,
-}: MetadataProps) {
+}: PageMetadataProps) {
   return (
     <>
       <title safe>{title}</title>

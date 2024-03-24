@@ -1,8 +1,8 @@
-import { type EcoComponentDependencies } from "@eco-pages/core";
-import { type MetadataProps, Seo } from "@/includes/seo.kita";
+import type { EcoComponentDependencies, PageMetadataProps } from "@eco-pages/core";
+import { Seo } from "@/includes/seo.kita";
 
 export type BaseHeadProps = {
-  metadata: MetadataProps;
+  metadata: PageMetadataProps;
   dependencies?: EcoComponentDependencies;
   children?: Html.Children;
 };

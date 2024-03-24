@@ -11,7 +11,7 @@ import { createGlobalConfig } from "@/scripts/config/create-global-config";
 import { createWatcherSubscription } from "@/scripts/build/watcher";
 import { createDevServer } from "@/server/dev-server";
 import type { EcoPagesConfig } from "@types";
-import { createFsDevServer } from "@/server/fs-server";
+import { createFsServer } from "@/server/fs-server";
 
 /**
  * @class EcoPagesBuilder
@@ -129,7 +129,7 @@ class EcoPagesBuilder {
   }
 
   async generateStaticPages() {
-    const { router, server } = await createFsDevServer({ gzip: false });
+    const { router, server } = await createFsServer({ gzip: false });
 
     for (const route of Object.keys(router.routes)) {
       try {
@@ -193,7 +193,7 @@ class EcoPagesBuilder {
    * @param {boolean} gzip - Whether to gzip the dist directory or not.
    */
   private async runDevServer(gzip: boolean = !this.watchMode) {
-    const { server } = await createFsDevServer({ gzip });
+    const { server } = await createFsServer({ gzip });
     await $`clear`;
     console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
   }

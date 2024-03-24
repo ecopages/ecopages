@@ -31,6 +31,7 @@ export class FSRouter {
   assetPrefix: string;
   fileExtensions: string[];
   routes: Record<string, Route> = {};
+  onReload?: () => void;
 
   constructor({
     dir,
@@ -192,8 +193,15 @@ export class FSRouter {
     return null;
   }
 
+  setOnReload(cb: () => void) {
+    this.onReload = cb;
+  }
+
   reload() {
     this.routes = {};
     this.getRoutes();
+    if (this.onReload) {
+      this.onReload();
+    }
   }
 }

@@ -99,12 +99,13 @@ export type EcoComponentDependencies = {
 export interface EcoComponent<T = {}> {
   (props: T): JSX.Element;
   dependencies?: EcoComponentDependencies;
+  strategy?: "client" | "ssr" | "suspense";
 }
 
-export interface PageProps {
+export type PageProps<T = unknown> = T & {
   params: Record<string, string>;
   query: Record<string, string>;
-}
+};
 
 export const defaultTemplateEngines = {
   kita: "kita",
@@ -122,6 +123,7 @@ export type RenderRouteOptions = {
 export type RenderRouteConfig = {
   path: string;
   html: JSX.Element;
+  strategy?: "client" | "ssr" | "suspense";
 };
 
 export interface PageMetadataProps {
@@ -131,3 +133,11 @@ export interface PageMetadataProps {
   url?: string;
   keywords?: string[];
 }
+
+export type StaticPath = { params: Record<string, string> };
+
+export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
+
+export type GetStaticProps<T> = (context: {
+  pathname: StaticPath;
+}) => Promise<{ props: T; metadata?: PageMetadataProps }>;

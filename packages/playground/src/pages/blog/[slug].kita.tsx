@@ -1,4 +1,12 @@
-import type { PageProps, GetStaticPaths, GetStaticProps, EcoPage } from "@eco-pages/core";
+import { BaseLayout } from "@/layouts/base-layout";
+import {
+  type PageProps,
+  type GetStaticPaths,
+  type GetStaticProps,
+  type EcoPage,
+  DepsManager,
+  type GetMetadata,
+} from "@eco-pages/core";
 
 export type BlogPost = {
   slug: string;
@@ -6,39 +14,53 @@ export type BlogPost = {
   text: string;
 };
 
+export const getMetadata: GetMetadata<BlogPost> = async ({ title, slug }) => {
+  return {
+    title,
+    description: `This is a blog post with the slug ${slug}`,
+  };
+};
+
 const BlogPost: EcoPage<PageProps<BlogPost>> = ({ params, query, title, text, slug }) => {
   return (
-    <div>
-      <h1 safe>
-        Blog Post {params?.slug} {JSON.stringify(query || [])}
-      </h1>
-      <h2>{title as "safe"}</h2>
-      <p>{text as "safe"}</p>
-      <p>{slug as "safe"}</p>
-    </div>
+    <BaseLayout>
+      <div>
+        <h1 safe>
+          Blog Post {params?.slug} {JSON.stringify(query || [])}
+        </h1>
+        <h2>{title as "safe"}</h2>
+        <p>{text as "safe"}</p>
+        <p>{slug as "safe"}</p>
+      </div>
+    </BaseLayout>
   );
 };
 
 BlogPost.renderStrategy = "static";
 
-export const getStaticPaths = (async () => {
+BlogPost.dependencies = DepsManager.collect({
+  importMeta: import.meta,
+  components: [BaseLayout],
+});
+
+export const getStaticPaths: GetStaticPaths = async () => {
   return {
     paths: [{ params: { slug: "blog-post" } }, { params: { slug: "another-blog-post" } }],
   };
-}) satisfies GetStaticPaths;
+};
 
-export const getStaticProps = (async (context) => {
+export const getStaticProps: GetStaticProps<BlogPost> = async ({ pathname }) => {
   return {
     props: {
-      slug: context.pathname.params.slug,
-      title: `Hello World | ${context.pathname.params.slug}`,
+      slug: pathname.params.slug,
+      title: `Hello World | ${pathname.params.slug}`,
       text: "This is a blog post",
     },
     metadata: {
-      title: `Hello World | ${context.pathname.params.slug}`,
+      title: `Hello World | ${pathname.params.slug}`,
       description: "This is a blog post",
     },
   };
-}) satisfies GetStaticProps<BlogPost>;
+};
 
 export default BlogPost;

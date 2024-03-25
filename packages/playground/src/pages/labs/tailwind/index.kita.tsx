@@ -1,12 +1,12 @@
-import { DepsManager, type EcoComponent } from "@eco-pages/core";
+import { DepsManager, type EcoComponent, type GetMetadata } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
 
-export const metadata = {
+export const getMetadata: GetMetadata = () => ({
   title: "Labs page",
   description: "This is the a page to do experiments",
   image: "public/assets/images/bun-og.png",
   keywords: ["typescript", "framework", "static"],
-};
+});
 
 const LabsPage: EcoComponent = () => {
   return (

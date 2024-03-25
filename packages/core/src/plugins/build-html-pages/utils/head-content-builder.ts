@@ -12,7 +12,7 @@ import type { EcoComponentDependencies, EcoPagesConfig } from "@types";
 export class HeadContentBuilder {
   config: EcoPagesConfig;
 
-  constructor(config: EcoPagesConfig) {
+  constructor(config: EcoPagesConfig = globalThis.ecoConfig) {
     this.config = config;
   }
 

@@ -1,8 +1,8 @@
 import path from "path";
 import { createKitaRoute } from "@/plugins/build-html-pages/templates/create-kita-route";
-import { getContentType } from "./dev-server";
 import { FSRouter } from "./utils/fs-router";
 import { withHtmlLiveReload, type PureWebSocketServeOptions } from "./utils/hmr";
+import { getContentType } from "./utils/get-content-type";
 
 const createBunServer = (options: PureWebSocketServeOptions<unknown>) => {
   return Bun.serve(withHtmlLiveReload(options, globalThis.ecoConfig));
@@ -75,7 +75,6 @@ export const createFsServer = async ({ gzip }: { gzip: boolean }) => {
       }
 
       const page = await createKitaRoute({
-        config: globalThis.ecoConfig,
         file: match.filePath,
         params: match.params,
         query: match.query,

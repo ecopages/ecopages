@@ -1,5 +1,5 @@
-import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from "bun";
 import { watch } from "fs";
+import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from "bun";
 import type { EcoPagesConfig } from "@types";
 
 declare global {

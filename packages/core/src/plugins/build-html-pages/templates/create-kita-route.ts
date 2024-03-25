@@ -1,11 +1,5 @@
 import path from "node:path";
-import type {
-  RenderRouteOptions,
-  EcoComponent,
-  RenderRouteConfig,
-  PageMetadataProps,
-  EcoPageFile,
-} from "@types";
+import type { RenderRouteOptions, RenderRouteConfig, PageMetadataProps, EcoPageFile } from "@types";
 import { getHtmlPath } from "../build-html-pages.plugin";
 import { uncacheModules } from "../utils/uncache-modules";
 import { HeadContentBuilder } from "../utils/head-content-builder";
@@ -18,31 +12,36 @@ import { HeadContentBuilder } from "../utils/head-content-builder";
  */
 export async function createKitaRoute({
   file,
-  config,
-  params,
-  query,
+  params = {},
+  query = {},
 }: RenderRouteOptions): Promise<RenderRouteConfig> {
-  const projectSrcDir = path.join(config.rootDir, config.srcDir);
-  const pagesDir = path.join(projectSrcDir, config.pagesDir);
+  const { rootDir, srcDir, pagesDir } = globalThis.ecoConfig;
 
-  uncacheModules(config);
+  const projectSrcDir = path.join(rootDir, srcDir);
+  const projectPagesDir = path.join(projectSrcDir, pagesDir);
+
+  uncacheModules();
 
   const { HtmlTemplate } = await import(`${projectSrcDir}/includes/html-template.kita`);
 
-  const { default: Page, metadata, getStaticProps } = (await import(file)) as EcoPageFile;
+  const { default: Page, getStaticProps, getMetadata } = (await import(file)) as EcoPageFile;
+
+  let metadata: PageMetadataProps | undefined;
 
   if (["static", "isg"].includes(Page.renderStrategy || "static") && getStaticProps && params) {
     try {
       const data = (await getStaticProps({
         pathname: { params: params as Record<string, string> },
-      })) as { props: Record<string, unknown>; metadata: PageMetadataProps };
+      })) as { props: Record<string, unknown> };
+
+      metadata = (await getMetadata?.({ params, query: query || {}, ...data.props })) || undefined;
 
       return {
-        path: getHtmlPath({ file, pagesDir }),
+        path: getHtmlPath({ file, pagesDir: projectPagesDir }),
         html: await HtmlTemplate({
           metadata,
           dependencies: Page.dependencies,
-          headContent: await new HeadContentBuilder(config).build({
+          headContent: await new HeadContentBuilder().build({
             dependencies: Page.dependencies,
           }),
           children: await Page({ params, query, ...data.props }),
@@ -54,14 +53,16 @@ export async function createKitaRoute({
     }
   }
 
+  metadata = (await getMetadata?.({ params, query })) || undefined;
+
   const children = await Page({ params, query });
 
-  const headContent = await new HeadContentBuilder(config).build({
+  const headContent = await new HeadContentBuilder().build({
     dependencies: Page.dependencies,
   });
 
   return {
-    path: getHtmlPath({ file, pagesDir }),
+    path: getHtmlPath({ file, pagesDir: projectPagesDir }),
     html: await HtmlTemplate({
       metadata,
       dependencies: Page.dependencies,

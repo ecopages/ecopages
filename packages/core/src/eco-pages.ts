@@ -121,7 +121,6 @@ export type DefaultTemplateEngines = keyof typeof defaultTemplateEngines;
 
 export type RenderRouteOptions = {
   file: string;
-  config: EcoPagesConfig;
   params?: Record<string, string | string[]>;
   query?: Record<string, string | string[]>;
 };
@@ -143,6 +142,10 @@ export type StaticPath = { params: Record<string, string> };
 
 export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
 
+export type GetMetadata<T = Record<string, unknown>> = (
+  context: PageProps<T>
+) => PageMetadataProps | Promise<PageMetadataProps>;
+
 export type GetStaticProps<T> = (context: {
   pathname: StaticPath;
 }) => Promise<{ props: T; metadata?: PageMetadataProps }>;
@@ -151,5 +154,5 @@ export type EcoPageFile = {
   default: EcoPage;
   getStaticPaths?: GetStaticPaths;
   getStaticProps?: GetStaticProps<unknown>;
-  metadata?: PageMetadataProps;
+  getMetadata?: GetMetadata;
 };

@@ -1,9 +1,16 @@
-import type { GetStaticPaths, GetStaticProps, PageProps } from "@eco-pages/core";
+import type { GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from "@eco-pages/core";
 
 type Author = {
   slug: string;
   name: string;
   bio: string;
+};
+
+export const getMetadata: GetMetadata<Author> = async ({ name, slug }) => {
+  return {
+    title: `Author | ${slug}`,
+    description: `This is the bio of ${name}`,
+  };
 };
 
 export default function Author({ params, query, name, bio, slug }: PageProps<Author>) {
@@ -21,22 +28,22 @@ export default function Author({ params, query, name, bio, slug }: PageProps<Aut
 
 Author.renderStrategy = "static";
 
-export const getStaticPaths = (async () => {
+export const getStaticPaths: GetStaticPaths = async () => {
   return {
     paths: [{ params: { id: "author-one" } }, { params: { id: "author-two" } }],
   };
-}) satisfies GetStaticPaths;
+};
 
-export const getStaticProps = (async (context) => {
+export const getStaticProps: GetStaticProps<Author> = async ({ pathname }) => {
   return {
     props: {
-      slug: context.pathname.params.id,
-      name: context.pathname.params.id,
+      slug: pathname.params.id,
+      name: pathname.params.id,
       bio: "This is a bio",
     },
     metadata: {
-      title: `Hello World | ${context.pathname.params.slug}`,
+      title: `Hello World | ${pathname.params.slug}`,
       description: "This is a bio",
     },
   };
-}) satisfies GetStaticProps<Author>;
+};

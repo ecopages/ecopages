@@ -156,8 +156,6 @@ class EcoPagesBuilder {
         );
 
         await Bun.write(filePath, response);
-
-        // console.log(`Successfully fetched and saved ${route} to ${filePath}`);
       } catch (error) {
         console.error(`Error fetching or writing ${route}:`, error);
       }

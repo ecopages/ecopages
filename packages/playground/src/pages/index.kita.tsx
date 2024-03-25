@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from "@eco-pages/core";
+import { DepsManager, type EcoComponent, type GetMetadata } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
 import { Counter } from "@/components/counter";
 import { LiteCounter } from "@/components/lite-counter";
@@ -6,12 +6,12 @@ import { ScriptInjector } from "@/components/script-injector";
 import { LiteRenderer } from "@/components/lite-renderer";
 import { Message } from "@/components/lite-renderer/lite-renderer.templates.kita";
 
-export const metadata = {
+export const getMetadata: GetMetadata = () => ({
   title: "Home page",
   description: "This is the homepage of the website",
   image: "public/assets/images/bun-og.png",
   keywords: ["typescript", "framework", "static"],
-};
+});
 
 const HomePage: EcoComponent = () => {
   return (

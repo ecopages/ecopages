@@ -1,12 +1,12 @@
-import { DepsManager, type EcoComponent } from "@eco-pages/core";
+import { DepsManager, type EcoComponent, type GetMetadata } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
 
-export const metadata = {
+export const getMetadata: GetMetadata = () => ({
   title: "Async Page",
   description: "This is the about me page of the website",
   image: "public/assets/images/bun-og.png",
   keywords: ["typescript", "framework", "static"],
-};
+});
 
 const LabsAsyncPage: EcoComponent = async () => {
   try {

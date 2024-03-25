@@ -2,8 +2,6 @@ import { defaultTemplateEngines, type EcoComponent, type EcoComponentDependencie
 import fs from "fs";
 import path from "path";
 
-import { codeToHast } from "shiki/index.mjs";
-
 export type ComponentConfigOptions = {
   importMeta: ImportMeta;
   components?: EcoComponent<any>[];

@@ -131,13 +131,10 @@ class EcoPagesBuilder {
   async generateStaticPages() {
     const { router, server } = await createFsServer({ gzip: false });
 
-    for (const route of Object.keys(router.routes)) {
-      try {
-        /**
-         * @todo handle dynamic routes [slug] [...catchAll]
-         */
-        if (route.includes("[")) continue;
+    const routes = Object.keys(router.routes).filter((route) => !route.includes("["));
 
+    for (const route of routes) {
+      try {
         const response = await fetch(route);
 
         if (!response.ok) {
@@ -145,16 +142,22 @@ class EcoPagesBuilder {
           continue;
         }
 
+        let pathname = router.routes[route].pathname;
+
+        if (router.routes[route].pathname.includes("[")) {
+          pathname = route.replace(router.origin, "");
+        }
+
         const filePath = path.join(
           globalThis.ecoConfig.rootDir,
           globalThis.ecoConfig.distDir,
-          router.routes[route].pathname,
+          pathname,
           "index.html"
         );
 
         await Bun.write(filePath, response);
 
-        console.log(`Successfully fetched and saved ${route} to ${filePath}`);
+        // console.log(`Successfully fetched and saved ${route} to ${filePath}`);
       } catch (error) {
         console.error(`Error fetching or writing ${route}:`, error);
       }
@@ -194,7 +197,7 @@ class EcoPagesBuilder {
    */
   private async runDevServer(gzip: boolean = !this.watchMode) {
     const { server } = await createFsServer({ gzip });
-    await $`clear`;
+    // await $`clear`;
     console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
   }
 }

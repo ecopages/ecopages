@@ -96,15 +96,21 @@ export type EcoComponentDependencies = {
   scripts?: string[];
 };
 
+export type RenderStrategy = "ssr" | "static" | "isg";
 export interface EcoComponent<T = {}> {
   (props: T): JSX.Element;
   dependencies?: EcoComponentDependencies;
-  strategy?: "client" | "ssr" | "suspense";
+}
+
+export interface EcoPage<T = {}> {
+  (props: T): JSX.Element;
+  dependencies?: EcoComponentDependencies;
+  renderStrategy?: RenderStrategy;
 }
 
 export type PageProps<T = unknown> = T & {
-  params: Record<string, string>;
-  query: Record<string, string>;
+  params: Record<string, string | string[]>;
+  query: Record<string, string | string[]>;
 };
 
 export const defaultTemplateEngines = {
@@ -117,13 +123,12 @@ export type RenderRouteOptions = {
   file: string;
   config: EcoPagesConfig;
   params?: Record<string, string | string[]>;
-  query?: Record<string, string>;
+  query?: Record<string, string | string[]>;
 };
 
 export type RenderRouteConfig = {
   path: string;
   html: JSX.Element;
-  strategy?: "client" | "ssr" | "suspense";
 };
 
 export interface PageMetadataProps {
@@ -141,3 +146,10 @@ export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
 export type GetStaticProps<T> = (context: {
   pathname: StaticPath;
 }) => Promise<{ props: T; metadata?: PageMetadataProps }>;
+
+export type EcoPageFile = {
+  default: EcoPage;
+  getStaticPaths?: GetStaticPaths;
+  getStaticProps?: GetStaticProps<unknown>;
+  metadata?: PageMetadataProps;
+};

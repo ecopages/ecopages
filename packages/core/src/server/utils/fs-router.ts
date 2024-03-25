@@ -1,6 +1,7 @@
-import path from "path";
+import type { RenderStrategy } from "@/eco-pages";
+import { FSRouteScanner } from "./fs-route-scanner";
 
-type MatchKind = "exact" | "catch-all" | "dynamic";
+export type MatchKind = "exact" | "catch-all" | "dynamic";
 
 type MatchResult = {
   filePath: string;
@@ -8,14 +9,21 @@ type MatchResult = {
   pathname: string;
   query?: Record<string, string>;
   params?: Record<string, string | string[]>;
+  strategy: RenderStrategy;
 };
 
-type Route = {
+export type Route = {
   kind: MatchKind;
   filePath: string;
   pathname: string;
+  /**
+   * @todo delete?
+   */
   src: string;
+  strategy: RenderStrategy;
 };
+
+export type Routes = Record<string, Route>;
 
 /**
  * @class FSRouter
@@ -30,82 +38,38 @@ export class FSRouter {
   origin: string;
   assetPrefix: string;
   fileExtensions: string[];
-  routes: Record<string, Route> = {};
+  routes: Routes = {};
   onReload?: () => void;
+  scanner: FSRouteScanner;
 
   constructor({
     dir,
     origin,
     assetPrefix,
     fileExtensions,
+    scanner = FSRouteScanner,
   }: {
     dir: string;
     origin: string;
     assetPrefix: string;
     fileExtensions: string[];
+    scanner?: typeof FSRouteScanner;
   }) {
     this.dir = dir;
     this.origin = origin;
     this.assetPrefix = assetPrefix;
     this.fileExtensions = fileExtensions;
+    this.scanner = new scanner({
+      dir: this.dir,
+      pattern: `**/*{${this.fileExtensions.join(",")}}`,
+      fileExtensions: this.fileExtensions,
+      origin: this.origin,
+    });
   }
 
   async init() {
-    await this.getRoutes();
-  }
-
-  async getRoutes() {
-    const pattern = `**/*{${this.fileExtensions.join(",")}}`;
-    const glob = new Bun.Glob(pattern);
-
-    const scannedFiles = await Array.fromAsync(glob.scan({ cwd: this.dir }));
-
-    for (const file of scannedFiles) {
-      const routePath = this.getRoutePathname(file);
-      const route = path.join(this.origin, routePath);
-      const filePath = path.join(this.dir, file);
-      const isDynamic = route.includes("[") && route.includes("]");
-      const isCatchAll = route.includes("[...");
-
-      let routeInfo: Route;
-
-      if (isCatchAll) {
-        routeInfo = {
-          kind: "catch-all",
-          filePath,
-          src: path.join(this.origin, file),
-          pathname: routePath,
-        };
-      } else if (isDynamic) {
-        routeInfo = {
-          kind: "dynamic",
-          filePath,
-          src: path.join(this.origin, file),
-          pathname: routePath,
-        };
-      } else {
-        routeInfo = {
-          kind: "exact",
-          src: path.join(this.origin, file),
-          pathname: routePath,
-          filePath,
-        };
-      }
-
-      this.routes[route] = routeInfo;
-    }
-  }
-
-  getRoutePathname(route: string) {
-    const fileExtensionsSet = new Set(this.fileExtensions);
-    let cleanedRoute = route;
-
-    for (const ext of fileExtensionsSet) {
-      cleanedRoute = cleanedRoute.replace(ext, "");
-    }
-
-    cleanedRoute = cleanedRoute.replace(/\/?index$/, "");
-    return `/${cleanedRoute}`;
+    this.routes = {};
+    this.routes = await this.scanner.scan();
   }
 
   getDynamicParams(route: Route, pathname: string): Record<string, string | string[]> {
@@ -126,9 +90,9 @@ export class FSRouter {
         }
       }
     }
-
     return params;
   }
+
   getSearchParams(url: URL) {
     const query: Record<string, string> = {};
     for (const [key, value] of url.searchParams) {
@@ -151,6 +115,7 @@ export class FSRouter {
           kind: "exact",
           pathname: route.pathname,
           query: this.getSearchParams(url),
+          strategy: route.strategy,
         };
       }
     }
@@ -170,6 +135,7 @@ export class FSRouter {
             pathname: route.pathname,
             query: this.getSearchParams(url),
             params: this.getDynamicParams(route, pathname),
+            strategy: route.strategy,
           };
         }
       }
@@ -186,6 +152,7 @@ export class FSRouter {
           pathname: route.pathname,
           query: this.getSearchParams(url),
           params: this.getDynamicParams(route, pathname),
+          strategy: route.strategy,
         };
       }
     }
@@ -198,8 +165,7 @@ export class FSRouter {
   }
 
   reload() {
-    this.routes = {};
-    this.getRoutes();
+    this.init();
     if (this.onReload) {
       this.onReload();
     }

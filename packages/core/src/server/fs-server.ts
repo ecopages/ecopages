@@ -3,7 +3,6 @@ import { createKitaRoute } from "@/plugins/build-html-pages/templates/create-kit
 import { getContentType } from "./dev-server";
 import { FSRouter } from "./utils/fs-router";
 import { withHtmlLiveReload, type PureWebSocketServeOptions } from "./utils/hmr";
-import { renderToStream } from "@kitajs/html/suspense";
 
 const createBunServer = (options: PureWebSocketServeOptions<unknown>) => {
   return Bun.serve(withHtmlLiveReload(options, globalThis.ecoConfig));
@@ -37,7 +36,7 @@ export const createFsServer = async ({ gzip }: { gzip: boolean }) => {
     fileExtensions: [".kita.tsx"],
   });
 
-  await router.getRoutes();
+  await router.init();
 
   const serverOptions = {
     async fetch(req: Request) {
@@ -81,6 +80,12 @@ export const createFsServer = async ({ gzip }: { gzip: boolean }) => {
         params: match.params,
         query: match.query,
       });
+
+      if (match.strategy === "isg") {
+        /**
+         * @todo Implement Incremental Static Generation
+         */
+      }
 
       return new Response(await page.html, {
         headers: {

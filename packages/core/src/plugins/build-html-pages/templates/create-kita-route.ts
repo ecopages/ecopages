@@ -4,6 +4,7 @@ import type {
   EcoComponent,
   RenderRouteConfig,
   PageMetadataProps,
+  EcoPageFile,
 } from "@types";
 import { getHtmlPath } from "../build-html-pages.plugin";
 import { uncacheModules } from "../utils/uncache-modules";
@@ -28,10 +29,30 @@ export async function createKitaRoute({
 
   const { HtmlTemplate } = await import(`${projectSrcDir}/includes/html-template.kita`);
 
-  const { default: Page, metadata } = (await import(file)) as {
-    default: EcoComponent;
-    metadata: PageMetadataProps;
-  };
+  const { default: Page, metadata, getStaticProps } = (await import(file)) as EcoPageFile;
+
+  if (["static", "isg"].includes(Page.renderStrategy || "static") && getStaticProps && params) {
+    try {
+      const data = (await getStaticProps({
+        pathname: { params: params as Record<string, string> },
+      })) as { props: Record<string, unknown>; metadata: PageMetadataProps };
+
+      return {
+        path: getHtmlPath({ file, pagesDir }),
+        html: await HtmlTemplate({
+          metadata,
+          dependencies: Page.dependencies,
+          headContent: await new HeadContentBuilder(config).build({
+            dependencies: Page.dependencies,
+          }),
+          children: await Page({ params, query, ...data.props }),
+        }),
+      };
+    } catch (error) {
+      console.error(`[eco-pages] Error in getStaticProps for ${file}`);
+      console.error(error);
+    }
+  }
 
   const children = await Page({ params, query });
 

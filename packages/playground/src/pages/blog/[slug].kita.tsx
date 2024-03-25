@@ -1,4 +1,4 @@
-import type { PageProps, GetStaticPaths, GetStaticProps } from "@eco-pages/core";
+import type { PageProps, GetStaticPaths, GetStaticProps, EcoPage } from "@eco-pages/core";
 
 export type BlogPost = {
   slug: string;
@@ -6,15 +6,20 @@ export type BlogPost = {
   text: string;
 };
 
-export default function BlogPost({ params, query }: PageProps) {
+const BlogPost: EcoPage<PageProps<BlogPost>> = ({ params, query, title, text, slug }) => {
   return (
     <div>
       <h1 safe>
         Blog Post {params?.slug} {JSON.stringify(query || [])}
       </h1>
+      <h2>{title as "safe"}</h2>
+      <p>{text as "safe"}</p>
+      <p>{slug as "safe"}</p>
     </div>
   );
-}
+};
+
+BlogPost.renderStrategy = "static";
 
 export const getStaticPaths = (async () => {
   return {
@@ -35,3 +40,5 @@ export const getStaticProps = (async (context) => {
     },
   };
 }) satisfies GetStaticProps<BlogPost>;
+
+export default BlogPost;

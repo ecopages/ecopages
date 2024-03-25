@@ -3,6 +3,7 @@ import { Glob } from "bun";
 import path from "node:path";
 
 /**
+ * @deprecated
  * @function buildPages
  * @description
  * Build the pages based on the eco config.

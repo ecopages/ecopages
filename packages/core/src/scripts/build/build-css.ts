@@ -31,9 +31,7 @@ export async function buildCssFromPath({ path }: { path: string }) {
  */
 export async function buildInitialCss() {
   const { ecoConfig: config } = globalThis;
-  const glob = new Glob(
-    `${config.srcDir}/{${config.componentsDir},${config.pagesDir},${config.globalDir},${config.layoutsDir}}/**/*.css`
-  );
+  const glob = new Glob(`${config.srcDir}/**/*.css`);
   const scannedFiles = glob.scanSync({ cwd: "." });
   const cssFiles = Array.from(scannedFiles);
   for (const path of cssFiles) {

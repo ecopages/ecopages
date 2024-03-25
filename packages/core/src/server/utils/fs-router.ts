@@ -1,4 +1,4 @@
-import type { RenderStrategy } from "@/eco-pages";
+import type { RenderStrategyOptions } from "@/eco-pages";
 import { FSRouteScanner } from "./fs-route-scanner";
 
 export type MatchKind = "exact" | "catch-all" | "dynamic";
@@ -9,7 +9,7 @@ type MatchResult = {
   pathname: string;
   query?: Record<string, string>;
   params?: Record<string, string | string[]>;
-  strategy: RenderStrategy;
+  strategy: RenderStrategyOptions;
 };
 
 export type Route = {
@@ -20,7 +20,7 @@ export type Route = {
    * @todo delete?
    */
   src: string;
-  strategy: RenderStrategy;
+  strategy: RenderStrategyOptions;
 };
 
 export type Routes = Record<string, Route>;

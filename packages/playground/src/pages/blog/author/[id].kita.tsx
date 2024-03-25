@@ -37,13 +37,9 @@ export const getStaticPaths: GetStaticPaths = async () => {
 export const getStaticProps: GetStaticProps<Author> = async ({ pathname }) => {
   return {
     props: {
-      slug: pathname.params.id,
-      name: pathname.params.id,
+      slug: pathname.params.id as string,
+      name: pathname.params.id as string,
       bio: "This is a bio",
-    },
-    metadata: {
-      title: `Hello World | ${pathname.params.slug}`,
-      description: "This is a bio",
     },
   };
 };

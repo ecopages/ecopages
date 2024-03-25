@@ -1,4 +1,4 @@
-import type { EcoPagesConfig } from "./eco-pages.types";
+import type { EcoPagesConfig } from "./eco-pages";
 
 interface ImportMetaEnv {
   ECO_PAGES_BASE_URL: string;

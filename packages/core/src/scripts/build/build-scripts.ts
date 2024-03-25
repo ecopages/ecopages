@@ -10,7 +10,7 @@ import { Glob } from "bun";
 export async function buildScripts() {
   const { ecoConfig: config } = globalThis;
 
-  const glob = new Glob(`${config.srcDir}/**/*.${config.dependencyExtPrefix}.{ts,tsx}`);
+  const glob = new Glob(`${config.srcDir}/**/*.${config.scriptDescriptor}.{ts,tsx}`);
   const scannedFiles = glob.scanSync({ cwd: "." });
   const scripts = Array.from(scannedFiles);
 

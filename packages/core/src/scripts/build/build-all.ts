@@ -5,7 +5,6 @@ import { exec } from "node:child_process";
 import { gzipDirectory } from "@/scripts/build/utils/gzip-directory";
 import { generateRobotsTxt } from "@/scripts/robots/generate-robots-txt";
 import { buildScripts } from "@/scripts/build/build-scripts";
-import { buildPages } from "@/scripts/build/build-pages";
 import { buildInitialCss } from "@/scripts/build/build-css";
 import { createGlobalConfig } from "@/scripts/config/create-global-config";
 import { createWatcherSubscription } from "@/scripts/build/watcher";
@@ -20,12 +19,12 @@ import { createFsServer } from "@/server/fs-server";
  */
 class EcoPagesBuilder {
   watchMode: boolean;
-  projectDir?: string;
+  projectDir: string;
   declare config: Required<EcoPagesConfig>;
 
   constructor(args: string[]) {
     this.watchMode = args.includes("--watch");
-    this.projectDir = args.find((arg) => arg.startsWith("--config="))?.split("=")[1];
+    this.projectDir = process.cwd();
   }
 
   /**
@@ -178,7 +177,6 @@ class EcoPagesBuilder {
 
     await buildInitialCss();
     await buildScripts();
-    // await buildPages();
 
     if (this.watchMode) {
       await this.buildWatchMode();
@@ -195,7 +193,7 @@ class EcoPagesBuilder {
    */
   private async runDevServer(gzip: boolean = !this.watchMode) {
     const { server } = await createFsServer({ gzip });
-    // await $`clear`;
+    await $`clear`;
     console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
   }
 }

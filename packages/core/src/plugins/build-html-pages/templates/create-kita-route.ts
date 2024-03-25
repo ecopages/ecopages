@@ -1,10 +1,12 @@
 import path from "node:path";
-import type { RenderRouteOptions, RenderRouteConfig, PageMetadataProps, EcoPageFile } from "@types";
+import type { PageMetadataProps, EcoPageFile } from "@types";
 import { getHtmlPath } from "../build-html-pages.plugin";
 import { uncacheModules } from "../utils/uncache-modules";
 import { HeadContentBuilder } from "../utils/head-content-builder";
+import type { RouteRendererOptions, RouteRendererConfig } from "@/render/route-renderer";
 
 /**
+ * @deprecated
  * This function creates a route config based on the file and the eco config.
  * It handles kita files and provides the html and the route data.
  * @param file
@@ -14,7 +16,7 @@ export async function createKitaRoute({
   file,
   params = {},
   query = {},
-}: RenderRouteOptions): Promise<RenderRouteConfig> {
+}: RouteRendererOptions): Promise<RouteRendererConfig> {
   const { rootDir, srcDir, pagesDir } = globalThis.ecoConfig;
 
   const projectSrcDir = path.join(rootDir, srcDir);

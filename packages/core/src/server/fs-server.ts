@@ -1,11 +1,14 @@
 import path from "path";
-import { createKitaRoute } from "@/plugins/build-html-pages/templates/create-kita-route";
 import { FSRouter } from "./utils/fs-router";
 import { withHtmlLiveReload, type PureWebSocketServeOptions } from "./utils/hmr";
 import { getContentType } from "./utils/get-content-type";
+import { RouteRenderer } from "@/render/route-renderer";
+import { KitaRenderer } from "@/render/strategies/kita-rendererer";
 
 const createBunServer = (options: PureWebSocketServeOptions<unknown>) => {
-  return Bun.serve(withHtmlLiveReload(options, globalThis.ecoConfig));
+  return globalThis.ecoConfig.watchMode
+    ? Bun.serve(withHtmlLiveReload(options, globalThis.ecoConfig))
+    : Bun.serve(options);
 };
 
 async function getFile(filePath: string) {
@@ -26,7 +29,13 @@ function shouldEnableGzip(contentType: string) {
  */
 export const createFsServer = async ({ gzip }: { gzip: boolean }) => {
   const {
-    ecoConfig: { rootDir, srcDir, pagesDir, distDir },
+    ecoConfig: {
+      rootDir,
+      srcDir,
+      pagesDir,
+      distDir,
+      derivedPaths: { error404TemplatePath },
+    },
   } = globalThis;
 
   const router = new FSRouter({
@@ -42,9 +51,22 @@ export const createFsServer = async ({ gzip }: { gzip: boolean }) => {
     async fetch(req: Request) {
       const match = !req.url.includes(".") && router.match(req);
 
+      const renderer = new RouteRenderer(new KitaRenderer());
+
       if (!match) {
         const filePath = path.join(router.assetPrefix, req.url.replace(router.origin, ""));
         const contentType = getContentType(filePath);
+
+        if (["text/html", "text/plain"].includes(contentType)) {
+          const page = await renderer.createRoute({
+            file: error404TemplatePath,
+          });
+          return new Response(await page.html, {
+            headers: {
+              "Content-Type": "text/html",
+            },
+          });
+        }
 
         try {
           let file;
@@ -64,17 +86,19 @@ export const createFsServer = async ({ gzip }: { gzip: boolean }) => {
               ...contentEncodingHeader,
             },
           });
-        } catch (err) {
+        } catch (error) {
           console.error(
-            `[eco-pages] Error: ${filePath} not found in the file system. { gzip: ${gzip} }`
+            `[eco-pages] Error: ${filePath} not found in the file system. { gzip: ${gzip} }`,
+            { error }
           );
         }
-        return new Response("Not found", {
+
+        return new Response("file not found", {
           status: 404,
         });
       }
 
-      const page = await createKitaRoute({
+      const page = await renderer.createRoute({
         file: match.filePath,
         params: match.params,
         query: match.query,

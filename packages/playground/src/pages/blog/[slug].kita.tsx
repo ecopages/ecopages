@@ -28,9 +28,9 @@ const BlogPost: EcoPage<PageProps<BlogPost>> = ({ params, query, title, text, sl
         <h1 safe>
           Blog Post {params?.slug} {JSON.stringify(query || [])}
         </h1>
-        <h2>{title as "safe"}</h2>
-        <p>{text as "safe"}</p>
-        <p>{slug as "safe"}</p>
+        <h2 safe>{title}</h2>
+        <p safe>{text}</p>
+        <p safe>{slug}</p>
       </div>
     </BaseLayout>
   );
@@ -55,10 +55,6 @@ export const getStaticProps: GetStaticProps<BlogPost> = async ({ pathname }) => 
       slug: pathname.params.slug,
       title: `Hello World | ${pathname.params.slug}`,
       text: "This is a blog post",
-    },
-    metadata: {
-      title: `Hello World | ${pathname.params.slug}`,
-      description: "This is a blog post",
     },
   };
 };

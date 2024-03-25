@@ -1,26 +1,33 @@
-import type { EcoPagesConfig } from "@types";
 import fs from "node:fs";
+import path from "node:path";
+import type { EcoPagesConfig } from "@types";
 
-const defaultConfig: Omit<EcoPagesConfig, "baseUrl" | "tsAliases" | "watchMode"> = {
-  rootDir: ".",
-  srcDir: "src",
-  pagesDir: "pages",
-  globalDir: "global",
-  includesDir: "includes",
-  componentsDir: "components",
-  layoutsDir: "layouts",
-  publicDir: "public",
-  externalsDir: "externals",
-  robotsTxt: {
-    preferences: {
-      "*": [],
-      Googlebot: ["/public/"],
+const defaultConfig: Omit<EcoPagesConfig, "baseUrl" | "tsAliases" | "watchMode" | "derivedPaths"> =
+  {
+    rootDir: ".",
+    srcDir: "src",
+    pagesDir: "pages",
+    globalDir: "global",
+    includesDir: "includes",
+    componentsDir: "components",
+    layoutsDir: "layouts",
+    publicDir: "public",
+    includesTemplates: {
+      head: "head.kita",
+      html: "html.kita",
+      seo: "seo.kita",
+      error404: "error404.kita",
     },
-  },
-  distDir: ".eco",
-  dependencyExtPrefix: "script",
-  externalDeps: [],
-};
+    robotsTxt: {
+      preferences: {
+        "*": [],
+        Googlebot: ["/public/"],
+      },
+    },
+    distDir: ".eco",
+    scriptDescriptor: "script",
+    externalDeps: [],
+  };
 
 /**
  * Create the global config for the eco-pages.
@@ -33,7 +40,7 @@ export async function createGlobalConfig({
   projectDir,
   watchMode,
 }: {
-  projectDir?: string;
+  projectDir: string;
   watchMode: boolean;
 }): Promise<Required<EcoPagesConfig>> {
   if (!fs.existsSync(`${projectDir}/eco.config.ts`)) {
@@ -48,7 +55,34 @@ export async function createGlobalConfig({
     watchMode,
   };
 
-  globalThis.ecoConfig = config;
+  const derivedPaths: EcoPagesConfig["derivedPaths"] = {
+    projectDir: projectDir,
+    componentsDir: path.join(projectDir, config.srcDir, config.componentsDir),
+    globalDir: path.join(projectDir, config.srcDir, config.globalDir),
+    includesDir: path.join(projectDir, config.srcDir, config.includesDir),
+    layoutsDir: path.join(projectDir, config.srcDir, config.layoutsDir),
+    pagesDir: path.join(projectDir, config.srcDir, config.pagesDir),
+    publicDir: path.join(projectDir, config.srcDir, config.publicDir),
+    distDir: path.join(projectDir, config.distDir),
+    srcDir: config.srcDir,
+    htmlTemplatePath: path.join(
+      projectDir,
+      config.srcDir,
+      config.includesDir,
+      config.includesTemplates.html
+    ),
+    error404TemplatePath: path.join(
+      projectDir,
+      config.srcDir,
+      config.includesDir,
+      config.includesTemplates.error404
+    ),
+  };
+
+  globalThis.ecoConfig = {
+    ...config,
+    derivedPaths,
+  };
 
   return config;
 }

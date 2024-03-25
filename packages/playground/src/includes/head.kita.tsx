@@ -1,13 +1,7 @@
-import type { EcoComponentDependencies, PageMetadataProps } from "@eco-pages/core";
+import type { PageHeadProps } from "@eco-pages/core";
 import { Seo } from "@/includes/seo.kita";
 
-export type BaseHeadProps = {
-  metadata: PageMetadataProps;
-  dependencies?: EcoComponentDependencies;
-  children?: Html.Children;
-};
-
-export function Head({ metadata, children }: BaseHeadProps) {
+export function Head({ metadata, children }: PageHeadProps) {
   return (
     <head>
       <meta charset="UTF-8"></meta>

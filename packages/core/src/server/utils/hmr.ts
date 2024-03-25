@@ -54,7 +54,7 @@ export const withHtmlLiveReload = <
   serveOptions: T,
   config: EcoPagesConfig
 ): WebSocketServeOptions<WebSocketDataType> => {
-  const watcher = watch(config.distDir, { recursive: true });
+  const watcher = watch(config.derivedPaths.srcDir, { recursive: true });
 
   return {
     ...serveOptions,
@@ -92,7 +92,7 @@ export const withHtmlLiveReload = <
         await serveOptions.websocket?.open?.(ws);
         if (watcher) {
           watcher.removeAllListeners("change");
-          watcher.once("change", async () => {
+          watcher.once("change", async (r) => {
             ws.send(reloadCommand);
           });
         }

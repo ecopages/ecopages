@@ -1,7 +1,8 @@
-import { type DefaultTemplateEngines, type EcoPagesConfig, type RenderRouteConfig } from "@types";
-import type { BunPlugin } from "bun";
-import { createKitaRoute } from "./templates/create-kita-route";
 import path from "node:path";
+import { createKitaRoute } from "./templates/create-kita-route";
+import { type DefaultTemplateEngines, type EcoPagesConfig } from "@types";
+import type { BunPlugin } from "bun";
+import type { RouteRendererConfig } from "@/render/route-renderer";
 
 /**
  * Get the html path based on the file and the pagesDir.
@@ -22,7 +23,7 @@ export function getHtmlPath({ file, pagesDir }: { file: string; pagesDir: string
  * It will provide the html and the route data.
  * @param file
  * @param config
- * @returns {Promise<RenderRouteConfig>}
+ * @returns {Promise<RouteRendererConfig>}
  */
 export async function createRouteConfig({
   file,
@@ -30,12 +31,12 @@ export async function createRouteConfig({
 }: {
   file: string;
   config: EcoPagesConfig;
-}): Promise<RenderRouteConfig> {
+}): Promise<RouteRendererConfig> {
   const templateEngine = file.split(".").at(-2) as DefaultTemplateEngines;
 
   switch (templateEngine) {
     case "kita":
-      return await createKitaRoute({ file, config });
+      return await createKitaRoute({ file });
     default:
       throw new Error(`Unknown render type: ${templateEngine}`);
   }

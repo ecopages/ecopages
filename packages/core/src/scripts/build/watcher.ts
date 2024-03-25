@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import watcher from "@parcel/watcher";
 import { buildCssFromPath } from "./build-css";
-import { buildPages } from "./build-pages";
 import { buildScripts } from "./build-scripts";
 
 /**
@@ -39,11 +38,8 @@ export async function createWatcherSubscription() {
       if (event.path.endsWith(".css")) {
         buildCssFromPath({ path: event.path });
         console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
-      } else if (event.path.includes(".script.")) {
+      } else if (event.path.includes(`.${config.scriptDescriptor}.`)) {
         buildScripts();
-        console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
-      } else if (event.path.endsWith(".tsx")) {
-        buildPages();
         console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
       }
     });

@@ -3,7 +3,7 @@ import { FSRouteScanner } from "./fs-route-scanner";
 
 export type MatchKind = "exact" | "catch-all" | "dynamic";
 
-type MatchResult = {
+export type MatchResult = {
   filePath: string;
   kind: MatchKind;
   pathname: string;

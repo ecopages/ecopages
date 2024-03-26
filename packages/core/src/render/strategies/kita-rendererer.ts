@@ -1,7 +1,7 @@
 import path from "path";
 import { getHtmlPath } from "@/plugins/build-html-pages/build-html-pages.plugin";
-import { HeadContentBuilder } from "@/plugins/build-html-pages/utils/head-content-builder";
-import { uncacheModules } from "@/plugins/build-html-pages/utils/uncache-modules";
+import { HeadContentBuilder } from "@/render/utils/head-content-builder";
+import { uncacheModules } from "@/render/utils/uncache-modules";
 import type { IRouteRenderer, RouteRendererConfig, RouteRendererOptions } from "../route-renderer";
 import type {
   EcoComponentDependencies,

@@ -42,7 +42,7 @@ export type EcoPagesConfig = {
   layoutsDir: string;
   /**
    * The templates used for the pages
-   * @default "{head: 'head.kita', html: 'html.kita', seo: 'seo.kita'}"
+   * @default "{head: 'head.kita.tsx', html: 'html.kita.tsx', seo: 'seo.kita.tsx'}"
    */
   includesTemplates: {
     head: string;

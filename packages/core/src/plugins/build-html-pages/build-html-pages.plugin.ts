@@ -1,8 +1,9 @@
 import path from "node:path";
-import { createKitaRoute } from "./templates/create-kita-route";
-import { type DefaultTemplateEngines, type EcoPagesConfig } from "@types";
 import type { BunPlugin } from "bun";
-import type { RouteRendererConfig } from "@/render/route-renderer";
+import { type DefaultTemplateEngines, type EcoPagesConfig } from "@types";
+import { RouteRenderer, type RouteRendererConfig } from "@/render/route-renderer";
+import { KitaRenderer } from "@/render/strategies/kita-rendererer";
+import { pathAnalyser } from "@/utils/path-analyser";
 
 /**
  * Get the html path based on the file and the pagesDir.
@@ -32,13 +33,14 @@ export async function createRouteConfig({
   file: string;
   config: EcoPagesConfig;
 }): Promise<RouteRendererConfig> {
-  const templateEngine = file.split(".").at(-2) as DefaultTemplateEngines;
+  const { descriptor } = pathAnalyser(file);
 
-  switch (templateEngine) {
+  switch (descriptor as DefaultTemplateEngines) {
     case "kita":
-      return await createKitaRoute({ file });
+      const render = new RouteRenderer(new KitaRenderer());
+      return render.createRoute({ file });
     default:
-      throw new Error(`Unknown render type: ${templateEngine}`);
+      throw new Error(`Unknown render type: ${descriptor}`);
   }
 }
 

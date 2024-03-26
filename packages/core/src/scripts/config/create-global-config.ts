@@ -13,10 +13,10 @@ const defaultConfig: Omit<EcoPagesConfig, "baseUrl" | "tsAliases" | "watchMode" 
     layoutsDir: "layouts",
     publicDir: "public",
     includesTemplates: {
-      head: "head.kita",
-      html: "html.kita",
-      seo: "seo.kita",
-      error404: "error404.kita",
+      head: "head.kita.tsx",
+      html: "html.kita.tsx",
+      seo: "seo.kita.tsx",
+      error404: "error404.kita.tsx",
     },
     robotsTxt: {
       preferences: {

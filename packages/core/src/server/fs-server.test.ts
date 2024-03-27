@@ -76,6 +76,17 @@ describe("FileSystemServer", async () => {
     expect(await res.text()).toContain("{&quot;slug&quot;:&quot;123&quot;}");
   });
 
+  test("should return 200 for existing page with params and query params", async () => {
+    const req = new Request("http://localhost:3000/dynamic/123?page=1");
+    const res = await server.fetch(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/html");
+    expect(await res.text()).toContain(
+      "{&quot;slug&quot;:&quot;123&quot;} {&quot;page&quot;:&quot;1&quot;}"
+    );
+  });
+
   test("should return 200 for existing page with catch all params", async () => {
     const req = new Request("http://localhost:3000/catch-all/123/456");
     const res = await server.fetch(req);

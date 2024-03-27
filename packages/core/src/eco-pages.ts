@@ -84,10 +84,6 @@ export type EcoPagesConfig = {
     paths: Record<string, string[]>;
   };
   /**
-   * The external dependencies
-   */
-  externalDeps: string[];
-  /**
    * The watch mode
    */
   watchMode: boolean;

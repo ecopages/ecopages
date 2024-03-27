@@ -26,7 +26,6 @@ export async function buildPages() {
     root: config.srcDir,
     minify: true,
     plugins: [buildHtmlPages()],
-    external: [...config.externalDeps],
   });
 
   if (!build.success) build.logs.forEach((log) => console.log(log));

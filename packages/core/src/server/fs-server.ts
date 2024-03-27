@@ -3,32 +3,34 @@ import { FSRouter, type MatchResult } from "./utils/fs-router";
 import { withHtmlLiveReload, type PureWebSocketServeOptions } from "./utils/hmr";
 import { getContentType } from "./utils/get-content-type";
 import { RouteRendererFactory } from "@/render/route-renderer";
+import type { EcoPagesConfig } from "..";
 
-class FileSystemServer {
-  private gzip: boolean;
+export class FileSystemServer {
+  private appConfig: EcoPagesConfig;
   private router: FSRouter;
   private routeRendererFactory: RouteRendererFactory;
   private error404TemplatePath: string;
   private server: any;
 
   constructor({
-    gzip,
     router,
+    appConfig,
     routeRendererFactory,
     error404TemplatePath,
   }: {
-    gzip: boolean;
     router: FSRouter;
+    appConfig: EcoPagesConfig;
     routeRendererFactory: RouteRendererFactory;
     error404TemplatePath: string;
   }) {
-    this.gzip = gzip;
     this.router = router;
+    this.appConfig = appConfig;
     this.routeRendererFactory = routeRendererFactory;
     this.error404TemplatePath = error404TemplatePath;
   }
 
   private shouldEnableGzip(contentType: string) {
+    if (this.appConfig.watchMode) return false;
     const gzipEnabledExtensions = ["application/javascript", "text/css"];
     return gzipEnabledExtensions.includes(contentType);
   }
@@ -54,7 +56,7 @@ class FileSystemServer {
     const contentType = getContentType(filePath);
 
     if (this.isHtmlOrPlainText(contentType)) {
-      return this.createHtmlResponse();
+      return this.sendNotFoundPage();
     }
 
     return this.createFileResponse(filePath, contentType);
@@ -64,7 +66,7 @@ class FileSystemServer {
     return ["text/html", "text/plain"].includes(contentType);
   }
 
-  private async createHtmlResponse() {
+  private async sendNotFoundPage() {
     const routeRenderer = this.routeRendererFactory.createRenderer(this.error404TemplatePath);
 
     const page = await routeRenderer.createRoute({
@@ -83,7 +85,7 @@ class FileSystemServer {
       let file;
       let contentEncodingHeader: HeadersInit = {};
 
-      if (this.gzip && this.shouldEnableGzip(contentType)) {
+      if (this.shouldEnableGzip(contentType)) {
         const gzipPath = `${filePath}.gz`;
         file = await this.getFile(gzipPath);
         contentEncodingHeader["Content-Encoding"] = "gzip";
@@ -121,8 +123,8 @@ class FileSystemServer {
   }
 
   public startServer(serverOptions: PureWebSocketServeOptions<unknown>) {
-    this.server = globalThis.ecoConfig.watchMode
-      ? Bun.serve(withHtmlLiveReload(serverOptions, globalThis.ecoConfig))
+    this.server = this.appConfig.watchMode
+      ? Bun.serve(withHtmlLiveReload(serverOptions, this.appConfig))
       : Bun.serve(serverOptions);
 
     this.router.onReload = () => {
@@ -133,7 +135,7 @@ class FileSystemServer {
   }
 }
 
-export const createFsServer = async ({ gzip }: { gzip: boolean }) => {
+export const createFsServer = async () => {
   const {
     ecoConfig: {
       rootDir,
@@ -154,8 +156,8 @@ export const createFsServer = async ({ gzip }: { gzip: boolean }) => {
   await router.init();
 
   const server = new FileSystemServer({
-    gzip,
     router,
+    appConfig: globalThis.ecoConfig,
     routeRendererFactory: new RouteRendererFactory(),
     error404TemplatePath,
   });

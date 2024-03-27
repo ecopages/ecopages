@@ -124,11 +124,11 @@ class EcoPagesBuilder {
 
     await this.generateStaticPages();
 
-    createDevServer({ gzip: true });
+    createDevServer();
   }
 
   async generateStaticPages() {
-    const { router, server } = await createFsServer({ gzip: false });
+    const { router, server } = await createFsServer();
 
     const routes = Object.keys(router.routes).filter((route) => !route.includes("["));
 
@@ -189,10 +189,9 @@ class EcoPagesBuilder {
    * @method runDevServer
    * @description
    * This method runs the dev server.
-   * @param {boolean} gzip - Whether to gzip the dist directory or not.
    */
-  private async runDevServer(gzip: boolean = !this.watchMode) {
-    const { server } = await createFsServer({ gzip });
+  private async runDevServer() {
+    const { server } = await createFsServer();
     await $`clear`;
     console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
   }

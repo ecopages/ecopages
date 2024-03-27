@@ -28,10 +28,13 @@ export type Routes = Record<string, Route>;
 /**
  * @class FSRouter
  * @description
- * This class is responsible for handling the file system routes.
- * Please remember to call the init method before using the class.
- * It scans the file system for files with the specified file extensions.
- * It then creates a map of the routes with the pathname as the key.
+ * A class that manages the routes of the file system.
+ * It scans the file system for files with the specified extensions and creates a map of routes.
+ * It also provides a method to match a request to a route.
+ * It can be used to reload the routes when the file system changes.
+ * It can be used to match a request to a route.
+ * It can be used to get the dynamic parameters of a route.
+ * It can be used to get the search parameters of a URL.
  */
 export class FSRouter {
   dir: string;

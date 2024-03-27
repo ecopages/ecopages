@@ -7,7 +7,7 @@ import { serveFromDir } from "./utils/serve-from-dir";
  * @description
  * This function returns the development server.
  */
-export const createDevServer = ({ gzip }: { gzip: boolean }) =>
+export const createDevServer = () =>
   Bun.serve(
     withHtmlLiveReload(
       {
@@ -19,7 +19,7 @@ export const createDevServer = ({ gzip }: { gzip: boolean }) =>
           const response = serveFromDir({
             directory: path.join(globalThis.ecoConfig.distDir),
             path: reqPath,
-            gzip,
+            gzip: globalThis.ecoConfig.watchMode,
           });
 
           if (response) return response;

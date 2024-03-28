@@ -31,32 +31,44 @@ describe("FSRouter", async () => {
   });
 
   describe("getDynamicParams", async () => {
-    test("should return dynamic params", async () => {
-      const route: Route = {
-        src: "",
-        filePath: "",
-        kind: "dynamic",
-        strategy: "static",
-        pathname: "/products/[id]",
-      };
-      const pathname = "/products/123";
-      const params = router.getDynamicParams(route, pathname);
+    test.each([
+      ["/products/[id]", "/products/123", { id: "123" }],
+      ["/products/[id]", "/products/123/456", { id: "123" }],
+      ["/products/[id]", "/products/123/456/789", { id: "123" }],
+    ])(
+      "dynamic route %p with URL %p should have dynamic params %p",
+      async (dynamicPathname, pathname, expected) => {
+        const route: Route = {
+          src: "",
+          filePath: "",
+          kind: "dynamic",
+          strategy: "static",
+          pathname: dynamicPathname,
+        };
+        const params = router.getDynamicParams(route, pathname);
 
-      expect(params).toEqual({ id: "123" });
-    });
+        expect(params).toEqual(expected);
+      }
+    );
 
-    test("should return dynamic params for catch all routes", async () => {
-      const route: Route = {
-        src: "",
-        filePath: "",
-        kind: "dynamic",
-        strategy: "static",
-        pathname: "/products/[...id]",
-      };
-      const pathname = "/products/123/456/789";
-      const params = router.getDynamicParams(route, pathname);
+    test.each([
+      ["/products/[...id]", "/products/123/456/789", { id: ["123", "456", "789"] }],
+      ["/products/[...id]", "/products/123", { id: ["123"] }],
+      ["/products/[...id]", "/products", { id: [] }],
+    ])(
+      "catch-all route %p with URL %p should have dynamic params %p",
+      async (catchAllRoute, pathname, expected) => {
+        const route: Route = {
+          src: "",
+          filePath: "",
+          kind: "dynamic",
+          strategy: "static",
+          pathname: "/products/[...id]",
+        };
+        const params = router.getDynamicParams(route, pathname);
 
-      expect(params).toEqual({ id: ["123", "456", "789"] });
-    });
+        expect(params).toEqual(expected);
+      }
+    );
   });
 });

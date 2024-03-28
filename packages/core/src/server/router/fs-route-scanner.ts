@@ -43,12 +43,12 @@ export class FSRouteScanner {
     this.fileExtensions = fileExtensions;
   }
 
-  async getFiles() {
+  private async getFiles() {
     const glob = new Bun.Glob(this.pattern);
     return await Array.fromAsync(glob.scan({ cwd: this.dir }));
   }
 
-  getRoutePathname(route: string) {
+  private getRoutePathname(route: string) {
     const fileExtensionsSet = new Set(this.fileExtensions);
     let cleanedRoute = route;
 
@@ -60,20 +60,20 @@ export class FSRouteScanner {
     return `/${cleanedRoute}`;
   }
 
-  isCatchAll(route: string) {
+  private isCatchAll(route: string) {
     return route.includes("[...");
   }
 
-  isDynamic(route: string) {
+  private isDynamic(route: string) {
     return route.includes("[") && route.includes("]");
   }
 
-  getDynamicParamsNames(route: string): string[] {
+  private getDynamicParamsNames(route: string): string[] {
     const matches = route.match(/\[.*?\]/g);
     return matches ? matches.map((match) => match.slice(1, -1)) : [];
   }
 
-  async createStaticDynamicRoute({
+  private async createStaticDynamicRoute({
     filePath,
     route,
     routePath,
@@ -107,7 +107,7 @@ export class FSRouteScanner {
     }
   }
 
-  async createISGDynamicRoute({
+  private async createISGDynamicRoute({
     filePath,
     route,
     routePath,
@@ -119,7 +119,7 @@ export class FSRouteScanner {
     }
   }
 
-  createSSRDynamicRoute({ filePath, route, routePath }: CreateRouteArgs): void {
+  private createSSRDynamicRoute({ filePath, route, routePath }: CreateRouteArgs): void {
     this.routes[route] = {
       kind: "dynamic",
       strategy: "ssr",
@@ -129,7 +129,7 @@ export class FSRouteScanner {
     };
   }
 
-  async createDynamicRoute({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {
+  private async createDynamicRoute({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {
     const {
       default: { renderStrategy = "ssr" },
       getStaticPaths,
@@ -165,7 +165,7 @@ export class FSRouteScanner {
     }
   }
 
-  createCatchAllRoute({ filePath, route, routePath }: CreateRouteArgs): void {
+  private createCatchAllRoute({ filePath, route, routePath }: CreateRouteArgs): void {
     this.routes[route] = {
       kind: "catch-all",
       strategy: "ssr",
@@ -175,7 +175,7 @@ export class FSRouteScanner {
     };
   }
 
-  async createExactRoute({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {
+  private async createExactRoute({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {
     const {
       default: { renderStrategy = "static" },
     } = (await import(filePath)) as EcoPageFile;
@@ -189,7 +189,7 @@ export class FSRouteScanner {
     };
   }
 
-  getRouteData(file: string) {
+  private getRouteData(file: string) {
     const routePath = this.getRoutePathname(file);
     const route = `${this.origin}${routePath}`;
     const filePath = path.join(this.dir, file);

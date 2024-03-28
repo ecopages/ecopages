@@ -1,4 +1,4 @@
-import { addBaseToUrl, type PageMetadataProps } from "@eco-pages/core";
+import { addBaseUrlToPathname, type PageMetadataProps } from "@eco-pages/core";
 
 export function Seo({
   title,
@@ -16,10 +16,10 @@ export function Seo({
       {keywords ? ((<meta name="keywords" content={keywords.join(",")} />) as "safe") : null}
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
-      <meta property="og:image" content={addBaseToUrl(image)} />
+      <meta property="og:image" content={addBaseUrlToPathname(image)} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
-      {url ? ((<link rel="canonical" href={addBaseToUrl(url)} />) as "safe") : null}
+      {url ? ((<link rel="canonical" href={addBaseUrlToPathname(url)} />) as "safe") : null}
     </>
   );
 }

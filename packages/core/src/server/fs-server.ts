@@ -1,7 +1,7 @@
 import path from "path";
-import { FSRouter, type MatchResult } from "./utils/fs-router";
-import { withHtmlLiveReload, type PureWebSocketServeOptions } from "./utils/hmr";
-import { getContentType } from "./utils/get-content-type";
+import { FSRouter, type MatchResult } from "./router/fs-router";
+import { withHtmlLiveReload, type PureWebSocketServeOptions } from "./middleware/hmr";
+import { ServerUtils } from "./server-utils";
 import { RouteRendererFactory } from "@/render/route-renderer";
 import type { EcoPagesConfig } from "..";
 
@@ -53,7 +53,7 @@ export class FileSystemServer {
 
   private async handleNoMatch(req: Request) {
     const filePath = path.join(this.router.assetPrefix, req.url.replace(this.router.origin, ""));
-    const contentType = getContentType(filePath);
+    const contentType = ServerUtils.getContentType(filePath);
 
     if (this.isHtmlOrPlainText(contentType)) {
       return this.sendNotFoundPage();

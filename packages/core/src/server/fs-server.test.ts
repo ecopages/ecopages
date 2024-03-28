@@ -2,7 +2,7 @@ import path from "path";
 import { test, expect, it, describe } from "bun:test";
 import { FileSystemServer } from "./fs-server";
 import { RouteRendererFactory } from "@/render/route-renderer";
-import { FSRouter } from "./utils/fs-router";
+import { FSRouter } from "./router/fs-router";
 import { createGlobalConfig } from "@/scripts/config/create-global-config";
 
 const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, "packages/core/fixtures");

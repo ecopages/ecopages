@@ -3,7 +3,7 @@ import type { BunPlugin } from "bun";
 import { type DefaultTemplateEngines, type EcoPagesConfig } from "@types";
 import { RouteRenderer, type RouteRendererConfig } from "@/render/route-renderer";
 import { KitaRenderer } from "@/render/strategies/kita-rendererer";
-import { pathAnalyser } from "@/utils/path-analyser";
+import { PathUtils } from "@/utils/path-utils";
 
 /**
  * Get the html path based on the file and the pagesDir.
@@ -33,7 +33,7 @@ export async function createRouteConfig({
   file: string;
   config: EcoPagesConfig;
 }): Promise<RouteRendererConfig> {
-  const { descriptor } = pathAnalyser(file);
+  const descriptor = PathUtils.getNameDescriptor(file);
 
   switch (descriptor as DefaultTemplateEngines) {
     case "kita":

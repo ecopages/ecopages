@@ -1,6 +1,6 @@
 import type { DefaultTemplateEngines } from "@/eco-pages";
 import { KitaRenderer } from "./strategies/kita-rendererer";
-import { pathAnalyser } from "@/utils/path-analyser";
+import { PathUtils } from "@/utils/path-utils";
 
 export type RouteRendererOptions = {
   file: string;
@@ -36,7 +36,7 @@ export class RouteRendererFactory {
   }
 
   private getRouteRendererEngine(filePath: string) {
-    const { descriptor } = pathAnalyser(filePath);
+    const descriptor = PathUtils.getNameDescriptor(filePath);
 
     switch (descriptor as DefaultTemplateEngines) {
       case "kita": {

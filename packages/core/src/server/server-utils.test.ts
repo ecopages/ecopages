@@ -1,7 +1,7 @@
 import path from "path";
 import { describe, expect, test } from "bun:test";
 import { ServerUtils } from "./server-utils";
-import { FIXTURE_PROJECT_DIR } from "@/constants";
+import { FIXTURE_EXISTING_FILE_GZ_IN_DIST, FIXTURE_PROJECT_DIR } from "fixtures/constants";
 import { createGlobalConfig } from "@/scripts/config/create-global-config";
 
 await createGlobalConfig({
@@ -29,7 +29,7 @@ describe("ServerUtils", () => {
   test("serveFromDir should return a response", async () => {
     const response = await ServerUtils.serveFromDir({
       directory: globalThis.ecoConfig.distDir,
-      path: "/test.css",
+      path: FIXTURE_EXISTING_FILE_GZ_IN_DIST,
       gzip: false,
     });
 

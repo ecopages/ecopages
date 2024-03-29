@@ -1,8 +1,8 @@
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
-import { FSRouteScanner } from "./fs-route-scanner";
+import { FSRouterScanner } from "./fs-router-scanner";
 import { createGlobalConfig } from "@/scripts/config/create-global-config";
-import { FIXTURE_PROJECT_DIR } from "@/constants";
+import { FIXTURE_PROJECT_DIR } from "fixtures/constants";
 
 await createGlobalConfig({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),
@@ -10,18 +10,20 @@ await createGlobalConfig({
 });
 
 const {
+  templatesExt,
   derivedPaths: { pagesDir },
 } = globalThis.ecoConfig;
 
-describe("FSRouteScanner", () => {
+describe("FSRouterScanner", () => {
   test("when scan is called, it should return an object with routes", async () => {
-    const fsRouteScanner = new FSRouteScanner({
+    const scanner = new FSRouterScanner({
       dir: pagesDir,
       origin: "http://localhost:3000",
-      pattern: `**/*{${[".kita.tsx"].join(",")}}`,
-      fileExtensions: [".kita.tsx"],
+      templatesExt,
     });
-    const routes = await fsRouteScanner.scan();
+
+    const routes = await scanner.scan();
+
     expect(routes).toEqual({
       "http://localhost:3000/": {
         filePath: `${pagesDir}/index.kita.tsx`,

@@ -5,6 +5,7 @@ import { ServerUtils } from "./server-utils";
 import { RouteRendererFactory } from "@/render/route-renderer";
 import type { EcoPagesConfig } from "..";
 import { FileUtils } from "@/utils/file-utils";
+import { FSRouterScanner } from "./router/fs-router-scanner";
 
 export class FileSystemServer {
   private appConfig: EcoPagesConfig;
@@ -32,12 +33,12 @@ export class FileSystemServer {
 
   private shouldEnableGzip(contentType: string) {
     if (this.appConfig.watchMode) return false;
-    const gzipEnabledExtensions = ["application/javascript", "text/css"];
+    const gzipEnabledExtensions = ["application/javascript", "text/css", "image/x-icon"];
     return gzipEnabledExtensions.includes(contentType);
   }
 
   private async getFile(filePath: string) {
-    return await FileUtils.getFile(filePath);
+    return await FileUtils.get(filePath);
   }
 
   public async fetch(req: Request) {
@@ -141,15 +142,21 @@ export const createFsServer = async () => {
       srcDir,
       pagesDir,
       distDir,
+      templatesExt,
       derivedPaths: { error404TemplatePath },
     },
   } = globalThis;
 
-  const router = new FSRouter({
+  const scanner = new FSRouterScanner({
     dir: path.join(rootDir, srcDir, pagesDir),
     origin: "http://localhost:3000",
+    templatesExt,
+  });
+
+  const router = new FSRouter({
+    origin: "http://localhost:3000",
     assetPrefix: path.join(rootDir, distDir),
-    fileExtensions: [".kita.tsx"],
+    scanner,
   });
 
   await router.init();

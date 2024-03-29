@@ -2,11 +2,7 @@ import { DepsManager, Html, type EcoComponent, type Error404TemplateProps } from
 import HtmlTemplate from "./html.kita";
 import { BaseLayout } from "@/layouts/base-layout";
 
-const Error404: EcoComponent<Error404TemplateProps> = ({
-  message,
-  stack,
-  ...htmlTemplateProps
-}) => {
+const Error404: EcoComponent<Error404TemplateProps> = (htmlTemplateProps) => {
   return (
     <HtmlTemplate {...htmlTemplateProps}>
       <BaseLayout>

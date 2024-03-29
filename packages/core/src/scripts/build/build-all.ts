@@ -11,6 +11,7 @@ import { createWatcherSubscription } from "@/scripts/build/watcher";
 import { createDevServer } from "@/server/dev-server";
 import type { EcoPagesConfig } from "@types";
 import { createFsServer } from "@/server/fs-server";
+import { FileUtils } from "@/utils/file-utils";
 
 /**
  * @class EcoPagesBuilder
@@ -154,7 +155,9 @@ class EcoPagesBuilder {
           "index.html"
         );
 
-        await Bun.write(filePath, response);
+        const contents = await response.text();
+
+        await FileUtils.write(filePath, contents);
       } catch (error) {
         console.error(`Error fetching or writing ${route}:`, error);
       }

@@ -14,8 +14,7 @@ import { FileUtils } from "@/utils/file-utils";
  * It is mainly used in the build process.
  */
 export const postcssProcessor = async (path: string) => {
-  const file = await FileUtils.getFile(path);
-  const contents = await file.text();
+  const contents = await FileUtils.getPathAsString(path);
 
   const processor = postcss([
     postCssImport(),

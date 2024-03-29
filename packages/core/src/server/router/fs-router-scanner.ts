@@ -9,7 +9,7 @@ type CreateRouteArgs = {
 };
 
 /**
- * @class FSRouteScanner
+ * @class FSRouterScanner
  * @description
  * This class is responsible for scanning the file system for routes.
  * It uses the glob package to scan the file system for files with the specified file extensions.
@@ -19,53 +19,45 @@ type CreateRouteArgs = {
  * If the file is "blog/[slug].tsx", the pathname will be "/blog/[slug]".
  * If the file is "blog/[...slug].tsx", the pathname will be "/blog/[...slug]".
  */
-export class FSRouteScanner {
-  private pattern: string;
+export class FSRouterScanner {
   private dir: string;
-  private fileExtensions: string[] = [];
   private origin = "";
+  private templatesExt: string[];
   routes: Routes = {};
 
   constructor({
     dir,
-    pattern,
-    fileExtensions,
     origin,
+    templatesExt,
   }: {
     dir: string;
-    pattern: string;
-    fileExtensions: string[];
     origin: string;
+    templatesExt: string[];
   }) {
     this.dir = dir;
     this.origin = origin;
-    this.pattern = pattern;
-    this.fileExtensions = fileExtensions;
+    this.templatesExt = templatesExt;
   }
 
-  private async getFiles() {
-    const glob = new Bun.Glob(this.pattern);
-    return await Array.fromAsync(glob.scan({ cwd: this.dir }));
+  getGlobTemplatePattern() {
+    return `**/*{${this.templatesExt.join(",")}}`;
   }
 
-  private getRoutePathname(route: string) {
-    const fileExtensionsSet = new Set(this.fileExtensions);
-    let cleanedRoute = route;
+  getRoutePath(path: string) {
+    const fileExtensionsSet = new Set(this.templatesExt);
+    let cleanedRoute = path;
 
     for (const ext of fileExtensionsSet) {
-      cleanedRoute = cleanedRoute.replace(ext, "");
+      cleanedRoute = path.replace(ext, "");
     }
 
     cleanedRoute = cleanedRoute.replace(/\/?index$/, "");
     return `/${cleanedRoute}`;
   }
 
-  private isCatchAll(route: string) {
-    return route.includes("[...");
-  }
-
-  private isDynamic(route: string) {
-    return route.includes("[") && route.includes("]");
+  private async getFiles() {
+    const glob = new Bun.Glob(this.getGlobTemplatePattern());
+    return await Array.fromAsync(glob.scan({ cwd: this.dir }));
   }
 
   private getDynamicParamsNames(route: string): string[] {
@@ -190,11 +182,11 @@ export class FSRouteScanner {
   }
 
   private getRouteData(file: string) {
-    const routePath = this.getRoutePathname(file);
+    const routePath = this.getRoutePath(file);
     const route = `${this.origin}${routePath}`;
     const filePath = path.join(this.dir, file);
-    const isDynamic = this.isDynamic(routePath);
-    const isCatchAll = this.isCatchAll(routePath);
+    const isDynamic = filePath.includes("[") && filePath.includes("]");
+    const isCatchAll = filePath.includes("[...");
 
     return { route, routePath, filePath, isDynamic, isCatchAll };
   }

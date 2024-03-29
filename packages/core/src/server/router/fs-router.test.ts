@@ -2,6 +2,7 @@ import path from "path";
 import { test, expect, it, describe } from "bun:test";
 import { FSRouter, type Route } from "./fs-router";
 import { createGlobalConfig } from "@/scripts/config/create-global-config";
+import { FSRouterScanner } from "./fs-router-scanner";
 
 const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, "packages/core/fixtures");
 
@@ -11,14 +12,20 @@ await createGlobalConfig({
 });
 
 const {
-  derivedPaths: { error404TemplatePath, pagesDir, distDir },
+  templatesExt,
+  derivedPaths: { pagesDir, distDir },
 } = globalThis.ecoConfig;
 
-const router = new FSRouter({
+const scanner = new FSRouterScanner({
   dir: pagesDir,
   origin: "http://localhost:3000",
+  templatesExt,
+});
+
+const router = new FSRouter({
+  origin: "http://localhost:3000",
   assetPrefix: distDir,
-  fileExtensions: [".kita.tsx"],
+  scanner,
 });
 
 await router.init();

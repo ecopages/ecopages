@@ -10,7 +10,7 @@ export function Seo({
   return (
     <>
       <title safe>{title}</title>
-      <link rel="icon" type="image/x-icon" href="/public/assets/favicon.ico"></link>
+      <link rel="icon" type="image/x-icon" href="/public/assets/favicon.svg"></link>
       <link rel="robots" href="/robots.txt"></link>
       <meta name="description" content={description} />
       {keywords ? ((<meta name="keywords" content={keywords.join(",")} />) as "safe") : null}

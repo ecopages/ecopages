@@ -1,5 +1,5 @@
 import type { RenderStrategyOptions } from "@/eco-pages";
-import { FSRouteScanner } from "./fs-route-scanner";
+import { FSRouterScanner } from "./fs-router-scanner";
 
 export type MatchKind = "exact" | "catch-all" | "dynamic";
 
@@ -34,37 +34,24 @@ export type Routes = Record<string, Route>;
  * It can be used to reload the routes when the file system changes.
  */
 export class FSRouter {
-  dir: string;
   origin: string;
   assetPrefix: string;
-  fileExtensions: string[];
   routes: Routes = {};
+  scanner: FSRouterScanner;
   onReload?: () => void;
-  scanner: FSRouteScanner;
 
   constructor({
-    dir,
     origin,
     assetPrefix,
-    fileExtensions,
-    scanner = FSRouteScanner,
+    scanner,
   }: {
-    dir: string;
     origin: string;
     assetPrefix: string;
-    fileExtensions: string[];
-    scanner?: typeof FSRouteScanner;
+    scanner: FSRouterScanner;
   }) {
-    this.dir = dir;
     this.origin = origin;
     this.assetPrefix = assetPrefix;
-    this.fileExtensions = fileExtensions;
-    this.scanner = new scanner({
-      dir: this.dir,
-      pattern: `**/*{${this.fileExtensions.join(",")}}`,
-      fileExtensions: this.fileExtensions,
-      origin: this.origin,
-    });
+    this.scanner = scanner;
   }
 
   async init() {

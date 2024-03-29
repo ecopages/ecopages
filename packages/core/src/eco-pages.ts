@@ -56,6 +56,11 @@ export type EcoPagesConfig = {
    */
   distDir: string;
   /**
+   * The template engines
+   * @default [".kita.tsx"]
+   */
+  templatesExt: string[];
+  /**
    * The directory where the components are located
    * @default "components"
    */

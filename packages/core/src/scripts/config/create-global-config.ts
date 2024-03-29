@@ -26,6 +26,7 @@ const defaultConfig: Omit<EcoPagesConfig, "baseUrl" | "tsAliases" | "watchMode" 
     },
     distDir: ".eco",
     scriptDescriptor: "script",
+    templatesExt: [".kita.tsx"],
   };
 
 /**

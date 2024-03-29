@@ -19,7 +19,7 @@ export const createDevServer = () =>
           const response = ServerUtils.serveFromDir({
             directory: path.join(globalThis.ecoConfig.distDir),
             path: reqPath,
-            gzip: globalThis.ecoConfig.watchMode,
+            gzip: !globalThis.ecoConfig.watchMode,
           });
 
           if (response) return response;

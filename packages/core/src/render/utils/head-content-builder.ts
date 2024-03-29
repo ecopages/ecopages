@@ -49,14 +49,14 @@ export class HeadContentBuilder {
 
     for (const stylesheet of dependencies.stylesheets || []) {
       const filePath = path.join(this.config.rootDir, this.config.distDir, stylesheet);
-      const bunFile = await FileUtils.getFile(filePath);
+      const bunFile = await FileUtils.get(filePath);
       const fileContents = await bunFile.text();
       dependenciesString += `<style>${fileContents}</style>`;
     }
 
     for (const script of dependencies.scripts || []) {
       const filePath = path.join(this.config.rootDir, this.config.distDir, script);
-      const bunFile = await FileUtils.getFile(filePath);
+      const bunFile = await FileUtils.get(filePath);
       const fileContents = await bunFile.text();
       dependenciesString += `<script defer type="module">${fileContents}</script>`;
     }

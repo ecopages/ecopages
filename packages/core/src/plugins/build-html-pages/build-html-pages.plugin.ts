@@ -4,6 +4,7 @@ import { type DefaultTemplateEngines, type EcoPagesConfig } from "@types";
 import { RouteRenderer, type RouteRendererConfig } from "@/render/route-renderer";
 import { KitaRenderer } from "@/render/strategies/kita-rendererer";
 import { PathUtils } from "@/utils/path-utils";
+import { FileUtils } from "@/utils/file-utils";
 
 /**
  * Get the html path based on the file and the pagesDir.
@@ -70,7 +71,7 @@ export function buildHtmlPages(): BunPlugin {
         const distPath = `${config.distDir}${relativeUrl}`;
         const htmlPage = docType + route.html.toString();
 
-        await Bun.write(distPath, htmlPage);
+        await FileUtils.write(distPath, htmlPage);
 
         return {
           then(onresolved, onrejected) {

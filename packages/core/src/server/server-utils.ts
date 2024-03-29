@@ -27,7 +27,7 @@ export class ServerUtils {
 
     if (config.gzip && ["application/javascript", "text/css"].includes(contentType)) {
       const gzipPath = `${basePath}.gz`;
-      const file = await FileUtils.getFile(gzipPath);
+      const file = await FileUtils.get(gzipPath);
       return new Response(file, {
         headers: {
           "Content-Type": contentType,
@@ -37,14 +37,14 @@ export class ServerUtils {
     }
 
     if (config.path.includes(".")) {
-      const file = await FileUtils.getFile(basePath);
+      const file = await FileUtils.get(basePath);
       return new Response(file, {
         headers: { "Content-Type": contentType },
       });
     }
 
     const pathWithSuffix = path.join(basePath, "index.html");
-    const file = await FileUtils.getFile(pathWithSuffix);
+    const file = await FileUtils.get(pathWithSuffix);
     return new Response(file, {
       headers: { "Content-Type": ServerUtils.getContentType(path.extname(pathWithSuffix)) },
     });

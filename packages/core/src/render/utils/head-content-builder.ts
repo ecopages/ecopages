@@ -1,6 +1,6 @@
 import path from "path";
-import Bun from "bun";
 import type { EcoComponentDependencies, EcoPagesConfig } from "@types";
+import { FileUtils } from "@/utils/file-utils";
 
 /**
  * Build the head content for the html pages.
@@ -49,14 +49,14 @@ export class HeadContentBuilder {
 
     for (const stylesheet of dependencies.stylesheets || []) {
       const filePath = path.join(this.config.rootDir, this.config.distDir, stylesheet);
-      const bunFile = Bun.file(filePath);
+      const bunFile = await FileUtils.getFile(filePath);
       const fileContents = await bunFile.text();
       dependenciesString += `<style>${fileContents}</style>`;
     }
 
     for (const script of dependencies.scripts || []) {
       const filePath = path.join(this.config.rootDir, this.config.distDir, script);
-      const bunFile = Bun.file(filePath);
+      const bunFile = await FileUtils.getFile(filePath);
       const fileContents = await bunFile.text();
       dependenciesString += `<script defer type="module">${fileContents}</script>`;
     }

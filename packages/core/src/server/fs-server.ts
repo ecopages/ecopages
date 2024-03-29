@@ -4,6 +4,7 @@ import { withHtmlLiveReload, type PureWebSocketServeOptions } from "./middleware
 import { ServerUtils } from "./server-utils";
 import { RouteRendererFactory } from "@/render/route-renderer";
 import type { EcoPagesConfig } from "..";
+import { FileUtils } from "@/utils/file-utils";
 
 export class FileSystemServer {
   private appConfig: EcoPagesConfig;
@@ -36,9 +37,7 @@ export class FileSystemServer {
   }
 
   private async getFile(filePath: string) {
-    const file = Bun.file(filePath);
-    if (!(await file.exists())) throw new Error("File not found");
-    return file;
+    return await FileUtils.getFile(filePath);
   }
 
   public async fetch(req: Request) {

@@ -4,6 +4,7 @@ import autoprefixer from "autoprefixer";
 import cssnano from "cssnano";
 import tailwindcss from "tailwindcss";
 import tailwindcssNesting from "tailwindcss/nesting/index.js";
+import { FileUtils } from "@/utils/file-utils";
 
 /**
  * @function postcssProcessor
@@ -13,7 +14,8 @@ import tailwindcssNesting from "tailwindcss/nesting/index.js";
  * It is mainly used in the build process.
  */
 export const postcssProcessor = async (path: string) => {
-  const contents = await Bun.file(path).text();
+  const file = await FileUtils.getFile(path);
+  const contents = await file.text();
 
   const processor = postcss([
     postCssImport(),

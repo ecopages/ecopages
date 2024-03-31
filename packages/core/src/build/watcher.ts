@@ -4,14 +4,14 @@ import { CssBuilder } from "./css-builder";
 import { ScriptsBuilder } from "./scripts-builder";
 import { PostCssProcessor } from "./postcss-processor";
 
-const cssBuilder = new CssBuilder({
-  processor: new PostCssProcessor(),
-  config: globalThis.ecoConfig,
-});
-
-const scriptsBuilder = new ScriptsBuilder(globalThis.ecoConfig);
-
 export async function createWatcherSubscription() {
+  const cssBuilder = new CssBuilder({
+    processor: new PostCssProcessor(),
+    config: globalThis.ecoConfig,
+  });
+
+  const scriptsBuilder = new ScriptsBuilder(globalThis.ecoConfig);
+
   return watcher.subscribe("src", (err, events) => {
     if (err) {
       console.error("Error watching files", err);

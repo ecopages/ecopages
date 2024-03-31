@@ -33,7 +33,7 @@ export class FileSystemServer {
 
   private shouldEnableGzip(contentType: string) {
     if (this.appConfig.watchMode) return false;
-    const gzipEnabledExtensions = ["application/javascript", "text/css", "image/x-icon"];
+    const gzipEnabledExtensions = ["application/javascript", "text/css"];
     return gzipEnabledExtensions.includes(contentType);
   }
 

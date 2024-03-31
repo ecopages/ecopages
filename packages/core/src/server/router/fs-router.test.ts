@@ -1,7 +1,7 @@
 import path from "path";
 import { test, expect, it, describe } from "bun:test";
 import { FSRouter, type Route } from "./fs-router";
-import { createGlobalConfig } from "@/scripts/config/create-global-config";
+import { createGlobalConfig } from "@/build/create-global-config";
 import { FSRouterScanner } from "./fs-router-scanner";
 
 const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, "packages/core/fixtures");

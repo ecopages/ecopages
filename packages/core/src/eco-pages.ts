@@ -1,4 +1,11 @@
-import type { RobotsPreference } from "./scripts/robots/generate-robots-txt";
+export interface RobotsPreference {
+  /**
+   * The user agent
+   * If an empty array is provided, it will enable all paths for the user agent
+   * If a path is provided, it will disallow the path for the user agent
+   */
+  [key: string]: string[];
+}
 
 export type EcoPagesConfig = {
   /**
@@ -84,7 +91,7 @@ export type EcoPagesConfig = {
   /**
    * The TypeScript aliases
    */
-  tsAliases: {
+  tsAliases?: {
     baseUrl: string;
     paths: Record<string, string[]>;
   };
@@ -92,6 +99,10 @@ export type EcoPagesConfig = {
    * The watch mode
    */
   watchMode: boolean;
+  /**
+   * If the project should be run in serve mode, no static files will be generated
+   */
+  serve: boolean;
   /** Derived Paths */
   derivedPaths: {
     componentsDir: string;
@@ -108,7 +119,10 @@ export type EcoPagesConfig = {
   };
 };
 
-export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, "baseUrl" | "derivedPaths"> &
+export type EcoPagesConfigInput = Omit<
+  Partial<EcoPagesConfig>,
+  "baseUrl" | "derivedPaths" | "tsAliases"
+> &
   Pick<EcoPagesConfig, "baseUrl">;
 
 export type EcoComponentDependencies = {
@@ -182,3 +196,7 @@ export type EcoPageFile = {
   getStaticProps?: GetStaticProps<unknown>;
   getMetadata?: GetMetadata;
 };
+
+export interface CssProcessor {
+  process(path: string): Promise<string>;
+}

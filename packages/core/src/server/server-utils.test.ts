@@ -2,7 +2,7 @@ import path from "path";
 import { describe, expect, test } from "bun:test";
 import { ServerUtils } from "./server-utils";
 import { FIXTURE_EXISTING_FILE_GZ_IN_DIST, FIXTURE_PROJECT_DIR } from "fixtures/constants";
-import { createGlobalConfig } from "@/scripts/config/create-global-config";
+import { createGlobalConfig } from "@/build/create-global-config";
 
 await createGlobalConfig({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),

@@ -1,4 +1,11 @@
-import type { GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from "@eco-pages/core";
+import { BaseLayout } from "@/layouts/base-layout";
+import {
+  DepsManager,
+  type GetMetadata,
+  type GetStaticPaths,
+  type GetStaticProps,
+  type PageProps,
+} from "@eco-pages/core";
 
 type Author = {
   slug: string;
@@ -15,18 +22,25 @@ export const getMetadata: GetMetadata<Author> = async ({ name, slug }) => {
 
 export default function Author({ params, query, name, bio, slug }: PageProps<Author>) {
   return (
-    <div>
-      <h1 safe>
-        Author {params?.id} {JSON.stringify(query || [])}
-      </h1>
-      <h2 safe>{name}</h2>
-      <p safe>{bio}</p>
-      <p safe>{slug}</p>
-    </div>
+    <BaseLayout>
+      <div>
+        <h1 safe>
+          Author {params?.id} {JSON.stringify(query || [])}
+        </h1>
+        <h2 safe>{name}</h2>
+        <p safe>{bio}</p>
+        <p safe>{slug}</p>
+      </div>
+    </BaseLayout>
   );
 }
 
 Author.renderStrategy = "static";
+
+Author.dependencies = DepsManager.collect({
+  importMeta: import.meta,
+  components: [BaseLayout],
+});
 
 export const getStaticPaths: GetStaticPaths = async () => {
   return {

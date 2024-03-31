@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "eco-pages dev",
     "build": "eco-pages build",
+    "start": "eco-pages start",
     "preview": "eco-pages preview"
   },
   "devDependencies": {

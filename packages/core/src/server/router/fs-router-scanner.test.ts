@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
 import { FSRouterScanner } from "./fs-router-scanner";
-import { createGlobalConfig } from "@/scripts/config/create-global-config";
+import { createGlobalConfig } from "@/build/create-global-config";
 import { FIXTURE_PROJECT_DIR } from "fixtures/constants";
 
 await createGlobalConfig({

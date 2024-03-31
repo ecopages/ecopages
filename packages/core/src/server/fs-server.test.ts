@@ -3,7 +3,7 @@ import { test, expect, it, describe } from "bun:test";
 import { FileSystemServer } from "./fs-server";
 import { RouteRendererFactory } from "@/render/route-renderer";
 import { FSRouter } from "./router/fs-router";
-import { createGlobalConfig } from "@/scripts/config/create-global-config";
+import { createGlobalConfig } from "@/build/create-global-config";
 import { FIXTURE_EXISTING_FILE_IN_DIST } from "fixtures/constants";
 import { FSRouterScanner } from "./router/fs-router-scanner";
 

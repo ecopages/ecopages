@@ -1,13 +1,16 @@
 import fs from "node:fs";
 import watcher from "@parcel/watcher";
-import { buildCssFromPath } from "./build-css";
-import { buildScripts } from "./build-scripts";
+import { CssBuilder } from "./css-builder";
+import { ScriptsBuilder } from "./scripts-builder";
+import { PostCssProcessor } from "./postcss-processor";
 
-/**
- * @function createWatcherSubscription
- * @description
- * This function creates a watcher subscription to watch for file changes.
- */
+const cssBuilder = new CssBuilder({
+  processor: new PostCssProcessor(),
+  config: globalThis.ecoConfig,
+});
+
+const scriptsBuilder = new ScriptsBuilder(globalThis.ecoConfig);
+
 export async function createWatcherSubscription() {
   return watcher.subscribe("src", (err, events) => {
     if (err) {
@@ -36,10 +39,10 @@ export async function createWatcherSubscription() {
       }
 
       if (event.path.endsWith(".css")) {
-        buildCssFromPath({ path: event.path });
+        cssBuilder.buildCssFromPath({ path: event.path });
         console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
       } else if (event.path.includes(`.${config.scriptDescriptor}.`)) {
-        buildScripts();
+        scriptsBuilder.build();
         console.log("[eco-pages] File changed", event.path.split(config.srcDir)[1]);
       }
     });

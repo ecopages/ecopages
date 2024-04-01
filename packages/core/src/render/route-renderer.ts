@@ -1,5 +1,5 @@
 import type { DefaultTemplateEngines } from "@/eco-pages";
-import { KitaRenderer } from "./strategies/kita-rendererer";
+import { KitaRenderer } from "./renderers/kita-rendererer";
 import { PathUtils } from "@/utils/path-utils";
 
 export type RouteRendererOptions = {

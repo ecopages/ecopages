@@ -2,7 +2,7 @@ import path from "node:path";
 import type { BunPlugin } from "bun";
 import { type DefaultTemplateEngines, type EcoPagesConfig } from "@types";
 import { RouteRenderer, type RouteRendererConfig } from "@/render/route-renderer";
-import { KitaRenderer } from "@/render/strategies/kita-rendererer";
+import { KitaRenderer } from "@/render/renderers/kita-rendererer";
 import { PathUtils } from "@/utils/path-utils";
 import { FileUtils } from "@/utils/file-utils";
 

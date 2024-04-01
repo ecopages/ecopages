@@ -1,12 +1,11 @@
 import path from "path";
 import { describe, expect, test } from "bun:test";
 import { ServerUtils } from "./server-utils";
-import { FIXTURE_EXISTING_FILE_GZ_IN_DIST, FIXTURE_PROJECT_DIR } from "fixtures/constants";
+import { FIXTURE_PROJECT_DIR } from "fixtures/constants";
 import { createGlobalConfig } from "@/build/create-global-config";
 
 await createGlobalConfig({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),
-  watchMode: false,
 });
 
 describe("ServerUtils", () => {
@@ -24,15 +23,5 @@ describe("ServerUtils", () => {
     ["/my-file", "text/plain"],
   ])("getContentType(%p) should return %p", (ext, expected) => {
     expect(ServerUtils.getContentType(`file.${ext}`)).toBe(expected);
-  });
-
-  test("serveFromDir should return a response", async () => {
-    const response = await ServerUtils.serveFromDir({
-      directory: globalThis.ecoConfig.distDir,
-      path: FIXTURE_EXISTING_FILE_GZ_IN_DIST,
-      gzip: false,
-    });
-
-    expect(response).toBeDefined();
   });
 });

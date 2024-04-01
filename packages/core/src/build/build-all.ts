@@ -1,5 +1,5 @@
 import { parseArgs } from "util";
-import { EcoPagesBuilder } from "@/build/eco-pages-builder";
+import { AppBuilder } from "@/build/app-builder";
 import { createGlobalConfig } from "@/build/create-global-config";
 import { StaticPageGenerator } from "./static-page-generator";
 import { CssBuilder } from "./css-builder";
@@ -35,7 +35,7 @@ const config = await createGlobalConfig({
   serve: values.serve as boolean,
 });
 
-const ecoPages = new EcoPagesBuilder({
+const ecoPages = new AppBuilder({
   config,
   staticPageGenerator: new StaticPageGenerator(config),
   cssBuilder: new CssBuilder({ processor: new PostCssProcessor(), config }),

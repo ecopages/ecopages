@@ -1,16 +1,16 @@
 import { $ } from "bun";
 import path from "node:path";
 import { exec } from "node:child_process";
+import { FileUtils } from "@/utils/file-utils";
 import { ScriptsBuilder } from "@/build/scripts-builder";
 import { CssBuilder } from "@/build/css-builder";
 import { createWatcherSubscription } from "@/build/watcher";
-import { createDevServer } from "@/server/dev-server";
-import { createFsServer } from "@/server/fs-server";
-import { FileUtils } from "@/utils/file-utils";
+import { createStaticContentServer } from "@/server/sc-server";
+import { createFileSystemServer } from "@/server/fs-server";
 import type { EcoPagesConfig } from "@types";
 import type { StaticPageGenerator } from "./static-page-generator";
 
-export class EcoPagesBuilder {
+export class AppBuilder {
   config: EcoPagesConfig;
   staticPageGenerator: StaticPageGenerator;
   cssBuilder: CssBuilder;
@@ -61,7 +61,7 @@ export class EcoPagesBuilder {
   }
 
   private async runDevServer() {
-    const { server } = await createFsServer();
+    const { server } = await createFileSystemServer();
     await $`clear`;
     console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
   }
@@ -81,9 +81,9 @@ export class EcoPagesBuilder {
     });
   }
 
-  async build() {
+  async buildStatic() {
     await this.staticPageGenerator.run();
-    createDevServer();
+    createStaticContentServer();
   }
 
   async run() {
@@ -112,6 +112,6 @@ export class EcoPagesBuilder {
       return await this.serve();
     }
 
-    return await this.build();
+    return await this.buildStatic();
   }
 }

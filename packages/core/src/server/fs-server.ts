@@ -135,7 +135,7 @@ export class FileSystemServer {
   }
 }
 
-export const createFsServer = async () => {
+export const createFileSystemServer = async () => {
   const {
     ecoConfig: {
       rootDir,

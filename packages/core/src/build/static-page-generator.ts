@@ -1,5 +1,5 @@
 import path from "path";
-import { createFsServer } from "@/server/fs-server";
+import { createFileSystemServer } from "@/server/fs-server";
 import { FileUtils } from "@/utils/file-utils";
 import type { EcoPagesConfig } from "@types";
 
@@ -30,7 +30,7 @@ export class StaticPageGenerator {
   }
 
   async generateStaticPages() {
-    const { router, server } = await createFsServer();
+    const { router, server } = await createFileSystemServer();
 
     const routes = Object.keys(router.routes).filter((route) => !route.includes("["));
 

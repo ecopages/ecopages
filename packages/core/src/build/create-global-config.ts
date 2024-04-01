@@ -97,12 +97,12 @@ export class ConfigBuilder {
 
 export async function createGlobalConfig({
   projectDir,
-  watchMode,
-  serve,
+  watchMode = false,
+  serve = false,
 }: {
   projectDir: string;
-  watchMode: boolean;
-  serve: boolean;
+  watchMode?: boolean;
+  serve?: boolean;
 }): Promise<EcoPagesConfig> {
   if (!fs.existsSync(`${projectDir}/eco.config.ts`)) {
     throw new Error("eco.config.ts not found, please provide a valid config file.");

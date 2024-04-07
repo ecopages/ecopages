@@ -31,7 +31,7 @@ export class ConfigBuilder {
     },
     distDir: ".eco",
     scriptDescriptor: "script",
-    templatesExt: [".kita.tsx"],
+    templatesExt: [".kita.tsx", ".lit.tsx"],
   };
 
   constructor({

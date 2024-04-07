@@ -76,7 +76,7 @@ describe("FileSystemServer", async () => {
     expect(await res.text()).toContain("{&quot;page&quot;:&quot;1&quot;}");
   });
 
-  test("should return 200 for existing page with params", async () => {
+  test("should return 200 for dynamic page with params", async () => {
     const req = new Request("http://localhost:3000/dynamic/123");
     const res = await server.fetch(req);
 
@@ -85,7 +85,7 @@ describe("FileSystemServer", async () => {
     expect(await res.text()).toContain("{&quot;slug&quot;:&quot;123&quot;}");
   });
 
-  test("should return 200 for existing page with params and query params", async () => {
+  test("should return 200 for dynamic page with params and query params", async () => {
     const req = new Request("http://localhost:3000/dynamic/123?page=1");
     const res = await server.fetch(req);
 
@@ -96,7 +96,7 @@ describe("FileSystemServer", async () => {
     );
   });
 
-  test("should return 200 for existing page with catch all params", async () => {
+  test("should return 200 for catch all page with params", async () => {
     const req = new Request("http://localhost:3000/catch-all/123/456");
     const res = await server.fetch(req);
 

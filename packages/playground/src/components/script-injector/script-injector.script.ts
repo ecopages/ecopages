@@ -1,3 +1,5 @@
+import { customElement } from "@/lib/lite/decorators/custom-element";
+
 export type ScriptInjectorProps = {
   /**
    * @description Load the script once the dom is ready
@@ -30,6 +32,7 @@ const conditions = ["on:visible", "on:idle", "on:interaction"] as const;
 
 type Conditions = (typeof conditions)[number];
 
+@customElement("script-injector")
 class ScriptInjector extends HTMLElement {
   private _intersectionObserver?: IntersectionObserver | null = null;
   private _scriptsToLoad: string[] = [];
@@ -152,8 +155,6 @@ class ScriptInjector extends HTMLElement {
     this._intersectionObserver.observe(this);
   }
 }
-
-customElements.define("script-injector", ScriptInjector);
 
 declare global {
   interface HTMLElementTagNameMap {

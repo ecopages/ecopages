@@ -39,16 +39,16 @@ export class FSRouterScanner {
     this.templatesExt = templatesExt;
   }
 
-  getGlobTemplatePattern() {
+  private getGlobTemplatePattern() {
     return `**/*{${this.templatesExt.join(",")}}`;
   }
 
-  getRoutePath(path: string) {
+  private getRoutePath(path: string) {
     const fileExtensionsSet = new Set(this.templatesExt);
     let cleanedRoute = path;
 
     for (const ext of fileExtensionsSet) {
-      cleanedRoute = path.replace(ext, "");
+      cleanedRoute = cleanedRoute.replace(ext, "");
     }
 
     cleanedRoute = cleanedRoute.replace(/\/?index$/, "");

@@ -5,6 +5,8 @@ import { LiteCounter } from "@/components/lite-counter";
 import { ScriptInjector } from "@/components/script-injector";
 import { LiteRenderer } from "@/components/lite-renderer";
 import { Message } from "@/components/lite-renderer/lite-renderer.templates.kita";
+import { LitCounter } from "@/components/lit-counter";
+import "@/components/lit-counter/lit-counter.script";
 
 export const getMetadata: GetMetadata = () => ({
   title: "Home page",
@@ -30,6 +32,12 @@ const HomePage: EcoComponent = () => {
         >
           <LiteCounter count={5} />
         </ScriptInjector>
+        <ScriptInjector
+          on:interaction="mouseenter,focusin"
+          scripts={DepsManager.extract(LitCounter, "scripts").join()}
+        >
+          <LitCounter count={8} />
+        </ScriptInjector>
         <LiteRenderer>
           <Message text="Hello from the server" />
         </LiteRenderer>
@@ -44,8 +52,10 @@ HomePage.dependencies = DepsManager.collect({
   components: [
     BaseLayout,
     LiteRenderer,
+    ScriptInjector,
     DepsManager.filter(Counter, "stylesheets"),
     DepsManager.filter(LiteCounter, "stylesheets"),
+    DepsManager.filter(LitCounter, "stylesheets"),
   ],
 });
 

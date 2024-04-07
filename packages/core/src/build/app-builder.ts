@@ -9,6 +9,7 @@ import { createStaticContentServer } from "@/server/sc-server";
 import { createFileSystemServer } from "@/server/fs-server";
 import type { EcoPagesConfig } from "@types";
 import type { StaticPageGenerator } from "./static-page-generator";
+import "@/global/console";
 
 export class AppBuilder {
   config: EcoPagesConfig;
@@ -62,7 +63,7 @@ export class AppBuilder {
 
   private async runDevServer() {
     const { server } = await createFileSystemServer();
-    await $`clear`;
+    // await $`clear`;
     console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
   }
 

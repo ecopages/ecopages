@@ -149,6 +149,7 @@ export type PageProps<T = unknown> = T & {
 
 export const defaultTemplateEngines = {
   kita: "kita",
+  lit: "lit",
 } as const;
 
 export type DefaultTemplateEngines = keyof typeof defaultTemplateEngines;

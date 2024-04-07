@@ -52,7 +52,7 @@ export const getStaticPaths: GetStaticPaths = async () => {
 export const getStaticProps: GetStaticProps<BlogPost> = async ({ pathname }) => {
   return {
     props: {
-      slug: pathname.params.slug,
+      slug: pathname.params.slug as string,
       title: `Hello World | ${pathname.params.slug}`,
       text: "This is a blog post",
     },

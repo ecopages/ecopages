@@ -5,11 +5,14 @@
  * Rwgex is based on the srcDir, componentsDir, layoutsDir, pagesDir, includesDir, and globalDir.
  */
 export function uncacheModules(): void {
-  const { srcDir, componentsDir, layoutsDir, pagesDir, includesDir, globalDir } =
+  const { srcDir, componentsDir, layoutsDir, pagesDir, includesDir, globalDir, templatesExt } =
     globalThis.ecoConfig;
 
+  /** @todo review regex is working properly */
   const regex = new RegExp(
-    `${srcDir}/(${componentsDir}|${layoutsDir}|${pagesDir}|${includesDir}|${globalDir})|\\.kita`
+    `${srcDir}/(${componentsDir}|${layoutsDir}|${pagesDir}|${includesDir}|${globalDir})|(${templatesExt.join(
+      ","
+    )})`
   );
 
   Object.keys(require.cache).forEach((key) => {

@@ -9,8 +9,8 @@ export function Head({ metadata, children }: PageHeadProps) {
       <Seo {...metadata} />
       <link href="/global/css/tailwind.css" rel="stylesheet"></link>
       <link href="/global/css/alpine.css" rel="stylesheet"></link>
-      <script defer src="/components/script-injector/script-injector.script.js" />
       {children}
+      <script type="module" defer src="/components/script-injector/script-injector.script.js" />
     </head>
   );
 }

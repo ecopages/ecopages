@@ -9,13 +9,16 @@ const nodeModulesDir = import.meta.env._.replace(".bin/eco-pages", "");
 
 switch (args[0]) {
   case "dev":
-    await $`bun run ${nodeModulesDir}/@eco-pages/core/src/scripts/build/build-all.ts --watch --config=${projectDir} --raw`;
+    await $`bun run ${nodeModulesDir}/@eco-pages/core/src/build/build-all.ts --watch --config=${projectDir}`;
     break;
   case "build":
-    await $`bun run ${nodeModulesDir}/@eco-pages/core/src/scripts/build/build-all.ts`;
+    await $`bun run ${nodeModulesDir}/@eco-pages/core/src/build/build-all.ts`;
     break;
   case "preview":
-    await $`bun run ${nodeModulesDir}/@eco-pages/core/src/scripts/build/build-all.ts --config=${projectDir}"`;
+    await $`bun run ${nodeModulesDir}/@eco-pages/core/src/build/build-all.ts --config=${projectDir}"`;
+    break;
+  case "start":
+    await $`bun run ${nodeModulesDir}/@eco-pages/core/src/build/build-all.ts --serve --config=${projectDir}"`;
     break;
   default:
     console.log`"Command not found"`;

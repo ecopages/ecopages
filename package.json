@@ -5,6 +5,7 @@
   "scripts": {
     "dev:playground": "bun run workspace packages/playground dev",
     "build:playground": "bun run workspace packages/playground build",
+    "start:playground": "bun run workspace packages/playground start",
     "preview:playground": "bun run workspace packages/playground preview",
     "clean": "rm -rf .eco node_modules bun.lockb && bun install",
     "workspace": "bun ./scripts/workspace.ts"

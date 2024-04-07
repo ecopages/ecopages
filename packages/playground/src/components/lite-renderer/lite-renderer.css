@@ -4,7 +4,7 @@
     @apply grid gap-2 h-40 overflow-auto bg-slate-50 p-4 rounded-md;
   }
   .small-print {
-    @apply text-xs text-gray-500;
+    @apply text-xs text-gray-800;
   }
 }
 
@@ -18,9 +18,9 @@
 .lite-renderer-controls {
   @apply flex gap-4 justify-between;
   button {
-    @apply bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded;
+    @apply bg-blue-700 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded;
     &[data-reset] {
-      @apply bg-red-500 hover:bg-red-700;
+      @apply bg-red-700 hover:bg-red-800;
     }
   }
 }

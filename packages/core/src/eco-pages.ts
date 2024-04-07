@@ -1,4 +1,11 @@
-import type { RobotsPreference } from "./scripts/robots/generate-robots-txt";
+export interface RobotsPreference {
+  /**
+   * The user agent
+   * If an empty array is provided, it will enable all paths for the user agent
+   * If a path is provided, it will disallow the path for the user agent
+   */
+  [key: string]: string[];
+}
 
 export type EcoPagesConfig = {
   /**
@@ -41,26 +48,36 @@ export type EcoPagesConfig = {
    */
   layoutsDir: string;
   /**
-   * The directory where the external files are located
-   * @default "externals"
+   * The templates used for the pages
+   * @default "{head: 'head.kita.tsx', html: 'html.kita.tsx', seo: 'seo.kita.tsx'}"
    */
-  externalsDir: string;
+  includesTemplates: {
+    head: string;
+    html: string;
+    seo: string;
+    error404: string;
+  };
   /**
    * The directory where the output will be located
    * @default "dist"
    */
   distDir: string;
   /**
+   * The template engines
+   * @default [".kita.tsx"]
+   */
+  templatesExt: string[];
+  /**
    * The directory where the components are located
    * @default "components"
    */
   componentsDir: string;
   /**
-   * The prefix for the extensions that identifies a script that is a dependency of a template
-   * i.e. function.script.ts > will be recognised as a dependency and built accordingly
+   * Specifies the prefix used for file extensions that indicate a script dependency of a template.
+   * For example, "function.script.ts" will be identified as a dependency and built accordingly.
    * @default "script"
    */
-  dependencyExtPrefix: string;
+  scriptDescriptor: string;
   /**
    * The robots.txt configuration
    */
@@ -74,21 +91,38 @@ export type EcoPagesConfig = {
   /**
    * The TypeScript aliases
    */
-  tsAliases: {
+  tsAliases?: {
     baseUrl: string;
     paths: Record<string, string[]>;
   };
   /**
-   * The external dependencies
-   */
-  externalDeps: string[];
-  /**
    * The watch mode
    */
   watchMode: boolean;
+  /**
+   * If the project should be run in serve mode, no static files will be generated
+   */
+  serve: boolean;
+  /** Derived Paths */
+  derivedPaths: {
+    componentsDir: string;
+    globalDir: string;
+    distDir: string;
+    includesDir: string;
+    layoutsDir: string;
+    pagesDir: string;
+    projectDir: string;
+    publicDir: string;
+    srcDir: string;
+    htmlTemplatePath: string;
+    error404TemplatePath: string;
+  };
 };
 
-export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, "baseUrl"> &
+export type EcoPagesConfigInput = Omit<
+  Partial<EcoPagesConfig>,
+  "baseUrl" | "derivedPaths" | "tsAliases"
+> &
   Pick<EcoPagesConfig, "baseUrl">;
 
 export type EcoComponentDependencies = {
@@ -96,23 +130,74 @@ export type EcoComponentDependencies = {
   scripts?: string[];
 };
 
+export type RenderStrategyOptions = "ssr" | "static" | "isg";
 export interface EcoComponent<T = {}> {
   (props: T): JSX.Element;
   dependencies?: EcoComponentDependencies;
 }
 
-export const defaultTemplateFormats = {
+export interface EcoPage<T = {}> {
+  (props: T): JSX.Element;
+  dependencies?: EcoComponentDependencies;
+  renderStrategy?: RenderStrategyOptions;
+}
+
+export type PageProps<T = unknown> = T & {
+  params: Record<string, string | string[]>;
+  query: Record<string, string | string[]>;
+};
+
+export const defaultTemplateEngines = {
   kita: "kita",
+  lit: "lit",
 } as const;
 
-export type DefaultTemplateFormats = keyof typeof defaultTemplateFormats;
+export type DefaultTemplateEngines = keyof typeof defaultTemplateEngines;
 
-export type RenderRouteOptions = {
-  file: string;
-  config: EcoPagesConfig;
+export interface PageMetadataProps {
+  title: string;
+  description: string;
+  image?: string;
+  url?: string;
+  keywords?: string[];
+}
+
+export interface PageHeadProps {
+  metadata: PageMetadataProps;
+  dependencies?: EcoComponentDependencies;
+  children?: Html.Children;
+}
+
+export interface HtmlTemplateProps extends PageHeadProps {
+  children: Html.Children;
+  language?: string;
+  headContent?: Html.Children;
+}
+
+export interface Error404TemplateProps extends Omit<HtmlTemplateProps, "children"> {
+  message: string;
+  stack?: string;
+}
+
+export type StaticPath = { params: Record<string, string | string[]> };
+
+export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
+
+export type GetMetadata<T = Record<string, unknown>> = (
+  context: PageProps<T>
+) => PageMetadataProps | Promise<PageMetadataProps>;
+
+export type GetStaticProps<T> = (context: {
+  pathname: StaticPath;
+}) => Promise<{ props: T; metadata?: PageMetadataProps }>;
+
+export type EcoPageFile = {
+  default: EcoPage;
+  getStaticPaths?: GetStaticPaths;
+  getStaticProps?: GetStaticProps<unknown>;
+  getMetadata?: GetMetadata;
 };
 
-export type RenderRouteConfig = {
-  path: string;
-  html: JSX.Element;
-};
+export interface CssProcessor {
+  process(path: string): Promise<string>;
+}

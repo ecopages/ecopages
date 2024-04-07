@@ -19,7 +19,9 @@ export const LiteRenderer: EcoComponent<
     <lite-renderer class="lite-renderer" text={text} replace-on-load={props["replace-on-load"]}>
       <Controls />
       <div data-list>{children as "safe"}</div>
-      <p class="small-print">*The first message has been rendered on the server</p>
+      <p class="small-print">
+        *The first message has been rendered on the {props["replace-on-load"] ? "client" : "server"}
+      </p>
     </lite-renderer>
   );
 };

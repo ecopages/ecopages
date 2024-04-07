@@ -24,7 +24,6 @@ export class LiteRenderer extends WithKita(LiteElement) {
 
   constructor() {
     super();
-    console.log(this["replace-on-load"]);
     if (this["replace-on-load"]) {
       this.messageList.innerHTML = "";
       this.renderMessage("replace");

@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from "@eco-pages/core";
+import { DepsManager, type EcoComponent, type GetMetadata } from "@eco-pages/core";
 import { BaseLayout } from "@/layouts/base-layout";
 import {
   LiteContextDemo,
@@ -157,12 +157,12 @@ const safeHtml = await codeToHtml(code, {
   theme: "vitesse-dark",
 });
 
-export const metadata = {
+export const getMetadata: GetMetadata = () => ({
   title: "Lite Element",
   description: "Testing lite element with Kita",
   image: "public/assets/images/bun-og.png",
   keywords: ["typescript", "framework", "static", "lite-element"],
-};
+});
 
 const dependencies = DepsManager.collect({
   importMeta: import.meta,

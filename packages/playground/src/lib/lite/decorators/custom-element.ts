@@ -4,9 +4,9 @@
  */
 export function customElement(name: string): ClassDecorator {
   return (target: any) => {
-    if (window.customElements.get(name)) {
-      throw new Error(`Already an element is registered with the name ${name}`);
+    if (!globalThis.window) return;
+    if (!window.customElements.get(name)) {
+      window.customElements.define(name, target);
     }
-    window.customElements.define(name, target);
   };
 }

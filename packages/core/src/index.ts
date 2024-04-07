@@ -1,4 +1,5 @@
 export * from "./eco-pages";
-export { DepsManager } from "./component-utils/deps-manager";
-export { Html } from "./global/kita";
-export { addBaseToUrl } from "./utils/url";
+export * from "./components/deps-manager";
+export * from "./global/kita";
+export * from "./utils/add-base-url-to-pathname";
+export { postcssMacroProcessor } from "./macro/postcss.macro";

@@ -1,5 +1,4 @@
 import type { LiteElement } from "../LiteElement";
-import "@kitajs/html/register.js";
 import type { RenderInsertPosition } from "../types";
 
 type Constructor<T> = new (...args: any[]) => T;

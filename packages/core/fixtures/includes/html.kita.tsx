@@ -1,4 +1,4 @@
-import { Html, type EcoComponent, type HtmlTemplateProps } from "@eco-pages/core";
+import { type EcoComponent, type HtmlTemplateProps } from "@eco-pages/core";
 import { Head } from "./head.kita";
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({

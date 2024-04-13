@@ -10,7 +10,6 @@ export function Head({ metadata, children }: PageHeadProps) {
       <link href="/global/css/tailwind.css" rel="stylesheet"></link>
       <link href="/global/css/alpine.css" rel="stylesheet"></link>
       {children}
-      <script type="module" defer src="/components/script-injector/script-injector.script.js" />
     </head>
   );
 }

@@ -1,23 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ES2021",
-    "jsx": "react",
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "esModuleInterop": true,
     "experimentalDecorators": true,
-    "jsxFactory": "Html.createElement",
-    "jsxFragmentFactory": "Html.Fragment",
-    "useDefineForClassFields": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@kitajs/html",
     "module": "ESNext",
     "moduleResolution": "node",
-    "types": ["bun-types", "@eco-pages/core"],
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "skipLibCheck": true,
     "noImplicitOverride": true,
-    "verbatimModuleSyntax": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
@@ -25,6 +17,13 @@
       {
         "name": "@kitajs/ts-html-plugin"
       }
-    ]
+    ],
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2021",
+    "types": ["bun-types", "@eco-pages/core"],
+    "useDefineForClassFields": true,
+    "verbatimModuleSyntax": true
   }
 }

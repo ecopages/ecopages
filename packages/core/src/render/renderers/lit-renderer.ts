@@ -35,8 +35,10 @@ export class LitRenderer extends AbstractRenderer {
 
       const [templateStart, templateEnd] = template.split("<--content-->");
 
+      const DOC_TYPE = this.DOC_TYPE;
+
       function* streamBody() {
-        yield "<!DOCTYPE html>";
+        yield DOC_TYPE;
         yield templateStart;
         yield* render(unsafeHTML(children));
         yield templateEnd;
@@ -73,8 +75,10 @@ export class LitRenderer extends AbstractRenderer {
 
       const [templateStart, templateEnd] = template.split("<--content-->");
 
+      const DOC_TYPE = this.DOC_TYPE;
+
       function* streamBody() {
-        yield "<!DOCTYPE html>";
+        yield DOC_TYPE;
         yield templateStart;
         yield* render(unsafeHTML(children));
         yield templateEnd;

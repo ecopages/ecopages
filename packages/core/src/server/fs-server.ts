@@ -7,32 +7,40 @@ import { FileUtils } from "@/utils/file-utils";
 import { FSRouterScanner } from "./router/fs-router-scanner";
 import type { EcoPagesConfig } from "@types";
 
+type FileSystemServerOptions = {
+  watchMode: boolean;
+};
+
 export class FileSystemServer {
   private appConfig: EcoPagesConfig;
   private router: FSRouter;
   private routeRendererFactory: RouteRendererFactory;
   private error404TemplatePath: string;
   private server: any;
+  private options: FileSystemServerOptions;
 
   constructor({
     router,
     appConfig,
     routeRendererFactory,
     error404TemplatePath,
+    options,
   }: {
     router: FSRouter;
     appConfig: EcoPagesConfig;
     routeRendererFactory: RouteRendererFactory;
     error404TemplatePath: string;
+    options: FileSystemServerOptions;
   }) {
     this.router = router;
     this.appConfig = appConfig;
     this.routeRendererFactory = routeRendererFactory;
     this.error404TemplatePath = error404TemplatePath;
+    this.options = options;
   }
 
   private shouldEnableGzip(contentType: string) {
-    if (this.appConfig.watchMode) return false;
+    if (this.options.watchMode) return false;
     const gzipEnabledExtensions = ["application/javascript", "text/css"];
     return gzipEnabledExtensions.includes(contentType);
   }
@@ -125,7 +133,7 @@ export class FileSystemServer {
   }
 
   public startServer(serverOptions: PureWebSocketServeOptions<unknown>) {
-    this.server = this.appConfig.watchMode
+    this.server = this.options.watchMode
       ? Bun.serve(withHtmlLiveReload(serverOptions, this.appConfig))
       : Bun.serve(serverOptions);
 
@@ -137,7 +145,7 @@ export class FileSystemServer {
   }
 }
 
-export const createFileSystemServer = async () => {
+export const createFileSystemServer = async (options: FileSystemServerOptions) => {
   const {
     ecoConfig: {
       rootDir,
@@ -145,7 +153,7 @@ export const createFileSystemServer = async () => {
       pagesDir,
       distDir,
       templatesExt,
-      derivedPaths: { error404TemplatePath },
+      absolutePaths: { error404TemplatePath },
     },
   } = globalThis;
 
@@ -168,6 +176,7 @@ export const createFileSystemServer = async () => {
     appConfig: globalThis.ecoConfig,
     routeRendererFactory: new RouteRendererFactory(),
     error404TemplatePath,
+    options,
   });
 
   const serverOptions = {

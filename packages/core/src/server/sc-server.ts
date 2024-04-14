@@ -5,21 +5,33 @@ import { FileUtils } from "@/utils/file-utils";
 import type { EcoPagesConfig } from "@types";
 import type { Server } from "bun";
 
+type StaticContentServerOptions = {
+  watchMode: boolean;
+};
+
 export class StaticContentServer {
   config: EcoPagesConfig;
   server: Server | null = null;
+  options: StaticContentServerOptions;
 
-  constructor(config: EcoPagesConfig) {
+  constructor({
+    config,
+    options,
+  }: {
+    config: EcoPagesConfig;
+    options: StaticContentServerOptions;
+  }) {
     this.config = config;
+    this.options = options;
     this.create();
   }
 
   private shouldServeGzip(contentType: ReturnType<typeof ServerUtils.getContentType>) {
-    return !this.config.watchMode && ["application/javascript", "text/css"].includes(contentType);
+    return !this.options.watchMode && ["application/javascript", "text/css"].includes(contentType);
   }
 
   private async serveFromDir({ path }: { path: string }): Promise<Response> {
-    const { rootDir, derivedPaths } = this.config;
+    const { rootDir, absolutePaths: derivedPaths } = this.config;
     let basePath = join(derivedPaths.distDir, path);
     const contentType = ServerUtils.getContentType(extname(basePath));
 
@@ -82,6 +94,6 @@ export class StaticContentServer {
   }
 }
 
-export const createStaticContentServer = () => {
-  return new StaticContentServer(globalThis.ecoConfig);
+export const createStaticContentServer = ({ watchMode }: { watchMode: boolean }) => {
+  return new StaticContentServer({ config: globalThis.ecoConfig, options: { watchMode } });
 };

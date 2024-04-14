@@ -11,27 +11,37 @@ import type { EcoPagesConfig } from "@types";
 import type { StaticPageGenerator } from "./static-page-generator";
 import "@/global/console";
 
+type AppBuilderOptions = {
+  watch: boolean;
+  serve: boolean;
+  build: boolean;
+};
+
 export class AppBuilder {
   config: EcoPagesConfig;
   staticPageGenerator: StaticPageGenerator;
   cssBuilder: CssBuilder;
   scriptsBuilder: ScriptsBuilder;
+  options: AppBuilderOptions;
 
   constructor({
     config,
     staticPageGenerator,
     cssBuilder,
     scriptsBuilder,
+    options,
   }: {
     config: EcoPagesConfig;
     staticPageGenerator: StaticPageGenerator;
     cssBuilder: CssBuilder;
     scriptsBuilder: ScriptsBuilder;
+    options: AppBuilderOptions;
   }) {
     this.config = config;
     this.staticPageGenerator = staticPageGenerator;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
+    this.options = options;
   }
 
   prepareDistDir() {
@@ -62,7 +72,9 @@ export class AppBuilder {
   }
 
   private async runDevServer() {
-    const { server } = await createFileSystemServer();
+    const { server } = await createFileSystemServer({
+      watchMode: this.options.watch,
+    });
     // await $`clear`;
     console.log(`[eco-pages] Server running at http://localhost:${server.port}`);
   }
@@ -84,18 +96,26 @@ export class AppBuilder {
 
   async buildStatic() {
     await this.staticPageGenerator.run();
-    createStaticContentServer();
+    if (this.options.build) {
+      console.log("[eco-pages] Build completed");
+      process.exit(0);
+    }
+
+    const { server } = createStaticContentServer({
+      watchMode: this.options.watch,
+    });
+    console.log(`[eco-pages] Preview running at http://localhost:${server!.port}`);
   }
 
   async run() {
-    const { srcDir, globalDir, distDir, watchMode } = this.config;
+    const { srcDir, globalDir, distDir } = this.config;
 
     this.prepareDistDir();
     this.copyPublicDir();
 
     this.execTailwind({
-      minify: !watchMode,
-      watch: watchMode,
+      minify: !this.options.watch,
+      watch: this.options.watch,
       input: `${srcDir}/${globalDir}/css/tailwind.css`,
       output: `${distDir}/${globalDir}/css/tailwind.css`,
     });
@@ -103,13 +123,13 @@ export class AppBuilder {
     await this.cssBuilder.build();
     await this.scriptsBuilder.build();
 
-    if (this.config.watchMode) {
+    if (this.options.watch) {
       return await this.watch();
     }
 
     FileUtils.gzipDirSync(distDir, ["css", "js"]);
 
-    if (this.config.serve) {
+    if (this.options.serve) {
       return await this.serve();
     }
 

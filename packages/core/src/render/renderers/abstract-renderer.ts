@@ -9,7 +9,7 @@ export abstract class AbstractRenderer {
   protected DOC_TYPE = "<!DOCTYPE html>";
 
   protected get pagesDir() {
-    return globalThis.ecoConfig.derivedPaths.pagesDir;
+    return globalThis.ecoConfig.absolutePaths.pagesDir;
   }
 
   protected getHtmlPath({ file }: { file: string }) {
@@ -23,7 +23,7 @@ export abstract class AbstractRenderer {
   }
 
   protected async getHtmlTemplate() {
-    const { derivedPaths } = globalThis.ecoConfig;
+    const { absolutePaths: derivedPaths } = globalThis.ecoConfig;
     const { default: HtmlTemplate } = await import(derivedPaths.htmlTemplatePath);
     return HtmlTemplate;
   }

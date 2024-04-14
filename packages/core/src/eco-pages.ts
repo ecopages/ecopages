@@ -95,16 +95,8 @@ export type EcoPagesConfig = {
     baseUrl: string;
     paths: Record<string, string[]>;
   };
-  /**
-   * The watch mode
-   */
-  watchMode: boolean;
-  /**
-   * If the project should be run in serve mode, no static files will be generated
-   */
-  serve: boolean;
   /** Derived Paths */
-  derivedPaths: {
+  absolutePaths: {
     componentsDir: string;
     globalDir: string;
     distDir: string;

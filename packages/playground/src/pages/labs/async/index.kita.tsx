@@ -8,27 +8,28 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ["typescript", "framework", "static"],
 });
 
+const getData = async () => {
+  return new Promise<string>((resolve) => {
+    setTimeout(() => {
+      resolve("Async page " + new Date().toISOString());
+    }, 1000);
+  });
+};
+
 const LabsAsyncPage: EcoComponent = async () => {
-  try {
-    const asyncTitle = await new Promise<string>((resolve) => {
-      setTimeout(() => {
-        resolve("Async page " + new Date().toISOString());
-      }, 1000);
-    });
-    return (
-      <BaseLayout>
-        <div class="banner">
-          <h1 class="banner__title">Async Page</h1>
-          <p>The text below is collected asyncronously</p>
-          <p>
-            <i safe>{asyncTitle}</i>
-          </p>
-        </div>
-      </BaseLayout>
-    );
-  } catch (error: any) {
-    return <div>Error: {error.stack as "safe"}</div>;
-  }
+  const data = await getData();
+
+  return (
+    <BaseLayout>
+      <div class="banner">
+        <h1 class="banner__title">Async Page</h1>
+        <p>The text below is collected asyncronously</p>
+        <p>
+          <i safe>{data}</i>
+        </p>
+      </div>
+    </BaseLayout>
+  );
 };
 
 LabsAsyncPage.dependencies = DepsManager.collect({

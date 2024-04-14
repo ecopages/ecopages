@@ -13,7 +13,7 @@ await createGlobalConfig({
 
 const {
   templatesExt,
-  derivedPaths: { pagesDir, distDir },
+  absolutePaths: { pagesDir, distDir },
 } = globalThis.ecoConfig;
 
 const scanner = new FSRouterScanner({

@@ -11,7 +11,7 @@ await createGlobalConfig({
 
 const {
   templatesExt,
-  derivedPaths: { pagesDir },
+  absolutePaths: { pagesDir },
 } = globalThis.ecoConfig;
 
 describe("FSRouterScanner", () => {

@@ -54,7 +54,7 @@ export const withHtmlLiveReload = <
   serveOptions: T,
   config: EcoPagesConfig
 ): WebSocketServeOptions<WebSocketDataType> => {
-  const watcher = watch(config.derivedPaths.srcDir, { recursive: true });
+  const watcher = watch(config.absolutePaths.srcDir, { recursive: true });
 
   return {
     ...serveOptions,

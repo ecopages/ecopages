@@ -24,6 +24,11 @@ const { values } = parseArgs({
       default: false,
       short: "s",
     },
+    build: {
+      type: "boolean",
+      default: false,
+      short: "b",
+    },
   },
   strict: true,
   allowPositionals: false,
@@ -40,6 +45,11 @@ const ecoPages = new AppBuilder({
   staticPageGenerator: new StaticPageGenerator(config),
   cssBuilder: new CssBuilder({ processor: new PostCssProcessor(), config }),
   scriptsBuilder: new ScriptsBuilder(config),
+  options: {
+    watch: values.watch as boolean,
+    serve: values.serve as boolean,
+    build: values.build as boolean,
+  },
 });
 
 ecoPages.run();

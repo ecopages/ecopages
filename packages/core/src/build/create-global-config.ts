@@ -7,7 +7,7 @@ export class ConfigBuilder {
 
   static defaultConfig: Omit<
     EcoPagesConfig,
-    "baseUrl" | "tsAliases" | "watchMode" | "derivedPaths" | "serve"
+    "baseUrl" | "tsAliases" | "watchMode" | "absolutePaths" | "serve"
   > = {
     rootDir: ".",
     srcDir: "src",
@@ -36,8 +36,6 @@ export class ConfigBuilder {
 
   constructor({
     projectDir,
-    watchMode = false,
-    serve = false,
     customConfig,
   }: {
     projectDir: string;
@@ -48,22 +46,20 @@ export class ConfigBuilder {
     const baseConfig = {
       ...ConfigBuilder.defaultConfig,
       ...customConfig,
-      watchMode,
-      serve,
     };
 
     this.config = {
       ...baseConfig,
-      derivedPaths: this.createDerivedPaths(projectDir, baseConfig),
+      absolutePaths: this.getAbsolutePaths(projectDir, baseConfig),
     };
 
     globalThis.ecoConfig = this.config;
   }
 
-  createDerivedPaths(
+  getAbsolutePaths(
     projectDir: string,
-    config: Omit<EcoPagesConfig, "derivedPaths">
-  ): EcoPagesConfig["derivedPaths"] {
+    config: Omit<EcoPagesConfig, "absolutePaths">
+  ): EcoPagesConfig["absolutePaths"] {
     const {
       srcDir,
       componentsDir,

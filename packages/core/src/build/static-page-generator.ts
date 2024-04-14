@@ -30,7 +30,9 @@ export class StaticPageGenerator {
   }
 
   async generateStaticPages() {
-    const { router, server } = await createFileSystemServer();
+    const { router, server } = await createFileSystemServer({
+      watchMode: false,
+    });
 
     const routes = Object.keys(router.routes).filter((route) => !route.includes("["));
 

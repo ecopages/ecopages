@@ -16,7 +16,7 @@ const runScriptForWorkspace = (w: string) =>
           console.log("The script failed", info.exitCode);
           reject(info.exitCode);
         } else {
-          console.log("The script ran successfully");
+          console.log("[eco-pages] Process finished successfully");
           resolve(info.exitCode);
         }
       },

@@ -16,7 +16,7 @@ await createGlobalConfig({
 
 const {
   templatesExt,
-  derivedPaths: { error404TemplatePath, pagesDir, distDir },
+  absolutePaths: { error404TemplatePath, pagesDir, distDir },
 } = globalThis.ecoConfig;
 
 const routeRendererFactory = new RouteRendererFactory();
@@ -40,6 +40,7 @@ const server = new FileSystemServer({
   router,
   routeRendererFactory,
   error404TemplatePath: error404TemplatePath,
+  options: { watchMode: false },
 });
 
 describe("FileSystemServer", async () => {

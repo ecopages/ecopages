@@ -1,24 +1,24 @@
 {
-  "name": "eco-pages",
-  "version": "0.0.1",
-  "private": true,
-  "scripts": {
-    "dev:playground": "bun run workspace packages/playground dev",
-    "build:playground": "bun run workspace packages/playground build",
-    "start:playground": "bun run workspace packages/playground start",
-    "preview:playground": "bun run workspace packages/playground preview",
-    "clean": "rm -rf .eco node_modules bun.lockb && bun install",
-    "workspace": "bun ./scripts/workspace.ts",
-    "format": "bunx @biomejs/biome format . --write",
-    "lint": "bunx @biomejs/biome check --apply ."
-  },
-  "dependencies": {
-    "husky": "^9.0.10"
-  },
-  "module": "src/index.js",
-  "repository": "https://github.com/andeeplus/eco-pages.git",
-  "workspaces": [
-    "packages/*"
-  ],
-  "type": "module"
+	"name": "eco-pages",
+	"version": "0.0.1",
+	"private": true,
+	"scripts": {
+		"dev:playground": "bun run workspace packages/playground dev",
+		"build:playground": "bun run workspace packages/playground build",
+		"start:playground": "bun run workspace packages/playground start",
+		"preview:playground": "bun run workspace packages/playground preview",
+		"clean": "rm -rf .eco node_modules bun.lockb && bun install",
+		"workspace": "bun ./scripts/workspace.ts",
+		"format": "bunx @biomejs/biome format . --write",
+		"lint": "bunx @biomejs/biome check --apply .",
+		"lint-staged": "lint-staged"
+	},
+	"devDependencies": {
+		"husky": "^9.0.10",
+		"lint-staged": "^15.2.2"
+	},
+	"module": "src/index.js",
+	"repository": "https://github.com/andeeplus/eco-pages.git",
+	"workspaces": ["packages/*"],
+	"type": "module"
 }

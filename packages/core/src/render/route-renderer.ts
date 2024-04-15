@@ -1,10 +1,10 @@
-import type { DefaultTemplateEngines, defaultTemplateEngines } from "@/eco-pages";
-import { KitaRenderer } from "./renderers/kita-renderer";
-import { PathUtils } from "@/utils/path-utils";
-import { LitRenderer } from "./renderers/lit-renderer";
-import type { AbstractRenderer } from "./renderers/abstract-renderer";
-import type { RenderResultReadable } from "@lit-labs/ssr/lib/render-result-readable";
-import { Readable } from "stream";
+import type { Readable } from 'node:stream';
+import type { DefaultTemplateEngines } from '@/eco-pages';
+import { PathUtils } from '@/utils/path-utils';
+import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
+import type { AbstractRenderer } from './renderers/abstract-renderer';
+import { KitaRenderer } from './renderers/kita-renderer';
+import { LitRenderer } from './renderers/lit-renderer';
 
 export type RouteRendererOptions = {
   file: string;
@@ -36,9 +36,9 @@ export class RouteRendererFactory {
     const descriptor = PathUtils.getNameDescriptor(filePath);
 
     switch (descriptor as DefaultTemplateEngines) {
-      case "kita":
+      case 'kita':
         return KitaRenderer;
-      case "lit":
+      case 'lit':
         return LitRenderer;
       default:
         throw new Error(`[eco-pages] Unknown render type: ${descriptor} for file: ${filePath}`);

@@ -1,13 +1,13 @@
-import { LiteElement } from "@/lib/lite/LiteElement";
+import { LiteElement } from '@/lib/lite/LiteElement';
+import { ContextOnMountEvent } from '@/lib/lite/context/events/context-on-mount';
+import type { ContextProviderRequestEvent } from '@/lib/lite/context/events/context-provider-request';
+import type { ContextSubscriptionRequestEvent } from '@/lib/lite/context/events/context-subscription-request';
 import {
   ContextEventsTypes,
   type ContextSubscription,
-  type UnknownContext,
   type ContextType,
-} from "@/lib/lite/context/types";
-import { ContextOnMountEvent } from "@/lib/lite/context/events/context-on-mount";
-import type { ContextProviderRequestEvent } from "@/lib/lite/context/events/context-provider-request";
-import type { ContextSubscriptionRequestEvent } from "@/lib/lite/context/events/context-subscription-request";
+  type UnknownContext,
+} from '@/lib/lite/context/types';
 
 export class LiteContext<T extends UnknownContext> extends LiteElement {
   protected declare name: string;
@@ -35,20 +35,17 @@ export class LiteContext<T extends UnknownContext> extends LiteElement {
   };
 
   private notifySubscribers = (newContext: ContextType<T>, prevContext: ContextType<T>) => {
-    this.subscriptions.forEach((sub) => {
+    for (const sub of this.subscriptions) {
       if (!sub.selector) return this.sendSubscriptionUpdate(sub, newContext);
       const newSelected = newContext[sub.selector];
       const prevSelected = prevContext[sub.selector];
       if (newSelected !== prevSelected) {
         this.sendSubscriptionUpdate(sub, newContext);
       }
-    });
+    }
   };
 
-  sendSubscriptionUpdate = (
-    { selector, callback }: ContextSubscription<T>,
-    context: ContextType<T>
-  ) => {
+  sendSubscriptionUpdate = ({ selector, callback }: ContextSubscription<T>, context: ContextType<T>) => {
     if (!selector) callback(context);
     else
       callback({ [selector]: context[selector] } as {
@@ -96,7 +93,7 @@ export class LiteContext<T extends UnknownContext> extends LiteElement {
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      "lite-context": HtmlTag;
+      'lite-context': HtmlTag;
     }
   }
 }

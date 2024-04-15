@@ -1,1 +1,1 @@
-export * from "./lite-renderer.kita";
+export * from './lite-renderer.kita';

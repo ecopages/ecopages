@@ -1,7 +1,7 @@
-import type { LiteElement } from "@/lib/lite/LiteElement";
-import type { LiteContext } from "@/lib/lite/context/lite-context";
-import { type UnknownContext, type ContextType } from "@/lib/lite/context/types";
-import { ContextSubscriptionRequestEvent } from "@/lib/lite/context/events/context-subscription-request";
+import type { LiteElement } from '@/lib/lite/LiteElement';
+import { ContextSubscriptionRequestEvent } from '@/lib/lite/context/events/context-subscription-request';
+import type { LiteContext } from '@/lib/lite/context/lite-context';
+import type { ContextType, UnknownContext } from '@/lib/lite/context/types';
 
 /**
  * A decorator to subscribe to a context selector.
@@ -19,21 +19,17 @@ export function useContext({
   selector?: keyof ContextType<UnknownContext>;
   subscribe?: boolean;
 }) {
-  return function (
+  return (
     proto: LiteElement & { context?: LiteContext<UnknownContext> },
     _: string,
-    descriptor: PropertyDescriptor
-  ) {
+    descriptor: PropertyDescriptor,
+  ) => {
     const originalMethod = descriptor.value;
     const originalConnectedCallback = proto.connectedCallback;
 
-    proto["connectedCallback"] = function (
-      this: LiteElement & { context: LiteContext<UnknownContext> }
-    ) {
+    proto.connectedCallback = function (this: LiteElement & { context: LiteContext<UnknownContext> }) {
       originalConnectedCallback.call(this);
-      this.dispatchEvent(
-        new ContextSubscriptionRequestEvent(context, originalMethod.bind(this), selector, subscribe)
-      );
+      this.dispatchEvent(new ContextSubscriptionRequestEvent(context, originalMethod.bind(this), selector, subscribe));
     };
 
     descriptor.value = function (...args: any[]) {

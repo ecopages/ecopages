@@ -1,5 +1,5 @@
-import { DepsManager } from "@eco-pages/core";
-import { type ScriptInjectorProps } from "./script-injector.script";
+import { DepsManager } from '@eco-pages/core';
+import type { ScriptInjectorProps } from './script-injector.script';
 
 export function ScriptInjector({
   children,

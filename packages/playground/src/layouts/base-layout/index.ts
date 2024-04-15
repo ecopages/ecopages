@@ -1,1 +1,1 @@
-export * from "./base-layout.kita";
+export * from './base-layout.kita';

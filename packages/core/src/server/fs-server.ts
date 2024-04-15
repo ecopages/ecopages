@@ -1,11 +1,12 @@
-import path from "path";
-import { FSRouter, type MatchResult } from "./router/fs-router";
-import { withHtmlLiveReload, type PureWebSocketServeOptions } from "./middleware/hmr";
-import { ServerUtils } from "./server-utils";
-import { RouteRendererFactory, type RouteRendererBody } from "@/render/route-renderer";
-import { FileUtils } from "@/utils/file-utils";
-import { FSRouterScanner } from "./router/fs-router-scanner";
-import type { EcoPagesConfig } from "@types";
+import path from 'node:path';
+import { type RouteRendererBody, RouteRendererFactory } from '@/render/route-renderer';
+import { FileUtils } from '@/utils/file-utils';
+import type { EcoPagesConfig } from '@types';
+import type { BunFile, Server } from 'bun';
+import { type PureWebSocketServeOptions, withHtmlLiveReload } from './middleware/hmr';
+import { FSRouter, type MatchResult } from './router/fs-router';
+import { FSRouterScanner } from './router/fs-router-scanner';
+import { ServerUtils } from './server-utils';
 
 type FileSystemServerOptions = {
   watchMode: boolean;
@@ -16,7 +17,7 @@ export class FileSystemServer {
   private router: FSRouter;
   private routeRendererFactory: RouteRendererFactory;
   private error404TemplatePath: string;
-  private server: any;
+  private server: Server | null = null;
   private options: FileSystemServerOptions;
 
   constructor({
@@ -41,7 +42,7 @@ export class FileSystemServer {
 
   private shouldEnableGzip(contentType: string) {
     if (this.options.watchMode) return false;
-    const gzipEnabledExtensions = ["application/javascript", "text/css"];
+    const gzipEnabledExtensions = ['application/javascript', 'text/css'];
     return gzipEnabledExtensions.includes(contentType);
   }
 
@@ -50,7 +51,7 @@ export class FileSystemServer {
   }
 
   public async fetch(req: Request) {
-    const match = !req.url.includes(".") && this.router.match(req);
+    const match = !req.url.includes('.') && this.router.match(req);
 
     if (!match) {
       return this.handleNoMatch(req);
@@ -60,7 +61,7 @@ export class FileSystemServer {
   }
 
   private async handleNoMatch(req: Request) {
-    const filePath = path.join(this.router.assetPrefix, req.url.replace(this.router.origin, ""));
+    const filePath = path.join(this.router.assetPrefix, req.url.replace(this.router.origin, ''));
     const contentType = ServerUtils.getContentType(filePath);
 
     if (this.isHtmlOrPlainText(contentType)) {
@@ -71,15 +72,15 @@ export class FileSystemServer {
   }
 
   private isHtmlOrPlainText(contentType: string) {
-    return ["text/html", "text/plain"].includes(contentType);
+    return ['text/html', 'text/plain'].includes(contentType);
   }
 
   private sendResponse(routeRendererBody: RouteRendererBody) {
-    const isAsync = routeRendererBody.constructor.name === "AsyncFunction";
+    const isAsync = routeRendererBody.constructor.name === 'AsyncFunction';
 
-    return new Response(routeRendererBody as any, {
+    return new Response(routeRendererBody as BodyInit, {
       headers: {
-        "Content-Type": "text/html",
+        'Content-Type': 'text/html',
       },
     });
   }
@@ -96,25 +97,25 @@ export class FileSystemServer {
 
   private async createFileResponse(filePath: string, contentType: string) {
     try {
-      let file;
-      let contentEncodingHeader: HeadersInit = {};
+      let file: BunFile;
+      const contentEncodingHeader: HeadersInit = {};
 
       if (this.shouldEnableGzip(contentType)) {
         const gzipPath = `${filePath}.gz`;
         file = await this.getFile(gzipPath);
-        contentEncodingHeader["Content-Encoding"] = "gzip";
+        contentEncodingHeader['Content-Encoding'] = 'gzip';
       } else {
         file = await this.getFile(filePath);
       }
 
       return new Response(file, {
         headers: {
-          "Content-Type": contentType,
+          'Content-Type': contentType,
           ...contentEncodingHeader,
         },
       });
     } catch (error) {
-      return new Response("file not found", {
+      return new Response('file not found', {
         status: 404,
       });
     }
@@ -138,7 +139,7 @@ export class FileSystemServer {
       : Bun.serve(serverOptions);
 
     this.router.onReload = () => {
-      this.server.reload(serverOptions);
+      if (this.server) this.server.reload(serverOptions);
     };
 
     return { router: this.router, server: this.server };
@@ -149,7 +150,7 @@ export class FileSystemServer {
 
     const scanner = new FSRouterScanner({
       dir: path.join(ecoConfig.rootDir, ecoConfig.srcDir, ecoConfig.pagesDir),
-      origin: "http://localhost:3000",
+      origin: 'http://localhost:3000',
       templatesExt: ecoConfig.templatesExt,
       options: {
         buildMode: !options.watchMode,
@@ -157,7 +158,7 @@ export class FileSystemServer {
     });
 
     const router = new FSRouter({
-      origin: "http://localhost:3000",
+      origin: 'http://localhost:3000',
       assetPrefix: path.join(ecoConfig.rootDir, ecoConfig.distDir),
       scanner,
     });

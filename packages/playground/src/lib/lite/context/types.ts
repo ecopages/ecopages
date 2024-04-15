@@ -1,8 +1,8 @@
 // Proposal definitions: github.com/webcomponents-cg/community-protocols/blob/main/proposals/context.md#definitions
 
-import type { ContextOnMountEvent } from "@/lib/lite/context/events/context-on-mount";
-import type { ContextProviderRequestEvent } from "@/lib/lite/context/events/context-provider-request";
-import type { ContextSubscriptionRequestEvent } from "@/lib/lite/context/events/context-subscription-request";
+import type { ContextOnMountEvent } from '@/lib/lite/context/events/context-on-mount';
+import type { ContextProviderRequestEvent } from '@/lib/lite/context/events/context-provider-request';
+import type { ContextSubscriptionRequestEvent } from '@/lib/lite/context/events/context-subscription-request';
 
 /**
  * A Context object defines an optional initial value for a Context, as well as a name identifier for debugging purposes.
@@ -42,9 +42,9 @@ export type ContextCallback<ValueType> = (value: ValueType, unsubscribe?: () => 
  * List of events which can be emitted by a context provider or requester.
  */
 export enum ContextEventsTypes {
-  SUBSCRIPTION_REQUEST = "context--subscription-request",
-  PROVIDER_REQUEST = "context--provider-request",
-  ON_MOUNT = "context--on-mount",
+  SUBSCRIPTION_REQUEST = 'context--subscription-request',
+  PROVIDER_REQUEST = 'context--provider-request',
+  ON_MOUNT = 'context--on-mount',
 }
 
 /**

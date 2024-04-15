@@ -1,3 +1,5 @@
+export * from './env.d';
+
 export interface RobotsPreference {
   /**
    * The user agent
@@ -111,23 +113,20 @@ export type EcoPagesConfig = {
   };
 };
 
-export type EcoPagesConfigInput = Omit<
-  Partial<EcoPagesConfig>,
-  "baseUrl" | "derivedPaths" | "tsAliases"
-> &
-  Pick<EcoPagesConfig, "baseUrl">;
+export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, 'baseUrl' | 'derivedPaths' | 'tsAliases'> &
+  Pick<EcoPagesConfig, 'baseUrl'>;
 
 export type EcoComponentDependencies = {
   stylesheets?: string[];
   scripts?: string[];
 };
 
-export interface EcoComponent<T = {}> {
+export interface EcoComponent<T = unknown> {
   (props: T): JSX.Element;
   dependencies?: EcoComponentDependencies;
 }
 
-export interface EcoPage<T = {}> {
+export interface EcoPage<T = unknown> {
   (props: T): JSX.Element;
   dependencies?: EcoComponentDependencies;
 }
@@ -138,8 +137,8 @@ export type PageProps<T = unknown> = T & {
 };
 
 export const defaultTemplateEngines = {
-  kita: "kita",
-  lit: "lit",
+  kita: 'kita',
+  lit: 'lit',
 } as const;
 
 export type DefaultTemplateEngines = keyof typeof defaultTemplateEngines;
@@ -164,7 +163,7 @@ export interface HtmlTemplateProps extends PageHeadProps {
   headContent?: Html.Children;
 }
 
-export interface Error404TemplateProps extends Omit<HtmlTemplateProps, "children"> {
+export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
   message: string;
   stack?: string;
 }
@@ -174,7 +173,7 @@ export type StaticPath = { params: Record<string, string | string[]> };
 export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
 
 export type GetMetadata<T = Record<string, unknown>> = (
-  context: PageProps<T>
+  context: PageProps<T>,
 ) => PageMetadataProps | Promise<PageMetadataProps>;
 
 export type GetStaticProps<T> = (context: {

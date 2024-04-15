@@ -1,12 +1,12 @@
-import { HeadContentBuilder } from "@/render/utils/head-content-builder";
-import type { RouteRendererBody, RouteRendererOptions } from "../route-renderer";
-import type { EcoComponentDependencies, GetMetadata, GetStaticProps } from "@/eco-pages";
-import { uncacheModules } from "../utils/uncache-modules";
+import type { EcoComponentDependencies, GetMetadata, GetStaticProps } from '@/eco-pages';
+import { HeadContentBuilder } from '@/render/utils/head-content-builder';
+import type { RouteRendererBody, RouteRendererOptions } from '../route-renderer';
+import { uncacheModules } from '../utils/uncache-modules';
 
 export abstract class AbstractRenderer {
   protected declare options: Required<RouteRendererOptions>;
 
-  protected DOC_TYPE = "<!DOCTYPE html>";
+  protected DOC_TYPE = '<!DOCTYPE html>';
 
   protected get pagesDir() {
     return globalThis.ecoConfig.absolutePaths.pagesDir;
@@ -15,11 +15,11 @@ export abstract class AbstractRenderer {
   protected getHtmlPath({ file }: { file: string }) {
     const pagesIndex = file.indexOf(this.pagesDir);
     if (pagesIndex === -1) return file;
-    let startIndex = file.indexOf(this.pagesDir) + this.pagesDir.length;
-    let endIndex = file.lastIndexOf("/");
-    let path = file.substring(startIndex, endIndex);
-    if (path === "/index") return "";
-    return "iui";
+    const startIndex = file.indexOf(this.pagesDir) + this.pagesDir.length;
+    const endIndex = file.lastIndexOf('/');
+    const path = file.substring(startIndex, endIndex);
+    if (path === '/index') return '';
+    return 'iui';
   }
 
   protected async getHtmlTemplate() {
@@ -47,16 +47,17 @@ export abstract class AbstractRenderer {
       : {};
   }
 
-  protected async getMetadataProps(
-    getMetadata: GetMetadata | undefined,
-    props: Record<string, unknown> = {}
-  ) {
+  protected async getMetadataProps(getMetadata: GetMetadata | undefined, props: Record<string, unknown> = {}) {
     const { params, query } = this.options;
     return getMetadata ? await getMetadata({ params, query, ...props }) : undefined;
   }
 
   protected prepareRender(options: RouteRendererOptions) {
-    this.options = { ...options, params: options.params || {}, query: options.query || {} };
+    this.options = {
+      ...options,
+      params: options.params || {},
+      query: options.query || {},
+    };
     uncacheModules();
   }
 

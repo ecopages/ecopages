@@ -1,4 +1,4 @@
-import { register } from "@/lib/alpine/register";
+import { register } from '@/lib/alpine/register';
 
 function counterController() {
   return {
@@ -12,4 +12,4 @@ function counterController() {
   };
 }
 
-register("counter", counterController);
+register('counter', counterController);

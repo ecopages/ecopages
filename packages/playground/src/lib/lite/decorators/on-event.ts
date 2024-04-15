@@ -1,4 +1,4 @@
-import type { LiteElement } from "@/lib/lite/LiteElement";
+import type { LiteElement } from '@/lib/lite/LiteElement';
 
 /**
  * A decorator to subscribe to an event on the target element.
@@ -10,7 +10,7 @@ export function onEvent(eventConfig: {
   type: string;
   options?: AddEventListenerOptions;
 }) {
-  return function (proto: LiteElement, _: string, descriptor: PropertyDescriptor) {
+  return (proto: LiteElement, _: string, descriptor: PropertyDescriptor) => {
     const originalMethod = descriptor.value;
     const originalConnectedCallback = proto.connectedCallback;
     const originalDisconnectedCallback = proto.disconnectedCallback;

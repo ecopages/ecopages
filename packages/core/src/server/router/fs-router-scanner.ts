@@ -1,6 +1,6 @@
-import path from "path";
-import type { EcoPageFile, GetStaticPaths } from "@/eco-pages";
-import type { Routes } from "./fs-router";
+import path from 'node:path';
+import type { EcoPageFile, GetStaticPaths } from '@/eco-pages';
+import type { Routes } from './fs-router';
 
 type CreateRouteArgs = {
   routePath: string;
@@ -25,7 +25,7 @@ type FSRouterScannerOptions = {
  */
 export class FSRouterScanner {
   private dir: string;
-  private origin = "";
+  private origin = '';
   private templatesExt: string[];
   private options: FSRouterScannerOptions;
   routes: Routes = {};
@@ -48,13 +48,13 @@ export class FSRouterScanner {
   }
 
   private getGlobTemplatePattern() {
-    return `**/*{${this.templatesExt.join(",")}}`;
+    return `**/*{${this.templatesExt.join(',')}}`;
   }
 
   private getRoutePath(path: string): string {
     const cleanedRoute = this.templatesExt
-      .reduce((route, ext) => route.replace(ext, ""), path)
-      .replace(/\/?index$/, "");
+      .reduce((route, ext) => route.replace(ext, ''), path)
+      .replace(/\/?index$/, '');
     return `/${cleanedRoute}`;
   }
 
@@ -82,10 +82,7 @@ export class FSRouterScanner {
       let routeWithParams = route;
 
       for (const param of dynamicParamsNames) {
-        routeWithParams = routeWithParams.replace(
-          `[${param}]`,
-          (path.params as Record<string, string>)[param]
-        );
+        routeWithParams = routeWithParams.replace(`[${param}]`, (path.params as Record<string, string>)[param]);
       }
 
       return routeWithParams;
@@ -93,7 +90,7 @@ export class FSRouterScanner {
 
     for (const routeWithParams of routesWithParams) {
       this.routes[routeWithParams] = {
-        kind: "dynamic",
+        kind: 'dynamic',
         src: routeWithParams,
         pathname: routePath,
         filePath,
@@ -103,7 +100,7 @@ export class FSRouterScanner {
 
   private createSSRDynamicRoute({ filePath, route, routePath }: CreateRouteArgs): void {
     this.routes[route] = {
-      kind: "dynamic",
+      kind: 'dynamic',
       src: `${this.origin}${routePath}`,
       pathname: routePath,
       filePath,
@@ -113,31 +110,24 @@ export class FSRouterScanner {
   private async createDynamicRoute({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {
     const { getStaticPaths, getStaticProps } = (await import(filePath)) as EcoPageFile;
 
-    const renderStrategy = getStaticPaths ? "static" : "ssr";
+    if (this.options.buildMode && !getStaticProps) throw new Error(`[eco-pages] Missing getStaticProps in ${filePath}`);
+    if (this.options.buildMode && !getStaticPaths) throw new Error(`[eco-pages] Missing getStaticPaths in ${filePath}`);
 
-    if (this.options.buildMode && !getStaticProps)
-      throw new Error(`[eco-pages] Missing getStaticProps in ${filePath}`);
-    if (this.options.buildMode && !getStaticPaths)
-      throw new Error(`[eco-pages] Missing getStaticPaths in ${filePath}`);
-
-    switch (renderStrategy) {
-      case "static": {
-        return this.createStaticDynamicRoute({
-          filePath,
-          route,
-          routePath,
-          getStaticPaths: getStaticPaths as GetStaticPaths,
-        });
-      }
-      case "ssr":
-      default:
-        return this.createSSRDynamicRoute({ filePath, route, routePath });
+    if (getStaticPaths) {
+      return this.createStaticDynamicRoute({
+        filePath,
+        route,
+        routePath,
+        getStaticPaths: getStaticPaths as GetStaticPaths,
+      });
     }
+
+    return this.createSSRDynamicRoute({ filePath, route, routePath });
   }
 
   private createCatchAllRoute({ filePath, route, routePath }: CreateRouteArgs): void {
     this.routes[route] = {
-      kind: "catch-all",
+      kind: 'catch-all',
       src: `${this.origin}${routePath}`,
       pathname: routePath,
       filePath,
@@ -146,7 +136,7 @@ export class FSRouterScanner {
 
   private async createExactRoute({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {
     this.routes[route] = {
-      kind: "exact",
+      kind: 'exact',
       src: `${this.origin}${routePath}`,
       pathname: routePath,
       filePath,
@@ -157,8 +147,8 @@ export class FSRouterScanner {
     const routePath = this.getRoutePath(file);
     const route = `${this.origin}${routePath}`;
     const filePath = path.join(this.dir, file);
-    const isDynamic = filePath.includes("[") && filePath.includes("]");
-    const isCatchAll = filePath.includes("[...");
+    const isDynamic = filePath.includes('[') && filePath.includes(']');
+    const isCatchAll = filePath.includes('[...');
 
     return { route, routePath, filePath, isDynamic, isCatchAll };
   }

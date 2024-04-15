@@ -1,27 +1,27 @@
-import { BaseLayout } from "@/layouts/base-layout";
+import { BaseLayout } from '@/layouts/base-layout';
 import {
-  type PageProps,
+  DepsManager,
+  type EcoPage,
+  type GetMetadata,
   type GetStaticPaths,
   type GetStaticProps,
-  type EcoPage,
-  DepsManager,
-  type GetMetadata,
-} from "@eco-pages/core";
+  type PageProps,
+} from '@eco-pages/core';
 
-export type BlogPost = {
+export type BlogPostProps = {
   slug: string;
   title: string;
   text: string;
 };
 
-export const getMetadata: GetMetadata<BlogPost> = async ({ title, slug }) => {
+export const getMetadata: GetMetadata<BlogPostProps> = async ({ title, slug }) => {
   return {
     title,
     description: `This is a blog post with the slug ${slug}`,
   };
 };
 
-const BlogPost: EcoPage<PageProps<BlogPost>> = ({ params, query, title, text, slug }) => {
+const BlogPost: EcoPage<PageProps<BlogPostProps>> = ({ params, query, title, text, slug }) => {
   return (
     <BaseLayout>
       <div>
@@ -43,16 +43,16 @@ BlogPost.dependencies = DepsManager.collect({
 
 export const getStaticPaths: GetStaticPaths = async () => {
   return {
-    paths: [{ params: { slug: "blog-post" } }, { params: { slug: "another-blog-post" } }],
+    paths: [{ params: { slug: 'blog-post' } }, { params: { slug: 'another-blog-post' } }],
   };
 };
 
-export const getStaticProps: GetStaticProps<BlogPost> = async ({ pathname }) => {
+export const getStaticProps: GetStaticProps<BlogPostProps> = async ({ pathname }) => {
   return {
     props: {
       slug: pathname.params.slug as string,
       title: `Hello World | ${pathname.params.slug}`,
-      text: "This is a blog post",
+      text: 'This is a blog post',
     },
   };
 };

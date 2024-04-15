@@ -1,15 +1,5 @@
-export type AttributeTypeConstant =
-  | typeof Array
-  | typeof Boolean
-  | typeof Number
-  | typeof Object
-  | typeof String;
+export type AttributeTypeConstant = typeof Array | typeof Boolean | typeof Number | typeof Object | typeof String;
 
-export type AttributeTypeDefault = Array<any> | boolean | number | Object | string;
+export type AttributeTypeDefault = Array<unknown> | boolean | number | Record<string, unknown> | string;
 
-export type RenderInsertPosition =
-  | "replace"
-  | "beforebegin"
-  | "afterbegin"
-  | "beforeend"
-  | "afterend";
+export type RenderInsertPosition = 'replace' | 'beforebegin' | 'afterbegin' | 'beforeend' | 'afterend';

@@ -1,6 +1,6 @@
-import fs from "fs";
-import { Glob } from "bun";
+import fs from "node:fs";
 import type { CssProcessor, EcoPagesConfig } from "@types";
+import { Glob } from "bun";
 
 export class CssBuilder {
   processor: CssProcessor;

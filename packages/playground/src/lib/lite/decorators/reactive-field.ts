@@ -1,4 +1,4 @@
-import type { LiteElement } from "@/lib/lite/LiteElement";
+import type { LiteElement } from '@/lib/lite/LiteElement';
 
 /**
  * A decorator to define a reactive field.
@@ -9,14 +9,14 @@ import type { LiteElement } from "@/lib/lite/LiteElement";
  * @param propertyKey The property key.
  */
 export function reactiveField(proto: LiteElement, propertyKey: string) {
-  const originalValues = new WeakMap<any, any>();
-  const isDefined = new WeakSet<any>();
+  const originalValues = new WeakMap<WeakKey, unknown>();
+  const isDefined = new WeakSet<WeakKey>();
 
   Object.defineProperty(proto, propertyKey, {
     get: function () {
       return originalValues.get(this);
     },
-    set: function (newValue: any) {
+    set: function (newValue: unknown) {
       if (isDefined.has(this)) {
         const oldValue = originalValues.get(this);
         if (oldValue !== newValue) {

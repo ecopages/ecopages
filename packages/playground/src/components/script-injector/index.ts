@@ -1,1 +1,1 @@
-export * from "./script-injector.kita";
+export * from './script-injector.kita';

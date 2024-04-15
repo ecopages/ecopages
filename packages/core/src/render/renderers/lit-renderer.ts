@@ -1,9 +1,9 @@
-import type { RouteRendererBody } from "../route-renderer";
-import type { EcoPage, EcoPageFile, GetMetadata, GetStaticProps } from "@/eco-pages";
-import { render } from "@lit-labs/ssr";
-import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { AbstractRenderer } from "./abstract-renderer";
-import { RenderResultReadable } from "@lit-labs/ssr/lib/render-result-readable";
+import type { EcoPageFile } from '@/eco-pages';
+import { render } from '@lit-labs/ssr';
+import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import type { RouteRendererBody } from '../route-renderer';
+import { AbstractRenderer } from './abstract-renderer';
 
 export class LitRenderer extends AbstractRenderer {
   async render(): Promise<RouteRendererBody> {
@@ -26,10 +26,10 @@ export class LitRenderer extends AbstractRenderer {
         metadata,
         dependencies: Page.dependencies,
         headContent: await this.getHeadContent(Page.dependencies),
-        children: "<--content-->",
+        children: '<--content-->',
       });
 
-      const [templateStart, templateEnd] = template.split("<--content-->");
+      const [templateStart, templateEnd] = template.split('<--content-->');
 
       const DOC_TYPE = this.DOC_TYPE;
 

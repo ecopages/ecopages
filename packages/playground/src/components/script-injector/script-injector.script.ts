@@ -1,21 +1,21 @@
-import { customElement } from "@/lib/lite/decorators/custom-element";
+import { customElement } from '@/lib/lite/decorators/custom-element';
 
 export type ScriptInjectorProps = {
   /**
    * @description Load the script once the dom is ready
    * @example <script-injector on:idle></script-injector>
    */
-  ["on:idle"]?: boolean;
+  'on:idle'?: boolean;
   /**
    * @description Load the script based on a series of events
    * @example <script-injector on:interaction="mouseenter, focusin"></script-injector>
    */
-  ["on:interaction"]?: "touchstart,click" | "mouseenter,focusin";
+  'on:interaction'?: 'touchstart,click' | 'mouseenter,focusin';
   /**
    * @description Import a script to be loaded when the observer detects the element is in the viewport
    * @example <script-injector on:visible="50px 1px"></script-injector>
    */
-  ["on:visible"]?: string | boolean;
+  'on:visible'?: string | boolean;
   /**
    * A list of scripts to be loaded, comma separated.
    */
@@ -23,16 +23,16 @@ export type ScriptInjectorProps = {
 };
 
 enum ScriptInjectorEvents {
-  DATA_LOADED = "data-loaded",
+  DATA_LOADED = 'data-loaded',
 }
 
 type OnDataLoadedEvent = CustomEvent<{ loadedScripts: string[] }>;
 
-const conditions = ["on:visible", "on:idle", "on:interaction"] as const;
+const conditions = ['on:visible', 'on:idle', 'on:interaction'] as const;
 
 type Conditions = (typeof conditions)[number];
 
-@customElement("script-injector")
+@customElement('script-injector')
 class ScriptInjector extends HTMLElement {
   private _intersectionObserver?: IntersectionObserver | null = null;
   private _scriptsToLoad: string[] = [];
@@ -50,7 +50,7 @@ class ScriptInjector extends HTMLElement {
   }
 
   connectedCallback() {
-    this._scriptsToLoad = this.getAttribute("scripts")?.split(",") || [];
+    this._scriptsToLoad = this.getAttribute('scripts')?.split(',') || [];
     document.addEventListener(ScriptInjectorEvents.DATA_LOADED, this._listenToDataLoaded);
     this._applyConditions();
   }
@@ -66,7 +66,7 @@ class ScriptInjector extends HTMLElement {
     document.dispatchEvent(
       new CustomEvent(ScriptInjectorEvents.DATA_LOADED, {
         detail: { loadedScripts: this._scriptsToLoad },
-      })
+      }),
     );
   }
 
@@ -88,21 +88,22 @@ class ScriptInjector extends HTMLElement {
   }
 
   private _onInteraction() {
-    const interaction = this.getAttribute(
-      `on:interaction`
-    ) as ScriptInjectorProps["on:interaction"];
-    for (const event of interaction!.split(",")) {
+    const interaction = this.getAttribute('on:interaction') as ScriptInjectorProps['on:interaction'];
+
+    if (!interaction) return;
+
+    for (const event of interaction.split(',')) {
       this.addEventListener(event, this._loadScripts);
       this.registeredEvents.push({ type: event, listener: this._loadScripts });
     }
   }
 
   private _listenToDataLoaded(event: Event) {
-    if (this.hasAttribute("data-loaded")) return;
+    if (this.hasAttribute('data-loaded')) return;
     const { loadedScripts } = (event as OnDataLoadedEvent).detail;
     this._scriptsToLoad = this._scriptsToLoad.filter((script) => !loadedScripts.includes(script));
     if (this._scriptsToLoad.length === 0) {
-      this.setAttribute("data-loaded", "");
+      this.setAttribute('data-loaded', '');
       this._unregisterEvents();
     }
   }
@@ -111,45 +112,48 @@ class ScriptInjector extends HTMLElement {
     document.dispatchEvent(
       new CustomEvent(ScriptInjectorEvents.DATA_LOADED, {
         detail: { loadedScripts: this._scriptsToLoad },
-      })
+      }),
     );
     this._intersectionObserver?.disconnect();
-    this.registeredEvents.forEach(({ type, listener }) => {
+
+    for (const { type, listener } of this.registeredEvents) {
       this.removeEventListener(type, listener);
-    });
+    }
   }
 
   private _loadScripts() {
     try {
-      this._scriptsToLoad.forEach((script) => this._loadScript(script));
+      for (const script of this._scriptsToLoad) {
+        this._loadScript(script);
+      }
     } catch (error) {
-      console.error("Error loading scripts", error);
+      console.error('Error loading scripts', error);
     } finally {
-      this.setAttribute("data-loaded", "");
+      this.setAttribute('data-loaded', '');
       this._unregisterEvents();
       this._notifyInjectors();
     }
   }
 
   private _loadScript(scriptToLoad: string) {
-    const script = document.createElement("script");
+    const script = document.createElement('script');
     script.src = scriptToLoad;
-    script.type = "module";
+    script.type = 'module';
     document.head.appendChild(script);
   }
 
   private _setupIntersectionObserver() {
     const options: IntersectionObserverInit = {
-      rootMargin: "50px   0px",
+      rootMargin: '50px   0px',
       threshold: 0.1,
     };
 
     this._intersectionObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
+      for (const entry of entries) {
         if (entry.isIntersecting) {
           this._loadScripts();
         }
-      });
+      }
     }, options);
 
     this._intersectionObserver.observe(this);
@@ -158,11 +162,11 @@ class ScriptInjector extends HTMLElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "script-injector": ScriptInjector;
+    'script-injector': ScriptInjector;
   }
   namespace JSX {
     interface IntrinsicElements {
-      "script-injector": HtmlTag & ScriptInjectorProps;
+      'script-injector': HtmlTag & ScriptInjectorProps;
     }
   }
   interface HTMLElementEventMap {

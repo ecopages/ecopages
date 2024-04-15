@@ -1,1 +1,1 @@
-export * from "./counter.kita";
+export * from './counter.kita';

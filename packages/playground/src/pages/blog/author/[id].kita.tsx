@@ -1,26 +1,26 @@
-import { BaseLayout } from "@/layouts/base-layout";
+import { BaseLayout } from '@/layouts/base-layout';
 import {
   DepsManager,
   type GetMetadata,
   type GetStaticPaths,
   type GetStaticProps,
   type PageProps,
-} from "@eco-pages/core";
+} from '@eco-pages/core';
 
-type Author = {
+type AuthorProps = {
   slug: string;
   name: string;
   bio: string;
 };
 
-export const getMetadata: GetMetadata<Author> = async ({ name, slug }) => {
+export const getMetadata: GetMetadata<AuthorProps> = async ({ name, slug }) => {
   return {
     title: `Author | ${slug}`,
     description: `This is the bio of ${name}`,
   };
 };
 
-export default function Author({ params, query, name, bio, slug }: PageProps<Author>) {
+export default function Author({ params, query, name, bio, slug }: PageProps<AuthorProps>) {
   return (
     <BaseLayout>
       <div>
@@ -42,16 +42,16 @@ Author.dependencies = DepsManager.collect({
 
 export const getStaticPaths: GetStaticPaths = async () => {
   return {
-    paths: [{ params: { id: "author-one" } }, { params: { id: "author-two" } }],
+    paths: [{ params: { id: 'author-one' } }, { params: { id: 'author-two' } }],
   };
 };
 
-export const getStaticProps: GetStaticProps<Author> = async ({ pathname }) => {
+export const getStaticProps: GetStaticProps<AuthorProps> = async ({ pathname }) => {
   return {
     props: {
       slug: pathname.params.id as string,
       name: pathname.params.id as string,
-      bio: "This is a bio",
+      bio: 'This is a bio',
     },
   };
 };

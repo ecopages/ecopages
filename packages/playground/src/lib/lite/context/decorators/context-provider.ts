@@ -1,7 +1,7 @@
-import type { LiteElement } from "@/lib/lite/LiteElement";
-import type { LiteContext } from "@/lib/lite/context/lite-context";
-import { type UnknownContext } from "@/lib/lite/context/types";
-import { ContextProviderRequestEvent } from "@/lib/lite/context/events/context-provider-request";
+import type { LiteElement } from '@/lib/lite/LiteElement';
+import { ContextProviderRequestEvent } from '@/lib/lite/context/events/context-provider-request';
+import type { LiteContext } from '@/lib/lite/context/lite-context';
+import type { UnknownContext } from '@/lib/lite/context/types';
 
 /**
  * A decorator to provide a context to the target element.
@@ -9,7 +9,7 @@ import { ContextProviderRequestEvent } from "@/lib/lite/context/events/context-p
  * @returns
  */
 export function contextProvider<T extends UnknownContext>(contextToProvide: T) {
-  return function (proto: LiteElement, propertyKey: string) {
+  return (proto: LiteElement, propertyKey: string) => {
     const originalConnectedCallback = proto.connectedCallback;
 
     proto.connectedCallback = function (this: LiteElement) {
@@ -18,7 +18,7 @@ export function contextProvider<T extends UnknownContext>(contextToProvide: T) {
         new ContextProviderRequestEvent(contextToProvide, (context: LiteContext<T>) => {
           (this as any)[propertyKey] = context;
           this.connectedContextCallback(contextToProvide.name);
-        })
+        }),
       );
     };
   };

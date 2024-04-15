@@ -1,4 +1,4 @@
-import { DepsManager } from "@eco-pages/core";
+import { DepsManager } from '@eco-pages/core';
 
 export function LiteContextDemo({
   children,
@@ -15,8 +15,8 @@ export function LiteContextDemo({
   );
 }
 
-LiteContextDemo.dependencies = DepsManager.import({
+LiteContextDemo.dependencies = DepsManager.importPaths({
   importMeta: import.meta,
-  scripts: ["./lite-context-demo.script.ts"],
-  stylesheets: ["./lite-context-demo.css"],
+  scripts: ['./lite-context-demo.script.ts'],
+  stylesheets: ['./lite-context-demo.css'],
 });

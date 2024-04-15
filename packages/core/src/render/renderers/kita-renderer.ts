@@ -1,6 +1,5 @@
-import type { RouteRendererBody } from "../route-renderer";
-import type { EcoPage, EcoPageFile, GetMetadata, GetStaticProps } from "@/eco-pages";
-import { AbstractRenderer } from "./abstract-renderer";
+import type { EcoPageFile } from '@/eco-pages';
+import { AbstractRenderer } from './abstract-renderer';
 
 export class KitaRenderer extends AbstractRenderer {
   async render() {

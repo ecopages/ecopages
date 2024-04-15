@@ -1,6 +1,6 @@
-import path from "path";
-import type { EcoComponentDependencies, EcoPagesConfig } from "@types";
-import { FileUtils } from "@/utils/file-utils";
+import path from 'node:path';
+import { FileUtils } from '@/utils/file-utils';
+import type { EcoComponentDependencies, EcoPagesConfig } from '@types';
 
 /**
  * Build the head content for the html pages.
@@ -22,18 +22,18 @@ export class HeadContentBuilder {
    * @param {EcoComponentDependencies} dependencies
    */
   async buildRequestDepenendencies(dependencies: EcoComponentDependencies) {
-    let dependenciesString = "";
+    let dependenciesString = '';
 
     if (dependencies.stylesheets) {
       dependenciesString += dependencies.stylesheets
         .map((stylesheet) => `<link rel="stylesheet" href="${stylesheet}" />`)
-        .join("");
+        .join('');
     }
 
     if (dependencies.scripts) {
       dependenciesString += dependencies.scripts
         .map((script) => `<script defer type="module" src="${script}"></script>`)
-        .join("");
+        .join('');
     }
 
     return dependenciesString;
@@ -45,7 +45,7 @@ export class HeadContentBuilder {
    * @param {EcoComponentDependencies} dependencies
    */
   async buildInlineDependencies(dependencies: EcoComponentDependencies) {
-    let dependenciesString = "";
+    let dependenciesString = '';
 
     for (const stylesheet of dependencies.stylesheets || []) {
       const filePath = path.join(this.config.rootDir, this.config.distDir, stylesheet);

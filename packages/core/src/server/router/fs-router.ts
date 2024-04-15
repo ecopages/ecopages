@@ -1,6 +1,6 @@
-import { FSRouterScanner } from "./fs-router-scanner";
+import type { FSRouterScanner } from './fs-router-scanner';
 
-export type MatchKind = "exact" | "catch-all" | "dynamic";
+export type MatchKind = 'exact' | 'catch-all' | 'dynamic';
 
 export type MatchResult = {
   filePath: string;
@@ -58,20 +58,19 @@ export class FSRouter {
 
   getDynamicParams(route: Route, pathname: string): Record<string, string | string[]> {
     const params: Record<string, string | string[]> = {};
-    const routeParts = route.pathname.split("/");
-    const pathnameParts = pathname.split("/");
+    const routeParts = route.pathname.split('/');
+    const pathnameParts = pathname.split('/');
 
     for (let i = 0; i < routeParts.length; i++) {
       const part = routeParts[i];
-      if (part.startsWith("[") && part.endsWith("]")) {
-        if (part.startsWith("[...")) {
+      if (part.startsWith('[') && part.endsWith(']')) {
+        if (part.startsWith('[...')) {
           const param = part.slice(4, -1);
           params[param] = pathnameParts.slice(i);
           break;
-        } else {
-          const param = part.slice(1, -1);
-          params[param] = pathnameParts[i];
         }
+        const param = part.slice(1, -1);
+        params[param] = pathnameParts[i];
       }
     }
     return params;
@@ -90,13 +89,10 @@ export class FSRouter {
     const pathname = url.pathname;
 
     for (const route of Object.values(this.routes)) {
-      if (
-        route.kind === "exact" &&
-        (pathname === route.pathname || pathname === route.pathname + "/")
-      ) {
+      if (route.kind === 'exact' && (pathname === route.pathname || pathname === `${route.pathname}/`)) {
         return {
           filePath: route.filePath,
-          kind: "exact",
+          kind: 'exact',
           pathname: route.pathname,
           query: this.getSearchParams(url),
         };
@@ -104,17 +100,17 @@ export class FSRouter {
     }
 
     for (const route of Object.values(this.routes)) {
-      const cleanPathname = route.pathname.replace(/\[.*?\]/g, "");
+      const cleanPathname = route.pathname.replace(/\[.*?\]/g, '');
       const isValidDynamicRoute = pathname.includes(cleanPathname);
 
-      if (route.kind === "dynamic" && isValidDynamicRoute) {
-        const routeParts = route.pathname.split("/");
-        const pathnameParts = pathname.split("/");
+      if (route.kind === 'dynamic' && isValidDynamicRoute) {
+        const routeParts = route.pathname.split('/');
+        const pathnameParts = pathname.split('/');
 
         if (routeParts.length === pathnameParts.length) {
           return {
             filePath: route.filePath,
-            kind: "dynamic",
+            kind: 'dynamic',
             pathname: route.pathname,
             query: this.getSearchParams(url),
             params: this.getDynamicParams(route, pathname),
@@ -124,13 +120,13 @@ export class FSRouter {
     }
 
     for (const route of Object.values(this.routes)) {
-      const cleanPathname = route.pathname.replace(/\[.*?\]/g, "");
+      const cleanPathname = route.pathname.replace(/\[.*?\]/g, '');
       const isValidCatchAllRoute = pathname.includes(cleanPathname);
 
-      if (route.kind === "catch-all" && isValidCatchAllRoute) {
+      if (route.kind === 'catch-all' && isValidCatchAllRoute) {
         return {
           filePath: route.filePath,
-          kind: "catch-all",
+          kind: 'catch-all',
           pathname: route.pathname,
           query: this.getSearchParams(url),
           params: this.getDynamicParams(route, pathname),

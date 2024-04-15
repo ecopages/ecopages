@@ -1,4 +1,4 @@
-import type { PageProps } from "@eco-pages/core";
+import type { PageProps } from '@eco-pages/core';
 
 export default function BlogPost({ params, query }: PageProps) {
   return (

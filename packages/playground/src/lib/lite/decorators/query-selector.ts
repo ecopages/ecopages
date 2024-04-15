@@ -4,14 +4,14 @@
  * @param on  The element to query on. Default is "this", which means the element itself.
  * @returns Returns the query result.
  */
-export function querySelector(selector: string, on?: "this" | "document") {
-  const values = new WeakMap<any, Element | null>();
+export function querySelector(selector: string, on?: 'this' | 'document') {
+  const values = new WeakMap<WeakKey, Element | null>();
 
-  return function (proto: any, propertyKey: string | symbol) {
-    const getter = function (this: any) {
+  return (proto: unknown, propertyKey: string | symbol) => {
+    const getter = function (this: Element) {
       let value = values.get(this);
       if (!value) {
-        value = on === "document" ? document.querySelector(selector) : this.querySelector(selector);
+        value = on === 'document' ? document.querySelector(selector) : this.querySelector(selector);
         values.set(this, value || null);
       }
 

@@ -1,4 +1,4 @@
-import path from "path";
+import path from "node:path";
 import { FileSystemServer } from "@/server/fs-server";
 import { FileUtils } from "@/utils/file-utils";
 import type { EcoPagesConfig } from "@types";
@@ -14,7 +14,7 @@ export class StaticPageGenerator {
     let data = "";
     const preferences = this.config.robotsTxt.preferences;
 
-    for (let userAgent in preferences) {
+    for (const userAgent in preferences) {
       data += `user-agent: ${userAgent}\n`;
       preferences[userAgent].forEach((path) => {
         data += `disallow: ${path}\n`;

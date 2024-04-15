@@ -1,11 +1,7 @@
-import { DepsManager, type EcoComponent, type GetMetadata } from "@eco-pages/core";
-import { BaseLayout } from "@/layouts/base-layout";
-import {
-  LiteContextDemo,
-  LiteContextDemoEditor,
-  LiteContextDemoVisualizer,
-} from "@/components/lite-context-demo";
-import { codeToHtml } from "shiki";
+import { LiteContextDemo, LiteContextDemoEditor, LiteContextDemoVisualizer } from '@/components/lite-context-demo';
+import { BaseLayout } from '@/layouts/base-layout';
+import { DepsManager, type EcoComponent, type GetMetadata } from '@eco-pages/core';
+import { codeToHtml } from 'shiki';
 
 const code = `
 /* -------------------------------------------------------------- *
@@ -153,15 +149,15 @@ context!: LiteContext<MyContext>;
   `;
 
 const safeHtml = await codeToHtml(code, {
-  lang: "typescript",
-  theme: "vitesse-dark",
+  lang: 'typescript',
+  theme: 'vitesse-dark',
 });
 
 export const getMetadata: GetMetadata = () => ({
-  title: "Lite Element",
-  description: "Testing lite element with Kita",
-  image: "public/assets/images/bun-og.png",
-  keywords: ["typescript", "framework", "static", "lite-element"],
+  title: 'Lite Element',
+  description: 'Testing lite element with Kita',
+  image: 'public/assets/images/bun-og.png',
+  keywords: ['typescript', 'framework', 'static', 'lite-element'],
 });
 
 const dependencies = DepsManager.collect({

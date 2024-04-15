@@ -1,6 +1,6 @@
-import type { LiteElement } from "@/lib/lite/LiteElement";
-import type { AttributeTypeConstant } from "@/lib/lite/types";
-import { readAttributeValue, writeAttributeValue } from "@/lib/lite/utils";
+import type { LiteElement } from '@/lib/lite/LiteElement';
+import type { AttributeTypeConstant } from '@/lib/lite/types';
+import { readAttributeValue, writeAttributeValue } from '@/lib/lite/utils';
 
 /**
  * A decorator to define a reactive attribute.
@@ -15,9 +15,9 @@ export function reactiveAttribute({
   type: AttributeTypeConstant;
   reflect?: boolean;
 }) {
-  return function (proto: LiteElement, propertyKey: string) {
-    const originalValues = new WeakMap<any, any>();
-    const attributeName = propertyKey.replace(/([A-Z])/g, "-$1").toLowerCase();
+  return (proto: LiteElement, propertyKey: string) => {
+    const originalValues = new WeakMap<WeakKey, unknown>();
+    const attributeName = propertyKey.replace(/([A-Z])/g, '-$1').toLowerCase();
 
     Object.defineProperty(proto, propertyKey, {
       get: function () {

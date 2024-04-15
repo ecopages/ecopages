@@ -1,10 +1,10 @@
-import { join, extname } from "path";
-import { withHtmlLiveReload } from "./middleware/hmr";
-import { ServerUtils } from "./server-utils";
-import { FileUtils } from "@/utils/file-utils";
-import type { EcoPagesConfig } from "@types";
-import type { Server } from "bun";
-import { RouteRendererFactory } from "@/render/route-renderer";
+import { extname, join } from 'node:path';
+import { RouteRendererFactory } from '@/render/route-renderer';
+import { FileUtils } from '@/utils/file-utils';
+import type { EcoPagesConfig } from '@types';
+import type { Server } from 'bun';
+import { withHtmlLiveReload } from './middleware/hmr';
+import { ServerUtils } from './server-utils';
 
 type StaticContentServerOptions = {
   watchMode: boolean;
@@ -32,26 +32,24 @@ export class StaticContentServer {
   }
 
   private shouldServeGzip(contentType: ReturnType<typeof ServerUtils.getContentType>) {
-    return !this.options.watchMode && ["application/javascript", "text/css"].includes(contentType);
+    return !this.options.watchMode && ['application/javascript', 'text/css'].includes(contentType);
   }
 
   private async sendNotFoundPage() {
-    const routeRenderer = this.routeRendererFactory.createRenderer(
-      this.config.absolutePaths.error404TemplatePath
-    );
+    const routeRenderer = this.routeRendererFactory.createRenderer(this.config.absolutePaths.error404TemplatePath);
 
     const routeRendererConfig = await routeRenderer.createRoute({
       file: this.config.absolutePaths.error404TemplatePath,
     });
 
-    return new Response(routeRendererConfig as any, {
-      headers: { "Content-Type": "text/html" },
+    return new Response(routeRendererConfig as BodyInit, {
+      headers: { 'Content-Type': 'text/html' },
     });
   }
 
   private async serveFromDir({ path }: { path: string }): Promise<Response> {
     const { absolutePaths } = this.config;
-    let basePath = join(absolutePaths.distDir, path);
+    const basePath = join(absolutePaths.distDir, path);
     const contentType = ServerUtils.getContentType(extname(basePath));
 
     try {
@@ -60,25 +58,27 @@ export class StaticContentServer {
         const file = await FileUtils.get(gzipPath);
         return new Response(file, {
           headers: {
-            "Content-Type": contentType,
-            "Content-Encoding": "gzip",
+            'Content-Type': contentType,
+            'Content-Encoding': 'gzip',
           },
         });
       }
 
-      if (path.includes(".")) {
+      if (path.includes('.')) {
         const file = await FileUtils.get(basePath);
         return new Response(file, {
-          headers: { "Content-Type": contentType },
+          headers: { 'Content-Type': contentType },
         });
       }
 
-      const pathWithSuffix = join(basePath, "index.html");
+      const pathWithSuffix = join(basePath, 'index.html');
 
       const file = await FileUtils.get(pathWithSuffix);
 
       return new Response(file, {
-        headers: { "Content-Type": ServerUtils.getContentType(extname(pathWithSuffix)) },
+        headers: {
+          'Content-Type': ServerUtils.getContentType(extname(pathWithSuffix)),
+        },
       });
     } catch (error) {
       return this.sendNotFoundPage();
@@ -91,7 +91,7 @@ export class StaticContentServer {
         fetch: (request) => {
           let reqPath = new URL(request.url).pathname;
 
-          if (reqPath === "/") reqPath = "/index.html";
+          if (reqPath === '/') reqPath = '/index.html';
 
           const response = this.serveFromDir({
             path: reqPath,
@@ -99,12 +99,12 @@ export class StaticContentServer {
 
           if (response) return response;
 
-          return new Response("File not found", {
+          return new Response('File not found', {
             status: 404,
           });
         },
       },
-      this.config
+      this.config,
     );
   }
 

@@ -1,5 +1,5 @@
-import { e } from "@kitajs/html";
-import type { RenderInsertPosition } from "./types";
+import { e } from '@kitajs/html';
+import type { RenderInsertPosition } from './types';
 
 /**
  * A type that represents an event listener subscription.
@@ -68,10 +68,6 @@ export interface ILightElement {
 export class LiteElement extends HTMLElement implements ILightElement {
   private eventSubscriptions = new Map<string, LiteElementEventListener>();
 
-  constructor() {
-    super();
-  }
-
   connectedCallback() {}
 
   connectedContextCallback(_contextName: string): void {}
@@ -85,27 +81,29 @@ export class LiteElement extends HTMLElement implements ILightElement {
   renderTemplate({
     target = this,
     template,
-    insert: mode = "replace",
+    insert: mode = 'replace',
   }: {
     target: HTMLElement;
     template: string;
     insert: RenderInsertPosition;
   }) {
     switch (mode) {
-      case "replace":
+      case 'replace':
         target.innerHTML = template;
         break;
-      case "beforeend":
-        target.insertAdjacentHTML("beforeend", template);
+      case 'beforeend':
+        target.insertAdjacentHTML('beforeend', template);
         break;
-      case "afterbegin":
-        target.insertAdjacentHTML("afterbegin", template);
+      case 'afterbegin':
+        target.insertAdjacentHTML('afterbegin', template);
         break;
     }
   }
 
   public subscribeEvents(events: LiteElementEventListener[]): void {
-    events.forEach((event) => this.subscribeEvent(event));
+    for (const event of events) {
+      this.subscribeEvent(event);
+    }
   }
 
   public subscribeEvent(event: LiteElementEventListener): void {
@@ -119,19 +117,20 @@ export class LiteElement extends HTMLElement implements ILightElement {
       eventSubscription.target.removeEventListener(
         eventSubscription.type,
         eventSubscription.listener,
-        eventSubscription.options
+        eventSubscription.options,
       );
       this.eventSubscriptions.delete(id);
     }
   }
 
   public removeAllSubscribedEvents(): void {
-    this.eventSubscriptions.forEach((eventSubscription) => {
+    for (const eventSubscription of this.eventSubscriptions.values()) {
       eventSubscription.target.removeEventListener(
         eventSubscription.type,
-        eventSubscription.listener
+        eventSubscription.listener,
+        eventSubscription.options,
       );
-    });
+    }
     this.eventSubscriptions.clear();
   }
 }

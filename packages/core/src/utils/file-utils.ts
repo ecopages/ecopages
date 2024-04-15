@@ -1,57 +1,65 @@
-import fs from "node:fs";
-import { extname } from "node:path";
-import type { BunFile } from "bun";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import type { BunFile } from 'bun';
 
-export class FileUtils {
-  static async get(path: string | URL) {
-    const file = Bun.file(path);
-    if (!(await file.exists())) throw new Error(`[eco-pages] File: ${path} not found`);
-    return file;
+async function get(path: string | URL) {
+  const file = Bun.file(path);
+  if (!(await file.exists())) throw new Error(`[eco-pages] File: ${path} not found`);
+  return file;
+}
+
+async function getPathAsString(path: string | URL) {
+  const file = await FileUtils.get(path);
+  return await file.text();
+}
+
+function write(
+  path: BunFile | Bun.PathLike,
+  contents: string | Blob | NodeJS.TypedArray | ArrayBufferLike | Bun.BlobPart[],
+) {
+  return Bun.write(path, contents);
+}
+
+function ensureFolderExists(path: string, forceCleanup: boolean): void {
+  if (existsSync(path)) {
+    if (forceCleanup) {
+      rmdirSync(path, {
+        recursive: true,
+      });
+
+      mkdirSync(path);
+
+      return;
+    }
+  } else {
+    mkdirSync(path);
   }
+}
 
-  static async getPathAsString(path: string | URL) {
-    const file = await FileUtils.get(path);
-    return await file.text();
-  }
+function copyDirSync(source: string, destination: string) {
+  cpSync(source, destination, { recursive: true });
+}
 
-  static write(
-    path: BunFile | Bun.PathLike,
-    contents: string | Blob | NodeJS.TypedArray | ArrayBufferLike | Bun.BlobPart[]
-  ) {
-    return Bun.write(path, contents);
-  }
-
-  static ensureFolderExists(path: string, forceCleanup: boolean): void {
-    if (fs.existsSync(path)) {
-      if (forceCleanup) {
-        fs.rmdirSync(path, {
-          recursive: true,
-        });
-
-        fs.mkdirSync(path);
-
-        return;
-      }
-    } else {
-      fs.mkdirSync(path);
+function gzipDirSync(path: string, extensionsToGzip: string[]) {
+  // @ts-expect-error - TS doesn't know about the recursive option
+  const files = readdirSync(path, { recursive: true });
+  for (const file of files) {
+    const ext = extname(file as string).slice(1);
+    if (extensionsToGzip.includes(ext)) {
+      const data = readFileSync(`${path}/${file}`);
+      const compressedData = Bun.gzipSync(Buffer.from(data));
+      const gzipFile = `${path}/${file}.gz`;
+      writeFileSync(gzipFile, compressedData);
     }
   }
-
-  static copyDirSync(source: string, destination: string) {
-    fs.cpSync(source, destination, { recursive: true });
-  }
-
-  static gzipDirSync(path: string, extensionsToGzip: string[]) {
-    fs.readdirSync(path, { recursive: true }).forEach((file) => {
-      const ext = extname(file as string).slice(1);
-      if (extensionsToGzip.includes(ext)) {
-        const data = fs.readFileSync(`${path}/${file}`);
-        const compressedData = Bun.gzipSync(Buffer.from(data));
-        const gzipFile = `${path}/${file}.gz`;
-        fs.writeFileSync(gzipFile, compressedData);
-      }
-    });
-  }
-
-  static writeFileSync = fs.writeFileSync;
 }
+
+export const FileUtils = {
+  get,
+  getPathAsString,
+  write,
+  ensureFolderExists,
+  copyDirSync,
+  gzipDirSync,
+  writeFileSync,
+};

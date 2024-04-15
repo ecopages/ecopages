@@ -1,8 +1,4 @@
-import {
-  type UnknownContext,
-  type ContextType,
-  ContextEventsTypes,
-} from "@/lib/lite/context/types";
+import { ContextEventsTypes, type ContextType, type UnknownContext } from '@/lib/lite/context/types';
 
 /**
  * An event fired by a context requester to signal it desires a named context.
@@ -19,12 +15,13 @@ import {
 export class ContextSubscriptionRequestEvent<T extends UnknownContext> extends Event {
   public constructor(
     public readonly context: T,
-    public readonly callback: (
-      value: ContextType<T> | { [K in keyof ContextType<T>]: ContextType<T>[K] }
-    ) => void,
+    public readonly callback: (value: ContextType<T> | { [K in keyof ContextType<T>]: ContextType<T>[K] }) => void,
     public readonly selector?: keyof ContextType<T>,
-    public readonly subscribe?: boolean
+    public readonly subscribe?: boolean,
   ) {
-    super(ContextEventsTypes.SUBSCRIPTION_REQUEST, { bubbles: true, composed: true });
+    super(ContextEventsTypes.SUBSCRIPTION_REQUEST, {
+      bubbles: true,
+      composed: true,
+    });
   }
 }

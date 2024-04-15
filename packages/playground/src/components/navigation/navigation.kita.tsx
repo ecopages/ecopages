@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from "@eco-pages/core";
+import { DepsManager, type EcoComponent } from '@eco-pages/core';
 
 export type NavigationProps = {
   items: {
@@ -13,7 +13,7 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
       <ul>
         {items.map(({ label, url }) => (
           <li>
-            <a href={url}>{label as "safe"}</a>
+            <a href={url}>{label as 'safe'}</a>
           </li>
         ))}
       </ul>

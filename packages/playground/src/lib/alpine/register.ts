@@ -1,7 +1,7 @@
-import Alpine, { type AlpineComponent } from "alpinejs";
+import Alpine, { type AlpineComponent } from 'alpinejs';
 
-export function register<T = any>(name: string, callback: () => AlpineComponent<T>): void {
-  document.addEventListener("alpine:init", () => {
+export function register<T = unknown>(name: string, callback: () => AlpineComponent<T>): void {
+  document.addEventListener('alpine:init', () => {
     Alpine.data(name, callback);
   });
 

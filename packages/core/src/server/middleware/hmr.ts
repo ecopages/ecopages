@@ -1,12 +1,12 @@
-import { watch } from "fs";
-import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from "bun";
-import type { EcoPagesConfig } from "@types";
+import { watch } from 'node:fs';
+import type { EcoPagesConfig } from '@types';
+import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from 'bun';
 
 declare global {
   var ws: ServerWebSocket<unknown> | undefined;
 }
 
-const reloadCommand = "reload";
+const reloadCommand = 'reload';
 
 globalThis.ws?.send(reloadCommand);
 
@@ -31,13 +31,13 @@ const makeLiveReloadScript = (wsUrl: string) => `
 
 export type PureWebSocketServeOptions<WebSocketDataType> = Omit<
   WebSocketServeOptions<WebSocketDataType>,
-  "fetch" | "websocket"
+  'fetch' | 'websocket'
 > & {
   fetch(request: Request, server: Server): Promise<Response> | Response;
   websocket?: WebSocketHandler<WebSocketDataType>;
 };
 
-const WS_PATH = "__ecopages_live_reload_websocket__";
+const WS_PATH = '__ecopages_live_reload_websocket__';
 
 /**
  * @function withHtmlLiveReload
@@ -47,12 +47,9 @@ const WS_PATH = "__ecopages_live_reload_websocket__";
  * @param {PureWebSocketServeOptions} serveOptions
  * @param {EcoPagesConfig} config
  */
-export const withHtmlLiveReload = <
-  WebSocketDataType,
-  T extends PureWebSocketServeOptions<WebSocketDataType>
->(
+export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketServeOptions<WebSocketDataType>>(
   serveOptions: T,
-  config: EcoPagesConfig
+  config: EcoPagesConfig,
 ): WebSocketServeOptions<WebSocketDataType> => {
   const watcher = watch(config.absolutePaths.srcDir, { recursive: true });
 
@@ -64,7 +61,7 @@ export const withHtmlLiveReload = <
         const upgraded = server.upgrade(req);
 
         if (!upgraded) {
-          return new Response("Failed to upgrade websocket connection for live reload", {
+          return new Response('Failed to upgrade websocket connection for live reload', {
             status: 400,
           });
         }
@@ -73,15 +70,14 @@ export const withHtmlLiveReload = <
 
       const response = await serveOptions.fetch(req, server);
 
-      if (!response.headers.get("Content-Type")?.startsWith("text/html")) {
+      if (!response.headers.get('Content-Type')?.startsWith('text/html')) {
         return response;
       }
 
-      const closingTags = "</body></html>";
+      const closingTags = '</body></html>';
       const originalHtml = await response.text();
       const liveReloadScript = makeLiveReloadScript(wsUrl);
-      const htmlWithLiveReload =
-        originalHtml.replace(closingTags, "") + liveReloadScript + closingTags;
+      const htmlWithLiveReload = originalHtml.replace(closingTags, '') + liveReloadScript + closingTags;
 
       return new Response(htmlWithLiveReload, response);
     },
@@ -91,8 +87,8 @@ export const withHtmlLiveReload = <
         globalThis.ws = ws;
         await serveOptions.websocket?.open?.(ws);
         if (watcher) {
-          watcher.removeAllListeners("change");
-          watcher.once("change", async (r) => {
+          watcher.removeAllListeners('change');
+          watcher.once('change', async (r) => {
             ws.send(reloadCommand);
           });
         }

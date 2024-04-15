@@ -1,17 +1,17 @@
-import { DepsManager, type EcoComponent, type GetMetadata } from "@eco-pages/core";
-import { BaseLayout } from "@/layouts/base-layout";
+import { BaseLayout } from '@/layouts/base-layout';
+import { DepsManager, type EcoComponent, type GetMetadata } from '@eco-pages/core';
 
 export const getMetadata: GetMetadata = () => ({
-  title: "Async Page",
-  description: "This is the about me page of the website",
-  image: "public/assets/images/bun-og.png",
-  keywords: ["typescript", "framework", "static"],
+  title: 'Async Page',
+  description: 'This is the about me page of the website',
+  image: 'public/assets/images/bun-og.png',
+  keywords: ['typescript', 'framework', 'static'],
 });
 
 const getData = async () => {
   return new Promise<string>((resolve) => {
     setTimeout(() => {
-      resolve("Async page " + new Date().toISOString());
+      resolve(`Async·page·${new Date().toISOString()}`);
     }, 1000);
   });
 };

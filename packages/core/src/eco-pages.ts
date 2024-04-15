@@ -122,7 +122,6 @@ export type EcoComponentDependencies = {
   scripts?: string[];
 };
 
-export type RenderStrategyOptions = "ssr" | "static" | "isg";
 export interface EcoComponent<T = {}> {
   (props: T): JSX.Element;
   dependencies?: EcoComponentDependencies;
@@ -131,7 +130,6 @@ export interface EcoComponent<T = {}> {
 export interface EcoPage<T = {}> {
   (props: T): JSX.Element;
   dependencies?: EcoComponentDependencies;
-  renderStrategy?: RenderStrategyOptions;
 }
 
 export type PageProps<T = unknown> = T & {

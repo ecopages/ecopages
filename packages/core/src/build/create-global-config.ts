@@ -5,42 +5,38 @@ import type { EcoPagesConfig, EcoPagesConfigInput } from "@types";
 export class ConfigBuilder {
   config: EcoPagesConfig;
 
-  static defaultConfig: Omit<
-    EcoPagesConfig,
-    "baseUrl" | "tsAliases" | "watchMode" | "absolutePaths" | "serve"
-  > = {
-    rootDir: ".",
-    srcDir: "src",
-    pagesDir: "pages",
-    globalDir: "global",
-    includesDir: "includes",
-    componentsDir: "components",
-    layoutsDir: "layouts",
-    publicDir: "public",
-    includesTemplates: {
-      head: "head.kita.tsx",
-      html: "html.kita.tsx",
-      seo: "seo.kita.tsx",
-      error404: "error404.kita.tsx",
-    },
-    robotsTxt: {
-      preferences: {
-        "*": [],
-        Googlebot: ["/public/"],
+  static defaultConfig: Omit<EcoPagesConfig, "baseUrl" | "tsAliases" | "absolutePaths" | "serve"> =
+    {
+      rootDir: ".",
+      srcDir: "src",
+      pagesDir: "pages",
+      globalDir: "global",
+      includesDir: "includes",
+      componentsDir: "components",
+      layoutsDir: "layouts",
+      publicDir: "public",
+      includesTemplates: {
+        head: "head.kita.tsx",
+        html: "html.kita.tsx",
+        seo: "seo.kita.tsx",
+        error404: "error404.kita.tsx",
       },
-    },
-    distDir: ".eco",
-    scriptDescriptor: "script",
-    templatesExt: [".kita.tsx", ".lit.tsx"],
-  };
+      robotsTxt: {
+        preferences: {
+          "*": [],
+          Googlebot: ["/public/"],
+        },
+      },
+      distDir: ".eco",
+      scriptDescriptor: "script",
+      templatesExt: [".kita.tsx", ".lit.tsx"],
+    };
 
   constructor({
     projectDir,
     customConfig,
   }: {
     projectDir: string;
-    watchMode: boolean;
-    serve: boolean;
     customConfig: EcoPagesConfigInput;
   }) {
     const baseConfig = {
@@ -93,12 +89,8 @@ export class ConfigBuilder {
 
 export async function createGlobalConfig({
   projectDir,
-  watchMode = false,
-  serve = false,
 }: {
   projectDir: string;
-  watchMode?: boolean;
-  serve?: boolean;
 }): Promise<EcoPagesConfig> {
   if (!fs.existsSync(`${projectDir}/eco.config.ts`)) {
     throw new Error("eco.config.ts not found, please provide a valid config file.");
@@ -108,8 +100,6 @@ export async function createGlobalConfig({
 
   return new ConfigBuilder({
     projectDir,
-    watchMode,
     customConfig,
-    serve,
   }).config;
 }

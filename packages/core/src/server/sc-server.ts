@@ -4,60 +4,85 @@ import { ServerUtils } from "./server-utils";
 import { FileUtils } from "@/utils/file-utils";
 import type { EcoPagesConfig } from "@types";
 import type { Server } from "bun";
+import { RouteRendererFactory } from "@/render/route-renderer";
 
 type StaticContentServerOptions = {
   watchMode: boolean;
 };
 
 export class StaticContentServer {
-  config: EcoPagesConfig;
   server: Server | null = null;
-  options: StaticContentServerOptions;
+  private config: EcoPagesConfig;
+  private options: StaticContentServerOptions;
+  private routeRendererFactory: RouteRendererFactory;
 
   constructor({
     config,
     options,
+    routeRendererFactory,
   }: {
     config: EcoPagesConfig;
     options: StaticContentServerOptions;
+    routeRendererFactory: RouteRendererFactory;
   }) {
     this.config = config;
     this.options = options;
-    this.create();
+    this.routeRendererFactory = routeRendererFactory;
+    this.startServer();
   }
 
   private shouldServeGzip(contentType: ReturnType<typeof ServerUtils.getContentType>) {
     return !this.options.watchMode && ["application/javascript", "text/css"].includes(contentType);
   }
 
+  private async sendNotFoundPage() {
+    const routeRenderer = this.routeRendererFactory.createRenderer(
+      this.config.absolutePaths.error404TemplatePath
+    );
+
+    const routeRendererConfig = await routeRenderer.createRoute({
+      file: this.config.absolutePaths.error404TemplatePath,
+    });
+
+    return new Response(routeRendererConfig as any, {
+      headers: { "Content-Type": "text/html" },
+    });
+  }
+
   private async serveFromDir({ path }: { path: string }): Promise<Response> {
-    const { rootDir, absolutePaths: derivedPaths } = this.config;
-    let basePath = join(derivedPaths.distDir, path);
+    const { absolutePaths } = this.config;
+    let basePath = join(absolutePaths.distDir, path);
     const contentType = ServerUtils.getContentType(extname(basePath));
 
-    if (this.shouldServeGzip(contentType)) {
-      const gzipPath = `${basePath}.gz`;
-      const file = await FileUtils.get(gzipPath);
-      return new Response(file, {
-        headers: {
-          "Content-Type": contentType,
-          "Content-Encoding": "gzip",
-        },
-      });
-    }
+    try {
+      if (this.shouldServeGzip(contentType)) {
+        const gzipPath = `${basePath}.gz`;
+        const file = await FileUtils.get(gzipPath);
+        return new Response(file, {
+          headers: {
+            "Content-Type": contentType,
+            "Content-Encoding": "gzip",
+          },
+        });
+      }
 
-    if (path.includes(".")) {
-      const file = await FileUtils.get(basePath);
-      return new Response(file, {
-        headers: { "Content-Type": contentType },
-      });
-    }
+      if (path.includes(".")) {
+        const file = await FileUtils.get(basePath);
+        return new Response(file, {
+          headers: { "Content-Type": contentType },
+        });
+      }
 
-    const pathWithSuffix = join(basePath, "index.html");
-    const file = await FileUtils.get(pathWithSuffix);
-    return new Response(file, {
-      headers: { "Content-Type": ServerUtils.getContentType(extname(pathWithSuffix)) },
-    });
+      const pathWithSuffix = join(basePath, "index.html");
+
+      const file = await FileUtils.get(pathWithSuffix);
+
+      return new Response(file, {
+        headers: { "Content-Type": ServerUtils.getContentType(extname(pathWithSuffix)) },
+      });
+    } catch (error) {
+      return this.sendNotFoundPage();
+    }
   }
 
   private getOptions() {
@@ -83,7 +108,7 @@ export class StaticContentServer {
     );
   }
 
-  private create() {
+  private startServer() {
     this.server = Bun.serve(this.getOptions());
   }
 
@@ -92,8 +117,12 @@ export class StaticContentServer {
       this.server.stop();
     }
   }
-}
 
-export const createStaticContentServer = ({ watchMode }: { watchMode: boolean }) => {
-  return new StaticContentServer({ config: globalThis.ecoConfig, options: { watchMode } });
-};
+  static create({ watchMode }: { watchMode: boolean }) {
+    return new StaticContentServer({
+      config: globalThis.ecoConfig,
+      routeRendererFactory: new RouteRendererFactory(),
+      options: { watchMode },
+    });
+  }
+}

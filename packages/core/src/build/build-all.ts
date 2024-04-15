@@ -36,15 +36,13 @@ const { values } = parseArgs({
 
 const config = await createGlobalConfig({
   projectDir: values.config as string,
-  watchMode: values.watch as boolean,
-  serve: values.serve as boolean,
 });
 
 const ecoPages = new AppBuilder({
   config,
   staticPageGenerator: new StaticPageGenerator(config),
   cssBuilder: new CssBuilder({ processor: new PostCssProcessor(), config }),
-  scriptsBuilder: new ScriptsBuilder(config),
+  scriptsBuilder: new ScriptsBuilder({ config, options: { watchMode: values.watch as boolean } }),
   options: {
     watch: values.watch as boolean,
     serve: values.serve as boolean,

@@ -36,8 +36,6 @@ const BlogPost: EcoPage<PageProps<BlogPost>> = ({ params, query, title, text, sl
   );
 };
 
-BlogPost.renderStrategy = "static";
-
 BlogPost.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [BaseLayout],

@@ -11,7 +11,6 @@ const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, "packages/core/fix
 
 await createGlobalConfig({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),
-  watchMode: false,
 });
 
 const {
@@ -25,6 +24,9 @@ const scanner = new FSRouterScanner({
   dir: pagesDir,
   origin: "http://localhost:3000",
   templatesExt,
+  options: {
+    buildMode: false,
+  },
 });
 
 const router = new FSRouter({

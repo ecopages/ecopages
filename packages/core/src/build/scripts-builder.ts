@@ -1,15 +1,20 @@
 import type { EcoPagesConfig } from "@types";
 import { Glob } from "bun";
 
+type ScriptsBuilderOptions = {
+  watchMode: boolean;
+};
 export class ScriptsBuilder {
   config: EcoPagesConfig;
+  options: ScriptsBuilderOptions;
 
-  constructor(config: EcoPagesConfig) {
+  constructor({ config, options }: { config: EcoPagesConfig; options: { watchMode: boolean } }) {
     this.config = config;
+    this.options = options;
   }
 
   async build() {
-    const { srcDir, distDir, scriptDescriptor, watchMode } = this.config;
+    const { srcDir, distDir, scriptDescriptor } = this.config;
     const glob = new Glob(`${srcDir}/**/*.${scriptDescriptor}.{ts,tsx}`);
     const scannedFiles = glob.scanSync({ cwd: "." });
     const scripts = Array.from(scannedFiles);
@@ -19,7 +24,7 @@ export class ScriptsBuilder {
       outdir: distDir,
       root: srcDir,
       target: "browser",
-      minify: !watchMode, // true, !watchMode,
+      minify: !this.options.watchMode,
       format: "esm",
       splitting: true,
     });

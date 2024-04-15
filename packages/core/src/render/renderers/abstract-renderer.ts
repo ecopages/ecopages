@@ -39,7 +39,11 @@ export abstract class AbstractRenderer {
     return getStaticProps
       ? await getStaticProps({
           pathname: { params: this.options.params },
-        }).then((data) => data.props as Record<string, unknown>)
+        })
+          .then((data) => data.props as Record<string, unknown>)
+          .catch((err) => {
+            throw new Error(`[eco-pages] Error fetching static props: ${err.message}`);
+          })
       : {};
   }
 

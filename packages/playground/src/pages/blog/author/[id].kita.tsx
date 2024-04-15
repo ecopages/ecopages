@@ -35,8 +35,6 @@ export default function Author({ params, query, name, bio, slug }: PageProps<Aut
   );
 }
 
-Author.renderStrategy = "static";
-
 Author.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [BaseLayout],

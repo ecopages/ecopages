@@ -8,7 +8,6 @@ const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, "packages/core/fix
 
 await createGlobalConfig({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),
-  watchMode: false,
 });
 
 const {
@@ -20,6 +19,9 @@ const scanner = new FSRouterScanner({
   dir: pagesDir,
   origin: "http://localhost:3000",
   templatesExt,
+  options: {
+    buildMode: false,
+  },
 });
 
 const router = new FSRouter({
@@ -49,7 +51,6 @@ describe("FSRouter", async () => {
           src: "",
           filePath: "",
           kind: "dynamic",
-          strategy: "static",
           pathname: dynamicPathname,
         };
         const params = router.getDynamicParams(route, pathname);
@@ -69,8 +70,7 @@ describe("FSRouter", async () => {
           src: "",
           filePath: "",
           kind: "dynamic",
-          strategy: "static",
-          pathname: "/products/[...id]",
+          pathname: catchAllRoute,
         };
         const params = router.getDynamicParams(route, pathname);
 

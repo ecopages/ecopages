@@ -20,6 +20,9 @@ describe("FSRouterScanner", () => {
       dir: pagesDir,
       origin: "http://localhost:3000",
       templatesExt,
+      options: {
+        buildMode: false,
+      },
     });
 
     const routes = await scanner.scan();
@@ -30,21 +33,18 @@ describe("FSRouterScanner", () => {
         kind: "exact",
         pathname: "/",
         src: "http://localhost:3000/",
-        strategy: "static",
       },
       "http://localhost:3000/catch-all/[...path]": {
         filePath: `${pagesDir}/catch-all/[...path].kita.tsx`,
         kind: "catch-all",
         pathname: "/catch-all/[...path]",
         src: "http://localhost:3000/catch-all/[...path]",
-        strategy: "ssr",
       },
       "http://localhost:3000/dynamic/[slug]": {
         filePath: `${pagesDir}/dynamic/[slug].kita.tsx`,
         kind: "dynamic",
         pathname: "/dynamic/[slug]",
         src: "http://localhost:3000/dynamic/[slug]",
-        strategy: "ssr",
       },
     });
   });

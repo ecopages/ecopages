@@ -143,45 +143,39 @@ export class FileSystemServer {
 
     return { router: this.router, server: this.server };
   }
+
+  static async create(options: FileSystemServerOptions) {
+    const { ecoConfig } = globalThis;
+
+    const scanner = new FSRouterScanner({
+      dir: path.join(ecoConfig.rootDir, ecoConfig.srcDir, ecoConfig.pagesDir),
+      origin: "http://localhost:3000",
+      templatesExt: ecoConfig.templatesExt,
+      options: {
+        buildMode: !options.watchMode,
+      },
+    });
+
+    const router = new FSRouter({
+      origin: "http://localhost:3000",
+      assetPrefix: path.join(ecoConfig.rootDir, ecoConfig.distDir),
+      scanner,
+    });
+
+    await router.init();
+
+    const server = new FileSystemServer({
+      router,
+      appConfig: ecoConfig,
+      routeRendererFactory: new RouteRendererFactory(),
+      error404TemplatePath: ecoConfig.absolutePaths.error404TemplatePath,
+      options,
+    });
+
+    const serverOptions = {
+      fetch: server.fetch.bind(server),
+    };
+
+    return server.startServer(serverOptions);
+  }
 }
-
-export const createFileSystemServer = async (options: FileSystemServerOptions) => {
-  const {
-    ecoConfig: {
-      rootDir,
-      srcDir,
-      pagesDir,
-      distDir,
-      templatesExt,
-      absolutePaths: { error404TemplatePath },
-    },
-  } = globalThis;
-
-  const scanner = new FSRouterScanner({
-    dir: path.join(rootDir, srcDir, pagesDir),
-    origin: "http://localhost:3000",
-    templatesExt,
-  });
-
-  const router = new FSRouter({
-    origin: "http://localhost:3000",
-    assetPrefix: path.join(rootDir, distDir),
-    scanner,
-  });
-
-  await router.init();
-
-  const server = new FileSystemServer({
-    router,
-    appConfig: globalThis.ecoConfig,
-    routeRendererFactory: new RouteRendererFactory(),
-    error404TemplatePath,
-    options,
-  });
-
-  const serverOptions = {
-    fetch: server.fetch.bind(server),
-  };
-
-  return server.startServer(serverOptions);
-};

@@ -1,4 +1,3 @@
-import type { RenderStrategyOptions } from "@/eco-pages";
 import { FSRouterScanner } from "./fs-router-scanner";
 
 export type MatchKind = "exact" | "catch-all" | "dynamic";
@@ -9,7 +8,6 @@ export type MatchResult = {
   pathname: string;
   query?: Record<string, string>;
   params?: Record<string, string | string[]>;
-  strategy: RenderStrategyOptions;
 };
 
 export type Route = {
@@ -20,7 +18,6 @@ export type Route = {
    * @todo delete?
    */
   src: string;
-  strategy: RenderStrategyOptions;
 };
 
 export type Routes = Record<string, Route>;
@@ -102,7 +99,6 @@ export class FSRouter {
           kind: "exact",
           pathname: route.pathname,
           query: this.getSearchParams(url),
-          strategy: route.strategy,
         };
       }
     }
@@ -122,7 +118,6 @@ export class FSRouter {
             pathname: route.pathname,
             query: this.getSearchParams(url),
             params: this.getDynamicParams(route, pathname),
-            strategy: route.strategy,
           };
         }
       }
@@ -139,7 +134,6 @@ export class FSRouter {
           pathname: route.pathname,
           query: this.getSearchParams(url),
           params: this.getDynamicParams(route, pathname),
-          strategy: route.strategy,
         };
       }
     }

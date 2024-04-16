@@ -1,5 +1,5 @@
-import { join } from 'node:path';
 //github.com/rehype-pretty/rehype-pretty-code/blob/4a41af0c8fb706e26bdd00aec54b9bc384fc318a/scripts/workspace.ts
+import { join } from 'node:path';
 import { file } from 'bun';
 
 const [, , workspace, script] = process.argv;
@@ -13,10 +13,10 @@ const runScriptForWorkspace = (w: string) =>
       stdio: ['inherit', 'inherit', 'inherit'],
       onExit(info) {
         if (info.exitCode !== 0) {
-          console.log('The script failed', info.exitCode);
+          console.log('[workspace] The script failed', info.exitCode);
           reject(info.exitCode);
         } else {
-          console.log('[eco-pages] Process finished successfully');
+          console.log('[workspace] Process finished successfully');
           resolve(info.exitCode);
         }
       },

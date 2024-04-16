@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { createGlobalConfig } from '@/build/create-global-config';
+import { ConfigBuilder } from '@/build/create-global-config';
 import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
 import { ServerUtils } from './server-utils';
 
-await createGlobalConfig({
+await ConfigBuilder.create({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),
 });
 

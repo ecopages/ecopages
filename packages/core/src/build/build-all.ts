@@ -1,7 +1,7 @@
 // @ts-expect-error - Types for parseArgs are not available
 import { parseArgs } from "util";
 import { AppBuilder } from "@/build/app-builder";
-import { createGlobalConfig } from "@/build/create-global-config";
+import { ConfigBuilder } from "@/build/create-global-config";
 import { CssBuilder } from "./css-builder";
 import { PostCssProcessor } from "./postcss-processor";
 import { ScriptsBuilder } from "./scripts-builder";
@@ -35,7 +35,7 @@ const { values } = parseArgs({
   allowPositionals: false,
 });
 
-const config = await createGlobalConfig({
+const config = await ConfigBuilder.create({
   projectDir: values.config as string,
 });
 

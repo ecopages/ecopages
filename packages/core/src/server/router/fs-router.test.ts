@@ -1,12 +1,12 @@
-import { describe, expect, it, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { createGlobalConfig } from '@/build/create-global-config';
+import { ConfigBuilder } from '@/build/create-global-config';
 import { FSRouter, type Route } from './fs-router';
 import { FSRouterScanner } from './fs-router-scanner';
 
 const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, 'packages/core/fixtures');
 
-await createGlobalConfig({
+await ConfigBuilder.create({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),
 });
 

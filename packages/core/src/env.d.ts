@@ -11,6 +11,5 @@ declare global {
   interface ImportMeta {
     env: ImportMetaEnv;
   }
-
   var ecoConfig: EcoPagesConfig;
 }

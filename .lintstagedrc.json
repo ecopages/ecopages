@@ -1,6 +1,5 @@
 {
 	"*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
-		"bun test",
 		"bun run lint",
 		"bun run format"
 	]

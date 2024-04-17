@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { ConfigBuilder } from '@/build/create-global-config';
+import { ConfigBuilder } from '@/build/config-builder';
 import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
 import { FSRouterScanner } from './fs-router-scanner';
 

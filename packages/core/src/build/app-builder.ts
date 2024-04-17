@@ -5,7 +5,7 @@ import { ScriptsBuilder } from "@/build/scripts-builder";
 import { ProjectWatcher } from "@/build/watcher";
 import { FileSystemServer } from "@/server/fs-server";
 import { StaticContentServer } from "@/server/sc-server";
-import { FileUtils } from "@/utils/file-utils";
+import { FileUtils } from "@/utils/file-utils.module";
 import { PostCssProcessor } from "./postcss-processor";
 import { appLogger } from "@/utils/app-logger";
 import type { StaticPageGenerator } from "./static-page-generator";

@@ -1,7 +1,7 @@
 // @ts-expect-error - Types for parseArgs are not available
 import { parseArgs } from "util";
 import { AppBuilder } from "@/build/app-builder";
-import { ConfigBuilder } from "@/build/create-global-config";
+import { ConfigBuilder } from "@/build/config-builder";
 import { CssBuilder } from "./css-builder";
 import { PostCssProcessor } from "./postcss-processor";
 import { ScriptsBuilder } from "./scripts-builder";

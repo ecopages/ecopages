@@ -1,6 +1,6 @@
-import { describe, expect, it, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { ConfigBuilder } from '@/build/create-global-config';
+import { ConfigBuilder } from '@/build/config-builder';
 import { RouteRendererFactory } from '@/render/route-renderer';
 import { FIXTURE_EXISTING_FILE_IN_DIST } from 'fixtures/constants';
 import { FileSystemServer } from './fs-server';
@@ -15,7 +15,7 @@ await ConfigBuilder.create({
 
 const {
   templatesExt,
-  absolutePaths: { error404TemplatePath, pagesDir, distDir },
+  absolutePaths: { pagesDir, distDir },
 } = globalThis.ecoConfig;
 
 const routeRendererFactory = new RouteRendererFactory();
@@ -41,7 +41,6 @@ const server = new FileSystemServer({
   appConfig: globalThis.ecoConfig,
   router,
   routeRendererFactory,
-  error404TemplatePath: error404TemplatePath,
   options: { watchMode: false },
 });
 

@@ -1,10 +1,10 @@
 import { extname, join } from 'node:path';
 import { RouteRendererFactory } from '@/render/route-renderer';
-import { FileUtils } from '@/utils/file-utils';
+import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 import type { Server } from 'bun';
 import { withHtmlLiveReload } from './middleware/hmr';
-import { ServerUtils } from './server-utils';
+import { ServerUtils } from './server-utils.module';
 
 type StaticContentServerOptions = {
   watchMode: boolean;
@@ -36,10 +36,20 @@ export class StaticContentServer {
   }
 
   private async sendNotFoundPage() {
-    const routeRenderer = this.routeRendererFactory.createRenderer(this.config.absolutePaths.error404TemplatePath);
+    const error404TemplatePath = this.config.absolutePaths.error404TemplatePath;
+
+    try {
+      await FileUtils.get(error404TemplatePath);
+    } catch (error) {
+      return new Response('file not found', {
+        status: 404,
+      });
+    }
+
+    const routeRenderer = this.routeRendererFactory.createRenderer(error404TemplatePath);
 
     const routeRendererConfig = await routeRenderer.createRoute({
-      file: this.config.absolutePaths.error404TemplatePath,
+      file: error404TemplatePath,
     });
 
     return new Response(routeRendererConfig as BodyInit, {

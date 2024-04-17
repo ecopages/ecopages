@@ -1,12 +1,12 @@
 import path from 'node:path';
 import { type RouteRendererBody, RouteRendererFactory } from '@/render/route-renderer';
-import { FileUtils } from '@/utils/file-utils';
+import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 import type { BunFile, Server } from 'bun';
 import { type PureWebSocketServeOptions, withHtmlLiveReload } from './middleware/hmr';
 import { FSRouter, type MatchResult } from './router/fs-router';
 import { FSRouterScanner } from './router/fs-router-scanner';
-import { ServerUtils } from './server-utils';
+import { ServerUtils } from './server-utils.module';
 
 type FileSystemServerOptions = {
   watchMode: boolean;
@@ -16,7 +16,6 @@ export class FileSystemServer {
   private appConfig: EcoPagesConfig;
   private router: FSRouter;
   private routeRendererFactory: RouteRendererFactory;
-  private error404TemplatePath: string;
   private server: Server | null = null;
   private options: FileSystemServerOptions;
 
@@ -24,19 +23,16 @@ export class FileSystemServer {
     router,
     appConfig,
     routeRendererFactory,
-    error404TemplatePath,
     options,
   }: {
     router: FSRouter;
     appConfig: EcoPagesConfig;
     routeRendererFactory: RouteRendererFactory;
-    error404TemplatePath: string;
     options: FileSystemServerOptions;
   }) {
     this.router = router;
     this.appConfig = appConfig;
     this.routeRendererFactory = routeRendererFactory;
-    this.error404TemplatePath = error404TemplatePath;
     this.options = options;
   }
 
@@ -44,10 +40,6 @@ export class FileSystemServer {
     if (this.options.watchMode) return false;
     const gzipEnabledExtensions = ['application/javascript', 'text/css'];
     return gzipEnabledExtensions.includes(contentType);
-  }
-
-  private async getFile(filePath: string) {
-    return await FileUtils.get(filePath);
   }
 
   public async fetch(req: Request) {
@@ -86,10 +78,20 @@ export class FileSystemServer {
   }
 
   private async sendNotFoundPage() {
-    const routeRenderer = this.routeRendererFactory.createRenderer(this.error404TemplatePath);
+    const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
+
+    try {
+      await FileUtils.get(error404TemplatePath);
+    } catch (error) {
+      return new Response('file not found', {
+        status: 404,
+      });
+    }
+
+    const routeRenderer = this.routeRendererFactory.createRenderer(error404TemplatePath);
 
     const routeRendererConfig = await routeRenderer.createRoute({
-      file: this.error404TemplatePath,
+      file: error404TemplatePath,
     });
 
     return this.sendResponse(routeRendererConfig);
@@ -102,10 +104,10 @@ export class FileSystemServer {
 
       if (this.shouldEnableGzip(contentType)) {
         const gzipPath = `${filePath}.gz`;
-        file = await this.getFile(gzipPath);
+        file = await FileUtils.get(gzipPath);
         contentEncodingHeader['Content-Encoding'] = 'gzip';
       } else {
-        file = await this.getFile(filePath);
+        file = await FileUtils.get(filePath);
       }
 
       return new Response(file, {
@@ -169,7 +171,6 @@ export class FileSystemServer {
       router,
       appConfig: ecoConfig,
       routeRendererFactory: new RouteRendererFactory(),
-      error404TemplatePath: ecoConfig.absolutePaths.error404TemplatePath,
       options,
     });
 

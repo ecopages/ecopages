@@ -141,7 +141,7 @@ function filter(component: EcoComponent<unknown>, type: 'scripts' | 'stylesheets
  * @method extract
  * @description
  * This method extracts the dependencies of the components.
- * @param {EcoComponent<unknown>} component - The component to extract the dependencies.
+ * @param {EcoComponent<unknown>} component - The component to extract the dependencies from.
  * @param {"scripts" | "stylesheets"} type - The type of the dependencies to extract.
  * @returns {string[]} - The dependencies of the components.
  */

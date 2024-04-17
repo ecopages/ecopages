@@ -19,8 +19,8 @@ export class ConfigBuilder {
         head: "head.kita.tsx",
         html: "html.kita.tsx",
         seo: "seo.kita.tsx",
-        error404: "error404.kita.tsx",
       },
+      error404Template: "404.kita.tsx",
       robotsTxt: {
         preferences: {
           "*": [],
@@ -66,6 +66,7 @@ export class ConfigBuilder {
       publicDir,
       distDir,
       includesTemplates,
+      error404Template,
     } = config;
 
     const absoluteSrcDir = path.resolve(projectDir, srcDir);
@@ -82,7 +83,7 @@ export class ConfigBuilder {
       pagesDir: path.join(absoluteSrcDir, pagesDir),
       publicDir: path.join(absoluteSrcDir, publicDir),
       htmlTemplatePath: path.join(absoluteSrcDir, includesDir, includesTemplates.html),
-      error404TemplatePath: path.join(absoluteSrcDir, includesDir, includesTemplates.error404),
+      error404TemplatePath: path.join(absoluteSrcDir, pagesDir, error404Template),
     };
   }
 

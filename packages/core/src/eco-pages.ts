@@ -57,8 +57,11 @@ export type EcoPagesConfig = {
     head: string;
     html: string;
     seo: string;
-    error404: string;
   };
+  /** Error 404 page
+   * @default "404.kita.tsx"
+   */
+  error404Template: string;
   /**
    * The directory where the output will be located
    * @default "dist"

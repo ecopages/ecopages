@@ -1,6 +1,7 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, writeFileSync } from 'node:fs';
+import { extname } from 'node:path';
 import type { BunFile } from 'bun';
+import { appLogger } from './app-logger';
 
 async function get(path: string | URL) {
   const file = Bun.file(path);
@@ -54,6 +55,11 @@ function gzipDirSync(path: string, extensionsToGzip: string[]) {
   }
 }
 
+async function writeStream(path: string, stream: ReadableStream) {
+  const response = new Response(stream);
+  await Bun.write(path, response);
+}
+
 export const FileUtils = {
   get,
   getPathAsString,
@@ -62,4 +68,5 @@ export const FileUtils = {
   copyDirSync,
   gzipDirSync,
   writeFileSync,
+  writeStream,
 };

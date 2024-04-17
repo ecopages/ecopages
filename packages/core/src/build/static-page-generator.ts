@@ -1,6 +1,6 @@
 import path from "node:path";
 import { FileSystemServer } from "@/server/fs-server";
-import { FileUtils } from "@/utils/file-utils";
+import { FileUtils } from "@/utils/file-utils.module";
 import type { EcoPagesConfig } from "@types";
 
 export class StaticPageGenerator {

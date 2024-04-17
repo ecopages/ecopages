@@ -13,7 +13,7 @@ export function Seo({
       <link rel="icon" type="image/x-icon" href="/public/assets/favicon.svg" />
       <link rel="robots" href="/robots.txt" />
       <meta name="description" content={description} />
-      {keywords ? ((<meta name="keywords" content={keywords.join(',')} />) as 'safe') : null}
+      {keywords?.length ? ((<meta name="keywords" content={keywords.join(',')} />) as 'safe') : null}
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:image" content={addBaseUrlToPathname(image)} />

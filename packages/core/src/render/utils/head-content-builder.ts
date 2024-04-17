@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { FileUtils } from '@/utils/file-utils';
+import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoComponentDependencies, EcoPagesConfig } from '@types';
 
 /**

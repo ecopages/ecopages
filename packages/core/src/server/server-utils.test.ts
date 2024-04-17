@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { ConfigBuilder } from '@/build/create-global-config';
+import { ConfigBuilder } from '@/build/config-builder';
 import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
-import { ServerUtils } from './server-utils';
+import { ServerUtils } from './server-utils.module';
 
 await ConfigBuilder.create({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),
@@ -10,7 +10,7 @@ await ConfigBuilder.create({
 
 describe('ServerUtils', () => {
   test.each([
-    ['/my-file.controller.js', 'application/javascript'],
+    ['/my-file.controller.js', 'text/javascript'],
     ['/my-file.css', 'text/css'],
     ['/my-file.html', 'text/html'],
     ['/my-file.json', 'application/json'],
@@ -21,7 +21,7 @@ describe('ServerUtils', () => {
     ['/my-file.gif', 'image/gif'],
     ['/my-file.ico', 'image/x-icon'],
     ['/my-file', 'text/plain'],
-  ])('getContentType(%p) should return %p', (ext, expected) => {
-    expect(ServerUtils.getContentType(`file.${ext}`)).toBe(expected);
+  ])('getContentType(%p) should return %p', (filePath, expected) => {
+    expect(ServerUtils.getContentType(filePath)).toBe(expected);
   });
 });

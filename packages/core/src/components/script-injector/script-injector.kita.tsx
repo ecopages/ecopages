@@ -1,4 +1,4 @@
-import { DepsManager } from '@eco-pages/core';
+import { DepsManager } from '@/modules/deps-manager.module';
 import type { ScriptInjectorProps } from './script-injector.script';
 
 export function ScriptInjector({
@@ -8,7 +8,4 @@ export function ScriptInjector({
   return <script-injector {...props}>{children}</script-injector>;
 }
 
-ScriptInjector.dependencies = DepsManager.importPaths({
-  importMeta: import.meta,
-  scripts: ['./script-injector.script.ts'],
-});
+ScriptInjector.dependencies = DepsManager.collect({ importMeta: import.meta });

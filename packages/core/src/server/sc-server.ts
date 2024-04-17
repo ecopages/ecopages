@@ -32,7 +32,7 @@ export class StaticContentServer {
   }
 
   private shouldServeGzip(contentType: ReturnType<typeof ServerUtils.getContentType>) {
-    return !this.options.watchMode && ['application/javascript', 'text/css'].includes(contentType);
+    return !this.options.watchMode && ['text/javascript', 'text/css'].includes(contentType);
   }
 
   private async sendNotFoundPage() {
@@ -96,30 +96,30 @@ export class StaticContentServer {
   }
 
   private getOptions() {
-    return withHtmlLiveReload(
-      {
-        fetch: (request) => {
-          let reqPath = new URL(request.url).pathname;
+    return {
+      fetch: (request: Request) => {
+        let reqPath = new URL(request.url).pathname;
 
-          if (reqPath === '/') reqPath = '/index.html';
+        if (reqPath === '/') reqPath = '/index.html';
 
-          const response = this.serveFromDir({
-            path: reqPath,
-          });
+        const response = this.serveFromDir({
+          path: reqPath,
+        });
 
-          if (response) return response;
+        if (response) return response;
 
-          return new Response('File not found', {
-            status: 404,
-          });
-        },
+        return new Response('File not found', {
+          status: 404,
+        });
       },
-      this.config,
-    );
+    };
   }
 
   private startServer() {
-    this.server = Bun.serve(this.getOptions());
+    if (!this.options.watchMode)
+      this.server = this.options.watchMode
+        ? Bun.serve(withHtmlLiveReload(this.getOptions(), this.config))
+        : Bun.serve(this.getOptions());
   }
 
   stop() {

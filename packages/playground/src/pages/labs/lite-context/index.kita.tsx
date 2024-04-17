@@ -156,7 +156,7 @@ const safeHtml = await codeToHtml(code, {
 export const getMetadata: GetMetadata = () => ({
   title: 'Lite Element',
   description: 'Testing lite element with Kita',
-  image: 'public/assets/images/bun-og.png',
+  image: 'public/assets/images/default-og.png',
   keywords: ['typescript', 'framework', 'static', 'lite-element'],
 });
 

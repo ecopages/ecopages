@@ -3,7 +3,7 @@ import { type PageMetadataProps, addBaseUrlToPathname } from '@eco-pages/core';
 export function Seo({
   title,
   description,
-  image = '/public/assets/images/bun-og.webp',
+  image = '/public/assets/images/default-og.webp',
   url,
   keywords,
 }: PageMetadataProps) {

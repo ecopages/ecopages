@@ -4,7 +4,7 @@ import { DepsManager, type EcoComponent, type GetMetadata } from '@eco-pages/cor
 export const getMetadata: GetMetadata = () => ({
   title: 'Labs page',
   description: 'This is the a page to do experiments',
-  image: 'public/assets/images/bun-og.png',
+  image: 'public/assets/images/default-og.png',
   keywords: ['typescript', 'framework', 'static'],
 });
 

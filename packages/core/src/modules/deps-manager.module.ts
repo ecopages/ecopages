@@ -13,8 +13,6 @@ export type ComponentConfigImportOptions = ComponentConfigOptions & {
 };
 
 /**
- * @method getDistPath
- * @description
  * This method returns the path of the component in the dist folder.
  * @param {ImportMeta} importMeta - The import meta of the component.
  * @param {string} pathUrl - The path of the component.
@@ -29,8 +27,6 @@ function getDistPath(importMeta: ImportMeta, pathUrl: string): string {
 }
 
 /**
- * @method import
- * @description
  * This method imports the dependencies of the components.
  * @param {ComponentConfigImportOptions} options - The options to import the dependencies.
  * @returns {EcoComponent<unknown>["dependencies"]} - The dependencies of the components.
@@ -43,7 +39,7 @@ function importPaths({
 }: ComponentConfigImportOptions): EcoComponent<unknown>['dependencies'] {
   const scriptsPath = [
     ...new Set([
-      ...(scripts?.map((script) => DepsManager.getDistPath(importMeta, script)) || []),
+      ...(scripts?.map((script) => getDistPath(importMeta, script)) || []),
       ...(components?.flatMap((component) => {
         return component.dependencies?.scripts || [];
       }) || []),
@@ -52,7 +48,7 @@ function importPaths({
 
   const stylesheetsPath = [
     ...new Set([
-      ...(stylesheets?.map((style) => DepsManager.getDistPath(importMeta, style)) || []),
+      ...(stylesheets?.map((style) => getDistPath(importMeta, style)) || []),
       ...(components?.flatMap((component) => {
         return component.dependencies?.stylesheets || [];
       }) || []),
@@ -66,8 +62,6 @@ function importPaths({
 }
 
 /**
- * @method collect
- * @description
  * This method collects the dependencies of the components.
  * @param {ComponentConfigOptions} options - The options to collect the dependencies.
  * @returns {EcoComponent<unknown>["dependencies"]} - The dependencies of the components.
@@ -117,8 +111,6 @@ function collect({ importMeta, components = [] }: ComponentConfigOptions): EcoCo
 }
 
 /**
- * @method filter
- * @description
  * This method filters the dependencies of the components.
  * @param {EcoComponent<unknown>} component - The component to filter the dependencies.
  * @param {"scripts" | "stylesheets"} type - The type of the dependencies to filter.
@@ -154,7 +146,6 @@ function extract(component: EcoComponent<unknown>, type: 'scripts' | 'stylesheet
 }
 
 export const DepsManager = {
-  getDistPath,
   importPaths,
   collect,
   filter,

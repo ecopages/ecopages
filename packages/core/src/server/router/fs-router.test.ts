@@ -35,7 +35,7 @@ await router.init();
 describe('FSRouter', async () => {
   describe('init', async () => {
     test('should scan and return routes', async () => {
-      expect(Object.keys(router.routes).length).toBe(3);
+      expect(Object.keys(router.routes).length).toBe(4);
     });
   });
 

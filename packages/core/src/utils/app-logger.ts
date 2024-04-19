@@ -44,9 +44,9 @@ export class Logger {
         }[level.level]
       : '';
 
-    const message = args.map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : arg)).join(' ');
+    const message = args.map((arg) => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg)).join(' ');
 
-    const log = `${colorCode ? colorCode : ''} ${this.prefix} ${level ? `${level.level}: ` : ''}${message}\x1b[0m`;
+    const log = `${colorCode ? colorCode : ''} ${this.prefix} ${message}\x1b[0m`;
 
     console.log(log);
   }

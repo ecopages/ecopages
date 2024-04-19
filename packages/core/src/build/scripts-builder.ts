@@ -1,6 +1,6 @@
-import { appLogger } from "@/utils/app-logger";
-import type { EcoPagesConfig } from "@types";
-import { FileUtils } from "@/utils/file-utils.module";
+import { appLogger } from '@/utils/app-logger';
+import { FileUtils } from '@/utils/file-utils.module';
+import type { EcoPagesConfig } from '@types';
 
 type ScriptsBuilderOptions = {
   watchMode: boolean;
@@ -17,18 +17,22 @@ export class ScriptsBuilder {
   async build() {
     const { srcDir, distDir, scriptDescriptor } = this.config;
 
-    const scripts = await FileUtils.glob(`${srcDir}/**/*.${scriptDescriptor}.{ts,tsx}`, {cwd: "."});
+    const scripts = await FileUtils.glob(`${srcDir}/**/*.${scriptDescriptor}.{ts,tsx}`, { cwd: '.' });
 
     const build = await Bun.build({
       entrypoints: scripts,
       outdir: distDir,
       root: srcDir,
-      target: "browser",
+      target: 'browser',
       minify: !this.options.watchMode,
-      format: "esm",
+      format: 'esm',
       splitting: true,
     });
 
-    if (!build.success) build.logs.forEach((log) => appLogger.debug(log));
+    if (!build.success) {
+      for (const log of build.logs) {
+        appLogger.debug(log);
+      }
+    }
   }
 }

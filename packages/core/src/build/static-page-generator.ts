@@ -1,7 +1,8 @@
-import path from "node:path";
-import { FileSystemServer } from "@/server/fs-server";
-import { FileUtils } from "@/utils/file-utils.module";
-import type { EcoPagesConfig } from "@types";
+import path from 'node:path';
+import { FileSystemServer } from '@/server/fs-server';
+import { appLogger } from '@/utils/app-logger';
+import { FileUtils } from '@/utils/file-utils.module';
+import type { EcoPagesConfig } from '@types';
 
 export class StaticPageGenerator {
   config: EcoPagesConfig;
@@ -11,22 +12,18 @@ export class StaticPageGenerator {
   }
 
   generateRobotsTxt(): void {
-    let data = "";
+    let data = '';
     const preferences = this.config.robotsTxt.preferences;
 
     for (const userAgent in preferences) {
       data += `user-agent: ${userAgent}\n`;
-      preferences[userAgent].forEach((path) => {
+      for (const path of preferences[userAgent]) {
         data += `disallow: ${path}\n`;
-      });
-      data += "\n";
+      }
+      data += '\n';
     }
 
-    try {
-      FileUtils.writeFileSync(this.config.distDir + "/robots.txt", data);
-    } catch (err) {
-      console.error("Failed to write robots.txt file: ", err);
-    }
+    FileUtils.writeFileSync(`${this.config.distDir}/robots.txt`, data);
   }
 
   async generateStaticPages() {
@@ -34,7 +31,9 @@ export class StaticPageGenerator {
       watchMode: false,
     });
 
-    const routes = Object.keys(router.routes).filter((route) => !route.includes("["));
+    const routes = Object.keys(router.routes).filter((route) => !route.includes('['));
+
+    appLogger.debug('Static Pages', routes);
 
     for (const route of routes) {
       try {
@@ -47,16 +46,11 @@ export class StaticPageGenerator {
 
         let pathname = router.routes[route].pathname;
 
-        if (router.routes[route].pathname.includes("[")) {
-          pathname = route.replace(router.origin, "");
+        if (router.routes[route].pathname.includes('[')) {
+          pathname = route.replace(router.origin, '');
         }
 
-        const filePath = path.join(
-          this.config.rootDir,
-          this.config.distDir,
-          pathname,
-          "index.html"
-        );
+        const filePath = path.join(this.config.rootDir, this.config.distDir, pathname, 'index.html');
 
         const contents = await response.text();
 

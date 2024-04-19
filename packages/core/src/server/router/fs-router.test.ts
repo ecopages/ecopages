@@ -46,7 +46,6 @@ describe('FSRouter', async () => {
       ['/products/[id]', '/products/123/456/789', { id: '123' }],
     ])('dynamic route %p with URL %p should have dynamic params %p', async (dynamicPathname, pathname, expected) => {
       const route: Route = {
-        src: '',
         filePath: '',
         kind: 'dynamic',
         pathname: dynamicPathname,
@@ -62,7 +61,6 @@ describe('FSRouter', async () => {
       ['/products/[...id]', '/products', { id: [] }],
     ])('catch-all route %p with URL %p should have dynamic params %p', async (catchAllRoute, pathname, expected) => {
       const route: Route = {
-        src: '',
         filePath: '',
         kind: 'dynamic',
         pathname: catchAllRoute,

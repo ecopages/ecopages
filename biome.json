@@ -24,7 +24,6 @@
 		"ignore": [
 			"node_modules",
 			"dist",
-			"build",
 			"out",
 			"coverage",
 			".nyc_output",
@@ -48,6 +47,11 @@
 			"jsxQuoteStyle": "double",
 			"quoteProperties": "asNeeded",
 			"arrowParentheses": "always"
+		}
+	},
+	"json": {
+		"formatter": {
+			"trailingCommas": "none"
 		}
 	}
 }

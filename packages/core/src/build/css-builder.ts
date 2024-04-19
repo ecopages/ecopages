@@ -1,6 +1,6 @@
-import fs from "node:fs";
-import type { CssProcessor, EcoPagesConfig } from "@types";
-import { FileUtils } from "@/utils/file-utils.module";
+import fs from 'node:fs';
+import { FileUtils } from '@/utils/file-utils.module';
+import type { CssProcessor, EcoPagesConfig } from '@types';
 
 export class CssBuilder {
   processor: CssProcessor;
@@ -16,7 +16,7 @@ export class CssBuilder {
     const content = await this.processor.process(path);
 
     const outputFileName = path.replace(srcDir, distDir);
-    const directory = outputFileName.split("/").slice(0, -1).join("/");
+    const directory = outputFileName.split('/').slice(0, -1).join('/');
 
     if (!fs.existsSync(directory)) {
       fs.mkdirSync(directory, { recursive: true });
@@ -27,7 +27,7 @@ export class CssBuilder {
 
   async build() {
     const { srcDir } = this.config;
-    const cssFiles = await FileUtils.glob(`${srcDir}/**/*.css`, { cwd: "." });
+    const cssFiles = await FileUtils.glob(`${srcDir}/**/*.css`, { cwd: '.' });
     for (const path of cssFiles) {
       await this.buildCssFromPath({ path });
     }

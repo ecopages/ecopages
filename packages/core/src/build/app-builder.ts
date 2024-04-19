@@ -1,17 +1,21 @@
-import { exec } from "node:child_process";
-import path from "node:path";
-import { CssBuilder } from "@/build/css-builder";
-import { ScriptsBuilder } from "@/build/scripts-builder";
-import { ProjectWatcher } from "@/build/watcher";
-import { FileSystemServer } from "@/server/fs-server";
-import { StaticContentServer } from "@/server/sc-server";
-import { FileUtils } from "@/utils/file-utils.module";
-import { PostCssProcessor } from "./postcss-processor";
-import { appLogger } from "@/utils/app-logger";
-import type { StaticPageGenerator } from "./static-page-generator";
-import type { EcoPagesConfig } from "@types";
-import "@/global/console";
-import "@/global/utils";
+import { exec } from 'node:child_process';
+import path from 'node:path';
+
+import '@/global/console';
+import '@/global/utils';
+
+import { CssBuilder } from '@/build/css-builder';
+import { PostCssProcessor } from '@/build/postcss-processor';
+import { ScriptsBuilder } from '@/build/scripts-builder';
+import { ProjectWatcher } from '@/build/watcher';
+import { FileSystemServer } from '@/server/fs-server';
+import { StaticContentServer } from '@/server/sc-server';
+import { appLogger } from '@/utils/app-logger';
+import { FileUtils } from '@/utils/file-utils.module';
+
+import type { EcoPagesConfig } from '@types';
+import type { Server } from 'bun';
+import type { StaticPageGenerator } from './static-page-generator';
 
 type AppBuilderOptions = {
   watch: boolean;
@@ -66,11 +70,7 @@ export class AppBuilder {
     input: string;
     output: string;
   }) {
-    exec(
-      `bunx tailwindcss -i ${input} -o ${output} ${watch ? "--watch" : ""} ${
-        minify ? "--minify" : ""
-      }`
-    );
+    exec(`bunx tailwindcss -i ${input} -o ${output} ${watch ? '--watch' : ''} ${minify ? '--minify' : ''}`);
   }
 
   private async runDevServer() {
@@ -100,7 +100,7 @@ export class AppBuilder {
     const watcherInstance = new ProjectWatcher(cssBuilder, scriptsBuilder);
     const subscription = await watcherInstance.createWatcherSubscription();
 
-    process.on("SIGINT", async () => {
+    process.on('SIGINT', async () => {
       await subscription.unsubscribe();
       process.exit(0);
     });
@@ -109,14 +109,15 @@ export class AppBuilder {
   async buildStatic() {
     await this.staticPageGenerator.run();
     if (this.options.build) {
-      appLogger.info("Build completed");
+      appLogger.info('Build completed');
       process.exit(0);
     }
 
     const { server } = StaticContentServer.create({
       watchMode: this.options.watch,
     });
-    appLogger.info(`Preview running at http://localhost:${server!.port}`);
+
+    appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
   }
 
   async run() {
@@ -139,7 +140,7 @@ export class AppBuilder {
       return await this.watch();
     }
 
-    FileUtils.gzipDirSync(distDir, ["css", "js"]);
+    FileUtils.gzipDirSync(distDir, ['css', 'js']);
 
     if (this.options.serve) {
       return await this.serve();

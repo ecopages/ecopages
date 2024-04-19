@@ -1,7 +1,9 @@
 import path from 'node:path';
-import type { EcoPageFile, GetStaticPaths } from '@/eco-pages';
+import type { EcoPageFile, GetStaticPaths, GetStaticProps } from '@/eco-pages';
+import { invariant } from '@/global/utils';
+import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
-import type { Routes } from './fs-router';
+import type { RouteKind, Routes } from './fs-router';
 
 type CreateRouteArgs = {
   routePath: string;
@@ -48,10 +50,6 @@ export class FSRouterScanner {
     this.options = options;
   }
 
-  private getGlobTemplatePattern() {
-    return `**/*{${this.templatesExt.join(',')}}`;
-  }
-
   private getRoutePath(path: string): string {
     const cleanedRoute = this.templatesExt
       .reduce((route, ext) => route.replace(ext, ''), path)
@@ -64,17 +62,18 @@ export class FSRouterScanner {
     return matches ? matches.map((match) => match.slice(1, -1)) : [];
   }
 
-  private async createStaticDynamicRoute({
-    filePath,
+  private async getStaticPathsFromDynamicRoute({
     route,
-    routePath,
+    filePath,
     getStaticPaths,
-  }: CreateRouteArgs & { getStaticPaths: GetStaticPaths }): Promise<void> {
+  }: {
+    route: string;
+    filePath: string;
+    getStaticPaths: GetStaticPaths;
+  }): Promise<string[]> {
     const staticPaths = await getStaticPaths();
-
-    const dynamicParamsNames = this.getDynamicParamsNames(route);
-
-    const routesWithParams = staticPaths.paths.map((path) => {
+    return staticPaths.paths.map((path) => {
+      const dynamicParamsNames = this.getDynamicParamsNames(filePath);
       let routeWithParams = route;
 
       for (const param of dynamicParamsNames) {
@@ -83,57 +82,48 @@ export class FSRouterScanner {
 
       return routeWithParams;
     });
+  }
 
-    for (const routeWithParams of routesWithParams) {
-      this.routes[routeWithParams] = {
-        kind: 'dynamic',
-        src: routeWithParams,
-        pathname: routePath,
-        filePath,
-      };
+  private async createStaticRoutes({
+    filePath,
+    route,
+    routePath,
+    getStaticPaths,
+  }: CreateRouteArgs & { getStaticPaths: GetStaticPaths }): Promise<void> {
+    this.getStaticPathsFromDynamicRoute({ route, filePath, getStaticPaths })
+      .then((routesWithParams) => {
+        for (const routeWithParams of routesWithParams) {
+          this.createRoute('dynamic', { filePath, route: routeWithParams, routePath });
+        }
+      })
+      .catch((error) => {
+        appLogger.error(error);
+      });
+  }
+
+  private async handleDynamicRouteCreation({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {
+    const { getStaticPaths, getStaticProps }: EcoPageFile = await import(filePath);
+
+    if (this.options.buildMode) {
+      invariant(getStaticProps, `[eco-pages] Missing getStaticProps in ${filePath}`);
+      invariant(getStaticPaths, `[eco-pages] Missing getStaticPaths in ${filePath}`);
     }
-  }
-
-  private createSSRDynamicRoute({ filePath, route, routePath }: CreateRouteArgs): void {
-    this.routes[route] = {
-      kind: 'dynamic',
-      src: `${this.origin}${routePath}`,
-      pathname: routePath,
-      filePath,
-    };
-  }
-
-  private async createDynamicRoute({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {
-    const { getStaticPaths, getStaticProps } = (await import(filePath)) as EcoPageFile;
-
-    if (this.options.buildMode && !getStaticProps) throw new Error(`[eco-pages] Missing getStaticProps in ${filePath}`);
-    if (this.options.buildMode && !getStaticPaths) throw new Error(`[eco-pages] Missing getStaticPaths in ${filePath}`);
 
     if (getStaticPaths) {
-      return this.createStaticDynamicRoute({
+      return this.createStaticRoutes({
         filePath,
         route,
         routePath,
-        getStaticPaths: getStaticPaths as GetStaticPaths,
+        getStaticPaths,
       });
     }
 
-    return this.createSSRDynamicRoute({ filePath, route, routePath });
+    return this.createRoute('dynamic', { filePath, route, routePath });
   }
 
-  private createCatchAllRoute({ filePath, route, routePath }: CreateRouteArgs): void {
+  private createRoute(kind: RouteKind, { filePath, route, routePath }: CreateRouteArgs): void {
     this.routes[route] = {
-      kind: 'catch-all',
-      src: `${this.origin}${routePath}`,
-      pathname: routePath,
-      filePath,
-    };
-  }
-
-  private async createExactRoute({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {
-    this.routes[route] = {
-      kind: 'exact',
-      src: `${this.origin}${routePath}`,
+      kind,
       pathname: routePath,
       filePath,
     };
@@ -143,27 +133,31 @@ export class FSRouterScanner {
     const routePath = this.getRoutePath(file);
     const route = `${this.origin}${routePath}`;
     const filePath = path.join(this.dir, file);
-    const isDynamic = filePath.includes('[') && filePath.includes(']');
     const isCatchAll = filePath.includes('[...');
+    const isDynamic = !isCatchAll && filePath.includes('[') && filePath.includes(']');
+    const kind: RouteKind = isCatchAll ? 'catch-all' : isDynamic ? 'dynamic' : 'exact';
 
-    return { route, routePath, filePath, isDynamic, isCatchAll };
+    return { route, routePath, filePath, kind };
   }
 
   async scan() {
-    const scannedFiles = await FileUtils.glob(this.getGlobTemplatePattern(), { cwd: this.dir });
+    const scannedFiles = await FileUtils.glob(`**/*{${this.templatesExt.join(',')}}`, { cwd: this.dir });
 
     for await (const file of scannedFiles) {
-      const { isCatchAll, isDynamic, ...routeData } = this.getRouteData(file);
+      const { kind, ...routeData } = this.getRouteData(file);
 
-      switch (true) {
-        case isCatchAll:
-          this.createCatchAllRoute(routeData);
+      switch (kind) {
+        case 'dynamic':
+          await this.handleDynamicRouteCreation(routeData);
           break;
-        case isDynamic:
-          await this.createDynamicRoute(routeData);
+        case 'catch-all':
+          if (this.options.buildMode) {
+            appLogger.warn(`Catch-all routes are not supported in static generation: ${routeData.filePath}`);
+          }
+          this.createRoute(kind, routeData);
           break;
         default:
-          await this.createExactRoute(routeData);
+          this.createRoute(kind, routeData);
           break;
       }
     }

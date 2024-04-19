@@ -1,23 +1,19 @@
 import type { FSRouterScanner } from './fs-router-scanner';
 
-export type MatchKind = 'exact' | 'catch-all' | 'dynamic';
+export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
 
 export type MatchResult = {
   filePath: string;
-  kind: MatchKind;
+  kind: RouteKind;
   pathname: string;
   query?: Record<string, string>;
   params?: Record<string, string | string[]>;
 };
 
 export type Route = {
-  kind: MatchKind;
+  kind: RouteKind;
   filePath: string;
   pathname: string;
-  /**
-   * @todo delete?
-   */
-  src: string;
 };
 
 export type Routes = Record<string, Route>;

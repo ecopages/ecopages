@@ -1,36 +1,35 @@
-import fs from "node:fs";
-import path from "node:path";
-import type { EcoPagesConfig, EcoPagesConfigInput } from "@types";
+import fs from 'node:fs';
+import path from 'node:path';
+import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
 
 export class ConfigBuilder {
   config: EcoPagesConfig;
 
-  static defaultConfig: Omit<EcoPagesConfig, "baseUrl" | "tsAliases" | "absolutePaths" | "serve"> =
-    {
-      rootDir: ".",
-      srcDir: "src",
-      pagesDir: "pages",
-      globalDir: "global",
-      includesDir: "includes",
-      componentsDir: "components",
-      layoutsDir: "layouts",
-      publicDir: "public",
-      includesTemplates: {
-        head: "head.kita.tsx",
-        html: "html.kita.tsx",
-        seo: "seo.kita.tsx",
+  static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'tsAliases' | 'absolutePaths' | 'serve'> = {
+    rootDir: '.',
+    srcDir: 'src',
+    pagesDir: 'pages',
+    globalDir: 'global',
+    includesDir: 'includes',
+    componentsDir: 'components',
+    layoutsDir: 'layouts',
+    publicDir: 'public',
+    includesTemplates: {
+      head: 'head.kita.tsx',
+      html: 'html.kita.tsx',
+      seo: 'seo.kita.tsx',
+    },
+    error404Template: '404.kita.tsx',
+    robotsTxt: {
+      preferences: {
+        '*': [],
+        Googlebot: ['/public/'],
       },
-      error404Template: "404.kita.tsx",
-      robotsTxt: {
-        preferences: {
-          "*": [],
-          Googlebot: ["/public/"],
-        },
-      },
-      distDir: ".eco",
-      scriptDescriptor: "script",
-      templatesExt: [".kita.tsx", ".lit.tsx"],
-    };
+    },
+    distDir: '.eco',
+    scriptDescriptor: 'script',
+    templatesExt: ['.kita.tsx', '.lit.tsx'],
+  };
 
   constructor({
     projectDir,
@@ -52,10 +51,7 @@ export class ConfigBuilder {
     globalThis.ecoConfig = this.config;
   }
 
-  getAbsolutePaths(
-    projectDir: string,
-    config: Omit<EcoPagesConfig, "absolutePaths">
-  ): EcoPagesConfig["absolutePaths"] {
+  getAbsolutePaths(projectDir: string, config: Omit<EcoPagesConfig, 'absolutePaths'>): EcoPagesConfig['absolutePaths'] {
     const {
       srcDir,
       componentsDir,
@@ -89,7 +85,7 @@ export class ConfigBuilder {
 
   static async create({ projectDir }: { projectDir: string }): Promise<EcoPagesConfig> {
     if (!fs.existsSync(`${projectDir}/eco.config.ts`)) {
-      throw new Error("eco.config.ts not found, please provide a valid config file.");
+      throw new Error('eco.config.ts not found, please provide a valid config file.');
     }
 
     const { default: customConfig } = await import(`${projectDir}/eco.config.ts`);

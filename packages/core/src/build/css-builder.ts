@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import type { CssProcessor, EcoPagesConfig } from "@types";
-import { Glob } from "bun";
+import { FileUtils } from "@/utils/file-utils.module";
 
 export class CssBuilder {
   processor: CssProcessor;
@@ -27,9 +27,7 @@ export class CssBuilder {
 
   async build() {
     const { srcDir } = this.config;
-    const glob = new Glob(`${srcDir}/**/*.css`);
-    const scannedFiles = glob.scanSync({ cwd: "." });
-    const cssFiles = Array.from(scannedFiles);
+    const cssFiles = await FileUtils.glob(`${srcDir}/**/*.css`, { cwd: "." });
     for (const path of cssFiles) {
       await this.buildCssFromPath({ path });
     }

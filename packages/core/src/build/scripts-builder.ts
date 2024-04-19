@@ -1,6 +1,6 @@
-import { Glob } from "bun";
 import { appLogger } from "@/utils/app-logger";
 import type { EcoPagesConfig } from "@types";
+import { FileUtils } from "@/utils/file-utils.module";
 
 type ScriptsBuilderOptions = {
   watchMode: boolean;
@@ -16,9 +16,8 @@ export class ScriptsBuilder {
 
   async build() {
     const { srcDir, distDir, scriptDescriptor } = this.config;
-    const glob = new Glob(`${srcDir}/**/*.${scriptDescriptor}.{ts,tsx}`);
-    const scannedFiles = glob.scanSync({ cwd: "." });
-    const scripts = Array.from(scannedFiles);
+
+    const scripts = await FileUtils.glob(`${srcDir}/**/*.${scriptDescriptor}.{ts,tsx}`, {cwd: "."});
 
     const build = await Bun.build({
       entrypoints: scripts,

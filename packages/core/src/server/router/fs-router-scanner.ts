@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { EcoPageFile, GetStaticPaths } from '@/eco-pages';
+import { FileUtils } from '@/utils/file-utils.module';
 import type { Routes } from './fs-router';
 
 type CreateRouteArgs = {
@@ -56,11 +57,6 @@ export class FSRouterScanner {
       .reduce((route, ext) => route.replace(ext, ''), path)
       .replace(/\/?index$/, '');
     return `/${cleanedRoute}`;
-  }
-
-  private async getFiles() {
-    const glob = new Bun.Glob(this.getGlobTemplatePattern());
-    return await Array.fromAsync(glob.scan({ cwd: this.dir }));
   }
 
   private getDynamicParamsNames(route: string): string[] {
@@ -154,7 +150,7 @@ export class FSRouterScanner {
   }
 
   async scan() {
-    const scannedFiles = await this.getFiles();
+    const scannedFiles = await FileUtils.glob(this.getGlobTemplatePattern(), { cwd: this.dir });
 
     for await (const file of scannedFiles) {
       const { isCatchAll, isDynamic, ...routeData } = this.getRouteData(file);

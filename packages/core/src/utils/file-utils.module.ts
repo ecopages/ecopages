@@ -1,7 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, writeFileSync } from 'node:fs';
 import { extname } from 'node:path';
-import type { BunFile } from 'bun';
-import { appLogger } from './app-logger';
+import type { BunFile, GlobScanOptions } from 'bun';
 
 async function get(path: string | URL) {
   const file = Bun.file(path);
@@ -60,8 +59,17 @@ async function writeStream(path: string, stream: ReadableStream) {
   await Bun.write(path, response);
 }
 
+async function glob(
+  pattern: string,
+  scanOptions: string | GlobScanOptions = { cwd: process.cwd() },
+): Promise<string[]> {
+  const glob = new Bun.Glob(pattern);
+  return await Array.fromAsync(glob.scan(scanOptions));
+}
+
 export const FileUtils = {
   get,
+  glob,
   getPathAsString,
   write,
   ensureFolderExists,

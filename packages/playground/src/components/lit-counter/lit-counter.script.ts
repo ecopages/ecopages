@@ -1,5 +1,6 @@
+import { StyledMixin } from '@/lib/lit/styled-mixin';
 import { postcssMacroProcessor } from '@eco-pages/core' with { type: 'macro' };
-import { LitElement, html, unsafeCSS } from 'lit';
+import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
 const processedStyles = await postcssMacroProcessor('@/components/lit-counter/lit-counter.css');
@@ -9,9 +10,7 @@ export type LitCounterProps = {
 };
 
 @customElement('lit-counter')
-export class LitCounter extends LitElement {
-  static override styles = [unsafeCSS(processedStyles)];
-
+export class LitCounter extends StyledMixin(LitElement, [processedStyles]) {
   @property({ type: Number }) count = 0;
 
   decrement() {

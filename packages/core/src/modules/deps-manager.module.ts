@@ -20,8 +20,7 @@ export type ComponentConfigImportOptions = ComponentConfigOptions & {
  */
 function getDistPath(importMeta: ImportMeta, pathUrl: string): string {
   const { ecoConfig: config } = globalThis;
-  const isJsx = pathUrl.includes('.tsx') || pathUrl.includes('.jsx');
-  const safeFileName = pathUrl.replace(isJsx ? '.tsx' : '.ts', '.js');
+  const safeFileName = pathUrl.replace(/\.(ts|tsx|jsx)$/, '.js');
   const distUrl = importMeta.url.split(config.srcDir)[1].split(importMeta.file)[0];
   return path.join(distUrl, safeFileName);
 }
@@ -77,8 +76,7 @@ function collect({ importMeta, components = [] }: ComponentConfigOptions): EcoCo
   const dependenciesServerPath = importMeta.dir.split('src/')[1];
 
   const dependencies = dependenciesFileName.map((fileName) => {
-    const isJsx = fileName.includes('.tsx') || fileName.includes('.jsx');
-    const safeFileName = fileName.replace(isJsx ? '.tsx' : '.ts', '.js');
+    const safeFileName = fileName.replace(/\.(ts|tsx|jsx)$/, '.js');
     return `/${dependenciesServerPath}/${safeFileName}`;
   });
 

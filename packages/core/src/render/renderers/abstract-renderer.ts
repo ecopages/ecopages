@@ -19,7 +19,7 @@ export abstract class AbstractRenderer {
     const endIndex = file.lastIndexOf('/');
     const path = file.substring(startIndex, endIndex);
     if (path === '/index') return '';
-    return 'iui';
+    return path;
   }
 
   protected async getHtmlTemplate() {

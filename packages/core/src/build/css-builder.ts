@@ -13,7 +13,7 @@ export class CssBuilder {
 
   async buildCssFromPath({ path }: { path: string }) {
     const { srcDir, distDir } = this.config;
-    const content = await this.processor.process(path);
+    const content = await this.processor.processPath(path);
 
     const outputFileName = path.replace(srcDir, distDir);
     const directory = outputFileName.split('/').slice(0, -1).join('/');

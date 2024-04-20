@@ -5,11 +5,10 @@ import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
 export class ConfigBuilder {
   config: EcoPagesConfig;
 
-  static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'tsAliases' | 'absolutePaths' | 'serve'> = {
+  static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'absolutePaths' | 'serve'> = {
     rootDir: '.',
     srcDir: 'src',
     pagesDir: 'pages',
-    globalDir: 'global',
     includesDir: 'includes',
     componentsDir: 'components',
     layoutsDir: 'layouts',
@@ -25,6 +24,9 @@ export class ConfigBuilder {
         '*': [],
         Googlebot: ['/public/'],
       },
+    },
+    tailwind: {
+      input: 'styles/tailwind.css',
     },
     distDir: '.eco',
     scriptDescriptor: 'script',
@@ -55,7 +57,6 @@ export class ConfigBuilder {
     const {
       srcDir,
       componentsDir,
-      globalDir,
       includesDir,
       layoutsDir,
       pagesDir,
@@ -73,7 +74,6 @@ export class ConfigBuilder {
       srcDir: absoluteSrcDir,
       distDir: absoluteDistDir,
       componentsDir: path.join(absoluteSrcDir, componentsDir),
-      globalDir: path.join(absoluteSrcDir, globalDir),
       includesDir: path.join(absoluteSrcDir, includesDir),
       layoutsDir: path.join(absoluteSrcDir, layoutsDir),
       pagesDir: path.join(absoluteSrcDir, pagesDir),

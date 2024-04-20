@@ -35,11 +35,6 @@ export type EcoPagesConfig = {
    */
   pagesDir: string;
   /**
-   * The directory where the global components are located
-   * @default "global"
-   */
-  globalDir: string;
-  /**
    * The directory where the includes templates are located
    * @default "includes"
    */
@@ -69,7 +64,7 @@ export type EcoPagesConfig = {
   distDir: string;
   /**
    * The template engines
-   * @default [".kita.tsx"]
+   * @default [".kita.tsx",".lit.tsx"]
    */
   templatesExt: string[];
   /**
@@ -93,17 +88,16 @@ export type EcoPagesConfig = {
      */
     preferences: RobotsPreference;
   };
-  /**
-   * The TypeScript aliases
-   */
-  tsAliases?: {
-    baseUrl: string;
-    paths: Record<string, string[]>;
+  tailwind: {
+    /**
+     * The input file for tailwind relative to the src directory
+     * @default "styles/tailwind.css"
+     */
+    input: string;
   };
   /** Derived Paths */
   absolutePaths: {
     componentsDir: string;
-    globalDir: string;
     distDir: string;
     includesDir: string;
     layoutsDir: string;
@@ -116,7 +110,7 @@ export type EcoPagesConfig = {
   };
 };
 
-export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, 'baseUrl' | 'derivedPaths' | 'tsAliases'> &
+export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, 'baseUrl' | 'derivedPaths'> &
   Pick<EcoPagesConfig, 'baseUrl'>;
 
 export type EcoComponentDependencies = {
@@ -191,5 +185,6 @@ export type EcoPageFile = {
 };
 
 export interface CssProcessor {
-  process(path: string): Promise<string>;
+  processPath: (path: string) => Promise<string>;
+  processString: (contents: string) => Promise<string>;
 }

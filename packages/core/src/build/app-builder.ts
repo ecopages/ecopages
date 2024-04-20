@@ -6,13 +6,13 @@ import '@/global/utils';
 
 import { CssBuilder } from '@/build/css-builder';
 import { PostCssProcessor } from '@/build/postcss-processor';
-import { ScriptsBuilder } from '@/build/scripts-builder';
 import { ProjectWatcher } from '@/build/watcher';
 import { FileSystemServer } from '@/server/fs-server';
 import { StaticContentServer } from '@/server/sc-server';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 
+import type { ScriptsBuilder } from '@/build/scripts-builder';
 import type { EcoPagesConfig } from '@types';
 import type { Server } from 'bun';
 import type { StaticPageGenerator } from './static-page-generator';
@@ -59,17 +59,12 @@ export class AppBuilder {
     FileUtils.copyDirSync(path.join(srcDir, publicDir), path.join(distDir, publicDir));
   }
 
-  execTailwind({
-    minify,
-    watch,
-    input,
-    output,
-  }: {
-    minify: boolean;
-    watch: boolean;
-    input: string;
-    output: string;
-  }) {
+  execTailwind() {
+    const { srcDir, distDir, tailwind } = this.config;
+    const input = `${srcDir}/${tailwind.input}`;
+    const output = `${distDir}/${tailwind.input}`;
+    const watch = this.options.watch;
+    const minify = !watch;
     exec(`bunx tailwindcss -i ${input} -o ${output} ${watch ? '--watch' : ''} ${minify ? '--minify' : ''}`);
   }
 
@@ -88,16 +83,11 @@ export class AppBuilder {
     this.runDevServer();
 
     const cssBuilder = new CssBuilder({
-      processor: new PostCssProcessor(),
-      config: globalThis.ecoConfig,
+      processor: PostCssProcessor,
+      config: this.config,
     });
 
-    const scriptsBuilder = new ScriptsBuilder({
-      config: globalThis.ecoConfig,
-      options: { watchMode: true },
-    });
-
-    const watcherInstance = new ProjectWatcher(cssBuilder, scriptsBuilder);
+    const watcherInstance = new ProjectWatcher(cssBuilder, this.scriptsBuilder);
     const subscription = await watcherInstance.createWatcherSubscription();
 
     process.on('SIGINT', async () => {
@@ -121,17 +111,12 @@ export class AppBuilder {
   }
 
   async run() {
-    const { srcDir, globalDir, distDir } = this.config;
+    const { srcDir, distDir, tailwind } = this.config;
 
     this.prepareDistDir();
     this.copyPublicDir();
 
-    this.execTailwind({
-      minify: !this.options.watch,
-      watch: this.options.watch,
-      input: `${srcDir}/${globalDir}/css/tailwind.css`,
-      output: `${distDir}/${globalDir}/css/tailwind.css`,
-    });
+    this.execTailwind();
 
     await this.cssBuilder.build();
     await this.scriptsBuilder.build();

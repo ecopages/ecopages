@@ -152,7 +152,10 @@ export class FSRouterScanner {
           break;
         case 'catch-all':
           if (this.options.buildMode) {
-            appLogger.warn(`Catch-all routes are not supported in static generation: ${routeData.filePath}`);
+            appLogger.warn(
+              'Catch-all routes are not supported in static generation, they will not be included in the bundle\n',
+              `➤ ${routeData.filePath}`,
+            );
           }
           this.createRoute(kind, routeData);
           break;

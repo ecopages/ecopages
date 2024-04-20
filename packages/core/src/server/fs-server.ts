@@ -152,7 +152,7 @@ export class FileSystemServer {
 
     const scanner = new FSRouterScanner({
       dir: path.join(ecoConfig.rootDir, ecoConfig.srcDir, ecoConfig.pagesDir),
-      origin: 'http://localhost:3000',
+      origin: ecoConfig.baseUrl,
       templatesExt: ecoConfig.templatesExt,
       options: {
         buildMode: !options.watchMode,
@@ -160,7 +160,7 @@ export class FileSystemServer {
     });
 
     const router = new FSRouter({
-      origin: 'http://localhost:3000',
+      origin: ecoConfig.baseUrl,
       assetPrefix: path.join(ecoConfig.rootDir, ecoConfig.distDir),
       scanner,
     });

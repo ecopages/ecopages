@@ -43,7 +43,7 @@ const config = await ConfigBuilder.create({
 const ecoPages = new AppBuilder({
   config,
   staticPageGenerator: new StaticPageGenerator(config),
-  cssBuilder: new CssBuilder({ processor: new PostCssProcessor(), config }),
+  cssBuilder: new CssBuilder({ processor: PostCssProcessor, config }),
   scriptsBuilder: new ScriptsBuilder({
     config,
     options: { watchMode: values.watch as boolean },

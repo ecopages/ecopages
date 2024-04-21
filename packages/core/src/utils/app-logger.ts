@@ -46,7 +46,7 @@ export class Logger {
 
     const message = args.map((arg) => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg)).join(' ');
 
-    const log = `${colorCode ? colorCode : ''} ${this.prefix} ${message}\x1b[0m`;
+    const log = `${colorCode ? colorCode : ''}${this.prefix} ${message}\x1b[0m`;
 
     console.log(log);
   }

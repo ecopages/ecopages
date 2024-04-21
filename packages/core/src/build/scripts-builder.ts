@@ -1,8 +1,6 @@
-import { bunPluginInlineImport } from '@/plugins/plugin-inline-import';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
-import { PostCssProcessor } from './postcss-processor';
 
 type ScriptsBuilderOptions = {
   watchMode: boolean;
@@ -21,6 +19,8 @@ export class ScriptsBuilder {
 
     const scripts = await FileUtils.glob(`${srcDir}/**/*.${scriptDescriptor}.{ts,tsx}`, { cwd: '.' });
 
+    appLogger.debug('Building scripts:', scripts);
+
     const build = await Bun.build({
       entrypoints: scripts,
       outdir: distDir,
@@ -29,7 +29,6 @@ export class ScriptsBuilder {
       minify: !this.options.watchMode,
       format: 'esm',
       splitting: true,
-      // plugins: [bunPluginInlineImport({ filter: /\.shadow.css$/, transform: PostCssProcessor.processString })],
     });
 
     if (!build.success) {

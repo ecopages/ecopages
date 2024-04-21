@@ -1,8 +1,6 @@
-import { postcssMacroProcessor } from '@eco-pages/core' with { type: 'macro' };
 import { LitElement, html, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-
-const processedStyles = await postcssMacroProcessor('@/components/lit-counter/lit-counter.css');
+import styles from './lit-counter.shadow.css';
 
 export type LitCounterProps = {
   count?: number;
@@ -10,7 +8,7 @@ export type LitCounterProps = {
 
 @customElement('lit-counter')
 export class LitCounter extends LitElement {
-  static override styles = [unsafeCSS(processedStyles)];
+  static override styles = [unsafeCSS(styles)];
 
   @property({ type: Number }) count = 0;
 

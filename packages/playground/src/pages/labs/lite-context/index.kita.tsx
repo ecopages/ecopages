@@ -160,11 +160,6 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static', 'lite-element'],
 });
 
-const dependencies = DepsManager.collect({
-  importMeta: import.meta,
-  components: [BaseLayout, LiteContextDemo, LiteContextDemoVisualizer, LiteContextDemoEditor],
-});
-
 const LiteElement: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
@@ -179,6 +174,9 @@ const LiteElement: EcoComponent = () => {
   );
 };
 
-LiteElement.dependencies = dependencies;
+LiteElement.dependencies = DepsManager.collect({
+  importMeta: import.meta,
+  components: [BaseLayout, LiteContextDemo, LiteContextDemoVisualizer, LiteContextDemoEditor],
+});
 
 export default LiteElement;

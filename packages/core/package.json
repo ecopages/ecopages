@@ -8,10 +8,14 @@
 	"exports": {
 		".": "./src/index.ts"
 	},
+	"scripts": {
+		"test-shadow": "bun ./test.shadow.ts"
+	},
 	"dependencies": {
 		"@kitajs/html": "^4.1.0",
 		"@kitajs/ts-html-plugin": "^4.0.1",
 		"@parcel/watcher": "^2.4.0",
+		"@mdx-js/esbuild": "^3.0.1",
 		"@types/postcss-import": "^14.0.3",
 		"autoprefixer": "^10.4.16",
 		"bun-types": "latest",

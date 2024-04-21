@@ -1,6 +1,8 @@
+import { bunPluginInlineImport } from '@/plugins/plugin-inline-import';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
+import { PostCssProcessor } from './postcss-processor';
 
 type ScriptsBuilderOptions = {
   watchMode: boolean;
@@ -27,6 +29,7 @@ export class ScriptsBuilder {
       minify: !this.options.watchMode,
       format: 'esm',
       splitting: true,
+      // plugins: [bunPluginInlineImport({ filter: /\.shadow.css$/, transform: PostCssProcessor.processString })],
     });
 
     if (!build.success) {

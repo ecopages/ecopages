@@ -1,4 +1,5 @@
 export * from './env.d';
+import './declaration.d';
 
 export interface RobotsPreference {
   /**

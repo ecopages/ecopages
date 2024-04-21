@@ -28,9 +28,10 @@ export abstract class AbstractRenderer {
     return HtmlTemplate;
   }
 
-  protected async getHeadContent(dependencies?: EcoComponentDependencies) {
+  protected async getHeadContent(dependencies?: EcoComponentDependencies, scriptsToInject?: string[]) {
     const headContent = await new HeadContentBuilder().build({
       dependencies: dependencies,
+      scriptsToInject,
     });
     return headContent;
   }

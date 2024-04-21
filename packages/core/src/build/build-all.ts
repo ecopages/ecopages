@@ -31,6 +31,10 @@ const { values } = parseArgs({
       default: false,
       short: 'b',
     },
+    preload: {
+      type: 'string',
+      short: 'r',
+    },
   },
   strict: true,
   allowPositionals: false,

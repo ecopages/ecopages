@@ -21,8 +21,12 @@ export class HeadContentBuilder {
    * It will build the dependencies as request.
    * @param {EcoComponentDependencies} dependencies
    */
-  async buildRequestDepenendencies(dependencies: EcoComponentDependencies) {
+  async buildRequestDependencies(dependencies: EcoComponentDependencies, scriptsToInject?: string[]) {
     let dependenciesString = '';
+
+    if (scriptsToInject) {
+      dependenciesString += scriptsToInject.map((script) => `<script defer type="module">${script}</script>`).join('');
+    }
 
     if (dependencies.stylesheets) {
       dependenciesString += dependencies.stylesheets
@@ -69,9 +73,12 @@ export class HeadContentBuilder {
    * It will build the head content based on the dependencies.
    * @param {EcoComponentDependencies} dependencies
    */
-  async build({ dependencies }: { dependencies?: EcoComponentDependencies }) {
+  async build({
+    dependencies,
+    scriptsToInject,
+  }: { dependencies?: EcoComponentDependencies; scriptsToInject?: string[] }) {
     if (!dependencies) return;
 
-    return await this.buildRequestDepenendencies(dependencies);
+    return await this.buildRequestDependencies(dependencies, scriptsToInject);
   }
 }

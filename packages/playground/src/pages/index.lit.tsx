@@ -31,7 +31,7 @@ const HomePage: EcoComponent = () => {
           <LiteCounter count={5} />
         </ScriptInjector>
         <ScriptInjector on:interaction="mouseenter,focusin" scripts={DepsManager.extract(LitCounter, 'scripts').join()}>
-          <LitCounter count={8} />
+          <lit-counter class="lit-counter" count={8}></lit-counter>
         </ScriptInjector>
         <LiteRenderer>
           <Message text="Hello from the server" />
@@ -50,7 +50,6 @@ HomePage.dependencies = DepsManager.collect({
     ScriptInjector,
     DepsManager.filter(Counter, 'stylesheets'),
     DepsManager.filter(LiteCounter, 'stylesheets'),
-    DepsManager.filter(LitCounter, 'stylesheets'),
   ],
 });
 

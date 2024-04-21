@@ -21,6 +21,5 @@ switch (args[0]) {
     await $`bun run ${nodeModulesDir}/@eco-pages/core/src/build/build-all.ts --serve --config=${projectDir}`;
     break;
   default:
-    console.log('Command not found');
-  // process.exit(1);
+    console.log('[eco-pages] Command not found');
 }

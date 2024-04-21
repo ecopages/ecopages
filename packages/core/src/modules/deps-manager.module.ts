@@ -12,21 +12,26 @@ export type ComponentConfigImportOptions = ComponentConfigOptions & {
   stylesheets?: string[];
 };
 
+type DependencyType = 'scripts' | 'stylesheets';
+
+const INDEX_FILE = 'index.ts';
+const EXTENSIONS_TO_JS = ['ts', 'tsx', 'jsx'];
+
 /**
- * This method returns the path of the component in the dist folder.
- * @param {ImportMeta} importMeta - The import meta of the component.
- * @param {string} pathUrl - The path of the component.
- * @returns {string} - The path of the component in the dist folder.
+ * This function returns the path of the file in the distribution folder.
+ * @param {ImportMeta} importMeta - The import meta object.
+ * @param {string} pathUrl - The path to the file.
+ * @returns {string} - The path to the distribution folder.
  */
-function getDistPath(importMeta: ImportMeta, pathUrl: string): string {
+function getDependencyDistPath(importMeta: ImportMeta, pathUrl: string): string {
   const { ecoConfig: config } = globalThis;
-  const safeFileName = pathUrl.replace(/\.(ts|tsx|jsx)$/, '.js');
+  const safeFileName = pathUrl.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
   const distUrl = importMeta.url.split(config.srcDir)[1].split(importMeta.file)[0];
   return path.join(distUrl, safeFileName);
 }
 
 /**
- * This method imports the dependencies of the components.
+ * This function import explicitly the dependencies of the components.
  * @param {ComponentConfigImportOptions} options - The options to import the dependencies.
  * @returns {EcoComponent<unknown>["dependencies"]} - The dependencies of the components.
  */
@@ -36,18 +41,18 @@ function importPaths({
   stylesheets,
   components,
 }: ComponentConfigImportOptions): EcoComponent<unknown>['dependencies'] {
-  const scriptsPath = [
+  const scriptsPaths = [
     ...new Set([
-      ...(scripts?.map((script) => getDistPath(importMeta, script)) || []),
+      ...(scripts?.map((script) => getDependencyDistPath(importMeta, script)) || []),
       ...(components?.flatMap((component) => {
         return component.dependencies?.scripts || [];
       }) || []),
     ]),
   ];
 
-  const stylesheetsPath = [
+  const stylesheetsPaths = [
     ...new Set([
-      ...(stylesheets?.map((style) => getDistPath(importMeta, style)) || []),
+      ...(stylesheets?.map((style) => getDependencyDistPath(importMeta, style)) || []),
       ...(components?.flatMap((component) => {
         return component.dependencies?.stylesheets || [];
       }) || []),
@@ -55,50 +60,54 @@ function importPaths({
   ];
 
   return {
-    scripts: scriptsPath,
-    stylesheets: stylesheetsPath,
+    scripts: scriptsPaths,
+    stylesheets: stylesheetsPaths,
   };
 }
 
+function filterFiles(file: string): boolean {
+  const isIndex = file === INDEX_FILE;
+  const isTemplate = Object.keys(defaultTemplateEngines).some((format) => file.includes(`.${format}`));
+
+  return !(isIndex || isTemplate);
+}
+
+function createDependencies(fileName: string, dependenciesServerPath: string): string {
+  const safeFileName = fileName.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
+  return `/${dependenciesServerPath}/${safeFileName}`;
+}
+
 /**
- * This method collects the dependencies of the components.
+ * This function collects automatically the dependencies of the components.
  * @param {ComponentConfigOptions} options - The options to collect the dependencies.
  * @returns {EcoComponent<unknown>["dependencies"]} - The dependencies of the components.
  */
 function collect({ importMeta, components = [] }: ComponentConfigOptions): EcoComponent<unknown>['dependencies'] {
-  const dependenciesFileName = fs.readdirSync(importMeta.dir).filter((file) => {
-    const isIndex = file === 'index.ts';
-    const isTemplate = Object.keys(defaultTemplateEngines).some((format) => file.includes(`.${format}`));
+  const {
+    ecoConfig: { srcDir, rootDir },
+  } = globalThis;
 
-    return !(isIndex || isTemplate);
-  });
+  const safeSplit = srcDir === '.' ? `${rootDir}/` : `${srcDir}/`;
 
-  const dependenciesServerPath = importMeta.dir.split('src/')[1];
+  const dependenciesFileName = fs.readdirSync(importMeta.dir).filter(filterFiles);
 
-  const dependencies = dependenciesFileName.map((fileName) => {
-    const safeFileName = fileName.replace(/\.(ts|tsx|jsx)$/, '.js');
-    return `/${dependenciesServerPath}/${safeFileName}`;
-  });
+  const dependenciesServerPath = importMeta.dir.split(safeSplit)[1];
+
+  const dependencies = dependenciesFileName.map((fileName) => createDependencies(fileName, dependenciesServerPath));
 
   const stylesheets = [
     ...new Set(
-      [
-        ...dependencies,
-        ...components.flatMap((component) => {
-          return component.dependencies?.stylesheets || [];
-        }),
-      ].filter((file) => file.endsWith('.css')),
+      [...dependencies, ...components.flatMap((component) => component.dependencies?.stylesheets || [])].filter(
+        (file) => file.endsWith('.css'),
+      ),
     ),
   ];
 
   const scripts = [
     ...new Set(
-      [
-        ...dependencies,
-        ...components.flatMap((component) => {
-          return component.dependencies?.scripts || [];
-        }),
-      ].filter((file) => file.endsWith('.js')),
+      [...dependencies, ...components.flatMap((component) => component.dependencies?.scripts || [])].filter((file) =>
+        file.endsWith('.js'),
+      ),
     ),
   ];
 
@@ -109,12 +118,12 @@ function collect({ importMeta, components = [] }: ComponentConfigOptions): EcoCo
 }
 
 /**
- * This method filters the dependencies of the components.
- * @param {EcoComponent<unknown>} component - The component to filter the dependencies.
- * @param {"scripts" | "stylesheets"} type - The type of the dependencies to filter.
+ * This function filters the dependencies of the components.
+ * @param {EcoComponent<unknown>} component - The component to filter.
+ * @param {DependencyType} type - The type of dependency to filter.
  * @returns {EcoComponent<unknown>} - The component with the filtered dependencies.
  */
-function filter(component: EcoComponent<unknown>, type: 'scripts' | 'stylesheets'): EcoComponent<unknown> {
+function filter(component: EcoComponent<unknown>, type: DependencyType): EcoComponent<unknown> {
   const dependencies = component.dependencies as EcoComponentDependencies;
 
   if (!dependencies) return component;
@@ -128,14 +137,12 @@ function filter(component: EcoComponent<unknown>, type: 'scripts' | 'stylesheets
 }
 
 /**
- * @method extract
- * @description
- * This method extracts the dependencies of the components.
- * @param {EcoComponent<unknown>} component - The component to extract the dependencies from.
- * @param {"scripts" | "stylesheets"} type - The type of the dependencies to extract.
+ * This function extracts a specific set of dependencies from the components.
+ * @param {EcoComponent<unknown>} component - The component to extract the dependencies.
+ * @param {DependencyType} type - The type of dependency to extract.
  * @returns {string[]} - The dependencies of the components.
  */
-function extract(component: EcoComponent<unknown>, type: 'scripts' | 'stylesheets'): string[] {
+function extract(component: EcoComponent<unknown>, type: DependencyType): string[] {
   const dependencies = component.dependencies as EcoComponentDependencies;
 
   if (!dependencies) return [];

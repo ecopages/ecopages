@@ -17,7 +17,7 @@ const HomePage: EcoComponent = () => {
       <>
         <h1 class="main-title">Eco pages</h1>
         <ScriptInjector on:interaction="mouseenter,focusin" scripts={DepsManager.extract(LitCounter, 'scripts').join()}>
-          <LitCounter count={8} />
+          <lit-counter class="lit-counter" count={8}></lit-counter>
         </ScriptInjector>
       </>
     </BaseLayout>

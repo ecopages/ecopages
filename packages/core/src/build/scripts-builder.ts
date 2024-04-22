@@ -1,10 +1,13 @@
+import { postCssProcessorPlugin } from '@/plugins/postcss-processor.plugin';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
+import { PostCssProcessor } from './postcss-processor';
 
 type ScriptsBuilderOptions = {
   watchMode: boolean;
 };
+
 export class ScriptsBuilder {
   config: EcoPagesConfig;
   options: ScriptsBuilderOptions;
@@ -29,6 +32,11 @@ export class ScriptsBuilder {
       minify: !this.options.watchMode,
       format: 'esm',
       splitting: true,
+      plugins: [
+        postCssProcessorPlugin({
+          transform: PostCssProcessor.processString,
+        }),
+      ],
     });
 
     if (!build.success) {

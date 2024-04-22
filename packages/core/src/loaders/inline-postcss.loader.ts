@@ -7,12 +7,16 @@ plugin({
   name: 'inline-postcss-loader',
   setup(build) {
     appLogger.debug('Setting up inline-postcss-loader');
-    const postcssFilter = /\.shadow\.css/;
+    const postcssFilter = /\.css/;
 
     build.onLoad({ filter: postcssFilter }, async (args) => {
       const text = await FileUtils.get(args.path).then((res) => res.text());
       const contents = await PostCssProcessor.processString(text);
-      return { contents, exports: { default: contents }, loader: 'object' };
+      return {
+        contents,
+        exports: { default: contents },
+        loader: 'object',
+      };
     });
   },
 });

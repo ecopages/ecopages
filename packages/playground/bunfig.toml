@@ -1,4 +1,4 @@
 preload = [
-  "../core/src/plugins/inline-postcss.loader.ts",
-  "../core/src/plugins/mdx.loader.ts",
+  "../core/src/loaders/inline-postcss.loader.ts",
+  "../core/src/loaders/mdx.loader.ts",
 ]

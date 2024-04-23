@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { type EcoComponent, type EcoComponentDependencies, defaultTemplateEngines } from '@types';
+import type { EcoComponent, EcoComponentDependencies } from '@types';
 
 export type ComponentConfigOptions = {
   importMeta: ImportMeta;
@@ -66,8 +66,11 @@ function importPaths({
 }
 
 function filterFiles(file: string): boolean {
+  const {
+    ecoConfig: { integrations },
+  } = globalThis;
   const isIndex = file === INDEX_FILE;
-  const isTemplate = Object.keys(defaultTemplateEngines).some((format) => file.includes(`.${format}`));
+  const isTemplate = Object.keys(integrations).some((format) => file.includes(`.${format}`));
 
   return !(isIndex || isTemplate);
 }

@@ -1,5 +1,6 @@
 export * from './env.d';
 import './declaration.d';
+import type { IntegrationPlugin } from './integrations/registerIntegration';
 
 export interface RobotsPreference {
   /**
@@ -96,6 +97,7 @@ export type EcoPagesConfig = {
      */
     input: string;
   };
+  integrations: EcoConfigIntegrationPlugins;
   /** Derived Paths */
   absolutePaths: {
     componentsDir: string;
@@ -111,7 +113,9 @@ export type EcoPagesConfig = {
   };
 };
 
-export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, 'baseUrl' | 'derivedPaths'> &
+export type EcoConfigIntegrationPlugins = Record<string, IntegrationPlugin>;
+
+export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, 'baseUrl' | 'derivedPaths' | 'integrations'> &
   Pick<EcoPagesConfig, 'baseUrl'>;
 
 export type EcoComponentDependencies = {
@@ -133,13 +137,6 @@ export type PageProps<T = unknown> = T & {
   params: Record<string, string | string[]>;
   query: Record<string, string | string[]>;
 };
-
-export const defaultTemplateEngines = {
-  kita: 'kita',
-  lit: 'lit',
-} as const;
-
-export type DefaultTemplateEngines = keyof typeof defaultTemplateEngines;
 
 export interface PageMetadataProps {
   title: string;

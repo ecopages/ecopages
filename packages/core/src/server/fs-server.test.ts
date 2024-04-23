@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { ConfigBuilder } from '@/build/config-builder';
-import { RouteRendererFactory } from '@/render/route-renderer';
+import { ConfigBuilder } from '@/main/config-builder';
+import { RouteRendererFactory } from '@/route-renderer/route-renderer';
 import { FIXTURE_EXISTING_FILE_IN_DIST } from 'fixtures/constants';
 import { FileSystemServer } from './fs-server';
 import { FSRouter } from './router/fs-router';
@@ -15,10 +15,11 @@ await ConfigBuilder.create({
 
 const {
   templatesExt,
+  integrations,
   absolutePaths: { pagesDir, distDir },
 } = globalThis.ecoConfig;
 
-const routeRendererFactory = new RouteRendererFactory();
+const routeRendererFactory = new RouteRendererFactory({ integrations });
 
 const scanner = new FSRouterScanner({
   dir: pagesDir,

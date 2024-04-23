@@ -2,11 +2,11 @@ import type { EcoPageFile } from '@/eco-pages';
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import type { RouteRendererBody } from '../route-renderer';
-import { AbstractRenderer } from './abstract-renderer';
+import { IntegrationRenderer } from '../../route-renderer/integration-renderer';
+import type { RouteRendererBody } from '../../route-renderer/route-renderer';
 
-export class LitRenderer extends AbstractRenderer {
-  async render(): Promise<RouteRendererBody> {
+export class LitRenderer extends IntegrationRenderer {
+  override async render(): Promise<RouteRendererBody> {
     const { file } = this.options;
 
     const HtmlTemplate = await this.getHtmlTemplate();

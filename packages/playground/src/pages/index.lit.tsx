@@ -21,18 +21,21 @@ const HomePage: EcoComponent = () => {
       <>
         <h1 class="main-title">Home</h1>
         <Introduction />
-        <ScriptInjector on:interaction="mouseenter,focusin" scripts={DepsManager.extract(Counter, 'scripts').join()}>
+        <script-injector on:interaction="mouseenter,focusin" scripts={DepsManager.extract(Counter, 'scripts').join()}>
           <Counter />
-        </ScriptInjector>
-        <ScriptInjector
+        </script-injector>
+        <script-injector
           on:interaction="mouseenter,focusin"
           scripts={DepsManager.extract(LiteCounter, 'scripts').join()}
         >
           <LiteCounter count={5} />
-        </ScriptInjector>
-        <ScriptInjector on:interaction="mouseenter,focusin" scripts={DepsManager.extract(LitCounter, 'scripts').join()}>
+        </script-injector>
+        <script-injector
+          on:interaction="mouseenter,focusin"
+          scripts={DepsManager.extract(LitCounter, 'scripts').join()}
+        >
           <lit-counter class="lit-counter" count={8}></lit-counter>
-        </ScriptInjector>
+        </script-injector>
         <LiteRenderer>
           <Message text="Hello from the server" />
         </LiteRenderer>

@@ -1,9 +1,14 @@
 import type { EcoComponentDependencies, GetMetadata, GetStaticProps } from '@/eco-pages';
-import { HeadContentBuilder } from '@/render/utils/head-content-builder';
-import type { RouteRendererBody, RouteRendererOptions } from '../route-renderer';
-import { uncacheModules } from '../utils/uncache-modules';
+import { invariant } from '@/global/utils';
+import { HeadContentBuilder } from '@/route-renderer/utils/head-content-builder';
+import type { RouteRendererBody, RouteRendererOptions } from './route-renderer';
+import { uncacheModules } from './utils/uncache-modules';
 
 export abstract class AbstractRenderer {
+  abstract render(options: RouteRendererOptions): Promise<RouteRendererBody>;
+}
+
+export class IntegrationRenderer extends AbstractRenderer {
   protected declare options: Required<RouteRendererOptions>;
 
   protected DOC_TYPE = '<!DOCTYPE html>';
@@ -62,10 +67,12 @@ export abstract class AbstractRenderer {
     uncacheModules();
   }
 
-  abstract render(options: RouteRendererOptions): Promise<RouteRendererBody>;
-
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
     this.prepareRender(options);
     return this.render(options);
+  }
+
+  render(_: RouteRendererOptions): Promise<RouteRendererBody> {
+    invariant(false, `Method not implemented. Please override the render method in subclass: ${this.constructor.name}`);
   }
 }

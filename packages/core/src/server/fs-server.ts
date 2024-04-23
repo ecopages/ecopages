@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { type RouteRendererBody, RouteRendererFactory } from '@/render/route-renderer';
+import { type RouteRendererBody, RouteRendererFactory } from '@/route-renderer/route-renderer';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 import type { BunFile, Server } from 'bun';
@@ -170,7 +170,7 @@ export class FileSystemServer {
     const server = new FileSystemServer({
       router,
       appConfig: ecoConfig,
-      routeRendererFactory: new RouteRendererFactory(),
+      routeRendererFactory: new RouteRendererFactory({ integrations: ecoConfig.integrations }),
       options,
     });
 

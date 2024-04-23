@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { ConfigBuilder } from '@/build/config-builder';
+import { ConfigBuilder } from '@/main/config-builder';
 import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
 import { ServerUtils } from './server-utils.module';
 

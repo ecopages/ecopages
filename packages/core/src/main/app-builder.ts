@@ -1,18 +1,17 @@
 import { exec } from 'node:child_process';
 import path from 'node:path';
 
-import '@/global/console';
-import '@/global/utils';
+import '@/global/init';
 
-import { CssBuilder } from '@/build/css-builder';
-import { PostCssProcessor } from '@/build/postcss-processor';
-import { ProjectWatcher } from '@/build/watcher';
+import { CssBuilder } from '@/main/css-builder';
+import { PostCssProcessor } from '@/main/postcss-processor';
+import { ProjectWatcher } from '@/main/watcher';
 import { FileSystemServer } from '@/server/fs-server';
 import { StaticContentServer } from '@/server/sc-server';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 
-import type { ScriptsBuilder } from '@/build/scripts-builder';
+import type { ScriptsBuilder } from '@/main/scripts-builder';
 import type { EcoPagesConfig } from '@types';
 import type { Server } from 'bun';
 import type { StaticPageGenerator } from './static-page-generator';

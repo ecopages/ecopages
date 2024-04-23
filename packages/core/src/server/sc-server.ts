@@ -1,5 +1,5 @@
 import { extname, join } from 'node:path';
-import { RouteRendererFactory } from '@/render/route-renderer';
+import { RouteRendererFactory } from '@/route-renderer/route-renderer';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 import type { Server } from 'bun';
@@ -131,7 +131,7 @@ export class StaticContentServer {
   static create({ watchMode }: { watchMode: boolean }) {
     return new StaticContentServer({
       config: globalThis.ecoConfig,
-      routeRendererFactory: new RouteRendererFactory(),
+      routeRendererFactory: new RouteRendererFactory({ integrations: globalThis.ecoConfig.integrations }),
       options: { watchMode },
     });
   }

@@ -1,9 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { kitaPlugin } from '@/integrations/kita/kita.plugin';
+import { litPlugin } from '@/integrations/lit/lit.plugin';
+import { appLogger } from '@/utils/app-logger';
 import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
+import { registerIntegration } from '..';
 
 export class ConfigBuilder {
   config: EcoPagesConfig;
+
+  static defaultIntegrations = [litPlugin, kitaPlugin];
 
   static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'absolutePaths' | 'serve'> = {
     rootDir: '.',
@@ -28,6 +34,7 @@ export class ConfigBuilder {
     tailwind: {
       input: 'styles/tailwind.css',
     },
+    integrations: {},
     distDir: '.eco',
     scriptDescriptor: 'script',
     templatesExt: ['.kita.tsx', '.lit.tsx'],
@@ -50,10 +57,17 @@ export class ConfigBuilder {
       absolutePaths: this.getAbsolutePaths(projectDir, baseConfig),
     };
 
+    this.registerDefaultIntegrationPlugins();
+
     globalThis.ecoConfig = this.config;
+
+    appLogger.debug('Config', this.config);
   }
 
-  getAbsolutePaths(projectDir: string, config: Omit<EcoPagesConfig, 'absolutePaths'>): EcoPagesConfig['absolutePaths'] {
+  private getAbsolutePaths(
+    projectDir: string,
+    config: Omit<EcoPagesConfig, 'absolutePaths'>,
+  ): EcoPagesConfig['absolutePaths'] {
     const {
       srcDir,
       componentsDir,
@@ -81,6 +95,12 @@ export class ConfigBuilder {
       htmlTemplatePath: path.join(absoluteSrcDir, includesDir, includesTemplates.html),
       error404TemplatePath: path.join(absoluteSrcDir, pagesDir, error404Template),
     };
+  }
+
+  private registerDefaultIntegrationPlugins() {
+    for (const integration of ConfigBuilder.defaultIntegrations) {
+      this.config.integrations[integration.name] = integration;
+    }
   }
 
   static async create({ projectDir }: { projectDir: string }): Promise<EcoPagesConfig> {

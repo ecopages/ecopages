@@ -1,12 +1,12 @@
 // @ts-expect-error - Types for parseArgs are not available
 // biome-ignore lint/style/useNodejsImportProtocol: this is not a Node.js file
 import { parseArgs } from 'util';
-import { AppBuilder } from '@/build/app-builder';
-import { ConfigBuilder } from '@/build/config-builder';
-import { CssBuilder } from '@/build/css-builder';
-import { PostCssProcessor } from '@/build/postcss-processor';
-import { ScriptsBuilder } from '@/build/scripts-builder';
-import { StaticPageGenerator } from '@/build/static-page-generator';
+import { AppBuilder } from '@/main/app-builder';
+import { ConfigBuilder } from '@/main/config-builder';
+import { CssBuilder } from '@/main/css-builder';
+import { PostCssProcessor } from '@/main/postcss-processor';
+import { ScriptsBuilder } from '@/main/scripts-builder';
+import { StaticPageGenerator } from '@/main/static-page-generator';
 
 const { values } = parseArgs({
   args: process.argv.splice(2),

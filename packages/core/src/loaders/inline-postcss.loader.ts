@@ -1,4 +1,4 @@
-import { PostCssProcessor } from '@/build/postcss-processor';
+import { PostCssProcessor } from '@/main/postcss-processor';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import { plugin } from 'bun';

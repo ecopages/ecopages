@@ -1,8 +1,8 @@
 import type { EcoPageFile } from '@/eco-pages';
-import { AbstractRenderer } from './abstract-renderer';
+import { IntegrationRenderer } from '../../route-renderer/integration-renderer';
 
-export class KitaRenderer extends AbstractRenderer {
-  async render() {
+export class KitaRenderer extends IntegrationRenderer {
+  override async render() {
     const { file } = this.options;
 
     const HtmlTemplate = await this.getHtmlTemplate();

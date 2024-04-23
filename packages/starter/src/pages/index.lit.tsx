@@ -1,5 +1,4 @@
 import { LitCounter } from '@/components/lit-counter';
-import '@/components/lit-counter/lit-counter.script';
 import { ScriptInjector } from '@/components/script-injector';
 import { BaseLayout } from '@/layouts/base-layout';
 import { DepsManager, type EcoComponent, type GetMetadata } from '@eco-pages/core';
@@ -16,9 +15,12 @@ const HomePage: EcoComponent = () => {
     <BaseLayout class="main-content">
       <>
         <h1 class="main-title">Eco pages</h1>
-        <ScriptInjector on:interaction="mouseenter,focusin" scripts={DepsManager.extract(LitCounter, 'scripts').join()}>
+        <script-injector
+          on:interaction="mouseenter,focusin"
+          scripts={DepsManager.extract(LitCounter, 'scripts').join()}
+        >
           <lit-counter class="lit-counter" count={8}></lit-counter>
-        </ScriptInjector>
+        </script-injector>
       </>
     </BaseLayout>
   );

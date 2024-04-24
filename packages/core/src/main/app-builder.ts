@@ -11,6 +11,7 @@ import { StaticContentServer } from '@/server/sc-server';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 
+import type { IntegrationManger } from '@/integrations/integration-manager';
 import type { ScriptsBuilder } from '@/main/scripts-builder';
 import type { EcoPagesConfig } from '@types';
 import type { Server } from 'bun';
@@ -28,24 +29,28 @@ export class AppBuilder {
   cssBuilder: CssBuilder;
   scriptsBuilder: ScriptsBuilder;
   options: AppBuilderOptions;
+  integrationManager: IntegrationManger;
 
   constructor({
     config,
     staticPageGenerator,
     cssBuilder,
     scriptsBuilder,
+    integrationManager,
     options,
   }: {
     config: EcoPagesConfig;
     staticPageGenerator: StaticPageGenerator;
     cssBuilder: CssBuilder;
     scriptsBuilder: ScriptsBuilder;
+    integrationManager: IntegrationManger;
     options: AppBuilderOptions;
   }) {
     this.config = config;
     this.staticPageGenerator = staticPageGenerator;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
+    this.integrationManager = integrationManager;
     this.options = options;
   }
 
@@ -117,6 +122,7 @@ export class AppBuilder {
 
     this.execTailwind();
 
+    await this.integrationManager.prepareInjections();
     await this.cssBuilder.build();
     await this.scriptsBuilder.build();
 

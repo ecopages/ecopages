@@ -1,6 +1,7 @@
 // @ts-expect-error - Types for parseArgs are not available
 // biome-ignore lint/style/useNodejsImportProtocol: this is not a Node.js file
 import { parseArgs } from 'util';
+import { IntegrationManger } from '@/integrations/integration-manager';
 import { AppBuilder } from '@/main/app-builder';
 import { ConfigBuilder } from '@/main/config-builder';
 import { CssBuilder } from '@/main/css-builder';
@@ -52,6 +53,7 @@ const ecoPages = new AppBuilder({
     config,
     options: { watchMode: values.watch as boolean },
   }),
+  integrationManager: new IntegrationManger({ config, integrations: config.integrations }),
   options: {
     watch: values.watch as boolean,
     serve: values.serve as boolean,

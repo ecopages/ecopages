@@ -1,9 +1,8 @@
 import type { Readable } from 'node:stream';
-import type { EcoConfigIntegrationPlugins } from '@/eco-pages';
 import { invariant } from '@/global/utils';
-import type { IntegrationPlugin } from '@/integrations/registerIntegration';
 import { PathUtils } from '@/utils/path-utils';
 import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
+import type { IntegrationPlugin } from '..';
 import type { IntegrationRenderer } from './integration-renderer';
 
 export type RouteRendererOptions = {
@@ -27,9 +26,9 @@ export class RouteRenderer {
 }
 
 export class RouteRendererFactory {
-  private integrations: EcoConfigIntegrationPlugins;
+  private integrations: IntegrationPlugin[] = [];
 
-  constructor({ integrations }: { integrations: EcoConfigIntegrationPlugins }) {
+  constructor({ integrations }: { integrations: IntegrationPlugin[] }) {
     this.integrations = integrations;
   }
 
@@ -38,13 +37,15 @@ export class RouteRendererFactory {
     return new RouteRenderer(new rendererEngine());
   }
 
-  private getRouteRendererEngine(filePath: string) {
+  getIntegrationPlugin(filePath: string) {
     const descriptor = PathUtils.getNameDescriptor(filePath);
+    const integration = this.integrations.find((integration) => integration.descriptor === descriptor);
+    invariant(integration, `No integration found for descriptor: ${descriptor}, file: ${filePath}`);
+    return integration;
+  }
 
-    const integrationPlugin = this.integrations[descriptor as keyof EcoConfigIntegrationPlugins] as IntegrationPlugin;
-
-    invariant(integrationPlugin, `[eco-pages] No renderer found for file: ${filePath}`);
-
+  private getRouteRendererEngine(filePath: string) {
+    const integrationPlugin = this.getIntegrationPlugin(filePath);
     return integrationPlugin.renderer;
   }
 }

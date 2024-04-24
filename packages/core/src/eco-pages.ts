@@ -1,6 +1,24 @@
 export * from './env.d';
 import './declaration.d';
-import type { IntegrationPlugin } from './integrations/registerIntegration';
+import type { IntegrationRenderer } from './route-renderer/integration-renderer';
+
+export type IntegrationPlugin = {
+  name: string;
+  descriptor: string;
+  extensions: string[];
+  renderer: typeof IntegrationRenderer;
+  scriptsToInject?: {
+    position?: 'head' | 'body';
+    content: string;
+  }[];
+  dependencies?: {
+    stylesheets?: string[];
+    scripts?: {
+      position?: 'head' | 'body';
+      importPath: string;
+    }[];
+  };
+};
 
 export interface RobotsPreference {
   /**
@@ -65,8 +83,7 @@ export type EcoPagesConfig = {
    */
   distDir: string;
   /**
-   * The template engines
-   * @default [".kita.tsx",".lit.tsx"]
+   * The templates extensions based on the integrations
    */
   templatesExt: string[];
   /**
@@ -97,7 +114,7 @@ export type EcoPagesConfig = {
      */
     input: string;
   };
-  integrations: EcoConfigIntegrationPlugins;
+  integrations: IntegrationPlugin[];
   /** Derived Paths */
   absolutePaths: {
     componentsDir: string;
@@ -113,9 +130,7 @@ export type EcoPagesConfig = {
   };
 };
 
-export type EcoConfigIntegrationPlugins = Record<string, IntegrationPlugin>;
-
-export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, 'baseUrl' | 'derivedPaths' | 'integrations'> &
+export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, 'baseUrl' | 'derivedPaths' | 'templatesExt'> &
   Pick<EcoPagesConfig, 'baseUrl'>;
 
 export type EcoComponentDependencies = {

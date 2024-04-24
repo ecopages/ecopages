@@ -71,6 +71,7 @@ export const FileUtils = {
   get,
   glob,
   getPathAsString,
+  existsSync,
   write,
   ensureFolderExists,
   copyDirSync,

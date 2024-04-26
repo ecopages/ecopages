@@ -1,28 +1,38 @@
 import path from 'node:path';
 import { invariant } from '@/global/utils';
+import { bundleFile } from '@/modules/bundler';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig, IntegrationPlugin } from '@types';
 
+export type IntegrationDependencyConfig = {
+  integration: string;
+  kind: 'script' | 'stylesheet';
+  position?: 'head' | 'body';
+  srcUrl: string;
+  filePath: string;
+  /** @todo inline dependencies not implemented yet */
+  inline?: boolean;
+};
+
 export class IntegrationManger {
-  static EXTERNAL_DEPS_DIR = '_external';
+  static EXTERNAL_DEPS_DIR = '__integrations__';
 
   config: EcoPagesConfig;
   integrations: IntegrationPlugin[] = [];
-  scripts: { position: 'head' | 'body'; filepath: string }[] = [];
-  stylesheets: string[] = [];
+  dependencies: IntegrationDependencyConfig[] = [];
 
-  constructor({ config, integrations }: { config: EcoPagesConfig; integrations: IntegrationPlugin[] }) {
+  constructor({ config }: { config: EcoPagesConfig }) {
     this.config = config;
-    this.integrations = integrations;
+    this.integrations = config.integrations;
   }
 
-  private addScriptToDist(content: string, name: string) {
+  private writeFileToDist({ content, name, ext }: { content: string; name: string; ext: 'css' | 'js' }) {
     const filepath = path.join(
       this.config.rootDir,
       this.config.distDir,
       IntegrationManger.EXTERNAL_DEPS_DIR,
-      `${name}-integration-${Date.now().toString(36)}.js`,
+      `${name}-integration-${Math.random().toString(36).slice(2)}.${ext}`,
     );
     FileUtils.write(filepath, content);
     return {
@@ -30,9 +40,9 @@ export class IntegrationManger {
     };
   }
 
-  private prepareScript({ position, content, name }: { position: 'head' | 'body'; content: string; name: string }) {
-    const { filepath } = this.addScriptToDist(content, name);
-    this.scripts.push({ position, filepath });
+  private getSrcUrl(srcPath: string) {
+    const { distDir } = this.config;
+    return srcPath.split(distDir)[1];
   }
 
   private findAbsolutePathInNodeModules(importPath: string, currentDir: string, maxDepth: number): string {
@@ -51,50 +61,119 @@ export class IntegrationManger {
     return this.findAbsolutePathInNodeModules(importPath, parentDir, maxDepth - 1);
   }
 
-  private async prepareExternalScript({
-    position,
-    importPath,
-    name,
-  }: { position: 'head' | 'body'; importPath: string; name: string }) {
+  private findExternalDependencyInNodeModules(importPath: string) {
     let absolutePath = path.join(this.config.rootDir, 'node_modules', importPath);
     if (!FileUtils.existsSync(absolutePath)) {
       absolutePath = this.findAbsolutePathInNodeModules(importPath, this.config.rootDir, 3);
     }
-
-    const content = await FileUtils.getPathAsString(absolutePath);
-    const { filepath } = this.addScriptToDist(content, name);
-    this.scripts.push({ position, filepath });
+    return absolutePath;
   }
 
-  async prepareInjections() {
-    for (const integration of this.integrations) {
-      if (integration.scriptsToInject) {
-        for (const script of integration.scriptsToInject) {
-          this.prepareScript({ position: script.position ?? 'head', content: script.content, name: integration.name });
-        }
-      }
+  private async prepareExternalDependency({
+    importPath,
+    name,
+    kind,
+  }: {
+    importPath: string;
+    name: string;
+    kind: 'script' | 'stylesheet';
+  }) {
+    const absolutePath = this.findExternalDependencyInNodeModules(importPath);
 
+    if (kind === 'script') {
+      const bundle = await bundleFile({
+        entrypoint: absolutePath,
+        outdir: path.join(this.config.rootDir, this.config.distDir, IntegrationManger.EXTERNAL_DEPS_DIR),
+        root: this.config.rootDir,
+      });
+
+      return { filepath: bundle.outputs[0].path };
+    }
+
+    const content = await FileUtils.getPathAsString(absolutePath);
+    const file = this.writeFileToDist({ content, name, ext: 'css' });
+    return file;
+  }
+
+  async prepareDependencies() {
+    for (const integration of this.integrations) {
       if (integration.dependencies) {
-        if (integration.dependencies.stylesheets) {
-          for (const stylesheet of integration.dependencies.stylesheets) {
-            this.stylesheets.push(stylesheet);
+        for (const dependency of integration.dependencies)
+          switch (dependency.kind) {
+            case 'script':
+              {
+                if ('importPath' in dependency) {
+                  const { filepath } = await this.prepareExternalDependency({
+                    importPath: dependency.importPath,
+                    name: integration.name,
+                    kind: dependency.kind,
+                  });
+
+                  this.dependencies.push({
+                    integration: integration.name,
+                    kind: dependency.kind,
+                    srcUrl: this.getSrcUrl(filepath),
+                    position: dependency.position ?? 'head',
+                    filePath: filepath,
+                    inline: dependency.inline ?? false,
+                  });
+                } else {
+                  const { filepath } = this.writeFileToDist({
+                    content: dependency.content,
+                    name: integration.name,
+                    ext: 'js',
+                  });
+                  this.dependencies.push({
+                    integration: integration.name,
+                    kind: dependency.kind,
+                    srcUrl: this.getSrcUrl(filepath),
+                    position: dependency.position ?? 'head',
+                    filePath: filepath,
+                    inline: dependency.inline ?? false,
+                  });
+                }
+              }
+              break;
+            case 'stylesheet':
+              {
+                if ('importPath' in dependency) {
+                  const { filepath } = await this.prepareExternalDependency({
+                    importPath: dependency.importPath,
+                    name: integration.name,
+                    kind: dependency.kind,
+                  });
+                  this.dependencies.push({
+                    integration: integration.name,
+                    kind: dependency.kind,
+                    srcUrl: this.getSrcUrl(filepath),
+                    filePath: filepath,
+                    inline: dependency.inline ?? false,
+                  });
+                } else {
+                  const { filepath } = this.writeFileToDist({
+                    content: dependency.content,
+                    name: integration.name,
+                    ext: 'css',
+                  });
+                  this.dependencies.push({
+                    integration: integration.name,
+                    kind: dependency.kind,
+                    srcUrl: this.getSrcUrl(filepath),
+                    filePath: filepath,
+                    inline: dependency.inline ?? false,
+                  });
+                }
+              }
+              break;
           }
-        }
-        if (integration.dependencies.scripts) {
-          for (const script of integration.dependencies.scripts) {
-            await this.prepareExternalScript({
-              position: script.position ?? 'head',
-              importPath: script.importPath,
-              name: integration.name,
-            });
-          }
-        }
       }
     }
+
     appLogger.debug(
-      `Integration Manager: Prepared injections for ${this.integrations.length} integrations`,
-      this.scripts,
-      this.stylesheets,
+      `Integration Manager: Collected dependencies for ${this.integrations.length} integrations`,
+      this.dependencies,
     );
+
+    return this.dependencies;
   }
 }

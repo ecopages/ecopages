@@ -15,6 +15,7 @@ import type { IntegrationManger } from '@/integrations/integration-manager';
 import type { ScriptsBuilder } from '@/main/scripts-builder';
 import type { EcoPagesConfig } from '@types';
 import type { Server } from 'bun';
+import type { AppConfigurator } from './app-configurator';
 import type { StaticPageGenerator } from './static-page-generator';
 
 type AppBuilderOptions = {
@@ -24,47 +25,47 @@ type AppBuilderOptions = {
 };
 
 export class AppBuilder {
-  config: EcoPagesConfig;
+  appConfigurator: AppConfigurator;
+  integrationManger: IntegrationManger;
   staticPageGenerator: StaticPageGenerator;
   cssBuilder: CssBuilder;
   scriptsBuilder: ScriptsBuilder;
   options: AppBuilderOptions;
-  integrationManager: IntegrationManger;
 
   constructor({
-    config,
+    appConfigurator,
+    integrationManger,
     staticPageGenerator,
     cssBuilder,
     scriptsBuilder,
-    integrationManager,
     options,
   }: {
-    config: EcoPagesConfig;
+    appConfigurator: AppConfigurator;
+    integrationManger: IntegrationManger;
     staticPageGenerator: StaticPageGenerator;
     cssBuilder: CssBuilder;
     scriptsBuilder: ScriptsBuilder;
-    integrationManager: IntegrationManger;
     options: AppBuilderOptions;
   }) {
-    this.config = config;
+    this.appConfigurator = appConfigurator;
+    this.integrationManger = integrationManger;
     this.staticPageGenerator = staticPageGenerator;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
-    this.integrationManager = integrationManager;
     this.options = options;
   }
 
   prepareDistDir() {
-    FileUtils.ensureFolderExists(this.config.distDir, true);
+    FileUtils.ensureFolderExists(this.appConfigurator.config.distDir, true);
   }
 
   copyPublicDir() {
-    const { srcDir, publicDir, distDir } = this.config;
+    const { srcDir, publicDir, distDir } = this.appConfigurator.config;
     FileUtils.copyDirSync(path.join(srcDir, publicDir), path.join(distDir, publicDir));
   }
 
   execTailwind() {
-    const { srcDir, distDir, tailwind } = this.config;
+    const { srcDir, distDir, tailwind } = this.appConfigurator.config;
     const input = `${srcDir}/${tailwind.input}`;
     const output = `${distDir}/${tailwind.input}`;
     const watch = this.options.watch;
@@ -88,7 +89,7 @@ export class AppBuilder {
 
     const cssBuilder = new CssBuilder({
       processor: PostCssProcessor,
-      config: this.config,
+      config: this.appConfigurator.config,
     });
 
     const watcherInstance = new ProjectWatcher(cssBuilder, this.scriptsBuilder);
@@ -115,16 +116,18 @@ export class AppBuilder {
   }
 
   async run() {
-    const { srcDir, distDir, tailwind } = this.config;
+    const { distDir } = this.appConfigurator.config;
 
     this.prepareDistDir();
     this.copyPublicDir();
 
     this.execTailwind();
 
-    await this.integrationManager.prepareInjections();
     await this.cssBuilder.build();
     await this.scriptsBuilder.build();
+    await this.integrationManger.prepareDependencies();
+
+    this.appConfigurator.registerIntegrationsDependencies(this.integrationManger.dependencies);
 
     if (this.options.watch) {
       return await this.watch();

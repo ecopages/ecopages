@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { appLogger } from '@/utils/app-logger';
 import type { EcoComponent, EcoComponentDependencies } from '@types';
 
 export type ComponentConfigOptions = {
@@ -70,7 +71,8 @@ function filterFiles(file: string): boolean {
     ecoConfig: { integrations },
   } = globalThis;
   const isIndex = file === INDEX_FILE;
-  const isTemplate = Object.keys(integrations).some((format) => file.includes(`.${format}`));
+  const integrationDescriptors = integrations.map((format) => format.descriptor);
+  const isTemplate = integrationDescriptors.some((format) => file.includes(`.${format}`));
 
   return !(isIndex || isTemplate);
 }

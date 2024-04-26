@@ -1,8 +1,11 @@
 import type { EcoPageFile } from '@/eco-pages';
 import { IntegrationRenderer } from '../../route-renderer/integration-renderer';
+import { KITA_DESCRIPTOR } from './kita.plugin';
 
 export class KitaRenderer extends IntegrationRenderer {
-  override async render() {
+  descriptor = KITA_DESCRIPTOR;
+
+  async render() {
     const { file } = this.options;
 
     const HtmlTemplate = await this.getHtmlTemplate();

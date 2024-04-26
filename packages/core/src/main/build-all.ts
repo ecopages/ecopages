@@ -3,7 +3,7 @@
 import { parseArgs } from 'util';
 import { IntegrationManger } from '@/integrations/integration-manager';
 import { AppBuilder } from '@/main/app-builder';
-import { ConfigBuilder } from '@/main/config-builder';
+import { AppConfigurator } from '@/main/app-configurator';
 import { CssBuilder } from '@/main/css-builder';
 import { PostCssProcessor } from '@/main/postcss-processor';
 import { ScriptsBuilder } from '@/main/scripts-builder';
@@ -41,19 +41,19 @@ const { values } = parseArgs({
   allowPositionals: false,
 });
 
-const config = await ConfigBuilder.create({
+const appConfigurator = await AppConfigurator.create({
   projectDir: values.config as string,
 });
 
 const ecoPages = new AppBuilder({
-  config,
-  staticPageGenerator: new StaticPageGenerator(config),
-  cssBuilder: new CssBuilder({ processor: PostCssProcessor, config }),
+  appConfigurator,
+  integrationManger: new IntegrationManger({ config: appConfigurator.config }),
+  staticPageGenerator: new StaticPageGenerator(appConfigurator.config),
+  cssBuilder: new CssBuilder({ processor: PostCssProcessor, config: appConfigurator.config }),
   scriptsBuilder: new ScriptsBuilder({
-    config,
+    config: appConfigurator.config,
     options: { watchMode: values.watch as boolean },
   }),
-  integrationManager: new IntegrationManger({ config, integrations: config.integrations }),
   options: {
     watch: values.watch as boolean,
     serve: values.serve as boolean,

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { IntegrationDependencyConfig } from '@/integrations/integration-manager';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoComponentDependencies, EcoPagesConfig } from '@types';
 
@@ -20,24 +21,41 @@ export class HeadContentBuilder {
    * Build the request dependencies.
    * It will build the dependencies as request.
    * @param {EcoComponentDependencies} dependencies
+   * @param {IntegrationDependencyConfig[]} integrationsDependencies
+   * @param {string} rendererDescriptor
    */
-  async buildRequestDependencies(dependencies: EcoComponentDependencies, scriptsToInject?: string[]) {
+  async buildRequestDependencies({
+    rendererDescriptor,
+    dependencies,
+    integrationsDependencies,
+  }: {
+    rendererDescriptor: string;
+    dependencies?: EcoComponentDependencies;
+    integrationsDependencies?: IntegrationDependencyConfig[];
+  }) {
     let dependenciesString = '';
 
-    if (scriptsToInject) {
-      dependenciesString += scriptsToInject.map((script) => `<script defer type="module">${script}</script>`).join('');
-    }
-
-    if (dependencies.stylesheets) {
+    if (dependencies?.stylesheets) {
       dependenciesString += dependencies.stylesheets
         .map((stylesheet) => `<link rel="stylesheet" href="${stylesheet}" />`)
         .join('');
     }
 
-    if (dependencies.scripts) {
+    if (dependencies?.scripts) {
       dependenciesString += dependencies.scripts
         .map((script) => `<script defer type="module" src="${script}"></script>`)
         .join('');
+    }
+
+    if (integrationsDependencies) {
+      for (const dependency of integrationsDependencies) {
+        if (dependency.integration !== rendererDescriptor) continue;
+        if (dependency.kind === 'stylesheet') {
+          dependenciesString += `<link rel="stylesheet" href="${dependency.srcUrl}" />`;
+        } else if (dependency.kind === 'script') {
+          dependenciesString += `<script defer type="module" src="${dependency.srcUrl}"></script>`;
+        }
+      }
     }
 
     return dependenciesString;
@@ -75,10 +93,10 @@ export class HeadContentBuilder {
    */
   async build({
     dependencies,
-    scriptsToInject,
-  }: { dependencies?: EcoComponentDependencies; scriptsToInject?: string[] }) {
-    if (!dependencies) return;
-
-    return await this.buildRequestDependencies(dependencies, scriptsToInject);
+    rendererDescriptor,
+  }: { dependencies?: EcoComponentDependencies; rendererDescriptor: string }) {
+    const integrationsDependencies = this.config.integrationsDependencies;
+    if (!dependencies && !integrationsDependencies) return;
+    return await this.buildRequestDependencies({ rendererDescriptor, dependencies, integrationsDependencies });
   }
 }

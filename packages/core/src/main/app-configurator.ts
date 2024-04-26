@@ -6,7 +6,7 @@ import { litPlugin } from '@/integrations/lit/lit.plugin';
 import { appLogger } from '@/utils/app-logger';
 import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
 
-export class ConfigBuilder {
+export class AppConfigurator {
   config: EcoPagesConfig;
 
   static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'absolutePaths' | 'templatesExt' | 'serve'> = {
@@ -33,6 +33,7 @@ export class ConfigBuilder {
       input: 'styles/tailwind.css',
     },
     integrations: [kitaPlugin, litPlugin],
+    integrationsDependencies: [],
     distDir: '.eco',
     scriptDescriptor: 'script',
   };
@@ -47,7 +48,7 @@ export class ConfigBuilder {
     invariant(customConfig.baseUrl, 'baseUrl is required in the config');
     invariant(customConfig.rootDir, 'rootDir is required in the config');
 
-    const baseConfig = this.mergeConfig(ConfigBuilder.defaultConfig, customConfig);
+    const baseConfig = this.mergeConfig(AppConfigurator.defaultConfig, customConfig);
 
     const descriptors = baseConfig.integrations.map((integration) => integration.descriptor);
     const uniqueDescriptors = new Set(descriptors);
@@ -129,16 +130,20 @@ export class ConfigBuilder {
     };
   }
 
-  static async create({ projectDir }: { projectDir: string }): Promise<EcoPagesConfig> {
+  async registerIntegrationsDependencies(integrationsDependencies: EcoPagesConfig['integrationsDependencies']) {
+    this.config.integrationsDependencies = integrationsDependencies;
+  }
+
+  static async create({ projectDir }: { projectDir: string }): Promise<AppConfigurator> {
     if (!fs.existsSync(`${projectDir}/eco.config.ts`)) {
       throw new Error('eco.config.ts not found, please provide a valid config file.');
     }
 
     const { default: customConfig } = await import(`${projectDir}/eco.config.ts`);
 
-    return new ConfigBuilder({
+    return new AppConfigurator({
       projectDir,
       customConfig,
-    }).config;
+    });
   }
 }

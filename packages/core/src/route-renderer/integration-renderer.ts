@@ -1,14 +1,11 @@
 import type { EcoComponentDependencies, GetMetadata, GetStaticProps } from '@/eco-pages';
-import { invariant } from '@/global/utils';
 import { HeadContentBuilder } from '@/route-renderer/utils/head-content-builder';
 import type { RouteRendererBody, RouteRendererOptions } from './route-renderer';
 import { uncacheModules } from './utils/uncache-modules';
 
-export abstract class AbstractRenderer {
-  abstract render(options: RouteRendererOptions): Promise<RouteRendererBody>;
-}
+export abstract class IntegrationRenderer {
+  abstract descriptor: string;
 
-export class IntegrationRenderer extends AbstractRenderer {
   protected declare options: Required<RouteRendererOptions>;
 
   protected DOC_TYPE = '<!DOCTYPE html>';
@@ -33,10 +30,10 @@ export class IntegrationRenderer extends AbstractRenderer {
     return HtmlTemplate;
   }
 
-  protected async getHeadContent(dependencies?: EcoComponentDependencies, scriptsToInject?: string[]) {
+  protected async getHeadContent(dependencies?: EcoComponentDependencies) {
     const headContent = await new HeadContentBuilder().build({
+      rendererDescriptor: this.descriptor,
       dependencies: dependencies,
-      scriptsToInject,
     });
     return headContent;
   }
@@ -72,7 +69,5 @@ export class IntegrationRenderer extends AbstractRenderer {
     return this.render(options);
   }
 
-  render(_: RouteRendererOptions): Promise<RouteRendererBody> {
-    invariant(false, `Method not implemented. Please override the render method in subclass: ${this.constructor.name}`);
-  }
+  abstract render(_: RouteRendererOptions): Promise<RouteRendererBody>;
 }

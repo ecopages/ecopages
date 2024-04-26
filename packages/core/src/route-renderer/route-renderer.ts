@@ -33,7 +33,7 @@ export class RouteRendererFactory {
   }
 
   createRenderer(filePath: string): RouteRenderer {
-    const rendererEngine = this.getRouteRendererEngine(filePath);
+    const rendererEngine = this.getRouteRendererEngine(filePath) as new () => IntegrationRenderer;
     return new RouteRenderer(new rendererEngine());
   }
 

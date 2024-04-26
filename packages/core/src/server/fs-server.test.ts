@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { ConfigBuilder } from '@/main/config-builder';
+import { AppConfigurator } from '@/main/app-configurator';
 import { RouteRendererFactory } from '@/route-renderer/route-renderer';
 import { FIXTURE_EXISTING_FILE_IN_DIST } from 'fixtures/constants';
 import { FileSystemServer } from './fs-server';
@@ -9,7 +9,7 @@ import { FSRouterScanner } from './router/fs-router-scanner';
 
 const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, 'packages/core/fixtures');
 
-await ConfigBuilder.create({
+await AppConfigurator.create({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),
 });
 

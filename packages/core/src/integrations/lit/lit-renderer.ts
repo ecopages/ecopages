@@ -4,9 +4,12 @@ import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { IntegrationRenderer } from '../../route-renderer/integration-renderer';
 import type { RouteRendererBody } from '../../route-renderer/route-renderer';
+import { LIT_DESCRIPTOR } from './lit.plugin';
 
 export class LitRenderer extends IntegrationRenderer {
-  override async render(): Promise<RouteRendererBody> {
+  descriptor = LIT_DESCRIPTOR;
+
+  async render(): Promise<RouteRendererBody> {
     const { file } = this.options;
 
     const HtmlTemplate = await this.getHtmlTemplate();

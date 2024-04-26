@@ -1,23 +1,48 @@
 export * from './env.d';
 import './declaration.d';
+import type { IntegrationDependencyConfig } from './integrations/integration-manager';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer';
+
+export type IntegrationPluginDependencies = BaseIntegrationPluginDependencies & SpecificIntegrationPluginDependencies;
+
+type BaseIntegrationPluginDependencies = {
+  inline?: boolean;
+};
+
+type SpecificIntegrationPluginDependencies =
+  | ScriptImportIntegrationPluginDependencies
+  | ScriptContentIntegrationPluginDependencies
+  | StylesheetImportIntegrationPluginDependencies
+  | StylesheetContentIntegrationPluginDependencies;
+
+type ScriptImportIntegrationPluginDependencies = {
+  kind: 'script';
+  importPath: string;
+  position?: 'head' | 'body';
+};
+
+type ScriptContentIntegrationPluginDependencies = {
+  kind: 'script';
+  content: string;
+  position?: 'head' | 'body';
+};
+
+type StylesheetImportIntegrationPluginDependencies = {
+  kind: 'stylesheet';
+  importPath: string;
+};
+
+type StylesheetContentIntegrationPluginDependencies = {
+  kind: 'stylesheet';
+  content: string;
+};
 
 export type IntegrationPlugin = {
   name: string;
   descriptor: string;
   extensions: string[];
   renderer: typeof IntegrationRenderer;
-  scriptsToInject?: {
-    position?: 'head' | 'body';
-    content: string;
-  }[];
-  dependencies?: {
-    stylesheets?: string[];
-    scripts?: {
-      position?: 'head' | 'body';
-      importPath: string;
-    }[];
-  };
+  dependencies?: IntegrationPluginDependencies[];
 };
 
 export interface RobotsPreference {
@@ -114,7 +139,10 @@ export type EcoPagesConfig = {
      */
     input: string;
   };
+  /** Integrations plugins */
   integrations: IntegrationPlugin[];
+  /** Integrations dependencies */
+  integrationsDependencies: IntegrationDependencyConfig[];
   /** Derived Paths */
   absolutePaths: {
     componentsDir: string;
@@ -130,7 +158,10 @@ export type EcoPagesConfig = {
   };
 };
 
-export type EcoPagesConfigInput = Omit<Partial<EcoPagesConfig>, 'baseUrl' | 'derivedPaths' | 'templatesExt'> &
+export type EcoPagesConfigInput = Omit<
+  Partial<EcoPagesConfig>,
+  'baseUrl' | 'derivedPaths' | 'templatesExt' | 'integrationsDependencies'
+> &
   Pick<EcoPagesConfig, 'baseUrl'>;
 
 export type EcoComponentDependencies = {

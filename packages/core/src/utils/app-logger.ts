@@ -9,11 +9,9 @@ const WARN: LogLevel = { level: 'WARN' };
 
 export class Logger {
   private readonly prefix: string;
-  private readonly debugActive: boolean;
 
   constructor(prefix: string) {
     this.prefix = prefix;
-    this.debugActive = process.env.DEBUG_ACTIVE === 'true';
   }
 
   info(...args: any[]) {
@@ -29,7 +27,7 @@ export class Logger {
   }
 
   debug(...args: any[]) {
-    if (this.debugActive) {
+    if (process.env.DEBUG_ACTIVE === 'true') {
       this.logInternal(DEBUG, ...args);
     }
   }

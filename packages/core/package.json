@@ -5,6 +5,7 @@
 		"eco-pages": "./cli/eco-pages.ts"
 	},
 	"main": "./src/index.ts",
+
 	"dependencies": {
 		"@kitajs/html": "^4.1.0",
 		"@kitajs/ts-html-plugin": "^4.0.1",

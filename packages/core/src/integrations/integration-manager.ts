@@ -64,7 +64,7 @@ export class IntegrationManger {
   private findExternalDependencyInNodeModules(importPath: string) {
     let absolutePath = path.join(this.config.rootDir, 'node_modules', importPath);
     if (!FileUtils.existsSync(absolutePath)) {
-      absolutePath = this.findAbsolutePathInNodeModules(importPath, this.config.rootDir, 3);
+      absolutePath = this.findAbsolutePathInNodeModules(importPath, this.config.rootDir, 5);
     }
     return absolutePath;
   }

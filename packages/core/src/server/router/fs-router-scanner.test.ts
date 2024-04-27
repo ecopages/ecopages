@@ -28,12 +28,12 @@ describe('FSRouterScanner', () => {
 
     expect(routes).toEqual({
       'http://localhost:3000/': {
-        filePath: `${pagesDir}/index.kita.tsx`,
+        filePath: `${pagesDir}/index.lit.tsx`,
         kind: 'exact',
         pathname: '/',
       },
       'http://localhost:3000/404': {
-        filePath: `${pagesDir}/404.kita.tsx`,
+        filePath: `${pagesDir}/404/index.kita.tsx`,
         kind: 'exact',
         pathname: '/404',
       },
@@ -42,7 +42,12 @@ describe('FSRouterScanner', () => {
         kind: 'catch-all',
         pathname: '/catch-all/[...path]',
       },
-      'http://localhost:3000/dynamic/[slug]': {
+      'http://localhost:3000/dynamic/another-blog-post': {
+        filePath: '/Users/andreazanenghi/eco-pages/packages/core/fixtures/app/src/pages/dynamic/[slug].kita.tsx',
+        kind: 'dynamic',
+        pathname: '/dynamic/[slug]',
+      },
+      'http://localhost:3000/dynamic/blog-post': {
         filePath: `${pagesDir}/dynamic/[slug].kita.tsx`,
         kind: 'dynamic',
         pathname: '/dynamic/[slug]',

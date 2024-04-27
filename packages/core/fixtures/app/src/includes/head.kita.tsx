@@ -1,5 +1,5 @@
+import { Seo } from '@/includes/seo.kita';
 import type { PageHeadProps } from '@eco-pages/core';
-import { Seo } from './seo.kita';
 
 export function Head({ metadata, children }: PageHeadProps) {
   return (
@@ -7,6 +7,7 @@ export function Head({ metadata, children }: PageHeadProps) {
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <Seo {...metadata} />
+      <link href="/styles/tailwind.css" rel="stylesheet" />
       {children}
     </head>
   );

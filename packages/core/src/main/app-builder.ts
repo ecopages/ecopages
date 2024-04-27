@@ -13,7 +13,6 @@ import { FileUtils } from '@/utils/file-utils.module';
 
 import type { IntegrationManger } from '@/integrations/integration-manager';
 import type { ScriptsBuilder } from '@/main/scripts-builder';
-import type { EcoPagesConfig } from '@types';
 import type { Server } from 'bun';
 import type { AppConfigurator } from './app-configurator';
 import type { StaticPageGenerator } from './static-page-generator';
@@ -101,6 +100,14 @@ export class AppBuilder {
     });
   }
 
+  serveStatic() {
+    const { server } = StaticContentServer.create({
+      watchMode: this.options.watch,
+    });
+
+    appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
+  }
+
   async buildStatic() {
     await this.staticPageGenerator.run();
     if (this.options.build) {
@@ -108,11 +115,7 @@ export class AppBuilder {
       process.exit(0);
     }
 
-    const { server } = StaticContentServer.create({
-      watchMode: this.options.watch,
-    });
-
-    appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
+    this.serveStatic();
   }
 
   async run() {

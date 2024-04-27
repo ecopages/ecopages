@@ -4,7 +4,7 @@ import { AppConfigurator } from '@/main/app-configurator';
 import { FSRouter, type Route } from './fs-router';
 import { FSRouterScanner } from './fs-router-scanner';
 
-const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, 'packages/core/fixtures');
+const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, 'packages/core/fixtures/app');
 
 await AppConfigurator.create({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),
@@ -35,7 +35,7 @@ await router.init();
 describe('FSRouter', async () => {
   describe('init', async () => {
     test('should scan and return routes', async () => {
-      expect(Object.keys(router.routes).length).toBe(4);
+      expect(Object.keys(router.routes).length).toBe(5);
     });
   });
 

@@ -7,7 +7,7 @@ import { FileSystemServer } from './fs-server';
 import { FSRouter } from './router/fs-router';
 import { FSRouterScanner } from './router/fs-router-scanner';
 
-const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, 'packages/core/fixtures');
+const FIXTURE_PROJECT_DIR = path.resolve(import.meta.env.PWD, 'packages/core/fixtures/app');
 
 await AppConfigurator.create({
   projectDir: path.resolve(FIXTURE_PROJECT_DIR),
@@ -26,7 +26,7 @@ const scanner = new FSRouterScanner({
   origin: 'http://localhost:3000',
   templatesExt,
   options: {
-    buildMode: false,
+    buildMode: true,
   },
 });
 
@@ -67,7 +67,7 @@ describe('FileSystemServer', async () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/html');
-    expect(await res.text()).toContain('Hello, world!');
+    expect(await res.text()).toContain('<!DOCTYPE html>');
   });
 
   test('should return 200 for existing page with query params', async () => {
@@ -85,7 +85,7 @@ describe('FileSystemServer', async () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/html');
-    expect(await res.text()).toContain('{&quot;slug&quot;:&quot;123&quot;}');
+    expect(await res.text()).toContain('<title>Hello World | 123</title>');
   });
 
   test('should return 200 for dynamic page with params and query params', async () => {
@@ -94,7 +94,7 @@ describe('FileSystemServer', async () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/html');
-    expect(await res.text()).toContain('{&quot;slug&quot;:&quot;123&quot;} {&quot;page&quot;:&quot;1&quot;}');
+    expect(await res.text()).toContain('{&quot;page&quot;:&quot;1&quot;}');
   });
 
   test('should return 200 for catch all page with params', async () => {

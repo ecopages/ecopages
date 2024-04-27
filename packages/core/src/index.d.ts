@@ -1,5 +1,6 @@
 export * from './env.d';
-import './declaration.d';
+export * from './declarations.d';
+
 import type { IntegrationDependencyConfig } from './integrations/integration-manager';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer';
 

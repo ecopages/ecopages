@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { appLogger } from '@/utils/app-logger';
 import type { EcoComponent, EcoComponentDependencies } from '@types';
 
 export type ComponentConfigOptions = {

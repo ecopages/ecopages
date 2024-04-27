@@ -5,24 +5,21 @@
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
-		"jsx": "react-jsx",
-		"jsxImportSource": "@kitajs/html",
+		"emitDeclarationOnly": true,
+		"composite": true,
 		"module": "ESNext",
 		"moduleResolution": "node",
 		"noImplicitOverride": true,
 		"paths": {
 			"@/*": ["./src/*"]
 		},
-		"plugins": [
-			{
-				"name": "@kitajs/ts-html-plugin"
-			}
-		],
+		"jsx": "react-jsx",
+		"jsxImportSource": "@kitajs/html",
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "ES2021",
-		"types": ["bun-types", "@eco-pages/core"],
+		"types": ["bun-types"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	}

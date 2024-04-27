@@ -1,5 +1,4 @@
 import { LitCounter } from '@/components/lit-counter';
-import { ScriptInjector } from '@/components/script-injector';
 import { BaseLayout } from '@/layouts/base-layout';
 import { DepsManager, type EcoComponent, type GetMetadata } from '@eco-pages/core';
 
@@ -15,12 +14,12 @@ const HomePage: EcoComponent = () => {
     <BaseLayout class="main-content">
       <>
         <h1 class="main-title">Eco pages</h1>
-        <script-injector
+        <scripts-injector
           on:interaction="mouseenter,focusin"
           scripts={DepsManager.extract(LitCounter, 'scripts').join()}
         >
           <lit-counter class="lit-counter" count={8}></lit-counter>
-        </script-injector>
+        </scripts-injector>
       </>
     </BaseLayout>
   );
@@ -28,7 +27,7 @@ const HomePage: EcoComponent = () => {
 
 HomePage.dependencies = DepsManager.collect({
   importMeta: import.meta,
-  components: [BaseLayout, ScriptInjector, DepsManager.filter(LitCounter, 'stylesheets')],
+  components: [BaseLayout, DepsManager.filter(LitCounter, 'stylesheets')],
 });
 
 export default HomePage;

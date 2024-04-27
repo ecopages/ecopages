@@ -1,4 +1,4 @@
-import type { EcoPagesConfig } from './eco-pages';
+import type { EcoPagesConfig } from '.';
 
 interface ImportMetaEnv {
   ECO_PAGES_BASE_URL: string;
@@ -8,8 +8,19 @@ interface ImportMetaEnv {
 }
 
 declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      ECO_PAGES_BASE_URL: string;
+      PWD: string;
+      npm_config_local_prefix: string;
+      _: string;
+    }
+  }
+}
+
+declare global {
   interface ImportMeta {
-    env: ImportMetaEnv;
+    env: NodeJS.ProcessEnv;
   }
   var ecoConfig: EcoPagesConfig;
 }

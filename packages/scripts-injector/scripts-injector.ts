@@ -1,36 +1,12 @@
-export type ScriptInjectorProps = {
-  /**
-   * @description Load the script once the dom is ready
-   * @example <script-injector on:idle></script-injector>
-   */
-  'on:idle'?: boolean;
-  /**
-   * @description Load the script based on a series of events
-   * @example <script-injector on:interaction="mouseenter, focusin"></script-injector>
-   */
-  'on:interaction'?: 'touchstart,click' | 'mouseenter,focusin';
-  /**
-   * @description Import a script to be loaded when the observer detects the element is in the viewport
-   * @example <script-injector on:visible="50px 1px"></script-injector>
-   */
-  'on:visible'?: string | boolean;
-  /**
-   * A list of scripts to be loaded, comma separated.
-   */
-  scripts: string;
-};
+import type { Conditions, OnDataLoadedEvent, ScriptInjectorProps } from './types';
 
-enum ScriptInjectorEvents {
+export enum ScriptInjectorEvents {
   DATA_LOADED = 'data-loaded',
 }
 
-type OnDataLoadedEvent = CustomEvent<{ loadedScripts: string[] }>;
+export const conditions = ['on:visible', 'on:idle', 'on:interaction'] as const;
 
-const conditions = ['on:visible', 'on:idle', 'on:interaction'] as const;
-
-type Conditions = (typeof conditions)[number];
-
-class ScriptInjector extends HTMLElement {
+export class ScriptsInjector extends HTMLElement {
   private _intersectionObserver?: IntersectionObserver | null = null;
   private _scriptsToLoad: string[] = [];
   private registeredEvents: { type: string; listener: EventListener }[] = [];
@@ -157,18 +133,4 @@ class ScriptInjector extends HTMLElement {
   }
 }
 
-declare global {
-  interface HTMLElementTagNameMap {
-    'script-injector': ScriptInjector;
-  }
-  namespace JSX {
-    interface IntrinsicElements {
-      'script-injector': HtmlTag & ScriptInjectorProps;
-    }
-  }
-  interface HTMLElementEventMap {
-    [ScriptInjectorEvents.DATA_LOADED]: OnDataLoadedEvent;
-  }
-}
-
-customElements.define('script-injector', ScriptInjector);
+customElements.define('scripts-injector', ScriptsInjector);

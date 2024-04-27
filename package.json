@@ -11,6 +11,10 @@
 		"build:starter": "bun run --filter @eco-pages/starter build",
 		"start:starter": "bun run --filter @eco-pages/starter start",
 		"preview:starter": "bun run --filter @eco-pages/starter preview",
+		"dev:docs": "bun run --filter @eco-pages/docs dev",
+		"build:docs": "bun run --filter @eco-pages/docs build",
+		"start:docs": "bun run --filter @eco-pages/docs start",
+		"preview:docs": "bun run --filter @eco-pages/docs preview",
 		"prepare:lib": "bun run --filter @eco-pages/scripts-injector build:lib",
 		"clean": "rm -rf .eco node_modules bun.lockb && bun install",
 		"format": "bunx @biomejs/biome format --write .",
@@ -24,6 +28,6 @@
 	},
 	"module": "src/index.js",
 	"repository": "https://github.com/andeeplus/eco-pages.git",
-	"workspaces": ["packages/*"],
+	"workspaces": ["packages/*", "examples/*", "apps/*"],
 	"type": "module"
 }

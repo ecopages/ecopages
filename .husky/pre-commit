@@ -1,1 +1,1 @@
-NODE_ENV=development bun test --coverage && bun run lint-staged
+bun test --coverage && bun run lint-staged

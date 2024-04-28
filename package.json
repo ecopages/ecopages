@@ -19,8 +19,7 @@
 		"clean": "rm -rf .eco node_modules bun.lockb && bun install",
 		"format": "bunx @biomejs/biome format --write .",
 		"lint": "bunx @biomejs/biome check --apply .",
-		"lint-staged": "lint-staged",
-		"test": "NODE_ENV=development bun test"
+		"lint-staged": "lint-staged"
 	},
 	"devDependencies": {
 		"husky": "^9.0.10",

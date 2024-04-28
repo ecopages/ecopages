@@ -12,8 +12,9 @@ const HomePage: EcoComponent = () => {
   return <BaseLayout class="main-content">Docs</BaseLayout>;
 };
 
-HomePage.dependencies = DepsManager.collect({
+HomePage.dependencies = DepsManager.importPaths({
   importMeta: import.meta,
+  stylesheets: ['./index.css'],
   components: [BaseLayout],
 });
 

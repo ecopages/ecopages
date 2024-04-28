@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { AppConfigurator } from '@/main/app-configurator';
 import { RouteRendererFactory } from '@/route-renderer/route-renderer';
+import { e } from '@kitajs/html';
 import { FIXTURE_EXISTING_FILE_IN_DIST } from 'fixtures/constants';
 import { FileSystemServer } from './fs-server';
 import { FSRouter } from './router/fs-router';
@@ -104,5 +105,13 @@ describe('FileSystemServer', async () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/html');
     expect(await res.text()).toContain('{&quot;path&quot;:[&quot;123&quot;,&quot;456&quot;]}');
+  });
+
+  test('should return custom error template for non-existent page', async () => {
+    const req = new Request('http://localhost:3000/non-existent-page');
+    const res = await server.fetch(req);
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<h1>404 - Page Not Found</h1>');
   });
 });

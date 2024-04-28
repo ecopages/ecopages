@@ -33,7 +33,7 @@ describe('FSRouterScanner', () => {
         pathname: '/',
       },
       'http://localhost:3000/404': {
-        filePath: `${pagesDir}/404/index.kita.tsx`,
+        filePath: `${pagesDir}/404.kita.tsx`,
         kind: 'exact',
         pathname: '/404',
       },

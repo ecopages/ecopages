@@ -167,7 +167,7 @@ export type EcoPagesConfigInput = Omit<
   Partial<EcoPagesConfig>,
   'baseUrl' | 'derivedPaths' | 'templatesExt' | 'integrationsDependencies'
 > &
-  Pick<EcoPagesConfig, 'baseUrl', 'defaultMetadata'>;
+  Pick<EcoPagesConfig, 'baseUrl' | 'rootDir'>;
 
 export type EcoComponentDependencies = {
   stylesheets?: string[];

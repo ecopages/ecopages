@@ -25,8 +25,9 @@ const HomePage: EcoComponent = () => {
   );
 };
 
-HomePage.dependencies = DepsManager.collect({
+HomePage.dependencies = DepsManager.importPaths({
   importMeta: import.meta,
+  stylesheets: ['./index.css'],
   components: [BaseLayout, DepsManager.filter(LitCounter, 'stylesheets')],
 });
 

@@ -167,7 +167,7 @@ const LiteElement: EcoComponent = () => {
         <LiteContextDemoVisualizer />
         <LiteContextDemoEditor />
       </LiteContextDemo>
-      <div class="my-8 rounded-md grid grid-cols-6 [&_pre.shiki]:col-span-4 [&_pre.shiki]:col-start-2 [&_pre.shiki]:whitespace-pre-wrap [&_pre.shiki]:px-4 [&_pre.shiki]:rounded-md">
+      <div class="my-8 rounded-md grid grid-cols-6 [&_pre.shiki]:col-span-4 [&_pre.shiki]:col-start-2 [&_pre.shiki]:whitespace-pre-wrap [&_pre.shiki]:p-4 [&_pre.shiki]:rounded-md">
         {safeHtml}
       </div>
     </BaseLayout>

@@ -9,6 +9,6 @@
 	},
 	"devDependencies": {
 		"@eco-pages/core": "workspace:*",
-		"lit": "^3.1.2"
+		"shiki": "^1.1.2"
 	}
 }

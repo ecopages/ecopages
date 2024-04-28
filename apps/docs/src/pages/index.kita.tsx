@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoComponent, type GetMetadata } from '@eco-pages/core';
+import { DepsManager, type EcoPage, type GetMetadata } from '@eco-pages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Eco Pages - Docs',
@@ -8,7 +8,7 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static', 'site', 'generator', 'lit', 'kita'],
 });
 
-const HomePage: EcoComponent = () => {
+const HomePage: EcoPage = () => {
   return <BaseLayout class="main-content">Docs</BaseLayout>;
 };
 

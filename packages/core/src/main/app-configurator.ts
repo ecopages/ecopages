@@ -36,6 +36,10 @@ export class AppConfigurator {
     integrationsDependencies: [],
     distDir: '.eco',
     scriptDescriptor: 'script',
+    defaultMetadata: {
+      title: 'Eco Pages',
+      description: 'Eco Pages',
+    },
   };
 
   constructor({
@@ -127,6 +131,10 @@ export class AppConfigurator {
         ...customConfig.tailwind,
       },
       integrations: [...baseConfig.integrations, ...(customConfig.integrations ?? [])],
+      defaultMetadata: {
+        ...baseConfig.defaultMetadata,
+        ...customConfig.defaultMetadata,
+      },
     };
   }
 

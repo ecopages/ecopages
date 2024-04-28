@@ -19,7 +19,7 @@ const {
   absolutePaths: { pagesDir, distDir },
 } = globalThis.ecoConfig;
 
-const routeRendererFactory = new RouteRendererFactory({ integrations });
+const routeRendererFactory = new RouteRendererFactory({ integrations, appConfig: globalThis.ecoConfig });
 
 const scanner = new FSRouterScanner({
   dir: pagesDir,

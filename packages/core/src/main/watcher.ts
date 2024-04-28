@@ -26,7 +26,6 @@ export class ProjectWatcher {
         delete require.cache[key];
       }
     }
-    console.log('this.uncacheModules');
   }
 
   public async createWatcherSubscription() {

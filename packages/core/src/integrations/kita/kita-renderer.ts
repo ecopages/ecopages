@@ -1,27 +1,21 @@
-import type { EcoPageFile } from '@/eco-pages';
-import { IntegrationRenderer } from '../../route-renderer/integration-renderer';
+import { IntegrationRenderer, type IntegrationRendererRenderOptions } from '@/route-renderer/integration-renderer';
+import type { RouteRendererBody } from '@/route-renderer/route-renderer';
 import { KITA_DESCRIPTOR } from './kita.plugin';
 
 export class KitaRenderer extends IntegrationRenderer {
   descriptor = KITA_DESCRIPTOR;
 
-  async render() {
-    const { file } = this.options;
-
-    const HtmlTemplate = await this.getHtmlTemplate();
-
-    const { default: Page, getStaticProps, getMetadata } = (await import(file)) as EcoPageFile;
-
-    const { params, query } = this.options;
-
+  async render({
+    params,
+    query,
+    props,
+    metadata,
+    Page,
+    HtmlTemplate,
+  }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
     try {
-      const props = await this.getProps(getStaticProps);
-
-      const metadata = await this.getMetadataProps(getMetadata, props);
-
       const body = await HtmlTemplate({
         metadata,
-        dependencies: Page.dependencies,
         headContent: await this.getHeadContent(Page.dependencies),
         children: await Page({ params, query, ...props }),
       });

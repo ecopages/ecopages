@@ -140,6 +140,10 @@ export type EcoPagesConfig = {
      */
     input: string;
   };
+  /**
+   * @default { title: 'Eco Pages', description: 'Eco Pages' }
+   */
+  defaultMetadata: PageMetadataProps;
   /** Integrations plugins */
   integrations: IntegrationPlugin[];
   /** Integrations dependencies */
@@ -163,7 +167,7 @@ export type EcoPagesConfigInput = Omit<
   Partial<EcoPagesConfig>,
   'baseUrl' | 'derivedPaths' | 'templatesExt' | 'integrationsDependencies'
 > &
-  Pick<EcoPagesConfig, 'baseUrl'>;
+  Pick<EcoPagesConfig, 'baseUrl', 'defaultMetadata'>;
 
 export type EcoComponentDependencies = {
   stylesheets?: string[];
@@ -181,8 +185,8 @@ export interface EcoPage<T = unknown> {
 }
 
 export type PageProps<T = unknown> = T & {
-  params: Record<string, string | string[]>;
-  query: Record<string, string | string[]>;
+  params?: Record<string, string | string[]>;
+  query?: Record<string, string | string[]>;
 };
 
 export interface PageMetadataProps {

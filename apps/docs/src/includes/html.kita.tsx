@@ -1,18 +1,10 @@
 import { Head } from '@/includes/head.kita';
 import type { EcoComponent, HtmlTemplateProps } from '@eco-pages/core';
 
-const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({
-  children,
-  metadata,
-  dependencies,
-  headContent,
-  language = 'en',
-}) => {
+const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({ children, metadata, headContent, language = 'en' }) => {
   return (
     <html lang={language} class="dark">
-      <Head metadata={metadata} dependencies={dependencies}>
-        {headContent}
-      </Head>
+      <Head metadata={metadata}>{headContent}</Head>
       {children}
     </html>
   );

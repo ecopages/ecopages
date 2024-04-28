@@ -170,7 +170,7 @@ export class FileSystemServer {
     const server = new FileSystemServer({
       router,
       appConfig: ecoConfig,
-      routeRendererFactory: new RouteRendererFactory({ integrations: ecoConfig.integrations }),
+      routeRendererFactory: new RouteRendererFactory({ integrations: ecoConfig.integrations, appConfig: ecoConfig }),
       options,
     });
 

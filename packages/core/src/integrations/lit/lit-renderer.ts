@@ -1,33 +1,26 @@
-import type { EcoPageFile } from '@/eco-pages';
+import { IntegrationRenderer, type IntegrationRendererRenderOptions } from '@/route-renderer/integration-renderer';
+import type { RouteRendererBody } from '@/route-renderer/route-renderer';
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { IntegrationRenderer } from '../../route-renderer/integration-renderer';
-import type { RouteRendererBody } from '../../route-renderer/route-renderer';
 import { LIT_DESCRIPTOR } from './lit.plugin';
 
 export class LitRenderer extends IntegrationRenderer {
   descriptor = LIT_DESCRIPTOR;
 
-  async render(): Promise<RouteRendererBody> {
-    const { file } = this.options;
-
-    const HtmlTemplate = await this.getHtmlTemplate();
-
-    const { default: Page, getStaticProps, getMetadata } = (await import(file)) as EcoPageFile;
-
-    const { params, query } = this.options;
-
+  async render({
+    params,
+    query,
+    props,
+    metadata,
+    Page,
+    HtmlTemplate,
+  }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
     try {
-      const props = await this.getProps(getStaticProps);
-
-      const metadata = await this.getMetadataProps(getMetadata, props);
-
       const children = await Page({ params, query, ...props });
 
       const template = await HtmlTemplate({
         metadata,
-        dependencies: Page.dependencies,
         headContent: await this.getHeadContent(Page.dependencies),
         children: '<--content-->',
       });

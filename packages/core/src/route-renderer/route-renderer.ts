@@ -2,7 +2,7 @@ import type { Readable } from 'node:stream';
 import { invariant } from '@/global/utils';
 import { PathUtils } from '@/utils/path-utils';
 import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
-import type { IntegrationPlugin } from '..';
+import type { EcoPagesConfig, IntegrationPlugin } from '@types';
 import type { IntegrationRenderer } from './integration-renderer';
 
 export type RouteRendererOptions = {
@@ -26,15 +26,17 @@ export class RouteRenderer {
 }
 
 export class RouteRendererFactory {
+  private appConfig: EcoPagesConfig;
   private integrations: IntegrationPlugin[] = [];
 
-  constructor({ integrations }: { integrations: IntegrationPlugin[] }) {
+  constructor({ integrations, appConfig }: { integrations: IntegrationPlugin[]; appConfig: EcoPagesConfig }) {
+    this.appConfig = appConfig;
     this.integrations = integrations;
   }
 
   createRenderer(filePath: string): RouteRenderer {
-    const rendererEngine = this.getRouteRendererEngine(filePath) as new () => IntegrationRenderer;
-    return new RouteRenderer(new rendererEngine());
+    const rendererEngine = this.getRouteRendererEngine(filePath) as new (config: EcoPagesConfig) => IntegrationRenderer;
+    return new RouteRenderer(new rendererEngine(this.appConfig));
   }
 
   getIntegrationPlugin(filePath: string) {

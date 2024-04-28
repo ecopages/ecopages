@@ -2,10 +2,10 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { DepsManager, type EcoComponent, type GetMetadata } from '@eco-pages/core';
 
 export const getMetadata: GetMetadata = () => ({
-  title: 'Home page',
-  description: 'This is the homepage of the website',
+  title: 'Eco Pages - Docs',
+  description: 'Simple and fast static site generator with TypeScript and Lit and Kita.',
   image: 'public/assets/images/default-og.png',
-  keywords: ['typescript', 'framework', 'static'],
+  keywords: ['typescript', 'framework', 'static', 'site', 'generator', 'lit', 'kita'],
 });
 
 const HomePage: EcoComponent = () => {

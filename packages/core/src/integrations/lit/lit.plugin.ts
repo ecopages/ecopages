@@ -14,9 +14,5 @@ export const litPlugin: IntegrationPlugin = {
       position: 'head',
       importPath: '@lit-labs/ssr-client/lit-element-hydrate-support.js',
     },
-    {
-      kind: 'stylesheet',
-      content: 'body { color: darkblue; }',
-    },
   ],
 };

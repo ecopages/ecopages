@@ -9,7 +9,7 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({
   language = 'en',
 }) => {
   return (
-    <html lang={language}>
+    <html lang={language} class="dark">
       <Head metadata={metadata} dependencies={dependencies}>
         {headContent}
       </Head>

@@ -1,3 +1,68 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --color-tropical-rain-forest-50-hsla: 100 14% 96%;
+  --color-tropical-rain-forest-100-hsla: 104 11% 81%;
+  --color-tropical-rain-forest-200-hsla: 107 11% 66%;
+  --color-tropical-rain-forest-300-hsla: 109 11% 52%;
+  --color-tropical-rain-forest-400-hsla: 108 19% 37%;
+  --color-tropical-rain-forest-500-hsla: 109 37% 23%;
+  --color-tropical-rain-forest-600-hsla: 108 38% 18%;
+  --color-tropical-rain-forest-700-hsla: 109 37% 14%;
+  --color-tropical-rain-forest-800-hsla: 107 37% 10%;
+  --color-tropical-rain-forest-900-hsla: 105 40% 6%;
+  --color-tropical-rain-forest-950-hsla: 100 33% 2%;
+
+  --color-scarlet-100-hsla: 353 100% 89%;
+  --color-scarlet-200-hsla: 351 100% 81%;
+  --color-scarlet-300-hsla: 350 100% 72%;
+  --color-scarlet-400-hsla: 350 100% 63%;
+  --color-scarlet-500-hsla: 350 100% 54%;
+  --color-scarlet-600-hsla: 350 84% 44%;
+  --color-scarlet-700-hsla: 351 83% 35%;
+  --color-scarlet-800-hsla: 351 81% 25%;
+  --color-scarlet-900-hsla: 353 76% 15%;
+  --color-scarlet-950-hsla: 8 60% 5%;
+
+  --color-silver-50-hsla: 0 0% 99%;
+  --color-silver-100-hsla: 0 0% 95%;
+  --color-silver-200-hsla: 0 0% 91%;
+  --color-silver-300-hsla: 0 1% 87%;
+  --color-silver-400-hsla: 0 1% 83%;
+  --color-silver-500-hsla: 0 1% 79%;
+  --color-silver-600-hsla: 0 0% 64%;
+  --color-silver-700-hsla: 0 0% 50%;
+  --color-silver-800-hsla: 0 0% 35%;
+  --color-silver-900-hsla: 0 0% 20%;
+  --color-silver-950-hsla: 0 0% 5%;
+
+  --background: var(--color-silver-50-hsla);
+  --on-background: var(--color-silver-900-hsla);
+  --background-accent: var(--color-silver-100-hsla);
+  --on-background-accent: var(--color-silver-950-hsla);
+  --primary-container: var(--color-tropical-rain-forest-100-hsla);
+  --on-primary-container: var(--color-rain-forest-900-hsla);
+  --primary: var(--color-tropical-rain-forest-500-hsla);
+  --on-primary: var(--color-silver-50-hsla);
+  --secondary: var(--color-scarlet-500-hsla);
+  --on-secondary: var(--color-silver-50-hsla);
+}
+
+.dark {
+  --background: var(--color-silver-950-hsla);
+  --on-background: var(--color-silver-50-hsla);
+  --background-accent: var(--color-silver-900-hsla);
+  --on-background-accent: var(--color-silver-50-hsla);
+  --primary-container: var(--color-tropical-rain-forest-800-hsla);
+  --on-primary-container: var(--color-tropical-rain-forest-50-hsla);
+  --primary: var(--color-tropical-rain-forest-500-hsla);
+  --on-primary: var(--color-silver-950-hsla);
+  --secondary: var(--color-scarlet-500-hsla);
+  --on-secondary: var(--color-silver-950-hsla);
+}
+
+body {
+  @apply bg-background text-on-background min-h-[100svh];
+}

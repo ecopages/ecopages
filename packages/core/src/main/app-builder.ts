@@ -91,7 +91,7 @@ export class AppBuilder {
       config: this.appConfigurator.config,
     });
 
-    const watcherInstance = new ProjectWatcher(cssBuilder, this.scriptsBuilder);
+    const watcherInstance = new ProjectWatcher(this.appConfigurator.config, cssBuilder, this.scriptsBuilder);
     const subscription = await watcherInstance.createWatcherSubscription();
 
     process.on('SIGINT', async () => {

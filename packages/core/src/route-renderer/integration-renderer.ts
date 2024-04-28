@@ -1,7 +1,6 @@
-import type { EcoComponentDependencies, GetMetadata, GetStaticProps } from '@/eco-pages';
 import { HeadContentBuilder } from '@/route-renderer/utils/head-content-builder';
+import type { EcoComponentDependencies, GetMetadata, GetStaticProps } from '@types';
 import type { RouteRendererBody, RouteRendererOptions } from './route-renderer';
-import { uncacheModules } from './utils/uncache-modules';
 
 export abstract class IntegrationRenderer {
   abstract descriptor: string;
@@ -61,7 +60,6 @@ export abstract class IntegrationRenderer {
       params: options.params || {},
       query: options.query || {},
     };
-    uncacheModules();
   }
 
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {

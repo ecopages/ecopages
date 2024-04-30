@@ -1,0 +1,93 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { ApiField } from '@/components/api-field/api-field.kita';
+
+# Configuration
+---
+
+You can configure Eco Pages by creating a configuration file in the root of your project. The configuration file should be named \`eco-pages.config.js\`.
+
+<CodeBlock lang='typescript'>
+{`import type { EcoPagesConfigInput } from '@eco-pages/core';
+
+const config: EcoPagesConfigInput = {
+  rootDir: import.meta.dir,
+  baseUrl: import.meta.env.ECO_PAGES_BASE_URL,
+  defaultMetadata: {
+    title: 'Your title here',
+    description: 'Your description here',
+    image: 'https://absolute/url/to-og-img',
+  },
+};
+
+export default config;
+`}
+</CodeBlock>
+
+## API
+---
+
+<ApiField name="rootDir" defaultValue="." type="string">
+The root directory of your project. This is used to resolve paths to your project's files.
+</ApiField>
+
+<ApiField name="baseUrl" mandatory type="string">
+The base URL of your project. This is used to generate URLs for your pages.
+</ApiField>
+
+<ApiField name="defaultMetadata" type="PageMetadataProps">
+Default metadata for your pages. This is used to generate metadata for your pages when no metadata is provided.
+</ApiField>
+
+<ApiField name="srcDir" type="string" defaultValue="src">
+The directory where the source files are located.
+</ApiField>
+
+<ApiField name="public" type="string" defaultValue="public">
+The directory where the public files are located.
+</ApiField>
+
+<ApiField name="pages" type="string" defaultValue="pages">
+The directory where the pages are located.
+</ApiField>
+
+<ApiField name="includes" type="string" defaultValue="includes">
+The directory where the includes templates are located.
+</ApiField>
+
+<ApiField name="layouts" type="string" defaultValue="layouts">
+The directory where the layouts are located.
+</ApiField>
+
+<ApiField name="includesTemplates" type="IncludesTemplates" defaultValue="{head: 'head.kita.tsx', html: 'html.kita.tsx', seo: 'seo.kita.tsx'}">
+The templates used for the pages.
+</ApiField>
+
+<ApiField name="error404Template" type="string" defaultValue="404.kita.tsx">
+The error 404 page template, location is implied from the pages directory.
+</ApiField>
+
+<ApiField name="dist" type="string" defaultValue=".eco">
+The directory where the output will be located.
+</ApiField>
+
+<ApiField name="components" type="string" defaultValue="components">
+The directory where the components are located.
+</ApiField>
+
+<ApiField name="scriptDescriptor" type="string" defaultValue="script">
+Specifies the prefix used for file extensions that indicate a script dependency of a template.
+</ApiField>
+
+<ApiField name="robotsTxt" type="RobotsPreferences" defaultValue={`{ "*": [], Googlebot: ["/public/assets/images/"] }`}>
+The robots.txt configuration.
+</ApiField>
+
+<ApiField name="robotsTxt" type="object" defaultValue={`{ input: "styles/tailwind.css" }`}>
+The tailwind configuration.
+</ApiField>
+
+<ApiField name="integrations" type="IntegrationConfig" defaultValue="[kita,lit]">
+Eco Pages supports integrations with other tools and services. You can configure integrations by adding them to the configuration file.
+</ApiField>
+
+

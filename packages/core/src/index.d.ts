@@ -46,6 +46,12 @@ export type IntegrationPlugin = {
   dependencies?: IntegrationPluginDependencies[];
 };
 
+export type IncludesTemplates = {
+  head: string;
+  html: string;
+  seo: string;
+};
+
 export interface RobotsPreference {
   /**
    * The user agent
@@ -94,11 +100,7 @@ export type EcoPagesConfig = {
    * The templates used for the pages
    * @default "{head: 'head.kita.tsx', html: 'html.kita.tsx', seo: 'seo.kita.tsx'}"
    */
-  includesTemplates: {
-    head: string;
-    html: string;
-    seo: string;
-  };
+  includesTemplates: IncludesTemplates;
   /** Error 404 page
    * @default "404.kita.tsx"
    */
@@ -229,7 +231,7 @@ export type GetStaticProps<T> = (context: {
 export type EcoPageFile = {
   default: EcoPage;
   getStaticPaths?: GetStaticPaths;
-  getStaticProps?: GetStaticProps<unknown>;
+  getStaticProps?: GetStaticProps<Record<string, unknown>>;
   getMetadata?: GetMetadata;
 };
 

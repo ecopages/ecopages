@@ -1,0 +1,17 @@
+.docs-layout {
+  @apply grid grid-cols-[auto,1fr] divide-x divide-border;
+}
+
+@scope (.docs-layout) {
+  .docs-layout__aside {
+    @apply pr-8;
+  }
+
+  .docs-layout__content {
+    @apply px-12;
+  }
+
+  .docs-layout__nav-group {
+    @apply my-8 uppercase text-sm font-bold text-on-background;
+  }
+}

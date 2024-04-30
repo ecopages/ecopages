@@ -1,36 +1,17 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import {
-  DepsManager,
-  type EcoPage,
-  type GetMetadata,
-  type GetStaticPaths,
-  type GetStaticProps,
-  type PageProps,
-} from '@eco-pages/core';
+import { DepsManager, type EcoPage, type GetStaticPaths, type GetStaticProps, type PageProps } from '@eco-pages/core';
 
 export type BlogPostProps = {
   slug: string;
-  title: string;
-  text: string;
 };
 
-export const getMetadata: GetMetadata<BlogPostProps> = async ({ title, slug }) => {
-  return {
-    title,
-    description: `This is a blog post with the slug ${slug}`,
-  };
-};
-
-const BlogPost: EcoPage<PageProps<BlogPostProps>> = ({ params, query, title, text, slug }) => {
+const BlogPost: EcoPage<PageProps<BlogPostProps>> = ({ query, slug }) => {
   return (
     <BaseLayout>
       <div>
         <h1 safe>
-          Blog Post {params?.slug} {JSON.stringify(query || [])}
+          Blog Post {slug} {JSON.stringify(query || [])}
         </h1>
-        <h2 safe>{title}</h2>
-        <p safe>{text}</p>
-        <p safe>{slug}</p>
       </div>
     </BaseLayout>
   );
@@ -51,8 +32,10 @@ export const getStaticProps: GetStaticProps<BlogPostProps> = async ({ pathname }
   return {
     props: {
       slug: pathname.params.slug as string,
+    },
+    metadata: {
       title: `Hello World | ${pathname.params.slug}`,
-      text: 'This is a blog post',
+      description: 'This is a blog post',
     },
   };
 };

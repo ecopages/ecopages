@@ -9,7 +9,11 @@ export const getMetadata: GetMetadata = () => ({
 });
 
 const HomePage: EcoPage = () => {
-  return <BaseLayout class="main-content">Docs</BaseLayout>;
+  return (
+    <BaseLayout class="main-content">
+      <a href="/docs/introduction">Docs</a>
+    </BaseLayout>
+  );
 };
 
 HomePage.dependencies = DepsManager.importPaths({

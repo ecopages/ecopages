@@ -58,18 +58,21 @@ export abstract class IntegrationRenderer {
   }
 
   protected async getStaticProps(
-    getStaticProps?: GetStaticProps<unknown>,
+    getStaticProps?: GetStaticProps<Record<string, unknown>>,
     options?: Pick<RouteRendererOptions, 'params'>,
   ) {
     return getStaticProps && options?.params
       ? await getStaticProps({
           pathname: { params: options.params },
         })
-          .then((data) => data.props as Record<string, unknown>)
+          .then((data) => data)
           .catch((err) => {
             throw new Error(`[eco-pages] Error fetching static props: ${err.message}`);
           })
-      : {};
+      : {
+          props: {},
+          metadata: undefined,
+        };
   }
 
   protected async getMetadataProps(
@@ -84,9 +87,15 @@ export abstract class IntegrationRenderer {
 
     const HtmlTemplate = await this.getHtmlTemplate();
 
-    const props = await this.getStaticProps(getStaticProps, { params: options.params });
+    const { props, metadata: metadataProps } = await this.getStaticProps(getStaticProps, { params: options.params });
 
-    const metadata = await this.getMetadataProps(getMetadata, { props, params: options.params, query: options.query });
+    const metadata =
+      metadataProps ??
+      (await this.getMetadataProps(getMetadata, {
+        props,
+        params: options.params,
+        query: options.query,
+      }));
 
     return {
       ...options,

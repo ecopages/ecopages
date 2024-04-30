@@ -71,7 +71,9 @@ export class AppConfigurator {
 
   private buildTemplatesExt(integrations: EcoPagesConfig['integrations']): string[] {
     const formatExtension = (integration: any) => (ext: string) => `.${integration.descriptor}.${ext}`;
-    return integrations.flatMap((integration) => integration.extensions.map(formatExtension(integration)));
+    return integrations
+      .flatMap((integration) => integration.extensions.map(formatExtension(integration)))
+      .concat('.mdx');
   }
 
   private getAbsolutePaths(

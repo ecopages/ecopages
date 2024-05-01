@@ -3,7 +3,7 @@ import { type LitElement, unsafeCSS } from 'lit';
 type Constructor<T> = new (...args: any[]) => T;
 
 export const StyledMixin = <T extends Constructor<LitElement>>(superClass: T, css: string[] = []) => {
-  // biome-ignore lint/complexity/noStaticOnlyClass: <explanation>
+  // biome-ignore lint/complexity/noStaticOnlyClass: Static only class is extended by LitElement
   class StyledMixinClass extends superClass {
     static styles = [
       (superClass as unknown as typeof LitElement).styles ?? [],

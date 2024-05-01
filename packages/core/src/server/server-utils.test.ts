@@ -1,11 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import path from 'node:path';
 import { AppConfigurator } from '@/main/app-configurator';
 import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
 import { ServerUtils } from './server-utils.module';
 
 await AppConfigurator.create({
-  projectDir: path.resolve(FIXTURE_PROJECT_DIR),
+  projectDir: FIXTURE_PROJECT_DIR,
 });
 
 describe('ServerUtils', () => {

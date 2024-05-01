@@ -6,7 +6,7 @@
   }
 
   &__name {
-    @apply font-bold;
+    @apply bg-background-accent text-on-background-accent font-bold w-fit rounded-md  px-2 py-0.5;
   }
 
   &__type {

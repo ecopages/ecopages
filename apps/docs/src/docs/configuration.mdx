@@ -26,7 +26,7 @@ export default config;
 ## API
 ---
 
-<ApiField name="rootDir" defaultValue="." type="string">
+<ApiField name="rootDir" mandatory defaultValue="." type="string">
 The root directory of your project. This is used to resolve paths to your project's files.
 </ApiField>
 
@@ -36,30 +36,34 @@ The base URL of your project. This is used to generate URLs for your pages.
 
 <ApiField name="defaultMetadata" type="PageMetadataProps">
 Default metadata for your pages. This is used to generate metadata for your pages when no metadata is provided.
+
+Please note that the default metadata is merged with the metadata provided in the page.
 </ApiField>
 
 <ApiField name="srcDir" type="string" defaultValue="src">
-The directory where the source files are located.
+The directory where the source files are located, relative to the root project directory.
+
+If you want to avoid using the src directory, you can set the srcDir to `.`
 </ApiField>
 
 <ApiField name="public" type="string" defaultValue="public">
-The directory where the public files are located.
+The directory where the public files are located, relative to the src directory.
 </ApiField>
 
 <ApiField name="pages" type="string" defaultValue="pages">
-The directory where the pages are located.
+The directory where the pages are located, relative to the src directory.
 </ApiField>
 
 <ApiField name="includes" type="string" defaultValue="includes">
-The directory where the includes templates are located.
+The directory where the includes templates are located, relative to the src directory.
 </ApiField>
 
 <ApiField name="layouts" type="string" defaultValue="layouts">
-The directory where the layouts are located.
+The directory where the layouts are located, relative to the src directory.
 </ApiField>
 
 <ApiField name="includesTemplates" type="IncludesTemplates" defaultValue="{head: 'head.kita.tsx', html: 'html.kita.tsx', seo: 'seo.kita.tsx'}">
-The templates used for the pages.
+The templates used for the pages, relative to the includes directory.
 </ApiField>
 
 <ApiField name="error404Template" type="string" defaultValue="404.kita.tsx">

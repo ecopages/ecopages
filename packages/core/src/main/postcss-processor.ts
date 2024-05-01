@@ -1,3 +1,4 @@
+import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { CssProcessor } from '@types';
 import autoprefixer from 'autoprefixer';
@@ -12,13 +13,22 @@ async function processPath(path: string) {
 
   const processor = postcss([postCssImport(), tailwindcssNesting, tailwindcss, autoprefixer, cssnano]);
 
-  return await processor.process(contents, { from: path }).then((result) => result.css);
+  try {
+    return await processor.process(contents, { from: path }).then((result) => result.css);
+  } catch (error) {
+    appLogger.error('postcss-processor > processPath | Error processing PostCSS', error);
+    return '';
+  }
 }
 
 async function processString(contents: string) {
   const processor = postcss([postCssImport(), tailwindcssNesting, tailwindcss, autoprefixer, cssnano]);
-
-  return await processor.process(contents, { from: undefined }).then((result) => result.css);
+  try {
+    return await processor.process(contents, { from: undefined }).then((result) => result.css);
+  } catch (error) {
+    appLogger.error('postcss-processor > processString | Error processing PostCSS', error);
+    return '';
+  }
 }
 
 export const PostCssProcessor: CssProcessor = {

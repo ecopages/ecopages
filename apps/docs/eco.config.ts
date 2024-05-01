@@ -6,7 +6,8 @@ const config: EcoPagesConfigInput = {
   defaultMetadata: {
     title: 'Eco Pages | Docs',
     description: 'Eco Pages is a static site generator written in TypeScript, it supports Lit and Kita out of the box.',
-    image: 'https://eco-pages.dev/eco-pages.png',
+    image: 'public/assets/images/default-og.png',
+    keywords: ['typescript', 'framework', 'static'],
   },
 };
 

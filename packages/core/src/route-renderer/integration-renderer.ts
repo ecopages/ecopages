@@ -6,6 +6,7 @@ import type {
   EcoPageFile,
   EcoPagesConfig,
   GetMetadata,
+  GetMetadataContext,
   GetStaticProps,
   HtmlTemplateProps,
   PageMetadataProps,
@@ -75,11 +76,13 @@ export abstract class IntegrationRenderer {
         };
   }
 
-  protected async getMetadataProps(
-    getMetadata: GetMetadata | undefined,
-    { props, params, query }: Pick<RouteRendererOptions, 'params' | 'query'> & { props?: Record<string, unknown> },
-  ) {
-    return getMetadata ? await getMetadata({ params, query, ...props }) : this.appConfig.defaultMetadata;
+  protected async getMetadataProps(getMetadata: GetMetadata | undefined, { props, params, query }: GetMetadataContext) {
+    let metadata: PageMetadataProps = this.appConfig.defaultMetadata;
+    if (getMetadata) {
+      const dynamicMetadata = await getMetadata({ params, query, props });
+      metadata = { ...metadata, ...dynamicMetadata };
+    }
+    return metadata;
   }
 
   protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
@@ -87,15 +90,13 @@ export abstract class IntegrationRenderer {
 
     const HtmlTemplate = await this.getHtmlTemplate();
 
-    const { props, metadata: metadataProps } = await this.getStaticProps(getStaticProps, { params: options.params });
+    const { props } = await this.getStaticProps(getStaticProps, { params: options.params });
 
-    const metadata =
-      metadataProps ??
-      (await this.getMetadataProps(getMetadata, {
-        props,
-        params: options.params,
-        query: options.query,
-      }));
+    const metadata = await this.getMetadataProps(getMetadata, {
+      props,
+      params: options.params,
+      query: options.query,
+    });
 
     return {
       ...options,

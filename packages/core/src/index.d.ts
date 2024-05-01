@@ -186,10 +186,16 @@ export interface EcoPage<T = unknown> {
   dependencies?: EcoComponentDependencies;
 }
 
-export type PageProps<T = unknown> = T & {
-  params?: Record<string, string | string[]>;
-  query?: Record<string, string | string[]>;
+export type PageParams = Record<string, string | string[]>;
+
+export type PageQuery = Record<string, string | string[]>;
+
+export type StaticPageContext = {
+  params: PageParams;
+  query?: PageQuery;
 };
+
+export type PageProps<T = unknown> = T & StaticPageContext;
 
 export interface PageMetadataProps {
   title: string;
@@ -216,17 +222,19 @@ export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children
   stack?: string;
 }
 
-export type StaticPath = { params: Record<string, string | string[]> };
+export type StaticPath = { params: PageParams };
 
 export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
 
+export type GetMetadataContext<T = Record<string, unknown>> = StaticPageContext & { props?: T };
+
 export type GetMetadata<T = Record<string, unknown>> = (
-  context: PageProps<T>,
+  context: GetMetadataContext,
 ) => PageMetadataProps | Promise<PageMetadataProps>;
 
 export type GetStaticProps<T> = (context: {
   pathname: StaticPath;
-}) => Promise<{ props: T; metadata?: PageMetadataProps }>;
+}) => Promise<{ props: T }>;
 
 export type EcoPageFile = {
   default: EcoPage;

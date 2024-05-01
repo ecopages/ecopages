@@ -1,5 +1,12 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoPage, type GetStaticPaths, type GetStaticProps, type PageProps } from '@eco-pages/core';
+import {
+  DepsManager,
+  type EcoPage,
+  type GetMetadata,
+  type GetStaticPaths,
+  type GetStaticProps,
+  type PageProps,
+} from '@eco-pages/core';
 
 export type BlogPostProps = {
   slug: string;
@@ -33,10 +40,13 @@ export const getStaticProps: GetStaticProps<BlogPostProps> = async ({ pathname }
     props: {
       slug: pathname.params.slug as string,
     },
-    metadata: {
-      title: `Hello World | ${pathname.params.slug}`,
-      description: 'This is a blog post',
-    },
+  };
+};
+
+export const getMetadata: GetMetadata<BlogPostProps> = async ({ params }) => {
+  return {
+    title: `Hello World | ${params.slug}`,
+    description: 'This is a blog post',
   };
 };
 

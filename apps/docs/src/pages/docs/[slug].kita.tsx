@@ -2,7 +2,14 @@ import { ApiField } from '@/components/api-field/api-field.kita';
 import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { docsConfig } from '@/docs/config';
 import { DocsLayout } from '@/layouts/docs-layout';
-import { DepsManager, type EcoPage, type GetStaticPaths, type GetStaticProps, type StaticPath } from '@eco-pages/core';
+import {
+  DepsManager,
+  type EcoPage,
+  type GetMetadata,
+  type GetStaticPaths,
+  type GetStaticProps,
+  type StaticPath,
+} from '@eco-pages/core';
 
 type DocPage = {
   Content: () => JSX.Element;
@@ -41,11 +48,12 @@ export const getStaticProps: GetStaticProps<DocPage> = async ({ pathname }) => {
     props: {
       Content: Content,
     },
-    metadata: {
-      title: `Docs | ${pathname.params.slug}`,
-      description: 'This is the hello world page',
-      image: 'public/assets/images/default-og.png',
-      keywords: ['typescript', 'framework', 'static'],
-    },
+  };
+};
+
+export const getMetadata: GetMetadata<DocPage> = async ({ params }) => {
+  return {
+    title: `Docs | ${params.slug}`,
+    description: 'The place to learn about Eco Pages',
   };
 };

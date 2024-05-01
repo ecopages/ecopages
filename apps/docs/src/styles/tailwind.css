@@ -93,7 +93,7 @@
   --on-secondary: var(--color-silver-950-hsla);
 
   --border: var(--color-silver-900-hsla);
-  --link: var(--color-navy-blue-300-hsla);
+  --link: var(--color-navy-blue-400-hsla);
 
   --background-code: var(--color-silver-900-hsla);
   --on-background-code: var(--color-laser-lemon-300-hsla);
@@ -133,7 +133,7 @@ body {
   }
 
   a {
-    @apply text-link hover:underline;
+    @apply text-link underline;
   }
 
   code {

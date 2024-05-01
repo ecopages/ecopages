@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { AppConfigurator } from '@/main/app-configurator';
-import { appLogger } from '@/utils/app-logger';
 import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
 import { FSRouterScanner } from './fs-router-scanner';
-
-console.log({ FIXTURE_PROJECT_DIR });
 
 await AppConfigurator.create({
   projectDir: FIXTURE_PROJECT_DIR,

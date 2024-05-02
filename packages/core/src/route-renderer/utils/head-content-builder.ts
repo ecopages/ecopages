@@ -22,14 +22,14 @@ export class HeadContentBuilder {
    * It will build the dependencies as request.
    * @param {EcoComponentDependencies} dependencies
    * @param {IntegrationDependencyConfig[]} integrationsDependencies
-   * @param {string} rendererDescriptor
+   * @param {string} integrationName
    */
   async buildRequestDependencies({
-    rendererDescriptor,
+    integrationName,
     dependencies,
     integrationsDependencies,
   }: {
-    rendererDescriptor: string;
+    integrationName: string;
     dependencies?: EcoComponentDependencies;
     integrationsDependencies?: IntegrationDependencyConfig[];
   }) {
@@ -49,7 +49,7 @@ export class HeadContentBuilder {
 
     if (integrationsDependencies) {
       for (const dependency of integrationsDependencies) {
-        if (dependency.integration !== rendererDescriptor) continue;
+        if (dependency.integration !== integrationName) continue;
         if (dependency.kind === 'stylesheet') {
           dependenciesString += `<link rel="stylesheet" href="${dependency.srcUrl}" />`;
         } else if (dependency.kind === 'script') {
@@ -91,12 +91,9 @@ export class HeadContentBuilder {
    * It will build the head content based on the dependencies.
    * @param {EcoComponentDependencies} dependencies
    */
-  async build({
-    dependencies,
-    rendererDescriptor,
-  }: { dependencies?: EcoComponentDependencies; rendererDescriptor: string }) {
+  async build({ dependencies, integrationName }: { dependencies?: EcoComponentDependencies; integrationName: string }) {
     const integrationsDependencies = this.config.integrationsDependencies;
     if (!dependencies && !integrationsDependencies) return;
-    return await this.buildRequestDependencies({ rendererDescriptor, dependencies, integrationsDependencies });
+    return await this.buildRequestDependencies({ integrationName, dependencies, integrationsDependencies });
   }
 }

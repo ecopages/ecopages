@@ -3,10 +3,11 @@ import type { RouteRendererBody } from '@/route-renderer/route-renderer';
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { LIT_DESCRIPTOR } from './lit.plugin';
+import { litPlugin } from './lit.plugin';
 
 export class LitRenderer extends IntegrationRenderer {
-  descriptor = LIT_DESCRIPTOR;
+  name = litPlugin.name;
+  extensions = litPlugin.extensions;
 
   async render({
     params,

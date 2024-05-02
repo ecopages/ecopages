@@ -70,8 +70,8 @@ function filterFiles(file: string): boolean {
     ecoConfig: { integrations },
   } = globalThis;
   const isIndex = file === INDEX_FILE;
-  const integrationDescriptors = integrations.map((format) => format.descriptor);
-  const isTemplate = integrationDescriptors.some((format) => file.includes(`.${format}`));
+  const integrationTemplateExtensions = integrations.flatMap((integration) => integration.extensions);
+  const isTemplate = integrationTemplateExtensions.some((ext) => file.includes(ext));
 
   return !(isIndex || isTemplate);
 }
@@ -114,8 +114,6 @@ function collect({ importMeta, components = [] }: ComponentConfigOptions): EcoCo
       ),
     ),
   ];
-
-  console.log('stylesheets', stylesheets);
 
   return {
     stylesheets,

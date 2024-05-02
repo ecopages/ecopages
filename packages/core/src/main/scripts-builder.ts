@@ -18,9 +18,9 @@ export class ScriptsBuilder {
   }
 
   async build() {
-    const { srcDir, distDir, scriptDescriptor } = this.config;
+    const { srcDir, distDir, scriptsExtension } = this.config;
 
-    const scripts = await FileUtils.glob(`${srcDir}/**/*.${scriptDescriptor}.{ts,tsx}`, { cwd: '.' });
+    const scripts = await FileUtils.glob(`${srcDir}/**/*.${scriptsExtension}`, { cwd: '.' });
 
     appLogger.debug('Building scripts:', scripts);
 

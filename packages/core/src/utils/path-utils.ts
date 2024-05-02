@@ -1,13 +1,14 @@
 import path from 'node:path';
 
-function getNameDescriptor(filePath: string) {
-  const { name } = path.parse(filePath);
+function getEcoTemplateExtension(filePath: string) {
+  const { name, ext } = path.parse(filePath);
   const nameParts = name.split('.');
   const descriptor = nameParts.length > 1 ? nameParts.pop() : undefined;
+  const templateExtension = descriptor ? `.${descriptor}${ext}` : ext;
 
-  return descriptor;
+  return templateExtension;
 }
 
 export const PathUtils = {
-  getNameDescriptor,
+  getEcoTemplateExtension,
 };

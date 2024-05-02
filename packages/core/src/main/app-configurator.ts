@@ -36,12 +36,24 @@ export class AppConfigurator {
     integrations: [kitaPlugin, litPlugin, mdxPlugin],
     integrationsDependencies: [],
     distDir: '.eco',
-    scriptDescriptor: 'script',
+    scriptsExtension: 'script.ts',
     defaultMetadata: {
       title: 'Eco Pages',
       description: 'Eco Pages',
     },
   };
+
+  getIntegrationTemplatesExt(integrations: EcoPagesConfig['integrations']) {
+    const integrationName = integrations.map((integration) => integration.name);
+    const uniqueName = new Set(integrationName);
+    invariant(integrationName.length === uniqueName.size, 'Integrations names must be unique');
+
+    const integrationsExtensions = integrations.flatMap((integration) => integration.extensions);
+    const uniqueExtensions = new Set(integrationsExtensions);
+    invariant(integrationsExtensions.length === uniqueExtensions.size, 'Integrations extensions must be unique');
+
+    return integrationsExtensions;
+  }
 
   constructor({
     projectDir,
@@ -55,26 +67,15 @@ export class AppConfigurator {
 
     const baseConfig = this.mergeConfig(AppConfigurator.defaultConfig, customConfig);
 
-    const descriptors = baseConfig.integrations.map((integration) => integration.descriptor);
-    const uniqueDescriptors = new Set(descriptors);
-    invariant(descriptors.length === uniqueDescriptors.size, 'Integrations must have unique descriptors');
-
     this.config = {
       ...baseConfig,
-      templatesExt: this.buildTemplatesExt(baseConfig.integrations),
+      templatesExt: this.getIntegrationTemplatesExt(baseConfig.integrations),
       absolutePaths: this.getAbsolutePaths(projectDir, baseConfig),
     };
 
     globalThis.ecoConfig = this.config;
 
     appLogger.debug('Config', this.config);
-  }
-
-  private buildTemplatesExt(integrations: EcoPagesConfig['integrations']): string[] {
-    const formatExtension = (integration: any) => (ext: string) => `.${integration.descriptor}.${ext}`;
-    return integrations
-      .flatMap((integration) => integration.extensions.map(formatExtension(integration)))
-      .concat('.mdx');
   }
 
   private getAbsolutePaths(

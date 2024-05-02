@@ -51,6 +51,11 @@ describe('FSRouterScanner', () => {
         kind: 'dynamic',
         pathname: '/dynamic/[slug]',
       },
+      'http://localhost:3000/mdx-test': {
+        filePath: '/Users/andreazanenghi/eco-pages/packages/core/fixtures/app/src/pages/mdx-test.mdx',
+        kind: 'exact',
+        pathname: '/mdx-test',
+      },
     });
   });
 });

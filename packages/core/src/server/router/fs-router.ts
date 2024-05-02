@@ -88,12 +88,8 @@ export class FSRouter {
 
     const routeValues = Object.values(this.routes);
 
-    console.log('routeValues', routeValues);
-    console.log('pathname', pathname);
-
     for (const route of routeValues) {
       if (route.kind === 'exact' && (pathname === route.pathname || pathname === `${route.pathname}/`)) {
-        console.log('exact match');
         return {
           filePath: route.filePath,
           kind: 'exact',

@@ -23,8 +23,9 @@ export type IntegrationRendererRenderOptions = RouteRendererOptions & {
 };
 
 export abstract class IntegrationRenderer {
+  abstract name: string;
+  abstract extensions: string[];
   protected appConfig: EcoPagesConfig;
-  abstract descriptor: string;
 
   protected declare options: Required<IntegrationRendererRenderOptions>;
 
@@ -53,7 +54,7 @@ export abstract class IntegrationRenderer {
 
   protected async getHeadContent(dependencies?: EcoComponentDependencies) {
     const headContent = await new HeadContentBuilder().build({
-      rendererDescriptor: this.descriptor,
+      integrationName: this.name,
       dependencies: dependencies,
     });
     return headContent;

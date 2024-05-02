@@ -1,4 +1,4 @@
 {
-  "recommendations": ["biomejs.biome"],
+  "recommendations": ["biomejs.biome", "runem.lit-plugin", "wix.vscode-import-cost"],
   "unwantedRecommendations": []
 }

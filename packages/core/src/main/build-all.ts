@@ -1,7 +1,7 @@
 // @ts-expect-error - Types for parseArgs are not available
 // biome-ignore lint/style/useNodejsImportProtocol: this is not a Node.js file
 import { parseArgs } from 'util';
-import { IntegrationManger } from '@/integrations/integration-manager';
+import { IntegrationManager } from '@/integrations/integration-manager';
 import { AppBuilder } from '@/main/app-builder';
 import { AppConfigurator } from '@/main/app-configurator';
 import { CssBuilder } from '@/main/css-builder';
@@ -47,7 +47,7 @@ const appConfigurator = await AppConfigurator.create({
 
 const ecoPages = new AppBuilder({
   appConfigurator,
-  integrationManger: new IntegrationManger({ config: appConfigurator.config }),
+  integrationManger: new IntegrationManager({ config: appConfigurator.config }),
   staticPageGenerator: new StaticPageGenerator(appConfigurator.config),
   cssBuilder: new CssBuilder({ processor: PostCssProcessor, config: appConfigurator.config }),
   scriptsBuilder: new ScriptsBuilder({

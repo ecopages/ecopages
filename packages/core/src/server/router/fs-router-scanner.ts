@@ -1,8 +1,8 @@
 import path from 'node:path';
-import type { EcoPageFile, GetStaticPaths, GetStaticProps } from '@/eco-pages';
 import { invariant } from '@/global/utils';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
+import type { EcoPageFile, GetStaticPaths } from '@types';
 import type { RouteKind, Routes } from './fs-router';
 
 type CreateRouteArgs = {

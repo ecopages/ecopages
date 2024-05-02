@@ -11,7 +11,7 @@ import { StaticContentServer } from '@/server/sc-server';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 
-import type { IntegrationManger } from '@/integrations/integration-manager';
+import type { IntegrationManager } from '@/integrations/integration-manager';
 import type { ScriptsBuilder } from '@/main/scripts-builder';
 import type { Server } from 'bun';
 import type { AppConfigurator } from './app-configurator';
@@ -25,7 +25,7 @@ type AppBuilderOptions = {
 
 export class AppBuilder {
   appConfigurator: AppConfigurator;
-  integrationManger: IntegrationManger;
+  integrationManger: IntegrationManager;
   staticPageGenerator: StaticPageGenerator;
   cssBuilder: CssBuilder;
   scriptsBuilder: ScriptsBuilder;
@@ -40,7 +40,7 @@ export class AppBuilder {
     options,
   }: {
     appConfigurator: AppConfigurator;
-    integrationManger: IntegrationManger;
+    integrationManger: IntegrationManager;
     staticPageGenerator: StaticPageGenerator;
     cssBuilder: CssBuilder;
     scriptsBuilder: ScriptsBuilder;

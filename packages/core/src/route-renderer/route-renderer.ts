@@ -2,12 +2,14 @@ import type { Readable } from 'node:stream';
 import { invariant } from '@/global/utils';
 import { PathUtils } from '@/utils/path-utils';
 import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
-import type { EcoPagesConfig, IntegrationPlugin, StaticPageContext } from '@types';
+import type { EcoPagesConfig, IntegrationPlugin, PageParams, PageQuery } from '@types';
 import type { IntegrationRenderer } from './integration-renderer';
 
 export type RouteRendererOptions = {
   file: string;
-} & StaticPageContext;
+  params?: PageParams;
+  query?: PageQuery;
+};
 
 export type RouteRendererBody = RenderResultReadable | Readable | string;
 

@@ -94,7 +94,7 @@ export abstract class IntegrationRenderer {
 
     const metadata = await this.getMetadataProps(getMetadata, {
       props,
-      params: options.params,
+      params: options.params ?? {},
       query: options.query,
     });
 

@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { invariant } from '@/global/utils';
-import { bundleFile } from '@/modules/bundler';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig, IntegrationPlugin } from '@types';
@@ -15,7 +14,7 @@ export type IntegrationDependencyConfig = {
   inline?: boolean;
 };
 
-export class IntegrationManger {
+export class IntegrationManager {
   static EXTERNAL_DEPS_DIR = '__integrations__';
 
   config: EcoPagesConfig;
@@ -31,7 +30,7 @@ export class IntegrationManger {
     const filepath = path.join(
       this.config.rootDir,
       this.config.distDir,
-      IntegrationManger.EXTERNAL_DEPS_DIR,
+      IntegrationManager.EXTERNAL_DEPS_DIR,
       `${name}-integration-${Math.random().toString(36).slice(2)}.${ext}`,
     );
     FileUtils.write(filepath, content);
@@ -69,6 +68,25 @@ export class IntegrationManger {
     return absolutePath;
   }
 
+  private async bundleExternalDependencya({
+    entrypoint,
+    outdir,
+    root,
+  }: { entrypoint: string; outdir: string; root: string }) {
+    const build = await Bun.build({
+      entrypoints: [entrypoint],
+      outdir,
+      root,
+      target: 'browser',
+      minify: true,
+      format: 'esm',
+      splitting: true,
+      naming: '[name].[ext]',
+    });
+
+    return build;
+  }
+
   private async prepareExternalDependency({
     importPath,
     name,
@@ -81,9 +99,9 @@ export class IntegrationManger {
     const absolutePath = this.findExternalDependencyInNodeModules(importPath);
 
     if (kind === 'script') {
-      const bundle = await bundleFile({
+      const bundle = await this.bundleExternalDependencya({
         entrypoint: absolutePath,
-        outdir: path.join(this.config.rootDir, this.config.distDir, IntegrationManger.EXTERNAL_DEPS_DIR),
+        outdir: path.join(this.config.rootDir, this.config.distDir, IntegrationManager.EXTERNAL_DEPS_DIR),
         root: this.config.rootDir,
       });
 

@@ -27,12 +27,4 @@ export const docsConfig: DocsConfig = [
       { title: 'Creating Components', path: '/docs/creating-components' },
     ],
   },
-  {
-    name: 'Reference',
-    pages: [
-      { title: 'Eco Pages CLI', path: '/docs/cli' },
-      { title: 'Eco Pages Config', path: '/docs/config' },
-      { title: 'Eco Pages API', path: '/docs/api' },
-    ],
-  },
 ];

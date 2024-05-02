@@ -1,3 +1,4 @@
+import { invariant } from '@/global/utils';
 import { HeadContentBuilder } from '@/route-renderer/utils/head-content-builder';
 import type {
   EcoComponent,
@@ -85,8 +86,16 @@ export abstract class IntegrationRenderer {
     return metadata;
   }
 
+  protected async importPageFile(file: string): Promise<EcoPageFile> {
+    try {
+      return await import(file);
+    } catch (error) {
+      invariant(false, `Error importing page file: ${error}`);
+    }
+  }
+
   protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
-    const { default: Page, getStaticProps, getMetadata } = (await import(options.file)) as EcoPageFile;
+    const { default: Page, getStaticProps, getMetadata } = await this.importPageFile(options.file);
 
     const HtmlTemplate = await this.getHtmlTemplate();
 

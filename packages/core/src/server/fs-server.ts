@@ -79,7 +79,6 @@ export class FileSystemServer {
 
   private async sendNotFoundPage() {
     const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
-    console.log('error404TemplatePath', error404TemplatePath);
 
     try {
       await FileUtils.get(error404TemplatePath);

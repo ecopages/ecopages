@@ -3,6 +3,7 @@ import path from 'node:path';
 import { invariant } from '@/global/utils';
 import { kitaPlugin } from '@/integrations/kita/kita.plugin';
 import { litPlugin } from '@/integrations/lit/lit.plugin';
+import { mdxPlugin } from '@/integrations/mdx/mdx.plugin';
 import { appLogger } from '@/utils/app-logger';
 import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
 
@@ -32,7 +33,7 @@ export class AppConfigurator {
     tailwind: {
       input: 'styles/tailwind.css',
     },
-    integrations: [kitaPlugin, litPlugin],
+    integrations: [kitaPlugin, litPlugin, mdxPlugin],
     integrationsDependencies: [],
     distDir: '.eco',
     scriptDescriptor: 'script',

@@ -191,7 +191,7 @@ export type PageParams = Record<string, string | string[]>;
 export type PageQuery = Record<string, string | string[]>;
 
 export type StaticPageContext = {
-  params: PageParams;
+  params?: PageParams;
   query?: PageQuery;
 };
 

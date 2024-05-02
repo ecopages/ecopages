@@ -115,6 +115,8 @@ function collect({ importMeta, components = [] }: ComponentConfigOptions): EcoCo
     ),
   ];
 
+  console.log('stylesheets', stylesheets);
+
   return {
     stylesheets,
     scripts,

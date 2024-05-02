@@ -40,7 +40,6 @@ type StylesheetContentIntegrationPluginDependencies = {
 
 export type IntegrationPlugin = {
   name: string;
-  descriptor: string;
   extensions: string[];
   renderer: typeof IntegrationRenderer;
   dependencies?: IntegrationPluginDependencies[];
@@ -124,7 +123,7 @@ export type EcoPagesConfig = {
    * For example, "function.script.ts" will be identified as a dependency and built accordingly.
    * @default "script"
    */
-  scriptDescriptor: string;
+  scriptsExtension: string;
   /**
    * The robots.txt configuration
    */
@@ -191,7 +190,7 @@ export type PageParams = Record<string, string | string[]>;
 export type PageQuery = Record<string, string | string[]>;
 
 export type StaticPageContext = {
-  params: PageParams;
+  params?: PageParams;
   query?: PageQuery;
 };
 

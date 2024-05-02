@@ -1,0 +1,18 @@
+import { Card } from '@/components/card';
+import { BaseLayout } from '@/layouts/base-layout';
+import { DepsManager } from '@eco-pages/core';
+
+export const dependencies = DepsManager.importPaths({
+  importMeta: import.meta,
+  components: [Card,BaseLayout],
+});
+
+<BaseLayout class="prose">
+
+# MDX Page
+
+This is a test page.
+
+<Card title="Hello" copy="This is a copy included via tsx" />
+
+</BaseLayout>

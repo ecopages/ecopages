@@ -6,6 +6,7 @@ import { $ } from 'bun';
 function changeDirectory(targetDir: string) {
   try {
     const absolutePath = path.resolve(targetDir);
+    console.log(`Changing directory to: ${absolutePath}`);
     process.chdir(absolutePath);
   } catch (error) {
     appLogger.error(`Error changing directory: ${error}`);
@@ -14,6 +15,6 @@ function changeDirectory(targetDir: string) {
 
 beforeAll(async () => {
   appLogger.info('Preparing text fixtures for build tests.');
-  changeDirectory('fixtures/app');
+  changeDirectory('packages/core/fixtures/app');
   await $`NODE_ENV="development" bun run ../../src/main/build-all.ts --build`;
 });

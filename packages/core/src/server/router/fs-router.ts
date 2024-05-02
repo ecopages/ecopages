@@ -1,3 +1,4 @@
+import { appLogger } from '@/utils/app-logger';
 import type { FSRouterScanner } from './fs-router-scanner';
 
 export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
@@ -50,6 +51,7 @@ export class FSRouter {
   async init() {
     this.routes = {};
     this.routes = await this.scanner.scan();
+    appLogger.debug('FSRouter initialized', this.routes);
   }
 
   getDynamicParams(route: Route, pathname: string): Record<string, string | string[]> {
@@ -84,7 +86,9 @@ export class FSRouter {
     const url = new URL(req.url);
     const pathname = url.pathname;
 
-    for (const route of Object.values(this.routes)) {
+    const routeValues = Object.values(this.routes);
+
+    for (const route of routeValues) {
       if (route.kind === 'exact' && (pathname === route.pathname || pathname === `${route.pathname}/`)) {
         return {
           filePath: route.filePath,
@@ -95,7 +99,7 @@ export class FSRouter {
       }
     }
 
-    for (const route of Object.values(this.routes)) {
+    for (const route of routeValues) {
       const cleanPathname = route.pathname.replace(/\[.*?\]/g, '');
       const isValidDynamicRoute = pathname.includes(cleanPathname);
 
@@ -115,7 +119,7 @@ export class FSRouter {
       }
     }
 
-    for (const route of Object.values(this.routes)) {
+    for (const route of routeValues) {
       const cleanPathname = route.pathname.replace(/\[.*?\]/g, '');
       const isValidCatchAllRoute = pathname.includes(cleanPathname);
 

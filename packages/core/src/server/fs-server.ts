@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { type RouteRendererBody, RouteRendererFactory } from '@/route-renderer/route-renderer';
+import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 import type { BunFile, Server } from 'bun';
@@ -79,12 +80,14 @@ export class FileSystemServer {
 
   private async sendNotFoundPage() {
     const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
-    console.log('error404TemplatePath', error404TemplatePath);
 
     try {
       await FileUtils.get(error404TemplatePath);
     } catch (error) {
-      console.log('error', error);
+      appLogger.error(
+        'Error 404 template not found, looks like it has not being configured correctly',
+        error404TemplatePath,
+      );
       return new Response('file not found', {
         status: 404,
       });

@@ -1,9 +1,10 @@
 import { IntegrationRenderer, type IntegrationRendererRenderOptions } from '@/route-renderer/integration-renderer';
 import type { RouteRendererBody } from '@/route-renderer/route-renderer';
-import { KITA_DESCRIPTOR } from './kita.plugin';
+import { kitaPlugin } from './kita.plugin';
 
 export class KitaRenderer extends IntegrationRenderer {
-  descriptor = KITA_DESCRIPTOR;
+  name = kitaPlugin.name;
+  extensions = kitaPlugin.extensions;
 
   async render({
     params,

@@ -1,12 +1,9 @@
 import type { IntegrationPlugin } from '@types';
 import { LitRenderer } from './lit-renderer';
 
-export const LIT_DESCRIPTOR = 'lit';
-
 export const litPlugin: IntegrationPlugin = {
-  name: LIT_DESCRIPTOR,
-  descriptor: LIT_DESCRIPTOR,
-  extensions: ['tsx', 'ts'],
+  name: 'lit',
+  extensions: ['.lit.tsx'],
   renderer: LitRenderer,
   dependencies: [
     {

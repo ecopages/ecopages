@@ -40,9 +40,9 @@ export class RouteRendererFactory {
   }
 
   getIntegrationPlugin(filePath: string) {
-    const descriptor = PathUtils.getNameDescriptor(filePath);
-    const integration = this.integrations.find((integration) => integration.descriptor === descriptor);
-    invariant(integration, `No integration found for descriptor: ${descriptor}, file: ${filePath}`);
+    const templateExtension = PathUtils.getEcoTemplateExtension(filePath);
+    const integration = this.integrations.find((integration) => integration.extensions.includes(templateExtension));
+    invariant(integration, `No integration found for template extension: ${templateExtension}, file: ${filePath}`);
     return integration;
   }
 

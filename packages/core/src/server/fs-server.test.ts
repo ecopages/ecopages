@@ -111,4 +111,18 @@ describe('FileSystemServer', async () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('<h1>404 - Page Not Found</h1>');
   });
+
+  /**
+   * @todo MDX loader [preload] is not working in the test environment.
+   */
+  test('should return 200 for page rendered using mdx', async () => {
+    const req = new Request('http://localhost:3000/mdx-test');
+    const res = await server.fetch(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('text/html');
+    const resText = await res.text();
+    expect(resText).toContain('<h1>MDX Page</h1>');
+    expect(resText).toContain('<p>This is a copy included via tsx</p>');
+  });
 });

@@ -5,6 +5,7 @@ import { kitaPlugin } from '@/integrations/kita/kita.plugin';
 import { litPlugin } from '@/integrations/lit/lit.plugin';
 import { mdxPlugin } from '@/integrations/mdx/mdx.plugin';
 import { appLogger } from '@/utils/app-logger';
+import { deepMerge } from '@/utils/deep-merge';
 import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
 
 export class AppConfigurator {
@@ -33,7 +34,7 @@ export class AppConfigurator {
     tailwind: {
       input: 'styles/tailwind.css',
     },
-    integrations: [kitaPlugin, litPlugin, mdxPlugin],
+    integrations: [],
     integrationsDependencies: [],
     distDir: '.eco',
     scriptsExtension: 'script.ts',
@@ -65,7 +66,7 @@ export class AppConfigurator {
     invariant(customConfig.baseUrl, 'baseUrl is required in the config');
     invariant(customConfig.rootDir, 'rootDir is required in the config');
 
-    const baseConfig = this.mergeConfig(AppConfigurator.defaultConfig, customConfig);
+    const baseConfig = deepMerge(AppConfigurator.defaultConfig, customConfig);
 
     this.config = {
       ...baseConfig,
@@ -108,37 +109,6 @@ export class AppConfigurator {
       publicDir: path.join(absoluteSrcDir, publicDir),
       htmlTemplatePath: path.join(absoluteSrcDir, includesDir, includesTemplates.html),
       error404TemplatePath: path.join(absoluteSrcDir, pagesDir, error404Template),
-    };
-  }
-
-  private mergeConfig(
-    baseConfig: Omit<EcoPagesConfig, 'baseUrl' | 'absolutePaths' | 'serve' | 'templatesExt'>,
-    customConfig: EcoPagesConfigInput,
-  ): Omit<EcoPagesConfig, 'absolutePaths' | 'templatesExt'> {
-    return {
-      ...baseConfig,
-      ...customConfig,
-      includesTemplates: {
-        ...baseConfig.includesTemplates,
-        ...(customConfig?.includesTemplates ?? {}),
-      },
-      robotsTxt: {
-        ...baseConfig.robotsTxt,
-        ...(customConfig?.robotsTxt ?? {}),
-        preferences: {
-          ...baseConfig.robotsTxt.preferences,
-          ...(customConfig.robotsTxt?.preferences ?? {}),
-        },
-      },
-      tailwind: {
-        ...baseConfig.tailwind,
-        ...customConfig.tailwind,
-      },
-      integrations: [...baseConfig.integrations, ...(customConfig.integrations ?? [])],
-      defaultMetadata: {
-        ...baseConfig.defaultMetadata,
-        ...customConfig.defaultMetadata,
-      },
     };
   }
 

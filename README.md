@@ -1,1 +1,31 @@
 # Eco Pages
+
+---
+
+Eco Pages is a user-friendly static site generator, enabling you to craft static websites with ease and flexibility. It's perfectly suited for creating a variety of websites, including blogs and portfolios.
+
+The primary objective of this project is to offer a straightforward and transparent approach to building static websites, leveraging the power of modern web technologies, without any hidden complexities.
+
+The construction of this project relies solely on a select few dependencies, which are highlighted below.
+
+Eco Pages is founded on [Bun](https://bun.sh/) and employs [Kita](https://kita.js.org/), [Mdx](https://mdxjs.com/), and [Lit](https://lit.dev/) as its default template engines.
+
+For CSS, we've chosen to integrate [Tailwind CSS](https://tailwindcss.com/) in conjunction with [PostCSS](https://postcss.org/).
+
+It's important to note that, contrary to Tailwind CSS's typical recommendations, we advocate for the use of `css` stylesheets with `@apply` directives when using Tailwind CSS with Eco Pages.
+
+As this project is in its infancy, some rough edges are to be expected. If you encounter any issues, we encourage you to report them on our [GitHub repository](https://github.com/andeeplus/eco-pages).
+
+---
+
+## Playground
+
+`bun run dev:playground`
+
+## Docs
+
+`bun run dev:docs`
+
+## Test
+
+`bun test --coverage`

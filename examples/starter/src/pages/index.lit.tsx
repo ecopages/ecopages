@@ -14,6 +14,7 @@ const HomePage: EcoComponent = () => {
     <BaseLayout class="main-content">
       <>
         <h1 class="main-title">Eco pages</h1>
+        <a href="/about">Mdx</a>
         <scripts-injector
           on:interaction="mouseenter,focusin"
           scripts={DepsManager.extract(LitCounter, 'scripts').join()}

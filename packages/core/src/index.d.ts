@@ -225,7 +225,7 @@ export type StaticPath = { params: PageParams };
 
 export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
 
-export type GetMetadataContext<T = Record<string, unknown>> = StaticPageContext & { props?: T };
+export type GetMetadataContext<T = Record<string, unknown>> = Required<StaticPageContext> & { props?: T };
 
 export type GetMetadata<T = Record<string, unknown>> = (
   context: GetMetadataContext,

@@ -43,7 +43,8 @@ export const getStaticPaths: GetStaticPaths = async () => {
 };
 
 export const getStaticProps: GetStaticProps<DocPage> = async ({ pathname }) => {
-  const { default: Content } = await import(`@/docs/${pathname.params.slug}.mdx`);
+  const importUrl = `@/docs/${pathname.params.slug}.mdx`;
+  const { default: Content } = await import(importUrl);
   return {
     props: {
       Content: Content,

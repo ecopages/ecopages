@@ -1,4 +1,0 @@
-preload = [
-  "@eco-pages/core/src/loaders/inline-postcss.loader.ts",
-  "@eco-pages/core/src/loaders/mdx.loader.ts",
-]

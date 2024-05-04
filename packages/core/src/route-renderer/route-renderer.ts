@@ -2,16 +2,11 @@ import type { Readable } from 'node:stream';
 import { invariant } from '@/global/utils';
 import { PathUtils } from '@/utils/path-utils';
 import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
-import type { EcoPagesConfig, IntegrationPlugin, PageParams, PageQuery } from '@types';
+import type { EcoPagesConfig, IntegrationPlugin, RouteRendererOptions } from '@types';
+import type { ReactDOMServerReadableStream } from 'react-dom/server';
 import type { IntegrationRenderer } from './integration-renderer';
 
-export type RouteRendererOptions = {
-  file: string;
-  params?: PageParams;
-  query?: PageQuery;
-};
-
-export type RouteRendererBody = RenderResultReadable | Readable | string;
+export type RouteRendererBody = ReactDOMServerReadableStream | RenderResultReadable | Readable | string;
 
 export class RouteRenderer {
   private renderer: IntegrationRenderer;

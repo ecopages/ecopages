@@ -1,6 +1,7 @@
 {
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
+		"jsx": "react-jsx",
 		"baseUrl": ".",
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
@@ -9,14 +10,13 @@
 		"moduleResolution": "node",
 		"noImplicitOverride": true,
 		"paths": {
-			"@/*": ["./src/*"],
-			"@types": ["./src/index.d.ts"]
+			"@/*": ["./src/*"]
 		},
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "ES2021",
-		"types": ["bun-types", "./src/index.d.ts"],
+		"types": ["bun-types", "@eco-pages/core"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	}

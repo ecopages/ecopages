@@ -4,7 +4,6 @@ import { kitaPlugin } from './kita.plugin';
 
 export class KitaRenderer extends IntegrationRenderer {
   name = kitaPlugin.name;
-  extensions = kitaPlugin.extensions;
 
   async render({
     params,

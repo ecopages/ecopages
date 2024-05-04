@@ -246,3 +246,11 @@ export interface CssProcessor {
   processPath: (path: string) => Promise<string>;
   processString: (contents: string) => Promise<string>;
 }
+
+export type RouteRendererOptions = {
+  file: string;
+  params?: PageParams;
+  query?: PageQuery;
+};
+
+export type RouteRendererBody = RenderResultReadable | Readable | string;

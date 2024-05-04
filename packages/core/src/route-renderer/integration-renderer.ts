@@ -12,8 +12,9 @@ import type {
   HtmlTemplateProps,
   PageMetadataProps,
   PageProps,
+  RouteRendererOptions,
 } from '@types';
-import type { RouteRendererBody, RouteRendererOptions } from './route-renderer';
+import type { RouteRendererBody } from './route-renderer';
 
 export type IntegrationRendererRenderOptions = RouteRendererOptions & {
   props?: Record<string, unknown>;
@@ -24,7 +25,6 @@ export type IntegrationRendererRenderOptions = RouteRendererOptions & {
 
 export abstract class IntegrationRenderer {
   abstract name: string;
-  abstract extensions: string[];
   protected appConfig: EcoPagesConfig;
 
   protected declare options: Required<IntegrationRendererRenderOptions>;
@@ -105,7 +105,7 @@ export abstract class IntegrationRenderer {
     const metadata = await this.getMetadataProps(getMetadata, {
       props,
       params: options.params ?? {},
-      query: options.query,
+      query: options.query ?? {},
     });
 
     return {

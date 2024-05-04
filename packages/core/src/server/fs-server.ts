@@ -69,8 +69,6 @@ export class FileSystemServer {
   }
 
   private sendResponse(routeRendererBody: RouteRendererBody) {
-    const isAsync = routeRendererBody.constructor.name === 'AsyncFunction';
-
     return new Response(routeRendererBody as BodyInit, {
       headers: {
         'Content-Type': 'text/html',
@@ -95,11 +93,11 @@ export class FileSystemServer {
 
     const routeRenderer = this.routeRendererFactory.createRenderer(error404TemplatePath);
 
-    const routeRendererConfig = await routeRenderer.createRoute({
+    const routeRendererBody = await routeRenderer.createRoute({
       file: error404TemplatePath,
     });
 
-    return this.sendResponse(routeRendererConfig);
+    return this.sendResponse(routeRendererBody);
   }
 
   private async createFileResponse(filePath: string, contentType: string) {

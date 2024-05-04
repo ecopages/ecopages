@@ -7,7 +7,6 @@ import { litPlugin } from './lit.plugin';
 
 export class LitRenderer extends IntegrationRenderer {
   name = litPlugin.name;
-  extensions = litPlugin.extensions;
 
   async render({
     params,

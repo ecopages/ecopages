@@ -11,7 +11,6 @@ export type MDXFile = {
 
 export class MDXRenderer extends IntegrationRenderer {
   name = mdxPlugin.name;
-  extensions = mdxPlugin.extensions;
 
   protected override async importPageFile(file: string): Promise<EcoPageFile> {
     try {

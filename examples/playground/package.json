@@ -8,6 +8,7 @@
 		"preview": "eco-pages preview"
 	},
 	"devDependencies": {
+		"@kitajs/html": "^4.1.0",
 		"@eco-pages/core": "workspace:*",
 		"@eco-pages/scripts-injector": "workspace:*",
 		"@types/alpinejs": "^3.13.6",

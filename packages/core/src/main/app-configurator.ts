@@ -37,7 +37,7 @@ export class AppConfigurator {
     integrations: [],
     integrationsDependencies: [],
     distDir: '.eco',
-    scriptsExtension: 'script.ts',
+    scriptsExtensions: ['script.ts', 'script.tsx'],
     defaultMetadata: {
       title: 'Eco Pages',
       description: 'Eco Pages',

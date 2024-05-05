@@ -35,7 +35,7 @@ export class ProjectWatcher {
         return;
       }
 
-      const { srcDir, distDir, pagesDir, scriptsExtension, templatesExt } = this.config;
+      const { srcDir, distDir, pagesDir, scriptsExtensions, templatesExt } = this.config;
 
       for (const event of events) {
         if (event.type === 'delete') {
@@ -58,7 +58,7 @@ export class ProjectWatcher {
         if (event.path.endsWith('.css')) {
           this.cssBuilder.buildCssFromPath({ path: event.path });
           appLogger.info('File changed', event.path.split(srcDir)[1]);
-        } else if (event.path.endsWith(scriptsExtension)) {
+        } else if (scriptsExtensions.some((scriptsExtension) => event.path.endsWith(scriptsExtension))) {
           this.scriptsBuilder.build();
           this.uncacheModules();
           appLogger.info('File changed', event.path.split(srcDir)[1]);

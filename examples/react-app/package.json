@@ -11,6 +11,12 @@
 		"@eco-pages/core": "workspace:*",
 		"@eco-pages/react": "workspace:*",
 		"@eco-pages/lit": "workspace:*",
-		"@eco-pages/mdx": "workspace:*"
+		"@eco-pages/mdx": "workspace:*",
+		"@types/react": "npm:types-react@beta",
+		"@types/react-dom": "npm:types-react-dom@beta"
+	},
+	"overrides": {
+		"@types/react": "npm:types-react@beta",
+		"@types/react-dom": "npm:types-react-dom@beta"
 	}
 }

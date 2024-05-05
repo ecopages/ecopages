@@ -4,3 +4,4 @@ export * from './utils/add-base-url-to-pathname';
 export * from './route-renderer/integration-renderer';
 export * from './utils/deep-merge';
 export * from './utils/invariant';
+export * from './utils/app-logger';

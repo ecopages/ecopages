@@ -1,4 +1,3 @@
-/** @jsxImportSource react */
 import {
   type EcoComponentDependencies,
   type EcoPagesConfig,

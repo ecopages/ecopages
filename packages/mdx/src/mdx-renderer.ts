@@ -1,4 +1,3 @@
-/** @jsxImportSource @kitajs/html */
 import {
   type EcoComponentDependencies,
   type EcoPage,

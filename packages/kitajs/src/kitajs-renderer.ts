@@ -1,4 +1,3 @@
-/** @jsxImportSource @kitajs/html */
 import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@eco-pages/core';
 import { PLUGIN_NAME } from './kitajs.plugin';
 

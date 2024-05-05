@@ -21,6 +21,7 @@ export type IntegrationRendererRenderOptions = RouteRendererOptions & {
   metadata: PageMetadataProps;
   HtmlTemplate: EcoComponent<HtmlTemplateProps>;
   Page: EcoPage<PageProps>;
+  appConfig: EcoPagesConfig;
 };
 
 export abstract class IntegrationRenderer {
@@ -110,6 +111,7 @@ export abstract class IntegrationRenderer {
 
     return {
       ...options,
+      appConfig: this.appConfig,
       HtmlTemplate,
       props,
       Page,

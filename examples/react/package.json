@@ -9,5 +9,15 @@
 	},
 	"devDependencies": {
 		"@eco-pages/core": "workspace:*"
+	},
+	"dependencies": {
+		"@types/react": "npm:types-react@beta",
+		"@types/react-dom": "npm:types-react-dom@beta",
+		"react": "^19.0.0-beta-1beb73de0f-20240503",
+		"react-dom": "^19.0.0-beta-1beb73de0f-20240503"
+	},
+	"overrides": {
+		"@types/react": "npm:types-react@beta",
+		"@types/react-dom": "npm:types-react-dom@beta"
 	}
 }

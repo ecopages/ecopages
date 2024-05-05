@@ -1,3 +1,4 @@
+import { deepMerge } from '@/utils/deep-merge';
 import type { EcoComponentDependencies, IntegrationPlugin } from '@eco-pages/core';
 import { createElement } from 'react';
 import { preload } from 'react-dom';
@@ -10,7 +11,12 @@ export type ReactPluginOptions = {
 
 export function reactPlugin(options?: ReactPluginOptions): IntegrationPlugin {
   const { extensions = ['.tsx'], dependencies = [] } = options || {};
-  return { name: 'react', extensions, renderer: ReactRenderer, dependencies };
+  return {
+    name: 'react',
+    extensions,
+    renderer: ReactRenderer,
+    dependencies,
+  };
 }
 
 export function DynamicHead({ dependencies }: { dependencies?: EcoComponentDependencies }) {

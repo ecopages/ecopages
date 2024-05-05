@@ -123,7 +123,7 @@ export type EcoPagesConfig = {
    * For example, "function.script.ts" will be identified as a dependency and built accordingly.
    * @default "script"
    */
-  scriptsExtension: string;
+  scriptsExtensions: string[];
   /**
    * The robots.txt configuration
    */

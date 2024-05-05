@@ -1,3 +1,4 @@
+/** @jsxImportSource @kitajs/html */
 import { invariant } from '@/global/utils';
 import { IntegrationRenderer, type IntegrationRendererRenderOptions } from '@/route-renderer/integration-renderer';
 import type { RouteRendererBody } from '@/route-renderer/route-renderer';
@@ -29,7 +30,7 @@ export class MDXRenderer extends IntegrationRenderer {
       const body = await HtmlTemplate({
         metadata,
         headContent: await this.getHeadContent(Page.dependencies),
-        children: await Page({}),
+        children: Page({}),
       });
 
       return this.DOC_TYPE + body;

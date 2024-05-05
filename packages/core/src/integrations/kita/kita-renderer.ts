@@ -1,3 +1,4 @@
+/** @jsxImportSource @kitajs/html */
 import { IntegrationRenderer, type IntegrationRendererRenderOptions } from '@/route-renderer/integration-renderer';
 import type { RouteRendererBody } from '@/route-renderer/route-renderer';
 import { kitaPlugin } from './kita.plugin';

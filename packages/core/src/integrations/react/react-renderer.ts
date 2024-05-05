@@ -1,3 +1,4 @@
+/** @jsxImportSource react */
 import type { RouteRendererBody } from '@/route-renderer/route-renderer';
 import {
   type EcoComponentDependencies,
@@ -5,8 +6,9 @@ import {
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
 } from '@eco-pages/core';
+import React from 'react';
 import { renderToReadableStream } from 'react-dom/server';
-import { DynamicHead, reactPlugin } from './react.plugin';
+import { reactPlugin } from './react.plugin';
 
 export class ReactRenderer extends IntegrationRenderer {
   name = reactPlugin.name;
@@ -31,6 +33,27 @@ export class ReactRenderer extends IntegrationRenderer {
     };
   }
 
+  createDynamicHead({ dependencies }: { dependencies?: EcoComponentDependencies }) {
+    if (!dependencies) return React.createElement(React.Fragment, null);
+
+    const elements: React.JSX.Element[] = [];
+
+    if (dependencies.stylesheets?.length) {
+      for (const stylesheet of dependencies.stylesheets) {
+        elements.push(
+          React.createElement('link', { key: stylesheet, rel: 'stylesheet', href: stylesheet, as: 'style' }),
+        );
+      }
+    }
+    if (dependencies.scripts?.length) {
+      for (const script of dependencies.scripts) {
+        elements.push(React.createElement('script', { key: script, defer: true, type: 'module', src: script }));
+      }
+    }
+
+    return React.createElement(React.Fragment, null, elements);
+  }
+
   async render({
     appConfig,
     params,
@@ -42,10 +65,10 @@ export class ReactRenderer extends IntegrationRenderer {
   }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
     try {
       const body = await renderToReadableStream(
-        HtmlTemplate({
+        await HtmlTemplate({
           metadata,
           dependencies: Page.dependencies,
-          headContent: DynamicHead({
+          headContent: this.createDynamicHead({
             dependencies: this.collectDependencies({ dependencies: Page.dependencies, appConfig }),
           }),
           children: Page({ params, query, ...props }),

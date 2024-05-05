@@ -1,3 +1,4 @@
+/** @jsxImportSource @kitajs/html */
 import { IntegrationRenderer, type IntegrationRendererRenderOptions } from '@/route-renderer/integration-renderer';
 import type { RouteRendererBody } from '@/route-renderer/route-renderer';
 import { render } from '@lit-labs/ssr';
@@ -19,11 +20,11 @@ export class LitRenderer extends IntegrationRenderer {
     try {
       const children = await Page({ params, query, ...props });
 
-      const template = await HtmlTemplate({
+      const template = (await HtmlTemplate({
         metadata,
         headContent: await this.getHeadContent(Page.dependencies),
         children: '<--content-->',
-      });
+      })) as string;
 
       const [templateStart, templateEnd] = template.split('<--content-->');
 

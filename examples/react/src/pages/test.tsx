@@ -14,10 +14,20 @@ const TestPage: EcoPage = () => {
     <BaseLayout class="main-content">
       <h1 className="main-title">Eco pages</h1>
       <a href="/about">Mdx</a>
-      <a href="/test">Test Splitting</a>
+      <a href="/">Home</a>
       <Counter defaultValue={10} />
+      <Counter defaultValue={5} />
     </BaseLayout>
   );
+};
+
+TestPage.dependencies = {
+  stylesheets: [
+    'pages/index.css',
+    ...(Counter.dependencies?.stylesheets ?? []),
+    ...(BaseLayout.dependencies?.stylesheets ?? []),
+  ],
+  scripts: ['pages/test.script.js'],
 };
 
 export default TestPage;

@@ -1,5 +1,5 @@
 import type { Readable } from 'node:stream';
-import { invariant } from '@/global/utils';
+import { invariant } from '@/utils/invariant';
 import { PathUtils } from '@/utils/path-utils';
 import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
 import type { EcoPagesConfig, IntegrationPlugin, RouteRendererOptions } from '@types';

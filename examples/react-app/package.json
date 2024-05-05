@@ -1,0 +1,16 @@
+{
+	"name": "@eco-pages/react-app",
+	"version": "0.0.1",
+	"scripts": {
+		"dev": "eco-pages dev",
+		"build": "eco-pages build",
+		"start": "eco-pages start",
+		"preview": "eco-pages preview"
+	},
+	"devDependencies": {
+		"@eco-pages/core": "workspace:*",
+		"@eco-pages/react": "workspace:*",
+		"@eco-pages/lit": "workspace:*",
+		"@eco-pages/mdx": "workspace:*"
+	}
+}

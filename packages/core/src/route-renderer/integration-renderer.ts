@@ -1,5 +1,5 @@
-import { invariant } from '@/global/utils';
 import { HeadContentBuilder } from '@/route-renderer/utils/head-content-builder';
+import { invariant } from '@/utils/invariant';
 import type {
   EcoComponent,
   EcoComponentDependencies,

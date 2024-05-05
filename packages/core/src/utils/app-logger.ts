@@ -27,7 +27,7 @@ export class Logger {
   }
 
   debug(...args: any[]) {
-    if (process.env.DEBUG_ACTIVE === 'true') {
+    if (process.env.ECO_PAGES_DEBUG === 'true') {
       this.logInternal(DEBUG, ...args);
     }
   }

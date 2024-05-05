@@ -1,0 +1,11 @@
+{
+	"name": "@eco-pages/mdx",
+	"version": "0.0.1",
+	"main": "./src/index.ts",
+	"dependencies": {
+		"@eco-pages/core": "workspace:*",
+		"@kitajs/html": "^4.1.0",
+		"@kitajs/ts-html-plugin": "^4.0.1"
+	},
+	"repository": "https://github.com/andeeplus/eco-pages.git"
+}

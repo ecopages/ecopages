@@ -4,7 +4,7 @@ declare global {
   namespace NodeJS {
     interface ProcessEnv {
       ECO_PAGES_BASE_URL: string;
-      DEBUG_ACTIVE: 'true' | 'false';
+      ECO_PAGES_DEBUG: 'true' | 'false';
       PWD: string;
       npm_config_local_prefix: string;
       _: string;

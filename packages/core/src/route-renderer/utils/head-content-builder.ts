@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { IntegrationDependencyConfig } from '@/integrations/integration-manager';
+import type { IntegrationDependencyConfig } from '@/main/integration-manager';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoComponentDependencies, EcoPagesConfig } from '@types';
 

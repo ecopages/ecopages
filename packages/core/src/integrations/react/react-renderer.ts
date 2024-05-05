@@ -18,11 +18,15 @@ export class ReactRenderer extends IntegrationRenderer {
     return {
       stylesheets: [
         ...(dependencies?.stylesheets || []),
-        ...appConfig.integrationsDependencies.flatMap((dep) => dep.filePath.split(`${appConfig.distDir}/`)[1]),
+        ...appConfig.integrationsDependencies
+          .filter((dep) => dep.kind === 'stylesheet')
+          .flatMap((dep) => dep.filePath.split(`${appConfig.distDir}/`)[1]),
       ],
       scripts: [
         ...(dependencies?.scripts || []),
-        ...appConfig.integrationsDependencies.flatMap((dep) => dep.filePath.split(`${appConfig.distDir}/`)[1]),
+        ...appConfig.integrationsDependencies
+          .filter((dep) => dep.kind === 'script')
+          .flatMap((dep) => dep.filePath.split(`${appConfig.distDir}/`)[1]),
       ],
     };
   }

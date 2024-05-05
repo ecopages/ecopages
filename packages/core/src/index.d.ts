@@ -1,7 +1,7 @@
 export * from './env.d';
 import './declarations.d';
 
-import type { IntegrationDependencyConfig } from './integrations/integration-manager';
+import type { IntegrationDependencyConfig } from './main/integration-manager';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer';
 
 export type IntegrationPluginDependencies = BaseIntegrationPluginDependencies & SpecificIntegrationPluginDependencies;
@@ -246,3 +246,11 @@ export interface CssProcessor {
   processPath: (path: string) => Promise<string>;
   processString: (contents: string) => Promise<string>;
 }
+
+export type RouteRendererOptions = {
+  file: string;
+  params?: PageParams;
+  query?: PageQuery;
+};
+
+export type RouteRendererBody = RenderResultReadable | Readable | string;

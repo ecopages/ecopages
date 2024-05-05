@@ -1,0 +1,10 @@
+.counter-react {
+  @apply flex gap-4 items-center bg-blue-200 rounded-md max-w-fit p-2;
+  .increment,
+  .decrement {
+    @apply flex items-center justify-center bg-blue-600 text-white rounded-md w-8 h-8 appearance-none border-none cursor-pointer;
+  }
+  span {
+    @apply text-slate-900 font-bold p-2 bg-slate-100 min-w-20 h-10 flex items-center justify-center rounded-md box-border;
+  }
+}

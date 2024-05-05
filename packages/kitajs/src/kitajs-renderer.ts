@@ -1,9 +1,8 @@
-import { IntegrationRenderer, type IntegrationRendererRenderOptions } from '@/route-renderer/integration-renderer';
-import type { RouteRendererBody } from '@/route-renderer/route-renderer';
-import { kitaPlugin } from './kita.plugin';
+import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@eco-pages/core';
+import { PLUGIN_NAME } from './kitajs.plugin';
 
 export class KitaRenderer extends IntegrationRenderer {
-  name = kitaPlugin.name;
+  name = PLUGIN_NAME;
 
   async render({
     params,

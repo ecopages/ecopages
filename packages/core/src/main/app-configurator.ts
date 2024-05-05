@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { invariant } from '@/global/utils';
 import { kitaPlugin } from '@/integrations/kita/kita.plugin';
 import { litPlugin } from '@/integrations/lit/lit.plugin';
 import { mdxPlugin } from '@/integrations/mdx/mdx.plugin';
 import { appLogger } from '@/utils/app-logger';
 import { deepMerge } from '@/utils/deep-merge';
+import { invariant } from '@/utils/invariant';
 import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
 
 export class AppConfigurator {

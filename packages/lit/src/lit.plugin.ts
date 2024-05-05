@@ -1,11 +1,12 @@
-import { deepMerge } from '@/utils/deep-merge';
-import type { IntegrationPlugin } from '@types';
+import { type IntegrationPlugin, deepMerge } from '@eco-pages/core';
 import { LitRenderer } from './lit-renderer';
 
 export type LitPluginOptions = {
   extensions: string[];
   dependencies: IntegrationPlugin['dependencies'];
 };
+
+export const PLUGIN_NAME = 'lit';
 
 export function litPlugin(options?: LitPluginOptions): IntegrationPlugin {
   const defaultOptions: LitPluginOptions = {
@@ -22,5 +23,5 @@ export function litPlugin(options?: LitPluginOptions): IntegrationPlugin {
   const finalOptions = options ? deepMerge(defaultOptions, options) : defaultOptions;
 
   const { extensions, dependencies } = finalOptions;
-  return { name: 'lit', extensions, renderer: LitRenderer, dependencies };
+  return { name: PLUGIN_NAME, extensions, renderer: LitRenderer, dependencies };
 }

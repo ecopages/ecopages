@@ -9,6 +9,8 @@
 	},
 	"devDependencies": {
 		"@eco-pages/core": "workspace:*",
-		"lit": "^3.1.2"
+		"@eco-pages/kitajs": "workspace:*",
+		"@eco-pages/lit": "workspace:*",
+		"@eco-pages/mdx": "workspace:*"
 	}
 }

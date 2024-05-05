@@ -31,7 +31,7 @@ describe('Logger', () => {
 
   it('should log debug message when debugActive is true', () => {
     const consoleSpy = spyOn(console, 'log');
-    import.meta.env.DEBUG_ACTIVE = 'true';
+    import.meta.env.ECO_PAGES_DEBUG = 'true';
     logger.debug('Debug message');
     expect(consoleSpy).toHaveBeenCalledWith('\x1b[36mTest', 'Debug message', '\x1b[0m');
     consoleSpy.mockRestore();
@@ -39,7 +39,7 @@ describe('Logger', () => {
 
   it('should not log debug message when debugActive is false', () => {
     const consoleSpy = spyOn(console, 'log');
-    import.meta.env.DEBUG_ACTIVE = 'false';
+    import.meta.env.ECO_PAGES_DEBUG = 'false';
     logger.debug('Debug message');
     expect(consoleSpy).not.toHaveBeenCalled();
     consoleSpy.mockRestore();

@@ -1,5 +1,5 @@
-import { invariant } from '@/global/utils';
 import { HeadContentBuilder } from '@/route-renderer/utils/head-content-builder';
+import { invariant } from '@/utils/invariant';
 import type {
   EcoComponent,
   EcoComponentDependencies,
@@ -12,14 +12,16 @@ import type {
   HtmlTemplateProps,
   PageMetadataProps,
   PageProps,
+  RouteRendererOptions,
 } from '@types';
-import type { RouteRendererBody, RouteRendererOptions } from './route-renderer';
+import type { RouteRendererBody } from './route-renderer';
 
 export type IntegrationRendererRenderOptions = RouteRendererOptions & {
   props?: Record<string, unknown>;
   metadata: PageMetadataProps;
   HtmlTemplate: EcoComponent<HtmlTemplateProps>;
   Page: EcoPage<PageProps>;
+  appConfig: EcoPagesConfig;
 };
 
 export abstract class IntegrationRenderer {
@@ -109,6 +111,7 @@ export abstract class IntegrationRenderer {
 
     return {
       ...options,
+      appConfig: this.appConfig,
       HtmlTemplate,
       props,
       Page,

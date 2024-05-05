@@ -1,8 +1,14 @@
-import { invariant } from '@/global/utils';
-import { IntegrationRenderer, type IntegrationRendererRenderOptions } from '@/route-renderer/integration-renderer';
-import type { RouteRendererBody } from '@/route-renderer/route-renderer';
-import type { EcoComponentDependencies, EcoPage, EcoPageFile } from '@types';
-import { mdxPlugin } from './mdx.plugin';
+import {
+  type EcoComponentDependencies,
+  type EcoPage,
+  type EcoPageFile,
+  IntegrationRenderer,
+  type IntegrationRendererRenderOptions,
+  type RouteRendererBody,
+  invariant,
+} from '@eco-pages/core';
+
+import { PLUGIN_NAME } from './mdx.plugin';
 
 export type MDXFile = {
   default: EcoPage;
@@ -10,7 +16,7 @@ export type MDXFile = {
 };
 
 export class MDXRenderer extends IntegrationRenderer {
-  name = mdxPlugin.name;
+  name = PLUGIN_NAME;
 
   protected override async importPageFile(file: string): Promise<EcoPageFile> {
     try {
@@ -29,7 +35,7 @@ export class MDXRenderer extends IntegrationRenderer {
       const body = await HtmlTemplate({
         metadata,
         headContent: await this.getHeadContent(Page.dependencies),
-        children: await Page({}),
+        children: Page({}),
       });
 
       return this.DOC_TYPE + body;

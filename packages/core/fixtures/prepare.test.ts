@@ -6,7 +6,6 @@ import { $ } from 'bun';
 function changeDirectory(targetDir: string) {
   try {
     const absolutePath = path.resolve(targetDir);
-    console.log(`Changing directory to: ${absolutePath}`);
     process.chdir(absolutePath);
   } catch (error) {
     appLogger.error(`Error changing directory: ${error}`);

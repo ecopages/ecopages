@@ -1,0 +1,16 @@
+{
+	"name": "@eco-pages/react",
+	"version": "0.0.1",
+	"main": "./src/index.ts",
+	"dependencies": {
+		"@types/react": "npm:types-react@beta",
+		"@types/react-dom": "npm:types-react-dom@beta",
+		"react": "^19.0.0-beta-1beb73de0f-20240503",
+		"react-dom": "^19.0.0-beta-1beb73de0f-20240503"
+	},
+	"overrides": {
+		"@types/react": "npm:types-react@beta",
+		"@types/react-dom": "npm:types-react-dom@beta"
+	},
+	"repository": "https://github.com/andeeplus/eco-pages.git"
+}

@@ -129,13 +129,13 @@ export class FileSystemServer {
   private async handleMatch(match: MatchResult) {
     const routeRenderer = this.routeRendererFactory.createRenderer(match.filePath);
 
-    const routeRendererConfig = await routeRenderer.createRoute({
+    const renderedBody = await routeRenderer.createRoute({
       file: match.filePath,
       params: match.params,
       query: match.query,
     });
 
-    return this.sendResponse(routeRendererConfig);
+    return this.sendResponse(renderedBody);
   }
 
   public startServer(serverOptions: PureWebSocketServeOptions<unknown>) {

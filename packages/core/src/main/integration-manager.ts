@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { invariant } from '@/global/utils';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
+import { invariant } from '@/utils/invariant';
 import type { EcoPagesConfig, IntegrationPlugin } from '@types';
 
 export type IntegrationDependencyConfig = {

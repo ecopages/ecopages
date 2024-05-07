@@ -1,0 +1,10 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+
+# @onUpdated
+---
+
+This is a decorator that allows you to register a method to be called when a property or a reactive field is updated. 
+
+It takes the name of the property to watch for changes.
+
+<CodeBlock lang='typescript'>{`@onUpdated("count") doSomething() {...}`}</CodeBlock>

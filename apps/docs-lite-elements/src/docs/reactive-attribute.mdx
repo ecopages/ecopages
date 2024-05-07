@@ -1,0 +1,14 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+
+# @reactiveAttribute
+---
+
+This is a decorator that allows you to define a reactive attribute on the element.
+
+It takes an options object with the type of the attribute and whether it should be reflected to the attribute.
+
+Once an update is made to the field, it will inform the component that an update occured.
+
+It plays well in combination with the @onUpdated decorator.
+
+<CodeBlock lang='typescript'>{`@reactiveAttribute({ type: Number, reflect: true }) declare count: number;`}</CodeBlock>

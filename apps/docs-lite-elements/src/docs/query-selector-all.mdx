@@ -1,0 +1,10 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+
+# @querySelectorAll
+---
+
+This is a decorator that allows you to query for elements inside the component tree. 
+
+It takes a selector and a property to assign the element to. Behind the scenes, it uses querySelectorAll
+
+<CodeBlock lang='typescript'>{`@querySelectorAll("[data-text]") allTexts: HTMLElement[];`}</CodeBlock>

@@ -8,12 +8,12 @@
 		"preview": "eco-pages preview"
 	},
 	"devDependencies": {
-		"@kitajs/html": "^4.1.0",
 		"@eco-pages/core": "workspace:*",
 		"@eco-pages/scripts-injector": "workspace:*",
 		"@eco-pages/kitajs": "workspace:*",
 		"@eco-pages/lit": "workspace:*",
 		"@eco-pages/mdx": "workspace:*",
+		"@eco-pages/lite-elements": "workspace:*",
 		"@types/alpinejs": "^3.13.6",
 		"alpinejs": "^3.13.10",
 		"shiki": "^1.1.2"

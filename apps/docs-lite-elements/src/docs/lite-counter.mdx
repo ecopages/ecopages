@@ -1,0 +1,52 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+
+# Lite Counter
+---
+
+This is a simple counter component that increments and decrements a number. It uses the `@property`, `@querySelector`, `@onEvent`, and `@onUpdated` decorators.
+
+### Features
+
+- Increment and decrement a number
+- Uses the [@property](/docs/property) decorator to define a property
+- Uses the [@querySelector](/docs/query-selector) decorator to query for an element
+- Uses the [@onEvent](/docs/on-event) decorator to listen for events
+- Uses the [@onUpdated](/docs/on-updated) decorator to update the text content of the element
+
+<br />
+
+### Html Markup
+
+<CodeBlock lang="html">{`<lite-counter class="lite-counter" count="5">
+  <button type="button" data-decrement aria-label="Decrement" class="lite-counter__decrement">
+    -
+  </button>
+  <span data-text="count">5</span>
+  <button type="button" data-increment aria-label="Increment" class="lite-counter__increment">
+    +
+  </button>
+</lite-counter>`}</CodeBlock>
+
+### Typescript
+
+<CodeBlock lang='typescript'>{`@customElement("lite-counter")
+export class LiteCounter extends LiteElement {
+  @property({ type: Number }) count = 0;
+  @querySelector("[data-text]") countText!: HTMLElement;
+
+  @onEvent({ target: "[data-decrement]", type: "click" })
+  decrement() {
+    this.count--;
+  }
+
+  @onEvent({ target: "[data-increment]", type: "click" })
+  increment() {
+    this.count++;
+  }
+
+  @onUpdated("count")
+  updateCount() {
+    this.countText.textContent = this.count.toString();
+  }
+}`}
+</CodeBlock>

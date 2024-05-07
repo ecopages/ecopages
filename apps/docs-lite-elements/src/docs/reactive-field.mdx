@@ -1,0 +1,12 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+
+# @reactiveField
+---
+
+This is a decorator that allows you to define a reactive field on the element.
+
+Once an update is made to the field, it will inform the component that an update occured.
+
+It plays well in combination with the @onUpdated decorator.
+
+<CodeBlock lang='typescript'>{`@reactiveField numberOfClicks = 1;`}</CodeBlock>

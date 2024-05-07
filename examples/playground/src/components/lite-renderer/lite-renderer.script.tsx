@@ -1,12 +1,15 @@
-import { LiteElement } from '@/lib/lite/LiteElement';
-import { customElement } from '@/lib/lite/decorators/custom-element';
-import { onEvent } from '@/lib/lite/decorators/on-event';
-import { onUpdated } from '@/lib/lite/decorators/on-updated';
-import { querySelector } from '@/lib/lite/decorators/query-selector';
-import { reactiveAttribute } from '@/lib/lite/decorators/reactive-attribute';
-import { reactiveField } from '@/lib/lite/decorators/reactive-field';
-import { WithKita } from '@/lib/lite/mixins/with-kita';
-import type { RenderInsertPosition } from '@/lib/lite/types';
+import {
+  LiteElement,
+  type RenderInsertPosition,
+  WithKita,
+  customElement,
+  onEvent,
+  onUpdated,
+  querySelector,
+  reactiveAttribute,
+  reactiveField,
+} from '@eco-pages/lite-elements';
+
 import { Message } from './lite-renderer.templates.kita';
 
 export type LiteRendererProps = {

@@ -8,14 +8,13 @@ const code = `
  * ----------------------- LITE ELEMENT ------------------------- *
  * -------------------------------------------------------------- *
 
-Lite Element is a lightweight web component library that provides a simple way to create and manage stateful and reactive components.
-It is built on top of the Web Components standard and currently use LitElement as the base class for creating components.
-Instead of using the shadow DOM, Lite Element is a bare-bones implementation of web components that uses the light DOM.
-This means that Lite Element components are not isolated from the rest of the page and can be styled and manipulated using regular CSS and JavaScript.
+Lite Elements is a lightweight web component library that provides a simple way to create and manage stateful and reactive components.
+Instead of using the shadow DOM, Lite Elements is a bare-bones implementation of web components that uses the light DOM.
+This means that Lite Elements components are not isolated from the rest of the page and can be styled and manipulated using regular CSS and JavaScript.
 
 This goes against the 'official' best practices of web components, but it is a trade-off that allows for a simpler and more flexible development experience.
-Lite Element is designed to be used in small to medium-sized projects where the overhead of a full web components implementation is not justified.
-Lite Element is not a replacement for full web components, but rather a lightweight alternative for projects that do not require the full power of the web components standard.
+Lite Elements is designed to be used in small to medium-sized projects where the overhead of a full web components implementation is not justified.
+Lite Elements is not a replacement for full web components, but rather a lightweight alternative for projects that do not require the full power of the web components standard.
 
 https://web.dev/articles/custom-elements-best-practices
 
@@ -23,7 +22,7 @@ Another problem related to web components is the possibility to SSR them.
 This is a problem that is being addressed by the community and there are some libraries that are trying to solve it.
 One of them is @lit-labs/ssr, which is a library that allows you to server-side render lit-html templates.
 This is a great solution for web components, but it is not a perfect solution for all use cases and it still has some limitations and issues.
-Lite Element is a lightweight alternative that allows you to create server-side rendered components without the need for a full web components implementation.
+Lite Elements is a lightweight alternative that allows you to create server-side rendered components without the need for a full web components implementation.
 
 * --------------------------------------------------------------- *
 * --------------------- Utility decorators ---------------------- *

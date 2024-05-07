@@ -1,0 +1,16 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+
+# Lite Element
+---
+
+This is the base class for all Lite Elements. It provides a set of decorators that can be used to define the behavior of the element.
+
+Please note that this class is not meant to be used directly. Instead, you should extend it to create your own custom elements.
+
+You can use the `@customElement` decorator to define a custom element.
+
+Go to the [Decorator Section](/docs/custom-element) to see all the available decorators.
+
+<CodeBlock lang='typescript'>{`@customElement('lc-demo')
+export class MyElement extends LiteElement {}`}
+</CodeBlock>

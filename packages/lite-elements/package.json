@@ -1,0 +1,11 @@
+{
+	"name": "@eco-pages/lite-elements",
+	"version": "0.0.1",
+	"repository": "https://github.com/andeeplus/eco-pages.git",
+	"main": "src/index.ts",
+	"type": "module",
+	"dependencies": {
+		"@kitajs/html": "^4.1.0",
+		"@kitajs/ts-html-plugin": "^4.0.1"
+	}
+}

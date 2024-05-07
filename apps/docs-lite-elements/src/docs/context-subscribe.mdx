@@ -1,0 +1,13 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+
+# @subscribe
+---
+This is the easiest way to register a subscription to a context.
+
+It will check if a context has been already found and if not it will look for it and register the subscription
+
+<CodeBlock lang='typescript'>{`@subscribe({ context: myContext, selector: "name" })
+updateName({ name }: { name: string }) {
+  this.packageName.innerHTML = name;
+}`}
+</CodeBlock>

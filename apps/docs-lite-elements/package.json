@@ -1,0 +1,15 @@
+{
+	"name": "@eco-pages/docs-lite-elements",
+	"version": "0.0.1",
+	"scripts": {
+		"dev": "eco-pages dev",
+		"build": "eco-pages build",
+		"start": "eco-pages start",
+		"preview": "eco-pages preview"
+	},
+	"devDependencies": {
+		"@eco-pages/core": "workspace:*",
+		"@eco-pages/lite-elements": "workspace:*",
+		"shiki": "^1.1.2"
+	}
+}

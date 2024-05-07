@@ -1,0 +1,30 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+
+# Lite Context Provider
+---
+
+To be able to use the LiteContext, you need to create a new class, the provider, that extends the LiteContext class and define the state of the context.
+
+Then you can wrap your components in the context provider and use the a set of utility decorators to register a subscription or use the context.
+
+To create the context definition, you can use the createContext function that takes a name and a state object as arguments.
+
+<CodeBlock lang='typescript'>{`export const myContext = createContext("my-context", {
+  name: "eco-pages",
+  version: 0.1,
+});
+
+export type MyContext = typeof myContext;
+
+@customElement("lite-my-context")
+export class LitePackageContext extends LiteContext<MyContext> {
+  protected override name = litePackageContext.name;
+  protected override state = litePackageContext.initialValue!;
+}`}
+</CodeBlock>
+
+### Usage
+
+<CodeBlock lang='typescript'>{`<lite-my-context>
+  <lite-my-consumer></lite-my-consumer>
+</lite-my-context>`}</CodeBlock>

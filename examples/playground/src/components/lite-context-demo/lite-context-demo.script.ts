@@ -1,11 +1,14 @@
-import { LiteElement } from '@/lib/lite/LiteElement';
-import { contextProvider } from '@/lib/lite/context/decorators/context-provider';
-import { useContext } from '@/lib/lite/context/decorators/use-context';
-import { LiteContext } from '@/lib/lite/context/lite-context';
-import { type ContextType, createContext } from '@/lib/lite/context/types';
-import { customElement } from '@/lib/lite/decorators/custom-element';
-import { onEvent } from '@/lib/lite/decorators/on-event';
-import { querySelector } from '@/lib/lite/decorators/query-selector';
+import {
+  type ContextType,
+  LiteContext,
+  LiteElement,
+  contextProvider,
+  createContext,
+  customElement,
+  onEvent,
+  querySelector,
+  useContext,
+} from '@eco-pages/lite-elements';
 
 class Logger {
   log(message: string) {

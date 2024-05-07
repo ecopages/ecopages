@@ -1,0 +1,11 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+
+# @useContext
+---
+This is how you can get the full context where the element is wrapped in.
+
+It will walk up the DOM tree to find the closest context with the given key.
+
+It accepts a context object and a generic type to cast the context to.
+
+<CodeBlock lang='typescript'>{`@useContext<MyContext>(myContext) context: LiteContext<MyContext>;`}</CodeBlock>

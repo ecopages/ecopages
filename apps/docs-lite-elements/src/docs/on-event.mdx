@@ -1,0 +1,10 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+
+# @onEvent
+---
+
+This is a decorator that allows you to register event listeners on the element. 
+
+It takes an options object with the target and type of the event and a method to call when the event is fired.
+
+<CodeBlock lang='typescript'>{`@onEvent({ target: "[data-target]", type: "click" }) doSomething() {...} `}</CodeBlock>

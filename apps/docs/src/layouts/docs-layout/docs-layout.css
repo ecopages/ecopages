@@ -14,4 +14,8 @@
   .docs-layout__nav-group {
     @apply my-8 uppercase text-sm font-bold text-on-background;
   }
+
+  .docs-layout__nav-group-list {
+    @apply ml-4 mt-2 mb-8;
+  }
 }

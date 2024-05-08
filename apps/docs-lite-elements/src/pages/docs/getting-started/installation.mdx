@@ -1,4 +1,12 @@
 import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | Installation',
+  description: 'The place to learn about Eco Pages',
+})
 
 # Installation
 ---
@@ -7,19 +15,5 @@ To get started with Lite Elements, you need to install the package in your proje
 
 <CodeBlock lang='bash'>
 {`bun install @eco-pages/lite-elements`}
-</CodeBlock>
-
-## Usage
-
-After installing the package, you can use the following commands to start developing your project:
-
-<CodeBlock lang='json'>
-{`{
-  "scripts": {
-	"dev": "eco-pages dev",
-	"build": "eco-pages build",
-	"start": "eco-pages start",
-	"preview": "eco-pages preview"
-}`}
 </CodeBlock>
 

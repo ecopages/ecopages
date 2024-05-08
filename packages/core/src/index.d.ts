@@ -235,7 +235,7 @@ export type GetStaticProps<T> = (context: {
   pathname: StaticPath;
 }) => Promise<{ props: T }>;
 
-export type EcoPageFile = {
+export type EcoPageFile<T = unknown> = T & {
   default: EcoPage;
   getStaticPaths?: GetStaticPaths;
   getStaticProps?: GetStaticProps<Record<string, unknown>>;

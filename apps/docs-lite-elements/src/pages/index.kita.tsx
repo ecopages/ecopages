@@ -11,7 +11,7 @@ export const getMetadata: GetMetadata = () => ({
 const HomePage: EcoPage = () => {
   return (
     <BaseLayout class="main-content">
-      <a href="/docs/introduction">Docs</a>
+      <a href="/docs/getting-started/introduction">Docs</a>
     </BaseLayout>
   );
 };

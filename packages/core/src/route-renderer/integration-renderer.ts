@@ -97,11 +97,16 @@ export abstract class IntegrationRenderer {
   }
 
   protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
-    const { default: Page, getStaticProps, getMetadata } = await this.importPageFile(options.file);
+    const {
+      default: Page,
+      getStaticProps,
+      getMetadata,
+      ...integrationSpecificProps
+    } = await this.importPageFile(options.file);
 
     const HtmlTemplate = await this.getHtmlTemplate();
 
-    const { props } = await this.getStaticProps(getStaticProps, { params: options.params });
+    const { props } = await this.getStaticProps(getStaticProps, options);
 
     const metadata = await this.getMetadataProps(getMetadata, {
       props,
@@ -111,6 +116,7 @@ export abstract class IntegrationRenderer {
 
     return {
       ...options,
+      ...integrationSpecificProps,
       appConfig: this.appConfig,
       HtmlTemplate,
       props,

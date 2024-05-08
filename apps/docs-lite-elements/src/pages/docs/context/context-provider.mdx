@@ -1,11 +1,19 @@
 import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | Lite Context Provider',
+  description: 'The place to learn about Eco Pages',
+})
 
 # Lite Context Provider
 ---
 
 To be able to use the LiteContext, you need to create a new class, the provider, that extends the LiteContext class and define the state of the context.
 
-Then you can wrap your components in the context provider and use the a set of utility decorators to register a subscription or use the context.
+Then you can wrap your components in the context provider and use a set of utility decorators to register a subscription or use the context.
 
 To create the context definition, you can use the createContext function that takes a name and a state object as arguments.
 

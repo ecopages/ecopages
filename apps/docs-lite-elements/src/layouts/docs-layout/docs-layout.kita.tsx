@@ -1,4 +1,5 @@
-import { docsConfig } from '@/docs/config';
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { docsConfig } from '@/data/docs-config';
 import { BaseLayout } from '@/layouts/base-layout';
 import { DepsManager, type EcoComponent } from '@eco-pages/core';
 
@@ -7,30 +8,43 @@ export type DocsLayoutProps = {
   class?: string;
 };
 
+const DocsNavigation = () => {
+  return (
+    <nav>
+      <ul>
+        {docsConfig.documents.map((group) => (
+          <li>
+            <span class="docs-layout__nav-group" safe>
+              {group.name}
+            </span>
+            <ul class="docs-layout__nav-group-list">
+              {group.pages.map((page) => (
+                <li>
+                  <a
+                    href={
+                      group.subdirectory
+                        ? `${docsConfig.settings.rootDir}/${group.subdirectory}/${page.slug}`
+                        : `${docsConfig.settings.rootDir}/${page.slug}`
+                    }
+                    safe
+                  >
+                    {page.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+};
+
 export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
   return (
     <BaseLayout class="docs-layout prose">
       <aside class="docs-layout__aside">
-        <nav>
-          <ul>
-            {docsConfig.map((group) => (
-              <li>
-                <span class="docs-layout__nav-group" safe>
-                  {group.name}
-                </span>
-                <ul class="ml-4 mt-2 mb-8">
-                  {group.pages.map((page) => (
-                    <li>
-                      <a safe href={page.path}>
-                        {page.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <DocsNavigation />
       </aside>
       <div class="docs-layout__content">{children}</div>
     </BaseLayout>
@@ -39,5 +53,5 @@ export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
 
 DocsLayout.dependencies = DepsManager.collect({
   importMeta: import.meta,
-  components: [BaseLayout],
+  components: [BaseLayout, CodeBlock],
 });

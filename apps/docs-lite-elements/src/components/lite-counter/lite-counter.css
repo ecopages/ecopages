@@ -1,0 +1,10 @@
+.lite-counter {
+  @apply flex gap-4 items-center bg-indigo-200 rounded-md max-w-fit p-2;
+  &__increment,
+  &__decrement {
+    @apply flex items-center justify-center bg-indigo-600 text-white rounded-md w-8 h-8;
+  }
+  span {
+    @apply text-gray-900 font-bold p-2 bg-gray-100 min-w-20 h-10 flex items-center justify-center rounded-md;
+  }
+}

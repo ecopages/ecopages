@@ -1,4 +1,5 @@
-import { BaseLayout } from '@/layouts/base-layout';
+import { DocsLayout } from '@/layouts/docs-layout';
+import Introduction from '@/pages/docs/getting-started/introduction.mdx';
 import { DepsManager, type EcoPage, type GetMetadata } from '@eco-pages/core';
 
 export const getMetadata: GetMetadata = () => ({
@@ -10,16 +11,16 @@ export const getMetadata: GetMetadata = () => ({
 
 const HomePage: EcoPage = () => {
   return (
-    <BaseLayout class="main-content">
-      <a href="/docs/getting-started/introduction">Docs</a>
-    </BaseLayout>
+    <DocsLayout>
+      <Introduction />
+    </DocsLayout>
   );
 };
 
 HomePage.dependencies = DepsManager.importPaths({
   importMeta: import.meta,
   stylesheets: ['./index.css'],
-  components: [BaseLayout],
+  components: [DocsLayout],
 });
 
 export default HomePage;

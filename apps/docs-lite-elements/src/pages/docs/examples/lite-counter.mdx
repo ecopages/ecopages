@@ -1,7 +1,14 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DepsManager } from '@eco-pages/core';
 import { DocsLayout } from '@/layouts/docs-layout';
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { LiteCounter } from '@/components/lite-counter'
 
 export const layout = DocsLayout;
+
+export const dependencies = DepsManager.collect({
+  importMeta: import.meta,
+  components: [LiteCounter]
+})
 
 export const getMetadata = () => ({
   title: 'Docs | Lite Counter',
@@ -11,7 +18,9 @@ export const getMetadata = () => ({
 # Lite Counter
 ---
 
-This is a simple counter component that increments and decrements a number. It uses the `@property`, `@querySelector`, `@onEvent`, and `@onUpdated` decorators.
+This is a simple counter component that increments and decrements a number. 
+
+<LiteCounter count={5} />
 
 ### Features
 
@@ -21,7 +30,6 @@ This is a simple counter component that increments and decrements a number. It u
 - Uses the [@onEvent](/docs/on-event) decorator to listen for events
 - Uses the [@onUpdated](/docs/on-updated) decorator to update the text content of the element
 
-<br />
 
 ### Html Markup
 

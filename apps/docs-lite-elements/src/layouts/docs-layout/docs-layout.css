@@ -5,6 +5,14 @@
 @scope (.docs-layout) {
   .docs-layout__aside {
     @apply pr-8;
+    ul,
+    ol {
+      @apply list-none p-0;
+    }
+
+    a {
+      @apply text-link no-underline;
+    }
   }
 
   .docs-layout__content {

@@ -136,6 +136,11 @@ body {
     @apply text-link underline;
   }
 
+  ul,
+  ol {
+    @apply list-disc pl-8 my-4;
+  }
+
   code {
     @apply bg-background-code text-sm text-on-background-code rounded-md;
   }

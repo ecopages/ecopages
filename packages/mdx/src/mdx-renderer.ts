@@ -37,10 +37,14 @@ export class MDXRenderer extends IntegrationRenderer {
 
   async render({ metadata, Page, HtmlTemplate, layout }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
     try {
+      const headContent = await this.getHeadContent(deepMerge(Page.dependencies, layout?.dependencies ?? {}));
+
+      const children = layout ? layout({ children: Page({}) }) : Page({});
+
       const body = await HtmlTemplate({
         metadata,
-        headContent: await this.getHeadContent(deepMerge(Page.dependencies, layout?.dependencies)),
-        children: layout ? layout({ children: Page({}) }) : Page({}),
+        headContent,
+        children,
       });
 
       return this.DOC_TYPE + body;

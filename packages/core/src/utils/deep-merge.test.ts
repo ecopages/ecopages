@@ -21,7 +21,7 @@ describe('deepMerge', () => {
   it('should merge two objects with arrays', () => {
     const target = { a: [1, 2], b: { c: [3, 4] } };
     const source = { a: [5, 6], b: { c: [7, 8] } };
-    const expected = { a: [5, 6], b: { c: [7, 8] } };
+    const expected = { a: [1, 2, 5, 6], b: { c: [3, 4, 7, 8] } };
     const result = deepMerge(target, source);
     expect(result).toEqual(expected);
   });
@@ -62,6 +62,49 @@ describe('deepMerge', () => {
     const target = { a: 1, b: 2 };
     const source = { a: undefined, c: 3 } as Partial<typeof target>;
     const expected = { a: 1, b: 2, c: 3 };
+    const result = deepMerge(target, source);
+    expect(result).toEqual(expected);
+  });
+
+  it('should merge dependencies', () => {
+    const depsA = {
+      stylesheets: ['/components/lite-counter/lite-counter.css'],
+      scripts: ['/components/lite-counter/lite-counter.script.js'],
+    };
+
+    const depsB = {
+      stylesheets: [
+        '/layouts/docs-layout/docs-layout.css',
+        '/layouts/base-layout/base-layout.css',
+        '/components/header/header.css',
+        '/components/navigation/navigation.css',
+        '/components/logo/logo.css',
+        '/components/code-block/code-block.css',
+      ],
+      scripts: ['/layouts/base-layout/base-layout.script.js'],
+    };
+
+    const expected = {
+      stylesheets: [
+        '/components/lite-counter/lite-counter.css',
+        '/layouts/docs-layout/docs-layout.css',
+        '/layouts/base-layout/base-layout.css',
+        '/components/header/header.css',
+        '/components/navigation/navigation.css',
+        '/components/logo/logo.css',
+        '/components/code-block/code-block.css',
+      ],
+      scripts: ['/components/lite-counter/lite-counter.script.js', '/layouts/base-layout/base-layout.script.js'],
+    };
+
+    const result = deepMerge(depsA, depsB);
+    expect(result).toEqual(expected);
+  });
+
+  it('should merge two arrays', () => {
+    const target = [1, 2, 3];
+    const source = [4, 5, 6];
+    const expected = [1, 2, 3, 4, 5, 6];
     const result = deepMerge(target, source);
     expect(result).toEqual(expected);
   });

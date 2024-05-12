@@ -1,4 +1,4 @@
-import type { LiteContext, LiteElement } from '@eco-pages/lite-elements';
+import type { LiteElement } from '@eco-pages/lite-elements';
 import {
   type Context,
   ContextRequestEvent,
@@ -14,13 +14,13 @@ import {
  * @param subscribe @default true Whether to subscribe or unsubscribe. Optional.
  * @returns
  */
-export function subscribeToContext<T extends Context<unknown, unknown>>({
+export function contextSelector<T extends Context<unknown, unknown>>({
   context,
-  selector,
+  select,
   subscribe = true,
 }: {
   context: T;
-  selector?: keyof ContextType<T>;
+  select?: keyof ContextType<T>;
   subscribe?: boolean;
 }) {
   return (proto: LiteElement, _: string, descriptor: PropertyDescriptor) => {
@@ -29,10 +29,14 @@ export function subscribeToContext<T extends Context<unknown, unknown>>({
 
     proto.connectedCallback = function (this: LiteElement) {
       originalConnectedCallback.call(this);
-      this.dispatchEvent(new ContextSubscriptionRequestEvent(context, originalMethod.bind(this), selector, subscribe));
+      this.dispatchEvent(new ContextSubscriptionRequestEvent(context, originalMethod.bind(this), select, subscribe));
     };
 
-    descriptor.value = function (...args: ContextType<T>[]) {
+    descriptor.value = function (
+      ...args: {
+        [K in keyof ContextType<T>]: ContextType<T>[K];
+      }[]
+    ) {
       const result = originalMethod.apply(this, args);
       return result;
     };

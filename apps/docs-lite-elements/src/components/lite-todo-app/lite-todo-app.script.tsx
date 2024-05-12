@@ -7,7 +7,7 @@ import {
   reactiveAttribute,
 } from '@eco-pages/lite-elements';
 import { ContextProvider, createContext } from './context-provider';
-import { consumeContext } from './decorators';
+import { consumeContext, contextSelector } from './decorators';
 
 export type LiteTodoAppProps = {
   count?: number;
@@ -64,11 +64,11 @@ export class LiteTodos extends WithKita(LiteElement) {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this.updateCount = this.updateCount.bind(this);
-    this.handleTodos = this.handleTodos.bind(this);
+    this.onCountUpdated = this.onCountUpdated.bind(this);
+    this.onTodosUpdated = this.onTodosUpdated.bind(this);
     const context = this.provider.getContext();
-    this.provider.subscribe({ selector: 'count', callback: this.updateCount });
-    this.provider.subscribe({ selector: 'todos', callback: this.handleTodos });
+    this.provider.subscribe({ select: 'count', callback: this.onCountUpdated });
+    this.provider.subscribe({ select: 'todos', callback: this.onTodosUpdated });
   }
 
   addTodo(todo: string) {
@@ -90,11 +90,13 @@ export class LiteTodos extends WithKita(LiteElement) {
     }
   }
 
-  updateCount({ count }: TodoContext) {
+  @contextSelector({ context: todoContext, select: 'count' })
+  onCountUpdated({ count }: Pick<TodoContext, 'count'>) {
     this.countText.textContent = count.toString();
   }
 
-  handleTodos({ todos }: TodoContext) {
+  @contextSelector({ context: todoContext, select: 'todos' })
+  onTodosUpdated({ todos }: Pick<TodoContext, 'todos'>) {
     const latestTodo = todos.at(-1);
     if (!latestTodo) return;
     this.renderTemplate({

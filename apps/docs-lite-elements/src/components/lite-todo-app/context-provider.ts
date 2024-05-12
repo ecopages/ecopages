@@ -65,8 +65,8 @@ export class ContextRequestEvent<T extends UnknownContext> extends Event {
  * A type which represents a subscription to a context value.
  */
 export type ContextSubscription<T extends UnknownContext> = {
-  selector?: keyof ContextType<T>;
-  callback: (value: ContextType<T>) => void;
+  select?: keyof ContextType<T>;
+  callback: (value: ContextType<T> | Pick<ContextType<T>, keyof ContextType<T>>) => void;
 };
 
 /**
@@ -98,7 +98,7 @@ export class ContextSubscriptionRequestEvent<T extends UnknownContext> extends E
   public constructor(
     public readonly context: T,
     public readonly callback: (value: ContextType<T> | { [K in keyof ContextType<T>]: ContextType<T>[K] }) => void,
-    public readonly selector?: keyof ContextType<T>,
+    public readonly select?: keyof ContextType<T>,
     public readonly subscribe?: boolean,
   ) {
     super(ContextEventsTypes.SUBSCRIPTION_REQUEST, {
@@ -162,25 +162,25 @@ export class ContextProvider<T extends Context<unknown, unknown>> {
 
   private notifySubscribers = (newContext: ContextType<T>, prevContext: ContextType<T>) => {
     for (const sub of this.subscriptions) {
-      if (!sub.selector) return this.sendSubscriptionUpdate(sub, newContext);
-      const newSelected = newContext[sub.selector];
-      const prevSelected = prevContext[sub.selector];
+      if (!sub.select) return this.sendSubscriptionUpdate(sub, newContext);
+      const newSelected = newContext[sub.select];
+      const prevSelected = prevContext[sub.select];
       if (newSelected !== prevSelected) {
         this.sendSubscriptionUpdate(sub, newContext);
       }
     }
   };
 
-  sendSubscriptionUpdate = ({ selector, callback }: ContextSubscription<T>, context: ContextType<T>) => {
-    if (!selector) callback(context);
+  sendSubscriptionUpdate = ({ select, callback }: ContextSubscription<T>, context: ContextType<T>) => {
+    if (!select) callback(context);
     else
-      callback({ [selector]: context[selector] } as {
+      callback({ [select]: context[select] } as {
         [K in keyof ContextType<T>]: ContextType<T>[K];
       });
   };
 
   onSubscriptionRequest = (event: ContextSubscriptionRequestEvent<UnknownContext>) => {
-    const { context, callback, subscribe, selector, target } = event;
+    const { context, callback, subscribe, select, target } = event;
     console.log('onSubscriptionRequest', event);
     if (context !== this.context) return;
     event.stopPropagation();
@@ -188,11 +188,11 @@ export class ContextProvider<T extends Context<unknown, unknown>> {
     (target as HTMLElement).dispatchEvent(new ContextOnMountEvent(this.context));
 
     if (subscribe) {
-      this.subscribe({ selector, callback });
+      this.subscribe({ select, callback });
     }
 
-    if (selector) {
-      callback({ [selector]: this.context[selector] } as {
+    if (select) {
+      callback({ [select]: this.context[select] } as {
         [K in keyof ContextType<T>]: ContextType<T>[K];
       });
     } else {
@@ -208,8 +208,8 @@ export class ContextProvider<T extends Context<unknown, unknown>> {
     callback(this);
   };
 
-  subscribe = ({ selector, callback }: ContextSubscription<T>) => {
-    this.subscriptions.push({ selector, callback });
+  subscribe = ({ select, callback }: ContextSubscription<T>) => {
+    this.subscriptions.push({ select, callback });
   };
 
   registerEvents = () => {

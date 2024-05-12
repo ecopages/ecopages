@@ -6,8 +6,8 @@ import {
   querySelector,
   reactiveAttribute,
 } from '@eco-pages/lite-elements';
-import { ContextProvider, createContext } from './context-provider';
-import { consumeContext, contextSelector } from './decorators';
+import { type LiteContext, createContext } from './context-provider';
+import { consumeContext, contextSelector, provideContext } from './decorators';
 
 export type LiteTodoAppProps = {
   count?: number;
@@ -28,15 +28,11 @@ type TodoContext = {
 
 export const todoContext = createContext<TodoContext>(Symbol('todo-context'));
 
-@customElement('lite-todo')
+@customElement('lite-todo-item')
 export class LiteTodo extends WithKita(LiteElement) {
   @querySelector('input[type="checkbox"]') checkbox!: HTMLElement;
   @reactiveAttribute({ type: Boolean, reflect: true }) complete = false;
-  @consumeContext(todoContext) context!: ContextProvider<typeof todoContext>;
-
-  override connectedCallback(): void {
-    super.connectedCallback();
-  }
+  @consumeContext(todoContext) context!: LiteContext<typeof todoContext>;
 
   @onEvent({ target: 'input[type="checkbox"]', type: 'change' })
   toggleComplete(event: Event) {
@@ -54,27 +50,21 @@ export class LiteTodos extends WithKita(LiteElement) {
   @querySelector('[data-count]') countText!: HTMLElement;
   @querySelector('[data-todo-list]') todoList!: HTMLElement;
 
-  provider = new ContextProvider<typeof todoContext>(this, {
+  @provideContext({
     context: todoContext,
     initialValue: {
       todos: [],
       count: 0,
     },
-  });
+  })
+  provider!: LiteContext<typeof todoContext>;
 
   override connectedCallback(): void {
     super.connectedCallback();
     this.onCountUpdated = this.onCountUpdated.bind(this);
     this.onTodosUpdated = this.onTodosUpdated.bind(this);
-    const context = this.provider.getContext();
-    this.provider.subscribe({ select: 'count', callback: this.onCountUpdated });
-    this.provider.subscribe({ select: 'todos', callback: this.onTodosUpdated });
-  }
-
-  addTodo(todo: string) {
-    const prevTodos = this.provider.getContext().todos;
-    const todos = [...prevTodos, { id: Date.now().toString(), text: todo, complete: false }];
-    this.provider.setContext({ todos, count: todos.length });
+    // this.provider.subscribe({ select: 'count', callback: this.onCountUpdated });
+    // this.provider.subscribe({ select: 'todos', callback: this.onTodosUpdated });
   }
 
   @onEvent({ target: '[data-todo-form]', type: 'submit' })
@@ -85,7 +75,9 @@ export class LiteTodos extends WithKita(LiteElement) {
     const todo = formData.get('todo');
 
     if (todo) {
-      this.addTodo(todo.toString());
+      const prevTodos = this.provider.getContext().todos;
+      const todos = [...prevTodos, { id: Date.now().toString(), text: todo.toString(), complete: false }];
+      this.provider.setContext({ todos, count: todos.length });
       form.reset();
     }
   }
@@ -102,12 +94,12 @@ export class LiteTodos extends WithKita(LiteElement) {
     this.renderTemplate({
       target: this.todoList,
       template: (
-        <lite-todo complete={false} class="todo-item" id={latestTodo.id}>
+        <lite-todo-item complete={false} class="todo-item" id={latestTodo.id}>
           {latestTodo.text as 'safe'}
           <span>
             <input type="checkbox" checked={latestTodo.complete} />
           </span>
-        </lite-todo>
+        </lite-todo-item>
       ),
       insert: todos.length === 1 ? 'replace' : 'beforeend',
     });
@@ -118,7 +110,7 @@ declare global {
   namespace JSX {
     interface IntrinsicElements {
       'lite-todo-app': HtmlTag & LiteTodoAppProps;
-      'lite-todo': HtmlTag & LiteTodoProps;
+      'lite-todo-item': HtmlTag & LiteTodoProps;
     }
   }
 }

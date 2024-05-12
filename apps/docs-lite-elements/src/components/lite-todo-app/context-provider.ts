@@ -133,7 +133,7 @@ type ContextProviderOptions<T extends UnknownContext> = {
   initialValue?: ContextType<T>;
 };
 
-export class ContextProvider<T extends Context<unknown, unknown>> {
+export class LiteContext<T extends Context<unknown, unknown>> {
   private host: LiteElement;
   private context: UnknownContext;
   private value: ContextType<T> | undefined;
@@ -179,25 +179,41 @@ export class ContextProvider<T extends Context<unknown, unknown>> {
       });
   };
 
+  subscribe = ({ select, callback }: ContextSubscription<T>) => {
+    this.subscriptions.push({ select, callback });
+  };
+
+  handleSubscriptionRequest = ({
+    select,
+    callback,
+    subscribe,
+  }: {
+    select?: keyof ContextType<T>;
+    callback: ContextSubscription<T>['callback'];
+    subscribe?: boolean;
+  }) => {
+    if (subscribe) this.subscribe({ select, callback });
+
+    if (!this.value) return;
+
+    if (select) {
+      callback({ [select]: this.value[select] } as {
+        [K in keyof ContextType<T>]: ContextType<T>[K];
+      });
+    } else {
+      callback(this.value as ContextType<T>);
+    }
+  };
+
   onSubscriptionRequest = (event: ContextSubscriptionRequestEvent<UnknownContext>) => {
     const { context, callback, subscribe, select, target } = event;
-    console.log('onSubscriptionRequest', event);
     if (context !== this.context) return;
+
     event.stopPropagation();
 
     (target as HTMLElement).dispatchEvent(new ContextOnMountEvent(this.context));
 
-    if (subscribe) {
-      this.subscribe({ select, callback });
-    }
-
-    if (select) {
-      callback({ [select]: this.context[select] } as {
-        [K in keyof ContextType<T>]: ContextType<T>[K];
-      });
-    } else {
-      callback(this.context as ContextType<T>);
-    }
+    this.handleSubscriptionRequest({ select, callback, subscribe });
   };
 
   onContextRequest = (event: ContextRequestEvent<UnknownContext>) => {
@@ -206,10 +222,6 @@ export class ContextProvider<T extends Context<unknown, unknown>> {
     event.stopPropagation();
     console.log(this);
     callback(this);
-  };
-
-  subscribe = ({ select, callback }: ContextSubscription<T>) => {
-    this.subscriptions.push({ select, callback });
   };
 
   registerEvents = () => {

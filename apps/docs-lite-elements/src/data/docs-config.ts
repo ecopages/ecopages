@@ -54,9 +54,9 @@ export const docsConfig: DocsConfig = {
       subdirectory: 'context',
       pages: [
         { title: 'Lite Context', slug: 'lite-context' },
-        { title: 'Context Provider', slug: 'context-provider' },
-        { title: '@subscribe', slug: 'context-subscribe' },
-        { title: '@useContext', slug: 'use-context' },
+        { title: '@provideContext', slug: 'context-provider' },
+        { title: '@consumeContext', slug: 'context-consumer' },
+        { title: '@contextSelector', slug: 'context-selector' },
       ],
     },
     {

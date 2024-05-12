@@ -4,9 +4,15 @@ import {
   ContextRequestEvent,
   ContextSubscriptionRequestEvent,
   type ContextType,
+  LiteContext,
   type UnknownContext,
 } from './context-provider';
 
+type SubscribeToContextOptions<T extends UnknownContext> = {
+  context: T;
+  select: keyof ContextType<T>;
+  subscribe?: boolean;
+};
 /**
  * A decorator to subscribe to a context selector.
  * @param context The context to subscribe to.
@@ -18,17 +24,14 @@ export function contextSelector<T extends Context<unknown, unknown>>({
   context,
   select,
   subscribe = true,
-}: {
-  context: T;
-  select?: keyof ContextType<T>;
-  subscribe?: boolean;
-}) {
+}: SubscribeToContextOptions<T>) {
   return (proto: LiteElement, _: string, descriptor: PropertyDescriptor) => {
     const originalMethod = descriptor.value;
     const originalConnectedCallback = proto.connectedCallback;
 
     proto.connectedCallback = function (this: LiteElement) {
       originalConnectedCallback.call(this);
+
       this.dispatchEvent(new ContextSubscriptionRequestEvent(context, originalMethod.bind(this), select, subscribe));
     };
 
@@ -59,10 +62,30 @@ export function consumeContext(contextToProvide: UnknownContext) {
       this.dispatchEvent(
         new ContextRequestEvent(contextToProvide, (context) => {
           (this as any)[propertyKey] = context;
-          console.log('Connected context:', { contextToProvide, context });
           this.connectedContextCallback(contextToProvide);
         }),
       );
+    };
+  };
+}
+
+type CreateContextOptions<T extends UnknownContext> = {
+  context: UnknownContext;
+  initialValue?: ContextType<T>;
+};
+
+/**
+ * A decorator to provide a context to the target element.
+ * @param contextToProvide
+ * @returns
+ */
+export function provideContext<T extends UnknownContext>({ context, initialValue }: CreateContextOptions<T>) {
+  return (proto: LiteElement, propertyKey: string) => {
+    const originalConnectedCallback = proto.connectedCallback;
+
+    proto.connectedCallback = function (this: LiteElement) {
+      originalConnectedCallback.call(this);
+      (this as any)[propertyKey] = new LiteContext<T>(this, { context, initialValue });
     };
   };
 }

@@ -1,0 +1,21 @@
+import { DepsManager } from '@eco-pages/core';
+import { DocsLayout } from '@/layouts/docs-layout';
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { LiteTodoApp } from '@/components/lite-todo-app'
+
+export const layout = DocsLayout;
+
+export const dependencies = DepsManager.collect({
+  importMeta: import.meta,
+  components: [LiteTodoApp]
+})
+
+export const getMetadata = () => ({
+  title: 'Docs | Lite Todo App',
+  description: 'The place to learn about Eco Pages',
+})
+
+
+
+<LiteTodoApp count={5} />
+

@@ -67,7 +67,10 @@ export const docsConfig: DocsConfig = {
     {
       name: 'Examples',
       subdirectory: 'examples',
-      pages: [{ title: 'Lite Counter', slug: 'lite-counter' }],
+      pages: [
+        { title: 'Lite Counter', slug: 'lite-counter' },
+        { title: 'Lite Todo App', slug: 'lite-todo-app' },
+      ],
     },
   ],
 };

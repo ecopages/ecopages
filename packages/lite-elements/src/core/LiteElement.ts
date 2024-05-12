@@ -1,4 +1,5 @@
 import type { RenderInsertPosition } from '@/types';
+import type { UnknownContext } from '..';
 
 /**
  * A type that represents an event listener subscription.
@@ -56,7 +57,7 @@ export interface ILightElement {
   /**
    * A callback that is triggered when a context is received.
    */
-  connectedContextCallback(contextName: string): void;
+  connectedContextCallback(context: UnknownContext): void;
 }
 
 /**
@@ -69,13 +70,13 @@ export class LiteElement extends HTMLElement implements ILightElement {
 
   connectedCallback() {}
 
-  connectedContextCallback(_contextName: string): void {}
+  connectedContextCallback(_contextName: UnknownContext): void {}
 
   disconnectedCallback() {
     this.removeAllSubscribedEvents();
   }
 
-  updated(changedProperty: string, oldValue: unknown, value: unknown) {}
+  updated(_changedProperty: string, _oldValue: unknown, _value: unknown) {}
 
   renderTemplate({
     target = this,

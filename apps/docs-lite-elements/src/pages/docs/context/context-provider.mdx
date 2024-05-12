@@ -27,7 +27,7 @@ export type MyContext = typeof myContext;
 @customElement("lite-my-context")
 export class LitePackageContext extends LiteContext<MyContext> {
   protected override name = litePackageContext.name;
-  protected override state = litePackageContext.initialValue!;
+  protected override context = litePackageContext.initialValue!;
 }`}
 </CodeBlock>
 

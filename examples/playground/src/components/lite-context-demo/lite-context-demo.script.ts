@@ -1,13 +1,13 @@
 import {
-  type ContextType,
-  LiteContext,
+  type LiteContext,
   LiteElement,
-  contextProvider,
+  consumeContext,
+  contextSelector,
   createContext,
   customElement,
   onEvent,
+  provideContext,
   querySelector,
-  useContext,
 } from '@eco-pages/lite-elements';
 
 class Logger {
@@ -16,22 +16,28 @@ class Logger {
   }
 }
 
-export const liteContextDemo = createContext('lc-demo', {
+type LiteContextDemoContext = {
+  name: string;
+  version: string;
+  templateSupport: string[];
+  logger: Logger;
+  plugins: Record<string, boolean>;
+};
+
+export const liteContextDemo = createContext<LiteContextDemoContext>(Symbol('liteContextDemo'));
+
+const initialValue: LiteContextDemoContext = {
   name: 'eco-pages',
-  version: 0.1,
+  version: '0.1',
   templateSupport: ['kita'],
   logger: new Logger(),
-  plugins: {
-    'lit-light': true,
-    alpinejs: true,
-    'lit-ssr': false,
-  },
-});
+  plugins: { 'lit-light': true, alpinejs: true, 'lit-ssr': true },
+};
 
 @customElement('lc-demo')
-export class LiteContextDemo extends LiteContext<typeof liteContextDemo> {
-  override name = liteContextDemo.name;
-  override context = liteContextDemo.initialValue as ContextType<typeof liteContextDemo>;
+export class LiteContextDemo extends LiteElement {
+  @provideContext({ context: liteContextDemo, initialValue })
+  context!: LiteContext<typeof liteContextDemo>;
 }
 
 @customElement('lc-demo-visualizer')
@@ -39,12 +45,12 @@ export class LitePackageVisualizer extends LiteElement {
   @querySelector('[data-name]') packageName!: HTMLSpanElement;
   @querySelector('[data-version]') packageVersion!: HTMLSpanElement;
 
-  @useContext({ context: liteContextDemo, selector: 'name' })
+  @contextSelector({ context: liteContextDemo, select: ({ name }) => ({ name }) })
   updateName({ name }: { name: string }) {
     this.packageName.innerHTML = name;
   }
 
-  @useContext({ context: liteContextDemo, selector: 'version' })
+  @contextSelector({ context: liteContextDemo, select: ({ version }) => ({ version }) })
   updateVersion({ version }: { version: string }) {
     this.packageVersion.innerHTML = version;
   }
@@ -55,13 +61,12 @@ export class LitePackageConsumer extends LiteElement {
   @querySelector('[data-input]') input!: HTMLInputElement;
   @querySelector('[data-options]') select!: HTMLSelectElement;
 
-  @contextProvider<typeof liteContextDemo>(liteContextDemo)
+  @consumeContext(liteContextDemo)
   context!: LiteContext<typeof liteContextDemo>;
 
   declare logger: Logger;
 
-  override connectedContextCallback(contextName: string) {
-    if (contextName !== liteContextDemo.name) return;
+  override connectedContextCallback(_contextName: typeof liteContextDemo): void {
     this.logger = this.context.getContext().logger;
   }
 

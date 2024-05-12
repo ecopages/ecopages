@@ -1,0 +1,70 @@
+.todo {
+  @apply flex flex-col gap-4 items-start bg-background-accent rounded-md p-4  w-full;
+
+  &__board {
+    @apply flex flex-col lg:flex-row gap-4 w-full;
+  }
+
+  &__panel {
+    @apply flex flex-col gap-4 w-full;
+    h4 {
+      @apply m-0;
+    }
+  }
+
+  &__list {
+    @apply flex flex-col bg-background gap-4 rounded-md p-2 w-full min-h-28;
+
+    &--complete {
+      @apply border-2 border-green-500;
+    }
+
+    &--incomplete {
+      @apply border-2 border-blue-500;
+    }
+  }
+
+  [data-todo-form] {
+    @apply flex gap-4 bg-gray-100 w-full;
+  }
+
+  form {
+    @apply flex flex-col gap-2 w-full;
+
+    .form-group {
+      @apply flex flex-col gap-1;
+    }
+
+    label {
+      @apply text-sm font-semibold;
+    }
+
+    textarea {
+      @apply w-full p-2 border border-gray-300 rounded-md;
+    }
+
+    button {
+      @apply bg-blue-500 text-white p-2 rounded-md min-w-20;
+    }
+  }
+
+  &__count {
+    @apply flex justify-between w-full;
+    & p {
+      @apply m-0 text-sm text-gray-500;
+      & span {
+        @apply font-semibold;
+      }
+    }
+  }
+
+  &__item {
+    @apply flex items-center justify-between gap-2 p-2 bg-blue-100 rounded-md;
+    &[complete="true"] {
+      @apply bg-green-200;
+    }
+    & input[type="checkbox"] {
+      @apply w-4 h-4 rounded-md accent-green-500;
+    }
+  }
+}

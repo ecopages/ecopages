@@ -54,9 +54,9 @@ export const docsConfig: DocsConfig = {
       subdirectory: 'context',
       pages: [
         { title: 'Lite Context', slug: 'lite-context' },
-        { title: 'Context Provider', slug: 'context-provider' },
-        { title: '@subscribe', slug: 'context-subscribe' },
-        { title: '@useContext', slug: 'use-context' },
+        { title: '@provideContext', slug: 'context-provider' },
+        { title: '@consumeContext', slug: 'context-consumer' },
+        { title: '@contextSelector', slug: 'context-selector' },
       ],
     },
     {
@@ -67,7 +67,10 @@ export const docsConfig: DocsConfig = {
     {
       name: 'Examples',
       subdirectory: 'examples',
-      pages: [{ title: 'Lite Counter', slug: 'lite-counter' }],
+      pages: [
+        { title: 'Lite Counter', slug: 'lite-counter' },
+        { title: 'Lite Todo App', slug: 'lite-todo-app' },
+      ],
     },
   ],
 };

@@ -1,7 +1,6 @@
 import {
   type LiteContext,
   LiteElement,
-  type UnknownContext,
   WithKita,
   consumeContext,
   contextSelector,

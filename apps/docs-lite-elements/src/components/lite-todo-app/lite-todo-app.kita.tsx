@@ -1,4 +1,5 @@
 import { DepsManager, type EcoComponent } from '@eco-pages/core';
+import { stringifiedAttribute } from '@eco-pages/lite-elements/src/tools/stringified-attribute';
 import type { TodoContext } from './lite-todo-app.script';
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './lite-todo.templates';
 
@@ -19,15 +20,6 @@ const getData = async (): Promise<LiteTodoAppTemplateProps> => {
     ],
   };
 };
-
-/**
- * @description Stringifies the attribute value keeping the type.
- * This is useful for passing objects as attributes in JSX.
- * @example <lite-todo-app class="lite-todo" initialdata={stringifiedAttribute(data.todos)}>
- */
-function stringifiedAttribute<T>(value: T): T {
-  return JSON.stringify(value) as unknown as T;
-}
 
 export const LiteTodoApp: EcoComponent = async () => {
   const data = await getData();

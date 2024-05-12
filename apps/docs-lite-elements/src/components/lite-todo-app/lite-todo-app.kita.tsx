@@ -1,23 +1,74 @@
 import { DepsManager, type EcoComponent } from '@eco-pages/core';
-import type { LiteTodoAppProps } from './lite-todo-app.script';
+import type { TodoContext } from './lite-todo-app.script';
+import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './lite-todo.templates';
 
-export const LiteTodoApp: EcoComponent<LiteTodoAppProps> = () => {
+type LiteTodoAppTemplateProps = {
+  title: string;
+  description: string;
+  todos: TodoContext['todos'];
+};
+
+const getData = async (): Promise<LiteTodoAppTemplateProps> => {
+  return {
+    title: 'Lite Todo App',
+    description: 'A simple todo app, built with lite elements using WithKita mixin and context.',
+    todos: [
+      { id: '1', text: 'Create a todo app', complete: true },
+      { id: '2', text: 'Add a todo item', complete: false },
+      { id: '3', text: 'Complete a todo item', complete: false },
+    ],
+  };
+};
+
+/**
+ * @description Stringifies the attribute value keeping the type.
+ * This is useful for passing objects as attributes in JSX.
+ * @example <lite-todo-app class="lite-todo" initialdata={stringifiedAttribute(data.todos)}>
+ */
+function stringifiedAttribute<T>(value: T): T {
+  return JSON.stringify(value) as unknown as T;
+}
+
+export const LiteTodoApp: EcoComponent = async () => {
+  const data = await getData();
+  const incompleteTodos = data.todos.filter((todo) => !todo.complete);
+  const completedTodos = data.todos.filter((todo) => todo.complete);
   return (
-    <lite-todo-app class="lite-todo-app" count={0}>
-      <div data-todo-list>
-        <p>Please add your todos</p>
-      </div>
-      <form id="todo-form" data-todo-form>
-        <div class="form-group">
-          <label for="new-todo">Add Todo</label>
-          <textarea form="todo-form" id="new-todo" rows="6" name="todo" />
-          <button type="submit">Add</button>
+    <>
+      <h3 safe>{data.title}</h3>
+      <p safe>{data.description}</p>
+      <lite-todo-app class="todo" initialdata={stringifiedAttribute(data.todos)}>
+        <div class="todo__board">
+          <div class="todo__panel">
+            <h4>Todo List</h4>
+            <div class="todo__list todo__list--incomplete" data-todo-list>
+              {completedTodos.length > 0 ? <TodoList todos={incompleteTodos} /> : <NoTodosMessage />}
+            </div>
+          </div>
+          <div class="todo__panel">
+            <h4>Completed Todos</h4>
+            <div class="todo__list todo__list--complete" data-todo-list-complete>
+              {incompleteTodos.length > 0 ? <TodoList todos={completedTodos} /> : <NoCompletedTodosMessage />}
+            </div>
+          </div>
         </div>
-      </form>
-      <p class="lite-todo-app__count">
-        Number of todos: <span data-count>0</span>
-      </p>
-    </lite-todo-app>
+        <form id="todo-form" data-todo-form>
+          <div class="todo__todo-form-group">
+            <label for="new-todo">Add Todo</label>
+            <textarea form="todo-form" id="new-todo" rows="6" name="todo" />
+            <button type="submit">Add</button>
+          </div>
+        </form>
+        <div class="todo__count">
+          <p>
+            Still to do: <span data-count>{incompleteTodos.length}</span>
+          </p>
+          <p>
+            Completed: <span data-count-complete>{completedTodos.length}</span>
+          </p>
+        </div>
+      </lite-todo-app>
+    </>
   );
 };
 

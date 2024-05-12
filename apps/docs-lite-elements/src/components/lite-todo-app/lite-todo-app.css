@@ -1,9 +1,29 @@
-.lite-todo-app {
-  @apply flex flex-col items-start gap-4 bg-background-accent rounded-md p-4  w-full;
+.todo {
+  @apply flex flex-col gap-4 items-start bg-background-accent rounded-md p-4  w-full;
 
-  [data-todo-list] {
-    @apply flex flex-col gap-4 bg-background rounded-md p-2 w-full min-h-20;
+  &__board {
+    @apply flex flex-col lg:flex-row gap-4 w-full;
   }
+
+  &__panel {
+    @apply flex flex-col gap-4 w-full;
+    h4 {
+      @apply m-0;
+    }
+  }
+
+  &__list {
+    @apply flex flex-col bg-background gap-4 rounded-md p-2 w-full min-h-28;
+
+    &--complete {
+      @apply border-2 border-green-500;
+    }
+
+    &--incomplete {
+      @apply border-2 border-blue-500;
+    }
+  }
+
   [data-todo-form] {
     @apply flex gap-4 bg-gray-100 w-full;
   }
@@ -28,14 +48,23 @@
     }
   }
 
-  p.lite-todo-app__count {
-    @apply m-0 text-xs text-gray-500;
+  &__count {
+    @apply flex justify-between w-full;
+    & p {
+      @apply m-0 text-sm text-gray-500;
+      & span {
+        @apply font-semibold;
+      }
+    }
   }
 
-  .todo-item {
-    @apply flex items-center gap-2 p-2 bg-gray-100 rounded-md;
+  &__item {
+    @apply flex items-center justify-between gap-2 p-2 bg-blue-100 rounded-md;
     &[complete="true"] {
-      @apply bg-green-100;
+      @apply bg-green-200;
+    }
+    & input[type="checkbox"] {
+      @apply w-4 h-4 rounded-md accent-green-500;
     }
   }
 }

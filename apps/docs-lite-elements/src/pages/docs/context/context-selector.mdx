@@ -27,8 +27,23 @@ Here is an example of how to use the `@contextSelector` decorator:
 
 @customElement("lite-my-consumer")
 export class MyElement extends LiteElement {
-  @contextSelector({ context: myContext, select: 'value' })
-  onChangeValue({ value }: Pick<MyContext, 'value'>) {
+  @contextSelector({ context: todoContext, select: ({ value }) => ({ value})})
+  handleValue({ value }: Pick<MyContext, 'value'>) {
+    console.log(value);
+  }
+}`}</CodeBlock>
+
+This can be very handy when you need to manipulate the context value before using it.
+
+<CodeBlock lang='typescript'>{`import { MyContext } from './my-element-provider'
+
+@customElement("lite-my-consumer")
+export class MyElement extends LiteElement {
+  @contextSelector({
+    context: todoContext,
+    select: ({ value }) => ({ value: value.map((item) => item + 1) }),
+  })
+  handleValue({ value }: Pick<MyContext, 'value'>) {
     console.log(value);
   }
 }`}</CodeBlock>

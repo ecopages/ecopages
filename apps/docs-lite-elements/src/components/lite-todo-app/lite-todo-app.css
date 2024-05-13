@@ -29,32 +29,29 @@
   }
 
   form {
-    @apply flex flex-col gap-2 w-full;
+    @apply flex flex-col md:flex-row gap-2 w-full md:justify-between;
 
     .form-group {
-      @apply flex flex-col gap-1;
+      @apply flex-col gap-1 w-full;
     }
 
     label {
       @apply text-sm font-semibold;
     }
 
-    textarea {
+    input {
       @apply w-full p-2 border border-gray-300 rounded-md;
     }
 
     button {
-      @apply bg-blue-500 text-white p-2 rounded-md min-w-20;
+      @apply bg-blue-500 self-end text-white p-2 rounded-md min-w-20;
     }
   }
 
-  &__count {
-    @apply flex justify-between w-full;
-    & p {
-      @apply m-0 text-sm text-gray-500;
-      & span {
-        @apply font-semibold;
-      }
+  p&__count {
+    @apply flex w-full gap-1 m-0 text-sm text-gray-500;
+    & span {
+      @apply font-semibold;
     }
   }
 

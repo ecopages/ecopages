@@ -18,82 +18,89 @@ export const getMetadata = () => ({
 # Lite Todo App
 ---
 
-The `LiteTodoApp` component is a simple todo app that uses the `LiteContext` to share the todo list between components.
+The `LiteTodoApp` component is a simple todo app that uses the `LiteContext` to share the data between components.
 
 In this example we are using `WithKita` mixin to use JSX in our components.
 
-Due the usage of JSX we need to pass the initialdata as a stringified attribute. The little helper `stringifiedAttribute` is used to convert the data to a string but keeping the types.
+The features of this todo app are:
 
-This permits to use the data as a string in the html markup and then parse it back to an object in the component respecting the JSX definition.
+- Add a todo
+- Mark a todo as completed
+- Show the number of todos and completed todos
+- Move a todo to the completed list once it is marked as completed
+- Move a todo to the todo list once it is marked as incomplete
+- Show a message when there are no todos to show
+
+Also if the list of the features seems not to be so big, there is a lot of concepts that are being used in this example.
+
+Let's check it together.
 
 <LiteTodoApp count={5} />
 
 ### Html Markup
 
-<CodeBlock lang="html">{` <>
-  <h3 safe>{data.title}</h3>
-  <p safe>{data.description}</p>
-  <lite-todo-app class="todo" initialdata={stringifiedAttribute(data.todos)}>
-    <div class="todo__board">
-      <div class="todo__panel">
-        <h4>Todo List</h4>
-        <div class="todo__list todo__list--incomplete" data-todo-list>
-          {completedTodos.length > 0 ? <TodoList todos={incompleteTodos} /> : <NoTodosMessage />}
-        </div>
-      </div>
-      <div class="todo__panel">
-        <h4>Completed Todos</h4>
-        <div class="todo__list todo__list--complete" data-todo-list-complete>
-          {incompleteTodos.length > 0 ? <TodoList todos={completedTodos} /> : <NoCompletedTodosMessage />}
-        </div>
-      </div>
-    </div>
-    <form id="todo-form" data-todo-form>
-      <div class="todo__todo-form-group">
-        <label for="new-todo">Add Todo</label>
-        <textarea form="todo-form" id="new-todo" rows="6" name="todo" />
-        <button type="submit">Add</button>
-      </div>
-    </form>
-    <div class="todo__count">
-      <p>
+This is the html markup of the `LiteTodoApp` component.
+
+As you can see we are using the `hydrate-context` attribute to pass the initial data to the `LiteContext` provider.
+
+This is very handy in a SSR context, where we can pass the data from the server to the client keeping the UX consistent.
+
+To pass the data to the `hydrate-context` attribute we need to use the `stringifiedAttribute` helper to convert the data to a string but being sure that the data will be parsed correctly.
+
+Please remember that due the nature of the web components, you need to stringify the data before passing it to the component, but context can also have properties that cannot be stringified.
+
+Since hydrate will merge the data with the initial value, you can pass only the properties that you want to update.
+
+<CodeBlock lang="html">{`<lite-todo-app class="todo" hydrate-context={stringifiedAttribute<Partial<TodoContext>>({ todos: data.todos })}>
+  <div class="todo__board">
+    <div class="todo__panel">
+      <h4>Todo List</h4>
+      <p class="todo__count">
         Still to do: <span data-count>{incompleteTodos.length}</span>
       </p>
-      <p>
+      <div class="todo__list todo__list--incomplete" data-todo-list>
+        {completedTodos.length > 0 
+          ? <TodoList todos={incompleteTodos} /> 
+          : <NoTodosMessage />
+        }
+      </div>
+    </div>
+    <div class="todo__panel">
+      <h4>Completed Todos</h4>
+      <p class="todo__count">
         Completed: <span data-count-complete>{completedTodos.length}</span>
       </p>
+      <div class="todo__list todo__list--complete" data-todo-list-complete>
+        {incompleteTodos.length > 0 
+          ? <TodoList todos={completedTodos} /> 
+          : <NoCompletedTodosMessage />
+        }
+      </div>
     </div>
-  </lite-todo-app>
-</>
+  </div>
+  <form>
+    <div class="form-group">
+      <label for="new-todo">Add Todo</label>
+      <input id="new-todo" name="todo" />
+    </div>
+    <button type="submit">Add</button>
+  </form>
+</lite-todo-app>
 `}</CodeBlock>
 
 ### Typescript
 
-<CodeBlock lang='typescript'>{`import {
-  LiteElement,
-  WithKita,
-  customElement,
-  onEvent,
-  querySelector,
-  reactiveAttribute,
-  createContext,
-  consumeContext,
-  contextSelector,
-  provideContext,
-  type UnknownContext,
-  type LiteContext,
-} from '@eco-pages/lite-elements';
-import { NoCompletedTodosMessage, NoTodosMessage, TodoItem } from './lite-todo.templates';
+In this first snippet we have the `lite-todo-app` component that is responsible for managing the todos.
 
-export type LiteTodoAppProps = {
-  initialdata?: TodoContext['todos'];
-};
+The features used in this component are:
 
-export type LiteTodoProps = {
-  complete?: boolean;
-};
+- `@querySelector` decorator to query for the elements inside the component
+- `@provideContext` decorator to provide the context to the children components
+- `@onEvent` decorator to listen for the form submit event
+- `@contextSelector` decorator to select the todos based on the complete status
+- `renderTemplate` method to render the templates. Here we are using WithKita mixin to render the JSX templates
 
-export type Todo = {
+<CodeBlock lang='typescript'>{`export type Todo = {
   id: string;
   text: string;
   complete: boolean;
@@ -105,43 +112,14 @@ export type TodoContext = {
 
 export const todoContext = createContext<TodoContext>(Symbol('todo-context'));
 
-@customElement('lite-todo-item')
-export class LiteTodo extends WithKita(LiteElement) {
-  @querySelector('input[type="checkbox"]') checkbox!: HTMLInputElement;
-  @reactiveAttribute({ type: Boolean, reflect: true }) complete = false;
-  @consumeContext(todoContext) context!: LiteContext<typeof todoContext>;
-
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.complete = this.checkbox.checked;
-  }
-
-  @onEvent({ target: 'input[type="checkbox"]', type: 'change' })
-  toggleComplete(event: Event) {
-    const checkbox = event.target as HTMLInputElement;
-    const todo = this.context.getContext().todos.find((t) => t.id === this.id);
-    if (!todo) return;
-    this.complete = checkbox.checked;
-    this.context.setContext({
-      todos: this.context.getContext().todos.map((t) => (t.id === this.id ? { ...t, complete: checkbox.checked } : t)),
-    });
-    this.remove();
-  }
-
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-  }
-}
-
 @customElement('lite-todo-app')
 export class LiteTodos extends WithKita(LiteElement) {
   @querySelector('[data-count]') countText!: HTMLElement;
   @querySelector('[data-count-complete]') countTextComplete!: HTMLElement;
   @querySelector('[data-todo-list]') todoList!: HTMLElement;
   @querySelector('[data-todo-list-complete]') todoListComplete!: HTMLElement;
-  @reactiveAttribute({ type: Array, reflect: false }) initialdata: TodoContext['todos'] = [];
 
-  @provideContext<typeof todoContext>({ context: todoContext, initialValue: { todos: [] } })
+  @provideContext<typeof todoContext>({ context: todoContext, initialValue: { todos: [] }, hydrate: Object })
   provider!: LiteContext<typeof todoContext>;
 
   override connectedCallback(): void {
@@ -149,11 +127,7 @@ export class LiteTodos extends WithKita(LiteElement) {
     this.onTodosUpdated = this.onTodosUpdated.bind(this);
   }
 
-  override connectedContextCallback(_contextName: UnknownContext): void {
-    this.provider.setContext({ todos: this.initialdata });
-  }
-
-  @onEvent({ target: '[data-todo-form]', type: 'submit' })
+  @onEvent({ target: 'form', type: 'submit' })
   submitTodo(event: FormDataEvent) {
     event.preventDefault();
     const form = event.target as HTMLFormElement;
@@ -196,23 +170,18 @@ export class LiteTodos extends WithKita(LiteElement) {
       todosIncomplete: todos.filter((todo) => !todo.complete),
     }),
   })
-  onTodosUpdated({
-    todosCompleted,
-    todosIncomplete,
-  }: {
-    todosCompleted: TodoContext['todos'];
-    todosIncomplete: TodoContext['todos'];
-  }) {
-    if (todosCompleted.length === 0) {
-      this.renderMessage(<NoTodosMessage />, this.todoListComplete);
-    } else {
-      this.renderTodos(todosCompleted, this.todoListComplete);
-    }
+  onTodosUpdated({ todosCompleted, todosIncomplete }: Record<string, TodoContext['todos']>) {
+    const todosMapping = [
+      { todos: todosCompleted, list: this.todoListComplete, noTodosMessage: <NoTodosMessage /> },
+      { todos: todosIncomplete, list: this.todoList, noTodosMessage: <NoCompletedTodosMessage /> },
+    ];
 
-    if (todosIncomplete.length === 0) {
-      this.renderMessage(<NoCompletedTodosMessage />, this.todoList);
-    } else {
-      this.renderTodos(todosIncomplete, this.todoList);
+    for (const { todos, list, noTodosMessage } of todosMapping) {
+      if (todos.length === 0) {
+        this.renderMessage(noTodosMessage, list);
+      } else {
+        this.renderTodos(todos, list);
+      }
     }
 
     this.countTextComplete.textContent = todosCompleted.length.toString();
@@ -223,13 +192,64 @@ export class LiteTodos extends WithKita(LiteElement) {
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      'lite-todo-app': HtmlTag & LiteTodoAppProps;
+      'lite-todo-app': HtmlTag;
+    }
+  }
+}`}</CodeBlock>
+
+In this second snippet we have the `lite-todo-item` component that is responsible for rendering the todo item.
+
+The features used in this component are:
+
+- `@querySelector` decorator to query for the checkbox element
+- `@reactiveAttribute` decorator to define the complete attribute
+- `@consumeContext` decorator to consume the context from the parent component
+
+<CodeBlock lang='typescript'>{`export type LiteTodoProps = {
+  complete?: boolean;
+};
+
+@customElement('lite-todo-item')
+export class LiteTodo extends WithKita(LiteElement) {
+  @querySelector('input[type="checkbox"]') checkbox!: HTMLInputElement;
+  @reactiveAttribute({ type: Boolean, reflect: true }) complete = false;
+  @consumeContext(todoContext) context!: LiteContext<typeof todoContext>;
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.complete = this.checkbox.checked;
+  }
+
+  @onEvent({ target: 'input[type="checkbox"]', type: 'change' })
+  toggleComplete(event: Event) {
+    const checkbox = event.target as HTMLInputElement;
+    const todo = this.context.getContext().todos.find((t) => t.id === this.id);
+    if (!todo) return;
+    this.complete = checkbox.checked;
+    this.context.setContext({
+      todos: this.context.getContext().todos.map((t) => (t.id === this.id ? { ...t, complete: checkbox.checked } : t)),
+    });
+    this.remove();
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+  }
+}
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
       'lite-todo-item': HtmlTag & LiteTodoProps;
     }
   }
 }`}</CodeBlock>
 
-### Templates
+Finally, in this last snippet we have the `NoTodosMessage`, `NoCompletedTodosMessage`, `TodoItem` and `TodoList` components.
+
+Theses components are responsible for rendering the messages when there are no todos to show, the todo item and the todo list.
+
+They are used both in the initial markup and in the custom elements.
 
 <CodeBlock lang='typescript'>{`import type { Todo } from './lite-todo-app.script';
 

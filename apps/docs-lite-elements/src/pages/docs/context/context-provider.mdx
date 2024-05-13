@@ -15,13 +15,39 @@ To provide a context to a component, you can use the `@provideContext` decorator
 
 - `context`: The context object that you want to provide.
 - `initialValue`: The initial value of the context.
+- `hydrate`: This is an `AttributeType` that will be used to hydrate the context with the data from the server. If provided, the context will be hydrated with the data from the server.
 
 <CodeBlock lang='typescript'>{`@customElement("lite-my-context")
 export class MyElement extends LiteElement {
-  @provideContext({ context: myContext, initialValue: {  value: "Hello World" }})
+  @provideContext({ context: myContext, initialValue: { value: "Hello World" }})
   provider!: LiteContext<typeof myContext>;
 }`}
 </CodeBlock>
+
+If you want to hydrate the context with the data from the server, you can use the `hydrate` property.
+
+It accepts an `AttributeType` that will be used to hydrate the context with the data from the server.
+
+The attribute type can be a `String`, `Number`, `Boolean`, `Object`, or `Array`.
+
+<CodeBlock lang='typescript'>{`@customElement("lite-my-context")
+export class MyElement extends LiteElement {
+  @provideContext({ context: myContext, initialValue: { logger: new Logger() } hydrate: Object})
+  provider!: LiteContext<typeof myContext>;
+}`}
+</CodeBlock>
+
+Please remember that due the nature of the web components, you need to stringify the data before passing it to the component.
+
+You can use the `stringifiedAttribute` function to do this.
+
+The `stringifiedAttribute` function will convert the data to a string but being sure that the data will be parsed correctly when using JSX in a typescript environment.
+
+Due the nature of the web components, you need to stringify the data before passing it to the component, but context can also have properties that cannot be stringified.
+
+Since hydrate will merge the data with the initial value, you can pass only the properties that you want to update.
+
+<CodeBlock lang='html'>{`<my-context hydrate-context={stringifiedAttribute<MyContext>(data)}>`}</CodeBlock>
 
 Once you have a context provider, all the children of the provider will have access to the context.
 Please note that the provider must be a parent of the consumer.

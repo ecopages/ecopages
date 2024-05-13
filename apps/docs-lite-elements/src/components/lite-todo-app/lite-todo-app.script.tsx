@@ -11,13 +11,8 @@ import {
   querySelector,
   reactiveAttribute,
 } from '@eco-pages/lite-elements';
-import {} from '@eco-pages/lite-elements/src/context/context-provider';
 
 import { NoCompletedTodosMessage, NoTodosMessage, TodoItem } from './lite-todo.templates';
-
-export type LiteTodoAppProps = {
-  initialdata?: TodoContext['todos'];
-};
 
 export type LiteTodoProps = {
   complete?: boolean;
@@ -31,9 +26,16 @@ export type Todo = {
 
 export type TodoContext = {
   todos: Todo[];
+  logger: Logger;
 };
 
 export const todoContext = createContext<TodoContext>(Symbol('todo-context'));
+
+class Logger {
+  log(message: string) {
+    console.log('%cLOGGER', 'background: #222; color: #bada55', message);
+  }
+}
 
 @customElement('lite-todo-item')
 export class LiteTodo extends WithKita(LiteElement) {
@@ -51,10 +53,16 @@ export class LiteTodo extends WithKita(LiteElement) {
     const checkbox = event.target as HTMLInputElement;
     const todo = this.context.getContext().todos.find((t) => t.id === this.id);
     if (!todo) return;
+
     this.complete = checkbox.checked;
+
     this.context.setContext({
       todos: this.context.getContext().todos.map((t) => (t.id === this.id ? { ...t, complete: checkbox.checked } : t)),
     });
+
+    const logger = this.context.getContext().logger;
+    logger.log(`Todo ${this.id} is now ${checkbox.checked ? 'complete' : 'incomplete'}`);
+
     this.remove();
   }
 
@@ -69,9 +77,12 @@ export class LiteTodos extends WithKita(LiteElement) {
   @querySelector('[data-count-complete]') countTextComplete!: HTMLElement;
   @querySelector('[data-todo-list]') todoList!: HTMLElement;
   @querySelector('[data-todo-list-complete]') todoListComplete!: HTMLElement;
-  @reactiveAttribute({ type: Array, reflect: false }) initialdata: TodoContext['todos'] = [];
 
-  @provideContext<typeof todoContext>({ context: todoContext, initialValue: { todos: [] } })
+  @provideContext<typeof todoContext>({
+    context: todoContext,
+    initialValue: { todos: [], logger: new Logger() },
+    hydrate: Object,
+  })
   provider!: LiteContext<typeof todoContext>;
 
   override connectedCallback(): void {
@@ -79,11 +90,7 @@ export class LiteTodos extends WithKita(LiteElement) {
     this.onTodosUpdated = this.onTodosUpdated.bind(this);
   }
 
-  override connectedContextCallback(_contextName: typeof todoContext): void {
-    this.provider.setContext({ todos: this.initialdata });
-  }
-
-  @onEvent({ target: '[data-todo-form]', type: 'submit' })
+  @onEvent({ target: 'form', type: 'submit' })
   submitTodo(event: FormDataEvent) {
     event.preventDefault();
     const form = event.target as HTMLFormElement;
@@ -126,23 +133,18 @@ export class LiteTodos extends WithKita(LiteElement) {
       todosIncomplete: todos.filter((todo) => !todo.complete),
     }),
   })
-  onTodosUpdated({
-    todosCompleted,
-    todosIncomplete,
-  }: {
-    todosCompleted: TodoContext['todos'];
-    todosIncomplete: TodoContext['todos'];
-  }) {
-    if (todosCompleted.length === 0) {
-      this.renderMessage(<NoTodosMessage />, this.todoListComplete);
-    } else {
-      this.renderTodos(todosCompleted, this.todoListComplete);
-    }
+  onTodosUpdated({ todosCompleted, todosIncomplete }: Record<string, TodoContext['todos']>) {
+    const todosMapping = [
+      { todos: todosCompleted, list: this.todoListComplete, noTodosMessage: <NoTodosMessage /> },
+      { todos: todosIncomplete, list: this.todoList, noTodosMessage: <NoCompletedTodosMessage /> },
+    ];
 
-    if (todosIncomplete.length === 0) {
-      this.renderMessage(<NoCompletedTodosMessage />, this.todoList);
-    } else {
-      this.renderTodos(todosIncomplete, this.todoList);
+    for (const { todos, list, noTodosMessage } of todosMapping) {
+      if (todos.length === 0) {
+        this.renderMessage(noTodosMessage, list);
+      } else {
+        this.renderTodos(todos, list);
+      }
     }
 
     this.countTextComplete.textContent = todosCompleted.length.toString();
@@ -153,7 +155,7 @@ export class LiteTodos extends WithKita(LiteElement) {
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      'lite-todo-app': HtmlTag & LiteTodoAppProps;
+      'lite-todo-app': HtmlTag;
       'lite-todo-item': HtmlTag & LiteTodoProps;
     }
   }

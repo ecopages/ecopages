@@ -1,4 +1,6 @@
 import type { LiteElement } from '@/core/LiteElement';
+import type { AttributeTypeConstant } from '@/types';
+import { readAttributeValue } from '@/utils';
 import {
   ContextEventsTypes,
   ContextOnMountEvent,
@@ -10,8 +12,11 @@ import type { Context, ContextType, UnknownContext } from './types';
 
 type ContextProviderOptions<T extends UnknownContext> = {
   context: UnknownContext;
-  initialValue?: ContextType<T>;
+  initialValue?: T['__context__'];
+  hydrate?: AttributeTypeConstant;
 };
+
+export const HYDRATE_ATTRIBUTE = 'hydrate-context';
 
 export class LiteContext<T extends Context<unknown, unknown>> {
   private host: LiteElement;
@@ -22,9 +27,38 @@ export class LiteContext<T extends Context<unknown, unknown>> {
   constructor(host: LiteElement, options: ContextProviderOptions<T>) {
     this.host = host;
     this.context = options.context;
-    if (options.initialValue) this.value = options.initialValue as ContextType<T>;
+    let contextValue: T['__context__'] | undefined = options.initialValue;
+
+    if (options.hydrate) {
+      const hydrationValue = this.host.getAttribute(HYDRATE_ATTRIBUTE);
+
+      if (hydrationValue) {
+        const parsedHydrationValue = readAttributeValue(hydrationValue, options.hydrate) as ContextType<T>;
+        this.host.removeAttribute(HYDRATE_ATTRIBUTE);
+
+        if (
+          options.hydrate === Object &&
+          this.isObject(parsedHydrationValue) &&
+          (this.isObject(contextValue) || typeof contextValue === 'undefined')
+        ) {
+          contextValue = {
+            ...(contextValue ?? {}),
+            ...parsedHydrationValue,
+          };
+        } else {
+          contextValue = parsedHydrationValue;
+        }
+      }
+    }
+
+    this.value = contextValue as ContextType<T>;
+
     this.registerEvents();
     this.host.dispatchEvent(new ContextOnMountEvent(this.context));
+  }
+
+  private isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && !Array.isArray(value) && value !== null;
   }
 
   setContext = (update: Partial<ContextType<T>>, callback?: (context: ContextType<T>) => void) => {

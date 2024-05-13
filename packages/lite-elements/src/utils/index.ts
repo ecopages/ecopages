@@ -85,12 +85,12 @@ function writeString(value: unknown) {
 
 export function readAttributeValue(value: string, type: AttributeTypeConstant) {
   const readerType = parseAttributeTypeConstant(type);
-  if (!readerType) throw new TypeError(`[light-element] Unknown type "${type}"`);
+  if (!readerType) throw new TypeError(`[lite-element] Unknown type "${type}"`);
   return readers[readerType](value);
 }
 
 export function writeAttributeValue(value: unknown, type: AttributeTypeConstant) {
   const writerType = parseAttributeTypeConstant(type);
-  if (!writerType) throw new TypeError(`[light-element] Unknown type "${type}"`);
+  if (!writerType) throw new TypeError(`[lite-element] Unknown type "${type}"`);
   return (writers[writerType] || writers.default)(value);
 }

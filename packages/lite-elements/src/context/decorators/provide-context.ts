@@ -1,10 +1,11 @@
 import { LiteContext } from '@/context/context-provider';
 import type { ContextType, UnknownContext } from '@/context/types';
-import type { LiteElement } from '@eco-pages/lite-elements';
+import type { AttributeTypeConstant, LiteElement } from '@eco-pages/lite-elements';
 
 type CreateContextOptions<T extends UnknownContext> = {
-  context: UnknownContext;
-  initialValue?: ContextType<T>;
+  context: T;
+  initialValue?: T['__context__'];
+  hydrate?: AttributeTypeConstant;
 };
 
 /**
@@ -12,13 +13,13 @@ type CreateContextOptions<T extends UnknownContext> = {
  * @param contextToProvide
  * @returns
  */
-export function provideContext<T extends UnknownContext>({ context, initialValue }: CreateContextOptions<T>) {
+export function provideContext<T extends UnknownContext>({ context, initialValue, hydrate }: CreateContextOptions<T>) {
   return (proto: LiteElement, propertyKey: string) => {
     const originalConnectedCallback = proto.connectedCallback;
 
     proto.connectedCallback = function (this: LiteElement) {
       originalConnectedCallback.call(this);
-      (this as any)[propertyKey] = new LiteContext<T>(this, { context, initialValue });
+      (this as any)[propertyKey] = new LiteContext<T>(this, { context, initialValue, hydrate });
       this.connectedContextCallback(context);
     };
   };

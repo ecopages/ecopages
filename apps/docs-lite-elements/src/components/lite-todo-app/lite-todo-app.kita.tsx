@@ -4,19 +4,16 @@ import type { TodoContext } from './lite-todo-app.script';
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './lite-todo.templates';
 
 type LiteTodoAppTemplateProps = {
-  title: string;
-  description: string;
   todos: TodoContext['todos'];
 };
 
 const getData = async (): Promise<LiteTodoAppTemplateProps> => {
+  const now = Date.now();
   return {
-    title: 'Lite Todo App',
-    description: 'A simple todo app, built with lite elements using WithKita mixin and context.',
     todos: [
-      { id: '1', text: 'Create a todo app', complete: true },
-      { id: '2', text: 'Add a todo item', complete: false },
-      { id: '3', text: 'Complete a todo item', complete: false },
+      { id: now.toString(), text: 'Create a todo app', complete: true },
+      { id: (now + 1).toString(), text: 'Add a todo item', complete: false },
+      { id: (now + 2).toString(), text: 'Complete a todo item', complete: false },
     ],
   };
 };
@@ -26,41 +23,35 @@ export const LiteTodoApp: EcoComponent = async () => {
   const incompleteTodos = data.todos.filter((todo) => !todo.complete);
   const completedTodos = data.todos.filter((todo) => todo.complete);
   return (
-    <>
-      <h3 safe>{data.title}</h3>
-      <p safe>{data.description}</p>
-      <lite-todo-app class="todo" initialdata={stringifiedAttribute(data.todos)}>
-        <div class="todo__board">
-          <div class="todo__panel">
-            <h4>Todo List</h4>
-            <div class="todo__list todo__list--incomplete" data-todo-list>
-              {completedTodos.length > 0 ? <TodoList todos={incompleteTodos} /> : <NoTodosMessage />}
-            </div>
-          </div>
-          <div class="todo__panel">
-            <h4>Completed Todos</h4>
-            <div class="todo__list todo__list--complete" data-todo-list-complete>
-              {incompleteTodos.length > 0 ? <TodoList todos={completedTodos} /> : <NoCompletedTodosMessage />}
-            </div>
-          </div>
-        </div>
-        <form id="todo-form" data-todo-form>
-          <div class="todo__todo-form-group">
-            <label for="new-todo">Add Todo</label>
-            <textarea form="todo-form" id="new-todo" rows="6" name="todo" />
-            <button type="submit">Add</button>
-          </div>
-        </form>
-        <div class="todo__count">
-          <p>
+    <lite-todo-app class="todo" hydrate-context={stringifiedAttribute<Partial<TodoContext>>({ todos: data.todos })}>
+      <div class="todo__board">
+        <div class="todo__panel">
+          <h4>Todo List</h4>
+          <p class="todo__count">
             Still to do: <span data-count>{incompleteTodos.length}</span>
           </p>
-          <p>
+          <div class="todo__list todo__list--incomplete" data-todo-list>
+            {completedTodos.length > 0 ? <TodoList todos={incompleteTodos} /> : <NoTodosMessage />}
+          </div>
+        </div>
+        <div class="todo__panel">
+          <h4>Completed Todos</h4>
+          <p class="todo__count">
             Completed: <span data-count-complete>{completedTodos.length}</span>
           </p>
+          <div class="todo__list todo__list--complete" data-todo-list-complete>
+            {incompleteTodos.length > 0 ? <TodoList todos={completedTodos} /> : <NoCompletedTodosMessage />}
+          </div>
         </div>
-      </lite-todo-app>
-    </>
+      </div>
+      <form>
+        <div class="form-group">
+          <label for="new-todo">Add Todo</label>
+          <input id="new-todo" name="todo" />
+        </div>
+        <button type="submit">Add</button>
+      </form>
+    </lite-todo-app>
   );
 };
 

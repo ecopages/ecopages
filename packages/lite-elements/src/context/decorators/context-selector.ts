@@ -2,9 +2,13 @@ import { ContextSubscriptionRequestEvent } from '@/context/events';
 import type { Context, ContextType, UnknownContext } from '@/context/types';
 import type { LiteElement } from '@eco-pages/lite-elements';
 
+type ArgsType<T extends UnknownContext> = SubscribeToContextOptions<T>['select'] extends (...args: any[]) => infer R
+  ? R
+  : ContextType<T>;
+
 type SubscribeToContextOptions<T extends UnknownContext> = {
   context: T;
-  select?: (context: ContextType<T>) => unknown;
+  select?: (context: T['__context__']) => unknown;
   subscribe?: boolean;
 };
 /**
@@ -29,11 +33,7 @@ export function contextSelector<T extends Context<unknown, unknown>>({
       this.dispatchEvent(new ContextSubscriptionRequestEvent(context, originalMethod.bind(this), select, subscribe));
     };
 
-    descriptor.value = function (
-      ...args: {
-        [K in keyof ContextType<T>]: ContextType<T>[K];
-      }[]
-    ) {
+    descriptor.value = function (...args: ArgsType<T>[]) {
       const result = originalMethod.apply(this, args);
       return result;
     };

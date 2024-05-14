@@ -1,5 +1,5 @@
 {
-	"name": "@eco-pages/starter",
+	"name": "@eco-pages/fixture",
 	"version": "0.0.1",
 	"scripts": {
 		"dev": "eco-pages dev",

@@ -12,7 +12,7 @@ import {
   reactiveProp,
 } from '@eco-pages/lite-elements';
 
-import { NoCompletedTodosMessage, NoTodosMessage, TodoItem } from './lite-todo.templates';
+import { NoCompletedTodosMessage, NoTodosMessage, TodoItem, TodoList } from './lite-todo.templates';
 
 export type LiteTodoProps = {
   complete?: boolean;
@@ -85,11 +85,6 @@ export class LiteTodos extends WithKita(LiteElement) {
   })
   provider!: LiteContext<typeof todoContext>;
 
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.onTodosUpdated = this.onTodosUpdated.bind(this);
-  }
-
   @onEvent({ target: 'form', type: 'submit' })
   submitTodo(event: FormDataEvent) {
     event.preventDefault();
@@ -103,27 +98,6 @@ export class LiteTodos extends WithKita(LiteElement) {
       this.provider.setContext({ todos });
       form.reset();
     }
-  }
-
-  renderTodos(todos: TodoContext['todos'], node: HTMLElement) {
-    node.innerHTML = '';
-    let index = 0;
-    for (const todo of todos) {
-      this.renderTemplate({
-        target: node,
-        template: <TodoItem {...todo} />,
-        insert: index === 0 ? 'replace' : 'beforeend',
-      });
-      index++;
-    }
-  }
-
-  renderMessage(message: JSX.Element, node: HTMLElement) {
-    this.renderTemplate({
-      target: node,
-      template: message,
-      insert: 'replace',
-    });
   }
 
   @contextSelector({
@@ -141,9 +115,15 @@ export class LiteTodos extends WithKita(LiteElement) {
 
     for (const { todos, list, noTodosMessage } of todosMapping) {
       if (todos.length === 0) {
-        this.renderMessage(noTodosMessage, list);
+        this.renderTemplate({
+          target: list,
+          template: noTodosMessage,
+        });
       } else {
-        this.renderTodos(todos, list);
+        this.renderTemplate({
+          target: list,
+          template: <TodoList todos={todos} />,
+        });
       }
     }
 

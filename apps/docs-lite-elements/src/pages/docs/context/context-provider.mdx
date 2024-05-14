@@ -47,14 +47,14 @@ Due the nature of the web components, you need to stringify the data before pass
 
 Since hydrate will merge the data with the initial value, you can pass only the properties that you want to update.
 
-<CodeBlock lang='html'>{`<my-context hydrate-context={stringifiedAttribute<MyContext>(data)}>`}</CodeBlock>
+<CodeBlock lang='jsx'>{`<my-context hydrate-context={stringifiedAttribute<Omit<MyContext, 'logger'>>(data)}>`}</CodeBlock>
 
 Once you have a context provider, all the children of the provider will have access to the context.
 Please note that the provider must be a parent of the consumer.
 
 To read the documentation relative to the consumer, click [here](/docs/context/context-consumer).
 
-<CodeBlock lang='typescript'>{`<my-element-provider>
+<CodeBlock lang='jsx'>{`<my-element-provider>
   <my-element-consumer></my-element-consumer>
 </my-element-provider>`}</CodeBlock>
 
@@ -62,11 +62,10 @@ If for any reason you don't want to use the `@provideContext` decorator, you can
 
 <CodeBlock lang='typescript'>{`@customElement("lite-my-context")
 export class MyElement extends LiteElement {
-  provider = new LiteContext<typeof todoContext>(this, {
-    context: todoContext,
+  provider = new LiteContext<typeof myContext>(this, {
+    context: myContext,
     initialValue: {
-      todos: [],
-      count: 0,
+      value: "Hello World"
     },
   });
 }`}

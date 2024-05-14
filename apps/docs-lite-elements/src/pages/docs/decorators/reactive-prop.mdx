@@ -17,6 +17,8 @@ It takes an options object with the type of the attribute and whether it should 
 
 Once an update is made to the field, it will inform the component that an update occured.
 
+It is possible to define the attribute name if it is different from the field name.
+
 It plays well in combination with the @onUpdated decorator.
 
-<CodeBlock lang='typescript'>{`@reactiveProp({ type: Number, reflect: true }) declare count: number;`}</CodeBlock>
+<CodeBlock lang='typescript'>{`@reactiveProp({ type: Number, reflect: true, attribute: 'count-it' }) declare count: number;`}</CodeBlock>

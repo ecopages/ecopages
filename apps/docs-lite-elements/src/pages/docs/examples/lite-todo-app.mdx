@@ -202,7 +202,7 @@ In this second snippet we have the `lite-todo-item` component that is responsibl
 The features used in this component are:
 
 - `@querySelector` decorator to query for the checkbox element
-- `@reactiveAttribute` decorator to define the complete attribute
+- `@reactiveProp` decorator to define the complete attribute
 - `@consumeContext` decorator to consume the context from the parent component
 
 <CodeBlock lang='typescript'>{`export type LiteTodoProps = {
@@ -212,7 +212,7 @@ The features used in this component are:
 @customElement('lite-todo-item')
 export class LiteTodo extends WithKita(LiteElement) {
   @querySelector('input[type="checkbox"]') checkbox!: HTMLInputElement;
-  @reactiveAttribute({ type: Boolean, reflect: true }) complete = false;
+  @reactiveProp({ type: Boolean, reflect: true }) complete = false;
   @consumeContext(todoContext) context!: LiteContext<typeof todoContext>;
 
   override connectedCallback(): void {

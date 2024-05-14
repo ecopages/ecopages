@@ -4,11 +4,11 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | @reactiveAttribute',
+  title: 'Docs | @reactiveProp',
   description: 'The place to learn about Eco Pages',
 })
 
-# @reactiveAttribute
+# @reactiveProp
 ---
 
 This is a decorator that allows you to define a reactive attribute on the element.
@@ -19,4 +19,4 @@ Once an update is made to the field, it will inform the component that an update
 
 It plays well in combination with the @onUpdated decorator.
 
-<CodeBlock lang='typescript'>{`@reactiveAttribute({ type: Number, reflect: true }) declare count: number;`}</CodeBlock>
+<CodeBlock lang='typescript'>{`@reactiveProp({ type: Number, reflect: true }) declare count: number;`}</CodeBlock>

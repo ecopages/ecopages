@@ -29,6 +29,19 @@ export function parseAttributeTypeDefault(defaultValue?: AttributeTypeDefault) {
   if (Object.prototype.toString.call(defaultValue) === '[object Object]') return 'object';
 }
 
+export function defaultValueForType(type: AttributeTypeConstant): unknown {
+  switch (type) {
+    case Number:
+      return 0;
+    case String:
+      return '';
+    case Boolean:
+      return false;
+    default:
+      return null;
+  }
+}
+
 type Reader = (value: string) => number | string | boolean | object | unknown[];
 
 const readers: { [type: string]: Reader } = {

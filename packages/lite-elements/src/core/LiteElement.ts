@@ -66,6 +66,8 @@ export interface ILightElement {
  * @implements ILightElement
  */
 export class LiteElement extends HTMLElement implements ILightElement {
+  static observedAttributes: string[] = [];
+
   private eventSubscriptions = new Map<string, LiteElementEventListener>();
 
   connectedCallback() {}
@@ -76,7 +78,9 @@ export class LiteElement extends HTMLElement implements ILightElement {
     this.removeAllSubscribedEvents();
   }
 
-  updated(_changedProperty: string, _oldValue: unknown, _value: unknown) {}
+  updated(_changedProperty: string, _oldValue: unknown, _value: unknown) {
+    console.log('UPDATED', { changedProperty: _changedProperty, oldValue: _oldValue, value: _value });
+  }
 
   renderTemplate({
     target = this,

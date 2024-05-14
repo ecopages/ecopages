@@ -45,7 +45,7 @@ export const docsConfig: DocsConfig = {
         { title: '@onUpdated', slug: 'on-updated' },
         { title: '@querySelector', slug: 'query-selector' },
         { title: '@querySelectorAll', slug: 'query-selector-all' },
-        { title: '@reactiveAttribute', slug: 'reactive-attribute' },
+        { title: '@reactiveProp', slug: 'reactive-attribute' },
         { title: '@reactiveField', slug: 'reactive-field' },
       ],
     },

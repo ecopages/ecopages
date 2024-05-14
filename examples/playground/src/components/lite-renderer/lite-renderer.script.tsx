@@ -6,8 +6,8 @@ import {
   onEvent,
   onUpdated,
   querySelector,
-  reactiveAttribute,
   reactiveField,
+  reactiveProp,
 } from '@eco-pages/lite-elements';
 
 import { Message } from './lite-renderer.templates.kita';
@@ -19,8 +19,8 @@ export type LiteRendererProps = {
 
 @customElement('lite-renderer')
 export class LiteRenderer extends WithKita(LiteElement) {
-  @reactiveAttribute({ type: String, reflect: true }) declare text: string;
-  @reactiveAttribute({ type: Boolean, reflect: true })
+  @reactiveProp({ type: String, reflect: true }) declare text: string;
+  @reactiveProp({ type: Boolean, reflect: true })
   declare 'replace-on-load': boolean;
 
   @reactiveField numberOfClicks = 1;

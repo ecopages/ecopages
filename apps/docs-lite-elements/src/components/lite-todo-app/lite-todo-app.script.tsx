@@ -9,7 +9,7 @@ import {
   onEvent,
   provideContext,
   querySelector,
-  reactiveAttribute,
+  reactiveProp,
 } from '@eco-pages/lite-elements';
 
 import { NoCompletedTodosMessage, NoTodosMessage, TodoItem } from './lite-todo.templates';
@@ -40,7 +40,7 @@ class Logger {
 @customElement('lite-todo-item')
 export class LiteTodo extends WithKita(LiteElement) {
   @querySelector('input[type="checkbox"]') checkbox!: HTMLInputElement;
-  @reactiveAttribute({ type: Boolean, reflect: true }) complete = false;
+  @reactiveProp({ type: Boolean, reflect: true }) complete = false;
   @consumeContext(todoContext) context!: LiteContext<typeof todoContext>;
 
   override connectedCallback(): void {

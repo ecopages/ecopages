@@ -12,7 +12,7 @@ export type LiteElementEventListener = {
   options?: AddEventListenerOptions;
 };
 
-export interface ILightElement {
+export interface ILiteElement {
   /**
    * A callback that is triggered when the element is connected to the DOM.
    * @param changedProperty The properties that have changed.
@@ -63,11 +63,9 @@ export interface ILightElement {
 /**
  * A base class for creating custom elements with reactive properties and event subscriptions.
  * @extends HTMLElement
- * @implements ILightElement
+ * @implements ILiteElement
  */
-export class LiteElement extends HTMLElement implements ILightElement {
-  static observedAttributes: string[] = [];
-
+export class LiteElement extends HTMLElement implements ILiteElement {
   private eventSubscriptions = new Map<string, LiteElementEventListener>();
 
   connectedCallback() {}
@@ -78,9 +76,7 @@ export class LiteElement extends HTMLElement implements ILightElement {
     this.removeAllSubscribedEvents();
   }
 
-  updated(_changedProperty: string, _oldValue: unknown, _value: unknown) {
-    console.log('UPDATED', { changedProperty: _changedProperty, oldValue: _oldValue, value: _value });
-  }
+  updated(_changedProperty: string, _oldValue: unknown, _value: unknown) {}
 
   renderTemplate({
     target = this,

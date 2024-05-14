@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  defaultValueForType,
   parseAttributeTypeConstant,
   parseAttributeTypeDefault,
   readAttributeValue,
@@ -115,6 +116,19 @@ describe('parseAttributeTypeConstant', async () => {
     [Array, 'array'],
   ])('%p should be parsed as %p', (a, b) => {
     const parsed = parseAttributeTypeConstant(a);
+    expect(parsed).toBe(b);
+  });
+});
+
+describe('defaultValueForType', async () => {
+  test.each([
+    [Boolean, false],
+    [Number, 0],
+    [String, ''],
+    [Object, null],
+    [Array, null],
+  ])('%p should be parsed as %p', (a, b) => {
+    const parsed = defaultValueForType(a);
     expect(parsed).toBe(b);
   });
 });

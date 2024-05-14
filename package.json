@@ -35,6 +35,11 @@
 	},
 	"module": "src/index.js",
 	"repository": "https://github.com/andeeplus/eco-pages.git",
-	"workspaces": ["packages/*", "examples/*", "apps/*"],
+	"workspaces": [
+		"packages/*",
+		"packages/integrations/*",
+		"examples/*",
+		"apps/*"
+	],
 	"type": "module"
 }

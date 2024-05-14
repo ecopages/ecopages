@@ -52,7 +52,7 @@ export interface ILiteElement {
   renderTemplate(options: {
     target: HTMLElement;
     template: string;
-    insert: RenderInsertPosition;
+    insert?: RenderInsertPosition;
   }): void;
   /**
    * A callback that is triggered when a context is received.
@@ -81,13 +81,13 @@ export class LiteElement extends HTMLElement implements ILiteElement {
   renderTemplate({
     target = this,
     template,
-    insert: mode = 'replace',
+    insert = 'replace',
   }: {
     target: HTMLElement;
     template: string;
-    insert: RenderInsertPosition;
+    insert?: RenderInsertPosition;
   }) {
-    switch (mode) {
+    switch (insert) {
       case 'replace':
         target.innerHTML = template;
         break;

@@ -37,9 +37,9 @@ Let's check it together.
 
 <LiteTodoApp count={5} />
 
-### Html Markup
+### Jsx Markup
 
-This is the html markup of the `LiteTodoApp` component.
+This is the jsx markup of the `LiteTodoApp` component.
 
 As you can see we are using the `hydrate-context` attribute to pass the initial data to the `LiteContext` provider.
 
@@ -51,7 +51,7 @@ Please remember that due the nature of the web components, you need to stringify
 
 Since hydrate will merge the data with the initial value, you can pass only the properties that you want to update.
 
-<CodeBlock lang="html">{`<lite-todo-app class="todo" hydrate-context={stringifiedAttribute<Partial<TodoContext>>({ todos: data.todos })}>
+<CodeBlock lang="jsx">{`<lite-todo-app class="todo" hydrate-context={stringifiedAttribute<TodoContext>({ todos: data.todos })}>
   <div class="todo__board">
     <div class="todo__panel">
       <h4>Todo List</h4>
@@ -119,13 +119,12 @@ export class LiteTodos extends WithKita(LiteElement) {
   @querySelector('[data-todo-list]') todoList!: HTMLElement;
   @querySelector('[data-todo-list-complete]') todoListComplete!: HTMLElement;
 
-  @provideContext<typeof todoContext>({ context: todoContext, initialValue: { todos: [] }, hydrate: Object })
+  @provideContext<typeof todoContext>({
+    context: todoContext,
+    initialValue: { todos: [], logger: new Logger() },
+    hydrate: Object,
+  })
   provider!: LiteContext<typeof todoContext>;
-
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.onTodosUpdated = this.onTodosUpdated.bind(this);
-  }
 
   @onEvent({ target: 'form', type: 'submit' })
   submitTodo(event: FormDataEvent) {
@@ -140,27 +139,6 @@ export class LiteTodos extends WithKita(LiteElement) {
       this.provider.setContext({ todos });
       form.reset();
     }
-  }
-
-  renderTodos(todos: TodoContext['todos'], node: HTMLElement) {
-    node.innerHTML = '';
-    let index = 0;
-    for (const todo of todos) {
-      this.renderTemplate({
-        target: node,
-        template: <TodoItem {...todo} />,
-        insert: index === 0 ? 'replace' : 'beforeend',
-      });
-      index++;
-    }
-  }
-
-  renderMessage(message: JSX.Element, node: HTMLElement) {
-    this.renderTemplate({
-      target: node,
-      template: message,
-      insert: 'replace',
-    });
   }
 
   @contextSelector({
@@ -178,9 +156,15 @@ export class LiteTodos extends WithKita(LiteElement) {
 
     for (const { todos, list, noTodosMessage } of todosMapping) {
       if (todos.length === 0) {
-        this.renderMessage(noTodosMessage, list);
+        this.renderTemplate({
+          target: list,
+          template: noTodosMessage,
+        });
       } else {
-        this.renderTodos(todos, list);
+        this.renderTemplate({
+          target: list,
+          template: <TodoList todos={todos} />,
+        });
       }
     }
 

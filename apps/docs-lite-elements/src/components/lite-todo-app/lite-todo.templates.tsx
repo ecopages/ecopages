@@ -13,7 +13,10 @@ export const TodoItem = ({ id, complete, text }: Todo) => {
     <lite-todo-item complete={complete} class="todo__item" id={id}>
       {text as 'safe'}
       <span>
-        <input type="checkbox" checked={complete} />
+        <label class="sr-only" for={`todo-${id}`}>
+          Set complete todo: {id as 'safe'}
+        </label>
+        <input id={`todo-${id}`} name={id} type="checkbox" checked={complete} />
       </span>
     </lite-todo-item>
   );

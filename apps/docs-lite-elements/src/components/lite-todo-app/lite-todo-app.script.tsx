@@ -12,7 +12,7 @@ import {
   reactiveProp,
 } from '@eco-pages/lite-elements';
 
-import { NoCompletedTodosMessage, NoTodosMessage, TodoItem, TodoList } from './lite-todo.templates';
+import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './lite-todo.templates';
 
 export type LiteTodoProps = {
   complete?: boolean;

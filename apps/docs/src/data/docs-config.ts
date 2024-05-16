@@ -33,6 +33,28 @@ export const docsConfig: DocsConfig = {
       ],
     },
     {
+      name: 'Integrations',
+      subdirectory: 'integrations',
+      pages: [
+        { title: 'Kitajs', slug: 'kita' },
+        { title: 'Lit', slug: 'lit' },
+        { title: 'Mdx', slug: 'mdx' },
+        { title: 'React', slug: 'react' },
+      ],
+    },
+    {
+      name: 'Directories',
+      subdirectory: 'directories',
+      pages: [
+        { title: 'Structure', slug: 'root' },
+        { title: 'Components', slug: 'components' },
+        { title: 'Layouts', slug: 'layouts' },
+        { title: 'Includes', slug: 'includes' },
+        { title: 'Pages', slug: 'pages' },
+        { title: 'Public', slug: 'public' },
+      ],
+    },
+    {
       name: 'Guides',
       subdirectory: 'guides',
       pages: [

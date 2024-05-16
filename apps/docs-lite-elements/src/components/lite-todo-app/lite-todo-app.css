@@ -7,7 +7,7 @@
 
   &__panel {
     @apply flex flex-col gap-4 w-full;
-    h4 {
+    h2 {
       @apply m-0;
     }
   }
@@ -44,12 +44,12 @@
     }
 
     button {
-      @apply bg-blue-500 self-end text-white p-2 rounded-md min-w-20;
+      @apply bg-blue-700 self-end text-white p-2 rounded-md min-w-20;
     }
   }
 
   p&__count {
-    @apply flex w-full gap-1 m-0 text-sm text-gray-500;
+    @apply flex w-full gap-1 m-0 text-sm text-gray-700;
     & span {
       @apply font-semibold;
     }

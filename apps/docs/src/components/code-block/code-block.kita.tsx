@@ -4,7 +4,7 @@ import { type BundledLanguage, type BundledTheme, codeToHtml } from 'shiki';
 export const CodeBlock: EcoComponent<{ children: string; lang?: BundledLanguage; theme?: BundledTheme }> = async ({
   children,
   lang = 'typescript',
-  theme = 'vitesse-dark',
+  theme = 'dracula',
 }) => {
   const safeHtml = await codeToHtml(children, {
     lang,

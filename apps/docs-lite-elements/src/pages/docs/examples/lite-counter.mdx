@@ -20,49 +20,70 @@ export const getMetadata = () => ({
 
 This is a simple counter component that increments and decrements a number. 
 
-<LiteCounter count={5} />
-
-### Features
-
+The features of this counter are:
 - Increment and decrement a number
 - Uses the [@reactiveProp](/docs/reactive-prop) decorator to define a property
 - Uses the [@querySelector](/docs/query-selector) decorator to query for an element
 - Uses the [@onEvent](/docs/on-event) decorator to listen for events
 - Uses the [@onUpdated](/docs/on-updated) decorator to update the text content of the element
 
+<LiteCounter value={5} />
 
-### Html Markup
+## JSX Markup
 
-<CodeBlock lang="jsx">{`<lite-counter class="lite-counter" count="5">
-  <button type="button" data-decrement aria-label="Decrement" class="lite-counter__decrement">
+If you want to use the `LiteCounter` component, the only thing you need to do is to provide the elements that will be used to increment and decrement the value and the element that will show the value.
+
+This can be done by using the `data-decrement`, `data-increment`, and `data-text` attributes.
+
+<CodeBlock lang="jsx">{`<lite-counter value={value}>
+  <button type="button" data-decrement aria-label="Decrement">
     -
   </button>
-  <span data-text="count">5</span>
-  <button type="button" data-increment aria-label="Increment" class="lite-counter__increment">
+  <span data-text="count">{value}</span>
+  <button type="button" data-increment aria-label="Increment">
     +
   </button>
 </lite-counter>`}</CodeBlock>
 
-### Typescript
+## Typescript
+
+The `LiteCounter` component is defined as a class that extends the `LiteElement` class. The `LiteCounterProps` type is used to define the properties that the component will receive.
+
+Please note that the props in there are used mainly to provide type checking and intellisense in the editor while using typescript with JSX.
+
+The component is also dispatching a `change` event when the value is updated, this can be used to listen for changes in the value of the component.
 
 <CodeBlock lang='typescript'>{`@customElement("lite-counter")
+export type LiteCounterProps = {
+  value?: number;
+};
+
+@customElement('lite-counter')
 export class LiteCounter extends LiteElement {
-  @reactiveProp({ type: Number }) count = 0;
-  @querySelector("[data-text]") countText!: HTMLElement;
+  @reactiveProp({ type: Number }) declare value: number;
+  @querySelector('[data-text]') countText!: HTMLElement;
 
-  @onEvent({ target: "[data-decrement]", type: "click" })
+  @onEvent({ target: '[data-decrement]', type: 'click' })
   decrement() {
-    this.count--;
+    if (this.value > 0) this.value--;
   }
 
-  @onEvent({ target: "[data-increment]", type: "click" })
+  @onEvent({ target: '[data-increment]', type: 'click' })
   increment() {
-    this.count++;
+    this.value++;
   }
 
-  @onUpdated("count")
+  @onUpdated('value')
   updateCount() {
-    this.countText.textContent = this.count.toString();
+    this.dispatchEvent(new Event('change'));
+    this.countText.textContent = this.value.toString();
   }
-}`}
-</CodeBlock>
+}
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'lite-counter': HtmlTag & LiteCounterProps;
+    }
+  }
+}`}</CodeBlock>

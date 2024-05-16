@@ -1,6 +1,7 @@
 import { LiteContext } from '@/context/context-provider';
-import type { ContextType, UnknownContext } from '@/context/types';
-import type { AttributeTypeConstant, LiteElement } from '@eco-pages/lite-elements';
+import type { UnknownContext } from '@/context/types';
+import type { LiteElement } from '@/core/LiteElement';
+import type { AttributeTypeConstant } from '@/types';
 
 type CreateContextOptions<T extends UnknownContext> = {
   context: T;

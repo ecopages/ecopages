@@ -8,6 +8,7 @@ export * from './decorators/reactive-prop';
 export * from './decorators/reactive-field';
 export * from './utils';
 export * from './mixins/with-kita';
+export * from './context/create-context';
 export * from './context/context-provider';
 export * from './context/events';
 export * from './context/decorators/provide-context';

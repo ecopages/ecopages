@@ -24,26 +24,26 @@ export const LiteTodoApp: EcoComponent = async () => {
   const completedTodos = data.todos.filter((todo) => todo.complete);
   return (
     <lite-todo-app class="todo" hydrate-context={stringifiedAttribute<Partial<TodoContext>>({ todos: data.todos })}>
-      <div class="todo__board">
-        <div class="todo__panel">
-          <h4>Todo List</h4>
+      <section class="todo__board">
+        <article class="todo__panel">
+          <h2>Todo List</h2>
           <p class="todo__count">
             Still to do: <span data-count>{incompleteTodos.length}</span>
           </p>
           <div class="todo__list todo__list--incomplete" data-todo-list>
             {completedTodos.length > 0 ? <TodoList todos={incompleteTodos} /> : <NoTodosMessage />}
           </div>
-        </div>
-        <div class="todo__panel">
-          <h4>Completed Todos</h4>
+        </article>
+        <article class="todo__panel">
+          <h2>Completed Todos</h2>
           <p class="todo__count">
             Completed: <span data-count-complete>{completedTodos.length}</span>
           </p>
           <div class="todo__list todo__list--complete" data-todo-list-complete>
             {incompleteTodos.length > 0 ? <TodoList todos={completedTodos} /> : <NoCompletedTodosMessage />}
           </div>
-        </div>
-      </div>
+        </article>
+      </section>
       <form>
         <div class="form-group">
           <label for="new-todo">Add Todo</label>

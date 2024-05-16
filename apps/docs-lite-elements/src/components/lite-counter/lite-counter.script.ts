@@ -1,27 +1,28 @@
 import { LiteElement, customElement, onEvent, onUpdated, querySelector, reactiveProp } from '@eco-pages/lite-elements';
 
 export type LiteCounterProps = {
-  count?: number;
+  value?: number;
 };
 
 @customElement('lite-counter')
 export class LiteCounter extends LiteElement {
-  @reactiveProp({ type: Number }) declare count: number;
+  @reactiveProp({ type: Number }) declare value: number;
   @querySelector('[data-text]') countText!: HTMLElement;
 
   @onEvent({ target: '[data-decrement]', type: 'click' })
   decrement() {
-    if (this.count > 0) this.count--;
+    if (this.value > 0) this.value--;
   }
 
   @onEvent({ target: '[data-increment]', type: 'click' })
   increment() {
-    this.count++;
+    this.value++;
   }
 
-  @onUpdated('count')
+  @onUpdated('value')
   updateCount() {
-    this.countText.textContent = this.count.toString();
+    this.dispatchEvent(new Event('change'));
+    this.countText.textContent = this.value.toString();
   }
 }
 

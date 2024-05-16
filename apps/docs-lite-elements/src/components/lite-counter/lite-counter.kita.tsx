@@ -1,13 +1,13 @@
 import { DepsManager, type EcoComponent } from '@eco-pages/core';
 import type { LiteCounterProps } from './lite-counter.script';
 
-export const LiteCounter: EcoComponent<LiteCounterProps> = ({ count }) => {
+export const LiteCounter: EcoComponent<LiteCounterProps> = ({ value }) => {
   return (
-    <lite-counter class="lite-counter" count={count}>
+    <lite-counter class="lite-counter" value={value}>
       <button type="button" data-decrement aria-label="Decrement" class="lite-counter__decrement">
         -
       </button>
-      <span data-text="count">{count}</span>
+      <span data-text="count">{value}</span>
       <button type="button" data-increment aria-label="Increment" class="lite-counter__increment">
         +
       </button>

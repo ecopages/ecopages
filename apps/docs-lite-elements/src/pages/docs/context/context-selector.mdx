@@ -54,7 +54,7 @@ If for any reason you don't want to use the `@contextSelector` decorator, you ca
 
 @customElement("lite-my-consumer")
 export class MyElement extends LiteElement {
-  context!: LiteContext<typeof myContext>;
+  context!: ContextProvider<typeof myContext>;
 
   connectedCallback() {
     super.connectedCallback();

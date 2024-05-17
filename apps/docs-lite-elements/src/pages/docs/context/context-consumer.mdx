@@ -21,7 +21,7 @@ To consume a context in a component, you can use the `@consumeContext` decorator
 @customElement("lite-my-consumer")
 export class MyElement extends LiteElement {
   @consumeContext(myContext)
-  consumer!: LiteContext<typeof myContext>;
+  consumer!: ContextProvider<typeof myContext>;
 }`}</CodeBlock>
 
 Once you have a context consumer, you can access the context value using the `consumer` property and the following properties:
@@ -41,7 +41,7 @@ import { ContextRequestEvent } from '@eco-pages/lite-elements';
 
 @customElement("lite-my-consumer")
 export class MyElement extends LiteElement {
-  context!: LiteContext<typeof myContext>;
+  context!: ContextProvider<typeof myContext>;
   connectedCallback() {
     super.connectedCallback();
     this.dispatchEvent(

@@ -1,4 +1,4 @@
-export function LiteContextDemoVisualizer() {
+export function ContextProviderDemoVisualizer() {
   return (
     <lc-demo-visualizer>
       <p class="lc-demo__label">lc-demo-visualizer</p>

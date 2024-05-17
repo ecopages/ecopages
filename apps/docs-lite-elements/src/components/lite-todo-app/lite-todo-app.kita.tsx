@@ -1,5 +1,5 @@
 import { DepsManager, type EcoComponent } from '@eco-pages/core';
-import { stringifiedAttribute } from '@eco-pages/lite-elements/src/tools/stringified-attribute';
+import { stringifyAttribute } from '@eco-pages/lite-elements/tools/stringifyAttribute';
 import type { TodoContext } from './lite-todo-app.script';
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './lite-todo.templates';
 
@@ -23,7 +23,7 @@ export const LiteTodoApp: EcoComponent = async () => {
   const incompleteTodos = data.todos.filter((todo) => !todo.complete);
   const completedTodos = data.todos.filter((todo) => todo.complete);
   return (
-    <lite-todo-app class="todo" hydrate-context={stringifiedAttribute<Partial<TodoContext>>({ todos: data.todos })}>
+    <lite-todo-app class="todo" hydrate-context={stringifyAttribute<Partial<TodoContext>>({ todos: data.todos })}>
       <section class="todo__board">
         <article class="todo__panel">
           <h2>Todo List</h2>

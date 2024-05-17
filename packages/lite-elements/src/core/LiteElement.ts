@@ -1,5 +1,6 @@
-import type { RenderInsertPosition } from '@/types';
-import type { UnknownContext } from '..';
+import type { UnknownContext } from '@/context/types';
+
+export type RenderInsertPosition = 'replace' | 'beforebegin' | 'afterbegin' | 'beforeend' | 'afterend';
 
 /**
  * A type that represents an event listener subscription.

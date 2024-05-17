@@ -1,4 +1,4 @@
-export function LiteContextDemoEditor() {
+export function ContextProviderDemoEditor() {
   return (
     <lc-demo-editor>
       <p class="lc-demo__label">lc-demo-editor</p>

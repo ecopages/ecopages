@@ -1,5 +1,4 @@
-import type { LiteElement } from '@/core/LiteElement';
-import type { RenderInsertPosition } from '@/types';
+import type { LiteElement, RenderInsertPosition } from '@/core/LiteElement';
 
 type Constructor<T> = new (...args: any[]) => T;
 
@@ -10,6 +9,10 @@ interface WithKitaMixin {
     insert?: RenderInsertPosition;
   }) => Promise<void>;
 }
+
+/**
+ * A mixin that provides a method to render a JSX template into an HTMLElement.
+ */
 export function WithKita<T extends Constructor<LiteElement>>(Base: T): T & Constructor<WithKitaMixin> {
   return class extends Base implements WithKitaMixin {
     override async renderTemplate({

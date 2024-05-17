@@ -18,7 +18,7 @@ export const getMetadata = () => ({
 # Lite Todo App
 ---
 
-The `LiteTodoApp` component is a simple todo app that uses the `LiteContext` to share the data between components.
+The `LiteTodoApp` component is a simple todo app that uses the `ContextProvider` to share the data between components.
 
 In this example we are using `WithKita` mixin to use JSX in our components.
 
@@ -41,17 +41,17 @@ Let's check it together.
 
 This is the jsx markup of the `LiteTodoApp` component.
 
-As you can see we are using the `hydrate-context` attribute to pass the initial data to the `LiteContext` provider.
+As you can see we are using the `hydrate-context` attribute to pass the initial data to the `ContextProvider` provider.
 
 This is very handy in a SSR context, where we can pass the data from the server to the client keeping the UX consistent.
 
-To pass the data to the `hydrate-context` attribute we need to use the `stringifiedAttribute` helper to convert the data to a string but being sure that the data will be parsed correctly.
+To pass the data to the `hydrate-context` attribute we need to use the `stringifyAttribute` helper to convert the data to a string but being sure that the data will be parsed correctly.
 
 Please remember that due the nature of the web components, you need to stringify the data before passing it to the component, but context can also have properties that cannot be stringified.
 
 Since hydrate will merge the data with the initial value, you can pass only the properties that you want to update.
 
-<CodeBlock lang="jsx">{`<lite-todo-app class="todo" hydrate-context={stringifiedAttribute<TodoContext>({ todos: data.todos })}>
+<CodeBlock lang="jsx">{`<lite-todo-app class="todo" hydrate-context={stringifyAttribute<TodoContext>({ todos: data.todos })}>
   <div class="todo__board">
     <div class="todo__panel">
       <h4>Todo List</h4>
@@ -124,7 +124,7 @@ export class LiteTodos extends WithKita(LiteElement) {
     initialValue: { todos: [], logger: new Logger() },
     hydrate: Object,
   })
-  provider!: LiteContext<typeof todoContext>;
+  provider!: ContextProvider<typeof todoContext>;
 
   @onEvent({ target: 'form', type: 'submit' })
   submitTodo(event: FormDataEvent) {
@@ -197,7 +197,7 @@ The features used in this component are:
 export class LiteTodo extends WithKita(LiteElement) {
   @querySelector('input[type="checkbox"]') checkbox!: HTMLInputElement;
   @reactiveProp({ type: Boolean, reflect: true }) complete = false;
-  @consumeContext(todoContext) context!: LiteContext<typeof todoContext>;
+  @consumeContext(todoContext) context!: ContextProvider<typeof todoContext>;
 
   override connectedCallback(): void {
     super.connectedCallback();

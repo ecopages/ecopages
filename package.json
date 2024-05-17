@@ -23,8 +23,8 @@
 		"build:react-app": "bun run --filter @eco-pages/react-app build",
 		"start:react-app": "bun run --filter @eco-pages/react-app start",
 		"preview:react-app": "bun run --filter @eco-pages/react-app preview",
-		"prepare:lib": "bun run --filter @eco-pages/scripts-injector build:lib",
-		"clean": "rm -rf .eco node_modules bun.lockb && bun install",
+		"prepare:lib": "bun run --filter @eco-pages/scripts-injector --filter @eco-pages/lite-elements build:lib",
+		"clean": "rm -rf .eco node_modules bun.lockb && bun install && bun run prepare:lib",
 		"format": "bunx @biomejs/biome format --write .",
 		"lint": "bunx @biomejs/biome check --apply .",
 		"lint-staged": "lint-staged"

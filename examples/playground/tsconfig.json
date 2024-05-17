@@ -7,6 +7,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"jsx": "react-jsx",
 		"jsxImportSource": "@kitajs/html",
+		"target": "ESNext",
 		"module": "ESNext",
 		"moduleResolution": "node",
 		"noImplicitOverride": true,
@@ -21,7 +22,6 @@
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
-		"target": "ES2021",
 		"types": ["bun-types", "@eco-pages/core"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true

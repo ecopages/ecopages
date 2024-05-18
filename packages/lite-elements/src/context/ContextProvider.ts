@@ -1,6 +1,5 @@
 import type { LiteElement } from '@/core/LiteElement';
-import type { AttributeTypeConstant } from '@/types';
-import { readAttributeValue } from '@/utils';
+import { type AttributeTypeConstant, readAttributeValue } from '@/utils/values';
 import {
   ContextEventsTypes,
   ContextOnMountEvent,
@@ -18,7 +17,7 @@ type ContextProviderOptions<T extends UnknownContext> = {
 
 export const HYDRATE_ATTRIBUTE = 'hydrate-context';
 
-export class LiteContext<T extends Context<unknown, unknown>> {
+export class ContextProvider<T extends Context<unknown, unknown>> {
   private host: LiteElement;
   private context: UnknownContext;
   private value: ContextType<T> | undefined;

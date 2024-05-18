@@ -1,6 +1,10 @@
 import type { LiteElement } from '@/core/LiteElement';
-import type { AttributeTypeConstant } from '@/types';
-import { defaultValueForType, readAttributeValue, writeAttributeValue } from '@/utils';
+import {
+  type AttributeTypeConstant,
+  defaultValueForType,
+  readAttributeValue,
+  writeAttributeValue,
+} from '@/utils/values';
 
 type ReactivePropertyOptions = {
   type: AttributeTypeConstant;

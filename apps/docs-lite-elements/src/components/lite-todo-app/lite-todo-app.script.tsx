@@ -1,5 +1,5 @@
 import {
-  type LiteContext,
+  type ContextProvider,
   LiteElement,
   WithKita,
   consumeContext,
@@ -41,7 +41,7 @@ class Logger {
 export class LiteTodo extends WithKita(LiteElement) {
   @querySelector('input[type="checkbox"]') checkbox!: HTMLInputElement;
   @reactiveProp({ type: Boolean, reflect: true }) complete = false;
-  @consumeContext(todoContext) context!: LiteContext<typeof todoContext>;
+  @consumeContext(todoContext) context!: ContextProvider<typeof todoContext>;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -83,7 +83,7 @@ export class LiteTodos extends WithKita(LiteElement) {
     initialValue: { todos: [], logger: new Logger() },
     hydrate: Object,
   })
-  provider!: LiteContext<typeof todoContext>;
+  provider!: ContextProvider<typeof todoContext>;
 
   @onEvent({ target: 'form', type: 'submit' })
   submitTodo(event: FormDataEvent) {

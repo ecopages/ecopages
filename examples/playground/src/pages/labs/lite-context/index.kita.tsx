@@ -1,4 +1,8 @@
-import { LiteContextDemo, LiteContextDemoEditor, LiteContextDemoVisualizer } from '@/components/lite-context-demo';
+import {
+  ContextProviderDemo,
+  ContextProviderDemoEditor,
+  ContextProviderDemoVisualizer,
+} from '@/components/lite-context-demo';
 import { BaseLayout } from '@/layouts/base-layout';
 import { DepsManager, type EcoComponent, type GetMetadata } from '@eco-pages/core';
 
@@ -12,17 +16,17 @@ export const getMetadata: GetMetadata = () => ({
 const LiteElement: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
-      <LiteContextDemo>
-        <LiteContextDemoVisualizer />
-        <LiteContextDemoEditor />
-      </LiteContextDemo>
+      <ContextProviderDemo>
+        <ContextProviderDemoVisualizer />
+        <ContextProviderDemoEditor />
+      </ContextProviderDemo>
     </BaseLayout>
   );
 };
 
 LiteElement.dependencies = DepsManager.collect({
   importMeta: import.meta,
-  components: [BaseLayout, LiteContextDemo, LiteContextDemoVisualizer, LiteContextDemoEditor],
+  components: [BaseLayout, ContextProviderDemo, ContextProviderDemoVisualizer, ContextProviderDemoEditor],
 });
 
 export default LiteElement;

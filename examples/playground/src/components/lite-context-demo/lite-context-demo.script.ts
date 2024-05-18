@@ -1,5 +1,5 @@
 import {
-  type LiteContext,
+  type ContextProvider,
   LiteElement,
   consumeContext,
   contextSelector,
@@ -16,7 +16,7 @@ class Logger {
   }
 }
 
-type LiteContextDemoContext = {
+type ContextProviderDemoContext = {
   name: string;
   version: string;
   templateSupport: string[];
@@ -24,9 +24,9 @@ type LiteContextDemoContext = {
   plugins: Record<string, boolean>;
 };
 
-export const liteContextDemo = createContext<LiteContextDemoContext>(Symbol('liteContextDemo'));
+export const contextDemo = createContext<ContextProviderDemoContext>(Symbol('ContextProviderDemo'));
 
-const initialValue: LiteContextDemoContext = {
+const initialValue: ContextProviderDemoContext = {
   name: 'eco-pages',
   version: '0.1',
   templateSupport: ['kita'],
@@ -35,9 +35,9 @@ const initialValue: LiteContextDemoContext = {
 };
 
 @customElement('lc-demo')
-export class LiteContextDemo extends LiteElement {
-  @provideContext({ context: liteContextDemo, initialValue })
-  context!: LiteContext<typeof liteContextDemo>;
+export class ContextProviderDemo extends LiteElement {
+  @provideContext({ context: contextDemo, initialValue })
+  context!: ContextProvider<typeof contextDemo>;
 }
 
 @customElement('lc-demo-visualizer')
@@ -45,12 +45,12 @@ export class LitePackageVisualizer extends LiteElement {
   @querySelector('[data-name]') packageName!: HTMLSpanElement;
   @querySelector('[data-version]') packageVersion!: HTMLSpanElement;
 
-  @contextSelector({ context: liteContextDemo, select: ({ name }) => ({ name }) })
+  @contextSelector({ context: contextDemo, select: ({ name }) => ({ name }) })
   updateName({ name }: { name: string }) {
     this.packageName.innerHTML = name;
   }
 
-  @contextSelector({ context: liteContextDemo, select: ({ version }) => ({ version }) })
+  @contextSelector({ context: contextDemo, select: ({ version }) => ({ version }) })
   updateVersion({ version }: { version: string }) {
     this.packageVersion.innerHTML = version;
   }
@@ -61,12 +61,12 @@ export class LitePackageConsumer extends LiteElement {
   @querySelector('[data-input]') input!: HTMLInputElement;
   @querySelector('[data-options]') select!: HTMLSelectElement;
 
-  @consumeContext(liteContextDemo)
-  context!: LiteContext<typeof liteContextDemo>;
+  @consumeContext(contextDemo)
+  context!: ContextProvider<typeof contextDemo>;
 
   declare logger: Logger;
 
-  override connectedContextCallback(_contextName: typeof liteContextDemo): void {
+  override connectedContextCallback(_contextName: typeof contextDemo): void {
     this.logger = this.context.getContext().logger;
   }
 

@@ -1,4 +1,6 @@
-import type { AttributeTypeConstant, AttributeTypeDefault } from '../types';
+export type AttributeTypeConstant = typeof Array | typeof Boolean | typeof Number | typeof Object | typeof String;
+
+export type AttributeTypeDefault = Array<unknown> | boolean | number | Record<string, unknown> | string;
 
 export function parseAttributeTypeConstant(constant?: AttributeTypeConstant) {
   switch (constant) {

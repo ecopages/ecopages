@@ -1,7 +1,7 @@
-import { LiteContext } from '@/context/context-provider';
+import { ContextProvider } from '@/context/ContextProvider';
 import type { UnknownContext } from '@/context/types';
 import type { LiteElement } from '@/core/LiteElement';
-import type { AttributeTypeConstant } from '@/types';
+import type { AttributeTypeConstant } from '@/utils/values';
 
 type CreateContextOptions<T extends UnknownContext> = {
   context: T;
@@ -20,7 +20,7 @@ export function provideContext<T extends UnknownContext>({ context, initialValue
 
     proto.connectedCallback = function (this: LiteElement) {
       originalConnectedCallback.call(this);
-      (this as any)[propertyKey] = new LiteContext<T>(this, { context, initialValue, hydrate });
+      (this as any)[propertyKey] = new ContextProvider<T>(this, { context, initialValue, hydrate });
       this.connectedContextCallback(context);
     };
   };

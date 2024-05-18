@@ -2,13 +2,18 @@
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
 		"baseUrl": ".",
+		"rootDir": "./src",
+		"outDir": "./dist",
 		"esModuleInterop": true,
+		"declaration": true,
+		"emitDeclarationOnly": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"jsx": "react-jsx",
 		"jsxImportSource": "@kitajs/html",
+		"target": "ESNext",
 		"module": "ESNext",
-		"moduleResolution": "node",
+		"moduleResolution": "Bundler",
 		"noImplicitOverride": true,
 		"paths": {
 			"@/*": ["./src/*"]
@@ -21,9 +26,9 @@
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
-		"target": "ES2021",
-		"types": ["bun-types", "@eco-pages/core"],
+		"types": ["bun-types"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
-	}
+	},
+	"include": ["src/**/*"]
 }

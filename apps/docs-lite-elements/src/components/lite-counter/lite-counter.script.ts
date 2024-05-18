@@ -1,8 +1,9 @@
+import { LiteElement } from '@eco-pages/lite-elements/core/lite-element';
 import { customElement } from '@eco-pages/lite-elements/decorators/custom-element';
 import { onEvent } from '@eco-pages/lite-elements/decorators/on-event';
+import { onUpdated } from '@eco-pages/lite-elements/decorators/on-updated';
 import { querySelector } from '@eco-pages/lite-elements/decorators/query-selector';
 import { reactiveProp } from '@eco-pages/lite-elements/decorators/reactive-prop';
-import { LiteElement } from '@eco-pages/lite-elements/lite-element';
 
 export type LiteCounterProps = {
   value?: number;

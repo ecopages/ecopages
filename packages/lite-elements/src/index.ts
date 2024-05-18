@@ -3,7 +3,7 @@ export * from './decorators/custom-element';
 export * from './decorators/on-event';
 export * from './decorators/on-updated';
 export * from './decorators/query-selector';
-export * from './decorators/query-selectorAll';
+export * from './decorators/query-selector-all';
 export * from './decorators/reactive-prop';
 export * from './decorators/reactive-field';
 export * from './context/create-context';

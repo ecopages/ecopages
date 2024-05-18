@@ -21,9 +21,9 @@
 			"types": "./dist/context/create-context.d.ts",
 			"import": "./dist/context/create-context.js"
 		},
-		"./context/Context-provider": {
-			"types": "./dist/context/Context-provider.d.ts",
-			"import": "./dist/context/Context-provider.js"
+		"./context/context-provider": {
+			"types": "./dist/context/context-provider.d.ts",
+			"import": "./dist/context/context-provider.js"
 		},
 		"./context/consume-context": {
 			"types": "./dist/context/decorators/consume-context.d.ts",

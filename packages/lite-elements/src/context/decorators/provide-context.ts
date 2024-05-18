@@ -1,6 +1,6 @@
-import { ContextProvider } from '@/context/ContextProvider';
+import { ContextProvider } from '@/context/context-provider';
 import type { UnknownContext } from '@/context/types';
-import type { LiteElement } from '@/core/LiteElement';
+import type { LiteElement } from '@/core/lite-element';
 import type { AttributeTypeConstant } from '@/utils/values';
 
 type CreateContextOptions<T extends UnknownContext> = {

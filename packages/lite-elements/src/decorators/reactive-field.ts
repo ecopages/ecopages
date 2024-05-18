@@ -1,4 +1,4 @@
-import type { LiteElement } from '@/core/LiteElement';
+import type { LiteElement } from '@/core/lite-element';
 
 /**
  * A decorator to define a reactive field.

@@ -13,7 +13,7 @@
 		"jsxImportSource": "@kitajs/html",
 		"target": "ESNext",
 		"module": "ESNext",
-		"moduleResolution": "Bundler",
+		"moduleResolution": "node",
 		"noImplicitOverride": true,
 		"paths": {
 			"@/*": ["./src/*"]

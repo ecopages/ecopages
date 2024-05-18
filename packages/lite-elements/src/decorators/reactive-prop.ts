@@ -1,4 +1,4 @@
-import type { LiteElement } from '@/core/LiteElement';
+import type { LiteElement } from '@/core/lite-element';
 import {
   type AttributeTypeConstant,
   defaultValueForType,

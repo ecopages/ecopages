@@ -1,6 +1,6 @@
 import { ContextSubscriptionRequestEvent } from '@/context/events';
 import type { Context, ContextType, UnknownContext } from '@/context/types';
-import type { LiteElement } from '@eco-pages/lite-elements';
+import type { LiteElement } from '@/core/lite-element';
 
 type ArgsType<T extends UnknownContext> = SubscribeToContextOptions<T>['select'] extends (...args: any[]) => infer R
   ? R

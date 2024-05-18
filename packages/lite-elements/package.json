@@ -4,7 +4,8 @@
 	"repository": "https://github.com/andeeplus/eco-pages.git",
 	"type": "module",
 	"main": "dist/index.js",
-	"files": ["dist"],
+	"module": "dist/index.js",
+	"types": "dist/index.d.ts",
 	"scripts": {
 		"build:lib": "bun run clean && bun run build:files && bun run build:types",
 		"build:files": "bun run ./build.ts",
@@ -14,67 +15,67 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
-			"default": "./dist/index.js"
+			"import": "./dist/index.js"
 		},
-		"./context/createContext": {
-			"types": "./dist/context/createContext.d.ts",
-			"default": "./dist/context/createContext.js"
+		"./context/create-context": {
+			"types": "./dist/context/create-context.d.ts",
+			"import": "./dist/context/create-context.js"
 		},
-		"./context/ContextProvider": {
-			"types": "./dist/context/ContextProvider.d.ts",
-			"default": "./dist/context/ContextProvider.js"
+		"./context/Context-provider": {
+			"types": "./dist/context/Context-provider.d.ts",
+			"import": "./dist/context/Context-provider.js"
 		},
-		"./context/consumeContext": {
-			"types": "./dist/context/decorators/consumeContext.d.ts",
-			"default": "./dist/context/decorators/consumeContext.js"
+		"./context/consume-context": {
+			"types": "./dist/context/decorators/consume-context.d.ts",
+			"import": "./dist/context/decorators/consume-context.js"
 		},
-		"./context/provideContext": {
-			"types": "./dist/context/decorators/provideContext.d.ts",
-			"default": "./dist/context/decorators/provideContext.js"
+		"./context/provide-context": {
+			"types": "./dist/context/decorators/provide-context.d.ts",
+			"import": "./dist/context/decorators/provide-context.js"
 		},
-		"./context/contextSelector": {
-			"types": "./dist/context/decorators/contextSelector.d.ts",
-			"default": "./dist/context/decorators/contextSelector.js"
+		"./context/context-selector": {
+			"types": "./dist/context/decorators/context-selector.d.ts",
+			"import": "./dist/context/decorators/context-selector.js"
 		},
-		"./LiteElement": {
-			"types": "./dist/core/LiteElement.d.ts",
-			"default": "./dist/core/LiteElement.js"
+		"./core/lite-element": {
+			"types": "./dist/core/lite-element.d.ts",
+			"import": "./dist/core/lite-element.js"
 		},
-		"./decorators/customElement": {
-			"types": "./dist/decorators/customElement.d.ts",
-			"default": "./dist/decorators/customElement.js"
+		"./decorators/custom-element": {
+			"types": "./dist/decorators/custom-element.d.ts",
+			"import": "./dist/decorators/custom-element.js"
 		},
-		"./decorators/onEvent": {
-			"types": "./dist/decorators/onEvent.d.ts",
-			"default": "./dist/decorators/onEvent.js"
+		"./decorators/on-event": {
+			"types": "./dist/decorators/on-event.d.ts",
+			"import": "./dist/decorators/on-event.js"
 		},
-		"./decorators/onUpdated": {
-			"types": "./dist/decorators/onUpdated.d.ts",
-			"default": "./dist/decorators/onUpdated.js"
+		"./decorators/on-updated": {
+			"types": "./dist/decorators/on-updated.d.ts",
+			"import": "./dist/decorators/on-updated.js"
 		},
-		"./decorators/querySelector": {
-			"types": "./dist/decorators/querySelector.d.ts",
-			"default": "./dist/decorators/querySelector.js"
+		"./decorators/query-selector": {
+			"types": "./dist/decorators/query-selector.d.ts",
+			"import": "./dist/decorators/query-selector.js"
 		},
-		"./decorators/querySelectorAll": {
-			"types": "./dist/decorators/querySelectorAll.d.ts",
-			"default": "./dist/decorators/querySelectorAll.js"
+		"./decorators/query-selector-all": {
+			"types": "./dist/decorators/query-selector-all.d.ts",
+			"import": "./dist/decorators/query-selector-all.js"
 		},
-		"./decorators/reactiveField": {
-			"types": "./dist/decorators/reactiveField.d.ts",
-			"default": "./dist/decorators/reactiveField.js"
+		"./decorators/reactive-field": {
+			"types": "./dist/decorators/reactive-field.d.ts",
+			"import": "./dist/decorators/reactive-field.js"
 		},
-		"./decorators/reactiveProp": {
-			"types": "./dist/decorators/reactiveProp.d.ts",
-			"default": "./dist/decorators/reactiveProp.js"
+		"./decorators/reactive-prop": {
+			"types": "./dist/decorators/reactive-prop.d.ts",
+			"import": "./dist/decorators/reactive-prop.js"
 		},
-		"./mixins/WithKita": {
-			"types": "./dist/mixins/WithKita.d.ts",
-			"default": "./dist/mixins/WithKita.js"
+		"./mixins/with-kita": {
+			"types": "./dist/mixins/with-kita.d.ts",
+			"import": "./dist/mixins/with-kita.js"
 		},
-		"./tools/stringifyAttribute": {
-			"types": "./dist/tools/stringifyAttribute.d.ts",
-			"default": "./dist/tools/stringifyAttribute.js"
+		"./tools/stringify-attribute": {
+			"types": "./dist/tools/stringify-attribute.d.ts",
+			"import": "./dist/tools/stringify-attribute.js"
 		}
 	},
 	"dependencies": {
@@ -84,5 +85,6 @@
 	"devDependencies": {
 		"bun-types": "latest",
 		"tsc-alias": "1.8.10"
-	}
+	},
+	"files": ["/dist/*"]
 }

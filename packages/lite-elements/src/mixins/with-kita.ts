@@ -1,4 +1,4 @@
-import type { LiteElement, RenderInsertPosition } from '@/core/LiteElement';
+import type { LiteElement, RenderInsertPosition } from '@/core/lite-element';
 
 type Constructor<T> = new (...args: any[]) => T;
 

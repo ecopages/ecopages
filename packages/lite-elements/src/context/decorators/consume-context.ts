@@ -1,6 +1,6 @@
 import { ContextRequestEvent } from '@/context/events';
 import type { UnknownContext } from '@/context/types';
-import type { LiteElement } from '@eco-pages/lite-elements';
+import type { LiteElement } from '@/core/lite-element';
 
 /**
  * A decorator to provide a context to the target element.

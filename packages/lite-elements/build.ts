@@ -11,6 +11,7 @@ export const build = await Bun.build({
   minify: true,
   format: 'esm',
   splitting: true,
+  sourcemap: 'external',
 });
 
 if (!build.success) {

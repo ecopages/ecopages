@@ -1,5 +1,5 @@
 import { DepsManager, type EcoComponent } from '@eco-pages/core';
-import { stringifyAttribute } from '@eco-pages/lite-elements/tools/stringifyAttribute';
+import { stringifyAttribute } from '@eco-pages/lite-elements/tools/stringify-attribute';
 import type { TodoContext } from './lite-todo-app.script';
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './lite-todo.templates';
 

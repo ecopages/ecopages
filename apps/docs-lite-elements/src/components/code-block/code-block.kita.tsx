@@ -1,12 +1,13 @@
 import { DepsManager, type EcoComponent } from '@eco-pages/core';
 import { type BundledLanguage, type BundledTheme, codeToHtml } from 'shiki';
 
-export const CodeBlock: EcoComponent<{ children: string; lang?: BundledLanguage; theme?: BundledTheme }> = async ({
-  children,
-  lang = 'typescript',
-  theme = 'dracula',
-}) => {
-  const safeHtml = await codeToHtml(children, {
+export const CodeBlock: EcoComponent<{
+  children?: string;
+  htmlString?: string;
+  lang?: BundledLanguage;
+  theme?: BundledTheme;
+}> = async ({ children, htmlString, lang = 'typescript', theme = 'dracula' }) => {
+  const safeHtml = await codeToHtml(children || htmlString || '', {
     lang,
     theme,
   });

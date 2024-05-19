@@ -18,6 +18,37 @@ const getData = async (): Promise<LiteTodoAppTemplateProps> => {
   };
 };
 
+const TodoPanel = ({
+  title,
+  count,
+  children,
+  ref,
+}: { title: string; count: number; children: JSX.Element; ref: string }) => {
+  return (
+    <article class="todo__panel">
+      <h2 safe>{title}</h2>
+      <p class="todo__count">
+        {title as 'safe'}: <span data-ref={`count-${ref}`}>{count}</span>
+      </p>
+      <div class="todo__list" data-ref={`list-${ref}`}>
+        {children}
+      </div>
+    </article>
+  );
+};
+
+const TodoForm = () => {
+  return (
+    <form>
+      <div class="form-group">
+        <label for="new-todo">Add Todo</label>
+        <input id="new-todo" name="todo" />
+      </div>
+      <button type="submit">Add</button>
+    </form>
+  );
+};
+
 export const LiteTodoApp: EcoComponent = async () => {
   const data = await getData();
   const incompleteTodos = data.todos.filter((todo) => !todo.complete);
@@ -25,32 +56,14 @@ export const LiteTodoApp: EcoComponent = async () => {
   return (
     <lite-todo-app class="todo" hydrate-context={stringifyAttribute<Partial<TodoContext>>({ todos: data.todos })}>
       <section class="todo__board">
-        <article class="todo__panel">
-          <h2>Todo List</h2>
-          <p class="todo__count">
-            Still to do: <span data-count>{incompleteTodos.length}</span>
-          </p>
-          <div class="todo__list todo__list--incomplete" data-todo-list>
-            {completedTodos.length > 0 ? <TodoList todos={incompleteTodos} /> : <NoTodosMessage />}
-          </div>
-        </article>
-        <article class="todo__panel">
-          <h2>Completed Todos</h2>
-          <p class="todo__count">
-            Completed: <span data-count-complete>{completedTodos.length}</span>
-          </p>
-          <div class="todo__list todo__list--complete" data-todo-list-complete>
-            {incompleteTodos.length > 0 ? <TodoList todos={completedTodos} /> : <NoCompletedTodosMessage />}
-          </div>
-        </article>
+        <TodoPanel title="Incomplete Todos" count={incompleteTodos.length} ref="incomplete">
+          {incompleteTodos.length > 0 ? <TodoList todos={incompleteTodos} /> : <NoTodosMessage />}
+        </TodoPanel>
+        <TodoPanel title="Completed Todos" count={completedTodos.length} ref="complete">
+          {completedTodos.length > 0 ? <TodoList todos={completedTodos} /> : <NoCompletedTodosMessage />}
+        </TodoPanel>
       </section>
-      <form>
-        <div class="form-group">
-          <label for="new-todo">Add Todo</label>
-          <input id="new-todo" name="todo" />
-        </div>
-        <button type="submit">Add</button>
-      </form>
+      <TodoForm />
     </lite-todo-app>
   );
 };

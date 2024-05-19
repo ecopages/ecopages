@@ -52,34 +52,34 @@ Please remember that due the nature of the web components, you need to stringify
 Since hydrate will merge the data with the initial value, you can pass only the properties that you want to update.
 
 <CodeBlock lang="jsx">{`<lite-todo-app class="todo" hydrate-context={stringifyAttribute<TodoContext>({ todos: data.todos })}>
-  <div class="todo__board">
-    <div class="todo__panel">
+  <div>
+    <article>
       <h4>Todo List</h4>
-      <p class="todo__count">
-        Still to do: <span data-count>{incompleteTodos.length}</span>
+      <p>
+        Still to do: <span data-ref="count-incomplete">{incompleteTodos.length}</span>
       </p>
-      <div class="todo__list todo__list--incomplete" data-todo-list>
+      <div data-ref="list-incomplete">
         {completedTodos.length > 0 
           ? <TodoList todos={incompleteTodos} /> 
           : <NoTodosMessage />
         }
       </div>
-    </div>
-    <div class="todo__panel">
+    </article>
+    <article>
       <h4>Completed Todos</h4>
-      <p class="todo__count">
-        Completed: <span data-count-complete>{completedTodos.length}</span>
+      <p>
+        Completed: <span data-ref="count-complete">{completedTodos.length}</span>
       </p>
-      <div class="todo__list todo__list--complete" data-todo-list-complete>
+      <div data-ref="list-complete">
         {incompleteTodos.length > 0 
           ? <TodoList todos={completedTodos} /> 
           : <NoCompletedTodosMessage />
         }
       </div>
-    </div>
+    </article>
   </div>
   <form>
-    <div class="form-group">
+    <div>
       <label for="new-todo">Add Todo</label>
       <input id="new-todo" name="todo" />
     </div>
@@ -94,7 +94,7 @@ In this first snippet we have the `lite-todo-app` component that is responsible 
 
 The features used in this component are:
 
-- `@querySelector` decorator to query for the elements inside the component
+- `@ref` decorator to query for the elements inside the component that uses the `data-ref` attribute
 - `@provideContext` decorator to provide the context to the children components
 - `@onEvent` decorator to listen for the form submit event
 - `@contextSelector` decorator to select the todos based on the complete status
@@ -113,11 +113,11 @@ export type TodoContext = {
 export const todoContext = createContext<TodoContext>(Symbol('todo-context'));
 
 @customElement('lite-todo-app')
-export class LiteTodos extends WithKita(LiteElement) {
-  @querySelector('[data-count]') countText!: HTMLElement;
-  @querySelector('[data-count-complete]') countTextComplete!: HTMLElement;
-  @querySelector('[data-todo-list]') todoList!: HTMLElement;
-  @querySelector('[data-todo-list-complete]') todoListComplete!: HTMLElement;
+export class LiteTodoApp extends WithKita(LiteElement) {
+  @ref('list-complete') listComplete!: HTMLElement;
+  @ref('list-incomplete') listIncomplete!: HTMLElement;
+  @ref('count-complete') countComplete!: HTMLElement;
+  @ref('count-incomplete') countIncomplete!: HTMLElement;
 
   @provideContext<typeof todoContext>({
     context: todoContext,
@@ -150,8 +150,8 @@ export class LiteTodos extends WithKita(LiteElement) {
   })
   onTodosUpdated({ todosCompleted, todosIncomplete }: Record<string, TodoContext['todos']>) {
     const todosMapping = [
-      { todos: todosCompleted, list: this.todoListComplete, noTodosMessage: <NoTodosMessage /> },
-      { todos: todosIncomplete, list: this.todoList, noTodosMessage: <NoCompletedTodosMessage /> },
+      { todos: todosCompleted, list: this.listComplete, noTodosMessage: <NoTodosMessage /> },
+      { todos: todosIncomplete, list: this.listIncomplete, noTodosMessage: <NoCompletedTodosMessage /> },
     ];
 
     for (const { todos, list, noTodosMessage } of todosMapping) {
@@ -168,8 +168,8 @@ export class LiteTodos extends WithKita(LiteElement) {
       }
     }
 
-    this.countTextComplete.textContent = todosCompleted.length.toString();
-    this.countText.textContent = todosIncomplete.length.toString();
+    this.countComplete.textContent = todosCompleted.length.toString();
+    this.countIncomplete.textContent = todosIncomplete.length.toString();
   }
 }
 
@@ -216,8 +216,11 @@ export class LiteTodo extends WithKita(LiteElement) {
     this.remove();
   }
 
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
+  @onEvent({ target: 'button', type: 'click' })
+  removeTodo() {
+    this.context.setContext({
+      todos: this.context.getContext().todos.filter((t) => t.id !== this.id),
+    })
   }
 }
 
@@ -252,6 +255,24 @@ export const TodoItem = ({ id, complete, text }: Todo) => {
       <span>
         <input type="checkbox" checked={complete} />
       </span>
+       <button type="button" class="todo__item-remove">
+        <svg
+          width="20"
+          height="20"
+          aria-hidden="true"
+          focusable="false"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="lucide lucide-x"
+        >
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </svg>
+      </button>
     </lite-todo-item>
   );
 };

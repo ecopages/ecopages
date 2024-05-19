@@ -10,6 +10,7 @@ import {
   provideContext,
   querySelector,
   reactiveProp,
+  ref,
 } from '@eco-pages/lite-elements';
 
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './lite-todo.templates';
@@ -38,8 +39,9 @@ class Logger {
 }
 
 @customElement('lite-todo-item')
-export class LiteTodo extends WithKita(LiteElement) {
+export class LiteTodoItem extends WithKita(LiteElement) {
   @querySelector('input[type="checkbox"]') checkbox!: HTMLInputElement;
+  @querySelector('button') removeButton!: HTMLButtonElement;
   @reactiveProp({ type: Boolean, reflect: true }) complete = false;
   @consumeContext(todoContext) context!: ContextProvider<typeof todoContext>;
 
@@ -62,21 +64,25 @@ export class LiteTodo extends WithKita(LiteElement) {
 
     const logger = this.context.getContext().logger;
     logger.log(`Todo ${this.id} is now ${checkbox.checked ? 'complete' : 'incomplete'}`);
-
-    this.remove();
   }
 
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
+  @onEvent({ target: 'button', type: 'click' })
+  removeTodo() {
+    this.context.setContext({
+      todos: this.context.getContext().todos.filter((t) => t.id !== this.id),
+    });
+
+    const logger = this.context.getContext().logger;
+    logger.log(`Todo ${this.id} removed`);
   }
 }
 
 @customElement('lite-todo-app')
-export class LiteTodos extends WithKita(LiteElement) {
-  @querySelector('[data-count]') countText!: HTMLElement;
-  @querySelector('[data-count-complete]') countTextComplete!: HTMLElement;
-  @querySelector('[data-todo-list]') todoList!: HTMLElement;
-  @querySelector('[data-todo-list-complete]') todoListComplete!: HTMLElement;
+export class LiteTodoApp extends WithKita(LiteElement) {
+  @ref('list-complete') listComplete!: HTMLElement;
+  @ref('list-incomplete') listIncomplete!: HTMLElement;
+  @ref('count-complete') countComplete!: HTMLElement;
+  @ref('count-incomplete') countIncomplete!: HTMLElement;
 
   @provideContext<typeof todoContext>({
     context: todoContext,
@@ -109,8 +115,8 @@ export class LiteTodos extends WithKita(LiteElement) {
   })
   onTodosUpdated({ todosCompleted, todosIncomplete }: Record<string, TodoContext['todos']>) {
     const todosMapping = [
-      { todos: todosCompleted, list: this.todoListComplete, noTodosMessage: <NoTodosMessage /> },
-      { todos: todosIncomplete, list: this.todoList, noTodosMessage: <NoCompletedTodosMessage /> },
+      { todos: todosCompleted, list: this.listComplete, noTodosMessage: <NoTodosMessage /> },
+      { todos: todosIncomplete, list: this.listIncomplete, noTodosMessage: <NoCompletedTodosMessage /> },
     ];
 
     for (const { todos, list, noTodosMessage } of todosMapping) {
@@ -127,8 +133,8 @@ export class LiteTodos extends WithKita(LiteElement) {
       }
     }
 
-    this.countTextComplete.textContent = todosCompleted.length.toString();
-    this.countText.textContent = todosIncomplete.length.toString();
+    this.countComplete.textContent = todosCompleted.length.toString();
+    this.countIncomplete.textContent = todosIncomplete.length.toString();
   }
 }
 

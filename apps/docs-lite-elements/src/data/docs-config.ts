@@ -47,6 +47,7 @@ export const docsConfig: DocsConfig = {
         { title: '@querySelectorAll', slug: 'query-selector-all' },
         { title: '@reactiveProp', slug: 'reactive-prop' },
         { title: '@reactiveField', slug: 'reactive-field' },
+        { title: '@ref', slug: 'ref' },
       ],
     },
     {

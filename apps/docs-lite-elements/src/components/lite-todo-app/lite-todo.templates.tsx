@@ -11,13 +11,28 @@ export const NoCompletedTodosMessage = () => {
 export const TodoItem = ({ id, complete, text }: Todo) => {
   return (
     <lite-todo-item complete={complete} class="todo__item" id={id}>
-      {text as 'safe'}
-      <span>
-        <label class="sr-only" for={`todo-${id}`}>
-          Set complete todo: {id as 'safe'}
-        </label>
+      <label for={`todo-${id}`}>
         <input id={`todo-${id}`} name={id} type="checkbox" checked={complete} />
-      </span>
+        {text as 'safe'}
+      </label>
+      <button type="button" aria-label={`Remove todo: ${id}`} class="todo__item-remove">
+        <svg
+          width="20"
+          height="20"
+          aria-hidden="true"
+          focusable="false"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="lucide lucide-x"
+        >
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </svg>
+      </button>
     </lite-todo-item>
   );
 };

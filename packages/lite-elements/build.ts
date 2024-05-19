@@ -16,6 +16,6 @@ export const build = await Bun.build({
 
 if (!build.success) {
   for (const log of build.logs) {
-    console.log(log);
+    console.log('[lite-elements]', log);
   }
 }

@@ -11,8 +11,23 @@ export const getMetadata = () => ({
 # @onEvent
 ---
 
-This is a decorator that allows you to register event listeners on the element. 
+A decorator to subscribe to an event on the target element.
+The event listener will be automatically unsubscribed when the element is disconnected.
 
-It takes an options object with the target and type of the event and a method to call when the event is fired.
+**Note**: This decorator uses event delegation, which means it relies on event bubbling.
+Therefore, it will not work with events that do not bubble, such as `focus`, `blur`, `load`, `unload`, `scroll`, etc.
+For focus and blur events, consider using `focusin` and `focusout` which are similar but do bubble.
 
-<CodeBlock lang='typescript'>{`@onEvent({ target: "[data-target]", type: "click" }) doSomething() {...} `}</CodeBlock>
+It accepts an object with one of the following properties:
+
+- `selector`: A CSS selector to match the target element.
+- `ref`: A reference to the target element.
+
+And the following properties:
+
+- `type`: The event type to listen for.
+- `options` (optional): `AddEventListenerOptions` An options object that specifies characteristics about the event listener.
+
+<CodeBlock lang='typescript'>{`@onEvent({ selector: "button", type: "click" }) doSomething() {...} `}</CodeBlock>
+
+<CodeBlock lang='typescript'>{`@onEvent({ ref: "my-ref", type: "click" }) doSomething() {...} `}</CodeBlock>

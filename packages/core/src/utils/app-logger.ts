@@ -42,8 +42,6 @@ export class Logger {
         }[level.level]
       : '';
 
-    const message = args.map((arg) => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg)).join(' ');
-
     const logStart = `${colorCode ? colorCode : ''}${this.prefix}`;
     const logEnd = '\x1b[0m';
 

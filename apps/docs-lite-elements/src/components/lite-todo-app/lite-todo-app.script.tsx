@@ -50,7 +50,7 @@ export class LiteTodoItem extends WithKita(LiteElement) {
     this.complete = this.checkbox.checked;
   }
 
-  @onEvent({ target: 'input[type="checkbox"]', type: 'change' })
+  @onEvent({ selector: 'input[type="checkbox"]', type: 'change' })
   toggleComplete(event: Event) {
     const checkbox = event.target as HTMLInputElement;
     const todo = this.context.getContext().todos.find((t) => t.id === this.id);
@@ -66,7 +66,7 @@ export class LiteTodoItem extends WithKita(LiteElement) {
     logger.log(`Todo ${this.id} is now ${checkbox.checked ? 'complete' : 'incomplete'}`);
   }
 
-  @onEvent({ target: 'button', type: 'click' })
+  @onEvent({ ref: 'remove-todo', type: 'click' })
   removeTodo() {
     this.context.setContext({
       todos: this.context.getContext().todos.filter((t) => t.id !== this.id),
@@ -91,7 +91,7 @@ export class LiteTodoApp extends WithKita(LiteElement) {
   })
   provider!: ContextProvider<typeof todoContext>;
 
-  @onEvent({ target: 'form', type: 'submit' })
+  @onEvent({ selector: 'form', type: 'submit' })
   submitTodo(event: FormDataEvent) {
     event.preventDefault();
     const form = event.target as HTMLFormElement;

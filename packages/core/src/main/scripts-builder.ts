@@ -42,7 +42,6 @@ export class ScriptsBuilder {
     if (!build.success) {
       for (const log of build.logs) {
         appLogger.debug(log);
-        console.log(log);
       }
     }
   }

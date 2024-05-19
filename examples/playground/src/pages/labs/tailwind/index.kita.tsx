@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoComponent, type GetMetadata } from '@eco-pages/core';
+import { DepsManager, type EcoComponent, type EcoPage, type GetMetadata } from '@eco-pages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Labs page',
@@ -8,7 +8,7 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static'],
 });
 
-const LabsPage: EcoComponent = () => {
+const TailwindPage: EcoPage = () => {
   return (
     <BaseLayout>
       <div class="banner">
@@ -31,9 +31,9 @@ const LabsPage: EcoComponent = () => {
   );
 };
 
-LabsPage.dependencies = DepsManager.collect({
+TailwindPage.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [BaseLayout],
 });
 
-export default LabsPage;
+export default TailwindPage;

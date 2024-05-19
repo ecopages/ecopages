@@ -15,7 +15,7 @@ export const TodoItem = ({ id, complete, text }: Todo) => {
         <input id={`todo-${id}`} name={id} type="checkbox" checked={complete} />
         {text as 'safe'}
       </label>
-      <button type="button" aria-label={`Remove todo: ${id}`} class="todo__item-remove">
+      <button type="button" data-ref="remove-todo" aria-label={`Remove todo: ${id}`} class="todo__item-remove">
         <svg
           width="20"
           height="20"
@@ -27,7 +27,7 @@ export const TodoItem = ({ id, complete, text }: Todo) => {
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          class="lucide lucide-x"
+          class="pointer-events-none"
         >
           <path d="M18 6 6 18" />
           <path d="m6 6 12 12" />

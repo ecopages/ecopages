@@ -5,17 +5,9 @@
  * @returns Returns the query result.
  */
 export function querySelector(selector: string, on?: 'this' | 'document') {
-  const values = new WeakMap<WeakKey, Element | null>();
-
   return (proto: unknown, propertyKey: string | symbol) => {
     const getter = function (this: Element) {
-      let value = values.get(this);
-      if (!value) {
-        value = on === 'document' ? document.querySelector(selector) : this.querySelector(selector);
-        values.set(this, value || null);
-      }
-
-      return value || null;
+      return on === 'document' ? document.querySelector(selector) : this.querySelector(selector);
     };
 
     Object.defineProperty(proto, propertyKey, {

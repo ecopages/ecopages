@@ -1,5 +1,6 @@
 export * from './core/lite-element';
 export * from './decorators/custom-element';
+export * from './decorators/event';
 export * from './decorators/on-event';
 export * from './decorators/on-updated';
 export * from './decorators/query-selector';
@@ -18,3 +19,4 @@ export * from './context/types';
 export * from './mixins/with-kita';
 export * from './tools/stringify-attribute';
 export * from './utils/values';
+export * from './utils/event-emitter';

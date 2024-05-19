@@ -42,12 +42,12 @@ export class LiteRenderer extends WithKita(LiteElement) {
     });
   }
 
-  @onEvent({ type: 'click', target: '[data-add]' })
+  @onEvent({ selector: '[data-add]', type: 'click' })
   updateNumberOfClicks() {
     this.numberOfClicks++;
   }
 
-  @onEvent({ type: 'click', target: '[data-reset]' })
+  @onEvent({ selector: '[data-reset]', type: 'click' })
   resetElement() {
     if (this.numberOfClicks === 1) return;
     this.messageList.innerHTML = '';

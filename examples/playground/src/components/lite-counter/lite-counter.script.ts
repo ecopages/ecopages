@@ -9,12 +9,12 @@ export class LiteCounter extends LiteElement {
   @reactiveProp({ type: Number, reflect: true }) declare count: number;
   @querySelector('[data-text]') countText!: HTMLElement;
 
-  @onEvent({ target: '[data-decrement]', type: 'click' })
+  @onEvent({ selector: '[data-decrement]', type: 'click' })
   decrement() {
     if (this.count > 0) this.count--;
   }
 
-  @onEvent({ target: '[data-increment]', type: 'click' })
+  @onEvent({ selector: '[data-increment]', type: 'click' })
   increment() {
     this.count++;
   }

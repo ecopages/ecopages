@@ -41,6 +41,7 @@ export const docsConfig: DocsConfig = {
       subdirectory: 'decorators',
       pages: [
         { title: '@customElement', slug: 'custom-element' },
+        { title: '@event', slug: 'event' },
         { title: '@onEvent', slug: 'on-event' },
         { title: '@onUpdated', slug: 'on-updated' },
         { title: '@querySelector', slug: 'query-selector' },

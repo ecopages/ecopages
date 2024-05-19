@@ -6,7 +6,7 @@ export type RenderInsertPosition = 'replace' | 'beforebegin' | 'afterbegin' | 'b
  * A type that represents an event listener subscription.
  */
 export type LiteElementEventListener = {
-  target: EventTarget;
+  selector: string;
   type: string;
   listener: EventListener;
   id: string;
@@ -107,30 +107,28 @@ export class LiteElement extends HTMLElement implements ILiteElement {
     }
   }
 
-  public subscribeEvent(event: LiteElementEventListener): void {
-    event.target.addEventListener(event.type, event.listener, event.options);
-    this.eventSubscriptions.set(event.id, event);
+  public subscribeEvent(eventConfig: LiteElementEventListener): void {
+    const delegatedListener = (delegatedEvent: Event) => {
+      if (delegatedEvent.target && (delegatedEvent.target as Element).matches(eventConfig.selector)) {
+        eventConfig.listener.call(this, delegatedEvent);
+      }
+    };
+
+    this.addEventListener(eventConfig.type, delegatedListener, eventConfig.options);
+    this.eventSubscriptions.set(eventConfig.id, { ...eventConfig, listener: delegatedListener });
   }
 
   public unsubscribeEvent(id: string): void {
     const eventSubscription = this.eventSubscriptions.get(id);
     if (eventSubscription) {
-      eventSubscription.target.removeEventListener(
-        eventSubscription.type,
-        eventSubscription.listener,
-        eventSubscription.options,
-      );
+      this.removeEventListener(eventSubscription.type, eventSubscription.listener, eventSubscription.options);
       this.eventSubscriptions.delete(id);
     }
   }
 
   public removeAllSubscribedEvents(): void {
     for (const eventSubscription of this.eventSubscriptions.values()) {
-      eventSubscription.target.removeEventListener(
-        eventSubscription.type,
-        eventSubscription.listener,
-        eventSubscription.options,
-      );
+      this.removeEventListener(eventSubscription.type, eventSubscription.listener, eventSubscription.options);
     }
     this.eventSubscriptions.clear();
   }

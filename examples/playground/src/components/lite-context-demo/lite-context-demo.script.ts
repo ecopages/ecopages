@@ -70,13 +70,13 @@ export class LitePackageConsumer extends LiteElement {
     this.logger = this.context.getContext().logger;
   }
 
-  @onEvent({ target: '[data-options]', type: 'change' })
+  @onEvent({ selector: '[data-options]', type: 'change' })
   updateInputType() {
     this.input.type = this.select.value === 'version' ? 'number' : 'text';
     this.input.type === 'number' ? this.input.setAttribute('step', '0.01') : this.input.removeAttribute('step');
   }
 
-  @onEvent({ target: 'form', type: 'submit' })
+  @onEvent({ selector: 'form', type: 'submit' })
   handleFormSubmit(event: Event) {
     event.preventDefault();
     const form = event.target as HTMLFormElement;

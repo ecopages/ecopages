@@ -2,12 +2,14 @@ import type { LiteElement, RenderInsertPosition } from '@/core/lite-element';
 
 type Constructor<T> = new (...args: any[]) => T;
 
+type WithKitaRenderTemplateProps = {
+  target: HTMLElement;
+  template: JSX.Element | string;
+  insert?: RenderInsertPosition;
+};
+
 interface WithKitaMixin {
-  renderTemplate: (props: {
-    target: HTMLElement;
-    template: JSX.Element | string;
-    insert?: RenderInsertPosition;
-  }) => Promise<void>;
+  renderTemplate: (props: WithKitaRenderTemplateProps) => Promise<void>;
 }
 
 /**
@@ -15,15 +17,7 @@ interface WithKitaMixin {
  */
 export function WithKita<T extends Constructor<LiteElement>>(Base: T): T & Constructor<WithKitaMixin> {
   return class extends Base implements WithKitaMixin {
-    override async renderTemplate({
-      target = this,
-      template,
-      insert = 'replace',
-    }: {
-      target: HTMLElement;
-      template: JSX.Element | string;
-      insert?: RenderInsertPosition;
-    }) {
+    override async renderTemplate({ target = this, template, insert = 'replace' }: WithKitaRenderTemplateProps) {
       const safeTemplate = typeof template !== 'string' ? template.toString() : template;
       switch (insert) {
         case 'replace':

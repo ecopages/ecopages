@@ -69,6 +69,10 @@
 			"types": "./dist/decorators/reactive-prop.d.ts",
 			"import": "./dist/decorators/reactive-prop.js"
 		},
+		"./decorators/ref": {
+			"types": "./dist/decorators/ref.d.ts",
+			"import": "./dist/decorators/ref.js"
+		},
 		"./mixins/with-kita": {
 			"types": "./dist/mixins/with-kita.d.ts",
 			"import": "./dist/mixins/with-kita.js"

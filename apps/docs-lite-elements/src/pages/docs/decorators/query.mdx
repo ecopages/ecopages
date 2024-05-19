@@ -1,0 +1,22 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | @query',
+  description: 'The place to learn about Eco Pages',
+})
+
+# @query
+---
+
+A decorator to query by CSS selector or data-ref attribute.
+
+By default it queries for the first element that matches the selector, but it can be configured to query for all elements.
+
+<CodeBlock lang='typescript'>{`@query({ selector: "[data-text]"}) text: HTMLElement; `}</CodeBlock>
+
+It is possible to query for all elements that match the selector by setting the `all` property to true.
+
+<CodeBlock lang='typescript'>{`@query({ ref: my-ref", all: true }) allTexts: HTMLElement[]; `}</CodeBlock>

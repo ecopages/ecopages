@@ -35,12 +35,12 @@ If you want to use the `LiteCounter` component, the only thing you need to do is
 
 This can be done by using the `data-decrement`, `data-increment`, and `data-text` attributes.
 
-<CodeBlock lang="jsx">{`<lite-counter value={value}>
-  <button type="button" data-decrement aria-label="Decrement">
+<CodeBlock lang="jsx">{`<lite-counter count={count}>
+  <button type="button" data-ref="decrement" aria-label="Decrement">
     -
   </button>
-  <span data-text="count">{value}</span>
-  <button type="button" data-increment aria-label="Increment">
+  <span data-ref="count">{count}</span>
+  <button type="button" data-ref="increment" aria-label="Increment">
     +
   </button>
 </lite-counter>`}</CodeBlock>
@@ -59,24 +59,25 @@ export type LiteCounterProps = {
 };
 
 @customElement('lite-counter')
+@customElement('lite-counter')
 export class LiteCounter extends LiteElement {
-  @reactiveProp({ type: Number }) declare value: number;
-  @querySelector('[data-text]') countText!: HTMLElement;
+  @reactiveProp({ type: Number, reflect: true }) declare value: number;
+  @query({ ref: 'count' }) countText!: HTMLElement;
 
-  @onEvent({ selector: '[data-decrement]', type: 'click' })
+  @onEvent({ ref: 'decrement', type: 'click' })
   decrement() {
     if (this.value > 0) this.value--;
   }
 
-  @onEvent({ selector: '[data-increment]', type: 'click' })
+  @onEvent({ ref: 'increment', type: 'click' })
   increment() {
     this.value++;
   }
 
   @onUpdated('value')
   updateCount() {
-    this.dispatchEvent(new Event('change'));
     this.countText.textContent = this.value.toString();
+    this.dispatchEvent(new Event('change'));
   }
 }
 

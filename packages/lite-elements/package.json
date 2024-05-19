@@ -45,6 +45,10 @@
 			"types": "./dist/decorators/custom-element.d.ts",
 			"import": "./dist/decorators/custom-element.js"
 		},
+		"./decorators/event": {
+			"types": "./dist/decorators/event.d.ts",
+			"import": "./dist/decorators/event.js"
+		},
 		"./decorators/on-event": {
 			"types": "./dist/decorators/on-event.d.ts",
 			"import": "./dist/decorators/on-event.js"
@@ -53,13 +57,9 @@
 			"types": "./dist/decorators/on-updated.d.ts",
 			"import": "./dist/decorators/on-updated.js"
 		},
-		"./decorators/query-selector": {
-			"types": "./dist/decorators/query-selector.d.ts",
-			"import": "./dist/decorators/query-selector.js"
-		},
-		"./decorators/query-selector-all": {
-			"types": "./dist/decorators/query-selector-all.d.ts",
-			"import": "./dist/decorators/query-selector-all.js"
+		"./decorators/query": {
+			"types": "./dist/decorators/query.d.ts",
+			"import": "./dist/decorators/query.js"
 		},
 		"./decorators/reactive-field": {
 			"types": "./dist/decorators/reactive-field.d.ts",
@@ -68,10 +68,6 @@
 		"./decorators/reactive-prop": {
 			"types": "./dist/decorators/reactive-prop.d.ts",
 			"import": "./dist/decorators/reactive-prop.js"
-		},
-		"./decorators/ref": {
-			"types": "./dist/decorators/ref.d.ts",
-			"import": "./dist/decorators/ref.js"
 		},
 		"./mixins/with-kita": {
 			"types": "./dist/mixins/with-kita.d.ts",

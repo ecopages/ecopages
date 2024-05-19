@@ -1,14 +1,13 @@
-import { LiteElement, customElement, onEvent, querySelectorAll, ref, refAll } from '@eco-pages/lite-elements';
+import { LiteElement, customElement, onEvent, query } from '@eco-pages/lite-elements';
 
 @customElement('lite-refs')
 export class LiteEventEmitter extends LiteElement {
-  @ref('ref-container') refContainer!: HTMLDivElement;
-  @ref('ref-count') refCount!: HTMLDivElement;
-  @refAll('ref-item') refItems!: HTMLDivElement[];
-  @querySelectorAll('[data-ref="ref-item"]') refItemsQuery!: HTMLDivElement[];
+  @query({ ref: 'ref-container' }) refContainer!: HTMLDivElement;
+  @query({ ref: 'ref-count' }) refCount!: HTMLDivElement;
+  @query({ ref: 'ref-item', all: true }) refItems!: HTMLDivElement[];
 
   renderCountMessage() {
-    this.refCount.textContent = `Ref Count: ${this.refItems.length} | Query Count: ${this.refItemsQuery.length}`;
+    this.refCount.textContent = `Ref Count: ${this.refItems.length}`;
   }
 
   override connectedCallback() {

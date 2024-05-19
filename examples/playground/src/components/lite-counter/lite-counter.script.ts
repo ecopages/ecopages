@@ -1,4 +1,4 @@
-import { LiteElement, customElement, onEvent, onUpdated, querySelector, reactiveProp } from '@eco-pages/lite-elements';
+import { LiteElement, customElement, onEvent, onUpdated, query, reactiveProp } from '@eco-pages/lite-elements';
 
 export type LiteCounterProps = {
   count?: number;
@@ -7,14 +7,14 @@ export type LiteCounterProps = {
 @customElement('lite-counter')
 export class LiteCounter extends LiteElement {
   @reactiveProp({ type: Number, reflect: true }) declare count: number;
-  @querySelector('[data-text]') countText!: HTMLElement;
+  @query({ ref: 'count' }) countText!: HTMLElement;
 
-  @onEvent({ selector: '[data-decrement]', type: 'click' })
+  @onEvent({ ref: 'decrement', type: 'click' })
   decrement() {
     if (this.count > 0) this.count--;
   }
 
-  @onEvent({ selector: '[data-increment]', type: 'click' })
+  @onEvent({ ref: 'increment', type: 'click' })
   increment() {
     this.count++;
   }

@@ -44,12 +44,9 @@ export const docsConfig: DocsConfig = {
         { title: '@event', slug: 'event' },
         { title: '@onEvent', slug: 'on-event' },
         { title: '@onUpdated', slug: 'on-updated' },
-        { title: '@querySelector', slug: 'query-selector' },
-        { title: '@querySelectorAll', slug: 'query-selector-all' },
+        { title: '@query', slug: 'query' },
         { title: '@reactiveProp', slug: 'reactive-prop' },
         { title: '@reactiveField', slug: 'reactive-field' },
-        { title: '@ref', slug: 'ref' },
-        { title: '@refAll', slug: 'refAll' },
       ],
     },
     {

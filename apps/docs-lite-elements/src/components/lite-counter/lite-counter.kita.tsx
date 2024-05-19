@@ -3,12 +3,12 @@ import type { LiteCounterProps } from './lite-counter.script';
 
 export const LiteCounter: EcoComponent<LiteCounterProps> = ({ value }) => {
   return (
-    <lite-counter class="lite-counter" value={value}>
-      <button type="button" data-decrement aria-label="Decrement" class="lite-counter__decrement">
+    <lite-counter value={value}>
+      <button type="button" data-ref="decrement" aria-label="Decrement">
         -
       </button>
-      <span data-text="count">{value}</span>
-      <button type="button" data-increment aria-label="Increment" class="lite-counter__increment">
+      <span data-ref="count">{value}</span>
+      <button type="button" data-ref="increment" aria-label="Increment">
         +
       </button>
     </lite-counter>

@@ -1,4 +1,4 @@
-import { type EventEmitter, LiteElement, customElement, event, onEvent, ref } from '@eco-pages/lite-elements';
+import { type EventEmitter, LiteElement, customElement, event, onEvent, query } from '@eco-pages/lite-elements';
 
 enum LiteEventEvents {
   CustomEvent = 'custom-event',
@@ -21,7 +21,7 @@ export class LiteEventEmitter extends LiteElement {
 
 @customElement('lite-event-listener')
 export class LiteEventListener extends LiteElement {
-  @ref('event-detail') eventDetail!: HTMLDivElement;
+  @query({ ref: 'event-detail' }) eventDetail!: HTMLDivElement;
 
   @onEvent({ selector: 'lite-event-emitter', type: LiteEventEvents.CustomEvent })
   onCustomEvent(event: CustomEvent<LiteEventDetail>) {

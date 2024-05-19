@@ -5,7 +5,7 @@ import {
   customElement,
   onEvent,
   onUpdated,
-  querySelector,
+  query,
   reactiveField,
   reactiveProp,
 } from '@eco-pages/lite-elements';
@@ -24,7 +24,7 @@ export class LiteRenderer extends WithKita(LiteElement) {
   declare 'replace-on-load': boolean;
 
   @reactiveField numberOfClicks = 1;
-  @querySelector('[data-list]') messageList!: HTMLDivElement;
+  @query({ selector: '[data-list]' }) messageList!: HTMLDivElement;
 
   constructor() {
     super();

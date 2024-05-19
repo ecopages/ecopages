@@ -94,7 +94,7 @@ In this first snippet we have the `lite-todo-app` component that is responsible 
 
 The features used in this component are:
 
-- `@ref` decorator to query for the elements inside the component that uses the `data-ref` attribute
+- `@query` decorator to query for the elements inside the component that uses the `data-ref` attribute
 - `@provideContext` decorator to provide the context to the children components
 - `@onEvent` decorator to listen for the form submit event
 - `@contextSelector` decorator to select the todos based on the complete status
@@ -114,10 +114,10 @@ export const todoContext = createContext<TodoContext>(Symbol('todo-context'));
 
 @customElement('lite-todo-app')
 export class LiteTodoApp extends WithKita(LiteElement) {
-  @ref('list-complete') listComplete!: HTMLElement;
-  @ref('list-incomplete') listIncomplete!: HTMLElement;
-  @ref('count-complete') countComplete!: HTMLElement;
-  @ref('count-incomplete') countIncomplete!: HTMLElement;
+  @query({ ref: 'list-complete' }) listComplete!: HTMLElement;
+  @query({ ref: 'list-incomplete' }) listIncomplete!: HTMLElement;
+  @query({ ref: 'count-complete' }) countComplete!: HTMLElement;
+  @query({ ref: 'count-incomplete' }) countIncomplete!: HTMLElement;
 
   @provideContext<typeof todoContext>({
     context: todoContext,
@@ -177,15 +177,17 @@ declare global {
   namespace JSX {
     interface IntrinsicElements {
       'lite-todo-app': HtmlTag;
+      'lite-todo-item': HtmlTag & LiteTodoProps;
     }
   }
-}`}</CodeBlock>
+}
+`}</CodeBlock>
 
 In this second snippet we have the `lite-todo-item` component that is responsible for rendering the todo item.
 
 The features used in this component are:
 
-- `@querySelector` decorator to query for the checkbox element
+- `@query` decorator to query for the checkbox element
 - `@reactiveProp` decorator to define the complete attribute
 - `@consumeContext` decorator to consume the context from the parent component
 
@@ -194,8 +196,9 @@ The features used in this component are:
 };
 
 @customElement('lite-todo-item')
-export class LiteTodo extends WithKita(LiteElement) {
-  @querySelector('input[type="checkbox"]') checkbox!: HTMLInputElement;
+export class LiteTodoItem extends WithKita(LiteElement) {
+  @query({ selector: 'input[type="checkbox"]' }) checkbox!: HTMLInputElement;
+  @query({ selector: 'button' }) removeButton!: HTMLButtonElement;
   @reactiveProp({ type: Boolean, reflect: true }) complete = false;
   @consumeContext(todoContext) context!: ContextProvider<typeof todoContext>;
 
@@ -209,18 +212,23 @@ export class LiteTodo extends WithKita(LiteElement) {
     const checkbox = event.target as HTMLInputElement;
     const todo = this.context.getContext().todos.find((t) => t.id === this.id);
     if (!todo) return;
+
     this.complete = checkbox.checked;
+
     this.context.setContext({
       todos: this.context.getContext().todos.map((t) => (t.id === this.id ? { ...t, complete: checkbox.checked } : t)),
     });
-    this.remove();
+
+    const logger = this.context.getContext().logger;
   }
 
-  @onEvent({ selector: 'button', type: 'click' })
+  @onEvent({ ref: 'remove-todo', type: 'click' })
   removeTodo() {
     this.context.setContext({
       todos: this.context.getContext().todos.filter((t) => t.id !== this.id),
-    })
+    });
+
+    const logger = this.context.getContext().logger;
   }
 }
 

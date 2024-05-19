@@ -48,6 +48,7 @@ export const docsConfig: DocsConfig = {
         { title: '@reactiveProp', slug: 'reactive-prop' },
         { title: '@reactiveField', slug: 'reactive-field' },
         { title: '@ref', slug: 'ref' },
+        { title: '@refAll', slug: 'refAll' },
       ],
     },
     {

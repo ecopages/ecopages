@@ -7,6 +7,7 @@ export * from './decorators/query-selector-all';
 export * from './decorators/reactive-prop';
 export * from './decorators/reactive-field';
 export * from './decorators/ref';
+export * from './decorators/ref-all';
 export * from './context/create-context';
 export * from './context/context-provider';
 export * from './context/events';

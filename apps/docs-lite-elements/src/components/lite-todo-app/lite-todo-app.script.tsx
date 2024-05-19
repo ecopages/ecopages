@@ -8,7 +8,7 @@ import {
   customElement,
   onEvent,
   provideContext,
-  querySelector,
+  query,
   reactiveProp,
   ref,
 } from '@eco-pages/lite-elements';
@@ -40,8 +40,8 @@ class Logger {
 
 @customElement('lite-todo-item')
 export class LiteTodoItem extends WithKita(LiteElement) {
-  @querySelector('input[type="checkbox"]') checkbox!: HTMLInputElement;
-  @querySelector('button') removeButton!: HTMLButtonElement;
+  @query({ selector: 'input[type="checkbox"]' }) checkbox!: HTMLInputElement;
+  @query({ selector: 'button' }) removeButton!: HTMLButtonElement;
   @reactiveProp({ type: Boolean, reflect: true }) complete = false;
   @consumeContext(todoContext) context!: ContextProvider<typeof todoContext>;
 
@@ -79,10 +79,10 @@ export class LiteTodoItem extends WithKita(LiteElement) {
 
 @customElement('lite-todo-app')
 export class LiteTodoApp extends WithKita(LiteElement) {
-  @ref('list-complete') listComplete!: HTMLElement;
-  @ref('list-incomplete') listIncomplete!: HTMLElement;
-  @ref('count-complete') countComplete!: HTMLElement;
-  @ref('count-incomplete') countIncomplete!: HTMLElement;
+  @query({ ref: 'list-complete' }) listComplete!: HTMLElement;
+  @query({ ref: 'list-incomplete' }) listIncomplete!: HTMLElement;
+  @query({ ref: 'count-complete' }) countComplete!: HTMLElement;
+  @query({ ref: 'count-incomplete' }) countIncomplete!: HTMLElement;
 
   @provideContext<typeof todoContext>({
     context: todoContext,

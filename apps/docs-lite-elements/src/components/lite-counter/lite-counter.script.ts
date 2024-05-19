@@ -2,7 +2,7 @@ import { LiteElement } from '@eco-pages/lite-elements/core/lite-element';
 import { customElement } from '@eco-pages/lite-elements/decorators/custom-element';
 import { onEvent } from '@eco-pages/lite-elements/decorators/on-event';
 import { onUpdated } from '@eco-pages/lite-elements/decorators/on-updated';
-import { querySelector } from '@eco-pages/lite-elements/decorators/query-selector';
+import { query } from '@eco-pages/lite-elements/decorators/query';
 import { reactiveProp } from '@eco-pages/lite-elements/decorators/reactive-prop';
 
 export type LiteCounterProps = {
@@ -11,22 +11,21 @@ export type LiteCounterProps = {
 
 @customElement('lite-counter')
 export class LiteCounter extends LiteElement {
-  @reactiveProp({ type: Number }) declare value: number;
-  @querySelector('[data-text]') countText!: HTMLElement;
+  @reactiveProp({ type: Number, reflect: true }) declare value: number;
+  @query({ ref: 'count' }) countText!: HTMLElement;
 
-  @onEvent({ selector: '[data-decrement]', type: 'click' })
+  @onEvent({ ref: 'decrement', type: 'click' })
   decrement() {
     if (this.value > 0) this.value--;
   }
 
-  @onEvent({ selector: '[data-increment]', type: 'click' })
+  @onEvent({ ref: 'increment', type: 'click' })
   increment() {
     this.value++;
   }
 
   @onUpdated('value')
   updateCount() {
-    this.dispatchEvent(new Event('change'));
     this.countText.textContent = this.value.toString();
   }
 }

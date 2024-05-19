@@ -7,7 +7,7 @@ import {
   customElement,
   onEvent,
   provideContext,
-  querySelector,
+  query,
 } from '@eco-pages/lite-elements';
 
 class Logger {
@@ -42,8 +42,8 @@ export class ContextProviderDemo extends LiteElement {
 
 @customElement('lc-demo-visualizer')
 export class LitePackageVisualizer extends LiteElement {
-  @querySelector('[data-name]') packageName!: HTMLSpanElement;
-  @querySelector('[data-version]') packageVersion!: HTMLSpanElement;
+  @query({ selector: '[data-name]' }) packageName!: HTMLSpanElement;
+  @query({ selector: '[data-version]' }) packageVersion!: HTMLSpanElement;
 
   @contextSelector({ context: contextDemo, select: ({ name }) => ({ name }) })
   updateName({ name }: { name: string }) {
@@ -58,8 +58,8 @@ export class LitePackageVisualizer extends LiteElement {
 
 @customElement('lc-demo-editor')
 export class LitePackageConsumer extends LiteElement {
-  @querySelector('[data-input]') input!: HTMLInputElement;
-  @querySelector('[data-options]') select!: HTMLSelectElement;
+  @query({ selector: '[data-input]' }) input!: HTMLInputElement;
+  @query({ selector: '[data-options]' }) select!: HTMLSelectElement;
 
   @consumeContext(contextDemo)
   context!: ContextProvider<typeof contextDemo>;

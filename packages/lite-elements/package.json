@@ -11,7 +11,7 @@
 		"build:files": "bun run ./build.ts",
 		"build:types": "tsc && tsc-alias",
 		"clean": "rm -rf ./dist",
-		"test:lib": "bun test --coverage"
+		"test:lib": "bun test"
 	},
 	"exports": {
 		"./package.json": {

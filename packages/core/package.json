@@ -19,6 +19,6 @@
 	},
 	"repository": "https://github.com/andeeplus/eco-pages.git",
 	"scripts": {
-		"test:lib": "bun test --coverage"
+		"test:lib": "bun test"
 	}
 }

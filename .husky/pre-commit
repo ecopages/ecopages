@@ -1,3 +1,1 @@
-cd packages/core bun run test --coverage
-cd .. lite-elements bun run test --coverage
-bun run lint-staged
+cd packages/core bun run test --coverage && cd .. lite-elements bun run test --coverage && bun run lint-staged

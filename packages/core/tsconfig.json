@@ -12,6 +12,8 @@
 			"@/*": ["./src/*"],
 			"@types": ["./src/index.d.ts"]
 		},
+		"jsx": "react-jsx",
+		"jsxImportSource": "@kitajs/html",
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,

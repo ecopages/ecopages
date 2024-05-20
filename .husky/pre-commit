@@ -1,1 +1,1 @@
-bun test --coverage && bun run lint-staged
+bun run test:all && bun run lint-staged

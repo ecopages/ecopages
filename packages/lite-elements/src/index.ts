@@ -15,5 +15,5 @@ export * from './context/decorators/context-selector';
 export * from './context/types';
 export * from './mixins/with-kita';
 export * from './tools/stringify-attribute';
-export * from './utils/values';
-export * from './utils/event-emitter';
+export * from './utils/attribute-utils';
+export * from './tools/event-emitter';

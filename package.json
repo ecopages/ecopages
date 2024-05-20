@@ -30,7 +30,7 @@
 		"lint-staged": "lint-staged",
 		"test:core": "bun run --filter @eco-pages/core test:lib",
 		"test:lite-elements": "bun run --filter @eco-pages/lite-elements test:lib",
-		"test:all": "bun run test:core && bun run test:lite-elements > out.log"
+		"test:all": "bun run test:core && bun run test:lite-elements"
 	},
 	"devDependencies": {
 		"husky": "^9.0.10",

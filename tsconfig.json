@@ -1,26 +1,26 @@
 {
-	"compilerOptions": {
-		"allowSyntheticDefaultImports": true,
-		"baseUrl": ".",
-		"esModuleInterop": true,
-		"experimentalDecorators": true,
-		"forceConsistentCasingInFileNames": true,
-		"jsx": "react-jsx",
-		"jsxImportSource": "@kitajs/html",
-		"module": "ESNext",
-		"moduleResolution": "node",
-		"noImplicitOverride": true,
-		"plugins": [
-			{
-				"name": "@kitajs/ts-html-plugin"
-			}
-		],
-		"resolveJsonModule": true,
-		"skipLibCheck": true,
-		"strict": true,
-		"target": "ES2021",
-		"types": ["bun-types"],
-		"useDefineForClassFields": true,
-		"verbatimModuleSyntax": true
-	}
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@kitajs/html",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "noImplicitOverride": true,
+    "plugins": [
+      {
+        "name": "@kitajs/ts-html-plugin"
+      }
+    ],
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2021",
+    "types": ["bun-types"],
+    "useDefineForClassFields": true,
+    "verbatimModuleSyntax": true
+  }
 }

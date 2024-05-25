@@ -32,7 +32,6 @@ class MyContextConsumer extends LiteElement {
   @consumeContext(testContext) context!: ContextProvider<typeof testContext>;
   @contextSelector({ context: testContext, select: (context) => context.value })
   onUpdateValue(value: number) {
-    console.log('value', value);
     this.innerHTML = value.toString();
   }
 }

@@ -10,7 +10,6 @@ class MyReactiveNumber extends LiteElement {
   @reactiveProp({ type: Number }) num!: number;
 
   add() {
-    console.log('add', this.num);
     this.num++;
   }
 }

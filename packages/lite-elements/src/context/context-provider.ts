@@ -31,8 +31,6 @@ export class ContextProvider<T extends Context<unknown, unknown>> {
     if (options.hydrate) {
       const hydrationValue = this.host.getAttribute(HYDRATE_ATTRIBUTE);
 
-      console.log('------------------->this.host.outerHTML', this.host.outerHTML);
-
       if (hydrationValue) {
         const parsedHydrationValue = readAttributeValue(hydrationValue, options.hydrate) as ContextType<T>;
         this.host.removeAttribute(HYDRATE_ATTRIBUTE);
@@ -49,12 +47,9 @@ export class ContextProvider<T extends Context<unknown, unknown>> {
         } else {
           contextValue = parsedHydrationValue;
         }
-
-        console.log('------------------->hydrated', contextValue);
       }
     }
 
-    console.log('-----222222-------------->contextValue', contextValue);
     this.value = contextValue as ContextType<T>;
 
     this.registerEvents();

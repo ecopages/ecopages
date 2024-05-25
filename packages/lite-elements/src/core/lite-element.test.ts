@@ -22,13 +22,13 @@ describe('LiteElement', () => {
         id: 'my-id',
         selector: '[data-ref="click-me"] ',
         type: 'click',
-        listener: () => console.log('Hello, event!'),
+        listener: () => {},
       },
       {
         id: 'my-id-2',
         selector: '[data-ref="click-it"] ',
         type: 'click',
-        listener: () => console.log('Hello, event!'),
+        listener: () => {},
       },
     ]);
     // @ts-expect-error
@@ -45,13 +45,13 @@ describe('LiteElement', () => {
         id: 'my-id',
         selector: '[data-ref="click-me"] ',
         type: 'click',
-        listener: () => console.log('Hello, event!'),
+        listener: () => {},
       },
       {
         id: 'my-id-2',
         selector: '[data-ref="click-it"] ',
         type: 'click',
-        listener: () => console.log('Hello, event!'),
+        listener: () => {},
       },
     ]);
     myElement.unsubscribeEvent('my-id');

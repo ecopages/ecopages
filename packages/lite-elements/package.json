@@ -9,7 +9,7 @@
 	"scripts": {
 		"build:lib": "bun run clean && bun run build:files && bun run build:types",
 		"build:files": "bun run ./build.ts",
-		"build:types": "tsc && tsc-alias",
+		"build:types": "tsc -p tsconfig.build.json && tsc-alias",
 		"clean": "rm -rf ./dist",
 		"test:lib": "bun test"
 	},

@@ -4,7 +4,7 @@ import {
   defaultValueForType,
   readAttributeValue,
   writeAttributeValue,
-} from '@/utils/values';
+} from '@/utils/attribute-utils';
 
 type ReactivePropertyOptions = {
   type: AttributeTypeConstant;

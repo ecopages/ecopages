@@ -1,5 +1,5 @@
 import type { LiteElement } from '@/core/lite-element';
-import { type AttributeTypeConstant, readAttributeValue } from '@/utils/values';
+import { type AttributeTypeConstant, readAttributeValue } from '@/utils/attribute-utils';
 import {
   ContextEventsTypes,
   ContextOnMountEvent,

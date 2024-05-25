@@ -9,10 +9,14 @@
 	"scripts": {
 		"build:lib": "bun run clean && bun run build:files && bun run build:types",
 		"build:files": "bun run ./build.ts",
-		"build:types": "tsc && tsc-alias",
-		"clean": "rm -rf ./dist"
+		"build:types": "tsc -p tsconfig.build.json && tsc-alias",
+		"clean": "rm -rf ./dist",
+		"test:lib": "bun test"
 	},
 	"exports": {
+		"./package.json": {
+			"import": "./package.json"
+		},
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
@@ -76,6 +80,10 @@
 		"./tools/stringify-attribute": {
 			"types": "./dist/tools/stringify-attribute.d.ts",
 			"import": "./dist/tools/stringify-attribute.js"
+		},
+		"./tools/event-emitter": {
+			"types": "./dist/tools/event-emitter.d.ts",
+			"import": "./dist/tools/event-emitter.js"
 		}
 	},
 	"dependencies": {
@@ -83,6 +91,7 @@
 		"@kitajs/ts-html-plugin": "^4.0.1"
 	},
 	"devDependencies": {
+		"@happy-dom/global-registrator": "^14.11.0",
 		"bun-types": "latest",
 		"tsc-alias": "1.8.10"
 	},

@@ -1,4 +1,4 @@
-import { EventEmitter, type EventEmitterConfig } from '@/utils/event-emitter';
+import { EventEmitter, type EventEmitterConfig } from '@/tools/event-emitter';
 
 /**
  * A decorator that creates an EventEmitter on the target element.

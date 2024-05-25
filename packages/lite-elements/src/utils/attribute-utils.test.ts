@@ -5,7 +5,7 @@ import {
   parseAttributeTypeDefault,
   readAttributeValue,
   writeAttributeValue,
-} from '@/utils/values';
+} from '@/utils/attribute-utils';
 
 describe('readAttributeValue', async () => {
   test.each([
@@ -48,6 +48,18 @@ describe('readAttributeValue', async () => {
   ])('%p should be parsed as %p', (a, b) => {
     const read = readAttributeValue(a, Array);
     expect(read).toEqual(b);
+  });
+
+  test.each([
+    [1, Array],
+    [1, Object],
+    ['1', Array],
+    ['1', Object],
+    [{}, Number],
+    [[], Number],
+  ])('%p should throw %p', (a, b) => {
+    const read = () => readAttributeValue(a as any, b);
+    expect(read).toThrow();
   });
 });
 

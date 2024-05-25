@@ -10,7 +10,6 @@ import {
   provideContext,
   query,
   reactiveProp,
-  ref,
 } from '@eco-pages/lite-elements';
 
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './lite-todo.templates';

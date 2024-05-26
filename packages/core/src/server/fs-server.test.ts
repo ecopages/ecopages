@@ -7,7 +7,7 @@ import { FileSystemServer } from './fs-server';
 import { FSRouter } from './router/fs-router';
 import { FSRouterScanner } from './router/fs-router-scanner';
 
-await AppConfigurator.create({
+const appConfigurator = await AppConfigurator.create({
   projectDir: FIXTURE_PROJECT_DIR,
 });
 
@@ -15,9 +15,9 @@ const {
   templatesExt,
   integrations,
   absolutePaths: { pagesDir, distDir },
-} = globalThis.ecoConfig;
+} = appConfigurator.config;
 
-const routeRendererFactory = new RouteRendererFactory({ integrations, appConfig: globalThis.ecoConfig });
+const routeRendererFactory = new RouteRendererFactory({ integrations, appConfig: appConfigurator.config });
 
 const scanner = new FSRouterScanner({
   dir: pagesDir,
@@ -37,7 +37,7 @@ const router = new FSRouter({
 await router.init();
 
 const server = new FileSystemServer({
-  appConfig: globalThis.ecoConfig,
+  appConfig: appConfigurator.config,
   router,
   routeRendererFactory,
   options: { watchMode: false },

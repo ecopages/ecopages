@@ -128,12 +128,15 @@ export class StaticContentServer {
     }
   }
 
-  static create({ watchMode }: { watchMode: boolean }) {
+  static create({
+    appConfig,
+    options: { watchMode },
+  }: { appConfig: EcoPagesConfig; options: StaticContentServerOptions }) {
     return new StaticContentServer({
-      config: globalThis.ecoConfig,
+      config: appConfig,
       routeRendererFactory: new RouteRendererFactory({
-        integrations: globalThis.ecoConfig.integrations,
-        appConfig: globalThis.ecoConfig,
+        integrations: appConfig.integrations,
+        appConfig: appConfig,
       }),
       options: { watchMode },
     });

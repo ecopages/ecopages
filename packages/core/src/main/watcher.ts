@@ -17,7 +17,7 @@ export class ProjectWatcher {
   }
 
   private uncacheModules(): void {
-    const { srcDir, rootDir } = globalThis.ecoConfig;
+    const { srcDir, rootDir } = this.config;
 
     const regex = new RegExp(`${rootDir}/${srcDir}/.*`);
 

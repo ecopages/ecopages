@@ -48,13 +48,13 @@ export abstract class IntegrationRenderer {
   }
 
   protected async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
-    const { absolutePaths: derivedPaths } = globalThis.ecoConfig;
-    const { default: HtmlTemplate } = await import(derivedPaths.htmlTemplatePath);
+    const { absolutePaths } = this.appConfig;
+    const { default: HtmlTemplate } = await import(absolutePaths.htmlTemplatePath);
     return HtmlTemplate;
   }
 
   protected async getHeadContent(dependencies?: EcoComponentDependencies) {
-    const headContent = await new HeadContentBuilder().build({
+    const headContent = await new HeadContentBuilder(this.appConfig).build({
       integrationName: this.name,
       dependencies: dependencies,
     });

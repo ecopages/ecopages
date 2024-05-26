@@ -5,15 +5,15 @@ import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 
 export class StaticPageGenerator {
-  config: EcoPagesConfig;
+  appConfig: EcoPagesConfig;
 
   constructor(config: EcoPagesConfig) {
-    this.config = config;
+    this.appConfig = config;
   }
 
   generateRobotsTxt(): void {
     let data = '';
-    const preferences = this.config.robotsTxt.preferences;
+    const preferences = this.appConfig.robotsTxt.preferences;
 
     for (const userAgent in preferences) {
       data += `user-agent: ${userAgent}\n`;
@@ -23,12 +23,15 @@ export class StaticPageGenerator {
       data += '\n';
     }
 
-    FileUtils.writeFileSync(`${this.config.distDir}/robots.txt`, data);
+    FileUtils.writeFileSync(`${this.appConfig.distDir}/robots.txt`, data);
   }
 
   async generateStaticPages() {
     const { router, server } = await FileSystemServer.create({
-      watchMode: false,
+      appConfig: this.appConfig,
+      options: {
+        watchMode: false,
+      },
     });
 
     const routes = Object.keys(router.routes).filter((route) => !route.includes('['));
@@ -50,7 +53,7 @@ export class StaticPageGenerator {
           pathname = route.replace(router.origin, '');
         }
 
-        const filePath = path.join(this.config.rootDir, this.config.distDir, pathname, 'index.html');
+        const filePath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname, 'index.html');
 
         const contents = await response.text();
 

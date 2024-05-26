@@ -4,14 +4,14 @@ import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
 import { FSRouter, type Route } from './fs-router';
 import { FSRouterScanner } from './fs-router-scanner';
 
-await AppConfigurator.create({
+const appConfigurator = await AppConfigurator.create({
   projectDir: FIXTURE_PROJECT_DIR,
 });
 
 const {
   templatesExt,
   absolutePaths: { pagesDir, distDir },
-} = globalThis.ecoConfig;
+} = appConfigurator.config;
 
 const scanner = new FSRouterScanner({
   dir: pagesDir,

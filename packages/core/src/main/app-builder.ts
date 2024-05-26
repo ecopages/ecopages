@@ -74,7 +74,10 @@ export class AppBuilder {
 
   private async runDevServer() {
     const { server } = await FileSystemServer.create({
-      watchMode: this.options.watch,
+      appConfig: this.appConfigurator.config,
+      options: {
+        watchMode: this.options.watch,
+      },
     });
     appLogger.info(`Server running at http://localhost:${server.port}`);
   }
@@ -102,7 +105,10 @@ export class AppBuilder {
 
   serveStatic() {
     const { server } = StaticContentServer.create({
-      watchMode: this.options.watch,
+      appConfig: this.appConfigurator.config,
+      options: {
+        watchMode: this.options.watch,
+      },
     });
 
     appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);

@@ -3,14 +3,14 @@ import { AppConfigurator } from '@/main/app-configurator';
 import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
 import { FSRouterScanner } from './fs-router-scanner';
 
-await AppConfigurator.create({
+const appConfigurator = await AppConfigurator.create({
   projectDir: FIXTURE_PROJECT_DIR,
 });
 
 const {
   templatesExt,
   absolutePaths: { pagesDir },
-} = globalThis.ecoConfig;
+} = appConfigurator.config;
 
 describe('FSRouterScanner', () => {
   test('when scan is called, it should return an object with routes', async () => {

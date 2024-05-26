@@ -150,21 +150,22 @@ export class FileSystemServer {
     return { router: this.router, server: this.server };
   }
 
-  static async create(options: FileSystemServerOptions) {
-    const { ecoConfig } = globalThis;
-
+  static async create({
+    appConfig,
+    options: { watchMode },
+  }: { appConfig: EcoPagesConfig; options: FileSystemServerOptions }) {
     const scanner = new FSRouterScanner({
-      dir: path.join(ecoConfig.rootDir, ecoConfig.srcDir, ecoConfig.pagesDir),
-      origin: ecoConfig.baseUrl,
-      templatesExt: ecoConfig.templatesExt,
+      dir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
+      origin: appConfig.baseUrl,
+      templatesExt: appConfig.templatesExt,
       options: {
-        buildMode: !options.watchMode,
+        buildMode: !watchMode,
       },
     });
 
     const router = new FSRouter({
-      origin: ecoConfig.baseUrl,
-      assetPrefix: path.join(ecoConfig.rootDir, ecoConfig.distDir),
+      origin: appConfig.baseUrl,
+      assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
       scanner,
     });
 
@@ -172,9 +173,9 @@ export class FileSystemServer {
 
     const server = new FileSystemServer({
       router,
-      appConfig: ecoConfig,
-      routeRendererFactory: new RouteRendererFactory({ integrations: ecoConfig.integrations, appConfig: ecoConfig }),
-      options,
+      appConfig: appConfig,
+      routeRendererFactory: new RouteRendererFactory({ integrations: appConfig.integrations, appConfig }),
+      options: { watchMode },
     });
 
     const serverOptions = {

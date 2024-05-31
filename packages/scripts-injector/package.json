@@ -1,5 +1,5 @@
 {
-	"name": "@eco-pages/scripts-injector",
+	"name": "@ecopages/scripts-injector",
 	"main": "dist/scripts-injector.js",
 	"type": "module",
 	"types": "types.d.ts",

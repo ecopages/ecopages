@@ -9,7 +9,7 @@ import {
   type RouteRendererBody,
   deepMerge,
   invariant,
-} from '@eco-pages/core';
+} from '@ecopages/core';
 
 import { PLUGIN_NAME } from './mdx.plugin';
 
@@ -49,7 +49,7 @@ export class MDXRenderer extends IntegrationRenderer {
 
       return this.DOC_TYPE + body;
     } catch (error) {
-      throw new Error(`[eco-pages] Error rendering page: ${error}`);
+      throw new Error(`[ecopages] Error rendering page: ${error}`);
     }
   }
 }

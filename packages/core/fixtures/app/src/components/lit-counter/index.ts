@@ -1,4 +1,4 @@
-import { DepsManager } from '@eco-pages/core';
+import { DepsManager } from '@ecopages/core';
 import './lit-counter.script';
 
 export const LitCounter = {

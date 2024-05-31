@@ -1,7 +1,7 @@
-import type { EcoPagesConfigInput } from '@eco-pages/core';
-import { kitajsPlugin } from '@eco-pages/kitajs';
-import { litPlugin } from '@eco-pages/lit';
-import { mdxPlugin } from '@eco-pages/mdx';
+import type { EcoPagesConfigInput } from '@ecopages/core';
+import { kitajsPlugin } from '@ecopages/kitajs';
+import { litPlugin } from '@ecopages/lit';
+import { mdxPlugin } from '@ecopages/mdx';
 
 const config: EcoPagesConfigInput = {
   rootDir: import.meta.dir,

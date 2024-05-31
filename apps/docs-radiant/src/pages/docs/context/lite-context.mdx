@@ -1,0 +1,24 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | Lite Context',
+  description: 'The place to learn about @ecopages/radiant',
+})
+
+# Lite Context
+---
+
+Lite Context is a way to share data between components without having to pass props down through the component tree.
+
+It is based on the [community protocols proposal](https://github.com/webcomponents-cg/community-protocols/blob/main/proposals/context.md).
+
+## Creating a Context
+
+To create a context you can use the `createContext` function. This function takes a generic type that represents the type of the context.
+
+<CodeBlock lang='typescript'>{`export const myContext = createContext<{ value: string }>(Symbol('my-context'));`}</CodeBlock>
+
+Please read the [context provider documentation](/docs/context/context-provider) to learn how to provide a context to a component and the [context consumer documentation](/docs/context/context-consumer) to learn how to consume it.

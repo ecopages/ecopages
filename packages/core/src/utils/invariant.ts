@@ -1,4 +1,4 @@
-const prefix: string = '[eco-pages]';
+const prefix: string = '[ecopages]';
 
 export function invariant(condition: any, message?: string): asserts condition {
   if (condition) {

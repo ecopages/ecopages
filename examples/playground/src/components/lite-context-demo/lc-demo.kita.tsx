@@ -1,4 +1,4 @@
-import { DepsManager } from '@eco-pages/core';
+import { DepsManager } from '@ecopages/core';
 
 export function ContextProviderDemo({
   children,

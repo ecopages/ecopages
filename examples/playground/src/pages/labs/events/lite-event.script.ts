@@ -1,4 +1,4 @@
-import { type EventEmitter, LiteElement, customElement, event, onEvent, query } from '@eco-pages/lite-elements';
+import { type EventEmitter, LiteElement, customElement, event, onEvent, query } from '@ecopages/radiant';
 
 enum LiteEventEvents {
   CustomEvent = 'custom-event',

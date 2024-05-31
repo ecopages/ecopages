@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoPage } from '@eco-pages/core';
+import { DepsManager, type EcoPage } from '@ecopages/core';
 
 const LabsPage: EcoPage = () => {
   return (

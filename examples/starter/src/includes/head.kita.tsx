@@ -1,5 +1,5 @@
 import { Seo } from '@/includes/seo.kita';
-import type { PageHeadProps } from '@eco-pages/core';
+import type { PageHeadProps } from '@ecopages/core';
 
 export function Head({ metadata, children }: PageHeadProps) {
   return (

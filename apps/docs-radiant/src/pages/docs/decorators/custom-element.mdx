@@ -1,0 +1,20 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | @customElement',
+  description: 'The place to learn about @ecopages/radiant',
+})
+
+# @customElement
+---
+
+This is a simple decorator that can be used to define a custom element.
+
+It is a wrapper around the `customElements.define` method, providing a more concise and readable way to define custom elements.
+
+<CodeBlock lang='typescript'>{`@customElement('lc-demo')
+export class MyElement extends LiteElement`}
+</CodeBlock>

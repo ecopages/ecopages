@@ -1,4 +1,4 @@
-import { type IntegrationPlugin, appLogger } from '@eco-pages/core';
+import { type IntegrationPlugin, appLogger } from '@ecopages/core';
 import { ReactRenderer } from './react-renderer';
 
 export type ReactPluginOptions = {

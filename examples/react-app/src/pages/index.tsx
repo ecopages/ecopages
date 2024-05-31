@@ -1,6 +1,6 @@
 import { Counter } from '@/components/counter/counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoPage, GetMetadata } from '@eco-pages/core';
+import type { EcoPage, GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',

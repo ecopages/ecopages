@@ -1,8 +1,8 @@
 {
-	"name": "@eco-pages/core",
+	"name": "@ecopages/core",
 	"version": "0.0.1",
 	"bin": {
-		"eco-pages": "./cli/eco-pages.ts"
+		"ecopages": "./cli/ecopages.ts"
 	},
 	"main": "./src/index.ts",
 	"dependencies": {
@@ -17,7 +17,7 @@
 		"tailwindcss": "^3.4.1",
 		"@lit-labs/ssr": "^3.2.2"
 	},
-	"repository": "https://github.com/andeeplus/eco-pages.git",
+	"repository": "https://github.com/andeeplus/ecopages.git",
 	"scripts": {
 		"test:lib": "bun test"
 	}

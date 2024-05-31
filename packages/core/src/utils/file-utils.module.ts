@@ -4,7 +4,7 @@ import type { BunFile, GlobScanOptions } from 'bun';
 
 async function get(path: string | URL) {
   const file = Bun.file(path);
-  if (!(await file.exists())) throw new Error(`[eco-pages] File: ${path} not found`);
+  if (!(await file.exists())) throw new Error(`[ecopages] File: ${path} not found`);
   return file;
 }
 

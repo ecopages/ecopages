@@ -1,5 +1,5 @@
 import { Navigation } from '@/components/navigation';
-import { DepsManager, type EcoComponent } from '@eco-pages/core';
+import { DepsManager, type EcoComponent } from '@ecopages/core';
 
 export type BaseLayoutProps = {
   children: Html.Children;

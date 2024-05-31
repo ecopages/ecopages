@@ -6,7 +6,7 @@ import {
   type GetStaticPaths,
   type GetStaticProps,
   type PageProps,
-} from '@eco-pages/core';
+} from '@ecopages/core';
 
 export type BlogPostProps = {
   slug: string;

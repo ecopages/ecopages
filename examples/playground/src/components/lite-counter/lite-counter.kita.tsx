@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@eco-pages/core';
+import { DepsManager, type EcoComponent } from '@ecopages/core';
 import type { LiteCounterProps } from './lite-counter.script';
 
 export const LiteCounter: EcoComponent<LiteCounterProps> = ({ count }) => {

@@ -1,4 +1,4 @@
-import { LiteElement, customElement, onEvent, onUpdated, query, reactiveProp } from '@eco-pages/lite-elements';
+import { LiteElement, customElement, onEvent, onUpdated, query, reactiveProp } from '@ecopages/radiant';
 
 export type LiteCounterProps = {
   count?: number;

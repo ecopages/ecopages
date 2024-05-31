@@ -1,6 +1,6 @@
 import { LitCounter } from '@/components/lit-counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoPage, type GetMetadata, type PageProps } from '@eco-pages/core';
+import { DepsManager, type EcoPage, type GetMetadata, type PageProps } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',

@@ -1,17 +1,17 @@
 {
-	"name": "@eco-pages/react-app",
+	"name": "@ecopages/react-app",
 	"version": "0.0.1",
 	"scripts": {
-		"dev": "eco-pages dev",
-		"build": "eco-pages build",
-		"start": "eco-pages start",
-		"preview": "eco-pages preview"
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"start": "ecopages start",
+		"preview": "ecopages preview"
 	},
 	"devDependencies": {
-		"@eco-pages/core": "workspace:*",
-		"@eco-pages/react": "workspace:*",
-		"@eco-pages/lit": "workspace:*",
-		"@eco-pages/mdx": "workspace:*",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/react": "workspace:*",
+		"@ecopages/lit": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
 		"@types/react": "npm:types-react@beta",
 		"@types/react-dom": "npm:types-react-dom@beta"
 	},

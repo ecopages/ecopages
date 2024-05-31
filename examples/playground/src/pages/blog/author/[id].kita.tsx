@@ -5,7 +5,7 @@ import {
   type GetStaticPaths,
   type GetStaticProps,
   type PageProps,
-} from '@eco-pages/core';
+} from '@ecopages/core';
 
 type AuthorProps = {
   slug: string;

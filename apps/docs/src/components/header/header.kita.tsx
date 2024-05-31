@@ -1,6 +1,6 @@
 import { Logo } from '@/components/logo';
 import { Navigation, type NavigationProps } from '@/components/navigation';
-import { DepsManager, type EcoComponent } from '@eco-pages/core';
+import { DepsManager, type EcoComponent } from '@ecopages/core';
 
 export type HeaderProps = {
   navigation: NavigationProps;

@@ -1,0 +1,23 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | @event',
+  description: 'The place to learn about @ecopages/radiant',
+})
+
+# @event
+---
+
+A decorator that creates an EventEmitter on the target element.
+
+The EventEmitter can be used to dispatch custom events from the target element.
+
+<CodeBlock lang='typescript'>{`@event({ name: 'my-custom-event', bubbles: true, composed: true })
+customEvent!: EventEmitter<LiteEventDetail>;
+  
+connectedCallback() {
+  this.customEvent.emit({ detail: 'Hello, World!' });
+}`}</CodeBlock>

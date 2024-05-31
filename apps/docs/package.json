@@ -1,14 +1,14 @@
 {
-	"name": "@eco-pages/docs",
+	"name": "@ecopages/docs",
 	"version": "0.0.1",
 	"scripts": {
-		"dev": "eco-pages dev",
-		"build": "eco-pages build",
-		"start": "eco-pages start",
-		"preview": "eco-pages preview"
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"start": "ecopages start",
+		"preview": "ecopages preview"
 	},
 	"devDependencies": {
-		"@eco-pages/core": "workspace:*",
+		"@ecopages/core": "workspace:*",
 		"shiki": "^1.1.2"
 	}
 }

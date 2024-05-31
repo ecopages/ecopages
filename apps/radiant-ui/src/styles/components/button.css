@@ -1,0 +1,80 @@
+@tailwind components;
+
+@layer components {
+  .rui-button {
+    @apply inline-flex items-center justify-center h-fit w-fit gap-2;
+    @apply font-medium text-sm rounded-button;
+    @apply transition-all duration-200 ease-in-out;
+    @apply cursor-pointer;
+    @apply whitespace-nowrap;
+  }
+
+  .rui-button > svg {
+    @apply pointer-events-none;
+  }
+
+  .rui-button:focus-visible {
+    @apply ring-2 ring-focus-ring outline-none;
+  }
+
+  .rui-button:disabled {
+    @apply bg-surface text-on-surface;
+    @apply cursor-not-allowed;
+  }
+
+  .rui-button--primary {
+    @apply bg-primary text-on-primary;
+  }
+
+  .rui-button--primary:hover {
+    @apply bg-primary/90;
+  }
+
+  .rui-button--primary:active {
+    @apply bg-primary-dark;
+  }
+
+  .rui-button--secondary {
+    @apply bg-secondary text-on-secondary;
+  }
+
+  .rui-button--secondary:hover {
+    @apply bg-secondary/90;
+  }
+
+  .rui-button--secondary:active {
+    @apply bg-secondary-dark;
+  }
+
+  .rui-button--ghost {
+    @apply bg-transparent text-on-surface;
+  }
+
+  .rui-button--ghost:hover {
+    @apply bg-surface/90;
+  }
+
+  .rui-button--ghost:active {
+    @apply bg-surface/80;
+  }
+
+  .rui-button--error {
+    @apply bg-error text-on-error;
+  }
+
+  .rui-button--error:hover {
+    @apply bg-error/90;
+  }
+
+  .rui-button--error:active {
+    @apply bg-error-dark;
+  }
+
+  .rui-button--md {
+    @apply text-sm py-2 px-4;
+  }
+
+  .rui-button--icon {
+    @apply text-sm p-2;
+  }
+}

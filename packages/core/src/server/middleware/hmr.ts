@@ -11,7 +11,7 @@ const reloadCommand = 'reload';
 globalThis.__ECO_PAGES_HMR_WS__?.send(reloadCommand);
 
 const makeLiveReloadScript = (wsUrl: string) => `
-<!-- [eco-pages] live reload start script -->
+<!-- [ecopages] live reload start script -->
 <script type="text/javascript">
   (function() {
     const socket = new WebSocket("ws://${wsUrl}");
@@ -23,10 +23,10 @@ const makeLiveReloadScript = (wsUrl: string) => `
         console.error('Live reload connection error.',{error});
       }
     };
-    console.log('[eco-pages] Live reload enabled');
+    console.log('[ecopages] Live reload enabled');
   })();
 </script>
-<!-- [eco-pages] live reload end script -->
+<!-- [ecopages] live reload end script -->
 `;
 
 export type PureWebSocketServeOptions<WebSocketDataType> = Omit<

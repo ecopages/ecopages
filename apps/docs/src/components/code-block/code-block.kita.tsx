@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@eco-pages/core';
+import { DepsManager, type EcoComponent } from '@ecopages/core';
 import { type BundledLanguage, type BundledTheme, codeToHtml } from 'shiki';
 
 export const CodeBlock: EcoComponent<{ children: string; lang?: BundledLanguage; theme?: BundledTheme }> = async ({

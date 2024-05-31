@@ -15,7 +15,7 @@
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "ES2021",
-		"types": ["bun-types", "@eco-pages/core"],
+		"types": ["bun-types", "@ecopages/core"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	}

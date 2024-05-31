@@ -4,7 +4,7 @@ import {
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
-} from '@eco-pages/core';
+} from '@ecopages/core';
 import React from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
@@ -76,7 +76,7 @@ export class ReactRenderer extends IntegrationRenderer {
 
       return body;
     } catch (error) {
-      throw new Error(`[eco-pages] Error rendering page: ${error}`);
+      throw new Error(`[ecopages] Error rendering page: ${error}`);
     }
   }
 }

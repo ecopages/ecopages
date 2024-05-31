@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@eco-pages/core';
+import { DepsManager, type EcoComponent } from '@ecopages/core';
 
 export type CardProps = {
   title: string;

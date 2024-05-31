@@ -1,0 +1,7 @@
+@import "./tokens/colors.css";
+@import "./tokens/misc.css";
+@import "./components/button.css";
+@import "./global/prose.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

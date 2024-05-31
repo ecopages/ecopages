@@ -1,4 +1,4 @@
-import { LiteElement, customElement, onEvent, query } from '@eco-pages/lite-elements';
+import { LiteElement, customElement, onEvent, query } from '@ecopages/radiant';
 
 @customElement('lite-refs')
 export class LiteEventEmitter extends LiteElement {

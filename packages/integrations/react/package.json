@@ -1,5 +1,5 @@
 {
-	"name": "@eco-pages/react",
+	"name": "@ecopages/react",
 	"version": "0.0.1",
 	"main": "./src/index.ts",
 	"dependencies": {
@@ -12,5 +12,5 @@
 		"@types/react": "npm:types-react@beta",
 		"@types/react-dom": "npm:types-react-dom@beta"
 	},
-	"repository": "https://github.com/andeeplus/eco-pages.git"
+	"repository": "https://github.com/andeeplus/ecopages.git"
 }

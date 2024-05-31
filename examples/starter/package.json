@@ -1,16 +1,16 @@
 {
-	"name": "@eco-pages/starter",
+	"name": "@ecopages/starter",
 	"version": "0.0.1",
 	"scripts": {
-		"dev": "eco-pages dev",
-		"build": "eco-pages build",
-		"start": "eco-pages start",
-		"preview": "eco-pages preview"
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"start": "ecopages start",
+		"preview": "ecopages preview"
 	},
 	"devDependencies": {
-		"@eco-pages/core": "workspace:*",
-		"@eco-pages/kitajs": "workspace:*",
-		"@eco-pages/lit": "workspace:*",
-		"@eco-pages/mdx": "workspace:*"
+		"@ecopages/core": "workspace:*",
+		"@ecopages/kitajs": "workspace:*",
+		"@ecopages/lit": "workspace:*",
+		"@ecopages/mdx": "workspace:*"
 	}
 }

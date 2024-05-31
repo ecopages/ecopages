@@ -1,4 +1,4 @@
-import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@eco-pages/core';
+import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@ecopages/core';
 import { PLUGIN_NAME } from './kitajs.plugin';
 
 export class KitaRenderer extends IntegrationRenderer {
@@ -21,7 +21,7 @@ export class KitaRenderer extends IntegrationRenderer {
 
       return this.DOC_TYPE + body;
     } catch (error) {
-      throw new Error(`[eco-pages] Error rendering page: ${error}`);
+      throw new Error(`[ecopages] Error rendering page: ${error}`);
     }
   }
 }

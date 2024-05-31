@@ -1,4 +1,4 @@
-import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@eco-pages/core';
+import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@ecopages/core';
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
@@ -37,7 +37,7 @@ export class LitRenderer extends IntegrationRenderer {
 
       return new RenderResultReadable(streamBody());
     } catch (error) {
-      throw new Error(`[eco-pages] Error rendering page: ${error}`);
+      throw new Error(`[ecopages] Error rendering page: ${error}`);
     }
   }
 }

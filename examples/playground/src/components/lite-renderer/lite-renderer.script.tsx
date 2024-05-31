@@ -8,7 +8,7 @@ import {
   query,
   reactiveField,
   reactiveProp,
-} from '@eco-pages/lite-elements';
+} from '@ecopages/radiant';
 
 import { Message } from './lite-renderer.templates.kita';
 

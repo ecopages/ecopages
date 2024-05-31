@@ -1,7 +1,7 @@
-import type { EcoPagesConfigInput } from '@eco-pages/core';
-import { litPlugin } from '@eco-pages/lit';
-import { mdxPlugin } from '@eco-pages/mdx';
-import { reactPlugin } from '@eco-pages/react';
+import type { EcoPagesConfigInput } from '@ecopages/core';
+import { litPlugin } from '@ecopages/lit';
+import { mdxPlugin } from '@ecopages/mdx';
+import { reactPlugin } from '@ecopages/react';
 
 const config: EcoPagesConfigInput = {
   rootDir: import.meta.dir,

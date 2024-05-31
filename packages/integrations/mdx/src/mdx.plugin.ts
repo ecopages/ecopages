@@ -1,4 +1,4 @@
-import type { IntegrationPlugin } from '@eco-pages/core';
+import type { IntegrationPlugin } from '@ecopages/core';
 import { MDXRenderer } from './mdx-renderer';
 
 export type MDXPluginOptions = {

@@ -1,4 +1,4 @@
-import type { EcoComponent } from '@eco-pages/core';
+import type { EcoComponent } from '@ecopages/core';
 import { useState } from 'react';
 
 type CounterProps = {

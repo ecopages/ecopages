@@ -4,7 +4,7 @@ export function ContextProviderDemoVisualizer() {
       <p class="lc-demo__label">lc-demo-visualizer</p>
       <h1 class="text-3xl font-bold space-x-2">
         <span data-name class="capitalize">
-          eco-pages
+          ecopages
         </span>
         <span data-version>0.1</span>
       </h1>

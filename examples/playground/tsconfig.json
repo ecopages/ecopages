@@ -22,7 +22,7 @@
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
-		"types": ["bun-types", "@eco-pages/core"],
+		"types": ["bun-types", "@ecopages/core"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	}

@@ -8,7 +8,7 @@ import {
   onEvent,
   provideContext,
   query,
-} from '@eco-pages/lite-elements';
+} from '@ecopages/radiant';
 
 class Logger {
   log(message: string) {
@@ -27,7 +27,7 @@ type ContextProviderDemoContext = {
 export const contextDemo = createContext<ContextProviderDemoContext>(Symbol('ContextProviderDemo'));
 
 const initialValue: ContextProviderDemoContext = {
-  name: 'eco-pages',
+  name: 'ecopages',
   version: '0.1',
   templateSupport: ['kita'],
   logger: new Logger(),

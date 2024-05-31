@@ -1,0 +1,118 @@
+:root {
+  /** Midinight Blue */
+  --color-midnight-blue-50-hsla: 240 16% 96%;
+  --color-midnight-blue-100-hsla: 235 15% 83%;
+  --color-midnight-blue-200-hsla: 233 16% 70%;
+  --color-midnight-blue-300-hsla: 231 15% 57%;
+  --color-midnight-blue-400-hsla: 232 20% 44%;
+  --color-midnight-blue-500-hsla: 231 35% 31%;
+  --color-midnight-blue-600-hsla: 232 34% 25%;
+  --color-midnight-blue-700-hsla: 231 35% 19%;
+  --color-midnight-blue-800-hsla: 233 34% 14%;
+  --color-midnight-blue-900-hsla: 236 33% 8%;
+  --color-midnight-blue-950-hsla: 240 23% 3%;
+
+  /** Forest Green */
+  --color-forest-green-50-hsla: 150 33% 98%;
+  --color-forest-green-100-hsla: 153 31% 89%;
+  --color-forest-green-200-hsla: 152 31% 80%;
+  --color-forest-green-300-hsla: 151 31% 71%;
+  --color-forest-green-400-hsla: 151 32% 62%;
+  --color-forest-green-500-hsla: 152 31% 53%;
+  --color-forest-green-600-hsla: 152 28% 43%;
+  --color-forest-green-700-hsla: 152 27% 34%;
+  --color-forest-green-800-hsla: 153 27% 24%;
+  --color-forest-green-900-hsla: 152 27% 14%;
+  --color-forest-green-950-hsla: 156 24% 4%;
+
+  /** Scarlet */
+  --color-scarlet-50-hsla: 5 100% 98%;
+  --color-scarlet-100-hsla: 355 82% 89%;
+  --color-scarlet-200-hsla: 353 83% 80%;
+  --color-scarlet-300-hsla: 352 82% 70%;
+  --color-scarlet-400-hsla: 352 82% 61%;
+  --color-scarlet-500-hsla: 352 81% 52%;
+  --color-scarlet-600-hsla: 352 75% 42%;
+  --color-scarlet-700-hsla: 353 74% 33%;
+  --color-scarlet-800-hsla: 353 73% 24%;
+  --color-scarlet-900-hsla: 354 69% 14%;
+  --color-scarlet-950-hsla: 4 58% 5%;
+
+  /** Screamin Green */
+  --color-screamin-green-50-hsla: 90 57% 97%;
+  --color-screamin-green-100-hsla: 99 62% 87%;
+  --color-screamin-green-200-hsla: 100 61% 76%;
+  --color-screamin-green-300-hsla: 100 61% 65%;
+  --color-screamin-green-400-hsla: 100 61% 55%;
+  --color-screamin-green-500-hsla: 100 78% 44%;
+  --color-screamin-green-600-hsla: 100 77% 36%;
+  --color-screamin-green-700-hsla: 100 76% 28%;
+  --color-screamin-green-800-hsla: 99 75% 20%;
+  --color-screamin-green-900-hsla: 99 70% 12%;
+  --color-screamin-green-950-hsla: 96 50% 4%;
+
+  /** Timberwolf: Grey Scale */
+  --color-timberwolf-50-hsla: 0 0% 99%;
+  --color-timberwolf-100-hsla: 0 0% 96%;
+  --color-timberwolf-200-hsla: 0 3% 92%;
+  --color-timberwolf-300-hsla: 0 4% 89%;
+  --color-timberwolf-400-hsla: 0 1% 86%;
+  --color-timberwolf-500-hsla: 0 2% 82%;
+  --color-timberwolf-600-hsla: 0 1% 67%;
+  --color-timberwolf-700-hsla: 0 1% 52%;
+  --color-timberwolf-800-hsla: 0 1% 36%;
+  --color-timberwolf-900-hsla: 0 0% 21%;
+  --color-timberwolf-950-hsla: 0 0% 6%;
+
+  /** No Color */
+  --color-white: 0 0% 100%;
+  --color-black: 0 0% 0%;
+  --color-transparent: 0 0% 100% / 0;
+
+  /** System Colors */
+  --background: var(--color-timberwolf-50-hsla);
+  --on-background: var(--color-midnight-blue-500-hsla);
+
+  --surface: var(--color-timberwolf-100-hsla);
+  --on-surface: var(--color-midnight-blue-500-hsla);
+
+  --primary: var(--color-midnight-blue-500-hsla);
+  --primary-light: var(--color-midnight-blue-300-hsla);
+  --primary-dark: var(--color-midnight-blue-700-hsla);
+  --on-primary: var(--color-timberwolf-50-hsla);
+
+  --primary-container: var(--color-midnight-blue-50-hsla);
+  --on-primary-container: var(--color-midnight-blue-500-hsla);
+
+  --secondary: var(--color-forest-green-500-hsla);
+  --secondary-light: var(--color-forest-green-300-hsla);
+  --secondary-dark: var(--color-forest-green-700-hsla);
+  --on-secondary: var(--color-timberwolf-50-hsla);
+
+  --secondary-container: var(--color-forest-green-50-hsla);
+  --on-secondary-container: var(--color-forest-green-500-hsla);
+
+  --error: var(--color-scarlet-500-hsla);
+  --error-light: var(--color-scarlet-300-hsla);
+  --error-dark: var(--color-scarlet-700-hsla);
+  --on-error: var(--color-timberwolf-50-hsla);
+
+  --error-container: var(--color-scarlet-50-hsla);
+  --on-error-container: var(--color-scarlet-500-hsla);
+
+  --success: var(--color-screamin-green-500-hsla);
+  --success-light: var(--color-screamin-green-300-hsla);
+  --success-dark: var(--color-screamin-green-700-hsla);
+  --on-success: var(--color-timberwolf-50-hsla);
+
+  --success-container: var(--color-screamin-green-50-hsla);
+  --on-success-container: var(--color-screamin-green-500-hsla);
+
+  --focus-ring: 222 81% 42%;
+  --link: var(--color-midnight-blue-700-hsla);
+  --border: var(--color-timberwolf-900-hsla);
+  --link: var(--color-navy-blue-400-hsla);
+
+  --background-code: var(--color-timberwolf-900-hsla);
+  --on-background-code: var(--color-screaming-green-300-hsla);
+}

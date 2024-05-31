@@ -1,1 +1,1 @@
-import '@eco-pages/scripts-injector';
+import '@ecopages/scripts-injector';

@@ -49,4 +49,4 @@ export class Logger {
   }
 }
 
-export const appLogger = new Logger('[eco-pages]');
+export const appLogger = new Logger('[ecopages]');

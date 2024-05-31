@@ -5,7 +5,7 @@ import { LiteCounter } from '@/components/lite-counter';
 import { LiteRenderer } from '@/components/lite-renderer';
 import { Message } from '@/components/lite-renderer/lite-renderer.templates.kita';
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoComponent, type GetMetadata } from '@eco-pages/core';
+import { DepsManager, type EcoComponent, type GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',

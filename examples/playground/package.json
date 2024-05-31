@@ -1,22 +1,22 @@
 {
-	"name": "@eco-pages/playground",
+	"name": "@ecopages/playground",
 	"version": "0.0.1",
 	"scripts": {
-		"dev": "eco-pages dev",
-		"build": "eco-pages build",
-		"start": "eco-pages start",
-		"preview": "eco-pages preview"
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"start": "ecopages start",
+		"preview": "ecopages preview"
 	},
 	"devDependencies": {
-		"@eco-pages/core": "workspace:*",
-		"@eco-pages/scripts-injector": "workspace:*",
-		"@eco-pages/kitajs": "workspace:*",
-		"@eco-pages/lit": "workspace:*",
-		"@eco-pages/mdx": "workspace:*",
-		"@eco-pages/lite-elements": "workspace:*",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/scripts-injector": "workspace:*",
+		"@ecopages/kitajs": "workspace:*",
+		"@ecopages/lit": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
+		"@ecopages/radiant": "^0.1.0",
 		"@types/alpinejs": "^3.13.6",
 		"alpinejs": "^3.13.10",
 		"shiki": "^1.1.2"
 	},
-	"repository": "https://github.com/andeeplus/eco-pages.git"
+	"repository": "https://github.com/andeeplus/ecopages.git"
 }

@@ -1,4 +1,4 @@
-import { type IntegrationPlugin, deepMerge } from '@eco-pages/core';
+import { type IntegrationPlugin, deepMerge } from '@ecopages/core';
 import { LitRenderer } from './lit-renderer';
 
 export type LitPluginOptions = {

@@ -1,4 +1,4 @@
-import { DepsManager } from '@eco-pages/core' with { type: 'macro' };
+import { DepsManager } from '@ecopages/core' with { type: 'macro' };
 import './lit-counter.script';
 
 export const LitCounter = {

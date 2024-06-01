@@ -113,7 +113,7 @@ export type TodoContext = {
 export const todoContext = createContext<TodoContext>(Symbol('todo-context'));
 
 @customElement('lite-todo-app')
-export class LiteTodoApp extends WithKita(LiteElement) {
+export class LiteTodoApp extends WithKita(RadiantElement) {
   @query({ ref: 'list-complete' }) listComplete!: HTMLElement;
   @query({ ref: 'list-incomplete' }) listIncomplete!: HTMLElement;
   @query({ ref: 'count-complete' }) countComplete!: HTMLElement;
@@ -196,7 +196,7 @@ The features used in this component are:
 };
 
 @customElement('lite-todo-item')
-export class LiteTodoItem extends WithKita(LiteElement) {
+export class LiteTodoItem extends WithKita(RadiantElement) {
   @query({ selector: 'input[type="checkbox"]' }) checkbox!: HTMLInputElement;
   @query({ selector: 'button' }) removeButton!: HTMLButtonElement;
   @reactiveProp({ type: Boolean, reflect: true }) complete = false;

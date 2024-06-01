@@ -34,7 +34,7 @@ export const docsConfig: DocsConfig = {
     {
       name: 'Core',
       subdirectory: 'core',
-      pages: [{ title: 'LiteElement', slug: 'lite-element' }],
+      pages: [{ title: 'RadiantElement', slug: 'lite-element' }],
     },
     {
       name: 'Decorators',

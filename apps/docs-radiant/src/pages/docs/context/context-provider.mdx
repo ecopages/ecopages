@@ -18,7 +18,7 @@ To provide a context to a component, you can use the `@provideContext` decorator
 - `hydrate`: This is an `AttributeType` that will be used to hydrate the context with the data from the server. If provided, the context will be hydrated with the data from the server.
 
 <CodeBlock lang='typescript'>{`@customElement("lite-my-context")
-export class MyElement extends LiteElement {
+export class MyElement extends RadiantElement {
   @provideContext({ context: myContext, initialValue: { value: "Hello World" }})
   provider!: ContextProvider<typeof myContext>;
 }`}
@@ -31,7 +31,7 @@ It accepts an `AttributeType` that will be used to hydrate the context with the 
 The attribute type can be a `String`, `Number`, `Boolean`, `Object`, or `Array`.
 
 <CodeBlock lang='typescript'>{`@customElement("lite-my-context")
-export class MyElement extends LiteElement {
+export class MyElement extends RadiantElement {
   @provideContext({ context: myContext, initialValue: { logger: new Logger() } hydrate: Object})
   provider!: ContextProvider<typeof myContext>;
 }`}
@@ -61,7 +61,7 @@ To read the documentation relative to the consumer, click [here](/docs/context/c
 If for any reason you don't want to use the `@provideContext` decorator, you can use the `ContextProvider` component directly.
 
 <CodeBlock lang='typescript'>{`@customElement("lite-my-context")
-export class MyElement extends LiteElement {
+export class MyElement extends RadiantElement {
   provider = new ContextProvider<typeof myContext>(this, {
     context: myContext,
     initialValue: {

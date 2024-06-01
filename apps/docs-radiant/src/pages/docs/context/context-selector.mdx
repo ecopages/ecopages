@@ -26,7 +26,7 @@ Here is an example of how to use the `@contextSelector` decorator:
 <CodeBlock lang='typescript'>{`import { MyContext } from './my-element-provider'
 
 @customElement("lite-my-consumer")
-export class MyElement extends LiteElement {
+export class MyElement extends RadiantElement {
   @contextSelector({ context: todoContext, select: ({ value }) => ({ value})})
   handleValue({ value }: Pick<MyContext, 'value'>) {
     console.log(value);
@@ -38,7 +38,7 @@ This can be very handy when you need to manipulate the context value before usin
 <CodeBlock lang='typescript'>{`import { MyContext } from './my-element-provider'
 
 @customElement("lite-my-consumer")
-export class MyElement extends LiteElement {
+export class MyElement extends RadiantElement {
   @contextSelector({
     context: todoContext,
     select: ({ value }) => ({ value: value.map((item) => item + 1) }),
@@ -53,7 +53,7 @@ If for any reason you don't want to use the `@contextSelector` decorator, you ca
 <CodeBlock lang='typescript'>{`import { MyContext } from './my-element-provider'
 
 @customElement("lite-my-consumer")
-export class MyElement extends LiteElement {
+export class MyElement extends RadiantElement {
   context!: ContextProvider<typeof myContext>;
 
   connectedCallback() {

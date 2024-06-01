@@ -1,7 +1,7 @@
-import { LiteElement, customElement, onEvent, query } from '@ecopages/radiant';
+import { RadiantElement, customElement, onEvent, query } from '@ecopages/radiant';
 
 @customElement('lite-refs')
-export class LiteEventEmitter extends LiteElement {
+export class LiteEventEmitter extends RadiantElement {
   @query({ ref: 'ref-container' }) refContainer!: HTMLDivElement;
   @query({ ref: 'ref-count' }) refCount!: HTMLDivElement;
   @query({ ref: 'ref-item', all: true }) refItems!: HTMLDivElement[];

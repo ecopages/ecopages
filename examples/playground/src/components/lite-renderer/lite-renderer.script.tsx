@@ -1,5 +1,5 @@
 import {
-  LiteElement,
+  RadiantElement,
   type RenderInsertPosition,
   WithKita,
   customElement,
@@ -18,7 +18,7 @@ export type LiteRendererProps = {
 };
 
 @customElement('lite-renderer')
-export class LiteRenderer extends WithKita(LiteElement) {
+export class LiteRenderer extends WithKita(RadiantElement) {
   @reactiveProp({ type: String, reflect: true }) declare text: string;
   @reactiveProp({ type: Boolean, reflect: true })
   declare 'replace-on-load': boolean;

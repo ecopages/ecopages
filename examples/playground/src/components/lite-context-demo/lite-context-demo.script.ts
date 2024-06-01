@@ -1,6 +1,6 @@
 import {
   type ContextProvider,
-  LiteElement,
+  RadiantElement,
   consumeContext,
   contextSelector,
   createContext,
@@ -35,13 +35,13 @@ const initialValue: ContextProviderDemoContext = {
 };
 
 @customElement('lc-demo')
-export class ContextProviderDemo extends LiteElement {
+export class ContextProviderDemo extends RadiantElement {
   @provideContext({ context: contextDemo, initialValue })
   context!: ContextProvider<typeof contextDemo>;
 }
 
 @customElement('lc-demo-visualizer')
-export class LitePackageVisualizer extends LiteElement {
+export class LitePackageVisualizer extends RadiantElement {
   @query({ selector: '[data-name]' }) packageName!: HTMLSpanElement;
   @query({ selector: '[data-version]' }) packageVersion!: HTMLSpanElement;
 
@@ -57,7 +57,7 @@ export class LitePackageVisualizer extends LiteElement {
 }
 
 @customElement('lc-demo-editor')
-export class LitePackageConsumer extends LiteElement {
+export class LitePackageConsumer extends RadiantElement {
   @query({ selector: '[data-input]' }) input!: HTMLInputElement;
   @query({ selector: '[data-options]' }) select!: HTMLSelectElement;
 

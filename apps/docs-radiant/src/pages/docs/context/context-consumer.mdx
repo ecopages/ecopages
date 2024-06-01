@@ -19,7 +19,7 @@ To consume a context in a component, you can use the `@consumeContext` decorator
 <CodeBlock lang='typescript'>{`import { myContext } from './my-element-provider'
 
 @customElement("lite-my-consumer")
-export class MyElement extends LiteElement {
+export class MyElement extends RadiantElement {
   @consumeContext(myContext)
   consumer!: ContextProvider<typeof myContext>;
 }`}</CodeBlock>
@@ -40,7 +40,7 @@ If for any reason you don't want to use the `@consumeContext` decorator, you can
 import { ContextRequestEvent } from '@ecopages/radiant';
 
 @customElement("lite-my-consumer")
-export class MyElement extends LiteElement {
+export class MyElement extends RadiantElement {
   context!: ContextProvider<typeof myContext>;
   connectedCallback() {
     super.connectedCallback();

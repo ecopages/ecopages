@@ -2,8 +2,7 @@ import path from 'node:path';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import { invariant } from '@/utils/invariant';
-import type { EcoPageFile, GetStaticPaths } from '@types';
-import type { RouteKind, Routes } from './fs-router';
+import type { EcoPageFile, GetStaticPaths, RouteKind, Routes } from '@types';
 
 type CreateRouteArgs = {
   routePath: string;

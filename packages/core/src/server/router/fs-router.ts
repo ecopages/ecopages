@@ -1,23 +1,6 @@
+import type { MatchResult, Route, Routes } from '@/index';
 import { appLogger } from '@/utils/app-logger';
 import type { FSRouterScanner } from './fs-router-scanner';
-
-export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
-
-export type MatchResult = {
-  filePath: string;
-  kind: RouteKind;
-  pathname: string;
-  query?: Record<string, string>;
-  params?: Record<string, string | string[]>;
-};
-
-export type Route = {
-  kind: RouteKind;
-  filePath: string;
-  pathname: string;
-};
-
-export type Routes = Record<string, Route>;
 
 /**
  * @class FSRouter

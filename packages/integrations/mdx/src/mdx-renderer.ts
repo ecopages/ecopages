@@ -20,6 +20,10 @@ export type MDXFile = {
   getMetadata: GetMetadata;
 };
 
+interface MDXIntegrationRendererOpions extends IntegrationRendererRenderOptions {
+  layout?: EcoComponent;
+}
+
 export class MDXRenderer extends IntegrationRenderer {
   name = PLUGIN_NAME;
 
@@ -35,9 +39,9 @@ export class MDXRenderer extends IntegrationRenderer {
     }
   }
 
-  async render({ metadata, Page, HtmlTemplate, layout }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+  async render({ metadata, Page, HtmlTemplate, layout }: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
     try {
-      const headContent = await this.getHeadContent(deepMerge(Page.dependencies, layout?.dependencies ?? {}));
+      const headContent = await this.getHeadContent(deepMerge(Page.dependencies ?? {}, layout?.dependencies ?? {}));
 
       const children = layout ? layout({ children: Page({}) }) : Page({});
 

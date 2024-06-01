@@ -3,26 +3,17 @@ import { invariant } from '@/utils/invariant';
 import type {
   EcoComponent,
   EcoComponentDependencies,
-  EcoPage,
   EcoPageFile,
   EcoPagesConfig,
   GetMetadata,
   GetMetadataContext,
   GetStaticProps,
   HtmlTemplateProps,
+  IntegrationRendererRenderOptions,
   PageMetadataProps,
-  PageProps,
+  RouteRendererBody,
   RouteRendererOptions,
 } from '@types';
-import type { RouteRendererBody } from './route-renderer';
-
-export type IntegrationRendererRenderOptions = RouteRendererOptions & {
-  props?: Record<string, unknown>;
-  metadata: PageMetadataProps;
-  HtmlTemplate: EcoComponent<HtmlTemplateProps>;
-  Page: EcoPage<PageProps>;
-  appConfig: EcoPagesConfig;
-};
 
 export abstract class IntegrationRenderer {
   abstract name: string;

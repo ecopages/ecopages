@@ -5,7 +5,7 @@ export type LogoProps = Pick<HTMLAnchorElement, 'href' | 'target' | 'title'>;
 export const Logo: EcoComponent<LogoProps> = (props) => {
   return (
     <a class="logo" {...props}>
-      Lite Elements
+      Radiant
     </a>
   );
 };

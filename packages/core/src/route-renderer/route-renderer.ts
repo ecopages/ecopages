@@ -1,11 +1,7 @@
-import type { Readable } from 'node:stream';
 import { invariant } from '@/utils/invariant';
 import { PathUtils } from '@/utils/path-utils';
-import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
-import type { EcoPagesConfig, IntegrationPlugin, RouteRendererOptions } from '@types';
+import type { EcoPagesConfig, IntegrationPlugin, RouteRendererBody, RouteRendererOptions } from '@types';
 import type { IntegrationRenderer } from './integration-renderer';
-
-export type RouteRendererBody = RenderResultReadable | Readable | string;
 
 export class RouteRenderer {
   private renderer: IntegrationRenderer;

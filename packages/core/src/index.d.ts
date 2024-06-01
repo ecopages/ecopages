@@ -254,3 +254,29 @@ export type RouteRendererOptions = {
 };
 
 export type RouteRendererBody = RenderResultReadable | Readable | string;
+
+export type IntegrationRendererRenderOptions = RouteRendererOptions & {
+  props?: Record<string, unknown>;
+  metadata: PageMetadataProps;
+  HtmlTemplate: EcoComponent<HtmlTemplateProps>;
+  Page: EcoPage<PageProps>;
+  appConfig: EcoPagesConfig;
+};
+
+export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
+
+export type MatchResult = {
+  filePath: string;
+  kind: RouteKind;
+  pathname: string;
+  query?: Record<string, string>;
+  params?: Record<string, string | string[]>;
+};
+
+export type Route = {
+  kind: RouteKind;
+  filePath: string;
+  pathname: string;
+};
+
+export type Routes = Record<string, Route>;

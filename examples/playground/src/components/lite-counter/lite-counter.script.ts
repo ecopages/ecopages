@@ -1,11 +1,11 @@
-import { LiteElement, customElement, onEvent, onUpdated, query, reactiveProp } from '@ecopages/radiant';
+import { RadiantElement, customElement, onEvent, onUpdated, query, reactiveProp } from '@ecopages/radiant';
 
 export type LiteCounterProps = {
   count?: number;
 };
 
 @customElement('lite-counter')
-export class LiteCounter extends LiteElement {
+export class LiteCounter extends RadiantElement {
   @reactiveProp({ type: Number, reflect: true }) declare count: number;
   @query({ ref: 'count' }) countText!: HTMLElement;
 

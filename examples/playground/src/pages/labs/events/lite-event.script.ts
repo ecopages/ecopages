@@ -1,4 +1,4 @@
-import { type EventEmitter, LiteElement, customElement, event, onEvent, query } from '@ecopages/radiant';
+import { type EventEmitter, RadiantElement, customElement, event, onEvent, query } from '@ecopages/radiant';
 
 enum LiteEventEvents {
   CustomEvent = 'custom-event',
@@ -9,7 +9,7 @@ type LiteEventDetail = {
 };
 
 @customElement('lite-event-emitter')
-export class LiteEventEmitter extends LiteElement {
+export class LiteEventEmitter extends RadiantElement {
   @event({ name: LiteEventEvents.CustomEvent, bubbles: true, composed: true })
   customEvent!: EventEmitter<LiteEventDetail>;
 
@@ -20,7 +20,7 @@ export class LiteEventEmitter extends LiteElement {
 }
 
 @customElement('lite-event-listener')
-export class LiteEventListener extends LiteElement {
+export class LiteEventListener extends RadiantElement {
   @query({ ref: 'event-detail' }) eventDetail!: HTMLDivElement;
 
   @onEvent({ selector: 'lite-event-emitter', type: LiteEventEvents.CustomEvent })

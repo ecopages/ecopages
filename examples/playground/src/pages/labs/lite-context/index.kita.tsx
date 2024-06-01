@@ -13,7 +13,7 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static', 'lite-element'],
 });
 
-const LiteElement: EcoComponent = () => {
+const RadiantElement: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
       <ContextProviderDemo>
@@ -24,9 +24,9 @@ const LiteElement: EcoComponent = () => {
   );
 };
 
-LiteElement.dependencies = DepsManager.collect({
+RadiantElement.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [BaseLayout, ContextProviderDemo, ContextProviderDemoVisualizer, ContextProviderDemoEditor],
 });
 
-export default LiteElement;
+export default RadiantElement;

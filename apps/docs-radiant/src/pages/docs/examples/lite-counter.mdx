@@ -47,7 +47,7 @@ This can be done by using the `data-decrement`, `data-increment`, and `data-text
 
 ## Typescript
 
-The `LiteCounter` component is defined as a class that extends the `LiteElement` class. The `LiteCounterProps` type is used to define the properties that the component will receive.
+The `LiteCounter` component is defined as a class that extends the `RadiantElement` class. The `LiteCounterProps` type is used to define the properties that the component will receive.
 
 Please note that the props in there are used mainly to provide type checking and intellisense in the editor while using typescript with JSX.
 
@@ -60,7 +60,7 @@ export type LiteCounterProps = {
 
 @customElement('lite-counter')
 @customElement('lite-counter')
-export class LiteCounter extends LiteElement {
+export class LiteCounter extends RadiantElement {
   @reactiveProp({ type: Number, reflect: true }) declare value: number;
   @query({ ref: 'count' }) countText!: HTMLElement;
 

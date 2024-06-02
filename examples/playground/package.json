@@ -9,7 +9,7 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/scripts-injector": "workspace:*",
+		"@ecopages/scripts-injector": "^0.1.1",
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/mdx": "workspace:*",

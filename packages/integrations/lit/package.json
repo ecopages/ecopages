@@ -5,6 +5,7 @@
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"type": "module",
+	"files": ["dist"],
 	"exports": {
 		"./package.json": {
 			"import": "./package.json"

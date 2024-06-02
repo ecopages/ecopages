@@ -27,10 +27,11 @@
 		"build:react-app": "bun run --filter @ecopages/react-app build",
 		"start:react-app": "bun run --filter @ecopages/react-app start",
 		"preview:react-app": "bun run --filter @ecopages/react-app preview",
-		"clean": "rm -rf .eco node_modules bun.lockb && bun install",
+		"clean": "rm -rf node_modules bun.lockb && bun install && bun run build:lib",
 		"format": "bunx @biomejs/biome format --write .",
 		"lint": "bunx @biomejs/biome check --apply .",
-		"lint-staged": "lint-staged"
+		"lint-staged": "lint-staged",
+		"build:lib": "bun run --filter '*' build:lib"
 	},
 	"devDependencies": {
 		"husky": "^9.0.10",

@@ -1,12 +1,26 @@
 {
 	"name": "@ecopages/lit",
-	"version": "0.0.1",
-	"main": "./src/index.ts",
+	"version": "0.0.0",
 	"license": "MIT",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"type": "module",
+	"exports": {
+		"./package.json": {
+			"import": "./package.json"
+		},
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
 		"directory": "packages/integrations/lit"
+	},
+	"scripts": {
+		"build:lib": "tsup"
 	},
 	"dependencies": {
 		"@lit-labs/ssr": "^3.2.2",
@@ -14,5 +28,8 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*"
+	},
+	"devDependencies": {
+		"tsup": "^8.0.2"
 	}
 }

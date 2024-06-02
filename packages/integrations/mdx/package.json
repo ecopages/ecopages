@@ -1,18 +1,33 @@
 {
 	"name": "@ecopages/mdx",
-	"version": "0.0.1",
-	"main": "./src/index.ts",
+	"version": "0.0.0",
 	"license": "MIT",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"type": "module",
+	"exports": {
+		"./package.json": {
+			"import": "./package.json"
+		},
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
 		"directory": "packages/integrations/mdx"
 	},
-	"dependencies": {
-		"@kitajs/html": "^4.1.0",
-		"@kitajs/ts-html-plugin": "^4.0.1"
+	"scripts": {
+		"build:lib": "tsup"
 	},
 	"peerDependencies": {
+		"@kitajs/html": "^4.1.0",
+		"@kitajs/ts-html-plugin": "^4.0.1",
 		"@ecopages/core": "workspace:*"
+	},
+	"devDependencies": {
+		"tsup": "^8.0.2"
 	}
 }

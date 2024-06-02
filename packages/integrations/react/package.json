@@ -1,24 +1,39 @@
 {
 	"name": "@ecopages/react",
-	"version": "0.0.1",
-	"main": "./src/index.ts",
+	"version": "0.0.0",
 	"license": "MIT",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"type": "module",
+	"exports": {
+		"./package.json": {
+			"import": "./package.json"
+		},
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
 		"directory": "packages/integrations/react"
 	},
-	"dependencies": {
-		"@types/react": "npm:types-react@beta",
-		"@types/react-dom": "npm:types-react-dom@beta",
-		"react": "^19.0.0-beta-26f2496093-20240514",
-		"react-dom": "^19.0.0-beta-26f2496093-20240514"
+	"scripts": {
+		"build:lib": "tsup"
 	},
 	"overrides": {
 		"@types/react": "npm:types-react@beta",
 		"@types/react-dom": "npm:types-react-dom@beta"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "workspace:*"
+		"@ecopages/core": "workspace:*",
+		"react": "^19.0.0 || 19.0.0-beta.*",
+		"react-dom": "^19.0.0 || 19.0.0-beta.*"
+	},
+	"devDependencies": {
+		"@types/react": "npm:types-react@beta",
+		"@types/react-dom": "npm:types-react-dom@beta",
+		"tsup": "^8.0.2"
 	}
 }

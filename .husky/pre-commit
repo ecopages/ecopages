@@ -1,1 +1,1 @@
-bun run test:all && bun run lint-staged
+bun test && bun run lint-staged

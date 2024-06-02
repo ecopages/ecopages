@@ -1,4 +1,4 @@
-export * from './index.d';
+export * from './types';
 export * from './modules/deps-manager.module';
 export * from './utils/add-base-url-to-pathname';
 export * from './route-renderer/integration-renderer';

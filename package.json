@@ -31,7 +31,7 @@
 		"format": "bunx @biomejs/biome format --write .",
 		"lint": "bunx @biomejs/biome check --apply .",
 		"lint-staged": "lint-staged",
-		"build:lib": "bun run --filter '*' build:lib"
+		"build:lib": "bun run --filter @ecopages/core build:lib && bun run --filter '*' build:lib"
 	},
 	"devDependencies": {
 		"husky": "^9.0.10",

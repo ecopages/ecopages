@@ -1,15 +1,63 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.0.1",
-	"bin": {
-		"ecopages": "./bin/ecopages.ts"
-	},
-	"main": "./src/index.ts",
+	"version": "0.0.0",
 	"license": "MIT",
+	"main": "./dist/index.js",
+	"type": "module",
+	"files": ["dist/*", "src/*"],
+	"bin": {
+		"ecopages": "./ecopages.ts"
+	},
+	"types": "./src/types.ts",
+	"exports": {
+		"./package.json": {
+			"import": "./package.json"
+		},
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		},
+		"./deps-manager.module": {
+			"import": "./dist/modules/deps-manager.module.js",
+			"types": "./dist/modules/deps-manager.module.d.ts"
+		},
+		"./add-base-url-to-pathname": {
+			"import": "./dist/utils/add-base-url-to-pathname.js",
+			"types": "./dist/utils/add-base-url-to-pathname.d.ts"
+		},
+		"./integration-renderer": {
+			"import": "./dist/route-renderer/integration-renderer.js",
+			"types": "./dist/route-renderer/integration-renderer.d.ts"
+		},
+		"./deep-merge": {
+			"import": "./dist/utils/deep-merge.js",
+			"types": "./dist/utils/deep-merge.d.ts"
+		},
+		"./invariant": {
+			"import": "./dist/utils/invariant.js",
+			"types": "./dist/utils/invariant.d.ts"
+		},
+		"./app-logger": {
+			"import": "./dist/utils/app-logger.js",
+			"types": "./dist/utils/app-logger.d.ts"
+		},
+		"./loaders/inline-postcss.loader.js": {
+			"import": "./dist/loaders/inline-postcss.loader.js",
+			"types": "./dist/loaders/inline-postcss-loader.d.ts"
+		},
+		"./loaders/mdx.loader.js": {
+			"import": "./dist/loaders/mdx.loader.js",
+			"types": "./dist/loaders/mdx.loader.d.ts"
+		}
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
 		"directory": "packages/core"
+	},
+	"scripts": {
+		"test:lib": "bun test",
+		"build:lib": "tsup"
 	},
 	"dependencies": {
 		"@parcel/watcher": "^2.4.0",
@@ -23,7 +71,7 @@
 		"tailwindcss": "^3.4.1",
 		"@lit-labs/ssr": "^3.2.2"
 	},
-	"scripts": {
-		"test:lib": "bun test"
+	"devDependencies": {
+		"tsup": "^8.0.2"
 	}
 }

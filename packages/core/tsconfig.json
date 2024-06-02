@@ -10,7 +10,7 @@
 		"noImplicitOverride": true,
 		"paths": {
 			"@/*": ["./src/*"],
-			"@types": ["./src/index.d.ts"]
+			"@types": ["src/types.ts"]
 		},
 		"jsx": "react-jsx",
 		"jsxImportSource": "@kitajs/html",
@@ -18,7 +18,7 @@
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "ES2021",
-		"types": ["bun-types", "./src/index.d.ts"],
+		"types": ["bun-types", "./src/declarations.d.ts", "./src/env.d.ts"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	}

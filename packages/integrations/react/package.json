@@ -2,10 +2,10 @@
 	"name": "@ecopages/react",
 	"version": "0.0.0",
 	"license": "MIT",
-	"main": "./dist/index.js",
+	"main": "./index.ts",
 	"types": "./dist/index.d.ts",
 	"type": "module",
-	"files": ["dist"],
+	"files": ["dist", "src"],
 	"exports": {
 		"./package.json": {
 			"import": "./package.json"
@@ -29,8 +29,8 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"react": "^19.0.0 || 19.0.0-beta.*",
-		"react-dom": "^19.0.0 || 19.0.0-beta.*"
+		"react": "^19.0.0 || 19.0.0-rc.*",
+		"react-dom": "^19.0.0 || 19.0.0-rc.*"
 	},
 	"devDependencies": {
 		"@types/react": "npm:types-react@beta",

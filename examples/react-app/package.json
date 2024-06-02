@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/react-app",
-	"version": "0.0.1",
+	"private": true,
 	"scripts": {
 		"dev": "ecopages dev",
 		"build": "ecopages build",

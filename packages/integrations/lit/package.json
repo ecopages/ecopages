@@ -2,10 +2,17 @@
 	"name": "@ecopages/lit",
 	"version": "0.0.1",
 	"main": "./src/index.ts",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/integrations/lit"
+	},
 	"dependencies": {
-		"@ecopages/core": "workspace:*",
 		"@lit-labs/ssr": "^3.2.2",
 		"lit": "^3.1.3"
 	},
-	"repository": "https://github.com/andeeplus/ecopages.git"
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*"
+	}
 }

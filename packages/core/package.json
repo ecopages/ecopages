@@ -2,9 +2,15 @@
 	"name": "@ecopages/core",
 	"version": "0.0.1",
 	"bin": {
-		"ecopages": "./cli/ecopages.ts"
+		"ecopages": "./bin/ecopages.ts"
 	},
 	"main": "./src/index.ts",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/core"
+	},
 	"dependencies": {
 		"@parcel/watcher": "^2.4.0",
 		"@mdx-js/esbuild": "^3.0.1",
@@ -17,7 +23,6 @@
 		"tailwindcss": "^3.4.1",
 		"@lit-labs/ssr": "^3.2.2"
 	},
-	"repository": "https://github.com/andeeplus/ecopages.git",
 	"scripts": {
 		"test:lib": "bun test"
 	}

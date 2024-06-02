@@ -2,6 +2,12 @@
 	"name": "@ecopages/react",
 	"version": "0.0.1",
 	"main": "./src/index.ts",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/integrations/react"
+	},
 	"dependencies": {
 		"@types/react": "npm:types-react@beta",
 		"@types/react-dom": "npm:types-react-dom@beta",
@@ -12,5 +18,7 @@
 		"@types/react": "npm:types-react@beta",
 		"@types/react-dom": "npm:types-react-dom@beta"
 	},
-	"repository": "https://github.com/andeeplus/ecopages.git"
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*"
+	}
 }

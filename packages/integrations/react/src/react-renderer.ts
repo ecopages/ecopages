@@ -74,7 +74,7 @@ export class ReactRenderer extends IntegrationRenderer {
         }),
       );
 
-      return body;
+      return body as any;
     } catch (error) {
       throw new Error(`[ecopages] Error rendering page: ${error}`);
     }

@@ -21,7 +21,9 @@
 		"directory": "packages/integrations/react"
 	},
 	"scripts": {
-		"build:lib": "tsup"
+		"prebuild:lib": "rm -rf dist",
+		"build:lib": "bun run build.ts && bun run build:types",
+		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias"
 	},
 	"overrides": {
 		"@types/react": "npm:types-react@beta",
@@ -29,12 +31,11 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"react": "^19.0.0 || 19.0.0-rc.*",
-		"react-dom": "^19.0.0 || 19.0.0-rc.*"
+		"react": "^19.0.0 || 19.0.0-rc-* || 19.0.0-beta-*",
+		"react-dom": "^19.0.0 || 19.0.0-rc-* || 19.0.0-beta-*"
 	},
 	"devDependencies": {
 		"@types/react": "npm:types-react@beta",
-		"@types/react-dom": "npm:types-react-dom@beta",
-		"tsup": "^8.0.2"
+		"@types/react-dom": "npm:types-react-dom@beta"
 	}
 }

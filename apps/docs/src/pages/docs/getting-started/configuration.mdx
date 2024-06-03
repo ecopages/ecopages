@@ -19,7 +19,7 @@ You can configure Eco Pages by creating a configuration file in the root of your
 
 const config: EcoPagesConfigInput = {
   rootDir: import.meta.dir,
-  baseUrl: import.meta.env.ECO_PAGES_BASE_URL,
+    baseUrl: import.meta.env.ECO_PAGES_BASE_URL as string,
   defaultMetadata: {
     title: 'Your title here',
     description: 'Your description here',

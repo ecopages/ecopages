@@ -21,7 +21,9 @@
 		"directory": "packages/integrations/lit"
 	},
 	"scripts": {
-		"build:lib": "tsup"
+		"prebuild:lib": "rm -rf dist",
+		"build:lib": "bun run build.ts && bun run build:types",
+		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias"
 	},
 	"dependencies": {
 		"@lit-labs/ssr": "^3.2.2",
@@ -29,8 +31,5 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*"
-	},
-	"devDependencies": {
-		"tsup": "^8.0.2"
 	}
 }

@@ -21,7 +21,9 @@
 		"directory": "packages/integrations/kitajs"
 	},
 	"scripts": {
-		"build:lib": "tsup"
+		"prebuild:lib": "rm -rf dist",
+		"build:lib": "bun run build.ts && bun run build:types",
+		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias"
 	},
 	"dependencies": {
 		"@kitajs/html": "^4.1.0",
@@ -29,8 +31,5 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*"
-	},
-	"devDependencies": {
-		"tsup": "^8.0.2"
 	}
 }

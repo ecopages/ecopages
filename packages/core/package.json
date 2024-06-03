@@ -58,7 +58,7 @@
 	"scripts": {
 		"test:lib": "bun test",
 		"build:lib": "bun run build.ts && bun run build:types",
-		"build:types": "tsc -p tsconfig.build.json && tsc-alias"
+		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias"
 	},
 	"dependencies": {
 		"@parcel/watcher": "^2.4.0",
@@ -71,9 +71,5 @@
 		"postcss-import": "^15.1.0",
 		"tailwindcss": "^3.4.1",
 		"@lit-labs/ssr": "^3.2.2"
-	},
-	"devDependencies": {
-		"tsup": "^8.0.2",
-		"tsc-alias": "1.8.10"
 	}
 }

@@ -4,11 +4,11 @@
 	"license": "MIT",
 	"main": "./dist/index.js",
 	"type": "module",
-	"files": ["dist/*", "src/*"],
+	"files": ["dist"],
 	"bin": {
-		"ecopages": "./ecopages.ts"
+		"ecopages": "ecopages.ts"
 	},
-	"types": "./src/types.ts",
+	"types": "./dist/index.d.ts",
 	"exports": {
 		"./package.json": {
 			"import": "./package.json"
@@ -57,7 +57,8 @@
 	},
 	"scripts": {
 		"test:lib": "bun test",
-		"build:lib": "tsup"
+		"build:lib": "bun run build.ts && bun run build:types",
+		"build:types": "tsc -p tsconfig.build.json && tsc-alias"
 	},
 	"dependencies": {
 		"@parcel/watcher": "^2.4.0",
@@ -72,6 +73,7 @@
 		"@lit-labs/ssr": "^3.2.2"
 	},
 	"devDependencies": {
-		"tsup": "^8.0.2"
+		"tsup": "^8.0.2",
+		"tsc-alias": "1.8.10"
 	}
 }

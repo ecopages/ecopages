@@ -3,7 +3,7 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 
 const config: EcoPagesConfigInput = {
   rootDir: import.meta.dir,
-  baseUrl: import.meta.env.ECO_PAGES_BASE_URL,
+  baseUrl: import.meta.env.ECO_PAGES_BASE_URL as string,
   integrations: [
     kitajsPlugin({
       extensions: ['.tsx'],

@@ -1,11 +1,11 @@
 import path from 'node:path';
-import { type RouteRendererBody, RouteRendererFactory } from '@/route-renderer/route-renderer';
+import { RouteRendererFactory } from '@/route-renderer/route-renderer';
 import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
-import type { EcoPagesConfig } from '@types';
+import type { EcoPagesConfig, MatchResult, RouteRendererBody } from '@types';
 import type { BunFile, Server } from 'bun';
 import { type PureWebSocketServeOptions, withHtmlLiveReload } from './middleware/hmr';
-import { FSRouter, type MatchResult } from './router/fs-router';
+import { FSRouter } from './router/fs-router';
 import { FSRouterScanner } from './router/fs-router-scanner';
 import { ServerUtils } from './server-utils.module';
 

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { IntegrationDependencyConfig } from '@/main/integration-manager';
-import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoComponentDependencies, EcoPagesConfig } from '@types';
+import { FileUtils } from '../../utils/file-utils.module';
 
 /**
  * Build the head content for the html pages.

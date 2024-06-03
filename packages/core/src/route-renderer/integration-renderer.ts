@@ -1,5 +1,3 @@
-import { HeadContentBuilder } from '@/route-renderer/utils/head-content-builder';
-import { invariant } from '@/utils/invariant';
 import type {
   EcoComponent,
   EcoComponentDependencies,
@@ -14,6 +12,8 @@ import type {
   RouteRendererBody,
   RouteRendererOptions,
 } from '@types';
+import { HeadContentBuilder } from '../route-renderer/utils/head-content-builder';
+import { invariant } from '../utils/invariant';
 
 export abstract class IntegrationRenderer {
   abstract name: string;
@@ -27,7 +27,7 @@ export abstract class IntegrationRenderer {
     this.appConfig = appConfig;
   }
 
-  protected getHtmlPath({ file }: { file: string }) {
+  protected getHtmlPath({ file }: { file: string }): string {
     const pagesDir = this.appConfig.absolutePaths.pagesDir;
     const pagesIndex = file.indexOf(pagesDir);
     if (pagesIndex === -1) return file;
@@ -40,11 +40,15 @@ export abstract class IntegrationRenderer {
 
   protected async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
     const { absolutePaths } = this.appConfig;
-    const { default: HtmlTemplate } = await import(absolutePaths.htmlTemplatePath);
-    return HtmlTemplate;
+    try {
+      const { default: HtmlTemplate } = await import(absolutePaths.htmlTemplatePath);
+      return HtmlTemplate;
+    } catch (error) {
+      invariant(false, `Error importing HtmlTemplate: ${error}`);
+    }
   }
 
-  protected async getHeadContent(dependencies?: EcoComponentDependencies) {
+  protected async getHeadContent(dependencies?: EcoComponentDependencies): Promise<string | undefined> {
     const headContent = await new HeadContentBuilder(this.appConfig).build({
       integrationName: this.name,
       dependencies: dependencies,
@@ -70,7 +74,10 @@ export abstract class IntegrationRenderer {
         };
   }
 
-  protected async getMetadataProps(getMetadata: GetMetadata | undefined, { props, params, query }: GetMetadataContext) {
+  protected async getMetadataProps(
+    getMetadata: GetMetadata | undefined,
+    { props, params, query }: GetMetadataContext,
+  ): Promise<PageMetadataProps> {
     let metadata: PageMetadataProps = this.appConfig.defaultMetadata;
     if (getMetadata) {
       const dynamicMetadata = await getMetadata({ params, query, props });

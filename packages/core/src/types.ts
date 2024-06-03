@@ -174,6 +174,15 @@ export type EcoComponentDependencies = {
   scripts?: string[];
 };
 
+export type PageParams = Record<string, string | string[]>;
+
+export type PageQuery = Record<string, string | string[]>;
+
+export type StaticPageContext = {
+  params?: PageParams;
+  query?: PageQuery;
+};
+
 export interface EcoComponent<T = unknown> {
   (props: T): JSX.Element;
   dependencies?: EcoComponentDependencies;
@@ -183,15 +192,6 @@ export interface EcoPage<T = unknown> {
   (props: T): JSX.Element;
   dependencies?: EcoComponentDependencies;
 }
-
-export type PageParams = Record<string, string | string[]>;
-
-export type PageQuery = Record<string, string | string[]>;
-
-export type StaticPageContext = {
-  params?: PageParams;
-  query?: PageQuery;
-};
 
 export type PageProps<T = unknown> = T & StaticPageContext;
 
@@ -206,13 +206,13 @@ export interface PageMetadataProps {
 export interface PageHeadProps {
   metadata: PageMetadataProps;
   dependencies?: EcoComponentDependencies;
-  children?: Html.Children;
+  children?: JSX.Element;
 }
 
 export interface HtmlTemplateProps extends PageHeadProps {
-  children: Html.Children;
+  children: JSX.Element;
   language?: string;
-  headContent?: Html.Children;
+  headContent?: JSX.Element;
 }
 
 export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children'> {

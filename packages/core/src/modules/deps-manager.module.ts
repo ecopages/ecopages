@@ -4,7 +4,7 @@ import type { EcoComponent, EcoComponentDependencies } from '@types';
 
 export type ComponentConfigOptions = {
   importMeta: ImportMeta;
-  components?: EcoComponent<unknown>[];
+  components?: EcoComponent<any>[];
 };
 
 export type ComponentConfigImportOptions = ComponentConfigOptions & {
@@ -33,14 +33,14 @@ function getDependencyDistPath(importMeta: ImportMeta, pathUrl: string): string 
 /**
  * This function import explicitly the dependencies of the components.
  * @param {ComponentConfigImportOptions} options - The options to import the dependencies.
- * @returns {EcoComponent<unknown>["dependencies"]} - The dependencies of the components.
+ * @returns {EcoComponent<any>["dependencies"]} - The dependencies of the components.
  */
 function importPaths({
   importMeta,
   scripts,
   stylesheets,
   components,
-}: ComponentConfigImportOptions): EcoComponent<unknown>['dependencies'] {
+}: ComponentConfigImportOptions): EcoComponent<any>['dependencies'] {
   const scriptsPaths = [
     ...new Set([
       ...(scripts?.map((script) => getDependencyDistPath(importMeta, script)) || []),
@@ -84,9 +84,9 @@ function createDependencies(fileName: string, dependenciesServerPath: string): s
 /**
  * This function collects automatically the dependencies of the components.
  * @param {ComponentConfigOptions} options - The options to collect the dependencies.
- * @returns {EcoComponent<unknown>["dependencies"]} - The dependencies of the components.
+ * @returns {EcoComponent<any>["dependencies"]} - The dependencies of the components.
  */
-function collect({ importMeta, components = [] }: ComponentConfigOptions): EcoComponent<unknown>['dependencies'] {
+function collect({ importMeta, components = [] }: ComponentConfigOptions): EcoComponent<any>['dependencies'] {
   const {
     ecoConfig: { srcDir, rootDir },
   } = globalThis;
@@ -123,11 +123,11 @@ function collect({ importMeta, components = [] }: ComponentConfigOptions): EcoCo
 
 /**
  * This function filters the dependencies of the components.
- * @param {EcoComponent<unknown>} component - The component to filter.
+ * @param {EcoComponent<any>} component - The component to filter.
  * @param {DependencyType} type - The type of dependency to filter.
- * @returns {EcoComponent<unknown>} - The component with the filtered dependencies.
+ * @returns {EcoComponent<any>} - The component with the filtered dependencies.
  */
-function filter(component: EcoComponent<unknown>, type: DependencyType): EcoComponent<unknown> {
+function filter(component: EcoComponent<any>, type: DependencyType): EcoComponent<any> {
   const dependencies = component.dependencies as EcoComponentDependencies;
 
   if (!dependencies) return component;
@@ -137,16 +137,16 @@ function filter(component: EcoComponent<unknown>, type: DependencyType): EcoComp
     dependencies: {
       [type]: dependencies[type],
     },
-  } as EcoComponent<unknown>;
+  } as EcoComponent<any>;
 }
 
 /**
  * This function extracts a specific set of dependencies from the components.
- * @param {EcoComponent<unknown>} component - The component to extract the dependencies.
+ * @param {EcoComponent<any>} component - The component to extract the dependencies.
  * @param {DependencyType} type - The type of dependency to extract.
  * @returns {string[]} - The dependencies of the components.
  */
-function extract(component: EcoComponent<unknown>, type: DependencyType): string[] {
+function extract(component: EcoComponent<any>, type: DependencyType): string[] {
   const dependencies = component.dependencies as EcoComponentDependencies;
 
   if (!dependencies) return [];

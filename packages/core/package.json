@@ -4,7 +4,7 @@
 	"license": "MIT",
 	"main": "./dist/index.js",
 	"type": "module",
-	"files": ["dist"],
+	"files": ["dist", "src/env.d.ts", "src/declaration.d.ts"],
 	"bin": {
 		"ecopages": "ecopages.ts"
 	},
@@ -17,7 +17,7 @@
 			"import": "./dist/index.js",
 			"types": "./dist/index.d.ts"
 		},
-		"./deps-manager.module": {
+		"./deps-manager": {
 			"import": "./dist/modules/deps-manager.module.js",
 			"types": "./dist/modules/deps-manager.module.d.ts"
 		},
@@ -41,6 +41,10 @@
 			"import": "./dist/utils/app-logger.js",
 			"types": "./dist/utils/app-logger.d.ts"
 		},
+		"./file-utils": {
+			"import": "./dist/utils/file-utils.js",
+			"types": "./dist/utils/file-utils.d.ts"
+		},
 		"./loaders/inline-postcss.loader.js": {
 			"import": "./dist/loaders/inline-postcss.loader.js",
 			"types": "./dist/loaders/inline-postcss-loader.d.ts"
@@ -48,6 +52,12 @@
 		"./loaders/mdx.loader.js": {
 			"import": "./dist/loaders/mdx.loader.js",
 			"types": "./dist/loaders/mdx.loader.d.ts"
+		},
+		"./env.d.ts": {
+			"import": "./env.d.ts"
+		},
+		"./declaration.d.ts": {
+			"import": "./declaration.d.ts"
 		}
 	},
 	"repository": {
@@ -56,9 +66,10 @@
 		"directory": "packages/core"
 	},
 	"scripts": {
-		"test:lib": "bun test",
 		"build:lib": "bun run build.ts && bun run build:types",
-		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias"
+		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias",
+		"test:lib": "bun test",
+		"watch:lib": "bun run build.ts --dev-mode"
 	},
 	"dependencies": {
 		"@parcel/watcher": "^2.4.0",
@@ -71,5 +82,8 @@
 		"postcss-import": "^15.1.0",
 		"tailwindcss": "^3.4.1",
 		"@lit-labs/ssr": "^3.2.2"
+	},
+	"devDependencies": {
+		"esbuild": "^0.21.4"
 	}
 }

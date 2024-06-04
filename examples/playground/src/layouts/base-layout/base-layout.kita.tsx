@@ -14,8 +14,8 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
           { label: 'Home', url: '/' },
           { label: 'Tailwind', url: '/labs/tailwind' },
           { label: 'Async', url: '/labs/async' },
-          { label: 'Lite', url: '/labs/lite-context' },
           { label: 'MDX', url: '/test' },
+          { label: 'Lite', url: '/labs/lite-context' },
           { label: 'Events', url: '/labs/events' },
           { label: 'Refs', url: '/labs/refs' },
         ]}

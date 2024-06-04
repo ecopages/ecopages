@@ -2,10 +2,10 @@
 	"name": "@ecopages/react",
 	"version": "0.0.0",
 	"license": "MIT",
-	"main": "./index.ts",
+	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"type": "module",
-	"files": ["dist", "src"],
+	"files": ["dist"],
 	"exports": {
 		"./package.json": {
 			"import": "./package.json"
@@ -23,7 +23,8 @@
 	"scripts": {
 		"prebuild:lib": "rm -rf dist",
 		"build:lib": "bun run build.ts && bun run build:types",
-		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias"
+		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias",
+		"watch:lib": "bun run build.ts --dev-mode"
 	},
 	"overrides": {
 		"@types/react": "npm:types-react@beta",
@@ -36,6 +37,7 @@
 	},
 	"devDependencies": {
 		"@types/react": "npm:types-react@beta",
-		"@types/react-dom": "npm:types-react-dom@beta"
+		"@types/react-dom": "npm:types-react-dom@beta",
+		"esbuild": "^0.21.4"
 	}
 }

@@ -55,6 +55,8 @@ export class ProjectWatcher {
           continue;
         }
 
+        console.log('Event', event);
+
         if (event.path.endsWith('.css')) {
           this.cssBuilder.buildCssFromPath({ path: event.path });
           appLogger.info('File changed', event.path.split(srcDir)[1]);

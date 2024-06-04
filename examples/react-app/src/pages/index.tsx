@@ -12,10 +12,12 @@ export const getMetadata: GetMetadata = () => ({
 const HomePage: EcoPage = () => {
   return (
     <BaseLayout class="main-content">
-      <h1 className="main-title">Eco pages</h1>
-      <a href="/about">Mdx</a>
-      <a href="/test">Test Splitting</a>
-      <Counter defaultValue={10} />
+      <>
+        <h1 className="main-title">Eco pages</h1>
+        <a href="/about">Mdx</a>
+        <a href="/test">Test Splitting</a>
+        <Counter defaultValue={10} />
+      </>
     </BaseLayout>
   );
 };

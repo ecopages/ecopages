@@ -2,6 +2,7 @@
 	"name": "@ecopages/playground",
 	"private": true,
 	"scripts": {
+		"watch:dev": "ecopages watch:dev",
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",

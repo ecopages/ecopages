@@ -23,11 +23,15 @@
 	"scripts": {
 		"prebuild:lib": "rm -rf dist",
 		"build:lib": "bun run build.ts && bun run build:types",
-		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias"
+		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias",
+		"watch:lib": "bun run build.ts --dev-mode"
 	},
 	"peerDependencies": {
 		"@kitajs/html": "^4.1.0",
 		"@kitajs/ts-html-plugin": "^4.0.1",
 		"@ecopages/core": "workspace:*"
+	},
+	"devDependencies": {
+		"esbuild": "^0.21.4"
 	}
 }

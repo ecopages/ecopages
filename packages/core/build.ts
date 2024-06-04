@@ -1,22 +1,38 @@
+import { watch } from 'node:fs';
 import { FileUtils } from '@/utils/file-utils.module';
+import esbuild from 'esbuild';
+import pkg from './package.json';
 import { appLogger } from './src';
 
-const filters = ['.d.ts', '.test.ts'];
-const files = await FileUtils.glob('src/**/*.ts');
-const entry = files.filter((file) => !filters.some((filter) => file.endsWith(filter)));
+async function buildLib() {
+  const filters = ['.d.ts', '.test.ts'];
+  const files = await FileUtils.glob('src/**/*.ts');
+  const entryPoints = files.filter((file) => !filters.some((filter) => file.endsWith(filter)));
 
-const build = await Bun.build({
-  entrypoints: entry,
-  outdir: 'dist',
-  root: 'src',
-  target: 'bun',
-  format: 'esm',
-  minify: true,
-  splitting: true,
-});
+  const build = await esbuild.build({
+    entryPoints,
+    outdir: 'dist',
+    format: 'esm',
+    minify: true,
+    splitting: true,
+  });
 
-if (!build.success) {
-  for (const log of build.logs) {
-    appLogger.debug(log);
+  if (build.errors.length) {
+    appLogger.error('Error building lib', build.errors);
   }
+}
+
+await buildLib();
+
+if (process.argv.includes('--dev-mode')) {
+  appLogger.info(`${pkg.name} Watching for changes`);
+  const watcher = watch('src', { recursive: true }, (_event, filename) => {
+    appLogger.info(`${pkg.name} File ${filename} changed`);
+    buildLib();
+  });
+  process.on('SIGINT', () => {
+    appLogger.info(`${pkg.name} Stopping watcher`);
+    watcher.close();
+    process.exit(0);
+  });
 }

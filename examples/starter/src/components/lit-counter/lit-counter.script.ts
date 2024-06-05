@@ -1,6 +1,6 @@
 import { LitElement, html, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import styles from './lit-counter.shadow.css';
+import styles from './lit-counter.css';
 
 export type LitCounterProps = {
   count?: number;

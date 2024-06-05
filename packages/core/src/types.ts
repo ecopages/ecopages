@@ -2,6 +2,8 @@ import type { Readable } from 'node:stream';
 import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
 import type { IntegrationDependencyConfig } from './main/integration-manager';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer';
+import './declarations';
+import './env';
 
 export type IntegrationPluginDependencies = BaseIntegrationPluginDependencies & SpecificIntegrationPluginDependencies;
 

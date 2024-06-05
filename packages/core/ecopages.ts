@@ -9,7 +9,7 @@ const currentDir = import.meta.dir;
 
 switch (args[0]) {
   case 'watch:dev':
-    await $`NODE_ENV=development bun run ${currentDir}/dist/main/build-all.js --watch --config=${projectDir}`;
+    await $`NODE_ENV=development bun --hot ${currentDir}/dist/main/build-all.js --watch --config=${projectDir}`;
     break;
   case 'dev':
     await $`NODE_ENV=development bun run ${currentDir}/dist/main/build-all.js --watch --config=${projectDir}`;

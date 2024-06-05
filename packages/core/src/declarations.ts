@@ -1,9 +1,4 @@
-declare module '*.shadow.css' {
-  const styles: string;
-  export default styles;
-}
-
-declare module '*.css?inline' {
+declare module '*.css' {
   const styles: string;
   export default styles;
 }

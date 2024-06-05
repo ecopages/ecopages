@@ -13,8 +13,5 @@ declare global {
 }
 
 declare global {
-  interface ImportMeta {
-    env: NodeJS.ProcessEnv;
-  }
   var ecoConfig: EcoPagesConfig;
 }

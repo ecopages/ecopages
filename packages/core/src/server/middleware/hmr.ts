@@ -6,7 +6,7 @@ declare global {
   var __ECO_PAGES_HMR_WS__: ServerWebSocket<unknown> | undefined;
 }
 
-const reloadCommand = 'reload';
+export const reloadCommand = 'reload';
 
 globalThis.__ECO_PAGES_HMR_WS__?.send(reloadCommand);
 

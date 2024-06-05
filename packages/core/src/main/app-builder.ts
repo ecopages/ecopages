@@ -95,12 +95,7 @@ export class AppBuilder {
     });
 
     const watcherInstance = new ProjectWatcher(this.appConfigurator.config, cssBuilder, this.scriptsBuilder);
-    const subscription = await watcherInstance.createWatcherSubscription();
-
-    process.on('SIGINT', async () => {
-      await subscription.unsubscribe();
-      process.exit(0);
-    });
+    await watcherInstance.createWatcherSubscription();
   }
 
   serveStatic() {

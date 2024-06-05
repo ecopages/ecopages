@@ -1,6 +1,7 @@
 import fs from 'node:fs';
+import { reloadCommand } from '@/server/middleware/hmr';
 import { appLogger } from '@/utils/app-logger';
-import watcher from '@parcel/watcher';
+import chokidar from 'chokidar';
 import type { EcoPagesConfig } from '..';
 import type { CssBuilder } from './css-builder';
 import type { ScriptsBuilder } from './scripts-builder';
@@ -9,11 +10,17 @@ export class ProjectWatcher {
   private config: EcoPagesConfig;
   private cssBuilder: CssBuilder;
   private scriptsBuilder: ScriptsBuilder;
+  private declare watcher: chokidar.FSWatcher;
 
   constructor(config: EcoPagesConfig, cssBuilder: CssBuilder, scriptsBuilder: ScriptsBuilder) {
     this.config = config;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
+    this.handleAdd = this.handleAdd.bind(this);
+    this.handleChange = this.handleChange.bind(this);
+    this.handleUnlink = this.handleUnlink.bind(this);
+    this.handleUnlinkDir = this.handleUnlinkDir.bind(this);
+    this.handleError = this.handleError.bind(this);
   }
 
   private uncacheModules(): void {
@@ -28,47 +35,65 @@ export class ProjectWatcher {
     }
   }
 
-  public async createWatcherSubscription() {
-    return watcher.subscribe('src', (err, events) => {
-      if (err) {
-        console.error('Error watching files', err);
-        return;
-      }
+  handleAdd(path: string) {
+    appLogger.info(`File ${path} has been added`);
+  }
 
-      const { srcDir, distDir, pagesDir, scriptsExtensions, templatesExt } = this.config;
+  handleChange(path: string) {
+    if (path.endsWith('.css')) {
+      this.cssBuilder.buildCssFromPath({ path: path });
+      appLogger.info('CSS File changed', path.split(this.config.srcDir)[1]);
+    } else if (this.config.scriptsExtensions.some((scriptsExtension) => path.endsWith(scriptsExtension))) {
+      this.scriptsBuilder.build();
+      this.uncacheModules();
+      appLogger.info('File changed', path.split(this.config.srcDir)[1]);
+    } else if (this.config.templatesExt.some((ext) => path.includes(ext))) {
+      appLogger.info('Template file changed', path);
+      this.uncacheModules();
+    }
+  }
 
-      for (const event of events) {
-        if (event.type === 'delete') {
-          if (!event.path.includes('.') && event.path.includes(pagesDir)) {
-            fs.rmSync(event.path.replace(pagesDir, distDir), {
-              recursive: true,
-            });
-          } else {
-            const pathToDelete = event.path.includes(pagesDir)
-              ? `${event.path.replace(pagesDir, distDir).split('.')[0]}.html`
-              : event.path.replace(srcDir, distDir);
+  handleUnlink(path: string) {
+    const pathToDelete = path.includes(this.config.pagesDir)
+      ? `${path.replace(this.config.pagesDir, this.config.distDir).split('.')[0]}.html`
+      : path.replace(this.config.srcDir, this.config.distDir);
 
-            if (fs.existsSync(pathToDelete)) {
-              fs.rmSync(pathToDelete);
-            }
-          }
-          continue;
-        }
+    if (fs.existsSync(pathToDelete)) {
+      fs.rmSync(pathToDelete);
+      appLogger.info('File removed', pathToDelete);
+    }
+  }
 
-        console.log('Event', event);
-
-        if (event.path.endsWith('.css')) {
-          this.cssBuilder.buildCssFromPath({ path: event.path });
-          appLogger.info('File changed', event.path.split(srcDir)[1]);
-        } else if (scriptsExtensions.some((scriptsExtension) => event.path.endsWith(scriptsExtension))) {
-          this.scriptsBuilder.build();
-          this.uncacheModules();
-          appLogger.info('File changed', event.path.split(srcDir)[1]);
-        } else if (templatesExt.some((ext) => event.path.includes(ext))) {
-          appLogger.info('Template file changed', event.path);
-          this.uncacheModules();
-        }
-      }
+  handleUnlinkDir(path: string) {
+    fs.rmSync(path.replace(this.config.pagesDir, this.config.distDir), {
+      recursive: true,
     });
+    appLogger.info('Directory removed', path);
+  }
+
+  handleError(error: Error) {
+    appLogger.error(`Watcher error: ${error}`);
+  }
+
+  public async createWatcherSubscription() {
+    if (this.watcher) {
+      await this.watcher.close();
+    }
+
+    this.watcher = chokidar
+      .watch('src', { ignoreInitial: true })
+      .on('add', this.handleAdd)
+      .on('change', this.handleChange)
+      .on('unlink', this.handleUnlink)
+      .on('unlinkDir', this.handleUnlinkDir)
+      .on('error', this.handleError);
+
+    process.on('SIGINT', async () => {
+      console.log('SIGINT received, closing watcher');
+      await this.watcher.close();
+      process.exit(0);
+    });
+
+    return this.watcher;
   }
 }

@@ -1,7 +1,5 @@
 import fs from 'node:fs';
-import { reloadCommand } from '@/server/middleware/hmr';
 import { appLogger } from '@/utils/app-logger';
-import chokidar from 'chokidar';
 import type { EcoPagesConfig } from '..';
 import type { CssBuilder } from './css-builder';
 import type { ScriptsBuilder } from './scripts-builder';
@@ -10,7 +8,6 @@ export class ProjectWatcher {
   private config: EcoPagesConfig;
   private cssBuilder: CssBuilder;
   private scriptsBuilder: ScriptsBuilder;
-  private declare watcher: chokidar.FSWatcher;
 
   constructor(config: EcoPagesConfig, cssBuilder: CssBuilder, scriptsBuilder: ScriptsBuilder) {
     this.config = config;
@@ -76,24 +73,25 @@ export class ProjectWatcher {
   }
 
   public async createWatcherSubscription() {
-    if (this.watcher) {
-      await this.watcher.close();
-    }
+    const watcher = await import('@parcel/watcher');
+    return watcher.subscribe('src', (err, events) => {
+      if (err) {
+        this.handleError(err);
+        return;
+      }
 
-    this.watcher = chokidar
-      .watch('src', { ignoreInitial: true })
-      .on('add', this.handleAdd)
-      .on('change', this.handleChange)
-      .on('unlink', this.handleUnlink)
-      .on('unlinkDir', this.handleUnlinkDir)
-      .on('error', this.handleError);
+      for (const event of events) {
+        if (event.type === 'delete') {
+          if (!event.path.includes('.') && event.path.includes(this.config.pagesDir)) {
+            this.handleUnlinkDir(event.path);
+          } else {
+            this.handleUnlink(event.path);
+          }
+          continue;
+        }
 
-    process.on('SIGINT', async () => {
-      console.log('SIGINT received, closing watcher');
-      await this.watcher.close();
-      process.exit(0);
+        this.handleChange(event.path);
+      }
     });
-
-    return this.watcher;
   }
 }

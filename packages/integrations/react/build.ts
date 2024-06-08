@@ -15,6 +15,9 @@ async function buildLib() {
     format: 'esm',
     minify: true,
     splitting: true,
+    bundle: true,
+    platform: 'node',
+    external: ['bun'],
   });
 
   if (build.errors.length) {

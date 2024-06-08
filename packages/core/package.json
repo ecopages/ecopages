@@ -6,7 +6,7 @@
 	"type": "module",
 	"files": ["dist"],
 	"bin": {
-		"ecopages": "ecopages.ts"
+		"ecopages": "./dist/bin/ecopages.js"
 	},
 	"types": "./dist/index.d.ts",
 	"exports": {

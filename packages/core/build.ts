@@ -1,4 +1,5 @@
 import { watch } from 'node:fs';
+import path from 'node:path';
 import { FileUtils } from '@/utils/file-utils.module';
 import esbuild from 'esbuild';
 import pkg from './package.json';
@@ -13,8 +14,11 @@ async function buildLib() {
     entryPoints,
     outdir: 'dist',
     format: 'esm',
-    minify: true,
+    bundle: true,
     splitting: true,
+    platform: 'node',
+    packages: 'external',
+    external: ['bun'],
   });
 
   if (build.errors.length) {

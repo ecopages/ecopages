@@ -6,9 +6,9 @@ import { PostCssProcessor } from '@/main/postcss-processor';
 import { ScriptsBuilder } from '@/main/scripts-builder';
 import { StaticPageGenerator } from '@/main/static-page-generator';
 
-export async function buildAll({
+export async function buildApp({
   config = process.cwd(),
-  watch = false,
+  watch = true,
   serve = false,
   build = false,
 }: {

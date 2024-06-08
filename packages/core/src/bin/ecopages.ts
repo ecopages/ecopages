@@ -1,12 +1,10 @@
 #!/usr/bin/env bun
+import { $ } from 'bun';
 const args = process.argv.slice(2);
 
-const { buildAll } = await import('../main/build-all.js');
+const { buildApp: buildAll } = await import('../main/build-app.js');
 
 switch (args[0]) {
-  case 'watch:dev':
-    await buildAll({ config: process.cwd(), watch: true, serve: false, build: false });
-    break;
   case 'dev':
     await buildAll({ config: process.cwd(), watch: false, serve: false, build: false });
     break;
@@ -22,5 +20,3 @@ switch (args[0]) {
   default:
     console.log('[ecopages] Command not found');
 }
-
-export type {};

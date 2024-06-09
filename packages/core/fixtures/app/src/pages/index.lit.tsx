@@ -24,7 +24,7 @@ const HomePage: EcoPage<PageProps> = ({ params, query }) => {
 HomePage.dependencies = DepsManager.importPaths({
   importMeta: import.meta,
   stylesheets: ['./index.css'],
-  components: [BaseLayout, DepsManager.filter(LitCounter, 'stylesheets')],
+  components: [BaseLayout, LitCounter],
 });
 
 export default HomePage;

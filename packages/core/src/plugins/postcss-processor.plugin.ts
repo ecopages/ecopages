@@ -5,7 +5,7 @@ import type { BunPlugin } from 'bun';
 type InlineImportOptions = {
   filter?: RegExp;
   namespace?: string;
-  transform?: (contents: string, args: { path: string; [key: string]: any }) => Promise<string> | string;
+  transform?: (contents: string | Buffer, args: { path: string; [key: string]: any }) => Promise<string> | string;
 };
 
 export const postCssProcessorPlugin = (options: InlineImportOptions): BunPlugin => {
@@ -13,7 +13,7 @@ export const postCssProcessorPlugin = (options: InlineImportOptions): BunPlugin 
     {
       filter: /\.css$/,
       namespace: 'postcss-processor-plugin',
-      transform: async (contents: string) => contents,
+      transform: async (contents: string | Buffer) => contents,
     },
     options,
   );
@@ -33,14 +33,10 @@ export const postCssProcessorPlugin = (options: InlineImportOptions): BunPlugin 
       });
 
       build.onLoad({ filter: /.*/, namespace }, async (args) => {
-        let contents = await (await FileUtils.get(args.path)).text();
-
-        if (typeof transform === 'function') {
-          contents = await transform(contents, args);
-        }
+        const buffer = FileUtils.getFileAsBuffer(args.path);
 
         return {
-          contents,
+          contents: transform ? await transform(buffer, args) : buffer,
           loader: 'text',
         };
       });

@@ -7,7 +7,7 @@ import { appLogger } from './src';
 
 async function buildLib() {
   const filters = ['.d.ts', '.test.ts'];
-  const files = await FileUtils.glob('src/**/*.ts');
+  const files = FileUtils.glob(['src/**/*.ts']);
   const entryPoints = files.filter((file) => !filters.some((filter) => file.endsWith(filter)));
 
   const build = await esbuild.build({

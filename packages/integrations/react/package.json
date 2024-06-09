@@ -32,8 +32,8 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"react": "^19.0.0 || 19.0.0-rc-* || 19.0.0-beta-*",
-		"react-dom": "^19.0.0 || 19.0.0-rc-* || 19.0.0-beta-*"
+		"react": "react@19.0.0-rc-f994737d14-20240522",
+		"react-dom": "react-dom@19.0.0-rc-f994737d14-20240522"
 	},
 	"devDependencies": {
 		"@types/react": "npm:types-react@beta",

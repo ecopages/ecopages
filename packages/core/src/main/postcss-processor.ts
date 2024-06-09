@@ -9,7 +9,7 @@ import tailwindcss from 'tailwindcss';
 import tailwindcssNesting from 'tailwindcss/nesting/index.js';
 
 async function processPath(path: string) {
-  const contents = await FileUtils.getPathAsString(path);
+  const contents = FileUtils.getFileAsBuffer(path);
 
   const processor = postcss([postCssImport(), tailwindcssNesting, tailwindcss, autoprefixer, cssnano]);
 
@@ -21,17 +21,17 @@ async function processPath(path: string) {
   }
 }
 
-async function processString(contents: string) {
+async function processStringOrBuffer(contents: string | Buffer) {
   const processor = postcss([postCssImport(), tailwindcssNesting, tailwindcss, autoprefixer, cssnano]);
   try {
     return await processor.process(contents, { from: undefined }).then((result) => result.css);
   } catch (error) {
-    appLogger.error('postcss-processor > processString | Error processing PostCSS', error);
+    appLogger.error('postcss-processor > processStringOrBuffer | Error processing PostCSS', error);
     return '';
   }
 }
 
 export const PostCssProcessor: CssProcessor = {
   processPath,
-  processString,
+  processString: processStringOrBuffer,
 };

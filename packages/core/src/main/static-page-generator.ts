@@ -57,7 +57,7 @@ export class StaticPageGenerator {
 
         const contents = await response.text();
 
-        await FileUtils.write(filePath, contents);
+        FileUtils.write(filePath, contents);
       } catch (error) {
         console.error(`Error fetching or writing ${route}:`, error);
       }

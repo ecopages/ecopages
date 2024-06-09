@@ -6,7 +6,7 @@ const { buildApp: buildAll } = await import('../main/build-app.js');
 
 switch (args[0]) {
   case 'dev':
-    await buildAll({ config: process.cwd(), watch: false, serve: false, build: false });
+    await buildAll({ config: process.cwd(), watch: true, serve: false, build: false });
     break;
   case 'build':
     await buildAll({ config: process.cwd(), watch: false, serve: false, build: true });

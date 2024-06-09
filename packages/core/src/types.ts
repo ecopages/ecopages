@@ -245,7 +245,7 @@ export type EcoPageFile<T = unknown> = T & {
 
 export interface CssProcessor {
   processPath: (path: string) => Promise<string>;
-  processString: (contents: string) => Promise<string>;
+  processString: (contents: string | Buffer) => Promise<string>;
 }
 
 export type RouteRendererOptions = {

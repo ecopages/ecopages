@@ -4,13 +4,8 @@ import esbuild from 'esbuild';
 import pkg from './package.json';
 
 async function buildLib() {
-  const filters = ['.d.ts', '.test.ts'];
-  const glob = new Bun.Glob('src/**/*.ts');
-  const files = await Array.fromAsync(glob.scan({ cwd: process.cwd() }));
-  const entryPoints = files.filter((file) => !filters.some((filter) => file.endsWith(filter)));
-
   const build = await esbuild.build({
-    entryPoints,
+    entryPoints: ['./src/index.ts'],
     outdir: 'dist',
     format: 'esm',
     minify: true,

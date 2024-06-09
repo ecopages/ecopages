@@ -80,7 +80,7 @@ export class FileSystemServer {
     const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
 
     try {
-      await FileUtils.get(error404TemplatePath);
+      FileUtils.verifyFileExists(error404TemplatePath);
     } catch (error) {
       appLogger.error(
         'Error 404 template not found, looks like it has not being configured correctly',
@@ -102,15 +102,15 @@ export class FileSystemServer {
 
   private async createFileResponse(filePath: string, contentType: string) {
     try {
-      let file: BunFile;
+      let file: Buffer;
       const contentEncodingHeader: HeadersInit = {};
 
       if (this.shouldEnableGzip(contentType)) {
         const gzipPath = `${filePath}.gz`;
-        file = await FileUtils.get(gzipPath);
+        file = FileUtils.getFileAsBuffer(gzipPath);
         contentEncodingHeader['Content-Encoding'] = 'gzip';
       } else {
-        file = await FileUtils.get(filePath);
+        file = FileUtils.getFileAsBuffer(filePath);
       }
 
       return new Response(file, {

@@ -54,7 +54,6 @@ describe('FileSystemServer', async () => {
   test('should return 200 for existing file', async () => {
     const req = new Request(`http://localhost:3000/${FIXTURE_EXISTING_FILE_IN_DIST}`);
     const res = await server.fetch(req);
-
     expect(res.headers.get('content-type')).toBe('text/css');
     expect(res.status).toBe(200);
   });

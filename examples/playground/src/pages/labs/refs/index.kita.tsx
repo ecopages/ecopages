@@ -4,7 +4,7 @@ import { DepsManager, type EcoPage } from '@ecopages/core';
 const LabsPage: EcoPage = () => {
   return (
     <BaseLayout>
-      <lite-refs class="grid gap-3 max-w-fit">
+      <lite-refs class="grid gap-3">
         <button class="bg-blue-700 text-white px-2 py-1 rounded-md" type="button" data-ref="create-ref">
           Add Ref
         </button>

@@ -2,7 +2,6 @@ import { beforeAll } from 'bun:test';
 import path from 'node:path';
 import { buildApp } from '@/main/build-app';
 import { appLogger } from '@/utils/app-logger';
-import { $ } from 'bun';
 
 function changeDirectory(targetDir: string) {
   try {

@@ -140,7 +140,10 @@ export class FSRouterScanner {
   }
 
   async scan() {
-    const scannedFiles = await FileUtils.glob(`**/*{${this.templatesExt.join(',')}}`, { cwd: this.dir });
+    const scannedFiles = FileUtils.glob(
+      this.templatesExt.map((ext) => `**/*${ext}`),
+      { cwd: this.dir },
+    );
 
     for await (const file of scannedFiles) {
       const { kind, ...routeData } = this.getRouteData(file);

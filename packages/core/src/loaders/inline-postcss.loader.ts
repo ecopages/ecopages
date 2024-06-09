@@ -10,7 +10,7 @@ plugin({
     const postcssFilter = /\.css/;
 
     build.onLoad({ filter: postcssFilter }, async (args) => {
-      const text = await FileUtils.get(args.path).then((res) => res.text());
+      const text = FileUtils.getFileAsBuffer(args.path);
       const contents = await PostCssProcessor.processString(text);
       return {
         contents,

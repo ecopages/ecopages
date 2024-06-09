@@ -39,7 +39,7 @@ export class StaticContentServer {
     const error404TemplatePath = this.config.absolutePaths.error404TemplatePath;
 
     try {
-      await FileUtils.get(error404TemplatePath);
+      FileUtils.existsSync(error404TemplatePath);
     } catch (error) {
       return new Response('file not found', {
         status: 404,
@@ -65,7 +65,7 @@ export class StaticContentServer {
     try {
       if (this.shouldServeGzip(contentType)) {
         const gzipPath = `${basePath}.gz`;
-        const file = await FileUtils.get(gzipPath);
+        const file = FileUtils.getFileAsBuffer(gzipPath);
         return new Response(file, {
           headers: {
             'Content-Type': contentType,
@@ -75,7 +75,7 @@ export class StaticContentServer {
       }
 
       if (path.includes('.')) {
-        const file = await FileUtils.get(basePath);
+        const file = FileUtils.getFileAsBuffer(basePath);
         return new Response(file, {
           headers: { 'Content-Type': contentType },
         });
@@ -83,7 +83,7 @@ export class StaticContentServer {
 
       const pathWithSuffix = join(basePath, 'index.html');
 
-      const file = await FileUtils.get(pathWithSuffix);
+      const file = FileUtils.getFileAsBuffer(pathWithSuffix);
 
       return new Response(file, {
         headers: {

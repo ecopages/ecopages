@@ -2,7 +2,7 @@
 	"name": "@ecopages/playground",
 	"private": true,
 	"scripts": {
-		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/dist/dev/watch-app.js",
+		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/dist/main/build-app.js --watch-lib",
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",

@@ -5,6 +5,7 @@ import { IntegrationManager } from '@/main/integration-manager';
 import { PostCssProcessor } from '@/main/postcss-processor';
 import { ScriptsBuilder } from '@/main/scripts-builder';
 import { StaticPageGenerator } from '@/main/static-page-generator';
+import { appLogger } from '@/utils/app-logger';
 
 export async function buildApp({
   config = process.cwd(),
@@ -38,4 +39,14 @@ export async function buildApp({
   });
 
   ecoPages.run();
+}
+
+if (process.argv.slice(2).includes('--watch-lib')) {
+  appLogger.warn('Running app in watch mode for library development.');
+  buildApp({
+    config: process.cwd(),
+    watch: true,
+    serve: false,
+    build: false,
+  });
 }

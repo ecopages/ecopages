@@ -1,0 +1,18 @@
+{
+	"compilerOptions": {
+		"allowSyntheticDefaultImports": true,
+		"baseUrl": ".",
+		"outDir": "./dist",
+		"esModuleInterop": true,
+		"module": "ESNext",
+		"moduleResolution": "node",
+		"noImplicitOverride": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "ES2021",
+		"useDefineForClassFields": true,
+		"verbatimModuleSyntax": true,
+		"types": ["bun-types"]
+	}
+}

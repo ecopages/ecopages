@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { appLogger } from '@/utils/app-logger';
+import { appLogger } from '@/global/app-logger';
 import type { EcoPagesConfig } from '..';
 import type { CssBuilder } from './css-builder';
 import type { ScriptsBuilder } from './scripts-builder';

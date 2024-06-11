@@ -1,5 +1,8 @@
-import { type IntegrationPlugin, appLogger } from '@ecopages/core';
+import type { IntegrationPlugin } from '@ecopages/core';
+import { Logger } from '@ecopages/logger';
 import { ReactRenderer } from './react-renderer';
+
+const appLogger = new Logger('[@ecopages/react]');
 
 export type ReactPluginOptions = {
   extensions?: string[];

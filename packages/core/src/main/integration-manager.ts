@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { appLogger } from '@/utils/app-logger';
+import { appLogger } from '@/global/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import { invariant } from '@/utils/invariant';
 import type { EcoPagesConfig, IntegrationPlugin } from '@types';
@@ -27,7 +27,15 @@ export class IntegrationManager {
     this.integrations = config.integrations;
   }
 
-  private writeFileToDist({ content, name, ext }: { content: string | Buffer; name: string; ext: 'css' | 'js' }) {
+  private writeFileToDist({
+    content,
+    name,
+    ext,
+  }: {
+    content: string | Buffer;
+    name: string;
+    ext: 'css' | 'js';
+  }) {
     const filepath = path.join(
       this.config.rootDir,
       this.config.distDir,
@@ -73,7 +81,11 @@ export class IntegrationManager {
     entryPoint,
     outdir,
     root,
-  }: { entryPoint: string; outdir: string; root: string }) {
+  }: {
+    entryPoint: string;
+    outdir: string;
+    root: string;
+  }) {
     const entryBaseName = path.basename(entryPoint, path.extname(entryPoint));
 
     const outputFile = `${entryBaseName}.js`;

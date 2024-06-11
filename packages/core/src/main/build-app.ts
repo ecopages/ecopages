@@ -1,3 +1,4 @@
+import { appLogger } from '@/global/app-logger';
 import { AppBuilder } from '@/main/app-builder';
 import { AppConfigurator } from '@/main/app-configurator';
 import { CssBuilder } from '@/main/css-builder';
@@ -5,7 +6,6 @@ import { IntegrationManager } from '@/main/integration-manager';
 import { PostCssProcessor } from '@/main/postcss-processor';
 import { ScriptsBuilder } from '@/main/scripts-builder';
 import { StaticPageGenerator } from '@/main/static-page-generator';
-import { appLogger } from '@/utils/app-logger';
 
 export async function buildApp({
   config = process.cwd(),

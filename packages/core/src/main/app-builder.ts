@@ -3,12 +3,12 @@ import path from 'node:path';
 
 import '@/global/init';
 
+import { appLogger } from '@/global/app-logger';
 import { CssBuilder } from '@/main/css-builder';
 import { PostCssProcessor } from '@/main/postcss-processor';
 import { ProjectWatcher } from '@/main/watcher';
 import { FileSystemServer } from '@/server/fs-server';
 import { StaticContentServer } from '@/server/sc-server';
-import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 
 import type { IntegrationManager } from '@/main/integration-manager';

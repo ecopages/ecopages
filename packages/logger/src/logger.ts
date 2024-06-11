@@ -48,5 +48,3 @@ export class Logger {
     console.log(logStart, ...args, logEnd);
   }
 }
-
-export const appLogger = new Logger('[ecopages]');

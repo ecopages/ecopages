@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { appLogger } from '@/utils/app-logger';
+import { appLogger } from '@/global/app-logger';
 import { deepMerge } from '@/utils/deep-merge';
 import { invariant } from '@/utils/invariant';
 import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';

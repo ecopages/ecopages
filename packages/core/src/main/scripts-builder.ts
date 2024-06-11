@@ -1,5 +1,5 @@
+import { appLogger } from '@/global/app-logger';
 import { postCssProcessorPlugin } from '@/plugins/postcss-processor.plugin';
-import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 import { PostCssProcessor } from './postcss-processor';

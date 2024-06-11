@@ -1,4 +1,4 @@
-import { appLogger } from '@/utils/app-logger';
+import { appLogger } from '@/global/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { CssProcessor } from '@types';
 import autoprefixer from 'autoprefixer';

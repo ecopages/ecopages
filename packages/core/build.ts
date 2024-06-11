@@ -1,9 +1,8 @@
 import { watch } from 'node:fs';
-import path from 'node:path';
+import { appLogger } from '@/global/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import esbuild from 'esbuild';
 import pkg from './package.json';
-import { appLogger } from './src';
 
 async function buildLib() {
   const filters = ['.d.ts', '.test.ts'];

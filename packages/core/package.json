@@ -37,10 +37,6 @@
 			"import": "./dist/utils/invariant.js",
 			"types": "./dist/utils/invariant.d.ts"
 		},
-		"./app-logger": {
-			"import": "./dist/utils/app-logger.js",
-			"types": "./dist/utils/app-logger.d.ts"
-		},
 		"./file-utils": {
 			"import": "./dist/utils/file-utils.js",
 			"types": "./dist/utils/file-utils.d.ts"
@@ -66,6 +62,7 @@
 		"watch:lib": "bun run build.ts --dev-mode"
 	},
 	"dependencies": {
+		"@ecopages/logger": "workspace:*",
 		"@parcel/watcher": "^2.4.0",
 		"@mdx-js/esbuild": "^3.0.1",
 		"@types/postcss-import": "^14.0.3",

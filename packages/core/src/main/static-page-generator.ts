@@ -1,6 +1,6 @@
 import path from 'node:path';
+import { appLogger } from '@/global/app-logger';
 import { FileSystemServer } from '@/server/fs-server';
-import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 

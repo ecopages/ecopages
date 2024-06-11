@@ -1,7 +1,9 @@
 import { watch } from 'node:fs';
-import { appLogger } from '@ecopages/core';
+import { Logger } from '@ecopages/logger';
 import esbuild from 'esbuild';
 import pkg from './package.json';
+
+const logger = new Logger('[@ecopages/mdx]');
 
 async function buildLib() {
   const build = await esbuild.build({
@@ -15,20 +17,20 @@ async function buildLib() {
   });
 
   if (build.errors.length) {
-    appLogger.error('Error building lib', build.errors);
+    logger.error('Error building lib', build.errors);
   }
 }
 
 await buildLib();
 
 if (process.argv.includes('--dev-mode')) {
-  appLogger.info(`${pkg.name} Watching for changes`);
+  logger.info(`${pkg.name} Watching for changes`);
   const watcher = watch('src', { recursive: true }, (_event, filename) => {
-    appLogger.info(`${pkg.name} File ${filename} changed`);
+    logger.info(`${pkg.name} File ${filename} changed`);
     buildLib();
   });
   process.on('SIGINT', () => {
-    appLogger.info(`${pkg.name} Stopping watcher`);
+    logger.info(`${pkg.name} Stopping watcher`);
     watcher.close();
     process.exit(0);
   });

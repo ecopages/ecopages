@@ -1,6 +1,6 @@
 import path from 'node:path';
+import { appLogger } from '@/global/app-logger';
 import { RouteRendererFactory } from '@/route-renderer/route-renderer';
-import { appLogger } from '@/utils/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig, MatchResult, RouteRendererBody } from '@types';
 import type { BunFile, Server } from 'bun';
@@ -153,7 +153,10 @@ export class FileSystemServer {
   static async create({
     appConfig,
     options: { watchMode },
-  }: { appConfig: EcoPagesConfig; options: FileSystemServerOptions }) {
+  }: {
+    appConfig: EcoPagesConfig;
+    options: FileSystemServerOptions;
+  }) {
     const scanner = new FSRouterScanner({
       dir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
       origin: appConfig.baseUrl,
@@ -174,7 +177,10 @@ export class FileSystemServer {
     const server = new FileSystemServer({
       router,
       appConfig: appConfig,
-      routeRendererFactory: new RouteRendererFactory({ integrations: appConfig.integrations, appConfig }),
+      routeRendererFactory: new RouteRendererFactory({
+        integrations: appConfig.integrations,
+        appConfig,
+      }),
       options: { watchMode },
     });
 

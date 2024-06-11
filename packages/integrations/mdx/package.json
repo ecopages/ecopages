@@ -21,7 +21,6 @@
 		"directory": "packages/integrations/mdx"
 	},
 	"scripts": {
-		"prebuild:lib": "rm -rf dist",
 		"build:lib": "bun run build.ts && bun run build:types",
 		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias",
 		"watch:lib": "bun run build.ts --dev-mode"
@@ -32,6 +31,7 @@
 		"@ecopages/core": "workspace:*"
 	},
 	"devDependencies": {
+		"@ecopages/logger": "workspace:*",
 		"esbuild": "^0.21.4"
 	}
 }

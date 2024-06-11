@@ -12,7 +12,6 @@ async function buildLib() {
     splitting: true,
     bundle: true,
     platform: 'node',
-    external: ['bun'],
   });
 
   if (build.errors.length) {

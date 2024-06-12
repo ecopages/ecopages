@@ -14,6 +14,7 @@ async function buildLib() {
     splitting: true,
     bundle: true,
     platform: 'node',
+    external: [...Object.keys({ ...pkg.dependencies, ...pkg.peerDependencies })],
   });
 
   if (build.errors.length) {

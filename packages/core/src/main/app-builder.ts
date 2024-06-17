@@ -7,6 +7,7 @@ import { appLogger } from '@/global/app-logger';
 import { CssBuilder } from '@/main/css-builder';
 import { PostCssProcessor } from '@/main/postcss-processor';
 import { ProjectWatcher } from '@/main/watcher';
+import { FileSystemFastifyServer } from '@/server/fs-fastify';
 import { FileSystemServer } from '@/server/fs-server';
 import { StaticContentServer } from '@/server/sc-server';
 import { FileUtils } from '@/utils/file-utils.module';
@@ -73,13 +74,12 @@ export class AppBuilder {
   }
 
   private async runDevServer() {
-    const { server } = await FileSystemServer.create({
+    await FileSystemFastifyServer.create({
       appConfig: this.appConfigurator.config,
       options: {
         watchMode: this.options.watch,
       },
     });
-    appLogger.info(`Server running at http://localhost:${server.port}`);
   }
 
   async serve() {

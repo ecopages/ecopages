@@ -65,9 +65,9 @@ export class FSRouter {
     return query;
   }
 
-  match(req: Request): MatchResult | null {
-    const url = new URL(req.url);
-    const pathname = url.pathname;
+  match(requestUrl: string): MatchResult | null {
+    const url = new URL(requestUrl);
+    const pathname = url.pathname.replace(this.origin, '');
 
     const routeValues = Object.values(this.routes);
 

@@ -4,7 +4,7 @@ import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 import type { Server } from 'bun';
 import { withHtmlLiveReload } from './middleware/hmr';
-import { ServerUtils } from './server-utils.module';
+import { ServerUtils } from './utils.module';
 
 type StaticContentServerOptions = {
   watchMode: boolean;
@@ -131,7 +131,10 @@ export class StaticContentServer {
   static create({
     appConfig,
     options: { watchMode },
-  }: { appConfig: EcoPagesConfig; options: StaticContentServerOptions }) {
+  }: {
+    appConfig: EcoPagesConfig;
+    options: StaticContentServerOptions;
+  }) {
     return new StaticContentServer({
       config: appConfig,
       routeRendererFactory: new RouteRendererFactory({

@@ -29,6 +29,22 @@
 			"import": "./dist/route-renderer/integration-renderer.js",
 			"types": "./dist/route-renderer/integration-renderer.d.ts"
 		},
+		"./route-renderer": {
+			"import": "./dist/route-renderer/route-renderer.js",
+			"types": "./dist/route-renderer/route-renderer.d.ts"
+		},
+		"./server/router/fs-router": {
+			"import": "./dist/server/router/fs-router.js",
+			"types": "./dist/server/router/fs-router.d.ts"
+		},
+		"./server/router/fs-router-scanner": {
+			"import": "./dist/server/router/fs-router-scanner.js",
+			"types": "./dist/server/router/fs-router-scanner.d.ts"
+		},
+		"./server/utils": {
+			"import": "./dist/server/utils.module.js",
+			"types": "./dist/server/utils.module.d.ts"
+		},
 		"./deep-merge": {
 			"import": "./dist/utils/deep-merge.js",
 			"types": "./dist/utils/deep-merge.d.ts"
@@ -38,8 +54,8 @@
 			"types": "./dist/utils/invariant.d.ts"
 		},
 		"./file-utils": {
-			"import": "./dist/utils/file-utils.js",
-			"types": "./dist/utils/file-utils.d.ts"
+			"import": "./dist/utils/file-utils.module.js",
+			"types": "./dist/utils/file-utils.module.d.ts"
 		},
 		"./loaders/inline-postcss.loader.js": {
 			"import": "./dist/loaders/inline-postcss.loader.js",
@@ -69,6 +85,10 @@
 		"bun-types": "latest",
 		"cssnano": "^6.0.2",
 		"fdir": "^6.1.1",
+		"fastify": "^4.28.0",
+		"@fastify/static": "^7.0.4",
+		"@fastify/websocket": "^10.0.1",
+		"@fastify/restartable": "^2.3.0",
 		"picomatch": "^2.3.1",
 		"postcss": "^8.4.32",
 		"postcss-import": "^15.1.0",

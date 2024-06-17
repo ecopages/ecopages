@@ -29,12 +29,12 @@ const HomePage: EcoComponent = () => {
         >
           <LiteCounter count={5} />
         </scripts-injector>
-        <scripts-injector
+        {/* <scripts-injector
           on:interaction="mouseenter,focusin"
           scripts={DepsManager.extract(LitCounter, 'scripts').join()}
         >
           <lit-counter class="lit-counter" count={8}></lit-counter>
-        </scripts-injector>
+        </scripts-injector> */}
         <LiteRenderer>
           <Message text="Hello from the server" />
         </LiteRenderer>

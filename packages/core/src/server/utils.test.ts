@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { AppConfigurator } from '@/main/app-configurator';
 import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
-import { ServerUtils } from './server-utils.module';
+import { ServerUtils } from './utils.module';
 
 await AppConfigurator.create({
   projectDir: FIXTURE_PROJECT_DIR,

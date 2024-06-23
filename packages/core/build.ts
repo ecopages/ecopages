@@ -1,41 +1,57 @@
-import { watch } from 'node:fs';
 import { appLogger } from '@/global/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import esbuild from 'esbuild';
-import pkg from './package.json';
 
-async function buildLib() {
-  const filters = ['.d.ts', '.test.ts'];
-  const files = FileUtils.glob(['src/**/*.ts']);
-  const entryPoints = files.filter((file) => !filters.some((filter) => file.endsWith(filter)));
+const filters = ['.d.ts', '.test.ts'];
+const files = FileUtils.glob(['src/**/*.ts']);
+const entryPoints = files.filter((file) => !filters.some((filter) => file.endsWith(filter)));
 
-  const build = await esbuild.build({
-    entryPoints,
-    outdir: 'dist',
-    format: 'esm',
-    bundle: true,
-    splitting: true,
-    platform: 'node',
-    packages: 'external',
-    external: ['bun'],
-  });
+const WATCH_MODE = process.argv.includes('--dev-mode');
 
-  if (build.errors.length) {
-    appLogger.error('Error building lib', build.errors);
+const plugins: esbuild.Plugin[] = [
+  {
+    name: 'ecopages-on-end-plugin',
+    setup(build) {
+      build.onEnd(() => {
+        appLogger.info('Has been compiled correctly');
+      });
+    },
+  },
+];
+
+const options: esbuild.BuildOptions = {
+  entryPoints,
+  outdir: 'dist',
+  format: 'esm',
+  bundle: true,
+  splitting: true,
+  platform: 'node',
+  packages: 'external',
+  external: ['bun'],
+};
+
+try {
+  if (WATCH_MODE) {
+    const context = await esbuild.context({ ...options, plugins });
+    appLogger.info('Starting watcher');
+    context.watch();
+
+    process.on('SIGINT', () => {
+      appLogger.info('Stopping watcher');
+      context.dispose();
+      process.exit(0);
+    });
+  } else {
+    const build = await esbuild.build(options);
+    if (build.errors.length) {
+      for (const error of build.errors) {
+        appLogger.error(error);
+      }
+
+      process.exit(1);
+    }
   }
-}
-
-await buildLib();
-
-if (process.argv.includes('--dev-mode')) {
-  appLogger.info(`${pkg.name} Watching for changes`);
-  const watcher = watch('src', { recursive: true }, (_event, filename) => {
-    appLogger.info(`${pkg.name} File ${filename} changed`);
-    buildLib();
-  });
-  process.on('SIGINT', () => {
-    appLogger.info(`${pkg.name} Stopping watcher`);
-    watcher.close();
-    process.exit(0);
-  });
+} catch (error) {
+  appLogger.error(error);
+  process.exit(1);
 }

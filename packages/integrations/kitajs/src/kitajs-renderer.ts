@@ -18,7 +18,6 @@ export class KitaRenderer extends IntegrationRenderer {
         headContent: await this.getHeadContent(Page.dependencies),
         children: await Page({ params, query, ...props }),
       });
-
       return this.DOC_TYPE + body;
     } catch (error) {
       throw new Error(`[ecopages] Error rendering page: ${error}`);

@@ -28,7 +28,7 @@
 		"build:react-app": "bun run --filter @ecopages/react-app build",
 		"start:react-app": "bun run --filter @ecopages/react-app start",
 		"preview:react-app": "bun run --filter @ecopages/react-app preview",
-		"clean": "rm -rf node_modules bun.lockb packages/*/dist packages/**/*/dist && bun install && bun run build:ecopages",
+		"clean": "clear && rm -rf node_modules bun.lockb packages/*/dist packages/**/*/dist && bun install && bun run build:ecopages",
 		"format": "bunx @biomejs/biome format --write .",
 		"lint": "bunx @biomejs/biome check --apply .",
 		"lint-staged": "lint-staged",

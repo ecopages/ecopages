@@ -159,6 +159,7 @@ export class FastifyServer {
 
       process.once('SIGINT', () => {
         server.close();
+        process.exit(0);
       });
 
       return { server };

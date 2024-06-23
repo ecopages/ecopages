@@ -1,38 +1,55 @@
-import { watch } from 'node:fs';
 import { Logger } from '@ecopages/logger';
 import esbuild from 'esbuild';
 import pkg from './package.json';
 
-const logger = new Logger('[@ecopages/lit]');
+const logger = new Logger(`[${pkg.name}]`);
 
-async function buildLib() {
-  const build = await esbuild.build({
-    entryPoints: ['./src/index.ts'],
-    outdir: 'dist',
-    format: 'esm',
-    minify: true,
-    splitting: true,
-    bundle: true,
-    platform: 'node',
-    external: [...Object.keys({ ...pkg.dependencies, ...pkg.peerDependencies })],
-  });
+const WATCH_MODE = process.argv.includes('--dev-mode');
 
-  if (build.errors.length) {
-    logger.error('Error building lib', build.errors);
+const plugins: esbuild.Plugin[] = [
+  {
+    name: 'ecopages-on-end-plugin',
+    setup(build) {
+      build.onEnd(() => {
+        logger.info('Has been compiled correctly');
+      });
+    },
+  },
+];
+
+const options: esbuild.BuildOptions = {
+  entryPoints: ['./src/index.ts'],
+  outdir: 'dist',
+  format: 'esm',
+  minify: true,
+  splitting: true,
+  bundle: true,
+  platform: 'node',
+  external: [...Object.keys({ ...pkg.dependencies, ...pkg.peerDependencies })],
+};
+
+try {
+  if (WATCH_MODE) {
+    const context = await esbuild.context({ ...options, plugins });
+    logger.info('Starting watcher');
+    context.watch();
+
+    process.on('SIGINT', () => {
+      logger.info('Stopping watcher');
+      context.dispose();
+      process.exit(0);
+    });
+  } else {
+    const build = await esbuild.build(options);
+    if (build.errors.length) {
+      for (const error of build.errors) {
+        logger.error(error);
+      }
+
+      process.exit(1);
+    }
   }
-}
-
-await buildLib();
-
-if (process.argv.includes('--dev-mode')) {
-  logger.info(`${pkg.name} Watching for changes`);
-  const watcher = watch('src', { recursive: true }, (_event, filename) => {
-    logger.info(`${pkg.name} File ${filename} changed`);
-    buildLib();
-  });
-  process.on('SIGINT', () => {
-    logger.info(`${pkg.name} Stopping watcher`);
-    watcher.close();
-    process.exit(0);
-  });
+} catch (error) {
+  logger.error(error);
+  process.exit(1);
 }

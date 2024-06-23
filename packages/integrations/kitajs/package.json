@@ -30,10 +30,10 @@
 		"@kitajs/ts-html-plugin": "^4.0.1"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "workspace:*"
+		"@ecopages/core": "workspace:*",
+		"@ecopages/logger": "workspace:*"
 	},
 	"devDependencies": {
-		"@ecopages/logger": "workspace:*",
 		"esbuild": "^0.21.4"
 	}
 }

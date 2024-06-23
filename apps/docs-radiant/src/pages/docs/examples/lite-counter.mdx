@@ -59,7 +59,6 @@ export type LiteCounterProps = {
 };
 
 @customElement('lite-counter')
-@customElement('lite-counter')
 export class LiteCounter extends RadiantElement {
   @reactiveProp({ type: Number, reflect: true }) declare value: number;
   @query({ ref: 'count' }) countText!: HTMLElement;

@@ -8,7 +8,8 @@ import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
 export class AppConfigurator {
   config: EcoPagesConfig;
 
-  static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'absolutePaths' | 'templatesExt' | 'serve'> = {
+  static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'absolutePaths' | 'templatesExt'> = {
+    adapter: process.versions.bun ? 'bun' : 'fastify',
     rootDir: '.',
     srcDir: 'src',
     pagesDir: 'pages',

@@ -3,13 +3,13 @@ import path from 'node:path';
 
 import '@/global/init';
 
+import { BunFileSystemServerAdapter } from '@/adapters/bun/fs-server';
+import { StaticContentServer } from '@/adapters/bun/sc-server';
+import { FastifyFileSystemServerAdapter } from '@/adapters/fastify/fs-server';
 import { appLogger } from '@/global/app-logger';
 import { CssBuilder } from '@/main/css-builder';
 import { PostCssProcessor } from '@/main/postcss-processor';
 import { ProjectWatcher } from '@/main/watcher';
-import { FileSystemFastifyServer } from '@/server/fs-fastify';
-import { FileSystemServer } from '@/server/fs-server';
-import { StaticContentServer } from '@/server/sc-server';
 import { FileUtils } from '@/utils/file-utils.module';
 
 import type { IntegrationManager } from '@/main/integration-manager';
@@ -72,14 +72,19 @@ export class AppBuilder {
     const minify = !watch;
     exec(`bunx tailwindcss -i ${input} -o ${output} ${watch ? '--watch' : ''} ${minify ? '--minify' : ''}`);
   }
-
   private async runDevServer() {
-    await FileSystemFastifyServer.create({
+    const options = {
       appConfig: this.appConfigurator.config,
-      options: {
-        watchMode: this.options.watch,
-      },
-    });
+      options: { watchMode: this.options.watch },
+    };
+    switch (this.appConfigurator.config.adapter) {
+      case 'bun':
+        return await BunFileSystemServerAdapter.create(options);
+      case 'fastify':
+        return await FastifyFileSystemServerAdapter.create(options);
+      default:
+        throw new Error(`Unsupported server adapter: ${this.appConfigurator.config.adapter}`);
+    }
   }
 
   async serve() {

@@ -1,6 +1,6 @@
 import path from 'node:path';
+import { BunFileSystemServerAdapter } from '@/adapters/bun/fs-server';
 import { appLogger } from '@/global/app-logger';
-import { FileSystemServer } from '@/server/fs-server';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 
@@ -27,7 +27,7 @@ export class StaticPageGenerator {
   }
 
   async generateStaticPages() {
-    const { router, server } = await FileSystemServer.create({
+    const { router, server } = await BunFileSystemServerAdapter.create({
       appConfig: this.appConfig,
       options: {
         watchMode: false,

@@ -1,24 +1,23 @@
 import path from 'node:path';
+import { FSRouter } from '@/adapters/router/fs-router';
+import { FSRouterScanner } from '@/adapters/router/fs-router-scanner';
+import { ServerUtils } from '@/adapters/utils.module';
 import { appLogger } from '@/global/app-logger';
 import { RouteRendererFactory } from '@/route-renderer/route-renderer';
+import type {
+  EcoPagesConfig,
+  EcoPagesFileSystemServerAdapter,
+  FileSystemServerOptions,
+  MatchResult,
+  RouteRendererBody,
+} from '@/types';
 import { FileUtils } from '@/utils/file-utils.module';
-import type { EcoPagesConfig, MatchResult, RouteRendererBody } from '@types';
-import type { Server } from 'bun';
-import { type PureWebSocketServeOptions, withHtmlLiveReload } from './middleware/hmr';
-import { FSRouter } from './router/fs-router';
-import { FSRouterScanner } from './router/fs-router-scanner';
-import { ServerUtils } from './utils.module';
+import { FastifyServer } from './hmr-server';
 
-type FileSystemServerOptions = {
-  watchMode: boolean;
-  port?: number;
-};
-
-export class FileSystemServer {
+export class FastifyFileSystemServerAdapter implements EcoPagesFileSystemServerAdapter {
   private appConfig: EcoPagesConfig;
   private router: FSRouter;
   private routeRendererFactory: RouteRendererFactory;
-  private server: Server | null = null;
   private options: FileSystemServerOptions;
 
   constructor({
@@ -36,22 +35,14 @@ export class FileSystemServer {
     this.appConfig = appConfig;
     this.routeRendererFactory = routeRendererFactory;
     this.options = options;
+    this.handleMatch = this.handleMatch.bind(this);
+    this.handleNoMatch = this.handleNoMatch.bind(this);
   }
 
   private shouldEnableGzip(contentType: string) {
     if (this.options.watchMode) return false;
     const gzipEnabledExtensions = ['text/javascript', 'text/css'];
     return gzipEnabledExtensions.includes(contentType);
-  }
-
-  public async fetch(req: Request) {
-    const match = !req.url.includes('.') && this.router.match(req.url);
-
-    if (!match) {
-      return this.handleNoMatch(req.url.replace(this.router.origin, ''));
-    }
-
-    return this.handleMatch(match);
   }
 
   private async handleNoMatch(requestUrl: string) {
@@ -139,16 +130,20 @@ export class FileSystemServer {
     return this.sendResponse(renderedBody);
   }
 
-  public startServer(serverOptions: PureWebSocketServeOptions<unknown>) {
-    this.server = this.options.watchMode
-      ? Bun.serve(withHtmlLiveReload(serverOptions, this.appConfig))
-      : Bun.serve(serverOptions);
+  public async startServer() {
+    const { server } = await FastifyServer.serve({
+      appConfig: this.appConfig,
+      router: this.router,
+      options: this.options,
+      handleMatch: this.handleMatch,
+      handleNoMatch: this.handleNoMatch,
+    });
 
     this.router.onReload = () => {
-      if (this.server) this.server.reload(serverOptions);
+      server.restart();
     };
 
-    return { router: this.router, server: this.server };
+    return { router: this.router, server };
   }
 
   static async create({
@@ -175,7 +170,7 @@ export class FileSystemServer {
 
     await router.init();
 
-    const server = new FileSystemServer({
+    const server = new FastifyFileSystemServerAdapter({
       router,
       appConfig: appConfig,
       routeRendererFactory: new RouteRendererFactory({
@@ -185,11 +180,6 @@ export class FileSystemServer {
       options: { watchMode, port },
     });
 
-    const serverOptions = {
-      fetch: server.fetch.bind(server),
-      port,
-    };
-
-    return server.startServer(serverOptions);
+    return server.startServer();
   }
 }

@@ -4,6 +4,7 @@ import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config: EcoPagesConfigInput = {
+  adapter: 'fastify',
   rootDir: import.meta.dir,
   baseUrl: import.meta.env.ECO_PAGES_BASE_URL as string,
   integrations: [kitajsPlugin(), litPlugin(), mdxPlugin()],

@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
+import { FSRouter } from '@/adapters/router/fs-router';
+import { FSRouterScanner } from '@/adapters/router/fs-router-scanner';
 import { AppConfigurator } from '@/main/app-configurator';
 import { RouteRendererFactory } from '@/route-renderer/route-renderer';
 import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
 import { FIXTURE_EXISTING_FILE_IN_DIST } from 'fixtures/constants';
-import { FileSystemServer } from './fs-server';
-import { FSRouter } from './router/fs-router';
-import { FSRouterScanner } from './router/fs-router-scanner';
+import { BunFileSystemServerAdapter } from './fs-server';
 
 const appConfigurator = await AppConfigurator.create({
   projectDir: FIXTURE_PROJECT_DIR,
@@ -17,7 +17,10 @@ const {
   absolutePaths: { pagesDir, distDir },
 } = appConfigurator.config;
 
-const routeRendererFactory = new RouteRendererFactory({ integrations, appConfig: appConfigurator.config });
+const routeRendererFactory = new RouteRendererFactory({
+  integrations,
+  appConfig: appConfigurator.config,
+});
 
 const scanner = new FSRouterScanner({
   dir: pagesDir,
@@ -36,7 +39,7 @@ const router = new FSRouter({
 
 await router.init();
 
-const server = new FileSystemServer({
+const server = new BunFileSystemServerAdapter({
   appConfig: appConfigurator.config,
   router,
   routeRendererFactory,

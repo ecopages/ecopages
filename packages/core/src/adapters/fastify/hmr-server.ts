@@ -1,13 +1,14 @@
 import { watch } from 'node:fs';
-import type { EcoPagesConfig, FSRouter } from '@ecopages/core';
+import type { FSRouter } from '@/adapters/router/fs-router';
+import { appLogger } from '@/global/app-logger';
 import { type Fastify, restartable } from '@fastify/restartable';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket, { type WebSocket } from '@fastify/websocket';
+import type { EcoPagesConfig, FileSystemServerOptions } from '@types';
 import type { FastifyInstance } from 'fastify';
-import { appLogger } from './shared';
 
 declare global {
-  var __ECO_PAGES_HMR_WS_FASTIFY__: WebSocket;
+  var __ECO_PAGES_HMR_WS_FASTIFY__: WebSocket | undefined;
 }
 
 export const reloadCommand = 'reload';
@@ -37,11 +38,6 @@ const makeLiveReloadScript = (wsUrl: string) => `
 `;
 
 const WS_PATH = '__ecopages_live_reload_websocket__';
-
-type FileSystemServerOptions = {
-  watchMode: boolean;
-  port?: number;
-};
 
 export class FastifyServer {
   private server: FastifyInstance | null = null;
@@ -158,10 +154,10 @@ export class FastifyServer {
         port: options.port,
       });
 
-      appLogger.info(`Server listening on ${host}`);
+      appLogger.warn('Fastify server is currently in experimental mode');
+      appLogger.info(`Fastify server listening on ${host}`);
 
       process.once('SIGINT', () => {
-        console.log('Stopping the server');
         server.close();
       });
 

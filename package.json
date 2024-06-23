@@ -35,8 +35,7 @@
 		"build:deps": "bun run --filter @ecopages/logger build:lib",
 		"build:core": "bun run --filter @ecopages/core build:lib",
 		"build:integrations": "bun run --filter @ecopages/kitajs --filter @ecopages/lit --filter @ecopages/mdx --filter @ecopages/react build:lib",
-		"build:servers": "bun run --filter @ecopages/fastify build:lib",
-		"build:ecopages": "bun run build:deps && bun run build:core && bun run build:integrations && bun run build:servers",
+		"build:ecopages": "bun run build:deps && bun run build:core && bun run build:integrations",
 		"watch:ecopages": "bun run --filter '*' watch:lib"
 	},
 	"devDependencies": {
@@ -48,7 +47,6 @@
 	"workspaces": [
 		"packages/*",
 		"packages/integrations/*",
-		"packages/servers/*",
 		"examples/*",
 		"apps/*"
 	],

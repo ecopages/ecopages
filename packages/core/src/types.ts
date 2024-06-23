@@ -1,5 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
+import type { FSRouter } from './adapters/router/fs-router';
 import type { IntegrationDependencyConfig } from './main/integration-manager';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer';
 import './declarations';
@@ -62,6 +63,11 @@ export interface RobotsPreference {
 }
 
 export type EcoPagesConfig = {
+  /**
+   * The file system server adapter
+   * @default "bun" if runtime is Bun, "fastify" if not
+   */
+  adapter: 'bun' | 'fastify';
   /**
    * The base URL of the website, localhost or the domain
    */
@@ -226,15 +232,15 @@ export type StaticPath = { params: PageParams };
 
 export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
 
-export type GetMetadataContext<T = Record<string, unknown>> = Required<StaticPageContext> & { props?: T };
+export type GetMetadataContext<T = Record<string, unknown>> = Required<StaticPageContext> & {
+  props?: T;
+};
 
 export type GetMetadata<T = Record<string, unknown>> = (
   context: GetMetadataContext,
 ) => PageMetadataProps | Promise<PageMetadataProps>;
 
-export type GetStaticProps<T> = (context: {
-  pathname: StaticPath;
-}) => Promise<{ props: T }>;
+export type GetStaticProps<T> = (context: { pathname: StaticPath }) => Promise<{ props: T }>;
 
 export type EcoPageFile<T = unknown> = T & {
   default: EcoPage;
@@ -281,3 +287,17 @@ export type Route = {
 };
 
 export type Routes = Record<string, Route>;
+
+export type FileSystemServerOptions = {
+  watchMode: boolean;
+  port?: number;
+};
+
+export interface EcoPagesFileSystemServerAdapter<ServerInstanceOptions = unknown> {
+  startServer(serverOptions: ServerInstanceOptions):
+    | {
+        router: FSRouter;
+        server: unknown;
+      }
+    | Promise<{ router: FSRouter; server: unknown }>;
+}

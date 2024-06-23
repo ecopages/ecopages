@@ -3,8 +3,8 @@ import { RouteRendererFactory } from '@/route-renderer/route-renderer';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 import type { Server } from 'bun';
-import { withHtmlLiveReload } from './middleware/hmr';
-import { ServerUtils } from './utils.module';
+import { ServerUtils } from '../utils.module';
+import { withHtmlLiveReload } from './hmr';
 
 type StaticContentServerOptions = {
   watchMode: boolean;

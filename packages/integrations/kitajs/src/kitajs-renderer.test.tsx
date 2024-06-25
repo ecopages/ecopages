@@ -3,7 +3,6 @@ import type { EcoComponent, EcoPage, EcoPagesConfig, HtmlTemplateProps } from '@
 import { KitaRenderer } from './kitajs-renderer';
 
 const mockConfig: EcoPagesConfig = {
-  adapter: 'bun',
   rootDir: '.',
   srcDir: 'src',
   pagesDir: 'pages',
@@ -29,7 +28,7 @@ const mockConfig: EcoPagesConfig = {
   integrations: [],
   integrationsDependencies: [],
   distDir: '.eco',
-  scriptsExtensions: ['script.ts', 'script.tsx'],
+  scriptsExtensions: ['.script.ts', '.script.tsx'],
   defaultMetadata: {
     title: 'Eco Pages',
     description: 'Eco Pages',

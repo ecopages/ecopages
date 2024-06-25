@@ -11,7 +11,7 @@ switch (args[0]) {
     await buildApp({ config: process.cwd(), watch: false, serve: false, build: true });
     break;
   case 'preview':
-    await buildApp({ config: process.cwd(), watch: false, serve: true, build: false });
+    await buildApp({ config: process.cwd(), watch: false, serve: false, build: false });
     break;
   case 'start':
     await buildApp({ config: process.cwd(), watch: false, serve: true, build: false });

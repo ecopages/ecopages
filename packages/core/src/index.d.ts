@@ -1,8 +1,8 @@
 import type { Readable } from 'node:stream';
 import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
-import type { FSRouter } from './adapters/router/fs-router';
 import type { IntegrationDependencyConfig } from './main/integration-manager';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer';
+import type { FSRouter } from './router/fs-router';
 import './declarations';
 import './env';
 
@@ -63,11 +63,6 @@ export interface RobotsPreference {
 }
 
 export type EcoPagesConfig = {
-  /**
-   * The file system server adapter
-   * @default "bun" if runtime is Bun, "fastify" if not
-   */
-  adapter: 'bun' | 'fastify';
   /**
    * The base URL of the website, localhost or the domain
    */

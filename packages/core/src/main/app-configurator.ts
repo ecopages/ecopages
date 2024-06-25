@@ -9,7 +9,6 @@ export class AppConfigurator {
   config: EcoPagesConfig;
 
   static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'absolutePaths' | 'templatesExt'> = {
-    adapter: process.versions.bun ? 'bun' : 'fastify',
     rootDir: '.',
     srcDir: 'src',
     pagesDir: 'pages',
@@ -35,7 +34,7 @@ export class AppConfigurator {
     integrations: [],
     integrationsDependencies: [],
     distDir: '.eco',
-    scriptsExtensions: ['script.ts', 'script.tsx'],
+    scriptsExtensions: ['.script.ts', '.script.tsx'],
     defaultMetadata: {
       title: 'Eco Pages',
       description: 'Eco Pages',

@@ -20,7 +20,7 @@ export class ScriptsBuilder {
   async build() {
     const { srcDir, distDir, scriptsExtensions } = this.config;
 
-    const scripts = FileUtils.glob(scriptsExtensions.map((ext) => `${srcDir}/**/*.${ext}`));
+    const scripts = FileUtils.glob(scriptsExtensions.map((ext) => `${srcDir}/**/*${ext}`));
 
     appLogger.debug('Building scripts:', scripts);
 

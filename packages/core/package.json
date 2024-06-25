@@ -2,79 +2,16 @@
 	"name": "@ecopages/core",
 	"version": "0.0.0",
 	"license": "MIT",
-	"main": "./dist/index.js",
+	"main": "./src/index.ts",
 	"type": "module",
 	"files": ["dist"],
 	"bin": {
-		"ecopages": "./dist/bin/ecopages.js"
-	},
-	"types": "./dist/index.d.ts",
-	"exports": {
-		"./package.json": {
-			"import": "./package.json"
-		},
-		".": {
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		},
-		"./deps-manager": {
-			"import": "./dist/modules/deps-manager.module.js",
-			"types": "./dist/modules/deps-manager.module.d.ts"
-		},
-		"./add-base-url-to-pathname": {
-			"import": "./dist/utils/add-base-url-to-pathname.js",
-			"types": "./dist/utils/add-base-url-to-pathname.d.ts"
-		},
-		"./integration-renderer": {
-			"import": "./dist/route-renderer/integration-renderer.js",
-			"types": "./dist/route-renderer/integration-renderer.d.ts"
-		},
-		"./route-renderer": {
-			"import": "./dist/route-renderer/route-renderer.js",
-			"types": "./dist/route-renderer/route-renderer.d.ts"
-		},
-		"./server/router/fs-router": {
-			"import": "./dist/server/router/fs-router.js",
-			"types": "./dist/server/router/fs-router.d.ts"
-		},
-		"./server/router/fs-router-scanner": {
-			"import": "./dist/server/router/fs-router-scanner.js",
-			"types": "./dist/server/router/fs-router-scanner.d.ts"
-		},
-		"./server/utils": {
-			"import": "./dist/server/utils.module.js",
-			"types": "./dist/server/utils.module.d.ts"
-		},
-		"./deep-merge": {
-			"import": "./dist/utils/deep-merge.js",
-			"types": "./dist/utils/deep-merge.d.ts"
-		},
-		"./invariant": {
-			"import": "./dist/utils/invariant.js",
-			"types": "./dist/utils/invariant.d.ts"
-		},
-		"./file-utils": {
-			"import": "./dist/utils/file-utils.module.js",
-			"types": "./dist/utils/file-utils.module.d.ts"
-		},
-		"./loaders/inline-postcss.loader.js": {
-			"import": "./dist/loaders/inline-postcss.loader.js",
-			"types": "./dist/loaders/inline-postcss-loader.d.ts"
-		},
-		"./loaders/mdx.loader.js": {
-			"import": "./dist/loaders/mdx.loader.js",
-			"types": "./dist/loaders/mdx.loader.d.ts"
-		}
+		"ecopages": "./src/bin/ecopages.ts"
 	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
 		"directory": "packages/core"
-	},
-	"scripts": {
-		"build:lib": "bun run build.ts && bun run build:types",
-		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias",
-		"watch:lib": "bun run build.ts --dev-mode"
 	},
 	"dependencies": {
 		"@ecopages/logger": "workspace:*",
@@ -85,17 +22,10 @@
 		"bun-types": "latest",
 		"cssnano": "^6.0.2",
 		"fdir": "^6.1.1",
-		"fastify": "^4.28.0",
-		"@fastify/static": "^7.0.4",
-		"@fastify/websocket": "^10.0.1",
-		"@fastify/restartable": "^2.3.0",
 		"picomatch": "^2.3.1",
 		"postcss": "^8.4.32",
 		"postcss-import": "^15.1.0",
 		"tailwindcss": "^3.4.1",
 		"@lit-labs/ssr": "^3.2.2"
-	},
-	"devDependencies": {
-		"esbuild": "^0.21.4"
 	}
 }

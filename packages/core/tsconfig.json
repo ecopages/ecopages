@@ -11,7 +11,7 @@
 		"noImplicitOverride": true,
 		"paths": {
 			"@/*": ["./src/*"],
-			"@types": ["src/types.ts"]
+			"@types": ["src/index.d.ts"]
 		},
 		"jsx": "react-jsx",
 		"jsxImportSource": "@kitajs/html",

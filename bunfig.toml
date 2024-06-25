@@ -1,10 +1,10 @@
 preload = [
-  "@ecopages/core/loaders/inline-postcss.loader.js",
-  "@ecopages/core/loaders/mdx.loader.js",
+  "@ecopages/core/src/loaders/postcss.loader.js",
+  "@ecopages/core/src/loaders/mdx.loader.js",
 ]
 
 [test]
 preload = [
-  "@ecopages/core/loaders/inline-postcss.loader.js",
-  "@ecopages/core/loaders/mdx.loader.js",
+  "@ecopages/core/src/loaders/postcss.loader.js",
+  "@ecopages/core/src/loaders/mdx.loader.js",
 ]

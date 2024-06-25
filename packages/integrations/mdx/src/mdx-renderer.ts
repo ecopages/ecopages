@@ -1,3 +1,7 @@
+import { deepMerge } from '@ecopages/core/src/utils/deep-merge';
+import { invariant } from '@ecopages/core/src/utils/invariant';
+import { PLUGIN_NAME } from './mdx.plugin';
+
 import {
   type EcoComponent,
   type EcoComponentDependencies,
@@ -7,11 +11,7 @@ import {
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
-  deepMerge,
-  invariant,
 } from '@ecopages/core';
-
-import { PLUGIN_NAME } from './mdx.plugin';
 
 export type MDXFile = {
   default: EcoPage;

@@ -3,7 +3,6 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
-		"watch:dev:playground": "bun run watch:ecopages & bun run --filter @ecopages/playground watch:dev",
 		"dev:playground": "bun run --filter @ecopages/playground dev",
 		"build:playground": "bun run --filter @ecopages/playground build",
 		"start:playground": "bun run --filter @ecopages/playground start",
@@ -28,15 +27,10 @@
 		"build:react-app": "bun run --filter @ecopages/react-app build",
 		"start:react-app": "bun run --filter @ecopages/react-app start",
 		"preview:react-app": "bun run --filter @ecopages/react-app preview",
-		"clean": "clear && rm -rf node_modules bun.lockb packages/*/dist packages/**/*/dist && bun install && bun run build:ecopages",
+		"clean": "clear && rm -rf node_modules bun.lockb && bun install",
 		"format": "bunx @biomejs/biome format --write .",
 		"lint": "bunx @biomejs/biome check --apply .",
-		"lint-staged": "lint-staged",
-		"build:deps": "bun run --filter @ecopages/logger build:lib",
-		"build:core": "bun run --filter @ecopages/core build:lib",
-		"build:integrations": "bun run --filter @ecopages/kitajs --filter @ecopages/lit --filter @ecopages/mdx --filter @ecopages/react build:lib",
-		"build:ecopages": "bun run build:deps && bun run build:core && bun run build:integrations",
-		"watch:ecopages": "bun run --filter '*' watch:lib"
+		"lint-staged": "lint-staged"
 	},
 	"devDependencies": {
 		"husky": "^9.0.10",

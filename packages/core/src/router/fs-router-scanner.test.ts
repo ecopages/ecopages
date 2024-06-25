@@ -42,7 +42,7 @@ describe('FSRouterScanner', () => {
         pathname: '/catch-all/[...path]',
       },
       'http://localhost:3000/dynamic/another-blog-post': {
-        filePath: '/Users/andreazanenghi/ecopages/packages/core/fixtures/app/src/pages/dynamic/[slug].kita.tsx',
+        filePath: `${import.meta.env.HOME}/ecopages/packages/core/fixtures/app/src/pages/dynamic/[slug].kita.tsx`,
         kind: 'dynamic',
         pathname: '/dynamic/[slug]',
       },
@@ -52,7 +52,7 @@ describe('FSRouterScanner', () => {
         pathname: '/dynamic/[slug]',
       },
       'http://localhost:3000/mdx-test': {
-        filePath: '/Users/andreazanenghi/ecopages/packages/core/fixtures/app/src/pages/mdx-test.mdx',
+        filePath: `${import.meta.env.HOME}/ecopages/packages/core/fixtures/app/src/pages/mdx-test.mdx`,
         kind: 'exact',
         pathname: '/mdx-test',
       },

@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { FSRouter } from '@/adapters/router/fs-router';
-import { FSRouterScanner } from '@/adapters/router/fs-router-scanner';
 import { AppConfigurator } from '@/main/app-configurator';
 import { RouteRendererFactory } from '@/route-renderer/route-renderer';
+import { FSRouter } from '@/router/fs-router';
+import { FSRouterScanner } from '@/router/fs-router-scanner';
 import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
 import { FIXTURE_EXISTING_FILE_IN_DIST } from 'fixtures/constants';
 import { BunFileSystemServerAdapter } from './fs-server';

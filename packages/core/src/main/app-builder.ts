@@ -5,7 +5,6 @@ import '@/global/init';
 
 import { BunFileSystemServerAdapter } from '@/adapters/bun/fs-server';
 import { StaticContentServer } from '@/adapters/bun/sc-server';
-import { FastifyFileSystemServerAdapter } from '@/adapters/fastify/fs-server';
 import { appLogger } from '@/global/app-logger';
 import { CssBuilder } from '@/main/css-builder';
 import { PostCssProcessor } from '@/main/postcss-processor';
@@ -77,14 +76,7 @@ export class AppBuilder {
       appConfig: this.appConfigurator.config,
       options: { watchMode: this.options.watch },
     };
-    switch (this.appConfigurator.config.adapter) {
-      case 'bun':
-        return await BunFileSystemServerAdapter.create(options);
-      case 'fastify':
-        return await FastifyFileSystemServerAdapter.create(options);
-      default:
-        throw new Error(`Unsupported server adapter: ${this.appConfigurator.config.adapter}`);
-    }
+    await BunFileSystemServerAdapter.create(options);
   }
 
   async serve() {

@@ -2,28 +2,14 @@
 	"name": "@ecopages/kitajs",
 	"version": "0.0.0",
 	"license": "MIT",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
+	"main": "./src/index.ts",
+	"types": "./src/index.ts",
 	"type": "module",
-	"files": ["dist"],
-	"exports": {
-		"./package.json": {
-			"import": "./package.json"
-		},
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		}
-	},
+	"files": ["src"],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
 		"directory": "packages/integrations/kitajs"
-	},
-	"scripts": {
-		"build:lib": "bun run build.ts && bun run build:types",
-		"build:types": "tsc -p tsconfig.build.json && bunx tsc-alias",
-		"watch:lib": "bun run build.ts --dev-mode"
 	},
 	"dependencies": {
 		"@kitajs/html": "^4.1.0",
@@ -32,8 +18,5 @@
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "workspace:*"
-	},
-	"devDependencies": {
-		"esbuild": "^0.21.4"
 	}
 }

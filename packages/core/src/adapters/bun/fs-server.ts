@@ -1,9 +1,9 @@
 import path from 'node:path';
-import { FSRouter } from '@/adapters/router/fs-router';
-import { FSRouterScanner } from '@/adapters/router/fs-router-scanner';
-import { ServerUtils } from '@/adapters/utils.module';
+import { ServerUtils } from '@/adapters/server-utils.module';
 import { appLogger } from '@/global/app-logger';
 import { RouteRendererFactory } from '@/route-renderer/route-renderer';
+import { FSRouter } from '@/router/fs-router';
+import { FSRouterScanner } from '@/router/fs-router-scanner';
 import { FileUtils } from '@/utils/file-utils.module';
 import type {
   EcoPagesConfig,

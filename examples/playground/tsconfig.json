@@ -12,7 +12,8 @@
 		"moduleResolution": "node",
 		"noImplicitOverride": true,
 		"paths": {
-			"@/*": ["./src/*"]
+			"@/*": ["./src/*"],
+			"@/types": ["./src/index.d.ts"]
 		},
 		"plugins": [
 			{

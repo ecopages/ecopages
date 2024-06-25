@@ -86,14 +86,14 @@ The directory where the output will be located.
 The directory where the components are located.
 </ApiField>
 
-<ApiField name="scriptsExtensions" type="string[]" defaultValue="[script.ts, 'script.tsx']">
+<ApiField name="scriptsExtensions" type="string[]" defaultValue="[.script.ts, '.script.tsx']">
 Specifies the extensions for the script files. This is used to identify the script files in the components directory.
 
 All files with the specified extension will be treated as script files to be included in the page and are not rendered as components.
 
 The dependencies of the script files are automatically resolved and included in the page.
 
-The default value is `[script.ts, 'script.tsx']`, and it is strongly reccomended that if you change this value you keep a unique descriptor to avoid conflicts with other files.
+The default value is `[.script.ts, '.script.tsx']`, and it is strongly reccomended that if you change this value you keep a unique descriptor to avoid conflicts with other files.
 </ApiField>
 
 <ApiField name="robotsTxt" type="RobotsPreferences" defaultValue={`{ "*": [], Googlebot: ["/public/assets/images/"] }`}>

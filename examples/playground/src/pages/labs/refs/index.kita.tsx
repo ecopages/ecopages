@@ -14,7 +14,7 @@ const LabsPage: EcoPage = () => {
           </div>
         </div>
         <div class="bg-gray-100 text-black p-3" data-ref="ref-count">
-          Ref Count: 0 | Query Count: 0
+          Ref Count: 1
         </div>
       </lite-refs>
     </BaseLayout>

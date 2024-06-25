@@ -4,9 +4,8 @@ import { FileUtils } from '@/utils/file-utils.module';
 import { plugin } from 'bun';
 
 plugin({
-  name: 'inline-postcss-loader',
+  name: 'bun-postcss-loader',
   setup(build) {
-    appLogger.debug('Setting up inline-postcss-loader');
     const postcssFilter = /\.css/;
 
     build.onLoad({ filter: postcssFilter }, async (args) => {

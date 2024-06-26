@@ -120,7 +120,7 @@ export class IntegrationManager {
       return { filepath: bundle.outputs[0].path };
     }
 
-    const content = await FileUtils.getPathAsString(absolutePath);
+    const content = FileUtils.getFileAsBuffer(absolutePath);
     const file = this.writeFileToDist({ content, name, ext: 'css' });
     return file;
   }

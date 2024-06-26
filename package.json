@@ -3,7 +3,8 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
-		"dev:playground": "bun run --filter @ecopages/playground dev",
+		"watch:dev:playground": "bun run --filter @ecopages/playground watch:dev",
+		"dev:playground": "bun run --filter @ecopages/playground dev | tee /dev/null",
 		"build:playground": "bun run --filter @ecopages/playground build",
 		"start:playground": "bun run --filter @ecopages/playground start",
 		"preview:playground": "bun run --filter @ecopages/playground preview",

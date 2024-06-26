@@ -12,7 +12,7 @@ export const postCssProcessorPlugin = (options: InlineImportOptions): BunPlugin 
   const { filter, namespace, transform } = Object.assign(
     {
       filter: /\.css$/,
-      namespace: 'postcss-processor-plugin',
+      namespace: 'bun-postcss-processor-plugin',
       transform: async (contents: string | Buffer) => contents,
     },
     options,

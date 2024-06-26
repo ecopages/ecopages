@@ -1,6 +1,5 @@
-import { appLogger } from '@/global/app-logger';
-import { FileUtils } from '@/utils/file-utils.module';
-import type { CssProcessor } from '@types';
+import { existsSync, readFileSync } from 'node:fs';
+import { Logger } from '@ecopages/logger';
 import autoprefixer from 'autoprefixer';
 import cssnano from 'cssnano';
 import postcss from 'postcss';
@@ -8,8 +7,27 @@ import postCssImport from 'postcss-import';
 import tailwindcss from 'tailwindcss';
 import tailwindcssNesting from 'tailwindcss/nesting/index.js';
 
+export function getFileAsBuffer(path: string): Buffer {
+  try {
+    if (!existsSync(path)) {
+      throw new Error(`File: ${path} not found`);
+    }
+    return readFileSync(path);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
+  }
+}
+
+const appLogger = new Logger('[@ecopages/postcss-processor]');
+
+export interface CssProcessor {
+  processPath: (path: string) => Promise<string>;
+  processString: (contents: string | Buffer) => Promise<string>;
+}
+
 async function processPath(path: string) {
-  const contents = FileUtils.getFileAsBuffer(path);
+  const contents = getFileAsBuffer(path);
 
   const processor = postcss([postCssImport(), tailwindcssNesting, tailwindcss, autoprefixer, cssnano]);
 

@@ -59,7 +59,10 @@ export abstract class IntegrationRenderer {
   protected async getStaticProps(
     getStaticProps?: GetStaticProps<Record<string, unknown>>,
     options?: Pick<RouteRendererOptions, 'params'>,
-  ) {
+  ): Promise<{
+    props: Record<string, unknown>;
+    metadata?: PageMetadataProps;
+  }> {
     return getStaticProps && options?.params
       ? await getStaticProps({
           pathname: { params: options.params },
@@ -110,7 +113,7 @@ export abstract class IntegrationRenderer {
       props,
       params: options.params ?? {},
       query: options.query ?? {},
-    });
+    } as GetMetadataContext);
 
     return {
       ...options,

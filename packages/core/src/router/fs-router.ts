@@ -1,5 +1,5 @@
-import { appLogger } from '@/global/app-logger';
 import type { MatchResult, Route, Routes } from '@types';
+import { appLogger } from '../global/app-logger';
 import type { FSRouterScanner } from './fs-router-scanner';
 
 /**
@@ -57,7 +57,7 @@ export class FSRouter {
     return params;
   }
 
-  getSearchParams(url: URL) {
+  getSearchParams(url: URL): Record<string, string> {
     const query: Record<string, string> = {};
     for (const [key, value] of url.searchParams) {
       query[key] = value;

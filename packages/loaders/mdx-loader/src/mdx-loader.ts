@@ -1,7 +1,6 @@
 import mdx from '@mdx-js/esbuild';
-import { plugin } from 'bun';
 
-plugin(
+Bun.plugin(
   // @ts-expect-error: esbuild plugin vs bun plugin
   mdx({
     format: 'detect',

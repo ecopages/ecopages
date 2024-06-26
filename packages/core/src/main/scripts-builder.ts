@@ -1,8 +1,8 @@
 import { appLogger } from '@/global/app-logger';
 import { postCssProcessorPlugin } from '@/plugins/postcss-processor.plugin';
 import { FileUtils } from '@/utils/file-utils.module';
+import { PostCssProcessor } from '@ecopages/postcss-processor';
 import type { EcoPagesConfig } from '@types';
-import { PostCssProcessor } from './postcss-processor';
 
 type ScriptsBuilderOptions = {
   watchMode: boolean;

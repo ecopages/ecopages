@@ -2,12 +2,12 @@
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
 		"baseUrl": ".",
-		"outDir": "dist",
+		"rootDir": ".",
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"module": "ESNext",
-		"moduleResolution": "node",
+		"moduleResolution": "Bundler",
 		"noImplicitOverride": true,
 		"paths": {
 			"@/*": ["./src/*"],

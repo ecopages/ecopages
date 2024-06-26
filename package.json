@@ -42,6 +42,8 @@
 	"workspaces": [
 		"packages/*",
 		"packages/integrations/*",
+		"packages/loaders/*",
+		"packages/processors/*",
 		"examples/*",
 		"apps/*"
 	],

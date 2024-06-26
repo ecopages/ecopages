@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { appLogger } from '@/global/app-logger';
-import { FileUtils } from '@/utils/file-utils.module';
-import { invariant } from '@/utils/invariant';
 import type { EcoPageFile, GetStaticPaths, RouteKind, Routes } from '@types';
+import { appLogger } from '../global/app-logger';
+import { FileUtils } from '../utils/file-utils.module';
+import { invariant } from '../utils/invariant';
 
 type CreateRouteArgs = {
   routePath: string;
@@ -128,7 +128,9 @@ export class FSRouterScanner {
     };
   }
 
-  private getRouteData(file: string) {
+  private getRouteData(file: string): CreateRouteArgs & {
+    kind: RouteKind;
+  } {
     const routePath = this.getRoutePath(file);
     const route = `${this.origin}${routePath}`;
     const filePath = path.join(this.dir, file);
@@ -139,7 +141,7 @@ export class FSRouterScanner {
     return { route, routePath, filePath, kind };
   }
 
-  async scan() {
+  async scan(): Promise<Routes> {
     const scannedFiles = FileUtils.glob(
       this.templatesExt.map((ext) => `**/*${ext}`),
       { cwd: this.dir },

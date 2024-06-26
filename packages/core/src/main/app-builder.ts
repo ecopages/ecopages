@@ -7,9 +7,9 @@ import { BunFileSystemServerAdapter } from '@/adapters/bun/fs-server';
 import { StaticContentServer } from '@/adapters/bun/sc-server';
 import { appLogger } from '@/global/app-logger';
 import { CssBuilder } from '@/main/css-builder';
-import { PostCssProcessor } from '@/main/postcss-processor';
 import { ProjectWatcher } from '@/main/watcher';
 import { FileUtils } from '@/utils/file-utils.module';
+import { PostCssProcessor } from '@ecopages/postcss-processor';
 
 import type { IntegrationManager } from '@/main/integration-manager';
 import type { ScriptsBuilder } from '@/main/scripts-builder';

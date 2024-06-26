@@ -15,6 +15,7 @@
 	},
 	"dependencies": {
 		"@ecopages/logger": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
 		"@parcel/watcher": "^2.4.0",
 		"@mdx-js/esbuild": "^3.0.1",
 		"@types/postcss-import": "^14.0.3",

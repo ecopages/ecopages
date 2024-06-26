@@ -10,6 +10,8 @@
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/kitajs": "workspace:*",
-		"@ecopages/radiant": "^0.1.0"
+		"@ecopages/radiant": "^0.1.0",
+		"@ecopages/mdx-loader": "workspace:*",
+		"@ecopages/postcss-loader": "workspace:*"
 	}
 }

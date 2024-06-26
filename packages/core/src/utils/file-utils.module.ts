@@ -7,7 +7,7 @@ function copyDirSync(source: string, destination: string) {
   cpSync(source, destination, { recursive: true });
 }
 
-function ensureFolderExists(path: string, forceCleanup?: boolean): void {
+function ensureDirectoryExists(path: string, forceCleanup?: boolean): void {
   if (existsSync(path)) {
     if (forceCleanup) {
       rmdirSync(path, {
@@ -29,7 +29,7 @@ function verifyFileExists(path: string): void {
   }
 }
 
-function getFileAsBuffer(path: string) {
+function getFileAsBuffer(path: string): Buffer {
   try {
     verifyFileExists(path);
     return readFileSync(path);
@@ -41,7 +41,7 @@ function getFileAsBuffer(path: string) {
 
 function glob(pattern: string[], options: { cwd: string } = { cwd: process.cwd() }): string[] {
   return new fdir()
-    .exclude((dirName, dirPath) => {
+    .exclude((dirName, _dirPath) => {
       return dirName.startsWith('.') || dirName === 'node_modules';
     })
     .withRelativePaths()
@@ -50,8 +50,7 @@ function glob(pattern: string[], options: { cwd: string } = { cwd: process.cwd()
     .sync();
 }
 
-function gzipDirSync(path: string, extensionsToGzip: string[]) {
-  // @ts-expect-error - TS doesn't know about the recursive option
+function gzipDirSync(path: string, extensionsToGzip: string[]): void {
   const files = readdirSync(path, { recursive: true });
   for (const file of files) {
     const ext = extname(file as string).slice(1);
@@ -64,16 +63,9 @@ function gzipDirSync(path: string, extensionsToGzip: string[]) {
   }
 }
 
-function write(path: string, contents: string | Buffer) {
+function write(path: string, contents: string | Buffer): void {
   try {
-    const dirs = path.split('/');
-    let currentPath = '';
-    for (let i = 0; i < dirs.length - 1; i++) {
-      currentPath += `${dirs[i]}/`;
-      if (!existsSync(currentPath)) {
-        mkdirSync(currentPath);
-      }
-    }
+    ensureDirectoryExists(path);
     writeFileSync(path, contents);
   } catch (error) {
     throw new Error(`[ecopages] Error writing file: ${path}`);
@@ -86,7 +78,7 @@ export const FileUtils = {
   existsSync,
   write,
   verifyFileExists,
-  ensureFolderExists,
+  ensureFolderExists: ensureDirectoryExists,
   copyDirSync,
   gzipDirSync,
   writeFileSync,

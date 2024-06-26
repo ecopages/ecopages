@@ -1,0 +1,23 @@
+{
+	"name": "@ecopages/postcss-processor",
+	"version": "0.0.0",
+	"license": "MIT",
+	"main": "./src/postcss-processor.ts",
+	"type": "module",
+	"files": ["src"],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/plugin/postcss-processor"
+	},
+	"dependencies": {
+		"@ecopages/logger": "workspace:*",
+		"@types/postcss-import": "^14.0.3",
+		"autoprefixer": "^10.4.16",
+		"bun-types": "latest",
+		"cssnano": "^6.0.2",
+		"postcss": "^8.4.32",
+		"postcss-import": "^15.1.0",
+		"tailwindcss": "^3.4.1"
+	}
+}

@@ -2,8 +2,8 @@
 	"name": "@ecopages/mdx",
 	"version": "0.0.0",
 	"license": "MIT",
-	"main": "./src/index.ts",
-	"types": "./src/index.ts",
+	"main": "./src/mdx.plugin.ts",
+	"types": "./src/mdx.plugin.ts",
 	"type": "module",
 	"files": ["src"],
 	"repository": {

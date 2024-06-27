@@ -26,6 +26,17 @@ export interface CssProcessor {
   processString: (contents: string | Buffer) => Promise<string>;
 }
 
+/**
+ * It processes the given path using PostCSS
+ * @param path string
+ * @returns string
+ *
+ * @example
+ * ```ts
+ * PostCssProcessor.processPath('path/to/file.css').then((processedCss) => {
+ * console.log(processedCss);
+ * });
+ */
 async function processPath(path: string) {
   const contents = getFileAsBuffer(path);
 
@@ -39,6 +50,20 @@ async function processPath(path: string) {
   }
 }
 
+/**
+ * It processes the given string or buffer using PostCSS
+ * @param contents string | Buffer
+ * @returns string
+ *
+ * @example
+ * ```ts
+ * const css = `body { @apply bg-blue-500; }`;
+ *
+ * PostCssProcessor.processString(css).then((processedCss) => {
+ * console.log(processedCss);
+ * });
+ * ```
+ */
 async function processStringOrBuffer(contents: string | Buffer) {
   const processor = postcss([postCssImport(), tailwindcssNesting, tailwindcss, autoprefixer, cssnano]);
   try {
@@ -49,6 +74,11 @@ async function processStringOrBuffer(contents: string | Buffer) {
   }
 }
 
+/**
+ * PostCSS Processor
+ * - processPath: It processes the given path using PostCSS
+ * - processString: It processes the given string or buffer using PostCSS
+ */
 export const PostCssProcessor: CssProcessor = {
   processPath,
   processString: processStringOrBuffer,

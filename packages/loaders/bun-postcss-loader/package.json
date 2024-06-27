@@ -1,14 +1,14 @@
 {
-	"name": "@ecopages/postcss-loader",
+	"name": "@ecopages/bun-postcss-loader",
 	"version": "0.0.0",
 	"license": "MIT",
-	"main": "./src/postcss-loader.ts",
+	"main": "./src/bun-postcss-loader.ts",
 	"type": "module",
 	"files": ["src"],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
-		"directory": "packages/loaders/postcss-loader"
+		"directory": "packages/loaders/bun-postcss-loader"
 	},
 	"dependencies": {
 		"@ecopages/postcss-processor": "workspace:*"

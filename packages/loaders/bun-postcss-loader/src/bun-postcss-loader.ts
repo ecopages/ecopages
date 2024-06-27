@@ -13,6 +13,14 @@ export function getFileAsBuffer(path: string): Buffer {
   }
 }
 
+/**
+ * A Bun plugin that processes PostCSS files
+ * Just add this plugin to your bunfig.toml file and it will process all .css files
+ * @example
+ * ```toml
+ * preload = ["@ecopages/bun-postcss-loader"]
+ * ```
+ */
 Bun.plugin({
   name: 'bun-postcss-loader',
   setup(build) {

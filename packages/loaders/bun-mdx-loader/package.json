@@ -1,14 +1,14 @@
 {
-	"name": "@ecopages/mdx-loader",
+	"name": "@ecopages/bun-mdx-loader",
 	"version": "0.0.0",
 	"license": "MIT",
-	"main": "./src/mdx-loader.ts",
+	"main": "./src/bun-mdx-loader.ts",
 	"type": "module",
 	"files": ["src"],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
-		"directory": "packages/loaders/mdx-loader"
+		"directory": "packages/loaders/bun-mdx-loader"
 	},
 	"dependencies": {
 		"@mdx-js/esbuild": "^3.0.1"

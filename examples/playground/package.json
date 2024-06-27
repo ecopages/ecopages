@@ -15,8 +15,8 @@
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/radiant": "^0.1.0",
-		"@ecopages/mdx-loader": "workspace:*",
-		"@ecopages/postcss-loader": "workspace:*",
+		"@ecopages/bun-mdx-loader": "workspace:*",
+		"@ecopages/bun-postcss-loader": "workspace:*",
 		"@types/alpinejs": "^3.13.6",
 		"alpinejs": "^3.13.10",
 		"shiki": "^1.1.2"

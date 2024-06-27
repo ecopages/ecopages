@@ -2,8 +2,8 @@
 	"name": "@ecopages/react",
 	"version": "0.0.0",
 	"license": "MIT",
-	"main": "./src/index.ts",
-	"types": "./src/index.ts",
+	"main": "./src/react.plugin.ts",
+	"types": "./src/react.plugin.ts",
 	"type": "module",
 	"files": ["src"],
 	"repository": {

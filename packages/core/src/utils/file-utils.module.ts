@@ -65,7 +65,14 @@ function gzipDirSync(path: string, extensionsToGzip: string[]): void {
 
 function write(path: string, contents: string | Buffer): void {
   try {
-    ensureDirectoryExists(path);
+    const dirs = path.split('/');
+    let currentPath = '';
+    for (let i = 0; i < dirs.length - 1; i++) {
+      currentPath += `${dirs[i]}/`;
+      if (!existsSync(currentPath)) {
+        mkdirSync(currentPath);
+      }
+    }
     writeFileSync(path, contents);
   } catch (error) {
     throw new Error(`[ecopages] Error writing file: ${path}`);

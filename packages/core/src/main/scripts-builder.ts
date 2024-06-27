@@ -1,6 +1,6 @@
 import { appLogger } from '@/global/app-logger';
-import { postCssProcessorPlugin } from '@/plugins/postcss-processor.plugin';
 import { FileUtils } from '@/utils/file-utils.module';
+import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import type { EcoPagesConfig } from '@types';
 
@@ -33,7 +33,7 @@ export class ScriptsBuilder {
       format: 'esm',
       splitting: true,
       plugins: [
-        postCssProcessorPlugin({
+        bunInlineCssPlugin({
           transform: PostCssProcessor.processString,
         }),
       ],

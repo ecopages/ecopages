@@ -1,0 +1,19 @@
+{
+	"name": "@ecopages/bun-inline-css-plugin",
+	"version": "0.0.0",
+	"license": "MIT",
+	"main": "./src/bun-inline-css-plugin.ts",
+	"type": "module",
+	"files": ["src"],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/plugins/bun-inline-css-plugin"
+	},
+	"dependencies": {
+		"@ecopages/logger": "workspace:*"
+	},
+	"devDependencies": {
+		"@ecopages/postcss-processor": "workspace:*"
+	}
+}

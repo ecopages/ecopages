@@ -8,7 +8,7 @@
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
-		"directory": "packages/plugin/postcss-processor"
+		"directory": "packages/processors/postcss-processor"
 	},
 	"dependencies": {
 		"@ecopages/logger": "workspace:*",

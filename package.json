@@ -43,6 +43,7 @@
 		"packages/*",
 		"packages/integrations/*",
 		"packages/loaders/*",
+		"packages/plugins/*",
 		"packages/processors/*",
 		"examples/*",
 		"apps/*"

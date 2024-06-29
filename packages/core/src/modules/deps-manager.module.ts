@@ -1,6 +1,5 @@
-import fs from 'node:fs';
 import path from 'node:path';
-import type { EcoComponent, EcoComponentDependencies, IntegrationPlugin } from '@types';
+import type { EcoComponent, EcoComponentDependencies } from '@types';
 
 export type WithEcoDependencies = EcoComponent<any> | { dependencies: EcoComponentDependencies };
 
@@ -33,11 +32,11 @@ function getDependencyDistPath(importMeta: ImportMeta, pathUrl: string): string 
 }
 
 /**
- * This function import explicitly the dependencies of the components.
+ * This function is in charge of collecting the dependencies of the components.
  * @param {ComponentConfigImportOptions} options - The options to import the dependencies.
  * @returns {EcoComponentDependencies} - The dependencies of the components.
  */
-function importPaths({
+function collect({
   importMeta,
   scripts,
   stylesheets,
@@ -64,64 +63,6 @@ function importPaths({
   return {
     scripts: scriptsPaths,
     stylesheets: stylesheetsPaths,
-  };
-}
-
-function filterFiles(file: string): boolean {
-  const {
-    ecoConfig: { integrations },
-  } = globalThis;
-  const isIndex = file === INDEX_FILE;
-  const integrationTemplateExtensions = integrations.flatMap(
-    (integration: IntegrationPlugin) => integration.extensions,
-  );
-  const isTemplate = integrationTemplateExtensions.some((ext: string) => file.includes(ext));
-
-  return !(isIndex || isTemplate);
-}
-
-function createDependencies(fileName: string, dependenciesServerPath: string): string {
-  const safeFileName = fileName.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
-  return `/${dependenciesServerPath}/${safeFileName}`;
-}
-
-/**
- * This function collects automatically the dependencies of the components.
- * @param {ComponentConfigOptions} options - The options to collect the dependencies.
- * @returns {EcoComponentDependencies} - The dependencies of the components.
- */
-function collect({ importMeta, components = [] }: ComponentConfigOptions): EcoComponent<any>['dependencies'] {
-  const {
-    ecoConfig: { srcDir, rootDir },
-  } = globalThis;
-
-  const safeSplit = srcDir === '.' ? `${rootDir}/` : `${srcDir}/`;
-
-  const dependenciesFileName = fs.readdirSync(importMeta.dir).filter(filterFiles);
-
-  const dependenciesServerPath = importMeta.dir.split(safeSplit)[1];
-
-  const dependencies = dependenciesFileName.map((fileName) => createDependencies(fileName, dependenciesServerPath));
-
-  const stylesheets = [
-    ...new Set(
-      [...dependencies, ...components.flatMap((component) => component.dependencies?.stylesheets || [])].filter(
-        (file) => file.endsWith('.css'),
-      ),
-    ),
-  ];
-
-  const scripts = [
-    ...new Set(
-      [...dependencies, ...components.flatMap((component) => component.dependencies?.scripts || [])].filter((file) =>
-        file.endsWith('.js'),
-      ),
-    ),
-  ];
-
-  return {
-    stylesheets,
-    scripts,
   };
 }
 
@@ -157,7 +98,6 @@ function extract({ dependencies }: WithEcoDependencies, type: DependencyType): s
 }
 
 export const DepsManager = {
-  importPaths,
   collect,
   filter,
   extract,

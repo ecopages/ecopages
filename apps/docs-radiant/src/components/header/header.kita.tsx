@@ -20,4 +20,8 @@ export const Header: EcoComponent<HeaderProps> = ({ navigation }) => {
   );
 };
 
-Header.dependencies = DepsManager.collect({ importMeta: import.meta, components: [Navigation, Logo] });
+Header.dependencies = DepsManager.collect({
+  importMeta: import.meta,
+  stylesheets: ['./header.css'],
+  components: [Navigation, Logo],
+});

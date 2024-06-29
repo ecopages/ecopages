@@ -23,4 +23,4 @@ export const ApiField: EcoComponent<{
   );
 };
 
-ApiField.dependencies = DepsManager.collect({ importMeta: import.meta });
+ApiField.dependencies = DepsManager.collect({ importMeta: import.meta, stylesheets: ['./api-field.css'] });

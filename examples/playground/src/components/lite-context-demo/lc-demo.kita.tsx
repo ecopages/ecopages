@@ -15,7 +15,7 @@ export function ContextProviderDemo({
   );
 }
 
-ContextProviderDemo.dependencies = DepsManager.importPaths({
+ContextProviderDemo.dependencies = DepsManager.collect({
   importMeta: import.meta,
   scripts: ['./lite-context-demo.script.ts'],
   stylesheets: ['./lite-context-demo.css'],

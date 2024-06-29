@@ -68,7 +68,7 @@ export const LiteTodoApp: EcoComponent = async () => {
   );
 };
 
-LiteTodoApp.dependencies = DepsManager.importPaths({
+LiteTodoApp.dependencies = DepsManager.collect({
   importMeta: import.meta,
   scripts: ['./lite-todo-app.script.ts'],
   stylesheets: ['./lite-todo-app.css'],

@@ -12,7 +12,7 @@ const Error404: EcoComponent<Error404TemplateProps> = (htmlTemplateProps) => {
   );
 };
 
-Error404.dependencies = DepsManager.importPaths({
+Error404.dependencies = DepsManager.collect({
   importMeta: import.meta,
   stylesheets: ['./404.css'],
   components: [BaseLayout],

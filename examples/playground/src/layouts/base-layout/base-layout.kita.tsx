@@ -27,5 +27,7 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
 
 BaseLayout.dependencies = DepsManager.collect({
   importMeta: import.meta,
+  stylesheets: ['./base-layout.css'],
+  scripts: ['./base-layout.script.js'],
   components: [Navigation],
 });

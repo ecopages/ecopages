@@ -19,5 +19,3 @@ export const Button: EcoComponent<ButtonProps> = ({
     </button>
   );
 };
-
-Button.dependencies = DepsManager.collect({ importMeta: import.meta });

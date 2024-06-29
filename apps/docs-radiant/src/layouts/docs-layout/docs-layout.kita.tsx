@@ -53,5 +53,6 @@ export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
 
 DocsLayout.dependencies = DepsManager.collect({
   importMeta: import.meta,
+  stylesheets: ['./docs-layout.css'],
   components: [BaseLayout, CodeBlock],
 });

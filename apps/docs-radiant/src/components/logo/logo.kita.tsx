@@ -10,4 +10,4 @@ export const Logo: EcoComponent<LogoProps> = (props) => {
   );
 };
 
-Logo.dependencies = DepsManager.collect({ importMeta: import.meta });
+Logo.dependencies = DepsManager.collect({ importMeta: import.meta, stylesheets: ['./logo.css'] });

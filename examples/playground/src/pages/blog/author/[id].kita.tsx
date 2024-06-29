@@ -13,13 +13,6 @@ type AuthorProps = {
   bio: string;
 };
 
-export const getMetadata: GetMetadata<AuthorProps> = async ({ name, slug }) => {
-  return {
-    title: `Author | ${slug}`,
-    description: `This is the bio of ${name}`,
-  };
-};
-
 export default function Author({ params, query, name, bio, slug }: PageProps<AuthorProps>) {
   return (
     <BaseLayout>
@@ -39,6 +32,13 @@ Author.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [BaseLayout],
 });
+
+export const getMetadata: GetMetadata<AuthorProps> = async ({ props: { name, slug } }) => {
+  return {
+    title: `Author | ${slug}`,
+    description: `This is the bio of ${name}`,
+  };
+};
 
 export const getStaticPaths: GetStaticPaths = async () => {
   return {

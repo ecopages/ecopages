@@ -64,7 +64,7 @@ export class ReactRenderer extends IntegrationRenderer {
   }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
     try {
       const body = await renderToReadableStream(
-        await HtmlTemplate({
+        HtmlTemplate({
           metadata,
           dependencies: Page.dependencies,
           headContent: this.createDynamicHead({

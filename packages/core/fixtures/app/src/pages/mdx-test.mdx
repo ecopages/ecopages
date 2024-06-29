@@ -2,7 +2,7 @@ import { Card } from '@/components/card';
 import { BaseLayout } from '@/layouts/base-layout';
 import { DepsManager } from '@ecopages/core';
 
-export const dependencies = DepsManager.importPaths({
+export const dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [Card, BaseLayout],
 });

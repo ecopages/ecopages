@@ -15,4 +15,4 @@ export const CodeBlock: EcoComponent<{
   return <div class="code-block">{safeHtml}</div>;
 };
 
-CodeBlock.dependencies = DepsManager.collect({ importMeta: import.meta });
+CodeBlock.dependencies = DepsManager.collect({ importMeta: import.meta, stylesheets: ['./code-block.css'] });

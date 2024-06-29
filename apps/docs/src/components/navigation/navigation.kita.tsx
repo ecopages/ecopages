@@ -24,4 +24,4 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
   );
 };
 
-Navigation.dependencies = DepsManager.collect({ importMeta: import.meta });
+Navigation.dependencies = DepsManager.collect({ importMeta: import.meta, stylesheets: ['./navigation.css'] });

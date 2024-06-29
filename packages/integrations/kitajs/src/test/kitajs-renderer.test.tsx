@@ -105,7 +105,7 @@ describe('KitaRenderer', () => {
 
     const Page: EcoPage = async () => 'Hello World';
     Page.dependencies = {
-      scripts: ['my-script.js'],
+      scripts: ['my-script.ts'],
       stylesheets: ['my-dependency.css'],
     };
 

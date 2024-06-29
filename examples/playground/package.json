@@ -3,7 +3,7 @@
 	"private": true,
 	"scripts": {
 		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
-		"dev": "NODE_ENV=development ecopages dev",
+		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",
 		"preview": "ecopages preview"

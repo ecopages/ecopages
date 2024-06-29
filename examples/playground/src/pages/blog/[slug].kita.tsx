@@ -14,13 +14,6 @@ export type BlogPostProps = {
   text: string;
 };
 
-export const getMetadata: GetMetadata<BlogPostProps> = async ({ title, slug }) => {
-  return {
-    title,
-    description: `This is a blog post with the slug ${slug}`,
-  };
-};
-
 const BlogPost: EcoPage<PageProps<BlogPostProps>> = ({ params, query, title, text, slug }) => {
   return (
     <BaseLayout>
@@ -40,6 +33,13 @@ BlogPost.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [BaseLayout],
 });
+
+export const getMetadata: GetMetadata<BlogPostProps> = async ({ props: { title, slug } }) => {
+  return {
+    title,
+    description: `This is a blog post with the slug ${slug}`,
+  };
+};
 
 export const getStaticPaths: GetStaticPaths = async () => {
   return {

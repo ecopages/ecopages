@@ -1,6 +1,6 @@
 import { Counter } from '@/components/counter/counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoPage, GetMetadata } from '@ecopages/core';
+import { DepsManager, type EcoPage, type GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',
@@ -29,5 +29,4 @@ TestPage.dependencies = {
   ],
   scripts: ['pages/test.script.js'],
 };
-
 export default TestPage;

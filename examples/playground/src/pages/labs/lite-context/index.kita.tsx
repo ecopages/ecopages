@@ -6,13 +6,6 @@ import {
 import { BaseLayout } from '@/layouts/base-layout';
 import { DepsManager, type EcoComponent, type GetMetadata } from '@ecopages/core';
 
-export const getMetadata: GetMetadata = () => ({
-  title: 'Lite Element',
-  description: 'Testing lite element with Kita',
-  image: 'public/assets/images/default-og.png',
-  keywords: ['typescript', 'framework', 'static', 'lite-element'],
-});
-
 const RadiantElement: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
@@ -27,6 +20,13 @@ const RadiantElement: EcoComponent = () => {
 RadiantElement.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [BaseLayout, ContextProviderDemo, ContextProviderDemoVisualizer, ContextProviderDemoEditor],
+});
+
+export const getMetadata: GetMetadata = () => ({
+  title: 'Lite Element',
+  description: 'Testing Radiant Context with Kita',
+  image: 'public/assets/images/default-og.png',
+  keywords: ['typescript', 'framework', 'static', 'radiant'],
 });
 
 export default RadiantElement;

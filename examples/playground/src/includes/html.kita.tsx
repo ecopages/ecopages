@@ -10,7 +10,7 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({
 }) => {
   return (
     <html lang={language}>
-      <Head metadata={metadata}>{headContent}</Head>
+      <Head metadata={metadata}>{headContent as 'safe'}</Head>
       {children}
     </html>
   );

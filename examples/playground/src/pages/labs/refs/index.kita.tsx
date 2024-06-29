@@ -23,6 +23,7 @@ const LabsPage: EcoPage = () => {
 
 LabsPage.dependencies = DepsManager.collect({
   importMeta: import.meta,
+  scripts: ['./lite-refs.script.ts'],
   components: [BaseLayout],
 });
 

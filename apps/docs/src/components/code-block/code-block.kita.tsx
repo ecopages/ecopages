@@ -14,4 +14,4 @@ export const CodeBlock: EcoComponent<{ children: string; lang?: BundledLanguage;
   return <div class="code-block">{safeHtml}</div>;
 };
 
-CodeBlock.dependencies = DepsManager.collect({ importMeta: import.meta });
+CodeBlock.dependencies = DepsManager.collect({ importMeta: import.meta, stylesheets: ['./code-block.css'] });

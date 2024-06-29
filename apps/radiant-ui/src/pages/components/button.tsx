@@ -74,7 +74,7 @@ const ButtonPage: EcoComponent = () => {
   );
 };
 
-ButtonPage.dependencies = DepsManager.importPaths({
+ButtonPage.dependencies = DepsManager.collect({
   importMeta: import.meta,
   components: [BaseLayout],
 });

@@ -14,4 +14,7 @@ export const Card: EcoComponent<CardProps> = ({ copy, title }) => {
   );
 };
 
-Card.dependencies = DepsManager.collect({ importMeta: import.meta });
+Card.dependencies = DepsManager.collect({
+  importMeta: import.meta,
+  stylesheets: ['./card.css'],
+});

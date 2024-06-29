@@ -21,7 +21,7 @@ const HomePage: EcoPage<PageProps> = ({ params, query }) => {
   );
 };
 
-HomePage.dependencies = DepsManager.importPaths({
+HomePage.dependencies = DepsManager.collect({
   importMeta: import.meta,
   stylesheets: ['./index.css'],
   components: [BaseLayout, LitCounter],

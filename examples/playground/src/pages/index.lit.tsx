@@ -35,10 +35,14 @@ const HomePage: EcoComponent = () => {
         >
           <lit-counter class="lit-counter" count={8}></lit-counter>
         </scripts-injector>
-        <LiteRenderer>
-          <Message text="Hello from the server" />
-        </LiteRenderer>
-        <LiteRenderer replace-on-load={true} />
+        <scripts-injector
+          on:interaction="mouseenter,focusin"
+          scripts={DepsManager.extract(LiteRenderer, 'scripts').join()}
+        >
+          <LiteRenderer>
+            <Message text="Hello from the server" />
+          </LiteRenderer>
+        </scripts-injector>
       </>
     </BaseLayout>
   );
@@ -46,9 +50,10 @@ const HomePage: EcoComponent = () => {
 
 HomePage.dependencies = DepsManager.collect({
   importMeta: import.meta,
+  stylesheets: ['./index.css'],
   components: [
     BaseLayout,
-    LiteRenderer,
+    DepsManager.filter(LiteRenderer, 'stylesheets'),
     DepsManager.filter(Counter, 'stylesheets'),
     DepsManager.filter(LiteCounter, 'stylesheets'),
   ],

@@ -18,4 +18,8 @@ export const Counter: EcoComponent<CounterProps> = ({ count = 0 }) => {
   );
 };
 
-Counter.dependencies = DepsManager.collect({ importMeta: import.meta });
+Counter.dependencies = DepsManager.collect({
+  importMeta: import.meta,
+  scripts: ['./counter.script.ts'],
+  stylesheets: ['./counter.css'],
+});

@@ -1,14 +1,15 @@
-import { DepsManager } from '@ecopages/core';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { LiteCounter } from '@/components/lite-counter'
 
 export const layout = DocsLayout;
 
-export const dependencies = DepsManager.collect({
+export const config = {
   importMeta: import.meta,
-  components: [LiteCounter]
-})
+  dependencies: {
+    components: [LiteCounter]
+  }
+}
 
 export const getMetadata = () => ({
   title: 'Docs | Lite Counter',

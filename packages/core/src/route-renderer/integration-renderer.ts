@@ -1,6 +1,8 @@
+import path from 'node:path';
 import type {
   EcoComponent,
   EcoComponentDependencies,
+  EcoPage,
   EcoPageFile,
   EcoPagesConfig,
   GetMetadata,
@@ -97,6 +99,72 @@ export abstract class IntegrationRenderer {
     }
   }
 
+  getDependencyDistPath(importMeta: ImportMeta, pathUrl: string): string {
+    const { ecoConfig: config } = globalThis;
+    const EXTENSIONS_TO_JS = ['ts', 'tsx', 'jsx'];
+    const safeFileName = pathUrl.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
+    const distUrl = importMeta.url.split(config.srcDir)[1].split(importMeta.file)[0];
+    return path.join(distUrl, safeFileName);
+  }
+
+  extractDependencies({
+    importMeta,
+    scripts,
+    stylesheets,
+  }: {
+    importMeta: ImportMeta;
+  } & EcoComponentDependencies): EcoComponentDependencies {
+    const scriptsPaths = [...new Set(scripts?.map((script) => this.getDependencyDistPath(importMeta, script)))];
+
+    const stylesheetsPaths = [...new Set(stylesheets?.map((style) => this.getDependencyDistPath(importMeta, style)))];
+
+    return {
+      scripts: scriptsPaths,
+      stylesheets: stylesheetsPaths,
+    };
+  }
+
+  protected collectDependencies(Page: EcoPage): EcoComponentDependencies {
+    if (!Page.config) {
+      return {};
+    }
+
+    const stylesheetsSet = new Set<string>();
+    const scriptsSet = new Set<string>();
+
+    const collect = (config: EcoComponent['config']) => {
+      if (!config?.dependencies) return;
+
+      const collectedDependencies = this.extractDependencies({
+        ...config.dependencies,
+        importMeta: config.importMeta,
+      });
+
+      for (const stylesheet of collectedDependencies.stylesheets || []) {
+        stylesheetsSet.add(stylesheet);
+      }
+
+      for (const script of collectedDependencies.scripts || []) {
+        scriptsSet.add(script);
+      }
+
+      if (config.dependencies.components) {
+        for (const component of config.dependencies.components) {
+          if (component.config) {
+            collect(component.config);
+          }
+        }
+      }
+    };
+
+    collect(Page.config);
+
+    return {
+      stylesheets: Array.from(stylesheetsSet),
+      scripts: Array.from(scriptsSet),
+    };
+  }
+
   protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
     const {
       default: Page,
@@ -104,6 +172,8 @@ export abstract class IntegrationRenderer {
       getMetadata,
       ...integrationSpecificProps
     } = await this.importPageFile(options.file);
+
+    const dependencies = this.collectDependencies(Page);
 
     const HtmlTemplate = await this.getHtmlTemplate();
 
@@ -122,6 +192,7 @@ export abstract class IntegrationRenderer {
       HtmlTemplate,
       props,
       Page,
+      dependencies,
       metadata,
       params: options.params || {},
       query: options.query || {},

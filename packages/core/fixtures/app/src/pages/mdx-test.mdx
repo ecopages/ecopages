@@ -1,11 +1,10 @@
 import { Card } from '@/components/card';
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager } from '@ecopages/core';
 
-export const dependencies = DepsManager.collect({
+export const config = {
   importMeta: import.meta,
-  components: [Card, BaseLayout],
-});
+  dependencies: { components: [Card, BaseLayout] }
+}
 
 <BaseLayout class="prose">
 

@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 
 export type CardProps = {
   title: string;
@@ -14,7 +14,7 @@ export const Card: EcoComponent<CardProps> = ({ copy, title }) => {
   );
 };
 
-Card.dependencies = DepsManager.collect({
+Card.config = {
   importMeta: import.meta,
-  stylesheets: ['./card.css'],
-});
+  dependencies: { stylesheets: ['./card.css'] },
+};

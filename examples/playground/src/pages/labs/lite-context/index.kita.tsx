@@ -4,7 +4,7 @@ import {
   ContextProviderDemoVisualizer,
 } from '@/components/lite-context-demo';
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoComponent, type GetMetadata } from '@ecopages/core';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
 const RadiantElement: EcoComponent = () => {
   return (
@@ -17,10 +17,12 @@ const RadiantElement: EcoComponent = () => {
   );
 };
 
-RadiantElement.dependencies = DepsManager.collect({
+RadiantElement.config = {
   importMeta: import.meta,
-  components: [BaseLayout, ContextProviderDemo, ContextProviderDemoVisualizer, ContextProviderDemoEditor],
-});
+  dependencies: {
+    components: [BaseLayout, ContextProviderDemo, ContextProviderDemoVisualizer, ContextProviderDemoEditor],
+  },
+};
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Lite Element',

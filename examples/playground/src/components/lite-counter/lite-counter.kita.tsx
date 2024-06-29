@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 import type { LiteCounterProps } from './lite-counter.script';
 
 export const LiteCounter: EcoComponent<LiteCounterProps> = ({ count }) => {
@@ -15,8 +15,10 @@ export const LiteCounter: EcoComponent<LiteCounterProps> = ({ count }) => {
   );
 };
 
-LiteCounter.dependencies = DepsManager.collect({
+LiteCounter.config = {
   importMeta: import.meta,
-  scripts: ['./lite-counter.script.ts'],
-  stylesheets: ['./lite-counter.css'],
-});
+  dependencies: {
+    scripts: ['./lite-counter.script.ts'],
+    stylesheets: ['./lite-counter.css'],
+  },
+};

@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoComponent, type Error404TemplateProps } from '@ecopages/core';
+import type { EcoComponent, Error404TemplateProps } from '@ecopages/core';
 
 const Error404: EcoComponent<Error404TemplateProps> = (htmlTemplateProps) => {
   return (
@@ -12,9 +12,11 @@ const Error404: EcoComponent<Error404TemplateProps> = (htmlTemplateProps) => {
   );
 };
 
-Error404.dependencies = DepsManager.collect({
+Error404.config = {
   importMeta: import.meta,
-  components: [BaseLayout],
-});
+  dependencies: {
+    components: [BaseLayout],
+  },
+};
 
 export default Error404;

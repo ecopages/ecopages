@@ -9,13 +9,14 @@ export class KitaRenderer extends IntegrationRenderer {
     query,
     props,
     metadata,
+    dependencies,
     Page,
     HtmlTemplate,
   }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
     try {
       const body = await HtmlTemplate({
         metadata,
-        headContent: await this.getHeadContent(Page.dependencies),
+        headContent: await this.getHeadContent(dependencies),
         children: await Page({ params, query, ...props }),
       });
 

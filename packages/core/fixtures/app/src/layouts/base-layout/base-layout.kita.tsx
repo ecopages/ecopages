@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 
 export type BaseLayoutProps = {
   children: Html.Children;
@@ -13,8 +13,10 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
   );
 };
 
-BaseLayout.dependencies = DepsManager.collect({
+BaseLayout.config = {
   importMeta: import.meta,
-  stylesheets: ['./base-layout.css'],
-  scripts: ['./base-layout.ts'],
-});
+  dependencies: {
+    stylesheets: ['./base-layout.css'],
+    scripts: ['./base-layout.ts'],
+  },
+};

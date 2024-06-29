@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoComponent, type GetMetadata } from '@ecopages/core';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',
@@ -18,10 +18,12 @@ const HomePage: EcoComponent = () => {
   );
 };
 
-HomePage.dependencies = DepsManager.collect({
+HomePage.config = {
   importMeta: import.meta,
-  stylesheets: ['./index.css'],
-  components: [BaseLayout],
-});
+  dependencies: {
+    stylesheets: ['./index.css'],
+    components: [BaseLayout],
+  },
+};
 
 export default HomePage;

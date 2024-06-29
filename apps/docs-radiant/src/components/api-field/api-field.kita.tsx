@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 
 export const ApiField: EcoComponent<{
   name: string;
@@ -23,4 +23,4 @@ export const ApiField: EcoComponent<{
   );
 };
 
-ApiField.dependencies = DepsManager.collect({ importMeta: import.meta, stylesheets: ['./api-field.css'] });
+ApiField.config = { importMeta: import.meta, dependencies: { stylesheets: ['./api-field.css'] } };

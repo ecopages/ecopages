@@ -27,6 +27,9 @@ export const Counter: EcoComponent<CounterProps> = ({ defaultValue = 5 }) => {
   );
 };
 
-Counter.dependencies = {
-  stylesheets: ['components/counter/counter.css'],
+Counter.config = {
+  importMeta: import.meta,
+  dependencies: {
+    stylesheets: ['./counter.css'],
+  },
 };

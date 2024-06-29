@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 import { stringifyAttribute } from '@ecopages/radiant/tools/stringify-attribute';
 import type { TodoContext } from './lite-todo-app.script';
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './lite-todo.templates';
@@ -68,8 +68,10 @@ export const LiteTodoApp: EcoComponent = async () => {
   );
 };
 
-LiteTodoApp.dependencies = DepsManager.collect({
+LiteTodoApp.config = {
   importMeta: import.meta,
-  scripts: ['./lite-todo-app.script.ts'],
-  stylesheets: ['./lite-todo-app.css'],
-});
+  dependencies: {
+    scripts: ['./lite-todo-app.script.ts'],
+    stylesheets: ['./lite-todo-app.css'],
+  },
+};

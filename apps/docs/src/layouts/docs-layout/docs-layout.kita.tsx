@@ -2,7 +2,7 @@ import { ApiField } from '@/components/api-field/api-field.kita';
 import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { docsConfig } from '@/data/docs-config';
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 
 export type DocsLayoutProps = {
   children: Html.Children;
@@ -52,8 +52,10 @@ export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
   );
 };
 
-DocsLayout.dependencies = DepsManager.collect({
+DocsLayout.config = {
   importMeta: import.meta,
-  stylesheets: ['./docs-layout.css'],
-  components: [BaseLayout, CodeBlock, ApiField],
-});
+  dependencies: {
+    stylesheets: ['./docs-layout.css'],
+    components: [BaseLayout, CodeBlock, ApiField],
+  },
+};

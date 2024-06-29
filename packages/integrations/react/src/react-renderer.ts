@@ -1,6 +1,5 @@
 import {
   type EcoComponentDependencies,
-  type EcoPagesConfig,
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
@@ -11,26 +10,6 @@ import { PLUGIN_NAME } from './react.plugin';
 
 export class ReactRenderer extends IntegrationRenderer {
   name = PLUGIN_NAME;
-
-  collectDependencies({
-    dependencies,
-    appConfig,
-  }: { dependencies?: EcoComponentDependencies; appConfig: EcoPagesConfig }) {
-    return {
-      stylesheets: [
-        ...(dependencies?.stylesheets || []),
-        ...appConfig.integrationsDependencies
-          .filter((dep) => dep.kind === 'stylesheet')
-          .flatMap((dep) => dep.filePath.split(`${appConfig.distDir}/`)[1]),
-      ],
-      scripts: [
-        ...(dependencies?.scripts || []),
-        ...appConfig.integrationsDependencies
-          .filter((dep) => dep.kind === 'script')
-          .flatMap((dep) => dep.filePath.split(`${appConfig.distDir}/`)[1]),
-      ],
-    };
-  }
 
   createDynamicHead({ dependencies }: { dependencies?: EcoComponentDependencies }) {
     if (!dependencies) return React.createElement(React.Fragment, null);
@@ -54,11 +33,11 @@ export class ReactRenderer extends IntegrationRenderer {
   }
 
   async render({
-    appConfig,
     params,
     query,
     props,
     metadata,
+    dependencies,
     Page,
     HtmlTemplate,
   }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
@@ -66,10 +45,7 @@ export class ReactRenderer extends IntegrationRenderer {
       const body = await renderToReadableStream(
         HtmlTemplate({
           metadata,
-          dependencies: Page.dependencies,
-          headContent: this.createDynamicHead({
-            dependencies: this.collectDependencies({ dependencies: Page.dependencies, appConfig }),
-          }),
+          headContent: this.createDynamicHead({ dependencies }),
           children: Page({ params, query, ...props }),
         }),
       );

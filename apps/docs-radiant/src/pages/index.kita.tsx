@@ -1,6 +1,6 @@
 import { DocsLayout } from '@/layouts/docs-layout';
 import Introduction from '@/pages/docs/getting-started/introduction.mdx';
-import { DepsManager, type EcoPage, type GetMetadata } from '@ecopages/core';
+import type { EcoPage, GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Radiant | Docs',
@@ -17,10 +17,12 @@ const HomePage: EcoPage = () => {
   );
 };
 
-HomePage.dependencies = DepsManager.collect({
+HomePage.config = {
   importMeta: import.meta,
-  stylesheets: ['./index.css'],
-  components: [DocsLayout],
-});
+  dependencies: {
+    stylesheets: ['./index.css'],
+    components: [DocsLayout],
+  },
+};
 
 export default HomePage;

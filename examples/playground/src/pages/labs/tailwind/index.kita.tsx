@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoPage, type GetMetadata } from '@ecopages/core';
+import type { EcoPage, GetMetadata } from '@ecopages/core';
 
 const TailwindPage: EcoPage = () => {
   return (
@@ -24,10 +24,12 @@ const TailwindPage: EcoPage = () => {
   );
 };
 
-TailwindPage.dependencies = DepsManager.collect({
+TailwindPage.config = {
   importMeta: import.meta,
-  components: [BaseLayout],
-});
+  dependencies: {
+    components: [BaseLayout],
+  },
+};
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Labs page',

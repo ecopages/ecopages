@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoComponent, type GetMetadata } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 
 const getData = async () => {
   return new Promise<string>((resolve) => {
@@ -25,9 +25,11 @@ const LabsAsyncPage: EcoComponent = async () => {
   );
 };
 
-LabsAsyncPage.dependencies = DepsManager.collect({
+LabsAsyncPage.config = {
   importMeta: import.meta,
-  components: [BaseLayout],
-});
+  dependencies: {
+    components: [BaseLayout],
+  },
+};
 
 export default LabsAsyncPage;

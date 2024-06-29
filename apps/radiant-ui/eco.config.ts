@@ -14,6 +14,7 @@ const config: EcoPagesConfigInput = {
     html: 'html.tsx',
     seo: 'seo.tsx',
   },
+  error404Template: '404.tsx',
 };
 
 export default config;

@@ -4,6 +4,7 @@ import { PLUGIN_NAME } from './mdx.plugin';
 
 import {
   type EcoComponent,
+  type EcoComponentConfig,
   type EcoComponentDependencies,
   type EcoPage,
   type EcoPageFile,
@@ -16,32 +17,44 @@ import {
 export type MDXFile = {
   default: EcoPage;
   layout?: EcoComponent;
-  dependencies?: EcoComponentDependencies;
+  config?: EcoComponentConfig;
   getMetadata: GetMetadata;
 };
 
 interface MDXIntegrationRendererOpions extends IntegrationRendererRenderOptions {
   layout?: EcoComponent;
+  mdxDependencies: EcoComponentDependencies;
 }
 
 export class MDXRenderer extends IntegrationRenderer {
   name = PLUGIN_NAME;
 
-  protected override async importPageFile(file: string): Promise<EcoPageFile<{ layout?: EcoComponent }>> {
+  protected override async importPageFile(
+    file: string,
+  ): Promise<EcoPageFile<{ layout?: EcoComponent; mdxDependencies: EcoComponentDependencies }>> {
     try {
-      const { default: Page, dependencies, layout, getMetadata } = (await import(file)) as MDXFile;
+      const { default: Page, config, layout, getMetadata } = (await import(file)) as MDXFile;
 
-      if (dependencies) Page.dependencies = dependencies;
+      const layoutDependencies = layout ? this.collectDependencies({ config: layout.config }) : {};
 
-      return { default: Page, layout, getMetadata };
+      const pageDependencies = this.collectDependencies({ config });
+
+      return { default: Page, layout, mdxDependencies: deepMerge(layoutDependencies, pageDependencies), getMetadata };
     } catch (error) {
       invariant(false, `Error importing MDX file: ${error}`);
     }
   }
 
-  async render({ metadata, Page, HtmlTemplate, layout }: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
+  async render({
+    metadata,
+    Page,
+    HtmlTemplate,
+    dependencies,
+    mdxDependencies,
+    layout,
+  }: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
     try {
-      const headContent = await this.getHeadContent(deepMerge(Page.dependencies ?? {}, layout?.dependencies ?? {}));
+      const headContent = await this.getHeadContent(mdxDependencies);
 
       const children = layout ? layout({ children: Page({}) }) : Page({});
 

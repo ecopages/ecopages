@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 import type { LiteRendererProps } from './lite-renderer.script';
 
 const Controls = () => {
@@ -28,8 +28,7 @@ export const LiteRenderer: EcoComponent<
   );
 };
 
-LiteRenderer.dependencies = DepsManager.collect({
+LiteRenderer.config = {
   importMeta: import.meta,
-  scripts: ['./lite-renderer.script.ts'],
-  stylesheets: ['./lite-renderer.css'],
-});
+  dependencies: { scripts: ['./lite-renderer.script.ts'], stylesheets: ['./lite-renderer.css'] },
+};

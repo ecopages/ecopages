@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoPage } from '@ecopages/core';
+import type { EcoPage } from '@ecopages/core';
 
 const LabsPage: EcoPage = () => {
   return (
@@ -21,10 +21,12 @@ const LabsPage: EcoPage = () => {
   );
 };
 
-LabsPage.dependencies = DepsManager.collect({
+LabsPage.config = {
   importMeta: import.meta,
-  scripts: ['./lite-refs.script.ts'],
-  components: [BaseLayout],
-});
+  dependencies: {
+    scripts: ['./lite-refs.script.ts'],
+    components: [BaseLayout],
+  },
+};
 
 export default LabsPage;

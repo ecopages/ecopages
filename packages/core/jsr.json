@@ -3,7 +3,6 @@
 	"version": "${version}",
 	"exports": {
 		".": "./src/index.ts",
-		"./deps-manager": "./src/modules/deps-manager.module.ts",
 		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",
 		"./route-renderer/route-renderer": "./src/route-renderer/route-renderer.ts",
 		"./router/fs-router": "./src/router/fs-router.ts",
@@ -12,7 +11,8 @@
 		"./utils/add-base-url-to-pathname": "./src/utils/add-base-url-to-pathname.ts",
 		"./utils/deep-merge": "./src/utils/deep-merge.ts",
 		"./utils/invariant": "./src/utils/invariant.ts",
-		"./utils/file-utils": "./src/utils/file-utils.module.ts"
+		"./utils/file-utils": "./src/utils/file-utils.module.ts",
+		"./utils/resolve-components-modules": "./src/utils/resolve-components-modules.module.ts"
 	},
 	"exclude": ["fixtures", "**/*.test.ts"],
 	"imports": {

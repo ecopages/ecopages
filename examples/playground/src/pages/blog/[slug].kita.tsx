@@ -1,12 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import {
-  DepsManager,
-  type EcoPage,
-  type GetMetadata,
-  type GetStaticPaths,
-  type GetStaticProps,
-  type PageProps,
-} from '@ecopages/core';
+import type { EcoPage, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
 
 export type BlogPostProps = {
   slug: string;
@@ -29,10 +22,10 @@ const BlogPost: EcoPage<PageProps<BlogPostProps>> = ({ params, query, title, tex
   );
 };
 
-BlogPost.dependencies = DepsManager.collect({
+BlogPost.config = {
   importMeta: import.meta,
-  components: [BaseLayout],
-});
+  dependencies: { components: [BaseLayout] },
+};
 
 export const getMetadata: GetMetadata<BlogPostProps> = async ({ props: { title, slug } }) => {
   return {

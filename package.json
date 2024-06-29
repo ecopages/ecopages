@@ -7,6 +7,7 @@
 		"build:playground": "bun run --filter @ecopages/playground build",
 		"start:playground": "bun run --filter @ecopages/playground start",
 		"preview:playground": "bun run --filter @ecopages/playground preview",
+		"watch:dev:starter": "bun run --filter @ecopages/starter watch:dev | tee /dev/null",
 		"dev:starter": "bun run --filter @ecopages/starter dev | tee /dev/null",
 		"build:starter": "bun run --filter @ecopages/starter build",
 		"start:starter": "bun run --filter @ecopages/starter start",

@@ -12,6 +12,7 @@ export class LitRenderer extends IntegrationRenderer {
     query,
     props,
     metadata,
+    dependencies,
     Page,
     HtmlTemplate,
   }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
@@ -20,7 +21,7 @@ export class LitRenderer extends IntegrationRenderer {
 
       const template = (await HtmlTemplate({
         metadata,
-        headContent: await this.getHeadContent(Page.dependencies),
+        headContent: await this.getHeadContent(dependencies),
         children: '<--content-->',
       })) as string;
 

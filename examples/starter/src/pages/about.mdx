@@ -1,8 +1,13 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager } from '@ecopages/core';
 
 export const layout = BaseLayout;
 
+export const config = {
+  importMeta: import.meta,
+  dependencies: {
+    components: [BaseLayout]
+  }
+}
 
 export const getMetadata = () => ({
   title: 'Docs | Context Consumer',

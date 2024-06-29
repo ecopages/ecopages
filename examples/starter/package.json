@@ -2,6 +2,7 @@
 	"name": "@ecopages/starter",
 	"private": true,
 	"scripts": {
+		"watch:dev": "NODE_ENV=development bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",

@@ -1,6 +1,6 @@
 import { LitCounter } from '@/components/lit-counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoPage, type GetMetadata, type PageProps } from '@ecopages/core';
+import type { EcoPage, GetMetadata, PageProps } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',
@@ -21,10 +21,12 @@ const HomePage: EcoPage<PageProps> = ({ params, query }) => {
   );
 };
 
-HomePage.dependencies = DepsManager.collect({
+HomePage.config = {
   importMeta: import.meta,
-  stylesheets: ['./index.css'],
-  components: [BaseLayout, LitCounter],
-});
+  dependencies: {
+    stylesheets: ['./index.css'],
+    components: [BaseLayout, LitCounter],
+  },
+};
 
 export default HomePage;

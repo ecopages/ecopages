@@ -175,6 +175,7 @@ export type EcoPagesConfigInput = Omit<
 export type EcoComponentDependencies = {
   stylesheets?: string[];
   scripts?: string[];
+  components?: (EcoComponent | { config: EcoComponentConfig })[];
 };
 
 export type PageParams = Record<string, string | string[]>;
@@ -186,14 +187,19 @@ export type StaticPageContext = {
   query?: PageQuery;
 };
 
-export interface EcoComponent<T = unknown> {
-  (props: T): JSX.Element;
+export type EcoComponentConfig = {
+  importMeta: ImportMeta;
   dependencies?: EcoComponentDependencies;
+};
+
+export interface EcoComponent<T = any> {
+  (props: T): JSX.Element;
+  config?: EcoComponentConfig;
 }
 
-export interface EcoPage<T = unknown> {
+export interface EcoPage<T = any> {
   (props: T): JSX.Element;
-  dependencies?: EcoComponentDependencies;
+  config?: EcoComponentConfig;
 }
 
 export type PageProps<T = unknown> = T & StaticPageContext;
@@ -262,6 +268,7 @@ export type IntegrationRendererRenderOptions = RouteRendererOptions & {
   metadata: PageMetadataProps;
   HtmlTemplate: EcoComponent<HtmlTemplateProps>;
   Page: EcoPage<PageProps>;
+  dependencies?: EcoComponentDependencies;
   appConfig: EcoPagesConfig;
 };
 

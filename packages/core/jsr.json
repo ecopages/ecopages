@@ -1,9 +1,8 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.1.0",
+	"version": "${version}",
 	"exports": {
 		".": "./src/index.ts",
-		"./package.json": "./package.json",
 		"./deps-manager": "./src/modules/deps-manager.module.ts",
 		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",
 		"./route-renderer/route-renderer": "./src/route-renderer/route-renderer.ts",
@@ -15,5 +14,8 @@
 		"./utils/invariant": "./src/utils/invariant.ts",
 		"./utils/file-utils": "./src/utils/file-utils.module.ts"
 	},
-	"exclude": ["fixtures", "**/*.test.ts"]
+	"exclude": ["fixtures", "**/*.test.ts"],
+	"imports": {
+		"bun": "npm:@types/bun@latest"
+	}
 }

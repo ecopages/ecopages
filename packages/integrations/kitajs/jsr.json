@@ -1,0 +1,12 @@
+{
+	"name": "@ecopages/kitajs",
+	"version": "${version}",
+	"exports": {
+		".": "./src/kitajs.plugin.ts"
+	},
+	"exclude": ["src/test", "**/*.test.ts"],
+	"imports": {
+		"@ecopages/core": "jsr:@ecopages/core@${version}",
+		"bun": "npm:@types/bun@latest"
+	}
+}

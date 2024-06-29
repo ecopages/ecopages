@@ -5,7 +5,7 @@
 		"outDir": "./dist",
 		"esModuleInterop": true,
 		"module": "ESNext",
-		"moduleResolution": "node",
+		"moduleResolution": "Bundler",
 		"noImplicitOverride": true,
 		"resolveJsonModule": true,
 		"skipLibCheck": true,

@@ -1,6 +1,6 @@
 # PostCSS Processor
 
-This module provides utility functions for processing CSS files and strings using PostCSS along with a set of plugins like Tailwind CSS, Autoprefixer, and cssnano. It's designed to be a simple interface for transforming CSS with PostCSS in a Node.js environment.
+This modules provides a set of utility functions for processing CSS files and strings using PostCSS along with a set of plugins like Tailwind CSS, Autoprefixer, and cssnano. It's designed to be a simple interface for transforming CSS with PostCSS in a Node.js environment.
 
 ## Features
 
@@ -8,8 +8,6 @@ This module provides utility functions for processing CSS files and strings usin
 - Process CSS strings or Buffers.
 
 ## Installation
-
-Before using this module, ensure you have PostCSS and the necessary plugins installed in your project. If not, you can install them using npm or yarn:
 
 ```bash
 bun install @ecopages/postcss-processor
@@ -22,7 +20,7 @@ bun install @ecopages/postcss-processor
 To process a CSS file located at a specific path:
 
 ```ts
-import { processPath } from "./path/to/postcss-processor";
+import { processPath } from "@ecopages/postcss-processor";
 
 processPath("path/to/file.css").then((processedCss) => {
   console.log(processedCss);
@@ -34,7 +32,7 @@ processPath("path/to/file.css").then((processedCss) => {
 To process a CSS string or Buffer:
 
 ```ts
-import { processStringOrBuffer } from "./path/to/postcss-processor";
+import { processStringOrBuffer } from "@ecopages/postcss-processor";
 
 const css = `body { @apply bg-blue-500; }`;
 
@@ -45,7 +43,7 @@ processStringOrBuffer(css).then((processedCss) => {
 
 ## Error Handling
 
-Both processPath and processStringOrBuffer functions catch and log errors internally. In case of an error, an empty string is returned.
+Both `processPath` and `processStringOrBuffer` functions catch and log errors internally. In case of an error, an empty string is returned.
 
 ## Dependencies
 

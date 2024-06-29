@@ -34,7 +34,7 @@ export class ScriptsBuilder {
       splitting: true,
       plugins: [
         bunInlineCssPlugin({
-          transform: PostCssProcessor.processString,
+          transform: PostCssProcessor.processStringOrBuffer,
         }),
       ],
     });

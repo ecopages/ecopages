@@ -1,6 +1,5 @@
 {
-	"name": "ecopages",
-	"version": "0.0.1",
+	"name": "@ecopages/ecopages",
 	"private": true,
 	"scripts": {
 		"watch:dev:playground": "bun run --filter @ecopages/playground watch:dev",
@@ -31,14 +30,19 @@
 		"clean": "clear && rm -rf node_modules bun.lockb && bun install",
 		"format": "bunx @biomejs/biome format --write .",
 		"lint": "bunx @biomejs/biome check --apply .",
-		"lint-staged": "lint-staged"
+		"lint-staged": "lint-staged",
+		"changeset": "changeset",
+		"prerelease": "bun test",
+		"release": "changeset publish"
 	},
 	"devDependencies": {
+		"@changesets/changelog-github": "^0.5.0",
+		"@changesets/cli": "^2.27.5",
 		"husky": "^9.0.10",
 		"lint-staged": "^15.2.2"
 	},
 	"module": "src/index.js",
-	"repository": "https://github.com/andeeplus/ecopages.git",
+	"repository": "https://github.com/ecopages/ecopages.git",
 	"workspaces": [
 		"packages/*",
 		"packages/integrations/*",

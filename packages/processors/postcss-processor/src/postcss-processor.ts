@@ -1,11 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
-import autoprefixer from 'autoprefixer';
-import cssnano from 'cssnano';
 import postcss from 'postcss';
-import postCssImport from 'postcss-import';
-import tailwindcss from 'tailwindcss';
-import tailwindcssNesting from 'tailwindcss/nesting/index.js';
+import { defaultPlugins } from './default-plugins';
 
 export function getFileAsBuffer(path: string): Buffer {
   try {
@@ -23,7 +19,7 @@ const appLogger = new Logger('[@ecopages/postcss-processor]');
 
 export interface CssProcessor {
   processPath: (path: string) => Promise<string>;
-  processString: (contents: string | Buffer) => Promise<string>;
+  processStringOrBuffer: (contents: string | Buffer) => Promise<string>;
 }
 
 /**
@@ -40,12 +36,12 @@ export interface CssProcessor {
 async function processPath(path: string) {
   const contents = getFileAsBuffer(path);
 
-  const processor = postcss([postCssImport(), tailwindcssNesting, tailwindcss, autoprefixer, cssnano]);
+  const processor = postcss(defaultPlugins);
 
   try {
     return await processor.process(contents, { from: path }).then((result) => result.css);
   } catch (error) {
-    appLogger.error('postcss-processor > processPath | Error processing PostCSS', error);
+    appLogger.error('processPath | Error processing PostCSS', error);
     return '';
   }
 }
@@ -65,11 +61,11 @@ async function processPath(path: string) {
  * ```
  */
 async function processStringOrBuffer(contents: string | Buffer) {
-  const processor = postcss([postCssImport(), tailwindcssNesting, tailwindcss, autoprefixer, cssnano]);
+  const processor = postcss(defaultPlugins);
   try {
     return await processor.process(contents, { from: undefined }).then((result) => result.css);
   } catch (error) {
-    appLogger.error('postcss-processor > processStringOrBuffer | Error processing PostCSS', error);
+    appLogger.error('processStringOrBuffer | Error processing PostCSS', error);
     return '';
   }
 }
@@ -81,5 +77,5 @@ async function processStringOrBuffer(contents: string | Buffer) {
  */
 export const PostCssProcessor: CssProcessor = {
   processPath,
-  processString: processStringOrBuffer,
+  processStringOrBuffer,
 };

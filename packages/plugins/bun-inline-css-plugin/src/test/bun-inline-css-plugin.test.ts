@@ -39,7 +39,7 @@ describe('bunPostCssPlugin', () => {
       outdir,
       plugins: [
         bunInlineCssPlugin({
-          transform: PostCssProcessor.processString,
+          transform: (text) => PostCssProcessor.processStringOrBuffer(text),
         }),
       ],
     });

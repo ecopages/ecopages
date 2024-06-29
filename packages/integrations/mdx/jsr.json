@@ -1,0 +1,12 @@
+{
+	"name": "@ecopages/mdx",
+	"version": "${version}",
+	"exports": {
+		".": "./src/mdx.plugin.ts"
+	},
+	"exclude": ["**/*.test.ts"],
+	"imports": {
+		"@ecopages/core": "jsr:@ecopages/core@${version}",
+		"bun": "npm:@types/bun@latest"
+	}
+}

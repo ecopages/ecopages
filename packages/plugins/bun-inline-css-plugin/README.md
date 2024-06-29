@@ -1,6 +1,6 @@
-# @ecopages/bun-css-processore-plugin
+# @ecopages/bun-inline-css-plugin
 
-This TypeScript module provides a plugin for the Bun runtime, designed to process CSS files using PostCSS. It's tailored for projects that leverage Bun's fast JavaScript runtime and need a way to integrate CSS processing into their build or development workflow.
+This TypeScript module provides a plugin for the Bun runtime, designed to process CSS files using CSS Processors. It's tailored for projects that leverage Bun's fast JavaScript runtime and need a way to integrate CSS processing into their build or development workflow.
 
 ## Features
 

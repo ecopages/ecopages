@@ -10,6 +10,9 @@
 		"url": "https://github.com/ecopages/ecopages.git",
 		"directory": "packages/loaders/bun-mdx-loader"
 	},
+	"scripts": {
+		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
+	},
 	"dependencies": {
 		"@mdx-js/esbuild": "^3.0.1"
 	}

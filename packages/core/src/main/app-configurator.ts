@@ -115,7 +115,7 @@ export class AppConfigurator {
 
   static async create({ projectDir }: { projectDir: string }): Promise<AppConfigurator> {
     const configPath = path.resolve(projectDir, 'eco.config.ts');
-    console.log('configPath', configPath);
+
     if (!fs.existsSync(configPath)) {
       throw new Error('eco.config.ts not found, please provide a valid config file.');
     }

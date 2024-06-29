@@ -1,31 +1,41 @@
-# Eco Pages
+# Ecopages
 
----
+Eco Pages is a static site generator designed with the goal of simplifying the process of creating websites. It is suitable for a range of projects, from blogs to portfolios, emphasizing ease of use and flexibility.
 
-Eco Pages is a user-friendly static site generator, enabling you to craft static websites with ease and flexibility. It's perfectly suited for creating a variety of websites, including blogs and portfolios.
+This project is built on a commitment to clarity and simplicity in web development, utilizing modern web technologies without obscuring the process with unnecessary complexity.
 
-The primary objective of this project is to offer a straightforward and transparent approach to building static websites, leveraging the power of modern web technologies, without any hidden complexities.
+Eco Pages relies on a minimal set of dependencies, carefully chosen to support its core functionality.
 
-The construction of this project relies solely on a select few dependencies, which are highlighted below.
+Eco Pages is built on the [Bun](https://bun.sh/) runtime, primarily utilizing [Kita](https://kita.js.org/) and [Mdx](https://mdxjs.com/) for rendering. Additionally, it supports [Lit Elements](https://lit.dev/) and offers experimental integration with [React](https://react.dev/). This setup allows for the extension of the platform with custom rendering functions, providing flexibility to cater to the specific needs of each project. The integrations are designed to be extensible, with no limit to the customization and expansion possibilities.
 
-Eco Pages is founded on [Bun](https://bun.sh/) and employs [Kita](https://kita.js.org/), [Mdx](https://mdxjs.com/), and [Lit](https://lit.dev/) as its default template engines.
+For styling, [Tailwind CSS](https://tailwindcss.com/) and [PostCSS](https://postcss.org/) have been integrated. Notably, we recommend using `css` stylesheets and `@apply` directives with Tailwind CSS, diverging from its usual inline styling approach to better suit the structure of Eco Pages.
 
-For CSS, we've chosen to integrate [Tailwind CSS](https://tailwindcss.com/) in conjunction with [PostCSS](https://postcss.org/).
+As a project in its early stages, Eco Pages is continuously evolving. Users may encounter limitations or areas in need of refinement. We welcome feedback and issue reports via our [GitHub repository](https://github.com/ecopages/ecopages).
 
-It's important to note that, contrary to Tailwind CSS's typical recommendations, we advocate for the use of `css` stylesheets with `@apply` directives when using Tailwind CSS with Eco Pages.
+## Current Features
 
-As this project is in its infancy, some rough edges are to be expected. If you encounter any issues, we encourage you to report them on our [GitHub repository](https://github.com/andeeplus/ecopages).
+### Playground
 
----
-
-## Playground
+Explore Eco Pages' capabilities:
 
 `bun run dev:playground`
 
-## Docs
+### Documentation
+
+Learn more about using Eco Pages:
 
 `bun run dev:docs`
 
-## Test
+### Testing
+
+Verify your site's functionality:
 
 `bun test --coverage`
+
+## Embracing Simplicity with a Side of Verbosity
+
+In our quest to simplify, we've made choices that sometimes lead to more verbose code. By being a bit more explicit in our code, we aim to peel back the layers of "magic" that often obscure what's happening in many modern technologies. We believe this clarity not only aids in learning but also in debugging and customizing your projects. It's all about striking the right balance between simplicity and control.
+
+## Future Directions
+
+While Eco Pages is primarily focused on static site generation, we are exploring the addition of a server-side component. This feature is under development and aims to expand the project's versatility. We are dedicated to refining this aspect and encourage contributions and feedback from the community to help shape its progress.

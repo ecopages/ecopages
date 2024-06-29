@@ -11,13 +11,16 @@
 		"url": "https://github.com/ecopages/ecopages.git",
 		"directory": "packages/integrations/react"
 	},
+	"scripts": {
+		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
+	},
 	"overrides": {
 		"@types/react": "npm:types-react@beta",
 		"@types/react-dom": "npm:types-react-dom@beta"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/logger": "workspace:*",
+		"@ecopages/logger": "^0.1.1",
 		"react": "19.0.0-beta-26f2496093-20240514",
 		"react-dom": "19.0.0-beta-26f2496093-20240514"
 	},

@@ -10,6 +10,9 @@
 		"url": "https://github.com/ecopages/ecopages.git",
 		"directory": "packages/loaders/bun-postcss-loader"
 	},
+	"scripts": {
+		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
+	},
 	"dependencies": {
 		"@ecopages/postcss-processor": "workspace:*"
 	}

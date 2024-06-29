@@ -22,17 +22,17 @@ describe('PostCssProcessor', () => {
     expect(PostCssProcessor.processPath(filePath)).rejects.toThrow();
   });
 
-  test('processString should return the processed CSS', async () => {
+  test('processStringOrBuffer should return the processed CSS', async () => {
     const string = 'body { @apply bg-white; }';
     const expected = 'body{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity))}';
-    const result = await PostCssProcessor.processString(string);
+    const result = await PostCssProcessor.processStringOrBuffer(string);
     expect(result).toEqual(expected);
   });
 
-  test('processString should return an empty string when an error occurs during css conversion', async () => {
+  test('processStringOrBuffer should return an empty string when an error occurs during css conversion', async () => {
     const string = 'body { @apply bg-whites; }';
     const expected = '';
-    const result = await PostCssProcessor.processString(string);
+    const result = await PostCssProcessor.processStringOrBuffer(string);
     expect(result).toEqual(expected);
   });
 });

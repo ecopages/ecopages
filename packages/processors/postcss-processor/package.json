@@ -15,7 +15,7 @@
 		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
 	},
 	"dependencies": {
-		"@ecopages/logger": "^0.1.1",
+		"@ecopages/logger": "^0.1.2",
 		"@types/postcss-import": "^14.0.3",
 		"autoprefixer": "^10.4.16",
 		"bun-types": "latest",

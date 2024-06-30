@@ -10,7 +10,7 @@ import { litPlugin } from "@ecopages/lit";
 
 const config: EcoPagesConfigInput = {
   rootDir: import.meta.dir,
-  baseUrl: import.meta.env.ECO_PAGES_BASE_URL,
+  baseUrl: import.meta.env.ECOPAGES_BASE_URL,
   integrations: [kitajsPlugin(), litPlugin()],
 };
 

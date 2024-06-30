@@ -18,7 +18,7 @@
 	"imports": {
 		"@ecopages/postcss-processor": "${version}",
 		"@ecopages/bun-inline-css-plugin": "${version}",
-		"@ecopages/logger": "^0.1.1",
+		"@ecopages/logger": "^0.1.2",
 		"bun": "npm:@types/bun@latest"
 	}
 }

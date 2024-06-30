@@ -3,8 +3,8 @@ import type { EcoPagesConfig } from '.';
 declare global {
   namespace NodeJS {
     interface ProcessEnv {
-      ECO_PAGES_BASE_URL: string;
-      ECO_PAGES_DEBUG: 'true' | 'false';
+      ECOPAGES_BASE_URL: string;
+      ECOPAGES_LOGGER_DEBUG: 'true' | 'false';
     }
   }
 }

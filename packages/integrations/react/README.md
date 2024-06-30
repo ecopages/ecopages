@@ -11,7 +11,7 @@ import { reactPlugin } from "@ecopages/react";
 
 const config: EcoPagesConfigInput = {
   rootDir: import.meta.dir,
-  baseUrl: import.meta.env.ECO_PAGES_BASE_URL,
+  baseUrl: import.meta.env.ECOPAGES_BASE_URL,
   integrations: [reactPlugin()],
 };
 

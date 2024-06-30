@@ -4,7 +4,7 @@ import { reactPlugin } from '@ecopages/react';
 
 const config: EcoPagesConfigInput = {
   rootDir: import.meta.dir,
-  baseUrl: import.meta.env.ECO_PAGES_BASE_URL as string,
+  baseUrl: import.meta.env.ECOPAGES_BASE_URL as string,
   integrations: [reactPlugin(), mdxPlugin()],
   includesTemplates: {
     head: 'head.tsx',

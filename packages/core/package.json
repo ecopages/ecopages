@@ -14,15 +14,14 @@
 		"directory": "packages/core"
 	},
 	"scripts": {
+		"test": "bun test",
 		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
 	},
 	"dependencies": {
 		"@ecopages/logger": "^0.1.1",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@ecopages/bun-inline-css-plugin": "workspace:*",
-		"@parcel/watcher": "^2.4.0",
-		"fdir": "^6.1.1",
-		"picomatch": "^2.3.1"
+		"@parcel/watcher": "^2.4.0"
 	},
 	"devDependencies": {
 		"bun-types": "latest"

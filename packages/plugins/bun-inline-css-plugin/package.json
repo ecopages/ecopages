@@ -11,10 +11,8 @@
 		"directory": "packages/plugins/bun-inline-css-plugin"
 	},
 	"scripts": {
+		"test": "bun test",
 		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
-	},
-	"dependencies": {
-		"@ecopages/logger": "^0.1.1"
 	},
 	"devDependencies": {
 		"@ecopages/postcss-processor": "workspace:*"

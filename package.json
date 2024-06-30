@@ -28,14 +28,15 @@
 		"dev:react-app": "bun run --filter @ecopages/react-app dev | tee /dev/null",
 		"build:react-app": "bun run --filter @ecopages/react-app build",
 		"start:react-app": "bun run --filter @ecopages/react-app start",
-		"preview:react-app": "bun run --filter @ecopages/react-app preview",
+		"preview:react-app": "bun run --filter @ecopages/react-app preview | tee /dev/null",
 		"clean": "clear && rm -rf node_modules bun.lockb && bun install",
 		"format": "bunx @biomejs/biome format --write .",
 		"lint": "bunx @biomejs/biome check --apply .",
 		"lint-staged": "lint-staged",
 		"changeset": "changeset",
 		"prerelease": "bun test",
-		"release": "changeset publish"
+		"release": "changeset publish",
+		"test:suite": "bun run --filter '*' test"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^0.5.0",

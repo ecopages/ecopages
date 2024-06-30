@@ -13,8 +13,8 @@ describe('FileUtils', () => {
   });
 
   describe('Should return a list of files', () => {
-    it('should return a list of files', () => {
-      const files = FileUtils.glob(['.']);
+    it('should return a list of files', async () => {
+      const files = await FileUtils.glob(['.']);
       expect(files).toBeDefined();
       expect(files).toBeInstanceOf(Array);
     });

@@ -14,18 +14,18 @@
 	"scripts": {
 		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
 	},
-	"overrides": {
-		"@types/react": "npm:types-react@beta",
-		"@types/react-dom": "npm:types-react-dom@beta"
-	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "^0.1.1",
-		"react": "19.0.0-beta-26f2496093-20240514",
-		"react-dom": "19.0.0-beta-26f2496093-20240514"
+		"react": "19.0.0-rc-58af67a8f8-20240628",
+		"react-dom": "19.0.0-rc-58af67a8f8-20240628"
 	},
 	"devDependencies": {
-		"@types/react": "npm:types-react@beta",
-		"@types/react-dom": "npm:types-react-dom@beta"
+		"@types/react": "npm:types-react@rc",
+		"@types/react-dom": "npm:types-react-dom@rc"
+	},
+	"overrides": {
+		"@types/react": "npm:types-react@rc",
+		"@types/react-dom": "npm:types-react-dom@rc"
 	}
 }

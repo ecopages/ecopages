@@ -43,6 +43,7 @@ export async function buildApp({
 
 if (process.argv.slice(2).includes('--watch-lib')) {
   appLogger.warn('Running app in watch mode for library development.');
+  import.meta.env.NODE_ENV = 'development';
   buildApp({
     config: process.cwd(),
     watch: true,

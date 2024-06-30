@@ -142,7 +142,7 @@ export class FSRouterScanner {
   }
 
   async scan(): Promise<Routes> {
-    const scannedFiles = FileUtils.glob(
+    const scannedFiles = await FileUtils.glob(
       this.templatesExt.map((ext) => `**/*${ext}`),
       { cwd: this.dir },
     );

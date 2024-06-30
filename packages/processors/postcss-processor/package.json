@@ -11,6 +11,7 @@
 		"directory": "packages/processors/postcss-processor"
 	},
 	"scripts": {
+		"test": "bun test",
 		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
 	},
 	"dependencies": {

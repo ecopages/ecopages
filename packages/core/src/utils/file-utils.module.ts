@@ -1,7 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, writeFileSync } from 'node:fs';
 import { extname } from 'node:path';
-import zlib from 'node:zlib';
-import { fdir } from 'fdir';
+import type { GlobScanOptions } from 'bun';
 
 function copyDirSync(source: string, destination: string) {
   cpSync(source, destination, { recursive: true });
@@ -39,24 +38,26 @@ function getFileAsBuffer(path: string): Buffer {
   }
 }
 
-function glob(pattern: string[], options: { cwd: string } = { cwd: process.cwd() }): string[] {
-  return new fdir()
-    .exclude((dirName, _dirPath) => {
-      return dirName.startsWith('.') || dirName === 'node_modules';
-    })
-    .withRelativePaths()
-    .glob(...pattern)
-    .crawl(options.cwd)
-    .sync();
+async function glob(
+  pattern: string[],
+  scanOptions: string | GlobScanOptions = { cwd: process.cwd() },
+): Promise<string[]> {
+  const promises = pattern.map((p) => {
+    const glob = new Bun.Glob(p);
+    return Array.fromAsync(glob.scan(scanOptions));
+  });
+
+  const results = await Promise.all(promises);
+  return results.flat();
 }
 
-function gzipDirSync(path: string, extensionsToGzip: string[]): void {
+function gzipDirSync(path: string, extensionsToGzip: string[]) {
   const files = readdirSync(path, { recursive: true });
   for (const file of files) {
     const ext = extname(file as string).slice(1);
     if (extensionsToGzip.includes(ext)) {
-      const data = getFileAsBuffer(`${path}/${file}`);
-      const compressedData = zlib.gzipSync(Buffer.from(data));
+      const data = readFileSync(`${path}/${file}`);
+      const compressedData = Bun.gzipSync(Buffer.from(data));
       const gzipFile = `${path}/${file}.gz`;
       writeFileSync(gzipFile, compressedData);
     }

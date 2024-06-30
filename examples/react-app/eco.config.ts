@@ -1,5 +1,4 @@
 import type { EcoPagesConfigInput } from '@ecopages/core';
-import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 import { reactPlugin } from '@ecopages/react';
 
@@ -12,6 +11,7 @@ const config: EcoPagesConfigInput = {
     html: 'html.tsx',
     seo: 'seo.tsx',
   },
+  error404Template: '404.tsx',
 };
 
 export default config;

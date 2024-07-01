@@ -1,7 +1,0 @@
-{
-	"name": "@ecopages/bun-mdx-loader",
-	"version": "0.1.0",
-	"exports": {
-		".": "./src/bun-mdx-loader.ts"
-	}
-}

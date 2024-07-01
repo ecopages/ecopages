@@ -1,4 +1,4 @@
-preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-loader"]
+preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-kitajs-loader"]
 
 [test]
-preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-loader"]
+preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-kitajs-loader"]

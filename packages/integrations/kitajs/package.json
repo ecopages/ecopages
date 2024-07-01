@@ -1,6 +1,8 @@
 {
 	"name": "@ecopages/kitajs",
 	"version": "0.1.0",
+	"description": "Kitajs plugin for Ecopages",
+	"keywords": ["ecopages", "kitajs", "plugin"],
 	"license": "MIT",
 	"main": "./src/kitajs.plugin.ts",
 	"types": "./src/kitajs.plugin.ts",
@@ -13,7 +15,7 @@
 	},
 	"scripts": {
 		"test": "bun test",
-		"release:jsr": " bunx jsr publish --dry-run"
+		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
 		"@kitajs/html": "^4.1.0",

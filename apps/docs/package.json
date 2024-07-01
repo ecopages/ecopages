@@ -9,7 +9,7 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/bun-mdx-loader": "workspace:*",
+		"@ecopages/bun-mdx-kitajs-loader": "workspace:*",
 		"@ecopages/bun-postcss-loader": "workspace:*",
 		"shiki": "^1.1.2"
 	}

@@ -1,6 +1,8 @@
 {
 	"name": "@ecopages/core",
 	"version": "0.1.0",
+	"description": "Core package for Ecopages",
+	"keywords": ["ecopages", "core", "ssg"],
 	"license": "MIT",
 	"main": "./src/index.ts",
 	"type": "module",
@@ -15,7 +17,7 @@
 	},
 	"scripts": {
 		"test": "bun test",
-		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
+		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
 		"@ecopages/bun-inline-css-plugin": "workspace:*",
@@ -25,5 +27,18 @@
 	},
 	"devDependencies": {
 		"bun-types": "latest"
+	},
+	"exports": {
+		".": "./src/index.ts",
+		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",
+		"./route-renderer/route-renderer": "./src/route-renderer/route-renderer.ts",
+		"./router/fs-router": "./src/router/fs-router.ts",
+		"./router/fs-router-scanner": "./src/router/fs-router-scanner.ts",
+		"./adapters/server-utils": "./src/adapters/server-utils.module.ts",
+		"./utils/add-base-url-to-pathname": "./src/utils/add-base-url-to-pathname.ts",
+		"./utils/deep-merge": "./src/utils/deep-merge.ts",
+		"./utils/invariant": "./src/utils/invariant.ts",
+		"./utils/file-utils": "./src/utils/file-utils.module.ts",
+		"./utils/component-dependencies-utils": "./src/utils/component-dependencies-utils.ts"
 	}
 }

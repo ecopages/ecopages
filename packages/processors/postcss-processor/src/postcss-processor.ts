@@ -8,12 +8,6 @@ import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
 import { defaultPlugins } from './default-plugins';
 
-/**
- * It reads the file and returns the contents as a buffer
- * @param path string
- * @returns Buffer
- * @throws Error
- */
 function getFileAsBuffer(path: string): Buffer {
   try {
     if (!existsSync(path)) {

@@ -31,7 +31,7 @@ export class MDXRenderer extends IntegrationRenderer {
 
   protected override async importPageFile(
     file: string,
-  ): Promise<EcoPageFile<{ layout?: EcoComponent; mdxDependencies: EcoComponentDependencies }>> {
+  ): Promise<EcoPageFile<{ layout?: EcoComponent; mdxDependencies: EcoComponentDependencies }> | undefined> {
     try {
       const { default: Page, config, layout, getMetadata } = (await import(file)) as MDXFile;
 
@@ -49,7 +49,6 @@ export class MDXRenderer extends IntegrationRenderer {
     metadata,
     Page,
     HtmlTemplate,
-    dependencies,
     mdxDependencies,
     layout,
   }: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {

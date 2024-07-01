@@ -2,6 +2,8 @@
 	"name": "@ecopages/bun-inline-css-plugin",
 	"version": "0.1.0",
 	"license": "MIT",
+	"description": "Bun plugin to inline css",
+	"keywords": ["bun", "plugin", "inline-css"],
 	"main": "./src/bun-inline-css-plugin.ts",
 	"type": "module",
 	"files": ["src"],
@@ -12,7 +14,7 @@
 	},
 	"scripts": {
 		"test": "bun test",
-		"release:jsr": " bunx jsr publish"
+		"release:jsr": "bunx jsr publish"
 	},
 	"devDependencies": {
 		"@ecopages/postcss-processor": "workspace:*"

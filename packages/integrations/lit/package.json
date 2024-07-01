@@ -1,6 +1,8 @@
 {
 	"name": "@ecopages/lit",
 	"version": "0.1.0",
+	"description": "Ecopages lit integration",
+	"keywords": ["ecopages", "lit", "plugin"],
 	"license": "MIT",
 	"main": "./src/lit.plugin.ts",
 	"types": "./src/lit.plugin.ts",
@@ -12,7 +14,7 @@
 		"directory": "packages/integrations/lit"
 	},
 	"scripts": {
-		"release:jsr": " bunx jsr publish --dry-run"
+		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
 		"@lit-labs/ssr": "^3.2.2",

@@ -1,7 +1,12 @@
+/**
+ * This module contains the Bun PostCSS Loader
+ * @module
+ */
+
 import { existsSync, readFileSync } from 'node:fs';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 
-export function getFileAsBuffer(path: string): Buffer {
+function getFileAsBuffer(path: string): Buffer {
   try {
     if (!existsSync(path)) {
       throw new Error(`File: ${path} not found`);

@@ -4,5 +4,8 @@
 	"exports": {
 		".": "./src/lit.plugin.ts"
 	},
-	"exclude": ["**/*.test.ts"]
+	"exclude": ["**/*.test.ts"],
+	"imports": {
+		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
+	}
 }

@@ -1,9 +1,17 @@
+/**
+ * This module contains the Lit renderer
+ * @module
+ */
+
 import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@ecopages/core';
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { PLUGIN_NAME } from './lit.plugin';
 
+/**
+ * A renderer for the Lit integration.
+ */
 export class LitRenderer extends IntegrationRenderer {
   name = PLUGIN_NAME;
 

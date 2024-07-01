@@ -3,8 +3,6 @@ import { appLogger } from '../global/app-logger';
 import type { FSRouterScanner } from './fs-router-scanner';
 
 /**
- * @class FSRouter
- * @description
  * A class that manages the routes of the file system.
  * It scans the file system for files with the specified extensions and creates a map of routes.
  * It also provides a method to match a request to a route.

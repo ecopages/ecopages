@@ -133,7 +133,13 @@ export abstract class IntegrationRenderer {
     };
   }
 
-  protected collectDependencies(Page: EcoPage): EcoComponentDependencies {
+  protected collectDependencies(
+    Page:
+      | EcoPage
+      | {
+          config?: EcoComponent['config'];
+        },
+  ): EcoComponentDependencies {
     if (!Page.config) {
       return {};
     }

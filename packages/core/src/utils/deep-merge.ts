@@ -1,3 +1,8 @@
+/**
+ * This module contains a simple utility function to merge two objects deeply
+ * @module
+ */
+
 function isObject(item: any): item is Record<string, unknown> {
   return item && typeof item === 'object' && !Array.isArray(item);
 }
@@ -6,6 +11,13 @@ function isArray(item: any): item is unknown[] {
   return Array.isArray(item);
 }
 
+/**
+ * It merges two objects deeply
+ * @function deepMerge
+ * @param {Record<string, unknown> | unknown[]} target
+ * @param {Record<string, unknown> | unknown[]} source
+ * @returns {Record<string, unknown> | unknown[]}
+ */
 export function deepMerge<T extends Record<string, unknown> | unknown[], U extends Record<string, unknown> | unknown[]>(
   target: T,
   source: U,

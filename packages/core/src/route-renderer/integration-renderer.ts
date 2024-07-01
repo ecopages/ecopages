@@ -1,3 +1,9 @@
+/**
+ * This module contains the abstract class for the Integration Renderer
+ * Every integration renderer should extend this class
+ * @module
+ */
+
 import path from 'node:path';
 import type {
   EcoComponent,
@@ -17,6 +23,9 @@ import type {
 import { HeadContentBuilder } from '../route-renderer/utils/head-content-builder';
 import { invariant } from '../utils/invariant';
 
+/**
+ * Abstract class representing an integration renderer.
+ */
 export abstract class IntegrationRenderer {
   abstract name: string;
   protected appConfig: EcoPagesConfig;
@@ -99,7 +108,7 @@ export abstract class IntegrationRenderer {
     }
   }
 
-  getDependencyDistPath(importMeta: ImportMeta, pathUrl: string): string {
+  protected getDependencyDistPath(importMeta: ImportMeta, pathUrl: string): string {
     const { ecoConfig: config } = globalThis;
     const EXTENSIONS_TO_JS = ['ts', 'tsx', 'jsx'];
     const safeFileName = pathUrl.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
@@ -107,7 +116,7 @@ export abstract class IntegrationRenderer {
     return path.join(distUrl, safeFileName);
   }
 
-  extractDependencies({
+  protected extractDependencies({
     importMeta,
     scripts,
     stylesheets,

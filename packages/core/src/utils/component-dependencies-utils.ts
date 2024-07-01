@@ -1,3 +1,8 @@
+/**
+ * This module contains a set of utility functions to work with component dependencies
+ * @module
+ */
+
 import type { EcoComponent, EcoComponentDependencies } from '@types';
 
 function getSafeFileName(path: string) {
@@ -6,6 +11,12 @@ function getSafeFileName(path: string) {
   return safeFileName;
 }
 
+/**
+ * It resolves the scripts of the components dependencies
+ * @function resolveComponentsScripts
+ * @param {EcoComponent[]} components
+ * @returns {string}
+ */
 export function resolveComponentsScripts(components: Required<EcoComponentDependencies>['components']) {
   return components
     .flatMap((component) => {
@@ -16,6 +27,12 @@ export function resolveComponentsScripts(components: Required<EcoComponentDepend
     .join();
 }
 
+/**
+ * It removes the scripts from the components dependencies
+ * @function removeComponentsScripts
+ * @param {EcoComponent[]} components
+ * @returns {EcoComponent[]}
+ */
 export function removeComponentsScripts(components: EcoComponent[]) {
   const filteredComponents = [];
 

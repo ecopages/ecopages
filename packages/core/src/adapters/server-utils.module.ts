@@ -30,11 +30,19 @@ const ContentTypeMap = new Map<string, string>([
   ['doc', 'application/msword'],
 ]);
 
+/**
+ * Get the content type of a file based on its extension.
+ * @param file - The file name.
+ * @returns The content type.
+ */
 export const getContentType = (file: string): string => {
   const extension = file.split('.').pop() || 'txt';
   return ContentTypeMap.get(extension) || 'text/plain';
 };
 
+/**
+ * A module for server utilities.
+ */
 export const ServerUtils = {
   getContentType,
 };

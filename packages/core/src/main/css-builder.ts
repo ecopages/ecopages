@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { appLogger } from '@/utils/app-logger';
+import { appLogger } from '@/global/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { CssProcessor, EcoPagesConfig } from '@types';
 
@@ -28,7 +28,7 @@ export class CssBuilder {
 
   async build() {
     const { srcDir } = this.config;
-    const cssFiles = await FileUtils.glob(`${srcDir}/**/*.css`, { cwd: '.' });
+    const cssFiles = await FileUtils.glob([`${srcDir}/**/*.css`]);
     appLogger.debug('Building CSS files:', cssFiles);
     for (const path of cssFiles) {
       if (path.endsWith('.shadow.css')) {

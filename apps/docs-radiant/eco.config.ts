@@ -4,7 +4,7 @@ import { mdxPlugin } from '@ecopages/mdx';
 
 const config: EcoPagesConfigInput = {
   rootDir: import.meta.dir,
-  baseUrl: import.meta.env.ECO_PAGES_BASE_URL,
+  baseUrl: import.meta.env.ECOPAGES_BASE_URL as string,
   integrations: [kitajsPlugin(), mdxPlugin()],
   defaultMetadata: {
     title: 'Radiant | Docs',

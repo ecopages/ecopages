@@ -1,7 +1,7 @@
 import { StyledMixin } from '@/lib/lit/styled-mixin';
 import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import styles from './lit-counter.shadow.css';
+import styles from './lit-counter.css';
 
 export type LitCounterProps = {
   count?: number;

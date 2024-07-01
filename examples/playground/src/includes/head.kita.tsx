@@ -9,7 +9,7 @@ export function Head({ metadata, children }: PageHeadProps) {
       <Seo {...metadata} />
       <link href="/styles/tailwind.css" rel="stylesheet" />
       <link href="/styles/alpine.css" rel="stylesheet" />
-      {children}
+      {children as 'safe'}
     </head>
   );
 }

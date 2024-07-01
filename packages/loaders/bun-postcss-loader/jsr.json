@@ -1,0 +1,8 @@
+{
+	"name": "@ecopages/bun-postcss-loader",
+	"version": "${version}",
+	"exports": {
+		".": "./src/bun-postcss-loader.ts"
+	},
+	"exclude": ["src/test"]
+}

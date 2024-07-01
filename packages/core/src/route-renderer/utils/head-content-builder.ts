@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { IntegrationDependencyConfig } from '@/main/integration-manager';
-import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoComponentDependencies, EcoPagesConfig } from '@types';
+import { FileUtils } from '../../utils/file-utils.module';
 
 /**
  * Build the head content for the html pages.
@@ -35,6 +35,17 @@ export class HeadContentBuilder {
   }) {
     let dependenciesString = '';
 
+    if (integrationsDependencies) {
+      for (const dependency of integrationsDependencies) {
+        if (dependency.integration !== integrationName) continue;
+        if (dependency.kind === 'stylesheet') {
+          dependenciesString += `<link rel="stylesheet" href="${dependency.srcUrl}" />`;
+        } else if (dependency.kind === 'script') {
+          dependenciesString += `<script defer type="module" src="${dependency.srcUrl}"></script>`;
+        }
+      }
+    }
+
     if (dependencies?.stylesheets) {
       dependenciesString += dependencies.stylesheets
         .map((stylesheet) => `<link rel="stylesheet" href="${stylesheet}" />`)
@@ -45,17 +56,6 @@ export class HeadContentBuilder {
       dependenciesString += dependencies.scripts
         .map((script) => `<script defer type="module" src="${script}"></script>`)
         .join('');
-    }
-
-    if (integrationsDependencies) {
-      for (const dependency of integrationsDependencies) {
-        if (dependency.integration !== integrationName) continue;
-        if (dependency.kind === 'stylesheet') {
-          dependenciesString += `<link rel="stylesheet" href="${dependency.srcUrl}" />`;
-        } else if (dependency.kind === 'script') {
-          dependenciesString += `<script defer type="module" src="${dependency.srcUrl}"></script>`;
-        }
-      }
     }
 
     return dependenciesString;
@@ -71,15 +71,13 @@ export class HeadContentBuilder {
 
     for (const stylesheet of dependencies.stylesheets || []) {
       const filePath = path.join(this.config.rootDir, this.config.distDir, stylesheet);
-      const bunFile = await FileUtils.get(filePath);
-      const fileContents = await bunFile.text();
+      const fileContents = FileUtils.getFileAsBuffer(filePath).toString();
       dependenciesString += `<style>${fileContents}</style>`;
     }
 
     for (const script of dependencies.scripts || []) {
       const filePath = path.join(this.config.rootDir, this.config.distDir, script);
-      const bunFile = await FileUtils.get(filePath);
-      const fileContents = await bunFile.text();
+      const fileContents = FileUtils.getFileAsBuffer(filePath).toString();
       dependenciesString += `<script defer type="module">${fileContents}</script>`;
     }
 

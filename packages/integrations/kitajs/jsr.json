@@ -1,0 +1,8 @@
+{
+	"name": "@ecopages/kitajs",
+	"version": "${version}",
+	"exports": {
+		".": "./src/kitajs.plugin.ts"
+	},
+	"exclude": ["src/test", "**/*.test.ts"]
+}

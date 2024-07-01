@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { FileSystemServer } from '@/server/fs-server';
-import { appLogger } from '@/utils/app-logger';
+import { BunFileSystemServerAdapter } from '@/adapters/bun/fs-server';
+import { appLogger } from '@/global/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
 import type { EcoPagesConfig } from '@types';
 
@@ -27,7 +27,7 @@ export class StaticPageGenerator {
   }
 
   async generateStaticPages() {
-    const { router, server } = await FileSystemServer.create({
+    const { router, server } = await BunFileSystemServerAdapter.create({
       appConfig: this.appConfig,
       options: {
         watchMode: false,
@@ -57,7 +57,7 @@ export class StaticPageGenerator {
 
         const contents = await response.text();
 
-        await FileUtils.write(filePath, contents);
+        FileUtils.write(filePath, contents);
       } catch (error) {
         console.error(`Error fetching or writing ${route}:`, error);
       }

@@ -21,13 +21,12 @@ const TestPage: EcoPage = () => {
   );
 };
 
-TestPage.dependencies = {
-  stylesheets: [
-    'pages/index.css',
-    ...(Counter.dependencies?.stylesheets ?? []),
-    ...(BaseLayout.dependencies?.stylesheets ?? []),
-  ],
-  scripts: ['pages/test.script.js'],
+TestPage.config = {
+  importMeta: import.meta,
+  dependencies: {
+    stylesheets: ['./index.css'],
+    scripts: ['./test.script.js'],
+    components: [Counter, BaseLayout],
+  },
 };
-
 export default TestPage;

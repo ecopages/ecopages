@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 import { type BundledLanguage, type BundledTheme, codeToHtml } from 'shiki';
 
 export const CodeBlock: EcoComponent<{
@@ -15,4 +15,4 @@ export const CodeBlock: EcoComponent<{
   return <div class="code-block">{safeHtml}</div>;
 };
 
-CodeBlock.dependencies = DepsManager.collect({ importMeta: import.meta });
+CodeBlock.config = { importMeta: import.meta, dependencies: { stylesheets: ['./code-block.css'] } };

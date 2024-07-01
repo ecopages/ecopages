@@ -1,0 +1,8 @@
+{
+	"name": "@ecopages/lit",
+	"version": "${version}",
+	"exports": {
+		".": "./src/lit.plugin.ts"
+	},
+	"exclude": ["**/*.test.ts"]
+}

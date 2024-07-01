@@ -6,7 +6,7 @@ import path from 'node:path';
  * @description
  * Add base url to the given url
  */
-export function addBaseUrlToPathname(url: string) {
+export function addBaseUrlToPathname(url: string): string {
   const { ecoConfig } = globalThis;
   return path.join(ecoConfig.baseUrl, url);
 }

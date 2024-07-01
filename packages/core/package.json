@@ -1,24 +1,29 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.0.1",
-	"bin": {
-		"ecopages": "./cli/ecopages.ts"
-	},
+	"version": "0.0.0",
+	"license": "MIT",
 	"main": "./src/index.ts",
-	"dependencies": {
-		"@parcel/watcher": "^2.4.0",
-		"@mdx-js/esbuild": "^3.0.1",
-		"@types/postcss-import": "^14.0.3",
-		"autoprefixer": "^10.4.16",
-		"bun-types": "latest",
-		"cssnano": "^6.0.2",
-		"postcss": "^8.4.32",
-		"postcss-import": "^15.1.0",
-		"tailwindcss": "^3.4.1",
-		"@lit-labs/ssr": "^3.2.2"
+	"type": "module",
+	"files": ["dist"],
+	"bin": {
+		"ecopages": "./src/bin/ecopages.ts"
 	},
-	"repository": "https://github.com/andeeplus/ecopages.git",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/core"
+	},
 	"scripts": {
-		"test:lib": "bun test"
+		"test": "bun test",
+		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
+	},
+	"dependencies": {
+		"@ecopages/bun-inline-css-plugin": "workspace:*",
+		"@ecopages/logger": "^0.1.2",
+		"@ecopages/postcss-processor": "workspace:*",
+		"@parcel/watcher": "^2.4.0"
+	},
+	"devDependencies": {
+		"bun-types": "latest"
 	}
 }

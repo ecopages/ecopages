@@ -1,7 +1,8 @@
 {
 	"name": "@ecopages/react-app",
-	"version": "0.0.1",
+	"private": true,
 	"scripts": {
+		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",
@@ -10,13 +11,18 @@
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/react": "workspace:*",
-		"@ecopages/lit": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
-		"@types/react": "npm:types-react@beta",
-		"@types/react-dom": "npm:types-react-dom@beta"
+		"@ecopages/bun-mdx-loader": "workspace:*",
+		"@ecopages/bun-postcss-loader": "workspace:*",
+		"@types/react": "npm:types-react@rc",
+		"@types/react-dom": "npm:types-react-dom@rc"
 	},
 	"overrides": {
-		"@types/react": "npm:types-react@beta",
-		"@types/react-dom": "npm:types-react-dom@beta"
+		"@types/react": "npm:types-react@rc",
+		"@types/react-dom": "npm:types-react-dom@rc"
+	},
+	"dependencies": {
+		"react": "19.0.0-rc-58af67a8f8-20240628",
+		"react-dom": "19.0.0-rc-58af67a8f8-20240628"
 	}
 }

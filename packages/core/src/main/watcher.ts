@@ -1,6 +1,5 @@
 import fs from 'node:fs';
-import { appLogger } from '@/utils/app-logger';
-import watcher from '@parcel/watcher';
+import { appLogger } from '@/global/app-logger';
 import type { EcoPagesConfig } from '..';
 import type { CssBuilder } from './css-builder';
 import type { ScriptsBuilder } from './scripts-builder';
@@ -14,6 +13,11 @@ export class ProjectWatcher {
     this.config = config;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
+    this.handleAdd = this.handleAdd.bind(this);
+    this.handleChange = this.handleChange.bind(this);
+    this.handleUnlink = this.handleUnlink.bind(this);
+    this.handleUnlinkDir = this.handleUnlinkDir.bind(this);
+    this.handleError = this.handleError.bind(this);
   }
 
   private uncacheModules(): void {
@@ -28,44 +32,65 @@ export class ProjectWatcher {
     }
   }
 
+  handleAdd(path: string) {
+    appLogger.info(`File ${path} has been added`);
+  }
+
+  handleChange(path: string) {
+    if (path.endsWith('.css')) {
+      this.cssBuilder.buildCssFromPath({ path: path });
+      appLogger.info('CSS File changed', path.split(this.config.srcDir)[1]);
+    } else if (this.config.scriptsExtensions.some((scriptsExtension) => path.endsWith(scriptsExtension))) {
+      this.scriptsBuilder.build();
+      this.uncacheModules();
+      appLogger.info('File changed', path.split(this.config.srcDir)[1]);
+    } else if (this.config.templatesExt.some((ext) => path.includes(ext))) {
+      appLogger.info('Template file changed', path);
+      this.uncacheModules();
+    }
+  }
+
+  handleUnlink(path: string) {
+    const pathToDelete = path.includes(this.config.pagesDir)
+      ? `${path.replace(this.config.pagesDir, this.config.distDir).split('.')[0]}.html`
+      : path.replace(this.config.srcDir, this.config.distDir);
+
+    if (fs.existsSync(pathToDelete)) {
+      fs.rmSync(pathToDelete);
+      appLogger.info('File removed', pathToDelete);
+    }
+  }
+
+  handleUnlinkDir(path: string) {
+    fs.rmSync(path.replace(this.config.pagesDir, this.config.distDir), {
+      recursive: true,
+    });
+    appLogger.info('Directory removed', path);
+  }
+
+  handleError(error: Error) {
+    appLogger.error(`Watcher error: ${error}`);
+  }
+
   public async createWatcherSubscription() {
+    const watcher = await import('@parcel/watcher');
     return watcher.subscribe('src', (err, events) => {
       if (err) {
-        console.error('Error watching files', err);
+        this.handleError(err);
         return;
       }
 
-      const { srcDir, distDir, pagesDir, scriptsExtensions, templatesExt } = this.config;
-
       for (const event of events) {
         if (event.type === 'delete') {
-          if (!event.path.includes('.') && event.path.includes(pagesDir)) {
-            fs.rmSync(event.path.replace(pagesDir, distDir), {
-              recursive: true,
-            });
+          if (!event.path.includes('.') && event.path.includes(this.config.pagesDir)) {
+            this.handleUnlinkDir(event.path);
           } else {
-            const pathToDelete = event.path.includes(pagesDir)
-              ? `${event.path.replace(pagesDir, distDir).split('.')[0]}.html`
-              : event.path.replace(srcDir, distDir);
-
-            if (fs.existsSync(pathToDelete)) {
-              fs.rmSync(pathToDelete);
-            }
+            this.handleUnlink(event.path);
           }
           continue;
         }
 
-        if (event.path.endsWith('.css')) {
-          this.cssBuilder.buildCssFromPath({ path: event.path });
-          appLogger.info('File changed', event.path.split(srcDir)[1]);
-        } else if (scriptsExtensions.some((scriptsExtension) => event.path.endsWith(scriptsExtension))) {
-          this.scriptsBuilder.build();
-          this.uncacheModules();
-          appLogger.info('File changed', event.path.split(srcDir)[1]);
-        } else if (templatesExt.some((ext) => event.path.includes(ext))) {
-          appLogger.info('Template file changed', event.path);
-          this.uncacheModules();
-        }
+        this.handleChange(event.path);
       }
     });
   }

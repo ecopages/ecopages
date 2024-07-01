@@ -1,11 +1,22 @@
 {
 	"name": "@ecopages/mdx",
-	"version": "0.0.1",
-	"main": "./src/index.ts",
-	"dependencies": {
-		"@ecopages/core": "workspace:*",
-		"@kitajs/html": "^4.1.0",
-		"@kitajs/ts-html-plugin": "^4.0.1"
+	"version": "0.0.0",
+	"license": "MIT",
+	"main": "./src/mdx.plugin.ts",
+	"types": "./src/mdx.plugin.ts",
+	"type": "module",
+	"files": ["src"],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/integrations/mdx"
 	},
-	"repository": "https://github.com/andeeplus/ecopages.git"
+	"scripts": {
+		"release:jsr": " bunx jsr publish --dry-run"
+	},
+	"peerDependencies": {
+		"@kitajs/html": "^4.1.0",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/logger": "^0.1.1"
+	}
 }

@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoComponent, type GetMetadata } from '@ecopages/core';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Radiant UI | Button',
@@ -74,9 +74,9 @@ const ButtonPage: EcoComponent = () => {
   );
 };
 
-ButtonPage.dependencies = DepsManager.importPaths({
+ButtonPage.config = {
   importMeta: import.meta,
-  components: [BaseLayout],
-});
+  dependencies: { components: [BaseLayout] },
+};
 
 export default ButtonPage;

@@ -14,7 +14,6 @@ import { Message } from './lite-renderer.templates.kita';
 
 export type LiteRendererProps = {
   text?: string;
-  'replace-on-load'?: boolean;
 };
 
 @customElement('lite-renderer')
@@ -25,14 +24,6 @@ export class LiteRenderer extends WithKita(RadiantElement) {
 
   @reactiveField numberOfClicks = 1;
   @query({ selector: '[data-list]' }) messageList!: HTMLDivElement;
-
-  constructor() {
-    super();
-    if (this['replace-on-load']) {
-      this.messageList.innerHTML = '';
-      this.renderMessage('replace');
-    }
-  }
 
   renderMessage(insert: RenderInsertPosition = 'beforeend') {
     this.renderTemplate({

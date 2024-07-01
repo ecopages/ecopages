@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/docs",
-	"version": "0.0.1",
+	"private": true,
 	"scripts": {
 		"dev": "ecopages dev",
 		"build": "ecopages build",
@@ -9,6 +9,8 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
+		"@ecopages/bun-mdx-loader": "workspace:*",
+		"@ecopages/bun-postcss-loader": "workspace:*",
 		"shiki": "^1.1.2"
 	}
 }

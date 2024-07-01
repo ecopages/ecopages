@@ -1,6 +1,6 @@
 import { Logo } from '@/components/logo';
 import { Navigation, type NavigationProps } from '@/components/navigation';
-import { DepsManager, type EcoComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 
 export type HeaderProps = {
   navigation: NavigationProps;
@@ -20,4 +20,10 @@ export const Header: EcoComponent<HeaderProps> = ({ navigation }) => {
   );
 };
 
-Header.dependencies = DepsManager.collect({ importMeta: import.meta, components: [Navigation, Logo] });
+Header.config = {
+  importMeta: import.meta,
+  dependencies: {
+    stylesheets: ['./header.css'],
+    components: [Navigation, Logo],
+  },
+};

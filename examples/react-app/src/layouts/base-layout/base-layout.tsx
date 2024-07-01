@@ -1,7 +1,7 @@
 import type { EcoComponent } from '@ecopages/core';
 
 export type BaseLayoutProps = {
-  children: JSX.Element;
+  children: JSX.Element | JSX.Element[];
   class?: string;
   id?: string;
 };

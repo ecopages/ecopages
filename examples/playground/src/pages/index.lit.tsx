@@ -5,7 +5,7 @@ import { LiteCounter } from '@/components/lite-counter';
 import { LiteRenderer } from '@/components/lite-renderer';
 import { Message } from '@/components/lite-renderer/lite-renderer.templates.kita';
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoComponent, type GetMetadata } from '@ecopages/core';
+import { type EcoComponent, type GetMetadata, removeComponentsScripts, resolveComponentsScripts } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',
@@ -20,38 +20,34 @@ const HomePage: EcoComponent = () => {
       <>
         <h1 class="main-title">Home</h1>
         <Introduction />
-        <scripts-injector on:interaction="mouseenter,focusin" scripts={DepsManager.extract(Counter, 'scripts').join()}>
+        <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([Counter])}>
           <Counter />
         </scripts-injector>
-        <scripts-injector
-          on:interaction="mouseenter,focusin"
-          scripts={DepsManager.extract(LiteCounter, 'scripts').join()}
-        >
+        <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([LiteCounter])}>
           <LiteCounter count={5} />
         </scripts-injector>
-        <scripts-injector
-          on:interaction="mouseenter,focusin"
-          scripts={DepsManager.extract(LitCounter, 'scripts').join()}
-        >
+        <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([LitCounter])}>
           <lit-counter class="lit-counter" count={8}></lit-counter>
         </scripts-injector>
-        <LiteRenderer>
-          <Message text="Hello from the server" />
-        </LiteRenderer>
-        <LiteRenderer replace-on-load={true} />
+        <scripts-injector
+          on:interaction="mouseenter,focusin"
+          scripts={resolveComponentsScripts([LiteRenderer, Message])}
+        >
+          <LiteRenderer>
+            <Message text="Hello from the server" />
+          </LiteRenderer>
+        </scripts-injector>
       </>
     </BaseLayout>
   );
 };
 
-HomePage.dependencies = DepsManager.collect({
+HomePage.config = {
   importMeta: import.meta,
-  components: [
-    BaseLayout,
-    LiteRenderer,
-    DepsManager.filter(Counter, 'stylesheets'),
-    DepsManager.filter(LiteCounter, 'stylesheets'),
-  ],
-});
+  dependencies: {
+    stylesheets: ['./index.css'],
+    components: [BaseLayout, ...removeComponentsScripts([Counter, LiteRenderer, LiteCounter, Message])],
+  },
+};
 
 export default HomePage;

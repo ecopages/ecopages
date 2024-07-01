@@ -1,7 +1,8 @@
 {
 	"name": "@ecopages/playground",
-	"version": "0.0.1",
+	"private": true,
 	"scripts": {
+		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",
@@ -14,9 +15,11 @@
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/radiant": "^0.1.0",
+		"@ecopages/bun-mdx-loader": "workspace:*",
+		"@ecopages/bun-postcss-loader": "workspace:*",
 		"@types/alpinejs": "^3.13.6",
 		"alpinejs": "^3.13.10",
 		"shiki": "^1.1.2"
 	},
-	"repository": "https://github.com/andeeplus/ecopages.git"
+	"repository": "https://github.com/ecopages/ecopages.git"
 }

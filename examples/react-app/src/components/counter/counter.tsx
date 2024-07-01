@@ -6,27 +6,26 @@ type CounterProps = {
 };
 
 export const Counter: EcoComponent<CounterProps> = ({ defaultValue = 5 }) => {
-  const [count, setCount] = useState(defaultValue);
+  const [count, setCount] = useState<number>(defaultValue);
+  const handleIncrement = () => setCount(count + 1);
+  const handleDecrement = () => setCount(count - 1);
 
   return (
     <div className="counter-react">
-      <button onClick={() => setCount(count - 1)} aria-label="Decrement" type="button" className="decrement">
+      <button onClick={handleDecrement} aria-label="Decrement" type="button" className="decrement">
         -
       </button>
       <span>{count}</span>
-      <button
-        data-increment
-        onClick={() => setCount(count + 1)}
-        aria-label="Increment"
-        type="button"
-        className="increment"
-      >
+      <button data-increment onClick={handleIncrement} aria-label="Increment" type="button" className="increment">
         +
       </button>
     </div>
   );
 };
 
-Counter.dependencies = {
-  stylesheets: ['components/counter/counter.css'],
+Counter.config = {
+  importMeta: import.meta,
+  dependencies: {
+    stylesheets: ['./counter.css'],
+  },
 };

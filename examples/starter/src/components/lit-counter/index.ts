@@ -1,9 +1,10 @@
-import { DepsManager } from '@ecopages/core';
 import './lit-counter.script';
 
 export const LitCounter = {
-  dependencies: DepsManager.importPaths({
+  config: {
     importMeta: import.meta,
-    scripts: ['lit-counter.script.js'],
-  }),
+    dependencies: {
+      scripts: ['lit-counter.script.ts'],
+    },
+  },
 };

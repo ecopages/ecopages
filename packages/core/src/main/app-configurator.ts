@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { appLogger } from '@/utils/app-logger';
+import { appLogger } from '@/global/app-logger';
 import { deepMerge } from '@/utils/deep-merge';
 import { invariant } from '@/utils/invariant';
 import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
@@ -8,7 +8,7 @@ import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
 export class AppConfigurator {
   config: EcoPagesConfig;
 
-  static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'absolutePaths' | 'templatesExt' | 'serve'> = {
+  static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'absolutePaths' | 'templatesExt'> = {
     rootDir: '.',
     srcDir: 'src',
     pagesDir: 'pages',
@@ -34,7 +34,7 @@ export class AppConfigurator {
     integrations: [],
     integrationsDependencies: [],
     distDir: '.eco',
-    scriptsExtensions: ['script.ts', 'script.tsx'],
+    scriptsExtensions: ['.script.ts', '.script.tsx'],
     defaultMetadata: {
       title: 'Eco Pages',
       description: 'Eco Pages',
@@ -114,11 +114,13 @@ export class AppConfigurator {
   }
 
   static async create({ projectDir }: { projectDir: string }): Promise<AppConfigurator> {
-    if (!fs.existsSync(`${projectDir}/eco.config.ts`)) {
+    const configPath = path.resolve(projectDir, 'eco.config.ts');
+
+    if (!fs.existsSync(configPath)) {
       throw new Error('eco.config.ts not found, please provide a valid config file.');
     }
 
-    const { default: customConfig } = await import(`${projectDir}/eco.config.ts`);
+    const { default: customConfig } = await import(configPath);
 
     return new AppConfigurator({
       projectDir,

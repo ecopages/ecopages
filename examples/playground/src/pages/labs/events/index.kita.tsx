@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoPage } from '@ecopages/core';
+import type { EcoPage } from '@ecopages/core';
 
 const EventsPage: EcoPage = () => {
   return (
@@ -18,9 +18,12 @@ const EventsPage: EcoPage = () => {
   );
 };
 
-EventsPage.dependencies = DepsManager.collect({
+EventsPage.config = {
   importMeta: import.meta,
-  components: [BaseLayout],
-});
+  dependencies: {
+    components: [BaseLayout],
+    scripts: ['./lite-event.script.ts'],
+  },
+};
 
 export default EventsPage;

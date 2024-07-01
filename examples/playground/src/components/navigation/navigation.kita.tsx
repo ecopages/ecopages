@@ -1,4 +1,4 @@
-import { DepsManager, type EcoComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 
 export type NavigationProps = {
   items: {
@@ -21,4 +21,9 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
   );
 };
 
-Navigation.dependencies = DepsManager.collect({ importMeta: import.meta });
+Navigation.config = {
+  importMeta: import.meta,
+  dependencies: {
+    stylesheets: ['./navigation.css'],
+  },
+};

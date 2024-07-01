@@ -1,10 +1,6 @@
-preload = [
-  "@ecopages/core/src/loaders/inline-postcss.loader.ts",
-  "@ecopages/core/src/loaders/mdx.loader.ts",
-]
+preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-loader"]
 
 [test]
-preload = [
-  "@ecopages/core/src/loaders/inline-postcss.loader.ts",
-  "@ecopages/core/src/loaders/mdx.loader.ts",
-]
+preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-loader"]
+[install.scopes]
+"@jsr" = "https://npm.jsr.io"

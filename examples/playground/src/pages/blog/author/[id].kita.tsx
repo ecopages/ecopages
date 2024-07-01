@@ -1,11 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import {
-  DepsManager,
-  type GetMetadata,
-  type GetStaticPaths,
-  type GetStaticProps,
-  type PageProps,
-} from '@ecopages/core';
+import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
 
 type AuthorProps = {
   slug: string;
@@ -13,14 +7,7 @@ type AuthorProps = {
   bio: string;
 };
 
-export const getMetadata: GetMetadata<AuthorProps> = async ({ name, slug }) => {
-  return {
-    title: `Author | ${slug}`,
-    description: `This is the bio of ${name}`,
-  };
-};
-
-export default function Author({ params, query, name, bio, slug }: PageProps<AuthorProps>) {
+export const Author: EcoComponent<PageProps<AuthorProps>> = ({ params, query, name, bio, slug }) => {
   return (
     <BaseLayout>
       <div>
@@ -33,12 +20,23 @@ export default function Author({ params, query, name, bio, slug }: PageProps<Aut
       </div>
     </BaseLayout>
   );
-}
+};
 
-Author.dependencies = DepsManager.collect({
+Author.config = {
   importMeta: import.meta,
-  components: [BaseLayout],
-});
+  dependencies: {
+    components: [BaseLayout],
+  },
+};
+
+export default Author;
+
+export const getMetadata: GetMetadata<AuthorProps> = async ({ props: { name, slug } }) => {
+  return {
+    title: `Author | ${slug}`,
+    description: `This is the bio of ${name}`,
+  };
+};
 
 export const getStaticPaths: GetStaticPaths = async () => {
   return {

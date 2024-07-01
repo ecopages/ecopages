@@ -1,7 +1,8 @@
 {
 	"name": "@ecopages/starter",
-	"version": "0.0.1",
+	"private": true,
 	"scripts": {
+		"watch:dev": "NODE_ENV=development bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",
@@ -11,6 +12,8 @@
 		"@ecopages/core": "workspace:*",
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lit": "workspace:*",
-		"@ecopages/mdx": "workspace:*"
+		"@ecopages/mdx": "workspace:*",
+		"@ecopages/bun-mdx-loader": "workspace:*",
+		"@ecopages/bun-postcss-loader": "workspace:*"
 	}
 }

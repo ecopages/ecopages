@@ -1,8 +1,10 @@
-export * from './env.d';
-import './declarations.d';
-
+import type { Readable } from 'node:stream';
+import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
 import type { IntegrationDependencyConfig } from './main/integration-manager';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer';
+import type { FSRouter } from './router/fs-router';
+import './declarations';
+import './env';
 
 export type IntegrationPluginDependencies = BaseIntegrationPluginDependencies & SpecificIntegrationPluginDependencies;
 
@@ -173,17 +175,8 @@ export type EcoPagesConfigInput = Omit<
 export type EcoComponentDependencies = {
   stylesheets?: string[];
   scripts?: string[];
+  components?: (EcoComponent | { config: EcoComponentConfig })[];
 };
-
-export interface EcoComponent<T = unknown> {
-  (props: T): JSX.Element;
-  dependencies?: EcoComponentDependencies;
-}
-
-export interface EcoPage<T = unknown> {
-  (props: T): JSX.Element;
-  dependencies?: EcoComponentDependencies;
-}
 
 export type PageParams = Record<string, string | string[]>;
 
@@ -193,6 +186,21 @@ export type StaticPageContext = {
   params?: PageParams;
   query?: PageQuery;
 };
+
+export type EcoComponentConfig = {
+  importMeta: ImportMeta;
+  dependencies?: EcoComponentDependencies;
+};
+
+export interface EcoComponent<T = any> {
+  (props: T): JSX.Element;
+  config?: EcoComponentConfig;
+}
+
+export interface EcoPage<T = any> {
+  (props: T): JSX.Element;
+  config?: EcoComponentConfig;
+}
 
 export type PageProps<T = unknown> = T & StaticPageContext;
 
@@ -207,13 +215,13 @@ export interface PageMetadataProps {
 export interface PageHeadProps {
   metadata: PageMetadataProps;
   dependencies?: EcoComponentDependencies;
-  children?: Html.Children;
+  children?: JSX.Element;
 }
 
 export interface HtmlTemplateProps extends PageHeadProps {
-  children: Html.Children;
+  children: JSX.Element;
   language?: string;
-  headContent?: Html.Children;
+  headContent?: JSX.Element;
 }
 
 export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
@@ -225,15 +233,15 @@ export type StaticPath = { params: PageParams };
 
 export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
 
-export type GetMetadataContext<T = Record<string, unknown>> = Required<StaticPageContext> & { props?: T };
+export type GetMetadataContext<T = Record<string, unknown>> = Required<StaticPageContext> & {
+  props: T;
+};
 
 export type GetMetadata<T = Record<string, unknown>> = (
-  context: GetMetadataContext,
+  context: GetMetadataContext<T>,
 ) => PageMetadataProps | Promise<PageMetadataProps>;
 
-export type GetStaticProps<T> = (context: {
-  pathname: StaticPath;
-}) => Promise<{ props: T }>;
+export type GetStaticProps<T> = (context: { pathname: StaticPath }) => Promise<{ props: T }>;
 
 export type EcoPageFile<T = unknown> = T & {
   default: EcoPage;
@@ -243,8 +251,8 @@ export type EcoPageFile<T = unknown> = T & {
 };
 
 export interface CssProcessor {
-  processPath: (path: string) => Promise<string>;
-  processString: (contents: string) => Promise<string>;
+  processPath: (path: string, plugins?: any) => Promise<string>;
+  processStringOrBuffer: (contents: string | Buffer, plugins?: unknown) => Promise<string>;
 }
 
 export type RouteRendererOptions = {
@@ -260,6 +268,7 @@ export type IntegrationRendererRenderOptions = RouteRendererOptions & {
   metadata: PageMetadataProps;
   HtmlTemplate: EcoComponent<HtmlTemplateProps>;
   Page: EcoPage<PageProps>;
+  dependencies?: EcoComponentDependencies;
   appConfig: EcoPagesConfig;
 };
 
@@ -280,3 +289,17 @@ export type Route = {
 };
 
 export type Routes = Record<string, Route>;
+
+export type FileSystemServerOptions = {
+  watchMode: boolean;
+  port?: number;
+};
+
+export interface EcoPagesFileSystemServerAdapter<ServerInstanceOptions = unknown> {
+  startServer(serverOptions: ServerInstanceOptions):
+    | {
+        router: FSRouter;
+        server: unknown;
+      }
+    | Promise<{ router: FSRouter; server: unknown }>;
+}

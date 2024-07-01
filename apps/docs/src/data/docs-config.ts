@@ -36,7 +36,7 @@ export const docsConfig: DocsConfig = {
       name: 'Integrations',
       subdirectory: 'integrations',
       pages: [
-        { title: 'Kitajs', slug: 'kita' },
+        { title: 'Kitajs', slug: 'kitajs' },
         { title: 'Lit', slug: 'lit' },
         { title: 'Mdx', slug: 'mdx' },
         { title: 'React', slug: 'react' },

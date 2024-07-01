@@ -1,0 +1,19 @@
+{
+	"name": "@ecopages/bun-mdx-loader",
+	"version": "0.0.0",
+	"license": "MIT",
+	"main": "./src/bun-mdx-loader.ts",
+	"type": "module",
+	"files": ["src"],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/loaders/bun-mdx-loader"
+	},
+	"scripts": {
+		"release:jsr": " bunx jsr publish --dry-run"
+	},
+	"dependencies": {
+		"@mdx-js/esbuild": "^3.0.1"
+	}
+}

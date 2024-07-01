@@ -2,15 +2,16 @@
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
 		"baseUrl": ".",
+		"rootDir": ".",
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"module": "ESNext",
-		"moduleResolution": "node",
+		"moduleResolution": "Bundler",
 		"noImplicitOverride": true,
 		"paths": {
 			"@/*": ["./src/*"],
-			"@types": ["./src/index.d.ts"]
+			"@types": ["src/index.d.ts"]
 		},
 		"jsx": "react-jsx",
 		"jsxImportSource": "@kitajs/html",
@@ -18,7 +19,7 @@
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "ES2021",
-		"types": ["bun-types", "./src/index.d.ts"],
+		"types": ["bun-types"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	}

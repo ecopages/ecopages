@@ -1,8 +1,8 @@
-import { postCssProcessorPlugin } from '@/plugins/postcss-processor.plugin';
-import { appLogger } from '@/utils/app-logger';
+import { appLogger } from '@/global/app-logger';
 import { FileUtils } from '@/utils/file-utils.module';
+import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
+import { PostCssProcessor } from '@ecopages/postcss-processor';
 import type { EcoPagesConfig } from '@types';
-import { PostCssProcessor } from './postcss-processor';
 
 type ScriptsBuilderOptions = {
   watchMode: boolean;
@@ -20,7 +20,7 @@ export class ScriptsBuilder {
   async build() {
     const { srcDir, distDir, scriptsExtensions } = this.config;
 
-    const scripts = await FileUtils.glob(`${srcDir}/**/*.{${scriptsExtensions.join(',')}}`, { cwd: '.' });
+    const scripts = await FileUtils.glob(scriptsExtensions.map((ext) => `${srcDir}/**/*${ext}`));
 
     appLogger.debug('Building scripts:', scripts);
 
@@ -33,8 +33,8 @@ export class ScriptsBuilder {
       format: 'esm',
       splitting: true,
       plugins: [
-        postCssProcessorPlugin({
-          transform: PostCssProcessor.processString,
+        bunInlineCssPlugin({
+          transform: PostCssProcessor.processStringOrBuffer,
         }),
       ],
     });

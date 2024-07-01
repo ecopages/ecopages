@@ -1,10 +1,10 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { DepsManager, type EcoPage } from '@ecopages/core';
+import type { EcoPage } from '@ecopages/core';
 
 const LabsPage: EcoPage = () => {
   return (
     <BaseLayout>
-      <lite-refs class="grid gap-3 max-w-fit">
+      <lite-refs class="grid gap-3">
         <button class="bg-blue-700 text-white px-2 py-1 rounded-md" type="button" data-ref="create-ref">
           Add Ref
         </button>
@@ -14,16 +14,19 @@ const LabsPage: EcoPage = () => {
           </div>
         </div>
         <div class="bg-gray-100 text-black p-3" data-ref="ref-count">
-          Ref Count: 0 | Query Count: 0
+          Ref Count: 1
         </div>
       </lite-refs>
     </BaseLayout>
   );
 };
 
-LabsPage.dependencies = DepsManager.collect({
+LabsPage.config = {
   importMeta: import.meta,
-  components: [BaseLayout],
-});
+  dependencies: {
+    scripts: ['./lite-refs.script.ts'],
+    components: [BaseLayout],
+  },
+};
 
 export default LabsPage;

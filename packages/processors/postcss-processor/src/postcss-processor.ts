@@ -41,7 +41,7 @@ async function processPath(path: string) {
   try {
     return await processor.process(contents, { from: path }).then((result) => result.css);
   } catch (error) {
-    appLogger.error('processPath | Error processing PostCSS', error);
+    appLogger.error('Error processing PostCSS file path', error);
     return '';
   }
 }
@@ -65,7 +65,7 @@ async function processStringOrBuffer(contents: string | Buffer) {
   try {
     return await processor.process(contents, { from: undefined }).then((result) => result.css);
   } catch (error) {
-    appLogger.error('processStringOrBuffer | Error processing PostCSS', error);
+    appLogger.error('Error processing string or bugger with PostCSS', error);
     return '';
   }
 }

@@ -12,13 +12,7 @@
 		"./utils/deep-merge": "./src/utils/deep-merge.ts",
 		"./utils/invariant": "./src/utils/invariant.ts",
 		"./utils/file-utils": "./src/utils/file-utils.module.ts",
-		"./utils/resolve-components-modules": "./src/utils/resolve-components-modules.module.ts"
+		"./utils/component-dependencies-utils": "./src/utils/component-dependencies-utils.ts"
 	},
-	"exclude": ["fixtures", "**/*.test.ts"],
-	"imports": {
-		"@ecopages/postcss-processor": "${version}",
-		"@ecopages/bun-inline-css-plugin": "${version}",
-		"@ecopages/logger": "^0.1.2",
-		"bun": "npm:@types/bun@latest"
-	}
+	"exclude": ["fixtures", "**/*.test.ts"]
 }

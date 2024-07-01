@@ -1,5 +1,5 @@
-import { deepMerge } from '@ecopages/core/src/utils/deep-merge';
-import { invariant } from '@ecopages/core/src/utils/invariant';
+import { deepMerge } from '@ecopages/core/utils/deep-merge';
+import { invariant } from '@ecopages/core/utils/invariant';
 import { PLUGIN_NAME } from './mdx.plugin';
 
 import {

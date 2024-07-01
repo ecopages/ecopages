@@ -13,7 +13,7 @@
 	},
 	"scripts": {
 		"test": "bun test",
-		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
+		"release:jsr": " bunx jsr publish --dry-run"
 	},
 	"dependencies": {
 		"@kitajs/html": "^4.1.0",

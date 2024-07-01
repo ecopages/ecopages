@@ -1,6 +1,9 @@
 {
 	"$schema": "https://unpkg.com/@changesets/config@3.0.1/schema.json",
-	"changelog": ["@changesets/changelog-github", { "repo": "ecopages/radiant" }],
+	"changelog": [
+		"@changesets/changelog-github",
+		{ "repo": "ecopages/ecopages" }
+	],
 	"commit": false,
 	"fixed": [["@ecopages/*"]],
 	"linked": [],

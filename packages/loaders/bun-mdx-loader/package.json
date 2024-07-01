@@ -11,7 +11,7 @@
 		"directory": "packages/loaders/bun-mdx-loader"
 	},
 	"scripts": {
-		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
+		"release:jsr": " bunx jsr publish --dry-run"
 	},
 	"dependencies": {
 		"@mdx-js/esbuild": "^3.0.1"

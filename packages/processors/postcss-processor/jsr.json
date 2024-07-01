@@ -5,8 +5,5 @@
 		".": "./src/postcss-processor.ts",
 		"./default-plugins": "./src/default-plugins.ts"
 	},
-	"exclude": ["src/test"],
-	"imports": {
-		"@ecopages/logger": "^0.1.1"
-	}
+	"exclude": ["src/test"]
 }

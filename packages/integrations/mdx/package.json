@@ -12,7 +12,7 @@
 		"directory": "packages/integrations/mdx"
 	},
 	"scripts": {
-		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
+		"release:jsr": " bunx jsr publish --dry-run"
 	},
 	"peerDependencies": {
 		"@kitajs/html": "^4.1.0",

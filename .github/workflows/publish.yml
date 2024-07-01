@@ -24,8 +24,5 @@ jobs:
       - name: Test
         run: bun test
 
-      - name: Update Version
-        run: bun script/version.ts
-
       - name: Publish
-        run: bun run --filter release
+        run: bun run release

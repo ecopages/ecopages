@@ -2,3 +2,5 @@ preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-loader"]
 
 [test]
 preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-loader"]
+[install.scopes]
+"@jsr" = "https://npm.jsr.io"

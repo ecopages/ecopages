@@ -12,7 +12,7 @@
 	},
 	"scripts": {
 		"test": "bun test",
-		"release:jsr": " bunx jsr publish --dry-run --allow-dirty"
+		"release:jsr": " bunx jsr publish --dry-run"
 	},
 	"dependencies": {
 		"@ecopages/logger": "^0.1.2",

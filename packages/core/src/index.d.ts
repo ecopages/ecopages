@@ -3,7 +3,6 @@ import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-reada
 import type { IntegrationDependencyConfig } from './main/integration-manager';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer';
 import type { FSRouter } from './router/fs-router';
-import './env';
 
 export type IntegrationPluginDependencies = BaseIntegrationPluginDependencies & SpecificIntegrationPluginDependencies;
 

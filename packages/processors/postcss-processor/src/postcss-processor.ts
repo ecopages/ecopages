@@ -1,9 +1,20 @@
+/**
+ * This module contains the PostCSS Processor
+ * @module
+ */
+
 import { existsSync, readFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
 import { defaultPlugins } from './default-plugins';
 
-export function getFileAsBuffer(path: string): Buffer {
+/**
+ * It reads the file and returns the contents as a buffer
+ * @param path string
+ * @returns Buffer
+ * @throws Error
+ */
+function getFileAsBuffer(path: string): Buffer {
   try {
     if (!existsSync(path)) {
       throw new Error(`File: ${path} not found`);
@@ -16,11 +27,6 @@ export function getFileAsBuffer(path: string): Buffer {
 }
 
 const appLogger = new Logger('[@ecopages/postcss-processor]');
-
-export interface CssProcessor {
-  processPath: (path: string) => Promise<string>;
-  processStringOrBuffer: (contents: string | Buffer) => Promise<string>;
-}
 
 /**
  * It processes the given path using PostCSS
@@ -72,10 +78,13 @@ async function processStringOrBuffer(contents: string | Buffer) {
 
 /**
  * PostCSS Processor
- * - processPath: It processes the given path using PostCSS
- * - processString: It processes the given string or buffer using PostCSS
+ * - {@link processPath} : It processes the given path using PostCSS
+ * - {@link processStringOrBuffer}: It processes the given string or buffer using PostCSS
  */
-export const PostCssProcessor: CssProcessor = {
+export const PostCssProcessor: {
+  processPath: (path: string) => Promise<string>;
+  processStringOrBuffer: (contents: string | Buffer) => Promise<string>;
+} = {
   processPath,
   processStringOrBuffer,
 };

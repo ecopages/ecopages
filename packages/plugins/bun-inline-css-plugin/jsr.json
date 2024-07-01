@@ -4,5 +4,8 @@
 	"exports": {
 		".": "./src/bun-inline-css-plugin.ts"
 	},
-	"exclude": ["src/test"]
+	"exclude": ["src/test"],
+	"imports": {
+		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest"
+	}
 }

@@ -1,14 +1,25 @@
+/**
+ * This module contains the Bun Inline CSS Plugin
+ * @module
+ */
+
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BunPlugin } from 'bun';
 
+/**
+ * The options for the bun postcss plugin
+ * @param filter - The filter to apply to the plugin
+ * @param namespace - The namespace to apply to the plugin
+ * @param transform - The transform function to apply to the plugin
+ */
 type BunPostCssPluginOptions = {
   filter?: RegExp;
   namespace?: string;
   transform?: (contents: string | Buffer, args: { path: string; [key: string]: any }) => Promise<string> | string;
 };
 
-export function getFileAsBuffer(path: string): Buffer {
+function getFileAsBuffer(path: string): Buffer {
   try {
     if (!existsSync(path)) {
       throw new Error(`File: ${path} not found`);

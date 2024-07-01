@@ -19,7 +19,7 @@ import type {
   PageMetadataProps,
   RouteRendererBody,
   RouteRendererOptions,
-} from '@types';
+} from '../index';
 import { HeadContentBuilder } from '../route-renderer/utils/head-content-builder';
 import { invariant } from '../utils/invariant';
 

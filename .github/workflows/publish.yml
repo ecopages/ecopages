@@ -22,7 +22,7 @@ jobs:
         run: bun install
 
       - name: Test
-        run: bun test
+        run: bun run test:suite
 
       - name: Sync JSR Version
         run: bun run jsr:sync-version

@@ -3,7 +3,7 @@
  * @module
  */
 
-import type { EcoComponent, EcoComponentDependencies } from '@types';
+import type { EcoComponent, EcoComponentDependencies } from '../index';
 
 function getSafeFileName(path: string) {
   const EXTENSIONS_TO_JS = ['ts', 'tsx'];

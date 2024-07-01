@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/mdx",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"license": "MIT",
 	"main": "./src/mdx.plugin.ts",
 	"types": "./src/mdx.plugin.ts",

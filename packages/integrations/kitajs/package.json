@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/kitajs",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"license": "MIT",
 	"main": "./src/kitajs.plugin.ts",
 	"types": "./src/kitajs.plugin.ts",

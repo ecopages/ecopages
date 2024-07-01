@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/mdx",
-	"version": "${version}",
+	"version": "0.1.0",
 	"exports": {
 		".": "./src/mdx.plugin.ts"
 	},

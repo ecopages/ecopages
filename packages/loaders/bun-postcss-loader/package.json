@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/bun-postcss-loader",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"license": "MIT",
 	"main": "./src/bun-postcss-loader.ts",
 	"type": "module",

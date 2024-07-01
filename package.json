@@ -34,7 +34,7 @@
 		"format": "bunx @biomejs/biome format --write .",
 		"lint": "bunx @biomejs/biome check --apply .",
 		"lint-staged": "lint-staged",
-		"jsr:sync-version": "bun scripts/sync-package-version.ts",
+		"jsr:sync-version": "bun scripts/jsr-sync-version.ts",
 		"prerelease": "bun run test:suite && bun run jsr:sync-version",
 		"release": "bun run --filter '*' release:jsr | tee /dev/null",
 		"test:suite": "bun run --filter '*' test | tee /dev/null"

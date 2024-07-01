@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/lit",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"license": "MIT",
 	"main": "./src/lit.plugin.ts",
 	"types": "./src/lit.plugin.ts",

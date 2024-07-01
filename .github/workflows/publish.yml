@@ -19,10 +19,13 @@ jobs:
         uses: oven-sh/setup-bun@v1
 
       - name: Install Dependencies
-        run: bun script/version.ts
+        run: bun install
 
       - name: Test
         run: bun test
+
+      - name: Sync JSR Version
+        run: bun run jsr:sync-version
 
       - name: Publish
         run: bun run release

@@ -34,9 +34,10 @@ function getFileAsBuffer(path: string): Buffer {
 /**
  * A bun plugin to process css files using postcss
  * @param options - {@link BunInlineCssPluginOptions}
- * @default filter - /\.css$/
- * @default namespace - 'bun-inline-css-plugin'
- * @default transform - async (contents: string | Buffer) => contents
+ * @default options.filter - /\.css$/
+ * @default options.namespace - 'bun-inline-css-plugin-namespace'
+ * @default options.transform - async (contents: string | Buffer) => contents
+ * @returns The bun plugin
  */
 export const bunInlineCssPlugin = (options: BunInlineCssPluginOptions): BunPlugin => {
   const { filter, namespace, transform } = Object.assign(

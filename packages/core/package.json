@@ -17,7 +17,7 @@
 	},
 	"scripts": {
 		"test": "bun test",
-		"release:jsr": "bunx jsr publish"
+		"release:jsr": "bunx jsr publish --allow-slow-types"
 	},
 	"dependencies": {
 		"@ecopages/bun-inline-css-plugin": "workspace:*",

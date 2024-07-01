@@ -6,7 +6,7 @@
 	"license": "MIT",
 	"main": "./src/index.ts",
 	"type": "module",
-	"files": ["dist"],
+	"files": ["src"],
 	"bin": {
 		"ecopages": "./src/bin/ecopages.ts"
 	},
@@ -27,18 +27,5 @@
 	},
 	"devDependencies": {
 		"bun-types": "latest"
-	},
-	"exports": {
-		".": "./src/index.ts",
-		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",
-		"./route-renderer/route-renderer": "./src/route-renderer/route-renderer.ts",
-		"./router/fs-router": "./src/router/fs-router.ts",
-		"./router/fs-router-scanner": "./src/router/fs-router-scanner.ts",
-		"./adapters/server-utils": "./src/adapters/server-utils.module.ts",
-		"./utils/add-base-url-to-pathname": "./src/utils/add-base-url-to-pathname.ts",
-		"./utils/deep-merge": "./src/utils/deep-merge.ts",
-		"./utils/invariant": "./src/utils/invariant.ts",
-		"./utils/file-utils": "./src/utils/file-utils.module.ts",
-		"./utils/component-dependencies-utils": "./src/utils/component-dependencies-utils.ts"
 	}
 }

@@ -13,7 +13,7 @@ import type { BunPlugin } from 'bun';
  * @param namespace - The namespace to apply to the plugin
  * @param transform - The transform function to apply to the plugin
  */
-type BunPostCssPluginOptions = {
+type BunInlineCssPluginOptions = {
   filter?: RegExp;
   namespace?: string;
   transform?: (contents: string | Buffer, args: { path: string; [key: string]: any }) => Promise<string> | string;
@@ -33,16 +33,12 @@ function getFileAsBuffer(path: string): Buffer {
 
 /**
  * A bun plugin to process css files using postcss
- * @param options - The plugin options
- * @param options.filter - The filter to apply to the plugin
- * @param options.namespace - The namespace to apply to the plugin
- * @param options.transform - The transform function to apply to the plugin
- * @default options.filter - /\.css$/
- * @default options.namespace - 'bun-inline-css-plugin-namespace'
- * @default options.transform - async (contents: string | Buffer) => contents
- * @returns The bun plugin
+ * @param options - {@link BunInlineCssPluginOptions}
+ * @default filter - /\.css$/
+ * @default namespace - 'bun-inline-css-plugin'
+ * @default transform - async (contents: string | Buffer) => contents
  */
-export const bunInlineCssPlugin = (options: BunPostCssPluginOptions): BunPlugin => {
+export const bunInlineCssPlugin = (options: BunInlineCssPluginOptions): BunPlugin => {
   const { filter, namespace, transform } = Object.assign(
     {
       filter: /\.css$/,

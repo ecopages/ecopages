@@ -6,7 +6,7 @@
 	},
 	"exclude": ["src/test"],
 	"imports": {
-		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
+		"@ecopages/postcss-processor": "jsr:@ecopages/postcss-processor@latest",
 		"bun": "npm:@types/bun@latest"
 	}
 }

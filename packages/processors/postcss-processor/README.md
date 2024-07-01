@@ -7,10 +7,10 @@ This modules provides a set of utility functions for processing CSS files and st
 - Process CSS files by path.
 - Process CSS strings or Buffers.
 
-## Installation
+## Install
 
 ```bash
-bun install @ecopages/postcss-processor
+bunx jsr add @ecopages/postcss-processor
 ```
 
 ## Usage

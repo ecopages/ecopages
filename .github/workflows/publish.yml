@@ -24,8 +24,26 @@ jobs:
       - name: Test
         run: bun run test:suite
 
-      - name: Sync JSR Version
-        run: bun run jsr:sync-version
+      - name: Publish package @ecopages/postcss-processor
+        run: bun run --filter @ecopages/postcss-processor release:jsr
 
-      - name: Publish
-        run: bun run release
+      - name: Publish package @ecopages/bun-inline-css-plugin
+        run: bun run --filter @ecopages/bun-inline-css-plugin release:jsr
+
+      - name: Publish package @ecopages/bun-postcss-loader
+        run: bun run --filter @ecopages/bun-postcss-loader release:jsr
+
+      - name: Publish package @ecopages/bun-mdx-kitajs-loader
+        run: bun run --filter @ecopages/bun-mdx-kitajs-loader release:jsr
+
+      - name: Publish package @ecopages/core
+        run: bun run --filter @ecopages/core release:jsr
+
+      - name: Publish package @ecopages/kitajs
+        run: bun run --filter @ecopages/kitajs release:jsr
+
+      - name: Publish package @ecopages/lit
+        run: bun run --filter @ecopages/lit release:jsr
+
+      - name: Publish package @ecopages/mdx
+        run: bun run --filter @ecopages/mdx release:jsr

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"exports": {
 		".": "./src/index.ts",
 		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",

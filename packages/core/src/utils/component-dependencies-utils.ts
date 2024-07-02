@@ -5,7 +5,7 @@
 
 import type { EcoComponent, EcoComponentDependencies } from '../index';
 
-function getSafeFileName(path: string) {
+function getSafeFileName(path: string): string {
   const EXTENSIONS_TO_JS = ['ts', 'tsx'];
   const safeFileName = path.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
   return safeFileName;
@@ -17,7 +17,7 @@ function getSafeFileName(path: string) {
  * @param {EcoComponent[]} components
  * @returns {string}
  */
-export function resolveComponentsScripts(components: Required<EcoComponentDependencies>['components']) {
+export function resolveComponentsScripts(components: Required<EcoComponentDependencies>['components']): string {
   return components
     .flatMap((component) => {
       const baseDir = component.config?.importMeta.dir.split(globalThis.ecoConfig.srcDir)[1];
@@ -33,8 +33,8 @@ export function resolveComponentsScripts(components: Required<EcoComponentDepend
  * @param {EcoComponent[]} components
  * @returns {EcoComponent[]}
  */
-export function removeComponentsScripts(components: EcoComponent[]) {
-  const filteredComponents = [];
+export function removeComponentsScripts(components: EcoComponent[]): EcoComponent[] {
+  const filteredComponents: EcoComponent[] = [];
 
   for (const component of components) {
     if (!component.config?.dependencies) {

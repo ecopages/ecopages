@@ -1,8 +1,3 @@
-/**
- * This module contains the Lit plugin
- * @module
- */
-
 import { type IntegrationPlugin, deepMerge } from '@ecopages/core';
 import { LitRenderer } from './lit-renderer';
 

@@ -1,8 +1,3 @@
-/**
- * This module contains the Kita.js plugin
- * @module
- */
-
 import type { IntegrationPlugin } from '@ecopages/core';
 import { KitaRenderer } from './kitajs-renderer';
 

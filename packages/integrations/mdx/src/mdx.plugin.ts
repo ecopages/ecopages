@@ -1,8 +1,3 @@
-/**
- * This module contains the MDX plugin
- * @module
- */
-
 import type { IntegrationPlugin } from '@ecopages/core';
 import { MDXRenderer } from './mdx-renderer';
 

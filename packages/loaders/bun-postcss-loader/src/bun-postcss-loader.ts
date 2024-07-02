@@ -1,8 +1,3 @@
-/**
- * This module contains the Bun PostCSS Loader
- * @module
- */
-
 import { existsSync, readFileSync } from 'node:fs';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 

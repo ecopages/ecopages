@@ -1,8 +1,3 @@
-/**
- * This module contains the Bun MDX Kitajs Loader
- * @module
- */
-
 import mdx from '@mdx-js/esbuild';
 
 /**

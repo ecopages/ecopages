@@ -1,8 +1,3 @@
-/**
- * This module contains the PostCSS Processor
- * @module
- */
-
 import { existsSync, readFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';

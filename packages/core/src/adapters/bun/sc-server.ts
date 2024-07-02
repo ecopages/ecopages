@@ -1,7 +1,7 @@
 import { extname, join } from 'node:path';
+import type { EcoPagesAppConfig } from '@/internal-types';
 import { RouteRendererFactory } from '@/route-renderer/route-renderer';
 import { FileUtils } from '@/utils/file-utils.module';
-import type { EcoPagesConfig } from '@types';
 import type { Server } from 'bun';
 import { ServerUtils } from '../server-utils.module';
 import { withHtmlLiveReload } from './hmr';
@@ -12,7 +12,7 @@ type StaticContentServerOptions = {
 
 export class StaticContentServer {
   server: Server | null = null;
-  private config: EcoPagesConfig;
+  private config: EcoPagesAppConfig;
   private options: StaticContentServerOptions;
   private routeRendererFactory: RouteRendererFactory;
 
@@ -21,7 +21,7 @@ export class StaticContentServer {
     options,
     routeRendererFactory,
   }: {
-    config: EcoPagesConfig;
+    config: EcoPagesAppConfig;
     options: StaticContentServerOptions;
     routeRendererFactory: RouteRendererFactory;
   }) {
@@ -132,7 +132,7 @@ export class StaticContentServer {
     appConfig,
     options: { watchMode },
   }: {
-    appConfig: EcoPagesConfig;
+    appConfig: EcoPagesAppConfig;
     options: StaticContentServerOptions;
   }) {
     return new StaticContentServer({

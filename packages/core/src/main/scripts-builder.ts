@@ -1,18 +1,18 @@
 import { appLogger } from '@/global/app-logger';
+import type { EcoPagesAppConfig } from '@/internal-types';
 import { FileUtils } from '@/utils/file-utils.module';
 import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
-import type { EcoPagesConfig } from '@types';
 
 type ScriptsBuilderOptions = {
   watchMode: boolean;
 };
 
 export class ScriptsBuilder {
-  config: EcoPagesConfig;
+  config: EcoPagesAppConfig;
   options: ScriptsBuilderOptions;
 
-  constructor({ config, options }: { config: EcoPagesConfig; options: { watchMode: boolean } }) {
+  constructor({ config, options }: { config: EcoPagesAppConfig; options: { watchMode: boolean } }) {
     this.config = config;
     this.options = options;
   }

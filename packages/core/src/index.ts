@@ -1,4 +1,4 @@
-export * from './index.d';
+export * from './public-types.d';
 export * from './utils/add-base-url-to-pathname';
 export * from './route-renderer/integration-renderer';
 export * from './route-renderer/route-renderer';

@@ -1,13 +1,13 @@
 import path from 'node:path';
 import { BunFileSystemServerAdapter } from '@/adapters/bun/fs-server';
 import { appLogger } from '@/global/app-logger';
+import type { EcoPagesAppConfig } from '@/internal-types';
 import { FileUtils } from '@/utils/file-utils.module';
-import type { EcoPagesConfig } from '@types';
 
 export class StaticPageGenerator {
-  appConfig: EcoPagesConfig;
+  appConfig: EcoPagesAppConfig;
 
-  constructor(config: EcoPagesConfig) {
+  constructor(config: EcoPagesAppConfig) {
     this.appConfig = config;
   }
 

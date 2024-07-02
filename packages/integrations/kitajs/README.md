@@ -15,7 +15,7 @@ Incorporating this integration into your project is straightforward. Simply impo
 ```ts
 import { kitajsPlugin } from "@ecopages/kitajs";
 
-const config: EcoPagesConfigInput = {
+const config: EcoPagesConfig = {
   rootDir: import.meta.dir,
   baseUrl: import.meta.env.ECOPAGES_BASE_URL,
   integrations: [kitajsPlugin()],

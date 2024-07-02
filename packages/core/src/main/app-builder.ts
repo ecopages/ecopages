@@ -88,7 +88,7 @@ export class AppBuilder {
 
     const cssBuilder = new CssBuilder({
       processor: PostCssProcessor,
-      config: this.appConfigurator.config,
+      appConfig: this.appConfigurator.config,
     });
 
     const watcherInstance = new ProjectWatcher(this.appConfigurator.config, cssBuilder, this.scriptsBuilder);

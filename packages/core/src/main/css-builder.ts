@@ -1,19 +1,20 @@
 import fs from 'node:fs';
 import { appLogger } from '@/global/app-logger';
+import type { EcoPagesAppConfig } from '@/internal-types';
+import type { CssProcessor } from '@/public-types';
 import { FileUtils } from '@/utils/file-utils.module';
-import type { CssProcessor, EcoPagesConfig } from '@types';
 
 export class CssBuilder {
   processor: CssProcessor;
-  config: EcoPagesConfig;
+  appConfig: EcoPagesAppConfig;
 
-  constructor({ processor, config }: { processor: CssProcessor; config: EcoPagesConfig }) {
+  constructor({ processor, appConfig: config }: { processor: CssProcessor; appConfig: EcoPagesAppConfig }) {
     this.processor = processor;
-    this.config = config;
+    this.appConfig = config;
   }
 
   async buildCssFromPath({ path }: { path: string }) {
-    const { srcDir, distDir } = this.config;
+    const { srcDir, distDir } = this.appConfig;
     const content = await this.processor.processPath(path);
 
     const outputFileName = path.replace(srcDir, distDir);
@@ -27,7 +28,7 @@ export class CssBuilder {
   }
 
   async build() {
-    const { srcDir } = this.config;
+    const { srcDir } = this.appConfig;
     const cssFiles = await FileUtils.glob([`${srcDir}/**/*.css`]);
     appLogger.debug('Building CSS files:', cssFiles);
     for (const path of cssFiles) {

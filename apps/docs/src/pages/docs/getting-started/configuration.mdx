@@ -15,9 +15,9 @@ export const getMetadata = () => ({
 You can configure Eco Pages by creating a configuration file in the root of your project. The configuration file should be named \`ecopages.config.js\`.
 
 <CodeBlock lang='typescript'>
-{`import type { EcoPagesConfigInput } from '@ecopages/core';
+{`import type { EcoPagesConfig } from '@ecopages/core';
 
-const config: EcoPagesConfigInput = {
+const config: EcoPagesConfig = {
   rootDir: import.meta.dir,
     baseUrl: import.meta.env.ECOPAGES_BASE_URL as string,
   defaultMetadata: {

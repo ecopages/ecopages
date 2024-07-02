@@ -1,15 +1,15 @@
 import fs from 'node:fs';
 import { appLogger } from '@/global/app-logger';
-import type { EcoPagesConfig } from '..';
+import type { EcoPagesAppConfig } from '@/internal-types';
 import type { CssBuilder } from './css-builder';
 import type { ScriptsBuilder } from './scripts-builder';
 
 export class ProjectWatcher {
-  private config: EcoPagesConfig;
+  private config: EcoPagesAppConfig;
   private cssBuilder: CssBuilder;
   private scriptsBuilder: ScriptsBuilder;
 
-  constructor(config: EcoPagesConfig, cssBuilder: CssBuilder, scriptsBuilder: ScriptsBuilder) {
+  constructor(config: EcoPagesAppConfig, cssBuilder: CssBuilder, scriptsBuilder: ScriptsBuilder) {
     this.config = config;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;

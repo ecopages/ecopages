@@ -1,6 +1,7 @@
 import path from 'node:path';
+import type { EcoPagesAppConfig } from '@/internal-types';
 import type { IntegrationDependencyConfig } from '@/main/integration-manager';
-import type { EcoComponentDependencies, EcoPagesConfig } from '@types';
+import type { EcoComponentDependencies } from '@/public-types';
 import { FileUtils } from '../../utils/file-utils.module';
 
 /**
@@ -8,21 +9,21 @@ import { FileUtils } from '../../utils/file-utils.module';
  * It will provide the dependencies for the html head.
  * It is possible to build the dependencies as request or inline.
  * @class HeadContentBuilder
- * @param {EcoPagesConfig} config
+ * @param {EcoPagesAppConfig} config
  */
 export class HeadContentBuilder {
-  config: EcoPagesConfig;
+  appConfig: EcoPagesAppConfig;
 
-  constructor(config: EcoPagesConfig) {
-    this.config = config;
+  constructor(appConfig: EcoPagesAppConfig) {
+    this.appConfig = appConfig;
   }
 
   /**
    * Build the request dependencies.
    * It will build the dependencies as request.
-   * @param {EcoComponentDependencies} dependencies
-   * @param {IntegrationDependencyConfig[]} integrationsDependencies
-   * @param {string} integrationName
+   * @param {string} options.integrationName
+   * @param {EcoComponentDependencies} options.dependencies
+   * @param {IntegrationDependencyConfig[]} options.integrationsDependencies
    */
   async buildRequestDependencies({
     integrationName,
@@ -70,13 +71,13 @@ export class HeadContentBuilder {
     let dependenciesString = '';
 
     for (const stylesheet of dependencies.stylesheets || []) {
-      const filePath = path.join(this.config.rootDir, this.config.distDir, stylesheet);
+      const filePath = path.join(this.appConfig.rootDir, this.appConfig.distDir, stylesheet);
       const fileContents = FileUtils.getFileAsBuffer(filePath).toString();
       dependenciesString += `<style>${fileContents}</style>`;
     }
 
     for (const script of dependencies.scripts || []) {
-      const filePath = path.join(this.config.rootDir, this.config.distDir, script);
+      const filePath = path.join(this.appConfig.rootDir, this.appConfig.distDir, script);
       const fileContents = FileUtils.getFileAsBuffer(filePath).toString();
       dependenciesString += `<script defer type="module">${fileContents}</script>`;
     }
@@ -90,7 +91,7 @@ export class HeadContentBuilder {
    * @param {EcoComponentDependencies} dependencies
    */
   async build({ dependencies, integrationName }: { dependencies?: EcoComponentDependencies; integrationName: string }) {
-    const integrationsDependencies = this.config.integrationsDependencies;
+    const integrationsDependencies = this.appConfig.integrationsDependencies;
     if (!dependencies && !integrationsDependencies) return;
     return await this.buildRequestDependencies({ integrationName, dependencies, integrationsDependencies });
   }

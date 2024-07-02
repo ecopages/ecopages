@@ -1,5 +1,5 @@
 import { watch } from 'node:fs';
-import type { EcoPagesConfig } from '@types';
+import type { EcoPagesAppConfig } from '@/internal-types';
 import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from 'bun';
 
 declare global {
@@ -45,11 +45,11 @@ const WS_PATH = '__ecopages_live_reload_websocket__';
  * This function returns the serve options with live reload.
  * It will add the live reload script to the html pages.
  * @param {PureWebSocketServeOptions} serveOptions
- * @param {EcoPagesConfig} config
+ * @param {EcoPagesAppConfig} config
  */
 export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketServeOptions<WebSocketDataType>>(
   serveOptions: T,
-  config: EcoPagesConfig,
+  config: EcoPagesAppConfig,
 ): WebSocketServeOptions<WebSocketDataType> => {
   const watcher = watch(config.absolutePaths.srcDir, { recursive: true });
 

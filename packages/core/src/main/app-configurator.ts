@@ -1,14 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { appLogger } from '@/global/app-logger';
+import type { EcoPagesAppConfig } from '@/internal-types';
+import type { EcoPagesConfig } from '@/public-types';
 import { deepMerge } from '@/utils/deep-merge';
 import { invariant } from '@/utils/invariant';
-import type { EcoPagesConfig, EcoPagesConfigInput } from '@types';
 
 export class AppConfigurator {
-  config: EcoPagesConfig;
+  config: EcoPagesAppConfig;
 
-  static defaultConfig: Omit<EcoPagesConfig, 'baseUrl' | 'absolutePaths' | 'templatesExt'> = {
+  static defaultConfig: Omit<EcoPagesAppConfig, 'baseUrl' | 'absolutePaths' | 'templatesExt'> = {
     rootDir: '.',
     srcDir: 'src',
     pagesDir: 'pages',
@@ -41,7 +42,7 @@ export class AppConfigurator {
     },
   };
 
-  getIntegrationTemplatesExt(integrations: EcoPagesConfig['integrations']) {
+  getIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
     const integrationName = integrations.map((integration) => integration.name);
     const uniqueName = new Set(integrationName);
     invariant(integrationName.length === uniqueName.size, 'Integrations names must be unique');
@@ -58,7 +59,7 @@ export class AppConfigurator {
     customConfig,
   }: {
     projectDir: string;
-    customConfig: EcoPagesConfigInput;
+    customConfig: EcoPagesConfig;
   }) {
     invariant(customConfig.baseUrl, 'baseUrl is required in the config');
     invariant(customConfig.rootDir, 'rootDir is required in the config');
@@ -78,8 +79,8 @@ export class AppConfigurator {
 
   private getAbsolutePaths(
     projectDir: string,
-    config: Omit<EcoPagesConfig, 'absolutePaths' | 'templatesExt'>,
-  ): EcoPagesConfig['absolutePaths'] {
+    config: Omit<EcoPagesAppConfig, 'absolutePaths' | 'templatesExt'>,
+  ): EcoPagesAppConfig['absolutePaths'] {
     const {
       srcDir,
       componentsDir,
@@ -109,7 +110,7 @@ export class AppConfigurator {
     };
   }
 
-  async registerIntegrationsDependencies(integrationsDependencies: EcoPagesConfig['integrationsDependencies']) {
+  async registerIntegrationsDependencies(integrationsDependencies: EcoPagesAppConfig['integrationsDependencies']) {
     this.config.integrationsDependencies = integrationsDependencies;
   }
 

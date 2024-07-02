@@ -1,5 +1,6 @@
 import path from 'node:path';
-import type { EcoPageFile, GetStaticPaths, RouteKind, Routes } from '@types';
+import type { RouteKind, Routes } from '@/internal-types';
+import type { EcoPageFile, GetStaticPaths } from '@/public-types';
 import { appLogger } from '../global/app-logger';
 import { FileUtils } from '../utils/file-utils.module';
 import { invariant } from '../utils/invariant';

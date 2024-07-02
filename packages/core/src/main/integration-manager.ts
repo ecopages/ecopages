@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { appLogger } from '@/global/app-logger';
+import type { EcoPagesAppConfig, IntegrationPlugin } from '@/internal-types';
 import { FileUtils } from '@/utils/file-utils.module';
 import { invariant } from '@/utils/invariant';
-import type { EcoPagesConfig, IntegrationPlugin } from '@types';
 
 export type IntegrationDependencyConfig = {
   integration: string;
@@ -17,11 +17,11 @@ export type IntegrationDependencyConfig = {
 export class IntegrationManager {
   static EXTERNAL_DEPS_DIR = '__integrations__';
 
-  config: EcoPagesConfig;
+  config: EcoPagesAppConfig;
   integrations: IntegrationPlugin[] = [];
   dependencies: IntegrationDependencyConfig[] = [];
 
-  constructor({ config }: { config: EcoPagesConfig }) {
+  constructor({ config }: { config: EcoPagesAppConfig }) {
     this.config = config;
     this.integrations = config.integrations;
   }

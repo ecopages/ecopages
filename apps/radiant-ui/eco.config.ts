@@ -1,7 +1,7 @@
-import type { EcoPagesConfigInput } from '@ecopages/core';
+import type { EcoPagesConfig } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
-const config: EcoPagesConfigInput = {
+const config: EcoPagesConfig = {
   rootDir: import.meta.dir,
   baseUrl: import.meta.env.ECOPAGES_BASE_URL as string,
   integrations: [

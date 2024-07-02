@@ -17,7 +17,7 @@ To incorporate the React integration into your Ecopages project, you can configu
 ```ts
 import { reactPlugin } from "@ecopages/react";
 
-const config: EcoPagesConfigInput = {
+const config: EcoPagesConfig = {
   rootDir: import.meta.dir,
   baseUrl: import.meta.env.ECOPAGES_BASE_URL,
   integrations: [reactPlugin()],

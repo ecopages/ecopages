@@ -1,8 +1,8 @@
-import type { EcoPagesConfigInput } from '@ecopages/core';
+import type { EcoPagesConfig } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
-const config: EcoPagesConfigInput = {
+const config: EcoPagesConfig = {
   rootDir: import.meta.dir,
   baseUrl: import.meta.env.ECOPAGES_BASE_URL as string,
   integrations: [kitajsPlugin(), mdxPlugin()],

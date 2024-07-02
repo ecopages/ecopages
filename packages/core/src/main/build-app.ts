@@ -26,7 +26,7 @@ export async function buildApp({
     appConfigurator,
     integrationManger: new IntegrationManager({ config: appConfigurator.config }),
     staticPageGenerator: new StaticPageGenerator(appConfigurator.config),
-    cssBuilder: new CssBuilder({ processor: PostCssProcessor, config: appConfigurator.config }),
+    cssBuilder: new CssBuilder({ processor: PostCssProcessor, appConfig: appConfigurator.config }),
     scriptsBuilder: new ScriptsBuilder({
       config: appConfigurator.config,
       options: { watchMode: watch as boolean },

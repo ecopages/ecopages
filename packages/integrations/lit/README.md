@@ -16,7 +16,7 @@ For effective utilization of Lit in your Ecopages projects, it is recommended to
 import { kitajsPlugin } from "@ecopages/kitajs";
 import { litPlugin } from "@ecopages/lit";
 
-const config: EcoPagesConfigInput = {
+const config: EcoPagesConfig = {
   rootDir: import.meta.dir,
   baseUrl: import.meta.env.ECOPAGES_BASE_URL,
   integrations: [kitajsPlugin(), litPlugin()],

@@ -10,8 +10,7 @@
 		"moduleResolution": "Bundler",
 		"noImplicitOverride": true,
 		"paths": {
-			"@/*": ["./src/*"],
-			"@types": ["src/index.d.ts"]
+			"@/*": ["./src/*"]
 		},
 		"jsx": "react-jsx",
 		"jsxImportSource": "@kitajs/html",

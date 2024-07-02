@@ -15,7 +15,7 @@ Integrating MDX into your Ecopages project is made simple. Import and apply the 
 ```ts
 import { mdxPlugin } from "@ecopages/mdx";
 
-const config: EcoPagesConfigInput = {
+const config: EcoPagesConfig = {
   rootDir: import.meta.dir,
   baseUrl: import.meta.env.ECOPAGES_BASE_URL,
   integrations: [mdxPlugin()],

@@ -1,4 +1,5 @@
-import type { EcoPagesConfig, IntegrationPlugin, RouteRendererBody, RouteRendererOptions } from '@types';
+import type { EcoPagesAppConfig, IntegrationPlugin } from '@/internal-types';
+import type { RouteRendererBody, RouteRendererOptions } from '@/public-types';
 import { invariant } from '../utils/invariant';
 import { PathUtils } from '../utils/path-utils';
 import type { IntegrationRenderer } from './integration-renderer';
@@ -16,16 +17,18 @@ export class RouteRenderer {
 }
 
 export class RouteRendererFactory {
-  private appConfig: EcoPagesConfig;
+  private appConfig: EcoPagesAppConfig;
   private integrations: IntegrationPlugin[] = [];
 
-  constructor({ integrations, appConfig }: { integrations: IntegrationPlugin[]; appConfig: EcoPagesConfig }) {
+  constructor({ integrations, appConfig }: { integrations: IntegrationPlugin[]; appConfig: EcoPagesAppConfig }) {
     this.appConfig = appConfig;
     this.integrations = integrations;
   }
 
   createRenderer(filePath: string): RouteRenderer {
-    const rendererEngine = this.getRouteRendererEngine(filePath) as new (config: EcoPagesConfig) => IntegrationRenderer;
+    const rendererEngine = this.getRouteRendererEngine(filePath) as new (
+      config: EcoPagesAppConfig,
+    ) => IntegrationRenderer;
     return new RouteRenderer(new rendererEngine(this.appConfig));
   }
 

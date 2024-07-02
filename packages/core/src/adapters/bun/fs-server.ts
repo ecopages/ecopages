@@ -1,22 +1,22 @@
 import path from 'node:path';
 import { ServerUtils } from '@/adapters/server-utils.module';
 import { appLogger } from '@/global/app-logger';
+import type {
+  EcoPagesAppConfig,
+  EcoPagesFileSystemServerAdapter,
+  FileSystemServerOptions,
+  MatchResult,
+} from '@/internal-types';
+import type { RouteRendererBody } from '@/public-types';
 import { RouteRendererFactory } from '@/route-renderer/route-renderer';
 import { FSRouter } from '@/router/fs-router';
 import { FSRouterScanner } from '@/router/fs-router-scanner';
 import { FileUtils } from '@/utils/file-utils.module';
-import type {
-  EcoPagesConfig,
-  EcoPagesFileSystemServerAdapter,
-  FileSystemServerOptions,
-  MatchResult,
-  RouteRendererBody,
-} from '@types';
 import type { Server } from 'bun';
 import { type PureWebSocketServeOptions, withHtmlLiveReload } from './hmr';
 
 export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapter<PureWebSocketServeOptions<unknown>> {
-  private appConfig: EcoPagesConfig;
+  private appConfig: EcoPagesAppConfig;
   private router: FSRouter;
   private routeRendererFactory: RouteRendererFactory;
   private server: Server | null = null;
@@ -29,7 +29,7 @@ export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapt
     options,
   }: {
     router: FSRouter;
-    appConfig: EcoPagesConfig;
+    appConfig: EcoPagesAppConfig;
     routeRendererFactory: RouteRendererFactory;
     options: FileSystemServerOptions;
   }) {
@@ -161,7 +161,7 @@ export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapt
     appConfig,
     options: { watchMode, port = 3000 },
   }: {
-    appConfig: EcoPagesConfig;
+    appConfig: EcoPagesAppConfig;
     options: FileSystemServerOptions;
   }) {
     const scanner = new FSRouterScanner({

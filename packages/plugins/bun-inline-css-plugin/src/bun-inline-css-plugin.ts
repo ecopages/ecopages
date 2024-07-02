@@ -1,8 +1,3 @@
-/**
- * This module contains the Bun Inline CSS Plugin
- * @module
- */
-
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BunPlugin } from 'bun';

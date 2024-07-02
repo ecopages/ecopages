@@ -5,7 +5,7 @@
 
 import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@ecopages/core';
 import { render } from '@lit-labs/ssr';
-import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
+import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { PLUGIN_NAME } from './lit.plugin';
 

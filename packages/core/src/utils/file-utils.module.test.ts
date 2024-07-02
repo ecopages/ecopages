@@ -14,7 +14,9 @@ describe('FileUtils', () => {
 
   describe('Should return a list of files', () => {
     it('should return a list of files', async () => {
-      const files = await FileUtils.glob(['.']);
+      const files = await FileUtils.glob(['.'], {
+        cwd: __dirname,
+      });
       expect(files).toBeDefined();
       expect(files).toBeInstanceOf(Array);
     });

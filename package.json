@@ -37,7 +37,7 @@
 		"jsr:sync-version": "bun scripts/jsr-sync-version.ts",
 		"prerelease": "bun run test:suite && bun run jsr:sync-version",
 		"release": "bun run --filter '*' release:jsr | tee /dev/null",
-		"test:suite": "bun run --filter '*' test | tee /dev/null"
+		"test:suite": "bun run --filter '*' test"
 	},
 	"devDependencies": {
 		"husky": "^9.0.10",

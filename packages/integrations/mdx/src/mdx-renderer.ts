@@ -81,7 +81,7 @@ export class MDXRenderer extends IntegrationRenderer {
     try {
       const headContent = await this.getHeadContent(mdxDependencies);
 
-      const children = layout ? layout({ children: Page({}) }) : Page({});
+      const children = typeof layout === 'function' ? layout({ children: Page({}) }) : Page({});
 
       const body = await HtmlTemplate({
         metadata,

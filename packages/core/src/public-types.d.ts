@@ -10,7 +10,7 @@ import type { FSRouter } from './router/fs-router';
 export type EcoComponentDependencies = {
   stylesheets?: string[];
   scripts?: string[];
-  components?: EcoComponent[];
+  components?: (EcoComponent | EcoWebComponent)[];
 };
 
 /**
@@ -35,27 +35,32 @@ export type EcoComponentConfig = {
  *
  * @template T - The type of the props object.
  */
-export type EcoComponent<T = any> =
-  | {
-      /**
-       * Renders the component with the given props.
-       *
-       * @param props - The props object.
-       * @returns The rendered JSX element.
-       */
-      (props: T): JSX.Element;
+export type EcoComponent<T = any> = {
+  /**
+   * Renders the component with the given props.
+   *
+   * @param props - The props object.
+   * @returns The rendered JSX element.
+   */
+  (props: T): JSX.Element;
 
-      /**
-       * The configuration options for the EcoComponent.
-       */
-      config?: EcoComponentConfig;
-    }
-  | {
-      /**
-       * The configuration options for the EcoComponent.
-       */
-      config: EcoComponentConfig;
-    };
+  /**
+   * The configuration options for the EcoComponent.
+   */
+  config?: EcoComponentConfig;
+};
+
+/**
+ * Represents an EcoComponent. It doesn't have a render function.
+ *
+ * @template T - The type of the props object.
+ */
+export type EcoWebComponent<T = any> = {
+  /**
+   * The configuration options for the EcoComponent.
+   */
+  config?: EcoComponentConfig;
+};
 
 /**
  * Represents an EcoPage component.

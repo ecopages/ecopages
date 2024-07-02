@@ -18,10 +18,7 @@
 	},
 	"peerDependencies": {
 		"@kitajs/html": "^4.1.0",
-		"@ecopages/core": "workspace:*",
+		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
 		"@ecopages/logger": "^0.1.1"
-	},
-	"devDependencies": {
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
 	}
 }

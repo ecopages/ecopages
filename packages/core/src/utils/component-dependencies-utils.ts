@@ -3,7 +3,7 @@
  * @module
  */
 
-import type { EcoComponent, EcoComponentDependencies } from '../index';
+import type { EcoComponent, EcoComponentDependencies, EcoWebComponent } from '../index';
 
 function getSafeFileName(path: string): string {
   const EXTENSIONS_TO_JS = ['ts', 'tsx'];
@@ -33,8 +33,10 @@ export function resolveComponentsScripts(components: Required<EcoComponentDepend
  * @param {EcoComponent[]} components
  * @returns {EcoComponent[]}
  */
-export function removeComponentsScripts(components: EcoComponent[]): EcoComponent[] {
-  const filteredComponents: EcoComponent[] = [];
+export function removeComponentsScripts(
+  components: (EcoComponent | EcoWebComponent)[],
+): (EcoComponent | EcoWebComponent)[] {
+  const filteredComponents: (EcoComponent | EcoWebComponent)[] = [];
 
   for (const component of components) {
     if (!component.config?.dependencies) {

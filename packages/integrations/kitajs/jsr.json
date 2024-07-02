@@ -4,5 +4,8 @@
 	"exports": {
 		".": "./src/kitajs.plugin.ts"
 	},
-	"exclude": ["src/test", "**/*.test.ts"]
+	"exclude": ["src/test", "**/*.test.ts"],
+	"imports": {
+		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
+	}
 }

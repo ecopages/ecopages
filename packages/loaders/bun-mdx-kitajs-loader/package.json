@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/bun-mdx-kitajs-loader",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"description": "Bun loader to load mdx file with kitajs",
 	"keywords": ["bun", "loader", "mdx", "kitajs"],
 	"license": "MIT",

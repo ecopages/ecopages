@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { deepMerge } from './deep-merge';
+import { deepMerge } from './deep-merge.ts';
 
 describe('deepMerge', () => {
   it('should merge two objects with nested properties', () => {

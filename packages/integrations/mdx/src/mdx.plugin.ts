@@ -1,5 +1,5 @@
 import type { IntegrationPlugin } from '@ecopages/core';
-import { MDXRenderer } from './mdx-renderer';
+import { MDXRenderer } from './mdx-renderer.ts';
 
 /**
  * Options for the MDX plugin

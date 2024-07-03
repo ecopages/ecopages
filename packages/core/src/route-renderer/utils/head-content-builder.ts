@@ -1,8 +1,7 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '@/internal-types';
-import type { IntegrationDependencyConfig } from '@/main/integration-manager';
-import type { EcoComponentDependencies } from '@/public-types';
-import { FileUtils } from '../../utils/file-utils.module';
+import type { EcoPagesAppConfig, IntegrationDependencyConfig } from '../../internal-types.ts';
+import type { EcoComponentDependencies } from '../../public-types.ts';
+import { FileUtils } from '../../utils/file-utils.module.ts';
 
 /**
  * Build the head content for the html pages.

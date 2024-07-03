@@ -1,6 +1,8 @@
 {
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
 		"baseUrl": ".",
 		"rootDir": ".",
 		"esModuleInterop": true,
@@ -9,9 +11,6 @@
 		"module": "ESNext",
 		"moduleResolution": "Bundler",
 		"noImplicitOverride": true,
-		"paths": {
-			"@/*": ["./src/*"]
-		},
 		"jsx": "react-jsx",
 		"jsxImportSource": "@kitajs/html",
 		"resolveJsonModule": true,

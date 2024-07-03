@@ -1,9 +1,9 @@
 import path from 'node:path';
-import type { RouteKind, Routes } from '@/internal-types';
-import type { EcoPageFile, GetStaticPaths } from '@/public-types';
-import { appLogger } from '../global/app-logger';
-import { FileUtils } from '../utils/file-utils.module';
-import { invariant } from '../utils/invariant';
+import { appLogger } from '../global/app-logger.ts';
+import type { RouteKind, Routes } from '../internal-types.ts';
+import type { EcoPageFile, GetStaticPaths } from '../public-types.ts';
+import { FileUtils } from '../utils/file-utils.module.ts';
+import { invariant } from '../utils/invariant.ts';
 
 type CreateRouteArgs = {
   routePath: string;

@@ -1,8 +1,7 @@
 import type { Readable } from 'node:stream';
-import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable';
-import type { IntegrationDependencyConfig } from './main/integration-manager';
-import type { IntegrationRenderer } from './route-renderer/integration-renderer';
-import type { FSRouter } from './router/fs-router';
+import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable.ts';
+import type { EcoPagesAppConfig } from './internal-types.ts';
+import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
 
 /**
  * Represents the dependencies for an EcoComponent.
@@ -17,10 +16,10 @@ export type EcoComponentDependencies = {
  * Represents the input configuration for EcoPages.
  */
 export type EcoPagesConfig = Omit<
-  Partial<EcoPagesConfig>,
+  Partial<EcoPagesAppConfig>,
   'baseUrl' | 'derivedPaths' | 'templatesExt' | 'integrationsDependencies'
 > &
-  Pick<EcoPagesConfig, 'baseUrl' | 'rootDir'>;
+  Pick<EcoPagesAppConfig, 'baseUrl' | 'rootDir'>;
 
 /**
  * Configuration object for an EcoComponent.
@@ -121,6 +120,26 @@ export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children
   message: string;
   stack?: string;
 }
+
+/**
+ * Represents the parameters for a page.
+ * The keys are strings, and the values can be either a string or an array of strings.
+ */
+export type PageParams = Record<string, string | string[]>;
+
+/**
+ * Represents a query object for a page.
+ * The keys are strings and the values can be either a string or an array of strings.
+ */
+export type PageQuery = Record<string, string | string[]>;
+
+/**
+ * Represents the context object for a static page.
+ */
+export type StaticPageContext = {
+  params?: PageParams;
+  query?: PageQuery;
+};
 
 /**
  * Represents the params for a static path.

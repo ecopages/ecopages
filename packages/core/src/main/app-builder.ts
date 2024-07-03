@@ -1,21 +1,21 @@
 import { exec } from 'node:child_process';
 import path from 'node:path';
 
-import '@/global/init';
+import 'src/global/init';
 
-import { BunFileSystemServerAdapter } from '@/adapters/bun/fs-server';
-import { StaticContentServer } from '@/adapters/bun/sc-server';
-import { appLogger } from '@/global/app-logger';
-import { CssBuilder } from '@/main/css-builder';
-import { ProjectWatcher } from '@/main/watcher';
-import { FileUtils } from '@/utils/file-utils.module';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
+import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
+import { StaticContentServer } from '../adapters/bun/sc-server.ts';
+import { appLogger } from '../global/app-logger.ts';
+import { CssBuilder } from '../main/css-builder.ts';
+import { ProjectWatcher } from '../main/watcher.ts';
+import { FileUtils } from '../utils/file-utils.module.ts';
 
-import type { IntegrationManager } from '@/main/integration-manager';
-import type { ScriptsBuilder } from '@/main/scripts-builder';
 import type { Server } from 'bun';
-import type { AppConfigurator } from './app-configurator';
-import type { StaticPageGenerator } from './static-page-generator';
+import type { IntegrationManager } from '../main/integration-manager.ts';
+import type { ScriptsBuilder } from '../main/scripts-builder.ts';
+import type { AppConfigurator } from './app-configurator.ts';
+import type { StaticPageGenerator } from './static-page-generator.ts';
 
 type AppBuilderOptions = {
   watch: boolean;

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/lit",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"description": "Ecopages lit integration",
 	"keywords": ["ecopages", "lit", "plugin"],
 	"license": "MIT",
@@ -23,8 +23,5 @@
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "^0.1.1"
-	},
-	"devDependencies": {
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
 	}
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { invariant } from '../utils/invariant';
+import { invariant } from '../utils/invariant.ts';
 
 describe('Utils', () => {
   test('invariant should throw error when condition is falsy', () => {

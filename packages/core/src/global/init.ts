@@ -1,2 +1,1 @@
-import '@/global/console';
-import '@/utils/invariant';
+import './console.ts';

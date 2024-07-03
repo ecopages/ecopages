@@ -7,7 +7,7 @@ import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteR
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { PLUGIN_NAME } from './lit.plugin';
+import { PLUGIN_NAME } from './lit.plugin.ts';
 
 /**
  * A renderer for the Lit integration.

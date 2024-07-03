@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { AppConfigurator } from '@/main/app-configurator';
-import { RouteRendererFactory } from '@/route-renderer/route-renderer';
-import { FSRouter } from '@/router/fs-router';
-import { FSRouterScanner } from '@/router/fs-router-scanner';
-import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
-import { FIXTURE_EXISTING_FILE_IN_DIST } from 'fixtures/constants';
-import { BunFileSystemServerAdapter } from './fs-server';
+import { FIXTURE_PROJECT_DIR } from '../../../fixtures/constants.ts';
+import { FIXTURE_EXISTING_FILE_IN_DIST } from '../../../fixtures/constants.ts';
+import { AppConfigurator } from '../../main/app-configurator.ts';
+import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
+import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
+import { FSRouter } from '../../router/fs-router.ts';
+import { BunFileSystemServerAdapter } from './fs-server.ts';
 
 const appConfigurator = await AppConfigurator.create({
   projectDir: FIXTURE_PROJECT_DIR,

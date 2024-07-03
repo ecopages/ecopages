@@ -1,6 +1,6 @@
 import { watch } from 'node:fs';
-import type { EcoPagesAppConfig } from '@/internal-types';
 import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from 'bun';
+import type { EcoPagesAppConfig } from '../../internal-types.ts';
 
 declare global {
   var __ECO_PAGES_HMR_WS__: ServerWebSocket<unknown> | undefined;

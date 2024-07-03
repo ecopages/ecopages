@@ -1,3 +1,6 @@
+import type { IntegrationPlugin, PageMetadataProps } from './public-types.ts';
+import type { FSRouter } from './router/fs-router.ts';
+
 /**
  * The templates used to build the pages and loaded via the includes directory.
  */
@@ -123,24 +126,14 @@ export type EcoPagesAppConfig = {
   };
 };
 
-/**
- * Represents the parameters for a page.
- * The keys are strings, and the values can be either a string or an array of strings.
- */
-export type PageParams = Record<string, string | string[]>;
-
-/**
- * Represents a query object for a page.
- * The keys are strings and the values can be either a string or an array of strings.
- */
-export type PageQuery = Record<string, string | string[]>;
-
-/**
- * Represents the context object for a static page.
- */
-export type StaticPageContext = {
-  params?: PageParams;
-  query?: PageQuery;
+export type IntegrationDependencyConfig = {
+  integration: string;
+  kind: 'script' | 'stylesheet';
+  position?: 'head' | 'body';
+  srcUrl: string;
+  filePath: string;
+  /** @todo inline dependencies not implemented yet */
+  inline?: boolean;
 };
 
 /**

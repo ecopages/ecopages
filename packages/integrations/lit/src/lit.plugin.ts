@@ -1,5 +1,5 @@
 import { type IntegrationPlugin, deepMerge } from '@ecopages/core';
-import { LitRenderer } from './lit-renderer';
+import { LitRenderer } from './lit-renderer.ts';
 
 /**
  * Options for the Lit plugin

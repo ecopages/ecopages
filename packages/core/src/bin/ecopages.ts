@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 const args = process.argv.slice(2);
 
-const { buildApp } = await import('../main/build-app.js');
+const { buildApp } = await import('../main/build-app.ts');
 
 switch (args[0]) {
   case 'dev':

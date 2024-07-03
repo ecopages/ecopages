@@ -1,7 +1,7 @@
 import { beforeAll } from 'bun:test';
 import path from 'node:path';
-import { appLogger } from '@/global/app-logger';
-import { buildApp } from '@/main/build-app';
+import { appLogger } from '../src/global/app-logger.ts';
+import { buildApp } from '../src/main/build-app.ts';
 
 function changeDirectory(targetDir: string) {
   try {

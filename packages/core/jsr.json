@@ -12,9 +12,9 @@
 	},
 	"exclude": ["fixtures", "**/*.test.ts"],
 	"imports": {
-		"@ecopages/postcss-processor": "latest",
-		"@ecopages/bun-inline-css-plugin": "latest",
-		"bun": "latest"
+		"@ecopages/postcss-processor": "@jsr/ecopages__postcss-processor@latest",
+		"@ecopages/bun-inline-css-plugin": "@jsr/ecopages__bun-inline-css-plugin@latest",
+		"bun": "bun-types@latest"
 	},
 	"publish": {
 		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],

@@ -24,8 +24,8 @@ jobs:
       - name: Test
         run: bun run test:suite
 
-      - name: Publish package @ecopages/postcss-processor
-        run: bun run --filter @ecopages/postcss-processor release:jsr
+      # - name: Publish package @ecopages/postcss-processor
+      #   run: bun run --filter @ecopages/postcss-processor release:jsr
 
       - name: Publish package @ecopages/bun-inline-css-plugin
         run: bun run --filter @ecopages/bun-inline-css-plugin release:jsr

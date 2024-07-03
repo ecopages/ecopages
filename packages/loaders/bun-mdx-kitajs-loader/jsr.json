@@ -5,7 +5,7 @@
 		".": "./src/bun-mdx-kitajs-loader.ts"
 	},
 	"imports": {
-		"bun": "@types/bun@latest"
+		"bun": "npm:@types/bun@latest"
 	},
 	"publish": {
 		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"]

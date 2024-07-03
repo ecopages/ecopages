@@ -1,12 +1,12 @@
 {
 	"name": "@ecopages/kitajs",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"exports": {
 		".": "./src/kitajs.plugin.ts"
 	},
 	"exclude": ["src/test", "**/*.test.ts"],
 	"imports": {
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
+		"@ecopages/core": "@ecopages/core@latest"
 	},
 	"publish": {
 		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],

@@ -1,12 +1,12 @@
 {
 	"name": "@ecopages/mdx",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"exports": {
 		".": "./src/mdx.plugin.ts"
 	},
 	"exclude": ["**/*.test.ts"],
 	"imports": {
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
+		"@ecopages/core": "@ecopages/core@latest"
 	},
 	"publish": {
 		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],

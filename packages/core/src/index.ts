@@ -1,7 +1,7 @@
-export type * from './public-types.d';
-export * from './route-renderer/integration-renderer';
-export * from './utils/add-base-url-to-pathname';
-export * from './utils/component-dependencies-utils';
-export * from './utils/deep-merge';
-export * from './utils/invariant';
-export * from './utils/file-utils.module';
+export type * from './public-types.ts';
+export * from './route-renderer/integration-renderer.ts';
+export * from './utils/add-base-url-to-pathname.ts';
+export * from './utils/component-dependencies-utils.ts';
+export * from './utils/deep-merge.ts';
+export * from './utils/invariant.ts';
+export * from './utils/file-utils.module.ts';

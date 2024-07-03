@@ -1,6 +1,6 @@
-import { appLogger } from '../global/app-logger';
-import type { MatchResult, Route, Routes } from '../internal-types';
-import type { FSRouterScanner } from './fs-router-scanner';
+import { appLogger } from '../global/app-logger.ts';
+import type { MatchResult, Route, Routes } from '../internal-types.ts';
+import type { FSRouterScanner } from './fs-router-scanner.ts';
 
 /**
  * A class that manages the routes of the file system.

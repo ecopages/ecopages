@@ -1,8 +1,8 @@
 import fs from 'node:fs';
-import { appLogger } from '../global/app-logger';
-import type { EcoPagesAppConfig } from '../internal-types';
-import type { CssProcessor } from '../public-types';
-import { FileUtils } from '../utils/file-utils.module';
+import { appLogger } from '../global/app-logger.ts';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { CssProcessor } from '../public-types.ts';
+import { FileUtils } from '../utils/file-utils.module.ts';
 
 export class CssBuilder {
   processor: CssProcessor;

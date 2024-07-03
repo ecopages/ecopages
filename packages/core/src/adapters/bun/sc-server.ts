@@ -1,10 +1,10 @@
 import { extname, join } from 'node:path';
 import type { Server } from 'bun';
-import type { EcoPagesAppConfig } from '../../internal-types';
-import { RouteRendererFactory } from '../../route-renderer/route-renderer';
-import { FileUtils } from '../../utils/file-utils.module';
-import { ServerUtils } from '../server-utils.module';
-import { withHtmlLiveReload } from './hmr';
+import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
+import { FileUtils } from '../../utils/file-utils.module.ts';
+import { ServerUtils } from '../server-utils.module.ts';
+import { withHtmlLiveReload } from './hmr.ts';
 
 type StaticContentServerOptions = {
   watchMode: boolean;

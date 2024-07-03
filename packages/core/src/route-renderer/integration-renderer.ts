@@ -5,12 +5,12 @@
  */
 
 import path from 'node:path';
+import type { EcoPagesAppConfig } from 'src/internal-types.ts';
 import type {
   EcoComponent,
   EcoComponentDependencies,
   EcoPage,
   EcoPageFile,
-  EcoPagesConfig,
   GetMetadata,
   GetMetadataContext,
   GetStaticProps,
@@ -20,21 +20,21 @@ import type {
   RouteRendererBody,
   RouteRendererOptions,
 } from '../index';
-import { HeadContentBuilder } from '../route-renderer/utils/head-content-builder';
-import { invariant } from '../utils/invariant';
+import { HeadContentBuilder } from '../route-renderer/utils/head-content-builder.ts';
+import { invariant } from '../utils/invariant.ts';
 
 /**
  * Abstract class representing an integration renderer.
  */
 export abstract class IntegrationRenderer {
   abstract name: string;
-  protected appConfig: EcoPagesConfig;
+  protected appConfig: EcoPagesAppConfig;
 
   protected declare options: Required<IntegrationRendererRenderOptions>;
 
   protected DOC_TYPE = '<!DOCTYPE html>';
 
-  constructor(appConfig: EcoPagesConfig) {
+  constructor(appConfig: EcoPagesAppConfig) {
     this.appConfig = appConfig;
   }
 

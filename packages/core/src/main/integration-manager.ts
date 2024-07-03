@@ -1,19 +1,9 @@
 import path from 'node:path';
-import { appLogger } from '../global/app-logger';
-import type { EcoPagesAppConfig } from '../internal-types';
-import type { IntegrationPlugin } from '../public-types';
-import { FileUtils } from '../utils/file-utils.module';
-import { invariant } from '../utils/invariant';
-
-export type IntegrationDependencyConfig = {
-  integration: string;
-  kind: 'script' | 'stylesheet';
-  position?: 'head' | 'body';
-  srcUrl: string;
-  filePath: string;
-  /** @todo inline dependencies not implemented yet */
-  inline?: boolean;
-};
+import { appLogger } from '../global/app-logger.ts';
+import type { EcoPagesAppConfig, IntegrationDependencyConfig } from '../internal-types.ts';
+import type { IntegrationPlugin } from '../public-types.ts';
+import { FileUtils } from '../utils/file-utils.module.ts';
+import { invariant } from '../utils/invariant.ts';
 
 export class IntegrationManager {
   static EXTERNAL_DEPS_DIR = '__integrations__';

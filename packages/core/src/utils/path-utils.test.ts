@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { PathUtils } from './path-utils';
+import { PathUtils } from './path-utils.ts';
 
 describe('PathUtils', () => {
   test.each([

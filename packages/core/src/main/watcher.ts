@@ -1,8 +1,8 @@
 import fs from 'node:fs';
-import { appLogger } from '../global/app-logger';
-import type { EcoPagesAppConfig } from '../internal-types';
-import type { CssBuilder } from './css-builder';
-import type { ScriptsBuilder } from './scripts-builder';
+import { appLogger } from '../global/app-logger.ts';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { CssBuilder } from './css-builder.ts';
+import type { ScriptsBuilder } from './scripts-builder.ts';
 
 export class ProjectWatcher {
   private config: EcoPagesAppConfig;

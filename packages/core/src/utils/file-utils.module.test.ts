@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { FileUtils } from './file-utils.module';
+import { FileUtils } from './file-utils.module.ts';
 
 describe('FileUtils', () => {
   it('should be defined', () => {

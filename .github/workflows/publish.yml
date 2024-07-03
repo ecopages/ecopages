@@ -30,11 +30,11 @@ jobs:
       # - name: Publish package @ecopages/bun-inline-css-plugin
       #   run: bun run --filter @ecopages/bun-inline-css-plugin release:jsr
 
-      - name: Publish package @ecopages/bun-postcss-loader
-        run: bun run --filter @ecopages/bun-postcss-loader release:jsr
+      # - name: Publish package @ecopages/bun-postcss-loader
+      #   run: bun run --filter @ecopages/bun-postcss-loader release:jsr
 
-      - name: Publish package @ecopages/bun-mdx-kitajs-loader
-        run: bun run --filter @ecopages/bun-mdx-kitajs-loader release:jsr
+      # - name: Publish package @ecopages/bun-mdx-kitajs-loader
+      #   run: bun run --filter @ecopages/bun-mdx-kitajs-loader release:jsr
 
       - name: Publish package @ecopages/core
         run: bun run --filter @ecopages/core release:jsr

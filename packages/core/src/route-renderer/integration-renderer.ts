@@ -5,7 +5,6 @@
  */
 
 import path from 'node:path';
-import type { EcoPagesAppConfig } from 'src/internal-types.ts';
 import type {
   EcoComponent,
   EcoComponentDependencies,
@@ -20,6 +19,7 @@ import type {
   RouteRendererBody,
   RouteRendererOptions,
 } from '../index';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { HeadContentBuilder } from '../route-renderer/utils/head-content-builder.ts';
 import { invariant } from '../utils/invariant.ts';
 

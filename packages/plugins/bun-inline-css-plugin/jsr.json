@@ -1,12 +1,12 @@
 {
 	"name": "@ecopages/bun-inline-css-plugin",
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"exports": {
 		".": "./src/bun-inline-css-plugin.ts"
 	},
 	"exclude": ["src/test"],
 	"imports": {
-		"@ecopages/postcss-processor": "jsr:@ecopages/postcss-processor@latest",
+		"@ecopages/postcss-processor": "jsr:@ecopages/postcss-processor@0.1.7",
 		"bun": "npm:@types/bun@latest"
 	},
 	"publish": {

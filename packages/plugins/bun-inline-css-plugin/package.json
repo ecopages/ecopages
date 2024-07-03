@@ -17,7 +17,7 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"devDependencies": {
-		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor",
+		"@ecopages/postcss-processor": "workspace:*",
 		"@ecopages/logger": "^0.1.2"
 	}
 }

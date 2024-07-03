@@ -16,11 +16,8 @@
 	"scripts": {
 		"release:jsr": "bunx jsr publish"
 	},
-	"dependencies": {
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
-	},
 	"peerDependencies": {
 		"@kitajs/html": "^4.1.0",
-		"@ecopages/logger": "^0.1.1"
+		"@ecopages/core": "workspace:*"
 	}
 }

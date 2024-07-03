@@ -20,9 +20,6 @@
 	"dependencies": {
 		"@kitajs/html": "^4.1.0",
 		"@kitajs/ts-html-plugin": "^4.0.1",
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
-	},
-	"peerDependencies": {
-		"@ecopages/logger": "^0.1.1"
+		"@ecopages/core": "workspace:*"
 	}
 }

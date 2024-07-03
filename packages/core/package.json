@@ -20,9 +20,9 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
-		"@ecopages/bun-inline-css-plugin": "npm:@jsr/ecopages__bun-inline-css-plugin",
+		"@ecopages/bun-inline-css-plugin": "npm:@jsr/ecopages__bun-inline-css-plugin@latest",
 		"@ecopages/logger": "^0.1.2",
-		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor",
+		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
 		"@parcel/watcher": "^2.4.0"
 	},
 	"devDependencies": {

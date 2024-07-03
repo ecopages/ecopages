@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/kitajs",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"description": "Kitajs plugin for Ecopages",
 	"keywords": ["ecopages", "kitajs", "plugin"],
 	"license": "MIT",
@@ -22,7 +22,7 @@
 		"@kitajs/ts-html-plugin": "^4.0.1"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "workspace:*",
+		"@ecopages/core": "npm:@jsr/ecopages__core",
 		"@ecopages/logger": "^0.1.1"
 	}
 }

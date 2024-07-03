@@ -1,13 +1,12 @@
 {
 	"name": "@ecopages/bun-postcss-loader",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"exports": {
 		".": "./src/bun-postcss-loader.ts"
 	},
 	"exclude": ["src/test"],
 	"imports": {
-		"@ecopages/postcss-processor": "@ecopages/postcss-processor@latest",
-		"bun": "@types/bun@latest"
+		"bun": "npm:@types/bun@latest"
 	},
 	"publish": {
 		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],

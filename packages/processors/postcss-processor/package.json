@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/postcss-processor",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"description": "Postcss processor, transform string or postcss file to css",
 	"keywords": ["postcss", "processor", "css"],
 	"license": "MIT",

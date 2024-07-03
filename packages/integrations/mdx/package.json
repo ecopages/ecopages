@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/mdx",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"description": "MDX plugin for Ecopages",
 	"keywords": ["ecopages", "mdx", "plugin"],
 	"license": "MIT",
@@ -18,10 +18,7 @@
 	},
 	"peerDependencies": {
 		"@kitajs/html": "^4.1.0",
-		"@ecopages/core": "workspace:*",
-		"@ecopages/logger": "^0.1.1"
-	},
-	"devDependencies": {
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
+		"@ecopages/logger": "^0.1.1",
+		"@ecopages/core": "npm:@jsr/ecopages__core"
 	}
 }

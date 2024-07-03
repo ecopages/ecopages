@@ -1,18 +1,18 @@
 import path from 'node:path';
-import { ServerUtils } from '@/adapters/server-utils.module';
-import { appLogger } from '@/global/app-logger';
+import type { Server } from 'bun';
 import type {
   EcoPagesAppConfig,
   EcoPagesFileSystemServerAdapter,
   FileSystemServerOptions,
   MatchResult,
-} from '@/internal-types';
-import type { RouteRendererBody } from '@/public-types';
-import { RouteRendererFactory } from '@/route-renderer/route-renderer';
-import { FSRouter } from '@/router/fs-router';
-import { FSRouterScanner } from '@/router/fs-router-scanner';
-import { FileUtils } from '@/utils/file-utils.module';
-import type { Server } from 'bun';
+} from 'src/internal-types';
+import type { RouteRendererBody } from 'src/public-types';
+import { RouteRendererFactory } from 'src/route-renderer/route-renderer';
+import { FSRouter } from 'src/router/fs-router';
+import { FSRouterScanner } from 'src/router/fs-router-scanner';
+import { FileUtils } from 'src/utils/file-utils.module';
+import { ServerUtils } from '../../adapters/server-utils.module';
+import { appLogger } from '../../global/app-logger';
 import { type PureWebSocketServeOptions, withHtmlLiveReload } from './hmr';
 
 export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapter<PureWebSocketServeOptions<unknown>> {

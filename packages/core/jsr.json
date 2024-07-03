@@ -1,4 +1,5 @@
 {
+	"$schema": "https://jsr.io/schema/config-file.v1.json",
 	"name": "@ecopages/core",
 	"version": "0.1.2",
 	"exports": {
@@ -11,8 +12,12 @@
 	},
 	"exclude": ["fixtures", "**/*.test.ts"],
 	"imports": {
-		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
-		"@ecopages/bun-inline-css-plugin": "npm:@jsr/ecopages__bun-inline-css-plugin@latest",
-		"bun": "npm:@types/bun@latest"
+		"@ecopages/postcss-processor": "latest",
+		"@ecopages/bun-inline-css-plugin": "latest",
+		"bun": "latest"
+	},
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],
+		"exclude": ["src/**/*.test.ts", "fixtures"]
 	}
 }

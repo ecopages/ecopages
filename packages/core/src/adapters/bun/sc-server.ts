@@ -1,8 +1,8 @@
 import { extname, join } from 'node:path';
-import type { EcoPagesAppConfig } from '@/internal-types';
-import { RouteRendererFactory } from '@/route-renderer/route-renderer';
-import { FileUtils } from '@/utils/file-utils.module';
 import type { Server } from 'bun';
+import type { EcoPagesAppConfig } from '../../internal-types';
+import { RouteRendererFactory } from '../../route-renderer/route-renderer';
+import { FileUtils } from '../../utils/file-utils.module';
 import { ServerUtils } from '../server-utils.module';
 import { withHtmlLiveReload } from './hmr';
 

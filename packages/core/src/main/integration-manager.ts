@@ -1,8 +1,9 @@
 import path from 'node:path';
-import { appLogger } from '@/global/app-logger';
-import type { EcoPagesAppConfig, IntegrationPlugin } from '@/internal-types';
-import { FileUtils } from '@/utils/file-utils.module';
-import { invariant } from '@/utils/invariant';
+import { appLogger } from '../global/app-logger';
+import type { EcoPagesAppConfig } from '../internal-types';
+import type { IntegrationPlugin } from '../public-types';
+import { FileUtils } from '../utils/file-utils.module';
+import { invariant } from '../utils/invariant';
 
 export type IntegrationDependencyConfig = {
   integration: string;

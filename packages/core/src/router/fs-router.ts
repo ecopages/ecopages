@@ -1,5 +1,5 @@
-import type { MatchResult, Route, Routes } from '@/internal-types';
 import { appLogger } from '../global/app-logger';
+import type { MatchResult, Route, Routes } from '../internal-types';
 import type { FSRouterScanner } from './fs-router-scanner';
 
 /**

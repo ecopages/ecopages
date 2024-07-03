@@ -1,2 +1,2 @@
-import '@/global/console';
-import '@/utils/invariant';
+import './console';
+import './invariant';

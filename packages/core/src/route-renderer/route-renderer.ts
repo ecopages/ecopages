@@ -1,5 +1,5 @@
-import type { EcoPagesAppConfig } from '@/internal-types';
-import type { IntegrationPlugin, RouteRendererBody, RouteRendererOptions } from '@/public-types';
+import type { EcoPagesAppConfig } from '../internal-types';
+import type { IntegrationPlugin, RouteRendererBody, RouteRendererOptions } from '../public-types';
 import { invariant } from '../utils/invariant';
 import { PathUtils } from '../utils/path-utils';
 import type { IntegrationRenderer } from './integration-renderer';

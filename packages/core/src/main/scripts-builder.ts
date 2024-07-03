@@ -1,8 +1,8 @@
-import { appLogger } from '@/global/app-logger';
-import type { EcoPagesAppConfig } from '@/internal-types';
-import { FileUtils } from '@/utils/file-utils.module';
 import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
+import { appLogger } from '../global/app-logger';
+import type { EcoPagesAppConfig } from '../internal-types';
+import { FileUtils } from '../utils/file-utils.module';
 
 type ScriptsBuilderOptions = {
   watchMode: boolean;

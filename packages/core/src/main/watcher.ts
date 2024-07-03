@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import { appLogger } from '@/global/app-logger';
-import type { EcoPagesAppConfig } from '@/internal-types';
+import { appLogger } from '../global/app-logger';
+import type { EcoPagesAppConfig } from '../internal-types';
 import type { CssBuilder } from './css-builder';
 import type { ScriptsBuilder } from './scripts-builder';
 

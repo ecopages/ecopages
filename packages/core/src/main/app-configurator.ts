@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { appLogger } from '@/global/app-logger';
-import type { EcoPagesAppConfig } from '@/internal-types';
-import type { EcoPagesConfig } from '@/public-types';
-import { deepMerge } from '@/utils/deep-merge';
-import { invariant } from '@/utils/invariant';
+import { appLogger } from '../global/app-logger';
+import type { EcoPagesAppConfig } from '../internal-types';
+import type { EcoPagesConfig } from '../public-types';
+import { deepMerge } from '../utils/deep-merge';
+import { invariant } from '../utils/invariant';
 
 export class AppConfigurator {
   config: EcoPagesAppConfig;

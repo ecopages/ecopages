@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { AppConfigurator } from '@/main/app-configurator';
-import { FIXTURE_PROJECT_DIR } from 'fixtures/constants';
-import { FSRouter, type Route } from './fs-router';
+import { FIXTURE_PROJECT_DIR } from '../../fixtures/constants';
+import type { Route } from '../internal-types';
+import { AppConfigurator } from '../main/app-configurator';
+import { FSRouter } from './fs-router';
 import { FSRouterScanner } from './fs-router-scanner';
 
 const appConfigurator = await AppConfigurator.create({

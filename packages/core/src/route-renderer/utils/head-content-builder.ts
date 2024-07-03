@@ -1,7 +1,7 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '@/internal-types';
-import type { IntegrationDependencyConfig } from '@/main/integration-manager';
-import type { EcoComponentDependencies } from '@/public-types';
+import type { EcoPagesAppConfig } from '../../internal-types';
+import type { IntegrationDependencyConfig } from '../../main/integration-manager';
+import type { EcoComponentDependencies } from '../../public-types';
 import { FileUtils } from '../../utils/file-utils.module';
 
 /**

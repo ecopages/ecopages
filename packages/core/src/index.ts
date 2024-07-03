@@ -1,10 +1,6 @@
-export * from './public-types.d';
-export * from './utils/add-base-url-to-pathname';
+export type * from './public-types.d';
 export * from './route-renderer/integration-renderer';
-export * from './route-renderer/route-renderer';
-export * from './router/fs-router';
-export * from './router/fs-router-scanner';
-export * from './adapters/server-utils.module';
+export * from './utils/add-base-url-to-pathname';
 export * from './utils/component-dependencies-utils';
 export * from './utils/deep-merge';
 export * from './utils/invariant';

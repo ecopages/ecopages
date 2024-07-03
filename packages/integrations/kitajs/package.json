@@ -22,7 +22,10 @@
 		"@kitajs/ts-html-plugin": "^4.0.1"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
+		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "^0.1.1"
+	},
+	"devDependencies": {
+		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
 	}
 }

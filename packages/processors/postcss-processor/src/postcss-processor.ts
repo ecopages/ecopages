@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
-import { defaultPlugins } from './default-plugins';
+import { defaultPlugins } from './default-plugins.ts';
 
 function getFileAsBuffer(path: string): Buffer {
   try {

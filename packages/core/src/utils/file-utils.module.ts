@@ -1,5 +1,5 @@
 /**
- * This module contains a simple utility function to merge two objects deeply
+ * This module contains utility functions for file operations.
  * @module
  */
 

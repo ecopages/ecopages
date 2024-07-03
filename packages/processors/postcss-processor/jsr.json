@@ -5,5 +5,9 @@
 		".": "./src/postcss-processor.ts",
 		"./default-plugins": "./src/default-plugins.ts"
 	},
-	"exclude": ["src/test"]
+	"exclude": ["src/test"],
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],
+		"exclude": ["src/test"]
+	}
 }

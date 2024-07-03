@@ -6,6 +6,10 @@
 	},
 	"exclude": ["**/*.test.ts"],
 	"imports": {
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest"
+		"@ecopages/core": "latest"
+	},
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],
+		"exclude": ["src/test"]
 	}
 }

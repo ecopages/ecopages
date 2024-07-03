@@ -1,6 +1,8 @@
 {
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
 		"baseUrl": ".",
 		"outDir": "./dist",
 		"esModuleInterop": true,
@@ -9,9 +11,6 @@
 		"module": "ESNext",
 		"moduleResolution": "node",
 		"noImplicitOverride": true,
-		"paths": {
-			"@/*": ["./src/*"]
-		},
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,

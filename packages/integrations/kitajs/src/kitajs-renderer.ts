@@ -4,7 +4,7 @@
  */
 
 import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@ecopages/core';
-import { PLUGIN_NAME } from './kitajs.plugin';
+import { PLUGIN_NAME } from './kitajs.plugin.ts';
 
 /**
  * A renderer for the Kita.js integration.

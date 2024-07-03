@@ -5,7 +5,7 @@
 
 import { deepMerge } from '@ecopages/core';
 import { invariant } from '@ecopages/core';
-import { PLUGIN_NAME } from './mdx.plugin';
+import { PLUGIN_NAME } from './mdx.plugin.ts';
 
 import {
   type EcoComponent,

@@ -36,8 +36,8 @@ jobs:
       # - name: Publish package @ecopages/bun-mdx-kitajs-loader
       #   run: bun run --filter @ecopages/bun-mdx-kitajs-loader release:jsr
 
-      - name: Publish package @ecopages/core
-        run: bun run --filter @ecopages/core release:jsr
+      # - name: Publish package @ecopages/core
+      #   run: bun run --filter @ecopages/core release:jsr
 
       - name: Publish package @ecopages/kitajs
         run: bun run --filter @ecopages/kitajs release:jsr

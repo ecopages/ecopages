@@ -1,42 +1,45 @@
 import { extname, join } from 'node:path';
 import type { Server } from 'bun';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
-import { FileUtils } from '../../utils/file-utils.module.ts';
-import { ServerUtils } from '../server-utils.module.ts';
-import { withHtmlLiveReload } from './hmr.ts';
+import { ServerUtils } from '../adapters/server-utils.module.ts';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
+import { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
+import { FileUtils } from '../utils/file-utils.module.ts';
 
 type StaticContentServerOptions = {
-  watchMode: boolean;
+  port?: number;
 };
 
 export class StaticContentServer {
   server: Server | null = null;
-  private config: EcoPagesAppConfig;
-  private options: StaticContentServerOptions;
+  private appConfig: EcoPagesAppConfig;
+  private options: StaticContentServerOptions = { port: 3000 };
   private routeRendererFactory: RouteRendererFactory;
 
   constructor({
-    config,
+    appConfig,
     options,
     routeRendererFactory,
   }: {
-    config: EcoPagesAppConfig;
-    options: StaticContentServerOptions;
+    appConfig: EcoPagesAppConfig;
+    options?: StaticContentServerOptions;
     routeRendererFactory: RouteRendererFactory;
   }) {
-    this.config = config;
-    this.options = options;
+    this.appConfig = appConfig;
     this.routeRendererFactory = routeRendererFactory;
+    if (options) this.options = options;
     this.startServer();
   }
 
   private shouldServeGzip(contentType: ReturnType<typeof ServerUtils.getContentType>) {
-    return !this.options.watchMode && ['text/javascript', 'text/css'].includes(contentType);
+    return ['text/javascript', 'text/css'].includes(contentType);
+  }
+
+  private isHtmlOrPlainText(contentType: string) {
+    return ['text/html', 'text/plain'].includes(contentType);
   }
 
   private async sendNotFoundPage() {
-    const error404TemplatePath = this.config.absolutePaths.error404TemplatePath;
+    const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
 
     try {
       FileUtils.existsSync(error404TemplatePath);
@@ -58,7 +61,7 @@ export class StaticContentServer {
   }
 
   private async serveFromDir({ path }: { path: string }): Promise<Response> {
-    const { absolutePaths } = this.config;
+    const { absolutePaths } = this.appConfig;
     const basePath = join(absolutePaths.distDir, path);
     const contentType = ServerUtils.getContentType(extname(basePath));
 
@@ -91,57 +94,53 @@ export class StaticContentServer {
         },
       });
     } catch (error) {
-      return this.sendNotFoundPage();
+      if (this.isHtmlOrPlainText(contentType)) return this.sendNotFoundPage();
+      return new Response('file not found', {
+        status: 404,
+      });
     }
   }
 
-  private getOptions() {
-    return {
-      fetch: (request: Request) => {
-        let reqPath = new URL(request.url).pathname;
+  async fetch(request: Request) {
+    let reqPath = new URL(request.url).pathname;
 
-        if (reqPath === '/') reqPath = '/index.html';
+    if (reqPath === '/') reqPath = '/index.html';
 
-        const response = this.serveFromDir({
-          path: reqPath,
-        });
+    const response = this.serveFromDir({
+      path: reqPath,
+    });
 
-        if (response) return response;
+    if (response) return response;
 
-        return new Response('File not found', {
-          status: 404,
-        });
-      },
-    };
+    return new Response('File not found', {
+      status: 404,
+    });
   }
 
   private startServer() {
-    if (!this.options.watchMode)
-      this.server = this.options.watchMode
-        ? Bun.serve(withHtmlLiveReload(this.getOptions(), this.config))
-        : Bun.serve(this.getOptions());
+    this.server = Bun.serve({ fetch: this.fetch, port: this.options.port });
   }
 
   stop() {
     if (this.server) {
-      this.server.stop();
+      this.server.stop(true);
     }
   }
 
-  static create({
+  static createServer({
     appConfig,
-    options: { watchMode },
+    options,
   }: {
     appConfig: EcoPagesAppConfig;
-    options: StaticContentServerOptions;
+    options?: StaticContentServerOptions;
   }) {
     return new StaticContentServer({
-      config: appConfig,
+      appConfig: appConfig,
       routeRendererFactory: new RouteRendererFactory({
         integrations: appConfig.integrations,
         appConfig: appConfig,
       }),
-      options: { watchMode },
+      options,
     });
   }
 }

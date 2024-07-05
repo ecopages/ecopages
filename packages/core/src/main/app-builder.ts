@@ -5,7 +5,7 @@ import 'src/global/init';
 
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
-import { StaticContentServer } from '../adapters/bun/sc-server.ts';
+import { StaticContentServer } from '../dev/sc-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { CssBuilder } from '../main/css-builder.ts';
 import { ProjectWatcher } from '../main/watcher.ts';
@@ -76,7 +76,7 @@ export class AppBuilder {
       appConfig: this.appConfigurator.config,
       options: { watchMode: this.options.watch },
     };
-    await BunFileSystemServerAdapter.create(options);
+    await BunFileSystemServerAdapter.createServer(options);
   }
 
   async serve() {
@@ -96,11 +96,8 @@ export class AppBuilder {
   }
 
   serveStatic() {
-    const { server } = StaticContentServer.create({
+    const { server } = StaticContentServer.createServer({
       appConfig: this.appConfigurator.config,
-      options: {
-        watchMode: this.options.watch,
-      },
     });
 
     appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);

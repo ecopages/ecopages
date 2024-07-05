@@ -27,7 +27,7 @@ export class StaticPageGenerator {
   }
 
   async generateStaticPages() {
-    const { router, server } = await BunFileSystemServerAdapter.create({
+    const { router, server } = await BunFileSystemServerAdapter.createServer({
       appConfig: this.appConfig,
       options: {
         watchMode: false,

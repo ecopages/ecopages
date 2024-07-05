@@ -1,143 +1,49 @@
 import path from 'node:path';
 import type { Server } from 'bun';
-import { ServerUtils } from '../../adapters/server-utils.module.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type {
   EcoPagesAppConfig,
   EcoPagesFileSystemServerAdapter,
   FileSystemServerOptions,
-  MatchResult,
 } from '../../internal-types.ts';
-import type { RouteRendererBody } from '../../public-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
-import { FileUtils } from '../../utils/file-utils.module.ts';
+import { FileSystemServerResponseFactory } from '../fs-server-response-factory.ts';
 import { type PureWebSocketServeOptions, withHtmlLiveReload } from './hmr.ts';
 
 export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapter<PureWebSocketServeOptions<unknown>> {
   private appConfig: EcoPagesAppConfig;
   private router: FSRouter;
-  private routeRendererFactory: RouteRendererFactory;
   private server: Server | null = null;
   private options: FileSystemServerOptions;
+  private responseFactory: FileSystemServerResponseFactory;
 
   constructor({
     router,
     appConfig,
-    routeRendererFactory,
     options,
+    responseFactory,
   }: {
     router: FSRouter;
     appConfig: EcoPagesAppConfig;
-    routeRendererFactory: RouteRendererFactory;
     options: FileSystemServerOptions;
+    responseFactory: FileSystemServerResponseFactory;
   }) {
     this.router = router;
     this.appConfig = appConfig;
-    this.routeRendererFactory = routeRendererFactory;
     this.options = options;
-  }
-
-  private shouldEnableGzip(contentType: string) {
-    if (this.options.watchMode) return false;
-    const gzipEnabledExtensions = ['text/javascript', 'text/css'];
-    return gzipEnabledExtensions.includes(contentType);
+    this.responseFactory = responseFactory;
   }
 
   async fetch(req: Request) {
     const match = !req.url.includes('.') && this.router.match(req.url);
 
     if (!match) {
-      return this.handleNoMatch(req.url.replace(this.router.origin, ''));
+      return this.responseFactory.handleNoMatch(req.url.replace(this.router.origin, ''));
     }
 
-    return this.handleMatch(match);
-  }
-
-  private async handleNoMatch(requestUrl: string) {
-    const filePath = path.join(this.router.assetPrefix, requestUrl);
-    const contentType = ServerUtils.getContentType(filePath);
-
-    if (this.isHtmlOrPlainText(contentType)) {
-      return this.sendNotFoundPage();
-    }
-
-    return this.createFileResponse(filePath, contentType);
-  }
-
-  private isHtmlOrPlainText(contentType: string) {
-    return ['text/html', 'text/plain'].includes(contentType);
-  }
-
-  private sendResponse(routeRendererBody: RouteRendererBody) {
-    return new Response(routeRendererBody as BodyInit, {
-      headers: {
-        'Content-Type': 'text/html',
-      },
-    });
-  }
-
-  private async sendNotFoundPage() {
-    const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
-
-    try {
-      FileUtils.verifyFileExists(error404TemplatePath);
-    } catch (error) {
-      appLogger.error(
-        'Error 404 template not found, looks like it has not being configured correctly',
-        error404TemplatePath,
-      );
-      return new Response('file not found', {
-        status: 404,
-      });
-    }
-
-    const routeRenderer = this.routeRendererFactory.createRenderer(error404TemplatePath);
-
-    const routeRendererBody = await routeRenderer.createRoute({
-      file: error404TemplatePath,
-    });
-
-    return this.sendResponse(routeRendererBody);
-  }
-
-  private async createFileResponse(filePath: string, contentType: string) {
-    try {
-      let file: Buffer;
-      const contentEncodingHeader: HeadersInit = {};
-
-      if (this.shouldEnableGzip(contentType)) {
-        const gzipPath = `${filePath}.gz`;
-        file = FileUtils.getFileAsBuffer(gzipPath);
-        contentEncodingHeader['Content-Encoding'] = 'gzip';
-      } else {
-        file = FileUtils.getFileAsBuffer(filePath);
-      }
-
-      return new Response(file, {
-        headers: {
-          'Content-Type': contentType,
-          ...contentEncodingHeader,
-        },
-      });
-    } catch (error) {
-      return new Response('file not found', {
-        status: 404,
-      });
-    }
-  }
-
-  private async handleMatch(match: MatchResult) {
-    const routeRenderer = this.routeRendererFactory.createRenderer(match.filePath);
-
-    const renderedBody = await routeRenderer.createRoute({
-      file: match.filePath,
-      params: match.params,
-      query: match.query,
-    });
-
-    return this.sendResponse(renderedBody);
+    return this.responseFactory.handleMatch(match);
   }
 
   public startServer(serverOptions: PureWebSocketServeOptions<unknown>): {
@@ -157,13 +63,16 @@ export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapt
     return { router: this.router, server: this.server };
   }
 
-  static async create({
+  static async createServer({
     appConfig,
     options: { watchMode, port = 3000 },
   }: {
     appConfig: EcoPagesAppConfig;
     options: FileSystemServerOptions;
-  }) {
+  }): Promise<{
+    router: FSRouter;
+    server: Server;
+  }> {
     const scanner = new FSRouterScanner({
       dir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
       origin: appConfig.baseUrl,
@@ -179,17 +88,30 @@ export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapt
       scanner,
     });
 
-    await router.init();
-
-    const server = new BunFileSystemServerAdapter({
+    const responseFactory = new FileSystemServerResponseFactory({
+      appConfig,
       router,
-      appConfig: appConfig,
       routeRendererFactory: new RouteRendererFactory({
         integrations: appConfig.integrations,
         appConfig,
       }),
-      options: { watchMode, port },
+      options: {
+        watchMode,
+        port,
+      },
     });
+
+    const server = new BunFileSystemServerAdapter({
+      router,
+      appConfig,
+      responseFactory,
+      options: {
+        watchMode,
+        port,
+      },
+    });
+
+    await router.init();
 
     const serverOptions = {
       fetch: server.fetch.bind(server),

@@ -16,7 +16,8 @@
 		"directory": "packages/core"
 	},
 	"scripts": {
-		"test": "bun test",
+		"pretest": "bun run ./fixtures/setup-environment.ts",
+		"test:suite": "bun test --coverage",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

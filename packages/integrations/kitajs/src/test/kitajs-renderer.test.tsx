@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import type { EcoComponent, EcoPage, EcoPagesConfig, HtmlTemplateProps } from '@ecopages/core';
+import type { EcoComponent, EcoPage, HtmlTemplateProps } from '@ecopages/core';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
-const mockConfig: EcoPagesConfig = {
+const mockConfig = {
   rootDir: '.',
   srcDir: 'src',
   pagesDir: 'pages',

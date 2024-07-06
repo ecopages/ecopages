@@ -1,6 +1,6 @@
 import { extname, join } from 'node:path';
 import type { Server } from 'bun';
-import { ServerUtils } from '../adapters/server-utils.module.ts';
+import { ServerUtils } from '../adapters/utils/server-utils.module.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
@@ -134,12 +134,13 @@ export class StaticContentServer {
     appConfig: EcoPagesAppConfig;
     options?: StaticContentServerOptions;
   }) {
+    const routeRendererFactory = new RouteRendererFactory({
+      appConfig,
+    });
+
     return new StaticContentServer({
       appConfig: appConfig,
-      routeRendererFactory: new RouteRendererFactory({
-        integrations: appConfig.integrations,
-        appConfig: appConfig,
-      }),
+      routeRendererFactory,
       options,
     });
   }

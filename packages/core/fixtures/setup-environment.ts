@@ -1,4 +1,3 @@
-import { beforeAll } from 'bun:test';
 import path from 'node:path';
 import { appLogger } from '../src/global/app-logger.ts';
 import { buildApp } from '../src/main/build-app.ts';
@@ -13,9 +12,7 @@ function changeDirectory(targetDir: string) {
   }
 }
 
-beforeAll(async () => {
-  appLogger.info('Preparing text fixtures for build tests.');
-  console.log(process.cwd());
-  changeDirectory('fixtures/app');
-  await buildApp({ config: process.cwd(), watch: false, serve: false, build: true });
-});
+appLogger.info('Preparing text fixtures for build tests.');
+console.log(process.cwd());
+changeDirectory('fixtures/app');
+await buildApp({ config: process.cwd(), watch: false, serve: false, build: true });

@@ -1,25 +1,28 @@
-import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import type { Server } from 'bun';
 import { APP_TEST_ROUTES_URLS, FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
 import { AppConfigurator } from '../../main/app-configurator.ts';
 import { BunFileSystemServerAdapter } from './fs-server.ts';
 
-const appConfigurator = await AppConfigurator.create({
-  projectDir: FIXTURE_APP_PROJECT_DIR,
-});
-
+let appConfigurator: AppConfigurator;
 let server: Server;
 
 describe('FileSystemServer', () => {
-  beforeEach(async () => {
-    const bunAdapter = await BunFileSystemServerAdapter.createServer({
-      appConfig: appConfigurator.config,
-      options: {
-        watchMode: false,
-      },
+  beforeAll(async () => {
+    appConfigurator = await AppConfigurator.create({
+      projectDir: FIXTURE_APP_PROJECT_DIR,
     });
+  });
 
-    server = bunAdapter.server;
+  beforeEach(async () => {
+    server = (
+      await BunFileSystemServerAdapter.createServer({
+        appConfig: appConfigurator.config,
+        options: {
+          watchMode: false,
+        },
+      })
+    ).server;
   });
 
   afterEach(() => {

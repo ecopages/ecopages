@@ -5,7 +5,7 @@ import 'src/global/init';
 
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
-import { StaticContentServer } from '../dev/sc-server.ts';
+import { StaticContentServer } from '../dev/sc-server';
 import { appLogger } from '../global/app-logger.ts';
 import { CssBuilder } from '../main/css-builder.ts';
 import { ProjectWatcher } from '../main/watcher.ts';

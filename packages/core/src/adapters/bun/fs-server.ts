@@ -9,7 +9,8 @@ import type {
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
-import { FileSystemServerResponseFactory } from '../fs-server-response-factory.ts';
+import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
+import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
 import { type PureWebSocketServeOptions, withHtmlLiveReload } from './hmr.ts';
 
 export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapter<PureWebSocketServeOptions<unknown>> {
@@ -17,33 +18,33 @@ export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapt
   private router: FSRouter;
   private server: Server | null = null;
   private options: FileSystemServerOptions;
-  private responseFactory: FileSystemServerResponseFactory;
+  private fileSystemResponseMatcher: FileSystemResponseMatcher;
 
   constructor({
     router,
     appConfig,
     options,
-    responseFactory,
+    fileSystemResponseMatcher,
   }: {
     router: FSRouter;
     appConfig: EcoPagesAppConfig;
     options: FileSystemServerOptions;
-    responseFactory: FileSystemServerResponseFactory;
+    fileSystemResponseMatcher: FileSystemResponseMatcher;
   }) {
     this.router = router;
     this.appConfig = appConfig;
     this.options = options;
-    this.responseFactory = responseFactory;
+    this.fileSystemResponseMatcher = fileSystemResponseMatcher;
   }
 
   async fetch(req: Request) {
     const match = !req.url.includes('.') && this.router.match(req.url);
 
     if (!match) {
-      return this.responseFactory.handleNoMatch(req.url.replace(this.router.origin, ''));
+      return this.fileSystemResponseMatcher.handleNoMatch(req.url.replace(this.router.origin, ''));
     }
 
-    return this.responseFactory.handleMatch(match);
+    return this.fileSystemResponseMatcher.handleMatch(match);
   }
 
   public startServer(serverOptions: PureWebSocketServeOptions<unknown>): {
@@ -88,23 +89,29 @@ export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapt
       scanner,
     });
 
-    const responseFactory = new FileSystemServerResponseFactory({
+    const routeRendererFactory = new RouteRendererFactory({
       appConfig,
-      router,
-      routeRendererFactory: new RouteRendererFactory({
-        integrations: appConfig.integrations,
-        appConfig,
-      }),
+    });
+
+    const fileSystemResponseFactory = new FileSystemServerResponseFactory({
+      appConfig,
+      routeRendererFactory,
       options: {
         watchMode,
         port,
       },
     });
 
+    const fileSystemResponseMatcher = new FileSystemResponseMatcher({
+      router,
+      routeRendererFactory,
+      fileSystemResponseFactory,
+    });
+
     const server = new BunFileSystemServerAdapter({
       router,
       appConfig,
-      responseFactory,
+      fileSystemResponseMatcher,
       options: {
         watchMode,
         port,

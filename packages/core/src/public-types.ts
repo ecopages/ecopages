@@ -1,5 +1,4 @@
 import type { Readable } from 'node:stream';
-import type { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
 
@@ -212,7 +211,7 @@ export type RouteRendererOptions = {
 /**
  * The body of the route renderer.
  */
-export type RouteRendererBody = RenderResultReadable | Readable | string;
+export type RouteRendererBody = Buffer | Readable | ReadableStream | string;
 
 /**
  * Represents the dependencies required for an integration plugin.
@@ -281,7 +280,7 @@ export type IntegrationRendererRenderOptions = RouteRendererOptions & {
   HtmlTemplate: EcoComponent<HtmlTemplateProps>;
   Page: EcoPage<PageProps>;
   dependencies?: EcoComponentDependencies;
-  appConfig: EcoPagesConfig;
+  appConfig: EcoPagesAppConfig;
 };
 
 /**

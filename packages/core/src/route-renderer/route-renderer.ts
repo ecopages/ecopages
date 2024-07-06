@@ -18,11 +18,9 @@ export class RouteRenderer {
 
 export class RouteRendererFactory {
   private appConfig: EcoPagesAppConfig;
-  private integrations: IntegrationPlugin[] = [];
 
-  constructor({ integrations, appConfig }: { integrations: IntegrationPlugin[]; appConfig: EcoPagesAppConfig }) {
+  constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
     this.appConfig = appConfig;
-    this.integrations = integrations;
   }
 
   createRenderer(filePath: string): RouteRenderer {
@@ -34,7 +32,9 @@ export class RouteRendererFactory {
 
   getIntegrationPlugin(filePath: string): IntegrationPlugin {
     const templateExtension = PathUtils.getEcoTemplateExtension(filePath);
-    const integration = this.integrations.find((integration) => integration.extensions.includes(templateExtension));
+    const integration = this.appConfig.integrations.find((integration) =>
+      integration.extensions.includes(templateExtension),
+    );
     invariant(integration, `No integration found for template extension: ${templateExtension}, file: ${filePath}`);
     return integration;
   }

@@ -2,6 +2,8 @@ import path from 'node:path';
 
 export const FIXTURE_APP_PROJECT_DIR = path.resolve(import.meta.dir, 'app');
 
+export const INDEX_TEMPLATE_FILE = path.resolve(import.meta.dir, 'app/src/pages/index.lit.tsx');
+
 export const FIXTURE_APP_CSS_FILE = path.resolve(import.meta.dir, 'css/test.css');
 
 export const FIXTURE_CSS_FILE_ERROR = path.resolve(import.meta.dir, 'css/error.css');
@@ -12,7 +14,9 @@ export const FIXTURE_EXISTING_SVG_FILE_IN_DIST = 'public/assets/favicon.svg';
 
 export const FIXTURE_EXISTING_FILE_GZ_IN_DIST = `${FIXTURE_EXISTING_CSS_FILE_IN_DIST}.gz`;
 
-const APP_TEST_ROUTES = {
+export const FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH = `${FIXTURE_APP_PROJECT_DIR}/.eco/${FIXTURE_EXISTING_SVG_FILE_IN_DIST}`;
+
+export const APP_TEST_ROUTES = {
   nonExistentFile: 'non-existent-file.css',
   nonExistentPage: 'non-existent-page',
   existingCssFile: FIXTURE_EXISTING_CSS_FILE_IN_DIST,

@@ -48,7 +48,7 @@ export class ReactRenderer extends IntegrationRenderer {
         </HtmlTemplate>,
       );
 
-      return body as any;
+      return body;
     } catch (error) {
       throw new Error(`[ecopages] Error rendering page: ${error}`);
     }

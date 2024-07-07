@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../fixtures/constants.ts';
+import { STATUS_MESSAGE } from '../../constants.ts';
 import type { MatchResult } from '../../internal-types.ts';
 import { AppConfigurator } from '../../main/app-configurator.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
@@ -51,7 +52,7 @@ describe('FileSystemResponseMatcher', () => {
     const requestUrl = APP_TEST_ROUTES.nonExistentFile;
     const response = await fileSystemResponseMatcher.handleNoMatch(requestUrl);
     expect(response.status).toBe(404);
-    expect(await response.text()).toBe('file not found');
+    expect(await response.text()).toBe(STATUS_MESSAGE[404]);
   });
 
   it('should handle match', async () => {

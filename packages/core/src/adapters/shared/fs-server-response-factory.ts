@@ -1,3 +1,4 @@
+import { STATUS_MESSAGE } from '../../constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, FileSystemServerOptions } from '../../internal-types.ts';
 import type { RouteRendererBody } from '../../public-types.ts';
@@ -33,15 +34,24 @@ export class FileSystemServerResponseFactory {
     return gzipEnabledExtensions.includes(contentType);
   }
 
-  createResponseWithBody(routeRendererBody: RouteRendererBody) {
-    return new Response(routeRendererBody as BodyInit, {
+  createResponseWithBody(
+    body: RouteRendererBody,
+    init: ResponseInit = {
       headers: {
         'Content-Type': 'text/html',
       },
+    },
+  ) {
+    return new Response(body, init);
+  }
+
+  async createDefaultNotFoundResponse() {
+    return new Response(STATUS_MESSAGE[404], {
+      status: 404,
     });
   }
 
-  async createNotFoundResponse() {
+  async createCustomNotFoundResponse() {
     const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
 
     try {
@@ -51,9 +61,7 @@ export class FileSystemServerResponseFactory {
         'Error 404 template not found, looks like it has not being configured correctly',
         error404TemplatePath,
       );
-      return new Response('file not found', {
-        status: 404,
-      });
+      return this.createDefaultNotFoundResponse();
     }
 
     const routeRenderer = this.routeRendererFactory.createRenderer(error404TemplatePath);
@@ -78,16 +86,14 @@ export class FileSystemServerResponseFactory {
         file = FileUtils.getFileAsBuffer(filePath);
       }
 
-      return new Response(file, {
+      return this.createResponseWithBody(file, {
         headers: {
           'Content-Type': contentType,
           ...contentEncodingHeader,
         },
       });
     } catch (error) {
-      return new Response('file not found', {
-        status: 404,
-      });
+      return this.createDefaultNotFoundResponse();
     }
   }
 }

@@ -109,10 +109,9 @@ export abstract class IntegrationRenderer {
   }
 
   protected getDependencyDistPath(importMeta: ImportMeta, pathUrl: string): string {
-    const { ecoConfig } = globalThis;
     const EXTENSIONS_TO_JS = ['ts', 'tsx', 'jsx'];
     const safeFileName = pathUrl.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
-    const distUrl = importMeta.url.split(ecoConfig.srcDir)[1].split(importMeta.file)[0];
+    const distUrl = importMeta.url.split(this.appConfig.srcDir)[1].split(importMeta.file)[0];
     return path.join(distUrl, safeFileName);
   }
 

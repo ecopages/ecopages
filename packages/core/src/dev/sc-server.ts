@@ -1,9 +1,10 @@
 import { extname, join } from 'node:path';
 import type { Server } from 'bun';
-import { ServerUtils } from '../adapters/utils/server-utils.module.ts';
+import { STATUS_MESSAGE } from '../constants.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
+import { ServerUtils } from '../utils/server-utils.module.ts';
 
 type StaticContentServerOptions = {
   port?: number;
@@ -44,7 +45,7 @@ export class StaticContentServer {
     try {
       FileUtils.existsSync(error404TemplatePath);
     } catch (error) {
-      return new Response('file not found', {
+      return new Response(STATUS_MESSAGE[404], {
         status: 404,
       });
     }
@@ -95,7 +96,7 @@ export class StaticContentServer {
       });
     } catch (error) {
       if (this.isHtmlOrPlainText(contentType)) return this.sendNotFoundPage();
-      return new Response('file not found', {
+      return new Response(STATUS_MESSAGE[404], {
         status: 404,
       });
     }
@@ -112,7 +113,7 @@ export class StaticContentServer {
 
     if (response) return response;
 
-    return new Response('File not found', {
+    return new Response(STATUS_MESSAGE[404], {
       status: 404,
     });
   }

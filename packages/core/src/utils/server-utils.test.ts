@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
-import { AppConfigurator } from '../../main/app-configurator.ts';
+import { FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
+import { AppConfigurator } from '../main/app-configurator.ts';
 import { ServerUtils } from './server-utils.module.ts';
 
 await AppConfigurator.create({

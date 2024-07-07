@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, jest } from 'bun:test';
 import { FIXTURE_APP_PROJECT_DIR, FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH } from '../../../fixtures/constants.ts';
+import { STATUS_MESSAGE } from '../../constants.ts';
 import { AppConfigurator } from '../../main/app-configurator.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
@@ -83,7 +84,15 @@ describe('FileSystemServerResponseFactory', () => {
     });
   });
 
-  describe('createNotFoundResponse', () => {
+  describe('createDefaultNotFoundResponse', () => {
+    it('should create a response with status 404 and body "file not found"', async () => {
+      const response = await responseFactory.createDefaultNotFoundResponse();
+      expect(response.status).toBe(404);
+      expect(await response.text()).toBe(STATUS_MESSAGE[404]);
+    });
+  });
+
+  describe('createCustomNotFoundResponse', () => {
     it('should create a response with status 404 if error404 template file does not exist', async () => {
       const responseFactoryNo404Template = new FileSystemServerResponseFactory({
         appConfig: {
@@ -102,13 +111,13 @@ describe('FileSystemServerResponseFactory', () => {
         },
       });
 
-      const response = await responseFactoryNo404Template.createNotFoundResponse();
+      const response = await responseFactoryNo404Template.createCustomNotFoundResponse();
       expect(response.status).toBe(404);
-      expect(await response.text()).toBe('file not found');
+      expect(await response.text()).toBe(STATUS_MESSAGE[404]);
     });
 
     it('should create a response with the route renderer body if error404 template file exists', async () => {
-      const response = await responseFactory.createNotFoundResponse();
+      const response = await responseFactory.createCustomNotFoundResponse();
       const body = await response.text();
       expect(body).toInclude('<h1>404 - Page Not Found</h1>');
       expect(response.headers.get('Content-Type')).toBe('text/html');
@@ -127,7 +136,7 @@ describe('FileSystemServerResponseFactory', () => {
     it('should create a response with status 404 if the file does not exist', async () => {
       const response = await responseFactory.createFileResponse('/path/to/nonexistent.txt', 'text/plain');
       expect(response.status).toBe(404);
-      expect(await response.text()).toBe('file not found');
+      expect(await response.text()).toBe(STATUS_MESSAGE[404]);
     });
   });
 });

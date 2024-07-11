@@ -15,9 +15,6 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
           { label: 'Tailwind', url: '/labs/tailwind' },
           { label: 'Async', url: '/labs/async' },
           { label: 'MDX', url: '/test' },
-          { label: 'Lite', url: '/labs/lite-context' },
-          { label: 'Events', url: '/labs/events' },
-          { label: 'Refs', url: '/labs/refs' },
         ]}
       />
       <main class={className}>{children as 'safe'}</main>

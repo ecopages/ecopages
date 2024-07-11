@@ -5,6 +5,7 @@
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, writeFileSync } from 'node:fs';
 import { extname } from 'node:path';
+import zlib from 'node:zlib';
 import type { GlobScanOptions } from 'bun';
 
 /**
@@ -92,8 +93,8 @@ function gzipDirSync(path: string, extensionsToGzip: string[]) {
   for (const file of files) {
     const ext = extname(file as string).slice(1);
     if (extensionsToGzip.includes(ext)) {
-      const data = readFileSync(`${path}/${file}`);
-      const compressedData = Bun.gzipSync(Buffer.from(data));
+      const data = getFileAsBuffer(`${path}/${file}`);
+      const compressedData = zlib.gzipSync(Buffer.from(data));
       const gzipFile = `${path}/${file}.gz`;
       writeFileSync(gzipFile, compressedData);
     }

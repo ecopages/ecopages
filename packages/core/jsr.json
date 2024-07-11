@@ -12,8 +12,6 @@
 	},
 	"exclude": ["fixtures", "**/*.test.ts"],
 	"imports": {
-		"@ecopages/postcss-processor": "jsr:@ecopages/postcss-processor@0.1.7",
-		"@ecopages/bun-inline-css-plugin": "jsr:@ecopages/bun-inline-css-plugin@0.1.7",
 		"bun": "npm:@types/bun@latest"
 	},
 	"publish": {

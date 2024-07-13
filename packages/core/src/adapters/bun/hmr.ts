@@ -2,13 +2,11 @@ import { watch } from 'node:fs';
 import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from 'bun';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 
-declare global {
-  var __ECO_PAGES_HMR_WS__: ServerWebSocket<unknown> | undefined;
-}
+let ECO_PAGES_HMR_WS: ServerWebSocket<unknown> | undefined;
 
 export const reloadCommand = 'reload';
 
-globalThis.__ECO_PAGES_HMR_WS__?.send(reloadCommand);
+if (ECO_PAGES_HMR_WS) ECO_PAGES_HMR_WS.send(reloadCommand);
 
 const makeLiveReloadScript = (wsUrl: string) => `
 <!-- [ecopages] live reload start script -->
@@ -84,7 +82,7 @@ export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketSer
     websocket: {
       ...serveOptions.websocket,
       open: async (ws) => {
-        globalThis.__ECO_PAGES_HMR_WS__ = ws;
+        ECO_PAGES_HMR_WS = ws;
         await serveOptions.websocket?.open?.(ws);
         if (watcher) {
           watcher.removeAllListeners('change');

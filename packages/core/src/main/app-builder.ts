@@ -1,7 +1,7 @@
 import { exec } from 'node:child_process';
 import path from 'node:path';
 
-import 'src/global/init';
+import '../global/init.ts';
 
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';

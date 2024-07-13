@@ -1,9 +1,11 @@
 {
 	"$schema": "https://jsr.io/schema/config-file.v1.json",
 	"name": "@ecopages/core",
-	"version": "0.1.8",
+	"version": "0.1.9",
 	"exports": {
 		".": "./src/index.ts",
+		"./bin": "./src/bin/ecopages.ts",
+		"./build-app": "./src/main/build-app.ts",
 		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",
 		"./utils/add-base-url-to-pathname": "./src/utils/add-base-url-to-pathname.ts",
 		"./utils/deep-merge": "./src/utils/deep-merge.ts",

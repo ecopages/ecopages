@@ -29,12 +29,12 @@ function ensureDirectoryExists(path: string, forceCleanup?: boolean): void {
         recursive: true,
       });
 
-      mkdirSync(path);
+      mkdirSync(path, { recursive: true });
 
       return;
     }
   } else {
-    mkdirSync(path);
+    mkdirSync(path, { recursive: true });
   }
 }
 
@@ -131,8 +131,9 @@ export const FileUtils = {
   existsSync,
   write,
   verifyFileExists,
-  ensureFolderExists: ensureDirectoryExists,
+  ensureDirectoryExists,
   copyDirSync,
   gzipDirSync,
   writeFileSync,
+  mkdirSync,
 };

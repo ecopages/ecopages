@@ -39,3 +39,7 @@ In our quest to simplify, we've made choices that sometimes lead to more verbose
 ## Future Directions
 
 While Eco Pages is primarily focused on static site generation, we are exploring the addition of a server-side component. This feature is under development and aims to expand the project's versatility. We are dedicated to refining this aspect and encourage contributions and feedback from the community to help shape its progress.
+
+# Breaking changes
+
+Expect breaking changes until version one is reached.

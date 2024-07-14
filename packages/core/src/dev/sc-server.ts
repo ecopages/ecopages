@@ -85,7 +85,11 @@ export class StaticContentServer {
         });
       }
 
-      const pathWithSuffix = join(basePath, 'index.html');
+      let pathWithSuffix = `${basePath}.html`;
+
+      const fileExists = FileUtils.existsSync(pathWithSuffix);
+
+      if (!fileExists) pathWithSuffix = `${basePath}/index.html`;
 
       const file = FileUtils.getFileAsBuffer(pathWithSuffix);
 
@@ -119,7 +123,7 @@ export class StaticContentServer {
   }
 
   private startServer() {
-    this.server = Bun.serve({ fetch: this.fetch, port: this.options.port });
+    this.server = Bun.serve({ fetch: this.fetch.bind(this), port: this.options.port });
   }
 
   stop() {

@@ -1,6 +1,0 @@
-.error404 {
-  @apply flex flex-col gap-4 items-center justify-center bg-background-accent rounded-md p-4 my-20 max-w-fit mx-auto shadow-md;
-  p {
-    @apply text-lg text-on-background p-8 bg-background rounded-md;
-  }
-}

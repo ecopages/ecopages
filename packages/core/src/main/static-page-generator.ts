@@ -4,6 +4,9 @@ import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
 
+const STATIC_GENERATION_ADAPTER_PORT = 2020;
+const STATIC_GENERATION_ADAPTER_BASE_URL = `http://localhost:${STATIC_GENERATION_ADAPTER_PORT}`;
+
 export class StaticPageGenerator {
   appConfig: EcoPagesAppConfig;
 
@@ -26,17 +29,48 @@ export class StaticPageGenerator {
     FileUtils.writeFileSync(`${this.appConfig.distDir}/robots.txt`, data);
   }
 
+  isRootDir(path: string) {
+    const slashes = path.match(/\//g);
+    return slashes && slashes.length === 1;
+  }
+
+  getDirectories(routes: string[]) {
+    const directories = new Set<string>();
+
+    for (const route of routes) {
+      const path = route.replace(STATIC_GENERATION_ADAPTER_BASE_URL, '');
+
+      const segments = path.split('/');
+
+      if (segments.length > 2) {
+        directories.add(segments.slice(0, segments.length - 1).join('/'));
+      }
+    }
+
+    return Array.from(directories);
+  }
+
   async generateStaticPages() {
     const { router, server } = await BunFileSystemServerAdapter.createServer({
-      appConfig: this.appConfig,
+      appConfig: {
+        ...this.appConfig,
+        baseUrl: STATIC_GENERATION_ADAPTER_BASE_URL,
+      },
       options: {
         watchMode: false,
+        port: STATIC_GENERATION_ADAPTER_PORT,
       },
     });
 
     const routes = Object.keys(router.routes).filter((route) => !route.includes('['));
 
     appLogger.debug('Static Pages', routes);
+
+    const directories = this.getDirectories(routes);
+
+    for (const directory of directories) {
+      FileUtils.ensureDirectoryExists(path.join(this.appConfig.rootDir, this.appConfig.distDir, directory));
+    }
 
     for (const route of routes) {
       try {
@@ -49,11 +83,19 @@ export class StaticPageGenerator {
 
         let pathname = router.routes[route].pathname;
 
-        if (router.routes[route].pathname.includes('[')) {
-          pathname = route.replace(router.origin, '');
+        const pathnameSegments = pathname.split('/').filter(Boolean);
+
+        if (pathname === '/') {
+          pathname = '/index.html';
+        } else if (pathnameSegments.join('/').includes('[')) {
+          pathname = `${route.replace(router.origin, '')}.html`;
+        } else if (pathnameSegments.length >= 1 && directories.includes(`/${pathnameSegments.join('/')}`)) {
+          pathname = `${pathname.endsWith('/') ? pathname : `${pathname}/`}index.html`;
+        } else {
+          pathname += '.html';
         }
 
-        const filePath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname, 'index.html');
+        const filePath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname);
 
         const contents = await response.text();
 

@@ -55,7 +55,7 @@ export class AppBuilder {
   }
 
   prepareDistDir() {
-    FileUtils.ensureFolderExists(this.appConfigurator.config.distDir, true);
+    FileUtils.ensureDirectoryExists(this.appConfigurator.config.distDir, true);
   }
 
   copyPublicDir() {

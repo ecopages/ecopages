@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/postcss-processor",
-	"version": "0.1.9",
+	"version": "0.1.10",
 	"exports": {
 		".": "./src/postcss-processor.ts",
 		"./default-plugins": "./src/default-plugins.ts"

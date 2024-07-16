@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { ghtmlPlugin } from 'src/integrations/ghtml/ghtml.plugin.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { EcoPagesConfig } from '../public-types.ts';
@@ -32,7 +33,7 @@ export class AppConfigurator {
     tailwind: {
       input: 'styles/tailwind.css',
     },
-    integrations: [],
+    integrations: [ghtmlPlugin()],
     integrationsDependencies: [],
     distDir: '.eco',
     scriptsExtensions: ['.script.ts', '.script.tsx'],

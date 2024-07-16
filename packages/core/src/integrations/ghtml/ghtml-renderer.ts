@@ -30,9 +30,7 @@ export class GhtmlRenderer extends IntegrationRenderer {
         children: await Page({ params, query, ...props }),
       });
 
-      const readableStream = Readable.from(body);
-
-      return readableStream;
+      return this.DOC_TYPE + body;
     } catch (error) {
       throw new Error(`[ecopages] Error rendering page: ${error}`);
     }

@@ -14,6 +14,7 @@
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
 		"@ecopages/radiant": "^0.1.4",
 		"@ecopages/bun-mdx-kitajs-loader": "workspace:*",
 		"@ecopages/bun-postcss-loader": "workspace:*",

@@ -101,7 +101,6 @@ export abstract class IntegrationRenderer {
   }
 
   protected async importPageFile(file: string): Promise<EcoPageFile> {
-    console.log('file', file);
     try {
       return await import(file);
     } catch (error) {

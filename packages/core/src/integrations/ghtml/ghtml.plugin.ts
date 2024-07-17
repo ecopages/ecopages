@@ -20,6 +20,6 @@ export const PLUGIN_NAME = 'ghtml';
  * @returns The ghtml plugin
  */
 export function ghtmlPlugin(options?: GhtmlPluginOptions): IntegrationPlugin {
-  const { extensions = ['.ghtml.ts'], dependencies = [] } = options || {};
+  const { extensions = ['.ghtml.ts', '.ghtml'], dependencies = [] } = options || {};
   return { name: PLUGIN_NAME, extensions, renderer: GhtmlRenderer, dependencies };
 }

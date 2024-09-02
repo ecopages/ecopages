@@ -1,35 +1,26 @@
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent } from '@ecopages/core';
 
-const getData = async () => {
-  return new Promise<string>((resolve) => {
-    setTimeout(() => {
-      resolve(`Async·page·${new Date().toISOString()}`);
-    }, 1000);
-  });
-};
-
-const LabsAsyncPage: EcoComponent = async () => {
-  const data = await getData();
-
+const DistScaffoldingTest: EcoComponent = async () => {
   return (
     <BaseLayout>
       <div class="banner">
-        <h1 class="banner__title">Async Page</h1>
-        <p>The text below is collected asyncronously</p>
+        <h1 class="banner__title">Proper scaffolding test on build</h1>
+        <p>This is a simple example to be sure files are constructed properly on dist build</p>
         <p>
-          <i safe>{data}</i>
+          The <code>test.html</code> file should be in the <code>async</code> directory that should include also the{' '}
+          <code>index.html</code>
         </p>
       </div>
     </BaseLayout>
   );
 };
 
-LabsAsyncPage.config = {
+DistScaffoldingTest.config = {
   importMeta: import.meta,
   dependencies: {
     components: [BaseLayout],
   },
 };
 
-export default LabsAsyncPage;
+export default DistScaffoldingTest;

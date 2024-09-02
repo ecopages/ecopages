@@ -1,4 +1,4 @@
-import { LiteCounter } from '@/components/lite-counter';
+import { RadiantCounter } from '@/components/radiant-counter';
 import { type EcoComponent, resolveComponentsScripts } from '@ecopages/core';
 import { css, html } from '@ecopages/core';
 import type { ScriptInjectorProps } from '@ecopages/scripts-injector';
@@ -31,12 +31,12 @@ const AsyncComponent = async () => {
   </p>`;
 };
 
-const RadiantCounter = () => {
-  return html`<lite-counter count="0">
+const RadiantCounterGhtml = () => {
+  return html`<radiant-counter count="0">
     <button type="button" data-ref="decrement" aria-label="Decrement">-</button>
     <span data-ref="count">0</span>
     <button type="button" data-ref="increment" aria-label="Increment">+</button>
-  </lite-counter>`;
+  </radiant-counter>`;
 };
 
 const Island = ({ children, ...props }: ScriptInjectorProps & { children: () => string }) => {
@@ -73,8 +73,8 @@ const GhtmlPage: EcoComponent = async () => {
           </ul>
           !${Island({
             'on:interaction': 'mouseenter,focusin',
-            scripts: resolveComponentsScripts([LiteCounter]),
-            children: RadiantCounter,
+            scripts: resolveComponentsScripts([RadiantCounter]),
+            children: RadiantCounterGhtml,
           })}
           !${await AsyncComponent()}
         </div>
@@ -89,7 +89,7 @@ const GhtmlPage: EcoComponent = async () => {
 GhtmlPage.config = {
   importMeta: import.meta,
   dependencies: {
-    components: [LiteCounter],
+    components: [RadiantCounter],
   },
 };
 

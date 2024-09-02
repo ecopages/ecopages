@@ -19,11 +19,11 @@ export class AppConfigurator {
     layoutsDir: 'layouts',
     publicDir: 'public',
     includesTemplates: {
-      head: 'head.kita.tsx',
-      html: 'html.kita.tsx',
-      seo: 'seo.kita.tsx',
+      head: 'head.ghtml.ts',
+      html: 'html.ghtml.ts',
+      seo: 'seo.ghtml.ts',
     },
-    error404Template: '404.kita.tsx',
+    error404Template: '404.ghtml.ts',
     robotsTxt: {
       preferences: {
         '*': [],

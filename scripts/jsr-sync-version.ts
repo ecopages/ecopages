@@ -18,4 +18,6 @@ for await (const jsrJson of glob.scan()) {
     Bun.write(packageJson, JSON.stringify(modifiedPackageJsonConfig, null, 2)),
     Bun.write(jsrJson, JSON.stringify(modifiedJsrConfig, null, 2)),
   ]);
+
+  console.log(`Updated ${modifiedJsrConfig.name} and ${jsrJson} to version ${rootPackage.version}`);
 }

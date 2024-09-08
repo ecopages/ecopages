@@ -11,8 +11,6 @@
 		"module": "ESNext",
 		"moduleResolution": "Bundler",
 		"noImplicitOverride": true,
-		"jsx": "react-jsx",
-		"jsxImportSource": "@kitajs/html",
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,

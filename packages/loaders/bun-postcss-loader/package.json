@@ -13,7 +13,6 @@
 		"directory": "packages/loaders/bun-postcss-loader"
 	},
 	"scripts": {
-		"test:suite": "bun test --coverage",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

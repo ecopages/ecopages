@@ -42,7 +42,7 @@ export class FileSystemServerResponseFactory {
       },
     },
   ) {
-    return new Response(body, init);
+    return new Response(body as BodyInit, init);
   }
 
   async createDefaultNotFoundResponse() {
@@ -53,6 +53,8 @@ export class FileSystemServerResponseFactory {
 
   async createCustomNotFoundResponse() {
     const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
+
+    console.log('error404TemplatePath', error404TemplatePath);
 
     try {
       FileUtils.verifyFileExists(error404TemplatePath);

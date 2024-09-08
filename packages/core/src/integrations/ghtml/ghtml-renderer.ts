@@ -3,7 +3,6 @@
  * @module
  */
 
-import { Readable } from 'node:stream';
 import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@ecopages/core';
 import { PLUGIN_NAME } from './ghtml.plugin.ts';
 

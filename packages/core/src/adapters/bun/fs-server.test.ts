@@ -58,7 +58,7 @@ describe('FileSystemServer', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/html');
-    expect(await res.text()).toContain('{&quot;page&quot;:&quot;1&quot;}');
+    expect(await res.text()).toContain('{"page":"1"}');
   });
 
   test('should return 200 for dynamic page with params', async () => {
@@ -76,7 +76,7 @@ describe('FileSystemServer', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/html');
-    expect(await res.text()).toContain('{&quot;page&quot;:&quot;1&quot;}');
+    expect(await res.text()).toContain('{"page":"1"}');
   });
 
   test('should return 200 for catch all page with params', async () => {
@@ -85,7 +85,7 @@ describe('FileSystemServer', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/html');
-    expect(await res.text()).toContain('{&quot;path&quot;:[&quot;123&quot;,&quot;456&quot;]}');
+    expect(await res.text()).toContain('{"path":["123","456"]}');
   });
 
   test('should return custom error template for non-existent page', async () => {

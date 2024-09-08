@@ -22,7 +22,7 @@ jobs:
         run: bun install
 
       - name: Test
-        run: bun run test:suite
+        run: bun test
 
       - name: Publish package @ecopages/postcss-processor
         run: bun run --filter @ecopages/postcss-processor release:jsr

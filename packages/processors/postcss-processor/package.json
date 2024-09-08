@@ -13,7 +13,6 @@
 		"directory": "packages/processors/postcss-processor"
 	},
 	"scripts": {
-		"test:suite": "bun test --coverage",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

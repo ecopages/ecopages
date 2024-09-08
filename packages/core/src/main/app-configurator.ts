@@ -33,7 +33,7 @@ export class AppConfigurator {
     tailwind: {
       input: 'styles/tailwind.css',
     },
-    integrations: [ghtmlPlugin()],
+    integrations: [],
     integrationsDependencies: [],
     distDir: '.eco',
     scriptsExtensions: ['.script.ts', '.script.tsx'],
@@ -42,18 +42,6 @@ export class AppConfigurator {
       description: 'Eco Pages',
     },
   };
-
-  getIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
-    const integrationName = integrations.map((integration) => integration.name);
-    const uniqueName = new Set(integrationName);
-    invariant(integrationName.length === uniqueName.size, 'Integrations names must be unique');
-
-    const integrationsExtensions = integrations.flatMap((integration) => integration.extensions);
-    const uniqueExtensions = new Set(integrationsExtensions);
-    invariant(integrationsExtensions.length === uniqueExtensions.size, 'Integrations extensions must be unique');
-
-    return integrationsExtensions;
-  }
 
   constructor({
     projectDir,
@@ -67,6 +55,10 @@ export class AppConfigurator {
 
     const baseConfig = deepMerge(AppConfigurator.defaultConfig, customConfig);
 
+    if (!baseConfig.integrations.some((integration) => integration.name === 'ghtml')) {
+      baseConfig.integrations.push(ghtmlPlugin());
+    }
+
     this.config = {
       ...baseConfig,
       templatesExt: this.getIntegrationTemplatesExt(baseConfig.integrations),
@@ -76,6 +68,18 @@ export class AppConfigurator {
     globalThis.ecoConfig = this.config;
 
     appLogger.debug('Config', this.config);
+  }
+
+  getIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
+    const integrationName = integrations.map((integration) => integration.name);
+    const uniqueName = new Set(integrationName);
+    invariant(integrationName.length === uniqueName.size, 'Integrations names must be unique');
+
+    const integrationsExtensions = integrations.flatMap((integration) => integration.extensions);
+    const uniqueExtensions = new Set(integrationsExtensions);
+    invariant(integrationsExtensions.length === uniqueExtensions.size, 'Integrations extensions must be unique');
+
+    return integrationsExtensions;
   }
 
   private getAbsolutePaths(

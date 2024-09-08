@@ -1,4 +1,4 @@
-import { Seo } from '@/includes/seo.ghtml';
+import { Seo } from '@/includes/seo';
 import { type PageHeadProps, html } from '@ecopages/core';
 
 export function Head({ metadata, children }: PageHeadProps) {

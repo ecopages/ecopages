@@ -14,7 +14,6 @@
 		"directory": "packages/integrations/kitajs"
 	},
 	"scripts": {
-		"test:suite": "bun test --coverage",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

@@ -1,21 +1,25 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoPage, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
+import {
+  type EcoPage,
+  type GetMetadata,
+  type GetStaticPaths,
+  type GetStaticProps,
+  type PageProps,
+  html,
+} from '@ecopages/core';
 
 export type BlogPostProps = {
   slug: string;
 };
 
-const BlogPost: EcoPage<PageProps<BlogPostProps>> = ({ query, slug }) => {
-  return (
-    <BaseLayout>
-      <div>
-        <h1 safe>
-          Blog Post {slug} {JSON.stringify(query || [])}
+const BlogPost: EcoPage<PageProps<BlogPostProps>> = ({ query, slug }) =>
+  html`!${BaseLayout({
+    children: html`<div>
+        <h1>
+          Blog Post ${slug} !${JSON.stringify(query || [])}
         </h1>
-      </div>
-    </BaseLayout>
-  );
-};
+      </div>`,
+  })}`;
 
 BlogPost.config = {
   importMeta: import.meta,

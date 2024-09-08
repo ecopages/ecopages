@@ -1,16 +1,16 @@
-import type { EcoComponent } from '@ecopages/core';
+import { type EcoComponent, html } from '@ecopages/core';
 
 export type BaseLayoutProps = {
-  children: Html.Children;
+  children: string;
   class?: string;
 };
 
 export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: className }) => {
-  return (
+  return html`
     <body>
-      <main class={className}>{children}</main>
+      <main class="${className}">!${children}</main>
     </body>
-  );
+  `;
 };
 
 BaseLayout.config = {

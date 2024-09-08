@@ -7,3 +7,4 @@ export * from './utils/deep-merge.ts';
 export * from './utils/html.ts';
 export * from './utils/invariant.ts';
 export * from './utils/file-utils.module.ts';
+export * from './integrations/ghtml/ghtml.plugin.ts';

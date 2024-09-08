@@ -16,7 +16,7 @@ export const PLUGIN_NAME = 'ghtml';
 
 /**
  * Creates a ghtml plugin
- * @param options - The options for the plugin
+ * @param options {@link GhtmlPluginOptions}
  * @returns The ghtml plugin
  */
 export function ghtmlPlugin(options?: GhtmlPluginOptions): IntegrationPlugin {

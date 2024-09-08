@@ -1,1 +1,1 @@
-export * from './radiant-counter.ghtml';
+export * from './radiant-counter';

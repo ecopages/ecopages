@@ -212,7 +212,7 @@ export type RouteRendererOptions = {
 /**
  * The body of the route renderer.
  */
-export type RouteRendererBody = ReadableStream | XMLHttpRequestBodyInit | Readable;
+export type RouteRendererBody = BodyInit | Readable;
 
 /**
  * Represents the dependencies required for an integration plugin.

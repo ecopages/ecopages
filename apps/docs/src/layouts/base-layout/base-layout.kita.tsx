@@ -2,7 +2,7 @@ import { Header } from '@/components/header';
 import type { EcoComponent } from '@ecopages/core';
 
 export type BaseLayoutProps = {
-  children: Html.Children;
+  children: JSX.Element;
   class?: string;
 };
 

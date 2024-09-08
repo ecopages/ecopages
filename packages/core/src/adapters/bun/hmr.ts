@@ -1,3 +1,4 @@
+/** fork from https://github.com/aabccd021/bun-html-live-reload/blob/main/index.ts */
 import { watch } from 'node:fs';
 import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from 'bun';
 import { html } from 'src/utils/html.ts';

@@ -44,7 +44,7 @@ describe('component-dependencies-utils', () => {
     it('should resolve the scripts of the components dependencies', () => {
       const result = resolveComponentsScripts(componentsMock);
       expect(result).toEqual(
-        '/components/component1/script1.jsss,/components/component1/script2.js,/components/component2/script3.js',
+        '/components/component1/script1.js,/components/component1/script2.js,/components/component2/script3.js',
       );
     });
   });

@@ -5,6 +5,7 @@
 		"noEmit": true,
 		"baseUrl": ".",
 		"rootDir": ".",
+		"jsx": "react-jsx",
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,

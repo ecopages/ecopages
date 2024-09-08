@@ -29,6 +29,10 @@ describe('FileSystemServer', () => {
     server.stop(true);
   });
 
+  test('should create server', () => {
+    expect(server).toBeDefined();
+  });
+
   test('should return 404 for non-existent file', async () => {
     const req = new Request(APP_TEST_ROUTES_URLS.nonExistentFile);
     const res = await server.fetch(req);

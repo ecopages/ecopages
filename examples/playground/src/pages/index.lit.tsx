@@ -39,7 +39,7 @@ HomePage.config = {
   importMeta: import.meta,
   dependencies: {
     stylesheets: ['./index.css'],
-    components: [BaseLayout, ...removeComponentsScripts([AlpineCounter, RadiantCounter])],
+    components: [BaseLayout, ...removeComponentsScripts([AlpineCounter, RadiantCounter, LitCounter])],
   },
 };
 

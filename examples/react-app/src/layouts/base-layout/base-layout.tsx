@@ -1,7 +1,7 @@
 import type { EcoComponent } from '@ecopages/core';
 
 export type BaseLayoutProps = {
-  children: JSX.Element | JSX.Element[];
+  children: JSX.Element;
   class?: string;
   id?: string;
 };
@@ -14,7 +14,10 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
   );
 };
 
-BaseLayout.dependencies = {
-  stylesheets: ['layouts/base-layout/base-layout.css'],
-  scripts: ['layouts/base-layout/base-layout.script.js'],
+BaseLayout.config = {
+  importMeta: import.meta,
+  dependencies: {
+    stylesheets: ['layouts/base-layout/base-layout.css'],
+    scripts: ['layouts/base-layout/base-layout.script.js'],
+  },
 };

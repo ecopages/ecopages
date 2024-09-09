@@ -25,6 +25,9 @@ jobs:
 
       - name: Test
         run: bun test
+        env:
+          ECOPAGES_BASE_URL: http://localhost:3000
+          ECOPAGES_LOGGER_DEBUG: false
 
       - name: Publish package @ecopages/postcss-processor
         run: bun run --filter @ecopages/postcss-processor release:jsr

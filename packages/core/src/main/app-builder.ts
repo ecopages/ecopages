@@ -133,6 +133,8 @@ export class AppBuilder {
 
     FileUtils.gzipDirSync(distDir, ['css', 'js']);
 
+    console.log('GZIPPPPPPPPP');
+
     if (this.options.serve) {
       return await this.serve();
     }

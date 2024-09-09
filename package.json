@@ -42,6 +42,7 @@
 	"repository": "https://github.com/ecopages/ecopages.git",
 	"workspaces": [
 		"packages/*",
+		"packages/core/fixtures/app",
 		"packages/integrations/*",
 		"packages/loaders/*",
 		"packages/plugins/*",

@@ -1,7 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
-import './ghtml.d.ts';
 
 /**
  * Represents the dependencies for an EcoComponent.

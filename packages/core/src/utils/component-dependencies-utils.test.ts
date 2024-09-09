@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { FIXTURE_APP_PROJECT_DIR } from 'fixtures/constants';
-import { AppConfigurator } from 'src/main/app-configurator';
-import type { EcoComponentDependencies } from 'src/public-types';
+import { FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants';
+import { AppConfigurator } from '../main/app-configurator';
+import type { EcoComponentDependencies } from '../public-types';
 import { removeComponentsScripts, resolveComponentsScripts } from './component-dependencies-utils';
 
 await AppConfigurator.create({

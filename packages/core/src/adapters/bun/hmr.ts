@@ -1,8 +1,8 @@
 /** fork from https://github.com/aabccd021/bun-html-live-reload/blob/main/index.ts */
 import { watch } from 'node:fs';
 import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from 'bun';
-import { html } from 'src/utils/html.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import { html } from '../../utils/html.ts';
 
 let ECO_PAGES_HMR_WS: ServerWebSocket<unknown> | undefined;
 

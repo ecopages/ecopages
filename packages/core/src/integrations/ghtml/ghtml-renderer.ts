@@ -3,7 +3,8 @@
  * @module
  */
 
-import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@ecopages/core';
+import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../../public-types.ts';
+import { IntegrationRenderer } from '../../route-renderer/integration-renderer.ts';
 import { PLUGIN_NAME } from './ghtml.plugin.ts';
 
 /**

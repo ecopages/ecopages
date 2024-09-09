@@ -1,4 +1,7 @@
+import { Logger } from '@ecopages/logger';
 import rootPackage from '../package.json';
+
+const appLogger = new Logger('[JSR Sync Version]');
 
 if (!rootPackage.version) {
   throw new Error('Root package.json does not have a version');
@@ -12,6 +15,7 @@ for await (const jsrJson of glob.scan()) {
   modifiedPackageJsonConfig.version = rootPackage.version;
 
   const modifiedJsrConfig = await Bun.file(jsrJson).json();
+  const previousVersion = modifiedJsrConfig.version;
   modifiedJsrConfig.version = rootPackage.version;
 
   await Promise.all([
@@ -19,5 +23,5 @@ for await (const jsrJson of glob.scan()) {
     Bun.write(jsrJson, JSON.stringify(modifiedJsrConfig, null, 2)),
   ]);
 
-  console.log(`Updated ${modifiedJsrConfig.name} and ${jsrJson} to version ${rootPackage.version}`);
+  appLogger.info(`${modifiedJsrConfig.name}: ${previousVersion} > ${rootPackage.version}`);
 }

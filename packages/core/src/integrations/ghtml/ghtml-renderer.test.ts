@@ -1,95 +1,53 @@
 import { describe, expect, it } from 'bun:test';
-import type { EcoComponent, EcoPage, HtmlTemplateProps } from '@ecopages/core';
+import type { EcoPage } from '@ecopages/core';
+import HtmlTemplate from 'fixtures/app/src/includes/html.ghtml.ts';
+import { FIXTURE_APP_PROJECT_DIR } from 'fixtures/constants.ts';
+import { AppConfigurator } from 'src/main/app-configurator.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
 
-const mockConfig = {
-  rootDir: '.',
-  srcDir: 'src',
-  pagesDir: 'pages',
-  includesDir: 'includes',
-  componentsDir: 'components',
-  layoutsDir: 'layouts',
-  publicDir: 'public',
-  includesTemplates: {
-    head: 'head.ghtml.tsx',
-    html: 'html.ghtml.tsx',
-    seo: 'seo.ghtml.tsx',
-  },
-  error404Template: '404.ghtml.tsx',
-  robotsTxt: {
-    preferences: {
-      '*': [],
-      Googlebot: ['/public/'],
-    },
-  },
-  tailwind: {
-    input: 'styles/tailwind.css',
-  },
-  integrations: [],
-  integrationsDependencies: [],
-  distDir: '.eco',
-  scriptsExtensions: ['.script.ts', '.script.tsx'],
-  defaultMetadata: {
-    title: 'Eco Pages',
-    description: 'Eco Pages',
-  },
-  baseUrl: 'http://localhost:3000',
-  templatesExt: ['.tsx'],
-  absolutePaths: {
-    projectDir: '.',
-    srcDir: 'src',
-    distDir: '.eco',
-    componentsDir: 'src/components',
-    includesDir: 'src/includes',
-    layoutsDir: 'src/layouts',
-    pagesDir: 'src/pages',
-    publicDir: 'src/public',
-    htmlTemplatePath: 'src/includes/html.kita.tsx',
-    error404TemplatePath: 'src/pages/404.kita.tsx',
-  },
+const appConfigurator = await AppConfigurator.create({
+  projectDir: FIXTURE_APP_PROJECT_DIR,
+});
+
+const metadata = {
+  title: 'Eco Pages',
+  description: 'Eco Pages',
 };
 
-const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ headContent, children }) => {
-  return `<html><head>${headContent}</head><body>${children}</body></html>`;
-};
+const pageBody = '<body>Hello World</body>';
 
 describe('GhtmlRenderer', () => {
   it('should render the page', async () => {
-    const renderer = new GhtmlRenderer(mockConfig);
+    const renderer = new GhtmlRenderer(appConfigurator.config);
 
     renderer
       .render({
         params: {},
-        appConfig: mockConfig,
         query: {},
         props: {},
         file: 'file',
-        metadata: {
-          title: 'Hello World',
-          description: 'Hello World',
-        },
-        Page: async () => 'Hello World',
+        metadata,
+        Page: async () => pageBody,
         HtmlTemplate,
       })
       .then((body) => {
-        expect(body).toBe('<!DOCTYPE html><html><head></head><body>Hello World</body></html>');
+        expect(body).toInclude('<!DOCTYPE html>');
+        expect(body).toInclude('<body>Hello World</body>');
+        expect(body).toInclude('<title>Eco Pages</title>');
+        expect(body).toInclude('<meta name="description" content="Eco Pages" />');
       });
   });
 
   it('should throw an error if the page fails to render', async () => {
-    const renderer = new GhtmlRenderer(mockConfig);
+    const renderer = new GhtmlRenderer(appConfigurator.config);
 
     renderer
       .render({
         params: {},
-        appConfig: mockConfig,
         query: {},
         props: {},
         file: 'file',
-        metadata: {
-          title: 'Hello World',
-          description: 'Hello World',
-        },
+        metadata,
         Page: async () => {
           throw new Error('Page failed to render');
         },
@@ -101,21 +59,17 @@ describe('GhtmlRenderer', () => {
   });
 
   it('should include page dependencies in head content', async () => {
-    const renderer = new GhtmlRenderer(mockConfig);
+    const renderer = new GhtmlRenderer(appConfigurator.config);
 
-    const Page: EcoPage = async () => 'Hello World';
+    const Page: EcoPage = async () => pageBody;
 
     renderer
       .render({
         params: {},
-        appConfig: mockConfig,
         query: {},
         props: {},
         file: 'file',
-        metadata: {
-          title: 'Hello World',
-          description: 'Hello World',
-        },
+        metadata,
         dependencies: {
           scripts: ['my-script.js'],
           stylesheets: ['my-dependency.css'],
@@ -124,35 +78,8 @@ describe('GhtmlRenderer', () => {
         HtmlTemplate,
       })
       .then((body) => {
-        expect(body).toBe(
-          '<!DOCTYPE html><html><head><link rel="stylesheet" href="my-dependency.css" /><script defer type="module" src="my-script.js"></script></head><body>Hello World</body></html>',
-        );
-      });
-  });
-
-  it('should include page metadata in head content', async () => {
-    const renderer = new GhtmlRenderer(mockConfig);
-
-    const Page: EcoPage = async () => 'Hello World';
-
-    renderer
-      .render({
-        params: {},
-        appConfig: mockConfig,
-        query: {},
-        props: {},
-        file: 'file',
-        metadata: {
-          title: 'Hello World',
-          description: 'Hello World',
-        },
-        Page,
-        HtmlTemplate,
-      })
-      .then((body) => {
-        expect(body).toBe(
-          '<!DOCTYPE html><html><head><title>Hello World</title><meta name="description" content="Hello World" /></head><body>Hello World</body></html>',
-        );
+        expect(body).toInclude('<link rel="stylesheet" href="my-dependency.css" />');
+        expect(body).toInclude('<script defer type="module" src="my-script.js"></script>');
       });
   });
 });

@@ -283,7 +283,6 @@ export type IntegrationRendererRenderOptions = RouteRendererOptions & {
   HtmlTemplate: EcoComponent<HtmlTemplateProps>;
   Page: EcoPage<PageProps>;
   dependencies?: EcoComponentDependencies;
-  appConfig: EcoPagesAppConfig;
 };
 
 /**

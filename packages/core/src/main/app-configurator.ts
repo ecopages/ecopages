@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { ghtmlPlugin } from 'src/integrations/ghtml/ghtml.plugin.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { EcoPagesConfig } from '../public-types.ts';
@@ -18,11 +19,11 @@ export class AppConfigurator {
     layoutsDir: 'layouts',
     publicDir: 'public',
     includesTemplates: {
-      head: 'head.kita.tsx',
-      html: 'html.kita.tsx',
-      seo: 'seo.kita.tsx',
+      head: 'head.ghtml.ts',
+      html: 'html.ghtml.ts',
+      seo: 'seo.ghtml.ts',
     },
-    error404Template: '404.kita.tsx',
+    error404Template: '404.ghtml.ts',
     robotsTxt: {
       preferences: {
         '*': [],
@@ -42,18 +43,6 @@ export class AppConfigurator {
     },
   };
 
-  getIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
-    const integrationName = integrations.map((integration) => integration.name);
-    const uniqueName = new Set(integrationName);
-    invariant(integrationName.length === uniqueName.size, 'Integrations names must be unique');
-
-    const integrationsExtensions = integrations.flatMap((integration) => integration.extensions);
-    const uniqueExtensions = new Set(integrationsExtensions);
-    invariant(integrationsExtensions.length === uniqueExtensions.size, 'Integrations extensions must be unique');
-
-    return integrationsExtensions;
-  }
-
   constructor({
     projectDir,
     customConfig,
@@ -66,6 +55,10 @@ export class AppConfigurator {
 
     const baseConfig = deepMerge(AppConfigurator.defaultConfig, customConfig);
 
+    if (!baseConfig.integrations.some((integration) => integration.name === 'ghtml')) {
+      baseConfig.integrations.push(ghtmlPlugin());
+    }
+
     this.config = {
       ...baseConfig,
       templatesExt: this.getIntegrationTemplatesExt(baseConfig.integrations),
@@ -75,6 +68,18 @@ export class AppConfigurator {
     globalThis.ecoConfig = this.config;
 
     appLogger.debug('Config', this.config);
+  }
+
+  getIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
+    const integrationName = integrations.map((integration) => integration.name);
+    const uniqueName = new Set(integrationName);
+    invariant(integrationName.length === uniqueName.size, 'Integrations names must be unique');
+
+    const integrationsExtensions = integrations.flatMap((integration) => integration.extensions);
+    const uniqueExtensions = new Set(integrationsExtensions);
+    invariant(integrationsExtensions.length === uniqueExtensions.size, 'Integrations extensions must be unique');
+
+    return integrationsExtensions;
   }
 
   private getAbsolutePaths(

@@ -27,34 +27,29 @@ describe('FSRouterScanner', () => {
 
     expect(routes).toEqual({
       'http://localhost:3000/': {
-        filePath: `${pagesDir}/index.lit.tsx`,
+        filePath: `${pagesDir}/index.ghtml.ts`,
         kind: 'exact',
         pathname: '/',
       },
       'http://localhost:3000/404': {
-        filePath: `${pagesDir}/404.kita.tsx`,
+        filePath: `${pagesDir}/404.ghtml.ts`,
         kind: 'exact',
         pathname: '/404',
       },
       'http://localhost:3000/catch-all/[...path]': {
-        filePath: `${pagesDir}/catch-all/[...path].kita.tsx`,
+        filePath: `${pagesDir}/catch-all/[...path].ghtml.ts`,
         kind: 'catch-all',
         pathname: '/catch-all/[...path]',
       },
       'http://localhost:3000/dynamic/another-blog-post': {
-        filePath: `${import.meta.env.HOME}/ecopages/packages/core/fixtures/app/src/pages/dynamic/[slug].kita.tsx`,
+        filePath: `${import.meta.env.HOME}/ecopages/packages/core/fixtures/app/src/pages/dynamic/[slug].ghtml.ts`,
         kind: 'dynamic',
         pathname: '/dynamic/[slug]',
       },
       'http://localhost:3000/dynamic/blog-post': {
-        filePath: `${pagesDir}/dynamic/[slug].kita.tsx`,
+        filePath: `${pagesDir}/dynamic/[slug].ghtml.ts`,
         kind: 'dynamic',
         pathname: '/dynamic/[slug]',
-      },
-      'http://localhost:3000/mdx-test': {
-        filePath: `${import.meta.env.HOME}/ecopages/packages/core/fixtures/app/src/pages/mdx-test.mdx`,
-        kind: 'exact',
-        pathname: '/mdx-test',
       },
     });
   });

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.1.10",
+	"version": "0.1.11",
 	"description": "Core package for Ecopages",
 	"keywords": ["ecopages", "core", "ssg"],
 	"license": "MIT",
@@ -16,17 +16,58 @@
 		"directory": "packages/core"
 	},
 	"scripts": {
-		"pretest": "bun run ./fixtures/setup-environment.ts",
-		"test:suite": "bun test --coverage",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
 		"@ecopages/bun-inline-css-plugin": "workspace:*",
 		"@ecopages/logger": "^0.1.2",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@parcel/watcher": "^2.4.0"
+		"@parcel/watcher": "^2.4.0",
+		"ghtml": "^2.1.2"
 	},
 	"devDependencies": {
 		"bun-types": "latest"
+	},
+	"exports": {
+		".": {
+			"import": "./src/index.ts",
+			"require": "./src/index.ts"
+		},
+		"./bin": {
+			"types": "./src/bin/ecopages.ts",
+			"default": "./src/bin/ecopages.ts"
+		},
+		"./build-app": {
+			"types": "./src/main/build-app.ts",
+			"default": "./src/main/build-app.ts"
+		},
+		"./route-renderer/integration-renderer": {
+			"types": "./src/route-renderer/integration-renderer.ts",
+			"default": "./src/route-renderer/integration-renderer.ts"
+		},
+		"./utils/add-base-url-to-pathname": {
+			"types": "./src/utils/add-base-url-to-pathname.ts",
+			"default": "./src/utils/add-base-url-to-pathname.ts"
+		},
+		"./utils/deep-merge": {
+			"types": "./src/utils/deep-merge.ts",
+			"default": "./src/utils/deep-merge.ts"
+		},
+		"./utils/invariant": {
+			"types": "./src/utils/invariant.ts",
+			"default": "./src/utils/invariant.ts"
+		},
+		"./utils/component-dependencies-utils": {
+			"types": "./src/utils/component-dependencies-utils.ts",
+			"default": "./src/utils/component-dependencies-utils.ts"
+		},
+		"./html": {
+			"import": "./src/utils/html.ts",
+			"require": "./src/utils/html.ts"
+		},
+		"./css": {
+			"import": "./src/utils/css.ts",
+			"require": "./src/utils/css.ts"
+		}
 	}
 }

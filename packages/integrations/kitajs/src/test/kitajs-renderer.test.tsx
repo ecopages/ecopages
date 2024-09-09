@@ -60,7 +60,6 @@ describe('KitaRenderer', () => {
     renderer
       .render({
         params: {},
-        appConfig: mockConfig,
         query: {},
         props: {},
         file: 'file',
@@ -82,7 +81,6 @@ describe('KitaRenderer', () => {
     renderer
       .render({
         params: {},
-        appConfig: mockConfig,
         query: {},
         props: {},
         file: 'file',
@@ -108,7 +106,6 @@ describe('KitaRenderer', () => {
     renderer
       .render({
         params: {},
-        appConfig: mockConfig,
         query: {},
         props: {},
         file: 'file',

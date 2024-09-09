@@ -1,5 +1,7 @@
+/** fork from https://github.com/aabccd021/bun-html-live-reload/blob/main/index.ts */
 import { watch } from 'node:fs';
 import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from 'bun';
+import { html } from 'src/utils/html.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 
 let ECO_PAGES_HMR_WS: ServerWebSocket<unknown> | undefined;
@@ -8,7 +10,7 @@ export const reloadCommand = 'reload';
 
 if (ECO_PAGES_HMR_WS) ECO_PAGES_HMR_WS.send(reloadCommand);
 
-const makeLiveReloadScript = (wsUrl: string) => `
+const makeLiveReloadScript = (wsUrl: string) => html`
 <!-- [ecopages] live reload start script -->
 <script type="text/javascript">
   (function() {
@@ -72,7 +74,7 @@ export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketSer
         return response;
       }
 
-      const closingTags = '</body></html>';
+      const closingTags = '</html>';
       const originalHtml = await response.text();
       const liveReloadScript = makeLiveReloadScript(wsUrl);
       const htmlWithLiveReload = originalHtml.replace(closingTags, '') + liveReloadScript + closingTags;

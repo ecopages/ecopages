@@ -2,7 +2,7 @@ import path from 'node:path';
 
 export const FIXTURE_APP_PROJECT_DIR = path.resolve(import.meta.dir, 'app');
 
-export const INDEX_TEMPLATE_FILE = path.resolve(import.meta.dir, 'app/src/pages/index.lit.tsx');
+export const INDEX_TEMPLATE_FILE = path.resolve(import.meta.dir, 'app/src/pages/index.ghtml.ts');
 
 export const FIXTURE_APP_CSS_FILE = path.resolve(import.meta.dir, 'css/test.css');
 

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/postcss-processor",
-	"version": "0.1.10",
+	"version": "0.1.11",
 	"description": "Postcss processor, transform string or postcss file to css",
 	"keywords": ["postcss", "processor", "css"],
 	"license": "MIT",
@@ -13,7 +13,6 @@
 		"directory": "packages/processors/postcss-processor"
 	},
 	"scripts": {
-		"test:suite": "bun test --coverage",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

@@ -1,6 +1,7 @@
 import type { Readable } from 'node:stream';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
+import './ghtml.d.ts';
 
 /**
  * Represents the dependencies for an EcoComponent.
@@ -10,6 +11,8 @@ export type EcoComponentDependencies = {
   scripts?: string[];
   components?: (EcoComponent | EcoWebComponent)[];
 };
+
+export type EcoPagesElement = string | Promise<string> | React.ReactElement;
 
 /**
  * Represents the input configuration for EcoPages.
@@ -38,9 +41,9 @@ export type EcoComponent<T = any> = {
    * Renders the component with the given props.
    *
    * @param props - The props object.
-   * @returns The rendered JSX element.
+   * @returns The rendered element.
    */
-  (props: T): JSX.Element;
+  (props: T): EcoPagesElement;
 
   /**
    * The configuration options for the EcoComponent.
@@ -70,7 +73,7 @@ export interface EcoPage<T = any> {
    * @param props - The props to be passed to the component.
    * @returns The rendered JSX element.
    */
-  (props: T): JSX.Element;
+  (props: T): EcoPagesElement;
 
   /**
    * The configuration options for the EcoPage component.
@@ -100,16 +103,16 @@ export interface PageMetadataProps {
 export interface PageHeadProps {
   metadata: PageMetadataProps;
   dependencies?: EcoComponentDependencies;
-  children?: JSX.Element;
+  children?: EcoPagesElement;
 }
 
 /**
  * Represents the props for the HTML template of a page.
  */
 export interface HtmlTemplateProps extends PageHeadProps {
-  children: JSX.Element;
+  children: EcoPagesElement;
   language?: string;
-  headContent?: JSX.Element;
+  headContent?: EcoPagesElement;
 }
 
 /**
@@ -211,7 +214,7 @@ export type RouteRendererOptions = {
 /**
  * The body of the route renderer.
  */
-export type RouteRendererBody = ReadableStream | XMLHttpRequestBodyInit | Readable;
+export type RouteRendererBody = BodyInit | Readable;
 
 /**
  * Represents the dependencies required for an integration plugin.
@@ -280,7 +283,6 @@ export type IntegrationRendererRenderOptions = RouteRendererOptions & {
   HtmlTemplate: EcoComponent<HtmlTemplateProps>;
   Page: EcoPage<PageProps>;
   dependencies?: EcoComponentDependencies;
-  appConfig: EcoPagesAppConfig;
 };
 
 /**

@@ -68,8 +68,8 @@ describe('deepMerge', () => {
 
   it('should merge dependencies', () => {
     const depsA = {
-      stylesheets: ['/components/lite-counter/lite-counter.css'],
-      scripts: ['/components/lite-counter/lite-counter.script.ts'],
+      stylesheets: ['/components/radiant-counter/radiant-counter.css'],
+      scripts: ['/components/radiant-counter/radiant-counter.script.ts'],
     };
 
     const depsB = {
@@ -86,7 +86,7 @@ describe('deepMerge', () => {
 
     const expected = {
       stylesheets: [
-        '/components/lite-counter/lite-counter.css',
+        '/components/radiant-counter/radiant-counter.css',
         '/layouts/docs-layout/docs-layout.css',
         '/layouts/base-layout/base-layout.css',
         '/components/header/header.css',
@@ -94,7 +94,7 @@ describe('deepMerge', () => {
         '/components/logo/logo.css',
         '/components/code-block/code-block.css',
       ],
-      scripts: ['/components/lite-counter/lite-counter.script.ts', '/layouts/base-layout/base-layout.script.ts'],
+      scripts: ['/components/radiant-counter/radiant-counter.script.ts', '/layouts/base-layout/base-layout.script.ts'],
     };
 
     const result = deepMerge(depsA, depsB);

@@ -16,13 +16,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install Dependencies
         run: bun install
 
       - name: Test
-        run: bun run test:suite
+        run: bun test
 
       - name: Publish package @ecopages/postcss-processor
         run: bun run --filter @ecopages/postcss-processor release:jsr

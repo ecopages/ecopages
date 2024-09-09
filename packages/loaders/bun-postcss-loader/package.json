@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/bun-postcss-loader",
-	"version": "0.1.10",
+	"version": "0.1.11",
 	"description": "Bun loader to load postcss file",
 	"keywords": ["bun", "loader", "postcss"],
 	"license": "MIT",
@@ -13,7 +13,6 @@
 		"directory": "packages/loaders/bun-postcss-loader"
 	},
 	"scripts": {
-		"test:suite": "bun test --coverage",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

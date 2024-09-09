@@ -24,4 +24,7 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
   );
 };
 
-Navigation.config = { importMeta: import.meta, dependencies: { stylesheets: ['./navigation.css'] } };
+Navigation.config = {
+  importMeta: import.meta,
+  dependencies: { stylesheets: ['./navigation.css'] },
+};

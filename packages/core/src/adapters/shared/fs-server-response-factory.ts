@@ -42,7 +42,7 @@ export class FileSystemServerResponseFactory {
       },
     },
   ) {
-    return new Response(body, init);
+    return new Response(body as BodyInit, init);
   }
 
   async createDefaultNotFoundResponse() {

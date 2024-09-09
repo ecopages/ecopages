@@ -1,0 +1,17 @@
+{
+	"name": "@ecopages/starter-ghtml",
+	"description": "Starter template for Ecopages projects, minimal setup",
+	"private": true,
+	"scripts": {
+		"watch:dev": "NODE_ENV=development bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"start": "ecopages start",
+		"preview": "ecopages preview"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/radiant": "latest",
+		"@ecopages/bun-postcss-loader": "workspace:*"
+	}
+}

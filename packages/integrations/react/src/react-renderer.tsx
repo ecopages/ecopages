@@ -50,7 +50,7 @@ export class ReactRenderer extends IntegrationRenderer {
 
       return body;
     } catch (error) {
-      throw new Error(`[ecopages] Error rendering page: ${error}`);
+      throw new Error(`[ecopages] Error rendering pages: ${error}`);
     }
   }
 }

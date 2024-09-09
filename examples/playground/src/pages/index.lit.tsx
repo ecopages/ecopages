@@ -1,9 +1,7 @@
-import { Counter } from '@/components/counter';
+import { AlpineCounter } from '@/components/alpine-counter';
 import Introduction from '@/components/introduction.mdx';
 import { LitCounter } from '@/components/lit-counter';
-import { LiteCounter } from '@/components/lite-counter';
-import { LiteRenderer } from '@/components/lite-renderer';
-import { Message } from '@/components/lite-renderer/lite-renderer.templates.kita';
+import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, type GetMetadata, removeComponentsScripts, resolveComponentsScripts } from '@ecopages/core';
 
@@ -20,22 +18,17 @@ const HomePage: EcoComponent = () => {
       <>
         <h1 class="main-title">Home</h1>
         <Introduction />
-        <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([Counter])}>
-          <Counter />
+        <h4 class="font-bold text-xl">Alpine Counter</h4>
+        <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([AlpineCounter])}>
+          <AlpineCounter />
         </scripts-injector>
-        <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([LiteCounter])}>
-          <LiteCounter count={5} />
+        <h4 class="font-bold text-xl">Radiant Counter</h4>
+        <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([RadiantCounter])}>
+          <RadiantCounter count={5} />
         </scripts-injector>
+        <h4 class="font-bold text-xl">Lit Counter</h4>
         <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([LitCounter])}>
           <lit-counter class="lit-counter" count={8}></lit-counter>
-        </scripts-injector>
-        <scripts-injector
-          on:interaction="mouseenter,focusin"
-          scripts={resolveComponentsScripts([LiteRenderer, Message])}
-        >
-          <LiteRenderer>
-            <Message text="Hello from the server" />
-          </LiteRenderer>
         </scripts-injector>
       </>
     </BaseLayout>
@@ -46,7 +39,7 @@ HomePage.config = {
   importMeta: import.meta,
   dependencies: {
     stylesheets: ['./index.css'],
-    components: [BaseLayout, ...removeComponentsScripts([Counter, LiteRenderer, LiteCounter, Message])],
+    components: [BaseLayout, ...removeComponentsScripts([AlpineCounter, RadiantCounter, LitCounter])],
   },
 };
 

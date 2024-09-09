@@ -1,0 +1,30 @@
+import { BaseLayout } from '@/layouts/base-layout';
+import { Card } from '@/components/card';
+
+export const layout = BaseLayout;
+
+export const config = {
+  importMeta: import.meta,
+  dependencies: {
+    components: [BaseLayout, Card]
+  }
+}
+
+export const getMetadata = () => ({
+  title: 'Docs | Context Consumer',
+  description: 'The place to learn about @ecopages/radiant',
+})
+
+<div class="prose">
+
+# About Page
+
+## This is the about page
+
+You can edit this page by opening `src/pages/about.mdx`
+
+Due to the way MDX is rendering the content, at the moment is not possible to SSR lit elements in the MDX content. You can still use them but they will be rendered client side.
+
+<Card title="Card title" copy="<a href='/'>Go to homepage</a>" />
+
+</div>

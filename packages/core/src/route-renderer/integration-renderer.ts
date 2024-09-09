@@ -202,7 +202,6 @@ export abstract class IntegrationRenderer {
     return {
       ...options,
       ...integrationSpecificProps,
-      appConfig: this.appConfig,
       HtmlTemplate,
       props,
       Page,

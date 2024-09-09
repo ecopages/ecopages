@@ -22,7 +22,10 @@ export class ScriptsBuilder {
 
     const scripts = await FileUtils.glob(scriptsExtensions.map((ext) => `${srcDir}/**/*${ext}`));
 
-    appLogger.debug('Building scripts:', scripts);
+    if (!scripts.length) {
+      appLogger.debug('No scripts to build.', { scripts, scriptsExtensions });
+      return;
+    }
 
     const build = await Bun.build({
       entrypoints: scripts,

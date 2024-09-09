@@ -42,7 +42,7 @@ describe('FSRouterScanner', () => {
         pathname: '/catch-all/[...path]',
       },
       'http://localhost:3000/dynamic/another-blog-post': {
-        filePath: `${import.meta.env.HOME}/ecopages/packages/core/fixtures/app/src/pages/dynamic/[slug].ghtml.ts`,
+        filePath: `${pagesDir}/dynamic/[slug].ghtml.ts`,
         kind: 'dynamic',
         pathname: '/dynamic/[slug]',
       },

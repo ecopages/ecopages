@@ -1,4 +1,4 @@
-import type { IntegrationPlugin } from '@ecopages/core';
+import type { IntegrationPlugin } from '../../public-types';
 import { GhtmlRenderer } from './ghtml-renderer';
 
 /**

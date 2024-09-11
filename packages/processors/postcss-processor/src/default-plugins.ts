@@ -10,14 +10,12 @@ import postCssImport from 'postcss-import';
 import tailwindcss from 'tailwindcss';
 import tailwindcssNesting from 'tailwindcss/nesting/index.js';
 
-/**
- * Default PostCSS plugins
- * @type {postcss.AcceptedPlugin[]}
- **/
-export const defaultPlugins: postcss.AcceptedPlugin[] = [
-  postCssImport(),
-  tailwindcssNesting,
-  tailwindcss,
-  autoprefixer,
-  cssnano,
-];
+export type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
+
+export const defaultPlugins: PluginsRecord = {
+  'postcss-import': postCssImport(),
+  'tailwindcss-nesting': tailwindcssNesting,
+  tailwindcss: tailwindcss,
+  autoprefixer: autoprefixer,
+  cssnano: cssnano,
+};

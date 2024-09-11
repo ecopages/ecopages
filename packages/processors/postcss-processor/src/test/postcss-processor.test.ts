@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
+import postCssSimpleVars from 'postcss-simple-vars';
 import { PostCssProcessor } from '../postcss-processor';
 
 describe('PostCssProcessor', () => {
@@ -22,6 +23,22 @@ describe('PostCssProcessor', () => {
     expect(PostCssProcessor.processPath(filePath)).rejects.toThrow();
   });
 
+  test('processPath should use the custom plugins', async () => {
+    const filePath = path.resolve(__dirname, './css/external-plugins.css');
+    const expected = '.menu_link{background:#056ef0;width:200px}.menu{margin-top:10px;width:800px}';
+    const result = await PostCssProcessor.processPath(filePath, {
+      plugins: [
+        PostCssProcessor.defaultPlugins['postcss-import'],
+        PostCssProcessor.defaultPlugins.tailwindcss,
+        PostCssProcessor.defaultPlugins['tailwindcss-nesting'],
+        PostCssProcessor.defaultPlugins.autoprefixer,
+        postCssSimpleVars(),
+        PostCssProcessor.defaultPlugins.cssnano,
+      ],
+    });
+    expect(result).toEqual(expected);
+  });
+
   test('processStringOrBuffer should return the processed CSS', async () => {
     const string = 'body { @apply bg-white; }';
     const expected = 'body{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity))}';
@@ -33,6 +50,29 @@ describe('PostCssProcessor', () => {
     const string = 'body { @apply bg-whites; }';
     const expected = '';
     const result = await PostCssProcessor.processStringOrBuffer(string);
+    expect(result).toEqual(expected);
+  });
+
+  test('processStringOrBuffer should return an empty string when the input is empty', async () => {
+    const string = '';
+    const expected = '';
+    const result = await PostCssProcessor.processStringOrBuffer(string);
+    expect(result).toEqual(expected);
+  });
+
+  test('processStringOrBuffer should use the custom plugins', async () => {
+    const string = '$blue: #056ef0; body { background: $blue; }';
+    const expected = 'body{background:#056ef0}';
+    const result = await PostCssProcessor.processStringOrBuffer(string, {
+      plugins: [
+        PostCssProcessor.defaultPlugins['postcss-import'],
+        PostCssProcessor.defaultPlugins.tailwindcss,
+        PostCssProcessor.defaultPlugins['tailwindcss-nesting'],
+        PostCssProcessor.defaultPlugins.autoprefixer,
+        postCssSimpleVars(),
+        PostCssProcessor.defaultPlugins.cssnano,
+      ],
+    });
     expect(result).toEqual(expected);
   });
 });

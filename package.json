@@ -1,7 +1,7 @@
 {
 	"name": "@ecopages/ecopages",
 	"private": true,
-	"version": "0.1.11",
+	"version": "0.1.12",
 	"scripts": {
 		"watch:dev:playground": "bun run --filter @ecopages/playground watch:dev | tee /dev/null",
 		"dev:playground": "bun run --filter @ecopages/playground dev | tee /dev/null",
@@ -32,7 +32,10 @@
 		"lint-staged": "lint-staged",
 		"jsr:sync-version": "bun scripts/jsr-sync-version.ts",
 		"prerelease": "bun test --coverage && bun run jsr:sync-version",
-		"release": "bun run --filter '*' release:jsr | tee /dev/null"
+		"release": "bun run --filter '*' release:jsr | tee /dev/null",
+		"bump-patch": "bun run scripts/bump-version.ts patch && bun run jsr:sync-version",
+		"bump-minor": "bun run scripts/bump-version.ts minor && bun run jsr:sync-version",
+		"bump-major": "bun run scripts/bump-version.ts major && bun run jsr:sync-version"
 	},
 	"devDependencies": {
 		"husky": "^9.0.10",

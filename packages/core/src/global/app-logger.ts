@@ -1,3 +1,3 @@
 import { Logger } from '@ecopages/logger';
 
-export const appLogger = new Logger('[ecopages]');
+export const appLogger = new Logger('[@ecopages/core]');

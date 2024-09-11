@@ -1,7 +1,17 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
-import { defaultPlugins } from './default-plugins.ts';
+import { type PluginsRecord, defaultPlugins } from './default-plugins.ts';
+
+type PostCssProcessorOptions = {
+  plugins: postcss.AcceptedPlugin[];
+};
+
+type ProcessPath = (path: string, options?: PostCssProcessorOptions) => Promise<string>;
+
+type ProcessStringOrBuffer = (contents: string | Buffer, options?: PostCssProcessorOptions) => Promise<string>;
+
+const appLogger = new Logger('[@ecopages/postcss-processor]');
 
 function getFileAsBuffer(path: string): Buffer {
   try {
@@ -15,11 +25,14 @@ function getFileAsBuffer(path: string): Buffer {
   }
 }
 
-const appLogger = new Logger('[@ecopages/postcss-processor]');
+export const getPlugins = (options?: PostCssProcessorOptions) => {
+  return options ? Object.values(options.plugins) : Object.values(defaultPlugins);
+};
 
 /**
  * It processes the given path using PostCSS
  * @param path string
+ * @param options {@link PostCssProcessorOptions}
  * @returns string
  *
  * @example
@@ -28,22 +41,22 @@ const appLogger = new Logger('[@ecopages/postcss-processor]');
  * console.log(processedCss);
  * });
  */
-async function processPath(path: string) {
+const processPath: ProcessPath = async (path, options) => {
   const contents = getFileAsBuffer(path);
 
-  const processor = postcss(defaultPlugins);
-
-  try {
-    return await processor.process(contents, { from: path }).then((result) => result.css);
-  } catch (error) {
-    appLogger.error('Error processing PostCSS file path', error);
-    return '';
-  }
-}
+  return postcss(getPlugins(options))
+    .process(contents, { from: path })
+    .then((result) => result.css)
+    .catch((error) => {
+      appLogger.error('Error processing file with PostCssProcessor', error.message);
+      return '';
+    });
+};
 
 /**
  * It processes the given string or buffer using PostCSS
  * @param contents string | Buffer
+ * @param options {@link PostCssProcessorOptions}
  * @returns string
  *
  * @example
@@ -55,15 +68,17 @@ async function processPath(path: string) {
  * });
  * ```
  */
-async function processStringOrBuffer(contents: string | Buffer) {
-  const processor = postcss(defaultPlugins);
-  try {
-    return await processor.process(contents, { from: undefined }).then((result) => result.css);
-  } catch (error) {
-    appLogger.error('Error processing string or bugger with PostCSS', error);
-    return '';
-  }
-}
+const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) => {
+  if (!contents) return '';
+
+  return postcss(getPlugins(options))
+    .process(contents, { from: undefined })
+    .then((result) => result.css)
+    .catch((error) => {
+      appLogger.error('Error processing string or buffer with PostCssProcessor', error.message);
+      return '';
+    });
+};
 
 /**
  * PostCSS Processor
@@ -71,9 +86,11 @@ async function processStringOrBuffer(contents: string | Buffer) {
  * - {@link processStringOrBuffer}: It processes the given string or buffer using PostCSS
  */
 export const PostCssProcessor: {
-  processPath: (path: string) => Promise<string>;
-  processStringOrBuffer: (contents: string | Buffer) => Promise<string>;
+  processPath: ProcessPath;
+  processStringOrBuffer: ProcessStringOrBuffer;
+  defaultPlugins: PluginsRecord;
 } = {
   processPath,
   processStringOrBuffer,
+  defaultPlugins,
 };

@@ -1,40 +1,46 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../fixtures/constants.ts';
+import {
+  APP_TEST_ROUTES,
+  FIXTURE_APP_BASE_URL,
+  FIXTURE_APP_PROJECT_DIR,
+  INDEX_TEMPLATE_FILE,
+} from '../../../fixtures/constants.ts';
 import { STATUS_MESSAGE } from '../../constants.ts';
 import type { MatchResult } from '../../internal-types.ts';
-import { AppConfigurator } from '../../main/app-configurator.ts';
+import { ConfigBuilder } from '../../main/config-builder.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 
-const appConfigurator = await AppConfigurator.create({
-  projectDir: FIXTURE_APP_PROJECT_DIR,
-});
+const appConfig = await new ConfigBuilder()
+  .setRootDir(FIXTURE_APP_PROJECT_DIR)
+  .setBaseUrl(FIXTURE_APP_BASE_URL)
+  .build();
 
 const scanner = new FSRouterScanner({
-  dir: path.join(appConfigurator.config.rootDir, appConfigurator.config.srcDir, appConfigurator.config.pagesDir),
-  origin: appConfigurator.config.baseUrl,
-  templatesExt: appConfigurator.config.templatesExt,
+  dir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
+  origin: appConfig.baseUrl,
+  templatesExt: appConfig.templatesExt,
   options: {
     buildMode: false,
   },
 });
 
 const router = new FSRouter({
-  origin: appConfigurator.config.baseUrl,
-  assetPrefix: path.join(appConfigurator.config.rootDir, appConfigurator.config.distDir),
+  origin: appConfig.baseUrl,
+  assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
   scanner,
 });
 
 const routeRendererFactory = new RouteRendererFactory({
-  appConfig: appConfigurator.config,
+  appConfig,
 });
 
 const fileSystemResponseFactory = new FileSystemServerResponseFactory({
-  appConfig: appConfigurator.config,
+  appConfig,
   routeRendererFactory,
   options: {
     watchMode: false,

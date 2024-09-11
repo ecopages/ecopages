@@ -13,13 +13,13 @@ bunx jsr add @ecopages/kitajs
 Incorporating this integration into your project is straightforward. Simply import and include the `kitajsPlugin` in your Ecopages configuration as shown below:
 
 ```ts
+import { ConfigBuilder } from "@ecopages/core";
 import { kitajsPlugin } from "@ecopages/kitajs";
 
-const config: EcoPagesConfig = {
-  rootDir: import.meta.dir,
-  baseUrl: import.meta.env.ECOPAGES_BASE_URL,
-  integrations: [kitajsPlugin()],
-};
+const config = await new ConfigBuilder()
+  .setBaseUrl(process.env.ECOPAGES_BASE_URL)
+  .setIntegrations([kitajsPlugin()])
+  .build();
 
 export default config;
 ```

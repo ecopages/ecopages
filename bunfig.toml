@@ -2,7 +2,7 @@ preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-kitajs-loader"]
 
 [test]
 preload = [
-  "./setup-test.ts",
+  "./scripts/setup-test.ts",
   "@ecopages/bun-postcss-loader",
   "@ecopages/bun-mdx-kitajs-loader",
 ]

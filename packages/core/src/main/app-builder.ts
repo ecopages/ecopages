@@ -12,9 +12,8 @@ import { ProjectWatcher } from '../main/watcher.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
 
 import type { Server } from 'bun';
-import type { IntegrationManager } from '../main/integration-manager.ts';
+import type { EcoPagesAppConfig } from 'src/internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
-import type { AppConfigurator } from './app-configurator.ts';
 import type { StaticPageGenerator } from './static-page-generator.ts';
 
 type AppBuilderOptions = {
@@ -24,30 +23,26 @@ type AppBuilderOptions = {
 };
 
 export class AppBuilder {
-  appConfigurator: AppConfigurator;
-  integrationManger: IntegrationManager;
+  appConfig: EcoPagesAppConfig;
   staticPageGenerator: StaticPageGenerator;
   cssBuilder: CssBuilder;
   scriptsBuilder: ScriptsBuilder;
   options: AppBuilderOptions;
 
   constructor({
-    appConfigurator,
-    integrationManger,
+    appConfig,
     staticPageGenerator,
     cssBuilder,
     scriptsBuilder,
     options,
   }: {
-    appConfigurator: AppConfigurator;
-    integrationManger: IntegrationManager;
+    appConfig: EcoPagesAppConfig;
     staticPageGenerator: StaticPageGenerator;
     cssBuilder: CssBuilder;
     scriptsBuilder: ScriptsBuilder;
     options: AppBuilderOptions;
   }) {
-    this.appConfigurator = appConfigurator;
-    this.integrationManger = integrationManger;
+    this.appConfig = appConfig;
     this.staticPageGenerator = staticPageGenerator;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
@@ -55,16 +50,16 @@ export class AppBuilder {
   }
 
   prepareDistDir() {
-    FileUtils.ensureDirectoryExists(this.appConfigurator.config.distDir, true);
+    FileUtils.ensureDirectoryExists(this.appConfig.distDir, true);
   }
 
   copyPublicDir() {
-    const { srcDir, publicDir, distDir } = this.appConfigurator.config;
+    const { srcDir, publicDir, distDir } = this.appConfig;
     FileUtils.copyDirSync(path.join(srcDir, publicDir), path.join(distDir, publicDir));
   }
 
   execTailwind() {
-    const { srcDir, distDir, tailwind } = this.appConfigurator.config;
+    const { srcDir, distDir, tailwind } = this.appConfig;
     const input = `${srcDir}/${tailwind.input}`;
     const output = `${distDir}/${tailwind.input}`;
     const watch = this.options.watch;
@@ -73,7 +68,7 @@ export class AppBuilder {
   }
   private async runDevServer() {
     const options = {
-      appConfig: this.appConfigurator.config,
+      appConfig: this.appConfig,
       options: { watchMode: this.options.watch },
     };
     await BunFileSystemServerAdapter.createServer(options);
@@ -88,16 +83,16 @@ export class AppBuilder {
 
     const cssBuilder = new CssBuilder({
       processor: PostCssProcessor,
-      appConfig: this.appConfigurator.config,
+      appConfig: this.appConfig,
     });
 
-    const watcherInstance = new ProjectWatcher(this.appConfigurator.config, cssBuilder, this.scriptsBuilder);
+    const watcherInstance = new ProjectWatcher(this.appConfig, cssBuilder, this.scriptsBuilder);
     await watcherInstance.createWatcherSubscription();
   }
 
   serveStatic() {
     const { server } = StaticContentServer.createServer({
-      appConfig: this.appConfigurator.config,
+      appConfig: this.appConfig,
     });
 
     appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
@@ -114,7 +109,7 @@ export class AppBuilder {
   }
 
   async run() {
-    const { distDir } = this.appConfigurator.config;
+    const { distDir } = this.appConfig;
 
     this.prepareDistDir();
     this.copyPublicDir();
@@ -123,9 +118,6 @@ export class AppBuilder {
 
     await this.cssBuilder.build();
     await this.scriptsBuilder.build();
-    await this.integrationManger.prepareDependencies();
-
-    this.appConfigurator.registerIntegrationsDependencies(this.integrationManger.dependencies);
 
     if (this.options.watch) {
       return await this.watch();

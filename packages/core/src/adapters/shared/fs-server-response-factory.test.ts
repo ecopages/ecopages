@@ -1,23 +1,27 @@
-import { beforeAll, beforeEach, describe, expect, it, jest } from 'bun:test';
-import { FIXTURE_APP_PROJECT_DIR, FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH } from '../../../fixtures/constants.ts';
+import { beforeAll, describe, expect, it } from 'bun:test';
+import {
+  FIXTURE_APP_BASE_URL,
+  FIXTURE_APP_PROJECT_DIR,
+  FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH,
+} from '../../../fixtures/constants.ts';
 import { STATUS_MESSAGE } from '../../constants.ts';
-import { AppConfigurator } from '../../main/app-configurator.ts';
+import { ConfigBuilder } from '../../main/config-builder.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
-let appConfigurator: AppConfigurator;
+const appConfig = await new ConfigBuilder()
+  .setRootDir(FIXTURE_APP_PROJECT_DIR)
+  .setBaseUrl(FIXTURE_APP_BASE_URL)
+  .build();
 
 let responseFactory: FileSystemServerResponseFactory;
 
 describe('FileSystemServerResponseFactory', () => {
   beforeAll(async () => {
-    appConfigurator = await AppConfigurator.create({
-      projectDir: FIXTURE_APP_PROJECT_DIR,
-    });
     responseFactory = new FileSystemServerResponseFactory({
-      appConfig: appConfigurator.config,
+      appConfig,
       routeRendererFactory: new RouteRendererFactory({
-        appConfig: appConfigurator.config,
+        appConfig,
       }),
       options: {
         watchMode: false,
@@ -45,9 +49,9 @@ describe('FileSystemServerResponseFactory', () => {
   describe('shouldEnableGzip', () => {
     it('should return false in watch mode', () => {
       const responseFactoryWatch = new FileSystemServerResponseFactory({
-        appConfig: appConfigurator.config,
+        appConfig,
         routeRendererFactory: new RouteRendererFactory({
-          appConfig: appConfigurator.config,
+          appConfig,
         }),
         options: {
           watchMode: true,
@@ -94,17 +98,19 @@ describe('FileSystemServerResponseFactory', () => {
 
   describe('createCustomNotFoundResponse', () => {
     it('should create a response with status 404 if error404 template file does not exist', async () => {
-      const responseFactoryNo404Template = new FileSystemServerResponseFactory({
-        appConfig: {
-          ...appConfigurator.config,
-          error404Template: 'non-existent-file',
-          absolutePaths: {
-            ...appConfigurator.config.absolutePaths,
-            error404TemplatePath: 'non-existent-file',
-          },
+      const customAppConfig = {
+        ...appConfig,
+        error404Template: 'non-existent-file',
+        absolutePaths: {
+          ...appConfig.absolutePaths,
+          error404TemplatePath: 'non-existent-file',
         },
+      };
+
+      const responseFactoryNo404Template = new FileSystemServerResponseFactory({
+        appConfig: customAppConfig,
         routeRendererFactory: new RouteRendererFactory({
-          appConfig: appConfigurator.config,
+          appConfig: customAppConfig,
         }),
         options: {
           watchMode: false,

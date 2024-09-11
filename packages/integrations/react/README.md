@@ -15,13 +15,13 @@ bunx jsr add @ecopages/react
 To incorporate the React integration into your Ecopages project, you can configure your project as follows:
 
 ```ts
+import { ConfigBuilder } from "@ecopages/core";
 import { reactPlugin } from "@ecopages/react";
 
-const config: EcoPagesConfig = {
-  rootDir: import.meta.dir,
-  baseUrl: import.meta.env.ECOPAGES_BASE_URL,
-  integrations: [reactPlugin()],
-};
+const config = await new ConfigBuilder()
+  .setBaseUrl(process.env.ECOPAGES_BASE_URL)
+  .setIntegrations([reactPlugin()])
+  .build();
 
 export default config;
 ```

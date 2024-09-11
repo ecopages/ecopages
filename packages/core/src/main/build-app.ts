@@ -1,34 +1,37 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import { appLogger } from '../global/app-logger.ts';
 import { AppBuilder } from '../main/app-builder.ts';
-import { AppConfigurator } from '../main/app-configurator.ts';
 import { CssBuilder } from '../main/css-builder.ts';
-import { IntegrationManager } from '../main/integration-manager.ts';
 import { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { StaticPageGenerator } from '../main/static-page-generator.ts';
 
 export async function buildApp({
-  config = process.cwd(),
+  rootDir = process.cwd(),
   watch = true,
   serve = false,
   build = false,
 }: {
-  config: string;
+  rootDir: string;
   watch: boolean;
   serve: boolean;
   build: boolean;
 }) {
-  const appConfigurator = await AppConfigurator.create({
-    projectDir: config as string,
-  });
+  const configPath = path.resolve(rootDir, 'eco.config.ts');
+
+  if (!fs.existsSync(configPath)) {
+    throw new Error('[ecopages] eco.config.ts not found, please provide a valid config file.');
+  }
+
+  const { default: appConfig } = await import(configPath);
 
   const ecoPages = new AppBuilder({
-    appConfigurator,
-    integrationManger: new IntegrationManager({ config: appConfigurator.config }),
-    staticPageGenerator: new StaticPageGenerator(appConfigurator.config),
-    cssBuilder: new CssBuilder({ processor: PostCssProcessor, appConfig: appConfigurator.config }),
+    appConfig,
+    staticPageGenerator: new StaticPageGenerator(appConfig),
+    cssBuilder: new CssBuilder({ processor: PostCssProcessor, appConfig: appConfig }),
     scriptsBuilder: new ScriptsBuilder({
-      config: appConfigurator.config,
+      appConfig,
       options: { watchMode: watch as boolean },
     }),
     options: {
@@ -45,7 +48,7 @@ if (process.argv.slice(2).includes('--watch-lib')) {
   appLogger.warn('Running app in watch mode for library development.');
   import.meta.env.NODE_ENV = 'development';
   buildApp({
-    config: process.cwd(),
+    rootDir: process.cwd(),
     watch: true,
     serve: false,
     build: false,

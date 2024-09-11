@@ -55,7 +55,7 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ headContent, chil
 
 describe('KitaRenderer', () => {
   it('should render the page', async () => {
-    const renderer = new KitaRenderer(mockConfig);
+    const renderer = new KitaRenderer({ appConfig: mockConfig });
 
     renderer
       .render({
@@ -76,7 +76,7 @@ describe('KitaRenderer', () => {
   });
 
   it('should throw an error if the page fails to render', async () => {
-    const renderer = new KitaRenderer(mockConfig);
+    const renderer = new KitaRenderer({ appConfig: mockConfig });
 
     renderer
       .render({
@@ -99,7 +99,7 @@ describe('KitaRenderer', () => {
   });
 
   it('should include page dependencies in head content', async () => {
-    const renderer = new KitaRenderer(mockConfig);
+    const renderer = new KitaRenderer({ appConfig: mockConfig });
 
     const Page: EcoPage = async () => 'Hello World';
 

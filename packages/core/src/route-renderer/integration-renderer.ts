@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { IntegrationManager } from 'src/main/integration-manager.ts';
 import type {
   EcoComponent,
   EcoComponentDependencies,
@@ -29,13 +30,16 @@ import { invariant } from '../utils/invariant.ts';
 export abstract class IntegrationRenderer {
   abstract name: string;
   protected appConfig: EcoPagesAppConfig;
-
+  protected integrationManager: IntegrationManager;
   protected declare options: Required<IntegrationRendererRenderOptions>;
 
   protected DOC_TYPE = '<!DOCTYPE html>';
 
-  constructor(appConfig: EcoPagesAppConfig) {
+  constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
     this.appConfig = appConfig;
+    this.integrationManager = new IntegrationManager({
+      appConfig,
+    });
   }
 
   protected getHtmlPath({ file }: { file: string }): string {
@@ -60,7 +64,12 @@ export abstract class IntegrationRenderer {
   }
 
   protected async getHeadContent(dependencies?: EcoComponentDependencies): Promise<string | undefined> {
-    const headContent = await new HeadContentBuilder(this.appConfig).build({
+    await this.integrationManager.prepareDependencies();
+    const integrationsDependencies = this.integrationManager.dependencies;
+    const headContent = await new HeadContentBuilder({
+      appConfig: this.appConfig,
+      integrationsDependencies,
+    }).build({
       integrationName: this.name,
       dependencies: dependencies,
     });

@@ -1,18 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
+import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
 import type { Route } from '../internal-types.ts';
-import { AppConfigurator } from '../main/app-configurator.ts';
+import { ConfigBuilder } from '../main/config-builder.ts';
 import { FSRouterScanner } from './fs-router-scanner.ts';
 import { FSRouter } from './fs-router.ts';
-
-const appConfigurator = await AppConfigurator.create({
-  projectDir: FIXTURE_APP_PROJECT_DIR,
-});
 
 const {
   templatesExt,
   absolutePaths: { pagesDir, distDir },
-} = appConfigurator.config;
+} = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).setBaseUrl(FIXTURE_APP_BASE_URL).build();
 
 const scanner = new FSRouterScanner({
   dir: pagesDir,

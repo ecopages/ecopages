@@ -12,7 +12,13 @@ export class ScriptsBuilder {
   config: EcoPagesAppConfig;
   options: ScriptsBuilderOptions;
 
-  constructor({ config, options }: { config: EcoPagesAppConfig; options: { watchMode: boolean } }) {
+  constructor({
+    appConfig: config,
+    options,
+  }: {
+    appConfig: EcoPagesAppConfig;
+    options: { watchMode: boolean };
+  }) {
     this.config = config;
     this.options = options;
   }

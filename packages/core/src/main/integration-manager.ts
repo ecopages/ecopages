@@ -12,9 +12,9 @@ export class IntegrationManager {
   integrations: IntegrationPlugin[] = [];
   dependencies: IntegrationDependencyConfig[] = [];
 
-  constructor({ config }: { config: EcoPagesAppConfig }) {
-    this.config = config;
-    this.integrations = config.integrations;
+  constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
+    this.config = appConfig;
+    this.integrations = appConfig.integrations;
   }
 
   private writeFileToDist({

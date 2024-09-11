@@ -25,7 +25,7 @@ function getFileAsBuffer(path: string): Buffer {
   }
 }
 
-export const getPlugins = (options?: PostCssProcessorOptions) => {
+export const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[] => {
   return options ? Object.values(options.plugins) : Object.values(defaultPlugins);
 };
 

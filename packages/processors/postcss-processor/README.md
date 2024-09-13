@@ -54,3 +54,22 @@ This module relies on the following PostCSS plugins and are included in the bund
 - tailwindcss: The Tailwind CSS framework for utility-first CSS.
 - autoprefixer: To parse CSS and add vendor prefixes to CSS rules.
 - cssnano: For CSS optimization.
+
+## Customisation
+
+It is possible to eject the default plugins and compose your own chain. All the default plugins can be reused and do not need additional install.
+
+```ts
+import anotherPostCssPlugin from "another-postcss-plugin";
+
+const result = await PostCssProcessor.processPath(filePath, {
+  plugins: [
+    PostCssProcessor.defaultPlugins["postcss-import"],
+    PostCssProcessor.defaultPlugins.tailwindcss,
+    PostCssProcessor.defaultPlugins["tailwindcss-nesting"],
+    PostCssProcessor.defaultPlugins.autoprefixer,
+    anotherPostCssPlugin(),
+    PostCssProcessor.defaultPlugins.cssnano,
+  ],
+});
+```

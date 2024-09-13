@@ -191,14 +191,14 @@ export interface CssProcessor {
    * @param path - The path to the CSS file.
    * @returns A promise that resolves to the processed CSS as a string.
    */
-  processPath: (path: string) => Promise<string>;
+  processPath: (path: string, options?: any) => Promise<string>;
 
   /**
    * Processes a CSS string or buffer.
    * @param contents - The CSS contents as a string or buffer.
    * @returns A promise that resolves to the processed CSS as a string.
    */
-  processStringOrBuffer: (contents: string | Buffer) => Promise<string>;
+  processStringOrBuffer: (contents: string | Buffer, options?: any) => Promise<string>;
 }
 
 /**

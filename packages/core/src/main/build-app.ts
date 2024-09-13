@@ -26,7 +26,7 @@ export async function buildApp({
 
   const { default: appConfig } = await import(configPath);
 
-  const ecoPages = new AppBuilder({
+  new AppBuilder({
     appConfig,
     staticPageGenerator: new StaticPageGenerator(appConfig),
     cssBuilder: new CssBuilder({ processor: PostCssProcessor, appConfig: appConfig }),
@@ -39,9 +39,7 @@ export async function buildApp({
       serve: serve as boolean,
       build: build as boolean,
     },
-  });
-
-  ecoPages.run();
+  }).run();
 }
 
 if (process.argv.slice(2).includes('--watch-lib')) {

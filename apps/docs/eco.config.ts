@@ -9,7 +9,7 @@ const config = await new ConfigBuilder()
   .setIntegrations([kitajsPlugin(), litPlugin(), mdxPlugin()])
   .setDefaultMetadata({
     title: 'Eco Pages | Docs',
-    description: 'Eco Pages is a static site generator written in TypeScript, it supports Lit and Kita out of the box.',
+    description: 'Eco Pages is a static site generator written in TypeScript',
     image: 'public/assets/images/default-og.png',
     keywords: ['typescript', 'framework', 'static'],
   })

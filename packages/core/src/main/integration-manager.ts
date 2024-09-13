@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { BuildOutput } from 'bun';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, IntegrationDependencyConfig } from '../internal-types.ts';
 import type { IntegrationPlugin } from '../public-types.ts';
@@ -25,7 +26,9 @@ export class IntegrationManager {
     content: string | Buffer;
     name: string;
     ext: 'css' | 'js';
-  }) {
+  }): {
+    filepath: string;
+  } {
     const filepath = path.join(
       this.config.rootDir,
       this.config.distDir,
@@ -75,7 +78,7 @@ export class IntegrationManager {
     entrypoint: string;
     outdir: string;
     root: string;
-  }) {
+  }): Promise<BuildOutput> {
     const build = await Bun.build({
       entrypoints: [entrypoint],
       outdir,
@@ -98,7 +101,9 @@ export class IntegrationManager {
     importPath: string;
     name: string;
     kind: 'script' | 'stylesheet';
-  }) {
+  }): Promise<{
+    filepath: string;
+  }> {
     const absolutePath = this.findExternalDependencyInNodeModules(importPath);
 
     if (kind === 'script') {
@@ -116,7 +121,7 @@ export class IntegrationManager {
     return file;
   }
 
-  async prepareDependencies() {
+  async prepareDependencies(): Promise<IntegrationDependencyConfig[]> {
     for (const integration of this.integrations) {
       if (integration.dependencies) {
         for (const dependency of integration.dependencies)

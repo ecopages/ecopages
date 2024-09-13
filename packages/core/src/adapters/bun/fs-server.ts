@@ -1,6 +1,5 @@
 import path from 'node:path';
 import type { Server } from 'bun';
-import { IntegrationManager } from 'src/main/integration-manager.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type {
   EcoPagesAppConfig,

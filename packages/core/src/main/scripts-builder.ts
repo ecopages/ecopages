@@ -1,8 +1,8 @@
 import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
-import type { CssProcessor } from 'src/public-types.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { CssProcessor } from '../public-types.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
 
 type ScriptsBuilderOptions = {

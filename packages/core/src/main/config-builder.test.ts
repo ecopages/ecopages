@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { IntegrationRenderer } from 'src/route-renderer/integration-renderer.ts';
 import type { IntegrationPlugin, IntegrationRendererRenderOptions } from '../public-types.ts';
+import { IntegrationRenderer } from '../route-renderer/integration-renderer.ts';
 import { ConfigBuilder } from './config-builder.ts';
 
 const createMockIntegration = (name: string, extensions: string[]): IntegrationPlugin => {

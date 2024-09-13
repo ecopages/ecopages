@@ -12,7 +12,7 @@ import { ProjectWatcher } from '../main/watcher.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
 
 import type { Server } from 'bun';
-import type { EcoPagesAppConfig } from 'src/internal-types.ts';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
 import type { StaticPageGenerator } from './static-page-generator.ts';
 

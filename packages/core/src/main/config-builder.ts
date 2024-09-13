@@ -4,7 +4,7 @@
  */
 
 import path from 'node:path';
-import { ghtmlPlugin } from 'src/integrations/ghtml/ghtml.plugin.ts';
+import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import { invariant } from '../utils/invariant.ts';
 
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';

@@ -1,4 +1,3 @@
-import type { IntegrationManager } from 'src/main/integration-manager.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { IntegrationPlugin, RouteRendererBody, RouteRendererOptions } from '../public-types.ts';
 import { invariant } from '../utils/invariant.ts';

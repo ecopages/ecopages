@@ -12,9 +12,17 @@ import { FileUtils } from '../../utils/file-utils.module.ts';
  */
 export class HeadContentBuilder {
   appConfig: EcoPagesAppConfig;
+  integrationsDependencies: IntegrationDependencyConfig[];
 
-  constructor(appConfig: EcoPagesAppConfig) {
+  constructor({
+    appConfig,
+    integrationsDependencies,
+  }: {
+    appConfig: EcoPagesAppConfig;
+    integrationsDependencies: IntegrationDependencyConfig[];
+  }) {
     this.appConfig = appConfig;
+    this.integrationsDependencies = integrationsDependencies;
   }
 
   /**
@@ -27,16 +35,14 @@ export class HeadContentBuilder {
   async buildRequestDependencies({
     integrationName,
     dependencies,
-    integrationsDependencies,
   }: {
     integrationName: string;
     dependencies?: EcoComponentDependencies;
-    integrationsDependencies?: IntegrationDependencyConfig[];
   }) {
     let dependenciesString = '';
 
-    if (integrationsDependencies) {
-      for (const dependency of integrationsDependencies) {
+    if (this.integrationsDependencies) {
+      for (const dependency of this.integrationsDependencies) {
         if (dependency.integration !== integrationName) continue;
         if (dependency.kind === 'stylesheet') {
           dependenciesString += `<link rel="stylesheet" href="${dependency.srcUrl}" />`;
@@ -89,9 +95,18 @@ export class HeadContentBuilder {
    * It will build the head content based on the dependencies.
    * @param {EcoComponentDependencies} dependencies
    */
-  async build({ dependencies, integrationName }: { dependencies?: EcoComponentDependencies; integrationName: string }) {
-    const integrationsDependencies = this.appConfig.integrationsDependencies;
+  async build({
+    dependencies,
+    integrationName,
+  }: {
+    dependencies?: EcoComponentDependencies;
+    integrationName: string;
+  }) {
+    const integrationsDependencies = this.integrationsDependencies;
     if (!dependencies && !integrationsDependencies) return;
-    return await this.buildRequestDependencies({ integrationName, dependencies, integrationsDependencies });
+    return await this.buildRequestDependencies({
+      integrationName,
+      dependencies,
+    });
   }
 }

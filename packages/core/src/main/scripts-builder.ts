@@ -1,5 +1,6 @@
 import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
+import type { CssProcessor } from 'src/public-types.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
@@ -11,10 +12,20 @@ type ScriptsBuilderOptions = {
 export class ScriptsBuilder {
   config: EcoPagesAppConfig;
   options: ScriptsBuilderOptions;
+  cssProcessor: CssProcessor;
 
-  constructor({ config, options }: { config: EcoPagesAppConfig; options: { watchMode: boolean } }) {
+  constructor({
+    appConfig: config,
+    options,
+    cssProcessor = PostCssProcessor,
+  }: {
+    appConfig: EcoPagesAppConfig;
+    options: { watchMode: boolean };
+    cssProcessor?: CssProcessor;
+  }) {
     this.config = config;
     this.options = options;
+    this.cssProcessor = cssProcessor;
   }
 
   async build() {
@@ -37,7 +48,7 @@ export class ScriptsBuilder {
       splitting: true,
       plugins: [
         bunInlineCssPlugin({
-          transform: PostCssProcessor.processStringOrBuffer,
+          transform: (content) => this.cssProcessor.processStringOrBuffer(content),
         }),
       ],
     });

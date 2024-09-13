@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'bun:test';
 import HtmlTemplate from '../../../fixtures/app/src/includes/html.ghtml.ts';
-import { FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
-import { AppConfigurator } from '../../main/app-configurator.ts';
+import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
+import { ConfigBuilder } from '../../main/config-builder.ts';
 import type { EcoPage } from '../../public-types.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
 
-const appConfigurator = await AppConfigurator.create({
-  projectDir: FIXTURE_APP_PROJECT_DIR,
-});
+const appConfig = await new ConfigBuilder()
+  .setRootDir(FIXTURE_APP_PROJECT_DIR)
+  .setBaseUrl(FIXTURE_APP_BASE_URL)
+  .build();
 
 const metadata = {
   title: 'Eco Pages',
@@ -18,7 +19,7 @@ const pageBody = '<body>Hello World</body>';
 
 describe('GhtmlRenderer', () => {
   it('should render the page', async () => {
-    const renderer = new GhtmlRenderer(appConfigurator.config);
+    const renderer = new GhtmlRenderer({ appConfig });
 
     renderer
       .render({
@@ -39,7 +40,7 @@ describe('GhtmlRenderer', () => {
   });
 
   it('should throw an error if the page fails to render', async () => {
-    const renderer = new GhtmlRenderer(appConfigurator.config);
+    const renderer = new GhtmlRenderer({ appConfig });
 
     renderer
       .render({
@@ -59,7 +60,7 @@ describe('GhtmlRenderer', () => {
   });
 
   it('should include page dependencies in head content', async () => {
-    const renderer = new GhtmlRenderer(appConfigurator.config);
+    const renderer = new GhtmlRenderer({ appConfig });
 
     const Page: EcoPage = async () => pageBody;
 

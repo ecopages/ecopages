@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.1.12",
+	"version": "0.1.13",
 	"description": "Core package for Ecopages",
 	"keywords": ["ecopages", "core", "ssg"],
 	"license": "MIT",
@@ -31,7 +31,8 @@
 	"exports": {
 		".": {
 			"import": "./src/index.ts",
-			"require": "./src/index.ts"
+			"require": "./src/index.ts",
+			"types": "./src/public-types.ts"
 		},
 		"./bin": {
 			"types": "./src/bin/ecopages.ts",
@@ -40,6 +41,10 @@
 		"./build-app": {
 			"types": "./src/main/build-app.ts",
 			"default": "./src/main/build-app.ts"
+		},
+		"./config-builder": {
+			"types": "./src/main/config-builder.ts",
+			"default": "./src/main/config-builder.ts"
 		},
 		"./route-renderer/integration-renderer": {
 			"types": "./src/route-renderer/integration-renderer.ts",

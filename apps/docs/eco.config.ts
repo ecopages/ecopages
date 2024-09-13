@@ -1,24 +1,24 @@
-import type { EcoPagesConfig } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 
-const config: EcoPagesConfig = {
-  rootDir: import.meta.dir,
-  baseUrl: import.meta.env.ECOPAGES_BASE_URL as string,
-  integrations: [kitajsPlugin(), litPlugin(), mdxPlugin()],
-  defaultMetadata: {
+const config = await new ConfigBuilder()
+  .setRootDir(import.meta.dir)
+  .setBaseUrl(process.env.ECOPAGES_BASE_URL)
+  .setIntegrations([kitajsPlugin(), litPlugin(), mdxPlugin()])
+  .setDefaultMetadata({
     title: 'Eco Pages | Docs',
-    description: 'Eco Pages is a static site generator written in TypeScript, it supports Lit and Kita out of the box.',
+    description: 'Eco Pages is a static site generator written in TypeScript',
     image: 'public/assets/images/default-og.png',
     keywords: ['typescript', 'framework', 'static'],
-  },
-  includesTemplates: {
+  })
+  .setIncludesTemplates({
     head: 'head.kita.tsx',
     html: 'html.kita.tsx',
     seo: 'seo.kita.tsx',
-  },
-  error404Template: '404.kita.tsx',
-};
+  })
+  .setError404Template('404.kita.tsx')
+  .build();
 
 export default config;

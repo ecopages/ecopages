@@ -12,6 +12,5 @@ import path from 'node:path';
  * @description
  */
 export function addBaseUrlToPathname(url: string): string {
-  const { ecoConfig } = globalThis;
-  return path.join(ecoConfig.baseUrl, url);
+  return path.join(globalThis.ecoConfig.baseUrl, url);
 }

@@ -62,7 +62,7 @@ export const bunInlineCssPlugin = (options: BunInlineCssPluginOptions): BunPlugi
         const buffer = getFileAsBuffer(args.path);
 
         return {
-          contents: transform ? await transform(buffer, args) : buffer,
+          contents: transform ? await transform(buffer) : buffer,
           loader: 'text',
         };
       });

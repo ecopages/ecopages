@@ -1,19 +1,19 @@
-import { type EcoPagesConfig, ghtmlPlugin } from '@ecopages/core';
+import { ConfigBuilder, ghtmlPlugin } from '@ecopages/core';
 
-const config: EcoPagesConfig = {
-  rootDir: import.meta.dir,
-  baseUrl: import.meta.env.ECOPAGES_BASE_URL as string,
-  integrations: [
+const config = await new ConfigBuilder()
+  .setRootDir(import.meta.dir)
+  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+  .setIntegrations([
     ghtmlPlugin({
       extensions: ['.ts'],
     }),
-  ],
-  includesTemplates: {
+  ])
+  .setError404Template('404.ts')
+  .setIncludesTemplates({
     head: 'head.ts',
     html: 'html.ts',
     seo: 'seo.ts',
-  },
-  error404Template: '404.ts',
-};
+  })
+  .build();
 
 export default config;

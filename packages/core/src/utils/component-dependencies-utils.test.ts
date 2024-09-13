@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants';
-import { AppConfigurator } from '../main/app-configurator';
-import type { EcoComponentDependencies } from '../public-types';
-import { removeComponentsScripts, resolveComponentsScripts } from './component-dependencies-utils';
+import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
+import { ConfigBuilder } from '../main/config-builder.ts';
+import type { EcoComponentDependencies } from '../public-types.ts';
+import { removeComponentsScripts, resolveComponentsScripts } from './component-dependencies-utils.ts';
 
-await AppConfigurator.create({
-  projectDir: FIXTURE_APP_PROJECT_DIR,
-});
+await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).setBaseUrl(FIXTURE_APP_BASE_URL).build();
 
 const baseComponentUrl = path.join(globalThis.ecoConfig.srcDir, globalThis.ecoConfig.componentsDir);
 

@@ -12,6 +12,9 @@ import tailwindcssNesting from 'tailwindcss/nesting/index.js';
 
 export type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
 
+/**
+ * Default plugins used by the PostCSS Processor
+ */
 export const defaultPlugins: PluginsRecord = {
   'postcss-import': postCssImport(),
   'tailwindcss-nesting': tailwindcssNesting,

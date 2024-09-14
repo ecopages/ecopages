@@ -25,7 +25,7 @@ function getFileAsBuffer(path: string): Buffer {
   }
 }
 
-export const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[] => {
+const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[] => {
   return options ? Object.values(options.plugins) : Object.values(defaultPlugins);
 };
 
@@ -84,6 +84,7 @@ const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) =
  * PostCSS Processor
  * - {@link processPath} : It processes the given path using PostCSS
  * - {@link processStringOrBuffer}: It processes the given string or buffer using PostCSS
+ * - {@link PluginsRecord}: Default plugins used by the PostCSS Processor
  */
 export const PostCssProcessor: {
   processPath: ProcessPath;

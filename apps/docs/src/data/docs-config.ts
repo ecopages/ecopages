@@ -33,35 +33,28 @@ export const docsConfig: DocsConfig = {
       ],
     },
     {
+      name: 'Core',
+      subdirectory: 'core',
+      pages: [
+        { title: 'Concepts', slug: 'concepts' },
+        { title: 'Components', slug: 'components' },
+        { title: 'Layouts', slug: 'layouts' },
+        { title: 'Pages', slug: 'pages' },
+      ],
+    },
+    {
       name: 'Integrations',
       subdirectory: 'integrations',
       pages: [
         { title: 'Kitajs', slug: 'kitajs' },
         { title: 'Lit', slug: 'lit' },
         { title: 'Mdx', slug: 'mdx' },
-        { title: 'React', slug: 'react' },
       ],
     },
     {
-      name: 'Directories',
-      subdirectory: 'directories',
-      pages: [
-        { title: 'Structure', slug: 'root' },
-        { title: 'Components', slug: 'components' },
-        { title: 'Layouts', slug: 'layouts' },
-        { title: 'Includes', slug: 'includes' },
-        { title: 'Pages', slug: 'pages' },
-        { title: 'Public', slug: 'public' },
-      ],
-    },
-    {
-      name: 'Guides',
-      subdirectory: 'guides',
-      pages: [
-        { title: 'Creating Pages', slug: 'creating-pages' },
-        { title: 'Creating Layouts', slug: 'creating-layouts' },
-        { title: 'Creating Components', slug: 'creating-components' },
-      ],
+      name: 'Ecosystem',
+      subdirectory: 'ecosystem',
+      pages: [{ title: 'Packages', slug: 'packages' }],
     },
   ],
 };

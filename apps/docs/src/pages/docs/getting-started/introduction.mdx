@@ -4,22 +4,46 @@ export const layout = DocsLayout;
 
 export const getMetadata = () => ({
   title: 'Docs | Introduction',
-  description: 'The place to learn about Eco Pages',
+  description: 'Discover Ecopages: A resource-efficient static site generator',
 })
 
-# Introduction
----
+<div class="banner banner--alert" role="alert">
+  <p class="banner__title">Beta Notice</p>
+  <p>The Ecopages documentation is currently in beta. The API is not stable yet and will have major changes before the first stable release. Use at your own risk.</p>
+</div>
 
-Eco Pages is a user-friendly static site generator, enabling you to craft static websites with ease and flexibility. It's perfectly suited for creating a variety of websites, including blogs and portfolios.
+# Welcome to Ecopages
 
-The primary objective of this project is to offer a straightforward and transparent approach to building static websites, leveraging the power of modern web technologies, without any hidden complexities.
+Ecopages is a static site generator currently under active development. While it's still evolving, it's stable enough for use in projects.
 
-The construction of this project relies solely on a select few dependencies, which are highlighted below.
+## What is Ecopages?
 
-Eco Pages is founded on [Bun](https://bun.sh/) and employs [Kita](https://kita.js.org/), [Mdx](https://mdxjs.com/), and [Lit](https://lit.dev/) as its default template engines.
+Ecopages is a tool designed to help developers create static websites efficiently. It aims to balance simplicity with the features needed for modern web development, while also considering environmental impact.
 
-For CSS, we've chosen to integrate [Tailwind CSS](https://tailwindcss.com/) in conjunction with [PostCSS](https://postcss.org/).
+### Key Features:
 
-It's important to note that, contrary to Tailwind CSS's typical recommendations, we advocate for the use of `css` stylesheets with `@apply` directives when using Tailwind CSS with Eco Pages.
+1. **Static Site Generation**: Ecopages creates static HTML files, which can lead to faster load times and reduced server load.
 
-As this project is in its infancy, some rough edges are to be expected. If you encounter any issues, we encourage you to report them on our [GitHub repository](https://github.com/ecopages/ecopages).
+2. **Minimal Dependencies**: We try to keep external dependencies to a minimum to reduce complexity and decrease the overall footprint of your project.
+
+3. **Flexibility**: Ecopages works with various templating options, including MDX, Kita, and Lit.
+
+4. **Built on Bun**: Leveraging Bun's speed for improved build times and energy efficiency.
+
+5. **Tailwind Integration**: Built-in support for Tailwind CSS with PostCSS for efficient styling.
+
+6. **Eco-friendly Approach**: By generating static sites and optimizing asset loading, Ecopages aims to reduce the energy consumption of websites built with it.
+
+## Current Status
+
+Ecopages is in active development. While it's functional and can be used for projects, you may encounter bugs or missing features. We're continuously working on improvements and welcome feedback from users.
+
+## Environmental Consideration
+
+We believe that every bit counts when it comes to reducing the environmental impact of web development. Ecopages strives to create lightweight, efficient websites that consume less energy both during development and in production. However, we're still learning and improving in this area, and we welcome ideas on how to make Ecopages even more eco-friendly.
+
+## Getting Started
+
+If you're interested in trying Ecopages, check out our [Installation Guide](/docs/getting-started/installation). We recommend starting with small projects as you get familiar with the tool.
+
+We appreciate your interest in Ecopages and welcome any contributions or feedback you might have as we continue to develop and improve the project, both in terms of functionality and environmental impact.

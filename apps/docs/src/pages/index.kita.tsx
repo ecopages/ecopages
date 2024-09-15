@@ -3,7 +3,7 @@ import Introduction from '@/pages/docs/getting-started/introduction.mdx';
 import type { EcoPage, GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
-  title: 'Eco Pages - Docs',
+  title: 'Ecopages - Docs',
   description: 'Simple and fast static site generator with TypeScript and Lit and Kita.',
   image: 'public/assets/images/default-og.png',
   keywords: ['typescript', 'framework', 'static', 'site', 'generator', 'lit', 'kita'],

@@ -6,105 +6,131 @@ export const layout = DocsLayout;
 
 export const getMetadata = () => ({
   title: 'Docs | Configuration',
-  description: 'The place to learn about Eco Pages',
+  description: 'Learn how to configure Ecopages for your project',
 })
 
 # Configuration
----
 
-You can configure Eco Pages by creating a configuration file in the root of your project. The configuration file should be named \`ecopages.config.js\`.
+Ecopages can be customized to fit your project's needs through a configuration file. Create a file named `eco.config.ts` in your project's root directory to get started.
 
-<CodeBlock lang='typescript'>
-{`import { ConfigBuilder } from '@ecopages/core';
+Here's a basic example of an Ecopages configuration:
+
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { kitajsPlugin } from '@ecopages/kitajs';
+import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-  .setBaseUrl(process.env.ECOPAGES_BASE_URL)
-  .setDefaultMetadata({
-    title: 'Your title here',
-    description: 'Your description here',
-    image: 'https://absolute/url/to-og-img',
-  })
-  .build();
+    .setRootDir(import.meta.dir)
+    .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+    .setIntegrations([kitajsPlugin(), mdxPlugin()])
+    .setDefaultMetadata({
+      title: 'Your Site Title',
+      description: 'Your site description',
+      image: 'https://your-domain.com/og-image.png',
+    })
+    .build();
 
 export default config;
-`}
+```
 </CodeBlock>
 
-## API
----
+## Configuration API
 
-<ApiField name="rootDir" mandatory defaultValue="." type="string">
-The root directory of your project. This is used to resolve paths to your project's files.
+<ApiField name="rootDir" mandatory defaultValue="." type="string" setter="setRootDir">
+The root directory of your project, used to resolve paths to your project files.
 </ApiField>
 
-<ApiField name="baseUrl" mandatory type="string">
-The base URL of your project. This is used to generate URLs for your pages.
+<ApiField name="baseUrl" mandatory type="string" setter="setBaseUrl">
+The base URL of your project, used for generating absolute URLs for your pages.
 </ApiField>
 
-<ApiField name="defaultMetadata" type="PageMetadataProps">
-Default metadata for your pages. This is used to generate metadata for your pages when no metadata is provided.
-
-Please note that the default metadata is merged with the metadata provided in the page.
+<ApiField name="defaultMetadata" type="PageMetadataProps" setter="setDefaultMetadata">
+Default metadata for your pages. This is merged with page-specific metadata when provided.
 </ApiField>
 
-<ApiField name="srcDir" type="string" defaultValue="src">
-The directory where the source files are located, relative to the root project directory.
-
-If you want to avoid using the src directory, you can set the srcDir to `.`
+<ApiField name="srcDir" type="string" defaultValue="src" setter="setSrcDir">
+The directory containing your source files, relative to the root project directory. Set to '.' to use the root directory.
 </ApiField>
 
-<ApiField name="public" type="string" defaultValue="public">
-The directory where the public files are located, relative to the src directory.
+<ApiField name="public" type="string" defaultValue="public" setter="setPublicDir">
+The directory for static assets, relative to the src directory.
 </ApiField>
 
-<ApiField name="pages" type="string" defaultValue="pages">
-The directory where the pages are located, relative to the src directory.
+<ApiField name="pages" type="string" defaultValue="pages" setter="setPagesDir">
+The directory containing your page files, relative to the src directory.
 </ApiField>
 
-<ApiField name="includes" type="string" defaultValue="includes">
-The directory where the includes templates are located, relative to the src directory.
+<ApiField name="includes" type="string" defaultValue="includes" setter="setIncludesDir">
+The directory for include templates, relative to the src directory.
 </ApiField>
 
-<ApiField name="layouts" type="string" defaultValue="layouts">
-The directory where the layouts are located, relative to the src directory.
+<ApiField name="layouts" type="string" defaultValue="layouts" setter="setLayoutsDir">
+The directory for layout components, relative to the src directory.
 </ApiField>
 
-<ApiField name="includesTemplates" type="IncludesTemplates" defaultValue="{head: 'head.kita.tsx', html: 'html.kita.tsx', seo: 'seo.kita.tsx'}">
-The templates used for the pages, relative to the includes directory.
+<ApiField name="includesTemplates" type="IncludesTemplates" defaultValue="{head: 'head.kita.tsx', html: 'html.kita.tsx', seo: 'seo.kita.tsx'}" setter="setIncludesTemplates">
+Specifies the templates used for different parts of your pages.
 </ApiField>
 
-<ApiField name="error404Template" type="string" defaultValue="404.kita.tsx">
-The error 404 page template, location is implied from the pages directory.
+<ApiField name="error404Template" type="string" defaultValue="404.kita.tsx" setter="setError404Template">
+The template for the 404 error page, located in the pages directory.
 </ApiField>
 
-<ApiField name="dist" type="string" defaultValue=".eco">
-The directory where the output will be located.
+<ApiField name="dist" type="string" defaultValue=".eco" setter="setDistDir">
+The output directory for the built files.
 </ApiField>
 
-<ApiField name="components" type="string" defaultValue="components">
-The directory where the components are located.
+<ApiField name="components" type="string" defaultValue="components" setter="setComponentsDir">
+The directory containing your reusable components.
 </ApiField>
 
-<ApiField name="scriptsExtensions" type="string[]" defaultValue="[.script.ts, '.script.tsx']">
-Specifies the extensions for the script files. This is used to identify the script files in the components directory.
-
-All files with the specified extension will be treated as script files to be included in the page and are not rendered as components.
-
-The dependencies of the script files are automatically resolved and included in the page.
-
-The default value is `[.script.ts, '.script.tsx']`, and it is strongly reccomended that if you change this value you keep a unique descriptor to avoid conflicts with other files.
+<ApiField name="scriptsExtensions" type="string[]" defaultValue="['.script.ts', '.script.tsx']" setter="setScriptsExtensions">
+File extensions for script files. These are included in the page but not rendered as components. Dependencies are automatically resolved.
 </ApiField>
 
-<ApiField name="robotsTxt" type="RobotsPreferences" defaultValue={`{ "*": [], Googlebot: ["/public/assets/images/"] }`}>
-The robots.txt configuration.
+<ApiField name="robotsTxt" type="RobotsPreferences" defaultValue={`{ "*": [], Googlebot: ["/public/assets/images/"] }`} setter="setRobotsTxt">
+Configuration for the robots.txt file.
 </ApiField>
 
-<ApiField name="robotsTxt" type="object" defaultValue={`{ input: "styles/tailwind.css" }`}>
-The tailwind configuration.
+<ApiField name="tailwind" type="object" defaultValue={`{ input: "styles/tailwind.css" }`} setter="setTailwindConfig">
+Configuration for Tailwind CSS.
 </ApiField>
 
-<ApiField name="integrations" type="IntegrationConfig" defaultValue="[kita,lit]">
-Eco Pages supports integrations with other tools and services. You can configure integrations by adding them to the configuration file.
+<ApiField name="integrations" type="IntegrationConfig[]" defaultValue="[]" setter="setIntegrations">
+An array of integration plugins to enhance Ecopages functionality. Common integrations include KitaJS, Lit, MDX, and React.
 </ApiField>
 
+## Integrations
 
+Ecopages supports various integrations to extend its capabilities. Here are some commonly used integrations:
+
+- **KitaJS**: For JSX templating
+- **Lit**: For web components
+- **MDX**: For Markdown with JSX
+
+To use an integration, install it and add it to your configuration. For example:
+
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { kitajsPlugin } from '@ecopages/kitajs';
+import { mdxPlugin } from '@ecopages/mdx';
+
+const config = await new ConfigBuilder()
+    .setRootDir(import.meta.dir)
+    .setBaseUrl(process.env.ECOPAGES_BASE_URL)
+    .setIntegrations([kitajsPlugin(), mdxPlugin()])
+    .build();
+
+export default config;
+```
+</CodeBlock>
+
+For more details on specific integrations, refer to their respective documentation pages:
+
+- [KitaJS Integration](/docs/integrations/kitajs)
+- [Lit Integration](/docs/integrations/lit)
+- [MDX Integration](/docs/integrations/mdx)
+- [React Integration](/docs/integrations/react)

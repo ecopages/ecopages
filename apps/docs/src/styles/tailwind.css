@@ -150,4 +150,19 @@ body {
       @apply bg-transparent text-inherit rounded-md my-8;
     }
   }
+
+  .banner {
+    @apply border-l-4 px-4 py-1 rounded-md;
+
+    &--alert {
+      @apply bg-yellow-100 border-yellow-500;
+      * {
+        @apply text-yellow-700;
+      }
+    }
+
+    &__title {
+      @apply font-bold;
+    }
+  }
 }

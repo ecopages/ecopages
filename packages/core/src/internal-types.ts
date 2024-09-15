@@ -104,7 +104,7 @@ export type EcoPagesAppConfig = {
     input: string;
   };
   /**
-   * @default { title: 'Eco Pages', description: 'Eco Pages' }
+   * @default { title: 'Ecopages', description: 'Ecopages' }
    */
   defaultMetadata: PageMetadataProps;
   /** Integrations plugins */

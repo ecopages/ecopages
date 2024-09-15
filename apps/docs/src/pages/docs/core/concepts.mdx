@@ -1,0 +1,164 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | Core Concepts',
+  description: 'How Ecopages works',
+})
+
+# Understanding Ecopages Core
+
+Before diving into the specifics of writing code for Ecopages, it's important to understand how the core of Ecopages works. This knowledge will help you make better decisions when structuring your project and writing your code.
+
+## Integration System
+
+Ecopages uses a flexible integration system to extend its functionality. Each integration plugin can provide:
+
+1. Template extensions
+2. Custom loaders
+3. Build hooks
+
+For example, the KitaJS integration might set up template extensions like this:
+
+<CodeBlock>
+```typescript
+  .setIncludesTemplates({
+    head: 'head.kita.tsx',
+    html: 'html.kita.tsx',
+    seo: 'seo.kita.tsx',
+  })
+```
+</CodeBlock>  
+
+This configuration tells Ecopages which files to use for specific parts of the page structure.
+
+## CSS Processing
+
+By default, Ecopages uses Tailwind CSS with PostCSS for styling. This provides a powerful and flexible system for managing your styles. You can customize this in your `eco.config.ts` file:
+
+<CodeBlock>
+```typescript
+const config = await new ConfigBuilder()
+  // ... other configurations
+  .setTailwindConfig({
+    input: 'styles/tailwind.css',
+  })
+  .build();
+```
+</CodeBlock>
+
+## Script and CSS Loading
+
+Ecopages handles script and CSS loading efficiently.
+
+Please note that in order to have the scripts and css loaded, you need to set the `dependencies` property in the component's config.
+
+This will chain all hte dependencies and remove duplicates, permitting you to ship just the scripts you need.
+
+1. **CSS Loading**: CSS files are typically loaded as separate files. They are referenced in the component's config and are automatically included in the final HTML.
+
+2. **Script Loading**: Scripts essential for the initial page render are loaded immediately. 
+
+### Script File Detection
+
+Ecopages uses a default extension prefix to detect script files: `script.ts`. This means that any file with the name pattern `*.script.ts` will be automatically recognized as a script file by Ecopages. For example:
+
+- `myComponent.script.ts`
+- `utils.script.ts`
+- `main.script.ts`
+
+These files will be processed and included in the build according to the dependencies specified in your component configurations.
+
+<CodeBlock>
+```typescript
+import { RadiantCounter } from '@/components/radiant-counter';
+import { BaseLayout } from '@/layouts/base-layout';
+import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
+
+const HomePage: EcoComponent = () => html`${BaseLayout({
+    class: 'main-content',
+    children: html`
+      <h1 class="main-title">Ecopages</h1>
+      !${RadiantCounter({
+        count: 5,
+      })}
+    `,
+  })}`;
+
+HomePage.config = {
+    importMeta: import.meta,
+    dependencies: {
+      components: [BaseLayout, RadiantCounter],
+    },
+};
+```
+</CodeBlock>
+
+## Robots.txt Generation
+
+Ecopages automatically generates a robots.txt file based on your configuration. You can customize this in your `eco.config.ts` file:
+
+## Loaders
+
+Ecopages uses loaders to process your files. Each loader is responsible for processing a specific type of file.
+
+In bun loaders are used to process your files. You can find more information about loaders in the [bun documentation](https://bun.sh/docs/runtime/loaders).
+
+You can add it to your bunfig.toml file:
+
+<CodeBlock>
+```toml
+preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-kitajs-loader"]
+```
+</CodeBlock>
+
+
+## Import CSS as String in JS Files
+
+Ecopages provides a way to load CSS directly into your JavaScript files as strings using Bun's preload tools. This feature is available through the `@ecopages/bun-postcss-loader` package.
+
+## Import Mdx as a Component
+
+Ecopages allows you to import MDX files as components. This is useful for creating reusable components that can be used across your site.
+This is possible thanks to the `@ecopages/bun-mdx-kitajs-loader`.
+
+<CodeBlock>
+```typescript
+import Component from '@/components/mdx-component';
+
+const MyPage = () => html`${Component()}`;
+```
+</CodeBlock>
+
+## Project Structure
+
+Ecopages expects a specific project structure:
+
+```
+my-project/
+├── src/
+│   ├── pages/
+│   ├── layouts/
+│   ├── components/
+│   └── includes/
+├── public/
+├── eco.config.ts
+└── package.json
+```
+
+- `src/components/`: Stores reusable components
+- `src/pages/`: Contains your page files (e.g., `.mdx`, `.kita.tsx`, `.lit.tsx`)
+- `src/layouts/`: Holds layout components
+- `src/includes/`: Contains include templates (e.g., `head.kita.tsx`, `html.kita.tsx`)
+- `public/`: Static assets that will be copied to the build directory
+- `eco.config.ts`: Ecopages configuration file
+
+This structure helps Ecopages efficiently process and build your site.
+
+## Additional Features
+
+- **Hot Reload**: Ecopages supports hot reloading during development, making the development process more efficient.
+- **Static Site Generation**: Ecopages generates static HTML files, improving performance and reducing server load.
+- **TypeScript Support**: Ecopages is built with TypeScript and provides excellent TypeScript support out of the box.

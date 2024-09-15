@@ -36,6 +36,7 @@ export const docsConfig: DocsConfig = {
       name: 'Core',
       subdirectory: 'core',
       pages: [
+        { title: 'Concepts', slug: 'concepts' },
         { title: 'Components', slug: 'components' },
         { title: 'Layouts', slug: 'layouts' },
         { title: 'Pages', slug: 'pages' },

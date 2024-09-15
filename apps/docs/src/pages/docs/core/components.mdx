@@ -10,7 +10,7 @@ export const getMetadata = () => ({
 
 # Creating Components in Ecopages
 
-Components are the building blocks of your Ecopages project. They allow you to create reusable pieces of UI that can be easily composed to build complex pages. In this guide, we'll explore how to create components using the ghtml approach with @ecopages/core.
+Components are the building blocks of your Ecopages project. They allow you to create reusable pieces of UI that can be easily composed to build complex pages. In this guide, we'll explore how to create components using the default ghtml approach with @ecopages/core.
 
 ## Basic Component Structure
 
@@ -128,23 +128,6 @@ The `dependencies` object helps Ecopages manage asset loading and optimize perfo
 
 While not mandatory, it's a best practice to include all relevant dependencies in this config object to ensure proper rendering and functionality of your component.
 
-For reference, you can see examples of this config being used in the following files:
-
-
-<CodeBlock>
-```typescript
-RadiantCounter.config = {
-  importMeta: import.meta,
-  dependencies: {
-    scripts: ['./radiant-counter.script.ts'],
-    stylesheets: ['./radiant-counter.css'],
-  },
-};
-```
-</CodeBlock>
-
-
-
 ## CSS in Ecopages Components
 
 In Ecopages, CSS for components is typically defined in separate files and loaded through the component's config. 
@@ -174,7 +157,7 @@ export const getMetadata: GetMetadata = () => ({
 const HomePage: EcoComponent = () =>
   html`${BaseLayout({
     class: 'main-content',
-    children: html\`
+    children: html`
       <h1 class="main-title">Ecopages</h1>
       ${RadiantCounter({
         count: 5,

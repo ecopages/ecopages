@@ -5,18 +5,19 @@ export const layout = DocsLayout;
 
 export const getMetadata = () => ({
   title: 'Docs | Creating Pages',
-  description: 'Learn how to create pages in Eco Pages using the ghtml integration',
+  description: 'Learn how to create pages in Ecopages using the ghtml integration',
 })
 
-# Creating Pages in Eco Pages
+# Creating Pages in Ecopages
 
-Pages are the core of your Eco Pages project. They represent the different routes and content of your website. In this guide, we'll explore how to create pages using the ghtml integration.
+Pages are the core of your Ecopages project. They represent the different routes and content of your website. In this guide, we'll explore how to create pages using the ghtml integration.
 
 ## Basic Page Structure
 
-A typical page in Eco Pages using the ghtml integration consists of a single TypeScript file. Here's a basic example:
+A typical page in Ecopages using the ghtml integration consists of a single TypeScript file. Here's a basic example:
 
-<CodeBlock language="typescript">{`
+<CodeBlock>
+```typescript
 import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
 
@@ -27,13 +28,13 @@ export const getMetadata: GetMetadata = () => ({
     keywords: ['typescript', 'framework', 'static'],
 });
 
-const HomePage: EcoComponent = () => html\`\${BaseLayout({
+const HomePage: EcoComponent = () => html`${BaseLayout({
     class: 'main-content',
-    children: html\`
-      <h1 class="main-title">Eco pages</h1>
-      <p>Welcome to my Eco Pages website!</p>
-    \`,
-  })}\`;
+    children: html`
+      <h1 class="main-title">Ecopages</h1>
+      <p>Welcome to my Ecopages website!</p>
+    `,
+  })}`;
 
 HomePage.config = {
     importMeta: import.meta,
@@ -43,7 +44,8 @@ HomePage.config = {
 };
 
 export default HomePage;
-`}</CodeBlock>
+```
+</CodeBlock>
 
 Let's break down the key elements of a page:
 
@@ -63,25 +65,26 @@ Let's break down the key elements of a page:
 
 To use components in your pages, import them and include them in your HTML template:
 
-<CodeBlock language="typescript">{`
+<CodeBlock>
+```typescript
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts, removeComponentsScripts } from '@ecopages/core';
 
-const HomePage: EcoComponent = () => html\`\${BaseLayout({
+const HomePage: EcoComponent = () => html`${BaseLayout({
     class: 'main-content',
-    children: html\`
-      <h1 class="main-title">Eco pages</h1>
+    children: html`
+      <h1 class="main-title">Ecopages</h1>
       <scripts-injector
         on:interaction="mouseenter,focusin"
-        scripts="\${resolveComponentsScripts([RadiantCounter])}"
+        scripts="${resolveComponentsScripts([RadiantCounter])}"
       >
-        !\${RadiantCounter({
+        !${RadiantCounter({
           count: 5,
         })}
       </scripts-injector>
-    \`,
-  })}\`;
+    `,
+  })}`;
 
 HomePage.config = {
     importMeta: import.meta,
@@ -89,11 +92,14 @@ HomePage.config = {
       components: [BaseLayout, ...removeComponentsScripts([RadiantCounter])],
     },
 };
-`}</CodeBlock>
+```
+</CodeBlock>
 
 ## Lazy Loading Components
 
-Eco Pages provides powerful tools for lazy loading components, which can significantly improve your site's performance. Two key functions for this are `resolveComponentsScripts` and `removeComponentScripts`.
+Ecopages provides powerful tools for lazy loading components, which can significantly improve your site's performance. 
+
+The main tool for this is the custom component `scripts-injector`, which allows you to load scripts only when needed. Two key functions for this are `resolveComponentsScripts` and `removeComponentScripts`.
 
 ### resolveComponentsScripts
 

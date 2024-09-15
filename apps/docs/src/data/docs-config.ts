@@ -33,12 +33,12 @@ export const docsConfig: DocsConfig = {
       ],
     },
     {
-      name: 'Guides',
-      subdirectory: 'guides',
+      name: 'Core',
+      subdirectory: 'core',
       pages: [
-        { title: 'Creating Components', slug: 'creating-components' },
-        { title: 'Creating Layouts', slug: 'creating-layouts' },
-        { title: 'Creating Pages', slug: 'creating-pages' },
+        { title: 'Components', slug: 'components' },
+        { title: 'Layouts', slug: 'layouts' },
+        { title: 'Pages', slug: 'pages' },
       ],
     },
     {

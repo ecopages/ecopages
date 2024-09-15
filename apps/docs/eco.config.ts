@@ -8,8 +8,8 @@ const config = await new ConfigBuilder()
   .setBaseUrl(process.env.ECOPAGES_BASE_URL)
   .setIntegrations([kitajsPlugin(), litPlugin(), mdxPlugin()])
   .setDefaultMetadata({
-    title: 'Eco Pages | Docs',
-    description: 'Eco Pages is a static site generator written in TypeScript',
+    title: 'Ecopages | Docs',
+    description: 'Ecopages is a static site generator written in TypeScript',
     image: 'public/assets/images/default-og.png',
     keywords: ['typescript', 'framework', 'static'],
   })

@@ -1,4 +1,4 @@
-# Eco pages Docs
+# Ecopages Docs
 
 This documentation application serves as a comprehensive guide to the functionalities and operations of ecopages.
 

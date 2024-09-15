@@ -1,4 +1,4 @@
-# Eco pages
+# Ecopages
 
 Starter pack using the most minimal approach to ecopages.
 

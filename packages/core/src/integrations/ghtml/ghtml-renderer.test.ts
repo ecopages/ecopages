@@ -11,8 +11,8 @@ const appConfig = await new ConfigBuilder()
   .build();
 
 const metadata = {
-  title: 'Eco Pages',
-  description: 'Eco Pages',
+  title: 'Ecopages',
+  description: 'Ecopages',
 };
 
 const pageBody = '<body>Hello World</body>';
@@ -34,8 +34,8 @@ describe('GhtmlRenderer', () => {
       .then((body) => {
         expect(body).toInclude('<!DOCTYPE html>');
         expect(body).toInclude('<body>Hello World</body>');
-        expect(body).toInclude('<title>Eco Pages</title>');
-        expect(body).toInclude('<meta name="description" content="Eco Pages" />');
+        expect(body).toInclude('<title>Ecopages</title>');
+        expect(body).toInclude('<meta name="description" content="Ecopages" />');
       });
   });
 

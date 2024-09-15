@@ -12,9 +12,9 @@ export const getMetadata: GetMetadata = () => ({
 const HomePage: EcoComponent = () =>
   html`!${BaseLayout({
     class: 'main-content',
-    children: html` <h1 class="main-title">Eco pages</h1>
+    children: html` <h1 class="main-title">Ecopages</h1>
       <p>
-        This is a simple example of a static website built with Eco Pages<br />
+        This is a simple example of a static website built with Ecopages<br />
         Current dependencies are:
       </p>
 

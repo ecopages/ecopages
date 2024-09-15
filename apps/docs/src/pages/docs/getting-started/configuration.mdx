@@ -6,17 +6,18 @@ export const layout = DocsLayout;
 
 export const getMetadata = () => ({
   title: 'Docs | Configuration',
-  description: 'Learn how to configure Eco Pages for your project',
+  description: 'Learn how to configure Ecopages for your project',
 })
 
 # Configuration
 
-Eco Pages can be customized to fit your project's needs through a configuration file. Create a file named `eco.config.ts` in your project's root directory to get started.
+Ecopages can be customized to fit your project's needs through a configuration file. Create a file named `eco.config.ts` in your project's root directory to get started.
 
-Here's a basic example of an Eco Pages configuration:
+Here's a basic example of an Ecopages configuration:
 
-<CodeBlock lang='typescript'>
-{`import { ConfigBuilder } from '@ecopages/core';
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
@@ -31,7 +32,8 @@ const config = await new ConfigBuilder()
     })
     .build();
 
-export default config;`}
+export default config;
+```
 </CodeBlock>
 
 ## Configuration API
@@ -97,12 +99,12 @@ Configuration for Tailwind CSS.
 </ApiField>
 
 <ApiField name="integrations" type="IntegrationConfig[]" defaultValue="[]" setter="setIntegrations">
-An array of integration plugins to enhance Eco Pages functionality. Common integrations include KitaJS, Lit, MDX, and React.
+An array of integration plugins to enhance Ecopages functionality. Common integrations include KitaJS, Lit, MDX, and React.
 </ApiField>
 
 ## Integrations
 
-Eco Pages supports various integrations to extend its capabilities. Here are some commonly used integrations:
+Ecopages supports various integrations to extend its capabilities. Here are some commonly used integrations:
 
 - **KitaJS**: For JSX templating
 - **Lit**: For web components
@@ -110,8 +112,9 @@ Eco Pages supports various integrations to extend its capabilities. Here are som
 
 To use an integration, install it and add it to your configuration. For example:
 
-<CodeBlock lang="typescript">
-{`import { ConfigBuilder } from '@ecopages/core';
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
@@ -121,7 +124,8 @@ const config = await new ConfigBuilder()
     .setIntegrations([kitajsPlugin(), mdxPlugin()])
     .build();
 
-export default config;`}
+export default config;
+```
 </CodeBlock>
 
 For more details on specific integrations, refer to their respective documentation pages:

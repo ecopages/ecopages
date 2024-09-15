@@ -5,29 +5,32 @@ export const layout = DocsLayout;
 
 export const getMetadata = () => ({
   title: 'Docs | MDX Integration',
-  description: 'Learn how to use the MDX integration with Eco Pages',
+  description: 'Learn how to use the MDX integration with Ecopages',
 })
 
 # MDX Integration
 
-The `@ecopages/mdx` package enables seamless integration of MDX (Markdown with JSX) into your Eco Pages project, allowing you to write content-rich pages with ease.
+The `@ecopages/mdx` package enables seamless integration of MDX (Markdown with JSX) into your Ecopages project, allowing you to write content-rich pages with ease.
 
 ## Installation
 
 To install the MDX integration plugin, run the following command in your project directory:
 
-<CodeBlock lang="bash">
-{`bunx jsr add @ecopages/mdx`}
+<CodeBlock>
+```typescript
+bunx jsr add @ecopages/mdx
+```
 </CodeBlock>
 
 ## Usage
 
-To incorporate the MDX integration into your Eco Pages project, follow these steps:
+To incorporate the MDX integration into your Ecopages project, follow these steps:
 
-1. Import the `mdxPlugin` in your Eco Pages configuration file:
+1. Import the `mdxPlugin` in your Ecopages configuration file:
 
-<CodeBlock lang="typescript">
-{`import { ConfigBuilder } from '@ecopages/core';
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
 import { mdxPlugin } from '@ecopages/mdx';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
@@ -37,27 +40,17 @@ const config = await new ConfigBuilder()
     .setIntegrations([mdxPlugin(), kitajsPlugin()])
     .build();
 
-export default config;`}
-</CodeBlock>
-
-2. Add the `mdxPlugin` to your configuration:
-
-<CodeBlock lang="typescript">
-{`const config = await new ConfigBuilder()
-    .setRootDir(import.meta.dir)
-    .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-    .setIntegrations([mdxPlugin()])
-    .build();
-
-export default config;`}
+export default config;
+```
 </CodeBlock>
 
 ## Creating MDX Pages
 
 Once the MDX integration is set up, you can create pages using MDX syntax. Here's a simple example:
 
-<CodeBlock lang="mdx">
-{`import { Card } from '@/components/card';
+<CodeBlock>
+```mdx
+import { Card } from '@/components/card';
 import { BaseLayout } from '@/layouts/base-layout';
 
 export const config = {
@@ -76,7 +69,8 @@ This is a test page.
 <Card title="Hello" copy="This is the card copy" />
 
 </BaseLayout>
-`}</CodeBlock>
+```
+</CodeBlock>
 
 ## Key Features
 
@@ -93,10 +87,11 @@ This is a test page.
 
 ## Integration with Other Plugins
 
-The MDX integration works well with other Eco Pages plugins. For example, you can use it alongside the Lit plugin:
+The MDX integration works well with other Ecopages plugins. For example, you can use it alongside the Lit plugin:
 
-<CodeBlock lang="typescript">
-{`import { ConfigBuilder } from '@ecopages/core';
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
 import { mdxPlugin } from '@ecopages/mdx';
 import { litPlugin } from '@ecopages/lit';
 
@@ -106,9 +101,10 @@ const config = await new ConfigBuilder()
     .setIntegrations([mdxPlugin(), litPlugin()])
     .build();
 
-export default config;`}
+export default config;
+```
 </CodeBlock>
 
 **Note**: Currently, when using the Lit plugin with MDX, Lit components are not server-side rendered within MDX files. Instead, they are loaded and rendered on the client side.
 
-By leveraging the MDX integration, you can create rich, interactive content pages that combine the simplicity of Markdown with the power of components in your Eco Pages project.
+By leveraging the MDX integration, you can create rich, interactive content pages that combine the simplicity of Markdown with the power of components in your Ecopages project.

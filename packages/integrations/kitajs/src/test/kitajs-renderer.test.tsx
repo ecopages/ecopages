@@ -30,8 +30,8 @@ const mockConfig = {
   distDir: '.eco',
   scriptsExtensions: ['.script.ts', '.script.tsx'],
   defaultMetadata: {
-    title: 'Eco Pages',
-    description: 'Eco Pages',
+    title: 'Ecopages',
+    description: 'Ecopages',
   },
   baseUrl: 'http://localhost:3000',
   templatesExt: ['.tsx'],

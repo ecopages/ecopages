@@ -5,7 +5,7 @@ export const layout = DocsLayout;
 
 export const getMetadata = () => ({
 	title: 'Docs | KitaJS Integration',
-	description: 'Learn how to use the KitaJS integration with Eco Pages',
+	description: 'Learn how to use the KitaJS integration with Ecopages',
 })
 
 # KitaJS Integration
@@ -16,8 +16,10 @@ The `@ecopages/kitajs` package provides seamless integration with [Kita](https:/
 
 To install the KitaJS integration plugin, run the following command in your project directory:
 
-<CodeBlock lang="bash">
-{`bunx jsr add @ecopages/kitajs`}
+<CodeBlock>
+```bash
+bunx jsr add @ecopages/kitajs
+```
 </CodeBlock>
 
 ## Usage
@@ -26,57 +28,56 @@ To incorporate the KitaJS integration into your Ecopages project, follow these s
 
 1. Import the `kitajsPlugin` in your Ecopages configuration file:
 
-<CodeBlock lang="typescript">
-{`import { ConfigBuilder } from '@ecopages/core';
-import { kitajsPlugin } from '@ecopages/kitajs';`}
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { kitajsPlugin } from '@ecopages/kitajs'
+```
 </CodeBlock>
 
 2. Add the `kitajsPlugin` to your configuration:
 
-<CodeBlock lang="typescript">
-{`const config = await new ConfigBuilder()
-		.setRootDir(import.meta.dir)
-		.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-		.setIntegrations([kitajsPlugin()])
-		.setIncludesTemplates({
-			head: 'head.kita.tsx',
-			html: 'html.kita.tsx',
-			seo: 'seo.kita.tsx',
-		})
-		.build();
-
-export default config;`}
+<CodeBlock>
+```typescript
+const config = await new ConfigBuilder()
+	.setRootDir(import.meta.dir)
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([kitajsPlugin()])
+	.setIncludesTemplates({
+		head: 'head.kita.tsx',
+		html: 'html.kita.tsx',
+		seo: 'seo.kita.tsx',
+	})
+	.build();
+```
 </CodeBlock>
 
 ## Creating Pages with KitaJS
 
 Once the KitaJS integration is set up, you can create pages using JSX syntax. Here's an example of a basic page:
 
-<CodeBlock lang="typescript">
-{`import { BaseLayout } from '@/layouts/base-layout';
+<CodeBlock>
+```tsx
+import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
-
-export const getMetadata: GetMetadata = () => ({
-		title: 'Home page',
-		description: 'This is the homepage of the website',
-});
 
 const HomePage: EcoComponent = () => {
   return (
-    <BaseLayout class="main-content">
-      <h1 class="main-title">Welcome to Eco Pages</h1>
+    <BaseLayout>
+      <h1>Welcome to Ecopages</h1>
     </BaseLayout>
   );
 };
 
 HomePage.config = {
-		importMeta: import.meta,
-		dependencies: {
-			components: [BaseLayout],
-		},
+	importMeta: import.meta,
+	dependencies: {
+		components: [BaseLayout],
+	},
 };
 
-export default HomePage;`}
+export default HomePage;
+```
 </CodeBlock>
 
 ## Key Features
@@ -96,18 +97,20 @@ export default HomePage;`}
 
 The KitaJS integration works well with other Ecopages plugins. For example, you can use it alongside the MDX plugin for markdown support:
 
-<CodeBlock lang="typescript">
-{`import { ConfigBuilder } from '@ecopages/core';
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-		.setRootDir(import.meta.dir)
-		.setBaseUrl(process.env.ECOPAGES_BASE_URL)
-		.setIntegrations([kitajsPlugin(), mdxPlugin()])
-		.build();
+	.setRootDir(import.meta.dir)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
+	.setIntegrations([kitajsPlugin(), mdxPlugin()])
+	.build();
 
-export default config;`}
+export default config;
+```
 </CodeBlock>
 
 This setup allows you to use both KitaJS and MDX in your project, giving you flexibility in how you create your pages and components.

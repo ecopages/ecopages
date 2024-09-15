@@ -13,7 +13,7 @@ const HomePage: EcoPage = () => {
   return (
     <BaseLayout class="main-content">
       <>
-        <h1 className="main-title">Eco pages</h1>
+        <h1 className="main-title">Ecopages</h1>
         <a href="/test">Test Splitting</a>
         <Counter defaultValue={10} />
       </>

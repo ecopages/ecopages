@@ -5,121 +5,133 @@ export const layout = DocsLayout;
 
 export const getMetadata = () => ({
   title: 'Docs | Lit Integration',
-  description: 'Learn how to use the Lit integration with Eco Pages',
+  description: 'Learn how to use the Lit integration with Ecopages',
 })
 
 # Lit Integration
 
-The `@ecopages/lit` package provides seamless integration with [Lit](https://lit.dev/), enabling the use of Lit components and reactive properties within the Eco Pages framework.
+The `@ecopages/lit` package provides seamless integration with [Lit](https://lit.dev/), enabling the use of Lit components and reactive properties within the Ecopages framework.
 
 ## Installation
 
 To install the Lit integration plugin, run the following command in your project directory:
 
-<CodeBlock lang="bash">
-{`bunx jsr add @ecopages/lit`}
+<CodeBlock>
+```bash
+bunx jsr add @ecopages/lit
+```
 </CodeBlock>
 
 ## Usage
 
-To incorporate the Lit integration into your Eco Pages project, follow these steps:
+To incorporate the Lit integration into your Ecopages project, follow these steps:
 
-1. Import the `litPlugin` in your Eco Pages configuration file:
+1. Import the `litPlugin` in your Ecopages configuration file:
 
-<CodeBlock lang="typescript">
-{`import { ConfigBuilder } from '@ecopages/core';
-import { litPlugin } from '@ecopages/lit';`}
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { litPlugin } from '@ecopages/lit';
+```
 </CodeBlock>
 
 2. Add the `litPlugin` to your configuration:
 
-<CodeBlock lang="typescript">
-{`const config = await new ConfigBuilder()
+<CodeBlock>
+```typescript
+const config = await new ConfigBuilder()
     .setRootDir(import.meta.dir)
     .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
     .setIntegrations([litPlugin()])
     .build();
 
-export default config;`}
+export default config;
+```
 </CodeBlock>
 
 ## Creating Components with Lit
 
 Once the Lit integration is set up, you can create components using Lit's syntax and the `EcoWebComponent` class. Here's an example of a Lit component using ghtml:
 
-<CodeBlock lang="typescript">
-{`import { html } from 'lit';
+<CodeBlock>
+```typescript
+import { html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { EcoWebComponent } from '@ecopages/lit';
 
 @customElement('lit-counter')
 export class LitCounter extends EcoWebComponent {
-    @property({ type: Number })
-    count = 0;
+  @property({ type: Number })
+  count = 0;
 
-    render() {
-      return html\`
-        <div>
-          <p>Count: \${this.count}</p>
-          <button @click=\${this._decrement}>-</button>
-          <button @click=\${this._increment}>+</button>
-        </div>
-      \`;
-    }
+  render() {
+    return html`
+      <div>
+        <p>Count: \${this.count}</p>
+        <button @click=\${this._decrement}>-</button>
+        <button @click=\${this._increment}>+</button>
+      </div>
+    `;
+  }
 
-    private _decrement() {
-      this.count--;
-    }
+  private _decrement() {
+    this.count--;
+  }
 
-    private _increment() {
-      this.count++;
-    }
+  private _increment() {
+    this.count++;
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-      'lit-counter': LitCounter;
-    }
-}`}
+  interface HTMLElementTagNameMap {
+    'lit-counter': LitCounter;
+  }
+}
+```
 </CodeBlock>
 
 Note that styles are defined in a separate CSS file, promoting separation of concerns:
 
-<CodeBlock lang="css">
-{`lit-counter {
-    display: block;
-    padding: 16px;
-    max-width: 800px;
+<CodeBlock>
+```css 
+lit-counter {
+  display: block;
+  padding: 16px;
+  max-width: 800px;
 }
 
 p {
-    font-size: 18px;
+  font-size: 18px;
 }
 
 button {
-    font-size: 16px;
-    padding: 5px 10px;
-    margin: 0 5px;
-}`}
+  font-size: 16px;
+  padding: 5px 10px;
+  margin: 0 5px;
+}
+```
 </CodeBlock>
 
 ## Define the config
 
 To properly define the config for the component and avoid issues related to multiple definitions, you should use the `EcoWebComponent` type.
 
-<CodeBlock lang="typescript">
-{`import type { EcoWebComponent } from '@ecopages/core';
+<CodeBlock>
+```typescript
+import type { EcoWebComponent } from '@ecopages/core';
 import './lit-counter.script';
 
 export const LitCounter: EcoWebComponent = {
-    config: {
-      importMeta: import.meta,
-      dependencies: {
-        scripts: ['lit-counter.script.ts'],
-      },
+  config: {
+    importMeta: import.meta,
+    dependencies: {
+      scripts: ['lit-counter.script.ts'],
     },
+  },
 };
-`}
+
+```
 </CodeBlock>
 
 As you can see we don't need to define it on the function that creates the component, due the fact we do not need it.
@@ -129,8 +141,9 @@ Also remember to do not include the stylesheet in the config, because it will be
 
 To use Lit components in your pages, import them and include them in your HTML template, please remember to use the .lit.ts extension.
 
-<CodeBlock lang="typescript">
-{`import { LitCounter } from '@/components/lit-counter';
+<CodeBlock>
+```typescript
+import { LitCounter } from '@/components/lit-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts } from '@ecopages/core';
 
@@ -140,13 +153,13 @@ export const getMetadata: GetMetadata = () => ({
 });
 
 const HomePage: EcoComponent = () =>
-  html\`\${BaseLayout({
+  html`${BaseLayout({
     class: 'main-content',
     children: html\`
       <h1 class="main-title">Home</h1>
       <lit-counter count="8"></lit-counter>
-    \`,
-  })}\`;
+    `,
+  })}`;
 
 HomePage.config = {
   importMeta: import.meta,
@@ -155,13 +168,14 @@ HomePage.config = {
   },
 };
 
-export default HomePage;`}
+export default HomePage;
+```
 </CodeBlock>
 
 ## Key Features
 
-1. **EcoWebComponent**: Extend from `EcoWebComponent` to create Lit components that integrate seamlessly with Eco Pages.
-2. **Server-Side Rendering (SSR)**: Lit components are server-side rendered by default in Eco Pages, except when used within MDX files (currently).
+1. **EcoWebComponent**: Extend from `EcoWebComponent` to create Lit components that integrate seamlessly with Ecopages.
+2. **Server-Side Rendering (SSR)**: Lit components are server-side rendered by default in Ecopages, except when used within MDX files (currently).
 3. **Reactive Properties**: Utilize Lit's reactive properties for efficient updates.
 4. **Declarative Templates**: Use Lit's html template literal for creating component templates.
 5. **Separation of Concerns**: Styles are written in separate CSS files and linked via the component's config.
@@ -175,20 +189,22 @@ export default HomePage;`}
 
 ## Integration with Other Plugins
 
-The Lit integration works well with other Eco Pages plugins. For example, you can use it alongside the kitajs plugin to create reusable components in a jsx style.
+The Lit integration works well with other Ecopages plugins. For example, you can use it alongside the kitajs plugin to create reusable components in a jsx style.
 
-<CodeBlock lang="typescript">
-{`import { ConfigBuilder } from '@ecopages/core';
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
 import { litPlugin } from '@ecopages/lit';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
 const config = await new ConfigBuilder()
-    .setRootDir(import.meta.dir)
-    .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-    .setIntegrations([litPlugin(), kitajsPlugin()])
-    .build();
+  .setRootDir(import.meta.dir)
+  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+  .setIntegrations([litPlugin(), kitajsPlugin()])
+  .build();
 
-export default config;`}
+export default config;
+```
 </CodeBlock>
 
-By leveraging the Lit integration and `EcoWebComponent`, you can create powerful, reactive components within your Eco Pages project, combining the efficiency of static site generation with the interactivity of modern web components.
+By leveraging the Lit integration and `EcoWebComponent`, you can create powerful, reactive components within your Ecopages project, combining the efficiency of static site generation with the interactivity of modern web components.

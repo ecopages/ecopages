@@ -1,6 +1,7 @@
 import { Logo } from '@/components/logo';
 import { Navigation, type NavigationProps } from '@/components/navigation';
 import type { EcoComponent } from '@ecopages/core';
+import rootJson from '../../../../../package.json';
 
 export type HeaderProps = {
   navigation: NavigationProps;
@@ -12,7 +13,7 @@ export const Header: EcoComponent<HeaderProps> = ({ navigation }) => {
       <div class="header__inner">
         <div class="header__inner-left-side">
           <Logo href="/" target="_self" title="Ecopages" />
-          <p class="version">v 0.1.0</p>
+          <p class="version">v {rootJson.version as 'safe'}</p>
         </div>
         <Navigation {...navigation} />
       </div>

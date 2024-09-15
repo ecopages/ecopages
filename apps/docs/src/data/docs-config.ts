@@ -51,5 +51,10 @@ export const docsConfig: DocsConfig = {
         { title: 'Mdx', slug: 'mdx' },
       ],
     },
+    {
+      name: 'Ecosystem',
+      subdirectory: 'ecosystem',
+      pages: [{ title: 'Packages', slug: 'packages' }],
+    },
   ],
 };

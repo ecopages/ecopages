@@ -1,19 +1,112 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
   title: 'Docs | Creating Pages',
-  description: 'The place to learn about Eco Pages',
+  description: 'Learn how to create pages in Eco Pages using the ghtml integration',
 })
 
-# Building a page
+# Creating Pages in Eco Pages
 
-There are several you can use to build a page in Eco Pages, it mostly depends on the integrations you are using.
+Pages are the core of your Eco Pages project. They represent the different routes and content of your website. In this guide, we'll explore how to create pages using the ghtml integration.
 
-Currently the following integrations are supported:
+## Basic Page Structure
 
-- [`@ecopages/kitajs`](/docs/integrations/kitajs)
-- [`@ecopages/lit`](/docs/integrations/lit)
-- [`@ecopages/mdx`](/docs/integrations/mdx)
-- [`@ecopages/react`](/docs/integrations/react)
+A typical page in Eco Pages using the ghtml integration consists of a single TypeScript file. Here's a basic example:
+
+<CodeBlock language="typescript">{`
+import { BaseLayout } from '@/layouts/base-layout';
+import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
+
+export const getMetadata: GetMetadata = () => ({
+    title: 'Home page',
+    description: 'This is the homepage of the website',
+    image: 'public/assets/images/default-og.png',
+    keywords: ['typescript', 'framework', 'static'],
+});
+
+const HomePage: EcoComponent = () => html\`\${BaseLayout({
+    class: 'main-content',
+    children: html\`
+      <h1 class="main-title">Eco pages</h1>
+      <p>Welcome to my Eco Pages website!</p>
+    \`,
+  })}\`;
+
+HomePage.config = {
+    importMeta: import.meta,
+    dependencies: {
+      components: [BaseLayout],
+    },
+};
+
+export default HomePage;
+`}</CodeBlock>
+
+Let's break down the key elements of a page:
+
+1. **Imports**: Import necessary components and types from `@ecopages/core` and your project files.
+
+2. **Metadata**: Use the `getMetadata` function to define page-specific metadata.
+
+3. **Page Component**: Create your main page component as an `EcoComponent`.
+
+4. **HTML Template**: Use the `html` template literal to define your page's structure.
+
+5. **Config**: Always include the `config` object with `importMeta` and any necessary dependencies.
+
+6. **Export**: Export your page component as the default export.
+
+## Using Components in Pages
+
+To use components in your pages, import them and include them in your HTML template:
+
+<CodeBlock language="typescript">{`
+import { RadiantCounter } from '@/components/radiant-counter';
+import { BaseLayout } from '@/layouts/base-layout';
+import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts, removeComponentsScripts } from '@ecopages/core';
+
+const HomePage: EcoComponent = () => html\`\${BaseLayout({
+    class: 'main-content',
+    children: html\`
+      <h1 class="main-title">Eco pages</h1>
+      <scripts-injector
+        on:interaction="mouseenter,focusin"
+        scripts="\${resolveComponentsScripts([RadiantCounter])}"
+      >
+        !\${RadiantCounter({
+          count: 5,
+        })}
+      </scripts-injector>
+    \`,
+  })}\`;
+
+HomePage.config = {
+    importMeta: import.meta,
+    dependencies: {
+      components: [BaseLayout, ...removeComponentsScripts([RadiantCounter])],
+    },
+};
+`}</CodeBlock>
+
+## Lazy Loading Components
+
+Eco Pages provides powerful tools for lazy loading components, which can significantly improve your site's performance. Two key functions for this are `resolveComponentsScripts` and `removeComponentScripts`.
+
+### resolveComponentsScripts
+
+This function is used to resolve the scripts associated with components for lazy loading. It's typically used with the `scripts-injector` component.
+
+`resolveComponentsScripts` takes an array of components and returns a string of resolved script paths. This allows the `scripts-injector` to load these scripts only when needed (in this case, on mouse enter or focus).
+
+### removeComponentScripts
+
+As you can see in the example above, `removeComponentScripts` is used to remove scripts from the initial page load, further optimizing performance:
+
+This function removes the scripts associated with the specified components from the initial page load. The scripts will be loaded later when needed, typically through a `scripts-injector`.
+
+By using these functions, you can create pages that are lightweight on initial load but still provide rich interactivity when needed. This approach is particularly useful for components that are not immediately visible or not used by all users.
+
+Remember to always balance performance optimization with user experience. Some critical components might need to be loaded immediately, while others can be safely deferred.

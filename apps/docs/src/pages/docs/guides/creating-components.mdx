@@ -1,8 +1,191 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
   title: 'Docs | Creating Components',
-  description: 'The place to learn about Eco Pages',
+  description: 'Learn how to create reusable components in Eco Pages using ghtml',
 })
+
+# Creating Components in Eco Pages
+
+Components are the building blocks of your Eco Pages project. They allow you to create reusable pieces of UI that can be easily composed to build complex pages. In this guide, we'll explore how to create components using the ghtml approach with @ecopages/core.
+
+## Basic Component Structure
+
+A typical component in Eco Pages consists of two files:
+1. A `.ts` file for the component's structure and logic
+2. A `.script.ts` file for additional client-side interactivity (optional)
+
+Let's create a simple counter component to demonstrate this structure, we will use the Radiant library from [@ecopages/radiant](https://radiant.ecopages.app/) to add client-side interactivity.
+
+### RadiantCounter.ts
+
+<CodeBlock language="typescript">{`import { type EcoComponent, html } from '@ecopages/core';
+import type { RadiantCounterProps } from './radiant-counter.script';
+
+export const RadiantCounter: EcoComponent<RadiantCounterProps> = ({ count }) =>
+    html\`<radiant-counter count="\${count}">
+        <button type="button" data-ref="decrement" aria-label="Decrement">-</button>
+        <span data-ref="count">\${count}</span>
+        <button type="button" data-ref="increment" aria-label="Increment">+</button>
+    </radiant-counter>\`;
+
+RadiantCounter.config = {
+    importMeta: import.meta,
+    dependencies: {
+      scripts: ['./radiant-counter.script.ts'],
+      stylesheets: ['./radiant-counter.css'],
+    },
+};`}</CodeBlock>
+
+### radiant-counter.script.ts
+
+<CodeBlock lang='typescript'>
+{`import { RadiantElement } from '@ecopages/radiant/core';
+import { customElement } from '@ecopages/radiant/decorators/custom-element';
+import { onEvent } from '@ecopages/radiant/decorators/on-event';
+import { onUpdated } from '@ecopages/radiant/decorators/on-updated';
+import { query } from '@ecopages/radiant/decorators/query';
+import { reactiveProp } from '@ecopages/radiant/decorators/reactive-prop';
+
+export type RadiantCounterProps = {
+    value?: number;
+};
+
+@customElement('radiant-counter')
+export class RadiantCounter extends RadiantElement {
+    @reactiveProp({ type: Number, reflect: true }) declare value: number;
+    @query({ ref: 'count' }) countText!: HTMLElement;
+
+    @onEvent({ ref: 'decrement', type: 'click' })
+    decrement() {
+      if (this.value > 0) this.value--;
+    }
+
+    @onEvent({ ref: 'increment', type: 'click' })
+    increment() {
+      this.value++;
+    }
+
+    @onUpdated('value')
+    updateCount() {
+      this.countText.textContent = this.value.toString();
+      this.dispatchEvent(new Event('change'));
+    }
+}
+
+declare global {
+    namespace JSX {
+      interface IntrinsicElements {
+        'radiant-counter': HtmlTag & RadiantCounterProps;
+      }
+    }
+}`}
+</CodeBlock>
+
+## Key Points:
+- Use the `EcoComponent` type and `html` template literal from `@ecopages/core`.
+- Define props using an interface.
+- Use custom elements for client-side interactivity.
+- Include the `config` object with `importMeta` and list the script and stylesheet files in the `dependencies`.
+
+## Component Config
+
+The EcoComponent config is an essential part of creating components in Eco Pages. It provides necessary information for the framework to properly handle and render the component. Here's a brief overview of the config object and its mandatory fields:
+
+```typescript
+RadiantCounter.config = {
+  importMeta: import.meta,
+  dependencies: {
+    scripts: ['./radiant-counter.script.ts'],
+    stylesheets: ['./radiant-counter.css'],
+  },
+};
+```
+
+Mandatory fields:
+
+1. `importMeta`: This field must be set to `import.meta`. It provides the framework with information about the component's location and context.
+
+2. `dependencies`: This object specifies the component's dependencies. While not all sub-fields are mandatory, it's crucial to include this object in the config.
+
+   - `scripts`: An array of paths to script files that the component depends on. These are typically used for client-side interactivity.
+   - `stylesheets`: An array of paths to CSS files that style the component.
+   - `components`: An array of other components that this component depends on (not shown in the example above, but used in page components).
+
+The `dependencies` object helps Eco Pages manage asset loading and optimize performance by only loading necessary resources.
+
+While not mandatory, it's a best practice to include all relevant dependencies in this config object to ensure proper rendering and functionality of your component.
+
+For reference, you can see examples of this config being used in the following files:
+
+
+<CodeBlock language="typescript">{`
+RadiantCounter.config = {
+  importMeta: import.meta,
+  dependencies: {
+    scripts: ['./radiant-counter.script.ts'],
+    stylesheets: ['./radiant-counter.css'],
+  },
+};
+`}</CodeBlock>
+
+
+
+## CSS in Eco Pages Components
+
+In Eco Pages, CSS for components is typically defined in separate files and loaded through the component's config. 
+Please note that `tailwind` and `postcss` are supported by default in Eco Pages. Please refer to the configuration section for more details.
+
+Here's how it works:
+
+1. Separate CSS Files: Each component can have its own CSS file. This promotes modularity and makes styles easier to manage.
+2. CSS File Naming: Usually, the CSS file is named the same as the component file, but with a .css extension. For example, radiant-counter.css for the RadiantCounter component.
+3. Loading CSS: The CSS file is specified in the component's config under the dependencies.stylesheets array.
+
+## Using Components in Pages
+
+To use your components in pages, import them and include them in your HTML template:
+
+<CodeBlock language="typescript">{`import { RadiantCounter } from '@/components/radiant-counter';
+import { BaseLayout } from '@/layouts/base-layout';
+import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
+
+export const getMetadata: GetMetadata = () => ({
+  title: 'Home page',
+  description: 'This is the homepage of the website',
+});
+
+const HomePage: EcoComponent = () =>
+  html\`\${BaseLayout({
+    class: 'main-content',
+    children: html\`
+      <h1 class="main-title">Eco pages</h1>
+      \${RadiantCounter({
+        count: 5,
+      })}
+    \`,
+  })}\`;
+
+HomePage.config = {
+    importMeta: import.meta,
+    dependencies: {
+      components: [BaseLayout, RadiantCounter],
+    },
+};
+
+export default HomePage;
+`}</CodeBlock>
+
+## Best Practices for Component Creation
+
+1. **Separation of Concerns**: Keep your component's structure (`.ts`) separate from its client-side logic (`.script.ts`).
+2. **Use HTML Templates**: Leverage the `html` template literal for creating your component's structure.
+3. **Custom Elements**: Use custom elements for adding client-side interactivity to your components.
+4. **TypeScript**: Use TypeScript for better type checking and improved developer experience.
+5. **Styling**: Use separate CSS files for styling your components.
+6. **Config Object**: Always include the `config` object with `importMeta` and necessary dependencies.
+
+By following these guidelines and leveraging the power of ghtml components with @ecopages/core, you can create robust, reusable, and interactive components that will help you build efficient and maintainable websites with Eco Pages.

@@ -6,11 +6,15 @@
   }
 
   &__name {
-    @apply bg-background-accent text-on-background-accent font-bold w-fit rounded-md  px-2 py-0.5;
+    @apply border border-on-background bg-background-accent text-on-background-accent font-bold w-fit rounded-md  px-2 py-0.5;
+  }
+
+  &__setter {
+    @apply bg-on-background text-xs text-background rounded-md px-2 py-0.5;
   }
 
   &__type {
-    @apply bg-on-background text-xs text-background rounded-md px-2 py-0.5;
+    @apply text-base font-mono text-on-background rounded-md px-2 py-0.5;
   }
 
   &__default-value {

@@ -1,4 +1,4 @@
-import { type EcoComponent, removeComponentsScripts, resolveComponentsScripts } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 import { LitCounter } from '../lit-counter';
 
 export type CardProps = {

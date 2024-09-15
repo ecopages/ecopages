@@ -5,29 +5,84 @@ export const layout = DocsLayout;
 
 export const getMetadata = () => ({
 	title: 'Docs | Installation',
-	description: 'The place to learn about Eco Pages',
+	description: 'Learn how to install and set up Eco Pages for your project',
 })
 
-# Installation
----
+## Installation
 
-To get started with Radiant, you need to install the package in your project. You can do this by running the following command:
+To create a new Eco Pages project, you can install the core package and desired integrations using Bun:
 
 <CodeBlock lang='bash'>
-{`bun install @ecopages/radiant`}
+{`bun jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx`}
 </CodeBlock>
+
+This example installs the core package along with the KitaJS and MDX integrations. You can add or remove integrations based on your project needs.
+
+## Configuration
+
+After installation, create an `eco.config.ts` file in your project's root directory to configure Eco Pages:
+
+<CodeBlock lang='typescript'>
+{`import { ConfigBuilder } from '@ecopages/core';
+import { kitajsPlugin } from '@ecopages/kitajs';
+import { mdxPlugin } from '@ecopages/mdx';
+
+const config = await new ConfigBuilder()
+  .setRootDir(import.meta.dir)
+  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+  .setIntegrations([kitajsPlugin(), mdxPlugin()])
+  .build();
+
+export default config;`}
+</CodeBlock>
+
+This configuration sets up Eco Pages with the KitaJS and MDX integrations. Adjust the integrations and other settings as needed for your project.
+
+## Project Structure
+
+A typical Eco Pages project structure looks like this:
+
+```
+my-project/
+├── src/
+│   ├── pages/
+│   ├── layouts/
+│   ├── components/
+│   └── includes/
+├── public/
+├── eco.config.ts
+└── package.json
+```
+
+- `src/pages/`: Contains your page files (e.g., `.mdx`, `.kita.tsx`, `.lit.tsx`)
+- `src/layouts/`: Holds layout components
+- `src/components/`: Stores reusable components
+- `src/includes/`: Contains include templates (e.g., `head.kita.tsx`, `html.kita.tsx`)
+- `public/`: Static assets that will be copied to the build directory
+- `eco.config.ts`: Eco Pages configuration file
 
 ## Usage
 
-After installing the package, you can use the following commands to start developing your project:
+Add the following scripts to your `package.json`:
 
 <CodeBlock lang='json'>
 {`{
   "scripts": {
-	"dev": "ecopages dev",
-	"build": "ecopages build",
-	"start": "ecopages start",
-	"preview": "ecopages preview"
+    "dev": "ecopages dev",
+    "build": "ecopages build",
+    "start": "ecopages start",
+    "preview": "ecopages preview"
+  }
 }`}
 </CodeBlock>
 
+Now you can use these commands to develop and build your Eco Pages project:
+
+- `bun run dev`: Starts the development server
+- `bun run build`: Builds your project for production
+- `bun run start`: Serves the production build
+- `bun run preview`: Previews the production build locally
+
+## Next Steps
+
+With Eco Pages installed and configured, you're ready to start building your static site. Check out the [Creating Pages](/docs/guides/creating-pages) guide to learn how to create content using different integrations.

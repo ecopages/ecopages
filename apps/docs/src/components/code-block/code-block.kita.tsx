@@ -6,7 +6,7 @@ export const CodeBlock: EcoComponent<{ children: string; lang?: BundledLanguage;
   lang = 'typescript',
   theme = 'dracula',
 }) => {
-  const safeHtml = await codeToHtml(children, {
+  const safeHtml = await codeToHtml(children.trim(), {
     lang,
     theme,
   });

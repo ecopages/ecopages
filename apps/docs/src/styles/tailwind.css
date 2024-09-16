@@ -161,11 +161,12 @@ body {
 
 .banner--alert {
   @apply bg-yellow-100 border-yellow-500;
-  p,
-  span,
-  a {
-    @apply text-yellow-700;
-  }
+}
+
+.banner--alert p,
+.banner--alert span,
+.banner--alert a {
+  @apply text-yellow-700;
 }
 
 .banner__title {

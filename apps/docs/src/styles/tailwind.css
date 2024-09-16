@@ -150,27 +150,29 @@ body {
       @apply bg-transparent text-inherit rounded-md my-8;
     }
   }
+}
 
-  .banner {
-    @apply border-l-4 px-4 py-4 rounded-md flex flex-col;
-    p {
-      @apply my-1;
-    }
+.banner {
+  @apply border-l-4 px-4 py-4 rounded-md flex flex-col;
+  p {
+    @apply my-1;
   }
+}
 
-  .banner--alert {
-    @apply bg-yellow-100 border-yellow-500;
-    * {
-      @apply text-yellow-700;
-    }
+.banner--alert {
+  @apply bg-yellow-100 border-yellow-500;
+  p,
+  span,
+  a {
+    @apply text-yellow-700;
   }
+}
 
-  .banner__title {
-    @apply font-bold mb-0;
-  }
+.banner__title {
+  @apply font-bold mb-0;
+}
 
-  .banner__link {
-    @apply underline self-end inline-flex items-center gap-2 rounded-md p-2;
-    @apply hover:text-yellow-900 hover:bg-yellow-50;
-  }
+.banner__link {
+  @apply underline self-end inline-flex items-center gap-2 rounded-md p-2;
+  @apply hover:text-yellow-900 hover:bg-yellow-50;
 }

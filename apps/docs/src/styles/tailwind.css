@@ -171,8 +171,6 @@ body {
 
   .banner__link {
     @apply underline self-end inline-flex items-center gap-2 rounded-md p-2;
-    &:hover {
-      @apply text-yellow-900 bg-yellow-50;
-    }
+    @apply text-yellow-900 bg-yellow-50;
   }
 }

@@ -154,26 +154,27 @@ body {
 
 .banner {
   @apply border-l-4 px-4 py-4 rounded-md flex flex-col;
+
   p {
     @apply my-1;
   }
-}
 
-.banner--alert {
-  @apply bg-yellow-100 border-yellow-500;
-}
+  &--alert {
+    @apply bg-yellow-100 border-yellow-500;
 
-.banner--alert p,
-.banner--alert span,
-.banner--alert a {
-  @apply text-yellow-700;
-}
+    p,
+    span,
+    a {
+      @apply text-yellow-700;
+    }
+  }
 
-.banner__title {
-  @apply font-bold mb-0;
-}
+  &__title {
+    @apply font-bold mb-0;
+  }
 
-.banner__link {
-  @apply underline self-end inline-flex items-center gap-2 rounded-md p-2;
-  @apply hover:text-yellow-900 hover:bg-yellow-50;
+  &__link {
+    @apply underline self-end inline-flex items-center gap-2 rounded-md p-2;
+    @apply hover:text-yellow-900 hover:bg-yellow-50;
+  }
 }

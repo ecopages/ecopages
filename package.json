@@ -28,7 +28,7 @@
 		"preview:react-app": "bun run --filter @ecopages/react-app preview | tee /dev/null",
 		"clean": "clear && rm -rf node_modules bun.lockb && bun install",
 		"format": "bunx @biomejs/biome format --write .",
-		"lint": "bunx @biomejs/biome check --apply .",
+		"lint": "bunx @biomejs/biome check --write .",
 		"lint-staged": "lint-staged",
 		"jsr:sync-version": "bun scripts/jsr-sync-version.ts",
 		"prerelease": "bun test --coverage && bun run jsr:sync-version",

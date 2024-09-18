@@ -1,3 +1,4 @@
+import { Burger } from '@/components/burger';
 import { Logo } from '@/components/logo';
 import { Navigation, type NavigationProps } from '@/components/navigation';
 import type { EcoComponent } from '@ecopages/core';
@@ -12,6 +13,7 @@ export const Header: EcoComponent<HeaderProps> = ({ navigation }) => {
     <header class="header">
       <div class="header__inner">
         <div class="header__inner-left-side">
+          <Burger class="md:hidden" />
           <Logo href="/" target="_self" title="Ecopages" />
           <p class="version">v {rootJson.version as 'safe'}</p>
         </div>
@@ -25,6 +27,6 @@ Header.config = {
   importMeta: import.meta,
   dependencies: {
     stylesheets: ['./header.css'],
-    components: [Navigation, Logo],
+    components: [Navigation, Logo, Burger],
   },
 };

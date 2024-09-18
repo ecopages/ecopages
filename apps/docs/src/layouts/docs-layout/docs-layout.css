@@ -1,10 +1,9 @@
 .docs-layout {
-  @apply grid grid-cols-[auto,1fr] divide-x divide-border;
-}
-
-@scope (.docs-layout) {
+  @apply md:grid md:grid-cols-[auto,1fr];
   .docs-layout__aside {
-    @apply pr-8;
+    @apply fixed top-16 h-[calc(100svh_-_4rem)] md:sticky;
+    @apply bg-background p-6 md:p-8 border-r border-r-background-accent;
+
     ul,
     ol {
       @apply list-none p-0;
@@ -16,7 +15,7 @@
   }
 
   .docs-layout__content {
-    @apply px-12;
+    @apply px-6 md:px-12 py-4;
   }
 
   .docs-layout__nav-group {

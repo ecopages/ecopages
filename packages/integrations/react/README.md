@@ -19,7 +19,7 @@ import { ConfigBuilder } from "@ecopages/core";
 import { reactPlugin } from "@ecopages/react";
 
 const config = await new ConfigBuilder()
-  .setBaseUrl(process.env.ECOPAGES_BASE_URL)
+  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
   .setIntegrations([reactPlugin()])
   .build();
 

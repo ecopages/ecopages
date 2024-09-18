@@ -1,3 +1,3 @@
 main {
-  @apply p-8 container mx-auto;
+  @apply container mx-auto w-screen;
 }

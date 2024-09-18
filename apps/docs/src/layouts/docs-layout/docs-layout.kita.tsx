@@ -5,13 +5,13 @@ import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent } from '@ecopages/core';
 
 export type DocsLayoutProps = {
-  children: Html.Children;
+  children: JSX.Element;
   class?: string;
 };
 
 const DocsNavigation = () => {
   return (
-    <nav>
+    <nav aria-label="Main Navigation">
       <ul>
         {docsConfig.documents.map((group) => (
           <li>
@@ -44,10 +44,12 @@ const DocsNavigation = () => {
 export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
   return (
     <BaseLayout class="docs-layout prose">
-      <aside class="docs-layout__aside">
-        <DocsNavigation />
-      </aside>
-      <div class="docs-layout__content">{children}</div>
+      <>
+        <radiant-navigation class="docs-layout__aside hidden md:block">
+          <DocsNavigation />
+        </radiant-navigation>
+        <div class="docs-layout__content">{children}</div>
+      </>
     </BaseLayout>
   );
 };
@@ -56,6 +58,7 @@ DocsLayout.config = {
   importMeta: import.meta,
   dependencies: {
     stylesheets: ['./docs-layout.css'],
+    scripts: ['./docs-layout.script.ts'],
     components: [BaseLayout, CodeBlock, ApiField],
   },
 };

@@ -1,5 +1,5 @@
 .header {
-  @apply bg-background-accent text-on-background-accent shadow-sm;
+  @apply bg-background-accent text-on-background-accent shadow-sm sticky top-0;
   &__inner {
     @apply px-4 py-3 container mx-auto flex items-center justify-between;
     &-left-side {

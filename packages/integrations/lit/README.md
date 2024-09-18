@@ -18,7 +18,7 @@ import { kitajsPlugin } from "@ecopages/kitajs";
 import { litPlugin } from "@ecopages/lit";
 
 const config = await new ConfigBuilder()
-  .setBaseUrl(process.env.ECOPAGES_BASE_URL)
+  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
   .setIntegrations([kitajsPlugin(), litPlugin()])
   .build();
 

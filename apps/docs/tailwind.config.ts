@@ -24,7 +24,7 @@ const config: Config = {
     },
   },
   plugins: [],
-  safelist: ['hidden'],
+  safelist: ['hidden', 'overflow-hidden'],
 };
 
 export default config;

@@ -64,7 +64,7 @@ export class AppBuilder {
     const output = `${distDir}/${tailwind.input}`;
     const watch = this.options.watch;
     const minify = !watch;
-    exec(`bunx tailwindcss -i ${input} -o ${output} ${watch ? '--watch' : ''} ${minify ? '--minify' : ''}`);
+    exec(`bunx tailwindcss -i ${input} -o ${output} ${watch ? '--watch' : ''} ${minify ? '--minify' : ''} --postcss`);
   }
   private async runDevServer() {
     const options = {

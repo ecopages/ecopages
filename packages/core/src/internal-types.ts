@@ -103,6 +103,8 @@ export type EcoPagesAppConfig = {
      */
     input: string;
   };
+  /** Additional paths to watch. Use this to monitor extra files. It is relative to the rootDir */
+  additionalWatchPaths: string[];
   /**
    * @default { title: 'Ecopages', description: 'Ecopages' }
    */
@@ -113,6 +115,7 @@ export type EcoPagesAppConfig = {
   integrationsDependencies: IntegrationDependencyConfig[];
   /** Derived Paths */
   absolutePaths: {
+    config: string;
     componentsDir: string;
     distDir: string;
     includesDir: string;

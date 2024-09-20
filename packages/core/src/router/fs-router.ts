@@ -30,7 +30,6 @@ export class FSRouter {
   }
 
   async init() {
-    this.routes = {};
     this.routes = await this.scanner.scan();
     appLogger.debug('FSRouter initialized', this.routes);
   }

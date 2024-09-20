@@ -6,7 +6,7 @@ This project is built on a commitment to clarity and simplicity in web developme
 
 Ecopages relies on a minimal set of dependencies, carefully chosen to support its core functionality.
 
-Ecopages is built on the [Bun](https://bun.sh/) runtime, primarily utilizing [Kita](https://kita.js.org/) and [Mdx](https://mdxjs.com/) for rendering. Additionally, it supports [Lit Elements](https://lit.dev/) and offers experimental integration with [React](https://react.dev/). This setup allows for the extension of the platform with custom rendering functions, providing flexibility to cater to the specific needs of each project. The integrations are designed to be extensible, with no limit to the customization and expansion possibilities.
+Ecopages is built on the Bun runtime and primarily uses [Ghtml](https://github.com/gurgunday/ghtml) for rendering. It offers easy customization through integrations such as [Kita](https://kita.js.org/), [Mdx](https://mdxjs.com/), and [Lit Elements](https://lit.dev/). Additionally, it provides experimental support for [React](https://react.dev/). You can also extend the platform with custom rendering functions by adding your own plugins, ensuring flexibility to meet the specific needs of each project. The integrations are designed to be highly extensible, allowing limitless customization and expansion possibilities.
 
 For styling, [Tailwind CSS](https://tailwindcss.com/) and [PostCSS](https://postcss.org/) have been integrated. Notably, we recommend using `css` stylesheets and `@apply` directives with Tailwind CSS, diverging from its usual inline styling approach to better suit the structure of Ecopages.
 

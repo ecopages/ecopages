@@ -43,8 +43,10 @@ export class ConfigBuilder {
       title: 'Ecopages',
       description: 'Ecopages',
     },
+    additionalWatchPaths: [],
     templatesExt: [],
     absolutePaths: {
+      config: '',
       componentsDir: '',
       distDir: '',
       includesDir: '',
@@ -141,6 +143,11 @@ export class ConfigBuilder {
     return this;
   }
 
+  setAdditionalWatchPaths(additionalWatchPaths: string[]): this {
+    this.config.additionalWatchPaths = additionalWatchPaths;
+    return this;
+  }
+
   createAbsolutePaths(config: EcoPagesAppConfig): this {
     const {
       srcDir,
@@ -160,6 +167,7 @@ export class ConfigBuilder {
     const absoluteDistDir = path.resolve(projectDir, distDir);
 
     this.config.absolutePaths = {
+      config: path.join(projectDir, 'eco.config.ts'),
       projectDir: projectDir,
       srcDir: absoluteSrcDir,
       distDir: absoluteDistDir,

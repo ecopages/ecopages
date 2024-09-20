@@ -19,13 +19,6 @@ export class RadiantCounter extends RadiantElement {
     this.classList.add('hidden');
   }
 
-  onClickOutside(event: MouseEvent): void {
-    console.log(this.contains(event.target as Node));
-    if (!this.contains(event.target as Node)) {
-      this.closeNavigation();
-    }
-  }
-
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     window.removeEventListener('toggle-menu', this.toggleNavigation);

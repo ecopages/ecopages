@@ -187,4 +187,14 @@ describe('EcoConfigBuilder', () => {
       builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
     ).toThrow('Integrations extensions must be unique');
   });
+
+  test('should add additionalWatchPaths', async () => {
+    const config = await builder
+      .setBaseUrl('https://example.com')
+      .setRootDir('/project')
+      .setAdditionalWatchPaths(['/additional-path'])
+      .build();
+
+    expect(config.additionalWatchPaths).toEqual(['/additional-path']);
+  });
 });

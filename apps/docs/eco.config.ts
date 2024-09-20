@@ -19,6 +19,7 @@ const config = await new ConfigBuilder()
     seo: 'seo.kita.tsx',
   })
   .setError404Template('404.kita.tsx')
+  .setAdditionalWatchPaths(['src/data'])
   .build();
 
 export default config;

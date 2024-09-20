@@ -46,6 +46,7 @@ export class ConfigBuilder {
     additionalWatchPaths: [],
     templatesExt: [],
     absolutePaths: {
+      config: '',
       componentsDir: '',
       distDir: '',
       includesDir: '',
@@ -166,6 +167,7 @@ export class ConfigBuilder {
     const absoluteDistDir = path.resolve(projectDir, distDir);
 
     this.config.absolutePaths = {
+      config: path.join(projectDir, 'eco.config.ts'),
       projectDir: projectDir,
       srcDir: absoluteSrcDir,
       distDir: absoluteDistDir,

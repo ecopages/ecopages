@@ -6,8 +6,8 @@ import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { StaticContentServer } from '../dev/sc-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { CssBuilder } from '../main/css-builder.ts';
-import { ProjectWatcher } from '../main/watcher.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
+import { ProjectWatcher } from './project-watcher.ts';
 
 import type { Server } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
@@ -70,7 +70,7 @@ export class AppBuilder {
       appConfig: this.appConfig,
       options: { watchMode: this.options.watch },
     };
-    await BunFileSystemServerAdapter.createServer(options);
+    return await BunFileSystemServerAdapter.createServer(options);
   }
 
   async serve() {
@@ -78,14 +78,18 @@ export class AppBuilder {
   }
 
   async watch() {
-    this.runDevServer();
+    const dev = await this.runDevServer();
 
-    const cssBuilder = new CssBuilder({
-      processor: PostCssProcessor,
-      appConfig: this.appConfig,
+    const watcherInstance = new ProjectWatcher({
+      config: this.appConfig,
+      cssBuilder: new CssBuilder({
+        processor: PostCssProcessor,
+        appConfig: this.appConfig,
+      }),
+      scriptsBuilder: this.scriptsBuilder,
+      router: dev.router,
     });
 
-    const watcherInstance = new ProjectWatcher(this.appConfig, cssBuilder, this.scriptsBuilder);
     await watcherInstance.createWatcherSubscription();
   }
 

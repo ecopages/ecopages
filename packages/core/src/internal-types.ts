@@ -115,6 +115,7 @@ export type EcoPagesAppConfig = {
   integrationsDependencies: IntegrationDependencyConfig[];
   /** Derived Paths */
   absolutePaths: {
+    config: string;
     componentsDir: string;
     distDir: string;
     includesDir: string;

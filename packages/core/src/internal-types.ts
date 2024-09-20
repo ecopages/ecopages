@@ -103,6 +103,8 @@ export type EcoPagesAppConfig = {
      */
     input: string;
   };
+  /** Additional paths to watch. Use this to monitor extra files. It is relative to the rootDir */
+  additionalWatchPaths: string[];
   /**
    * @default { title: 'Ecopages', description: 'Ecopages' }
    */

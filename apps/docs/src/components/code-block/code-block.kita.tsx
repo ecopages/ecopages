@@ -6,7 +6,7 @@ export const CodeBlock: EcoComponent<{
   code?: string;
   lang?: BundledLanguage;
   theme?: BundledTheme;
-}> = async ({ children, code, lang, theme = 'rose-pine' }) => {
+}> = async ({ children, code, lang, theme = 'catppuccin-mocha' }) => {
   const childrenOrCode = children || code;
   if (!childrenOrCode) throw new Error('No code provided');
 

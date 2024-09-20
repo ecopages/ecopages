@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { join } from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { CssBuilder } from './css-builder.ts';
@@ -46,6 +47,13 @@ export class ProjectWatcher {
       appLogger.info('File changed', path.split(this.config.srcDir)[1]);
     } else if (this.config.templatesExt.some((ext) => path.includes(ext))) {
       appLogger.info('Template file changed', path);
+      this.uncacheModules();
+    } else if (
+      this.config.additionalWatchPaths.some((additionalPath) =>
+        path.includes(join(this.config.rootDir, additionalPath)),
+      )
+    ) {
+      appLogger.info('Additional watch file changed', path);
       this.uncacheModules();
     }
   }

@@ -43,6 +43,7 @@ export class ConfigBuilder {
       title: 'Ecopages',
       description: 'Ecopages',
     },
+    additionalWatchPaths: [],
     templatesExt: [],
     absolutePaths: {
       componentsDir: '',
@@ -138,6 +139,11 @@ export class ConfigBuilder {
       ...this.config.defaultMetadata,
       ...defaultMetadata,
     };
+    return this;
+  }
+
+  setAdditionalWatchPaths(additionalWatchPaths: string[]): this {
+    this.config.additionalWatchPaths = additionalWatchPaths;
     return this;
   }
 

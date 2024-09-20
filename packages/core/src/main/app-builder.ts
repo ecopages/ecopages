@@ -1,8 +1,6 @@
-import { exec } from 'node:child_process';
-import path from 'node:path';
-
 import '../global/init.ts';
 
+import path from 'node:path';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { StaticContentServer } from '../dev/sc-server.ts';
@@ -58,14 +56,15 @@ export class AppBuilder {
     FileUtils.copyDirSync(path.join(srcDir, publicDir), path.join(distDir, publicDir));
   }
 
-  execTailwind() {
+  async execTailwind() {
     const { srcDir, distDir, tailwind } = this.appConfig;
     const input = `${srcDir}/${tailwind.input}`;
     const output = `${distDir}/${tailwind.input}`;
-    const watch = this.options.watch;
-    const minify = !watch;
-    exec(`bunx tailwindcss -i ${input} -o ${output} ${watch ? '--watch' : ''} ${minify ? '--minify' : ''} --postcss`);
+    const cssString = await this.cssBuilder.processor.processPath(input);
+    FileUtils.ensureDirectoryExists(path.dirname(output));
+    FileUtils.writeFileSync(output, cssString);
   }
+
   private async runDevServer() {
     const options = {
       appConfig: this.appConfig,
@@ -114,7 +113,7 @@ export class AppBuilder {
     this.prepareDistDir();
     this.copyPublicDir();
 
-    this.execTailwind();
+    await this.execTailwind();
 
     await this.cssBuilder.build();
     await this.scriptsBuilder.build();

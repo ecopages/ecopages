@@ -29,8 +29,7 @@
 			".nyc_output",
 			".vscode",
 			".env",
-			".eco",
-			"packages/processors/postcss-processor/src/test/css/external-plugins.css"
+			".eco"
 		]
 	},
 	"javascript": {
@@ -53,6 +52,14 @@
 	"json": {
 		"formatter": {
 			"trailingCommas": "none"
+		}
+	},
+	"css": {
+		"linter": {
+			"enabled": false
+		},
+		"formatter": {
+			"enabled": false
 		}
 	}
 }

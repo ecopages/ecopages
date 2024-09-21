@@ -20,7 +20,7 @@
 	},
 	"dependencies": {
 		"@ecopages/bun-inline-css-plugin": "workspace:*",
-		"@ecopages/logger": "^0.1.2",
+		"@ecopages/logger": "latest",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@parcel/watcher": "^2.4.0",
 		"ghtml": "^2.1.2"

@@ -1,3 +1,4 @@
 import { Logger } from '@ecopages/logger';
 
-export const appLogger = new Logger('[@ecopages/core]');
+const debug = import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true';
+export const appLogger = new Logger('[@ecopages/core]', { debug });

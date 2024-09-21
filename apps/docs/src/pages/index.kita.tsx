@@ -4,7 +4,7 @@ import type { EcoPage, GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Ecopages - Docs',
-  description: 'Simple and fast static site generator with TypeScript and Lit and Kita.',
+  description: 'Simple and fast static site generator.',
   image: 'public/assets/images/default-og.png',
   keywords: ['typescript', 'framework', 'static', 'site', 'generator', 'lit', 'kita'],
 });
@@ -19,7 +19,9 @@ const HomePage: EcoPage = () => {
 
 HomePage.config = {
   importMeta: import.meta,
-  dependencies: { stylesheets: ['./index.css'], components: [DocsLayout] },
+  dependencies: {
+    components: [DocsLayout],
+  },
 };
 
 export default HomePage;

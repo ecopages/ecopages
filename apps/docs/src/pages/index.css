@@ -1,7 +1,0 @@
-.main-title {
-  @apply text-2xl font-bold;
-}
-
-.main-content {
-  @apply flex flex-col gap-4;
-}

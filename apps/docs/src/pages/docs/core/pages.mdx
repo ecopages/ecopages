@@ -31,7 +31,7 @@ export const getMetadata: GetMetadata = () => ({
 const HomePage: EcoComponent = () => html`${BaseLayout({
     class: 'main-content',
     children: html`
-      <h1 class="main-title">Ecopages</h1>
+      <h1>Ecopages</h1>
       <p>Welcome to my Ecopages website!</p>
     `,
   })}`;
@@ -74,7 +74,7 @@ import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts, re
 const HomePage: EcoComponent = () => html`${BaseLayout({
     class: 'main-content',
     children: html`
-      <h1 class="main-title">Ecopages</h1>
+      <h1>Ecopages</h1>
       <scripts-injector
         on:interaction="mouseenter,focusin"
         scripts="${resolveComponentsScripts([RadiantCounter])}"

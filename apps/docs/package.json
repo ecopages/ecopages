@@ -11,6 +11,7 @@
 		"@ecopages/core": "workspace:*",
 		"@ecopages/bun-mdx-kitajs-loader": "workspace:*",
 		"@ecopages/bun-postcss-loader": "workspace:*",
+		"@ecopages/radiant": "latest",
 		"shiki": "^1.1.2"
 	}
 }

@@ -1,16 +1,12 @@
 import { RadiantElement } from '@ecopages/radiant/core';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
+import { debounce } from '@ecopages/radiant/decorators/debounce';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
 import { query } from '@ecopages/radiant/decorators/query';
 
 @customElement('radiant-burger')
 export class RadiantCounter extends RadiantElement {
   @query({ selector: 'button' }) burger!: HTMLButtonElement;
-
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.onResizeReset = this.onResizeReset.bind(this);
-  }
 
   @onEvent({ selector: 'button', type: 'click' })
   toggleMenu() {
@@ -23,15 +19,12 @@ export class RadiantCounter extends RadiantElement {
     }
   }
 
+  @onEvent({ window: true, type: 'resize' })
+  @debounce(200)
   onResizeReset() {
     this.burger.removeAttribute('aria-expanded');
     document.body.classList.remove('overflow-hidden');
     window.dispatchEvent(new CustomEvent('close-menu'));
-  }
-
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-    window.removeEventListener('resize', this.onResizeReset);
   }
 }
 

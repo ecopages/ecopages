@@ -1,28 +1,17 @@
 import { RadiantElement } from '@ecopages/radiant/core';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
+import { onEvent } from '@ecopages/radiant/decorators/on-event';
 
 @customElement('radiant-navigation')
 export class RadiantCounter extends RadiantElement {
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.toggleNavigation = this.toggleNavigation.bind(this);
-    this.closeNavigation = this.closeNavigation.bind(this);
-    window.addEventListener('toggle-menu', this.toggleNavigation);
-    window.addEventListener('close-menu', this.closeNavigation);
-  }
-
+  @onEvent({ window: true, type: 'toggle-menu' })
   toggleNavigation(): void {
     this.classList.toggle('hidden');
   }
 
+  @onEvent({ window: true, type: 'close-menu' })
   closeNavigation(): void {
     this.classList.add('hidden');
-  }
-
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-    window.removeEventListener('toggle-menu', this.toggleNavigation);
-    window.removeEventListener('close-menu', this.closeNavigation);
   }
 }
 

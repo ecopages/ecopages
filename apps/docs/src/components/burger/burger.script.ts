@@ -1,3 +1,4 @@
+import { BurgerEvents } from '@/components/burger/burger.events';
 import { RadiantElement } from '@ecopages/radiant/core';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { debounce } from '@ecopages/radiant/decorators/debounce';
@@ -12,8 +13,10 @@ export class RadiantCounter extends RadiantElement {
   toggleMenu() {
     this.burger.toggleAttribute('aria-expanded');
     const isExpanded = this.burger.hasAttribute('aria-expanded');
-    window.dispatchEvent(new CustomEvent('toggle-menu'));
+
+    window.dispatchEvent(new CustomEvent(BurgerEvents.TOGGLE_MENU));
     document.body.classList.toggle('overflow-hidden', isExpanded);
+
     if (isExpanded) {
       window.addEventListener('resize', this.onResizeReset, { once: true });
     }
@@ -24,7 +27,7 @@ export class RadiantCounter extends RadiantElement {
   onResizeReset() {
     this.burger.removeAttribute('aria-expanded');
     document.body.classList.remove('overflow-hidden');
-    window.dispatchEvent(new CustomEvent('close-menu'));
+    window.dispatchEvent(new CustomEvent(BurgerEvents.CLOSE_MENU));
   }
 }
 

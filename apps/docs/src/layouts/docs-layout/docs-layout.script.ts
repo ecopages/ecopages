@@ -1,15 +1,16 @@
+import { BurgerEvents } from '@/components/burger/burger.events';
+import { onEvent } from '@ecopages/radiant';
 import { RadiantElement } from '@ecopages/radiant/core';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
-import { onEvent } from '@ecopages/radiant/decorators/on-event';
 
 @customElement('radiant-navigation')
 export class RadiantCounter extends RadiantElement {
-  @onEvent({ window: true, type: 'toggle-menu' })
+  @onEvent({ window: true, type: BurgerEvents.TOGGLE_MENU })
   toggleNavigation(): void {
     this.classList.toggle('hidden');
   }
 
-  @onEvent({ window: true, type: 'close-menu' })
+  @onEvent({ window: true, type: BurgerEvents.CLOSE_MENU })
   closeNavigation(): void {
     this.classList.add('hidden');
   }

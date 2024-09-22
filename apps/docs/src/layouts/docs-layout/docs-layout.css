@@ -1,7 +1,7 @@
 .docs-layout {
   @apply md:grid md:grid-cols-[auto,1fr];
   .docs-layout__aside {
-    @apply fixed top-16 h-[calc(100svh_-_4rem)] md:sticky;
+    @apply fixed top-16 h-[calc(100svh_-_4rem)] md:sticky overflow-auto;
     @apply bg-background p-6 md:p-8 border-r border-r-background-accent;
 
     ul,

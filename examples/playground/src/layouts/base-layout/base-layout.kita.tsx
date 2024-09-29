@@ -2,7 +2,7 @@ import { Navigation } from '@/components/navigation';
 import type { EcoComponent } from '@ecopages/core';
 
 export type BaseLayoutProps = {
-  children: Html.Children;
+  children: JSX.Element;
   class?: string;
 };
 
@@ -15,6 +15,7 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
           { label: 'Tailwind', url: '/labs/tailwind' },
           { label: 'Async', url: '/labs/async' },
           { label: 'MDX', url: '/test' },
+          { label: 'Radiant', url: '/labs/radiant' },
         ]}
       />
       <main class={className}>{children as 'safe'}</main>

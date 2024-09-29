@@ -10,12 +10,12 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
+		"@ecopages/radiant": "^0.1.7",
 		"@ecopages/scripts-injector": "^0.1.1",
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/radiant": "^0.1.4",
 		"@ecopages/bun-mdx-kitajs-loader": "workspace:*",
 		"@ecopages/bun-postcss-loader": "workspace:*",
 		"@types/alpinejs": "^3.13.6",

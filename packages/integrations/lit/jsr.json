@@ -2,7 +2,8 @@
 	"name": "@ecopages/lit",
 	"version": "0.1.15",
 	"exports": {
-		".": "./src/lit.plugin.ts"
+		".": "./src/lit.plugin.ts",
+		"./styled-mixin": "./src/styled-mixin.ts"
 	},
 	"exclude": ["**/*.test.ts"],
 	"publish": {

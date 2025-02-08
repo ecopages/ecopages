@@ -32,7 +32,7 @@ describe('bunPostCssPlugin', () => {
 
   test('bunPostCssPlugin should build correctly the css file with a custom postcss processor', async () => {
     const filePath = path.resolve(__dirname, './correct.ts');
-    const expected = '.test{--tw-bg-opacity:1;background-color:rgb(239 68 68/var(--tw-bg-opacity))}';
+    const expected = '.test{--tw-bg-opacity:1;background-color:rgb(239 68 68/var(--tw-bg-opacity,1))}';
 
     const build = await Bun.build({
       entrypoints: [filePath],

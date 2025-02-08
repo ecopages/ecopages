@@ -6,7 +6,7 @@ import { PostCssProcessor } from '../postcss-processor';
 describe('PostCssProcessor', () => {
   test('processPath should return the processed CSS', async () => {
     const filePath = path.resolve(__dirname, './css/correct.css');
-    const expected = '.test{--tw-bg-opacity:1;background-color:rgb(239 68 68/var(--tw-bg-opacity))}';
+    const expected = '.test{--tw-bg-opacity:1;background-color:rgb(239 68 68/var(--tw-bg-opacity,1))}';
     const result = await PostCssProcessor.processPath(filePath);
     expect(result).toEqual(expected);
   });
@@ -41,7 +41,7 @@ describe('PostCssProcessor', () => {
 
   test('processStringOrBuffer should return the processed CSS', async () => {
     const string = 'body { @apply bg-white; }';
-    const expected = 'body{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity))}';
+    const expected = 'body{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}';
     const result = await PostCssProcessor.processStringOrBuffer(string);
     expect(result).toEqual(expected);
   });

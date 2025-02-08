@@ -29,7 +29,13 @@
 		"postcss-simple-vars": "^7.0.1"
 	},
 	"exports": {
-		".": "./src/postcss-processor.ts",
-		"./default-plugins": "./src/default-plugins.ts"
+		".": {
+			"default": "./src/postcss-processor.ts",
+			"types": "./src/postcss-processor.ts"
+		},
+		"./default-plugins": {
+			"default": "./src/default-plugins.ts",
+			"types": "./src/default-plugins.ts"
+		}
 	}
 }

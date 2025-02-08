@@ -7,13 +7,11 @@
 		"forceConsistentCasingInFileNames": true,
 		"jsx": "react-jsx",
 		"jsxImportSource": "@kitajs/html",
-		"target": "ESNext",
 		"module": "ESNext",
-		"moduleResolution": "node",
+		"moduleResolution": "Bundler",
 		"noImplicitOverride": true,
 		"paths": {
-			"@/*": ["./src/*"],
-			"@/types": ["./src/index.d.ts"]
+			"@/*": ["./src/*"]
 		},
 		"plugins": [
 			{
@@ -23,7 +21,8 @@
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
-		"types": ["bun-types", "@ecopages/core"],
+		"target": "ES2021",
+		"types": ["bun-types"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	}

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/postcss-processor",
-	"version": "0.1.15",
+	"version": "0.1.16",
 	"description": "Postcss processor, transform string or postcss file to css",
 	"keywords": ["postcss", "processor", "css"],
 	"license": "MIT",
@@ -29,7 +29,13 @@
 		"postcss-simple-vars": "^7.0.1"
 	},
 	"exports": {
-		".": "./src/postcss-processor.ts",
-		"./default-plugins": "./src/default-plugins.ts"
+		".": {
+			"default": "./src/postcss-processor.ts",
+			"types": "./src/postcss-processor.ts"
+		},
+		"./default-plugins": {
+			"default": "./src/default-plugins.ts",
+			"types": "./src/default-plugins.ts"
+		}
 	}
 }

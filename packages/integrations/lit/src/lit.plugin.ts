@@ -1,3 +1,8 @@
+/**
+ * This module contains the Lit plugin
+ * @module
+ */
+
 import { type IntegrationPlugin, deepMerge } from '@ecopages/core';
 import { litElementHydrateScript } from './lit-element-hydrate';
 import { LitRenderer } from './lit-renderer.ts';

@@ -1,5 +1,5 @@
 import { type IntegrationPlugin, deepMerge } from '@ecopages/core';
-import litElementHydrateScript from './lit-element-hydrate.txt';
+import { litElementHydrateScript } from './lit-element-hydrate';
 import { LitRenderer } from './lit-renderer.ts';
 
 /**

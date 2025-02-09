@@ -11,6 +11,7 @@ import {
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
+import { createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
 
@@ -156,15 +157,26 @@ export class ReactRenderer extends IntegrationRenderer {
           'react/jsx-runtime': reactUrl,
         };
 
-    return (
-      <script key="importmap" defer type="importmap">
-        {JSON.stringify({ imports })}
-      </script>
+    return createElement(
+      'script',
+      {
+        key: 'importmap',
+        defer: true,
+        type: 'importmap',
+      },
+      JSON.stringify({ imports }),
     );
   }
 
   private createStylesheetElements(stylesheets: string[]): React.JSX.Element[] {
-    return stylesheets.map((stylesheet) => <link key={stylesheet} rel="stylesheet" href={stylesheet} as="style" />);
+    return stylesheets.map((stylesheet) => {
+      return createElement('link', {
+        key: stylesheet,
+        rel: 'stylesheet',
+        href: stylesheet,
+        as: 'style',
+      });
+    });
   }
 
   private createScriptElements(
@@ -173,7 +185,14 @@ export class ReactRenderer extends IntegrationRenderer {
     reactUrlToRemove: string,
   ): React.JSX.Element[] {
     const filteredScripts = [...scripts.filter((script) => !script.includes(reactUrlToRemove)), hydrationScriptPath];
-    return filteredScripts.map((script) => <script key={script} defer type="module" src={script} />);
+    return filteredScripts.map((script) => {
+      return createElement('script', {
+        key: script,
+        defer: true,
+        type: 'module',
+        src: script,
+      });
+    });
   }
 
   private async createDynamicHead({ dependencies, pagePath }: HeadConfig) {
@@ -193,7 +212,7 @@ export class ReactRenderer extends IntegrationRenderer {
       }
     }
 
-    return <>{elements}</>;
+    return elements;
   }
 
   async render({
@@ -213,9 +232,7 @@ export class ReactRenderer extends IntegrationRenderer {
       });
 
       const body = await renderToReadableStream(
-        <HtmlTemplate metadata={metadata} headContent={headContent}>
-          <Page params={params} query={query} {...props} />
-        </HtmlTemplate>,
+        createElement(HtmlTemplate, { metadata, headContent }, createElement(Page, { params, query, ...props })),
       );
 
       return body;

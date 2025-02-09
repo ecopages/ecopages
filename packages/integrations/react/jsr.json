@@ -8,7 +8,15 @@
 	},
 	"exclude": ["src/test", "**/*.test.ts"],
 	"publish": {
-		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],
+		"include": [
+			"src/**/*.ts",
+			"src/**/*.tsx",
+			"LICENSE",
+			"README.md",
+			"jsr.json",
+			"react-esm.ts",
+			"react-dev-esm.ts"
+		],
 		"exclude": ["src/test"]
 	}
 }

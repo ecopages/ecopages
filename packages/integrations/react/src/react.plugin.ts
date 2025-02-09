@@ -24,7 +24,7 @@ export const PLUGIN_NAME = 'react';
  */
 export function reactPlugin(options?: ReactPluginOptions): IntegrationPlugin {
   const { extensions = ['.tsx'], dependencies = [] } = options || {};
-  appLogger.warn('reactPlugin is currently in an experimental phase and does not support MDX files at this time.');
+  appLogger.warn('reactPlugin alone does not support MDX files at this time.');
   return {
     name: PLUGIN_NAME,
     extensions,

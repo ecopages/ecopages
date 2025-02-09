@@ -8,6 +8,20 @@
 	"types": "./src/react.plugin.ts",
 	"type": "module",
 	"files": ["src"],
+	"exports": {
+		".": {
+			"import": "./src/react.plugin.ts",
+			"require": "./src/react.plugin.ts"
+		},
+		"./hydrate-root": {
+			"import": "./src/hydrate-root.ts",
+			"require": "./src/hydrate-root.ts"
+		},
+		"./plugin": {
+			"import": "./src/react.plugin.ts",
+			"require": "./src/react.plugin.ts"
+		}
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
@@ -16,15 +30,11 @@
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "^0.1.2",
-		"react": "19.0.0-rc-58af67a8f8-20240628",
-		"react-dom": "19.0.0-rc-58af67a8f8-20240628"
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0"
 	},
 	"devDependencies": {
-		"@types/react": "npm:types-react@rc",
-		"@types/react-dom": "npm:types-react-dom@rc"
-	},
-	"overrides": {
-		"@types/react": "npm:types-react@rc",
-		"@types/react-dom": "npm:types-react-dom@rc"
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0"
 	}
 }

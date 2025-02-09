@@ -18,6 +18,18 @@ export function reactPlugin(options?: ReactPluginOptions): IntegrationPlugin {
     name: PLUGIN_NAME,
     extensions,
     renderer: ReactRenderer,
-    dependencies,
+    dependencies: [
+      {
+        kind: 'script',
+        position: 'head',
+        importPath: '@ecopages/react/src/react-esm.ts',
+      },
+      {
+        kind: 'script',
+        position: 'head',
+        importPath: '@ecopages/react/src/react-dev-esm.ts',
+      },
+      ...dependencies,
+    ],
   };
 }

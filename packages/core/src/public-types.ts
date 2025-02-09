@@ -246,6 +246,8 @@ type ScriptImportIntegrationPluginDependencies = {
   kind: 'script';
   importPath: string;
   position?: 'head' | 'body';
+  /** @default true */
+  minify?: boolean;
 };
 
 /**
@@ -255,6 +257,8 @@ type ScriptContentIntegrationPluginDependencies = {
   kind: 'script';
   content: string;
   position?: 'head' | 'body';
+  /** @default true */
+  minify?: boolean;
 };
 
 /**

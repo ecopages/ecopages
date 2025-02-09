@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/react",
-	"version": "0.0.0",
+	"version": "0.1.17",
 	"description": "React integration for Ecopages",
 	"keywords": ["ecopages", "react", "plugin"],
 	"license": "MIT",
@@ -20,6 +20,9 @@
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
 		"directory": "packages/integrations/react"
+	},
+	"scripts": {
+		"release:jsr": "bunx jsr publish"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",

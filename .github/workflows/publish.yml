@@ -52,3 +52,6 @@ jobs:
 
       - name: Publish package @ecopages/mdx
         run: bun run --filter @ecopages/mdx release:jsr
+
+      - name: Publish package @ecopages/react
+        run: bun run --filter @ecopages/react release:jsr

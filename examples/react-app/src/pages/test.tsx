@@ -25,7 +25,6 @@ TestPage.config = {
   importMeta: import.meta,
   dependencies: {
     stylesheets: ['./index.css'],
-    scripts: ['./test.script.js'],
     components: [Counter, BaseLayout],
   },
 };

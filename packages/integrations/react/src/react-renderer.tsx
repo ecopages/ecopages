@@ -1,3 +1,8 @@
+/**
+ * This module contains the React renderer
+ * @module
+ */
+
 import path from 'node:path';
 import {
   type EcoComponentDependencies,
@@ -9,6 +14,9 @@ import {
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
 
+/**
+ * Error thrown when an error occurs while rendering a React component.
+ */
 export class ReactRenderError extends Error {
   constructor(message: string) {
     super(message);
@@ -16,6 +24,9 @@ export class ReactRenderError extends Error {
   }
 }
 
+/**
+ * Error thrown when an error occurs while bundling a React component.
+ */
 export class BundleError extends Error {
   constructor(
     message: string,
@@ -26,6 +37,26 @@ export class BundleError extends Error {
   }
 }
 
+/**
+ * Configuration for the head of the page.
+ */
+interface HeadConfig {
+  dependencies?: EcoComponentDependencies;
+  pagePath: string;
+}
+
+/**
+ * URLs for React scripts.
+ */
+interface ReactUrls {
+  current: string;
+  toRemove: string;
+}
+
+/**
+ * Renderer for React components.
+ * @extends IntegrationRenderer
+ */
 export class ReactRenderer extends IntegrationRenderer {
   name = PLUGIN_NAME;
   componentDirectory = '__integrations__';
@@ -77,7 +108,7 @@ export class ReactRenderer extends IntegrationRenderer {
     }
   }
 
-  async generateHydrationScript(pagePath: string) {
+  private async generateHydrationScript(pagePath: string) {
     try {
       const componentName = `component-${Math.random().toString(36).slice(2)}`;
 
@@ -104,46 +135,61 @@ export class ReactRenderer extends IntegrationRenderer {
     }
   }
 
-  async createDynamicHead({ dependencies, pagePath }: { dependencies?: EcoComponentDependencies; pagePath: string }) {
-    const hydrationScriptPath = await this.generateHydrationScript(pagePath);
-
+  private getReactUrls(): ReactUrls {
     const isDevMode = import.meta.env.NODE_ENV === 'development';
-    const reactUrl = isDevMode ? '/__integrations__/react-dev-esm.js' : '/__integrations__/react-esm.js';
+    return {
+      current: isDevMode ? '/__integrations__/react-dev-esm.js' : '/__integrations__/react-esm.js',
+      toRemove: isDevMode ? '/__integrations__/react-esm.js' : '/__integrations__/react-dev-esm.js',
+    };
+  }
 
-    const elements: React.JSX.Element[] = [
+  private createImportMapScript(reactUrl: string, isDevMode: boolean): React.JSX.Element {
+    const imports = isDevMode
+      ? {
+          react: reactUrl,
+          'react-dom/client': reactUrl,
+          'react/jsx-dev-runtime': reactUrl,
+        }
+      : {
+          react: reactUrl,
+          'react-dom/client': reactUrl,
+          'react/jsx-runtime': reactUrl,
+        };
+
+    return (
       <script key="importmap" defer type="importmap">
-        {JSON.stringify({
-          imports: isDevMode
-            ? {
-                react: reactUrl,
-                'react-dom/client': reactUrl,
-                'react/jsx-dev-runtime': reactUrl,
-              }
-            : {
-                react: reactUrl,
-                'react-dom/client': reactUrl,
-                'react/jsx-runtime': reactUrl,
-              },
-        })}
-      </script>,
-    ];
+        {JSON.stringify({ imports })}
+      </script>
+    );
+  }
+
+  private createStylesheetElements(stylesheets: string[]): React.JSX.Element[] {
+    return stylesheets.map((stylesheet) => <link key={stylesheet} rel="stylesheet" href={stylesheet} as="style" />);
+  }
+
+  private createScriptElements(
+    scripts: string[],
+    hydrationScriptPath: string,
+    reactUrlToRemove: string,
+  ): React.JSX.Element[] {
+    const filteredScripts = [...scripts.filter((script) => !script.includes(reactUrlToRemove)), hydrationScriptPath];
+    return filteredScripts.map((script) => <script key={script} defer type="module" src={script} />);
+  }
+
+  private async createDynamicHead({ dependencies, pagePath }: HeadConfig) {
+    const hydrationScriptPath = await this.generateHydrationScript(pagePath);
+    const isDevMode = import.meta.env.NODE_ENV === 'development';
+    const { current: reactUrl, toRemove: reactUrlToRemove } = this.getReactUrls();
+
+    const elements: React.JSX.Element[] = [this.createImportMapScript(reactUrl, isDevMode)];
 
     if (dependencies) {
       if (dependencies.stylesheets?.length) {
-        for (const stylesheet of dependencies.stylesheets) {
-          const linkElement = <link key={stylesheet} rel="stylesheet" href={stylesheet} as="style" />;
-          elements.push(linkElement);
-        }
+        elements.push(...this.createStylesheetElements(dependencies.stylesheets));
       }
 
       if (dependencies.scripts?.length) {
-        for (const script of [
-          ...dependencies.scripts.filter((script) => script.includes(reactUrl)),
-          hydrationScriptPath,
-        ]) {
-          const scriptElement = <script key={script} defer type="module" src={script} />;
-          elements.push(scriptElement);
-        }
+        elements.push(...this.createScriptElements(dependencies.scripts, hydrationScriptPath, reactUrlToRemove));
       }
     }
 
@@ -165,6 +211,7 @@ export class ReactRenderer extends IntegrationRenderer {
         dependencies,
         pagePath: file,
       });
+
       const body = await renderToReadableStream(
         <HtmlTemplate metadata={metadata} headContent={headContent}>
           <Page params={params} query={query} {...props} />

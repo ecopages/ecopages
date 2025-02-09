@@ -1,0 +1,14 @@
+{
+	"name": "@ecopages/react",
+	"version": "0.1.16",
+	"exports": {
+		".": "./src/react.plugin.ts",
+		"./react-esm": "./react-esm.ts",
+		"./react-dev-esm": "./react-dev-esm.ts"
+	},
+	"exclude": ["src/test", "**/*.test.ts"],
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],
+		"exclude": ["src/test"]
+	}
+}

@@ -4,13 +4,24 @@ import { ReactRenderer } from './react-renderer';
 
 const appLogger = new Logger('[@ecopages/react]');
 
+/**
+ * Options for the React plugin
+ */
 export type ReactPluginOptions = {
   extensions?: string[];
   dependencies?: IntegrationPlugin['dependencies'];
 };
 
+/**
+ * The name of the React plugin
+ */
 export const PLUGIN_NAME = 'react';
 
+/**
+ * Creates a React plugin
+ * @param options - The options for the plugin
+ * @returns The React plugin
+ */
 export function reactPlugin(options?: ReactPluginOptions): IntegrationPlugin {
   const { extensions = ['.tsx'], dependencies = [] } = options || {};
   appLogger.warn('reactPlugin is currently in an experimental phase and does not support MDX files at this time.');
@@ -22,12 +33,12 @@ export function reactPlugin(options?: ReactPluginOptions): IntegrationPlugin {
       {
         kind: 'script',
         position: 'head',
-        importPath: '@ecopages/react/src/react-esm.ts',
+        importPath: '@ecopages/react/react-esm.ts',
       },
       {
         kind: 'script',
         position: 'head',
-        importPath: '@ecopages/react/src/react-dev-esm.ts',
+        importPath: '@ecopages/react/react-dev-esm.ts',
       },
       ...dependencies,
     ],

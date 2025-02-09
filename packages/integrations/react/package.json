@@ -10,17 +10,11 @@
 	"files": ["src"],
 	"exports": {
 		".": {
-			"import": "./src/react.plugin.ts",
-			"require": "./src/react.plugin.ts"
+			"default": "./src/react.plugin.ts",
+			"types": "./src/react.plugin.ts"
 		},
-		"./hydrate-root": {
-			"import": "./src/hydrate-root.ts",
-			"require": "./src/hydrate-root.ts"
-		},
-		"./plugin": {
-			"import": "./src/react.plugin.ts",
-			"require": "./src/react.plugin.ts"
-		}
+		"./react-esm": "./react-esm.ts",
+		"./react-dev-esm": "./react-dev-esm.ts"
 	},
 	"repository": {
 		"type": "git",

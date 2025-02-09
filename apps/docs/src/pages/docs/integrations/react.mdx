@@ -56,9 +56,9 @@ Here's an example of a simple React component:
 <CodeBlock>
 ```typescript
 import { useState } from 'react';
-import type { EcoReactComponent } from '@ecopages/react';
+import type { EcoComponent } from '@ecopages/core';
 
-export const Counter: EcoReactComponent = () => {
+export const Counter: EcoComponent = () => {
   const [count, setCount] = useState(0);
 
   return (
@@ -111,15 +111,14 @@ export default HomePage;
 1. **React 19 Support**: Leverage the latest React features and improvements.
 2. **Component-based Architecture**: Create reusable React components within Ecopages.
 3. **State Management**: Use React hooks and state management as you would in a regular React application.
-4. **TypeScript Support**: Full TypeScript support with `EcoReactComponent` type.
+4. **TypeScript Support**: Full TypeScript support with `EcoComponent` type.
 
 ## Limitations
 
 - Currently, MDX is not supported when using only the React integration.
-- Server-side rendering capabilities may be limited compared to other integrations.
 
 ## Best Practices
 
 1. **Component Structure**: Follow React best practices for component organization.
 2. **Config Object**: Always include the `config` object with `importMeta` for proper integration.
-3. **TypeScript**: Use the `EcoReactComponent` type for better type checking.
+3. **TypeScript**: Use the `EcoComponent` type for better type checking.

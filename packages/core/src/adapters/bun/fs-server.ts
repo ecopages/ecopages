@@ -40,22 +40,6 @@ export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapt
   }
 
   async fetch(req: Request) {
-    // ENV different from develop
-    // const url = new URL(req.url);
-
-    // if (url.pathname.startsWith(`/${IntegrationManager.EXTERNAL_DEPS_DIR}/`)) {
-    //   const integrationsPath = path.join(
-    //     this.appConfig.rootDir,
-    //     this.appConfig.distDir,
-    //     `/${IntegrationManager.EXTERNAL_DEPS_DIR}`,
-    //     url.pathname.replace(`/${IntegrationManager.EXTERNAL_DEPS_DIR}/`, ''),
-    //     this.options.watchMode ? '' : '',
-    //   );
-    //   if (FileUtils.existsSync(integrationsPath)) {
-    //     return new Response(Bun.file(integrationsPath));
-    //   }
-    // }
-
     const match = !req.url.includes('.') && this.router.match(req.url);
 
     if (!match) {

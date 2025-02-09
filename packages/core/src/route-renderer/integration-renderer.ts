@@ -203,6 +203,11 @@ export abstract class IntegrationRenderer {
   }
 
   protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
+    if (typeof HTMLElement === 'undefined') {
+      // @ts-expect-error - This issues appeared from one moment to another, need to investigate
+      global.HTMLElement = class {};
+    }
+
     const {
       default: Page,
       getStaticProps,

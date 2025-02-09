@@ -9,15 +9,12 @@ switch (args[0]) {
     await buildApp({ rootDir: process.cwd(), watch: true, serve: false, build: false });
     break;
   case 'build':
-    import.meta.env.NODE_ENV = 'production';
     await buildApp({ rootDir: process.cwd(), watch: false, serve: false, build: true });
     break;
   case 'preview':
-    import.meta.env.NODE_ENV = 'production';
     await buildApp({ rootDir: process.cwd(), watch: false, serve: false, build: false });
     break;
   case 'start':
-    import.meta.env.NODE_ENV = 'production';
     await buildApp({ rootDir: process.cwd(), watch: false, serve: true, build: false });
     break;
   default:

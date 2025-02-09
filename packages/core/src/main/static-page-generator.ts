@@ -3,6 +3,7 @@ import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
+import { IntegrationManager } from './integration-manager.ts';
 
 const STATIC_GENERATION_ADAPTER_PORT = 2020;
 const STATIC_GENERATION_ADAPTER_BASE_URL = `http://localhost:${STATIC_GENERATION_ADAPTER_PORT}`;
@@ -48,6 +49,11 @@ export class StaticPageGenerator {
     }
 
     return Array.from(directories);
+  }
+
+  async prepareDependencies() {
+    const integrationManager = new IntegrationManager({ appConfig: this.appConfig });
+    await integrationManager.prepareDependencies();
   }
 
   async generateStaticPages() {
@@ -110,6 +116,7 @@ export class StaticPageGenerator {
 
   async run() {
     this.generateRobotsTxt();
+    await this.prepareDependencies();
     await this.generateStaticPages();
   }
 }

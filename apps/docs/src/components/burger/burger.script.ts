@@ -1,5 +1,5 @@
 import { BurgerEvents } from '@/components/burger/burger.events';
-import { RadiantElement } from '@ecopages/radiant/core';
+import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { debounce } from '@ecopages/radiant/decorators/debounce';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';

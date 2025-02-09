@@ -4,18 +4,14 @@
 	"description": "Ecopages lit integration",
 	"keywords": ["ecopages", "lit", "plugin"],
 	"license": "MIT",
-	"main": "./src/lit.plugin.ts",
-	"types": "./src/lit.plugin.ts",
+	"main": "./src/plugin.ts",
+	"types": "./src/plugin.ts",
 	"type": "module",
 	"files": ["src"],
 	"exports": {
 		".": {
-			"default": "./src/index.ts",
-			"types": "./src/index.ts"
-		},
-		"./lit.plugin": {
-			"default": "./src/lit.plugin.ts",
-			"types": "./src/lit.plugin.ts"
+			"default": "./src/plugin.ts",
+			"types": "./src/plugin.ts"
 		},
 		"./styled-mixin": {
 			"default": "./src/styled-mixin.ts",

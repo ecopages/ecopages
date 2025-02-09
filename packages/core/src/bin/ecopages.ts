@@ -15,7 +15,6 @@ switch (args[0]) {
     await buildApp({ rootDir: process.cwd(), watch: false, serve: false, build: false });
     break;
   case 'start':
-    import.meta.env.NODE_ENV = 'development';
     await buildApp({ rootDir: process.cwd(), watch: false, serve: true, build: false });
     break;
   default:

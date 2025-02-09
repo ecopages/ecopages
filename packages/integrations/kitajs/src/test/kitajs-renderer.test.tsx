@@ -1,53 +1,32 @@
 import { describe, expect, it } from 'bun:test';
 import type { EcoComponent, EcoPage, HtmlTemplateProps } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
-const mockConfig = {
-  rootDir: '.',
-  srcDir: 'src',
-  pagesDir: 'pages',
-  includesDir: 'includes',
-  componentsDir: 'components',
-  layoutsDir: 'layouts',
-  publicDir: 'public',
-  includesTemplates: {
+const mockConfig = await new ConfigBuilder()
+  .setIncludesTemplates({
     head: 'head.kita.tsx',
     html: 'html.kita.tsx',
     seo: 'seo.kita.tsx',
-  },
-  error404Template: '404.kita.tsx',
-  robotsTxt: {
+  })
+  .setError404Template('404.kita.tsx')
+  .setRobotsTxt({
     preferences: {
       '*': [],
       Googlebot: ['/public/'],
     },
-  },
-  tailwind: {
+  })
+  .setTailwind({
     input: 'styles/tailwind.css',
-  },
-  integrations: [],
-  integrationsDependencies: [],
-  distDir: '.eco',
-  scriptsExtensions: ['.script.ts', '.script.tsx'],
-  defaultMetadata: {
+  })
+  .setIntegrations([])
+  .setScriptsExtensions(['.script.ts', '.script.tsx'])
+  .setDefaultMetadata({
     title: 'Ecopages',
     description: 'Ecopages',
-  },
-  baseUrl: 'http://localhost:3000',
-  templatesExt: ['.tsx'],
-  absolutePaths: {
-    projectDir: '.',
-    srcDir: 'src',
-    distDir: '.eco',
-    componentsDir: 'src/components',
-    includesDir: 'src/includes',
-    layoutsDir: 'src/layouts',
-    pagesDir: 'src/pages',
-    publicDir: 'src/public',
-    htmlTemplatePath: 'src/includes/html.kita.tsx',
-    error404TemplatePath: 'src/pages/404.kita.tsx',
-  },
-};
+  })
+  .setBaseUrl('http://localhost:3000')
+  .build();
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ headContent, children }) => {
   return `<html><head>${headContent}</head><body>${children}</body></html>`;

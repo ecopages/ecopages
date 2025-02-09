@@ -25,7 +25,6 @@ HomePage.config = {
   importMeta: import.meta,
   dependencies: {
     stylesheets: ['./index.css'],
-    scripts: ['./index.script.js'],
     components: [Counter, BaseLayout],
   },
 };

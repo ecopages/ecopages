@@ -56,9 +56,9 @@ export class MDXRenderer extends IntegrationRenderer {
     try {
       const { default: Page, config, layout = { config }, getMetadata } = (await import(file)) as MDXFile;
 
-      const layoutDependencies = layout ? this.collectDependencies({ config: layout.config }) : {};
+      const layoutDependencies = layout ? await this.collectDependencies({ config: layout.config }) : {};
 
-      const pageDependencies = this.collectDependencies({ config });
+      const pageDependencies = await this.collectDependencies({ config });
 
       return {
         default: Page,

@@ -1,6 +1,6 @@
 import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
-import { litPlugin } from '@ecopages/lit/lit.plugin';
+import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()

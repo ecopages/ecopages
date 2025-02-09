@@ -2,7 +2,7 @@
 
 The `@ecopages/react` package introduces an experimental integration with [React](https://reactjs.org/) version 19, enabling developers to leverage React's robust ecosystem and component model within the Ecopages platform. This integration aims to provide a seamless experience for using React components in your Ecopages projects, combining React's declarative UI library with the flexibility and simplicity of Ecopages.
 
-This experimental integration is designed for those looking to experiment with React's latest features within the context of Ecopages, offering a new avenue for building dynamic and interactive web pages.
+MDX is currently not supported using only this integration.
 
 ## Install
 

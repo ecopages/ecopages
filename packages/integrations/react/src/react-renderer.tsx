@@ -1,35 +1,199 @@
+/**
+ * This module contains the React renderer
+ * @module
+ */
+
+import path from 'node:path';
 import {
   type EcoComponentDependencies,
+  FileUtils,
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
 import { renderToReadableStream } from 'react-dom/server';
-import { Fragment } from 'react/jsx-runtime';
 import { PLUGIN_NAME } from './react.plugin';
 
+/**
+ * Error thrown when an error occurs while rendering a React component.
+ */
+export class ReactRenderError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ReactRenderError';
+  }
+}
+
+/**
+ * Error thrown when an error occurs while bundling a React component.
+ */
+export class BundleError extends Error {
+  constructor(
+    message: string,
+    public readonly logs: string[],
+  ) {
+    super(message);
+    this.name = 'BundleError';
+  }
+}
+
+/**
+ * Configuration for the head of the page.
+ */
+interface HeadConfig {
+  dependencies?: EcoComponentDependencies;
+  pagePath: string;
+}
+
+/**
+ * URLs for React scripts.
+ */
+interface ReactUrls {
+  current: string;
+  toRemove: string;
+}
+
+/**
+ * Renderer for React components.
+ * @extends IntegrationRenderer
+ */
 export class ReactRenderer extends IntegrationRenderer {
   name = PLUGIN_NAME;
+  componentDirectory = '__integrations__';
 
-  createDynamicHead({ dependencies }: { dependencies?: EcoComponentDependencies }) {
-    const elements: React.JSX.Element[] = [];
+  private createHydrationScript(importPath: string) {
+    return `import {hydrateRoot as hr} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,c({}))`;
+  }
+
+  private async bundleComponent({
+    pagePath,
+    componentName,
+    absolutePath,
+  }: {
+    pagePath: string;
+    componentName: string;
+    absolutePath: string;
+  }) {
+    try {
+      const build = await Bun.build({
+        entrypoints: [pagePath],
+        format: 'esm',
+        minify: true,
+        outdir: absolutePath,
+        naming: `${componentName}.[ext]`,
+        external: ['react', 'react-dom'],
+      });
+
+      if (!build.success) {
+        throw new BundleError(
+          'Failed to bundle component',
+          build.logs.map((log) => log.toString()),
+        );
+      }
+
+      if (!build.outputs.length) {
+        throw new BundleError('Bundle succeeded but no outputs were generated', []);
+      }
+
+      const outputPath = build.outputs[0].path;
+      FileUtils.gzipFileSync(outputPath);
+      return outputPath.split(this.appConfig.absolutePaths.distDir)[1];
+    } catch (error) {
+      if (error instanceof BundleError) {
+        throw error;
+      }
+      throw new ReactRenderError(
+        `Unexpected error while bundling component: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private async generateHydrationScript(pagePath: string) {
+    try {
+      const componentName = `component-${Math.random().toString(36).slice(2)}`;
+
+      const absolutePath = path.join(this.appConfig.absolutePaths.distDir, this.componentDirectory);
+
+      const hydrationScriptPath = path.join(absolutePath, `${componentName}-hydration.js`);
+
+      const relativeImportInScript = await this.bundleComponent({ pagePath, componentName, absolutePath });
+
+      const hydrationCode = this.createHydrationScript(relativeImportInScript);
+
+      FileUtils.writeFileSync(hydrationScriptPath, hydrationCode);
+
+      FileUtils.gzipFileSync(hydrationScriptPath);
+
+      return hydrationScriptPath.split(this.appConfig.absolutePaths.distDir)[1];
+    } catch (error) {
+      if (error instanceof BundleError) {
+        console.error('[ecopages] Bundle errors:', error.logs);
+      }
+      throw new ReactRenderError(
+        `Failed to generate hydration script: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private getReactUrls(): ReactUrls {
+    const isDevMode = import.meta.env.NODE_ENV === 'development';
+    return {
+      current: isDevMode ? '/__integrations__/react-dev-esm.js' : '/__integrations__/react-esm.js',
+      toRemove: isDevMode ? '/__integrations__/react-esm.js' : '/__integrations__/react-dev-esm.js',
+    };
+  }
+
+  private createImportMapScript(reactUrl: string, isDevMode: boolean): React.JSX.Element {
+    const imports = isDevMode
+      ? {
+          react: reactUrl,
+          'react-dom/client': reactUrl,
+          'react/jsx-dev-runtime': reactUrl,
+        }
+      : {
+          react: reactUrl,
+          'react-dom/client': reactUrl,
+          'react/jsx-runtime': reactUrl,
+        };
+
+    return (
+      <script key="importmap" defer type="importmap">
+        {JSON.stringify({ imports })}
+      </script>
+    );
+  }
+
+  private createStylesheetElements(stylesheets: string[]): React.JSX.Element[] {
+    return stylesheets.map((stylesheet) => <link key={stylesheet} rel="stylesheet" href={stylesheet} as="style" />);
+  }
+
+  private createScriptElements(
+    scripts: string[],
+    hydrationScriptPath: string,
+    reactUrlToRemove: string,
+  ): React.JSX.Element[] {
+    const filteredScripts = [...scripts.filter((script) => !script.includes(reactUrlToRemove)), hydrationScriptPath];
+    return filteredScripts.map((script) => <script key={script} defer type="module" src={script} />);
+  }
+
+  private async createDynamicHead({ dependencies, pagePath }: HeadConfig) {
+    const hydrationScriptPath = await this.generateHydrationScript(pagePath);
+    const isDevMode = import.meta.env.NODE_ENV === 'development';
+    const { current: reactUrl, toRemove: reactUrlToRemove } = this.getReactUrls();
+
+    const elements: React.JSX.Element[] = [this.createImportMapScript(reactUrl, isDevMode)];
+
     if (dependencies) {
       if (dependencies.stylesheets?.length) {
-        for (const stylesheet of dependencies.stylesheets) {
-          const linkElement = <link key={stylesheet} rel="stylesheet" href={stylesheet} as="style" />;
-          elements.push(linkElement);
-        }
+        elements.push(...this.createStylesheetElements(dependencies.stylesheets));
       }
 
       if (dependencies.scripts?.length) {
-        for (const script of dependencies.scripts) {
-          const scriptElement = <script key={script} defer type="module" src={script} />;
-          elements.push(scriptElement);
-        }
+        elements.push(...this.createScriptElements(dependencies.scripts, hydrationScriptPath, reactUrlToRemove));
       }
     }
 
-    return <Fragment>{elements}</Fragment>;
+    return <>{elements}</>;
   }
 
   async render({
@@ -39,18 +203,26 @@ export class ReactRenderer extends IntegrationRenderer {
     metadata,
     dependencies,
     Page,
+    file,
     HtmlTemplate,
   }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
     try {
+      const headContent = await this.createDynamicHead({
+        dependencies,
+        pagePath: file,
+      });
+
       const body = await renderToReadableStream(
-        <HtmlTemplate metadata={metadata} headContent={this.createDynamicHead({ dependencies })}>
+        <HtmlTemplate metadata={metadata} headContent={headContent}>
           <Page params={params} query={query} {...props} />
         </HtmlTemplate>,
       );
 
       return body;
     } catch (error) {
-      throw new Error(`[ecopages] Error rendering pages: ${error}`);
+      throw new ReactRenderError(
+        `Failed to render component: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

@@ -74,17 +74,19 @@ export class IntegrationManager {
     entrypoint,
     outdir,
     root,
+    minify,
   }: {
     entrypoint: string;
     outdir: string;
     root: string;
+    minify?: boolean;
   }): Promise<BuildOutput> {
     const build = await Bun.build({
       entrypoints: [entrypoint],
       outdir,
       root,
       target: 'browser',
-      minify: true,
+      minify,
       format: 'esm',
       splitting: true,
       naming: '[name].[ext]',
@@ -97,20 +99,26 @@ export class IntegrationManager {
     importPath,
     name,
     kind,
+    minify = true,
   }: {
     importPath: string;
     name: string;
     kind: 'script' | 'stylesheet';
+    minify?: boolean;
   }): Promise<{
     filepath: string;
   }> {
     const absolutePath = this.findExternalDependencyInNodeModules(importPath);
 
+    const integrationsDir = path.join(this.config.absolutePaths.distDir, IntegrationManager.EXTERNAL_DEPS_DIR);
+    FileUtils.ensureDirectoryExists(integrationsDir);
+
     if (kind === 'script') {
       const bundle = await this.bundleExternalDependency({
         entrypoint: absolutePath,
-        outdir: path.join(this.config.rootDir, this.config.distDir, IntegrationManager.EXTERNAL_DEPS_DIR),
+        outdir: integrationsDir,
         root: this.config.rootDir,
+        minify,
       });
 
       return { filepath: bundle.outputs[0].path };
@@ -124,7 +132,7 @@ export class IntegrationManager {
   async prepareDependencies(): Promise<IntegrationDependencyConfig[]> {
     for (const integration of this.integrations) {
       if (integration.dependencies) {
-        for (const dependency of integration.dependencies)
+        for (const dependency of integration.dependencies) {
           switch (dependency.kind) {
             case 'script':
               {
@@ -133,6 +141,7 @@ export class IntegrationManager {
                     importPath: dependency.importPath,
                     name: integration.name,
                     kind: dependency.kind,
+                    minify: dependency.minify,
                   });
 
                   this.dependencies.push({
@@ -192,6 +201,7 @@ export class IntegrationManager {
               }
               break;
           }
+        }
       }
     }
 
@@ -199,6 +209,12 @@ export class IntegrationManager {
       `Integration Manager: Collected dependencies for ${this.integrations.length} integrations`,
       this.dependencies,
     );
+
+    if (this.dependencies.length)
+      FileUtils.gzipDirSync(path.join(this.config.absolutePaths.distDir, IntegrationManager.EXTERNAL_DEPS_DIR), [
+        'css',
+        'js',
+      ]);
 
     return this.dependencies;
   }

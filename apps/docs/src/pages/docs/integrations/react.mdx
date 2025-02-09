@@ -1,0 +1,124 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | React Integration',
+    description: 'Learn how to use the React integration with Ecopages',
+})
+
+# React Integration
+
+The `@ecopages/react` package provides experimental integration with [React](https://reactjs.org/) version 19, enabling the use of React components within the Ecopages framework.
+
+## Installation
+
+To install the React integration plugin, run the following command in your project directory:
+
+<CodeBlock>
+```bash
+bunx jsr add @ecopages/react
+```
+</CodeBlock>
+
+## Usage
+
+To incorporate the React integration into your Ecopages project, follow these steps:
+
+1. Import the `reactPlugin` in your Ecopages configuration file:
+
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { reactPlugin } from '@ecopages/react';
+```
+</CodeBlock>
+
+2. Add the `reactPlugin` to your configuration:
+
+<CodeBlock>
+```typescript
+const config = await new ConfigBuilder()
+    .setRootDir(import.meta.dir)
+    .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+    .setIntegrations([reactPlugin()])
+    .build();
+
+export default config;
+```
+</CodeBlock>
+
+## Creating Components with React
+
+Here's an example of a simple React component:
+
+<CodeBlock>
+```typescript
+import { useState } from 'react';
+import type { EcoComponent } from '@ecopages/core';
+
+export const Counter: EcoComponent = () => {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div>
+      <p>Count: {count}</p>
+      <button onClick={() => setCount(count - 1)}>-</button>
+      <button onClick={() => setCount(count + 1)}>+</button>
+    </div>
+  );
+};
+
+Counter.config = {
+  importMeta: import.meta,
+};
+```
+</CodeBlock>
+
+## Using React Components in Pages
+
+To use React components in your pages:
+
+<CodeBlock>
+```typescript
+import { Counter } from '@/components/counter';
+import { BaseLayout } from '@/layouts/base-layout';
+import type { EcoComponent } from '@ecopages/core';
+
+const HomePage: EcoComponent = () => {
+  return (
+    <BaseLayout>
+      <h1>Welcome</h1>
+      <Counter />
+    </BaseLayout>
+  );
+};
+
+HomePage.config = {
+  importMeta: import.meta,
+  dependencies: {
+    components: [BaseLayout, Counter],
+  },
+};
+
+export default HomePage;
+```
+</CodeBlock>
+
+## Key Features
+
+1. **React 19 Support**: Leverage the latest React features and improvements.
+2. **Component-based Architecture**: Create reusable React components within Ecopages.
+3. **State Management**: Use React hooks and state management as you would in a regular React application.
+4. **TypeScript Support**: Full TypeScript support with `EcoComponent` type.
+
+## Limitations
+
+- Currently, MDX is not supported when using only the React integration.
+
+## Best Practices
+
+1. **Component Structure**: Follow React best practices for component organization.
+2. **Config Object**: Always include the `config` object with `importMeta` for proper integration.
+3. **TypeScript**: Use the `EcoComponent` type for better type checking.

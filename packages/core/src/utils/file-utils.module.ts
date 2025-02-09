@@ -84,6 +84,17 @@ async function glob(
 }
 
 /**
+ * Gzip a file.
+ * @param path
+ */
+function gzipFileSync(path: string) {
+  const data = getFileAsBuffer(path);
+  const compressedData = zlib.gzipSync(Buffer.from(data));
+  const gzipFile = `${path}.gz`;
+  writeFileSync(gzipFile, compressedData);
+}
+
+/**
  * Gzip all files in a directory.
  * @param path
  * @param extensionsToGzip
@@ -92,12 +103,7 @@ function gzipDirSync(path: string, extensionsToGzip: string[]) {
   const files = readdirSync(path, { recursive: true });
   for (const file of files) {
     const ext = extname(file as string).slice(1);
-    if (extensionsToGzip.includes(ext)) {
-      const data = getFileAsBuffer(`${path}/${file}`);
-      const compressedData = zlib.gzipSync(Buffer.from(data));
-      const gzipFile = `${path}/${file}.gz`;
-      writeFileSync(gzipFile, compressedData);
-    }
+    if (extensionsToGzip.includes(ext)) gzipFileSync(`${path}/${file}`);
   }
 }
 
@@ -134,6 +140,7 @@ export const FileUtils = {
   ensureDirectoryExists,
   copyDirSync,
   gzipDirSync,
+  gzipFileSync,
   writeFileSync,
   mkdirSync,
 };

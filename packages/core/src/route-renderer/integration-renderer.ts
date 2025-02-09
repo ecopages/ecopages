@@ -64,8 +64,8 @@ export abstract class IntegrationRenderer {
   }
 
   protected async getHeadContent(dependencies?: EcoComponentDependencies): Promise<string | undefined> {
-    await this.integrationManager.prepareDependencies();
-    const integrationsDependencies = this.integrationManager.dependencies;
+    const integrationsDependencies = await this.integrationManager.prepareDependencies();
+
     const headContent = await new HeadContentBuilder({
       appConfig: this.appConfig,
       integrationsDependencies,
@@ -141,19 +141,33 @@ export abstract class IntegrationRenderer {
     };
   }
 
-  protected collectDependencies(
+  protected async collectDependencies(
     Page:
       | EcoPage
       | {
           config?: EcoComponent['config'];
         },
-  ): EcoComponentDependencies {
+  ): Promise<EcoComponentDependencies> {
     if (!Page.config) {
       return {};
     }
 
     const stylesheetsSet = new Set<string>();
     const scriptsSet = new Set<string>();
+
+    await this.integrationManager.prepareDependencies().then((deps) => {
+      for (const dependency of deps) {
+        if (dependency.integration === this.name) {
+          if (dependency.kind === 'stylesheet') {
+            stylesheetsSet.add(dependency.srcUrl);
+          }
+
+          if (dependency.kind === 'script') {
+            scriptsSet.add(dependency.srcUrl);
+          }
+        }
+      }
+    });
 
     const collect = (config: EcoComponent['config']) => {
       if (!config?.dependencies) return;
@@ -189,6 +203,11 @@ export abstract class IntegrationRenderer {
   }
 
   protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
+    if (typeof HTMLElement === 'undefined') {
+      // @ts-expect-error - This issues appeared from one moment to another, need to investigate
+      global.HTMLElement = class {};
+    }
+
     const {
       default: Page,
       getStaticProps,
@@ -196,7 +215,7 @@ export abstract class IntegrationRenderer {
       ...integrationSpecificProps
     } = await this.importPageFile(options.file);
 
-    const dependencies = this.collectDependencies(Page);
+    const dependencies = await this.collectDependencies(Page);
 
     const HtmlTemplate = await this.getHtmlTemplate();
 

@@ -1,3 +1,8 @@
+/**
+ * This is the export file for the react-dom package to be compiled as an ESM module.
+ * @module
+ */
+
 import * as ReactDOM from 'react-dom';
 
 import {

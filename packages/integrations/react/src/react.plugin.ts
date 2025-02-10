@@ -40,6 +40,11 @@ export function reactPlugin(options?: ReactPluginOptions): IntegrationPlugin {
         position: 'head',
         importPath: '@ecopages/react/react-dev-esm.ts',
       },
+      {
+        kind: 'script',
+        position: 'head',
+        importPath: '@ecopages/react/react-dom-esm.ts',
+      },
       ...dependencies,
     ],
   };

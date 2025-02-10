@@ -1,4 +1,4 @@
-import { Counter } from '@/components/counter/counter';
+import { Counter } from '@/components/counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoPage, GetMetadata } from '@ecopages/core';
 

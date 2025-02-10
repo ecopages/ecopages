@@ -11,14 +11,18 @@
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/react": "workspace:*",
-		"@ecopages/mdx": "workspace:*",
-		"@ecopages/bun-mdx-kitajs-loader": "workspace:*",
 		"@ecopages/bun-postcss-loader": "workspace:*",
 		"@types/react": "^19.0.0",
 		"@types/react-dom": "^19.0.0"
 	},
 	"dependencies": {
 		"react": "^19.0.0",
-		"react-dom": "^19.0.0"
+		"react-dom": "^19.0.0",
+		"react-aria-components": "^1.6.0",
+		"@tanstack/react-table": "^8.20.6"
+	},
+	"overrides": {
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0"
 	}
 }

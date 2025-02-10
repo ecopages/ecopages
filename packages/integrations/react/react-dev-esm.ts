@@ -1,3 +1,7 @@
+import * as React from 'react';
+import { hydrateRoot } from 'react-dom/client';
+import { jsxDEV } from 'react/jsx-dev-runtime';
+
 import {
   Children,
   Component,
@@ -37,11 +41,10 @@ import {
   useTransition,
   version,
 } from 'react';
-import { hydrateRoot } from 'react-dom/client';
-import { jsxDEV } from 'react/jsx-dev-runtime';
 
 export {
   hydrateRoot,
+  jsxDEV,
   Children,
   Component,
   Fragment,
@@ -79,5 +82,6 @@ export {
   useSyncExternalStore,
   useTransition,
   version,
-  jsxDEV,
 };
+
+export default React;

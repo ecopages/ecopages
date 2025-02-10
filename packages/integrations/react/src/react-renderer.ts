@@ -7,11 +7,12 @@ import path from 'node:path';
 import {
   type EcoComponentDependencies,
   FileUtils,
+  type HtmlTemplateProps,
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
-import { createElement } from 'react';
+import { Fragment, createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
 
@@ -149,10 +150,12 @@ export class ReactRenderer extends IntegrationRenderer {
       ? {
           react: reactUrl,
           'react-dom/client': reactUrl,
+          'react-dom': '/__integrations__/react-dom-esm.js',
           'react/jsx-dev-runtime': reactUrl,
         }
       : {
           react: reactUrl,
+          'react-dom': '/__integrations__/react-dom-esm.js',
           'react-dom/client': reactUrl,
           'react/jsx-runtime': reactUrl,
         };
@@ -226,13 +229,20 @@ export class ReactRenderer extends IntegrationRenderer {
     HtmlTemplate,
   }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
     try {
-      const headContent = await this.createDynamicHead({
+      const headContent = (await this.createDynamicHead({
         dependencies,
         pagePath: file,
-      });
+      })) as any;
 
       const body = await renderToReadableStream(
-        createElement(HtmlTemplate, { metadata, headContent }, createElement(Page, { params, query, ...props })),
+        createElement(
+          HtmlTemplate,
+          {
+            metadata,
+            headContent,
+          } as HtmlTemplateProps,
+          createElement(Page, { params, query, ...props }),
+        ),
       );
 
       return body;

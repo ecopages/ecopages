@@ -25,15 +25,15 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "workspace:*",
-		"react": "^19.0.0",
-		"react-dom": "^19.0.0"
+		"@ecopages/core": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/react": "^19.0.0",
 		"@types/react-dom": "^19.0.0"
 	},
 	"dependencies": {
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
 		"@ecopages/logger": "^0.1.2"
 	}
 }

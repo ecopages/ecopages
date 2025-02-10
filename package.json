@@ -1,7 +1,7 @@
 {
 	"name": "@ecopages/ecopages",
 	"private": true,
-	"version": "0.1.17",
+	"version": "0.1.18",
 	"scripts": {
 		"watch:dev:playground": "bun run --elide-lines 0 --filter @ecopages/playground watch:dev",
 		"dev:playground": "bun run --elide-lines 0 --filter @ecopages/playground dev",

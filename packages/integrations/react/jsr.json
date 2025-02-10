@@ -1,9 +1,10 @@
 {
 	"name": "@ecopages/react",
-	"version": "0.1.17",
+	"version": "0.1.18",
 	"exports": {
 		".": "./src/react.plugin.ts",
 		"./react-esm": "./react-esm.ts",
+		"./react-dom-esm": "react-dom-esm.ts",
 		"./react-dev-esm": "./react-dev-esm.ts"
 	},
 	"exclude": ["src/test", "**/*.test.ts"],
@@ -15,6 +16,7 @@
 			"README.md",
 			"jsr.json",
 			"react-esm.ts",
+			"react-dom-esm.ts",
 			"react-dev-esm.ts"
 		],
 		"exclude": ["src/test"]

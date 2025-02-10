@@ -72,7 +72,7 @@
     },
     "packages/core": {
       "name": "@ecopages/core",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "bin": {
         "ecopages": "./src/bin/ecopages.ts"
       },
@@ -98,7 +98,7 @@
     },
     "packages/integrations/kitajs": {
       "name": "@ecopages/kitajs",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "dependencies": {
         "@ecopages/core": "workspace:*",
         "@kitajs/html": "^4.1.0",
@@ -107,7 +107,7 @@
     },
     "packages/integrations/lit": {
       "name": "@ecopages/lit",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "dependencies": {
         "@lit-labs/ssr": "^3.3.0",
         "@lit-labs/ssr-client": "^1.1.7",
@@ -119,7 +119,7 @@
     },
     "packages/integrations/mdx": {
       "name": "@ecopages/mdx",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "peerDependencies": {
         "@ecopages/core": "workspace:*",
         "@kitajs/html": "^4.1.0",
@@ -127,7 +127,7 @@
     },
     "packages/integrations/react": {
       "name": "@ecopages/react",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "dependencies": {
         "@ecopages/logger": "^0.1.2",
         "react": "^19.0.0",
@@ -143,7 +143,7 @@
     },
     "packages/loaders/bun-mdx-kitajs-loader": {
       "name": "@ecopages/bun-mdx-kitajs-loader",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "dependencies": {
         "@mdx-js/esbuild": "^3.0.1",
       },
@@ -154,14 +154,14 @@
     },
     "packages/loaders/bun-postcss-loader": {
       "name": "@ecopages/bun-postcss-loader",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "dependencies": {
         "@ecopages/postcss-processor": "workspace:*",
       },
     },
     "packages/plugins/bun-inline-css-plugin": {
       "name": "@ecopages/bun-inline-css-plugin",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "devDependencies": {
         "@ecopages/logger": "^0.1.2",
         "@ecopages/postcss-processor": "workspace:*",
@@ -169,7 +169,7 @@
     },
     "packages/processors/postcss-processor": {
       "name": "@ecopages/postcss-processor",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "dependencies": {
         "@ecopages/logger": "^0.1.2",
         "@types/postcss-import": "^14.0.3",

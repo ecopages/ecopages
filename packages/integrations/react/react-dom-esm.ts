@@ -1,6 +1,19 @@
 import * as ReactDOM from 'react-dom';
 
-export const {
+import {
+  createPortal,
+  flushSync,
+  prefetchDNS,
+  preinit,
+  preinitModule,
+  preload,
+  preloadModule,
+  requestFormReset,
+  useFormState,
+  useFormStatus,
+} from 'react-dom';
+
+export {
   createPortal,
   flushSync,
   useFormStatus,
@@ -11,6 +24,6 @@ export const {
   preinit,
   preinitModule,
   requestFormReset,
-} = ReactDOM;
+};
 
 export default ReactDOM;

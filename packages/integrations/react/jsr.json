@@ -4,8 +4,8 @@
 	"exports": {
 		".": "./src/react.plugin.ts",
 		"./react-esm": "./react-esm.ts",
-		"./react-dom-esm": "react-dom-esm.ts",
-		"./react-dev-esm": "react-dev-esm.ts"
+		"./react-dom-esm": "./react-dom-esm.ts",
+		"./react-dev-esm": "./react-dev-esm.ts"
 	},
 	"exclude": ["src/test", "**/*.test.ts"],
 	"publish": {

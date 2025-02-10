@@ -130,6 +130,8 @@
       "version": "0.1.17",
       "dependencies": {
         "@ecopages/logger": "^0.1.2",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
       },
       "devDependencies": {
         "@types/react": "^19.0.0",
@@ -137,8 +139,6 @@
       },
       "peerDependencies": {
         "@ecopages/core": "workspace:*",
-        "react": "^19.0.0",
-        "react-dom": "^19.0.0",
       },
     },
     "packages/loaders/bun-mdx-kitajs-loader": {

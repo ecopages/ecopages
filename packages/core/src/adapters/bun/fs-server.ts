@@ -1,8 +1,6 @@
 import path from 'node:path';
 import type { Server } from 'bun';
-import { FileUtils } from '../../file-utils.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { IntegrationManager } from '../../integration/integration-manager.ts';
 import type {
   EcoPagesAppConfig,
   EcoPagesFileSystemServerAdapter,

@@ -1,3 +1,8 @@
+/**
+ * This is the export file for the main react packages to be compiled as an ESM module for dev environment
+ * @module
+ */
+
 import * as React from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { jsxDEV } from 'react/jsx-dev-runtime';

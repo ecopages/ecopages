@@ -7,22 +7,27 @@ import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { CssBuilder } from './css-builder.ts';
 import type { ScriptsBuilder } from './scripts-builder.ts';
 
+type ProjectWatcherConfig = {
+  config: EcoPagesAppConfig;
+  cssBuilder: CssBuilder;
+  scriptsBuilder: ScriptsBuilder;
+  router: FSRouter;
+  execTailwind: () => Promise<void>;
+};
+
 export class ProjectWatcher {
   private appConfig: EcoPagesAppConfig;
   private cssBuilder: CssBuilder;
   private scriptsBuilder: ScriptsBuilder;
   private router: FSRouter;
+  private execTailwind: () => Promise<void>;
 
-  constructor({
-    config,
-    cssBuilder,
-    scriptsBuilder,
-    router,
-  }: { config: EcoPagesAppConfig; cssBuilder: CssBuilder; scriptsBuilder: ScriptsBuilder; router: FSRouter }) {
+  constructor({ config, cssBuilder, scriptsBuilder, router, execTailwind }: ProjectWatcherConfig) {
     this.appConfig = config;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
     this.router = router;
+    this.execTailwind = execTailwind;
     this.handlePageCreation = this.handlePageCreation.bind(this);
     this.handleChange = this.handleChange.bind(this);
     this.handleDelete = this.handleDelete.bind(this);
@@ -66,25 +71,42 @@ export class ProjectWatcher {
     }
   }
 
-  handleChange(path: string, type: EventType) {
+  private isFileOfType(path: string, extensions: string[]): boolean {
+    return extensions.some((ext) => path.endsWith(ext));
+  }
+
+  private isAdditionalWatchPath(path: string): boolean {
+    return this.appConfig.additionalWatchPaths.some((additionalPath) =>
+      path.includes(join(this.appConfig.rootDir, additionalPath)),
+    );
+  }
+
+  async handleChange(path: string, type: EventType) {
     const updatedFileName = path.replace(`${this.appConfig.absolutePaths.srcDir}/`, '');
     const actionVerb = `${type}d`;
 
-    if (path.endsWith('.css')) {
-      this.cssBuilder.buildCssFromPath({ path: path });
+    if (this.isFileOfType(path, ['.css'])) {
+      this.cssBuilder.buildCssFromPath({ path });
       appLogger.info(`CSS File ${actionVerb}:`, updatedFileName);
-    } else if (this.appConfig.scriptsExtensions.some((scriptsExtension) => path.endsWith(scriptsExtension))) {
+      return;
+    }
+
+    if (this.isFileOfType(path, this.appConfig.scriptsExtensions)) {
+      await this.execTailwind();
       this.scriptsBuilder.build();
       this.uncacheModules();
       appLogger.info(`File ${actionVerb}`, updatedFileName);
-    } else if (this.appConfig.templatesExt.some((ext) => path.includes(ext))) {
+      return;
+    }
+
+    if (this.isFileOfType(path, this.appConfig.templatesExt)) {
+      await this.execTailwind();
       appLogger.info(`Template file ${actionVerb}:`, updatedFileName);
       this.uncacheModules();
-    } else if (
-      this.appConfig.additionalWatchPaths.some((additionalPath) =>
-        path.includes(join(this.appConfig.rootDir, additionalPath)),
-      )
-    ) {
+      return;
+    }
+
+    if (this.isAdditionalWatchPath(path)) {
       appLogger.info(`Additional watch file ${actionVerb}:`, updatedFileName);
       this.uncacheModules();
     }
@@ -96,13 +118,13 @@ export class ProjectWatcher {
 
   public async createWatcherSubscription() {
     const watcher = await import('@parcel/watcher');
-    return watcher.subscribe('src', (err, events) => {
+    return watcher.subscribe('src', async (err, events) => {
       if (err) {
         this.handleError(err);
         return;
       }
 
-      for (const event of events) {
+      for await (const event of events) {
         const isDir = !event.path.includes('.');
         const isCss = event.path.endsWith('.css');
         const isPage = event.path.includes(this.appConfig.absolutePaths.pagesDir) && !isDir && !isCss;
@@ -116,7 +138,7 @@ export class ProjectWatcher {
           this.handlePageCreation(event.path, isDir);
         }
 
-        this.handleChange(event.path, event.type);
+        await this.handleChange(event.path, event.type);
       }
     });
   }

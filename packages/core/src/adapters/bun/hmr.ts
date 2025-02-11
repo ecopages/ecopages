@@ -6,17 +6,22 @@ import { html } from '../../utils/html.ts';
 
 let ECO_PAGES_HMR_WS: ServerWebSocket<unknown> | undefined;
 
-export const reloadCommand = 'reload';
+export const HMR_RELOAD_EVENT = 'ecopages:reload';
 
-if (ECO_PAGES_HMR_WS) ECO_PAGES_HMR_WS.send(reloadCommand);
+if (ECO_PAGES_HMR_WS) ECO_PAGES_HMR_WS.send(HMR_RELOAD_EVENT);
 
+/**
+ * Creates the live reload script to be injected into the html
+ * @param {string} wsUrl
+ * @returns {string}
+ */
 const makeLiveReloadScript = (wsUrl: string) => html`
 <!-- [ecopages] live reload start script -->
 <script type="text/javascript">
   (function() {
     const socket = new WebSocket("ws://${wsUrl}");
       socket.onmessage = function(msg) {
-      if(msg.data === '${reloadCommand}') {
+      if(msg.data === '${HMR_RELOAD_EVENT}') {
         location.reload()
       }
       socket.onerror = function(error) {
@@ -88,8 +93,8 @@ export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketSer
         await serveOptions.websocket?.open?.(ws);
         if (watcher) {
           watcher.removeAllListeners('change');
-          watcher.once('change', async (r) => {
-            ws.send(reloadCommand);
+          watcher.on('change', async (r) => {
+            ws.send(HMR_RELOAD_EVENT);
           });
         }
       },

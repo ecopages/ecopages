@@ -33,16 +33,19 @@ export const Select: EcoComponent<MySelectProps<object>> = ({
   ...props
 }) => {
   return (
-    <AriaSelect className="grid gap-2 items-start justify-start w-fit" {...props}>
+    <AriaSelect className="grid gap-2 items-start justify-start w-fit cursor-pointer" {...props}>
       <Label>{label}</Label>
-      <Button className="flex gap-2 w-full justify-between">
+      <Button className="flex gap-2 w-full justify-between border border-gray-300 rounded px-3 py-2 min-w-40 focus-visible:outline-4 focus-visible:outline-blue-500">
         <SelectValue />
         <span aria-hidden="true">▼</span>
       </Button>
       {description && <Text slot="description">{description}</Text>}
       <FieldError>{errorMessage}</FieldError>
       <Popover>
-        <ListBox className="bg-white rounded-md border border-gray-600 shadow-sm p-2" items={items}>
+        <ListBox
+          className="bg-white grid gap-y-2 rounded border border-gray-300 shadow-sm p-2 focus-visible:outline-4 focus-visible:outline-blue-500"
+          items={items}
+        >
           {children}
         </ListBox>
       </Popover>
@@ -54,7 +57,9 @@ export function Item(props: ListBoxItemProps) {
   return (
     <ListBoxItem
       {...props}
-      className={({ isFocused, isSelected }) => `my-item ${isFocused ? 'focused' : ''} ${isSelected ? 'selected' : ''}`}
+      className={({ isFocused, isSelected }) =>
+        `cursor-pointer p-1 ${isFocused ? 'focus-visible:outline-4 focus-visible:outline-blue-500' : ''} ${isSelected ? 'selected' : ''}`
+      }
     />
   );
 }

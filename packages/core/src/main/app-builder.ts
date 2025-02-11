@@ -88,6 +88,7 @@ export class AppBuilder {
       }),
       scriptsBuilder: this.scriptsBuilder,
       router: dev.router,
+      execTailwind: this.execTailwind.bind(this),
     });
 
     await watcherInstance.createWatcherSubscription();

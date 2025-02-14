@@ -13,28 +13,9 @@ const HomePage: EcoComponent = () =>
   html`!${BaseLayout({
     class: 'main-content',
     children: html` <h1 class="main-title">Ecopages</h1>
-      <p>
-        This is a simple example of a static website built with Ecopages<br />
-        Current dependencies are:
-      </p>
-
-      <ul class="list-disc ml-8">
-        <li>
-          <code class="font-bold">@ecopages/core</code><br />
-          <p class="p-4 rounded-sm">The core library</p>
-        </li>
-        <li>
-          <code class="font-bold">@ecopages/radiant</code><br />
-          <p class="p-4 rounded-sm">
-            Lightweight library for web components <a class="underline text-blue-600" href="https://radiant.ecopages.app">[Docs]</a>
-          </p>
-        </li>
-        <li>
-          <code class="font-bold">@ecopages/bun-postcss-loader</code><br />
-          <p class="p-4 rounded-sm">The postcss loader for bundling <a class="underline text-blue-600" href="https://jsr.io/@ecopages/bun-postcss-loader">[Docs]</a></p>
-        </li>
-      </ul>
-
+      <p>This is a simple example of a static website built with <a href="https:/ecopages.app/" target="_blank">Ecopages</a>.</p>
+      <p>It uses <a href="https://radiant.ecopages.app/" target="_blank">@ecopages/radiant</a> for reactive components.</p>
+      <p>Scripts are loaded on demand using the <a href="https://github.com/ecopages/scripts-injector" target="_blank">scripts-injector</a> component.</p>
       <scripts-injector
         on:interaction="mouseenter,focusin"
         scripts="${resolveComponentsScripts([RadiantCounter])}"

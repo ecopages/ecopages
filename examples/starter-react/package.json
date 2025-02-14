@@ -1,17 +1,18 @@
 {
-	"name": "@ecopages/react-app",
+	"name": "@ecopages/starter-react",
 	"private": true,
 	"scripts": {
-		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
 		"dev": "ecopages dev",
 		"build": "NODE_ENV=production ecopages build",
 		"start": "NODE_ENV=production ecopages start",
-		"preview": "NODE_ENV=production ecopages preview"
+		"preview": "NODE_ENV=production ecopages preview",
+		"postinstall": "bunx symlink-dir node_modules/@ecopages/core/src/bin/ecopages.js node_modules/.bin/ecopages"
 	},
 	"devDependencies": {
-		"@ecopages/core": "workspace:*",
-		"@ecopages/react": "workspace:*",
-		"@ecopages/bun-postcss-loader": "workspace:*",
+		"@ecopages/bun-postcss-loader": "npm:@jsr/ecopages__bun-postcss-loader@latest",
+		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
+		"@ecopages/radiant": "latest",
+		"@ecopages/react": "npm:@jsr/ecopages__react@latest",
 		"@types/react": "^19.0.0",
 		"@types/react-dom": "^19.0.0"
 	},

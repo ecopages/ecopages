@@ -1,4 +1,4 @@
-.counter-react {
+.counter {
   @apply flex gap-4 items-center bg-blue-200 rounded-md max-w-fit p-2;
   .increment,
   .decrement {
@@ -6,5 +6,15 @@
   }
   span {
     @apply text-slate-900 font-bold p-2 bg-slate-100 min-w-20 h-10 flex items-center justify-center rounded-md box-border;
+  }
+}
+
+radiant-counter.counter {
+  @apply bg-red-200;
+  .increment, .decrement {
+    @apply bg-red-600;
+  }
+  span {
+    @apply bg-slate-100;
   }
 }

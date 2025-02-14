@@ -46,6 +46,7 @@
       "devDependencies": {
         "@ecopages/bun-postcss-loader": "workspace:*",
         "@ecopages/core": "workspace:*",
+        "@ecopages/radiant": "^0.2.0",
         "@ecopages/react": "workspace:*",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",

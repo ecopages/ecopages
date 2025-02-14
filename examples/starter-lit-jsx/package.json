@@ -2,18 +2,20 @@
 	"name": "@ecopages/starter-lit-jsx",
 	"private": true,
 	"scripts": {
-		"watch:dev": "NODE_ENV=development bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",
-		"preview": "ecopages preview"
+		"preview": "ecopages preview",
+		"postinstall": "bunx symlink-dir node_modules/@ecopages/core/src/bin/ecopages.js node_modules/.bin/ecopages"
 	},
 	"devDependencies": {
-		"@ecopages/core": "workspace:*",
-		"@ecopages/kitajs": "workspace:*",
-		"@ecopages/lit": "workspace:*",
-		"@ecopages/mdx": "workspace:*",
-		"@ecopages/bun-mdx-kitajs-loader": "workspace:*",
-		"@ecopages/bun-postcss-loader": "workspace:*"
+		"@ecopages/bun-mdx-kitajs-loader": "npm:@jsr/ecopages__bun-mdx-kitajs-loader@latest",
+		"@ecopages/bun-postcss-loader": "npm:@jsr/ecopages__bun-postcss-loader@latest",
+		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
+		"@ecopages/radiant": "latest",
+		"@ecopages/lit": "npm:@jsr/ecopages__lit@latest",
+		"@ecopages/mdx": "npm:@jsr/ecopages__mdx@latest",
+		"@ecopages/kitajs": "npm:@jsr/ecopages__kitajs@latest",
+		"@ecopages/scripts-injector": "latest"
 	}
 }

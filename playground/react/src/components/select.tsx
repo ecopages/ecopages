@@ -41,9 +41,9 @@ export const Select: EcoComponent<MySelectProps<object>> = ({
       </Button>
       {description && <Text slot="description">{description}</Text>}
       <FieldError>{errorMessage}</FieldError>
-      <Popover>
+      <Popover className="max-h-60 w-[--trigger-width] overflow-auto">
         <ListBox
-          className="bg-white grid gap-y-2 rounded border border-gray-300 shadow-sm p-2 focus-visible:outline-4 focus-visible:outline-blue-500"
+          className="bg-white grid rounded border border-gray-300 shadow-sm p-1 focus-visible:outline-4 focus-visible:outline-blue-500"
           items={items}
         >
           {children}
@@ -58,7 +58,7 @@ export function Item(props: ListBoxItemProps) {
     <ListBoxItem
       {...props}
       className={({ isFocused, isSelected }) =>
-        `cursor-pointer p-1 ${isFocused ? 'focus-visible:outline-4 focus-visible:outline-blue-500' : ''} ${isSelected ? 'selected' : ''}`
+        `cursor-pointer hover:bg-slate-100 rounded-sm p-2 ${isFocused ? 'focus-visible:outline-4 focus-visible:outline-blue-500' : ''} ${isSelected ? 'selected' : ''}`
       }
     />
   );

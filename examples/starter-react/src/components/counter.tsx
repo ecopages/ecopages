@@ -11,7 +11,7 @@ export const Counter: EcoComponent<CounterProps> = ({ defaultValue = 5 }) => {
   const handleDecrement = () => setCount(count - 1);
 
   return (
-    <div className="counter-react">
+    <div className="counter">
       <button onClick={handleDecrement} aria-label="Decrement" type="button" className="decrement">
         -
       </button>

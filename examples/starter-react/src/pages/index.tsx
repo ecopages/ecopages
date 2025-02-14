@@ -1,6 +1,4 @@
 import { Counter } from '@/components/counter';
-import { Item, Select } from '@/components/select';
-import { TanstackTable } from '@/components/tanstack-table';
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoPage, GetMetadata } from '@ecopages/core';
 
@@ -15,16 +13,8 @@ const HomePage: EcoPage = () => {
   return (
     <BaseLayout class="main-content">
       <>
-        <h1 className="main-title">Ecopages</h1>
-        <a href="/test">Test Splitting</a>
+        <h1 className="main-title">React App</h1>
         <Counter defaultValue={10} />
-        <Select label="Ice cream flavor">
-          <Item>Chocolate</Item>
-          <Item>Mint</Item>
-          <Item>Strawberry</Item>
-          <Item>Vanilla</Item>
-        </Select>
-        <TanstackTable />
       </>
     </BaseLayout>
   );
@@ -34,7 +24,7 @@ HomePage.config = {
   importMeta: import.meta,
   dependencies: {
     stylesheets: ['./index.css'],
-    components: [Counter, BaseLayout, TanstackTable, Select, Item],
+    components: [Counter, BaseLayout],
   },
 };
 

@@ -127,7 +127,23 @@ export type EcoPagesAppConfig = {
     htmlTemplatePath: string;
     error404TemplatePath: string;
   };
+  /**
+   * Image optimization configuration
+   */
+  imageOptimization?: ImageOptimizationConfig;
 };
+
+export type ImageOptimizationConfig =
+  | {
+      enabled: true;
+      directory: string;
+      quality?: number;
+      maxWidth?: number;
+      formats?: ('webp' | 'avif' | 'jpeg')[];
+    }
+  | {
+      enabled: false;
+    };
 
 export type IntegrationDependencyConfig = {
   integration: string;

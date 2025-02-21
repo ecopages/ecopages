@@ -7,7 +7,12 @@ import path from 'node:path';
 import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import { invariant } from '../utils/invariant.ts';
 
-import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
+import type {
+  EcoPagesAppConfig,
+  ImageOptimizationConfig,
+  IncludesTemplates,
+  RobotsPreference,
+} from '../internal-types.ts';
 import type { IntegrationPlugin, PageMetadataProps } from '../public-types.ts';
 
 export class ConfigBuilder {
@@ -145,6 +150,11 @@ export class ConfigBuilder {
 
   setAdditionalWatchPaths(additionalWatchPaths: string[]): this {
     this.config.additionalWatchPaths = additionalWatchPaths;
+    return this;
+  }
+
+  setImageOptimization(imageOptimization: ImageOptimizationConfig): this {
+    this.config.imageOptimization = imageOptimization;
     return this;
   }
 

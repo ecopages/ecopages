@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { ImageProcessor } from '@ecopages/image-processor';
 import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
@@ -54,6 +55,21 @@ export class StaticPageGenerator {
   async prepareDependencies() {
     const integrationManager = new IntegrationManager({ appConfig: this.appConfig });
     await integrationManager.prepareDependencies();
+  }
+
+  async optimizeImages() {
+    if (this.appConfig.imageOptimization?.enabled) {
+      // const imageProcessor = new ImageProcessor({
+      //   imageDir: this.appConfig.imageOptimization.directory,
+      //   outputDir: path.join(this.appConfig.distDir, 'optimized-images'),
+      //   cacheDir: path.join(this.appConfig.distDir, '.cache'),
+      //   quality: this.appConfig.imageOptimization.quality,
+      //   maxWidth: this.appConfig.imageOptimization.maxWidth,
+      // });
+      // const imageTransformer = new ImageTransformer(imageProcessor, config.rootDir);
+      // // Add image transformer to the page processing pipeline
+      // pageProcessors.push(imageTransformer);
+    }
   }
 
   async generateStaticPages() {

@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream';
+import type { ReactElement } from 'react';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
 
@@ -11,7 +12,7 @@ export type EcoComponentDependencies = {
   components?: (EcoComponent | EcoWebComponent)[];
 };
 
-export type EcoPagesElement = string | Promise<string> | React.ReactElement;
+export type EcoPagesElement = string | Promise<string> | ReactElement;
 
 /**
  * Represents the input configuration for EcoPages.

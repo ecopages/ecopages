@@ -3,7 +3,7 @@
  * @module
  */
 
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import zlib from 'node:zlib';
 import type { GlobScanOptions } from 'bun';
@@ -128,6 +128,15 @@ function write(path: string, contents: string | Buffer): void {
   }
 }
 
+function getFileHash(path: string): string {
+  try {
+    const buffer = getFileAsBuffer(path);
+    return Bun.hash(buffer).toString();
+  } catch (error) {
+    throw new Error(`[ecopages] Error hashing file: ${path}`);
+  }
+}
+
 /**
  * Utility functions for file operations.
  */
@@ -142,5 +151,8 @@ export const FileUtils = {
   gzipDirSync,
   gzipFileSync,
   writeFileSync,
+  readFileSync,
   mkdirSync,
+  getFileHash,
+  rmSync,
 };

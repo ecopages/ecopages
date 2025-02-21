@@ -1,15 +1,35 @@
+/**
+ * This module contains the PostCSS Processor
+ * @module
+ */
+
 import { existsSync, readFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
 import { type PluginsRecord, defaultPlugins } from './default-plugins.ts';
 
-type PostCssProcessorOptions = {
+/**
+ * PostCSS Processor Options
+ */
+export type PostCssProcessorOptions = {
   plugins: postcss.AcceptedPlugin[];
 };
 
-type ProcessPath = (path: string, options?: PostCssProcessorOptions) => Promise<string>;
+/**
+ * ProcessPath
+ * @param path string
+ * @param options {@link PostCssProcessorOptions}
+ * @returns string
+ */
+export type ProcessPath = (path: string, options?: PostCssProcessorOptions) => Promise<string>;
 
-type ProcessStringOrBuffer = (contents: string | Buffer, options?: PostCssProcessorOptions) => Promise<string>;
+/**
+ * ProcessStringOrBuffer
+ * @param contents string | Buffer
+ * @param options {@link PostCssProcessorOptions}
+ * @returns string
+ */
+export type ProcessStringOrBuffer = (contents: string | Buffer, options?: PostCssProcessorOptions) => Promise<string>;
 
 const appLogger = new Logger('[@ecopages/postcss-processor]');
 

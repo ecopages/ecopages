@@ -21,6 +21,7 @@
 	"dependencies": {
 		"@ecopages/bun-inline-css-plugin": "workspace:*",
 		"@ecopages/logger": "latest",
+		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@parcel/watcher": "^2.4.0",
 		"ghtml": "^2.1.2"

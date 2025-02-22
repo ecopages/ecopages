@@ -16,9 +16,9 @@ const config = await new ConfigBuilder()
     quality: 80,
     format: 'webp',
     sizes: [
-      { width: 320, suffix: '-sm', maxViewportWidth: 640 },
-      { width: 768, suffix: '-md', maxViewportWidth: 1024 },
-      { width: 1024, suffix: '-lg', maxViewportWidth: 1440 },
+      { width: 320, suffix: '-sm' },
+      { width: 768, suffix: '-md' },
+      { width: 1024, suffix: '-lg' },
       { width: 1920, suffix: '-xl' },
     ],
   })

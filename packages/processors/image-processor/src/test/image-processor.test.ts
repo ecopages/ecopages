@@ -186,21 +186,18 @@ describe('ImageProcessor', () => {
     expect(variants[1]).toMatchObject({
       width: 1024,
       suffix: '-lg',
-      maxViewportWidth: 1440,
       format: 'webp',
     });
 
     expect(variants[2]).toMatchObject({
       width: 768,
       suffix: '-md',
-      maxViewportWidth: 1024,
       format: 'webp',
     });
 
     expect(variants[3]).toMatchObject({
       width: 320,
       suffix: '-sm',
-      maxViewportWidth: 640,
       format: 'webp',
     });
 

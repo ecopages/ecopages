@@ -21,8 +21,6 @@ export interface ImageSize {
   width: number;
   /** Suffix to append to filename */
   suffix: string;
-  /** Maximum viewport width where this size should be used (optional) */
-  maxViewportWidth?: number;
 }
 
 /**
@@ -61,8 +59,6 @@ export interface ImageVariant {
   width: number;
   /** Suffix used for this variant */
   suffix: string;
-  /** Maximum viewport width where this variant should be used */
-  maxViewportWidth?: number;
   /** Format of the processed image */
   format: string;
 }
@@ -200,39 +196,22 @@ export class ImageProcessor {
       return '';
     }
 
-    // Sort variants by width ascending
+    // Sort by width ascending
     const sortedByWidth = [...variants].sort((a, b) => a.width - b.width);
-    const largestWidth = sortedByWidth[sortedByWidth.length - 1].width;
+    const breakpoints = sortedByWidth.map((v) => v.width);
 
-    // Sort viewport-specific variants by viewport width ascending
-    const viewportVariants = variants
-      .filter((v) => v.maxViewportWidth)
-      .sort((a, b) => (a.maxViewportWidth || 0) - (b.maxViewportWidth || 0));
+    // Build a sizes string like:
+    // (max-width: 320px) 320px, (max-width: 768px) 768px, ...
+    // For each size except the largest
+    const pairs = [];
+    for (let i = 0; i < breakpoints.length - 1; i++) {
+      pairs.push(`(max-width: ${breakpoints[i]}px) ${breakpoints[i]}px`);
+    }
+    // Final fallback to the largest size
+    const largest = breakpoints[breakpoints.length - 1];
+    pairs.push(`${largest}px`);
 
-    // For each viewport width, find the next immediate larger size
-    const sizesArray = viewportVariants
-      .map((variant) => {
-        const currentWidth = variant.width;
-        let nextSize: ImageVariant | undefined;
-
-        for (const size of sortedByWidth) {
-          if (size.width > currentWidth) {
-            nextSize = size;
-            break; // Found the next immediate larger size
-          }
-        }
-
-        // If there is no next size, skip this viewport
-        if (!nextSize || variant.maxViewportWidth === nextSize.width) {
-          return null;
-        }
-
-        return `(max-width: ${variant.maxViewportWidth}px) ${nextSize.width}px`;
-      })
-      .filter(Boolean);
-
-    // Add default size
-    return [...sizesArray, `${largestWidth}px`].join(', ');
+    return pairs.join(', ');
   }
 
   /**
@@ -307,7 +286,6 @@ export class ImageProcessor {
         path: outputPath,
         width: size.width, // Use capped width
         suffix: size.suffix,
-        maxViewportWidth: size.maxViewportWidth,
         format,
       });
     }

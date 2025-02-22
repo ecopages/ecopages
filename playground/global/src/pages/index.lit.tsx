@@ -33,6 +33,9 @@ const HomePage: EcoComponent = () => {
         <div class="w-80 mx-auto">
           <img class="object-fit" src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
         </div>
+        <div class="w-screen">
+          <img class="object-fit" src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
+        </div>
       </>
     </BaseLayout>
   );

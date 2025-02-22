@@ -41,9 +41,9 @@ describe('Responsive Images', () => {
       quality: 80,
       format: 'webp',
       sizes: [
-        { width: 320, suffix: '-sm', maxViewportWidth: 640 },
-        { width: 768, suffix: '-md', maxViewportWidth: 1024 },
-        { width: 1024, suffix: '-lg', maxViewportWidth: 1440 },
+        { width: 320, suffix: '-sm' },
+        { width: 768, suffix: '-md' },
+        { width: 1024, suffix: '-lg' },
       ],
     });
 
@@ -53,7 +53,7 @@ describe('Responsive Images', () => {
     const normalizedPath = `/${publicDir}/image_1024x768.jpg`;
     const html = generator.replaceImagesWithPictures(`<img src="${normalizedPath}" alt="Test">`);
 
-    expect(html).toContain('(max-width: 640px) 768px, 1024px');
+    expect(html).toContain('(max-width: 320px) 320px, (max-width: 768px) 768px, 1024px');
   });
 
   test('preserves order of sizes from smallest to largest', async () => {
@@ -78,7 +78,7 @@ describe('Responsive Images', () => {
     expect(widths).toEqual([1024, 768, 320].sort((a, b) => b - a));
   });
 
-  test('handles viewport-specific sizes correctly', async () => {
+  test('handles multiple sizes correctly', async () => {
     const processor = new ImageProcessor({
       imageDir: fixturesDir,
       cacheDir,
@@ -86,17 +86,16 @@ describe('Responsive Images', () => {
       publicPath: '/images',
       publicDir,
       sizes: [
-        { width: 320, suffix: '-sm', maxViewportWidth: 640 },
-        { width: 768, suffix: '-md', maxViewportWidth: 1024 },
+        { width: 320, suffix: '-sm' },
+        { width: 768, suffix: '-md' },
         { width: 1024, suffix: '-lg' },
+        { width: 1920, suffix: '-xl' },
       ],
     });
 
     await processor.processImage(testImage);
     const sizes = processor.generateSizes(testImage);
-
-    const expectedSizes = ['(max-width: 640px) 768px', '1024px'].join(', ');
-
+    const expectedSizes = '(max-width: 320px) 320px, (max-width: 768px) 768px, 1024px';
     expect(sizes).toBe(expectedSizes);
   });
 
@@ -108,8 +107,8 @@ describe('Responsive Images', () => {
       publicPath: '/images',
       publicDir,
       sizes: [
-        { width: 320, suffix: '-sm', maxViewportWidth: 640 },
-        { width: 768, suffix: '-md', maxViewportWidth: 1024 },
+        { width: 320, suffix: '-sm' },
+        { width: 768, suffix: '-md' },
         { width: 1024, suffix: '-lg' },
       ],
     });
@@ -127,7 +126,7 @@ describe('Responsive Images', () => {
     expect(html).toContain('<img');
 
     expect(html).toContain('srcset=');
-    expect(html).toContain('sizes="(max-width: 640px) 768px, 1024px"');
+    expect(html).toContain('sizes="(max-width: 320px) 320px, (max-width: 768px) 768px, 1024px"');
     expect(html).toContain('alt="Test image"');
     expect(html).toContain('loading="lazy"');
   });
@@ -140,8 +139,8 @@ describe('Responsive Images', () => {
       publicPath: '/images',
       publicDir,
       sizes: [
-        { width: 320, suffix: '-sm', maxViewportWidth: 640 },
-        { width: 768, suffix: '-md', maxViewportWidth: 1024 },
+        { width: 320, suffix: '-sm' },
+        { width: 768, suffix: '-md' },
         { width: 1024, suffix: '-lg' },
       ],
     });
@@ -149,7 +148,7 @@ describe('Responsive Images', () => {
     await processor.processImage(testImage);
     const sizes = processor.generateSizes(testImage);
 
-    const expectedSizes = ['(max-width: 640px) 768px', '1024px'].join(', ');
+    const expectedSizes = ['(max-width: 320px) 320px', '(max-width: 768px) 768px', '1024px'].join(', ');
 
     expect(sizes).toBe(expectedSizes);
   });

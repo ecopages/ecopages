@@ -163,7 +163,8 @@ export class ImageProcessor {
    */
   private generateSrcsetString(variants: ImageVariant[]): string {
     const publicPath = this.config.publicPath || '/output';
-    return variants
+    return [...variants]
+      .sort((a, b) => b.width - a.width)
       .map((variant) => {
         const filename = path.basename(variant.path);
         return `${publicPath}/${filename} ${variant.width}w`;
@@ -209,15 +210,44 @@ export class ImageProcessor {
     const filename = path.basename(processablePath, path.extname(processablePath));
     const sizes = this.config.sizes || [{ width: this.config.maxWidth || 1920, suffix: '' }];
 
+    const originalImage = sharp(processablePath);
+    const metadata = await originalImage.metadata();
+    const originalWidth = metadata.width || 0;
+
+    // Create map of effective widths to track duplicates
+    const effectiveWidthMap = new Map<number, ImageSize>();
+    const uniqueSizes = sizes.filter((size) => {
+      const effectiveWidth = Math.min(size.width, originalWidth);
+
+      // If we haven't seen this width before, add it
+      if (!effectiveWidthMap.has(effectiveWidth)) {
+        effectiveWidthMap.set(effectiveWidth, size);
+        return true;
+      }
+
+      // If we've seen this width, prefer the one with viewport constraints
+      const existing = effectiveWidthMap.get(effectiveWidth);
+      if (existing && !existing.maxViewportWidth && size.maxViewportWidth) {
+        effectiveWidthMap.set(effectiveWidth, size);
+        return true;
+      }
+      return false;
+    });
+
     const variants: ImageVariant[] = [];
 
-    for (const size of sizes) {
+    for (const size of uniqueSizes) {
       const outputPath = path.join(
         this.config.outputDir,
         `${filename}${size.suffix}${ImageProcessor.OPTIMIZED_SUFFIX}${format}`,
       );
 
-      const image = sharp(processablePath).resize(size.width);
+      const effectiveWidth = Math.min(size.width, originalWidth);
+
+      const image = sharp(processablePath);
+      if (effectiveWidth < originalWidth) {
+        image.resize(effectiveWidth);
+      }
 
       switch (format) {
         case 'webp':
@@ -236,12 +266,14 @@ export class ImageProcessor {
 
       variants.push({
         path: outputPath,
-        width: size.width,
+        width: effectiveWidth,
         suffix: size.suffix,
         maxViewportWidth: size.maxViewportWidth,
         format: format,
       });
     }
+
+    variants.sort((a, b) => b.width - a.width);
 
     this.imageMap[normalizedPath] = {
       hash,

@@ -1,22 +1,36 @@
 import path from 'node:path';
-import { ImageProcessor } from '@ecopages/image-processor';
-import { PictureGenerator } from '@ecopages/image-processor/picture-generator';
+import type { ImageProcessor } from '@ecopages/image-processor';
+import type { PictureGenerator } from '@ecopages/image-processor/picture-generator';
 import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
-import { IntegrationManager } from './integration-manager.ts';
+import type { IntegrationManager } from './integration-manager.ts';
 
 const STATIC_GENERATION_ADAPTER_PORT = 2020;
 const STATIC_GENERATION_ADAPTER_BASE_URL = `http://localhost:${STATIC_GENERATION_ADAPTER_PORT}`;
 
 export class StaticPageGenerator {
   appConfig: EcoPagesAppConfig;
+  integrationManager: IntegrationManager;
   imageProcessor: ImageProcessor | undefined;
   pictureGenerator: PictureGenerator | undefined;
 
-  constructor(config: EcoPagesAppConfig) {
-    this.appConfig = config;
+  constructor({
+    appConfig,
+    imageProcessor,
+    pictureGenerator,
+    integrationManager,
+  }: {
+    appConfig: EcoPagesAppConfig;
+    imageProcessor?: ImageProcessor;
+    pictureGenerator?: PictureGenerator;
+    integrationManager: IntegrationManager;
+  }) {
+    this.appConfig = appConfig;
+    this.integrationManager = integrationManager;
+    this.imageProcessor = imageProcessor;
+    this.pictureGenerator = pictureGenerator;
   }
 
   generateRobotsTxt(): void {
@@ -56,14 +70,11 @@ export class StaticPageGenerator {
   }
 
   async prepareDependencies() {
-    const integrationManager = new IntegrationManager({ appConfig: this.appConfig });
-    await integrationManager.prepareDependencies();
+    await this.integrationManager.prepareDependencies();
   }
 
   async optimizeImages() {
-    if (this.appConfig.imageOptimization) {
-      this.imageProcessor = new ImageProcessor(this.appConfig.imageOptimization);
-      this.pictureGenerator = new PictureGenerator(this.imageProcessor);
+    if (this.appConfig.imageOptimization && this.imageProcessor) {
       await this.imageProcessor.processDirectory();
     }
   }

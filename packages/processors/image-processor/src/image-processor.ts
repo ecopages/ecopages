@@ -200,11 +200,11 @@ export class ImageProcessor {
       return '';
     }
 
-    // Sort variants by width ascending for finding next size up
+    // Sort variants by width ascending
     const sortedByWidth = [...variants].sort((a, b) => a.width - b.width);
     const largestWidth = sortedByWidth[sortedByWidth.length - 1].width;
 
-    // Sort viewport variants by viewport width ascending
+    // Sort viewport-specific variants by viewport width ascending
     const viewportVariants = variants
       .filter((v) => v.maxViewportWidth)
       .sort((a, b) => (a.maxViewportWidth || 0) - (b.maxViewportWidth || 0));
@@ -213,15 +213,23 @@ export class ImageProcessor {
     const sizesArray = viewportVariants
       .map((variant) => {
         const currentWidth = variant.width;
-        const nextSize = sortedByWidth.find((v) => v.width > currentWidth);
+        let nextSize: ImageVariant | undefined;
 
-        if (!nextSize) {
-          return null; // Skip if no larger size available
+        for (const size of sortedByWidth) {
+          if (size.width > currentWidth) {
+            nextSize = size;
+            break; // Found the next immediate larger size
+          }
+        }
+
+        // If there is no next size, skip this viewport
+        if (!nextSize || variant.maxViewportWidth === nextSize.width) {
+          return null;
         }
 
         return `(max-width: ${variant.maxViewportWidth}px) ${nextSize.width}px`;
       })
-      .filter(Boolean); // Remove null entries
+      .filter(Boolean);
 
     // Add default size
     return [...sizesArray, `${largestWidth}px`].join(', ');

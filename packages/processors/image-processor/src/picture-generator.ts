@@ -4,7 +4,10 @@
  */
 
 import path from 'node:path';
+import { Logger } from '@ecopages/logger';
 import type { ImageProcessor, ImageVariant } from './image-processor';
+
+const appLogger = new Logger('[@ecopages/image-processor > picture-generator]');
 
 export interface PictureOptions {
   /** CSS class for the img element */
@@ -90,7 +93,7 @@ export class PictureGenerator {
 
         const result = this.generatePictureHtml(publicPath, pictureOptions);
         if (!result) {
-          console.log('No entry found in image map for:', publicPath);
+          appLogger.warn('No entry found in image map for:', publicPath);
         }
 
         return result || part;

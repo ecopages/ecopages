@@ -53,9 +53,7 @@ describe('Responsive Images', () => {
     const normalizedPath = `/${publicDir}/image_1024x768.jpg`;
     const html = generator.replaceImagesWithPictures(`<img src="${normalizedPath}" alt="Test">`);
 
-    expect(html).toContain('(max-width: 640px) 768px'); // Use next size up
-    expect(html).toContain('(max-width: 1024px) 1024px'); // Use next size up
-    expect(html).toContain('1024px'); // Default size
+    expect(html).toContain('(max-width: 640px) 768px, 1024px');
   });
 
   test('preserves order of sizes from smallest to largest', async () => {
@@ -88,21 +86,16 @@ describe('Responsive Images', () => {
       publicPath: '/images',
       publicDir,
       sizes: [
-        { width: 320, suffix: '-sm', maxViewportWidth: 640 }, // At 640px and below, use 768px image
-        { width: 768, suffix: '-md', maxViewportWidth: 1024 }, // At 1024px and below, use 1024px image
-        { width: 1024, suffix: '-lg' }, // Default size, no viewport width
+        { width: 320, suffix: '-sm', maxViewportWidth: 640 },
+        { width: 768, suffix: '-md', maxViewportWidth: 1024 },
+        { width: 1024, suffix: '-lg' },
       ],
     });
 
     await processor.processImage(testImage);
     const sizes = processor.generateSizes(testImage);
-    console.log('Generated sizes:', sizes);
 
-    const expectedSizes = [
-      '(max-width: 640px) 768px', // 640px viewport uses next size up (768px)
-      '(max-width: 1024px) 1024px', // 1024px viewport uses largest size (1024px)
-      '1024px', // Default size
-    ].join(', ');
+    const expectedSizes = ['(max-width: 640px) 768px', '1024px'].join(', ');
 
     expect(sizes).toBe(expectedSizes);
   });
@@ -124,8 +117,6 @@ describe('Responsive Images', () => {
     const generator = new PictureGenerator(processor);
     await processor.processImage(testImage);
 
-    console.log('Image variants:', processor.getImageMap(), testImage);
-
     const html = generator.generatePictureHtml(`/${imgName}`, {
       alt: 'Test image',
       lazy: true,
@@ -136,7 +127,7 @@ describe('Responsive Images', () => {
     expect(html).toContain('<img');
 
     expect(html).toContain('srcset=');
-    expect(html).toContain('sizes="(max-width: 640px) 768px, (max-width: 1024px) 1024px, 1024px"');
+    expect(html).toContain('sizes="(max-width: 640px) 768px, 1024px"');
     expect(html).toContain('alt="Test image"');
     expect(html).toContain('loading="lazy"');
   });
@@ -151,20 +142,14 @@ describe('Responsive Images', () => {
       sizes: [
         { width: 320, suffix: '-sm', maxViewportWidth: 640 },
         { width: 768, suffix: '-md', maxViewportWidth: 1024 },
-        { width: 1024, suffix: '-lg' }, // No maxViewportWidth for largest size
+        { width: 1024, suffix: '-lg' },
       ],
     });
 
     await processor.processImage(testImage);
     const sizes = processor.generateSizes(testImage);
-    console.log('Generated sizes:', sizes);
 
-    // Each viewport gets the next larger size, last one is default
-    const expectedSizes = [
-      '(max-width: 640px) 768px', // 640px viewport uses next size (768px)
-      '(max-width: 1024px) 1024px', // 1024px viewport uses largest size (1024px)
-      '1024px', // Default size
-    ].join(', ');
+    const expectedSizes = ['(max-width: 640px) 768px', '1024px'].join(', ');
 
     expect(sizes).toBe(expectedSizes);
   });

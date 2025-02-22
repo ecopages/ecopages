@@ -19,8 +19,8 @@ const appLogger = new Logger('[@ecopages/image-processor]', {
 export interface ImageSize {
   /** Width in pixels */
   width: number;
-  /** Suffix to append to filename */
-  suffix: string;
+  /** Label to append to filename */
+  label: string;
 }
 
 /**
@@ -57,8 +57,8 @@ export interface ImageVariant {
   path: string;
   /** Width of the processed image */
   width: number;
-  /** Suffix used for this variant */
-  suffix: string;
+  /** Label used for this variant */
+  label: string;
   /** Format of the processed image */
   format: string;
 }
@@ -230,7 +230,18 @@ export class ImageProcessor {
 
     const format = this.config.format || 'webp';
     const filename = path.basename(processablePath, path.extname(processablePath));
-    const sizes = this.config.sizes || [{ width: this.config.maxWidth || 1920, suffix: '' }];
+
+    // If maxWidth is specified and no sizes are provided, create a single size with maxWidth
+    const defaultSizes = this.config.maxWidth
+      ? [{ width: this.config.maxWidth, label: 'xl' }]
+      : [
+          { width: 1920, label: 'xl' },
+          { width: 1024, label: 'lg' },
+          { width: 768, label: 'md' },
+          { width: 320, label: 'sm' },
+        ];
+
+    const sizes = this.config.sizes || defaultSizes;
 
     const originalImage = sharp(processablePath);
     const metadata = await originalImage.metadata();
@@ -258,10 +269,10 @@ export class ImageProcessor {
     const variants: ImageVariant[] = [];
 
     for (const size of uniqueSizes) {
-      const outputPath = path.join(
-        this.config.outputDir,
-        `${filename}${size.suffix}${ImageProcessor.OPTIMIZED_SUFFIX}${format}`,
-      );
+      // Always include the label in the filename
+      const labelPart = size.label ? `-${size.label}` : '';
+      const outputBasename = `${filename}${labelPart}${ImageProcessor.OPTIMIZED_SUFFIX}${format}`;
+      const outputPath = path.join(this.config.outputDir, outputBasename);
 
       // Use the capped width for processing
       const image = sharp(processablePath);
@@ -285,7 +296,7 @@ export class ImageProcessor {
       variants.push({
         path: outputPath,
         width: size.width, // Use capped width
-        suffix: size.suffix,
+        label: size.label || '', // Ensure label is never undefined
         format,
       });
     }

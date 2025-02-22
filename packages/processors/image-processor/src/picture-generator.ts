@@ -20,6 +20,10 @@ export interface PictureOptions {
   imgAttributes?: Record<string, string>;
   /** Additional attributes for the picture tag */
   pictureAttributes?: Partial<HTMLImageElement> & Record<string, string>;
+  /** For data-fixed-size attribute */
+  fixedSize?: string;
+  /** For data-custom-srcset attribute */
+  customSrcset?: string;
 }
 
 /**
@@ -45,6 +49,25 @@ export class PictureGenerator {
     const { variants, sizes } = entry;
     const publicPath = this.imageProcessor.getPublicPath();
 
+    // Handle fixed size
+    if (options.fixedSize) {
+      const variant = entry.variants.find((v) => v.label === options.fixedSize);
+      if (variant) {
+        const imgAttrs = this.formatAttributes({
+          src: `${publicPath}/${path.basename(variant.path)}`,
+          width: variant.width.toString(),
+          ...options.imgAttributes,
+        });
+        return `<picture>\n  <img${imgAttrs}>\n</picture>`;
+      }
+    }
+
+    // Handle custom srcset
+    if (options.customSrcset) {
+      const imgElement = this.generateImgElement(entry.variants, publicPath, options);
+      return `<picture>\n  <source srcset="${options.customSrcset}">\n  ${imgElement}\n</picture>`;
+    }
+
     const sourceElements = this.generateSourceElements(variants, sizes, publicPath);
     const imgElement = this.generateImgElement(variants, publicPath, options);
     const pictureAttrs = this.formatAttributes(options.pictureAttributes || {});
@@ -56,49 +79,34 @@ export class PictureGenerator {
    * Replaces img tags in HTML with picture elements
    */
   replaceImagesWithPictures(html: string, options: PictureOptions = {}): string {
-    const parts = html.split(/(<img[^>]+>)/);
-    return parts
-      .map((part) => {
-        if (!part.startsWith('<img')) {
-          return part;
+    return html.replace(/<img[^>]+>/g, (imgTag) => {
+      // Extract attributes
+      const srcMatch = imgTag.match(/src="([^"]+)"/);
+      if (!srcMatch) return imgTag;
+
+      // Extract data attributes
+      const fixedSizeMatch = imgTag.match(/data-fixed-size="([^"]+)"/);
+      const customSrcsetMatch = imgTag.match(/data-custom-srcset="([^"]+)"/);
+
+      // Extract other attributes
+      const attrs: Record<string, string> = {};
+      imgTag.replace(/(\w+(?:-\w+)*)="([^"]+)"/g, (_, name, value) => {
+        if (!['src', 'data-fixed-size', 'data-custom-srcset'].includes(name)) {
+          attrs[name] = value;
         }
+        return '';
+      });
 
-        const srcMatch = part.match(/src="([^"]+)"/);
-        if (!srcMatch) {
-          return part;
-        }
+      const pictureOptions: PictureOptions = {
+        ...options,
+        imgAttributes: attrs,
+        fixedSize: fixedSizeMatch?.[1],
+        customSrcset: customSrcsetMatch?.[1],
+      };
 
-        const publicPath = this.normalizeImagePath(srcMatch[1]);
-
-        const altMatch = part.match(/alt="([^"]+)"/);
-        const classMatch = part.match(/class="([^"]+)"/);
-
-        const attrs: Record<string, string> = {};
-        part.replace(/(\w+(?:-\w+)*)="([^"]+)"/g, (_, name, value) => {
-          if (name !== 'src' && name !== 'alt' && name !== 'class') {
-            attrs[name] = value;
-          }
-          return '';
-        });
-
-        const pictureOptions: PictureOptions = {
-          ...options,
-          alt: options.alt || (altMatch ? altMatch[1] : ''),
-          className: options.className || (classMatch ? classMatch[1] : ''),
-          imgAttributes: {
-            ...attrs,
-            ...options.imgAttributes,
-          },
-        };
-
-        const result = this.generatePictureHtml(publicPath, pictureOptions);
-        if (!result) {
-          appLogger.warn('No entry found in image map for:', publicPath);
-        }
-
-        return result || part;
-      })
-      .join('');
+      const imagePath = this.normalizeImagePath(srcMatch[1]);
+      return this.generatePictureHtml(imagePath, pictureOptions) || imgTag;
+    });
   }
 
   private normalizeImagePath(imagePath: string): string {

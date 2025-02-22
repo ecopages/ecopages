@@ -41,9 +41,10 @@ describe('ImageProcessor', () => {
     expect(variants).toBeInstanceOf(Array);
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `image_1024x768${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
+      path: path.join(outputDir, `image_1024x768-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
       width: 400,
-      suffix: '',
+      label: 'xl', // Updated to expect 'xl' as default label
+      format: 'webp',
     });
     expect(FileUtils.existsSync(variants[0].path)).toBe(true);
   });
@@ -71,7 +72,7 @@ describe('ImageProcessor', () => {
       imageDir: fixturesDir,
       cacheDir: cacheDir,
       outputDir: outputDir,
-      maxWidth: 400,
+      maxWidth: 400, // This should override the default sizes
       quality: 80,
       format: 'jpeg',
       publicDir,
@@ -80,10 +81,12 @@ describe('ImageProcessor', () => {
     const imagePath = path.join(fixturesDir, image_1024x768);
     const variants = await processor.processImage(imagePath);
 
+    expect(variants).toHaveLength(1); // Should only have one variant
     expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `image_1024x768${ImageProcessor.OPTIMIZED_SUFFIX}jpeg`),
-      width: 400,
-      suffix: '',
+      path: path.join(outputDir, `image_1024x768-xl${ImageProcessor.OPTIMIZED_SUFFIX}jpeg`),
+      width: 400, // Should use maxWidth
+      label: 'xl',
+      format: 'jpeg',
     });
   });
 
@@ -103,9 +106,10 @@ describe('ImageProcessor', () => {
     expect(variants).toBeInstanceOf(Array);
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `image_1024x768${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
+      path: path.join(outputDir, `image_1024x768-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
       width: 400,
-      suffix: '',
+      label: 'xl', // Updated to expect 'xl' as default label
+      format: 'webp',
     });
     expect(FileUtils.existsSync(variants[0].path)).toBe(true);
   });
@@ -126,9 +130,10 @@ describe('ImageProcessor', () => {
     expect(variants).toBeInstanceOf(Array);
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `image_1024x768${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
+      path: path.join(outputDir, `image_1024x768-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
       width: 200,
-      suffix: '',
+      label: 'xl', // Changed from 'suffix' to 'label'
+      format: 'webp',
     });
     expect(FileUtils.existsSync(variants[0].path)).toBe(true);
   });
@@ -163,10 +168,10 @@ describe('ImageProcessor', () => {
       format: 'webp',
       publicDir,
       sizes: [
-        { width: 320, suffix: '-sm', maxViewportWidth: 640 },
-        { width: 768, suffix: '-md', maxViewportWidth: 1024 },
-        { width: 1024, suffix: '-lg', maxViewportWidth: 1440 },
-        { width: 1920, suffix: '-xl' }, // Will be capped at 1024
+        { width: 320, label: 'sm', maxViewportWidth: 640 },
+        { width: 768, label: 'md', maxViewportWidth: 1024 },
+        { width: 1024, label: 'lg', maxViewportWidth: 1440 },
+        { width: 1920, label: 'xl' }, // Will be capped at 1024
       ],
     });
 
@@ -179,25 +184,25 @@ describe('ImageProcessor', () => {
     // Test each variant individually to make matching more flexible
     expect(variants[0]).toMatchObject({
       width: 1920,
-      suffix: '-xl',
+      label: 'xl',
       format: 'webp',
     });
 
     expect(variants[1]).toMatchObject({
       width: 1024,
-      suffix: '-lg',
+      label: 'lg',
       format: 'webp',
     });
 
     expect(variants[2]).toMatchObject({
       width: 768,
-      suffix: '-md',
+      label: 'md',
       format: 'webp',
     });
 
     expect(variants[3]).toMatchObject({
       width: 320,
-      suffix: '-sm',
+      label: 'sm',
       format: 'webp',
     });
 
@@ -223,8 +228,8 @@ describe('ImageProcessor', () => {
       format: 'webp',
       publicDir,
       sizes: [
-        { width: 320, suffix: '-sm' },
-        { width: 768, suffix: '-md' },
+        { width: 320, label: 'sm' },
+        { width: 768, label: 'md' },
       ],
     });
 
@@ -270,9 +275,9 @@ describe('ImageProcessor', () => {
       cacheDir: cacheDir,
       outputDir: outputDir,
       sizes: [
-        { width: 2000, suffix: '-xl' }, // Should be capped at 1024
-        { width: 800, suffix: '-md' },
-        { width: 400, suffix: '-sm' },
+        { width: 2000, label: 'xl' }, // Should be capped at 1024
+        { width: 800, label: 'md' },
+        { width: 400, label: 'sm' },
       ],
       quality: 80,
       format: 'webp',
@@ -286,17 +291,17 @@ describe('ImageProcessor', () => {
     expect(variants).toHaveLength(3);
     expect(variants[0]).toMatchObject({
       width: 1024,
-      suffix: '-xl',
+      label: 'xl',
       format: 'webp',
     });
     expect(variants[1]).toMatchObject({
       width: 800,
-      suffix: '-md',
+      label: 'md',
       format: 'webp',
     });
     expect(variants[2]).toMatchObject({
       width: 400,
-      suffix: '-sm',
+      label: 'sm',
       format: 'webp',
     });
 
@@ -316,9 +321,9 @@ describe('ImageProcessor', () => {
       cacheDir: cacheDir,
       outputDir: outputDir,
       sizes: [
-        { width: 400, suffix: '-sm' },
-        { width: 1200, suffix: '-lg' }, // Will be capped at original width (1024)
-        { width: 800, suffix: '-md' },
+        { width: 400, label: 'sm' },
+        { width: 1200, label: 'lg' }, // Will be capped at 1024
+        { width: 800, label: 'md' },
       ],
       quality: 80,
       format: 'webp',
@@ -328,9 +333,8 @@ describe('ImageProcessor', () => {
     const imagePath = path.join(fixturesDir, image_1024x768);
     const variants = await processor.processImage(imagePath);
 
-    // Verify variants are sorted by width descending
     expect(variants).toHaveLength(3);
-    expect(variants.map((v) => v.width)).toEqual([1024, 800, 400]); // 1200 capped at 1024
+    expect(variants.map((v) => v.width)).toEqual([1024, 800, 400]);
 
     const srcset = processor.generateSrcset(imagePath);
     expect(srcset).toBe(
@@ -348,10 +352,10 @@ describe('ImageProcessor', () => {
       cacheDir: cacheDir,
       outputDir: outputDir,
       sizes: [
-        { width: 2000, suffix: '-2k' }, // Will be capped at 1024
-        { width: 1024, suffix: '-lg' }, // Will be skipped (duplicate of capped 2000)
-        { width: 800, suffix: '-md' },
-        { width: 400, suffix: '-sm' },
+        { width: 2000, label: '2k' }, // Will be capped at 1024
+        { width: 1024, label: 'lg' }, // Will be skipped (duplicate of capped 2000)
+        { width: 800, label: 'md' },
+        { width: 400, label: 'sm' },
       ],
       quality: 80,
       format: 'webp',
@@ -366,7 +370,7 @@ describe('ImageProcessor', () => {
     expect(variants.map((v) => v.width)).toEqual([1024, 800, 400]);
     expect(variants[0]).toMatchObject({
       width: 1024,
-      suffix: '-2k', // keeps first occurrence
+      label: '2k', // keeps first occurrence
     });
   });
 });

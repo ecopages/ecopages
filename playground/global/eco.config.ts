@@ -16,10 +16,10 @@ const config = await new ConfigBuilder()
     quality: 80,
     format: 'webp',
     sizes: [
-      { width: 320, suffix: '-sm' },
-      { width: 768, suffix: '-md' },
-      { width: 1024, suffix: '-lg' },
-      { width: 1920, suffix: '-xl' },
+      { width: 320, label: 'sm' },
+      { width: 768, label: 'md' },
+      { width: 1024, label: 'lg' },
+      { width: 1920, label: 'xl' },
     ],
   })
   .setError404Template('404.kita.tsx')

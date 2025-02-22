@@ -36,6 +36,16 @@ const HomePage: EcoComponent = () => {
         <div class="w-screen">
           <img class="object-fit" src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
         </div>
+        <div class="grid grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <img
+              class="w-auto"
+              src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
+              alt="Demo"
+              data-fixed-size="sm"
+            />
+          ))}
+        </div>
       </>
     </BaseLayout>
   );

@@ -1,5 +1,10 @@
+/**
+ * Generates HTML for a picture element with all available formats and sizes
+ * @module
+ */
+
 import path from 'node:path';
-import type { ImageMap, ImageProcessor, ImageVariant } from './image-processor';
+import type { ImageProcessor, ImageVariant } from './image-processor';
 
 export interface PictureOptions {
   /** CSS class for the img element */
@@ -14,6 +19,9 @@ export interface PictureOptions {
   pictureAttributes?: Record<string, string>;
 }
 
+/**
+ * Generates HTML for a picture element with all available formats and sizes
+ */
 export class PictureGenerator {
   private imageProcessor: ImageProcessor;
 
@@ -27,6 +35,7 @@ export class PictureGenerator {
   generatePictureHtml(imagePath: string, options: PictureOptions = {}): string {
     const imageMap = this.imageProcessor.getImageMap();
     const entry = imageMap[imagePath];
+
     if (!entry) return '';
 
     const { variants, sizes } = entry;

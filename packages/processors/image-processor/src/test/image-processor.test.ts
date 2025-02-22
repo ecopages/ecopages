@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
-import { ImageProcessor, ImageVariant } from '../image-processor';
+import { ImageProcessor } from '../image-processor';
 
 describe('ImageProcessor', () => {
   const testDir = path.resolve(__dirname);

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { ImageProcessor } from '@ecopages/image-processor';
+import { PictureGenerator } from '@ecopages/image-processor/picture-generator';
 import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
@@ -11,6 +12,8 @@ const STATIC_GENERATION_ADAPTER_BASE_URL = `http://localhost:${STATIC_GENERATION
 
 export class StaticPageGenerator {
   appConfig: EcoPagesAppConfig;
+  imageProcessor: ImageProcessor | undefined;
+  pictureGenerator: PictureGenerator | undefined;
 
   constructor(config: EcoPagesAppConfig) {
     this.appConfig = config;
@@ -58,17 +61,10 @@ export class StaticPageGenerator {
   }
 
   async optimizeImages() {
-    if (this.appConfig.imageOptimization?.enabled) {
-      // const imageProcessor = new ImageProcessor({
-      //   imageDir: this.appConfig.imageOptimization.directory,
-      //   outputDir: path.join(this.appConfig.distDir, 'optimized-images'),
-      //   cacheDir: path.join(this.appConfig.distDir, '.cache'),
-      //   quality: this.appConfig.imageOptimization.quality,
-      //   maxWidth: this.appConfig.imageOptimization.maxWidth,
-      // });
-      // const imageTransformer = new ImageTransformer(imageProcessor, config.rootDir);
-      // // Add image transformer to the page processing pipeline
-      // pageProcessors.push(imageTransformer);
+    if (this.appConfig.imageOptimization) {
+      this.imageProcessor = new ImageProcessor(this.appConfig.imageOptimization);
+      this.pictureGenerator = new PictureGenerator(this.imageProcessor);
+      await this.imageProcessor.processDirectory();
     }
   }
 
@@ -121,7 +117,12 @@ export class StaticPageGenerator {
 
         const contents = await response.text();
 
-        FileUtils.write(filePath, contents);
+        if (this.pictureGenerator) {
+          const updatedContents = this.pictureGenerator.replaceImagesWithPictures(contents);
+          FileUtils.write(filePath, updatedContents);
+        } else {
+          FileUtils.write(filePath, contents);
+        }
       } catch (error) {
         console.error(`Error fetching or writing ${route}:`, error);
       }
@@ -133,6 +134,7 @@ export class StaticPageGenerator {
   async run() {
     this.generateRobotsTxt();
     await this.prepareDependencies();
+    await this.optimizeImages();
     await this.generateStaticPages();
   }
 }

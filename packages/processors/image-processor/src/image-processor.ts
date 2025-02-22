@@ -1,11 +1,16 @@
 /**
- * This module contains the ImageProcessor class
+ * This module contains the ImageProcessor class, which is used to process images for optimization and caching.
  * @module
  */
 
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
+import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
+
+const appLogger = new Logger('[@ecopages/image-processor]', {
+  debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
+});
 
 /**
  * Configuration for an image size variant
@@ -92,6 +97,8 @@ export class ImageProcessor {
   constructor(config: ImageProcessorConfig) {
     this.config = config;
     this.mapPath = path.join(config.cacheDir, 'image-map.json');
+    FileUtils.mkdirSync(config.cacheDir, { recursive: true });
+    FileUtils.mkdirSync(config.outputDir, { recursive: true });
     this.loadImageMap();
   }
 
@@ -111,6 +118,41 @@ export class ImageProcessor {
    */
   private saveImageMap() {
     FileUtils.writeFileSync(this.mapPath, JSON.stringify(this.imageMap, null, 2));
+  }
+
+  /**
+   * Normalizes a path to be relative to the public directory
+   * @private
+   */
+  private normalizeImagePath(absolutePath: string): string {
+    const publicIndex = absolutePath.indexOf('/public/');
+    if (publicIndex === -1) {
+      // If no /public/ in path, try to get the relative path from the last few segments
+      const pathParts = absolutePath.split('/');
+      const lastSegments = pathParts.slice(-3); // Take last 3 segments
+      if (lastSegments.includes('assets') || lastSegments.includes('images')) {
+        return `/${lastSegments.join('/')}`;
+      }
+      return absolutePath;
+    }
+    return absolutePath.slice(publicIndex);
+  }
+
+  /**
+   * Gets absolute path from normalized path if needed
+   * @private
+   */
+  private getProcessablePath(imagePath: string): string {
+    if (FileUtils.existsSync(imagePath)) {
+      return imagePath;
+    }
+    // If the path doesn't exist, it might be a normalized path
+    // Try to find it in the image map
+    const entry = this.imageMap[imagePath];
+    if (entry) {
+      return entry.originalPath;
+    }
+    return imagePath;
   }
 
   /**
@@ -155,14 +197,16 @@ export class ImageProcessor {
    * @returns {Promise<ImageVariant[]>} Array of processed image variants
    */
   async processImage(imagePath: string): Promise<ImageVariant[]> {
-    const hash = FileUtils.getFileHash(imagePath);
+    const normalizedPath = this.normalizeImagePath(imagePath);
+    const processablePath = this.getProcessablePath(imagePath);
+    const hash = FileUtils.getFileHash(processablePath);
 
-    if (this.imageMap[imagePath]?.hash === hash) {
-      return this.imageMap[imagePath].variants;
+    if (this.imageMap[normalizedPath]?.hash === hash) {
+      return this.imageMap[normalizedPath].variants;
     }
 
     const format = this.config.format || 'webp';
-    const filename = path.basename(imagePath, path.extname(imagePath));
+    const filename = path.basename(processablePath, path.extname(processablePath));
     const sizes = this.config.sizes || [{ width: this.config.maxWidth || 1920, suffix: '' }];
 
     const variants: ImageVariant[] = [];
@@ -173,7 +217,7 @@ export class ImageProcessor {
         `${filename}${size.suffix}${ImageProcessor.OPTIMIZED_SUFFIX}${format}`,
       );
 
-      const image = sharp(imagePath).resize(size.width);
+      const image = sharp(processablePath).resize(size.width);
 
       switch (format) {
         case 'webp':
@@ -199,10 +243,10 @@ export class ImageProcessor {
       });
     }
 
-    this.imageMap[imagePath] = {
+    this.imageMap[normalizedPath] = {
       hash,
       variants,
-      originalPath: imagePath,
+      originalPath: processablePath,
       srcset: this.generateSrcsetString(variants),
       sizes: this.generateSizesString(variants),
     };
@@ -217,7 +261,8 @@ export class ImageProcessor {
    * @returns {string} srcset attribute string
    */
   generateSrcset(imagePath: string): string {
-    return this.imageMap[imagePath]?.srcset || '';
+    const normalizedPath = this.normalizeImagePath(imagePath);
+    return this.imageMap[normalizedPath]?.srcset || '';
   }
 
   /**
@@ -226,7 +271,8 @@ export class ImageProcessor {
    * @returns {string} sizes attribute string
    */
   generateSizes(imagePath: string): string {
-    return this.imageMap[imagePath]?.sizes || '';
+    const normalizedPath = this.normalizeImagePath(imagePath);
+    return this.imageMap[normalizedPath]?.sizes || '';
   }
 
   /**
@@ -234,10 +280,12 @@ export class ImageProcessor {
    * @returns {Promise<void>}
    */
   async processDirectory(): Promise<void> {
-    const images = await FileUtils.glob([`${this.config.imageDir}/**/*.{jpg,jpeg,png,webp}`]);
+    const glob = `${this.config.imageDir}/**/*.{jpg,jpeg,png,webp}`;
+    appLogger.debug(`Processing images in ${glob}`);
+    const images = await FileUtils.glob([glob]);
 
-    for (const image of images) {
-      await this.processImage(image);
+    for (const absolutePath of images) {
+      await this.processImage(absolutePath);
     }
   }
 

@@ -1,3 +1,4 @@
+import type { ImageProcessorConfig } from '@ecopages/image-processor';
 import type { IntegrationPlugin, PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from './router/fs-router.ts';
 
@@ -130,20 +131,8 @@ export type EcoPagesAppConfig = {
   /**
    * Image optimization configuration
    */
-  imageOptimization?: ImageOptimizationConfig;
+  imageOptimization?: ImageProcessorConfig;
 };
-
-export type ImageOptimizationConfig =
-  | {
-      enabled: true;
-      directory: string;
-      quality?: number;
-      maxWidth?: number;
-      formats?: ('webp' | 'avif' | 'jpeg')[];
-    }
-  | {
-      enabled: false;
-    };
 
 export type IntegrationDependencyConfig = {
   integration: string;

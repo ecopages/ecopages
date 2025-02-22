@@ -46,6 +46,8 @@ export interface ImageProcessorConfig {
   format?: 'webp' | 'jpeg' | 'png' | 'avif';
   /** Public URL path for the processed images (e.g., '/assets/images') */
   publicPath?: string;
+  /** Directory for public assets (default: 'public') */
+  publicDir?: string;
 }
 
 /**
@@ -121,21 +123,36 @@ export class ImageProcessor {
   }
 
   /**
-   * Normalizes a path to be relative to the public directory
+   * Normalizes an image path for processing
+   * @param {string} absolutePath - Absolute path to the image file
+   * @returns {string} Normalized path for processing
    * @private
    */
   private normalizeImagePath(absolutePath: string): string {
-    const publicIndex = absolutePath.indexOf('/public/');
-    if (publicIndex === -1) {
-      // If no /public/ in path, try to get the relative path from the last few segments
-      const pathParts = absolutePath.split('/');
-      const lastSegments = pathParts.slice(-3); // Take last 3 segments
-      if (lastSegments.includes('assets') || lastSegments.includes('images')) {
-        return `/${lastSegments.join('/')}`;
-      }
-      return absolutePath;
+    if (!absolutePath) {
+      return '';
     }
-    return absolutePath.slice(publicIndex);
+
+    const normalizedPath = path.normalize(absolutePath);
+
+    if (this.imageMap[normalizedPath]) {
+      return normalizedPath;
+    }
+
+    if (this.config.publicDir) {
+      const publicDir = path.normalize(this.config.publicDir);
+      const index = normalizedPath.indexOf(publicDir);
+
+      if (index !== -1) {
+        return `/${normalizedPath
+          .slice(index + publicDir.length)
+          .split(path.sep)
+          .filter(Boolean)
+          .join('/')}`;
+      }
+    }
+
+    return absolutePath;
   }
 
   /**
@@ -293,8 +310,13 @@ export class ImageProcessor {
    * @returns {string} srcset attribute string
    */
   generateSrcset(imagePath: string): string {
-    const normalizedPath = this.normalizeImagePath(imagePath);
-    return this.imageMap[normalizedPath]?.srcset || '';
+    try {
+      const normalizedPath = this.normalizeImagePath(imagePath);
+      return this.imageMap[normalizedPath]?.srcset || '';
+    } catch (error) {
+      appLogger.debug(`Error generating srcset for ${imagePath}: ${error}`);
+      return '';
+    }
   }
 
   /**
@@ -303,8 +325,13 @@ export class ImageProcessor {
    * @returns {string} sizes attribute string
    */
   generateSizes(imagePath: string): string {
-    const normalizedPath = this.normalizeImagePath(imagePath);
-    return this.imageMap[normalizedPath]?.sizes || '';
+    try {
+      const normalizedPath = this.normalizeImagePath(imagePath);
+      return this.imageMap[normalizedPath]?.sizes || '';
+    } catch (error) {
+      appLogger.debug(`Error generating sizes for ${imagePath}: ${error}`);
+      return '';
+    }
   }
 
   /**

@@ -6,8 +6,9 @@ import { ImageProcessor } from '../image-processor';
 const image_1024x768 = 'image_1024x768.jpg';
 
 describe('ImageProcessor', () => {
+  const publicDir = 'fixtures';
   const testDir = path.resolve(__dirname);
-  const fixturesDir = path.join(testDir, 'fixtures');
+  const fixturesDir = path.join(testDir, publicDir);
   const cacheDir = path.join(testDir, 'cache');
   const outputDir = path.join(testDir, 'output');
 
@@ -30,6 +31,7 @@ describe('ImageProcessor', () => {
       outputDir: outputDir,
       maxWidth: 400,
       quality: 80,
+      publicDir,
     });
 
     const imagePath = path.join(fixturesDir, image_1024x768);
@@ -52,6 +54,7 @@ describe('ImageProcessor', () => {
       outputDir: outputDir,
       maxWidth: 400,
       quality: 80,
+      publicDir,
     });
 
     const imagePath = path.join(fixturesDir, image_1024x768);
@@ -70,6 +73,7 @@ describe('ImageProcessor', () => {
       maxWidth: 400,
       quality: 80,
       format: 'jpeg',
+      publicDir,
     });
 
     const imagePath = path.join(fixturesDir, image_1024x768);
@@ -89,6 +93,7 @@ describe('ImageProcessor', () => {
       outputDir: outputDir,
       maxWidth: 400,
       quality: 50,
+      publicDir,
     });
 
     const imagePath = path.join(fixturesDir, image_1024x768);
@@ -111,6 +116,7 @@ describe('ImageProcessor', () => {
       outputDir: outputDir,
       maxWidth: 200,
       quality: 80,
+      publicDir,
     });
 
     const imagePath = path.join(fixturesDir, image_1024x768);
@@ -133,6 +139,7 @@ describe('ImageProcessor', () => {
       outputDir: outputDir,
       maxWidth: 400,
       quality: 80,
+      publicDir,
     });
 
     await processor.processDirectory();
@@ -150,6 +157,7 @@ describe('ImageProcessor', () => {
       publicPath: '/output',
       quality: 80,
       format: 'webp',
+      publicDir,
       sizes: [
         { width: 320, suffix: '-sm', maxViewportWidth: 640 },
         { width: 768, suffix: '-md', maxViewportWidth: 1024 },
@@ -209,6 +217,7 @@ describe('ImageProcessor', () => {
       publicPath: '/assets/images',
       quality: 80,
       format: 'webp',
+      publicDir,
       sizes: [
         { width: 320, suffix: '-sm' },
         { width: 768, suffix: '-md' },
@@ -229,6 +238,7 @@ describe('ImageProcessor', () => {
       imageDir: fixturesDir,
       cacheDir: cacheDir,
       outputDir: outputDir,
+      publicDir,
     });
 
     const srcset = processor.generateSrcset('non-existent.jpg');
@@ -240,6 +250,7 @@ describe('ImageProcessor', () => {
       imageDir: fixturesDir,
       cacheDir: cacheDir,
       outputDir: outputDir,
+      publicDir,
     });
 
     const sizes = processor.generateSizes('non-existent.jpg');
@@ -258,6 +269,7 @@ describe('ImageProcessor', () => {
       ],
       quality: 80,
       format: 'webp',
+      publicDir,
     });
 
     const imagePath = path.join(fixturesDir, image_1024x768);
@@ -291,6 +303,7 @@ describe('ImageProcessor', () => {
       ],
       quality: 80,
       format: 'webp',
+      publicDir,
     });
 
     const imagePath = path.join(fixturesDir, image_1024x768);
@@ -323,6 +336,7 @@ describe('ImageProcessor', () => {
       ],
       quality: 80,
       format: 'webp',
+      publicDir,
     });
 
     const imagePath = path.join(fixturesDir, image_1024x768);

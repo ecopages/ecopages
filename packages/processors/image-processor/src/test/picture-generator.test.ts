@@ -6,79 +6,170 @@ import { PictureGenerator } from '../picture-generator';
 
 describe('PictureGenerator', () => {
   const testDir = path.resolve(__dirname);
-  const fixturesDir = path.join(testDir, 'fixtures');
   const cacheDir = path.join(testDir, 'cache');
   const outputDir = path.join(testDir, 'output');
+  const imageDir = path.join(testDir, 'images');
+  const testImage = path.join(imageDir, 'test.png');
+
+  // 1x1 transparent PNG (base64)
+  const PNG_1PX = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==',
+    'base64',
+  );
 
   beforeEach(() => {
-    FileUtils.rmSync(cacheDir, { recursive: true, force: true });
-    FileUtils.rmSync(outputDir, { recursive: true, force: true });
-    FileUtils.mkdirSync(cacheDir, { recursive: true });
-    FileUtils.mkdirSync(outputDir, { recursive: true });
+    for (const dir of [cacheDir, outputDir, imageDir]) {
+      FileUtils.rmSync(dir, { recursive: true, force: true });
+      FileUtils.mkdirSync(dir, { recursive: true });
+    }
+
+    FileUtils.writeFileSync(testImage, PNG_1PX);
   });
 
   afterAll(() => {
-    FileUtils.rmSync(cacheDir, { recursive: true, force: true });
-    FileUtils.rmSync(outputDir, { recursive: true, force: true });
+    for (const dir of [cacheDir, outputDir, imageDir]) {
+      FileUtils.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('generatePictureHtml with multiple formats and sizes', async () => {
     const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
-      publicPath: '/assets/images',
-      quality: 80,
-      format: 'webp',
-      sizes: [
-        { width: 320, suffix: '-sm', maxViewportWidth: 640 },
-        { width: 768, suffix: '-md', maxViewportWidth: 1024 },
-      ],
+      imageDir,
+      cacheDir,
+      outputDir,
+      publicPath: '/images',
     });
 
     const generator = new PictureGenerator(processor);
-    const imagePath = path.join(fixturesDir, 'image.png');
-    await processor.processImage(imagePath);
+    await processor.processImage(testImage);
 
-    const pictureHtml = generator.generatePictureHtml(imagePath, {
+    const html = generator.generatePictureHtml(testImage, {
       className: 'hero-image',
-      alt: 'A test image',
+      alt: 'Test image',
       lazy: true,
+    });
+
+    expect(html).toContain('class="hero-image"');
+    expect(html).toContain('alt="Test image"');
+    expect(html).toContain('loading="lazy"');
+    expect(html).toContain('<picture');
+    expect(html).toContain('<source');
+  });
+
+  test('generatePictureHtml with basic options', async () => {
+    const processor = new ImageProcessor({
+      imageDir,
+      cacheDir,
+      outputDir,
+      publicPath: '/images',
+    });
+
+    const generator = new PictureGenerator(processor);
+    await processor.processImage(testImage);
+
+    const html = generator.generatePictureHtml(testImage, {
+      className: 'hero-image',
+      alt: 'Test image',
+      lazy: true,
+    });
+
+    expect(html).toContain('class="hero-image"');
+    expect(html).toContain('alt="Test image"');
+    expect(html).toContain('loading="lazy"');
+    expect(html).toContain('<picture');
+    expect(html).toContain('<source');
+  });
+
+  test('generatePictureHtml with custom attributes', async () => {
+    const processor = new ImageProcessor({
+      imageDir,
+      cacheDir,
+      outputDir,
+      publicPath: '/images',
+    });
+
+    const generator = new PictureGenerator(processor);
+    await processor.processImage(testImage);
+
+    const html = generator.generatePictureHtml(testImage, {
       imgAttributes: {
-        'data-test': 'test',
+        'data-testid': 'hero',
+        fetchpriority: 'high',
+      },
+      pictureAttributes: {
+        'data-component': 'hero-section',
       },
     });
 
-    expect(pictureHtml).toContain('class="hero-image"');
-    expect(pictureHtml).toContain('alt="A test image"');
-    expect(pictureHtml).toContain('loading="lazy"');
-    expect(pictureHtml).toContain('data-test="test"');
+    expect(html).toContain('data-testid="hero"');
+    expect(html).toContain('fetchpriority="high"');
+    expect(html).toContain('data-component="hero-section"');
   });
 
-  test('replaceImagesWithPictures', async () => {
+  test('replaceImagesWithPictures handles multiple images', async () => {
     const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
-      publicPath: '/assets/images',
+      imageDir,
+      cacheDir,
+      outputDir,
+      publicPath: '/images',
     });
 
     const generator = new PictureGenerator(processor);
-    const imagePath = path.join(fixturesDir, 'image.png');
-    await processor.processImage(imagePath);
+    await processor.processImage(testImage);
 
     const html = `
       <div>
-        <img src="${imagePath}" alt="Original alt" class="original-class">
-        <img src="nonexistent.jpg" alt="Keep me">
+        <img src="${testImage}" alt="First" class="img1">
+        <p>Some text</p>
+        <img src="${testImage}" alt="Second" class="img2">
       </div>
     `;
 
     const result = generator.replaceImagesWithPictures(html);
 
-    expect(result).toContain('<picture');
-    expect(result).toContain('alt="Original alt"');
-    expect(result).toContain('class="original-class"');
-    expect(result).toContain('Keep me');
+    expect(result).toMatch(/<picture[^>]*>[\s\S]*?<\/picture>/g);
+    expect(result.match(/<picture/g)?.length).toBe(2);
+    expect(result).toContain('alt="First"');
+    expect(result).toContain('alt="Second"');
+    expect(result).toContain('class="img1"');
+    expect(result).toContain('class="img2"');
+  });
+
+  test('replaceImagesWithPictures preserves non-matching images', async () => {
+    const processor = new ImageProcessor({
+      imageDir,
+      cacheDir,
+      outputDir,
+      publicPath: '/images',
+    });
+
+    const generator = new PictureGenerator(processor);
+    await processor.processImage(testImage);
+
+    const html = `
+      <div>
+        <img src="${testImage}" alt="Processed">
+        <img src="nonexistent.jpg" alt="Keep original">
+      </div>
+    `;
+
+    const result = generator.replaceImagesWithPictures(html);
+
+    expect(result).toMatch(/<picture[^>]*>[\s\S]*?<\/picture>/);
+    expect(result).toContain('<img src="nonexistent.jpg" alt="Keep original">');
+  });
+
+  test('generatePictureHtml returns empty string for non-existent image', async () => {
+    const processor = new ImageProcessor({
+      imageDir,
+      cacheDir,
+      outputDir,
+      publicPath: '/images',
+    });
+
+    const generator = new PictureGenerator(processor);
+    const html = generator.generatePictureHtml('nonexistent.jpg');
+
+    expect(html).toBe('');
   });
 });

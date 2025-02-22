@@ -22,7 +22,13 @@ const setupImageProcessing = (appConfig: EcoPagesAppConfig) => {
   if (!appConfig.imageOptimization) {
     return { imageProcessor: undefined, pictureGenerator: undefined };
   }
-  const imageProcessor = new ImageProcessor(appConfig.imageOptimization);
+
+  const imageConfig = {
+    ...appConfig.imageOptimization,
+    publicDir: appConfig.publicDir,
+  };
+
+  const imageProcessor = new ImageProcessor(imageConfig);
   const pictureGenerator = new PictureGenerator(imageProcessor);
   return { imageProcessor, pictureGenerator };
 };

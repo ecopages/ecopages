@@ -92,7 +92,7 @@ export interface ImageMap {
  */
 export class ImageProcessor {
   static readonly OPTIMIZED_SUFFIX = '.opt.';
-  private config: ImageProcessorConfig;
+  config: ImageProcessorConfig;
   private imageMap: ImageMap = {};
   private mapPath: string;
 
@@ -196,17 +196,35 @@ export class ImageProcessor {
    * @private
    */
   private generateSizesString(variants: ImageVariant[]): string {
-    const variantsWithViewport = variants
-      .filter((variant) => variant.maxViewportWidth)
-      .sort((a, b) => (b.maxViewportWidth || 0) - (a.maxViewportWidth || 0))
-      .map((variant) => `(max-width: ${variant.maxViewportWidth}px) ${variant.width}px`);
-
-    const defaultVariant = variants.find((variant) => !variant.maxViewportWidth);
-    if (defaultVariant) {
-      variantsWithViewport.push(`${defaultVariant.width}px`);
+    if (!variants || variants.length === 0) {
+      return '';
     }
 
-    return variantsWithViewport.join(', ');
+    // Sort variants by width ascending for finding next size up
+    const sortedByWidth = [...variants].sort((a, b) => a.width - b.width);
+    const largestWidth = sortedByWidth[sortedByWidth.length - 1].width;
+
+    // Sort viewport variants by viewport width ascending
+    const viewportVariants = variants
+      .filter((v) => v.maxViewportWidth)
+      .sort((a, b) => (a.maxViewportWidth || 0) - (b.maxViewportWidth || 0));
+
+    // For each viewport width, find the next immediate larger size
+    const sizesArray = viewportVariants
+      .map((variant) => {
+        const currentWidth = variant.width;
+        const nextSize = sortedByWidth.find((v) => v.width > currentWidth);
+
+        if (!nextSize) {
+          return null; // Skip if no larger size available
+        }
+
+        return `(max-width: ${variant.maxViewportWidth}px) ${nextSize.width}px`;
+      })
+      .filter(Boolean); // Remove null entries
+
+    // Add default size
+    return [...sizesArray, `${largestWidth}px`].join(', ');
   }
 
   /**
@@ -231,24 +249,23 @@ export class ImageProcessor {
     const metadata = await originalImage.metadata();
     const originalWidth = metadata.width || 0;
 
-    // Create map of effective widths to track duplicates
-    const effectiveWidthMap = new Map<number, ImageSize>();
-    const uniqueSizes = sizes.filter((size) => {
-      const effectiveWidth = Math.min(size.width, originalWidth);
+    // Create variants only for sizes up to original width, maintaining original properties
+    const validSizes = sizes.map((size) => ({
+      ...size,
+      width: Math.min(size.width, originalWidth), // Cap width at original image width
+    }));
 
-      // If we haven't seen this width before, add it
-      if (!effectiveWidthMap.has(effectiveWidth)) {
-        effectiveWidthMap.set(effectiveWidth, size);
-        return true;
-      }
+    // Sort by width to ensure consistent variant selection
+    const sortedSizes = validSizes.sort((a, b) => b.width - a.width);
 
-      // If we've seen this width, prefer the one with viewport constraints
-      const existing = effectiveWidthMap.get(effectiveWidth);
-      if (existing && !existing.maxViewportWidth && size.maxViewportWidth) {
-        effectiveWidthMap.set(effectiveWidth, size);
-        return true;
+    // Filter unique variants, keeping the first occurrence of each width
+    const seen = new Set<number>();
+    const uniqueSizes = sortedSizes.filter((size) => {
+      if (seen.has(size.width)) {
+        return false;
       }
-      return false;
+      seen.add(size.width);
+      return true;
     });
 
     const variants: ImageVariant[] = [];
@@ -259,12 +276,9 @@ export class ImageProcessor {
         `${filename}${size.suffix}${ImageProcessor.OPTIMIZED_SUFFIX}${format}`,
       );
 
-      const effectiveWidth = Math.min(size.width, originalWidth);
-
+      // Use the capped width for processing
       const image = sharp(processablePath);
-      if (effectiveWidth < originalWidth) {
-        image.resize(effectiveWidth);
-      }
+      image.resize(size.width);
 
       switch (format) {
         case 'webp':
@@ -283,10 +297,10 @@ export class ImageProcessor {
 
       variants.push({
         path: outputPath,
-        width: effectiveWidth,
+        width: size.width, // Use capped width
         suffix: size.suffix,
         maxViewportWidth: size.maxViewportWidth,
-        format: format,
+        format,
       });
     }
 

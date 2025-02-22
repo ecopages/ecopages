@@ -6,7 +6,7 @@
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",
-		"preview": "ecopages preview"
+		"preview": "rm -rf __cache__ && ecopages preview"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

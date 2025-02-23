@@ -3,7 +3,7 @@
 	"version": "0.1.19",
 	"exports": {
 		".": "./src/postcss-processor.ts",
-		"./picture-generator": "./src/picture-generator.ts"
+		"./image-rewriter": "./src/image-rewriter.ts"
 	},
 	"exclude": ["src/test"],
 	"publish": {

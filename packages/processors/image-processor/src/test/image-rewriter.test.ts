@@ -2,9 +2,9 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import { ImageProcessor } from '../image-processor';
-import { PictureGenerator } from '../picture-generator';
+import { ImageRewriter } from '../image-rewriter';
 
-describe('PictureGenerator', () => {
+describe('ImageRewriter', () => {
   const testDir = path.resolve(__dirname);
   const cacheDir = path.join(testDir, 'cache');
   const outputDir = path.join(testDir, 'output');
@@ -32,9 +32,9 @@ describe('PictureGenerator', () => {
     }
   });
 
-  describe('replaceImagesWithPictures', () => {
+  describe('.enhanceImages', () => {
     let processor: ImageProcessor;
-    let generator: PictureGenerator;
+    let generator: ImageRewriter;
 
     beforeEach(async () => {
       processor = new ImageProcessor({
@@ -43,19 +43,21 @@ describe('PictureGenerator', () => {
         outputDir,
         publicPath: '/images',
       });
-      generator = new PictureGenerator(processor);
+      generator = new ImageRewriter(processor);
       await processor.processImage(testImage);
     });
 
     test('preserves all original attributes when replacing', async () => {
       const html = `<img src="${testImage}" alt="Alt text" class="test-class" loading="lazy" data-custom="value">`;
 
-      const result = generator.replaceImagesWithPictures(html);
+      const result = generator.enhanceImages(html);
 
       expect(result).toContain('class="test-class"');
       expect(result).toContain('alt="Alt text"');
       expect(result).toContain('loading="lazy"');
       expect(result).toContain('data-custom="value"');
+      expect(result).toContain('srcset=');
+      expect(result).toContain('sizes=');
     });
 
     test('handles multiple images with different attributes', async () => {
@@ -66,7 +68,7 @@ describe('PictureGenerator', () => {
         </div>
       `;
 
-      const result = generator.replaceImagesWithPictures(html);
+      const result = generator.enhanceImages(html);
 
       expect(result).toContain('data-index="1"');
       expect(result).toContain('data-index="2"');
@@ -77,11 +79,11 @@ describe('PictureGenerator', () => {
     test('handles images without optional attributes', async () => {
       const html = `<img src="${testImage}">`;
 
-      const result = generator.replaceImagesWithPictures(html);
+      const result = generator.enhanceImages(html);
 
-      expect(result).toContain('<picture');
-      expect(result).toContain('<source');
-      expect(result).toContain('<img');
+      expect(result).toContain('srcset=');
+      expect(result).toContain('sizes=');
+      expect(result).not.toContain('<picture');
     });
 
     test('skips malformed img tags', async () => {
@@ -91,18 +93,17 @@ describe('PictureGenerator', () => {
         <img alt="No src">
       `;
 
-      const result = generator.replaceImagesWithPictures(html);
+      const result = generator.enhanceImages(html);
 
-      expect(result).toContain('<picture');
       expect(result).toContain('alt="Valid"');
       expect(result).toContain('<img src= alt="Invalid">');
       expect(result).toContain('<img alt="No src">');
     });
   });
 
-  describe('replaceImagesWithPictures', () => {
+  describe('.enhanceImages', () => {
     let processor: ImageProcessor;
-    let generator: PictureGenerator;
+    let generator: ImageRewriter;
 
     beforeEach(async () => {
       processor = new ImageProcessor({
@@ -111,13 +112,13 @@ describe('PictureGenerator', () => {
         outputDir,
         publicPath: '/images',
       });
-      generator = new PictureGenerator(processor);
+      generator = new ImageRewriter(processor);
       await processor.processImage(testImage);
     });
 
     test('preserves data attributes', async () => {
       const html = `<img src="${testImage}" data-test="value" data-other="123">`;
-      const result = generator.replaceImagesWithPictures(html);
+      const result = generator.enhanceImages(html);
 
       expect(result).toContain('data-test="value"');
       expect(result).toContain('data-other="123"');
@@ -132,7 +133,7 @@ describe('PictureGenerator', () => {
           <img src="${testImage}" class="second">
         </div>
       `;
-      const result = generator.replaceImagesWithPictures(html);
+      const result = generator.enhanceImages(html);
 
       expect(result).toContain('class="first"');
       expect(result).toContain('class="second"');
@@ -149,7 +150,7 @@ describe('PictureGenerator', () => {
           class="spaced"
         >
       `;
-      const result = generator.replaceImagesWithPictures(html);
+      const result = generator.enhanceImages(html);
 
       expect(result).toContain('alt="Multi\n          line"');
       expect(result).toContain('class="spaced"');
@@ -157,7 +158,7 @@ describe('PictureGenerator', () => {
 
     test('handles no images gracefully', async () => {
       const html = '<div>No images here</div>';
-      const result = generator.replaceImagesWithPictures(html);
+      const result = generator.enhanceImages(html);
 
       expect(result).toBe(html);
     });
@@ -169,11 +170,11 @@ describe('PictureGenerator', () => {
         <img src="${testImage}" >
         <img src="${testImage}">
       `;
-      const result = generator.replaceImagesWithPictures(html);
+      const result = generator.enhanceImages(html);
 
       expect(result).toContain('<img>');
       expect(result).toContain('<img src="">');
-      expect(result).toContain('<picture');
+      expect(result).toContain('srcset=');
     });
 
     test('handles multiple images with identical sources', async () => {
@@ -181,15 +182,15 @@ describe('PictureGenerator', () => {
         <img src="${testImage}" class="first">
         <img src="${testImage}" class="second">
       `;
-      const result = generator.replaceImagesWithPictures(html);
+      const result = generator.enhanceImages(html);
 
-      expect(result.match(/<picture/g)?.length).toBe(2);
+      expect(result.match(/<img[^>]+srcset=/g)?.length).toBe(2);
       expect(result).toContain('class="first"');
       expect(result).toContain('class="second"');
     });
   });
 
-  test('generatePictureHtml with multiple formats and sizes', async () => {
+  test('enhanceImages with multiple formats and sizes', async () => {
     const processor = new ImageProcessor({
       imageDir,
       cacheDir,
@@ -197,23 +198,18 @@ describe('PictureGenerator', () => {
       publicPath: '/images',
     });
 
-    const generator = new PictureGenerator(processor);
+    const generator = new ImageRewriter(processor);
     await processor.processImage(testImage);
 
-    const html = generator.generatePictureHtml(testImage, {
-      className: 'hero-image',
-      alt: 'Test image',
-      lazy: true,
-    });
+    const html = generator.enhanceImages(`<img src="${testImage}" alt="Test image" class="hero-image">`);
 
     expect(html).toContain('class="hero-image"');
     expect(html).toContain('alt="Test image"');
-    expect(html).toContain('loading="lazy"');
-    expect(html).toContain('<picture');
-    expect(html).toContain('<source');
+    expect(html).toContain('srcset=');
+    expect(html).toContain('sizes=');
   });
 
-  test('generatePictureHtml with basic options', async () => {
+  test('enhanceImages with basic options', async () => {
     const processor = new ImageProcessor({
       imageDir,
       cacheDir,
@@ -221,23 +217,18 @@ describe('PictureGenerator', () => {
       publicPath: '/images',
     });
 
-    const generator = new PictureGenerator(processor);
+    const generator = new ImageRewriter(processor);
     await processor.processImage(testImage);
 
-    const html = generator.generatePictureHtml(testImage, {
-      className: 'hero-image',
-      alt: 'Test image',
-      lazy: true,
-    });
+    const html = generator.enhanceImages(`<img src="${testImage}" alt="Test image" class="hero-image">`);
 
     expect(html).toContain('class="hero-image"');
     expect(html).toContain('alt="Test image"');
-    expect(html).toContain('loading="lazy"');
-    expect(html).toContain('<picture');
-    expect(html).toContain('<source');
+    expect(html).toContain('srcset=');
+    expect(html).toContain('sizes=');
   });
 
-  test('generatePictureHtml with custom attributes', async () => {
+  test('.enhanceImages handles multiple images', async () => {
     const processor = new ImageProcessor({
       imageDir,
       cacheDir,
@@ -245,33 +236,7 @@ describe('PictureGenerator', () => {
       publicPath: '/images',
     });
 
-    const generator = new PictureGenerator(processor);
-    await processor.processImage(testImage);
-
-    const html = generator.generatePictureHtml(testImage, {
-      imgAttributes: {
-        'data-testid': 'hero',
-        fetchpriority: 'high',
-      },
-      pictureAttributes: {
-        'data-component': 'hero-section',
-      },
-    });
-
-    expect(html).toContain('data-testid="hero"');
-    expect(html).toContain('fetchpriority="high"');
-    expect(html).toContain('data-component="hero-section"');
-  });
-
-  test('replaceImagesWithPictures handles multiple images', async () => {
-    const processor = new ImageProcessor({
-      imageDir,
-      cacheDir,
-      outputDir,
-      publicPath: '/images',
-    });
-
-    const generator = new PictureGenerator(processor);
+    const generator = new ImageRewriter(processor);
     await processor.processImage(testImage);
 
     const html = `
@@ -282,17 +247,17 @@ describe('PictureGenerator', () => {
       </div>
     `;
 
-    const result = generator.replaceImagesWithPictures(html);
+    const result = generator.enhanceImages(html);
 
-    expect(result).toMatch(/<picture[^>]*>[\s\S]*?<\/picture>/g);
-    expect(result.match(/<picture/g)?.length).toBe(2);
+    expect(result).toMatch(/<img[^>]+srcset=/g);
+    expect(result.match(/<img[^>]+srcset=/g)?.length).toBe(2);
     expect(result).toContain('alt="First"');
     expect(result).toContain('alt="Second"');
     expect(result).toContain('class="img1"');
     expect(result).toContain('class="img2"');
   });
 
-  test('replaceImagesWithPictures preserves non-matching images', async () => {
+  test('.enhanceImages preserves non-matching images', async () => {
     const processor = new ImageProcessor({
       imageDir,
       cacheDir,
@@ -300,7 +265,7 @@ describe('PictureGenerator', () => {
       publicPath: '/images',
     });
 
-    const generator = new PictureGenerator(processor);
+    const generator = new ImageRewriter(processor);
     await processor.processImage(testImage);
 
     const html = `
@@ -310,23 +275,9 @@ describe('PictureGenerator', () => {
       </div>
     `;
 
-    const result = generator.replaceImagesWithPictures(html);
+    const result = generator.enhanceImages(html);
 
-    expect(result).toMatch(/<picture[^>]*>[\s\S]*?<\/picture>/);
+    expect(result).toMatch(/<img[^>]+srcset=/);
     expect(result).toContain('<img src="nonexistent.jpg" alt="Keep original">');
-  });
-
-  test('generatePictureHtml returns empty string for non-existent image', async () => {
-    const processor = new ImageProcessor({
-      imageDir,
-      cacheDir,
-      outputDir,
-      publicPath: '/images',
-    });
-
-    const generator = new PictureGenerator(processor);
-    const html = generator.generatePictureHtml('nonexistent.jpg');
-
-    expect(html).toBe('');
   });
 });

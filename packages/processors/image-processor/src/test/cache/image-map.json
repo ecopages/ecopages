@@ -1,0 +1,16 @@
+{
+	"/test.png": {
+		"hash": "4865854338827208239",
+		"variants": [
+			{
+				"path": "/Users/andreazanenghi/ecopages/packages/processors/image-processor/src/test/output/test-xl.opt.webp",
+				"width": 1,
+				"label": "xl",
+				"format": "webp"
+			}
+		],
+		"originalPath": "/Users/andreazanenghi/ecopages/packages/processors/image-processor/src/test/perf-temp/test.png",
+		"srcset": "/images/test-xl.opt.webp 1w",
+		"sizes": "1px"
+	}
+}

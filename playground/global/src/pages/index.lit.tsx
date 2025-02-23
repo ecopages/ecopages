@@ -30,10 +30,10 @@ const HomePage: EcoComponent = () => {
         <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([LitCounter])}>
           <lit-counter class="lit-counter" count={8}></lit-counter>
         </scripts-injector>
-        <div class="w-80 mx-auto">
+        <div class="max-w-80 mx-auto">
           <img class="object-fit" src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
         </div>
-        <div class="w-screen">
+        <div>
           <img class="object-fit" src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
         </div>
         <div class="grid grid-cols-4 gap-4">

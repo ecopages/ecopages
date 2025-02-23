@@ -24,9 +24,9 @@
 			"default": "./src/image-processor.ts",
 			"types": "./src/image-processor.ts"
 		},
-		"./picture-generator": {
-			"default": "./src/picture-generator.ts",
-			"types": "./src/picture-generator.ts"
+		"./image-rewriter": {
+			"default": "./src/image-rewriter.ts",
+			"types": "./src/image-rewriter.ts"
 		}
 	}
 }

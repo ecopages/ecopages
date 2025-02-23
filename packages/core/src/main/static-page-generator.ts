@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { ImageProcessor } from '@ecopages/image-processor';
-import type { PictureGenerator } from '@ecopages/image-processor/picture-generator';
+import type { ImageRewriter } from '@ecopages/image-processor/image-rewriter';
 import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
@@ -14,23 +14,23 @@ export class StaticPageGenerator {
   appConfig: EcoPagesAppConfig;
   integrationManager: IntegrationManager;
   imageProcessor: ImageProcessor | undefined;
-  pictureGenerator: PictureGenerator | undefined;
+  imageRewriter: ImageRewriter | undefined;
 
   constructor({
     appConfig,
     imageProcessor,
-    pictureGenerator,
+    imageRewriter,
     integrationManager,
   }: {
     appConfig: EcoPagesAppConfig;
     imageProcessor?: ImageProcessor;
-    pictureGenerator?: PictureGenerator;
+    imageRewriter?: ImageRewriter;
     integrationManager: IntegrationManager;
   }) {
     this.appConfig = appConfig;
     this.integrationManager = integrationManager;
     this.imageProcessor = imageProcessor;
-    this.pictureGenerator = pictureGenerator;
+    this.imageRewriter = imageRewriter;
   }
 
   generateRobotsTxt(): void {
@@ -128,8 +128,8 @@ export class StaticPageGenerator {
 
         const contents = await response.text();
 
-        if (this.pictureGenerator) {
-          const updatedContents = this.pictureGenerator.replaceImagesWithPictures(contents);
+        if (this.imageRewriter) {
+          const updatedContents = this.imageRewriter.enhanceImages(contents);
           FileUtils.write(filePath, updatedContents);
         } else {
           FileUtils.write(filePath, contents);

@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import { ImageProcessor } from '../image-processor';
-import { PictureGenerator } from '../picture-generator';
+import { ImageRewriter } from '../image-rewriter';
 
-describe('PictureGenerator Performance', () => {
+describe('ImageRewriter Performance', () => {
   const testDir = path.resolve(__dirname);
   const publicDir = 'perf-temp';
   const cacheDir = path.join(testDir, 'cache');
@@ -13,7 +13,7 @@ describe('PictureGenerator Performance', () => {
   const testImage = path.join(fixturesDir, 'test.png');
 
   let processor: ImageProcessor;
-  let generator: PictureGenerator;
+  let generator: ImageRewriter;
 
   const simpleHtml = `<img src="/fixtures/test.png" alt="Test">`;
 
@@ -58,7 +58,7 @@ describe('PictureGenerator Performance', () => {
       publicDir,
     });
 
-    generator = new PictureGenerator(processor);
+    generator = new ImageRewriter(processor);
     await processor.processImage(testImage);
   });
 
@@ -87,7 +87,9 @@ describe('PictureGenerator Performance', () => {
 
   test('performance with simple HTML', async () => {
     const { avg, min, max } = await measure(() => {
-      generator.replaceImagesWithPictures(simpleHtml);
+      const result = generator.enhanceImages(simpleHtml);
+      expect(result).toContain('srcset=');
+      expect(result).not.toContain('<picture');
     });
 
     console.log('\nSimple HTML (single image):');
@@ -100,7 +102,7 @@ describe('PictureGenerator Performance', () => {
 
   test('performance with complex HTML', async () => {
     const { avg, min, max } = await measure(() => {
-      generator.replaceImagesWithPictures(complexHtml);
+      generator.enhanceImages(complexHtml);
     });
 
     console.log('\nComplex HTML (50 images with attributes):');
@@ -113,7 +115,7 @@ describe('PictureGenerator Performance', () => {
 
   test('performance with large HTML', async () => {
     const { avg, min, max } = await measure(() => {
-      generator.replaceImagesWithPictures(largeHtml);
+      generator.enhanceImages(largeHtml);
     }, 10); // Fewer iterations for large HTML
 
     console.log('\nLarge HTML (5000 images):');

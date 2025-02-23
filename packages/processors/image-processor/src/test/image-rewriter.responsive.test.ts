@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import { ImageProcessor } from '../image-processor';
-import { PictureGenerator } from '../picture-generator';
+import { ImageRewriter } from '../image-rewriter';
 import { createTestImage } from './test-utils';
 
 describe('Responsive Images', () => {
@@ -41,17 +41,17 @@ describe('Responsive Images', () => {
       quality: 80,
       format: 'webp',
       sizes: [
-        { width: 320, suffix: '-sm' },
-        { width: 768, suffix: '-md' },
-        { width: 1024, suffix: '-lg' },
+        { width: 320, label: 'sm' },
+        { width: 768, label: 'md' },
+        { width: 1024, label: 'lg' },
       ],
     });
 
-    const generator = new PictureGenerator(processor);
+    const generator = new ImageRewriter(processor);
     await processor.processImage(testImage);
 
     const normalizedPath = `/${publicDir}/image_1024x768.jpg`;
-    const html = generator.replaceImagesWithPictures(`<img src="${normalizedPath}" alt="Test">`);
+    const html = generator.enhanceImages(`<img src="${normalizedPath}" alt="Test">`);
 
     expect(html).toContain('(max-width: 320px) 320px, (max-width: 768px) 768px, 1024px');
   });
@@ -64,9 +64,9 @@ describe('Responsive Images', () => {
       publicPath: '/images',
       publicDir,
       sizes: [
-        { width: 1024, suffix: '-lg' },
-        { width: 320, suffix: '-sm' },
-        { width: 768, suffix: '-md' },
+        { width: 1024, label: 'lg' },
+        { width: 320, label: 'sm' },
+        { width: 768, label: 'md' },
       ],
     });
 
@@ -86,10 +86,10 @@ describe('Responsive Images', () => {
       publicPath: '/images',
       publicDir,
       sizes: [
-        { width: 320, suffix: '-sm' },
-        { width: 768, suffix: '-md' },
-        { width: 1024, suffix: '-lg' },
-        { width: 1920, suffix: '-xl' },
+        { width: 320, label: 'sm' },
+        { width: 768, label: 'md' },
+        { width: 1024, label: 'lg' },
+        { width: 1920, label: 'xl' },
       ],
     });
 
@@ -107,22 +107,17 @@ describe('Responsive Images', () => {
       publicPath: '/images',
       publicDir,
       sizes: [
-        { width: 320, suffix: '-sm' },
-        { width: 768, suffix: '-md' },
-        { width: 1024, suffix: '-lg' },
+        { width: 320, label: 'sm' },
+        { width: 768, label: 'md' },
+        { width: 1024, label: 'lg' },
       ],
     });
 
-    const generator = new PictureGenerator(processor);
+    const generator = new ImageRewriter(processor);
     await processor.processImage(testImage);
 
-    const html = generator.generatePictureHtml(`/${imgName}`, {
-      alt: 'Test image',
-      lazy: true,
-    });
+    const html = generator.enhanceImages(`<img src="${testImage}" alt="Test image" loading="lazy">`);
 
-    expect(html).toContain('<picture>');
-    expect(html).toContain('<source');
     expect(html).toContain('<img');
 
     expect(html).toContain('srcset=');
@@ -139,9 +134,9 @@ describe('Responsive Images', () => {
       publicPath: '/images',
       publicDir,
       sizes: [
-        { width: 320, suffix: '-sm' },
-        { width: 768, suffix: '-md' },
-        { width: 1024, suffix: '-lg' },
+        { width: 320, label: 'sm' },
+        { width: 768, label: 'md' },
+        { width: 1024, label: 'lg' },
       ],
     });
 

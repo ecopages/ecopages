@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import { ImageProcessor } from '../image-processor';
-import { PictureGenerator } from '../picture-generator';
+import { ImageRewriter } from '../image-rewriter';
 import { createTestImage } from './test-utils';
 
 describe('Data Attributes', () => {
@@ -13,7 +13,7 @@ describe('Data Attributes', () => {
   const testImage = path.join(imageDir, 'test.png');
 
   let processor: ImageProcessor;
-  let generator: PictureGenerator;
+  let generator: ImageRewriter;
 
   beforeEach(async () => {
     // Setup test directories
@@ -37,7 +37,7 @@ describe('Data Attributes', () => {
       ],
     });
 
-    generator = new PictureGenerator(processor);
+    generator = new ImageRewriter(processor);
     await processor.processImage(testImage);
   });
 
@@ -49,7 +49,7 @@ describe('Data Attributes', () => {
 
   test('handles data-fixed-size attribute', () => {
     const html = `<img src="${testImage}" data-fixed-size="md" alt="Fixed size test">`;
-    const result = generator.replaceImagesWithPictures(html);
+    const result = generator.enhanceImages(html);
 
     expect(result).toContain('src="/images/test-md.opt.webp"');
     expect(result).not.toContain('srcset=');
@@ -59,7 +59,7 @@ describe('Data Attributes', () => {
 
   test('handles data-custom-srcset attribute', () => {
     const html = `<img src="${testImage}" data-custom-srcset="(max-width: 320px) 320px, (max-width: 768px) 768px" alt="Custom srcset">`;
-    const result = generator.replaceImagesWithPictures(html);
+    const result = generator.enhanceImages(html);
 
     expect(result).toContain('srcset="(max-width: 320px) 320px, (max-width: 768px) 768px"');
     expect(result).not.toContain('data-custom-srcset');
@@ -68,7 +68,7 @@ describe('Data Attributes', () => {
 
   test('falls back to default behavior when no data attributes present', () => {
     const html = `<img src="${testImage}" alt="Default behavior">`;
-    const result = generator.replaceImagesWithPictures(html);
+    const result = generator.enhanceImages(html);
 
     expect(result).toContain('srcset=');
     expect(result).toContain('sizes=');

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ImageProcessor } from '@ecopages/image-processor';
-import { PictureGenerator } from '@ecopages/image-processor/picture-generator';
+import { ImageRewriter } from '@ecopages/image-processor/image-rewriter';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import type { EcoPagesAppConfig } from 'src/internal-types.ts';
 import { appLogger } from '../global/app-logger.ts';
@@ -20,7 +20,7 @@ const validateConfig = (config: unknown): EcoPagesAppConfig => {
 
 const setupImageProcessing = (appConfig: EcoPagesAppConfig) => {
   if (!appConfig.imageOptimization) {
-    return { imageProcessor: undefined, pictureGenerator: undefined };
+    return { imageProcessor: undefined, imageRewriter: undefined };
   }
 
   const imageConfig = {
@@ -29,8 +29,8 @@ const setupImageProcessing = (appConfig: EcoPagesAppConfig) => {
   };
 
   const imageProcessor = new ImageProcessor(imageConfig);
-  const pictureGenerator = new PictureGenerator(imageProcessor);
-  return { imageProcessor, pictureGenerator };
+  const imageRewriter = new ImageRewriter(imageProcessor);
+  return { imageProcessor, imageRewriter };
 };
 
 export async function buildApp({

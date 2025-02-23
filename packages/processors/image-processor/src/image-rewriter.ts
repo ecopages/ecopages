@@ -1,22 +1,16 @@
 import path from 'node:path';
-import { Logger } from '@ecopages/logger';
-import type { ImageProcessor, ImageVariant } from './image-processor';
+import type { ImageMap, ImageProcessor, ImageVariant } from './image-processor';
 
-const appLogger = new Logger('[@ecopages/image-processor > image-enhancer]');
+const PRESERVED_ATTRS = new Set(['src']);
+const ATTRIBUTES_REGEX = /(\w+(?:-\w+)*)="([^"]+)"/g;
 
 export interface ImageOptions {
   /** CSS class for the img element */
   className?: string;
   /** Alt text for the image */
   alt?: string;
-  /** Whether to enable lazy loading */
-  lazy?: boolean;
   /** Additional attributes for the img tag */
   imgAttributes?: Record<string, string>;
-  /** For data-static-variant attribute */
-  staticVariant?: string;
-  /** For data-srcset attribute */
-  customSrcset?: string;
 }
 
 /**
@@ -24,107 +18,137 @@ export interface ImageOptions {
  */
 export class ImageRewriter {
   private imageProcessor: ImageProcessor;
-  private variantGroupCache = new WeakMap<ImageVariant[], Record<string, ImageVariant[]>>();
+  private pathCache = new Map<string, string>();
+  private htmlCache = new Map<string, string>();
+  private imageMap: ImageMap;
 
   constructor(imageProcessor: ImageProcessor) {
     this.imageProcessor = imageProcessor;
+    this.imageMap = imageProcessor.getImageMap();
   }
 
   /**
    * Enhances an img element with srcset and sizes attributes
    */
   generateImgHtml(imagePath: string, options: ImageOptions = {}): string {
-    const imageMap = this.imageProcessor.getImageMap();
-    const entry = imageMap[imagePath];
+    // Create cache key from path and options
+    const cacheKey = this.createCacheKey(imagePath, options);
+    const cached = this.htmlCache.get(cacheKey);
+    if (cached) return cached;
 
+    const entry = this.imageMap[imagePath];
     if (!entry) return '';
 
     const { variants, sizes } = entry;
     const publicPath = this.imageProcessor.getPublicPath();
 
-    // Handle fixed size
-    if (options.staticVariant) {
-      const variant = entry.variants.find((v) => v.label === options.staticVariant);
+    const html = this.generateHtml(variants, sizes, publicPath, options);
+    this.htmlCache.set(cacheKey, html);
+    return html;
+  }
+
+  private createCacheKey(imagePath: string, options: ImageOptions): string {
+    return JSON.stringify({
+      path: imagePath,
+      attrs: options.imgAttributes,
+      class: options.className,
+      alt: options.alt,
+    });
+  }
+
+  private generateHtml(variants: ImageVariant[], sizes: string, publicPath: string, options: ImageOptions): string {
+    const staticVariant = options.imgAttributes?.['data-static-variant'];
+
+    if (staticVariant) {
+      const variant = variants.find((v) => v.label === staticVariant);
       if (variant) {
-        const imgAttrs = this.formatAttributes({
+        return `<img${this.formatAttributes({
           src: `${publicPath}/${path.basename(variant.path)}`,
-          width: variant.width.toString(),
-          ...options.imgAttributes,
-        });
-        return `<img${imgAttrs}>`;
+          width: variant.width,
+          height: variant.height,
+          ...this.getCleanAttributes(options.imgAttributes),
+        })}>`;
       }
     }
 
-    // Handle custom srcset
-    if (options.customSrcset) {
-      return this.generateResponsiveImg(variants, publicPath, {
-        ...options,
-        customSrcset: options.customSrcset,
-        sizes,
-      });
-    }
-
     return this.generateResponsiveImg(variants, publicPath, { ...options, sizes });
+  }
+
+  getCleanAttributes(imgAttributes: ImageOptions['imgAttributes']): Record<string, string> {
+    const { 'data-static-variant': __, ...cleanAttributes } = imgAttributes || {};
+    return cleanAttributes;
   }
 
   /**
    * Enhances img tags in HTML with responsive attributes
    */
   enhanceImages(html: string, options: ImageOptions = {}): string {
-    return html.replace(/<img[^>]+>/g, (imgTag) => {
+    // Cache the entire enhanced HTML if it's been processed before
+    const cacheKey = `${html}:${JSON.stringify(options)}`;
+    const cached = this.htmlCache.get(cacheKey);
+    if (cached) return cached;
+
+    const enhanced = html.replace(/<img[^>]+>/g, (imgTag) => {
       const srcMatch = imgTag.match(/src="([^"]+)"/);
       if (!srcMatch) return imgTag;
 
-      const fixedSizeMatch = imgTag.match(/data-static-variant="([^"]+)"/);
-      const customSrcsetMatch = imgTag.match(/data-srcset="([^"]+)"/);
-
-      const attrs: Record<string, string> = {};
-      imgTag.replace(/(\w+(?:-\w+)*)="([^"]+)"/g, (_, name, value) => {
-        if (!['src', 'data-static-variant', 'data-srcset'].includes(name)) {
-          attrs[name] = value;
-        }
-        return '';
-      });
+      const attrs = this.parseAttributes(imgTag);
+      const imagePath = this.getNormalizedPath(srcMatch[1]);
 
       const imgOptions: ImageOptions = {
         ...options,
         imgAttributes: attrs,
-        staticVariant: fixedSizeMatch?.[1],
-        customSrcset: customSrcsetMatch?.[1],
       };
 
-      const imagePath = this.normalizeImagePath(srcMatch[1]);
       return this.generateImgHtml(imagePath, imgOptions) || imgTag;
     });
+
+    this.htmlCache.set(cacheKey, enhanced);
+    return enhanced;
+  }
+
+  /**
+   * Parse HTML attributes efficiently
+   */
+  private parseAttributes(imgTag: string): Record<string, string> {
+    const attrs: Record<string, string> = {};
+
+    let matches: RegExpExecArray | null = ATTRIBUTES_REGEX.exec(imgTag);
+
+    while (matches !== null) {
+      const [, name, value] = matches;
+      if (!PRESERVED_ATTRS.has(name)) {
+        attrs[name] = value;
+      }
+
+      matches = ATTRIBUTES_REGEX.exec(imgTag);
+    }
+
+    return attrs;
+  }
+
+  /**
+   * Get normalized path with caching
+   */
+  private getNormalizedPath(imagePath: string): string {
+    const cached = this.pathCache.get(imagePath);
+    if (cached) return cached;
+
+    const normalized = this.normalizeImagePath(imagePath);
+    this.pathCache.set(imagePath, normalized);
+    return normalized;
   }
 
   private normalizeImagePath(imagePath: string): string {
-    // Get public dir from image processor config
-    const publicDir = this.imageProcessor.config.publicDir || 'public';
-
-    // If it's already a public path, try it first
-    if (imagePath.startsWith('/')) {
-      // Remove leading slash for matching
-      const normalizedPath = imagePath.substring(1);
-
-      // Check if path exists in image map
-      for (const key of Object.keys(this.imageProcessor.getImageMap())) {
-        if (key.includes(normalizedPath)) {
-          return key;
-        }
-      }
-    }
-
-    // Try finding the image by its basename
     const basename = path.basename(imagePath);
-    for (const key of Object.keys(this.imageProcessor.getImageMap())) {
-      if (key.endsWith(basename)) {
-        return key;
-      }
-    }
 
-    // If all else fails, return original path
-    return imagePath;
+    // Try direct match first
+    const normalizedPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+    if (this.imageMap[normalizedPath]) return normalizedPath;
+
+    // Find by basename
+    const match = Object.keys(this.imageMap).find((key) => key.endsWith(basename));
+    return match || imagePath;
   }
 
   /**
@@ -135,19 +159,20 @@ export class ImageRewriter {
     publicPath: string,
     options: ImageOptions & { sizes: string; customSrcset?: string },
   ): string {
-    const largestVariant = variants.sort((a, b) => b.width - a.width)[0];
+    const [largestVariant, ...otherVariants] = variants.sort((a, b) => b.width - a.width);
+    const { customSrcset, imgAttributes = {}, ...restOptions } = options;
 
-    const srcset = options.customSrcset || this.generateSrcset(variants, publicPath);
+    const { 'data-static-variant': __, ...cleanAttributes } = imgAttributes;
 
-    const attributes: Record<string, string | number> = {
+    const attributes = {
       src: `${publicPath}/${path.basename(largestVariant.path)}`,
-      srcset,
+      srcset: this.generateSrcset([largestVariant, ...otherVariants], publicPath),
       sizes: options.sizes,
       alt: options.alt || '',
       width: largestVariant.width,
+      height: largestVariant.height,
       ...(options.className && { class: options.className }),
-      ...(options.lazy && { loading: 'lazy' }),
-      ...options.imgAttributes,
+      ...cleanAttributes,
     };
 
     return `<img${this.formatAttributes(attributes)}>`;
@@ -163,7 +188,7 @@ export class ImageRewriter {
       .join(', ');
   }
 
-  private formatAttributes(attrs: Record<string, string | number>): string {
+  private formatAttributes(attrs: Record<string, string | number | undefined>): string {
     const filtered = Object.entries(attrs).reduce((acc, [key, value]) => {
       if (value !== undefined && value !== '') {
         acc.push(`${key}="${value}"`);
@@ -172,5 +197,12 @@ export class ImageRewriter {
     }, [] as string[]);
 
     return filtered.length ? ` ${filtered.join(' ')}` : '';
+  }
+
+  // Clear caches when needed (e.g., after image processing)
+  clearCaches(): void {
+    this.pathCache.clear();
+    this.htmlCache.clear();
+    this.imageMap = this.imageProcessor.getImageMap();
   }
 }

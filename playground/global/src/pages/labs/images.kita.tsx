@@ -23,8 +23,7 @@ const HomePage: EcoComponent = () => {
         </div>
         <div>
           <img
-            class="object-fit w-full"
-            data-static-variant="sm"
+            class="object-fit"
             src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
             alt="Ezi unsplash"
             loading="eager"

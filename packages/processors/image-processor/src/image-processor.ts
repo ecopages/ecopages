@@ -57,6 +57,8 @@ export interface ImageVariant {
   path: string;
   /** Width of the processed image */
   width: number;
+  /** Height of the processed image */
+  height: number;
   /** Label used for this variant */
   label: string;
   /** Format of the processed image */
@@ -246,6 +248,8 @@ export class ImageProcessor {
     const originalImage = sharp(processablePath);
     const metadata = await originalImage.metadata();
     const originalWidth = metadata.width || 0;
+    const originalHeight = metadata.height || 0;
+    const aspectRatio = originalHeight / originalWidth;
 
     // Create variants only for sizes up to original width, maintaining original properties
     const validSizes = sizes.map((size) => ({
@@ -276,7 +280,8 @@ export class ImageProcessor {
 
       // Use the capped width for processing
       const image = sharp(processablePath);
-      image.resize(size.width);
+      const height = Math.round(size.width * aspectRatio);
+      image.resize(size.width, height);
 
       switch (format) {
         case 'webp':
@@ -296,6 +301,7 @@ export class ImageProcessor {
       variants.push({
         path: outputPath,
         width: size.width, // Use capped width
+        height, // Add calculated height
         label: size.label || '', // Ensure label is never undefined
         format,
       });

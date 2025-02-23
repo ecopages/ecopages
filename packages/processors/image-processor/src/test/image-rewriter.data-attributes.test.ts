@@ -57,15 +57,6 @@ describe('Data Attributes', () => {
     expect(result).toContain('alt="Fixed size test"');
   });
 
-  test('handles data-srcset attribute', () => {
-    const html = `<img src="${testImage}" data-srcset="(max-width: 320px) 320px, (max-width: 768px) 768px" alt="Custom srcset">`;
-    const result = generator.enhanceImages(html);
-
-    expect(result).toContain('srcset="(max-width: 320px) 320px, (max-width: 768px) 768px"');
-    expect(result).not.toContain('data-srcset');
-    expect(result).toContain('alt="Custom srcset"');
-  });
-
   test('falls back to default behavior when no data attributes present', () => {
     const html = `<img src="${testImage}" alt="Default behavior">`;
     const result = generator.enhanceImages(html);

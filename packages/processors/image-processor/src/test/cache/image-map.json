@@ -5,6 +5,7 @@
 			{
 				"path": "/Users/andreazanenghi/ecopages/packages/processors/image-processor/src/test/output/test-xl.opt.webp",
 				"width": 1,
+				"height": 1,
 				"label": "xl",
 				"format": "webp"
 			}

@@ -1,75 +1,42 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
-import { ImageProcessor } from '../image-processor';
-import { createTestImage } from './test-utils';
+import { ImageProcessor } from 'src/image-processor';
+import {
+  cleanUpBeforeTest,
+  cleanupTestContext,
+  createTestContext,
+  createTestProcessor,
+  setupTestContext,
+} from './test-utils';
 
 describe('ImageProcessor', () => {
-  const testDir = path.resolve(__dirname);
-  const publicDir = 'fixtures';
-  const fixturesDir = path.join(testDir, publicDir);
-  const cacheDir = path.join(testDir, 'cache');
-  const outputDir = path.join(testDir, 'output');
-
-  const testImages = {
-    basic: {
-      name: 'basic.jpg',
-      width: 1024,
-      height: 768,
-    },
-    large: {
-      name: 'large.jpg',
-      width: 2048,
-      height: 1536,
-    },
-    small: {
-      name: 'small.jpg',
-      width: 400,
-      height: 300,
-    },
-  };
+  const context = createTestContext(path.resolve(__dirname));
 
   beforeAll(async () => {
-    for (const dir of [cacheDir, outputDir, fixturesDir]) {
-      FileUtils.rmSync(dir, { recursive: true, force: true });
-      FileUtils.mkdirSync(dir, { recursive: true });
-    }
-
-    await Promise.all(
-      Object.values(testImages).map((img) => createTestImage(path.join(fixturesDir, img.name), img.width, img.height)),
-    );
+    await setupTestContext(context);
   });
 
   beforeEach(() => {
-    for (const dir of [cacheDir, outputDir]) {
-      FileUtils.rmSync(dir, { recursive: true, force: true });
-      FileUtils.mkdirSync(dir, { recursive: true });
-    }
+    cleanUpBeforeTest(context);
   });
 
   afterAll(() => {
-    for (const dir of [cacheDir, outputDir, fixturesDir]) {
-      FileUtils.rmSync(dir, { recursive: true, force: true });
-    }
+    cleanupTestContext(context);
   });
 
   test('processImage basic', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir,
-      outputDir,
+    const processor = createTestProcessor(context, {
       quality: 80,
-      publicDir,
       sizes: [{ width: 400, label: 'xl' }],
     });
 
-    const imagePath = path.join(fixturesDir, testImages.basic.name);
-    const variants = await processor.processImage(imagePath);
+    const variants = await processor.processImage(context.testImages.basic.path);
 
     expect(variants).toBeInstanceOf(Array);
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
+      path: path.join(context.outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
       width: 400,
       label: 'xl',
       format: 'webp',
@@ -78,40 +45,30 @@ describe('ImageProcessor', () => {
   });
 
   test('processImage with existing cache', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir,
-      outputDir,
+    const processor = createTestProcessor(context, {
       quality: 80,
-      publicDir,
       sizes: [{ width: 400, label: 'xl' }],
     });
 
-    const imagePath = path.join(fixturesDir, testImages.basic.name);
-    const variants = await processor.processImage(imagePath);
-    const variants2 = await processor.processImage(imagePath);
+    const variants = await processor.processImage(context.testImages.basic.path);
+    const variants2 = await processor.processImage(context.testImages.basic.path);
 
     expect(variants2).toEqual(variants);
     expect(FileUtils.existsSync(variants[0].path)).toBe(true);
   });
 
   test('processImage with different format', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
+    const processor = createTestProcessor(context, {
       quality: 80,
       format: 'jpeg',
-      publicDir,
       sizes: [{ width: 400, label: 'xl' }],
     });
 
-    const imagePath = path.join(fixturesDir, testImages.basic.name);
-    const variants = await processor.processImage(imagePath);
+    const variants = await processor.processImage(context.testImages.basic.path);
 
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}jpeg`),
+      path: path.join(context.outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}jpeg`),
       width: 400,
       label: 'xl',
       format: 'jpeg',
@@ -119,22 +76,17 @@ describe('ImageProcessor', () => {
   });
 
   test('processImage with different quality', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
+    const processor = createTestProcessor(context, {
       quality: 50,
-      publicDir,
       sizes: [{ width: 400, label: 'xl' }],
     });
 
-    const imagePath = path.join(fixturesDir, testImages.basic.name);
-    const variants = await processor.processImage(imagePath);
+    const variants = await processor.processImage(context.testImages.basic.path);
 
     expect(variants).toBeInstanceOf(Array);
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
+      path: path.join(context.outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
       width: 400,
       label: 'xl', // Updated to expect 'xl' as default label
       format: 'webp',
@@ -143,30 +95,22 @@ describe('ImageProcessor', () => {
   });
 
   test('processDirectory', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir,
-      outputDir,
+    const processor = createTestProcessor(context, {
       quality: 80,
-      publicDir,
       sizes: [{ width: 400, label: 'xl' }],
     });
 
     await processor.processDirectory();
 
-    const processedFiles = await FileUtils.glob([`${outputDir}/**/*.{jpg,jpeg,png,webp}`]);
-    expect(processedFiles.length).toBe(Object.keys(testImages).length); // One variant per test image
+    const processedFiles = await FileUtils.glob([`${context.outputDir}/**/*.{jpg,jpeg,png,webp}`]);
+    expect(processedFiles.length).toBe(Object.keys(context.testImages).length); // One variant per test image
   });
 
   test('processImage with multiple sizes and viewport widths', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
+    const processor = createTestProcessor(context, {
       publicPath: '/output',
       quality: 80,
       format: 'webp',
-      publicDir,
       sizes: [
         { width: 320, label: 'sm' },
         { width: 768, label: 'md' },
@@ -175,8 +119,7 @@ describe('ImageProcessor', () => {
       ],
     });
 
-    const imagePath = path.join(fixturesDir, testImages.large.name);
-    const variants = await processor.processImage(imagePath);
+    const variants = await processor.processImage(context.testImages.large.path);
 
     expect(variants).toHaveLength(4);
 
@@ -204,7 +147,7 @@ describe('ImageProcessor', () => {
       format: 'webp',
     });
 
-    const srcset = processor.generateSrcset(imagePath);
+    const srcset = processor.generateSrcset(context.testImages.large.path);
 
     expect(srcset).toBe(
       [
@@ -217,56 +160,38 @@ describe('ImageProcessor', () => {
   });
 
   test('processImage with custom public path', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
+    const processor = createTestProcessor(context, {
       publicPath: '/assets/images',
       quality: 80,
       format: 'webp',
-      publicDir,
       sizes: [
         { width: 320, label: 'sm' },
         { width: 768, label: 'md' },
       ],
     });
 
-    const imagePath = path.join(fixturesDir, testImages.basic.name);
-    const variants = await processor.processImage(imagePath);
+    const variants = await processor.processImage(context.testImages.basic.path);
 
-    const srcset = processor.generateSrcset(imagePath);
+    const srcset = processor.generateSrcset(context.testImages.basic.path);
     expect(srcset).toBe('/assets/images/basic-md.opt.webp 768w, /assets/images/basic-sm.opt.webp 320w');
   });
 
   test('generateSrcset with non-existent image', () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
-      publicDir,
-    });
+    const processor = createTestProcessor(context);
 
     const srcset = processor.generateSrcset('non-existent.jpg');
     expect(srcset).toBe('');
   });
 
   test('generateSizes with non-existent image', () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
-      publicDir,
-    });
+    const processor = createTestProcessor(context);
 
     const sizes = processor.generateSizes('non-existent.jpg');
     expect(sizes).toBe('');
   });
 
   test('respects original image dimensions', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
+    const processor = createTestProcessor(context, {
       sizes: [
         { width: 2000, label: 'xl' }, // Should be capped at original width
         { width: 800, label: 'md' },
@@ -274,15 +199,13 @@ describe('ImageProcessor', () => {
       ],
       quality: 80,
       format: 'webp',
-      publicDir,
     });
 
-    const imagePath = path.join(fixturesDir, testImages.basic.name);
-    const variants = await processor.processImage(imagePath);
+    const variants = await processor.processImage(context.testImages.basic.path);
 
     expect(variants).toHaveLength(3);
     expect(variants[0]).toMatchObject({
-      width: Math.min(2000, testImages.basic.width),
+      width: Math.min(2000, context.testImages.basic.width),
       label: 'xl',
       format: 'webp',
     });
@@ -297,7 +220,7 @@ describe('ImageProcessor', () => {
       format: 'webp',
     });
 
-    const srcset = processor.generateSrcset(imagePath);
+    const srcset = processor.generateSrcset(context.testImages.basic.path);
     expect(srcset).toBe(
       [
         `/output/basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
@@ -308,10 +231,7 @@ describe('ImageProcessor', () => {
   });
 
   test('maintains variant order by width in srcset', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
+    const processor = createTestProcessor(context, {
       sizes: [
         { width: 400, label: 'sm' },
         { width: 1200, label: 'lg' },
@@ -319,17 +239,15 @@ describe('ImageProcessor', () => {
       ],
       quality: 80,
       format: 'webp',
-      publicDir,
     });
 
-    const imagePath = path.join(fixturesDir, testImages.basic.name);
-    const variants = await processor.processImage(imagePath);
+    const variants = await processor.processImage(context.testImages.basic.path);
 
     expect(variants).toHaveLength(3);
 
     expect(variants.map((v) => v.width)).toEqual([1024, 800, 400]);
 
-    const srcset = processor.generateSrcset(imagePath);
+    const srcset = processor.generateSrcset(context.testImages.basic.path);
     expect(srcset).toBe(
       [
         `/output/basic-lg${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
@@ -340,10 +258,7 @@ describe('ImageProcessor', () => {
   });
 
   test('prevents duplicate widths', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
+    const processor = createTestProcessor(context, {
       sizes: [
         { width: 2000, label: '2k' }, // Will be capped at 1024
         { width: 1024, label: 'lg' }, // Will be skipped (duplicate of capped 2000)
@@ -352,11 +267,9 @@ describe('ImageProcessor', () => {
       ],
       quality: 80,
       format: 'webp',
-      publicDir,
     });
 
-    const imagePath = path.join(fixturesDir, testImages.basic.name);
-    const variants = await processor.processImage(imagePath);
+    const variants = await processor.processImage(context.testImages.basic.path);
 
     expect(variants).toHaveLength(3);
 

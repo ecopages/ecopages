@@ -21,13 +21,16 @@ const HomePage: EcoComponent = () => {
             loading="lazy"
           />
         </div>
-        <div>
-          <img
-            class="object-fit"
-            src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
-            alt="Ezi unsplash"
-            loading="lazy"
-          />
+
+        <div class="grid grid-cols-4 gap-4 place-items-stretch">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <img
+              class="w-auto"
+              src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
+              alt="Demo"
+              data-static-variant="sm"
+            />
+          ))}
         </div>
         <div class="grid grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, index) => (
@@ -39,6 +42,18 @@ const HomePage: EcoComponent = () => {
             />
           ))}
         </div>
+        <img
+          class="object-fit w-full"
+          src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
+          alt="Ezi unsplash"
+          loading="lazy"
+        />
+        <img
+          class="object-fit"
+          src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
+          alt="Ezi unsplash"
+          loading="lazy"
+        />
       </>
     </BaseLayout>
   );

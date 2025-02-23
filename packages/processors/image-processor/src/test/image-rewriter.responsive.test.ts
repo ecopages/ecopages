@@ -1,64 +1,31 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { FileUtils } from '@ecopages/core';
-import { ImageProcessor } from '../image-processor';
 import { ImageRewriter } from '../image-rewriter';
-import { createTestImage } from './test-utils';
+import {
+  cleanUpBeforeTest,
+  cleanupTestContext,
+  createTestContext,
+  createTestProcessor,
+  setupTestContext,
+} from './test-utils';
 
 describe('Responsive Images', () => {
-  const testDir = path.resolve(__dirname);
-  const publicDir = 'fixtures';
-  const cacheDir = path.join(testDir, 'cache');
-  const outputDir = path.join(testDir, 'output');
-  const fixturesDir = path.join(testDir, publicDir);
-
-  // Use multiple test images with different dimensions
-  const testImages = {
-    small: {
-      path: path.join(fixturesDir, 'small.jpg'),
-      width: 800,
-      height: 600,
-    },
-    medium: {
-      path: path.join(fixturesDir, 'medium.jpg'),
-      width: 1024,
-      height: 768,
-    },
-    large: {
-      path: path.join(fixturesDir, 'large.jpg'),
-      width: 2048,
-      height: 1536,
-    },
-  };
+  const context = createTestContext(path.resolve(__dirname), 'processor');
 
   beforeAll(async () => {
-    // Create test directories
-    for (const dir of [cacheDir, outputDir, fixturesDir]) {
-      FileUtils.mkdirSync(dir, { recursive: true });
-    }
+    await setupTestContext(context);
+  });
 
-    // Create all test images
-    await Promise.all([
-      createTestImage(testImages.small.path, testImages.small.width, testImages.small.height),
-      createTestImage(testImages.medium.path, testImages.medium.width, testImages.medium.height),
-      createTestImage(testImages.large.path, testImages.large.width, testImages.large.height),
-    ]);
+  beforeEach(() => {
+    cleanUpBeforeTest(context);
   });
 
   afterAll(() => {
-    // Clean up all directories including fixtures
-    for (const dir of [cacheDir, outputDir, fixturesDir]) {
-      FileUtils.rmSync(dir, { recursive: true, force: true });
-    }
+    cleanupTestContext(context);
   });
 
   test('generates correct srcset and sizes for responsive images', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir,
-      outputDir,
-      publicPath: '/images',
-      publicDir,
+    const processor = createTestProcessor(context, {
       quality: 80,
       format: 'webp',
       sizes: [
@@ -69,21 +36,16 @@ describe('Responsive Images', () => {
     });
 
     const generator = new ImageRewriter(processor);
-    await processor.processImage(testImages.large.path);
+    await processor.processImage(context.testImages.large.path);
 
-    const normalizedPath = `/${publicDir}/large.jpg`;
+    const normalizedPath = `/${context.publicDir}/large.jpg`;
     const html = generator.enhanceImages(`<img src="${normalizedPath}" alt="Test">`);
 
     expect(html).toContain('(min-width: 1024px) 1024px, (min-width: 768px) 80vw, 100vw');
   });
 
   test('preserves order of sizes from smallest to largest', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir,
-      outputDir,
-      publicPath: '/images',
-      publicDir,
+    const processor = createTestProcessor(context, {
       sizes: [
         { width: 1024, label: 'lg' },
         { width: 320, label: 'sm' },
@@ -91,8 +53,8 @@ describe('Responsive Images', () => {
       ],
     });
 
-    await processor.processImage(testImages.large.path);
-    const srcset = processor.generateSrcset(testImages.large.path);
+    await processor.processImage(context.testImages.large.path);
+    const srcset = processor.generateSrcset(context.testImages.large.path);
     const widths = srcset.match(/\d+w/g)?.map((w) => Number.parseInt(w));
 
     expect(widths).toBeDefined();
@@ -100,12 +62,7 @@ describe('Responsive Images', () => {
   });
 
   test('handles multiple sizes correctly', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir,
-      outputDir,
-      publicPath: '/images',
-      publicDir,
+    const processor = createTestProcessor(context, {
       sizes: [
         { width: 320, label: 'sm' },
         { width: 768, label: 'md' },
@@ -114,19 +71,19 @@ describe('Responsive Images', () => {
       ],
     });
 
-    await processor.processImage(testImages.large.path);
-    const sizes = processor.generateSizes(testImages.large.path);
-    const expectedSizes = '(min-width: 1024px) 1024px, (min-width: 768px) 80vw, 100vw';
+    await processor.processImage(context.testImages.large.path);
+    const sizes = processor.generateSizes(context.testImages.large.path);
+    const expectedSizes = [
+      '(min-width: 1920px) 1920px',
+      '(min-width: 1024px) 70vw',
+      '(min-width: 768px) 80vw',
+      '100vw',
+    ].join(', ');
     expect(sizes).toBe(expectedSizes);
   });
 
   test('generates correct HTML structure with all variants', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir,
-      outputDir,
-      publicPath: '/images',
-      publicDir,
+    const processor = createTestProcessor(context, {
       sizes: [
         { width: 320, label: 'sm' },
         { width: 768, label: 'md' },
@@ -135,9 +92,11 @@ describe('Responsive Images', () => {
     });
 
     const generator = new ImageRewriter(processor);
-    await processor.processImage(testImages.large.path);
+    await processor.processImage(context.testImages.large.path);
 
-    const html = generator.enhanceImages(`<img src="${testImages.large.path}" alt="Test image" loading="lazy">`);
+    const html = generator.enhanceImages(
+      `<img src="${context.testImages.large.path}" alt="Test image" loading="lazy">`,
+    );
 
     expect(html).toContain('<img');
     expect(html).toContain('srcset=');
@@ -147,12 +106,7 @@ describe('Responsive Images', () => {
   });
 
   test('uses next larger size for each viewport width', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir,
-      outputDir,
-      publicPath: '/images',
-      publicDir,
+    const processor = createTestProcessor(context, {
       sizes: [
         { width: 320, label: 'sm' },
         { width: 768, label: 'md' },
@@ -160,8 +114,8 @@ describe('Responsive Images', () => {
       ],
     });
 
-    await processor.processImage(testImages.large.path);
-    const sizes = processor.generateSizes(testImages.large.path);
+    await processor.processImage(context.testImages.large.path);
+    const sizes = processor.generateSizes(context.testImages.large.path);
 
     const expectedSizes = '(min-width: 1024px) 1024px, (min-width: 768px) 80vw, 100vw';
 

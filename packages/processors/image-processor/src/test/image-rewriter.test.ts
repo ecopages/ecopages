@@ -1,48 +1,45 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { FileUtils } from '@ecopages/core';
 import { ImageProcessor } from '../image-processor';
 import { ImageRewriter } from '../image-rewriter';
-import { createTestImage } from './test-utils';
+import {
+  cleanUpBeforeTest,
+  cleanupTestContext,
+  createTestContext,
+  createTestImage,
+  createTestProcessor,
+  setupTestContext,
+} from './test-utils';
 
 describe('ImageRewriter', () => {
-  const testDir = path.resolve(__dirname);
-  const cacheDir = path.join(testDir, 'cache');
-  const outputDir = path.join(testDir, 'output');
-  const imageDir = path.join(testDir, 'images');
-  const testImage = path.join(imageDir, 'test.jpg');
+  const context = createTestContext(path.resolve(__dirname), 'rewriter');
+  let processor: ImageProcessor;
+  let generator: ImageRewriter;
 
   beforeAll(async () => {
-    for (const dir of [cacheDir, outputDir, imageDir]) {
-      FileUtils.mkdirSync(dir, { recursive: true });
-    }
+    setupTestContext(context);
+    await createTestImage(context.testImage, 1024, 768);
 
-    await createTestImage(testImage, 1024, 768);
+    processor = createTestProcessor(context, {
+      imageDir: path.dirname(context.testImage), // Use the directory containing the test image
+    });
+
+    generator = new ImageRewriter(processor);
+    await processor.processImage(context.testImage);
+  });
+
+  beforeEach(async () => {
+    cleanUpBeforeTest(context);
+    await processor.processImage(context.testImage);
   });
 
   afterAll(() => {
-    for (const dir of [cacheDir, outputDir, imageDir]) {
-      FileUtils.rmSync(dir, { recursive: true, force: true });
-    }
+    cleanupTestContext(context);
   });
 
   describe('.enhanceImages', () => {
-    let processor: ImageProcessor;
-    let generator: ImageRewriter;
-
-    beforeEach(async () => {
-      processor = new ImageProcessor({
-        imageDir,
-        cacheDir,
-        outputDir,
-        publicPath: '/images',
-      });
-      generator = new ImageRewriter(processor);
-      await processor.processImage(testImage);
-    });
-
     test('preserves all original attributes when replacing', async () => {
-      const html = `<img src="${testImage}" alt="Alt text" class="test-class" loading="lazy" data-custom="value">`;
+      const html = `<img src="${context.testImage}" alt="Alt text" class="test-class" loading="lazy" data-custom="value">`;
 
       const result = generator.enhanceImages(html);
 
@@ -57,8 +54,8 @@ describe('ImageRewriter', () => {
     test('handles multiple images with different attributes', async () => {
       const html = `
         <div>
-          <img src="${testImage}" alt="First" class="img1" data-index="1">
-          <img src="${testImage}" alt="Second" class="img2" data-index="2">
+          <img src="${context.testImage}" alt="First" class="img1" data-index="1">
+          <img src="${context.testImage}" alt="Second" class="img2" data-index="2">
         </div>
       `;
 
@@ -71,7 +68,7 @@ describe('ImageRewriter', () => {
     });
 
     test('handles images without optional attributes', async () => {
-      const html = `<img src="${testImage}">`;
+      const html = `<img src="${context.testImage}">`;
 
       const result = generator.enhanceImages(html);
 
@@ -82,7 +79,7 @@ describe('ImageRewriter', () => {
 
     test('skips malformed img tags', async () => {
       const html = `
-        <img src="${testImage}" alt="Valid">
+        <img src="${context.testImage}" alt="Valid">
         <img src= alt="Invalid">
         <img alt="No src">
       `;
@@ -96,22 +93,8 @@ describe('ImageRewriter', () => {
   });
 
   describe('.enhanceImages', () => {
-    let processor: ImageProcessor;
-    let generator: ImageRewriter;
-
-    beforeEach(async () => {
-      processor = new ImageProcessor({
-        imageDir,
-        cacheDir,
-        outputDir,
-        publicPath: '/images',
-      });
-      generator = new ImageRewriter(processor);
-      await processor.processImage(testImage);
-    });
-
     test('preserves data attributes', async () => {
-      const html = `<img src="${testImage}" data-test="value" data-other="123">`;
+      const html = `<img src="${context.testImage}" data-test="value" data-other="123">`;
       const result = generator.enhanceImages(html);
 
       expect(result).toContain('data-test="value"');
@@ -121,10 +104,10 @@ describe('ImageRewriter', () => {
     test('handles complex HTML correctly', async () => {
       const html = `
         <div>
-          <img src="${testImage}" class="first">
+          <img src="${context.testImage}" class="first">
           <p>Text between images</p>
           <!-- Comment -->
-          <img src="${testImage}" class="second">
+          <img src="${context.testImage}" class="second">
         </div>
       `;
       const result = generator.enhanceImages(html);
@@ -138,7 +121,7 @@ describe('ImageRewriter', () => {
     test('preserves whitespace and newlines', async () => {
       const html = `
         <img
-          src="${testImage}"
+          src="${context.testImage}"
           alt="Multi
           line"
           class="spaced"
@@ -161,8 +144,8 @@ describe('ImageRewriter', () => {
       const html = `
         <img>
         <img src="">
-        <img src="${testImage}" >
-        <img src="${testImage}">
+        <img src="${context.testImage}" >
+        <img src="${context.testImage}">
       `;
       const result = generator.enhanceImages(html);
 
@@ -173,8 +156,8 @@ describe('ImageRewriter', () => {
 
     test('handles multiple images with identical sources', async () => {
       const html = `
-        <img src="${testImage}" class="first">
-        <img src="${testImage}" class="second">
+        <img src="${context.testImage}" class="first">
+        <img src="${context.testImage}" class="second">
       `;
       const result = generator.enhanceImages(html);
 
@@ -186,16 +169,16 @@ describe('ImageRewriter', () => {
 
   test('enhanceImages with multiple formats and sizes', async () => {
     const processor = new ImageProcessor({
-      imageDir,
-      cacheDir,
-      outputDir,
+      imageDir: context.imageDir,
+      cacheDir: context.cacheDir,
+      outputDir: context.outputDir,
       publicPath: '/images',
     });
 
     const generator = new ImageRewriter(processor);
-    await processor.processImage(testImage);
+    await processor.processImage(context.testImage);
 
-    const html = generator.enhanceImages(`<img src="${testImage}" alt="Test image" class="hero-image">`);
+    const html = generator.enhanceImages(`<img src="${context.testImage}" alt="Test image" class="hero-image">`);
 
     expect(html).toContain('class="hero-image"');
     expect(html).toContain('alt="Test image"');
@@ -205,16 +188,16 @@ describe('ImageRewriter', () => {
 
   test('enhanceImages with basic options', async () => {
     const processor = new ImageProcessor({
-      imageDir,
-      cacheDir,
-      outputDir,
+      imageDir: context.imageDir,
+      cacheDir: context.cacheDir,
+      outputDir: context.outputDir,
       publicPath: '/images',
     });
 
     const generator = new ImageRewriter(processor);
-    await processor.processImage(testImage);
+    await processor.processImage(context.testImage);
 
-    const html = generator.enhanceImages(`<img src="${testImage}" alt="Test image" class="hero-image">`);
+    const html = generator.enhanceImages(`<img src="${context.testImage}" alt="Test image" class="hero-image">`);
 
     expect(html).toContain('class="hero-image"');
     expect(html).toContain('alt="Test image"');
@@ -224,20 +207,20 @@ describe('ImageRewriter', () => {
 
   test('.enhanceImages handles multiple images', async () => {
     const processor = new ImageProcessor({
-      imageDir,
-      cacheDir,
-      outputDir,
+      imageDir: context.imageDir,
+      cacheDir: context.cacheDir,
+      outputDir: context.outputDir,
       publicPath: '/images',
     });
 
     const generator = new ImageRewriter(processor);
-    await processor.processImage(testImage);
+    await processor.processImage(context.testImage);
 
     const html = `
       <div>
-        <img src="${testImage}" alt="First" class="img1">
+        <img src="${context.testImage}" alt="First" class="img1">
         <p>Some text</p>
-        <img src="${testImage}" alt="Second" class="img2">
+        <img src="${context.testImage}" alt="Second" class="img2">
       </div>
     `;
 
@@ -253,18 +236,18 @@ describe('ImageRewriter', () => {
 
   test('.enhanceImages preserves non-matching images', async () => {
     const processor = new ImageProcessor({
-      imageDir,
-      cacheDir,
-      outputDir,
+      imageDir: context.imageDir,
+      cacheDir: context.cacheDir,
+      outputDir: context.outputDir,
       publicPath: '/images',
     });
 
     const generator = new ImageRewriter(processor);
-    await processor.processImage(testImage);
+    await processor.processImage(context.testImage);
 
     const html = `
       <div>
-        <img src="${testImage}" alt="Processed">
+        <img src="${context.testImage}" alt="Processed">
         <img src="nonexistent.jpg" alt="Keep original">
       </div>
     `;

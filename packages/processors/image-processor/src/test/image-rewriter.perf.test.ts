@@ -1,34 +1,35 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
-import { ImageProcessor } from '../image-processor';
+import type { ImageProcessor } from '../image-processor';
 import { ImageRewriter } from '../image-rewriter';
-import { createTestImage } from './test-utils';
+import {
+  cleanUpBeforeTest,
+  cleanupTestContext,
+  createTestContext,
+  createTestImage,
+  createTestProcessor,
+  setupTestContext,
+} from './test-utils';
 
 describe('ImageRewriter Performance', () => {
-  const testDir = path.resolve(__dirname);
-  const publicDir = 'perf-temp';
-  const cacheDir = path.join(testDir, 'cache');
-  const outputDir = path.join(testDir, 'output');
-  const fixturesDir = path.join(testDir, publicDir);
-  const testImage = path.join(fixturesDir, 'test.jpg');
-
+  const context = createTestContext(path.resolve(__dirname), 'performance');
   let processor: ImageProcessor;
   let generator: ImageRewriter;
 
-  const simpleHtml = `<img src="/fixtures/test.jpg" alt="Test">`;
-
+  // Update HTML templates to use the correct path
+  const simpleHtml = `<img src="${context.testImage}" alt="Test">`;
   const complexHtml = `
     <div class="article">
       <h1>Test Article</h1>
-      <img src="/fixtures/test.jpg" alt="Hero" class="hero" loading="lazy">
+      <img src="${context.testImage}" alt="Hero" class="hero" loading="lazy">
       <p>Some text</p>
       <div class="gallery">
         ${Array(50)
           .fill(0)
           .map(
             (_, i) =>
-              `<img src="/fixtures/test.jpg" alt="Gallery ${i}" class="thumb" data-index="${i}" loading="lazy">`,
+              `<img src="${context.testImage}" alt="Gallery ${i}" class="thumb" data-index="${i}" loading="lazy">`,
           )
           .join('\n')}
       </div>
@@ -38,29 +39,27 @@ describe('ImageRewriter Performance', () => {
   const largeHtml = Array(100).fill(complexHtml).join('\n');
 
   beforeAll(async () => {
-    for (const dir of [cacheDir, outputDir, fixturesDir]) {
+    // First, create all required directories
+    for (const dir of [context.cacheDir, context.outputDir, context.imageDir]) {
       FileUtils.rmSync(dir, { recursive: true, force: true });
       FileUtils.mkdirSync(dir, { recursive: true });
     }
 
-    await createTestImage(testImage, 1024, 768);
+    // Create the test image before initializing the processor
+    await createTestImage(context.testImage, 1024, 768);
 
-    processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir,
-      outputDir,
-      publicPath: '/images',
-      publicDir,
-    });
-
+    // Now initialize processor and process the image
+    processor = createTestProcessor(context);
     generator = new ImageRewriter(processor);
-    await processor.processImage(testImage);
+    await processor.processImage(context.testImage);
+  });
+
+  beforeEach(() => {
+    cleanUpBeforeTest(context);
   });
 
   afterAll(() => {
-    for (const dir of [cacheDir, outputDir, fixturesDir]) {
-      FileUtils.rmSync(dir, { recursive: true, force: true });
-    }
+    cleanupTestContext(context);
   });
 
   const measure = async (fn: () => Promise<void> | void, iterations = 100) => {

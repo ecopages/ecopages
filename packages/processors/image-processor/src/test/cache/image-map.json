@@ -12,6 +12,6 @@
 		],
 		"originalPath": "/Users/andreazanenghi/ecopages/packages/processors/image-processor/src/test/perf-temp/test.png",
 		"srcset": "/images/test-xl.opt.webp 1w",
-		"sizes": "1px"
+		"sizes": "(min-width: 1px) 1px, 100vw"
 	}
 }

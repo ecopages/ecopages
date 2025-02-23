@@ -188,7 +188,14 @@ export class ImageProcessor {
   }
 
   /**
-   * Generates sizes attribute based on image variants
+   * Generates sizes attribute based on image variants.
+   * Sizes are generated based on the variant widths and breakpoints.
+   * Here we use a smart approach to generate sizes based on the variant widths.
+   * We start with the largest variant and set a min-width condition for its width.
+   * Then we add conditions for each variant based on the viewport width.
+   * Finally, we add a catch-all for the smallest screens.
+   * This approach ensures that the browser will select the correct image variant based on the viewport width.
+   * @see https://developer.mozilla.org/en-US/docs/Learn/HTML/Multimedia_and_embedding/Responsive_images#resolution_switching_different_sizes
    * @param {ImageVariant[]} variants - Array of processed image variants
    * @returns {string} sizes attribute string
    * @private
@@ -198,22 +205,29 @@ export class ImageProcessor {
       return '';
     }
 
-    // Sort by width ascending
-    const sortedByWidth = [...variants].sort((a, b) => a.width - b.width);
-    const breakpoints = sortedByWidth.map((v) => v.width);
+    const sortedVariants = [...variants].sort((a, b) => b.width - a.width);
 
-    // Build a sizes string like:
-    // (max-width: 320px) 320px, (max-width: 768px) 768px, ...
-    // For each size except the largest
-    const pairs = [];
-    for (let i = 0; i < breakpoints.length - 1; i++) {
-      pairs.push(`(max-width: ${breakpoints[i]}px) ${breakpoints[i]}px`);
-    }
-    // Final fallback to the largest size
-    const largest = breakpoints[breakpoints.length - 1];
-    pairs.push(`${largest}px`);
+    const sizeConditions = sortedVariants
+      .map((variant, index) => {
+        if (index === 0) return `(min-width: ${variant.width}px) ${variant.width}px`;
 
-    return pairs.join(', ');
+        const viewportWidth = variant.width;
+
+        if (viewportWidth >= 1024) {
+          return `(min-width: ${viewportWidth}px) 70vw`;
+        }
+
+        if (viewportWidth >= 768) {
+          return `(min-width: ${viewportWidth}px) 80vw`;
+        }
+
+        return null; // Skip mobile breakpoints
+      })
+      .filter(Boolean);
+
+    sizeConditions.push('100vw');
+
+    return sizeConditions.join(', ');
   }
 
   /**

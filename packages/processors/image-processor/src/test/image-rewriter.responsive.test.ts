@@ -53,7 +53,7 @@ describe('Responsive Images', () => {
     const normalizedPath = `/${publicDir}/image_1024x768.jpg`;
     const html = generator.enhanceImages(`<img src="${normalizedPath}" alt="Test">`);
 
-    expect(html).toContain('(max-width: 320px) 320px, (max-width: 768px) 768px, 1024px');
+    expect(html).toContain('(min-width: 1024px) 1024px, (min-width: 768px) 80vw, 100vw');
   });
 
   test('preserves order of sizes from smallest to largest', async () => {
@@ -95,7 +95,7 @@ describe('Responsive Images', () => {
 
     await processor.processImage(testImage);
     const sizes = processor.generateSizes(testImage);
-    const expectedSizes = '(max-width: 320px) 320px, (max-width: 768px) 768px, 1024px';
+    const expectedSizes = '(min-width: 1024px) 1024px, (min-width: 768px) 80vw, 100vw';
     expect(sizes).toBe(expectedSizes);
   });
 
@@ -119,9 +119,8 @@ describe('Responsive Images', () => {
     const html = generator.enhanceImages(`<img src="${testImage}" alt="Test image" loading="lazy">`);
 
     expect(html).toContain('<img');
-
     expect(html).toContain('srcset=');
-    expect(html).toContain('sizes="(max-width: 320px) 320px, (max-width: 768px) 768px, 1024px"');
+    expect(html).toContain('sizes="(min-width: 1024px) 1024px, (min-width: 768px) 80vw, 100vw"');
     expect(html).toContain('alt="Test image"');
     expect(html).toContain('loading="lazy"');
   });
@@ -143,7 +142,7 @@ describe('Responsive Images', () => {
     await processor.processImage(testImage);
     const sizes = processor.generateSizes(testImage);
 
-    const expectedSizes = ['(max-width: 320px) 320px', '(max-width: 768px) 768px', '1024px'].join(', ');
+    const expectedSizes = '(min-width: 1024px) 1024px, (min-width: 768px) 80vw, 100vw';
 
     expect(sizes).toBe(expectedSizes);
   });

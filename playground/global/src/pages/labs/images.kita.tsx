@@ -26,7 +26,7 @@ const HomePage: EcoComponent = () => {
             class="object-fit"
             src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
             alt="Ezi unsplash"
-            loading="eager"
+            loading="lazy"
           />
         </div>
         <div class="grid grid-cols-4 gap-4">

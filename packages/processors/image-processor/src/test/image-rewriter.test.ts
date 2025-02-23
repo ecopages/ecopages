@@ -1,29 +1,23 @@
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import { ImageProcessor } from '../image-processor';
 import { ImageRewriter } from '../image-rewriter';
+import { createTestImage } from './test-utils';
 
 describe('ImageRewriter', () => {
   const testDir = path.resolve(__dirname);
   const cacheDir = path.join(testDir, 'cache');
   const outputDir = path.join(testDir, 'output');
   const imageDir = path.join(testDir, 'images');
-  const testImage = path.join(imageDir, 'test.png');
+  const testImage = path.join(imageDir, 'test.jpg');
 
-  // 1x1 transparent PNG (base64)
-  const PNG_1PX = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==',
-    'base64',
-  );
-
-  beforeEach(() => {
+  beforeAll(async () => {
     for (const dir of [cacheDir, outputDir, imageDir]) {
-      FileUtils.rmSync(dir, { recursive: true, force: true });
       FileUtils.mkdirSync(dir, { recursive: true });
     }
 
-    FileUtils.writeFileSync(testImage, PNG_1PX);
+    await createTestImage(testImage, 1024, 768);
   });
 
   afterAll(() => {

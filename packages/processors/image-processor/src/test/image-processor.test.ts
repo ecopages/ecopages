@@ -1,49 +1,77 @@
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import { ImageProcessor } from '../image-processor';
 import { createTestImage } from './test-utils';
 
-const image_1024x768 = 'image_1024x768.jpg';
-
 describe('ImageProcessor', () => {
-  const publicDir = 'fixtures';
   const testDir = path.resolve(__dirname);
+  const publicDir = 'fixtures';
   const fixturesDir = path.join(testDir, publicDir);
   const cacheDir = path.join(testDir, 'cache');
   const outputDir = path.join(testDir, 'output');
 
+  const testImages = {
+    basic: {
+      name: 'basic.jpg',
+      width: 1024,
+      height: 768,
+    },
+    large: {
+      name: 'large.jpg',
+      width: 2048,
+      height: 1536,
+    },
+    small: {
+      name: 'small.jpg',
+      width: 400,
+      height: 300,
+    },
+  };
+
+  beforeAll(async () => {
+    for (const dir of [cacheDir, outputDir, fixturesDir]) {
+      FileUtils.rmSync(dir, { recursive: true, force: true });
+      FileUtils.mkdirSync(dir, { recursive: true });
+    }
+
+    await Promise.all(
+      Object.values(testImages).map((img) => createTestImage(path.join(fixturesDir, img.name), img.width, img.height)),
+    );
+  });
+
   beforeEach(() => {
-    FileUtils.rmSync(cacheDir, { recursive: true, force: true });
-    FileUtils.rmSync(outputDir, { recursive: true, force: true });
-    FileUtils.mkdirSync(cacheDir, { recursive: true });
-    FileUtils.mkdirSync(outputDir, { recursive: true });
+    for (const dir of [cacheDir, outputDir]) {
+      FileUtils.rmSync(dir, { recursive: true, force: true });
+      FileUtils.mkdirSync(dir, { recursive: true });
+    }
   });
 
   afterAll(() => {
-    FileUtils.rmSync(cacheDir, { recursive: true, force: true });
-    FileUtils.rmSync(outputDir, { recursive: true, force: true });
+    for (const dir of [cacheDir, outputDir, fixturesDir]) {
+      FileUtils.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('processImage basic', async () => {
     const processor = new ImageProcessor({
       imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
-      maxWidth: 400,
+      cacheDir,
+      outputDir,
       quality: 80,
       publicDir,
+      sizes: [{ width: 400, label: 'xl' }],
     });
 
-    const imagePath = path.join(fixturesDir, image_1024x768);
+    const imagePath = path.join(fixturesDir, testImages.basic.name);
     const variants = await processor.processImage(imagePath);
 
     expect(variants).toBeInstanceOf(Array);
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `image_1024x768-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
+      path: path.join(outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
       width: 400,
-      label: 'xl', // Updated to expect 'xl' as default label
+      label: 'xl',
       format: 'webp',
     });
     expect(FileUtils.existsSync(variants[0].path)).toBe(true);
@@ -52,14 +80,14 @@ describe('ImageProcessor', () => {
   test('processImage with existing cache', async () => {
     const processor = new ImageProcessor({
       imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
-      maxWidth: 400,
+      cacheDir,
+      outputDir,
       quality: 80,
       publicDir,
+      sizes: [{ width: 400, label: 'xl' }],
     });
 
-    const imagePath = path.join(fixturesDir, image_1024x768);
+    const imagePath = path.join(fixturesDir, testImages.basic.name);
     const variants = await processor.processImage(imagePath);
     const variants2 = await processor.processImage(imagePath);
 
@@ -72,19 +100,19 @@ describe('ImageProcessor', () => {
       imageDir: fixturesDir,
       cacheDir: cacheDir,
       outputDir: outputDir,
-      maxWidth: 400, // This should override the default sizes
       quality: 80,
       format: 'jpeg',
       publicDir,
+      sizes: [{ width: 400, label: 'xl' }],
     });
 
-    const imagePath = path.join(fixturesDir, image_1024x768);
+    const imagePath = path.join(fixturesDir, testImages.basic.name);
     const variants = await processor.processImage(imagePath);
 
-    expect(variants).toHaveLength(1); // Should only have one variant
+    expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `image_1024x768-xl${ImageProcessor.OPTIMIZED_SUFFIX}jpeg`),
-      width: 400, // Should use maxWidth
+      path: path.join(outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}jpeg`),
+      width: 400,
       label: 'xl',
       format: 'jpeg',
     });
@@ -95,18 +123,18 @@ describe('ImageProcessor', () => {
       imageDir: fixturesDir,
       cacheDir: cacheDir,
       outputDir: outputDir,
-      maxWidth: 400,
       quality: 50,
       publicDir,
+      sizes: [{ width: 400, label: 'xl' }],
     });
 
-    const imagePath = path.join(fixturesDir, image_1024x768);
+    const imagePath = path.join(fixturesDir, testImages.basic.name);
     const variants = await processor.processImage(imagePath);
 
     expect(variants).toBeInstanceOf(Array);
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `image_1024x768-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
+      path: path.join(outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
       width: 400,
       label: 'xl', // Updated to expect 'xl' as default label
       format: 'webp',
@@ -114,48 +142,20 @@ describe('ImageProcessor', () => {
     expect(FileUtils.existsSync(variants[0].path)).toBe(true);
   });
 
-  test('processImage with different maxWidth', async () => {
-    const processor = new ImageProcessor({
-      imageDir: fixturesDir,
-      cacheDir: cacheDir,
-      outputDir: outputDir,
-      maxWidth: 200,
-      quality: 80,
-      publicDir,
-    });
-
-    const imagePath = path.join(fixturesDir, image_1024x768);
-    const variants = await processor.processImage(imagePath);
-
-    expect(variants).toBeInstanceOf(Array);
-    expect(variants).toHaveLength(1);
-    expect(variants[0]).toMatchObject({
-      path: path.join(outputDir, `image_1024x768-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
-      width: 200,
-      label: 'xl', // Changed from 'suffix' to 'label'
-      format: 'webp',
-    });
-    expect(FileUtils.existsSync(variants[0].path)).toBe(true);
-  });
-
   test('processDirectory', async () => {
-    await createTestImage(path.join(fixturesDir, 'test1.jpg'), 800, 600);
-    await createTestImage(path.join(fixturesDir, 'test2.jpg'), 800, 600);
-    await createTestImage(path.join(fixturesDir, 'test3.jpg'), 800, 600);
-
     const processor = new ImageProcessor({
       imageDir: fixturesDir,
       cacheDir,
       outputDir,
-      maxWidth: 400,
       quality: 80,
       publicDir,
+      sizes: [{ width: 400, label: 'xl' }],
     });
 
     await processor.processDirectory();
 
     const processedFiles = await FileUtils.glob([`${outputDir}/**/*.{jpg,jpeg,png,webp}`]);
-    expect(processedFiles.length).toBe(7);
+    expect(processedFiles.length).toBe(Object.keys(testImages).length); // One variant per test image
   });
 
   test('processImage with multiple sizes and viewport widths', async () => {
@@ -168,20 +168,18 @@ describe('ImageProcessor', () => {
       format: 'webp',
       publicDir,
       sizes: [
-        { width: 320, label: 'sm', maxViewportWidth: 640 },
-        { width: 768, label: 'md', maxViewportWidth: 1024 },
-        { width: 1024, label: 'lg', maxViewportWidth: 1440 },
-        { width: 1920, label: 'xl' }, // Will be capped at 1024
+        { width: 320, label: 'sm' },
+        { width: 768, label: 'md' },
+        { width: 1024, label: 'lg' },
+        { width: 1920, label: 'xl' },
       ],
     });
 
-    const imagePath = path.join(fixturesDir, image_1024x768);
+    const imagePath = path.join(fixturesDir, testImages.large.name);
     const variants = await processor.processImage(imagePath);
 
-    // Should have 4 variants with specific widths and viewport constraints
     expect(variants).toHaveLength(4);
 
-    // Test each variant individually to make matching more flexible
     expect(variants[0]).toMatchObject({
       width: 1920,
       label: 'xl',
@@ -206,14 +204,14 @@ describe('ImageProcessor', () => {
       format: 'webp',
     });
 
-    // Verify srcset contains all variants with correct paths
     const srcset = processor.generateSrcset(imagePath);
+
     expect(srcset).toBe(
       [
-        `/output/image_1024x768-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp 1920w`,
-        `/output/image_1024x768-lg${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
-        `/output/image_1024x768-md${ImageProcessor.OPTIMIZED_SUFFIX}webp 768w`,
-        `/output/image_1024x768-sm${ImageProcessor.OPTIMIZED_SUFFIX}webp 320w`,
+        `/output/large-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp 1920w`,
+        `/output/large-lg${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
+        `/output/large-md${ImageProcessor.OPTIMIZED_SUFFIX}webp 768w`,
+        `/output/large-sm${ImageProcessor.OPTIMIZED_SUFFIX}webp 320w`,
       ].join(', '),
     );
   });
@@ -233,13 +231,11 @@ describe('ImageProcessor', () => {
       ],
     });
 
-    const imagePath = path.join(fixturesDir, image_1024x768);
+    const imagePath = path.join(fixturesDir, testImages.basic.name);
     const variants = await processor.processImage(imagePath);
 
     const srcset = processor.generateSrcset(imagePath);
-    expect(srcset).toBe(
-      '/assets/images/image_1024x768-md.opt.webp 768w, /assets/images/image_1024x768-sm.opt.webp 320w',
-    );
+    expect(srcset).toBe('/assets/images/basic-md.opt.webp 768w, /assets/images/basic-sm.opt.webp 320w');
   });
 
   test('generateSrcset with non-existent image', () => {
@@ -267,15 +263,12 @@ describe('ImageProcessor', () => {
   });
 
   test('respects original image dimensions', async () => {
-    // Create a test image with known dimensions
-    await createTestImage(path.join(fixturesDir, image_1024x768), 1024, 768);
-
     const processor = new ImageProcessor({
       imageDir: fixturesDir,
       cacheDir: cacheDir,
       outputDir: outputDir,
       sizes: [
-        { width: 2000, label: 'xl' }, // Should be capped at 1024
+        { width: 2000, label: 'xl' }, // Should be capped at original width
         { width: 800, label: 'md' },
         { width: 400, label: 'sm' },
       ],
@@ -284,13 +277,12 @@ describe('ImageProcessor', () => {
       publicDir,
     });
 
-    const imagePath = path.join(fixturesDir, image_1024x768);
+    const imagePath = path.join(fixturesDir, testImages.basic.name);
     const variants = await processor.processImage(imagePath);
 
-    // Verify variants are correctly sized and sorted
     expect(variants).toHaveLength(3);
     expect(variants[0]).toMatchObject({
-      width: 1024,
+      width: Math.min(2000, testImages.basic.width),
       label: 'xl',
       format: 'webp',
     });
@@ -308,9 +300,9 @@ describe('ImageProcessor', () => {
     const srcset = processor.generateSrcset(imagePath);
     expect(srcset).toBe(
       [
-        `/output/image_1024x768-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
-        `/output/image_1024x768-md${ImageProcessor.OPTIMIZED_SUFFIX}webp 800w`,
-        `/output/image_1024x768-sm${ImageProcessor.OPTIMIZED_SUFFIX}webp 400w`,
+        `/output/basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
+        `/output/basic-md${ImageProcessor.OPTIMIZED_SUFFIX}webp 800w`,
+        `/output/basic-sm${ImageProcessor.OPTIMIZED_SUFFIX}webp 400w`,
       ].join(', '),
     );
   });
@@ -322,7 +314,7 @@ describe('ImageProcessor', () => {
       outputDir: outputDir,
       sizes: [
         { width: 400, label: 'sm' },
-        { width: 1200, label: 'lg' }, // Will be capped at 1024
+        { width: 1200, label: 'lg' },
         { width: 800, label: 'md' },
       ],
       quality: 80,
@@ -330,18 +322,19 @@ describe('ImageProcessor', () => {
       publicDir,
     });
 
-    const imagePath = path.join(fixturesDir, image_1024x768);
+    const imagePath = path.join(fixturesDir, testImages.basic.name);
     const variants = await processor.processImage(imagePath);
 
     expect(variants).toHaveLength(3);
+
     expect(variants.map((v) => v.width)).toEqual([1024, 800, 400]);
 
     const srcset = processor.generateSrcset(imagePath);
     expect(srcset).toBe(
       [
-        `/output/image_1024x768-lg${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
-        `/output/image_1024x768-md${ImageProcessor.OPTIMIZED_SUFFIX}webp 800w`,
-        `/output/image_1024x768-sm${ImageProcessor.OPTIMIZED_SUFFIX}webp 400w`,
+        `/output/basic-lg${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
+        `/output/basic-md${ImageProcessor.OPTIMIZED_SUFFIX}webp 800w`,
+        `/output/basic-sm${ImageProcessor.OPTIMIZED_SUFFIX}webp 400w`,
       ].join(', '),
     );
   });
@@ -362,11 +355,11 @@ describe('ImageProcessor', () => {
       publicDir,
     });
 
-    const imagePath = path.join(fixturesDir, image_1024x768);
+    const imagePath = path.join(fixturesDir, testImages.basic.name);
     const variants = await processor.processImage(imagePath);
 
-    // Should only have 3 variants, skipping the duplicate 1024 width
     expect(variants).toHaveLength(3);
+
     expect(variants.map((v) => v.width)).toEqual([1024, 800, 400]);
     expect(variants[0]).toMatchObject({
       width: 1024,

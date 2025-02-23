@@ -3,6 +3,7 @@ import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import { ImageProcessor } from '../image-processor';
 import { ImageRewriter } from '../image-rewriter';
+import { createTestImage } from './test-utils';
 
 describe('ImageRewriter Performance', () => {
   const testDir = path.resolve(__dirname);
@@ -10,24 +11,24 @@ describe('ImageRewriter Performance', () => {
   const cacheDir = path.join(testDir, 'cache');
   const outputDir = path.join(testDir, 'output');
   const fixturesDir = path.join(testDir, publicDir);
-  const testImage = path.join(fixturesDir, 'test.png');
+  const testImage = path.join(fixturesDir, 'test.jpg');
 
   let processor: ImageProcessor;
   let generator: ImageRewriter;
 
-  const simpleHtml = `<img src="/fixtures/test.png" alt="Test">`;
+  const simpleHtml = `<img src="/fixtures/test.jpg" alt="Test">`;
 
   const complexHtml = `
     <div class="article">
       <h1>Test Article</h1>
-      <img src="/fixtures/test.png" alt="Hero" class="hero" loading="lazy">
+      <img src="/fixtures/test.jpg" alt="Hero" class="hero" loading="lazy">
       <p>Some text</p>
       <div class="gallery">
         ${Array(50)
           .fill(0)
           .map(
             (_, i) =>
-              `<img src="/fixtures/test.png" alt="Gallery ${i}" class="thumb" data-index="${i}" loading="lazy">`,
+              `<img src="/fixtures/test.jpg" alt="Gallery ${i}" class="thumb" data-index="${i}" loading="lazy">`,
           )
           .join('\n')}
       </div>
@@ -42,13 +43,7 @@ describe('ImageRewriter Performance', () => {
       FileUtils.mkdirSync(dir, { recursive: true });
     }
 
-    FileUtils.writeFileSync(
-      testImage,
-      Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==',
-        'base64',
-      ),
-    );
+    await createTestImage(testImage, 1024, 768);
 
     processor = new ImageProcessor({
       imageDir: fixturesDir,
@@ -63,7 +58,9 @@ describe('ImageRewriter Performance', () => {
   });
 
   afterAll(() => {
-    FileUtils.rmSync(fixturesDir, { recursive: true, force: true });
+    for (const dir of [cacheDir, outputDir, fixturesDir]) {
+      FileUtils.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   const measure = async (fn: () => Promise<void> | void, iterations = 100) => {

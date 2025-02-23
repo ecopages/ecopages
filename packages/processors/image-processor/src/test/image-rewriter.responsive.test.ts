@@ -6,13 +6,30 @@ import { ImageRewriter } from '../image-rewriter';
 import { createTestImage } from './test-utils';
 
 describe('Responsive Images', () => {
-  const imgName = 'image_1024x768.jpg';
   const testDir = path.resolve(__dirname);
   const publicDir = 'fixtures';
   const cacheDir = path.join(testDir, 'cache');
   const outputDir = path.join(testDir, 'output');
   const fixturesDir = path.join(testDir, publicDir);
-  const testImage = path.join(fixturesDir, imgName);
+
+  // Use multiple test images with different dimensions
+  const testImages = {
+    small: {
+      path: path.join(fixturesDir, 'small.jpg'),
+      width: 800,
+      height: 600,
+    },
+    medium: {
+      path: path.join(fixturesDir, 'medium.jpg'),
+      width: 1024,
+      height: 768,
+    },
+    large: {
+      path: path.join(fixturesDir, 'large.jpg'),
+      width: 2048,
+      height: 1536,
+    },
+  };
 
   beforeAll(async () => {
     // Create test directories
@@ -20,13 +37,17 @@ describe('Responsive Images', () => {
       FileUtils.mkdirSync(dir, { recursive: true });
     }
 
-    // Create a larger test image to accommodate all test sizes
-    await createTestImage(testImage, 2048, 1536);
+    // Create all test images
+    await Promise.all([
+      createTestImage(testImages.small.path, testImages.small.width, testImages.small.height),
+      createTestImage(testImages.medium.path, testImages.medium.width, testImages.medium.height),
+      createTestImage(testImages.large.path, testImages.large.width, testImages.large.height),
+    ]);
   });
 
-  // Cleanup after tests
   afterAll(() => {
-    for (const dir of [cacheDir, outputDir]) {
+    // Clean up all directories including fixtures
+    for (const dir of [cacheDir, outputDir, fixturesDir]) {
       FileUtils.rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -48,9 +69,9 @@ describe('Responsive Images', () => {
     });
 
     const generator = new ImageRewriter(processor);
-    await processor.processImage(testImage);
+    await processor.processImage(testImages.large.path);
 
-    const normalizedPath = `/${publicDir}/image_1024x768.jpg`;
+    const normalizedPath = `/${publicDir}/large.jpg`;
     const html = generator.enhanceImages(`<img src="${normalizedPath}" alt="Test">`);
 
     expect(html).toContain('(min-width: 1024px) 1024px, (min-width: 768px) 80vw, 100vw');
@@ -70,8 +91,8 @@ describe('Responsive Images', () => {
       ],
     });
 
-    await processor.processImage(testImage);
-    const srcset = processor.generateSrcset(testImage);
+    await processor.processImage(testImages.large.path);
+    const srcset = processor.generateSrcset(testImages.large.path);
     const widths = srcset.match(/\d+w/g)?.map((w) => Number.parseInt(w));
 
     expect(widths).toBeDefined();
@@ -93,8 +114,8 @@ describe('Responsive Images', () => {
       ],
     });
 
-    await processor.processImage(testImage);
-    const sizes = processor.generateSizes(testImage);
+    await processor.processImage(testImages.large.path);
+    const sizes = processor.generateSizes(testImages.large.path);
     const expectedSizes = '(min-width: 1024px) 1024px, (min-width: 768px) 80vw, 100vw';
     expect(sizes).toBe(expectedSizes);
   });
@@ -114,9 +135,9 @@ describe('Responsive Images', () => {
     });
 
     const generator = new ImageRewriter(processor);
-    await processor.processImage(testImage);
+    await processor.processImage(testImages.large.path);
 
-    const html = generator.enhanceImages(`<img src="${testImage}" alt="Test image" loading="lazy">`);
+    const html = generator.enhanceImages(`<img src="${testImages.large.path}" alt="Test image" loading="lazy">`);
 
     expect(html).toContain('<img');
     expect(html).toContain('srcset=');
@@ -139,8 +160,8 @@ describe('Responsive Images', () => {
       ],
     });
 
-    await processor.processImage(testImage);
-    const sizes = processor.generateSizes(testImage);
+    await processor.processImage(testImages.large.path);
+    const sizes = processor.generateSizes(testImages.large.path);
 
     const expectedSizes = '(min-width: 1024px) 1024px, (min-width: 768px) 80vw, 100vw';
 

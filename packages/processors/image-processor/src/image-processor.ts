@@ -36,8 +36,6 @@ export interface ImageProcessorConfig {
   sizes?: ImageSize[];
   /** Directory for caching processing metadata */
   cacheDir: string;
-  /** Maximum width for processed images (default: 1920) */
-  maxWidth?: number;
   /** Quality setting for image compression (default: 80) */
   quality?: number;
   /** Format for the processed images (default: 'webp') */
@@ -247,17 +245,12 @@ export class ImageProcessor {
     const format = this.config.format || 'webp';
     const filename = path.basename(processablePath, path.extname(processablePath));
 
-    // If maxWidth is specified and no sizes are provided, create a single size with maxWidth
-    const defaultSizes = this.config.maxWidth
-      ? [{ width: this.config.maxWidth, label: 'xl' }]
-      : [
-          { width: 1920, label: 'xl' },
-          { width: 1024, label: 'lg' },
-          { width: 768, label: 'md' },
-          { width: 320, label: 'sm' },
-        ];
-
-    const sizes = this.config.sizes || defaultSizes;
+    const defaultSizes = [
+      { width: 1920, label: 'xl' },
+      { width: 1024, label: 'lg' },
+      { width: 768, label: 'md' },
+      { width: 320, label: 'sm' },
+    ];
 
     const originalImage = sharp(processablePath);
     const metadata = await originalImage.metadata();
@@ -265,58 +258,37 @@ export class ImageProcessor {
     const originalHeight = metadata.height || 0;
     const aspectRatio = originalHeight / originalWidth;
 
-    // Create variants only for sizes up to original width, maintaining original properties
-    const validSizes = sizes.map((size) => ({
-      ...size,
-      width: Math.min(size.width, originalWidth), // Cap width at original image width
-    }));
+    const sizes = this.config.sizes || defaultSizes;
+    const sortedSizes = [...sizes].sort((a, b) => b.width - a.width);
 
-    // Sort by width to ensure consistent variant selection
-    const sortedSizes = validSizes.sort((a, b) => b.width - a.width);
+    const uniqueSizes = sortedSizes.reduce((acc: ImageSize[], size) => {
+      const cappedWidth = Math.min(size.width, originalWidth);
+      const existingIndex = acc.findIndex((s) => s.width === cappedWidth);
 
-    // Filter unique variants, keeping the first occurrence of each width
-    const seen = new Set<number>();
-    const uniqueSizes = sortedSizes.filter((size) => {
-      if (seen.has(size.width)) {
-        return false;
-      }
-      seen.add(size.width);
-      return true;
-    });
+      if (existingIndex === -1) acc.push({ width: cappedWidth, label: size.label });
 
+      return acc;
+    }, []);
     const variants: ImageVariant[] = [];
 
     for (const size of uniqueSizes) {
-      // Always include the label in the filename
       const labelPart = size.label ? `-${size.label}` : '';
       const outputBasename = `${filename}${labelPart}${ImageProcessor.OPTIMIZED_SUFFIX}${format}`;
       const outputPath = path.join(this.config.outputDir, outputBasename);
 
-      // Use the capped width for processing
-      const image = sharp(processablePath);
       const height = Math.round(size.width * aspectRatio);
-      image.resize(size.width, height);
 
-      switch (format) {
-        case 'webp':
-          await image.webp({ quality: this.config.quality || 80 }).toFile(outputPath);
-          break;
-        case 'jpeg':
-          await image.jpeg({ quality: this.config.quality || 80 }).toFile(outputPath);
-          break;
-        case 'png':
-          await image.png({ quality: this.config.quality || 80 }).toFile(outputPath);
-          break;
-        case 'avif':
-          await image.avif({ quality: this.config.quality || 80 }).toFile(outputPath);
-          break;
-      }
+      // Process image
+      await sharp(processablePath)
+        .resize(size.width, height)
+        [format]({ quality: this.config.quality || 80 })
+        .toFile(outputPath);
 
       variants.push({
         path: outputPath,
-        width: size.width, // Use capped width
-        height, // Add calculated height
-        label: size.label || '', // Ensure label is never undefined
+        width: size.width,
+        height,
+        label: size.label || '',
         format,
       });
     }

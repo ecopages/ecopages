@@ -1,15 +1,16 @@
+import type { Sharp } from 'sharp';
 import sharp from 'sharp';
 
-export async function createTestImage(path: string, width: number, height: number): Promise<void> {
-  // Create a solid color test image
-  await sharp({
+export async function createTestImage(path: string, width: number, height: number, color = '#ffffff'): Promise<Sharp> {
+  const image = sharp({
     create: {
       width,
       height,
       channels: 4,
-      background: { r: 255, g: 0, b: 0, alpha: 1 },
+      background: color,
     },
-  })
-    .jpeg() // Using JPEG since our tests expect JPEG files
-    .toFile(path);
+  });
+
+  await image.toFile(path);
+  return image;
 }

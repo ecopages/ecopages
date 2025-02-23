@@ -13,9 +13,9 @@ export interface ImageOptions {
   lazy?: boolean;
   /** Additional attributes for the img tag */
   imgAttributes?: Record<string, string>;
-  /** For data-fixed-size attribute */
-  fixedSize?: string;
-  /** For data-custom-srcset attribute */
+  /** For data-static-variant attribute */
+  staticVariant?: string;
+  /** For data-srcset attribute */
   customSrcset?: string;
 }
 
@@ -43,8 +43,8 @@ export class ImageRewriter {
     const publicPath = this.imageProcessor.getPublicPath();
 
     // Handle fixed size
-    if (options.fixedSize) {
-      const variant = entry.variants.find((v) => v.label === options.fixedSize);
+    if (options.staticVariant) {
+      const variant = entry.variants.find((v) => v.label === options.staticVariant);
       if (variant) {
         const imgAttrs = this.formatAttributes({
           src: `${publicPath}/${path.basename(variant.path)}`,
@@ -75,12 +75,12 @@ export class ImageRewriter {
       const srcMatch = imgTag.match(/src="([^"]+)"/);
       if (!srcMatch) return imgTag;
 
-      const fixedSizeMatch = imgTag.match(/data-fixed-size="([^"]+)"/);
-      const customSrcsetMatch = imgTag.match(/data-custom-srcset="([^"]+)"/);
+      const fixedSizeMatch = imgTag.match(/data-static-variant="([^"]+)"/);
+      const customSrcsetMatch = imgTag.match(/data-srcset="([^"]+)"/);
 
       const attrs: Record<string, string> = {};
       imgTag.replace(/(\w+(?:-\w+)*)="([^"]+)"/g, (_, name, value) => {
-        if (!['src', 'data-fixed-size', 'data-custom-srcset'].includes(name)) {
+        if (!['src', 'data-static-variant', 'data-srcset'].includes(name)) {
           attrs[name] = value;
         }
         return '';
@@ -89,7 +89,7 @@ export class ImageRewriter {
       const imgOptions: ImageOptions = {
         ...options,
         imgAttributes: attrs,
-        fixedSize: fixedSizeMatch?.[1],
+        staticVariant: fixedSizeMatch?.[1],
         customSrcset: customSrcsetMatch?.[1],
       };
 

@@ -47,22 +47,22 @@ describe('Data Attributes', () => {
     }
   });
 
-  test('handles data-fixed-size attribute', () => {
-    const html = `<img src="${testImage}" data-fixed-size="md" alt="Fixed size test">`;
+  test('handles data-static-variant attribute', () => {
+    const html = `<img src="${testImage}" data-static-variant="md" alt="Fixed size test">`;
     const result = generator.enhanceImages(html);
 
     expect(result).toContain('src="/images/test-md.opt.webp"');
     expect(result).not.toContain('srcset=');
-    expect(result).not.toContain('data-fixed-size');
+    expect(result).not.toContain('data-static-variant');
     expect(result).toContain('alt="Fixed size test"');
   });
 
-  test('handles data-custom-srcset attribute', () => {
-    const html = `<img src="${testImage}" data-custom-srcset="(max-width: 320px) 320px, (max-width: 768px) 768px" alt="Custom srcset">`;
+  test('handles data-srcset attribute', () => {
+    const html = `<img src="${testImage}" data-srcset="(max-width: 320px) 320px, (max-width: 768px) 768px" alt="Custom srcset">`;
     const result = generator.enhanceImages(html);
 
     expect(result).toContain('srcset="(max-width: 320px) 320px, (max-width: 768px) 768px"');
-    expect(result).not.toContain('data-custom-srcset');
+    expect(result).not.toContain('data-srcset');
     expect(result).toContain('alt="Custom srcset"');
   });
 

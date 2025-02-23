@@ -31,7 +31,6 @@ export class ImageRewriter {
    * Enhances an img element with srcset and sizes attributes
    */
   generateImgHtml(imagePath: string, options: ImageOptions = {}): string {
-    // Create cache key from path and options
     const cacheKey = this.createCacheKey(imagePath, options);
     const cached = this.htmlCache.get(cacheKey);
     if (cached) return cached;
@@ -83,7 +82,6 @@ export class ImageRewriter {
    * Enhances img tags in HTML with responsive attributes
    */
   enhanceImages(html: string, options: ImageOptions = {}): string {
-    // Cache the entire enhanced HTML if it's been processed before
     const cacheKey = `${html}:${JSON.stringify(options)}`;
     const cached = this.htmlCache.get(cacheKey);
     if (cached) return cached;
@@ -142,11 +140,9 @@ export class ImageRewriter {
   private normalizeImagePath(imagePath: string): string {
     const basename = path.basename(imagePath);
 
-    // Try direct match first
     const normalizedPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
     if (this.imageMap[normalizedPath]) return normalizedPath;
 
-    // Find by basename
     const match = Object.keys(this.imageMap).find((key) => key.endsWith(basename));
     return match || imagePath;
   }
@@ -199,7 +195,6 @@ export class ImageRewriter {
     return filtered.length ? ` ${filtered.join(' ')}` : '';
   }
 
-  // Clear caches when needed (e.g., after image processing)
   clearCaches(): void {
     this.pathCache.clear();
     this.htmlCache.clear();

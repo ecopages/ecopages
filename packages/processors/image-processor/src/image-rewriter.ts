@@ -1,8 +1,13 @@
+/**
+ * This module enhances img elements in HTML with responsive attributes using a custom implementation
+ * @module
+ */
+
 import path from 'node:path';
 import type { ImageMap, ImageProcessor, ImageVariant } from './image-processor';
 
 const PRESERVED_ATTRS = new Set(['src']);
-const ATTRIBUTES_REGEX = /(\w+(?:-\w+)*)="([^"]+)"/g;
+const ATTRIBUTES_REGEX = /(\w+(?:-\w+)*)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))|(?=\s|$))/g;
 
 export interface ImageOptions {
   /** CSS class for the img element */
@@ -114,8 +119,9 @@ export class ImageRewriter {
     let matches: RegExpExecArray | null = ATTRIBUTES_REGEX.exec(imgTag);
 
     while (matches !== null) {
-      const [, name, value] = matches;
+      const [, name, doubleQuoted, singleQuoted, unquoted] = matches;
       if (!PRESERVED_ATTRS.has(name)) {
+        const value = doubleQuoted ?? singleQuoted ?? unquoted ?? '';
         attrs[name] = value;
       }
 
@@ -186,8 +192,8 @@ export class ImageRewriter {
 
   private formatAttributes(attrs: Record<string, string | number | undefined>): string {
     const filtered = Object.entries(attrs).reduce((acc, [key, value]) => {
-      if (value !== undefined && value !== '') {
-        acc.push(`${key}="${value}"`);
+      if (value !== undefined) {
+        acc.push(value === '' ? key : `${key}="${value}"`);
       }
       return acc;
     }, [] as string[]);

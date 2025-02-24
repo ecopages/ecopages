@@ -128,6 +128,11 @@ function write(path: string, contents: string | Buffer): void {
   }
 }
 
+/**
+ * Get the hash of a file.
+ * @param path
+ * @returns
+ */
 function getFileHash(path: string): string {
   try {
     const buffer = getFileAsBuffer(path);
@@ -135,6 +140,17 @@ function getFileHash(path: string): string {
   } catch (error) {
     throw new Error(`[ecopages] Error hashing file: ${path}`);
   }
+}
+
+/**
+ * Implement the synchronous version of `rm -rf`.
+ * @param path
+ */
+function emptyDirSync(path: string) {
+  rmSync(path, {
+    recursive: true,
+    force: true,
+  });
 }
 
 /**
@@ -155,4 +171,5 @@ export const FileUtils = {
   mkdirSync,
   getFileHash,
   rmSync,
+  emptyDirSync,
 };

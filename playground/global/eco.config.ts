@@ -9,7 +9,7 @@ const config = await new ConfigBuilder()
   .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
   .setIntegrations([kitajsPlugin(), litPlugin(), mdxPlugin()])
   .setImageOptimization({
-    imageDir: path.resolve(import.meta.dir, 'src/public/assets/images'),
+    imagesDir: path.resolve(import.meta.dir, 'src/public/assets/images'),
     cacheDir: path.resolve(import.meta.dir, '__cache__'),
     outputDir: path.resolve(import.meta.dir, 'src/public/assets/opt-images'),
     publicPath: '/public/assets/opt-images',

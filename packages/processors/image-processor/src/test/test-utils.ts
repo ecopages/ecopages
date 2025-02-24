@@ -84,7 +84,7 @@ export function createTestContext(
 }
 
 export async function setupTestContext(context: TestContext): Promise<void> {
-  for (const dir of [context.cacheDir, context.outputDir, context.fixturesDir]) {
+  for (const dir of [context.cacheDir, context.outputDir, context.fixturesDir, context.imageDir]) {
     FileUtils.mkdirSync(dir, { recursive: true });
   }
 
@@ -92,7 +92,7 @@ export async function setupTestContext(context: TestContext): Promise<void> {
 }
 
 export function cleanupTestContext(context: TestContext): void {
-  for (const dir of [context.cacheDir, context.outputDir, context.fixturesDir]) {
+  for (const dir of [context.cacheDir, context.outputDir, context.fixturesDir, context.imageDir]) {
     FileUtils.rmSync(dir, { recursive: true, force: true });
   }
 }
@@ -106,7 +106,7 @@ export function cleanUpBeforeTest(context: TestContext): void {
 
 export function createTestProcessor(context: TestContext, config: Partial<ImageProcessorConfig> = {}): ImageProcessor {
   return new ImageProcessor({
-    imageDir: context.fixturesDir,
+    imagesDir: context.fixturesDir,
     cacheDir: context.cacheDir,
     outputDir: context.outputDir,
     publicDir: context.publicDir,

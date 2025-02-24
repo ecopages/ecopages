@@ -29,7 +29,7 @@ export interface ImageSize {
  */
 export interface ImageProcessorConfig {
   /** Directory containing source images */
-  imageDir: string;
+  imagesDir: string;
   /** Directory where processed images will be saved */
   outputDir: string;
   /** Array of sizes to generate (default: [original size]) */
@@ -342,7 +342,7 @@ export class ImageProcessor {
    * @returns {Promise<void>}
    */
   async processDirectory(): Promise<void> {
-    const glob = `${this.config.imageDir}/**/*.{jpg,jpeg,png,webp}`;
+    const glob = `${this.config.imagesDir}/**/*.{jpg,jpeg,png,webp}`;
     appLogger.debug(`Processing images in ${glob}`);
     const images = await FileUtils.glob([glob]);
 

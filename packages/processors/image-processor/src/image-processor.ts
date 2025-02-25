@@ -159,8 +159,7 @@ export class ImageProcessor {
     if (FileUtils.existsSync(imagePath)) {
       return imagePath;
     }
-    // If the path doesn't exist, it might be a normalized path
-    // Try to find it in the image map
+
     const entry = this.imageMap[imagePath];
     if (entry) {
       return entry.originalPath;

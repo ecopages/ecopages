@@ -3,7 +3,8 @@
 	"version": "0.1.19",
 	"exports": {
 		".": "./src/postcss-processor.ts",
-		"./image-rewriter": "./src/image-rewriter.ts"
+		"./image-rewriter": "./src/image-rewriter.ts",
+		"./image-html-rewriter": "./src/image-html-rewriter.ts"
 	},
 	"exclude": ["src/test"],
 	"publish": {

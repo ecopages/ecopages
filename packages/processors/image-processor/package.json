@@ -27,6 +27,10 @@
 		"./image-rewriter": {
 			"default": "./src/image-rewriter.ts",
 			"types": "./src/image-rewriter.ts"
+		},
+		"./image-html-rewriter": {
+			"default": "./src/image-html-rewriter.ts",
+			"types": "./src/image-html-rewriter.ts"
 		}
 	}
 }

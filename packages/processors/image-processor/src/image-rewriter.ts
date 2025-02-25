@@ -6,9 +6,6 @@
 import path from 'node:path';
 import type { ImageMap, ImageProcessor, ImageVariant } from './image-processor';
 
-const PRESERVED_ATTRS = new Set(['src']);
-const ATTRIBUTES_REGEX = /(\w+(?:-\w+)*)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))|(?=\s|$))/g;
-
 export interface ImageOptions {
   /** CSS class for the img element */
   className?: string;
@@ -22,14 +19,39 @@ export interface ImageOptions {
  * Enhances img elements with responsive attributes
  */
 export class ImageRewriter {
+  static PRESERVED_ATTRS = new Set(['src']);
+  static ATTRIBUTES_REGEX = /(\w+(?:-\w+)*)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))|(?=\s|$))/g;
+  static IMG_TAG_REGEX = /<img[^>]+>/g;
+  static SRC_ATTR_REGEX = /src="([^"]+)"/;
+
   private imageProcessor: ImageProcessor;
   private pathCache = new Map<string, string>();
   private htmlCache = new Map<string, string>();
   private imageMap: ImageMap;
+  private variantsCache = new Map<string, ImageVariant[]>();
+  private srcsetCache = new Map<string, string>();
 
   constructor(imageProcessor: ImageProcessor) {
     this.imageProcessor = imageProcessor;
     this.imageMap = imageProcessor.getImageMap();
+    this.prepareCache();
+  }
+
+  /**
+   * Pre-compute and cache sorted variants and srcset strings
+   */
+  private prepareCache(): void {
+    const publicPath = this.imageProcessor.getPublicPath();
+
+    for (const [imagePath, entry] of Object.entries(this.imageMap)) {
+      // Sort and cache variants
+      const sortedVariants = [...entry.variants].sort((a, b) => b.width - a.width);
+      this.variantsCache.set(imagePath, sortedVariants);
+
+      // Pre-compute and cache srcset
+      const srcset = sortedVariants.map((v) => `${publicPath}/${path.basename(v.path)} ${v.width}w`).join(', ');
+      this.srcsetCache.set(imagePath, srcset);
+    }
   }
 
   /**
@@ -87,23 +109,36 @@ export class ImageRewriter {
    * Enhances img tags in HTML with responsive attributes
    */
   enhanceImages(html: string, options: ImageOptions = {}): string {
+    if (!html.includes('<img')) return html;
+
     const cacheKey = `${html}:${JSON.stringify(options)}`;
     const cached = this.htmlCache.get(cacheKey);
     if (cached) return cached;
 
-    const enhanced = html.replace(/<img[^>]+>/g, (imgTag) => {
-      const srcMatch = imgTag.match(/src="([^"]+)"/);
+    const optionsStr = JSON.stringify(options);
+
+    const enhanced = html.replace(ImageRewriter.IMG_TAG_REGEX, (imgTag) => {
+      const srcMatch = imgTag.match(ImageRewriter.SRC_ATTR_REGEX);
       if (!srcMatch) return imgTag;
 
-      const attrs = this.parseAttributes(imgTag);
       const imagePath = this.getNormalizedPath(srcMatch[1]);
 
+      if (!this.imageMap[imagePath]) return imgTag;
+
+      const imgCacheKey = `${imagePath}:${imgTag}:${optionsStr}`;
+      const imgCached = this.htmlCache.get(imgCacheKey);
+      if (imgCached) return imgCached;
+
+      const attrs = this.parseAttributes(imgTag);
       const imgOptions: ImageOptions = {
         ...options,
         imgAttributes: attrs,
       };
 
-      return this.generateImgHtml(imagePath, imgOptions) || imgTag;
+      const result = this.generateImgHtml(imagePath, imgOptions) || imgTag;
+
+      this.htmlCache.set(imgCacheKey, result);
+      return result;
     });
 
     this.htmlCache.set(cacheKey, enhanced);
@@ -116,16 +151,17 @@ export class ImageRewriter {
   private parseAttributes(imgTag: string): Record<string, string> {
     const attrs: Record<string, string> = {};
 
-    let matches: RegExpExecArray | null = ATTRIBUTES_REGEX.exec(imgTag);
+    ImageRewriter.ATTRIBUTES_REGEX.lastIndex = 0;
+
+    let matches: RegExpExecArray | null = ImageRewriter.ATTRIBUTES_REGEX.exec(imgTag);
 
     while (matches !== null) {
       const [, name, doubleQuoted, singleQuoted, unquoted] = matches;
-      if (!PRESERVED_ATTRS.has(name)) {
+      if (!ImageRewriter.PRESERVED_ATTRS.has(name)) {
         const value = doubleQuoted ?? singleQuoted ?? unquoted ?? '';
         attrs[name] = value;
       }
-
-      matches = ATTRIBUTES_REGEX.exec(imgTag);
+      matches = ImageRewriter.ATTRIBUTES_REGEX.exec(imgTag);
     }
 
     return attrs;
@@ -159,23 +195,37 @@ export class ImageRewriter {
   private generateResponsiveImg(
     variants: ImageVariant[],
     publicPath: string,
-    options: ImageOptions & { sizes: string; customSrcset?: string },
+    options: ImageOptions & { sizes: string },
   ): string {
-    const [largestVariant, ...otherVariants] = variants.sort((a, b) => b.width - a.width);
-    const { customSrcset, imgAttributes = {}, ...restOptions } = options;
+    if (variants.length === 0) return '';
 
-    const { 'data-static-variant': __, ...cleanAttributes } = imgAttributes;
+    const cacheKey = variants[0].path;
+    let sortedVariants = this.variantsCache.get(cacheKey);
 
-    const attributes = {
+    if (!sortedVariants) {
+      sortedVariants = [...variants].sort((a, b) => b.width - a.width);
+      this.variantsCache.set(cacheKey, sortedVariants);
+    }
+
+    const largestVariant = sortedVariants[0];
+    const { alt, className, imgAttributes = {} } = options;
+
+    const attributes: Record<string, string | number> = {
       src: `${publicPath}/${path.basename(largestVariant.path)}`,
-      srcset: this.generateSrcset([largestVariant, ...otherVariants], publicPath),
+      srcset: this.generateSrcset(sortedVariants, publicPath),
       sizes: options.sizes,
-      alt: options.alt || '',
       width: largestVariant.width,
       height: largestVariant.height,
-      ...(options.className && { class: options.className }),
-      ...cleanAttributes,
     };
+
+    if (alt) attributes.alt = alt;
+    if (className) attributes.class = className;
+
+    for (const key in imgAttributes) {
+      if (key !== 'data-static-variant') {
+        attributes[key] = imgAttributes[key];
+      }
+    }
 
     return `<img${this.formatAttributes(attributes)}>`;
   }
@@ -184,26 +234,38 @@ export class ImageRewriter {
    * Generates srcset string from variants
    */
   private generateSrcset(variants: ImageVariant[], publicPath: string): string {
-    return variants
-      .sort((a, b) => b.width - a.width)
-      .map((v) => `${publicPath}/${path.basename(v.path)} ${v.width}w`)
-      .join(', ');
+    const firstPath = variants[0]?.path;
+    if (!firstPath) return '';
+
+    const cacheKey = variants.map((v) => v.path).join(',');
+    const cached = this.srcsetCache.get(cacheKey);
+    if (cached) return cached;
+
+    const srcset = variants.map((v) => `${publicPath}/${path.basename(v.path)} ${v.width}w`).join(', ');
+
+    this.srcsetCache.set(cacheKey, srcset);
+    return srcset;
   }
 
   private formatAttributes(attrs: Record<string, string | number | undefined>): string {
-    const filtered = Object.entries(attrs).reduce((acc, [key, value]) => {
-      if (value !== undefined) {
-        acc.push(value === '' ? key : `${key}="${value}"`);
-      }
-      return acc;
-    }, [] as string[]);
+    // More efficient string building with array joins
+    const parts = [];
 
-    return filtered.length ? ` ${filtered.join(' ')}` : '';
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value !== undefined) {
+        parts.push(value === '' ? key : `${key}="${value}"`);
+      }
+    }
+
+    return parts.length ? ` ${parts.join(' ')}` : '';
   }
 
   clearCaches(): void {
     this.pathCache.clear();
     this.htmlCache.clear();
+    this.variantsCache.clear();
+    this.srcsetCache.clear();
     this.imageMap = this.imageProcessor.getImageMap();
+    this.prepareCache();
   }
 }

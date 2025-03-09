@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { appLogger } from 'src/global/app-logger.ts';
 import type {
   EcoComponent,
   EcoComponentDependencies,
@@ -242,6 +243,7 @@ export abstract class IntegrationRenderer {
 
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
     const renderOptions = await this.prepareRenderOptions(options);
+
     return this.render(renderOptions);
   }
 

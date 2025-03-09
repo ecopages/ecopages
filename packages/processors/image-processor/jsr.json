@@ -1,4 +1,5 @@
 {
+	"$schema": "https://jsr.io/schema/config-file.v1.json",
 	"name": "@ecopages/postcss-processor",
 	"version": "0.1.19",
 	"exports": {

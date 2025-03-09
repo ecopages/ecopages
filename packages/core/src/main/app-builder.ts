@@ -65,6 +65,17 @@ export class AppBuilder {
     FileUtils.writeFileSync(output, cssString);
   }
 
+  async optimizeImages() {
+    if (!this.appConfig.imageOptimization || this.appConfig.imageOptimization.enabled !== true) return;
+
+    if (!this.appConfig.imageOptimization.processor) {
+      appLogger.warn('Image optimization processor is not configured');
+      return;
+    }
+
+    await this.appConfig.imageOptimization.processor.processDirectory();
+  }
+
   private async runDevServer() {
     const options = {
       appConfig: this.appConfig,
@@ -116,6 +127,9 @@ export class AppBuilder {
     const { distDir } = this.appConfig;
 
     this.prepareDistDir();
+
+    await this.optimizeImages();
+
     this.copyPublicDir();
 
     await this.execTailwind();

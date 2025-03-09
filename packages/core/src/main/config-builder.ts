@@ -5,11 +5,9 @@
 
 import path from 'node:path';
 import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
-import { invariant } from '../utils/invariant.ts';
-
-import type { ImageProcessorConfig } from '@ecopages/image-processor';
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
-import type { IntegrationPlugin, PageMetadataProps } from '../public-types.ts';
+import type { ImageOptimization, IntegrationPlugin, PageMetadataProps } from '../public-types.ts';
+import { invariant } from '../utils/invariant.ts';
 
 export class ConfigBuilder {
   public config: EcoPagesAppConfig = {
@@ -149,7 +147,7 @@ export class ConfigBuilder {
     return this;
   }
 
-  setImageOptimization(imageOptimization: ImageProcessorConfig): this {
+  setImageOptimization(imageOptimization: ImageOptimization): this {
     this.config.imageOptimization = imageOptimization;
     return this;
   }

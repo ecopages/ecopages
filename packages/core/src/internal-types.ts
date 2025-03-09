@@ -1,5 +1,5 @@
 import type { ImageProcessorConfig } from '@ecopages/image-processor';
-import type { IntegrationPlugin, PageMetadataProps } from './public-types.ts';
+import type { ImageOptimization, IntegrationPlugin, PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from './router/fs-router.ts';
 
 /**
@@ -131,7 +131,7 @@ export type EcoPagesAppConfig = {
   /**
    * Image optimization configuration
    */
-  imageOptimization?: ImageProcessorConfig;
+  imageOptimization?: ImageOptimization;
 };
 
 export type IntegrationDependencyConfig = {

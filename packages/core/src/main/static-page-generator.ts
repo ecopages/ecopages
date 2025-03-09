@@ -1,6 +1,4 @@
 import path from 'node:path';
-import type { ImageProcessor } from '@ecopages/image-processor';
-import type { ImageRewriter } from '@ecopages/image-processor/image-rewriter';
 import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
@@ -13,24 +11,16 @@ const STATIC_GENERATION_ADAPTER_BASE_URL = `http://localhost:${STATIC_GENERATION
 export class StaticPageGenerator {
   appConfig: EcoPagesAppConfig;
   integrationManager: IntegrationManager;
-  imageProcessor: ImageProcessor | undefined;
-  imageRewriter: ImageRewriter | undefined;
 
   constructor({
     appConfig,
-    imageProcessor,
-    imageRewriter,
     integrationManager,
   }: {
     appConfig: EcoPagesAppConfig;
-    imageProcessor?: ImageProcessor;
-    imageRewriter?: ImageRewriter;
     integrationManager: IntegrationManager;
   }) {
     this.appConfig = appConfig;
     this.integrationManager = integrationManager;
-    this.imageProcessor = imageProcessor;
-    this.imageRewriter = imageRewriter;
   }
 
   generateRobotsTxt(): void {
@@ -71,12 +61,6 @@ export class StaticPageGenerator {
 
   async prepareDependencies() {
     await this.integrationManager.prepareDependencies();
-  }
-
-  async optimizeImages() {
-    if (this.appConfig.imageOptimization && this.imageProcessor) {
-      await this.imageProcessor.processDirectory();
-    }
   }
 
   async generateStaticPages() {
@@ -128,12 +112,7 @@ export class StaticPageGenerator {
 
         const contents = await response.text();
 
-        if (this.imageRewriter) {
-          const updatedContents = this.imageRewriter.enhanceImages(contents);
-          FileUtils.write(filePath, updatedContents);
-        } else {
-          FileUtils.write(filePath, contents);
-        }
+        FileUtils.write(filePath, contents);
       } catch (error) {
         console.error(`Error fetching or writing ${route}:`, error);
       }
@@ -145,7 +124,6 @@ export class StaticPageGenerator {
   async run() {
     this.generateRobotsTxt();
     await this.prepareDependencies();
-    await this.optimizeImages();
     await this.generateStaticPages();
   }
 }

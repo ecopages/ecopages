@@ -1,7 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ImageProcessor } from '@ecopages/image-processor';
-import { ImageRewriter } from '@ecopages/image-processor/image-rewriter';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import type { EcoPagesAppConfig } from 'src/internal-types.ts';
 import { appLogger } from '../global/app-logger.ts';
@@ -16,21 +14,6 @@ const validateConfig = (config: unknown): EcoPagesAppConfig => {
     throw new Error('[ecopages] Invalid config file, please provide a valid config file.');
   }
   return config as EcoPagesAppConfig;
-};
-
-const setupImageProcessing = (appConfig: EcoPagesAppConfig) => {
-  if (!appConfig.imageOptimization) {
-    return { imageProcessor: undefined, imageRewriter: undefined };
-  }
-
-  const imageConfig = {
-    ...appConfig.imageOptimization,
-    publicDir: appConfig.publicDir,
-  };
-
-  const imageProcessor = new ImageProcessor(imageConfig);
-  const imageRewriter = new ImageRewriter(imageProcessor);
-  return { imageProcessor, imageRewriter };
 };
 
 export async function buildApp({
@@ -58,7 +41,6 @@ export async function buildApp({
     staticPageGenerator: new StaticPageGenerator({
       appConfig,
       integrationManager: new IntegrationManager({ appConfig }),
-      ...setupImageProcessing(appConfig),
     }),
     cssBuilder: new CssBuilder({ processor: PostCssProcessor, appConfig }),
     scriptsBuilder: new ScriptsBuilder({

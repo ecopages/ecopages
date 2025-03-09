@@ -52,7 +52,9 @@ export interface ImageProcessorConfig {
  */
 export interface ImageVariant {
   /** Path to the processed image */
-  path: string;
+  originalPath: string;
+  /** Path to be used in HTML img tags (e.g. /assets/images/my-image.jpg) */
+  displayPath: string;
   /** Width of the processed image */
   width: number;
   /** Height of the processed image */
@@ -75,6 +77,8 @@ export interface ImageMap {
     variants: ImageVariant[];
     /** Path to the original image file */
     originalPath: string;
+    /** Path to be used in HTML img tags (e.g. /assets/images/my-image.jpg) */
+    displayPath: string;
     /** Srcset string for the image */
     srcset: string;
     /** Sizes string for the image */
@@ -94,9 +98,9 @@ export class ImageProcessor {
 
   constructor(config: ImageProcessorConfig) {
     this.config = config;
-    this.mapPath = path.join(config.cacheDir, 'image-map.json');
-    FileUtils.mkdirSync(config.cacheDir, { recursive: true });
-    FileUtils.mkdirSync(config.outputDir, { recursive: true });
+    this.mapPath = path.join(this.config.cacheDir, 'image-map.json');
+    FileUtils.mkdirSync(this.config.cacheDir, { recursive: true });
+    FileUtils.mkdirSync(this.config.outputDir, { recursive: true });
     this.loadImageMap();
   }
 
@@ -116,39 +120,6 @@ export class ImageProcessor {
    */
   private saveImageMap() {
     FileUtils.writeFileSync(this.mapPath, JSON.stringify(this.imageMap, null, 2));
-  }
-
-  /**
-   * Normalizes an image path for processing
-   * @param {string} absolutePath - Absolute path to the image file
-   * @returns {string} Normalized path for processing
-   * @private
-   */
-  private normalizeImagePath(absolutePath: string): string {
-    if (!absolutePath) {
-      return '';
-    }
-
-    const normalizedPath = path.normalize(absolutePath);
-
-    if (this.imageMap[normalizedPath]) {
-      return normalizedPath;
-    }
-
-    if (this.config.publicDir) {
-      const publicDir = path.normalize(this.config.publicDir);
-      const index = normalizedPath.indexOf(publicDir);
-
-      if (index !== -1) {
-        return `/${normalizedPath
-          .slice(index + publicDir.length)
-          .split(path.sep)
-          .filter(Boolean)
-          .join('/')}`;
-      }
-    }
-
-    return absolutePath;
   }
 
   /**
@@ -174,13 +145,9 @@ export class ImageProcessor {
    * @private
    */
   private generateSrcsetString(variants: ImageVariant[]): string {
-    const publicPath = this.config.publicPath || '/output';
-    return [...variants]
+    return variants
       .sort((a, b) => b.width - a.width)
-      .map((variant) => {
-        const filename = path.basename(variant.path);
-        return `${publicPath}/${filename} ${variant.width}w`;
-      })
+      .map((variant) => `${variant.displayPath} ${variant.width}w`)
       .join(', ');
   }
 
@@ -218,7 +185,7 @@ export class ImageProcessor {
           return `(min-width: ${viewportWidth}px) 80vw`;
         }
 
-        return null; // Skip mobile breakpoints
+        return null;
       })
       .filter(Boolean);
 
@@ -228,28 +195,31 @@ export class ImageProcessor {
   }
 
   /**
+   * Get the display path from the absolute path
+   */
+  getDisplayPath(imagePath: string): string {
+    const publicDir = this.config.publicDir || 'public';
+    const indexStartPublicDir = this.config.imagesDir.indexOf(publicDir);
+    const relativePath = this.config.imagesDir.substring(indexStartPublicDir);
+    return `/${relativePath}/${path.basename(imagePath)}`;
+  }
+
+  /**
    * Processes a single image file
    * @param {string} imagePath - Path to the image file to process
    * @returns {Promise<ImageVariant[]>} Array of processed image variants
    */
   async processImage(imagePath: string): Promise<ImageVariant[]> {
-    const normalizedPath = this.normalizeImagePath(imagePath);
+    const displayPath = this.getDisplayPath(imagePath);
     const processablePath = this.getProcessablePath(imagePath);
     const hash = FileUtils.getFileHash(processablePath);
 
-    if (this.imageMap[normalizedPath]?.hash === hash) {
-      return this.imageMap[normalizedPath].variants;
+    if (this.imageMap[displayPath]?.hash === hash) {
+      return this.imageMap[displayPath].variants;
     }
 
     const format = this.config.format || 'webp';
     const filename = path.basename(processablePath, path.extname(processablePath));
-
-    const defaultSizes = [
-      { width: 1920, label: 'xl' },
-      { width: 1024, label: 'lg' },
-      { width: 768, label: 'md' },
-      { width: 320, label: 'sm' },
-    ];
 
     const originalImage = sharp(processablePath);
     const metadata = await originalImage.metadata();
@@ -257,47 +227,50 @@ export class ImageProcessor {
     const originalHeight = metadata.height || 0;
     const aspectRatio = originalHeight / originalWidth;
 
-    const sizes = this.config.sizes || defaultSizes;
-    const sortedSizes = [...sizes].sort((a, b) => b.width - a.width);
+    const sizes =
+      !this.config.sizes || this.config.sizes.length === 0
+        ? [{ width: originalWidth, label: 'original' }]
+        : this.config.sizes;
 
-    const uniqueSizes = sortedSizes.reduce((acc: ImageSize[], size) => {
-      const cappedWidth = Math.min(size.width, originalWidth);
-      const existingIndex = acc.findIndex((s) => s.width === cappedWidth);
+    const uniqueSizes = sizes
+      .map((size) => ({
+        width: Math.min(size.width, originalWidth),
+        label: size.label,
+      }))
+      .sort((a, b) => b.width - a.width)
+      .filter((size, index, array) => array.findIndex((s) => s.width === size.width) === index);
 
-      if (existingIndex === -1) acc.push({ width: cappedWidth, label: size.label });
-
-      return acc;
-    }, []);
     const variants: ImageVariant[] = [];
 
     for (const size of uniqueSizes) {
       const labelPart = size.label ? `-${size.label}` : '';
       const outputBasename = `${filename}${labelPart}${ImageProcessor.OPTIMIZED_SUFFIX}${format}`;
       const outputPath = path.join(this.config.outputDir, outputBasename);
+      const publicPath = this.config.publicPath || '/output';
+      const variantDisplayPath = path.join(publicPath, outputBasename);
 
       const height = Math.round(size.width * aspectRatio);
 
-      // Process image
       await sharp(processablePath)
         .resize(size.width, height)
         [format]({ quality: this.config.quality || 80 })
         .toFile(outputPath);
 
       variants.push({
-        path: outputPath,
+        originalPath: outputPath,
+        displayPath: variantDisplayPath,
         width: size.width,
         height,
-        label: size.label || '',
+        label: size.label,
         format,
       });
     }
 
-    variants.sort((a, b) => b.width - a.width);
-
-    this.imageMap[normalizedPath] = {
+    this.imageMap[displayPath] = {
       hash,
       variants,
       originalPath: processablePath,
+      displayPath,
       srcset: this.generateSrcsetString(variants),
       sizes: this.generateSizesString(variants),
     };
@@ -313,8 +286,7 @@ export class ImageProcessor {
    */
   generateSrcset(imagePath: string): string {
     try {
-      const normalizedPath = this.normalizeImagePath(imagePath);
-      return this.imageMap[normalizedPath]?.srcset || '';
+      return this.imageMap[imagePath]?.srcset || '';
     } catch (error) {
       appLogger.debug(`Error generating srcset for ${imagePath}: ${error}`);
       return '';
@@ -328,8 +300,7 @@ export class ImageProcessor {
    */
   generateSizes(imagePath: string): string {
     try {
-      const normalizedPath = this.normalizeImagePath(imagePath);
-      return this.imageMap[normalizedPath]?.sizes || '';
+      return this.imageMap[imagePath]?.sizes || '';
     } catch (error) {
       appLogger.debug(`Error generating sizes for ${imagePath}: ${error}`);
       return '';
@@ -355,7 +326,7 @@ export class ImageProcessor {
    * @returns {string} Public path for image URLs
    */
   getPublicPath(): string {
-    return this.config.publicPath || '/output';
+    return this.config.publicPath || '/public';
   }
 
   /**

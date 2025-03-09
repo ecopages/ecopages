@@ -3,18 +3,23 @@
  * @module
  */
 
-import path from 'node:path';
-import { Logger } from '@ecopages/logger';
 import type { ImageMap, ImageProcessor, ImageVariant } from './image-processor';
 
-const appLogger = new Logger('[@ecopages/image-processor]');
-
+/**
+ * Custom attributes for the image element
+ */
 export const CUSTOM_IMAGE_ATTRIBUTES = {
   'data-static-variant': 'data-static-variant',
 } as const;
 
+/**
+ * Custom attributes for the image element
+ */
 export type CustomImageAttributes = typeof CUSTOM_IMAGE_ATTRIBUTES;
 
+/**
+ * Options for the image element, including custom attributes
+ */
 export type ImageOptions = Partial<HTMLImageElement> & {
   [K in keyof CustomImageAttributes]?: string;
 };
@@ -86,6 +91,10 @@ export class ImageRewriter implements BaseImageRewriter {
     this.rewriter = this.createRewriter();
   }
 
+  /**
+   * Instantiates a new HTMLRewriter instance
+   * @returns HTMLRewriter instance
+   */
   private createRewriter(): HTMLRewriter {
     return new HTMLRewriter().on(
       'img',
@@ -95,6 +104,12 @@ export class ImageRewriter implements BaseImageRewriter {
     );
   }
 
+  /**
+   * Enhances img elements in HTML with responsive attributes.
+   * It supports both string and Response inputs.
+   * @param html - HTML string or Response object
+   * @returns Enhanced HTML string or Response object
+   */
   async enhanceImages<T = Response | string>(html: T): Promise<T> {
     if (html instanceof Response) {
       const text = await html.text();

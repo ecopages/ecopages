@@ -62,7 +62,7 @@ export interface ImageVariant {
   /** Label used for this variant */
   label: string;
   /** Format of the processed image */
-  format: string;
+  format: keyof sharp.FormatEnum;
 }
 
 /**
@@ -92,7 +92,26 @@ export interface ImageMap {
  */
 export class ImageProcessor {
   static readonly OPTIMIZED_SUFFIX = '.opt.';
-  config: ImageProcessorConfig;
+
+  private static readonly DEFAULT_CONFIG = {
+    quality: 80,
+    format: 'webp' as const,
+    publicDir: 'public',
+    publicPath: '/output',
+  };
+
+  private static readonly BREAKPOINTS = {
+    desktop: 1024,
+    tablet: 768,
+  } as const;
+
+  private static readonly VIEWPORT_SIZES = {
+    desktop: '70vw',
+    tablet: '80vw',
+    mobile: '100vw',
+  } as const;
+
+  private config: ImageProcessorConfig;
   private imageMap: ImageMap = {};
   private mapPath: string;
 
@@ -165,45 +184,78 @@ export class ImageProcessor {
    * @private
    */
   private generateSizesString(variants: ImageVariant[]): string {
-    if (!variants || variants.length === 0) {
-      return '';
-    }
+    if (!variants?.length) return '';
 
     const sortedVariants = [...variants].sort((a, b) => b.width - a.width);
+    const [largest, ...rest] = sortedVariants;
 
-    const sizeConditions = sortedVariants
-      .map((variant, index) => {
-        if (index === 0) return `(min-width: ${variant.width}px) ${variant.width}px`;
+    const conditions = [
+      `(min-width: ${largest.width}px) ${largest.width}px`,
+      ...rest
+        .map((variant) => {
+          if (variant.width >= ImageProcessor.BREAKPOINTS.desktop) {
+            return `(min-width: ${variant.width}px) ${ImageProcessor.VIEWPORT_SIZES.desktop}`;
+          }
+          if (variant.width >= ImageProcessor.BREAKPOINTS.tablet) {
+            return `(min-width: ${variant.width}px) ${ImageProcessor.VIEWPORT_SIZES.tablet}`;
+          }
+          return null;
+        })
+        .filter(Boolean),
+      ImageProcessor.VIEWPORT_SIZES.mobile,
+    ];
 
-        const viewportWidth = variant.width;
-
-        if (viewportWidth >= 1024) {
-          return `(min-width: ${viewportWidth}px) 70vw`;
-        }
-
-        if (viewportWidth >= 768) {
-          return `(min-width: ${viewportWidth}px) 80vw`;
-        }
-
-        return null;
-      })
-      .filter(Boolean);
-
-    sizeConditions.push('100vw');
-
-    return sizeConditions.join(', ');
+    return conditions.join(', ');
   }
 
   /**
    * Get the display path from the absolute path
    */
   getDisplayPath(imagePath: string): string {
-    const publicDir = this.config.publicDir || 'public';
-    const indexStartPublicDir = this.config.imagesDir.indexOf(publicDir);
-    const relativePath = this.config.imagesDir.substring(indexStartPublicDir);
+    const publicDir = this.config.publicDir || ImageProcessor.DEFAULT_CONFIG.publicDir;
+    const normalizedImagesDir = path.normalize(this.config.imagesDir);
+    const indexStartPublicDir = normalizedImagesDir.indexOf(publicDir);
+    const relativePath = normalizedImagesDir.substring(indexStartPublicDir);
     return `/${relativePath}/${path.basename(imagePath)}`;
   }
 
+  private async calculateDimensions(imagePath: string, targetWidth: number) {
+    const metadata = await sharp(imagePath).metadata();
+    const originalWidth = metadata.width || 0;
+    const originalHeight = metadata.height || 0;
+    const aspectRatio = originalHeight / originalWidth;
+    const width = Math.min(targetWidth, originalWidth);
+    const height = Math.round(width * aspectRatio);
+    return { width, height };
+  }
+
+  private async createVariant(
+    processablePath: string,
+    size: ImageSize,
+    format: Required<ImageProcessorConfig['format']>,
+    filename: string,
+  ): Promise<ImageVariant> {
+    const labelPart = size.label ? `-${size.label}` : '';
+    const outputBasename = `${filename}${labelPart}${ImageProcessor.OPTIMIZED_SUFFIX}${format}`;
+    const outputPath = path.join(this.config.outputDir, outputBasename);
+    const publicPath = this.config.publicPath || ImageProcessor.DEFAULT_CONFIG.publicPath;
+    const variantDisplayPath = path.join(publicPath, outputBasename);
+    const safeFormat = format || ImageProcessor.DEFAULT_CONFIG.format;
+    const safeQuality = this.config.quality || ImageProcessor.DEFAULT_CONFIG.quality;
+
+    const { width, height } = await this.calculateDimensions(processablePath, size.width);
+
+    await sharp(processablePath).resize(width, height)[safeFormat]({ quality: safeQuality }).toFile(outputPath);
+
+    return {
+      originalPath: outputPath,
+      displayPath: variantDisplayPath,
+      width,
+      height,
+      label: size.label,
+      format: safeFormat,
+    };
+  }
   /**
    * Processes a single image file
    * @param {string} imagePath - Path to the image file to process
@@ -218,14 +270,10 @@ export class ImageProcessor {
       return this.imageMap[displayPath].variants;
     }
 
-    const format = this.config.format || 'webp';
+    const format = this.config.format || ImageProcessor.DEFAULT_CONFIG.format;
     const filename = path.basename(processablePath, path.extname(processablePath));
 
-    const originalImage = sharp(processablePath);
-    const metadata = await originalImage.metadata();
-    const originalWidth = metadata.width || 0;
-    const originalHeight = metadata.height || 0;
-    const aspectRatio = originalHeight / originalWidth;
+    const { width: originalWidth } = await this.calculateDimensions(processablePath, Number.POSITIVE_INFINITY);
 
     const sizes =
       !this.config.sizes || this.config.sizes.length === 0
@@ -242,28 +290,9 @@ export class ImageProcessor {
 
     const variants: ImageVariant[] = [];
 
-    for (const size of uniqueSizes) {
-      const labelPart = size.label ? `-${size.label}` : '';
-      const outputBasename = `${filename}${labelPart}${ImageProcessor.OPTIMIZED_SUFFIX}${format}`;
-      const outputPath = path.join(this.config.outputDir, outputBasename);
-      const publicPath = this.config.publicPath || '/output';
-      const variantDisplayPath = path.join(publicPath, outputBasename);
-
-      const height = Math.round(size.width * aspectRatio);
-
-      await sharp(processablePath)
-        .resize(size.width, height)
-        [format]({ quality: this.config.quality || 80 })
-        .toFile(outputPath);
-
-      variants.push({
-        originalPath: outputPath,
-        displayPath: variantDisplayPath,
-        width: size.width,
-        height,
-        label: size.label,
-        format,
-      });
+    for await (const size of uniqueSizes) {
+      const variant = await this.createVariant(processablePath, size, format, filename);
+      variants.push(variant);
     }
 
     this.imageMap[displayPath] = {

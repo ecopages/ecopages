@@ -7,6 +7,8 @@ import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
+import { DEFAULT_CONFIG } from './constants';
+import { ImageUtils } from './image-utils';
 
 const appLogger = new Logger('[@ecopages/image-processor]', {
   debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
@@ -33,13 +35,13 @@ export interface ImageProcessorConfig {
   /** Directory where processed images will be saved */
   outputDir: string;
   /** Array of sizes to generate (default: [original size]) */
-  sizes?: ImageSize[];
+  sizes: ImageSize[];
   /** Directory for caching processing metadata */
   cacheDir: string;
   /** Quality setting for image compression (default: 80) */
   quality?: number;
   /** Format for the processed images (default: 'webp') */
-  format?: 'webp' | 'jpeg' | 'png' | 'avif';
+  format: 'webp' | 'jpeg' | 'png' | 'avif';
   /** Public URL path for the processed images (e.g., '/assets/images') */
   publicPath?: string;
   /** Directory for public assets (default: 'public') */
@@ -62,7 +64,7 @@ export interface ImageVariant {
   /** Label used for this variant */
   label: string;
   /** Format of the processed image */
-  format: keyof sharp.FormatEnum;
+  format: 'webp' | 'jpeg' | 'png' | 'avif';
 }
 
 /**
@@ -91,32 +93,17 @@ export interface ImageMap {
  * @class ImageProcessor
  */
 export class ImageProcessor {
-  static readonly OPTIMIZED_SUFFIX = '.opt.';
+  private static readonly DEFAULT_CONFIG = DEFAULT_CONFIG;
 
-  private static readonly DEFAULT_CONFIG = {
-    quality: 80,
-    format: 'webp' as const,
-    publicDir: 'public',
-    publicPath: '/output',
-  };
-
-  private static readonly BREAKPOINTS = {
-    desktop: 1024,
-    tablet: 768,
-  } as const;
-
-  private static readonly VIEWPORT_SIZES = {
-    desktop: '70vw',
-    tablet: '80vw',
-    mobile: '100vw',
-  } as const;
-
-  private config: ImageProcessorConfig;
+  config: ImageProcessorConfig;
   private imageMap: ImageMap = {};
   private mapPath: string;
 
   constructor(config: ImageProcessorConfig) {
-    this.config = config;
+    this.config = {
+      ...DEFAULT_CONFIG,
+      ...config,
+    };
     this.mapPath = path.join(this.config.cacheDir, 'image-map.json');
     FileUtils.mkdirSync(this.config.cacheDir, { recursive: true });
     FileUtils.mkdirSync(this.config.outputDir, { recursive: true });
@@ -164,10 +151,7 @@ export class ImageProcessor {
    * @private
    */
   private generateSrcsetString(variants: ImageVariant[]): string {
-    return variants
-      .sort((a, b) => b.width - a.width)
-      .map((variant) => `${variant.displayPath} ${variant.width}w`)
-      .join(', ');
+    return ImageUtils.generateSrcset(variants);
   }
 
   /**
@@ -184,28 +168,7 @@ export class ImageProcessor {
    * @private
    */
   private generateSizesString(variants: ImageVariant[]): string {
-    if (!variants?.length) return '';
-
-    const sortedVariants = [...variants].sort((a, b) => b.width - a.width);
-    const [largest, ...rest] = sortedVariants;
-
-    const conditions = [
-      `(min-width: ${largest.width}px) ${largest.width}px`,
-      ...rest
-        .map((variant) => {
-          if (variant.width >= ImageProcessor.BREAKPOINTS.desktop) {
-            return `(min-width: ${variant.width}px) ${ImageProcessor.VIEWPORT_SIZES.desktop}`;
-          }
-          if (variant.width >= ImageProcessor.BREAKPOINTS.tablet) {
-            return `(min-width: ${variant.width}px) ${ImageProcessor.VIEWPORT_SIZES.tablet}`;
-          }
-          return null;
-        })
-        .filter(Boolean),
-      ImageProcessor.VIEWPORT_SIZES.mobile,
-    ];
-
-    return conditions.join(', ');
+    return ImageUtils.generateSizes(variants);
   }
 
   /**
@@ -236,7 +199,7 @@ export class ImageProcessor {
     filename: string,
   ): Promise<ImageVariant> {
     const labelPart = size.label ? `-${size.label}` : '';
-    const outputBasename = `${filename}${labelPart}${ImageProcessor.OPTIMIZED_SUFFIX}${format}`;
+    const outputBasename = `${filename}${labelPart}.${format}`;
     const outputPath = path.join(this.config.outputDir, outputBasename);
     const publicPath = this.config.publicPath || ImageProcessor.DEFAULT_CONFIG.publicPath;
     const variantDisplayPath = path.join(publicPath, outputBasename);

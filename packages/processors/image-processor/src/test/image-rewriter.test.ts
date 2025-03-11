@@ -126,7 +126,7 @@ describe('ImageRewriter', () => {
       const html = `<img src="${imagesPath[0]}" data-static-variant="md">`;
       const result = await rewriter.enhanceImages(html);
 
-      expect(result).toContain('-md.opt.webp');
+      expect(result).toContain('-md.webp');
       expect(result).not.toContain('srcset=');
       expect(result).not.toContain('data-static-variant');
     });

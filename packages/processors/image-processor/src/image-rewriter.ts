@@ -3,19 +3,9 @@
  * @module
  */
 
-import type { ImageMap, ImageProcessor, ImageVariant } from './image-processor';
-
-/**
- * Custom attributes for the image element
- */
-export const CUSTOM_IMAGE_ATTRIBUTES = {
-  'data-static-variant': 'data-static-variant',
-} as const;
-
-/**
- * Custom attributes for the image element
- */
-export type CustomImageAttributes = typeof CUSTOM_IMAGE_ATTRIBUTES;
+import type { CustomImageAttributes } from './constants';
+import { ImageElementUtils } from './image-element-utils';
+import type { ImageMap, ImageProcessor } from './image-processor';
 
 /**
  * Options for the image element, including custom attributes
@@ -24,6 +14,9 @@ export type ImageOptions = Partial<HTMLImageElement> & {
   [K in keyof CustomImageAttributes]?: string;
 };
 
+/**
+ * Base interface for image rewriters
+ */
 export interface BaseImageRewriter {
   /**
    * Enhances img elements in HTML with responsive attributes
@@ -41,6 +34,7 @@ interface ImageHandlerOptions {
  */
 class ImageElementHandler {
   private imageMap: ImageMap;
+  private utils = new ImageElementUtils();
 
   constructor({ imageMap }: ImageHandlerOptions) {
     this.imageMap = imageMap;
@@ -53,29 +47,11 @@ class ImageElementHandler {
     const entry = this.imageMap[src];
     if (!entry) return;
 
-    const staticVariant = element.getAttribute('data-static-variant');
-    element.removeAttribute('data-static-variant');
-
-    if (staticVariant) {
-      const variant = entry.variants.find((v) => v.label === staticVariant);
-
-      if (variant) {
-        element.setAttribute('src', variant.displayPath);
-        element.setAttribute('width', variant.width.toString());
-        element.setAttribute('height', variant.height.toString());
-        return;
-      }
-    }
-
-    const largestVariant = entry.variants[0];
-
-    element.setAttribute('src', largestVariant.displayPath);
-    element.setAttribute('width', largestVariant.width.toString());
-    element.setAttribute('height', largestVariant.height.toString());
-    element.setAttribute('srcset', entry.srcset);
-    if (entry.sizes) {
-      element.setAttribute('sizes', entry.sizes);
-    }
+    this.utils.enhance(element, {
+      variants: entry.variants,
+      srcset: entry.srcset,
+      sizes: entry.sizes,
+    });
   }
 }
 

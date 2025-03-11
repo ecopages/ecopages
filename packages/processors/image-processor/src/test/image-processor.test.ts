@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
-import { ImageProcessor, type ImageVariant } from 'src/image-processor';
+import { DEFAULT_CONFIG } from 'src/constants';
+import type { ImageVariant } from 'src/image-processor';
 import {
   PUBLIC_PATH,
   cleanUpBeforeTest,
@@ -37,8 +38,8 @@ describe('ImageProcessor', () => {
     expect(variants).toBeInstanceOf(Array);
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      displayPath: path.join(PUBLIC_PATH, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
-      originalPath: path.join(context.outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp`),
+      displayPath: path.join(PUBLIC_PATH, 'basic-xl.webp'),
+      originalPath: path.join(context.outputDir, 'basic-xl.webp'),
       width: 400,
       height: 300,
       label: 'xl',
@@ -71,8 +72,8 @@ describe('ImageProcessor', () => {
 
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
-      displayPath: path.join(PUBLIC_PATH, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}jpeg`),
-      originalPath: path.join(context.outputDir, `basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}jpeg`),
+      displayPath: path.join(PUBLIC_PATH, 'basic-xl.jpeg'),
+      originalPath: path.join(context.outputDir, 'basic-xl.jpeg'),
       width: 400,
       height: 300,
       label: 'xl',
@@ -139,10 +140,10 @@ describe('ImageProcessor', () => {
 
     expect(entry.srcset).toBe(
       [
-        `/output/large-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp 1920w`,
-        `/output/large-lg${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
-        `/output/large-md${ImageProcessor.OPTIMIZED_SUFFIX}webp 768w`,
-        `/output/large-sm${ImageProcessor.OPTIMIZED_SUFFIX}webp 320w`,
+        '/output/large-xl.webp 1920w',
+        '/output/large-lg.webp 1024w',
+        '/output/large-md.webp 768w',
+        '/output/large-sm.webp 320w',
       ].join(', '),
     );
   });
@@ -164,7 +165,7 @@ describe('ImageProcessor', () => {
 
     const entry = imageMap[context.testImages.basic.path.split('/test').pop() as string];
 
-    expect(entry.srcset).toBe('/assets/images/basic-md.opt.webp 768w, /assets/images/basic-sm.opt.webp 320w');
+    expect(entry.srcset).toBe('/assets/images/basic-md.webp 768w, /assets/images/basic-sm.webp 320w');
   });
 
   test('generateSrcset with non-existent image', () => {
@@ -215,11 +216,7 @@ describe('ImageProcessor', () => {
     });
 
     expect(entry.srcset).toBe(
-      [
-        `/output/basic-xl${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
-        `/output/basic-md${ImageProcessor.OPTIMIZED_SUFFIX}webp 800w`,
-        `/output/basic-sm${ImageProcessor.OPTIMIZED_SUFFIX}webp 400w`,
-      ].join(', '),
+      ['/output/basic-xl.webp 1024w', '/output/basic-md.webp 800w', '/output/basic-sm.webp 400w'].join(', '),
     );
   });
 
@@ -245,11 +242,7 @@ describe('ImageProcessor', () => {
     expect(entry.variants.map((v) => v.width)).toEqual([1024, 800, 400]);
 
     expect(entry.srcset).toBe(
-      [
-        `/output/basic-lg${ImageProcessor.OPTIMIZED_SUFFIX}webp 1024w`,
-        `/output/basic-md${ImageProcessor.OPTIMIZED_SUFFIX}webp 800w`,
-        `/output/basic-sm${ImageProcessor.OPTIMIZED_SUFFIX}webp 400w`,
-      ].join(', '),
+      ['/output/basic-lg.webp 1024w', '/output/basic-md.webp 800w', '/output/basic-sm.webp 400w'].join(', '),
     );
   });
 
@@ -289,17 +282,18 @@ describe('ImageProcessor', () => {
     expect(processor.processImage(invalidPath)).rejects.toThrow();
   });
 
-  test('processes image with no sizes specified', async () => {
+  test('processes image with default sizes if not specified', async () => {
     const processor = createTestProcessor(context, {
       quality: 80,
       format: 'webp',
-      sizes: [],
     });
 
-    const variants = await processor.processImage(context.testImages.basic.path);
+    const variants = await processor.processImage(context.testImages.large.path);
 
-    expect(variants).toHaveLength(1);
-    expect(variants[0].width).toBe(context.testImages.basic.width);
+    expect(variants).toHaveLength(3);
+    expect(variants[0].width).toBe(DEFAULT_CONFIG.sizes[0].width);
+    expect(variants[1].width).toBe(DEFAULT_CONFIG.sizes[1].width);
+    expect(variants[2].width).toBe(DEFAULT_CONFIG.sizes[2].width);
   });
 
   test('processes image in AVIF format', async () => {
@@ -314,7 +308,7 @@ describe('ImageProcessor', () => {
     expect(variants).toHaveLength(1);
     expect(variants[0]).toMatchObject({
       format: 'avif',
-      displayPath: expect.stringContaining('.opt.avif'),
+      displayPath: expect.stringContaining('avif'),
     });
   });
 

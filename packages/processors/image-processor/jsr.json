@@ -5,7 +5,8 @@
 	"exports": {
 		".": "./src/postcss-processor.ts",
 		"./image-rewriter": "./src/image-rewriter.ts",
-		"./image-html-rewriter": "./src/image-html-rewriter.ts"
+		"./image-html-rewriter": "./src/image-html-rewriter.ts",
+		"./client-processor": "./src/client-processor.ts"
 	},
 	"exclude": ["src/test"],
 	"publish": {

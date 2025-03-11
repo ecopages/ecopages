@@ -1,61 +1,172 @@
-# Image Processor
+# @ecopages/image-processor
 
-# Proposed Feature: Data Attributes for Custom Width & Srcset
+A lightweight, performant image optimization and responsive image processor for both server and client side usage.
 
-## Overview
+## Features
 
-We propose allowing users to set a data attribute on <img> tags to specify a custom width or entirely custom srcset. This approach can override default sizing logic for scenarios like:
+- Zero-config server-side image optimization
+- Client-side responsive image enhancement
+- Multiple layout options: fixed, constrained, full-width
+- Automatic srcset and sizes generation
+- Smart viewport-based sizing
+- Support for WebP, AVIF, JPEG, and PNG
+- Preserves aspect ratios
+- Built-in caching system
+- Mutation Observer for dynamic content
 
-- Fixed card images (always 300px wide or smaller).
-- Small avatar images that never exceed a certain dimension.
-- Advanced users needing to fully customize srcset breakpoints beyond the defaults.
+## Installation
 
-## Possible Usage Example
+```bash
+npm install @ecopages/image-processor
+```
 
-<img src="/assets/image.jpg" data-static-variant="small" alt="Avatar" />
+## Server-Side Usage
 
-If data-static-variant is present, the processor should use the specified size instead of the default logic. This is useful for simple cases where a fixed size is sufficient.
+```typescript
+import { ImageProcessor, ImageRewriter } from "@ecopages/image-processor";
 
-For more advanced control:
-<img src="/assets/large.jpg" data-srcset="(max-width: small) small, (max-width: medium) medium" alt="Custom" />
+const processor = new ImageProcessor({
+	imagesDir: "src/public/assets/images",
+	outputDir: "src/public/assets/opt-images",
+	publicPath: "/public/assets/opt-images",
+	quality: 80,
+	format: "webp",
+	sizes: [
+		{ width: 320, label: "sm" },
+		{ width: 768, label: "md" },
+		{ width: 1024, label: "lg" },
+	],
+});
 
-When data-srcset is present, the processor can skip default logic and insert the user-defined srcset.
+// Process all images in directory
+await processor.processDirectory();
 
-## Updated Clarifications
+// Enhance HTML with responsive images
+const rewriter = new ImageRewriter(processor);
+const enhancedHtml = await rewriter.enhanceImages(html);
+```
 
-Instead of “suffix,” we might use a more descriptive name like “label”. This makes it easier to refer to each size in data-srcset. For example:
+## Client-Side Usage
 
-> sizes: [
->
-> > { width: 320, label: 'small' },
-> > { width: 768, label: 'medium' },
-> > ]
-> > Then you could write:
-> > <img src="/assets/large.jpg" data-srcset="(max-width: small) small, (max-width: medium) medium" alt="Custom" />
+1. Add the configuration to your HTML:
 
-This clarifies which size label the processor uses without relying on arbitrary numeric values.
+```html
+<script type="application/json" id="eco-images-config">
+	{
+		"sizes": [
+			{ "width": 320, "label": "sm" },
+			{ "width": 768, "label": "md" },
+			{ "width": 1024, "label": "lg" }
+		],
+		"format": "webp",
+		"quality": 80,
+		"publicPath": "/public/assets/opt-images"
+	}
+</script>
+```
 
-## Rationale
+2. Use the client-side processor:
 
-- “label” better conveys the idea of identifying a particular variant. Label will be added to the file name to create a unique identifier using a consistent naming convention via dash separator.
-- “data-srcset” references meaningful labels instead of numeric breaks.
-- Reduces confusion when specifying manual breakpoints.
+```typescript
+import { ImagePropsGenerator } from "@ecopages/image-processor";
 
-## Potential Benefits
+const generator = new ImagePropsGenerator("eco-images-config");
 
-- Avoid overfetching large images when a known smaller width is sufficient.
-- Allow direct developer control for complex layout requirements.
-- Keep the standard sizes for general usage, but enable per-image overrides.
+// Generate attributes for an image
+const attrs = generator.generateAttributes({
+	src: "/path/to/image.jpg",
+	alt: "My Image",
+	width: 800,
+	height: 600,
+	layout: "constrained",
+	priority: true,
+});
 
-## Implementation Steps
+// Or render directly to string
+const html = generator.renderImageToString({
+	src: "/path/to/image.jpg",
+	alt: "My Image",
+	width: 800,
+	layout: "constrained",
+});
+```
 
-1. Enhance PictureGenerator or ImageProcessor to look for data-static-variant or data-srcset in <img> tags.
-2. If data-static-variant is found, generate or pick an image variant sized to that value.
-3. If data-srcset is found, bypass default calculations and insert the custom srcset directly.
-4. Provide fallback logic if the specified attributes are invalid or unavailable.
+## Layout Options
 
-## Default Behavior
+### Fixed Layout
 
-If neither data-static-variant nor data-srcset is provided, the existing standard approach remains in place, so no explicit “fallback” logic is needed. The image processor will handle images using the normal sizes configuration as it does today.
+The image maintains its exact dimensions:
 
-_No actual code changes yet. This is just a design note. Feedback is welcome before applying._
+```typescript
+generator.generateAttributes({
+	src: "image.jpg",
+	alt: "Fixed image",
+	width: 800,
+	height: 600,
+	layout: "fixed",
+});
+```
+
+### Constrained Layout
+
+The image scales down for smaller viewports but maintains its maximum dimensions:
+
+```typescript
+generator.generateAttributes({
+	src: "image.jpg",
+	alt: "Constrained image",
+	width: 1200,
+	layout: "constrained",
+});
+```
+
+### Full-Width Layout
+
+The image spans the full width of its container:
+
+```typescript
+generator.generateAttributes({
+	src: "image.jpg",
+	alt: "Full width image",
+	layout: "full-width",
+});
+```
+
+## Configuration
+
+### Server-Side Options
+
+| Option       | Type                                    | Description                          |
+| ------------ | --------------------------------------- | ------------------------------------ |
+| `imagesDir`  | `string`                                | Source directory for original images |
+| `outputDir`  | `string`                                | Directory for optimized images       |
+| `publicPath` | `string`                                | Public URL path for images           |
+| `quality`    | `number`                                | Output image quality (0-100)         |
+| `format`     | `'webp' \| 'avif' \| 'jpeg' \| 'png'`   | Output format                        |
+| `sizes`      | `Array<{width: number, label: string}>` | Responsive size variants             |
+
+### Client-Side Props
+
+| Prop          | Type                                       | Description                     |
+| ------------- | ------------------------------------------ | ------------------------------- |
+| `src`         | `string`                                   | Image source path               |
+| `alt`         | `string`                                   | Alt text for accessibility      |
+| `width`       | `number`                                   | Desired image width             |
+| `height`      | `number`                                   | Desired image height            |
+| `layout`      | `'fixed' \| 'constrained' \| 'full-width'` | Layout strategy                 |
+| `priority`    | `boolean`                                  | Priority loading for LCP images |
+| `aspectRatio` | `string`                                   | Force specific aspect ratio     |
+
+## Best Practices
+
+- Use `priority` for Above-the-fold images
+- Provide meaningful size variants based on your layout
+- Consider using AVIF for modern browsers
+- Keep original images in a separate directory
+- Use descriptive labels for size variants
+
+## Browser Support
+
+- Modern browsers (Chrome, Firefox, Safari, Edge)
+- WebP: [Can I use WebP?](https://caniuse.com/webp)
+- AVIF: [Can I use AVIF?](https://caniuse.com/avif)

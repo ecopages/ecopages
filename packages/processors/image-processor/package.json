@@ -31,6 +31,10 @@
 		"./image-html-rewriter": {
 			"default": "./src/image-html-rewriter.ts",
 			"types": "./src/image-html-rewriter.ts"
+		},
+		"./client-processor": {
+			"default": "./src/client-processor.ts",
+			"types": "./src/client-processor.ts"
 		}
 	}
 }

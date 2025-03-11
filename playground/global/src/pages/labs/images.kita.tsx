@@ -11,50 +11,53 @@ export const getMetadata: GetMetadata = () => ({
 const HomePage: EcoComponent = () => {
   return (
     <BaseLayout class="grid gap-8">
-      <>
-        <h1 class="main-title">Images</h1>
-        <div class="max-w-80 mx-auto">
-          <img
-            class="object-fit"
-            src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
-            alt="Ezi unsplash"
-            loading="lazy"
-          />
-        </div>
-
-        <div class="grid grid-cols-4 gap-4 place-items-stretch">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <img
-              class="w-auto"
-              src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
-              alt="Demo"
-              data-static-variant="sm"
-            />
-          ))}
-        </div>
-        <div class="grid grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <img
-              class="w-auto"
-              src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
-              alt="Demo"
-              data-static-variant="sm"
-            />
-          ))}
-        </div>
-        <img
-          class="object-fit w-full"
-          src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
-          alt="Ezi unsplash"
-          loading="lazy"
-        />
+      <script type="application/json" id="eco-images-config">
+        {JSON.stringify(global.ecoConfig.imageOptimization?.processor?.config)}
+      </script>
+      <h1 class="main-title">Images</h1>
+      <a href="/labs/client-images" class="text-blue-500">
+        Go to client images
+      </a>
+      <div class="max-w-80 mx-auto">
         <img
           class="object-fit"
           src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
           alt="Ezi unsplash"
           loading="lazy"
         />
-      </>
+      </div>
+      <div class="grid grid-cols-4 gap-4 place-items-stretch">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <img
+            class="w-auto"
+            src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
+            alt="Demo"
+            data-static-variant="sm"
+          />
+        ))}
+      </div>
+      <div class="grid grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <img
+            class="w-auto"
+            src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
+            alt="Demo"
+            data-static-variant="sm"
+          />
+        ))}
+      </div>
+      <img
+        class="object-fit w-full"
+        src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
+        alt="Ezi unsplash"
+        loading="lazy"
+      />
+      <img
+        class="object-fit"
+        src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
+        alt="Ezi unsplash"
+        loading="lazy"
+      />
     </BaseLayout>
   );
 };

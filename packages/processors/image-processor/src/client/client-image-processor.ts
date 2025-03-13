@@ -1,7 +1,12 @@
+/**
+ * ClientImageProcessor
+ * @module
+ */
+
+import type { ImageProcessorConfig } from '../server/image-processor';
+import type { ImageLayout, LayoutAttributes } from '../shared/constants';
+import { ImageUtils } from '../shared/image-utils';
 import { ConfigLoader } from './client-config-loader';
-import type { ImageLayout, LayoutAttributes } from './constants';
-import type { ImageProcessorConfig } from './image-processor';
-import { ImageUtils } from './image-utils';
 
 /**
  * ClientImageProcessorConfig
@@ -17,7 +22,7 @@ export interface ClientImageProcessorConfig {
 
 /**
  * ImageProps
- * This interface represents the props that can be passed to the ImagePropsGenerator
+ * This interface represents the props that can be passed to the ClientImageProcessor
  */
 interface ImageProps {
   src: string;
@@ -49,12 +54,12 @@ interface GenerateAttributesResult {
 }
 
 /**
- * ImagePropsGenerator
+ * ClientImageProcessor
  * This class is responsible for generating the attributes for the image element
  * It uses the provided props to generate the attributes
  * It also uses the configuration provided by the client to generate the srcset and sizes attributes
  */
-export class ImagePropsGenerator {
+export class ClientImageProcessor {
   config: ClientImageProcessorConfig;
   constructor(configId: string) {
     this.config = new ConfigLoader(configId).load();
@@ -236,10 +241,7 @@ export class ImagePropsGenerator {
       return;
     }
 
-    const layoutStyles = ImageUtils.generateLayoutStyles(layout, {
-      width,
-      height,
-    });
+    const layoutStyles = ImageUtils.generateLayoutStyles({ layout, width, height });
 
     styles.push(...layoutStyles);
   }

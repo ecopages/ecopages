@@ -3,8 +3,8 @@
  * @module
  */
 
-import type { CustomImageAttributes } from './constants';
-import { ImageElementUtils } from './image-element-utils';
+import type { CustomImageAttributes } from '../shared/constants';
+import { ImageElementUtils } from '../shared/image-element-utils';
 import type { ImageMap, ImageProcessor } from './image-processor';
 
 /**

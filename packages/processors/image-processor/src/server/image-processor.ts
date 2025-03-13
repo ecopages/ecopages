@@ -7,8 +7,8 @@ import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
-import { DEFAULT_CONFIG } from './constants';
-import { ImageUtils } from './image-utils';
+import { DEFAULT_CONFIG } from '../shared/constants';
+import { ImageUtils } from '../shared/image-utils';
 
 const appLogger = new Logger('[@ecopages/image-processor]', {
   debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',

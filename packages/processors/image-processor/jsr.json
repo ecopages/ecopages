@@ -1,12 +1,12 @@
 {
 	"$schema": "https://jsr.io/schema/config-file.v1.json",
-	"name": "@ecopages/postcss-processor",
+	"name": "@ecopages/image-processor",
 	"version": "0.1.19",
 	"exports": {
-		".": "./src/postcss-processor.ts",
-		"./image-rewriter": "./src/image-rewriter.ts",
-		"./image-html-rewriter": "./src/image-html-rewriter.ts",
-		"./client-processor": "./src/client-processor.ts"
+		".": "./src/server/image-processor.ts",
+		"./image-rewriter": "./src/server/image-rewriter.ts",
+		"./client-processor": "./src/client/client-image-processor.ts",
+		"./image-utils-provider": "./src/client/image-utils-provider.ts"
 	},
 	"exclude": ["src/test"],
 	"publish": {

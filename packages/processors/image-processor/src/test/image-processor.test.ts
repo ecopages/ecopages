@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
-import { DEFAULT_CONFIG } from 'src/constants';
-import type { ImageVariant } from 'src/image-processor';
+import type { ImageVariant } from '../server/image-processor';
+import { DEFAULT_CONFIG } from '../shared/constants';
 import {
   PUBLIC_PATH,
   cleanUpBeforeTest,

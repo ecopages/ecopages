@@ -1,6 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { ImageProcessor } from '@ecopages/image-processor';
-import type { IImageRewriter } from '@ecopages/image-processor/image-rewriter';
+import type { BaseImageRewriter } from '@ecopages/image-processor/image-rewriter';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
 
@@ -101,7 +101,7 @@ export interface PageMetadataProps {
 export interface ImageOptimization {
   enabled: boolean;
   processor: ImageProcessor;
-  rewriter: IImageRewriter;
+  rewriter: BaseImageRewriter;
 }
 
 /**

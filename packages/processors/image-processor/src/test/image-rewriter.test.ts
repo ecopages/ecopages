@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import type { ImageProcessor } from '../image-processor';
-import { ImageRewriter } from '../image-rewriter';
+import type { ImageProcessor } from '../server/image-processor';
+import { ImageRewriter } from '../server/image-rewriter';
 import { cleanupTestContext, createTestContext, createTestProcessor, setupTestContext } from './test-utils';
 
 describe('ImageRewriter', () => {

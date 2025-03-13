@@ -21,20 +21,20 @@
 	},
 	"exports": {
 		".": {
-			"default": "./src/image-processor.ts",
-			"types": "./src/image-processor.ts"
+			"default": "./src/server/image-processor.ts",
+			"types": "./src/server/image-processor.ts"
 		},
 		"./image-rewriter": {
-			"default": "./src/image-rewriter.ts",
-			"types": "./src/image-rewriter.ts"
-		},
-		"./image-html-rewriter": {
-			"default": "./src/image-html-rewriter.ts",
-			"types": "./src/image-html-rewriter.ts"
+			"default": "./src/server/image-rewriter.ts",
+			"types": "./src/server/image-rewriter.ts"
 		},
 		"./client-processor": {
-			"default": "./src/client-processor.ts",
-			"types": "./src/client-processor.ts"
+			"default": "./src/client/client-image-processor.ts",
+			"types": "./src/client/client-image-processor.ts"
+		},
+		"./image-utils-provider": {
+			"default": "./src/client/image-utils-provider.ts",
+			"types": "./src/client/image-utils-provider.ts"
 		}
 	}
 }

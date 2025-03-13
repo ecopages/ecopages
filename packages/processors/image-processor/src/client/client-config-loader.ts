@@ -1,5 +1,5 @@
-import type { ClientImageProcessorConfig } from './client-processor';
-import type { ImageProcessorConfig } from './image-processor';
+import type { ImageProcessorConfig } from '../server/image-processor';
+import type { ClientImageProcessorConfig } from './client-image-processor';
 
 /**
  * Loads the client configuration from a script element

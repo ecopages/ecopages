@@ -1,4 +1,4 @@
-import type { ImageProcessorConfig } from './image-processor';
+import type { ImageProcessorConfig } from '../server/image-processor';
 
 /**
  * Default configuration for the image processor
@@ -28,6 +28,7 @@ export const CUSTOM_IMAGE_ATTRIBUTES = {
   'data-background': 'data-background',
   'data-processed': 'data-processed',
   'data-aspect-ratio': 'data-aspect-ratio',
+  'data-unstyled': 'data-unstyled',
 } as const;
 
 /**
@@ -47,3 +48,5 @@ export interface LayoutAttributes {
  * Custom attributes for the image element
  */
 export type CustomImageAttributes = typeof CUSTOM_IMAGE_ATTRIBUTES;
+
+export const DEFAULT_LAYOUT: ImageLayout = 'constrained';

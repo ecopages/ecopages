@@ -12,7 +12,7 @@ import {
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
-import { Fragment, createElement } from 'react';
+import { createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
 
@@ -118,7 +118,11 @@ export class ReactRenderer extends IntegrationRenderer {
 
       const hydrationScriptPath = path.join(absolutePath, `${componentName}-hydration.js`);
 
-      const relativeImportInScript = await this.bundleComponent({ pagePath, componentName, absolutePath });
+      const relativeImportInScript = await this.bundleComponent({
+        pagePath,
+        componentName,
+        absolutePath,
+      });
 
       const hydrationCode = this.createHydrationScript(relativeImportInScript);
 

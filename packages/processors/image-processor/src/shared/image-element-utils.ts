@@ -1,5 +1,5 @@
-import { CUSTOM_IMAGE_ATTRIBUTES, type ImageLayout, type LayoutAttributes } from './constants';
-import type { ImageVariant } from './image-processor';
+import type { ImageVariant } from '../server/image-processor';
+import { CUSTOM_IMAGE_ATTRIBUTES, DEFAULT_LAYOUT, type ImageLayout, type LayoutAttributes } from '../shared/constants';
 import { ImageUtils } from './image-utils';
 
 export interface ImageElementLike {
@@ -25,38 +25,44 @@ export class ImageElementUtils {
    * @param options - Options to enhance the image element
    */
   enhance(element: ImageElementLike, options: ImageEnhanceOptions): void {
-    const staticVariant = element.getAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-static-variant']);
+    const staticVariantAttribute = element.getAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-static-variant']);
+    const shouldBeUnstyled = element.getAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-unstyled']) === 'true';
+    const layoutAttrs = this.getLayoutAttributes(element);
+
+    console.log(
+      'should be unstyled',
+      element.getAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-unstyled']),
+      element.getAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-static-variant']),
+      element.getAttribute('data-index'),
+      shouldBeUnstyled,
+    );
+
+    const staticVariant = staticVariantAttribute && options.variants.find((v) => v.label === staticVariantAttribute);
 
     if (staticVariant) {
       element.removeAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-static-variant']);
-      const variant = options.variants.find((v) => v.label === staticVariant);
-
-      if (variant) {
-        this.applyVariant(element, variant);
-        return;
-      }
+      if (staticVariant) this.applyVariant(element, staticVariant);
+    } else {
+      const largestVariant = options.variants[0];
+      this.applyVariant(element, largestVariant);
+      element.setAttribute('srcset', options.srcset);
+      if (options.sizes) element.setAttribute('sizes', options.sizes);
     }
 
-    const layoutAttrs = this.getLayoutAttributes(element);
-
     if (layoutAttrs) {
-      const styles = ImageUtils.generateStyles(layoutAttrs.layout, layoutAttrs);
-      element.setAttribute('style', styles);
+      if (!shouldBeUnstyled) {
+        const styles = ImageUtils.generateStyles(layoutAttrs);
+        if (styles) element.setAttribute('style', styles);
+      }
 
       if (layoutAttrs.priority) {
         element.setAttribute('loading', 'eager');
         element.setAttribute('fetchpriority', 'high');
       } else {
         element.setAttribute('loading', 'lazy');
+        element.setAttribute('fetchpriority', 'auto');
+        element.setAttribute('decoding', 'async');
       }
-    }
-
-    const largestVariant = options.variants[0];
-    this.applyVariant(element, largestVariant);
-    element.setAttribute('srcset', options.srcset);
-
-    if (options.sizes) {
-      element.setAttribute('sizes', options.sizes);
     }
 
     this.cleanupCustomAttributes(element);
@@ -66,7 +72,7 @@ export class ImageElementUtils {
 
   private cleanupCustomAttributes(element: ImageElementLike): void {
     for (const key of Object.values(CUSTOM_IMAGE_ATTRIBUTES)) {
-      element.removeAttribute(key);
+      element.removeAttribute(key as string);
     }
   }
 
@@ -76,7 +82,7 @@ export class ImageElementUtils {
    * @returns
    */
   private getLayoutAttributes(element: ImageElementLike): LayoutAttributes | null {
-    const layout = element.getAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-layout']) as ImageLayout;
+    const layout = (element.getAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-layout']) || DEFAULT_LAYOUT) as ImageLayout;
     if (!layout) return null;
 
     const isHtmlElement = element instanceof HTMLElement;

@@ -26,23 +26,21 @@ const HomePage: EcoComponent = () => {
           loading="lazy"
         />
       </div>
-      <div class="grid grid-cols-4 gap-4 place-items-stretch">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <img
-            class="w-auto"
-            src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
-            alt="Demo"
-            data-static-variant="sm"
-          />
+      <div class="grid grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map(() => (
+          <img src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg" alt="Demo" />
         ))}
       </div>
       <div class="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <img
-            class="w-auto"
             src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
             alt="Demo"
             data-static-variant="sm"
+            data-layout="constrained"
+            width={200}
+            data-unstyled={(index === 3).toString()}
+            data-index={index}
           />
         ))}
       </div>

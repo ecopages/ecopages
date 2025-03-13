@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import sharp, { type Sharp } from 'sharp';
-import { ImageProcessor, type ImageProcessorConfig } from '../image-processor';
+import { ImageProcessor, type ImageProcessorConfig } from '../server/image-processor';
 
 export interface TestImage {
   name: string;

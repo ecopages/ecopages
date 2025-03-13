@@ -1,12 +1,19 @@
 import { html } from '@ecopages/core/html';
-import { ImagePropsGenerator } from '@ecopages/image-processor/client-processor';
+import type { ClientImageProcessor } from '@ecopages/image-processor/client-processor';
+import { ImageUtilsProvider } from '@ecopages/image-processor/image-utils-provider';
 import { RadiantElement, customElement, onEvent, query } from '@ecopages/radiant';
 
-const imageProps = new ImagePropsGenerator('eco-images-config');
+ImageUtilsProvider.initialize('eco-images-config');
 
 @customElement('eco-images')
 export class EcoImages extends RadiantElement {
+  private imageUtils: ClientImageProcessor;
   @query({ ref: 'container' }) container!: HTMLElement;
+
+  constructor() {
+    super();
+    this.imageUtils = ImageUtilsProvider.getInstance();
+  }
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -20,18 +27,20 @@ export class EcoImages extends RadiantElement {
       '/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg',
       '/public/assets/images/urban-vintage-78A265wPiO4-unsplash.jpg',
     ];
+
     const src = srcs[Math.floor(Math.random() * srcs.length)];
+
     this.renderTemplate({
       target: this.container,
       template: html`
-				!${imageProps.renderImageToString({
+				!${this.imageUtils.renderImageToString({
           src,
           alt: 'Random image',
           layout: 'full-width',
           height: 200,
           priority: true,
         })}
-				!${imageProps.renderImageToString({
+				!${this.imageUtils.renderImageToString({
           src,
           alt: 'Random image',
           width: 600,
@@ -39,7 +48,7 @@ export class EcoImages extends RadiantElement {
           layout: 'constrained',
           priority: false,
         })}
-				!${imageProps.renderImageToString({
+				!${this.imageUtils.renderImageToString({
           src,
           alt: 'Random image',
           layout: 'fixed',
@@ -47,11 +56,9 @@ export class EcoImages extends RadiantElement {
           height: 200,
           priority: false,
         })}
-				!${imageProps.renderImageToString({
+				!${this.imageUtils.renderImageToString({
           src,
           alt: 'Random image',
-          width: 400,
-          height: 200,
           priority: false,
           unstyled: true,
           attributes: {

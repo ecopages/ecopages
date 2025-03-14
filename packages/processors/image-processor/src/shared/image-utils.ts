@@ -4,7 +4,7 @@ import { DEFAULT_LAYOUT, type LayoutAttributes } from '../shared/constants';
  * ImageUtils
  * This class contains utility methods for working with images
  * It is used by the ImageElementUtils to generate responsive attributes for an image element
- * It is also used by the ClientImageProcessor to generate the srcset and sizes attributes for an image element
+ * It is also used by the ClientImageRenderer to generate the srcset and sizes attributes for an image element
  */
 export class ImageUtils {
   private static readonly BREAKPOINTS = {

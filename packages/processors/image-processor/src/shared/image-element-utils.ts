@@ -29,19 +29,11 @@ export class ImageElementUtils {
     const shouldBeUnstyled = element.getAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-unstyled']) === 'true';
     const layoutAttrs = this.getLayoutAttributes(element);
 
-    console.log(
-      'should be unstyled',
-      element.getAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-unstyled']),
-      element.getAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-static-variant']),
-      element.getAttribute('data-index'),
-      shouldBeUnstyled,
-    );
-
     const staticVariant = staticVariantAttribute && options.variants.find((v) => v.label === staticVariantAttribute);
 
     if (staticVariant) {
       element.removeAttribute(CUSTOM_IMAGE_ATTRIBUTES['data-static-variant']);
-      if (staticVariant) this.applyVariant(element, staticVariant);
+      this.applyVariant(element, staticVariant);
     } else {
       const largestVariant = options.variants[0];
       this.applyVariant(element, largestVariant);

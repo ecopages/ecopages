@@ -1,5 +1,5 @@
-import type { ClientImageProcessor } from 'src/client/client-image-processor';
+import type { ClientImageRenderer } from 'src/client/client-image-renderer';
 
 declare global {
-  var imageUtils: ClientImageProcessor;
+  var imageUtils: ClientImageRenderer;
 }

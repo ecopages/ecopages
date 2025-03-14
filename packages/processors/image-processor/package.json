@@ -28,13 +28,17 @@
 			"default": "./src/server/image-rewriter.ts",
 			"types": "./src/server/image-rewriter.ts"
 		},
-		"./client-processor": {
-			"default": "./src/client/client-image-processor.ts",
-			"types": "./src/client/client-image-processor.ts"
+		"./client-image-renderer": {
+			"default": "./src/client/client-image-renderer.ts",
+			"types": "./src/client/client-image-renderer.ts"
 		},
-		"./image-utils-provider": {
-			"default": "./src/client/image-utils-provider.ts",
-			"types": "./src/client/image-utils-provider.ts"
+		"./server-image-renderer": {
+			"default": "./src/server/server-image-renderer.ts",
+			"types": "./src/server/server-image-renderer.ts"
+		},
+		"./image-renderer-provider": {
+			"default": "./src/shared/image-renderer-provider.ts",
+			"types": "./src/shared/image-renderer-provider.ts"
 		}
 	}
 }

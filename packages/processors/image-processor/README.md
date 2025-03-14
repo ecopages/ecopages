@@ -68,9 +68,9 @@ const enhancedHtml = await rewriter.enhanceImages(html);
 2. Use the client-side processor:
 
 ```typescript
-import { ClientImageProcessor } from "@ecopages/image-processor";
+import { ClientImageRenderer } from "@ecopages/image-processor";
 
-const generator = new ClientImageProcessor("eco-images-config");
+const generator = new ClientImageRenderer("eco-images-config");
 
 // Generate attributes for an image
 const attrs = generator.generateAttributes({

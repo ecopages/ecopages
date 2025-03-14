@@ -1,18 +1,19 @@
 /**
- * ClientImageProcessor
+ * ClientImageRenderer
  * @module
  */
 
+import type { GenerateAttributesResult, ImageProps } from 'src/shared/image-renderer-provider';
 import type { ImageProcessorConfig } from '../server/image-processor';
 import type { ImageLayout, LayoutAttributes } from '../shared/constants';
 import { ImageUtils } from '../shared/image-utils';
 import { ConfigLoader } from './client-config-loader';
 
 /**
- * ClientImageProcessorConfig
+ * ClientImageRendererConfig
  * This interface represents the configuration that the client can provide to the image processor
  */
-export interface ClientImageProcessorConfig {
+export interface ClientImageRendererConfig {
   sizes: ImageProcessorConfig['sizes'];
   format: ImageProcessorConfig['format'];
   quality: ImageProcessorConfig['quality'];
@@ -21,46 +22,13 @@ export interface ClientImageProcessorConfig {
 }
 
 /**
- * ImageProps
- * This interface represents the props that can be passed to the ClientImageProcessor
- */
-interface ImageProps {
-  src: string;
-  alt: string;
-  width?: number;
-  height?: number;
-  aspectRatio?: string;
-  priority?: boolean;
-  layout?: ImageLayout;
-  unstyled?: boolean;
-}
-
-/**
- * GenerateAttributesResult
- * This interface represents the result of the generation of the attributes for the image element
- */
-interface GenerateAttributesResult {
-  fetchpriority: HTMLImageElement['fetchPriority'];
-  loading: HTMLImageElement['loading'];
-  decoding: HTMLImageElement['decoding'];
-  src: string;
-  srcset: string;
-  sizes: string;
-  alt: string;
-  width?: number;
-  height?: number;
-  className?: string;
-  style?: string;
-}
-
-/**
- * ClientImageProcessor
+ * ClientImageRenderer
  * This class is responsible for generating the attributes for the image element
  * It uses the provided props to generate the attributes
  * It also uses the configuration provided by the client to generate the srcset and sizes attributes
  */
-export class ClientImageProcessor {
-  config: ClientImageProcessorConfig;
+export class ClientImageRenderer {
+  config: ClientImageRendererConfig;
   constructor(configId: string) {
     this.config = new ConfigLoader(configId).load();
   }
@@ -73,13 +41,8 @@ export class ClientImageProcessor {
    */
   generateAttributes(props: ImageProps) {
     const attributes = {
-      width: props.width,
-      height: props.height,
-      priority: props.priority,
+      ...props,
       layout: props.layout || 'constrained',
-      aspectRatio: props.aspectRatio,
-      alt: props.alt,
-      src: props.src,
     };
 
     return this.buildImageAttributes(attributes);
@@ -101,13 +64,31 @@ export class ClientImageProcessor {
    * @returns An HTML string representation of the image element
    */
   renderImageToString({
-    attributes,
-    ...props
-  }: ImageProps & { attributes?: { className?: string; [key: `data-${string}`]: string } }) {
-    const derivedAttributes = this.generateAttributes(props);
+    src,
+    alt,
+    width,
+    height,
+    aspectRatio,
+    priority,
+    layout,
+    unstyled,
+    staticVariant,
+    ...rest
+  }: ImageProps & { className?: string; [key: `data-${string}`]: string }) {
+    const derivedAttributes = this.generateAttributes({
+      src,
+      alt,
+      width,
+      height,
+      aspectRatio,
+      priority,
+      layout,
+      staticVariant,
+      unstyled,
+    });
     const stringifiedAttributes = this.stringifyAttributes({
       ...derivedAttributes,
-      ...attributes,
+      ...rest,
     });
     return `<img ${stringifiedAttributes}  />`;
   }
@@ -145,6 +126,20 @@ export class ClientImageProcessor {
       },
       layout,
     );
+
+    if (props.staticVariant) {
+      const variant = variants.find((v) => v.label === props.staticVariant);
+      if (variant) {
+        return {
+          ...dimensionsAttributes,
+          loading: props.priority ? 'eager' : 'lazy',
+          fetchpriority: props.priority ? 'high' : 'auto',
+          decoding: props.priority ? 'auto' : 'async',
+          src: variant.displayPath,
+          alt: props.alt,
+        };
+      }
+    }
 
     return {
       ...dimensionsAttributes,
@@ -193,12 +188,14 @@ export class ClientImageProcessor {
     unstyled?: boolean,
   ): Partial<LayoutAttributes> {
     const attributes: Partial<LayoutAttributes> = {};
-    const styles: [string, string][] = [['object-fit', 'cover']];
+    const styles: [string, string][] = unstyled ? [] : [['object-fit', 'cover']];
 
     if (aspectRatio) {
       const ratio = this.parseAspectRatio(aspectRatio);
       if (ratio) {
-        styles.push(['aspect-ratio', aspectRatio]);
+        if (!unstyled) {
+          styles.push(['aspect-ratio', aspectRatio]);
+        }
 
         if (width) {
           const calculatedHeight = Math.round(width / ratio);
@@ -210,23 +207,22 @@ export class ClientImageProcessor {
           attributes.width = calculatedWidth;
           attributes.height = height;
           this.addLayoutStyles(styles, layout, calculatedWidth, height, unstyled);
-        } else {
+        } else if (!unstyled) {
           styles.push(['width', '100%'], ['height', 'auto']);
         }
-
-        attributes.style = this.generateStyleString(styles);
-        return attributes;
       }
-    }
-
-    if (width || height) {
+    } else if (width || height) {
       attributes.width = width;
       attributes.height = height;
       this.addLayoutStyles(styles, layout, width, height, unstyled);
+    } else if (!unstyled) {
+      styles.push(['width', '100%'], ['height', 'auto']);
     }
 
-    attributes.style = this.generateStyleString(styles);
-    this.addLayoutStyles(styles, layout, width, height, unstyled);
+    if (styles.length > 0) {
+      attributes.style = this.generateStyleString(styles);
+    }
+
     return attributes;
   }
 
@@ -247,7 +243,10 @@ export class ClientImageProcessor {
   }
 
   private generateStyleString(styles: [string, string][]): string {
-    return styles.map(([key, value]) => `${key}:${value}`).join(';');
+    return styles
+      .filter(([_, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('; ');
   }
 
   private generateVariants(src: string, dimensions: { width: number; height: number }, layout: ImageLayout) {

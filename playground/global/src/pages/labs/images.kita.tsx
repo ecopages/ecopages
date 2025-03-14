@@ -1,5 +1,7 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, type GetMetadata, removeComponentsScripts } from '@ecopages/core';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
+import type { RenderImageToString } from '@ecopages/image-processor/image-renderer-provider';
+import { imageRenderer } from 'eco.config';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Images Labs page',
@@ -7,6 +9,10 @@ export const getMetadata: GetMetadata = () => ({
   image: 'public/assets/images/default-og.png',
   keywords: ['typescript', 'framework', 'static'],
 });
+
+const Image = (props: RenderImageToString) => {
+  return imageRenderer.renderImageToString(props);
+};
 
 const HomePage: EcoComponent = () => {
   return (
@@ -19,6 +25,7 @@ const HomePage: EcoComponent = () => {
         Go to client images
       </a>
       <div class="max-w-80 mx-auto">
+        <Image src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" priority unstyled />
         <img
           class="object-fit"
           src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
@@ -28,34 +35,22 @@ const HomePage: EcoComponent = () => {
       </div>
       <div class="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map(() => (
-          <img src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg" alt="Demo" />
+          <Image src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg" alt="Demo" />
         ))}
       </div>
       <div class="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <img
+          <Image
             src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
             alt="Demo"
-            data-static-variant="sm"
-            data-layout="constrained"
+            layout="constrained"
             width={200}
-            data-unstyled={(index === 3).toString()}
-            data-index={index}
+            unstyled={index === 3}
           />
         ))}
       </div>
-      <img
-        class="object-fit w-full"
-        src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
-        alt="Ezi unsplash"
-        loading="lazy"
-      />
-      <img
-        class="object-fit"
-        src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
-        alt="Ezi unsplash"
-        loading="lazy"
-      />
+      <Image src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" staticVariant="md" />
+      <Image src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
     </BaseLayout>
   );
 };

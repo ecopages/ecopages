@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
 import { ImageProcessor } from '@ecopages/image-processor';
+import { ImageRendererProvider } from '@ecopages/image-processor/image-renderer-provider';
 import { ImageRewriter } from '@ecopages/image-processor/image-rewriter';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
@@ -20,6 +21,11 @@ const imageProcessor = new ImageProcessor({
     { width: 1024, label: 'lg' },
     { width: 1920, label: 'xl' },
   ],
+});
+
+export const imageRenderer = ImageRendererProvider.createRenderer({
+  type: 'server',
+  imageMap: imageProcessor.getImageMap(),
 });
 
 const config = await new ConfigBuilder()

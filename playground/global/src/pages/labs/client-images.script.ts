@@ -1,18 +1,15 @@
 import { html } from '@ecopages/core/html';
-import type { ClientImageProcessor } from '@ecopages/image-processor/client-processor';
-import { ImageUtilsProvider } from '@ecopages/image-processor/image-utils-provider';
+import { ClientImageRenderer } from '@ecopages/image-processor/client-image-renderer';
 import { RadiantElement, customElement, onEvent, query } from '@ecopages/radiant';
-
-ImageUtilsProvider.initialize('eco-images-config');
 
 @customElement('eco-images')
 export class EcoImages extends RadiantElement {
-  private imageUtils: ClientImageProcessor;
+  private imageUtils: ClientImageRenderer;
   @query({ ref: 'container' }) container!: HTMLElement;
 
   constructor() {
     super();
-    this.imageUtils = ImageUtilsProvider.getInstance();
+    this.imageUtils = new ClientImageRenderer('eco-images-config');
   }
 
   override connectedCallback(): void {
@@ -61,9 +58,14 @@ export class EcoImages extends RadiantElement {
           alt: 'Random image',
           priority: false,
           unstyled: true,
-          attributes: {
-            'data-test': 'attribute',
-          },
+          'data-test': 'attribute',
+        })}
+				!${this.imageUtils.renderImageToString({
+          src,
+          alt: 'Random image',
+          priority: false,
+          width: 300,
+          aspectRatio: '4/1',
         })}
 			`,
     });

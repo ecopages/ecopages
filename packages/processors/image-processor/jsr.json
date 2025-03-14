@@ -5,8 +5,9 @@
 	"exports": {
 		".": "./src/server/image-processor.ts",
 		"./image-rewriter": "./src/server/image-rewriter.ts",
-		"./client-processor": "./src/client/client-image-processor.ts",
-		"./image-utils-provider": "./src/client/image-utils-provider.ts"
+		"./client/client-image-renderer": "./src/client/client-image-renderer.ts",
+		"./server/server-image-renderer": "./src/server-image-renderer.ts",
+		"./image-renderer-provider": "./src/shared/image-renderer-provider.ts"
 	},
 	"exclude": ["src/test"],
 	"publish": {

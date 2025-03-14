@@ -1,5 +1,5 @@
 import type { ImageProcessorConfig } from '../server/image-processor';
-import type { ClientImageProcessorConfig } from './client-image-processor';
+import type { ClientImageRendererConfig } from './client-image-renderer';
 
 /**
  * Loads the client configuration from a script element
@@ -39,7 +39,7 @@ export class ConfigLoader {
    * Load the configuration from the script element
    * @returns The client configuration
    * */
-  load(): ClientImageProcessorConfig {
+  load(): ClientImageRendererConfig {
     const configElement = document.getElementById(this.configId) as {
       textContent: string;
     };

@@ -144,7 +144,11 @@ export class ServerImageRenderer {
     unstyled?: boolean,
   ): Partial<LayoutAttributes> {
     const attributes: Partial<LayoutAttributes> = {};
-    const styles: [string, string][] = unstyled ? [] : [['object-fit', 'cover']];
+    const styles: [string, string][] = [];
+
+    if (!unstyled) {
+      styles.push(['object-fit', 'cover']);
+    }
 
     if (aspectRatio) {
       const ratio = this.parseAspectRatio(aspectRatio);
@@ -167,16 +171,13 @@ export class ServerImageRenderer {
           styles.push(['width', '100%'], ['height', 'auto']);
         }
       }
-      return attributes;
-    }
-
-    if (width || height) {
+    } else if (width || height) {
       attributes.width = width;
       attributes.height = height;
       this.addLayoutStyles(styles, layout, width, height, unstyled);
     }
 
-    if (styles.length > 0) {
+    if (styles.length > 0 && !unstyled) {
       attributes.style = this.generateStyleString(styles);
     }
 

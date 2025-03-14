@@ -101,7 +101,6 @@ export interface PageMetadataProps {
 export interface ImageOptimization {
   enabled: boolean;
   processor: ImageProcessor;
-  rewriter: BaseImageRewriter;
 }
 
 /**

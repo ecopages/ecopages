@@ -26,12 +26,7 @@ const HomePage: EcoComponent = () => {
       </a>
       <div class="max-w-80 mx-auto">
         <Image src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" priority unstyled />
-        <img
-          class="object-fit"
-          src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg"
-          alt="Ezi unsplash"
-          loading="lazy"
-        />
+        <Image src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
       </div>
       <div class="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map(() => (
@@ -43,8 +38,8 @@ const HomePage: EcoComponent = () => {
           <Image
             src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
             alt="Demo"
-            layout="constrained"
-            width={200}
+            staticVariant="sm"
+            layout="full-width"
             unstyled={index === 3}
           />
         ))}

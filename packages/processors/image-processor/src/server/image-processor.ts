@@ -43,9 +43,9 @@ export interface ImageProcessorConfig {
   /** Format for the processed images (default: 'webp') */
   format: 'webp' | 'jpeg' | 'png' | 'avif';
   /** Public URL path for the processed images (e.g., '/assets/images') */
-  publicPath?: string;
+  publicPath: string;
   /** Directory for public assets (default: 'public') */
-  publicDir?: string;
+  publicDir: string;
 }
 
 /**

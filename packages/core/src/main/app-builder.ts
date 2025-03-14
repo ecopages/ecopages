@@ -90,9 +90,9 @@ export class AppBuilder {
 
   async watch() {
     const dev = await this.runDevServer();
-
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
+      imageProcessor: this.appConfig.imageOptimization?.processor,
       cssBuilder: new CssBuilder({
         processor: PostCssProcessor,
         appConfig: this.appConfig,

@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import { join } from 'node:path';
+import type { ImageProcessor } from '@ecopages/image-processor';
 import type { EventType } from '@parcel/watcher';
 import type { FSRouter } from 'src/router/fs-router.ts';
+import { FileUtils } from 'src/utils/file-utils.module.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { CssBuilder } from './css-builder.ts';
@@ -13,19 +15,22 @@ type ProjectWatcherConfig = {
   scriptsBuilder: ScriptsBuilder;
   router: FSRouter;
   execTailwind: () => Promise<void>;
+  imageProcessor?: ImageProcessor;
 };
 
 export class ProjectWatcher {
   private appConfig: EcoPagesAppConfig;
+  private imageProcessor?: ImageProcessor;
   private cssBuilder: CssBuilder;
   private scriptsBuilder: ScriptsBuilder;
   private router: FSRouter;
   private execTailwind: () => Promise<void>;
 
-  constructor({ config, cssBuilder, scriptsBuilder, router, execTailwind }: ProjectWatcherConfig) {
+  constructor({ config, cssBuilder, scriptsBuilder, imageProcessor, router, execTailwind }: ProjectWatcherConfig) {
     this.appConfig = config;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
+    this.imageProcessor = imageProcessor;
     this.router = router;
     this.execTailwind = execTailwind;
     this.handlePageCreation = this.handlePageCreation.bind(this);
@@ -69,6 +74,26 @@ export class ProjectWatcher {
     if (isPageDir) {
       this.router.reload();
     }
+
+    if (this.imageProcessor?.config.imagesDir && path.includes(this.imageProcessor?.config.imagesDir)) {
+      const imageMap = this.imageProcessor.getImageMap();
+      const imageMapKey = join(
+        '/',
+        this.imageProcessor.config.publicDir,
+        this.imageProcessor.config.imagesDir.split(this.imageProcessor.config.publicDir)[1],
+        path.replace(this.imageProcessor.config.imagesDir, ''),
+      );
+
+      const variants = imageMap[imageMapKey].variants;
+
+      if (variants) {
+        for (const variant of variants) {
+          fs.rmSync(variant.originalPath, { recursive: true });
+        }
+      }
+
+      appLogger.info('Image removed:', path.replace(this.imageProcessor.config.imagesDir, ''));
+    }
   }
 
   private isFileOfType(path: string, extensions: string[]): boolean {
@@ -109,6 +134,20 @@ export class ProjectWatcher {
     if (this.isAdditionalWatchPath(path)) {
       appLogger.info(`Additional watch file ${actionVerb}:`, updatedFileName);
       this.uncacheModules();
+    }
+
+    if (this.imageProcessor?.config.imagesDir && path.includes(this.imageProcessor?.config.imagesDir)) {
+      const variants = await this.imageProcessor.processImage(path);
+      if (variants) {
+        for (const variant of variants) {
+          FileUtils.writeFileSync(
+            variant.originalPath.replace(this.imageProcessor.config.imagesDir, this.imageProcessor.config.outputDir),
+            FileUtils.getFileAsBuffer(variant.originalPath),
+          );
+        }
+      }
+
+      appLogger.info(`Image ${actionVerb}:`, updatedFileName);
     }
   }
 

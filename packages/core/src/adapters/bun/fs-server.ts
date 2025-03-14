@@ -37,23 +37,11 @@ export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapt
     this.fileSystemResponseMatcher = fileSystemResponseMatcher;
   }
 
-  async rewriteImages(contents: Response): Promise<Response> {
-    if (!this.appConfig.imageOptimization?.rewriter) {
-      throw new Error('Image optimization processor is not configured');
-    }
-
-    return this.appConfig.imageOptimization.rewriter.enhanceImages(contents);
-  }
-
   async fetch(req: Request) {
     const match = !req.url.includes('.') && this.router.match(req.url);
 
     if (!match) {
       return this.fileSystemResponseMatcher.handleNoMatch(req.url.replace(this.router.origin, ''));
-    }
-
-    if (this.appConfig.imageOptimization?.enabled) {
-      return this.rewriteImages(await this.fileSystemResponseMatcher.handleMatch(match));
     }
 
     return this.fileSystemResponseMatcher.handleMatch(match);

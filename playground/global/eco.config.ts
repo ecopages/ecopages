@@ -2,7 +2,6 @@ import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
 import { ImageProcessor } from '@ecopages/image-processor';
 import { ImageRendererProvider } from '@ecopages/image-processor/image-renderer-provider';
-import { ImageRewriter } from '@ecopages/image-processor/image-rewriter';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
@@ -35,7 +34,6 @@ const config = await new ConfigBuilder()
   .setImageOptimization({
     enabled: true,
     processor: imageProcessor,
-    rewriter: new ImageRewriter(imageProcessor),
   })
   .setError404Template('404.kita.tsx')
   .build();

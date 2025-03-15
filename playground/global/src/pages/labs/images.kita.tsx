@@ -1,7 +1,6 @@
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
-import type { RenderImageToString } from '@ecopages/image-processor/image-renderer-provider';
-import { imageRenderer } from 'eco.config';
+import { EcoImage } from '@ecopages/image-processor/image-renderer-provider';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Images Labs page',
@@ -9,10 +8,6 @@ export const getMetadata: GetMetadata = () => ({
   image: 'public/assets/images/default-og.png',
   keywords: ['typescript', 'framework', 'static'],
 });
-
-const Image = (props: RenderImageToString) => {
-  return imageRenderer.renderImageToString(props);
-};
 
 const HomePage: EcoComponent = () => {
   return (
@@ -25,17 +20,17 @@ const HomePage: EcoComponent = () => {
         Go to client images
       </a>
       <div class="max-w-80 mx-auto">
-        <Image src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" priority unstyled />
-        <Image src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
+        <EcoImage src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" priority unstyled />
+        <EcoImage src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
       </div>
       <div class="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map(() => (
-          <Image src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg" alt="Demo" />
+          <EcoImage src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg" alt="Demo" />
         ))}
       </div>
       <div class="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Image
+          <EcoImage
             src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
             alt="Demo"
             staticVariant="sm"
@@ -44,8 +39,8 @@ const HomePage: EcoComponent = () => {
           />
         ))}
       </div>
-      <Image src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" staticVariant="md" />
-      <Image src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
+      <EcoImage src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" staticVariant="md" />
+      <EcoImage src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
     </BaseLayout>
   );
 };

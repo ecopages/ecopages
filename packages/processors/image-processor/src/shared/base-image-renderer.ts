@@ -18,7 +18,7 @@ export interface ImageRenderer {
    * This method generates the image element based on the provided props as a string
    * @param props
    */
-  renderImageToString(props: RenderImageToString): string;
+  renderToString(props: RenderImageToString): string;
 }
 
 /**
@@ -37,7 +37,7 @@ export abstract class BaseImageRenderer implements ImageRenderer {
     return this.stringifyAttributes(attributes);
   }
 
-  renderImageToString({
+  renderToString({
     src,
     alt,
     width,

@@ -1,16 +1,10 @@
 import { html } from '@ecopages/core/html';
-import { ClientImageRenderer } from '@ecopages/image-processor/client-image-renderer';
+import { EcoImage } from '@ecopages/image-processor/image-renderer-provider';
 import { RadiantElement, customElement, onEvent, query } from '@ecopages/radiant';
 
 @customElement('eco-images')
 export class EcoImages extends RadiantElement {
-  private imageUtils: ClientImageRenderer;
   @query({ ref: 'container' }) container!: HTMLElement;
-
-  constructor() {
-    super();
-    this.imageUtils = new ClientImageRenderer('eco-images-config');
-  }
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -30,14 +24,14 @@ export class EcoImages extends RadiantElement {
     this.renderTemplate({
       target: this.container,
       template: html`
-				!${this.imageUtils.renderImageToString({
+				!${EcoImage({
           src,
           alt: 'Random image',
           layout: 'full-width',
           height: 200,
           priority: true,
         })}
-				!${this.imageUtils.renderImageToString({
+				!${EcoImage({
           src,
           alt: 'Random image',
           width: 600,
@@ -45,7 +39,7 @@ export class EcoImages extends RadiantElement {
           layout: 'constrained',
           priority: false,
         })}
-				!${this.imageUtils.renderImageToString({
+				!${EcoImage({
           src,
           alt: 'Random image',
           layout: 'fixed',
@@ -53,14 +47,14 @@ export class EcoImages extends RadiantElement {
           height: 200,
           priority: false,
         })}
-				!${this.imageUtils.renderImageToString({
+				!${EcoImage({
           src,
           alt: 'Random image',
           priority: false,
           unstyled: true,
           'data-test': 'attribute',
         })}
-				!${this.imageUtils.renderImageToString({
+				!${EcoImage({
           src,
           alt: 'Random image',
           priority: false,

@@ -4,10 +4,8 @@
  */
 
 import { Logger } from '@ecopages/logger';
-import type { GenerateAttributesResult, ImageProps, RenderImageToString } from 'src/shared/image-renderer-provider';
+import type { GenerateAttributesResult, ImageProps } from 'src/shared/image-renderer-provider';
 import { BaseImageRenderer } from '../shared/base-image-renderer';
-import type { ImageLayout, LayoutAttributes } from '../shared/constants';
-import { ImageUtils } from '../shared/image-utils';
 import type { ImageMap, ImageVariant } from './image-processor';
 
 const appLogger = new Logger('[@ecopages/image-processor/server-image-renderer]');

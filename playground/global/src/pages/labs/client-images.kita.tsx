@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, type GetMetadata, removeComponentsScripts } from '@ecopages/core';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Images Labs page',

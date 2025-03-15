@@ -1,5 +1,4 @@
 import { ClientImageRenderer } from '../client/client-image-renderer';
-import type { ImageMap } from '../server/image-processor';
 import { ServerImageRenderer } from '../server/server-image-renderer';
 import type { ImageLayout } from './constants';
 
@@ -56,12 +55,25 @@ export type RenderImageToString = ImageProps & {
   [key: `data-${string}`]: string;
 };
 
+const isServer = typeof window === 'undefined';
+
 export class ImageRendererProvider {
-  static createRenderer(
-    options: { type: 'client'; configId: string } | { type: 'server'; imageMap: ImageMap },
-  ): ClientImageRenderer | ServerImageRenderer {
-    return options.type === 'client'
-      ? new ClientImageRenderer(options.configId)
-      : new ServerImageRenderer(options.imageMap);
+  static createRenderer() {
+    if (isServer) {
+      const isImageOptimizationDefined = globalThis.ecoConfig.imageOptimization;
+
+      if (!isImageOptimizationDefined) {
+        throw new Error('Image optimization is not defined in the eco config');
+      }
+
+      const imageMap = globalThis.ecoConfig.imageOptimization?.processor.getImageMap();
+      return new ServerImageRenderer(imageMap);
+    }
+    return new ClientImageRenderer('eco-images-config');
   }
 }
+
+export const EcoImage = (props: RenderImageToString) => {
+  const renderer = ImageRendererProvider.createRenderer();
+  return renderer.renderToString(props);
+};

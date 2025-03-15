@@ -5,6 +5,7 @@
 
 import type { GenerateAttributesResult, ImageProps } from 'src/shared/image-renderer-provider';
 import type { ImageProcessorConfig } from '../server/image-processor';
+import { BaseImageRenderer } from '../shared/base-image-renderer';
 import type { ImageLayout, LayoutAttributes } from '../shared/constants';
 import { ImageUtils } from '../shared/image-utils';
 import { ConfigLoader } from './client-config-loader';
@@ -27,9 +28,10 @@ export interface ClientImageRendererConfig {
  * It uses the provided props to generate the attributes
  * It also uses the configuration provided by the client to generate the srcset and sizes attributes
  */
-export class ClientImageRenderer {
+export class ClientImageRenderer extends BaseImageRenderer {
   config: ClientImageRendererConfig;
   constructor(configId: string) {
+    super();
     this.config = new ConfigLoader(configId).load();
   }
 
@@ -39,69 +41,7 @@ export class ClientImageRenderer {
    * @param props
    * @returns
    */
-  generateAttributes(props: ImageProps) {
-    const attributes = {
-      ...props,
-      layout: props.layout || 'constrained',
-    };
-
-    return this.buildImageAttributes(attributes);
-  }
-
-  /**
-   * Generates a stringified version of the attributes
-   * @param props
-   * @returns
-   */
-  stringifyImageAttributes(props: ImageProps) {
-    const attributes = this.generateAttributes(props);
-    return this.stringifyAttributes(attributes);
-  }
-
-  /**
-   * Generates the image markup as an HTML string
-   * @param props The image properties and additional HTML attributes
-   * @returns An HTML string representation of the image element
-   */
-  renderImageToString({
-    src,
-    alt,
-    width,
-    height,
-    aspectRatio,
-    priority,
-    layout,
-    unstyled,
-    staticVariant,
-    ...rest
-  }: ImageProps & { className?: string; [key: `data-${string}`]: string }) {
-    const derivedAttributes = this.generateAttributes({
-      src,
-      alt,
-      width,
-      height,
-      aspectRatio,
-      priority,
-      layout,
-      staticVariant,
-      unstyled,
-    });
-    const stringifiedAttributes = this.stringifyAttributes({
-      ...derivedAttributes,
-      ...rest,
-    });
-    return `<img ${stringifiedAttributes}  />`;
-  }
-
-  private getConfigSizes(): number[] {
-    return Object.entries(this.config.sizes).map(([_, size]) => size.width);
-  }
-
-  private getBiggestSize() {
-    return Math.max(...this.getConfigSizes());
-  }
-
-  private buildImageAttributes(props: ImageProps): GenerateAttributesResult {
+  generateAttributes(props: ImageProps): GenerateAttributesResult {
     const layout = props.layout || 'constrained';
     const dimensionsAttributes = this.getDimensionsAttributes(
       props.width,
@@ -153,100 +93,12 @@ export class ClientImageRenderer {
     };
   }
 
-  private stringifyAttributes(attributes: GenerateAttributesResult): string {
-    const attributePairs: string[] = [];
-
-    for (const [key, value] of Object.entries(attributes)) {
-      if (value == null || value === '') continue;
-
-      if (typeof value === 'boolean') {
-        if (value) attributePairs.push(key);
-      } else {
-        attributePairs.push(`${key}="${value}"`);
-      }
-    }
-
-    return attributePairs.join(' ');
+  private getConfigSizes(): number[] {
+    return Object.entries(this.config.sizes).map(([_, size]) => size.width);
   }
 
-  private parseAspectRatio(value: string | undefined): number | undefined {
-    if (!value) return undefined;
-
-    if (value.includes('/')) {
-      const [width, height] = value.split('/').map(Number);
-      return width / height;
-    }
-
-    return Number(value);
-  }
-
-  private getDimensionsAttributes(
-    width?: number,
-    height?: number,
-    aspectRatio?: string,
-    layout: ImageLayout = 'constrained',
-    unstyled?: boolean,
-  ): Partial<LayoutAttributes> {
-    const attributes: Partial<LayoutAttributes> = {};
-    const styles: [string, string][] = unstyled ? [] : [['object-fit', 'cover']];
-
-    if (aspectRatio) {
-      const ratio = this.parseAspectRatio(aspectRatio);
-      if (ratio) {
-        if (!unstyled) {
-          styles.push(['aspect-ratio', aspectRatio]);
-        }
-
-        if (width) {
-          const calculatedHeight = Math.round(width / ratio);
-          attributes.width = width;
-          attributes.height = calculatedHeight;
-          this.addLayoutStyles(styles, layout, width, calculatedHeight, unstyled);
-        } else if (height) {
-          const calculatedWidth = Math.round(height * ratio);
-          attributes.width = calculatedWidth;
-          attributes.height = height;
-          this.addLayoutStyles(styles, layout, calculatedWidth, height, unstyled);
-        } else if (!unstyled) {
-          styles.push(['width', '100%'], ['height', 'auto']);
-        }
-      }
-    } else if (width || height) {
-      attributes.width = width;
-      attributes.height = height;
-      this.addLayoutStyles(styles, layout, width, height, unstyled);
-    } else if (!unstyled) {
-      styles.push(['width', '100%'], ['height', 'auto']);
-    }
-
-    if (styles.length > 0) {
-      attributes.style = this.generateStyleString(styles);
-    }
-
-    return attributes;
-  }
-
-  private addLayoutStyles(
-    styles: [string, string][],
-    layout: ImageLayout,
-    width?: number,
-    height?: number,
-    unstyled?: boolean,
-  ): void {
-    if (unstyled) {
-      return;
-    }
-
-    const layoutStyles = ImageUtils.generateLayoutStyles({ layout, width, height });
-
-    styles.push(...layoutStyles);
-  }
-
-  private generateStyleString(styles: [string, string][]): string {
-    return styles
-      .filter(([_, value]) => value !== undefined && value !== null)
-      .map(([key, value]) => `${key}: ${value}`)
-      .join('; ');
+  private getBiggestSize() {
+    return Math.max(...this.getConfigSizes());
   }
 
   private generateVariants(src: string, dimensions: { width: number; height: number }, layout: ImageLayout) {

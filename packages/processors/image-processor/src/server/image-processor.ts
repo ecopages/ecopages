@@ -272,29 +272,29 @@ export class ImageProcessor {
   }
 
   /**
-   * Generates a srcset string from processed image variants
+   * Gets the srcset attribute string for an image from the image map
    * @param {string} imagePath - Path to the original image
    * @returns {string} srcset attribute string
    */
-  generateSrcset(imagePath: string): string {
+  getSrcset(imagePath: string): string {
     try {
       return this.imageMap[imagePath]?.srcset || '';
     } catch (error) {
-      appLogger.debug(`Error generating srcset for ${imagePath}: ${error}`);
+      appLogger.debug(`Error getting srcset for ${imagePath}: ${error}`);
       return '';
     }
   }
 
   /**
-   * Generates sizes attribute based on image variants
+   * Gets the sizes attribute string for an image from the image map
    * @param {string} imagePath - Path to the original image
    * @returns {string} sizes attribute string
    */
-  generateSizes(imagePath: string): string {
+  getSizes(imagePath: string): string {
     try {
       return this.imageMap[imagePath]?.sizes || '';
     } catch (error) {
-      appLogger.debug(`Error generating sizes for ${imagePath}: ${error}`);
+      appLogger.debug(`Error getting sizes for ${imagePath}: ${error}`);
       return '';
     }
   }

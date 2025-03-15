@@ -171,14 +171,14 @@ describe('ImageProcessor', () => {
   test('generateSrcset with non-existent image', () => {
     const processor = createTestProcessor(context);
 
-    const srcset = processor.generateSrcset('non-existent.jpg');
+    const srcset = processor.getSrcset('non-existent.jpg');
     expect(srcset).toBe('');
   });
 
   test('generateSizes with non-existent image', () => {
     const processor = createTestProcessor(context);
 
-    const sizes = processor.generateSizes('non-existent.jpg');
+    const sizes = processor.getSizes('non-existent.jpg');
     expect(sizes).toBe('');
   });
 

@@ -113,5 +113,27 @@ export function createTestProcessor(context: TestContext, config: Partial<ImageP
     publicDir: context.publicDir,
     publicPath: PUBLIC_PATH,
     ...config,
-  });
+  } as ImageProcessorConfig);
 }
+
+export const mockConfig: ImageProcessorConfig = {
+  imagesDir: '/test/images',
+  outputDir: '/test/output',
+  sizes: [
+    { width: 1920, label: 'xl' },
+    { width: 1280, label: 'lg' },
+    { width: 640, label: 'md' },
+  ],
+  cacheDir: '/test/cache',
+  format: 'webp',
+  publicPath: '/assets/images',
+  publicDir: 'public',
+  quality: 80,
+};
+
+export const mockImageProps = {
+  src: '/test/image.jpg',
+  alt: 'Test image',
+  width: 800,
+  height: 600,
+};

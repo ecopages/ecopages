@@ -3,10 +3,7 @@
 	"name": "@ecopages/image-processor",
 	"version": "0.1.19",
 	"exports": {
-		".": "./src/server/image-processor.ts",
-		"./image-rewriter": "./src/server/image-rewriter.ts",
-		"./client/client-image-renderer": "./src/client/client-image-renderer.ts",
-		"./server/server-image-renderer": "./src/server-image-renderer.ts",
+		".": "./src/plugin.ts",
 		"./image-renderer-provider": "./src/shared/image-renderer-provider.ts"
 	},
 	"exclude": ["src/test"],

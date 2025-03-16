@@ -11,7 +11,10 @@
 		"./utils/add-base-url-to-pathname": "./src/utils/add-base-url-to-pathname.ts",
 		"./utils/deep-merge": "./src/utils/deep-merge.ts",
 		"./utils/invariant": "./src/utils/invariant.ts",
-		"./utils/component-dependencies-utils": "./src/utils/component-dependencies-utils.ts"
+		"./utils/component-dependencies-utils": "./src/utils/component-dependencies-utils.ts",
+		"./processors/processor": "./src/processors/processor.ts",
+		"./html": "./src/utils/html.ts",
+		"./css": "./src/utils/css.ts"
 	},
 	"exclude": ["fixtures", "**/*.test.ts"],
 	"imports": {

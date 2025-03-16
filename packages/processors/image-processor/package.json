@@ -21,20 +21,8 @@
 	},
 	"exports": {
 		".": {
-			"default": "./src/server/image-processor.ts",
-			"types": "./src/server/image-processor.ts"
-		},
-		"./image-rewriter": {
-			"default": "./src/server/image-rewriter.ts",
-			"types": "./src/server/image-rewriter.ts"
-		},
-		"./client-image-renderer": {
-			"default": "./src/client/client-image-renderer.ts",
-			"types": "./src/client/client-image-renderer.ts"
-		},
-		"./server-image-renderer": {
-			"default": "./src/server/server-image-renderer.ts",
-			"types": "./src/server/server-image-renderer.ts"
+			"default": "./src/plugin.ts",
+			"types": "./src/plugin.ts"
 		},
 		"./image-renderer-provider": {
 			"default": "./src/shared/image-renderer-provider.ts",

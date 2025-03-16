@@ -9,11 +9,13 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static'],
 });
 
+const imageProcessor = global.ecoConfig.processors.get('ecopages-image-processor') as ImageProcessorPlugin;
+
 const HomePage: EcoComponent = () => {
   return (
     <BaseLayout class="grid gap-8">
       <script type="application/json" id="eco-images-config">
-        {JSON.stringify(global.ecoConfig.imageOptimization?.processor?.getClientConfig())}
+        {JSON.stringify(imageProcessor.getClientConfig())}
       </script>
       <h1 class="main-title">Images</h1>
       <a href="/labs/client-images" class="text-blue-500">
@@ -21,7 +23,7 @@ const HomePage: EcoComponent = () => {
       </a>
       <div class="max-w-80 mx-auto">
         <EcoImage src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" priority unstyled />
-        <EcoImage src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
+        <EcoImage src="/public/assets/images/TwibrightLinksTestCard.png" alt="Ezi unsplash" />
       </div>
       <div class="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map(() => (

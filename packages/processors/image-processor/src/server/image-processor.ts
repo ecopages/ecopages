@@ -26,6 +26,21 @@ export interface ImageSize {
 }
 
 /**
+ * Paths configuration for the ImageProcessor
+ * @interface ImageProcessorPaths
+ */
+export interface ImageProcessorPaths {
+  /** Directory containing source images */
+  sourceImages: string;
+  /** Directory where processed images will be saved */
+  targetImages: string;
+  /** Public URL for internal usage with Image component */
+  sourceUrlPrefix: string;
+  /** Public URL path for the processed images */
+  optimizedUrlPrefix: string;
+}
+
+/**
  * Configuration interface for the ImageProcessor
  * @interface ImageProcessorConfig
  */
@@ -38,19 +53,12 @@ export interface ImageProcessorConfig {
   quality?: number;
   /** Format for the processed images (default: 'webp') */
   format?: 'webp' | 'jpeg' | 'png' | 'avif';
-  /** Optional custom paths configuration */
-  paths?: {
-    /** Directory containing source images (default: 'src/public/assets/images') */
-    sourceImages?: string;
-    /** Directory where processed images will be saved (default: 'src/public/assets/optimized') */
-    targetImages?: string;
-    /** Public URL for internal usage with Image component (default: '/public/assets/images') */
-    sourceUrlPrefix?: string;
-    /** Public URL path for the processed images (default: '/public/assets/optimized') */
-    optimizedUrlPrefix?: string;
-    /** Directory for caching processing metadata (default: '__cache__') */
-    cache?: string;
-  };
+  /** Accepted formats for the processed images (default: ['webp', 'jpeg', 'png', 'avif']) */
+  acceptedFormats?: ('webp' | 'jpeg' | 'png' | 'avif')[];
+  /** Initial image map to use for caching */
+  initialImageMap?: ImageMap;
+  /** Custom paths configuration */
+  paths?: Partial<ImageProcessorPaths>;
 }
 
 /**
@@ -100,21 +108,23 @@ export interface ImageMap {
 export class ImageProcessor {
   private static readonly DEFAULT_CONFIG = DEFAULT_CONFIG;
   private readonly resolvedPaths: Required<NonNullable<ImageProcessorConfig['paths']>>;
-  private readonly config: DeepRequired<Omit<ImageProcessorConfig, 'importMeta' | 'paths'>>;
+  private readonly config: DeepRequired<
+    Omit<ImageProcessorConfig, 'importMeta' | 'paths' | 'acceptedFormats' | 'initialImageMap'>
+  >;
   private imageMap: ImageMap = {};
-  private mapPath: string;
 
   constructor(config: ImageProcessorConfig) {
     const rootDir = config.importMeta.dir;
 
-    const mergedConfig = deepMerge(DEFAULT_CONFIG, config) as DeepRequired<ImageProcessorConfig>;
+    const mergedConfig = deepMerge(DEFAULT_CONFIG, config) as DeepRequired<
+      Pick<ImageProcessorConfig, 'quality' | 'format' | 'sizes' | 'paths'>
+    >;
 
     this.resolvedPaths = {
       sourceImages: path.resolve(rootDir, mergedConfig.paths.sourceImages),
       targetImages: path.resolve(rootDir, mergedConfig.paths.targetImages),
       sourceUrlPrefix: mergedConfig.paths.sourceUrlPrefix,
       optimizedUrlPrefix: mergedConfig.paths.optimizedUrlPrefix,
-      cache: path.resolve(rootDir, mergedConfig.paths.cache),
     };
 
     this.config = {
@@ -123,28 +133,7 @@ export class ImageProcessor {
       sizes: mergedConfig.sizes,
     };
 
-    this.mapPath = path.join(this.resolvedPaths.cache, 'image-map.json');
-    FileUtils.mkdirSync(this.resolvedPaths.cache, { recursive: true });
-    FileUtils.mkdirSync(this.resolvedPaths.targetImages, { recursive: true });
-    this.loadImageMap();
-  }
-
-  /**
-   * Loads the image mapping from cache if available
-   * @private
-   */
-  private loadImageMap() {
-    if (FileUtils.existsSync(this.mapPath)) {
-      this.imageMap = JSON.parse(FileUtils.readFileSync(this.mapPath, 'utf-8'));
-    }
-  }
-
-  /**
-   * Saves the current image mapping to cache
-   * @private
-   */
-  private saveImageMap() {
-    FileUtils.writeFileSync(this.mapPath, JSON.stringify(this.imageMap, null, 2));
+    this.imageMap = config.initialImageMap || {};
   }
 
   /**
@@ -231,6 +220,8 @@ export class ImageProcessor {
     const safeFormat = format || ImageProcessor.DEFAULT_CONFIG.format;
     const safeQuality = this.config.quality || ImageProcessor.DEFAULT_CONFIG.quality;
 
+    FileUtils.ensureDirectoryExists(this.resolvedPaths.targetImages);
+
     const { width, height } = await this.calculateDimensions(processablePath, size.width);
 
     await sharp(processablePath).resize(width, height)[safeFormat]({ quality: safeQuality }).toFile(outputPath);
@@ -293,7 +284,6 @@ export class ImageProcessor {
       sizes: this.generateSizesString(variants),
     };
 
-    this.saveImageMap();
     return variants;
   }
 
@@ -334,6 +324,11 @@ export class ImageProcessor {
     appLogger.debug(`Processing images in ${glob}`);
     const images = await FileUtils.glob([glob]);
 
+    if (images.length === 0) {
+      appLogger.error('No images found to process');
+      return;
+    }
+
     for (const absolutePath of images) {
       await this.processImage(absolutePath);
     }
@@ -359,7 +354,9 @@ export class ImageProcessor {
    * Gets the configuration for the image processor to be used in the browser
    * @returns {DeepRequired<Omit<ImageProcessorConfig, "importMeta">>} Configuration object
    */
-  getClientConfig(): DeepRequired<Omit<ImageProcessorConfig, 'importMeta' | 'paths'>> & {
+  getClientConfig(): DeepRequired<
+    Omit<ImageProcessorConfig, 'importMeta' | 'paths' | 'acceptedFormats' | 'initialImageMap'>
+  > & {
     optimizedUrlPrefix: string;
   } {
     return {

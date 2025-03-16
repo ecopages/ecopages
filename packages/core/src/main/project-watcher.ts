@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import { join } from 'node:path';
-import type { ImageProcessor } from '@ecopages/image-processor';
 import type { EventType } from '@parcel/watcher';
 import type { FSRouter } from 'src/router/fs-router.ts';
 import { FileUtils } from 'src/utils/file-utils.module.ts';
@@ -15,22 +14,19 @@ type ProjectWatcherConfig = {
   scriptsBuilder: ScriptsBuilder;
   router: FSRouter;
   execTailwind: () => Promise<void>;
-  imageProcessor?: ImageProcessor;
 };
 
 export class ProjectWatcher {
   private appConfig: EcoPagesAppConfig;
-  private imageProcessor?: ImageProcessor;
   private cssBuilder: CssBuilder;
   private scriptsBuilder: ScriptsBuilder;
   private router: FSRouter;
   private execTailwind: () => Promise<void>;
 
-  constructor({ config, cssBuilder, scriptsBuilder, imageProcessor, router, execTailwind }: ProjectWatcherConfig) {
+  constructor({ config, cssBuilder, scriptsBuilder, router, execTailwind }: ProjectWatcherConfig) {
     this.appConfig = config;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
-    this.imageProcessor = imageProcessor;
     this.router = router;
     this.execTailwind = execTailwind;
     this.handlePageCreation = this.handlePageCreation.bind(this);
@@ -74,18 +70,6 @@ export class ProjectWatcher {
     if (isPageDir) {
       this.router.reload();
     }
-
-    if (this.imageProcessor && path.includes(this.imageProcessor.getResolvedPath().sourceImages)) {
-      const imageMap = this.imageProcessor.getImageMap();
-      const displayPath = this.imageProcessor.resolveImageDisplayPath(path);
-
-      if (imageMap[displayPath]?.variants) {
-        for (const variant of imageMap[displayPath].variants) {
-          fs.rmSync(variant.originalPath, { force: true });
-        }
-        appLogger.info('Image removed:', path);
-      }
-    }
   }
 
   private isFileOfType(path: string, extensions: string[]): boolean {
@@ -127,11 +111,6 @@ export class ProjectWatcher {
       appLogger.info(`Additional watch file ${actionVerb}:`, updatedFileName);
       this.uncacheModules();
     }
-
-    if (this.imageProcessor && path.includes(this.imageProcessor.getResolvedPath().sourceImages)) {
-      await this.imageProcessor.processImage(path);
-      appLogger.info(`Image ${actionVerb}:`, updatedFileName);
-    }
   }
 
   handleError(error: Error) {
@@ -139,6 +118,7 @@ export class ProjectWatcher {
   }
 
   public async createWatcherSubscription() {
+    await this.setupProcessorWatchers();
     const watcher = await import('@parcel/watcher');
     return watcher.subscribe('src', async (err, events) => {
       if (err) {
@@ -163,5 +143,42 @@ export class ProjectWatcher {
         await this.handleChange(event.path, event.type);
       }
     });
+  }
+
+  private async setupProcessorWatchers() {
+    for (const processor of this.appConfig.processors.values()) {
+      const watchConfig = processor.getWatchConfig();
+      if (!watchConfig) continue;
+
+      const { paths, extensions, onCreate, onChange, onDelete, onError } = watchConfig;
+
+      for (const watchPath of paths) {
+        const watcher = await import('@parcel/watcher');
+        await watcher.subscribe(watchPath, async (err, events) => {
+          if (err) {
+            onError?.(err);
+            return;
+          }
+
+          for (const event of events) {
+            const isMatchingExtension = !extensions?.length || extensions.some((ext) => event.path.endsWith(ext));
+
+            if (!isMatchingExtension) continue;
+
+            switch (event.type) {
+              case 'create':
+                await onCreate?.(event.path);
+                break;
+              case 'update':
+                await onChange?.(event.path);
+                break;
+              case 'delete':
+                await onDelete?.(event.path);
+                break;
+            }
+          }
+        });
+      }
+    }
   }
 }

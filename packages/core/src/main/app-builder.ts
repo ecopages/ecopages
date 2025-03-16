@@ -10,6 +10,7 @@ import { FileUtils } from '../utils/file-utils.module.ts';
 import { ProjectWatcher } from './project-watcher.ts';
 
 import type { Server } from 'bun';
+import { Processor } from 'src/processors/processor.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
 import type { StaticPageGenerator } from './static-page-generator.ts';
@@ -48,7 +49,30 @@ export class AppBuilder {
   }
 
   prepareDistDir() {
-    FileUtils.ensureDirectoryExists(this.appConfig.distDir, true);
+    const distDir = this.appConfig.absolutePaths.distDir;
+    const cacheDir = path.join(distDir, Processor.CACHE_DIR);
+
+    let cacheContent: string[] = [];
+    if (FileUtils.existsSync(cacheDir)) {
+      cacheContent = FileUtils.readdirSync(cacheDir);
+    }
+
+    FileUtils.ensureDirectoryExists(distDir, true);
+
+    if (cacheContent.length > 0) {
+      FileUtils.mkdirSync(cacheDir);
+      for (const item of cacheContent) {
+        const itemPath = path.join(cacheDir, item);
+        const targetPath = path.join(cacheDir, item);
+        if (FileUtils.existsSync(itemPath)) {
+          if (FileUtils.isDirectory(itemPath)) {
+            FileUtils.copyDirSync(itemPath, targetPath);
+          } else {
+            FileUtils.copyFileSync(itemPath, targetPath);
+          }
+        }
+      }
+    }
   }
 
   copyPublicDir() {
@@ -63,17 +87,6 @@ export class AppBuilder {
     const cssString = await this.cssBuilder.processor.processPath(input);
     FileUtils.ensureDirectoryExists(path.dirname(output));
     FileUtils.writeFileSync(output, cssString);
-  }
-
-  async optimizeImages() {
-    if (!this.appConfig.imageOptimization || this.appConfig.imageOptimization.enabled !== true) return;
-
-    if (!this.appConfig.imageOptimization.processor) {
-      appLogger.warn('Image optimization processor is not configured');
-      return;
-    }
-
-    await this.appConfig.imageOptimization.processor.processDirectory();
   }
 
   private async runDevServer() {
@@ -92,7 +105,6 @@ export class AppBuilder {
     const dev = await this.runDevServer();
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
-      imageProcessor: this.appConfig.imageOptimization?.processor,
       cssBuilder: new CssBuilder({
         processor: PostCssProcessor,
         appConfig: this.appConfig,
@@ -128,9 +140,11 @@ export class AppBuilder {
 
     this.prepareDistDir();
 
-    await this.optimizeImages();
-
     this.copyPublicDir();
+
+    for (const processor of this.appConfig.processors.values()) {
+      await processor.setup();
+    }
 
     await this.execTailwind();
 

@@ -10,16 +10,16 @@ export type DeepRequired<T> = Required<{
 /**
  * Default configuration for the image processor
  */
-export const DEFAULT_CONFIG: Omit<DeepRequired<ImageProcessorConfig>, 'importMeta'> = {
+export const DEFAULT_CONFIG: Omit<DeepRequired<ImageProcessorConfig>, 'importMeta' | 'initialImageMap'> = {
   quality: 80,
   format: 'webp' as const,
   sizes: [],
+  acceptedFormats: ['webp', 'jpeg', 'png', 'avif'],
   paths: {
     sourceImages: '/src/public/assets/images',
     targetImages: '/src/public/assets/optimized',
-    sourceUrlPrefix: '/public/assets',
+    sourceUrlPrefix: '/public/assets/images',
     optimizedUrlPrefix: '/public/assets/optimized',
-    cache: '__cache__',
   },
 };
 

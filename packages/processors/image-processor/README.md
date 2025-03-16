@@ -79,7 +79,7 @@ import { EcoImage } from '@ecopages/image-processor';
 {
   sourceImages: "/src/public/assets/images",
   targetImages: "/src/public/assets/optimized",
-  sourceUrlPrefix: "/public/assets",
+  sourceUrlPrefix: "/public/assets/images",
   optimizedUrlPrefix: "/public/assets/optimized",
   cache: "__cache__"
 }

@@ -1,5 +1,4 @@
 import type { Readable } from 'node:stream';
-import type { ImageProcessor } from '@ecopages/image-processor';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
 
@@ -95,11 +94,6 @@ export interface PageMetadataProps {
   image?: string;
   url?: string;
   keywords?: string[];
-}
-
-export interface ImageOptimization {
-  enabled: boolean;
-  processor: ImageProcessor;
 }
 
 /**

@@ -1,3 +1,4 @@
+import type { ImageProcessor } from 'src/server/image-processor';
 import { ClientImageRenderer } from '../client/client-image-renderer';
 import { ServerImageRenderer } from '../server/server-image-renderer';
 import type { ImageLayout } from './constants';
@@ -60,17 +61,15 @@ const isServer = typeof window === 'undefined';
 export class ImageRendererProvider {
   static createRenderer() {
     if (isServer) {
-      const isImageOptimizationDefined = globalThis.ecoConfig.imageOptimization;
+      const processor = globalThis.ecoConfig.processors.get('ecopages-image-processor');
+      if (processor && 'getImageMap' in processor) {
+        const imageMap = ((processor as any).getImageMap as () => ImageProcessor['imageMap'])();
+        if (!imageMap) throw new Error('Looks like there is no image map available');
 
-      if (!isImageOptimizationDefined) {
-        throw new Error('Image optimization is not defined in the eco config');
+        return new ServerImageRenderer(imageMap);
       }
 
-      const imageMap = globalThis.ecoConfig.imageOptimization?.processor.getImageMap();
-
-      if (!imageMap) throw new Error('Looks like there is no image map available');
-
-      return new ServerImageRenderer(imageMap);
+      throw new Error('Image processor is not defined in the eco config');
     }
     return new ClientImageRenderer('eco-images-config');
   }

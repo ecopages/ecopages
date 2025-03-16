@@ -6,11 +6,7 @@ import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const imageProcessor = new ImageProcessor({
-  imagesDir: path.resolve(import.meta.dir, 'src/public/assets/images'),
-  cacheDir: path.resolve(import.meta.dir, '__cache__'),
-  outputDir: path.resolve(import.meta.dir, 'src/public/assets/opt-images'),
-  publicPath: '/public/assets/opt-images',
-  publicDir: 'public',
+  importMeta: import.meta,
   quality: 80,
   format: 'webp',
   sizes: [
@@ -19,6 +15,13 @@ const imageProcessor = new ImageProcessor({
     { width: 1024, label: 'lg' },
     { width: 1920, label: 'xl' },
   ],
+  paths: {
+    sourceImages: 'src/public/assets/images',
+    servedImages: '/public/assets/images',
+    sourceOptimized: 'src/public/assets/optimized',
+    servedOptimized: '/public/assets/optimized',
+    cache: '__cache__',
+  },
 });
 
 const config = await new ConfigBuilder()

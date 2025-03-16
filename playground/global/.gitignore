@@ -26,5 +26,5 @@ public/js
 **/*.bun
 
 # optimized images
-src/public/assets/opt-images
+src/public/assets/optimized
 __cache__

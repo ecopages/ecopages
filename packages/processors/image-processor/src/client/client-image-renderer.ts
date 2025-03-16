@@ -6,7 +6,7 @@
 import type { GenerateAttributesResult, ImageProps } from 'src/shared/image-renderer-provider';
 import type { ImageProcessorConfig } from '../server/image-processor';
 import { BaseImageRenderer } from '../shared/base-image-renderer';
-import type { ImageLayout, LayoutAttributes } from '../shared/constants';
+import type { ImageLayout } from '../shared/constants';
 import { ImageUtils } from '../shared/image-utils';
 import { ConfigLoader } from './client-config-loader';
 
@@ -18,7 +18,6 @@ export interface ClientImageRendererConfig {
   sizes: ImageProcessorConfig['sizes'];
   format: ImageProcessorConfig['format'];
   quality: ImageProcessorConfig['quality'];
-  publicPath: ImageProcessorConfig['publicPath'];
   generateUrl: (path: string, size: string, format: string) => string;
 }
 
@@ -88,12 +87,14 @@ export class ClientImageRenderer extends BaseImageRenderer {
       decoding: props.priority ? 'async' : 'auto',
       src: variants[0].displayPath,
       srcset: ImageUtils.generateSrcset(variants),
-      sizes: ImageUtils.generateSizes(this.config.sizes),
+      sizes: ImageUtils.generateSizes(this.config.sizes ?? []),
       alt: props.alt,
     };
   }
 
   private getConfigSizes(): number[] {
+    if (!this.config.sizes) return [];
+
     return Object.entries(this.config.sizes).map(([_, size]) => size.width);
   }
 
@@ -102,7 +103,7 @@ export class ClientImageRenderer extends BaseImageRenderer {
   }
 
   private generateVariants(src: string, dimensions: { width: number; height: number }, layout: ImageLayout) {
-    const sortedSizes = [...this.config.sizes].sort((a, b) => b.width - a.width);
+    const sortedSizes = [...(this.config.sizes ?? [])].sort((a, b) => b.width - a.width);
 
     sortedSizes.filter((size) => {
       if ((layout === 'fixed' || layout === 'constrained') && size.width > dimensions.width) {
@@ -111,7 +112,7 @@ export class ClientImageRenderer extends BaseImageRenderer {
       return true;
     });
 
-    if (sortedSizes.length === 0) {
+    if (sortedSizes.length === 0 && this.config.sizes) {
       sortedSizes.push(this.config.sizes[0]);
     }
 
@@ -123,7 +124,7 @@ export class ClientImageRenderer extends BaseImageRenderer {
       const variant = {
         width: size.width,
         height: Math.round(size.width / aspectRatio),
-        displayPath: this.config.generateUrl(src, size.label, this.config.format),
+        displayPath: this.config.generateUrl(src, size.label, this.config.format as string),
         label: size.label,
       };
 

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'bun:test';
 import type { ImageMap } from '../server/image-processor';
 import { ServerImageRenderer } from '../server/server-image-renderer';
-import { mockImageProps } from './test-utils';
+
+const mockImageProps = {
+  src: '/test/image.jpg',
+  alt: 'Test image',
+  width: 800,
+  height: 600,
+};
 
 describe('ServerImageRenderer', () => {
   const mockImageMap = {

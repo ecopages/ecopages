@@ -67,13 +67,17 @@ export class ImageRendererProvider {
       }
 
       const imageMap = globalThis.ecoConfig.imageOptimization?.processor.getImageMap();
+
+      if (!imageMap) throw new Error('Looks like there is no image map available');
+
       return new ServerImageRenderer(imageMap);
     }
     return new ClientImageRenderer('eco-images-config');
   }
 }
 
+const renderer = ImageRendererProvider.createRenderer();
+
 export const EcoImage = (props: RenderImageToString) => {
-  const renderer = ImageRendererProvider.createRenderer();
   return renderer.renderToString(props);
 };

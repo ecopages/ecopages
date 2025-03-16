@@ -6,7 +6,12 @@ import type { ClientImageRendererConfig } from './client-image-renderer';
  * i.e. <script id="eco-config">{ ... }</script>
  */
 export class ConfigLoader {
-  declare config: ImageProcessorConfig;
+  declare config: {
+    paths?: ImageProcessorConfig['paths'];
+    sizes: NonNullable<ImageProcessorConfig['sizes']>;
+    format: NonNullable<ImageProcessorConfig['format']>;
+    quality?: ImageProcessorConfig['quality'];
+  };
   private cachedUrls: Map<string, string> = new Map();
 
   constructor(private configId: string) {
@@ -28,7 +33,8 @@ export class ConfigLoader {
 
     const filename = path.split('/').pop() as string;
     const basename = filename.substring(0, filename.lastIndexOf('.'));
-    const url = `${this.config.publicPath}/${basename}-${size}.${format}`;
+    const publicPath = this.config.paths?.servedOptimized ?? '/public/assets/optimized';
+    const url = `${publicPath}/${basename}-${size}.${format}`;
 
     this.cachedUrls.set(cacheKey, url);
 
@@ -62,8 +68,7 @@ export class ConfigLoader {
       return {
         sizes: this.config.sizes,
         format: this.config.format,
-        quality: this.config.quality || 80,
-        publicPath: this.config.publicPath as string,
+        quality: this.config.quality ?? 80,
         generateUrl: this.defaultUrlGenerator,
       };
     } catch (error) {

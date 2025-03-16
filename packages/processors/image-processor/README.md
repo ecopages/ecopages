@@ -1,18 +1,14 @@
 # @ecopages/image-processor
 
-A lightweight, performant image optimization and responsive image processor for both server and client side usage.
+A powerful and flexible image processing library designed to optimize and manage responsive images in modern web applications. This library provides automatic image optimization, responsive image generation, and seamless integration with your web projects.
 
 ## Features
 
-- Zero-config server-side image optimization
-- Client-side responsive image enhancement
-- Multiple layout options: fixed, constrained, full-width
-- Automatic srcset and sizes generation
-- Smart viewport-based sizing
-- Support for WebP, AVIF, JPEG, and PNG
-- Preserves aspect ratios
-- Built-in caching system
-- Mutation Observer for dynamic content
+- **Automatic Image Optimization**: Converts and optimizes images to modern formats like WebP
+- **Responsive Image Generation**: Creates multiple image variants for different screen sizes
+- **Performance-First**: Built-in caching and efficient processing pipeline
+- **Smart Caching**: Only processes images when they change
+- **Flexible Layouts**: Supports fixed, constrained, and full-width image layouts
 
 ## Installation
 
@@ -20,153 +16,141 @@ A lightweight, performant image optimization and responsive image processor for 
 npm install @ecopages/image-processor
 ```
 
-## Server-Side Usage
+## Quick Start
+
+1. Configure the image processor in your application:
 
 ```typescript
-import { ImageProcessor, ImageRewriter } from "@ecopages/image-processor";
+import { ImageProcessor } from "@ecopages/image-processor";
 
 const processor = new ImageProcessor({
-	imagesDir: "src/public/assets/images",
-	outputDir: "src/public/assets/opt-images",
-	publicPath: "/public/assets/opt-images",
-	quality: 80,
-	format: "webp",
+	importMeta: import.meta,
 	sizes: [
-		{ width: 320, label: "sm" },
-		{ width: 768, label: "md" },
-		{ width: 1024, label: "lg" },
+		{ width: 1920, label: "xl" },
+		{ width: 1280, label: "lg" },
+		{ width: 640, label: "md" },
 	],
+	format: "webp",
+	quality: 80,
 });
 
-// Process all images in directory
+// Process all images in your source directory
 await processor.processDirectory();
-
-// Enhance HTML with responsive images
-const rewriter = new ImageRewriter(processor);
-const enhancedHtml = await rewriter.enhanceImages(html);
 ```
 
-## Client-Side Usage
-
-1. Add the configuration to your HTML:
-
-```html
-<script type="application/json" id="eco-images-config">
-	{
-		"sizes": [
-			{ "width": 320, "label": "sm" },
-			{ "width": 768, "label": "md" },
-			{ "width": 1024, "label": "lg" }
-		],
-		"format": "webp",
-		"quality": 80,
-		"publicPath": "/public/assets/opt-images"
-	}
-</script>
-```
-
-2. Use the client-side processor:
+2. Use the EcoImage component in your templates:
 
 ```typescript
-import { ClientImageRenderer } from "@ecopages/image-processor";
+import { EcoImage } from '@ecopages/image-processor';
 
-const generator = new ClientImageRenderer("eco-images-config");
+// Basic usage
+<EcoImage
+  src="/assets/images/hero.jpg"
+  alt="Hero image"
+  width={800}
+  height={600}
+/>
 
-// Generate attributes for an image
-const attrs = generator.generateAttributes({
-	src: "/path/to/image.jpg",
-	alt: "My Image",
-	width: 800,
-	height: 600,
-	layout: "constrained",
-	priority: true,
-});
-
-// Or render directly to string
-const html = generator.renderImageToString({
-	src: "/path/to/image.jpg",
-	alt: "My Image",
-	width: 800,
-	layout: "constrained",
-});
-```
-
-## Layout Options
-
-### Fixed Layout
-
-The image maintains its exact dimensions:
-
-```typescript
-generator.generateAttributes({
-	src: "image.jpg",
-	alt: "Fixed image",
-	width: 800,
-	height: 600,
-	layout: "fixed",
-});
-```
-
-### Constrained Layout
-
-The image scales down for smaller viewports but maintains its maximum dimensions:
-
-```typescript
-generator.generateAttributes({
-	src: "image.jpg",
-	alt: "Constrained image",
-	width: 1200,
-	layout: "constrained",
-});
-```
-
-### Full-Width Layout
-
-The image spans the full width of its container:
-
-```typescript
-generator.generateAttributes({
-	src: "image.jpg",
-	alt: "Full width image",
-	layout: "full-width",
-});
+// With responsive layout
+<EcoImage
+  src="/assets/images/hero.jpg"
+  alt="Hero image"
+  layout="constrained"
+  width={1200}
+  priority={true}
+/>
 ```
 
 ## Configuration
 
-### Server-Side Options
+### Image Processor Options
 
-| Option       | Type                                    | Description                          |
-| ------------ | --------------------------------------- | ------------------------------------ |
-| `imagesDir`  | `string`                                | Source directory for original images |
-| `outputDir`  | `string`                                | Directory for optimized images       |
-| `publicPath` | `string`                                | Public URL path for images           |
-| `quality`    | `number`                                | Output image quality (0-100)         |
-| `format`     | `'webp' \| 'avif' \| 'jpeg' \| 'png'`   | Output format                        |
-| `sizes`      | `Array<{width: number, label: string}>` | Responsive size variants             |
+| Option       | Type          | Default   | Description                                           |
+| ------------ | ------------- | --------- | ----------------------------------------------------- |
+| `importMeta` | `ImportMeta`  | Required  | The import.meta object from your config file          |
+| `sizes`      | `ImageSize[]` | `[]`      | Array of image sizes to generate                      |
+| `quality`    | `number`      | `80`      | Quality setting for image compression                 |
+| `format`     | `string`      | `"webp"`  | Output format (`"webp"`, `"jpeg"`, `"png"`, `"avif"`) |
+| `paths`      | `object`      | See below | Configuration for source and output paths             |
 
-### Client-Side Props
+### Default Paths Configuration
 
-| Prop          | Type                                       | Description                     |
-| ------------- | ------------------------------------------ | ------------------------------- |
-| `src`         | `string`                                   | Image source path               |
-| `alt`         | `string`                                   | Alt text for accessibility      |
-| `width`       | `number`                                   | Desired image width             |
-| `height`      | `number`                                   | Desired image height            |
-| `layout`      | `'fixed' \| 'constrained' \| 'full-width'` | Layout strategy                 |
-| `priority`    | `boolean`                                  | Priority loading for LCP images |
-| `aspectRatio` | `string`                                   | Force specific aspect ratio     |
+```typescript
+{
+  sourceImages: "/src/public/assets/images",
+  sourceOptimized: "/src/public/assets/optimized",
+  servedImages: "/public/assets",
+  servedOptimized: "/public/assets/optimized",
+  cache: "__cache__"
+}
+```
+
+## Image Component Props
+
+| Prop            | Type                                           | Description                                  |
+| --------------- | ---------------------------------------------- | -------------------------------------------- |
+| `src`           | `string`                                       | Source path of the image                     |
+| `alt`           | `string`                                       | Alternative text for the image               |
+| `width`         | `number`                                       | Width of the image                           |
+| `height`        | `number`                                       | Height of the image                          |
+| `priority`      | `boolean`                                      | Whether to load the image with high priority |
+| `layout`        | `"fixed"` \| `"constrained"` \| `"full-width"` | Image layout mode                            |
+| `staticVariant` | `string`                                       | Use a specific size variant                  |
+| `aspectRatio`   | `string`                                       | Force a specific aspect ratio                |
+| `unstyled`      | `boolean`                                      | Disable default styles                       |
+
+## Layout Modes
+
+### Fixed
+
+The image maintains exact dimensions:
+
+```typescript
+<EcoImage src="/image.jpg" layout="fixed" width={400} height={300} />
+```
+
+### Constrained
+
+The image scales down for smaller viewports but maintains max width:
+
+```typescript
+<EcoImage src="/image.jpg" layout="constrained" width={800} />
+```
+
+### Full-Width
+
+The image spans the full width of its container:
+
+```typescript
+<EcoImage src="/image.jpg" layout="full-width" />
+```
+
+## Advanced Features
+
+### Static Variants
+
+Use a specific size variant:
+
+```typescript
+<EcoImage src="/image.jpg" staticVariant="xl" alt="Large hero image" />
+```
+
+### Aspect Ratio Control
+
+Maintain specific aspect ratios:
+
+```typescript
+<EcoImage src="/image.jpg" aspectRatio="16/9" width={1200} />
+```
 
 ## Best Practices
 
-- Use `priority` for Above-the-fold images
-- Provide meaningful size variants based on your layout
-- Consider using AVIF for modern browsers
-- Keep original images in a separate directory
-- Use descriptive labels for size variants
+1. **Always provide alt text** for accessibility
+2. Use `priority` for above-the-fold images
+3. Choose appropriate `layout` modes based on your design needs
+4. Leverage `staticVariant` for art direction
+5. Configure `sizes` based on your application's breakpoints
 
-## Browser Support
+## License
 
-- Modern browsers (Chrome, Firefox, Safari, Edge)
-- WebP: [Can I use WebP?](https://caniuse.com/webp)
-- AVIF: [Can I use AVIF?](https://caniuse.com/avif)
+MIT

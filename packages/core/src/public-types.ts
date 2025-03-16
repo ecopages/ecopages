@@ -1,6 +1,5 @@
 import type { Readable } from 'node:stream';
 import type { ImageProcessor } from '@ecopages/image-processor';
-import type { BaseImageRewriter } from '@ecopages/image-processor/image-rewriter';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
 

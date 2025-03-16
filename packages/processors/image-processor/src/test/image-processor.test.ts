@@ -1,327 +1,193 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
-import type { ImageVariant } from '../server/image-processor';
-import { DEFAULT_CONFIG } from '../shared/constants';
-import {
-  PUBLIC_PATH,
-  cleanUpBeforeTest,
-  cleanupTestContext,
-  createTestContext,
-  createTestProcessor,
-  setupTestContext,
-} from './test-utils';
+import sharp from 'sharp';
+import { ImageProcessor, type ImageProcessorConfig } from 'src/server/image-processor';
+import { DEFAULT_CONFIG } from 'src/shared/constants';
+
+async function createTestImage(width: number, height: number, path: string): Promise<void> {
+  await sharp({
+    create: {
+      width,
+      height,
+      channels: 4,
+      background: '#ffffff',
+    },
+  }).toFile(path);
+}
+
+const testDir = path.join(process.cwd(), 'test-tmp');
+
+const testImage = path.join(testDir, 'src/public/assets/images/test.jpg');
+
+function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProcessor {
+  const paths = {
+    sourceImages: path.join(testDir, 'src/public/assets/images'),
+    sourceOptimized: path.join(testDir, 'src/public/assets/optimized'),
+    servedImages: '/public/assets',
+    servedOptimized: '/public/assets/optimized',
+    cache: path.join(testDir, '__cache__'),
+  };
+
+  for (const dir of Object.values(paths)) {
+    if (!dir.startsWith('/')) {
+      FileUtils.ensureDirectoryExists(dir);
+    }
+  }
+
+  return new ImageProcessor({
+    importMeta: import.meta,
+    paths,
+    ...config,
+  });
+}
 
 describe('ImageProcessor', () => {
-  const context = createTestContext(path.resolve(__dirname));
-
-  beforeAll(async () => {
-    await setupTestContext(context);
-  });
-
-  beforeEach(() => {
-    cleanUpBeforeTest(context);
+  beforeEach(async () => {
+    if (FileUtils.existsSync(testDir)) {
+      FileUtils.rmSync(testDir, { recursive: true });
+    }
+    FileUtils.ensureDirectoryExists(path.dirname(testImage));
+    await createTestImage(1920, 1080, testImage);
   });
 
   afterAll(() => {
-    cleanupTestContext(context);
+    for (const dir of [...Object.values(DEFAULT_CONFIG.paths), testDir]) {
+      if (FileUtils.existsSync(dir)) {
+        FileUtils.rmSync(dir, { recursive: true });
+      }
+    }
   });
 
-  test('processImage basic', async () => {
-    const processor = createTestProcessor(context, {
-      quality: 80,
-      sizes: [{ width: 400, label: 'xl' }],
-    });
-
-    const variants = await processor.processImage(context.testImages.basic.path);
-
-    expect(variants).toBeInstanceOf(Array);
-    expect(variants).toHaveLength(1);
-    expect(variants[0]).toMatchObject({
-      displayPath: path.join(PUBLIC_PATH, 'basic-xl.webp'),
-      originalPath: path.join(context.outputDir, 'basic-xl.webp'),
-      width: 400,
-      height: 300,
-      label: 'xl',
-      format: 'webp',
-    });
-    expect(FileUtils.existsSync(variants[0].originalPath)).toBe(true);
-  });
-
-  test('processImage with existing cache', async () => {
-    const processor = createTestProcessor(context, {
-      quality: 80,
-      sizes: [{ width: 400, label: 'xl' }],
-    });
-
-    const variants = await processor.processImage(context.testImages.basic.path);
-    const variants2 = await processor.processImage(context.testImages.basic.path);
-
-    expect(variants2).toEqual(variants);
-    expect(FileUtils.existsSync(variants[0].originalPath)).toBe(true);
-  });
-
-  test('processImage with different format', async () => {
-    const processor = createTestProcessor(context, {
-      quality: 80,
-      format: 'jpeg',
-      sizes: [{ width: 400, label: 'xl' }],
-    });
-
-    const variants = await processor.processImage(context.testImages.basic.path);
+  test('uses default configuration', async () => {
+    const processor = createProcessor();
+    const variants = await processor.processImage(testImage);
 
     expect(variants).toHaveLength(1);
-    expect(variants[0]).toMatchObject({
-      displayPath: path.join(PUBLIC_PATH, 'basic-xl.jpeg'),
-      originalPath: path.join(context.outputDir, 'basic-xl.jpeg'),
-      width: 400,
-      height: 300,
-      label: 'xl',
-      format: 'jpeg',
-    } as ImageVariant);
+    expect(variants.map((v) => v.width)).toEqual([1920]);
+    expect(variants[0].format).toBe('webp');
+    expect(variants.map((v) => v.label)).toEqual(['original']);
   });
 
-  test('processDirectory', async () => {
-    const processor = createTestProcessor(context, {
-      quality: 80,
-      sizes: [{ width: 400, label: 'xl' }],
-    });
-
-    await processor.processDirectory();
-
-    const processedFiles = await FileUtils.glob([`${context.outputDir}/**/*.{jpg,jpeg,png,webp}`]);
-    expect(processedFiles.length).toBe(Object.keys(context.testImages).length);
-  });
-
-  test('processImage with multiple sizes and viewport widths', async () => {
-    const processor = createTestProcessor(context, {
-      publicPath: '/output',
-      quality: 80,
-      format: 'webp',
+  test('respects image original size', async () => {
+    await createTestImage(800, 600, testImage);
+    const processor = createProcessor({
       sizes: [
-        { width: 320, label: 'sm' },
-        { width: 768, label: 'md' },
-        { width: 1024, label: 'lg' },
+        { width: 800, label: 'lg' },
+        { width: 400, label: 'sm' },
+      ],
+    });
+    const variants = await processor.processImage(testImage);
+
+    expect(variants.map((v) => v.width)).toEqual([800, 400]);
+    expect(variants.map((v) => v.label)).toEqual(['lg', 'sm']);
+  });
+
+  test('processes single image with custom configuration', async () => {
+    const processor = createProcessor({
+      quality: 60,
+      format: 'jpeg',
+      sizes: [{ width: 300, label: 'custom' }],
+    });
+
+    const variants = await processor.processImage(testImage);
+    expect(variants).toHaveLength(1);
+    expect(variants[0]).toMatchObject({
+      width: 300,
+      format: 'jpeg',
+      label: 'custom',
+    });
+  });
+
+  test('maintains aspect ratio across variants', async () => {
+    const processor = createProcessor();
+    const variants = await processor.processImage(testImage);
+
+    const originalRatio = 1080 / 1920;
+    for (const variant of variants) {
+      const ratio = variant.height / variant.width;
+      expect(Math.abs(ratio - originalRatio)).toBeLessThan(0.01);
+    }
+  });
+
+  test('generates correct srcset and sizes', async () => {
+    const processor = createProcessor({
+      sizes: [
         { width: 1920, label: 'xl' },
-      ],
-    });
-
-    await processor.processDirectory();
-
-    const imageMap = processor.getImageMap();
-
-    const entry = imageMap[context.testImages.large.path.split('/test').pop() as string];
-
-    expect(entry.variants).toHaveLength(4);
-
-    expect(entry.variants[0]).toMatchObject({
-      width: 1920,
-      label: 'xl',
-      format: 'webp',
-    });
-
-    expect(entry.variants[1]).toMatchObject({
-      width: 1024,
-      label: 'lg',
-      format: 'webp',
-    });
-
-    expect(entry.variants[2]).toMatchObject({
-      width: 768,
-      label: 'md',
-      format: 'webp',
-    });
-
-    expect(entry.variants[3]).toMatchObject({
-      width: 320,
-      label: 'sm',
-      format: 'webp',
-    });
-
-    expect(entry.srcset).toBe(
-      [
-        '/output/large-xl.webp 1920w',
-        '/output/large-lg.webp 1024w',
-        '/output/large-md.webp 768w',
-        '/output/large-sm.webp 320w',
-      ].join(', '),
-    );
-  });
-
-  test('processImage with custom public path', async () => {
-    const processor = createTestProcessor(context, {
-      publicPath: '/assets/images',
-      quality: 80,
-      format: 'webp',
-      sizes: [
-        { width: 320, label: 'sm' },
-        { width: 768, label: 'md' },
-      ],
-    });
-
-    await processor.processDirectory();
-
-    const imageMap = processor.getImageMap();
-
-    const entry = imageMap[context.testImages.basic.path.split('/test').pop() as string];
-
-    expect(entry.srcset).toBe('/assets/images/basic-md.webp 768w, /assets/images/basic-sm.webp 320w');
-  });
-
-  test('generateSrcset with non-existent image', () => {
-    const processor = createTestProcessor(context);
-
-    const srcset = processor.getSrcset('non-existent.jpg');
-    expect(srcset).toBe('');
-  });
-
-  test('generateSizes with non-existent image', () => {
-    const processor = createTestProcessor(context);
-
-    const sizes = processor.getSizes('non-existent.jpg');
-    expect(sizes).toBe('');
-  });
-
-  test('respects original image dimensions', async () => {
-    const processor = createTestProcessor(context, {
-      sizes: [
-        { width: 2000, label: 'xl' },
-        { width: 800, label: 'md' },
-        { width: 400, label: 'sm' },
-      ],
-      quality: 80,
-      format: 'webp',
-    });
-
-    await processor.processDirectory();
-
-    const imageMap = processor.getImageMap();
-
-    const entry = imageMap[context.testImages.basic.path.split('/test').pop() as string];
-
-    expect(entry.variants[0]).toMatchObject({
-      width: Math.min(2000, context.testImages.basic.width),
-      label: 'xl',
-      format: 'webp',
-    });
-    expect(entry.variants[1]).toMatchObject({
-      width: 800,
-      label: 'md',
-      format: 'webp',
-    });
-    expect(entry.variants[2]).toMatchObject({
-      width: 400,
-      label: 'sm',
-      format: 'webp',
-    });
-
-    expect(entry.srcset).toBe(
-      ['/output/basic-xl.webp 1024w', '/output/basic-md.webp 800w', '/output/basic-sm.webp 400w'].join(', '),
-    );
-  });
-
-  test('maintains variant order by width in srcset', async () => {
-    const processor = createTestProcessor(context, {
-      sizes: [
-        { width: 400, label: 'sm' },
         { width: 1200, label: 'lg' },
-        { width: 800, label: 'md' },
+        { width: 400, label: 'sm' },
       ],
-      quality: 80,
-      format: 'webp',
     });
+    await processor.processImage(testImage);
 
-    await processor.processDirectory();
+    const srcset = processor.getSrcset('/public/assets/test.jpg');
+    const sizes = processor.getSizes('/public/assets/test.jpg');
 
-    const imageMap = processor.getImageMap();
-
-    const entry = imageMap[context.testImages.basic.path.split('/test').pop() as string];
-
-    expect(entry.variants).toHaveLength(3);
-
-    expect(entry.variants.map((v) => v.width)).toEqual([1024, 800, 400]);
-
-    expect(entry.srcset).toBe(
-      ['/output/basic-lg.webp 1024w', '/output/basic-md.webp 800w', '/output/basic-sm.webp 400w'].join(', '),
-    );
+    expect(srcset).toMatch(/\/public\/assets\/optimized\/test-xl\.webp 1920w/);
+    expect(srcset).toMatch(/\/public\/assets\/optimized\/test-lg\.webp 1200w/);
+    expect(srcset).toMatch(/\/public\/assets\/optimized\/test-sm\.webp 400w/);
+    expect(sizes).toMatch(/\(min-width: 1920px\) 1920px/);
   });
 
-  test('prevents duplicate widths', async () => {
-    const processor = createTestProcessor(context, {
+  test('caches processed images', async () => {
+    const processor = createProcessor({
       sizes: [
-        { width: 2000, label: '2k' },
-        { width: 1024, label: 'lg' },
+        { width: 1920, label: 'xl' },
         { width: 800, label: 'md' },
         { width: 400, label: 'sm' },
       ],
-      quality: 80,
-      format: 'webp',
     });
+    await processor.processImage(testImage);
 
+    const hash = FileUtils.getFileHash(testImage);
+    const imageMap = processor.getImageMap();
+    const entry = Object.values(imageMap)[0];
+
+    expect(entry.hash).toBe(hash);
+    expect(entry.variants).toHaveLength(3);
+  });
+
+  test('processes directory of images', async () => {
+    const secondImage = path.join(path.dirname(testImage), 'test2.jpg');
+    await createTestImage(800, 600, secondImage);
+
+    const processor = createProcessor();
     await processor.processDirectory();
 
     const imageMap = processor.getImageMap();
-
-    const entry = imageMap[context.testImages.basic.path.split('/test').pop() as string];
-
-    expect(entry.variants).toHaveLength(3);
-
-    expect(entry.variants.map((v) => v.width)).toEqual([1024, 800, 400]);
-    expect(entry.variants[0]).toMatchObject({
-      width: 1024,
-      label: '2k',
-    });
+    expect(Object.keys(imageMap)).toHaveLength(2);
   });
 
-  test('handles invalid image file', async () => {
-    const processor = createTestProcessor(context);
-    const invalidPath = path.join(context.imagesDir, 'invalid.jpg');
+  test('resolves paths correctly', () => {
+    const processor = createProcessor();
+    const paths = processor.getResolvedPath();
 
-    FileUtils.writeFileSync(invalidPath, 'not an image');
-
-    expect(processor.processImage(invalidPath)).rejects.toThrow();
+    expect(paths.sourceImages).toMatch(/test-tmp\/src\/public\/assets\/images$/);
+    expect(paths.sourceOptimized).toMatch(/test-tmp\/src\/public\/assets\/optimized$/);
+    expect(paths.servedImages).toBe('/public/assets');
+    expect(paths.servedOptimized).toBe('/public/assets/optimized');
   });
 
-  test('processes image with default sizes if not specified', async () => {
-    const processor = createTestProcessor(context, {
-      quality: 80,
-      format: 'webp',
-    });
-
-    const variants = await processor.processImage(context.testImages.large.path);
-
-    expect(variants).toHaveLength(3);
-    expect(variants[0].width).toBe(DEFAULT_CONFIG.sizes[0].width);
-    expect(variants[1].width).toBe(DEFAULT_CONFIG.sizes[1].width);
-    expect(variants[2].width).toBe(DEFAULT_CONFIG.sizes[2].width);
-  });
-
-  test('processes image in AVIF format', async () => {
-    const processor = createTestProcessor(context, {
-      quality: 80,
-      format: 'avif',
-      sizes: [{ width: 400, label: 'sm' }],
-    });
-
-    const variants = await processor.processImage(context.testImages.basic.path);
+  test('handles empty sizes configuration', async () => {
+    const processor = createProcessor({ sizes: [] });
+    const variants = await processor.processImage(testImage);
 
     expect(variants).toHaveLength(1);
-    expect(variants[0]).toMatchObject({
-      format: 'avif',
-      displayPath: expect.stringContaining('avif'),
-    });
+    expect(variants[0].width).toBe(1920);
+    expect(variants[0].label).toBe('original');
   });
 
-  test('preserves aspect ratio when resizing', async () => {
-    const processor = createTestProcessor(context, {
-      quality: 80,
-      sizes: [{ width: 200, label: 'tiny' }],
+  test('deduplicates identical widths', async () => {
+    const processor = createProcessor({
+      sizes: [
+        { width: 800, label: 'a' },
+        { width: 800, label: 'b' },
+        { width: 400, label: 'c' },
+      ],
     });
 
-    const variants = await processor.processImage(context.testImages.basic.path);
-    const originalAspectRatio = context.testImages.basic.height / context.testImages.basic.width;
-    const variantAspectRatio = variants[0].height / variants[0].width;
-
-    expect(Math.abs(originalAspectRatio - variantAspectRatio)).toBeLessThan(0.01);
+    const variants = await processor.processImage(testImage);
+    expect(variants).toHaveLength(2);
+    expect(variants.map((v) => v.width)).toEqual([800, 400]);
   });
 });

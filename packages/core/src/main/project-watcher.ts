@@ -75,24 +75,16 @@ export class ProjectWatcher {
       this.router.reload();
     }
 
-    if (this.imageProcessor?.config.imagesDir && path.includes(this.imageProcessor?.config.imagesDir)) {
+    if (this.imageProcessor && path.includes(this.imageProcessor.getResolvedPath().sourceImages)) {
       const imageMap = this.imageProcessor.getImageMap();
-      const imageMapKey = join(
-        '/',
-        this.imageProcessor.config.publicDir,
-        this.imageProcessor.config.imagesDir.split(this.imageProcessor.config.publicDir)[1],
-        path.replace(this.imageProcessor.config.imagesDir, ''),
-      );
+      const displayPath = this.imageProcessor.resolveImageDisplayPath(path);
 
-      const variants = imageMap[imageMapKey].variants;
-
-      if (variants) {
-        for (const variant of variants) {
-          fs.rmSync(variant.originalPath, { recursive: true });
+      if (imageMap[displayPath]?.variants) {
+        for (const variant of imageMap[displayPath].variants) {
+          fs.rmSync(variant.originalPath, { force: true });
         }
+        appLogger.info('Image removed:', path);
       }
-
-      appLogger.info('Image removed:', path.replace(this.imageProcessor.config.imagesDir, ''));
     }
   }
 
@@ -136,17 +128,8 @@ export class ProjectWatcher {
       this.uncacheModules();
     }
 
-    if (this.imageProcessor?.config.imagesDir && path.includes(this.imageProcessor?.config.imagesDir)) {
-      const variants = await this.imageProcessor.processImage(path);
-      if (variants) {
-        for (const variant of variants) {
-          FileUtils.writeFileSync(
-            variant.originalPath.replace(this.imageProcessor.config.imagesDir, this.imageProcessor.config.outputDir),
-            FileUtils.getFileAsBuffer(variant.originalPath),
-          );
-        }
-      }
-
+    if (this.imageProcessor && path.includes(this.imageProcessor.getResolvedPath().sourceImages)) {
+      await this.imageProcessor.processImage(path);
       appLogger.info(`Image ${actionVerb}:`, updatedFileName);
     }
   }

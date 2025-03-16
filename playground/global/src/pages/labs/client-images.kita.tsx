@@ -12,7 +12,7 @@ const HomePage: EcoComponent = () => {
   return (
     <BaseLayout class="grid gap-8">
       <script type="application/json" id="eco-images-config">
-        {JSON.stringify(global.ecoConfig.imageOptimization?.processor?.config)}
+        {JSON.stringify(global.ecoConfig.imageOptimization?.processor?.getBaseConfig())}
       </script>
       <h1 class="main-title">Images</h1>
       <eco-images>

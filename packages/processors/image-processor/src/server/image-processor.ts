@@ -4,10 +4,10 @@
  */
 
 import path from 'node:path';
-import { FileUtils } from '@ecopages/core';
+import { FileUtils, deepMerge } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
-import { DEFAULT_CONFIG } from '../shared/constants';
+import { DEFAULT_CONFIG, type DeepRequired } from '../shared/constants';
 import { ImageUtils } from '../shared/image-utils';
 
 const appLogger = new Logger('[@ecopages/image-processor]', {
@@ -30,22 +30,27 @@ export interface ImageSize {
  * @interface ImageProcessorConfig
  */
 export interface ImageProcessorConfig {
-  /** Directory containing source images */
-  imagesDir: string;
-  /** Directory where processed images will be saved */
-  outputDir: string;
+  /** Import.meta object from the config file */
+  importMeta: ImportMeta;
   /** Array of sizes to generate (default: [original size]) */
-  sizes: ImageSize[];
-  /** Directory for caching processing metadata */
-  cacheDir: string;
+  sizes?: ImageSize[];
   /** Quality setting for image compression (default: 80) */
   quality?: number;
   /** Format for the processed images (default: 'webp') */
-  format: 'webp' | 'jpeg' | 'png' | 'avif';
-  /** Public URL path for the processed images (e.g., '/assets/images') */
-  publicPath: string;
-  /** Directory for public assets (default: 'public') */
-  publicDir: string;
+  format?: 'webp' | 'jpeg' | 'png' | 'avif';
+  /** Optional custom paths configuration */
+  paths?: {
+    /** Directory containing source images (default: 'src/public/assets/images') */
+    sourceImages?: string;
+    /** Public URL for internal usage with Image component (default: '/public/assets/images') */
+    servedImages?: string;
+    /** Directory where processed images will be saved (default: 'src/public/assets/optimized') */
+    sourceOptimized?: string;
+    /** Public URL path for the processed images (default: '/public/assets/optimized') */
+    servedOptimized?: string;
+    /** Directory for caching processing metadata (default: '__cache__') */
+    cache?: string;
+  };
 }
 
 /**
@@ -94,19 +99,33 @@ export interface ImageMap {
  */
 export class ImageProcessor {
   private static readonly DEFAULT_CONFIG = DEFAULT_CONFIG;
-
-  config: ImageProcessorConfig;
+  private readonly resolvedPaths: Required<NonNullable<ImageProcessorConfig['paths']>>;
+  private readonly config: DeepRequired<Omit<ImageProcessorConfig, 'importMeta' | 'paths'>>;
   private imageMap: ImageMap = {};
   private mapPath: string;
 
   constructor(config: ImageProcessorConfig) {
-    this.config = {
-      ...DEFAULT_CONFIG,
-      ...config,
+    const rootDir = config.importMeta.dir;
+
+    const mergedConfig = deepMerge(DEFAULT_CONFIG, config) as DeepRequired<ImageProcessorConfig>;
+
+    this.resolvedPaths = {
+      sourceImages: path.resolve(rootDir, mergedConfig.paths.sourceImages),
+      sourceOptimized: path.resolve(rootDir, mergedConfig.paths.sourceOptimized),
+      servedImages: mergedConfig.paths.servedImages,
+      servedOptimized: mergedConfig.paths.servedOptimized,
+      cache: path.resolve(rootDir, mergedConfig.paths.cache),
     };
-    this.mapPath = path.join(this.config.cacheDir, 'image-map.json');
-    FileUtils.mkdirSync(this.config.cacheDir, { recursive: true });
-    FileUtils.mkdirSync(this.config.outputDir, { recursive: true });
+
+    this.config = {
+      quality: mergedConfig.quality,
+      format: mergedConfig.format,
+      sizes: mergedConfig.sizes,
+    };
+
+    this.mapPath = path.join(this.resolvedPaths.cache, 'image-map.json');
+    FileUtils.mkdirSync(this.resolvedPaths.cache, { recursive: true });
+    FileUtils.mkdirSync(this.resolvedPaths.sourceOptimized, { recursive: true });
     this.loadImageMap();
   }
 
@@ -138,9 +157,11 @@ export class ImageProcessor {
     }
 
     const entry = this.imageMap[imagePath];
+
     if (entry) {
       return entry.originalPath;
     }
+
     return imagePath;
   }
 
@@ -174,12 +195,16 @@ export class ImageProcessor {
   /**
    * Get the display path from the absolute path
    */
-  getDisplayPath(imagePath: string): string {
-    const publicDir = this.config.publicDir || ImageProcessor.DEFAULT_CONFIG.publicDir;
-    const normalizedImagesDir = path.normalize(this.config.imagesDir);
-    const indexStartPublicDir = normalizedImagesDir.indexOf(publicDir);
-    const relativePath = normalizedImagesDir.substring(indexStartPublicDir);
-    return `/${relativePath}/${path.basename(imagePath)}`;
+  resolveImageDisplayPath(imagePath: string): string {
+    return path.join(this.resolvedPaths.servedOptimized, path.basename(imagePath));
+  }
+
+  /**
+   * This is a helper method to get the image path for the src attribute
+   * @param imagePath - The path to the image
+   */
+  resolvePublicImagePath(imagePath: string) {
+    return path.join(this.resolvedPaths.servedImages, path.basename(imagePath));
   }
 
   private async calculateDimensions(imagePath: string, targetWidth: number) {
@@ -200,8 +225,8 @@ export class ImageProcessor {
   ): Promise<ImageVariant> {
     const labelPart = size.label ? `-${size.label}` : '';
     const outputBasename = `${filename}${labelPart}.${format}`;
-    const outputPath = path.join(this.config.outputDir, outputBasename);
-    const publicPath = this.config.publicPath || ImageProcessor.DEFAULT_CONFIG.publicPath;
+    const outputPath = path.join(this.resolvedPaths.sourceOptimized, outputBasename);
+    const publicPath = this.resolvedPaths.servedOptimized;
     const variantDisplayPath = path.join(publicPath, outputBasename);
     const safeFormat = format || ImageProcessor.DEFAULT_CONFIG.format;
     const safeQuality = this.config.quality || ImageProcessor.DEFAULT_CONFIG.quality;
@@ -225,7 +250,8 @@ export class ImageProcessor {
    * @returns {Promise<ImageVariant[]>} Array of processed image variants
    */
   async processImage(imagePath: string): Promise<ImageVariant[]> {
-    const displayPath = this.getDisplayPath(imagePath);
+    const displayPath = this.resolveImageDisplayPath(imagePath);
+    const srcPath = this.resolvePublicImagePath(imagePath);
     const processablePath = this.getProcessablePath(imagePath);
     const hash = FileUtils.getFileHash(processablePath);
 
@@ -258,7 +284,7 @@ export class ImageProcessor {
       variants.push(variant);
     }
 
-    this.imageMap[displayPath] = {
+    this.imageMap[srcPath] = {
       hash,
       variants,
       originalPath: processablePath,
@@ -304,7 +330,7 @@ export class ImageProcessor {
    * @returns {Promise<void>}
    */
   async processDirectory(): Promise<void> {
-    const glob = `${this.config.imagesDir}/**/*.{jpg,jpeg,png,webp}`;
+    const glob = `${this.resolvedPaths.sourceImages}/**/*.{jpg,jpeg,png,webp}`;
     appLogger.debug(`Processing images in ${glob}`);
     const images = await FileUtils.glob([glob]);
 
@@ -314,11 +340,11 @@ export class ImageProcessor {
   }
 
   /**
-   * Gets the configured public path
+   * Gets the public path for image URLs
    * @returns {string} Public path for image URLs
    */
-  getPublicPath(): string {
-    return this.config.publicPath || '/public';
+  getResolvedPath(): Required<NonNullable<ImageProcessorConfig['paths']>> {
+    return this.resolvedPaths;
   }
 
   /**
@@ -327,5 +353,13 @@ export class ImageProcessor {
    */
   getImageMap(): ImageMap {
     return this.imageMap;
+  }
+
+  /**
+   * Gets the configuration for the image processor
+   * @returns {DeepRequired<Omit<ImageProcessorConfig, "importMeta">>} Configuration object
+   */
+  getBaseConfig(): DeepRequired<Omit<ImageProcessorConfig, 'importMeta' | 'paths'>> {
+    return this.config;
   }
 }

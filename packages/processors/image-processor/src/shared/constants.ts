@@ -1,20 +1,27 @@
 import type { ImageProcessorConfig } from '../server/image-processor';
 
 /**
+ * Deeply required type
+ */
+export type DeepRequired<T> = Required<{
+  [K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>;
+}>;
+
+/**
  * Default configuration for the image processor
  */
-export const DEFAULT_CONFIG: Partial<ImageProcessorConfig> &
-  Required<Pick<ImageProcessorConfig, 'publicDir' | 'publicPath' | 'sizes' | 'quality' | 'format'>> = {
+export const DEFAULT_CONFIG: Omit<DeepRequired<ImageProcessorConfig>, 'importMeta'> = {
   quality: 80,
   format: 'webp' as const,
-  sizes: [
-    { width: 2000, label: 'xl' },
-    { width: 1200, label: 'lg' },
-    { width: 400, label: 'sm' },
-  ],
-  publicDir: 'public',
-  publicPath: '/output',
-} as const;
+  sizes: [],
+  paths: {
+    sourceImages: '/src/public/assets/images',
+    sourceOptimized: '/src/public/assets/optimized',
+    servedImages: '/public/assets',
+    servedOptimized: '/public/assets/optimized',
+    cache: '__cache__',
+  },
+};
 
 /**
  * Custom attributes for the image element

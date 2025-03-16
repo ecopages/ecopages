@@ -1,10 +1,25 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { ClientImageRenderer } from '../client/client-image-renderer';
-import { mockConfig, mockImageProps } from './test-utils';
+
+const mockImageProps = {
+  src: '/test/image.jpg',
+  alt: 'Test image',
+  width: 800,
+  height: 600,
+};
 
 describe('ClientImageRenderer', () => {
   const configElement = {
-    textContent: JSON.stringify(mockConfig),
+    textContent: JSON.stringify({
+      importMeta: import.meta,
+      sizes: [
+        { width: 1920, label: 'xl' },
+        { width: 800, label: 'md' },
+        { width: 400, label: 'sm' },
+      ],
+      format: 'webp',
+      quality: 80,
+    }),
   } as HTMLElement;
 
   const getElementByIdMock = mock((id: string) => {
@@ -28,7 +43,7 @@ describe('ClientImageRenderer', () => {
     const renderer = new ClientImageRenderer('eco-images-config');
     const attributes = renderer.generateAttributes(mockImageProps);
 
-    expect(attributes.src).toContain('/assets/images/image-xl.webp');
+    expect(attributes.src).toContain('/public/assets/optimized/image-xl.webp');
     expect(attributes.alt).toBe(mockImageProps.alt);
     expect(attributes.width).toBe(mockImageProps.width);
     expect(attributes.height).toBe(mockImageProps.height);

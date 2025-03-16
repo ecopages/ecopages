@@ -16,9 +16,9 @@ export const DEFAULT_CONFIG: Omit<DeepRequired<ImageProcessorConfig>, 'importMet
   sizes: [],
   paths: {
     sourceImages: '/src/public/assets/images',
-    sourceOptimized: '/src/public/assets/optimized',
-    servedImages: '/public/assets',
-    servedOptimized: '/public/assets/optimized',
+    targetImages: '/src/public/assets/optimized',
+    sourceUrlPrefix: '/public/assets',
+    optimizedUrlPrefix: '/public/assets/optimized',
     cache: '__cache__',
   },
 };

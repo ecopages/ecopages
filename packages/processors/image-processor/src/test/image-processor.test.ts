@@ -21,11 +21,11 @@ const testDir = path.join(process.cwd(), 'test-tmp');
 const testImage = path.join(testDir, 'src/public/assets/images/test.jpg');
 
 function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProcessor {
-  const paths = {
+  const paths: ImageProcessorConfig['paths'] = {
     sourceImages: path.join(testDir, 'src/public/assets/images'),
-    sourceOptimized: path.join(testDir, 'src/public/assets/optimized'),
-    servedImages: '/public/assets',
-    servedOptimized: '/public/assets/optimized',
+    targetImages: path.join(testDir, 'src/public/assets/optimized'),
+    sourceUrlPrefix: '/public/assets',
+    optimizedUrlPrefix: '/public/assets/optimized',
     cache: path.join(testDir, '__cache__'),
   };
 
@@ -163,9 +163,9 @@ describe('ImageProcessor', () => {
     const paths = processor.getResolvedPath();
 
     expect(paths.sourceImages).toMatch(/test-tmp\/src\/public\/assets\/images$/);
-    expect(paths.sourceOptimized).toMatch(/test-tmp\/src\/public\/assets\/optimized$/);
-    expect(paths.servedImages).toBe('/public/assets');
-    expect(paths.servedOptimized).toBe('/public/assets/optimized');
+    expect(paths.targetImages).toMatch(/test-tmp\/src\/public\/assets\/optimized$/);
+    expect(paths.sourceUrlPrefix).toBe('/public/assets');
+    expect(paths.optimizedUrlPrefix).toBe('/public/assets/optimized');
   });
 
   test('handles empty sizes configuration', async () => {

@@ -11,7 +11,6 @@ const mockImageProps = {
 describe('ClientImageRenderer', () => {
   const configElement = {
     textContent: JSON.stringify({
-      importMeta: import.meta,
       sizes: [
         { width: 1920, label: 'xl' },
         { width: 800, label: 'md' },
@@ -19,6 +18,7 @@ describe('ClientImageRenderer', () => {
       ],
       format: 'webp',
       quality: 80,
+      optimizedUrlPrefix: '/public/assets/optimized',
     }),
   } as HTMLElement;
 

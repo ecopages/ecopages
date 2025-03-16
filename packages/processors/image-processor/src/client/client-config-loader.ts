@@ -7,7 +7,7 @@ import type { ClientImageRendererConfig } from './client-image-renderer';
  */
 export class ConfigLoader {
   declare config: {
-    paths?: ImageProcessorConfig['paths'];
+    optimizedUrlPrefix: string;
     sizes: NonNullable<ImageProcessorConfig['sizes']>;
     format: NonNullable<ImageProcessorConfig['format']>;
     quality?: ImageProcessorConfig['quality'];
@@ -33,8 +33,7 @@ export class ConfigLoader {
 
     const filename = path.split('/').pop() as string;
     const basename = filename.substring(0, filename.lastIndexOf('.'));
-    const publicPath = this.config.paths?.servedOptimized ?? '/public/assets/optimized';
-    const url = `${publicPath}/${basename}-${size}.${format}`;
+    const url = `${this.config.optimizedUrlPrefix}/${basename}-${size}.${format}`;
 
     this.cachedUrls.set(cacheKey, url);
 

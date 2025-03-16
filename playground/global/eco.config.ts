@@ -17,9 +17,9 @@ const imageProcessor = new ImageProcessor({
   ],
   paths: {
     sourceImages: 'src/public/assets/images',
-    servedImages: '/public/assets/images',
-    sourceOptimized: 'src/public/assets/optimized',
-    servedOptimized: '/public/assets/optimized',
+    targetImages: 'src/public/assets/optimized',
+    sourceUrlPrefix: '/public/assets/images',
+    optimizedUrlPrefix: '/public/assets/optimized',
     cache: '__cache__',
   },
 });

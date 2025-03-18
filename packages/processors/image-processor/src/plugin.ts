@@ -1,6 +1,6 @@
 import { FileUtils, deepMerge } from '@ecopages/core';
-import { type Dependency, DependencyHelpers } from '@ecopages/core/dependency-service';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/processors/processor';
+import { type Dependency, DependencyHelpers } from '@ecopages/core/services/dependency-service';
 import { Logger } from '@ecopages/logger';
 import type { FSWatcher } from 'chokidar';
 import { type ImageMap, ImageProcessor, type ImageProcessorConfig } from './server/image-processor';
@@ -16,7 +16,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
   constructor(config: ProcessorConfig<ImageProcessorConfig>) {
     const defaultWatchConfig: ProcessorWatchConfig = {
       paths: [],
-      extensions: ['.jpg', '.jpeg', '.png', '.webp', '.avif'],
+      extensions: config.options?.supportedImageFormats ?? ['jpg', 'jpeg', 'png', 'webp', 'avif'],
       onCreate: async (path: string) => this.process([path]),
       onChange: async (path) => this.process([path]),
       onDelete: async (path) => {

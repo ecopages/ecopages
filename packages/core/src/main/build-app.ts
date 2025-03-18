@@ -2,12 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import type { EcoPagesAppConfig } from 'src/internal-types.ts';
+import { HtmlTransformerService } from 'src/services/html-transformer.service.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { AppBuilder } from '../main/app-builder.ts';
 import { CssBuilder } from '../main/css-builder.ts';
 import { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { StaticPageGenerator } from '../main/static-page-generator.ts';
-import { DependencyService } from './dependency-service.ts';
+import { DependencyService } from '../services/dependency.service.ts';
 import { IntegrationManager } from './integration-manager.ts';
 
 const validateConfig = (config: unknown): EcoPagesAppConfig => {
@@ -49,6 +50,7 @@ export async function buildApp({
       options: { watchMode: watch as boolean },
     }),
     dependencyService: new DependencyService({ appConfig }),
+    htmlTransformer: new HtmlTransformerService(),
     options: {
       watch: watch as boolean,
       serve: serve as boolean,

@@ -53,8 +53,8 @@ export interface ImageProcessorConfig {
   quality?: number;
   /** Format for the processed images (default: 'webp') */
   format?: 'webp' | 'jpeg' | 'png' | 'avif';
-  /** Accepted formats for the processed images (default: ['webp', 'jpeg', 'png', 'avif']) */
-  acceptedFormats?: ('webp' | 'jpeg' | 'png' | 'avif')[];
+  /** Accepted formats for the processed images (default: ['jpg', 'webp', 'jpeg', 'png', 'avif']) */
+  supportedImageFormats?: ('jpg' | 'webp' | 'jpeg' | 'png' | 'avif')[];
   /** Initial image map to use for caching */
   initialImageMap?: ImageMap;
   /** Custom paths configuration */
@@ -109,7 +109,7 @@ export class ImageProcessor {
   private static readonly DEFAULT_CONFIG = DEFAULT_CONFIG;
   private readonly resolvedPaths: Required<NonNullable<ImageProcessorConfig['paths']>>;
   private readonly config: DeepRequired<
-    Omit<ImageProcessorConfig, 'importMeta' | 'paths' | 'acceptedFormats' | 'initialImageMap'>
+    Omit<ImageProcessorConfig, 'importMeta' | 'paths' | 'supportedImageFormats' | 'initialImageMap'>
   >;
   private imageMap: ImageMap = {};
 
@@ -355,7 +355,7 @@ export class ImageProcessor {
    * @returns {DeepRequired<Omit<ImageProcessorConfig, "importMeta">>} Configuration object
    */
   getClientConfig(): DeepRequired<
-    Omit<ImageProcessorConfig, 'importMeta' | 'paths' | 'acceptedFormats' | 'initialImageMap'>
+    Omit<ImageProcessorConfig, 'importMeta' | 'paths' | 'supportedImageFormats' | 'initialImageMap'>
   > & {
     optimizedUrlPrefix: string;
   } {

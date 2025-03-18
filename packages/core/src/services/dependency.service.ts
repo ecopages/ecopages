@@ -3,19 +3,35 @@ import { deepMerge } from 'src/utils/deep-merge';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { FileUtils } from '../utils/file-utils.module';
 
+/**
+ * DependencyKind, the kind of the dependency
+ */
 export type DependencyKind = 'script' | 'stylesheet';
+
+/**
+ * DependencyPosition, where the dependency should be injected
+ */
 export type DependencyPosition = 'head' | 'body';
 
+/**
+ * BaseDependency, common attributes for all dependencies
+ */
 export interface BaseDependency {
   kind: DependencyKind;
   attributes?: Record<string, string>;
 }
 
+/**
+ * This interface represents a dependency with inline content
+ */
 type InlinedDependency = {
   inline: true;
   content: string;
 };
 
+/**
+ * This interface represents a script dependency with inline content
+ */
 export type ScriptInlineDependency = BaseDependency &
   InlinedDependency & {
     kind: 'script';
@@ -23,6 +39,9 @@ export type ScriptInlineDependency = BaseDependency &
     minify?: boolean;
   };
 
+/**
+ * This interface represents a script dependency with a src URL
+ */
 export type ScriptSrcDependency = BaseDependency & {
   kind: 'script';
   position: DependencyPosition;
@@ -30,34 +49,60 @@ export type ScriptSrcDependency = BaseDependency & {
   srcUrl: string;
 };
 
+/**
+ * This interface represents a script dependency with JSON content
+ */
 export type ScriptJsonDependency = BaseDependency & {
   content: string;
   position?: DependencyPosition;
 };
 
+/**
+ * This interface represents a script dependency
+ */
 export type ScriptDependency = ScriptInlineDependency | ScriptSrcDependency | ScriptJsonDependency;
 
+/**
+ * This interface represents a stylesheet dependency with inline content
+ */
 export type StylesheetInlineDependency = BaseDependency &
   InlinedDependency & {
     kind: 'stylesheet';
     position: Extract<DependencyPosition, 'head'>;
   };
 
+/**
+ * This interface represents a stylesheet dependency with a src URL
+ */
 export type StylesheetSrcDependency = BaseDependency & {
   kind: 'stylesheet';
   position: Extract<DependencyPosition, 'head'>;
   srcUrl: string;
 };
 
+/**
+ * StylesheetDependency
+ */
 export type StylesheetDependency = StylesheetInlineDependency | StylesheetSrcDependency;
 
+/**
+ * Available dependency types
+ */
 export type Dependency = ScriptDependency | StylesheetDependency;
 
+/**
+ * DependencyProvider
+ * This interface represents a dependency provider that can provide dependencies
+ */
 export interface DependencyProvider {
   name: string;
   getDependencies(): Dependency[];
 }
 
+/**
+ * ProcessedDependency
+ * This interface represents a processed dependency that can be used to create the markup to inject
+ */
 export interface ProcessedDependency {
   provider: string;
   kind: DependencyKind;
@@ -69,10 +114,17 @@ export interface ProcessedDependency {
   content?: string;
 }
 
+/**
+ * DependencyServiceOptions
+ * This interface represents the options that the DependencyService accepts
+ */
 export interface DependencyServiceOptions {
   appConfig: EcoPagesAppConfig;
 }
 
+/**
+ * DependencyService interface
+ */
 export interface IDependencyService {
   addProvider(provider: DependencyProvider): void;
   removeProvider(providerName: string): void;
@@ -80,6 +132,13 @@ export interface IDependencyService {
   getDependencies(): ProcessedDependency[];
 }
 
+/**
+ * DependencyService is responsible for:
+ * - Managing dependency providers
+ * - Processing raw dependencies into processed ones
+ * - Handling file operations (bundling, minification)
+ * - Caching and optimization
+ */
 export class DependencyService implements IDependencyService {
   static readonly DEPS_DIR = '__dependencies__';
 
@@ -91,14 +150,26 @@ export class DependencyService implements IDependencyService {
     this.config = appConfig;
   }
 
+  /**
+   * Add a dependency provider
+   * @param provider
+   */
   addProvider(provider: DependencyProvider): void {
     this.providersMap.set(provider.name, provider);
   }
 
+  /**
+   * Remove a dependency provider
+   * @param providerName
+   */
   removeProvider(providerName: string): void {
     this.providersMap.delete(providerName);
   }
 
+  /**
+   * Get processed dependencies
+   * @returns
+   */
   getDependencies(): ProcessedDependency[] {
     return this.dependencies;
   }
@@ -162,6 +233,12 @@ export class DependencyService implements IDependencyService {
     return this.dependencies;
   }
 
+  /**
+   * This method is responsible for processing dependencies
+   * This is where we inline the content of the dependencies and write them to the dist directory
+   * @param provider {@link DependencyProvider}
+   * @param deps {@link Dependency[]}
+   */
   private async processDependencies(provider: DependencyProvider, deps: Dependency[]): Promise<void> {
     for (const dep of deps) {
       const depsDir = path.join(this.config.absolutePaths.distDir, DependencyService.DEPS_DIR);
@@ -242,6 +319,10 @@ export class DependencyService implements IDependencyService {
   }
 }
 
+/**
+ * CreateDependecy
+ * Helper type to create a dependency type
+ */
 type CreateDependecy<T extends Dependency, U extends keyof T> = Partial<Pick<T, 'position'>> & Pick<T, U>;
 
 /**

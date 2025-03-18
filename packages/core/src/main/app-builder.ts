@@ -1,19 +1,17 @@
 import '../global/init.ts';
-
 import path from 'node:path';
-import { PostCssProcessor } from '@ecopages/postcss-processor';
+import type { Server } from 'bun';
+import { Processor } from 'src/processors/processor.ts';
 import { BunFileSystemServerAdapter, type CreateServerOptions } from '../adapters/bun/fs-server.ts';
 import { StaticContentServer } from '../dev/sc-server.ts';
 import { appLogger } from '../global/app-logger.ts';
-import { CssBuilder } from '../main/css-builder.ts';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { CssBuilder } from '../main/css-builder.ts';
+import type { ScriptsBuilder } from '../main/scripts-builder.ts';
+import type { DependencyService, ProcessedDependency } from '../services/dependency.service.ts';
+import type { HtmlTransformerService } from '../services/html-transformer.service';
 import { FileUtils } from '../utils/file-utils.module.ts';
 import { ProjectWatcher } from './project-watcher.ts';
-
-import type { Server } from 'bun';
-import { Processor } from 'src/processors/processor.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { ScriptsBuilder } from '../main/scripts-builder.ts';
-import type { DependencyService, ProcessedDependency } from './dependency-service.ts';
 import type { StaticPageGenerator } from './static-page-generator.ts';
 
 type AppBuilderOptions = {
@@ -30,6 +28,7 @@ export class AppBuilder {
   private options: AppBuilderOptions;
   private dependencyService: DependencyService;
   private processedDependencies: ProcessedDependency[] = [];
+  private htmlTransformer: HtmlTransformerService;
 
   constructor({
     appConfig,
@@ -38,6 +37,7 @@ export class AppBuilder {
     scriptsBuilder,
     options,
     dependencyService,
+    htmlTransformer,
   }: {
     appConfig: EcoPagesAppConfig;
     staticPageGenerator: StaticPageGenerator;
@@ -45,6 +45,7 @@ export class AppBuilder {
     scriptsBuilder: ScriptsBuilder;
     options: AppBuilderOptions;
     dependencyService: DependencyService;
+    htmlTransformer: HtmlTransformerService;
   }) {
     this.appConfig = appConfig;
     this.staticPageGenerator = staticPageGenerator;
@@ -52,9 +53,10 @@ export class AppBuilder {
     this.scriptsBuilder = scriptsBuilder;
     this.options = options;
     this.dependencyService = dependencyService;
+    this.htmlTransformer = htmlTransformer;
   }
 
-  prepareDistDir() {
+  private prepareDistDir() {
     const distDir = this.appConfig.absolutePaths.distDir;
     const cacheDir = path.join(distDir, Processor.CACHE_DIR);
 
@@ -81,12 +83,12 @@ export class AppBuilder {
     }
   }
 
-  copyPublicDir() {
+  private copyPublicDir() {
     const { srcDir, publicDir, distDir } = this.appConfig;
     FileUtils.copyDirSync(path.join(srcDir, publicDir), path.join(distDir, publicDir));
   }
 
-  async execTailwind() {
+  private async execTailwind() {
     const { srcDir, distDir, tailwind } = this.appConfig;
     const input = `${srcDir}/${tailwind.input}`;
     const output = `${distDir}/${tailwind.input}`;
@@ -96,48 +98,8 @@ export class AppBuilder {
   }
 
   private async transformIndexHtml(res: Response): Promise<Response> {
-    const headDependencies = this.processedDependencies.filter((dep) => dep.position === 'head');
-    const bodyDependencies = this.processedDependencies.filter((dep) => dep.position === 'body');
-
-    function formatAttributes(attrs?: Record<string, string>): string {
-      if (!attrs) return '';
-      return ` ${Object.entries(attrs)
-        .map(([key, value]) => `${key}="${value}"`)
-        .join(' ')}`;
-    }
-
-    const rewriter = new HTMLRewriter()
-      .on('head', {
-        element(element) {
-          for (const dep of headDependencies) {
-            if (dep.kind === 'script') {
-              const script = dep.inline
-                ? `<script${formatAttributes(dep.attributes)}>${dep.content}</script>`
-                : `<script src="${dep.srcUrl}"${formatAttributes(dep.attributes)}></script>`;
-              element.append(script, { html: true });
-            } else if (dep.kind === 'stylesheet') {
-              const style = dep.inline
-                ? `<style${formatAttributes(dep.attributes)}>${dep.content}</style>`
-                : `<link rel="stylesheet" href="${dep.srcUrl}"${formatAttributes(dep.attributes)}>`;
-              element.append(style, { html: true });
-            }
-          }
-        },
-      })
-      .on('body', {
-        element(element) {
-          for (const dep of bodyDependencies) {
-            if (dep.kind === 'script') {
-              const script = dep.inline
-                ? `<script${formatAttributes(dep.attributes)}>${dep.content}</script>`
-                : `<script src="${dep.srcUrl}"${formatAttributes(dep.attributes)}></script>`;
-              element.append(script, { html: true });
-            }
-          }
-        },
-      });
-
-    return rewriter.transform(res);
+    this.htmlTransformer.setProcessedDependencies(this.processedDependencies);
+    return this.htmlTransformer.transform(res);
   }
 
   private async runDevServer() {
@@ -149,19 +111,16 @@ export class AppBuilder {
     return await BunFileSystemServerAdapter.createServer(options);
   }
 
-  async serve() {
+  private async serve() {
     await this.runDevServer();
   }
 
-  async watch() {
+  private async watch() {
     const dev = await this.runDevServer();
 
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
-      cssBuilder: new CssBuilder({
-        processor: PostCssProcessor,
-        appConfig: this.appConfig,
-      }),
+      cssBuilder: this.cssBuilder,
       scriptsBuilder: this.scriptsBuilder,
       router: dev.router,
       execTailwind: this.execTailwind.bind(this),
@@ -170,7 +129,7 @@ export class AppBuilder {
     await watcherInstance.createWatcherSubscription();
   }
 
-  serveStatic() {
+  private serveStatic() {
     const { server } = StaticContentServer.createServer({
       appConfig: this.appConfig,
     });
@@ -188,13 +147,7 @@ export class AppBuilder {
     this.serveStatic();
   }
 
-  async run() {
-    const { distDir } = this.appConfig;
-
-    this.prepareDistDir();
-
-    this.copyPublicDir();
-
+  private async initializeProcessors() {
     for (const processor of this.appConfig.processors.values()) {
       this.dependencyService.addProvider({
         name: processor.getName(),
@@ -203,12 +156,27 @@ export class AppBuilder {
 
       await processor.setup();
     }
+  }
 
+  private async loadProcessedDependencies() {
     this.processedDependencies = await this.dependencyService.prepareDependencies();
+  }
+
+  async run() {
+    const { distDir } = this.appConfig;
+
+    this.prepareDistDir();
+
+    this.copyPublicDir();
+
+    await this.initializeProcessors();
+
+    await this.loadProcessedDependencies();
 
     await this.execTailwind();
 
     await this.cssBuilder.build();
+
     await this.scriptsBuilder.build();
 
     if (this.options.watch) {

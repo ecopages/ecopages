@@ -14,7 +14,7 @@ export const DEFAULT_CONFIG: Omit<DeepRequired<ImageProcessorConfig>, 'importMet
   quality: 80,
   format: 'webp' as const,
   sizes: [],
-  acceptedFormats: ['webp', 'jpeg', 'png', 'avif'],
+  supportedImageFormats: ['jpg', 'webp', 'jpeg', 'png', 'avif'],
   paths: {
     sourceImages: '/src/public/assets/images',
     targetImages: '/src/public/assets/optimized',

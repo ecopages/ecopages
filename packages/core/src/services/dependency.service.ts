@@ -278,38 +278,46 @@ export class DependencyService implements IDependencyService {
     provider: DependencyProvider,
     depsDir: string,
   ): Promise<{ filepath: string; content: string }> {
-    let filepath: string;
-    let content: string;
+    try {
+      let filepath: string;
+      let content: string;
 
-    if ('srcUrl' in dep) {
-      if (dep.kind === 'script') {
-        filepath = await this.bundleScript({
-          entrypoint: dep.srcUrl as string,
-          outdir: depsDir,
-          minify: dep.minify,
-        });
-        content = FileUtils.readFileSync(filepath, 'utf-8');
+      if ('srcUrl' in dep) {
+        if (dep.kind === 'script') {
+          filepath = await this.bundleScript({
+            entrypoint: dep.srcUrl as string,
+            outdir: depsDir,
+            minify: dep.minify,
+          });
+          content = FileUtils.readFileSync(filepath, 'utf-8');
+        } else {
+          const buffer = FileUtils.getFileAsBuffer(dep.srcUrl as string);
+          const result = this.writeFileToDist({
+            content: buffer,
+            name: provider.name,
+            ext: 'css',
+          });
+          filepath = result.filepath;
+          content = buffer.toString('utf-8');
+        }
       } else {
-        const buffer = FileUtils.getFileAsBuffer(dep.srcUrl as string);
+        content = dep.content as string;
         const result = this.writeFileToDist({
-          content: buffer,
+          content,
           name: provider.name,
-          ext: 'css',
+          ext: dep.kind === 'script' ? 'js' : 'css',
         });
         filepath = result.filepath;
-        content = buffer.toString('utf-8');
       }
-    } else {
-      content = dep.content as string;
-      const result = this.writeFileToDist({
-        content,
-        name: provider.name,
-        ext: dep.kind === 'script' ? 'js' : 'css',
-      });
-      filepath = result.filepath;
-    }
 
-    return { filepath, content };
+      return { filepath, content };
+    } catch (error) {
+      throw new Error(
+        `Failed to process dependency from provider ${provider.name}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   private async optimizeDependencies(): Promise<void> {

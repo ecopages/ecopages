@@ -26,7 +26,6 @@ function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProce
     targetImages: path.join(testDir, 'src/public/assets/optimized'),
     sourceUrlPrefix: '/public/assets',
     optimizedUrlPrefix: '/public/assets/optimized',
-    cache: path.join(testDir, '__cache__'),
   };
 
   for (const dir of Object.values(paths)) {

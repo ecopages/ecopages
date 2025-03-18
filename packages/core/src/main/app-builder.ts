@@ -6,11 +6,11 @@ import { BunFileSystemServerAdapter, type CreateServerOptions } from '../adapter
 import { StaticContentServer } from '../dev/sc-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { CssBuilder } from '../main/css-builder.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
 import type { DependencyService, ProcessedDependency } from '../services/dependency.service.ts';
 import type { HtmlTransformerService } from '../services/html-transformer.service';
 import { FileUtils } from '../utils/file-utils.module.ts';
+import type { CssParserService } from './css-parser.service.ts';
 import { ProjectWatcher } from './project-watcher.ts';
 import type { StaticPageGenerator } from './static-page-generator.ts';
 
@@ -23,7 +23,7 @@ type AppBuilderOptions = {
 export class AppBuilder {
   private appConfig: EcoPagesAppConfig;
   private staticPageGenerator: StaticPageGenerator;
-  private cssBuilder: CssBuilder;
+  private cssParser: CssParserService;
   private scriptsBuilder: ScriptsBuilder;
   private options: AppBuilderOptions;
   private dependencyService: DependencyService;
@@ -33,7 +33,7 @@ export class AppBuilder {
   constructor({
     appConfig,
     staticPageGenerator,
-    cssBuilder,
+    cssParser,
     scriptsBuilder,
     options,
     dependencyService,
@@ -41,7 +41,7 @@ export class AppBuilder {
   }: {
     appConfig: EcoPagesAppConfig;
     staticPageGenerator: StaticPageGenerator;
-    cssBuilder: CssBuilder;
+    cssParser: CssParserService;
     scriptsBuilder: ScriptsBuilder;
     options: AppBuilderOptions;
     dependencyService: DependencyService;
@@ -49,7 +49,7 @@ export class AppBuilder {
   }) {
     this.appConfig = appConfig;
     this.staticPageGenerator = staticPageGenerator;
-    this.cssBuilder = cssBuilder;
+    this.cssParser = cssParser;
     this.scriptsBuilder = scriptsBuilder;
     this.options = options;
     this.dependencyService = dependencyService;
@@ -92,7 +92,7 @@ export class AppBuilder {
     const { srcDir, distDir, tailwind } = this.appConfig;
     const input = `${srcDir}/${tailwind.input}`;
     const output = `${distDir}/${tailwind.input}`;
-    const cssString = await this.cssBuilder.processor.processPath(input);
+    const cssString = await this.cssParser.processor.processPath(input);
     FileUtils.ensureDirectoryExists(path.dirname(output));
     FileUtils.writeFileSync(output, cssString);
   }
@@ -120,7 +120,7 @@ export class AppBuilder {
 
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
-      cssBuilder: this.cssBuilder,
+      cssBuilder: this.cssParser,
       scriptsBuilder: this.scriptsBuilder,
       router: dev.router,
       execTailwind: this.execTailwind.bind(this),
@@ -175,7 +175,7 @@ export class AppBuilder {
 
     await this.execTailwind();
 
-    await this.cssBuilder.build();
+    await this.cssParser.build();
 
     await this.scriptsBuilder.build();
 

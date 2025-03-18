@@ -4,13 +4,10 @@ import { DependencyHelpers, type DependencyProvider, DependencyService } from '.
 
 describe('DependencyService', () => {
   let service: DependencyService;
-  let builder: ConfigBuilder;
 
   beforeEach(async () => {
-    builder = new ConfigBuilder();
-
     service = new DependencyService({
-      appConfig: await builder.setRootDir('test').setBaseUrl('.').build(),
+      appConfig: await new ConfigBuilder().setRootDir('test').setBaseUrl('.').build(),
     });
   });
 

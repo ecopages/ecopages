@@ -13,7 +13,7 @@ const HomePage: EcoComponent = () => {
   return (
     <BaseLayout class="grid gap-8">
       <h1 class="main-title">Images</h1>
-      <a href="/labs/client-images" class="text-blue-500">
+      <a href="/labs/client-images" class="text-blue-800 hover:underline">
         Go to client images
       </a>
       <div class="max-w-80 mx-auto">

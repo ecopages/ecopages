@@ -5,12 +5,12 @@ import type { FSRouter } from 'src/router/fs-router.ts';
 import { FileUtils } from 'src/utils/file-utils.module.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { CssBuilder } from './css-builder.ts';
+import type { CssParserService } from './css-parser.service.ts';
 import type { ScriptsBuilder } from './scripts-builder.ts';
 
 type ProjectWatcherConfig = {
   config: EcoPagesAppConfig;
-  cssBuilder: CssBuilder;
+  cssBuilder: CssParserService;
   scriptsBuilder: ScriptsBuilder;
   router: FSRouter;
   execTailwind: () => Promise<void>;
@@ -18,7 +18,7 @@ type ProjectWatcherConfig = {
 
 export class ProjectWatcher {
   private appConfig: EcoPagesAppConfig;
-  private cssBuilder: CssBuilder;
+  private cssBuilder: CssParserService;
   private scriptsBuilder: ScriptsBuilder;
   private router: FSRouter;
   private execTailwind: () => Promise<void>;

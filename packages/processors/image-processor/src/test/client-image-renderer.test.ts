@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { ClientImageRenderer } from '../client/client-image-renderer';
+import { IMAGE_PROCESSOR_CONFIG_ID } from '../shared/constants';
 
 const mockImageProps = {
   src: '/test/image.jpg',
@@ -23,7 +24,7 @@ describe('ClientImageRenderer', () => {
   } as HTMLElement;
 
   const getElementByIdMock = mock((id: string) => {
-    if (id === 'eco-images-config') {
+    if (id === IMAGE_PROCESSOR_CONFIG_ID) {
       return configElement;
     }
     return null;
@@ -40,7 +41,7 @@ describe('ClientImageRenderer', () => {
   });
 
   it('should generate correct attributes for constrained layout', () => {
-    const renderer = new ClientImageRenderer('eco-images-config');
+    const renderer = new ClientImageRenderer();
     const attributes = renderer.generateAttributes(mockImageProps);
 
     expect(attributes.src).toContain('/public/assets/optimized/image-xl.webp');
@@ -53,7 +54,7 @@ describe('ClientImageRenderer', () => {
   });
 
   it('should handle priority images', () => {
-    const renderer = new ClientImageRenderer('eco-images-config');
+    const renderer = new ClientImageRenderer();
     const attributes = renderer.generateAttributes({
       ...mockImageProps,
       priority: true,
@@ -66,7 +67,7 @@ describe('ClientImageRenderer', () => {
   });
 
   it('should handle static variants', () => {
-    const renderer = new ClientImageRenderer('eco-images-config');
+    const renderer = new ClientImageRenderer();
     const attributes = renderer.generateAttributes({
       ...mockImageProps,
       staticVariant: 'md',
@@ -78,7 +79,7 @@ describe('ClientImageRenderer', () => {
   });
 
   it('should return the correct image rendered to string', () => {
-    const renderer = new ClientImageRenderer('eco-images-config');
+    const renderer = new ClientImageRenderer();
     const rendered = renderer.renderToString(mockImageProps);
 
     expect(rendered).toContain('src');

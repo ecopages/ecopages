@@ -9,14 +9,9 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static'],
 });
 
-const imageProcessor = global.ecoConfig.processors.get('ecopages-image-processor') as ImageProcessorPlugin;
-
 const HomePage: EcoComponent = () => {
   return (
     <BaseLayout class="grid gap-8">
-      <script type="application/json" id="eco-images-config">
-        {JSON.stringify(imageProcessor.getClientConfig())}
-      </script>
       <h1 class="main-title">Images</h1>
       <a href="/labs/client-images" class="text-blue-500">
         Go to client images

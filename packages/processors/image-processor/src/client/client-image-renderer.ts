@@ -29,9 +29,9 @@ export interface ClientImageRendererConfig {
  */
 export class ClientImageRenderer extends BaseImageRenderer {
   config: ClientImageRendererConfig;
-  constructor(configId: string) {
+  constructor() {
     super();
-    this.config = new ConfigLoader(configId).load();
+    this.config = new ConfigLoader().load();
   }
 
   /**

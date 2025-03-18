@@ -57,3 +57,8 @@ export interface LayoutAttributes {
 export type CustomImageAttributes = typeof CUSTOM_IMAGE_ATTRIBUTES;
 
 export const DEFAULT_LAYOUT: ImageLayout = 'constrained';
+
+/**
+ * The id of the image processor config in the DOM
+ */
+export const IMAGE_PROCESSOR_CONFIG_ID = '__ecopages-image-processor-client-config__';

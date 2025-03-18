@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { Dependency } from 'src/main/dependency-service';
 import { FileUtils } from 'src/utils/file-utils.module';
 import type { EcoPagesAppConfig, ProcessorType } from '../internal-types';
 
@@ -30,6 +31,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
   static CACHE_DIR = '__cache__';
   readonly name: string;
   readonly type: ProcessorType;
+  protected dependencies: Dependency[] = [];
   protected context?: ProcessorContext;
   protected options?: TOptions;
   protected watchConfig?: ProcessorWatchConfig;
@@ -83,5 +85,13 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 
   getWatchConfig(): ProcessorWatchConfig | undefined {
     return this.watchConfig;
+  }
+
+  getDependencies(): Dependency[] {
+    return this.dependencies;
+  }
+
+  getName(): string {
+    return this.name;
   }
 }

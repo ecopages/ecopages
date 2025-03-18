@@ -1,8 +1,10 @@
 import { FileUtils, deepMerge } from '@ecopages/core';
+import { type Dependency, DependencyHelpers } from '@ecopages/core/dependency-service';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/processors/processor';
 import { Logger } from '@ecopages/logger';
 import type { FSWatcher } from 'chokidar';
 import { type ImageMap, ImageProcessor, type ImageProcessorConfig } from './server/image-processor';
+import { IMAGE_PROCESSOR_CONFIG_ID } from './shared/constants';
 
 const logger = new Logger('[@ecopages/image-processor]');
 
@@ -30,6 +32,28 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
       type: 'image',
       watch: config.watch ? deepMerge(defaultWatchConfig, config.watch) : defaultWatchConfig,
     });
+  }
+
+  private generateDependencies(): Dependency[] {
+    return [
+      DependencyHelpers.createJsonScriptDependency({
+        content: `${JSON.stringify(this.processor.getClientConfig())}`,
+        position: 'body',
+        attributes: {
+          type: 'application/json',
+          id: IMAGE_PROCESSOR_CONFIG_ID,
+        },
+      }),
+      DependencyHelpers.createInlineStylesheetDependency({
+        content: '.lazy-image{opacity: 0;transition:opacity 0.3s;}.lazy-image.loaded{opacity: 1;}',
+      }),
+      DependencyHelpers.createInlineScriptDependency({
+        content: `document.addEventListener("DOMContentLoaded",() => console.log("[@ecopages/image-processor] Client tools loaded"));`,
+        attributes: {
+          type: 'module',
+        },
+      }),
+    ];
   }
 
   async setup(): Promise<void> {
@@ -69,6 +93,8 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     if (this.watchConfig) {
       this.watchConfig.paths = [this.processor.getResolvedPath().sourceImages];
     }
+
+    this.dependencies = this.generateDependencies();
   }
 
   async process(images: string[]): Promise<void> {

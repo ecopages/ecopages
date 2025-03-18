@@ -2,7 +2,7 @@ import '../global/init.ts';
 
 import path from 'node:path';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
-import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
+import { BunFileSystemServerAdapter, type CreateServerOptions } from '../adapters/bun/fs-server.ts';
 import { StaticContentServer } from '../dev/sc-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { CssBuilder } from '../main/css-builder.ts';
@@ -13,6 +13,7 @@ import type { Server } from 'bun';
 import { Processor } from 'src/processors/processor.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
+import type { DependencyService, ProcessedDependency } from './dependency-service.ts';
 import type { StaticPageGenerator } from './static-page-generator.ts';
 
 type AppBuilderOptions = {
@@ -22,11 +23,13 @@ type AppBuilderOptions = {
 };
 
 export class AppBuilder {
-  appConfig: EcoPagesAppConfig;
-  staticPageGenerator: StaticPageGenerator;
-  cssBuilder: CssBuilder;
-  scriptsBuilder: ScriptsBuilder;
-  options: AppBuilderOptions;
+  private appConfig: EcoPagesAppConfig;
+  private staticPageGenerator: StaticPageGenerator;
+  private cssBuilder: CssBuilder;
+  private scriptsBuilder: ScriptsBuilder;
+  private options: AppBuilderOptions;
+  private dependencyService: DependencyService;
+  private processedDependencies: ProcessedDependency[] = [];
 
   constructor({
     appConfig,
@@ -34,18 +37,21 @@ export class AppBuilder {
     cssBuilder,
     scriptsBuilder,
     options,
+    dependencyService,
   }: {
     appConfig: EcoPagesAppConfig;
     staticPageGenerator: StaticPageGenerator;
     cssBuilder: CssBuilder;
     scriptsBuilder: ScriptsBuilder;
     options: AppBuilderOptions;
+    dependencyService: DependencyService;
   }) {
     this.appConfig = appConfig;
     this.staticPageGenerator = staticPageGenerator;
     this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
     this.options = options;
+    this.dependencyService = dependencyService;
   }
 
   prepareDistDir() {
@@ -89,11 +95,57 @@ export class AppBuilder {
     FileUtils.writeFileSync(output, cssString);
   }
 
+  private async transformIndexHtml(res: Response): Promise<Response> {
+    const headDependencies = this.processedDependencies.filter((dep) => dep.position === 'head');
+    const bodyDependencies = this.processedDependencies.filter((dep) => dep.position === 'body');
+
+    function formatAttributes(attrs?: Record<string, string>): string {
+      if (!attrs) return '';
+      return ` ${Object.entries(attrs)
+        .map(([key, value]) => `${key}="${value}"`)
+        .join(' ')}`;
+    }
+
+    const rewriter = new HTMLRewriter()
+      .on('head', {
+        element(element) {
+          for (const dep of headDependencies) {
+            if (dep.kind === 'script') {
+              const script = dep.inline
+                ? `<script${formatAttributes(dep.attributes)}>${dep.content}</script>`
+                : `<script src="${dep.srcUrl}"${formatAttributes(dep.attributes)}></script>`;
+              element.append(script, { html: true });
+            } else if (dep.kind === 'stylesheet') {
+              const style = dep.inline
+                ? `<style${formatAttributes(dep.attributes)}>${dep.content}</style>`
+                : `<link rel="stylesheet" href="${dep.srcUrl}"${formatAttributes(dep.attributes)}>`;
+              element.append(style, { html: true });
+            }
+          }
+        },
+      })
+      .on('body', {
+        element(element) {
+          for (const dep of bodyDependencies) {
+            if (dep.kind === 'script') {
+              const script = dep.inline
+                ? `<script${formatAttributes(dep.attributes)}>${dep.content}</script>`
+                : `<script src="${dep.srcUrl}"${formatAttributes(dep.attributes)}></script>`;
+              element.append(script, { html: true });
+            }
+          }
+        },
+      });
+
+    return rewriter.transform(res);
+  }
+
   private async runDevServer() {
     const options = {
       appConfig: this.appConfig,
       options: { watchMode: this.options.watch },
-    };
+      transformIndexHtml: this.transformIndexHtml.bind(this),
+    } as CreateServerOptions;
     return await BunFileSystemServerAdapter.createServer(options);
   }
 
@@ -103,6 +155,7 @@ export class AppBuilder {
 
   async watch() {
     const dev = await this.runDevServer();
+
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
       cssBuilder: new CssBuilder({
@@ -143,8 +196,15 @@ export class AppBuilder {
     this.copyPublicDir();
 
     for (const processor of this.appConfig.processors.values()) {
+      this.dependencyService.addProvider({
+        name: processor.getName(),
+        getDependencies: () => processor.getDependencies(),
+      });
+
       await processor.setup();
     }
+
+    this.processedDependencies = await this.dependencyService.prepareDependencies();
 
     await this.execTailwind();
 

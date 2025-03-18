@@ -7,6 +7,7 @@ import { AppBuilder } from '../main/app-builder.ts';
 import { CssBuilder } from '../main/css-builder.ts';
 import { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { StaticPageGenerator } from '../main/static-page-generator.ts';
+import { DependencyService } from './dependency-service.ts';
 import { IntegrationManager } from './integration-manager.ts';
 
 const validateConfig = (config: unknown): EcoPagesAppConfig => {
@@ -47,6 +48,7 @@ export async function buildApp({
       appConfig,
       options: { watchMode: watch as boolean },
     }),
+    dependencyService: new DependencyService({ appConfig }),
     options: {
       watch: watch as boolean,
       serve: serve as boolean,

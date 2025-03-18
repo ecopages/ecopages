@@ -47,6 +47,10 @@
 			"types": "./src/main/config-builder.ts",
 			"default": "./src/main/config-builder.ts"
 		},
+		"./dependency-service": {
+			"types": "./src/main/dependency-service.ts",
+			"default": "./src/main/dependency-service.ts"
+		},
 		"./route-renderer/integration-renderer": {
 			"types": "./src/route-renderer/integration-renderer.ts",
 			"default": "./src/route-renderer/integration-renderer.ts"

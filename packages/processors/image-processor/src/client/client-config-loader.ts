@@ -1,3 +1,4 @@
+import { IMAGE_PROCESSOR_CONFIG_ID } from 'src/shared/constants';
 import type { ImageProcessorConfig } from '../server/image-processor';
 import type { ClientImageRendererConfig } from './client-image-renderer';
 
@@ -14,7 +15,7 @@ export class ConfigLoader {
   };
   private cachedUrls: Map<string, string> = new Map();
 
-  constructor(private configId: string) {
+  constructor() {
     this.defaultUrlGenerator = this.defaultUrlGenerator.bind(this);
   }
 
@@ -45,12 +46,12 @@ export class ConfigLoader {
    * @returns The client configuration
    * */
   load(): ClientImageRendererConfig {
-    const configElement = document.getElementById(this.configId) as {
+    const configElement = document.getElementById(IMAGE_PROCESSOR_CONFIG_ID) as {
       textContent: string;
     };
 
     if (!configElement) {
-      throw new Error(`Config element with id "${this.configId}" not found`);
+      throw new Error(`Config element with id "${IMAGE_PROCESSOR_CONFIG_ID}" not found`);
     }
 
     try {

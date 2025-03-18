@@ -154,14 +154,14 @@ export class ReactRenderer extends IntegrationRenderer {
       ? {
           react: reactUrl,
           'react-dom/client': reactUrl,
-          'react-dom': '/__integrations__/react-dom-esm.js',
           'react/jsx-dev-runtime': reactUrl,
+          'react-dom': '/__integrations__/react-dom-esm.js',
         }
       : {
           react: reactUrl,
-          'react-dom': '/__integrations__/react-dom-esm.js',
           'react-dom/client': reactUrl,
           'react/jsx-runtime': reactUrl,
+          'react-dom': '/__integrations__/react-dom-esm.js',
         };
 
     return createElement(

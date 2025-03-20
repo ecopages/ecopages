@@ -28,13 +28,13 @@
 			"default": "./src/shared/image-renderer-provider.ts",
 			"types": "./src/shared/image-renderer-provider.ts"
 		},
-		"./image-component/as-string": {
-			"default": "./src/image-component/as-string.ts",
-			"types": "./src/image-component/as-string.ts"
+		"./component/html": {
+			"default": "./src/component/html.ts",
+			"types": "./src/component/html.ts"
 		},
-		"./image-component/react": {
-			"default": "./src/image-component/react.ts",
-			"types": "./src/image-component/react.ts"
+		"./component/react": {
+			"default": "./src/component/react.ts",
+			"types": "./src/component/react.ts"
 		}
 	}
 }

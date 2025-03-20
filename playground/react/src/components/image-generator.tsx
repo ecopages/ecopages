@@ -1,5 +1,5 @@
 import type { EcoComponent } from '@ecopages/core';
-import { EcoImage } from '@ecopages/image-processor/image-component/react';
+import { EcoImage } from '@ecopages/image-processor/component/react';
 import { type JSX, useMemo, useState } from 'react';
 
 const srcs = [

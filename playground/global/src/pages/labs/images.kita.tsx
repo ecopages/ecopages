@@ -1,6 +1,6 @@
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
-import { EcoImage } from '@ecopages/image-processor/image-component/as-string';
+import { EcoImage } from '@ecopages/image-processor/component/html';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Images Labs page',

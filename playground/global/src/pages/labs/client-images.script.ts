@@ -1,5 +1,5 @@
 import { html } from '@ecopages/core/html';
-import { EcoImage } from '@ecopages/image-processor/image-component/as-string';
+import { EcoImage } from '@ecopages/image-processor/component/html';
 import { RadiantElement, customElement, onEvent, query } from '@ecopages/radiant';
 
 @customElement('eco-images')

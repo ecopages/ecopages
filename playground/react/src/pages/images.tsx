@@ -1,7 +1,7 @@
 import ImageGeneration from '@/components/image-generator';
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoPage, GetMetadata } from '@ecopages/core';
-import { EcoImage } from '@ecopages/image-processor/image-component/react';
+import { EcoImage } from '@ecopages/image-processor/component/react';
 import type { JSX } from 'react';
 
 export const getMetadata: GetMetadata = () => ({

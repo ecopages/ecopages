@@ -64,7 +64,7 @@ export class ReactRenderer extends IntegrationRenderer {
   componentDirectory = '__integrations__';
 
   private createHydrationScript(importPath: string) {
-    return `import {hydrateRoot as hr} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,c({}))`;
+    return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;
   }
 
   private async bundleComponent({

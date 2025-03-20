@@ -1,5 +1,10 @@
 import type { ImageLayout, LayoutAttributes } from './constants';
-import type { GenerateAttributesResult, ImageProps, RenderImageToString } from './image-renderer-provider';
+import type {
+  GenerateAttributesResult,
+  GenerateAttributesResultJsx,
+  ImageProps,
+  RenderImageToString,
+} from './image-renderer-provider';
 import { ImageUtils } from './image-utils';
 
 export interface ImageRenderer {
@@ -9,6 +14,11 @@ export interface ImageRenderer {
    * @param props
    */
   generateAttributes(props: ImageProps): GenerateAttributesResult | null;
+  /**
+   * This method generates the attributes for the image element based on the provided props as JSX
+   * @param props
+   */
+  generateAttributesJsx(props: ImageProps): GenerateAttributesResultJsx | null;
   /**
    * This component generates the attributes for the image element based on the provided props as a string
    * @param props
@@ -22,6 +32,24 @@ export interface ImageRenderer {
 }
 
 /**
+ * CollectedAttributes
+ * This interface represents the attributes that are collected by the image renderer
+ * These attributes are used to generate the attributes for the image element
+ */
+export interface CollectedAttributes {
+  width?: number;
+  height?: number;
+  loading: HTMLImageElement['loading'];
+  fetchpriority: HTMLImageElement['fetchPriority'];
+  decoding: HTMLImageElement['decoding'];
+  src: string;
+  srcset?: string;
+  sizes?: string;
+  alt: string;
+  styles: [string, string][];
+}
+
+/**
  * BaseImageRenderer
  * This class is responsible for generating the attributes for the image element
  * It also provides some helper methods to generate the attributes and the stringified attributes
@@ -29,7 +57,7 @@ export interface ImageRenderer {
  * It can also render the image element to a string
  */
 export abstract class BaseImageRenderer implements ImageRenderer {
-  abstract generateAttributes(props: ImageProps): GenerateAttributesResult | null;
+  protected abstract collectAttributes(props: ImageProps): CollectedAttributes | null;
 
   stringifyImageAttributes(props: ImageProps): string {
     const attributes = this.generateAttributes(props);
@@ -92,15 +120,15 @@ export abstract class BaseImageRenderer implements ImageRenderer {
     aspectRatio?: string,
     layout: ImageLayout = 'constrained',
     unstyled?: boolean,
-  ): Partial<LayoutAttributes> {
+  ): { attributes: Partial<LayoutAttributes>; styles: [string, string][] } {
     const attributes: Partial<LayoutAttributes> = {};
-    const styles: [string, string][] = unstyled ? [] : [['object-fit', 'cover']];
+    const styles: [string, string][] = unstyled ? [] : [['objectFit', 'cover']];
 
     if (aspectRatio) {
       const ratio = this.parseAspectRatio(aspectRatio);
       if (ratio) {
         if (!unstyled) {
-          styles.push(['aspect-ratio', aspectRatio]);
+          styles.push(['aspectRatio', aspectRatio]);
         }
 
         if (width) {
@@ -125,11 +153,7 @@ export abstract class BaseImageRenderer implements ImageRenderer {
       styles.push(['width', '100%'], ['height', 'auto']);
     }
 
-    if (styles.length > 0) {
-      attributes.style = this.generateStyleString(styles);
-    }
-
-    return attributes;
+    return { attributes, styles };
   }
 
   protected parseAspectRatio(value: string | undefined): number | undefined {
@@ -160,5 +184,33 @@ export abstract class BaseImageRenderer implements ImageRenderer {
     if (unstyled) return;
     const layoutStyles = ImageUtils.generateLayoutStyles({ layout, width, height });
     styles.push(...layoutStyles);
+  }
+
+  generateAttributes(props: ImageProps): GenerateAttributesResult | null {
+    const collected = this.collectAttributes(props);
+    if (!collected) return null;
+
+    return {
+      ...collected,
+      style: collected.styles ? this.generateStyleString(collected.styles) : undefined,
+    };
+  }
+
+  generateAttributesJsx(props: ImageProps): GenerateAttributesResultJsx | null {
+    const collected = this.collectAttributes(props);
+    if (!collected) return null;
+
+    return {
+      fetchPriority: collected.fetchpriority,
+      loading: collected.loading,
+      decoding: collected.decoding,
+      src: collected.src,
+      alt: collected.alt,
+      srcSet: collected.srcset,
+      sizes: collected.sizes,
+      width: collected.width,
+      height: collected.height,
+      style: collected.styles ? Object.fromEntries(collected.styles) : undefined,
+    };
   }
 }

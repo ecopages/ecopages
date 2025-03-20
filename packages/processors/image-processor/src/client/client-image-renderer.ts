@@ -3,9 +3,9 @@
  * @module
  */
 
-import type { GenerateAttributesResult, ImageProps } from 'src/shared/image-renderer-provider';
+import type { ImageProps } from 'src/shared/image-renderer-provider';
 import type { ImageProcessorConfig } from '../server/image-processor';
-import { BaseImageRenderer } from '../shared/base-image-renderer';
+import { BaseImageRenderer, type CollectedAttributes } from '../shared/base-image-renderer';
 import type { ImageLayout } from '../shared/constants';
 import { ImageUtils } from '../shared/image-utils';
 import { ConfigLoader } from './client-config-loader';
@@ -34,15 +34,9 @@ export class ClientImageRenderer extends BaseImageRenderer {
     this.config = new ConfigLoader().load();
   }
 
-  /**
-   * It generates the attributes for the image element based on the provided props
-   * This is the main method that should be used to generate the attributes for the image element
-   * @param props
-   * @returns
-   */
-  generateAttributes(props: ImageProps): GenerateAttributesResult {
+  protected collectAttributes(props: ImageProps): CollectedAttributes {
     const layout = props.layout || 'constrained';
-    const dimensionsAttributes = this.getDimensionsAttributes(
+    const { attributes: dimensionsAttributes, styles } = this.getDimensionsAttributes(
       props.width,
       props.height,
       props.aspectRatio,
@@ -76,19 +70,21 @@ export class ClientImageRenderer extends BaseImageRenderer {
           decoding: props.priority ? 'auto' : 'async',
           src: variant.displayPath,
           alt: props.alt,
+          styles,
         };
       }
     }
 
     return {
       ...dimensionsAttributes,
-      loading: props.priority ? 'eager' : ('lazy' as HTMLImageElement['loading']),
-      fetchpriority: props.priority ? 'high' : ('auto' as HTMLImageElement['fetchPriority']),
+      loading: props.priority ? 'eager' : 'lazy',
+      fetchpriority: props.priority ? 'high' : 'auto',
       decoding: props.priority ? 'async' : 'auto',
       src: variants[0].displayPath,
       srcset: ImageUtils.generateSrcset(variants),
       sizes: ImageUtils.generateSizes(this.config.sizes ?? []),
       alt: props.alt,
+      styles,
     };
   }
 

@@ -4,8 +4,8 @@
  */
 
 import { Logger } from '@ecopages/logger';
-import type { GenerateAttributesResult, ImageProps } from 'src/shared/image-renderer-provider';
-import { BaseImageRenderer } from '../shared/base-image-renderer';
+import type { ImageProps } from 'src/shared/image-renderer-provider';
+import { BaseImageRenderer, type CollectedAttributes } from '../shared/base-image-renderer';
 import type { ImageMap, ImageVariant } from './image-processor';
 
 const appLogger = new Logger('[@ecopages/image-processor/server-image-renderer]');
@@ -21,21 +21,12 @@ export class ServerImageRenderer extends BaseImageRenderer {
     super();
   }
 
-  /**
-   * It generates the attributes for the image element based on the provided props
-   * This is the main method that should be used to generate the attributes for the image element
-   * On the contrary to the client image renderer, this method generates the attributes based on the image map provided by the server
-   * @param props
-   * @returns
-   */
-  generateAttributes(props: ImageProps): GenerateAttributesResult | null {
+  protected collectAttributes(props: ImageProps): CollectedAttributes | null {
     const entry = this.imageMap[props.src];
     if (!entry) return null;
 
     const staticVariant = props.staticVariant;
-
     const layout = props.layout || 'constrained';
-
     const { variants, srcset, sizes } = entry;
 
     const useResponsiveImage = !props.staticVariant || !variants.some((v) => v.label === props.staticVariant);
@@ -53,7 +44,7 @@ export class ServerImageRenderer extends BaseImageRenderer {
         ? `${mainVariant.width}/${mainVariant.height}`
         : undefined;
 
-    const dimensionsAttributes = this.getDimensionsAttributes(
+    const { attributes: dimensionsAttributes, styles } = this.getDimensionsAttributes(
       props.width,
       props.height,
       derivedAspectRatio,
@@ -63,12 +54,15 @@ export class ServerImageRenderer extends BaseImageRenderer {
 
     return {
       ...dimensionsAttributes,
+      width: mainVariant.width,
+      height: mainVariant.height,
       loading: props.priority ? 'eager' : 'lazy',
       fetchpriority: props.priority ? 'high' : 'auto',
       decoding: props.priority ? 'auto' : 'async',
       src: mainVariant.displayPath,
       alt: props.alt,
       ...(useResponsiveImage ? { srcset, sizes } : {}),
+      styles,
     };
   }
 }

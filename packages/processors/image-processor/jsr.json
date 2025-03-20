@@ -4,7 +4,9 @@
 	"version": "0.1.19",
 	"exports": {
 		".": "./src/plugin.ts",
-		"./image-renderer-provider": "./src/shared/image-renderer-provider.ts"
+		"./image-renderer-provider": "./src/shared/image-renderer-provider.ts",
+		"./image-component/as-string": "./src/image-component/as-string.ts",
+		"./image-component/react": "./src/image-component/react.ts"
 	},
 	"exclude": ["src/test"],
 	"publish": {

@@ -13,7 +13,8 @@
 			"suspicious": {
 				"noExplicitAny": "off",
 				"noEmptyInterface": "off",
-				"noConfusingVoidType": "off"
+				"noConfusingVoidType": "off",
+				"noArrayIndexKey": "off"
 			},
 			"correctness": {
 				"useJsxKeyInIterable": "off"

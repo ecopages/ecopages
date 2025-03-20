@@ -7,10 +7,10 @@ import { StaticContentServer } from '../dev/sc-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
+import type { CssParserService } from '../services/css-parser.service.ts';
 import type { DependencyService, ProcessedDependency } from '../services/dependency.service.ts';
 import type { HtmlTransformerService } from '../services/html-transformer.service';
 import { FileUtils } from '../utils/file-utils.module.ts';
-import type { CssParserService } from './css-parser.service.ts';
 import { ProjectWatcher } from './project-watcher.ts';
 import type { StaticPageGenerator } from './static-page-generator.ts';
 
@@ -138,7 +138,9 @@ export class AppBuilder {
   }
 
   async buildStatic() {
-    await this.staticPageGenerator.run();
+    await this.staticPageGenerator.run({
+      transformIndexHtml: this.transformIndexHtml.bind(this),
+    });
     if (this.options.build) {
       appLogger.info('Build completed');
       process.exit(0);

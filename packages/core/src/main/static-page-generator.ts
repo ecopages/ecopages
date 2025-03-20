@@ -11,6 +11,7 @@ const STATIC_GENERATION_ADAPTER_BASE_URL = `http://localhost:${STATIC_GENERATION
 export class StaticPageGenerator {
   appConfig: EcoPagesAppConfig;
   integrationManager: IntegrationManager;
+  declare transformIndexHtml: (res: Response) => Promise<Response>;
 
   constructor({
     appConfig,
@@ -87,7 +88,7 @@ export class StaticPageGenerator {
 
     for (const route of routes) {
       try {
-        const response = await fetch(route);
+        let response = await fetch(route);
 
         if (!response.ok) {
           console.error(`Failed to fetch ${route}. Status: ${response.status}`);
@@ -110,6 +111,10 @@ export class StaticPageGenerator {
 
         const filePath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname);
 
+        if (this.transformIndexHtml) {
+          response = await this.transformIndexHtml(response);
+        }
+
         const contents = await response.text();
 
         FileUtils.write(filePath, contents);
@@ -121,7 +126,8 @@ export class StaticPageGenerator {
     server.stop();
   }
 
-  async run() {
+  async run({ transformIndexHtml }: { transformIndexHtml: (res: Response) => Promise<Response> }) {
+    this.transformIndexHtml = transformIndexHtml;
     this.generateRobotsTxt();
     await this.prepareDependencies();
     await this.generateStaticPages();

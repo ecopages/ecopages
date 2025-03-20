@@ -51,6 +51,19 @@ export interface GenerateAttributesResult {
   style?: string;
 }
 
+export interface GenerateAttributesResultJsx {
+  fetchPriority: HTMLImageElement['fetchPriority'];
+  loading: HTMLImageElement['loading'];
+  decoding: HTMLImageElement['decoding'];
+  src: string;
+  alt: string;
+  srcSet?: string;
+  sizes?: string;
+  width?: number;
+  height?: number;
+  style?: React.CSSProperties;
+}
+
 export type RenderImageToString = ImageProps & {
   class?: string;
   [key: `data-${string}`]: string;
@@ -71,12 +84,8 @@ export class ImageRendererProvider {
 
       throw new Error('Image processor is not defined in the eco config');
     }
-    return new ClientImageRenderer('eco-images-config');
+    return new ClientImageRenderer();
   }
 }
 
-const renderer = ImageRendererProvider.createRenderer();
-
-export const EcoImage = (props: RenderImageToString) => {
-  return renderer.renderToString(props);
-};
+export const renderer = ImageRendererProvider.createRenderer();

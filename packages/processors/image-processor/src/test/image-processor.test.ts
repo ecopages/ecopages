@@ -2,8 +2,8 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import sharp from 'sharp';
-import { ImageProcessor, type ImageProcessorConfig } from 'src/server/image-processor';
-import { DEFAULT_CONFIG } from 'src/shared/constants';
+import { ImageProcessor, type ImageProcessorConfig } from '../server/image-processor';
+import { DEFAULT_CONFIG } from '../shared/constants';
 
 async function createTestImage(width: number, height: number, path: string): Promise<void> {
   await sharp({

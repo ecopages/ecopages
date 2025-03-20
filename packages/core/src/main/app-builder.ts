@@ -1,12 +1,12 @@
 import '../global/init.ts';
 import path from 'node:path';
 import type { Server } from 'bun';
-import { Processor } from 'src/processors/processor.ts';
 import { BunFileSystemServerAdapter, type CreateServerOptions } from '../adapters/bun/fs-server.ts';
 import { StaticContentServer } from '../dev/sc-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
+import { Processor } from '../processors/processor.ts';
 import type { CssParserService } from '../services/css-parser.service.ts';
 import type { DependencyService, ProcessedDependency } from '../services/dependency.service.ts';
 import type { HtmlTransformerService } from '../services/html-transformer.service';

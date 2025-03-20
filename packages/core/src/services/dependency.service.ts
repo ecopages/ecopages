@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { deepMerge } from 'src/utils/deep-merge';
 import type { EcoPagesAppConfig } from '../internal-types';
+import { deepMerge } from '../utils/deep-merge';
 import { FileUtils } from '../utils/file-utils.module';
 
 /**

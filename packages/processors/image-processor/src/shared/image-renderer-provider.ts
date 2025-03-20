@@ -1,5 +1,5 @@
-import type { ImageProcessor } from 'src/server/image-processor';
 import { ClientImageRenderer } from '../client/client-image-renderer';
+import type { ImageProcessor } from '../server/image-processor';
 import { ServerImageRenderer } from '../server/server-image-renderer';
 import type { ImageLayout } from './constants';
 

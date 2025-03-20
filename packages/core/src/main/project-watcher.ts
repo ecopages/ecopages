@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import { join } from 'node:path';
 import type { EventType } from '@parcel/watcher';
-import type { FSRouter } from 'src/router/fs-router.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { FSRouter } from '../router/fs-router.ts';
 import type { CssParserService } from '../services/css-parser.service.ts';
 import type { ScriptsBuilder } from './scripts-builder.ts';
 

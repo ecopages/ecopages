@@ -1,14 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
-import type { EcoPagesAppConfig } from 'src/internal-types.ts';
-import { HtmlTransformerService } from 'src/services/html-transformer.service.ts';
 import { appLogger } from '../global/app-logger.ts';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { AppBuilder } from '../main/app-builder.ts';
 import { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { StaticPageGenerator } from '../main/static-page-generator.ts';
 import { CssParserService } from '../services/css-parser.service.ts';
 import { DependencyService } from '../services/dependency.service.ts';
+import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { IntegrationManager } from './integration-manager.ts';
 
 const validateConfig = (config: unknown): EcoPagesAppConfig => {

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest, spyOn } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { EcoPagesAppConfig } from 'src/internal-types';
-import { ConfigBuilder } from 'src/main/config-builder';
+import type { EcoPagesAppConfig } from '../internal-types';
+import { ConfigBuilder } from '../main/config-builder';
 import { FileUtils } from '../utils/file-utils.module';
 import { CssParserService } from './css-parser.service';
 

@@ -1,5 +1,5 @@
-import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
-import { ConfigBuilder } from 'src/main/config-builder';
+import { beforeEach, describe, expect, it } from 'bun:test';
+import { ConfigBuilder } from '../main/config-builder';
 import { DependencyHelpers, type DependencyProvider, DependencyService } from './dependency.service';
 
 describe('DependencyService', () => {

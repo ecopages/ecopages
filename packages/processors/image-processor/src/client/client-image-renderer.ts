@@ -3,10 +3,10 @@
  * @module
  */
 
-import type { ImageProps } from 'src/shared/image-renderer-provider';
 import type { ImageProcessorConfig } from '../server/image-processor';
 import { BaseImageRenderer, type CollectedAttributes } from '../shared/base-image-renderer';
 import type { ImageLayout } from '../shared/constants';
+import type { ImageProps } from '../shared/image-renderer-provider';
 import { ImageUtils } from '../shared/image-utils';
 import { ConfigLoader } from './client-config-loader';
 

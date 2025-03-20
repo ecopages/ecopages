@@ -1,5 +1,5 @@
-import { IMAGE_PROCESSOR_CONFIG_ID } from 'src/shared/constants';
 import type { ImageProcessorConfig } from '../server/image-processor';
+import { IMAGE_PROCESSOR_CONFIG_ID } from '../shared/constants';
 import type { ClientImageRendererConfig } from './client-image-renderer';
 
 /**

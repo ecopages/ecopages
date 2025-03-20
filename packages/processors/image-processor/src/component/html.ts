@@ -10,6 +10,6 @@ import { type RenderImageToString, renderer } from '../shared/image-renderer-pro
  * This component generates the image element based on the provided props as a string
  * @param props {@link RenderImageToString}
  */
-export const EcoImage = (props: RenderImageToString) => {
+export const EcoImage = (props: RenderImageToString): string => {
   return renderer.renderToString(props);
 };

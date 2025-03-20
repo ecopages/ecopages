@@ -72,7 +72,7 @@ export type RenderImageToString = ImageProps & {
 const isServer = typeof window === 'undefined';
 
 export class ImageRendererProvider {
-  static createRenderer() {
+  static createRenderer(): ServerImageRenderer | ClientImageRenderer {
     if (isServer) {
       const processor = globalThis.ecoConfig.processors.get('ecopages-image-processor');
       if (processor && 'getImageMap' in processor) {
@@ -88,4 +88,4 @@ export class ImageRendererProvider {
   }
 }
 
-export const renderer = ImageRendererProvider.createRenderer();
+export const renderer: ServerImageRenderer | ClientImageRenderer = ImageRendererProvider.createRenderer();

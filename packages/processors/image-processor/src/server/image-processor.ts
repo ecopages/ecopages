@@ -192,7 +192,7 @@ export class ImageProcessor {
    * This is a helper method to get the image path for the src attribute
    * @param imagePath - The path to the image
    */
-  resolvePublicImagePath(imagePath: string) {
+  resolvePublicImagePath(imagePath: string): string {
     return path.join(this.resolvedPaths.sourceUrlPrefix, path.basename(imagePath));
   }
 

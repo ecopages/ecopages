@@ -1,4 +1,4 @@
-import { createElement } from 'react';
+import { type JSX, createElement } from 'react';
 import { type RenderImageToString, renderer } from '../shared/image-renderer-provider';
 
 /**
@@ -7,7 +7,7 @@ import { type RenderImageToString, renderer } from '../shared/image-renderer-pro
  * @param props {@link RenderImageToString}
  * @returns
  */
-export const EcoImage = (props: RenderImageToString) => {
+export const EcoImage = (props: RenderImageToString): JSX.Element => {
   return createElement('img', {
     ...renderer.generateAttributesJsx(props),
     suppressHydrationWarning: true,

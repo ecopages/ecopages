@@ -7,7 +7,7 @@
 		"./bin": "./src/bin/ecopages.ts",
 		"./build-app": "./src/main/build-app.ts",
 		"./config-builder": "./src/main/config-builder.ts",
-		"./services/dependency-service": "./src/main/dependency.service.ts",
+		"./services/dependency-service": "./src/services/dependency.service.ts",
 		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",
 		"./utils/add-base-url-to-pathname": "./src/utils/add-base-url-to-pathname.ts",
 		"./utils/deep-merge": "./src/utils/deep-merge.ts",

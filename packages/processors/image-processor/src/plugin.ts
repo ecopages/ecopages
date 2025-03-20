@@ -8,6 +8,30 @@ import { IMAGE_PROCESSOR_CONFIG_ID } from './shared/constants';
 
 const logger = new Logger('[@ecopages/image-processor]');
 
+/**
+ * @class ImageProcessorPlugin
+ * @extends {Processor<ImageProcessorConfig>}
+ *
+ * This plugin is responsible for processing images, optimizing them, and generating
+ * necessary dependencies for client-side usage. It integrates with a file watcher
+ * to automatically process images on create, change, or delete events.
+ *
+ * @property {string} IMAGE_MAP_CACHE_KEY - The key used for caching the image map.
+ * @property {ImageProcessor} processor - The image processor instance.
+ * @property {FSWatcher} watcher - The file system watcher instance.
+ *
+ * @constructor
+ * @param {ProcessorConfig<ImageProcessorConfig>} config - The configuration object for the plugin.
+ *
+ * @method setup - Initializes the image processor, reads cached image map, processes the directory,
+ *  and sets up file watching.
+ * @method process - Processes a list of images.
+ * @method teardown - Tears down the image processor.
+ * @method getProcessor - Returns the image processor instance.
+ * @method getImageMap - Returns the image map.
+ * @method getClientConfig - Returns the client configuration.
+ * @method generateDependencies - Generates dependencies for the image processor.
+ */
 export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
   private static readonly IMAGE_MAP_CACHE_KEY = 'image-map.json';
   private declare processor: ImageProcessor;
@@ -35,7 +59,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
   }
 
   private generateDependencies(): Dependency[] {
-    return [
+    const deps: Dependency[] = [
       DependencyHelpers.createJsonScriptDependency({
         content: `${JSON.stringify(this.processor.getClientConfig())}`,
         position: 'body',
@@ -44,16 +68,20 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
           id: IMAGE_PROCESSOR_CONFIG_ID,
         },
       }),
-      DependencyHelpers.createInlineStylesheetDependency({
-        content: '.lazy-image{opacity: 0;transition:opacity 0.3s;}.lazy-image.loaded{opacity: 1;}',
-      }),
-      DependencyHelpers.createInlineScriptDependency({
-        content: `document.addEventListener("DOMContentLoaded",() => console.log("[@ecopages/image-processor] Client tools loaded"));`,
-        attributes: {
-          type: 'module',
-        },
-      }),
     ];
+
+    if (import.meta.env.NODE_ENV === 'development') {
+      deps.push(
+        DependencyHelpers.createInlineScriptDependency({
+          content: `document.addEventListener("DOMContentLoaded",() => console.log("[@ecopages/image-processor] Processor is loaded"));`,
+          attributes: {
+            type: 'module',
+          },
+        }),
+      );
+    }
+
+    return deps;
   }
 
   async setup(): Promise<void> {

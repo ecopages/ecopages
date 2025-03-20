@@ -5,8 +5,8 @@
 	"exports": {
 		".": "./src/plugin.ts",
 		"./image-renderer-provider": "./src/shared/image-renderer-provider.ts",
-		"./image-component/html": "./src/image-component/html.ts",
-		"./image-component/react": "./src/image-component/react.ts"
+		"./component/html": "./src/component/html.ts",
+		"./component/react": "./src/component/react.ts"
 	},
 	"exclude": ["src/test"],
 	"publish": {

@@ -196,6 +196,12 @@ export abstract class BaseImageRenderer implements ImageRenderer {
     };
   }
 
+  createCamelCaseKeysOnStyle(styles: [string, string][]): Record<string, string> {
+    return Object.fromEntries(
+      styles.map(([key, value]) => [key.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()), value]),
+    );
+  }
+
   generateAttributesJsx(props: ImageProps): GenerateAttributesResultJsx | null {
     const collected = this.collectAttributes(props);
     if (!collected) return null;
@@ -210,7 +216,7 @@ export abstract class BaseImageRenderer implements ImageRenderer {
       sizes: collected.sizes,
       width: collected.width,
       height: collected.height,
-      style: collected.styles ? Object.fromEntries(collected.styles) : undefined,
+      style: collected.styles ? this.createCamelCaseKeysOnStyle(collected.styles) : undefined,
     };
   }
 }

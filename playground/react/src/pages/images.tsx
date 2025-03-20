@@ -18,7 +18,6 @@ const ImagesPage: EcoPage<unknown, JSX.Element> = () => {
       <ImageGeneration />
       <div className="max-w-80 mx-auto">
         <EcoImage src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" priority unstyled />
-        <EcoImage src="/public/assets/images/not-existing.png" alt="Not existing" />
       </div>
       <div className="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, index) => (

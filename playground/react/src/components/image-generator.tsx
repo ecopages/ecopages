@@ -16,8 +16,6 @@ export const ImageGeneration: EcoComponent<unknown, JSX.Element> = () => {
 
     const src = srcs[randomIndex];
 
-    console.log('src', src);
-
     return (
       <>
         <EcoImage src={src} alt="Random image" layout="full-width" height={200} priority />
@@ -25,6 +23,18 @@ export const ImageGeneration: EcoComponent<unknown, JSX.Element> = () => {
         <EcoImage src={src} alt="Random image" layout="fixed" width={200} height={200} priority />
         <EcoImage src={src} alt="Random image" priority unstyled data-test="attribute" />
         <EcoImage src={src} alt="Random image" priority width={300} aspectRatio="4/1" />
+        <div className="grid grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <EcoImage
+              key={`img-${index}`}
+              src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
+              alt="Demo"
+              staticVariant="sm"
+              layout="full-width"
+              unstyled={index === 3}
+            />
+          ))}
+        </div>
       </>
     );
   }, [randomIndex]);

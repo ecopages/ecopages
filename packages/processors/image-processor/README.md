@@ -215,14 +215,23 @@ Disable default styles for custom styling:
 - Use appropriate image sizes to avoid unnecessary downloads
 - Configure size variants based on your design's breakpoints
 
-## TypeScript Support
+## Server vs Client Rendering
 
-This package includes comprehensive TypeScript definitions. Import types as needed:
+### Server-Side Rendering
 
-```typescript
-import type { ImageProps } from "@ecopages/image-processor/image-renderer-provider";
-import type { ImageProcessorConfig } from "@ecopages/image-processor";
-```
+- Has full access to the file system and image metadata
+- Can generate optimal image variants with exact dimensions
+- Provides complete control over image optimization
+- Creates image maps with pre-calculated variants and paths
+- Ideal for static sites and server-rendered applications
+
+### Client-Side Rendering
+
+- Works with limited configuration passed from the server
+- Generates smart srcset and sizes attributes based on configured breakpoints
+- Relies on runtime URL generation for image variants
+- May not have access to original image dimensions
+- Better suited for dynamic content or client-heavy applications
 
 ## License
 

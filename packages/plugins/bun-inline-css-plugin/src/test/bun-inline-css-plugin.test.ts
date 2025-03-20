@@ -4,7 +4,7 @@ import path from 'node:path';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import { bunInlineCssPlugin } from '../bun-inline-css-plugin.ts';
 
-const outdir = path.resolve(__dirname, '../../dist');
+const outdir = path.join(__dirname, 'dist');
 
 afterEach(() => {
   if (fs.existsSync(outdir)) {

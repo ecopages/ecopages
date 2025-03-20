@@ -1,18 +1,18 @@
 .navigation {
-  @apply bg-slate-200 text-slate-900 font-sans px-4;
-  ul {
-    @apply flex list-none;
-    li {
-      @apply py-2;
-      &:hover {
-        @apply bg-slate-300;
-      }
-      a {
-        @apply h-full py-2 px-4 text-slate-900;
-        &:hover {
-          @apply text-slate-900;
-        }
-      }
-    }
-  }
+	@apply bg-slate-200 text-slate-900 font-sans px-4;
+	ul {
+		@apply flex list-none flex-wrap;
+		li {
+			@apply py-2;
+			&:hover {
+				@apply bg-slate-300;
+			}
+			a {
+				@apply h-full py-2 px-4 text-slate-900;
+				&:hover {
+					@apply text-slate-900;
+				}
+			}
+		}
+	}
 }

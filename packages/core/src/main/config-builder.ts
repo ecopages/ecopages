@@ -5,10 +5,10 @@
 
 import path from 'node:path';
 import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
-import { invariant } from '../utils/invariant.ts';
-
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
+import type { Processor } from '../processors/processor';
 import type { IntegrationPlugin, PageMetadataProps } from '../public-types.ts';
+import { invariant } from '../utils/invariant.ts';
 
 export class ConfigBuilder {
   public config: EcoPagesAppConfig = {
@@ -58,6 +58,7 @@ export class ConfigBuilder {
       htmlTemplatePath: '',
       error404TemplatePath: '',
     },
+    processors: new Map(),
   };
 
   setBaseUrl(baseUrl: string): this {
@@ -148,6 +149,25 @@ export class ConfigBuilder {
     return this;
   }
 
+  setProcessors(processors: Processor[]): this {
+    this.config.processors.clear();
+    for (const processor of processors) {
+      if (this.config.processors.has(processor.name)) {
+        throw new Error(`Processor with name "${processor.name}" already exists`);
+      }
+      this.config.processors.set(processor.name, processor);
+    }
+    return this;
+  }
+
+  addProcessor(processor: Processor): this {
+    if (this.config.processors.has(processor.name)) {
+      throw new Error(`Processor with name "${processor.name}" already exists`);
+    }
+    this.config.processors.set(processor.name, processor);
+    return this;
+  }
+
   createAbsolutePaths(config: EcoPagesAppConfig): this {
     const {
       srcDir,
@@ -197,6 +217,10 @@ export class ConfigBuilder {
     this.config.templatesExt = integrationsExtensions;
   }
 
+  private initializeProcessor(processor: Processor): void {
+    processor.setContext(this.config);
+  }
+
   async build(): Promise<EcoPagesAppConfig> {
     if (!this.config.baseUrl) {
       throw new Error('[ecopages] baseUrl is required');
@@ -208,6 +232,10 @@ export class ConfigBuilder {
 
     this.createAbsolutePaths(this.config);
     this.createIntegrationTemplatesExt(this.config.integrations);
+
+    for (const processor of this.config.processors.values()) {
+      this.initializeProcessor(processor);
+    }
 
     globalThis.ecoConfig = this.config;
 

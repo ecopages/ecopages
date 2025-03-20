@@ -4,12 +4,12 @@ import type { EventType } from '@parcel/watcher';
 import type { FSRouter } from 'src/router/fs-router.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { CssBuilder } from './css-builder.ts';
+import type { CssParserService } from '../services/css-parser.service.ts';
 import type { ScriptsBuilder } from './scripts-builder.ts';
 
 type ProjectWatcherConfig = {
   config: EcoPagesAppConfig;
-  cssBuilder: CssBuilder;
+  cssBuilder: CssParserService;
   scriptsBuilder: ScriptsBuilder;
   router: FSRouter;
   execTailwind: () => Promise<void>;
@@ -17,7 +17,7 @@ type ProjectWatcherConfig = {
 
 export class ProjectWatcher {
   private appConfig: EcoPagesAppConfig;
-  private cssBuilder: CssBuilder;
+  private cssBuilder: CssParserService;
   private scriptsBuilder: ScriptsBuilder;
   private router: FSRouter;
   private execTailwind: () => Promise<void>;
@@ -117,6 +117,7 @@ export class ProjectWatcher {
   }
 
   public async createWatcherSubscription() {
+    await this.setupProcessorWatchers();
     const watcher = await import('@parcel/watcher');
     return watcher.subscribe('src', async (err, events) => {
       if (err) {
@@ -141,5 +142,42 @@ export class ProjectWatcher {
         await this.handleChange(event.path, event.type);
       }
     });
+  }
+
+  private async setupProcessorWatchers() {
+    for (const processor of this.appConfig.processors.values()) {
+      const watchConfig = processor.getWatchConfig();
+      if (!watchConfig) continue;
+
+      const { paths, extensions, onCreate, onChange, onDelete, onError } = watchConfig;
+
+      for (const watchPath of paths) {
+        const watcher = await import('@parcel/watcher');
+        await watcher.subscribe(watchPath, async (err, events) => {
+          if (err) {
+            onError?.(err);
+            return;
+          }
+
+          for (const event of events) {
+            const isMatchingExtension = !extensions?.length || extensions.some((ext) => event.path.endsWith(ext));
+
+            if (!isMatchingExtension) continue;
+
+            switch (event.type) {
+              case 'create':
+                await onCreate?.(event.path);
+                break;
+              case 'update':
+                await onChange?.(event.path);
+                break;
+              case 'delete':
+                await onDelete?.(event.path);
+                break;
+            }
+          }
+        });
+      }
+    }
   }
 }

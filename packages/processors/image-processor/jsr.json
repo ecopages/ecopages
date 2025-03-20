@@ -1,0 +1,16 @@
+{
+	"$schema": "https://jsr.io/schema/config-file.v1.json",
+	"name": "@ecopages/image-processor",
+	"version": "0.1.20",
+	"exports": {
+		".": "./src/plugin.ts",
+		"./image-renderer-provider": "./src/shared/image-renderer-provider.ts",
+		"./image-component/html": "./src/image-component/html.ts",
+		"./image-component/react": "./src/image-component/react.ts"
+	},
+	"exclude": ["src/test"],
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],
+		"exclude": ["src/test"]
+	}
+}

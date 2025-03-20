@@ -45,6 +45,21 @@ export type PureWebSocketServeOptions<WebSocketDataType> = Omit<
 const WS_PATH = '__ecopages_live_reload_websocket__';
 
 /**
+ * Append the live reload script to the html response
+ * @param {Response} response
+ * @param {string} liveReloadScript
+ */
+function appendHmrScriptToBody(response: string, liveReloadScript: string): string {
+  return new HTMLRewriter()
+    .on('body', {
+      element(body) {
+        body.append(liveReloadScript, { html: true });
+      },
+    })
+    .transform(response);
+}
+
+/**
  * @function withHtmlLiveReload
  * @description
  * This function returns the serve options with live reload.
@@ -79,12 +94,11 @@ export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketSer
         return response;
       }
 
-      const closingTags = '</html>';
-      const originalHtml = await response.text();
       const liveReloadScript = makeLiveReloadScript(wsUrl);
-      const htmlWithLiveReload = originalHtml.replace(closingTags, '') + liveReloadScript + closingTags;
 
-      return new Response(htmlWithLiveReload, response);
+      const html = await response.text();
+      const newHtml = appendHmrScriptToBody(html, liveReloadScript);
+      return new Response(newHtml, response);
     },
     websocket: {
       ...serveOptions.websocket,

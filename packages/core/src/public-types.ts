@@ -11,7 +11,7 @@ export type EcoComponentDependencies = {
   components?: (EcoComponent | EcoWebComponent)[];
 };
 
-export type EcoPagesElement = string | Promise<string> | React.ReactElement;
+export type EcoPagesElement = string | Promise<string>;
 
 /**
  * Represents the input configuration for EcoPages.
@@ -35,14 +35,14 @@ export type EcoComponentConfig = {
  *
  * @template T - The type of the props object.
  */
-export type EcoComponent<T = any> = {
+export type EcoComponent<T = any, C = EcoPagesElement> = {
   /**
    * Renders the component with the given props.
    *
    * @param props - The props object.
    * @returns The rendered element.
    */
-  (props: T): EcoPagesElement;
+  (props: T): C;
 
   /**
    * The configuration options for the EcoComponent.
@@ -66,13 +66,13 @@ export type EcoWebComponent<T = any> = {
  * Represents an EcoPage component.
  * @template T - The type of props that the component accepts.
  */
-export interface EcoPage<T = any> {
+export interface EcoPage<T = any, C = EcoPagesElement> {
   /**
    * Renders the EcoPage component.
    * @param props - The props to be passed to the component.
    * @returns The rendered JSX element.
    */
-  (props: T): EcoPagesElement;
+  (props: T): C;
 
   /**
    * The configuration options for the EcoPage component.

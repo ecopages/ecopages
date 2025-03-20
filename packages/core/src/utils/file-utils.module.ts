@@ -3,7 +3,19 @@
  * @module
  */
 
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdir,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  rmdirSync,
+  statSync,
+  writeFile,
+  writeFileSync,
+} from 'node:fs';
 import { extname } from 'node:path';
 import zlib from 'node:zlib';
 import type { GlobScanOptions } from 'bun';
@@ -15,6 +27,10 @@ import type { GlobScanOptions } from 'bun';
  */
 function copyDirSync(source: string, destination: string) {
   cpSync(source, destination, { recursive: true });
+}
+
+function copyFileSync(source: string, destination: string) {
+  cpSync(source, destination);
 }
 
 /**
@@ -58,6 +74,16 @@ function getFileAsBuffer(path: string): Buffer {
   try {
     verifyFileExists(path);
     return readFileSync(path);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
+  }
+}
+
+async function getFileAsString(path: string): Promise<string> {
+  try {
+    verifyFileExists(path);
+    return Bun.file(path).text();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
@@ -129,6 +155,35 @@ function write(path: string, contents: string | Buffer): void {
 }
 
 /**
+ * Get the hash of a file.
+ * @param path
+ * @returns
+ */
+function getFileHash(path: string): string {
+  try {
+    const buffer = getFileAsBuffer(path);
+    return Bun.hash(buffer).toString();
+  } catch (error) {
+    throw new Error(`[ecopages] Error hashing file: ${path}`);
+  }
+}
+
+/**
+ * Implement the synchronous version of `rm -rf`.
+ * @param path
+ */
+function emptyDirSync(path: string) {
+  rmSync(path, {
+    recursive: true,
+    force: true,
+  });
+}
+
+function isDirectory(path: string): boolean {
+  return existsSync(path) && statSync(path).isDirectory();
+}
+
+/**
  * Utility functions for file operations.
  */
 export const FileUtils = {
@@ -139,8 +194,18 @@ export const FileUtils = {
   verifyFileExists,
   ensureDirectoryExists,
   copyDirSync,
+  copyFileSync,
   gzipDirSync,
   gzipFileSync,
   writeFileSync,
+  readFileSync,
+  readdirSync,
+  isDirectory,
   mkdirSync,
+  getFileHash,
+  rmSync,
+  emptyDirSync,
+  getFileAsString,
+  mkdir,
+  writeFile,
 };

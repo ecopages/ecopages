@@ -15,22 +15,20 @@ export const getMetadata: GetMetadata = () => ({
 const HomePage: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
-      <>
-        <h1 class="main-title">Home</h1>
-        <Introduction />
-        <h4 class="font-bold text-xl">Alpine Counter</h4>
-        <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([AlpineCounter])}>
-          <AlpineCounter />
-        </scripts-injector>
-        <h4 class="font-bold text-xl">Radiant Counter</h4>
-        <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([RadiantCounter])}>
-          <RadiantCounter count={5} />
-        </scripts-injector>
-        <h4 class="font-bold text-xl">Lit Counter</h4>
-        <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([LitCounter])}>
-          <lit-counter class="lit-counter" count={8}></lit-counter>
-        </scripts-injector>
-      </>
+      <h1 class="main-title">Home</h1>
+      <Introduction />
+      <h4 class="font-bold text-xl">Alpine Counter</h4>
+      <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([AlpineCounter])}>
+        <AlpineCounter />
+      </scripts-injector>
+      <h4 class="font-bold text-xl">Radiant Counter</h4>
+      <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([RadiantCounter])}>
+        <RadiantCounter count={5} />
+      </scripts-injector>
+      <h4 class="font-bold text-xl">Lit Counter</h4>
+      <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([LitCounter])}>
+        <lit-counter class="lit-counter" count={8}></lit-counter>
+      </scripts-injector>
     </BaseLayout>
   );
 };

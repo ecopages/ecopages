@@ -1,4 +1,8 @@
 {
-  "recommendations": ["biomejs.biome", "runem.lit-plugin", "wix.vscode-import-cost"],
-  "unwantedRecommendations": []
+  "recommendations": [
+    "biomejs.biome",
+    "runem.lit-plugin",
+    "wix.vscode-import-cost",
+    "bradlc.vscode-tailwindcss"
+  ],
 }

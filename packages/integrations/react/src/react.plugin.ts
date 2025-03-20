@@ -1,3 +1,8 @@
+/**
+ * This module contains the react plugin for Ecopages
+ * @module
+ */
+
 import type { IntegrationPlugin } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import { ReactRenderer } from './react-renderer';

@@ -12,7 +12,7 @@ import {
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
-import { Fragment, createElement } from 'react';
+import { createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
 
@@ -64,7 +64,7 @@ export class ReactRenderer extends IntegrationRenderer {
   componentDirectory = '__integrations__';
 
   private createHydrationScript(importPath: string) {
-    return `import {hydrateRoot as hr} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,c({}))`;
+    return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;
   }
 
   private async bundleComponent({
@@ -118,7 +118,11 @@ export class ReactRenderer extends IntegrationRenderer {
 
       const hydrationScriptPath = path.join(absolutePath, `${componentName}-hydration.js`);
 
-      const relativeImportInScript = await this.bundleComponent({ pagePath, componentName, absolutePath });
+      const relativeImportInScript = await this.bundleComponent({
+        pagePath,
+        componentName,
+        absolutePath,
+      });
 
       const hydrationCode = this.createHydrationScript(relativeImportInScript);
 
@@ -150,14 +154,14 @@ export class ReactRenderer extends IntegrationRenderer {
       ? {
           react: reactUrl,
           'react-dom/client': reactUrl,
-          'react-dom': '/__integrations__/react-dom-esm.js',
           'react/jsx-dev-runtime': reactUrl,
+          'react-dom': '/__integrations__/react-dom-esm.js',
         }
       : {
           react: reactUrl,
-          'react-dom': '/__integrations__/react-dom-esm.js',
           'react-dom/client': reactUrl,
           'react/jsx-runtime': reactUrl,
+          'react-dom': '/__integrations__/react-dom-esm.js',
         };
 
     return createElement(

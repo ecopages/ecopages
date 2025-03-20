@@ -18,6 +18,7 @@ const HomePage: EcoPage = () => {
       <>
         <h1 className="main-title">Ecopages</h1>
         <a href="/test">Test Splitting</a>
+        <a href="/images">Test Images</a>
         <Counter defaultValue={10} />
         <RadiantCounter value={5} />
         <Select label="Ice cream flavor">
@@ -36,7 +37,7 @@ HomePage.config = {
   importMeta: import.meta,
   dependencies: {
     stylesheets: ['./index.css'],
-    components: [Counter, BaseLayout, TanstackTable, Select, Item, RadiantCounter],
+    components: [Counter, BaseLayout, TanstackTable, Select, RadiantCounter],
   },
 };
 

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.1.19",
+	"version": "0.1.20",
 	"description": "Core package for Ecopages",
 	"keywords": ["ecopages", "core", "ssg"],
 	"license": "MIT",
@@ -21,6 +21,7 @@
 	"dependencies": {
 		"@ecopages/bun-inline-css-plugin": "workspace:*",
 		"@ecopages/logger": "latest",
+		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@parcel/watcher": "^2.4.0",
 		"ghtml": "^2.1.2"
@@ -46,6 +47,10 @@
 			"types": "./src/main/config-builder.ts",
 			"default": "./src/main/config-builder.ts"
 		},
+		"./services/dependency-service": {
+			"types": "./src/services/dependency.service.ts",
+			"default": "./src/services/dependency.service.ts"
+		},
 		"./route-renderer/integration-renderer": {
 			"types": "./src/route-renderer/integration-renderer.ts",
 			"default": "./src/route-renderer/integration-renderer.ts"
@@ -65,6 +70,10 @@
 		"./utils/component-dependencies-utils": {
 			"types": "./src/utils/component-dependencies-utils.ts",
 			"default": "./src/utils/component-dependencies-utils.ts"
+		},
+		"./processors/processor": {
+			"types": "./src/processors/processor.ts",
+			"default": "./src/processors/processor.ts"
 		},
 		"./html": {
 			"import": "./src/utils/html.ts",

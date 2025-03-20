@@ -1,3 +1,4 @@
+import type { Processor } from './processors/processor.ts';
 import type { IntegrationPlugin, PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from './router/fs-router.ts';
 
@@ -127,6 +128,10 @@ export type EcoPagesAppConfig = {
     htmlTemplatePath: string;
     error404TemplatePath: string;
   };
+  /**
+   * The processors to be used in the app
+   */
+  processors: Map<string, Processor>;
 };
 
 export type IntegrationDependencyConfig = {
@@ -187,4 +192,15 @@ export interface EcoPagesFileSystemServerAdapter<ServerInstanceOptions = unknown
         server: unknown;
       }
     | Promise<{ router: FSRouter; server: unknown }>;
+}
+
+export type ProcessorType = 'image' | 'css' | 'script' | 'asset' | 'build';
+
+export interface ProcessorPlugin {
+  name: string;
+  type: ProcessorType;
+  description?: string;
+  setup(): Promise<void>;
+  process<T = unknown>(input: T): Promise<T>;
+  teardown?(): Promise<void>;
 }

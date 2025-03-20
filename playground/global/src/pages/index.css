@@ -1,7 +1,7 @@
 .main-title {
-  @apply text-2xl font-bold;
+	@apply text-2xl font-bold;
 }
 
 .main-content {
-  @apply grid gap-4;
+	@apply grid gap-4;
 }

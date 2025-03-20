@@ -242,6 +242,7 @@ export abstract class IntegrationRenderer {
 
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
     const renderOptions = await this.prepareRenderOptions(options);
+
     return this.render(renderOptions);
   }
 

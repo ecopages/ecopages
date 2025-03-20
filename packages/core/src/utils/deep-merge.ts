@@ -12,16 +12,15 @@ function isArray(item: any): item is unknown[] {
 }
 
 /**
- * It merges two objects deeply
+ * Deeply merges two objects or arrays
  * @function deepMerge
- * @param {Record<string, unknown> | unknown[]} target
- * @param {Record<string, unknown> | unknown[]} source
- * @returns {Record<string, unknown> | unknown[]}
+ * @template T - Type of target object
+ * @template U - Type of source object
+ * @param target - The target object to merge into
+ * @param source - The source object to merge from
+ * @returns A new object with merged properties
  */
-export function deepMerge<T extends Record<string, unknown> | unknown[], U extends Record<string, unknown> | unknown[]>(
-  target: T,
-  source: U,
-): T & U {
+export function deepMerge<T, U>(target: T, source: U): T & U {
   if (isArray(target) && isArray(source)) {
     return [...target, ...source] as T & U;
   }
@@ -34,14 +33,14 @@ export function deepMerge<T extends Record<string, unknown> | unknown[], U exten
   for (const key in source) {
     if (isObject((source as any)[key])) {
       if (!(target as any)[key]) {
-        Object.assign(output, { [key]: (source as any)[key] });
+        Object.assign(output as object, { [key]: (source as any)[key] });
       } else {
         output[key as keyof T] = deepMerge((target as any)[key], (source as any)[key]);
       }
     } else if (isArray((source as any)[key])) {
       output[key as keyof T] = [...((target as any)[key] || []), ...(source as any)[key]] as (T & U)[keyof T];
     } else if ((source as any)[key] !== undefined) {
-      Object.assign(output, { [key]: (source as any)[key] });
+      Object.assign(output as object, { [key]: (source as any)[key] });
     }
   }
   return output;

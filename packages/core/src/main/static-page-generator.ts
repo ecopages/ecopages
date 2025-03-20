@@ -3,16 +3,25 @@ import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
-import { IntegrationManager } from './integration-manager.ts';
+import type { IntegrationManager } from './integration-manager.ts';
 
 const STATIC_GENERATION_ADAPTER_PORT = 2020;
 const STATIC_GENERATION_ADAPTER_BASE_URL = `http://localhost:${STATIC_GENERATION_ADAPTER_PORT}`;
 
 export class StaticPageGenerator {
   appConfig: EcoPagesAppConfig;
+  integrationManager: IntegrationManager;
+  declare transformIndexHtml: (res: Response) => Promise<Response>;
 
-  constructor(config: EcoPagesAppConfig) {
-    this.appConfig = config;
+  constructor({
+    appConfig,
+    integrationManager,
+  }: {
+    appConfig: EcoPagesAppConfig;
+    integrationManager: IntegrationManager;
+  }) {
+    this.appConfig = appConfig;
+    this.integrationManager = integrationManager;
   }
 
   generateRobotsTxt(): void {
@@ -52,8 +61,7 @@ export class StaticPageGenerator {
   }
 
   async prepareDependencies() {
-    const integrationManager = new IntegrationManager({ appConfig: this.appConfig });
-    await integrationManager.prepareDependencies();
+    await this.integrationManager.prepareDependencies();
   }
 
   async generateStaticPages() {
@@ -80,7 +88,7 @@ export class StaticPageGenerator {
 
     for (const route of routes) {
       try {
-        const response = await fetch(route);
+        let response = await fetch(route);
 
         if (!response.ok) {
           console.error(`Failed to fetch ${route}. Status: ${response.status}`);
@@ -103,6 +111,10 @@ export class StaticPageGenerator {
 
         const filePath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname);
 
+        if (this.transformIndexHtml) {
+          response = await this.transformIndexHtml(response);
+        }
+
         const contents = await response.text();
 
         FileUtils.write(filePath, contents);
@@ -114,7 +126,8 @@ export class StaticPageGenerator {
     server.stop();
   }
 
-  async run() {
+  async run({ transformIndexHtml }: { transformIndexHtml: (res: Response) => Promise<Response> }) {
+    this.transformIndexHtml = transformIndexHtml;
     this.generateRobotsTxt();
     await this.prepareDependencies();
     await this.generateStaticPages();

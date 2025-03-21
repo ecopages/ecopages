@@ -2,7 +2,6 @@ import { FileUtils, deepMerge } from '@ecopages/core';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/processors/processor';
 import { type Dependency, DependencyHelpers } from '@ecopages/core/services/dependency-service';
 import { Logger } from '@ecopages/logger';
-import type { FSWatcher } from 'chokidar';
 import { type ImageMap, ImageProcessor, type ImageProcessorConfig } from './server/image-processor';
 import { IMAGE_PROCESSOR_CONFIG_ID } from './shared/constants';
 
@@ -18,7 +17,6 @@ const logger = new Logger('[@ecopages/image-processor]');
  *
  * @property {string} IMAGE_MAP_CACHE_KEY - The key used for caching the image map.
  * @property {ImageProcessor} processor - The image processor instance.
- * @property {FSWatcher} watcher - The file system watcher instance.
  *
  * @constructor
  * @param {ProcessorConfig<ImageProcessorConfig>} config - The configuration object for the plugin.
@@ -35,7 +33,6 @@ const logger = new Logger('[@ecopages/image-processor]');
 export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
   private static readonly IMAGE_MAP_CACHE_KEY = 'image-map.json';
   private declare processor: ImageProcessor;
-  private declare watcher: FSWatcher;
 
   constructor(config: ProcessorConfig<ImageProcessorConfig>) {
     const defaultWatchConfig: ProcessorWatchConfig = {

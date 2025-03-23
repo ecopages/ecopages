@@ -152,10 +152,7 @@ export class ConfigBuilder {
   setProcessors(processors: Processor[]): this {
     this.config.processors.clear();
     for (const processor of processors) {
-      if (this.config.processors.has(processor.name)) {
-        throw new Error(`Processor with name "${processor.name}" already exists`);
-      }
-      this.config.processors.set(processor.name, processor);
+      this.addProcessor(processor);
     }
     return this;
   }
@@ -168,7 +165,7 @@ export class ConfigBuilder {
     return this;
   }
 
-  createAbsolutePaths(config: EcoPagesAppConfig): this {
+  private createAbsolutePaths(config: EcoPagesAppConfig): this {
     const {
       srcDir,
       componentsDir,
@@ -203,7 +200,7 @@ export class ConfigBuilder {
     return this;
   }
 
-  createIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
+  private createIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
     const integrationName = integrations.map((integration) => integration.name);
     const uniqueName = new Set(integrationName);
 

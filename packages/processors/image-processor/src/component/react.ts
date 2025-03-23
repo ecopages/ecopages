@@ -1,13 +1,18 @@
+/**
+ * Image component that renders the image as a string.
+ * @module @ecopages/image-processor/component/react
+ */
+
 import { type JSX, createElement } from 'react';
-import { type RenderImageToString, renderer } from '../shared/image-renderer-provider';
+import { type EcoImageProps, renderer } from '../image-renderer';
 
 /**
- * Isomorphic image component
- * This component is used to render images on the client and server
- * @param props {@link RenderImageToString}
+ * EcoImage
+ * This component generates the image element based on the provided props as JSX
+ * @param props {@link EcoImageProps}
  * @returns
  */
-export const EcoImage = (props: RenderImageToString): JSX.Element => {
+export const EcoImage = (props: EcoImageProps): JSX.Element => {
   return createElement('img', {
     ...renderer.generateAttributesJsx(props),
     suppressHydrationWarning: true,

@@ -1,5 +1,6 @@
 import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
+import type { BunPlugin } from 'bun';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { CssProcessor } from '../public-types.ts';
@@ -10,12 +11,12 @@ type ScriptsBuilderOptions = {
 };
 
 export class ScriptsBuilder {
-  config: EcoPagesAppConfig;
+  appConfig: EcoPagesAppConfig;
   options: ScriptsBuilderOptions;
   cssProcessor: CssProcessor;
 
   constructor({
-    appConfig: config,
+    appConfig,
     options,
     cssProcessor = PostCssProcessor,
   }: {
@@ -23,13 +24,25 @@ export class ScriptsBuilder {
     options: { watchMode: boolean };
     cssProcessor?: CssProcessor;
   }) {
-    this.config = config;
+    this.appConfig = appConfig;
     this.options = options;
     this.cssProcessor = cssProcessor;
   }
 
+  private collectBuildPlugins(): BunPlugin[] {
+    const plugins: BunPlugin[] = [];
+
+    for (const processor of this.appConfig.processors.values()) {
+      if (processor.buildPlugin) {
+        plugins.push(processor.buildPlugin.createBuildPlugin());
+      }
+    }
+
+    return plugins;
+  }
+
   async build() {
-    const { srcDir, distDir, scriptsExtensions } = this.config;
+    const { srcDir, distDir, scriptsExtensions } = this.appConfig;
 
     const scripts = await FileUtils.glob(scriptsExtensions.map((ext) => `${srcDir}/**/*${ext}`));
 
@@ -50,6 +63,7 @@ export class ScriptsBuilder {
         bunInlineCssPlugin({
           transform: (content) => this.cssProcessor.processStringOrBuffer(content),
         }),
+        ...this.collectBuildPlugins(),
       ],
     });
 

@@ -1,10 +1,9 @@
 {
 	"$schema": "https://jsr.io/schema/config-file.v1.json",
 	"name": "@ecopages/image-processor",
-	"version": "0.1.20",
+	"version": "0.1.21",
 	"exports": {
-		".": "./src/plugin.ts",
-		"./image-renderer-provider": "./src/shared/image-renderer-provider.ts",
+		".": "./src/index.ts",
 		"./component/html": "./src/component/html.ts",
 		"./component/react": "./src/component/react.ts"
 	},

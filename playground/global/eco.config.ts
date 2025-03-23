@@ -1,3 +1,5 @@
+import '@ecopages/bun-postcss-loader';
+import '@ecopages/bun-mdx-kitajs-loader';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
 import { ImageProcessorPlugin } from '@ecopages/image-processor';
@@ -6,9 +8,13 @@ import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const imageProcessor = new ImageProcessorPlugin({
+  name: 'ecopages-image-processor',
+  type: 'image',
   options: {
-    watch: true,
-    autoOptimize: true,
+    sourceDir: path.resolve(import.meta.dir, 'src/images'),
+    outputDir: path.resolve(import.meta.dir, '.eco/public/images'),
+    publicPath: '/public/images',
+    acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
     quality: 80,
     format: 'webp',
     sizes: [
@@ -20,12 +26,10 @@ const imageProcessor = new ImageProcessorPlugin({
   },
 });
 
-const config = await new ConfigBuilder()
+export default await new ConfigBuilder()
   .setRootDir(import.meta.dir)
   .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
   .setIntegrations([kitajsPlugin(), litPlugin(), mdxPlugin()])
-  .addProcessor(imageProcessor)
   .setError404Template('404.kita.tsx')
+  .setProcessors([imageProcessor])
   .build();
-
-export default config;

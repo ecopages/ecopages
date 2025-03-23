@@ -120,8 +120,17 @@
       "name": "@ecopages/image-processor",
       "version": "0.1.20",
       "dependencies": {
-        "@ecopages/core": "workspace:*",
+        "@ecopages/logger": "^0.2.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
         "sharp": "^0.33.5",
+      },
+      "devDependencies": {
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+      },
+      "peerDependencies": {
+        "@ecopages/core": "workspace:*",
       },
     },
     "packages/processors/postcss-processor": {

@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream';
+import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
 
@@ -298,3 +299,17 @@ export type IntegrationPlugin = {
   renderer: typeof IntegrationRenderer;
   dependencies?: IntegrationPluginDependencies[];
 };
+
+/**
+ * Represents a deep required type for a given object
+ */
+export type DeepRequired<T> = Required<{
+  [K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>;
+}>;
+
+/**
+ * The Prettify helper is a utility type that takes an object type and makes the hover overlay more readable.
+ */
+export type Prettify<T> = {
+  [K in keyof T]: T[K];
+} & {};

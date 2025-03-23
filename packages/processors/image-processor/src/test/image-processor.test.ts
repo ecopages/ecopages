@@ -2,8 +2,7 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import sharp from 'sharp';
-import { ImageProcessor, type ImageProcessorConfig } from '../server/image-processor';
-import { DEFAULT_CONFIG } from '../shared/constants';
+import { ImageProcessor, type ImageProcessorConfig } from '../image-processor';
 
 async function createTestImage(width: number, height: number, path: string): Promise<void> {
   await sharp({
@@ -17,26 +16,23 @@ async function createTestImage(width: number, height: number, path: string): Pro
 }
 
 const testDir = path.join(process.cwd(), 'test-tmp');
-
-const testImage = path.join(testDir, 'src/public/assets/images/test.jpg');
+const testImage = path.join(testDir, 'images/test.jpg');
 
 function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProcessor {
-  const paths: ImageProcessorConfig['paths'] = {
-    sourceImages: path.join(testDir, 'src/public/assets/images'),
-    targetImages: path.join(testDir, 'src/public/assets/optimized'),
-    sourceUrlPrefix: '/public/assets',
-    optimizedUrlPrefix: '/public/assets/optimized',
+  const defaultConfig: ImageProcessorConfig = {
+    sourceDir: path.join(testDir, 'images'),
+    outputDir: path.join(testDir, 'optimized'),
+    publicPath: '/assets/optimized',
+    sizes: [],
+    quality: 80,
+    format: 'webp',
   };
 
-  for (const dir of Object.values(paths)) {
-    if (!dir.startsWith('/')) {
-      FileUtils.ensureDirectoryExists(dir);
-    }
-  }
+  FileUtils.ensureDirectoryExists(defaultConfig.sourceDir);
+  FileUtils.ensureDirectoryExists(defaultConfig.outputDir);
 
   return new ImageProcessor({
-    importMeta: import.meta,
-    paths,
+    ...defaultConfig,
     ...config,
   });
 }
@@ -51,21 +47,20 @@ describe('ImageProcessor', () => {
   });
 
   afterAll(() => {
-    for (const dir of [...Object.values(DEFAULT_CONFIG.paths), testDir]) {
-      if (FileUtils.existsSync(dir)) {
-        FileUtils.rmSync(dir, { recursive: true });
-      }
+    if (FileUtils.existsSync(testDir)) {
+      FileUtils.rmSync(testDir, { recursive: true });
     }
   });
 
-  test('uses default configuration', async () => {
+  test('processes single image with default configuration', async () => {
     const processor = createProcessor();
-    const variants = await processor.processImage(testImage);
+    const result = await processor.processImage(testImage);
 
-    expect(variants).toHaveLength(1);
-    expect(variants.map((v) => v.width)).toEqual([1920]);
-    expect(variants[0].format).toBe('webp');
-    expect(variants.map((v) => v.label)).toEqual(['original']);
+    expect(result).not.toBeNull();
+    expect(result?.variants).toHaveLength(0);
+    expect(result?.attributes.src).toContain('/assets/optimized');
+    expect(result?.attributes.width).toBe(1920);
+    expect(result?.attributes.height).toBe(1080);
   });
 
   test('respects image original size', async () => {
@@ -76,10 +71,11 @@ describe('ImageProcessor', () => {
         { width: 400, label: 'sm' },
       ],
     });
-    const variants = await processor.processImage(testImage);
+    const result = await processor.processImage(testImage);
 
-    expect(variants.map((v) => v.width)).toEqual([800, 400]);
-    expect(variants.map((v) => v.label)).toEqual(['lg', 'sm']);
+    expect(result?.variants).toHaveLength(2);
+    expect(result?.variants.map((v) => v.width)).toEqual([800, 400]);
+    expect(result?.variants.map((v) => v.label)).toEqual(['lg', 'sm']);
   });
 
   test('processes single image with custom configuration', async () => {
@@ -89,61 +85,28 @@ describe('ImageProcessor', () => {
       sizes: [{ width: 300, label: 'custom' }],
     });
 
-    const variants = await processor.processImage(testImage);
-    expect(variants).toHaveLength(1);
-    expect(variants[0]).toMatchObject({
+    const result = await processor.processImage(testImage);
+    expect(result?.variants).toHaveLength(1);
+    expect(result?.variants[0]).toMatchObject({
       width: 300,
-      format: 'jpeg',
       label: 'custom',
     });
   });
 
   test('maintains aspect ratio across variants', async () => {
-    const processor = createProcessor();
-    const variants = await processor.processImage(testImage);
-
-    const originalRatio = 1080 / 1920;
-    for (const variant of variants) {
-      const ratio = variant.height / variant.width;
-      expect(Math.abs(ratio - originalRatio)).toBeLessThan(0.01);
-    }
-  });
-
-  test('generates correct srcset and sizes', async () => {
-    const processor = createProcessor({
-      sizes: [
-        { width: 1920, label: 'xl' },
-        { width: 1200, label: 'lg' },
-        { width: 400, label: 'sm' },
-      ],
-    });
-    await processor.processImage(testImage);
-
-    const srcset = processor.getSrcset('/public/assets/test.jpg');
-    const sizes = processor.getSizes('/public/assets/test.jpg');
-
-    expect(srcset).toMatch(/\/public\/assets\/optimized\/test-xl\.webp 1920w/);
-    expect(srcset).toMatch(/\/public\/assets\/optimized\/test-lg\.webp 1200w/);
-    expect(srcset).toMatch(/\/public\/assets\/optimized\/test-sm\.webp 400w/);
-    expect(sizes).toMatch(/\(min-width: 1920px\) 1920px/);
-  });
-
-  test('caches processed images', async () => {
     const processor = createProcessor({
       sizes: [
         { width: 1920, label: 'xl' },
         { width: 800, label: 'md' },
-        { width: 400, label: 'sm' },
       ],
     });
-    await processor.processImage(testImage);
+    const result = await processor.processImage(testImage);
 
-    const hash = FileUtils.getFileHash(testImage);
-    const imageMap = processor.getImageMap();
-    const entry = Object.values(imageMap)[0];
-
-    expect(entry.hash).toBe(hash);
-    expect(entry.variants).toHaveLength(3);
+    const originalRatio = 1080 / 1920;
+    for (const variant of result?.variants || []) {
+      const ratio = variant.height / variant.width;
+      expect(Math.abs(ratio - originalRatio)).toBeLessThan(0.01);
+    }
   });
 
   test('processes directory of images', async () => {
@@ -151,42 +114,28 @@ describe('ImageProcessor', () => {
     await createTestImage(800, 600, secondImage);
 
     const processor = createProcessor();
-    await processor.processDirectory();
+    const imageMap = await processor.processDirectory();
 
-    const imageMap = processor.getImageMap();
     expect(Object.keys(imageMap)).toHaveLength(2);
-  });
-
-  test('resolves paths correctly', () => {
-    const processor = createProcessor();
-    const paths = processor.getResolvedPath();
-
-    expect(paths.sourceImages).toMatch(/test-tmp\/src\/public\/assets\/images$/);
-    expect(paths.targetImages).toMatch(/test-tmp\/src\/public\/assets\/optimized$/);
-    expect(paths.sourceUrlPrefix).toBe('/public/assets');
-    expect(paths.optimizedUrlPrefix).toBe('/public/assets/optimized');
+    expect(imageMap['test.jpg']).toBeDefined();
+    expect(imageMap['test2.jpg']).toBeDefined();
   });
 
   test('handles empty sizes configuration', async () => {
     const processor = createProcessor({ sizes: [] });
-    const variants = await processor.processImage(testImage);
+    const result = await processor.processImage(testImage);
 
-    expect(variants).toHaveLength(1);
-    expect(variants[0].width).toBe(1920);
-    expect(variants[0].label).toBe('original');
+    expect(result?.variants).toHaveLength(0);
+    expect(result?.attributes.width).toBe(1920);
   });
 
-  test('deduplicates identical widths', async () => {
-    const processor = createProcessor({
-      sizes: [
-        { width: 800, label: 'a' },
-        { width: 800, label: 'b' },
-        { width: 400, label: 'c' },
-      ],
-    });
+  test('handles invalid image gracefully', async () => {
+    const invalidImage = path.join(testDir, 'invalid.jpg');
+    FileUtils.write(invalidImage, 'invalid content');
 
-    const variants = await processor.processImage(testImage);
-    expect(variants).toHaveLength(2);
-    expect(variants.map((v) => v.width)).toEqual([800, 400]);
+    const processor = createProcessor();
+    const result = await processor.processImage(invalidImage);
+
+    expect(result).toBeNull();
   });
 });

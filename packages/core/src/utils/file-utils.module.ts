@@ -16,6 +16,7 @@ import {
   writeFile,
   writeFileSync,
 } from 'node:fs';
+import { rm as rmAsync, rmdir as rmdirAsync } from 'node:fs/promises';
 import { extname } from 'node:path';
 import zlib from 'node:zlib';
 import type { GlobScanOptions } from 'bun';
@@ -206,6 +207,8 @@ export const FileUtils = {
   rmSync,
   emptyDirSync,
   getFileAsString,
+  rmAsync,
+  rmdirAsync,
   mkdir,
   writeFile,
 };

@@ -29,6 +29,9 @@ jobs:
           ECOPAGES_BASE_URL: http://localhost:3000
           ECOPAGES_LOGGER_DEBUG: false
 
+      - name: Publish package @ecopages/core
+        run: bun run --filter @ecopages/core release:jsr
+
       - name: Publish package @ecopages/postcss-processor
         run: bun run --filter @ecopages/postcss-processor release:jsr
 
@@ -43,9 +46,6 @@ jobs:
 
       - name: Publish package @ecopages/bun-mdx-kitajs-loader
         run: bun run --filter @ecopages/bun-mdx-kitajs-loader release:jsr
-
-      - name: Publish package @ecopages/core
-        run: bun run --filter @ecopages/core release:jsr
 
       - name: Publish package @ecopages/kitajs
         run: bun run --filter @ecopages/kitajs release:jsr

@@ -3,8 +3,21 @@
  * @module @ecopages/image-processor/bun-plugins
  */
 
-import type { BunPlugin } from 'bun';
-import type { ImageSpecifications } from './image-processor';
+import type { BunPlugin, OnLoadResult } from 'bun';
+import type { ImageMap } from './plugin';
+import { anyCaseToCamelCase } from './utils';
+
+/**
+ * This function creates the plugin result for the image specifications.
+ */
+function createPluginResult(exports: ImageMap): OnLoadResult {
+  return {
+    contents: `${Object.entries(exports)
+      .map(([key, value]) => `export const ${anyCaseToCamelCase(key)} = ${JSON.stringify(value)};`)
+      .join('\n')}`,
+    loader: 'ts',
+  };
+}
 
 /**
  * This function creates a plugin for bundling the image specifications.
@@ -12,16 +25,11 @@ import type { ImageSpecifications } from './image-processor';
  * @param exports
  * @returns
  */
-export function createImagePlugin(exports: Record<string, ImageSpecifications>): BunPlugin {
+export function createImagePlugin(exports: ImageMap): BunPlugin {
   return {
     name: 'ecopages:images',
     setup(build) {
-      build.module('ecopages:images', () => {
-        return {
-          exports: { default: exports },
-          loader: 'object',
-        };
-      });
+      build.module('ecopages:images', () => createPluginResult(exports));
     },
   };
 }
@@ -34,7 +42,7 @@ export function createImagePlugin(exports: Record<string, ImageSpecifications>):
  * @param exports
  * @returns
  */
-export function createImagePluginBundler(exports: Record<string, ImageSpecifications>): BunPlugin {
+export function createImagePluginBundler(exports: ImageMap): BunPlugin {
   return {
     name: 'ecopages:images',
     setup(build) {
@@ -45,12 +53,7 @@ export function createImagePluginBundler(exports: Record<string, ImageSpecificat
         };
       });
 
-      build.onLoad({ filter: /.*/, namespace: 'ecopages-images' }, () => {
-        return {
-          loader: 'object',
-          exports,
-        };
-      });
+      build.onLoad({ filter: /.*/, namespace: 'ecopages-images' }, () => createPluginResult(exports));
     },
   };
 }

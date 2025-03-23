@@ -15,9 +15,36 @@ import { type Dependency, DependencyHelpers } from '@ecopages/core/services/depe
 import { Logger } from '@ecopages/logger';
 import { createImagePlugin, createImagePluginBundler } from './bun-plugins';
 import { ImageProcessor } from './image-processor';
-import type { ImageProcessorConfig, ImageSpecifications } from './image-processor';
+import type { ImageSpecifications } from './types';
+import { anyCaseToCamelCase } from './utils';
 
 const logger = new Logger('[@ecopages/image-processor]');
+
+/**
+ * Configuration for the image processor
+ */
+export interface ImageProcessorConfig {
+  sourceDir: string;
+  outputDir: string;
+  publicPath: string;
+  /**
+   * @default []
+   */
+  sizes: { width: number; label: string }[];
+  quality: number;
+  format: 'webp' | 'jpeg' | 'png' | 'avif';
+  /**
+   * Optional list of accepted image formats
+   * @default ["jpg", "jpeg", "png", "webp"]
+   */
+  acceptedFormats?: string[];
+}
+
+/**
+ * ImageMap
+ * This is the representation of the image map in the virtual module
+ */
+export type ImageMap = Record<string, ImageSpecifications>;
 
 /**
  * ImageProcessorPlugin
@@ -109,6 +136,8 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     }
 
     this.dependencies = this.generateDependencies();
+
+    this.generateTypes();
   }
 
   /**
@@ -129,6 +158,8 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
         logger.error('Failed to process image', { image, error });
       }
     }
+
+    this.generateTypes();
   }
 
   /**
@@ -165,9 +196,43 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
       );
 
       delete this.processedImages[path.basename(imagePath)];
+      this.generateTypes();
     } catch (error) {
       logger.error('Failed to delete processed images', { path: imagePath, error });
     }
+  }
+
+  /**
+   * Generate types for the virtual module.
+   */
+  private generateTypes(): void {
+    if (!this.options?.outputDir) {
+      throw new Error('Output directory not set');
+    }
+
+    const requiredTypes = FileUtils.readFileSync(path.join(__dirname, 'types.ts')).toString().replaceAll('export ', '');
+
+    const typeContent = `
+/**
+ * Do not edit manually. This file is auto-generated.
+ * This file contains the type definitions for the virtual module "ecopages:images".
+ */
+
+${requiredTypes}
+
+declare module "ecopages:images" {
+	${Object.keys(this.processedImages)
+    .map((key) => `export const ${anyCaseToCamelCase(key)}: ImageSpecifications;`)
+    .join('\n    ')}
+}`;
+
+    if (!this.context) throw new Error('Processor is not configured correctly');
+
+    const typesDir = path.join(this.context.distDir, '__types__', this.name);
+    FileUtils.ensureDirectoryExists(typesDir);
+    FileUtils.writeFileSync(path.join(typesDir, 'virtual-module.d.ts'), typeContent);
+    logger.info('Generated types for virtual module');
+    logger.debug({ typesDir });
   }
 
   /**

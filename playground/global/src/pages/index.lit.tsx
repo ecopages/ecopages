@@ -1,4 +1,4 @@
-import images from 'ecopages:images';
+import { ezi76Gu53NklsuUnsplashJpg } from 'ecopages:images';
 import { AlpineCounter } from '@/components/alpine-counter';
 import Introduction from '@/components/introduction.mdx';
 import { LitCounter } from '@/components/lit-counter';
@@ -18,7 +18,7 @@ const HomePage: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
       <h1 class="main-title">Home</h1>
-      <EcoImage {...images['ezi-76GU53nkLSU-unsplash.jpg']} alt="A computer" />
+      <EcoImage {...ezi76Gu53NklsuUnsplashJpg} alt="A computer" layout="constrained" />
       <Introduction />
       <span class="font-bold text-xl">Alpine Counter</span>
       <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([AlpineCounter])}>

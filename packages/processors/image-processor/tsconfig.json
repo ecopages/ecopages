@@ -15,6 +15,6 @@
 		"target": "ES2021",
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true,
-		"types": ["bun-types", "./modules.d.ts"]
+		"types": ["bun-types"]
 	}
 }

@@ -3,8 +3,8 @@
  * @module
  */
 
-import type { ImageSpecifications, ImageVariant } from './image-processor';
 import { ImageUtils } from './image-utils';
+import type { ImageSpecifications, ImageVariant } from './plugin';
 
 /**
  * Default image layout

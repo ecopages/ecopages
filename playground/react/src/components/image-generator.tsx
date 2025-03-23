@@ -1,12 +1,16 @@
-import images from 'ecopages:images';
+import {
+  ezi76Gu53NklsuUnsplashJpg,
+  theodorePoncetQzephogqd7WUnsplashJpg,
+  urbanVintage78A265Wpio4UnsplashJpg,
+} from 'ecopages:images';
 import type { EcoComponent } from '@ecopages/core';
 import { EcoImage } from '@ecopages/image-processor/component/react';
 import { type JSX, useMemo, useState } from 'react';
 
-const srcs = [
-  'theodore-poncet-QZePhoGqD7w-unsplash.jpg',
-  'ezi-76GU53nkLSU-unsplash.jpg',
-  'urban-vintage-78A265wPiO4-unsplash.jpg',
+const availableImages = [
+  ezi76Gu53NklsuUnsplashJpg,
+  theodorePoncetQzephogqd7WUnsplashJpg,
+  urbanVintage78A265Wpio4UnsplashJpg,
 ];
 
 export const ImageGeneration: EcoComponent<unknown, JSX.Element> = () => {
@@ -15,7 +19,7 @@ export const ImageGeneration: EcoComponent<unknown, JSX.Element> = () => {
   const clientSideImages = useMemo(() => {
     if (randomIndex === undefined) return null;
 
-    const imageProps = images[srcs[randomIndex]];
+    const imageProps = availableImages[randomIndex];
 
     return (
       <>
@@ -44,7 +48,7 @@ export const ImageGeneration: EcoComponent<unknown, JSX.Element> = () => {
     <>
       <button
         type="button"
-        onClick={() => setRandomIndex(Math.floor(Math.random() * srcs.length))}
+        onClick={() => setRandomIndex(Math.floor(Math.random() * availableImages.length))}
         className="px-4 py-2 bg-blue-800 text-white rounded-md"
       >
         Randomize

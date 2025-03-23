@@ -1,4 +1,9 @@
-import images from 'ecopages:images';
+import {
+  ezi76Gu53NklsuUnsplashJpg,
+  smallJpg,
+  theodorePoncetQzephogqd7WUnsplashJpg,
+  urbanVintage78A265Wpio4UnsplashJpg,
+} from 'ecopages:images';
 import { html } from '@ecopages/core/html';
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import { RadiantElement, customElement, onEvent, query } from '@ecopages/radiant';
@@ -14,26 +19,27 @@ export class EcoImages extends RadiantElement {
 
   @onEvent({ ref: 'create-img', type: 'click' })
   createRandomImage() {
-    const srcs = [
-      'theodore-poncet-QZePhoGqD7w-unsplash.jpg',
-      'ezi-76GU53nkLSU-unsplash.jpg',
-      'urban-vintage-78A265wPiO4-unsplash.jpg',
+    const availableImages = [
+      urbanVintage78A265Wpio4UnsplashJpg,
+      theodorePoncetQzephogqd7WUnsplashJpg,
+      ezi76Gu53NklsuUnsplashJpg,
+      smallJpg,
     ];
 
-    const src = srcs[Math.floor(Math.random() * srcs.length)];
+    const randomImage = availableImages[Math.floor(Math.random() * availableImages.length)];
 
     this.renderTemplate({
       target: this.container,
       template: html`
 				!${EcoImage({
-          ...images[src],
+          ...randomImage,
           alt: 'Random image',
           layout: 'full-width',
           height: 200,
           priority: true,
         })}
 				!${EcoImage({
-          ...images[src],
+          ...randomImage,
           alt: 'Random image',
           width: 600,
           height: 200,
@@ -41,7 +47,7 @@ export class EcoImages extends RadiantElement {
           priority: false,
         })}
 				!${EcoImage({
-          ...images[src],
+          ...randomImage,
           alt: 'Random image',
           layout: 'fixed',
           width: 200,
@@ -49,7 +55,7 @@ export class EcoImages extends RadiantElement {
           priority: false,
         })}
 				!${EcoImage({
-          ...images[src],
+          ...randomImage,
           width: 400,
           alt: 'Random image',
           priority: false,
@@ -57,7 +63,7 @@ export class EcoImages extends RadiantElement {
           'data-test': 'attribute',
         })}
 				!${EcoImage({
-          ...images[src],
+          ...randomImage,
           alt: 'Random image',
           priority: false,
           width: 300,

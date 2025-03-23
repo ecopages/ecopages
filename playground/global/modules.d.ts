@@ -10,3 +10,7 @@ declare global {
     Alpine: typeof Alpine;
   }
 }
+
+declare module 'ecopages:images' {
+  export default Record<string, ImageAttributes>;
+}

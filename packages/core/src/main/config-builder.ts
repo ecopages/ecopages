@@ -7,7 +7,7 @@ import path from 'node:path';
 import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
 import type { Processor } from '../processors/processor';
-import type { IntegrationPlugin, PageMetadataProps } from '../public-types.ts';
+import type { IntegrationPlugin, OrderedBunPlugin, PageMetadataProps } from '../public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 
 export class ConfigBuilder {
@@ -59,7 +59,12 @@ export class ConfigBuilder {
       error404TemplatePath: '',
     },
     processors: new Map(),
+    bunPlugins: [],
   };
+
+  constructor() {
+    this.createAbsolutePaths(this.config);
+  }
 
   setBaseUrl(baseUrl: string): this {
     this.config.baseUrl = baseUrl;
@@ -152,10 +157,7 @@ export class ConfigBuilder {
   setProcessors(processors: Processor[]): this {
     this.config.processors.clear();
     for (const processor of processors) {
-      if (this.config.processors.has(processor.name)) {
-        throw new Error(`Processor with name "${processor.name}" already exists`);
-      }
-      this.config.processors.set(processor.name, processor);
+      this.addProcessor(processor);
     }
     return this;
   }
@@ -168,7 +170,12 @@ export class ConfigBuilder {
     return this;
   }
 
-  createAbsolutePaths(config: EcoPagesAppConfig): this {
+  setBunPlugins(plugins: OrderedBunPlugin[]): this {
+    this.config.bunPlugins = plugins;
+    return this;
+  }
+
+  private createAbsolutePaths(config: EcoPagesAppConfig): this {
     const {
       srcDir,
       componentsDir,
@@ -203,7 +210,7 @@ export class ConfigBuilder {
     return this;
   }
 
-  createIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
+  private createIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
     const integrationName = integrations.map((integration) => integration.name);
     const uniqueName = new Set(integrationName);
 

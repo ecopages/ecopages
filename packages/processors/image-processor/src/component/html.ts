@@ -1,15 +1,15 @@
 /**
  * Image component that renders the image as a string.
- * @module
+ * @module @ecopages/image-processor/component/html
  */
 
-import { type RenderImageToString, renderer } from '../shared/image-renderer-provider';
+import { type EcoImageProps, renderer } from '../image-renderer';
 
 /**
  * EcoImage
  * This component generates the image element based on the provided props as a string
- * @param props {@link RenderImageToString}
+ * @param props {@link EcoImageProps}
  */
-export const EcoImage = (props: RenderImageToString): string => {
+export const EcoImage = (props: EcoImageProps): string => {
   return renderer.renderToString(props);
 };

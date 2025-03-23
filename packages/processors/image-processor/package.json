@@ -33,9 +33,9 @@
 			"default": "./src/plugin.ts",
 			"types": "./src/plugin.ts"
 		},
-		"./image-renderer-provider": {
-			"default": "./src/shared/image-renderer-provider.ts",
-			"types": "./src/shared/image-renderer-provider.ts"
+		"./types": {
+			"default": "./index.d.ts",
+			"types": "./index.d.ts"
 		},
 		"./component/html": {
 			"default": "./src/component/html.ts",

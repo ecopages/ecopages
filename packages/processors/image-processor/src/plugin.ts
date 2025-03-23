@@ -1,49 +1,39 @@
+/**
+ * ImageProcessorPlugin
+ * @module @ecopages/image-processor
+ */
+
+import path from 'node:path';
 import { FileUtils, deepMerge } from '@ecopages/core';
-import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/processors/processor';
+import {
+  Processor,
+  type ProcessorBuildPlugin,
+  type ProcessorConfig,
+  type ProcessorWatchConfig,
+} from '@ecopages/core/processors/processor';
 import { type Dependency, DependencyHelpers } from '@ecopages/core/services/dependency-service';
 import { Logger } from '@ecopages/logger';
-import { type ImageMap, ImageProcessor, type ImageProcessorConfig } from './server/image-processor';
-import { IMAGE_PROCESSOR_CONFIG_ID } from './shared/constants';
+import { createImagePlugin, createImagePluginBundler } from './bun-plugins';
+import { ImageProcessor } from './image-processor';
+import type { ImageProcessorConfig, ImageSpecifications } from './image-processor';
 
 const logger = new Logger('[@ecopages/image-processor]');
 
 /**
- * @class ImageProcessorPlugin
- * @extends {Processor<ImageProcessorConfig>}
- *
- * This plugin is responsible for processing images, optimizing them, and generating
- * necessary dependencies for client-side usage. It integrates with a file watcher
- * to automatically process images on create, change, or delete events.
- *
- * @property {string} IMAGE_MAP_CACHE_KEY - The key used for caching the image map.
- * @property {ImageProcessor} processor - The image processor instance.
- *
- * @constructor
- * @param {ProcessorConfig<ImageProcessorConfig>} config - The configuration object for the plugin.
- *
- * @method setup - Initializes the image processor, reads cached image map, processes the directory,
- *  and sets up file watching.
- * @method process - Processes a list of images.
- * @method teardown - Tears down the image processor.
- * @method getProcessor - Returns the image processor instance.
- * @method getImageMap - Returns the image map.
- * @method getClientConfig - Returns the client configuration.
- * @method generateDependencies - Generates dependencies for the image processor.
+ * ImageProcessorPlugin
+ * A Processor for optimizing images.
  */
 export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
-  private static readonly IMAGE_MAP_CACHE_KEY = 'image-map.json';
   private declare processor: ImageProcessor;
+  public processedImages: Record<string, ImageSpecifications> = {};
 
   constructor(config: ProcessorConfig<ImageProcessorConfig>) {
     const defaultWatchConfig: ProcessorWatchConfig = {
       paths: [],
-      extensions: config.options?.supportedImageFormats ?? ['jpg', 'jpeg', 'png', 'webp', 'avif'],
-      onCreate: async (path: string) => this.process([path]),
-      onChange: async (path) => this.process([path]),
-      onDelete: async (path) => {
-        if (!this.processor) return;
-        FileUtils.rmSync(`${this.processor.getResolvedPath().targetImages}/${path}`);
-      },
+      extensions: config.options?.acceptedFormats ?? ['jpg', 'jpeg', 'png', 'webp'],
+      onCreate: async (filePath: string) => this.process([filePath]),
+      onChange: async (filePath) => this.process([filePath]),
+      onDelete: async (filePath) => this.deleteProcessedImagesbyPath(filePath),
       onError: (error) => logger.error('Watcher error', { error }),
     };
 
@@ -55,17 +45,20 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     });
   }
 
+  get buildPlugin(): ProcessorBuildPlugin {
+    return {
+      name: 'ecopages-image-processor',
+      createBuildPlugin: () => createImagePluginBundler(this.processedImages),
+    };
+  }
+
+  /**
+   * Generate dependencies for processor.
+   * It is ossible to define which one should be included in the final bundle based on the environment.
+   * @returns
+   */
   private generateDependencies(): Dependency[] {
-    const deps: Dependency[] = [
-      DependencyHelpers.createJsonScriptDependency({
-        content: `${JSON.stringify(this.processor.getClientConfig())}`,
-        position: 'body',
-        attributes: {
-          type: 'application/json',
-          id: IMAGE_PROCESSOR_CONFIG_ID,
-        },
-      }),
-    ];
+    const deps: Dependency[] = [];
 
     if (import.meta.env.NODE_ENV === 'development') {
       deps.push(
@@ -81,6 +74,9 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     return deps;
   }
 
+  /**
+   * Setup the image processor and create the virtual module.
+   */
   async setup(): Promise<void> {
     if (!this.context) {
       throw new Error('ImageProcessor requires context to be set');
@@ -91,37 +87,34 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
       distDir: this.context.distDir,
     });
 
-    const cachedMap = await this.readCache<ImageMap>(ImageProcessorPlugin.IMAGE_MAP_CACHE_KEY);
-
-    const optionsPaths = this.options?.paths;
-
-    const defaultPaths = {
-      sourceImages: `${this.context.srcDir}/public/assets/images`,
-      targetImages: `${this.context.distDir}/public/assets/optimized`,
-      sourceUrlPrefix: '/public/assets/images',
-      optimizedUrlPrefix: '/public/assets/optimized',
+    const defaultConfig = {
+      sourceDir: `${this.context.srcDir}/public/assets/images`,
+      outputDir: `${this.context.distDir}/public/assets/optimized`,
+      publicPath: '/public/assets/optimized',
+      sizes: [],
+      quality: 80,
+      format: 'webp' as const,
     };
 
-    const paths = optionsPaths ? deepMerge(defaultPaths, optionsPaths) : defaultPaths;
+    const config = this.options ? deepMerge(defaultConfig, this.options) : defaultConfig;
 
-    this.processor = new ImageProcessor({
-      initialImageMap: cachedMap || {},
-      importMeta: import.meta,
-      ...this.options,
-      paths,
-    });
+    this.processor = new ImageProcessor(config);
 
-    await this.processor.processDirectory();
+    this.processedImages = await this.processor.processDirectory();
 
-    this.writeCache(ImageProcessorPlugin.IMAGE_MAP_CACHE_KEY, this.processor.getImageMap());
+    Bun.plugin(createImagePlugin(this.processedImages));
 
     if (this.watchConfig) {
-      this.watchConfig.paths = [this.processor.getResolvedPath().sourceImages];
+      this.watchConfig.paths = [config.sourceDir];
     }
 
     this.dependencies = this.generateDependencies();
   }
 
+  /**
+   * Process images.
+   * @param images
+   */
   async process(images: string[]): Promise<void> {
     if (!this.processor) {
       throw new Error('ImageProcessor not initialized');
@@ -138,21 +131,57 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     }
   }
 
+  /**
+   * Delete processed images using the original image path.
+   * @param imagePath
+   */
+  async deleteProcessedImagesbyPath(imagePath: string): Promise<void> {
+    if (!this.processor) {
+      throw new Error('ImageProcessor not initialized');
+    }
+
+    logger.debug('Deleting processed images', { path: imagePath });
+
+    try {
+      const baseNameWithoutExt = path.basename(imagePath, path.extname(imagePath));
+
+      if (!this.options) {
+        throw new Error('Options not set');
+      }
+
+      const outputDir = this.options.outputDir;
+
+      const files = await FileUtils.glob([`${outputDir}/${baseNameWithoutExt}-*`]);
+
+      await Promise.all(
+        files.map(async (file) => {
+          try {
+            await FileUtils.rmAsync(file);
+            logger.debug('Deleted processed image', { file });
+          } catch (error) {
+            logger.error('Failed to delete processed image', { file, error });
+          }
+        }),
+      );
+
+      delete this.processedImages[path.basename(imagePath)];
+    } catch (error) {
+      logger.error('Failed to delete processed images', { path: imagePath, error });
+    }
+  }
+
+  /**
+   * Teardown the image processor.
+   */
   async teardown(): Promise<void> {
     logger.debug('Tearing down image processor');
   }
 
+  /**
+   * Get the image processor instance.
+   * @returns The image processor instance.
+   */
   getProcessor(): ImageProcessor | undefined {
     return this.processor;
-  }
-
-  getImageMap(): ImageProcessor['imageMap'] {
-    if (!this.processor) throw new Error('ImageProcessor not initialized');
-    return this.processor.getImageMap();
-  }
-
-  getClientConfig(): ReturnType<ImageProcessor['getClientConfig']> {
-    if (!this.processor) throw new Error('ImageProcessor not initialized');
-    return this.processor.getClientConfig();
   }
 }

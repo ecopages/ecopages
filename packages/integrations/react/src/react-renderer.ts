@@ -12,6 +12,7 @@ import {
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
+import type { BunPlugin } from 'bun';
 import { createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
@@ -67,6 +68,18 @@ export class ReactRenderer extends IntegrationRenderer {
     return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;
   }
 
+  private getBuildPlugins(): BunPlugin[] {
+    const plugins: BunPlugin[] = [];
+
+    for (const processor of this.appConfig.processors.values()) {
+      if (processor.buildPlugin) {
+        plugins.push(processor.buildPlugin.createBuildPlugin());
+      }
+    }
+
+    return plugins;
+  }
+
   private async bundleComponent({
     pagePath,
     componentName,
@@ -84,6 +97,7 @@ export class ReactRenderer extends IntegrationRenderer {
         outdir: absolutePath,
         naming: `${componentName}.[ext]`,
         external: ['react', 'react-dom'],
+        plugins: this.getBuildPlugins(),
       });
 
       if (!build.success) {

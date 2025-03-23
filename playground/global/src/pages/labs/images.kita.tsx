@@ -1,3 +1,4 @@
+import images from 'ecopages:images';
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import { EcoImage } from '@ecopages/image-processor/component/html';
@@ -17,18 +18,18 @@ const HomePage: EcoComponent = () => {
         Go to client images
       </a>
       <div class="max-w-80 mx-auto">
-        <EcoImage src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" priority unstyled />
-        <EcoImage src="/public/assets/images/not-existing.png" alt="Not existing" />
+        <EcoImage {...images['ezi-76GU53nkLSU-unsplash.jpg']} alt="Ezi unsplash" priority unstyled />
+        {/* <EcoImage {...images['not-existing.png']} alt="Not existing" /> */}
       </div>
       <div class="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map(() => (
-          <EcoImage src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg" alt="Demo" />
+          <EcoImage {...images['theodore-poncet-QZePhoGqD7w-unsplash.jpg']} alt="Demo" />
         ))}
       </div>
       <div class="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <EcoImage
-            src="/public/assets/images/theodore-poncet-QZePhoGqD7w-unsplash.jpg"
+            {...images['theodore-poncet-QZePhoGqD7w-unsplash.jpg']}
             alt="Demo"
             staticVariant="sm"
             layout="full-width"
@@ -36,8 +37,8 @@ const HomePage: EcoComponent = () => {
           />
         ))}
       </div>
-      <EcoImage src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" staticVariant="md" />
-      <EcoImage src="/public/assets/images/ezi-76GU53nkLSU-unsplash.jpg" alt="Ezi unsplash" />
+      <EcoImage {...images['ezi-76GU53nkLSU-unsplash.jpg']} alt="Ezi unsplash" staticVariant="md" />
+      <EcoImage {...images['ezi-76GU53nkLSU-unsplash.jpg']} alt="Ezi unsplash" />
     </BaseLayout>
   );
 };

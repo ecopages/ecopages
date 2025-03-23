@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig, ProcessorType } from '../internal-types';
 import type { Dependency } from '../services/dependency.service';
 import { FileUtils } from '../utils/file-utils.module';
@@ -27,6 +28,21 @@ export interface ProcessorContext {
   cache?: string;
 }
 
+/**
+ * Interface for processor build plugins
+ * This is used to pass plugins to the build process directly from the processor
+ */
+export interface ProcessorBuildPlugin {
+  /**
+   * Unique name to identify the plugin
+   */
+  name: string;
+  /**
+   * Factory function that returns the build plugin
+   */
+  createBuildPlugin(): BunPlugin;
+}
+
 export abstract class Processor<TOptions = Record<string, unknown>> {
   static CACHE_DIR = '__cache__';
   readonly name: string;
@@ -35,6 +51,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
   protected context?: ProcessorContext;
   protected options?: TOptions;
   protected watchConfig?: ProcessorWatchConfig;
+  abstract buildPlugin?: ProcessorBuildPlugin;
 
   constructor(config: ProcessorConfig<TOptions>) {
     this.name = config.name;

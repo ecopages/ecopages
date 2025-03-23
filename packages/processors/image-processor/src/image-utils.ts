@@ -1,4 +1,4 @@
-import { DEFAULT_LAYOUT, type LayoutAttributes } from '../shared/constants';
+import { DEFAULT_LAYOUT, type EcoImageProps } from './image-renderer';
 
 /**
  * ImageUtils
@@ -25,10 +25,10 @@ export class ImageUtils {
    * @returns {string} srcset attribute string
    * @private
    */
-  static generateSrcset(variants: Array<{ width: number; displayPath: string }>): string {
+  static generateSrcset(variants: Array<{ width: number; src: string }>): string {
     return variants
       .sort((a, b) => b.width - a.width)
-      .map(({ displayPath, width }) => `${displayPath} ${width}w`)
+      .map(({ src, width }) => `${src} ${width}w`)
       .join(', ');
   }
 
@@ -78,7 +78,7 @@ export class ImageUtils {
    * @private
    */
   static generateLayoutStyles(
-    config: Pick<LayoutAttributes, 'layout'> & Partial<LayoutAttributes>,
+    config: Pick<EcoImageProps, 'layout' | 'width' | 'height' | 'aspectRatio'>,
   ): [string, string][] {
     const layout = config.layout || ImageUtils.DEFAULT_LAYOUT;
 
@@ -112,9 +112,6 @@ export class ImageUtils {
         break;
 
       case 'full-width':
-        if (config.width) {
-          styles.push(['max-width', `${config.width}px`]);
-        }
         if (config.height) {
           styles.push(['height', `${config.height}px`], ['min-height', `${config.height}px`]);
         }
@@ -125,7 +122,7 @@ export class ImageUtils {
     return styles;
   }
 
-  static generateStyles(config: Pick<LayoutAttributes, 'layout'> & Partial<LayoutAttributes>): string {
+  static generateStyles(config: Pick<EcoImageProps, 'layout' | 'width' | 'height' | 'aspectRatio'>): string {
     const styles = ImageUtils.generateLayoutStyles(config);
     return styles.map(([key, value]) => `${key}:${value}`).join(';');
   }

@@ -7,6 +7,7 @@ import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { Processor } from '../processors/processor.ts';
+import type { PluginOrder } from '../public-types.ts';
 import type { CssParserService } from '../services/css-parser.service.ts';
 import type { DependencyService, ProcessedDependency } from '../services/dependency.service.ts';
 import type { HtmlTransformerService } from '../services/html-transformer.service';

@@ -1,9 +1,11 @@
+import images from 'ecopages:images';
 import { AlpineCounter } from '@/components/alpine-counter';
 import Introduction from '@/components/introduction.mdx';
 import { LitCounter } from '@/components/lit-counter';
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, type GetMetadata, removeComponentsScripts, resolveComponentsScripts } from '@ecopages/core';
+import { EcoImage } from '@ecopages/image-processor/component/html';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',
@@ -16,16 +18,17 @@ const HomePage: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
       <h1 class="main-title">Home</h1>
+      <EcoImage {...images['ezi-76GU53nkLSU-unsplash.jpg']} alt="A computer" />
       <Introduction />
-      <h4 class="font-bold text-xl">Alpine Counter</h4>
+      <span class="font-bold text-xl">Alpine Counter</span>
       <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([AlpineCounter])}>
         <AlpineCounter />
       </scripts-injector>
-      <h4 class="font-bold text-xl">Radiant Counter</h4>
+      <span class="font-bold text-xl">Radiant Counter</span>
       <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([RadiantCounter])}>
         <RadiantCounter count={5} />
       </scripts-injector>
-      <h4 class="font-bold text-xl">Lit Counter</h4>
+      <span class="font-bold text-xl">Lit Counter</span>
       <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([LitCounter])}>
         <lit-counter class="lit-counter" count={8}></lit-counter>
       </scripts-injector>

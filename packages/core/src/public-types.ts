@@ -281,11 +281,11 @@ type StylesheetContentIntegrationPluginDependencies = {
 /**
  * The options for the integration renderer.
  */
-export type IntegrationRendererRenderOptions = RouteRendererOptions & {
+export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendererOptions & {
   props?: Record<string, unknown>;
   metadata: PageMetadataProps;
-  HtmlTemplate: EcoComponent<HtmlTemplateProps>;
-  Page: EcoPage<PageProps>;
+  HtmlTemplate: EcoComponent<HtmlTemplateProps, C>;
+  Page: EcoPage<PageProps, C>;
   dependencies?: EcoComponentDependencies;
 };
 

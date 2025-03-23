@@ -209,6 +209,7 @@ export const FileUtils = {
   getFileAsString,
   rmAsync,
   rmdirAsync,
+  rmdirSync,
   mkdir,
   writeFile,
 };

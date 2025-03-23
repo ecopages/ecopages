@@ -27,7 +27,7 @@ import { invariant } from '../utils/invariant.ts';
 /**
  * Abstract class representing an integration renderer.
  */
-export abstract class IntegrationRenderer {
+export abstract class IntegrationRenderer<C = EcoComponent> {
   abstract name: string;
   protected appConfig: EcoPagesAppConfig;
   protected integrationManager: IntegrationManager;
@@ -243,8 +243,8 @@ export abstract class IntegrationRenderer {
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
     const renderOptions = await this.prepareRenderOptions(options);
 
-    return this.render(renderOptions);
+    return this.render(renderOptions as IntegrationRendererRenderOptions<C>);
   }
 
-  abstract render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody>;
+  abstract render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
 }

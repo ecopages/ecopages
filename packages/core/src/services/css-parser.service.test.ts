@@ -1,35 +1,35 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest, spyOn } from 'bun:test';
-import fs from 'node:fs';
 import path from 'node:path';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { ConfigBuilder } from '../main/config-builder';
 import { FileUtils } from '../utils/file-utils.module';
 import { CssParserService } from './css-parser.service';
 
+const testDir = path.join(process.cwd(), '.test-output');
+
 describe('CssParserService', () => {
   let service: CssParserService;
-  let testDir: string;
   let appConfig: EcoPagesAppConfig;
 
   const mockProcessor = {
     processPath: jest.fn(),
   };
+
   beforeAll(async () => {
-    appConfig = await new ConfigBuilder().setBaseUrl('http://localhost:3000').build();
+    appConfig = await new ConfigBuilder().setDistDir(testDir).setBaseUrl('http://localhost:3000').build();
   });
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '.test-output');
-
     service = new CssParserService({
       processor: mockProcessor as any,
-      appConfig: appConfig as any,
+      appConfig,
     });
   });
 
   afterAll(() => {
-    if (fs.existsSync(testDir)) {
-      fs.rmSync(testDir, { recursive: true });
+    console.log('---------------------------_________-----------__>> testDir', testDir);
+    if (FileUtils.existsSync(testDir)) {
+      FileUtils.rmdirSync(testDir, { recursive: true });
     }
     jest.restoreAllMocks();
   });

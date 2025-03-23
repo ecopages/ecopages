@@ -13,7 +13,7 @@ import {
   type RouteRendererBody,
 } from '@ecopages/core';
 import type { BunPlugin } from 'bun';
-import { createElement } from 'react';
+import { type JSX, createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
 
@@ -60,7 +60,7 @@ interface ReactUrls {
  * Renderer for React components.
  * @extends IntegrationRenderer
  */
-export class ReactRenderer extends IntegrationRenderer {
+export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
   name = PLUGIN_NAME;
   componentDirectory = '__integrations__';
 
@@ -245,7 +245,7 @@ export class ReactRenderer extends IntegrationRenderer {
     Page,
     file,
     HtmlTemplate,
-  }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+  }: IntegrationRendererRenderOptions<JSX.Element>): Promise<RouteRendererBody> {
     try {
       const headContent = (await this.createDynamicHead({
         dependencies,

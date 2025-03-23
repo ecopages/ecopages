@@ -1,13 +1,15 @@
-import { describe, expect, it } from 'bun:test';
-import exp from 'node:constants';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core';
-import { renderToReadableStream } from 'react-dom/server';
+import { ConfigBuilder, type EcoComponent, FileUtils, type HtmlTemplateProps } from '@ecopages/core';
+import type { JSX } from 'react';
 import { ReactRenderer } from '../react-renderer';
 import { ErrorPage } from './fixture/error-page';
 import { Page } from './fixture/test-page';
 
+const testDir = path.join(__dirname, 'fixture/.eco');
+
 const mockConfig = await new ConfigBuilder()
+  .setDistDir(testDir)
   .setIncludesTemplates({
     head: 'head.tsx',
     html: 'html.tsx',
@@ -32,7 +34,7 @@ const mockConfig = await new ConfigBuilder()
   .setBaseUrl('http://localhost:3000')
   .build();
 
-const HtmlTemplate = ({ headContent, children }: { headContent?: React.ReactNode; children?: React.ReactNode }) => (
+const HtmlTemplate: EcoComponent<HtmlTemplateProps, JSX.Element> = ({ headContent, children }) => (
   <html lang="en">
     <head>{headContent}</head>
     <body>{children}</body>
@@ -45,6 +47,12 @@ const errorPageFile = path.resolve(__dirname, 'fixture/error-page.tsx');
 const renderer = new ReactRenderer({ appConfig: mockConfig });
 
 describe('ReactRenderer', () => {
+  afterAll(() => {
+    if (FileUtils.existsSync(testDir)) {
+      FileUtils.rmdirSync(testDir, { recursive: true });
+    }
+  });
+
   it('should render the page', async () => {
     const body = await renderer.render({
       params: {},

@@ -1,16 +1,15 @@
 # @ecopages/image-processor
 
-A powerful and flexible image processing library designed to optimize and manage responsive images in modern web applications.
+A powerful and flexible image processing library designed to optimize and manage responsive images in ecopages applications.
 
 ## Features
 
-- **Automatic Image Optimization**: Converts and compresses images to modern formats like WebP
+- **Automatic Image Optimization**: Converts and compresses images to modern formats
 - **Responsive Image Generation**: Creates multiple image variants for different screen sizes
-- **Performance-First**: Built-in caching and efficient processing pipeline
-- **Smart Caching**: Only processes images when they change
-- **Multiple Layout Options**: Supports fixed, constrained, and full-width image layouts
-- **Framework Agnostic**: Works with any framework through HTML or React components
-- **TypeScript Support**: Full type definitions included
+- **Virtual Module Integration**: Direct import of optimized images through `ecopages:images`
+- **TypeScript Support**: Full type definitions and auto-generated types
+- **Multiple Layout Options**: Supports fixed, constrained, and full-width layouts
+- **Ecopages Integration**: Seamlessly integrated with the ecopages framework
 
 ## Installation
 
@@ -18,221 +17,178 @@ A powerful and flexible image processing library designed to optimize and manage
 npm install @ecopages/image-processor
 ```
 
-## Server-Side Configuration
-
-### Basic Setup
+## Configuration
 
 ```typescript
+import path from "node:path";
+import { ConfigBuilder } from "@ecopages/core";
 import { ImageProcessorPlugin } from "@ecopages/image-processor";
 
 const imageProcessor = new ImageProcessorPlugin({
+	name: "ecopages-image-processor",
+	type: "image",
 	options: {
-		// Quality setting (0-100)
+		sourceDir: path.resolve(import.meta.dir, "src/images"),
+		outputDir: path.resolve(import.meta.dir, ".eco/public/images"),
+		publicPath: "/public/images",
+		acceptedFormats: ["jpg", "jpeg", "png", "webp"],
 		quality: 80,
-		// Output format
 		format: "webp",
-		// Define responsive image sizes
 		sizes: [
-			{ width: 1920, label: "xl" },
-			{ width: 1280, label: "lg" },
+			{ width: 320, label: "sm" },
 			{ width: 768, label: "md" },
-			{ width: 640, label: "sm" },
+			{ width: 1024, label: "lg" },
+			{ width: 1920, label: "xl" },
 		],
-		// Custom paths configuration (optional)
-		paths: {
-			sourceImages: "/src/public/assets/images",
-			targetImages: "/src/public/assets/optimized",
-			sourceUrlPrefix: "/public/assets/images",
-			optimizedUrlPrefix: "/public/assets/optimized",
-		},
 	},
 });
 
-// Initialize the processor
-await imageProcessor.setup();
+export default await new ConfigBuilder()
+	.setRootDir(import.meta.dir)
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setProcessors([imageProcessor])
+	.build();
 ```
 
 ### Configuration Options
 
 #### ImageProcessorConfig
 
-| Option                  | Type                  | Default                                  | Description                                           |
-| ----------------------- | --------------------- | ---------------------------------------- | ----------------------------------------------------- |
-| `quality`               | `number`              | `80`                                     | Image compression quality (0-100)                     |
-| `format`                | `string`              | `'webp'`                                 | Output format (`'webp'`, `'jpeg'`, `'png'`, `'avif'`) |
-| `sizes`                 | `ImageSize[]`         | `[]`                                     | Array of size configurations                          |
-| `supportedImageFormats` | `string[]`            | `['jpg', 'webp', 'jpeg', 'png', 'avif']` | Supported input formats                               |
-| `paths`                 | `ImageProcessorPaths` | See below                                | Path configuration                                    |
+| Option            | Type                                    | Default                           | Description                           |
+| ----------------- | --------------------------------------- | --------------------------------- | ------------------------------------- |
+| `sourceDir`       | `string`                                | `'/src/public/assets/images'`     | Source directory for images           |
+| `outputDir`       | `string`                                | `'/dist/public/assets/optimized'` | Output directory for processed images |
+| `publicPath`      | `string`                                | `'/public/assets/optimized'`      | Public URL path for images            |
+| `sizes`           | `Array<{width: number, label: string}>` | `[]`                              | Image variants configuration          |
+| `quality`         | `number`                                | `80`                              | Output image quality (0-100)          |
+| `format`          | `'webp' \| 'jpeg' \| 'png' \| 'avif'`   | `'webp'`                          | Output image format                   |
+| `acceptedFormats` | `string[]`                              | `['jpg','jpeg','png','webp']`     | Accepted input formats                |
 
-#### ImageSize
+## Usage
 
-| Property | Type     | Description                           |
-| -------- | -------- | ------------------------------------- |
-| `width`  | `number` | Width in pixels                       |
-| `label`  | `string` | Label identifier for the size variant |
+### Importing Images
 
-#### Default Paths Configuration
+Images are available through the virtual module `ecopages:images`:
 
 ```typescript
-{
-  sourceImages: '/src/public/assets/images',
-  targetImages: '/src/public/assets/optimized',
-  sourceUrlPrefix: '/public/assets/images',
-  optimizedUrlPrefix: '/public/assets/optimized'
-}
+import { myImage } from "ecopages:images";
+
+// myImage contains:
+// {
+//   attributes: {
+//     src: string,
+//     width: number,  // original image width
+//     height: number, // original image height
+//     sizes: string,
+//     srcset: string
+//   },
+//   variants: Array<{ width, height, src, label }>
+// }
 ```
 
-## Client-Side Usage
+### HTML Component
+
+```typescript
+import { EcoImage } from "@ecopages/image-processor/component/html";
+
+// Basic usage
+EcoImage({
+	...myImage,
+	width: 800,
+	height: 600,
+	alt: "My image",
+});
+
+// Advanced usage
+EcoImage({
+	...myImage,
+	alt: "My image",
+	layout: "constrained",
+	priority: true,
+	aspectRatio: "16/9",
+	staticVariant: "xl",
+});
+```
 
 ### React Component
 
-```typescript
+```jsx
 import { EcoImage } from "@ecopages/image-processor/component/react";
 
 // Basic usage
-function Hero() {
-	return <EcoImage src="/assets/images/hero.jpg" alt="Hero image" width={800} height={600} />;
-}
+<EcoImage
+  {...myImage}
+  alt="My image"
+/>
 
 // Advanced usage
-function ResponsiveHero() {
-	return (
-		<EcoImage
-			src="/assets/images/hero.jpg"
-			alt="Hero image"
-			width={1200}
-			layout="constrained"
-			priority={true}
-			aspectRatio="16/9"
-			staticVariant="xl"
-		/>
-	);
-}
-```
-
-### HTML String Rendering
-
-```typescript
-import { renderer } from "@ecopages/image-processor/image-renderer-provider";
-
-const imgHTML = renderer.renderToString({
-	src: "/assets/images/hero.jpg",
-	alt: "Hero image",
-	width: 800,
-	height: 600,
-});
+<EcoImage
+  {...myImage}
+  alt="My image"
+  layout="constrained"
+  priority
+  aspectRatio="16/9"
+  staticVariant="xl"
+/>
 ```
 
 ### Component Props
 
-| Prop            | Type                                           | Default         | Description                        |
-| --------------- | ---------------------------------------------- | --------------- | ---------------------------------- |
-| `src`           | `string`                                       | Required        | Source path of the image           |
-| `alt`           | `string`                                       | Required        | Alternative text for accessibility |
-| `width`         | `number`                                       | -               | Desired width of the image         |
-| `height`        | `number`                                       | -               | Desired height of the image        |
-| `priority`      | `boolean`                                      | `false`         | Prioritize loading (eager loading) |
-| `layout`        | `'fixed'` \| `'constrained'` \| `'full-width'` | `'constrained'` | Layout behavior                    |
-| `staticVariant` | `string`                                       | -               | Force specific size variant        |
-| `aspectRatio`   | `string`                                       | -               | Force aspect ratio (e.g., "16/9")  |
-| `unstyled`      | `boolean`                                      | `false`         | Disable default styling            |
+The component accepts all standard HTML/React image attributes (`src`, `alt`, `data-*`, `crossOrigin`, etc.) in addition to the following specific props:
+
+| Prop            | Type                                       | Default             | Description                                  |
+| --------------- | ------------------------------------------ | ------------------- | -------------------------------------------- |
+| `width`         | `number`                                   | From image metadata | Original width, can be overridden if needed  |
+| `height`        | `number`                                   | From image metadata | Original height, can be overridden if needed |
+| `priority`      | `boolean`                                  | `false`             | Prioritize loading                           |
+| `layout`        | `'fixed' \| 'constrained' \| 'full-width'` | `'constrained'`     | Layout behavior                              |
+| `staticVariant` | `string`                                   | -                   | Force specific size variant                  |
+| `aspectRatio`   | `string`                                   | From width/height   | Override the natural aspect ratio            |
+| `unstyled`      | `boolean`                                  | `false`             | Disable default styling                      |
+
+Note: Images imported through `ecopages:images` automatically include their width and height metadata, preventing layout shifts by default. These values can be overridden when needed, for example when using a different aspect ratio or specific layout requirements.
 
 ## Layout Modes
 
 ### Fixed Layout
 
-The image maintains exact dimensions:
-
 ```typescript
-<EcoImage src="/image.jpg" layout="fixed" width={400} height={300} alt="Fixed image" />
+EcoImage({
+	...myImage,
+	layout: "fixed",
+	width: 400,
+	height: 300,
+	alt: "Fixed image",
+});
 ```
 
 ### Constrained Layout
 
-The image scales down for smaller viewports but maintains max width:
-
 ```typescript
-<EcoImage src="/image.jpg" layout="constrained" width={800} alt="Constrained image" />
+EcoImage({
+	...myImage,
+	layout: "constrained",
+	width: 800,
+	alt: "Constrained image",
+});
 ```
 
 ### Full-Width Layout
 
-The image spans the full width of its container:
-
 ```typescript
-<EcoImage src="/image.jpg" layout="full-width" alt="Full-width image" />
-```
-
-## Advanced Features
-
-### Priority Loading
-
-Use `priority` for above-the-fold images to optimize LCP:
-
-```typescript
-<EcoImage src="/hero.jpg" priority={true} alt="Hero image" />
-```
-
-### Static Variants
-
-Force a specific size variant:
-
-```typescript
-<EcoImage src="/image.jpg" staticVariant="xl" alt="Large image" />
-```
-
-### Aspect Ratio Control
-
-Maintain specific aspect ratios:
-
-```typescript
-<EcoImage src="/image.jpg" aspectRatio="16/9" width={1200} alt="Widescreen image" />
-```
-
-### Unstyled Mode
-
-Disable default styles for custom styling:
-
-```typescript
-<EcoImage src="/image.jpg" unstyled={true} alt="Custom styled image" className="my-custom-styles" />
+EcoImage({
+	...myImage,
+	layout: "full-width",
+	alt: "Full-width image",
+});
 ```
 
 ## Best Practices
 
-1. **Always provide alt text** for accessibility
-2. Use `priority` for above-the-fold images to improve LCP
-3. Choose appropriate `layout` modes based on your design requirements
-4. Set up size variants that match your application's breakpoints
-5. Use `aspectRatio` to prevent layout shifts
-6. Leverage `staticVariant` for art direction
-7. Consider using `unstyled` when you need full control over styling
-
-## Performance Considerations
-
-- The processor automatically caches processed images
-- Images are only reprocessed when the source file changes
-- WebP format is recommended for optimal compression
-- Use appropriate image sizes to avoid unnecessary downloads
-- Configure size variants based on your design's breakpoints
-
-## Server vs Client Rendering
-
-### Server-Side Rendering
-
-- Has full access to the file system and image metadata
-- Can generate optimal image variants with exact dimensions
-- Provides complete control over image optimization
-- Creates image maps with pre-calculated variants and paths
-- Ideal for static sites and server-rendered applications
-
-### Client-Side Rendering
-
-- Works with limited configuration passed from the server
-- Generates smart srcset and sizes attributes based on configured breakpoints
-- Relies on runtime URL generation for image variants
-- May not have access to original image dimensions
-- Better suited for dynamic content or client-heavy applications
-
-## License
-
-MIT
+1. Always provide `alt` text for accessibility
+2. Use `priority` for above-the-fold images
+3. Always specify both `width` and `height` to prevent layout shifts
+4. Use `aspectRatio` only when you need to force a different aspect ratio than width/height
+5. Choose appropriate `layout` modes based on your needs
+6. Utilize the virtual module for type-safe image imports
+7. Configure size variants that match your breakpoints

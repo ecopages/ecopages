@@ -55,7 +55,10 @@ export const docsConfig: DocsConfig = {
     {
       name: 'Ecosystem',
       subdirectory: 'ecosystem',
-      pages: [{ title: 'Packages', slug: 'packages' }],
+      pages: [
+        { title: 'Packages', slug: 'packages' },
+        { title: 'Image Processor', slug: 'image-processor' },
+      ],
     },
   ],
 };

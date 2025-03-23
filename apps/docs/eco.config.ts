@@ -1,7 +1,28 @@
+import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
+import { ImageProcessorPlugin } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
+
+const imageProcessor = new ImageProcessorPlugin({
+  name: 'ecopages-image-processor',
+  type: 'image',
+  options: {
+    sourceDir: path.resolve(import.meta.dir, 'src/images'),
+    outputDir: path.resolve(import.meta.dir, '.eco/public/images'),
+    publicPath: '/public/images',
+    acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
+    quality: 80,
+    format: 'webp',
+    sizes: [
+      { width: 320, label: 'sm' },
+      { width: 768, label: 'md' },
+      { width: 1024, label: 'lg' },
+      { width: 1920, label: 'xl' },
+    ],
+  },
+});
 
 const config = await new ConfigBuilder()
   .setRootDir(import.meta.dir)
@@ -20,6 +41,7 @@ const config = await new ConfigBuilder()
   })
   .setError404Template('404.kita.tsx')
   .setAdditionalWatchPaths(['src/data'])
+  .setProcessors([imageProcessor])
   .build();
 
 export default config;

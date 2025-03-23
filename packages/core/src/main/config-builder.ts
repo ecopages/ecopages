@@ -7,7 +7,7 @@ import path from 'node:path';
 import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
 import type { Processor } from '../processors/processor';
-import type { IntegrationPlugin, OrderedBunPlugin, PageMetadataProps } from '../public-types.ts';
+import type { IntegrationPlugin, PageMetadataProps } from '../public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 
 export class ConfigBuilder {
@@ -59,12 +59,7 @@ export class ConfigBuilder {
       error404TemplatePath: '',
     },
     processors: new Map(),
-    bunPlugins: [],
   };
-
-  constructor() {
-    this.createAbsolutePaths(this.config);
-  }
 
   setBaseUrl(baseUrl: string): this {
     this.config.baseUrl = baseUrl;
@@ -167,11 +162,6 @@ export class ConfigBuilder {
       throw new Error(`Processor with name "${processor.name}" already exists`);
     }
     this.config.processors.set(processor.name, processor);
-    return this;
-  }
-
-  setBunPlugins(plugins: OrderedBunPlugin[]): this {
-    this.config.bunPlugins = plugins;
     return this;
   }
 

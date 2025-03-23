@@ -31,6 +31,8 @@ export interface ProcessorContext {
 /**
  * Interface for processor build plugins
  * This is used to pass plugins to the build process directly from the processor
+ * For instance it can become very handy when dealing with virtual modules that needs to be recognized by the bundler
+ * i.e. @ecopages/image-processor
  */
 export interface ProcessorBuildPlugin {
   /**

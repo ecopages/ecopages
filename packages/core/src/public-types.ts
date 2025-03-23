@@ -301,19 +301,6 @@ export type IntegrationPlugin = {
 };
 
 /**
- * Represents the options for the file system server.
- */
-export type PluginOrder = 'before' | 'after-dist' | 'after';
-
-/**
- * Represents a Bun plugin with an order.
- */
-export interface OrderedBunPlugin {
-  order: PluginOrder;
-  plugin: BunPlugin;
-}
-
-/**
  * Represents a deep required type for a given object
  */
 export type DeepRequired<T> = Required<{

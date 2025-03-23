@@ -26,7 +26,7 @@ export const ImageGeneration: EcoComponent<unknown, JSX.Element> = () => {
         <EcoImage {...imageProps} alt="Random image" layout="full-width" height={200} priority />
         <EcoImage {...imageProps} alt="Random image" width={600} height={200} layout="constrained" priority />
         <EcoImage {...imageProps} alt="Random image" layout="fixed" width={200} height={200} priority />
-        <EcoImage {...imageProps} alt="Random image" priority unstyled data-test="attribute" />
+        <EcoImage {...imageProps} alt="Random image" width={400} priority unstyled data-test="attribute" />
         <EcoImage {...imageProps} alt="Random image" priority width={300} aspectRatio="4/1" />
         <div className="grid grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, index) => (

@@ -66,6 +66,28 @@ export default await new ConfigBuilder()
 
 ## Usage
 
+### Virtual Module System
+
+The `ecopages:images` virtual module provides a unified, type-safe way to handle images across your project:
+
+```typescript
+// All images from your source directory are available as named exports
+import { heroImage, profilePicture, blogThumbnail } from "ecopages:images";
+
+// Names are automatically converted to camelCase
+// example:
+// src/images/hero-image.jpg -> heroImage
+// src/images/profile_picture.png -> profilePicture
+```
+
+#### Benefits:
+
+- **TypeScript Integration**: Full autocompletion support for image names
+- **Automatic Processing**: Images are processed at build time
+- **Tree Shaking**: Only imported images and their required metadata are included in the final bundle
+- **Type Safety**: Prevents imports of non-existent images
+- **Unified API**: Consistent way to handle images across your project
+
 ### Importing Images
 
 Images are available through the virtual module `ecopages:images`:

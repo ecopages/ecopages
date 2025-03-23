@@ -1,5 +1,5 @@
 import type { Processor } from './processors/processor.ts';
-import type { IntegrationPlugin, OrderedBunPlugin, PageMetadataProps } from './public-types.ts';
+import type { IntegrationPlugin, PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from './router/fs-router.ts';
 
 /**
@@ -132,10 +132,6 @@ export type EcoPagesAppConfig = {
    * The processors to be used in the app
    */
   processors: Map<string, Processor>;
-  /**
-   * Bun plugins
-   */
-  bunPlugins?: OrderedBunPlugin[];
 };
 
 export type IntegrationDependencyConfig = {

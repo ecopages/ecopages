@@ -4,7 +4,7 @@
  */
 
 import { ImageUtils } from './image-utils';
-import type { ImageSpecifications, ImageVariant } from './plugin';
+import type { ImageSpecifications, ImageVariant } from './types';
 
 /**
  * Default image layout

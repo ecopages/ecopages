@@ -3,7 +3,8 @@ import { FileUtils } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
 import { ImageUtils } from './image-utils';
-import type { ImageAttributes, ImageMap, ImageProcessorConfig, ImageSpecifications, ImageVariant } from './plugin';
+import type { ImageMap, ImageProcessorConfig } from './plugin';
+import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types';
 
 const appLogger = new Logger('[@ecopages/image-processor]');
 

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/lit",
-	"version": "0.1.21",
+	"version": "0.1.22",
 	"exports": {
 		".": "./src/plugin.ts",
 		"./styled-mixin": "./src/styled-mixin.ts"

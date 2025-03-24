@@ -3,7 +3,8 @@ import '@ecopages/bun-mdx-kitajs-loader';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
 import { ImageProcessorPlugin } from '@ecopages/image-processor';
-import { reactPlugin } from '@ecopages/react';
+import { kitajsPlugin } from '@ecopages/kitajs';
+import { mdxPlugin } from '@ecopages/mdx';
 
 const imageProcessor = new ImageProcessorPlugin({
   options: {
@@ -25,13 +26,12 @@ const imageProcessor = new ImageProcessorPlugin({
 const config = await new ConfigBuilder()
   .setRootDir(import.meta.dir)
   .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-  .setIntegrations([reactPlugin()])
+  .setIntegrations([kitajsPlugin(), mdxPlugin()])
   .setProcessors([imageProcessor])
-  .setError404Template('404.tsx')
   .setIncludesTemplates({
-    head: 'head.tsx',
-    html: 'html.tsx',
-    seo: 'seo.tsx',
+    head: 'head.kita.tsx',
+    html: 'html.kita.tsx',
+    seo: 'seo.kita.tsx',
   })
   .build();
 

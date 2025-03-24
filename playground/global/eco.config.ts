@@ -8,8 +8,6 @@ import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const imageProcessor = new ImageProcessorPlugin({
-  name: 'ecopages-image-processor',
-  type: 'image',
   options: {
     sourceDir: path.resolve(import.meta.dir, 'src/images'),
     outputDir: path.resolve(import.meta.dir, '.eco/public/images'),

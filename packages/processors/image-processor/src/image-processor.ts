@@ -70,10 +70,12 @@ export class ImageProcessor {
         return imageSpecifications;
       }
 
-      let applicableSizes = this.config.sizes.filter((size) => size.width <= originalWidth);
+      let applicableSizes = this.config.sizes
+        .filter((size) => size.width <= originalWidth)
+        .sort((a, b) => b.width - a.width);
 
       if (applicableSizes.length === 0) {
-        applicableSizes = this.config.sizes.sort((a, b) => a.width - b.width).slice(0, 1);
+        applicableSizes = this.config.sizes.sort((a, b) => b.width - a.width).slice(0, 1);
       }
 
       const variants: ImageVariant[] = await Promise.all(

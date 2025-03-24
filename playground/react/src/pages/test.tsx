@@ -1,6 +1,7 @@
 import { Counter } from '@/components/counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoPage, GetMetadata } from '@ecopages/core';
+import type { JSX } from 'react';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',
@@ -9,12 +10,16 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static'],
 });
 
-const TestPage: EcoPage = () => {
+const TestPage: EcoPage<unknown, JSX.Element> = () => {
   return (
-    <BaseLayout class="main-content">
+    <BaseLayout className="main-content">
       <h1 className="main-title">Ecopages</h1>
-      <a href="/about">Mdx</a>
-      <a href="/">Home</a>
+      <a href="/about" className="text-blue-700 underline">
+        Mdx
+      </a>
+      <a href="/" className="text-blue-700 underline">
+        Home
+      </a>
       <Counter defaultValue={10} />
       <Counter defaultValue={5} />
     </BaseLayout>

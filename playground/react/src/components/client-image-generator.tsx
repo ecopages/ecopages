@@ -13,7 +13,7 @@ const availableImages = [
   urbanVintage78A265Wpio4UnsplashJpg,
 ];
 
-export const ImageGeneration: EcoComponent<unknown, JSX.Element> = () => {
+export const ClientImageGenerator: EcoComponent<unknown, JSX.Element> = () => {
   const [randomIndex, setRandomIndex] = useState<number | undefined>();
 
   const clientSideImages = useMemo(() => {
@@ -58,8 +58,8 @@ export const ImageGeneration: EcoComponent<unknown, JSX.Element> = () => {
   );
 };
 
-ImageGeneration.config = {
+ClientImageGenerator.config = {
   importMeta: import.meta,
 };
 
-export default ImageGeneration;
+export default ClientImageGenerator;

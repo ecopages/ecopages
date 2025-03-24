@@ -194,11 +194,8 @@ export interface EcoPagesFileSystemServerAdapter<ServerInstanceOptions = unknown
     | Promise<{ router: FSRouter; server: unknown }>;
 }
 
-export type ProcessorType = 'image' | 'css' | 'script' | 'asset' | 'build';
-
 export interface ProcessorPlugin {
   name: string;
-  type: ProcessorType;
   description?: string;
   setup(): Promise<void>;
   process<T = unknown>(input: T): Promise<T>;

@@ -131,11 +131,51 @@ export interface IImageRenderer {
   renderToString(props: EcoImageProps): string;
 }
 
+export class LayoutAttributesManager {
+  static shouldIncludeWidthHeight(layout: ImageLayout): boolean {
+    return layout === 'fixed';
+  }
+
+  static filterDimensionAttributes(
+    props: Pick<EcoImageProps, 'width' | 'height' | 'layout'>,
+  ): Pick<EcoImageProps, 'width' | 'height'> {
+    const layout = props.layout || 'constrained';
+
+    if (!LayoutAttributesManager.shouldIncludeWidthHeight(layout)) {
+      return {};
+    }
+
+    return {
+      ...(props.width && { width: props.width }),
+      ...(props.height && { height: props.height }),
+    };
+  }
+
+  static getEffectiveDimensions(
+    props: EcoImageProps,
+    variants?: Array<{ width: number; height: number }>,
+  ): { width?: number; height?: number } {
+    const mainVariant = variants?.[0];
+
+    const effectiveWidth = props.width || mainVariant?.width;
+    let effectiveHeight = props.height || mainVariant?.height;
+
+    if (props.aspectRatio && effectiveWidth) {
+      const [aspectWidth, aspectHeight] = props.aspectRatio.split('/').map(Number);
+      effectiveHeight = Math.round((effectiveWidth * aspectHeight) / aspectWidth);
+    }
+
+    return { width: effectiveWidth, height: effectiveHeight };
+  }
+}
+
 /**
  * ImageRenderer
  * This class is responsible for generating the attributes for the image element
  */
 export class ImageRenderer implements IImageRenderer {
+  private originalProps?: EcoImageProps;
+
   private readonly internalProps = [
     'attributes',
     'variants',
@@ -147,26 +187,56 @@ export class ImageRenderer implements IImageRenderer {
   ];
 
   generateAttributes(props: EcoImageProps): GenerateAttributesResult | null {
+    this.originalProps = props;
     const collected = this.collectAttributes(props);
     if (!collected) return null;
 
-    const { styles, ...rest } = collected;
+    const { styles, width, height, ...rest } = collected;
+    const dimensions = LayoutAttributesManager.filterDimensionAttributes({
+      width,
+      height,
+      layout: props.layout,
+    });
+
+    const htmlAttributes = this.getHtmlAttributes(props);
+    const generatedStyles = collected.styles ? this.generateStyleString(collected.styles) : '';
+    const userStyles = props.style || '';
 
     return {
+      ...htmlAttributes,
       ...rest,
-      style: collected.styles ? this.generateStyleString(collected.styles) : undefined,
+      ...dimensions,
+      style: userStyles ? `${generatedStyles};${userStyles}` : generatedStyles,
     };
   }
 
+  private getHtmlAttributes(props: EcoImageProps): Record<string, any> {
+    return Object.fromEntries(
+      Object.entries(props).filter(
+        ([key]) => !this.internalProps.includes(key) && key !== 'attributes' && key !== 'variants',
+      ),
+    );
+  }
+
   generateAttributesJsx(props: EcoImageProps): GenerateAttributesResultJsx | null {
+    this.originalProps = props;
     const collected = this.collectAttributes(props);
     if (!collected) return null;
 
     const { styles, fetchpriority, loading, decoding, src, srcset, sizes, width, height, ...rest } = collected;
 
+    const dimensions = LayoutAttributesManager.filterDimensionAttributes({
+      width,
+      height,
+      layout: props.layout,
+    });
+
     const validHtmlAttributes = Object.fromEntries(
       Object.entries(props).filter(([key]) => !this.internalProps.includes(key)),
     );
+
+    const generatedStyles = styles ? this.createCamelCaseKeysOnStyle(styles) : {};
+    const userStyles = typeof props.style === 'object' ? props.style : {};
 
     return {
       fetchPriority: fetchpriority,
@@ -175,119 +245,126 @@ export class ImageRenderer implements IImageRenderer {
       src,
       srcSet: srcset,
       sizes,
-      width,
-      height,
-      style: styles ? this.createCamelCaseKeysOnStyle(styles) : undefined,
+      ...dimensions,
       ...validHtmlAttributes,
+      style: { ...generatedStyles, ...userStyles },
     };
   }
 
   renderToString({ attributes, variants, ...rest }: EcoImageProps): string {
-    const derivedAttributes = this.generateAttributes({
-      attributes,
-      variants,
-      ...rest,
-    });
+    this.originalProps = { attributes, variants, ...rest };
+    const derivedAttributes = this.generateAttributes(this.originalProps);
 
     if (!derivedAttributes) return '';
 
-    const stringifiedAttributes = this.stringifyAttributes({
-      ...derivedAttributes,
-      ...rest,
-    });
+    const stringifiedAttributes = this.stringifyAttributes(derivedAttributes);
 
     return `<img ${stringifiedAttributes} />`;
   }
 
   private collectAttributes(props: EcoImageProps): CollectedAttributes | null {
-    const {
-      variants,
-      attributes,
-      alt,
-      priority,
-      layout = DEFAULT_LAYOUT,
-      unstyled,
-      staticVariant,
-      aspectRatio,
-      width,
-      height,
-      ...rest
-    } = props;
+    const { variants, priority, layout = DEFAULT_LAYOUT, unstyled, staticVariant } = props;
 
-    const priorityAttributes: Pick<GenerateAttributesResult, 'loading' | 'fetchpriority' | 'decoding'> = {
+    const priorityAttributes = this.getPriorityAttributes(priority);
+
+    if (!variants || variants.length === 0) {
+      return this.handleNoVariants(props, priorityAttributes);
+    }
+
+    const mainVariant = this.getMainVariant(variants, staticVariant);
+    if (!mainVariant) return null;
+
+    const dimensions = this.calculateEffectiveDimensions(props, mainVariant);
+    const styles = this.calculateStyles(dimensions, layout, unstyled);
+
+    const imageAttributes = this.buildImageAttributes(mainVariant, dimensions, props, priorityAttributes, styles);
+
+    return imageAttributes;
+  }
+
+  private getPriorityAttributes(
+    priority?: boolean,
+  ): Pick<GenerateAttributesResult, 'loading' | 'fetchpriority' | 'decoding'> {
+    return {
       loading: priority ? 'eager' : 'lazy',
       fetchpriority: priority ? 'high' : 'auto',
       decoding: priority ? 'auto' : 'async',
     };
+  }
 
-    if (!variants || variants.length === 0) {
-      const effectiveWidth = width || attributes.width;
-      const effectiveHeight = height || attributes.height;
-
-      const { attributes: dimensionsAttributes, styles } = this.getDimensionsAttributes(
-        effectiveWidth,
-        effectiveHeight,
-        aspectRatio,
-        layout,
-        unstyled,
-      );
-
-      return {
-        ...dimensionsAttributes,
-        ...priorityAttributes,
-        width: effectiveWidth,
-        height: effectiveHeight,
-        src: attributes.src,
-        styles,
-        ...rest,
-      };
+  private getMainVariant(variants: ImageVariant[], staticVariant?: string): ImageVariant | null {
+    if (staticVariant) {
+      return variants.find((v) => v.label === staticVariant) || null;
     }
 
-    const staticVariantExists = staticVariant && variants.some((v) => v.label === staticVariant);
+    return variants.sort((a, b) => b.width - a.width)[0] || null;
+  }
 
-    const useResponsiveImage = !staticVariantExists;
+  private calculateEffectiveDimensions(
+    props: EcoImageProps,
+    variant: ImageVariant,
+  ): { width?: number; height?: number } {
+    return LayoutAttributesManager.getEffectiveDimensions(props, [variant]);
+  }
 
-    const mainVariant = useResponsiveImage
-      ? variants.sort((a, b) => b.width - a.width)[0]
-      : (variants.find((v) => v.label === staticVariant) as ImageVariant);
+  private calculateStyles(
+    dimensions: { width?: number; height?: number },
+    layout: ImageLayout,
+    unstyled?: boolean,
+  ): [string, string][] {
+    if (unstyled) return [];
 
-    const effectiveWidth = width || mainVariant.width;
-    let effectiveHeight: number | undefined;
-
-    if (aspectRatio && effectiveWidth) {
-      const [aspectWidth, aspectHeight] = aspectRatio.split('/').map(Number);
-      effectiveHeight = Math.round((effectiveWidth * aspectHeight) / aspectWidth);
-    } else {
-      effectiveHeight = height || mainVariant.height;
-    }
-
-    const derivedAspectRatio =
-      aspectRatio || (effectiveWidth && effectiveHeight) ? `${effectiveWidth}/${effectiveHeight}` : undefined;
-
-    const { attributes: dimensionsAttributes, styles } = this.getDimensionsAttributes(
-      effectiveWidth,
-      effectiveHeight,
-      derivedAspectRatio,
+    return ImageUtils.generateLayoutStyles({
+      ...dimensions,
       layout,
-      unstyled,
-    );
+      aspectRatio: this.originalProps?.aspectRatio,
+    });
+  }
 
-    const validHtmlAttributes = Object.fromEntries(
-      Object.entries(rest).filter(([key]) => !this.internalProps.includes(key)),
-    );
+  private buildImageAttributes(
+    variant: ImageVariant,
+    dimensions: { width?: number; height?: number },
+    props: EcoImageProps,
+    priorityAttributes: Pick<GenerateAttributesResult, 'loading' | 'fetchpriority' | 'decoding'>,
+    styles: [string, string][],
+  ): CollectedAttributes {
+    const { staticVariant, attributes } = props;
+    const useResponsiveImage = !staticVariant;
 
     return {
-      ...dimensionsAttributes,
+      ...dimensions,
       ...priorityAttributes,
-      width: effectiveWidth,
-      height: effectiveHeight,
-      src: mainVariant.src,
-      ...(useResponsiveImage ? { srcset: attributes.srcset, sizes: attributes.sizes } : {}),
+      src: variant.src,
+      ...(useResponsiveImage
+        ? {
+            srcset: attributes.srcset,
+            sizes: attributes.sizes,
+          }
+        : {}),
       styles,
-      ...validHtmlAttributes,
     };
   }
 
+  private handleNoVariants(
+    props: EcoImageProps,
+    priorityAttributes: Pick<GenerateAttributesResult, 'loading' | 'fetchpriority' | 'decoding'>,
+  ): CollectedAttributes {
+    const { attributes, width, height, layout, unstyled } = props;
+
+    const dimensions = {
+      width: width || attributes.width,
+      height: height || attributes.height,
+    };
+
+    const styles = this.calculateStyles(dimensions, layout || DEFAULT_LAYOUT, unstyled);
+
+    return {
+      ...dimensions,
+      ...priorityAttributes,
+      src: attributes.src,
+      styles,
+    };
+  }
   private stringifyAttributes(attributes: GenerateAttributesResult): string {
     const attributePairs: string[] = [];
 
@@ -304,59 +381,6 @@ export class ImageRenderer implements IImageRenderer {
     return attributePairs.join(' ');
   }
 
-  private getDimensionsAttributes(
-    width?: number,
-    height?: number,
-    aspectRatio?: string,
-    layout: ImageLayout = 'constrained',
-    unstyled?: boolean,
-  ): { attributes: Pick<EcoImageProps, 'width' | 'height'>; styles: [string, string][] } {
-    const attributes: Pick<EcoImageProps, 'width' | 'height'> = {};
-    const styles: [string, string][] = unstyled ? [] : [['objectFit', 'cover']];
-
-    if (aspectRatio) {
-      const ratio = this.parseAspectRatio(aspectRatio);
-      if (ratio) {
-        if (!unstyled) {
-          styles.push(['aspectRatio', aspectRatio]);
-        }
-
-        if (width) {
-          const calculatedHeight = Math.round(width / ratio);
-          attributes.width = width;
-          attributes.height = calculatedHeight;
-          this.addLayoutStyles(styles, layout, width, calculatedHeight, unstyled);
-        } else if (height) {
-          const calculatedWidth = Math.round(height * ratio);
-          attributes.width = calculatedWidth;
-          attributes.height = height;
-          this.addLayoutStyles(styles, layout, calculatedWidth, height, unstyled);
-        } else if (!unstyled) {
-          styles.push(['width', '100%'], ['height', 'auto']);
-        }
-      }
-    } else if (width || height) {
-      attributes.width = width;
-      attributes.height = height;
-      this.addLayoutStyles(styles, layout, width, height, unstyled);
-    } else if (!unstyled) {
-      styles.push(['width', '100%'], ['height', 'auto']);
-    }
-
-    return { attributes, styles };
-  }
-
-  private parseAspectRatio(value: string | undefined): number | undefined {
-    if (!value) return undefined;
-
-    if (value.includes('/')) {
-      const [width, height] = value.split('/').map(Number);
-      return width / height;
-    }
-
-    return Number(value);
-  }
-
   private generateStyleString(styles: [string, string][]): string {
     const styleMap = new Map<string, string>();
 
@@ -371,18 +395,6 @@ export class ImageRenderer implements IImageRenderer {
         return `${cssKey}:${value}`;
       })
       .join(';');
-  }
-
-  private addLayoutStyles(
-    styles: [string, string][],
-    layout: ImageLayout,
-    width?: number,
-    height?: number,
-    unstyled?: boolean,
-  ): void {
-    if (unstyled) return;
-    const layoutStyles = ImageUtils.generateLayoutStyles({ layout, width, height });
-    styles.push(...layoutStyles);
   }
 
   private createCamelCaseKeysOnStyle(styles: [string, string][]): Record<string, string> {

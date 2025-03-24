@@ -61,7 +61,6 @@ describe('ImageUtils', () => {
       expect(styleMap.get('max-width')).toBe('800px');
       expect(styleMap.get('max-height')).toBe('600px');
       expect(styleMap.get('width')).toBe('100%');
-      expect(styleMap.get('height')).toBe('auto');
     });
 
     it('should generate full-width layout styles', () => {

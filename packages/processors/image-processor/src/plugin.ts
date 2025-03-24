@@ -54,7 +54,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
   private declare processor: ImageProcessor;
   public processedImages: Record<string, ImageSpecifications> = {};
 
-  constructor(config: ProcessorConfig<ImageProcessorConfig>) {
+  constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>) {
     const defaultWatchConfig: ProcessorWatchConfig = {
       paths: [],
       extensions: config.options?.acceptedFormats ?? ['jpg', 'jpeg', 'png', 'webp'],
@@ -67,7 +67,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     super({
       ...config,
       name: 'ecopages-image-processor',
-      type: 'image',
+      description: 'A Processor for optimizing images.',
       watch: config.watch ? deepMerge(defaultWatchConfig, config.watch) : defaultWatchConfig,
     });
   }

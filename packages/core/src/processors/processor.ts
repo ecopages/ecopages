@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { BunPlugin } from 'bun';
-import type { EcoPagesAppConfig, ProcessorType } from '../internal-types';
+import type { EcoPagesAppConfig } from '../internal-types';
 import type { Dependency } from '../services/dependency.service';
 import { FileUtils } from '../utils/file-utils.module';
 
@@ -16,7 +16,6 @@ export interface ProcessorWatchConfig {
 export interface ProcessorConfig<TOptions = Record<string, unknown>> {
   name: string;
   description?: string;
-  type: ProcessorType;
   options?: TOptions;
   watch?: ProcessorWatchConfig;
 }
@@ -48,7 +47,6 @@ export interface ProcessorBuildPlugin {
 export abstract class Processor<TOptions = Record<string, unknown>> {
   static CACHE_DIR = '__cache__';
   readonly name: string;
-  readonly type: ProcessorType;
   protected dependencies: Dependency[] = [];
   protected context?: ProcessorContext;
   protected options?: TOptions;
@@ -57,7 +55,6 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 
   constructor(config: ProcessorConfig<TOptions>) {
     this.name = config.name;
-    this.type = config.type;
     this.options = config.options;
     this.watchConfig = config.watch;
   }

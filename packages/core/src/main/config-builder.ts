@@ -149,7 +149,7 @@ export class ConfigBuilder {
     return this;
   }
 
-  setProcessors(processors: Processor[]): this {
+  setProcessors(processors: Processor<any>[]): this {
     this.config.processors.clear();
     for (const processor of processors) {
       this.addProcessor(processor);

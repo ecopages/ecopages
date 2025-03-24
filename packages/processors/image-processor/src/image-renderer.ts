@@ -184,6 +184,8 @@ export class ImageRenderer implements IImageRenderer {
     'aspectRatio',
     'unstyled',
     'priority',
+    'width',
+    'height',
   ];
 
   generateAttributes(props: EcoImageProps): GenerateAttributesResult | null {

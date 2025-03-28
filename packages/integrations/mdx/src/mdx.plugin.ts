@@ -1,4 +1,4 @@
-import type { IntegrationPlugin } from '@ecopages/core';
+import type { IntegrationPlugin, IntegrationRenderer } from '@ecopages/core';
 import { MDXRenderer } from './mdx-renderer.ts';
 
 /**
@@ -21,5 +21,10 @@ export const PLUGIN_NAME = 'MDX';
  */
 export function mdxPlugin(options?: MDXPluginOptions): IntegrationPlugin {
   const { extensions = ['.mdx'], dependencies = [] } = options || {};
-  return { name: PLUGIN_NAME, extensions, renderer: MDXRenderer, dependencies };
+  return {
+    name: PLUGIN_NAME,
+    extensions,
+    renderer: MDXRenderer as typeof IntegrationRenderer,
+    dependencies,
+  };
 }

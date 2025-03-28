@@ -1,4 +1,4 @@
-import type { IntegrationPlugin } from '@ecopages/core';
+import type { IntegrationPlugin, IntegrationRenderer } from '@ecopages/core';
 import { KitaRenderer } from './kitajs-renderer';
 
 /**
@@ -21,5 +21,10 @@ export const PLUGIN_NAME = 'kitajs';
  */
 export function kitajsPlugin(options?: KitaPluginOptions): IntegrationPlugin {
   const { extensions = ['.kita.tsx'], dependencies = [] } = options || {};
-  return { name: PLUGIN_NAME, extensions, renderer: KitaRenderer, dependencies };
+  return {
+    name: PLUGIN_NAME,
+    extensions,
+    renderer: KitaRenderer,
+    dependencies,
+  };
 }

@@ -10,6 +10,7 @@ import type {
   EcoComponentDependencies,
   EcoPage,
   EcoPageFile,
+  EcoPagesElement,
   GetMetadata,
   GetMetadataContext,
   GetStaticProps,
@@ -27,7 +28,7 @@ import { invariant } from '../utils/invariant.ts';
 /**
  * Abstract class representing an integration renderer.
  */
-export abstract class IntegrationRenderer<C = EcoComponent> {
+export abstract class IntegrationRenderer<C = EcoPagesElement> {
   abstract name: string;
   protected appConfig: EcoPagesAppConfig;
   protected integrationManager: IntegrationManager;

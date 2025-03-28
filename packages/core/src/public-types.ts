@@ -290,13 +290,21 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 };
 
 /**
+ * The Integration Renderer interface constructor.
+ * It is responsible for rendering a page using a specific integration.
+ */
+export interface IntegrationRendererConstructor {
+  new (config: { appConfig: EcoPagesAppConfig }): IntegrationRenderer;
+}
+
+/**
  * The Integration Plugin interface.
  * It represents a plugin that integrates a third-party library or service with EcoPages.
  */
 export type IntegrationPlugin = {
   name: string;
   extensions: string[];
-  renderer: typeof IntegrationRenderer;
+  renderer: IntegrationRendererConstructor;
   dependencies?: IntegrationPluginDependencies[];
 };
 

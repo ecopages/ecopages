@@ -3,7 +3,7 @@
  * @module
  */
 
-import type { IntegrationPlugin } from '@ecopages/core';
+import type { IntegrationPlugin, IntegrationRenderer } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import { ReactRenderer } from './react-renderer';
 
@@ -33,7 +33,7 @@ export function reactPlugin(options?: ReactPluginOptions): IntegrationPlugin {
   return {
     name: PLUGIN_NAME,
     extensions,
-    renderer: ReactRenderer,
+    renderer: ReactRenderer as typeof IntegrationRenderer,
     dependencies: [
       {
         kind: 'script',

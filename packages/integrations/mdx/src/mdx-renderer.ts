@@ -3,7 +3,7 @@
  * @module
  */
 
-import { deepMerge } from '@ecopages/core';
+import { type EcoPagesElement, deepMerge } from '@ecopages/core';
 import { invariant } from '@ecopages/core';
 import { PLUGIN_NAME } from './mdx.plugin.ts';
 
@@ -32,15 +32,15 @@ export type MDXFile = {
 /**
  * Options for the MDX renderer
  */
-interface MDXIntegrationRendererOpions extends IntegrationRendererRenderOptions {
+interface MDXIntegrationRendererOpions<C = EcoPagesElement> extends IntegrationRendererRenderOptions<C> {
   layout?: EcoComponent;
-  mdxDependencies: EcoComponentDependencies;
+  mdxDependencies?: EcoComponentDependencies;
 }
 
 /**
  * A renderer for the MDX integration.
  */
-export class MDXRenderer extends IntegrationRenderer {
+export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
   name = PLUGIN_NAME;
 
   protected override async importPageFile(file: string): Promise<

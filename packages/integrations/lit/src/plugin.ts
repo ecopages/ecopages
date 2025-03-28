@@ -3,7 +3,7 @@
  * @module
  */
 
-import { type IntegrationPlugin, deepMerge } from '@ecopages/core';
+import { type IntegrationPlugin, type IntegrationRenderer, deepMerge } from '@ecopages/core';
 import { litElementHydrateScript } from './lit-element-hydrate';
 import { LitRenderer } from './lit-renderer';
 
@@ -49,5 +49,10 @@ export function litPlugin(options?: LitPluginOptions): IntegrationPlugin {
   const finalOptions = options ? deepMerge(defaultOptions, options) : defaultOptions;
 
   const { extensions, dependencies } = finalOptions;
-  return { name: PLUGIN_NAME, extensions, renderer: LitRenderer, dependencies };
+  return {
+    name: PLUGIN_NAME,
+    extensions,
+    renderer: LitRenderer,
+    dependencies,
+  };
 }

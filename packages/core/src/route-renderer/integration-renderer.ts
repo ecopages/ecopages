@@ -138,7 +138,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     if (!Page.config.importMeta) appLogger.warn('No importMeta found in page config');
     if (!Page.config.dependencies) return;
 
-    const providerName = `${this.name}-${Page.config.importMeta.filename}`;
+    const providerName = `${this.name}-${Page.config.importMeta?.filename}`;
     const areDependenciesResolved = this.dependencyService?.hasProvider(providerName);
 
     if (areDependenciesResolved) return;

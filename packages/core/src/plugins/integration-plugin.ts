@@ -1,6 +1,6 @@
-import type { IntegrationRenderer } from 'src/route-renderer/integration-renderer';
-import type { Dependency, DependencyService } from 'src/services/dependency.service';
 import type { EcoPagesAppConfig } from '../internal-types';
+import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
+import type { Dependency, DependencyService } from '../services/dependency.service';
 
 export interface IntegrationPluginConfig {
   name: string;

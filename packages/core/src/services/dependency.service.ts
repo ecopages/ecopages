@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { appLogger } from 'src/global/app-logger';
+import { appLogger } from '../global/app-logger';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { deepMerge } from '../utils/deep-merge';
 import { FileUtils } from '../utils/file-utils.module';
@@ -407,7 +407,6 @@ export class DependencyService implements IDependencyService {
         }
         case 'json': {
           const jsonDep = dep as ScriptJsonDependency;
-          // For JSON, we want to use the content directly without writing to a file
           return {
             filepath: '',
             content: jsonDep.content,

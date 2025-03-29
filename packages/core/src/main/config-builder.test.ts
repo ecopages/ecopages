@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
-import { IntegrationPlugin } from 'src/plugins/integration-plugin.ts';
+import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { ConfigBuilder } from './config-builder.ts';
 
 const createMockIntegration = (name: string, extensions: string[]): IntegrationPlugin => {

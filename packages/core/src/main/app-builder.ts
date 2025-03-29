@@ -8,7 +8,7 @@ import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { Processor } from '../plugins/processor.ts';
 import type { CssParserService } from '../services/css-parser.service.ts';
-import type { DependencyService, ProcessedDependency } from '../services/dependency.service.ts';
+import type { DependencyService } from '../services/dependency.service.ts';
 import type { HtmlTransformerService } from '../services/html-transformer.service';
 import { FileUtils } from '../utils/file-utils.module.ts';
 import { ProjectWatcher } from './project-watcher.ts';
@@ -27,7 +27,6 @@ export class AppBuilder {
   private scriptsBuilder: ScriptsBuilder;
   private options: AppBuilderOptions;
   private dependencyService: DependencyService;
-  private processedDependencies: ProcessedDependency[] = [];
   private htmlTransformer: HtmlTransformerService;
 
   constructor({
@@ -98,7 +97,7 @@ export class AppBuilder {
   }
 
   private async transformIndexHtml(res: Response): Promise<Response> {
-    this.htmlTransformer.setProcessedDependencies(this.processedDependencies);
+    this.htmlTransformer.setProcessedDependencies(this.dependencyService.getDependencies());
     return this.htmlTransformer.transform(res);
   }
 
@@ -168,10 +167,6 @@ export class AppBuilder {
     }
   }
 
-  private async loadProcessedDependencies() {
-    this.processedDependencies = await this.dependencyService.prepareDependencies();
-  }
-
   async run() {
     const { distDir } = this.appConfig;
 
@@ -181,7 +176,7 @@ export class AppBuilder {
 
     await this.initializePlugins();
 
-    await this.loadProcessedDependencies();
+    await this.dependencyService.prepareDependencies();
 
     await this.execTailwind();
 

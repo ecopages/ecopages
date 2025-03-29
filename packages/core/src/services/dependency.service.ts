@@ -244,6 +244,11 @@ export class DependencyService implements IDependencyService {
     return build.outputs[0].path;
   }
 
+  /**
+   * This method is responsible for preparing the dependencies
+   * It will process all the dependencies and write them to the dist directory
+   * @returns {@link ProcessedDependency[]}
+   */
   async prepareDependencies(): Promise<ProcessedDependency[]> {
     this.dependencies = [];
 

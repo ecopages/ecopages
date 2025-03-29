@@ -9,7 +9,6 @@ import { StaticPageGenerator } from '../main/static-page-generator.ts';
 import { CssParserService } from '../services/css-parser.service.ts';
 import { DependencyService } from '../services/dependency.service.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
-import { IntegrationManager } from './integration-manager.ts';
 
 const validateConfig = (config: unknown): EcoPagesAppConfig => {
   if (!config) {
@@ -40,10 +39,7 @@ export async function buildApp({
 
   new AppBuilder({
     appConfig,
-    staticPageGenerator: new StaticPageGenerator({
-      appConfig,
-      integrationManager: new IntegrationManager({ appConfig }),
-    }),
+    staticPageGenerator: new StaticPageGenerator({ appConfig }),
     cssParser: new CssParserService({ processor: PostCssProcessor, appConfig }),
     scriptsBuilder: new ScriptsBuilder({
       appConfig,

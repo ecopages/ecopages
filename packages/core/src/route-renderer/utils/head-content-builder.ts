@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig, IntegrationDependencyConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { EcoComponentDependencies } from '../../public-types.ts';
 import { FileUtils } from '../../utils/file-utils.module.ts';
 
@@ -12,17 +12,13 @@ import { FileUtils } from '../../utils/file-utils.module.ts';
  */
 export class HeadContentBuilder {
   appConfig: EcoPagesAppConfig;
-  integrationsDependencies: IntegrationDependencyConfig[];
 
   constructor({
     appConfig,
-    integrationsDependencies,
   }: {
     appConfig: EcoPagesAppConfig;
-    integrationsDependencies: IntegrationDependencyConfig[];
   }) {
     this.appConfig = appConfig;
-    this.integrationsDependencies = integrationsDependencies;
   }
 
   /**
@@ -30,7 +26,6 @@ export class HeadContentBuilder {
    * It will build the dependencies as request.
    * @param {string} options.integrationName
    * @param {EcoComponentDependencies} options.dependencies
-   * @param {IntegrationDependencyConfig[]} options.integrationsDependencies
    */
   async buildRequestDependencies({
     integrationName,
@@ -40,17 +35,6 @@ export class HeadContentBuilder {
     dependencies?: EcoComponentDependencies;
   }) {
     let dependenciesString = '';
-
-    if (this.integrationsDependencies) {
-      for (const dependency of this.integrationsDependencies) {
-        if (dependency.integration !== integrationName) continue;
-        if (dependency.kind === 'stylesheet') {
-          dependenciesString += `<link rel="stylesheet" href="${dependency.srcUrl}" />`;
-        } else if (dependency.kind === 'script') {
-          dependenciesString += `<script defer type="module" src="${dependency.srcUrl}"></script>`;
-        }
-      }
-    }
 
     if (dependencies?.stylesheets) {
       dependenciesString += dependencies.stylesheets
@@ -102,8 +86,6 @@ export class HeadContentBuilder {
     dependencies?: EcoComponentDependencies;
     integrationName: string;
   }) {
-    const integrationsDependencies = this.integrationsDependencies;
-    if (!dependencies && !integrationsDependencies) return;
     return await this.buildRequestDependencies({
       integrationName,
       dependencies,

@@ -156,6 +156,11 @@ export class LayoutAttributesManager {
     variants?: Array<{ width: number; height: number }>,
   ): { width?: number; height?: number } {
     const mainVariant = variants?.[0];
+    const layout = props.layout || DEFAULT_LAYOUT;
+
+    if (layout === 'constrained' && props.width && !props.height) {
+      return { width: props.width };
+    }
 
     const effectiveWidth = props.width || mainVariant?.width;
     let effectiveHeight = props.height || mainVariant?.height;
@@ -277,7 +282,12 @@ export class ImageRenderer implements IImageRenderer {
     if (!mainVariant) return null;
 
     const dimensions = this.calculateEffectiveDimensions(props, mainVariant);
-    const styles = this.calculateStyles(dimensions, layout, unstyled);
+    const styles = this.calculateStyles({
+      dimensions,
+      layout,
+      attributes: props.attributes,
+      unstyled,
+    });
 
     const imageAttributes = this.buildImageAttributes(mainVariant, dimensions, props, priorityAttributes, styles);
 
@@ -309,17 +319,24 @@ export class ImageRenderer implements IImageRenderer {
     return LayoutAttributesManager.getEffectiveDimensions(props, [variant]);
   }
 
-  private calculateStyles(
-    dimensions: { width?: number; height?: number },
-    layout: ImageLayout,
-    unstyled?: boolean,
-  ): [string, string][] {
+  private calculateStyles({
+    dimensions,
+    layout,
+    unstyled,
+    attributes,
+  }: {
+    dimensions: { width?: number; height?: number };
+    layout: ImageLayout;
+    attributes: ImageSpecifications['attributes'];
+    unstyled?: boolean;
+  }): [string, string][] {
     if (unstyled) return [];
 
     return ImageUtils.generateLayoutStyles({
       ...dimensions,
       layout,
       aspectRatio: this.originalProps?.aspectRatio,
+      attributes,
     });
   }
 
@@ -354,15 +371,20 @@ export class ImageRenderer implements IImageRenderer {
     const { attributes, width, height, layout, unstyled } = props;
 
     const dimensions = {
-      width: width || attributes.width,
-      height: height || attributes.height,
+      width,
+      height,
     };
 
-    const styles = this.calculateStyles(dimensions, layout || DEFAULT_LAYOUT, unstyled);
+    const styles = this.calculateStyles({
+      dimensions,
+      layout: layout || DEFAULT_LAYOUT,
+      attributes,
+      unstyled,
+    });
 
     return {
-      ...dimensions,
       ...priorityAttributes,
+      ...dimensions,
       src: attributes.src,
       styles,
     };

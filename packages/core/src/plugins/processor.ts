@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { BunPlugin } from 'bun';
-import type { EcoPagesAppConfig } from '../internal-types';
+import type { EcoPagesAppConfig } from '../public-types';
 import type { Dependency } from '../services/dependency.service';
 import { FileUtils } from '../utils/file-utils.module';
 

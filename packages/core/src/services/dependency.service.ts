@@ -14,11 +14,17 @@ export type DependencyKind = 'script' | 'stylesheet';
 export type DependencyPosition = 'head' | 'body';
 
 /**
+ * DependencySource, how the dependency is sourced
+ */
+export type DependencySource = 'inline' | 'url' | 'nodeModule' | 'json';
+
+/**
  * BaseDependency, common attributes for all dependencies
  */
 export interface BaseDependency {
   kind: DependencyKind;
   attributes?: Record<string, string>;
+  source: DependencySource;
 }
 
 /**
@@ -35,6 +41,7 @@ type InlinedDependency = {
 export type ScriptInlineDependency = BaseDependency &
   InlinedDependency & {
     kind: 'script';
+    source: 'inline';
     position?: DependencyPosition;
     minify?: boolean;
   };
@@ -44,9 +51,21 @@ export type ScriptInlineDependency = BaseDependency &
  */
 export type ScriptSrcDependency = BaseDependency & {
   kind: 'script';
+  source: 'url';
   position: DependencyPosition;
   minify?: boolean;
   srcUrl: string;
+};
+
+/**
+ * This interface represents a script dependency from node_modules
+ */
+export type ScriptNodeModuleDependency = BaseDependency & {
+  kind: 'script';
+  source: 'nodeModule';
+  position: DependencyPosition;
+  minify?: boolean;
+  importPath: string;
 };
 
 /**
@@ -54,13 +73,18 @@ export type ScriptSrcDependency = BaseDependency & {
  */
 export type ScriptJsonDependency = BaseDependency & {
   content: string;
+  source: 'json';
   position?: DependencyPosition;
 };
 
 /**
  * This interface represents a script dependency
  */
-export type ScriptDependency = ScriptInlineDependency | ScriptSrcDependency | ScriptJsonDependency;
+export type ScriptDependency =
+  | ScriptInlineDependency
+  | ScriptSrcDependency
+  | ScriptJsonDependency
+  | ScriptNodeModuleDependency;
 
 /**
  * This interface represents a stylesheet dependency with inline content
@@ -282,32 +306,51 @@ export class DependencyService implements IDependencyService {
       let filepath: string;
       let content: string;
 
-      if ('srcUrl' in dep) {
-        if (dep.kind === 'script') {
+      switch (dep.source) {
+        case 'nodeModule': {
+          const nodeModuleDep = dep as ScriptNodeModuleDependency;
+          const absolutePath = this.findNodeModuleDependency(nodeModuleDep.importPath);
           filepath = await this.bundleScript({
-            entrypoint: dep.srcUrl as string,
+            entrypoint: absolutePath,
             outdir: depsDir,
-            minify: dep.minify,
+            minify: nodeModuleDep.minify,
           });
           content = FileUtils.readFileSync(filepath, 'utf-8');
-        } else {
-          const buffer = FileUtils.getFileAsBuffer(dep.srcUrl as string);
+          break;
+        }
+        case 'url': {
+          if (dep.kind === 'script') {
+            filepath = await this.bundleScript({
+              entrypoint: dep.srcUrl,
+              outdir: depsDir,
+              minify: dep.minify,
+            });
+            content = FileUtils.readFileSync(filepath, 'utf-8');
+          } else {
+            const stylesheetDep = dep as StylesheetSrcDependency;
+            const buffer = FileUtils.getFileAsBuffer(stylesheetDep.srcUrl);
+            const result = this.writeFileToDist({
+              content: buffer,
+              name: provider.name,
+              ext: 'css',
+            });
+            filepath = result.filepath;
+            content = buffer.toString('utf-8');
+          }
+          break;
+        }
+        case 'inline':
+        case 'json': {
+          const inlineDep = dep as ScriptInlineDependency;
+          content = inlineDep.content;
           const result = this.writeFileToDist({
-            content: buffer,
+            content,
             name: provider.name,
-            ext: 'css',
+            ext: dep.kind === 'script' ? 'js' : 'css',
           });
           filepath = result.filepath;
-          content = buffer.toString('utf-8');
+          break;
         }
-      } else {
-        content = dep.content as string;
-        const result = this.writeFileToDist({
-          content,
-          name: provider.name,
-          ext: dep.kind === 'script' ? 'js' : 'css',
-        });
-        filepath = result.filepath;
       }
 
       return { filepath, content };
@@ -324,6 +367,32 @@ export class DependencyService implements IDependencyService {
     if (this.dependencies.length) {
       FileUtils.gzipDirSync(path.join(this.config.absolutePaths.distDir, DependencyService.DEPS_DIR), ['css', 'js']);
     }
+  }
+
+  private findAbsolutePathInNodeModules(importPath: string, currentDir: string, maxDepth: number): string {
+    const nodeModulesPath = path.join(currentDir, 'node_modules');
+    if (FileUtils.existsSync(nodeModulesPath)) {
+      const dependencyPackage = importPath.split('/')[0];
+      const packageUrl = path.join(nodeModulesPath, dependencyPackage);
+      const packageExists = FileUtils.existsSync(packageUrl);
+      if (packageExists) {
+        return path.join(nodeModulesPath, importPath);
+      }
+    }
+    const parentDir = path.resolve(currentDir, '..');
+
+    if (maxDepth === 0) {
+      throw new Error(`Could not find node_modules containing the file: ${importPath}`);
+    }
+    return this.findAbsolutePathInNodeModules(importPath, parentDir, maxDepth - 1);
+  }
+
+  private findNodeModuleDependency(importPath: string): string {
+    let absolutePath = path.join(this.config.rootDir, 'node_modules', importPath);
+    if (!FileUtils.existsSync(absolutePath)) {
+      absolutePath = this.findAbsolutePathInNodeModules(importPath, this.config.rootDir, 5);
+    }
+    return absolutePath;
   }
 }
 
@@ -348,6 +417,7 @@ export class DependencyHelpers {
   }: CreateDependecy<ScriptInlineDependency, 'content' | 'attributes'>): ScriptDependency => {
     return {
       kind: 'script',
+      source: 'inline',
       inline: true,
       position,
       ...options,
@@ -365,6 +435,19 @@ export class DependencyHelpers {
   }: CreateDependecy<ScriptSrcDependency, 'srcUrl' | 'attributes'>): ScriptDependency => {
     return {
       kind: 'script',
+      source: 'url',
+      position,
+      ...options,
+    };
+  };
+
+  static createNodeModuleScriptDependency = ({
+    position = 'body',
+    ...options
+  }: CreateDependecy<ScriptNodeModuleDependency, 'importPath' | 'attributes'>): ScriptDependency => {
+    return {
+      kind: 'script',
+      source: 'nodeModule',
       position,
       ...options,
     };
@@ -382,6 +465,7 @@ export class DependencyHelpers {
   }: CreateDependecy<ScriptJsonDependency, 'content' | 'attributes'>): ScriptDependency => {
     return {
       kind: 'script',
+      source: 'json',
       attributes: deepMerge(attributes, { type: 'application/json' }),
       position,
       ...options,
@@ -398,6 +482,7 @@ export class DependencyHelpers {
   }: CreateDependecy<StylesheetInlineDependency, 'content' | 'attributes'>): StylesheetDependency => {
     return {
       kind: 'stylesheet',
+      source: 'inline',
       inline: true,
       position: 'head',
       ...options,
@@ -416,6 +501,7 @@ export class DependencyHelpers {
     return {
       kind: 'stylesheet',
       position,
+      source: 'url',
       ...options,
     };
   };

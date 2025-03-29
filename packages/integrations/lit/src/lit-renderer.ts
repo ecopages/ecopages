@@ -12,13 +12,13 @@ import {
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { PLUGIN_NAME } from './plugin.js';
+import { PLUGIN_NAME } from './lit.plugin.js';
 
 /**
  * A renderer for the Lit integration.
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
-  name = PLUGIN_NAME;
+  override name = PLUGIN_NAME;
 
   async render({
     params,

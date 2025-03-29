@@ -3,25 +3,16 @@ import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
-import type { IntegrationManager } from './integration-manager.ts';
 
 const STATIC_GENERATION_ADAPTER_PORT = 2020;
 const STATIC_GENERATION_ADAPTER_BASE_URL = `http://localhost:${STATIC_GENERATION_ADAPTER_PORT}`;
 
 export class StaticPageGenerator {
   appConfig: EcoPagesAppConfig;
-  integrationManager: IntegrationManager;
   declare transformIndexHtml: (res: Response) => Promise<Response>;
 
-  constructor({
-    appConfig,
-    integrationManager,
-  }: {
-    appConfig: EcoPagesAppConfig;
-    integrationManager: IntegrationManager;
-  }) {
+  constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
     this.appConfig = appConfig;
-    this.integrationManager = integrationManager;
   }
 
   generateRobotsTxt(): void {
@@ -58,10 +49,6 @@ export class StaticPageGenerator {
     }
 
     return Array.from(directories);
-  }
-
-  async prepareDependencies() {
-    await this.integrationManager.prepareDependencies();
   }
 
   async generateStaticPages() {
@@ -129,7 +116,6 @@ export class StaticPageGenerator {
   async run({ transformIndexHtml }: { transformIndexHtml: (res: Response) => Promise<Response> }) {
     this.transformIndexHtml = transformIndexHtml;
     this.generateRobotsTxt();
-    await this.prepareDependencies();
     await this.generateStaticPages();
   }
 }

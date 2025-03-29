@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,
   EcoComponentDependencies,
@@ -19,9 +20,7 @@ import type {
   PageMetadataProps,
   RouteRendererBody,
   RouteRendererOptions,
-} from '../index';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
-import { IntegrationManager } from '../main/integration-manager.ts';
+} from '../public-types.ts';
 import { HeadContentBuilder } from '../route-renderer/utils/head-content-builder.ts';
 import { invariant } from '../utils/invariant.ts';
 
@@ -31,16 +30,12 @@ import { invariant } from '../utils/invariant.ts';
 export abstract class IntegrationRenderer<C = EcoPagesElement> {
   abstract name: string;
   protected appConfig: EcoPagesAppConfig;
-  protected integrationManager: IntegrationManager;
   protected declare options: Required<IntegrationRendererRenderOptions>;
 
   protected DOC_TYPE = '<!DOCTYPE html>';
 
   constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
     this.appConfig = appConfig;
-    this.integrationManager = new IntegrationManager({
-      appConfig,
-    });
   }
 
   protected getHtmlPath({ file }: { file: string }): string {
@@ -65,14 +60,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   }
 
   protected async getHeadContent(dependencies?: EcoComponentDependencies): Promise<string | undefined> {
-    const integrationsDependencies = await this.integrationManager.prepareDependencies();
-
-    const headContent = await new HeadContentBuilder({
+    const headContentBuilder = new HeadContentBuilder({
       appConfig: this.appConfig,
-      integrationsDependencies,
-    }).build({
+    });
+    const headContent = await headContentBuilder.buildRequestDependencies({
       integrationName: this.name,
-      dependencies: dependencies,
+      dependencies,
     });
     return headContent;
   }
@@ -155,20 +148,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
     const stylesheetsSet = new Set<string>();
     const scriptsSet = new Set<string>();
-
-    await this.integrationManager.prepareDependencies().then((deps) => {
-      for (const dependency of deps) {
-        if (dependency.integration === this.name) {
-          if (dependency.kind === 'stylesheet') {
-            stylesheetsSet.add(dependency.srcUrl);
-          }
-
-          if (dependency.kind === 'script') {
-            scriptsSet.add(dependency.srcUrl);
-          }
-        }
-      }
-    });
 
     const collect = (config: EcoComponent['config']) => {
       if (!config?.dependencies) return;

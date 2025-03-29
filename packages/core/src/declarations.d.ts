@@ -1,3 +1,5 @@
+import type { EcoPagesAppConfig } from './internal-types';
+
 declare global {
   var ecoConfig: EcoPagesAppConfig;
 }

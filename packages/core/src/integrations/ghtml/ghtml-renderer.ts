@@ -5,14 +5,14 @@
 
 import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../../public-types.ts';
 import { IntegrationRenderer } from '../../route-renderer/integration-renderer.ts';
-import { PLUGIN_NAME } from './ghtml.plugin.ts';
+import { GHTML_PLUGIN_NAME } from './ghtml.plugin.ts';
 
 /**
  * A renderer for the ghtml integration.
  * It renders a page using the HtmlTemplate and Page components.
  */
 export class GhtmlRenderer extends IntegrationRenderer {
-  name = PLUGIN_NAME;
+  name = GHTML_PLUGIN_NAME;
 
   async render({
     params,

@@ -1,5 +1,6 @@
-import type { Processor } from './processors/processor.ts';
-import type { IntegrationPlugin, PageMetadataProps } from './public-types.ts';
+import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
+import type { Processor } from './plugins/processor.ts';
+import type { PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from './router/fs-router.ts';
 
 /**

@@ -298,6 +298,7 @@ export interface IntegrationRendererConstructor {
 }
 
 /**
+ * @todo remove
  * The Integration Plugin interface.
  * It represents a plugin that integrates a third-party library or service with EcoPages.
  */

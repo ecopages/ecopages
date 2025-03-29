@@ -6,7 +6,7 @@ import { StaticContentServer } from '../dev/sc-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
-import { Processor } from '../processors/processor.ts';
+import { Processor } from '../plugins/processor.ts';
 import type { CssParserService } from '../services/css-parser.service.ts';
 import type { DependencyService, ProcessedDependency } from '../services/dependency.service.ts';
 import type { HtmlTransformerService } from '../services/html-transformer.service';
@@ -149,7 +149,7 @@ export class AppBuilder {
     this.serveStatic();
   }
 
-  private async initializeProcessors() {
+  private async initializePlugins() {
     for (const processor of this.appConfig.processors.values()) {
       this.dependencyService.addProvider({
         name: processor.getName(),
@@ -157,6 +157,14 @@ export class AppBuilder {
       });
 
       await processor.setup();
+    }
+
+    for (const integration of this.appConfig.integrations) {
+      this.dependencyService.addProvider({
+        name: integration.name,
+        getDependencies: () => integration.getDependencies(),
+      });
+      await integration.setup();
     }
   }
 
@@ -171,7 +179,7 @@ export class AppBuilder {
 
     this.copyPublicDir();
 
-    await this.initializeProcessors();
+    await this.initializePlugins();
 
     await this.loadProcessedDependencies();
 

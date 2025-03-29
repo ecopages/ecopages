@@ -1,5 +1,5 @@
-import type { EcoPagesElement } from 'src/public-types';
 import type { EcoPagesAppConfig } from '../internal-types';
+import type { EcoPagesElement } from '../public-types';
 import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
 import type { Dependency, DependencyService } from '../services/dependency.service';
 

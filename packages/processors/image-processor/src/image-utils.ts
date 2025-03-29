@@ -109,6 +109,8 @@ export class ImageUtils {
           styles.push(['height', `${config.height}px`], ['min-height', `${config.height}px`]);
         } else if (config.width) {
           styles.push(['max-width', `${config.width}px`]);
+        } else if (!config.aspectRatio) {
+          styles.push(['aspect-ratio', `${config.attributes.width}/${config.attributes.height}`]);
         }
         break;
 

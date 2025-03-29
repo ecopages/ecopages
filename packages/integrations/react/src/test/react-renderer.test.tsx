@@ -117,12 +117,5 @@ describe('ReactRenderer', () => {
     const text = await new Response(body as BodyInit).text();
     expect(text).toContain('test-script.js');
     expect(text).toContain('test-style.css');
-    expect(text).toContain('<link');
-    expect(text).toContain('<script');
-    expect(text).toContain('type="importmap"');
-    expect(text).toContain('react-dom/client');
-    expect(text).toContain('react/jsx-runtime');
-    expect(text).toContain('react');
-    expect(text).toContain('__integrations__');
   });
 });

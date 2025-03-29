@@ -298,18 +298,6 @@ export interface IntegrationRendererConstructor {
 }
 
 /**
- * @todo remove
- * The Integration Plugin interface.
- * It represents a plugin that integrates a third-party library or service with EcoPages.
- */
-export type IntegrationPlugin = {
-  name: string;
-  extensions: string[];
-  renderer: IntegrationRendererConstructor;
-  dependencies?: IntegrationPluginDependencies[];
-};
-
-/**
  * Represents a deep required type for a given object
  */
 export type DeepRequired<T> = Required<{

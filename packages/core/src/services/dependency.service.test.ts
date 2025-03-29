@@ -34,6 +34,7 @@ describe('DependencyHelpers', () => {
 
     expect(dep).toEqual({
       kind: 'script',
+      source: 'inline',
       inline: true,
       position: 'body',
       content: "console.log('test')",
@@ -49,6 +50,7 @@ describe('DependencyHelpers', () => {
 
     expect(dep).toEqual({
       kind: 'script',
+      source: 'url',
       position: 'body',
       srcUrl: '/test.js',
       attributes: { async: 'true' },
@@ -63,6 +65,7 @@ describe('DependencyHelpers', () => {
 
     expect(dep).toEqual({
       kind: 'stylesheet',
+      source: 'inline',
       inline: true,
       position: 'head',
       content: 'body { color: red; }',
@@ -78,6 +81,7 @@ describe('DependencyHelpers', () => {
 
     expect(dep).toEqual({
       kind: 'stylesheet',
+      source: 'url',
       position: 'head',
       srcUrl: '/test.css',
       attributes: { media: 'screen' },

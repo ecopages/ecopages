@@ -8,6 +8,7 @@ import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/
 import { type Dependency, DependencyHelpers } from '@ecopages/core/services/dependency-service';
 import { Logger } from '@ecopages/logger';
 import type { JSX } from 'react';
+import type React from 'react';
 import { ReactRenderer } from './react-renderer';
 
 const appLogger = new Logger('[@ecopages/react]');
@@ -29,11 +30,12 @@ export const PLUGIN_NAME = 'react';
  * The React plugin class
  * This plugin provides support for React components in Ecopages
  */
-export class ReactPlugin extends IntegrationPlugin {
+export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
   constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
     super({
       name: PLUGIN_NAME,
       extensions: ['.tsx'],
+      ...options,
     });
 
     this.dependencies = [...this.generateDependencies(), ...this.dependencies];

@@ -1,3 +1,4 @@
+import type { EcoPagesElement } from 'src/public-types';
 import type { EcoPagesAppConfig } from '../internal-types';
 import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
 import type { Dependency, DependencyService } from '../services/dependency.service';
@@ -8,7 +9,7 @@ export interface IntegrationPluginConfig {
   dependencies?: Dependency[];
 }
 
-export abstract class IntegrationPlugin {
+export abstract class IntegrationPlugin<C = EcoPagesElement> {
   readonly name: string;
   readonly extensions: string[];
   protected dependencies: Dependency[] = [];
@@ -34,7 +35,7 @@ export abstract class IntegrationPlugin {
     return this.dependencies;
   }
 
-  abstract createRenderer(): IntegrationRenderer;
+  abstract createRenderer(): IntegrationRenderer<C>;
 
   async setup(): Promise<void> {}
   async teardown(): Promise<void> {}

@@ -137,6 +137,12 @@ const HomePage: EcoComponent = () => {
         </div>
         <EziCredit />
       </section>
+
+      <section>
+        <a href="/labs/client-images" class="text-blue-700 underline">
+          Go to client images
+        </a>
+      </section>
     </BaseLayout>
   );
 };

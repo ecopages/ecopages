@@ -1,5 +1,6 @@
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { IntegrationPlugin, RouteRendererBody, RouteRendererOptions } from '../public-types.ts';
+import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
+import type { RouteRendererBody, RouteRendererOptions } from '../public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 import { PathUtils } from '../utils/path-utils.ts';
 import type { IntegrationRenderer } from './integration-renderer.ts';
@@ -24,28 +25,26 @@ export class RouteRendererFactory {
   }
 
   createRenderer(filePath: string): RouteRenderer {
-    const rendererEngine = this.getRouteRendererEngine(filePath) as new (options: {
-      appConfig: EcoPagesAppConfig;
-    }) => IntegrationRenderer;
-
-    const renderer = new rendererEngine({
-      appConfig: this.appConfig,
-    });
-
-    return new RouteRenderer(renderer);
+    const integrationRenderer = this.getRouteRendererEngine(filePath);
+    invariant(integrationRenderer, `No integration renderer found for file: ${filePath}`);
+    return new RouteRenderer(integrationRenderer);
   }
 
   getIntegrationPlugin(filePath: string): IntegrationPlugin {
     const templateExtension = PathUtils.getEcoTemplateExtension(filePath);
-    const integration = this.appConfig.integrations.find((integration) =>
-      integration.extensions.includes(templateExtension),
+    const isIntegrationPlugin = (plugin: IntegrationPlugin): boolean => {
+      return plugin.extensions.some((extension) => templateExtension === extension);
+    };
+    const integrationPlugin = this.appConfig.integrations.find(isIntegrationPlugin);
+    invariant(
+      integrationPlugin,
+      `No integration plugin found for template extension: ${templateExtension}, file: ${filePath}`,
     );
-    invariant(integration, `No integration found for template extension: ${templateExtension}, file: ${filePath}`);
-    return integration;
+    return integrationPlugin;
   }
 
-  private getRouteRendererEngine(filePath: string): typeof IntegrationRenderer {
+  private getRouteRendererEngine(filePath: string): IntegrationRenderer {
     const integrationPlugin = this.getIntegrationPlugin(filePath);
-    return integrationPlugin.renderer;
+    return integrationPlugin.createRenderer();
   }
 }

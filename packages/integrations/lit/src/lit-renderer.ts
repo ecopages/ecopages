@@ -3,24 +3,28 @@
  * @module
  */
 
-import { IntegrationRenderer, type IntegrationRendererRenderOptions, type RouteRendererBody } from '@ecopages/core';
+import {
+  type EcoPagesElement,
+  IntegrationRenderer,
+  type IntegrationRendererRenderOptions,
+  type RouteRendererBody,
+} from '@ecopages/core';
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { PLUGIN_NAME } from './plugin.js';
+import { PLUGIN_NAME } from './lit.plugin.js';
 
 /**
  * A renderer for the Lit integration.
  */
-export class LitRenderer extends IntegrationRenderer {
-  name = PLUGIN_NAME;
+export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
+  override name = PLUGIN_NAME;
 
   async render({
     params,
     query,
     props,
     metadata,
-    dependencies,
     Page,
     HtmlTemplate,
   }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
@@ -29,7 +33,6 @@ export class LitRenderer extends IntegrationRenderer {
 
       const template = (await HtmlTemplate({
         metadata,
-        headContent: await this.getHeadContent(dependencies),
         children: '<--content-->',
       })) as string;
 

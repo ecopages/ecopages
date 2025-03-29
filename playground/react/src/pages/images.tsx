@@ -88,10 +88,9 @@ const ImagesPage: EcoPage<unknown, JSX.Element> = () => {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div className="space-y-2">
+            <div className="space-y-2" key={`item-${index}`}>
               <EcoImage
                 {...urbanVintage78A265Wpio4UnsplashJpg}
-                key={`item-${index}`}
                 alt={`Grid item ${index + 1}`}
                 staticVariant="sm"
                 layout="full-width"

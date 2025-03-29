@@ -40,7 +40,7 @@ describe('ImageRenderer', () => {
         decoding: 'async',
         srcset: mockImageProps.attributes.srcset,
         sizes: mockImageProps.attributes.sizes,
-        style: 'object-fit:cover;width:100%;max-width:800px;max-height:600px',
+        style: 'object-fit:cover;width:100%;max-width:800px;max-height:600px;aspect-ratio:800/600',
       });
     });
 
@@ -75,7 +75,7 @@ describe('ImageRenderer', () => {
         width: 1600,
       });
 
-      expect(attributes?.style).toMatch(/max-width:1600px.*max-height:900px/);
+      expect(attributes?.style).toBe('object-fit:cover;aspect-ratio:16/9;width:100%;max-width:1600px');
     });
 
     it('should handle no variants', () => {
@@ -86,14 +86,14 @@ describe('ImageRenderer', () => {
           height: 600,
         },
       };
-      const attributes = renderer.generateAttributes(props);
+      const attributes = renderer.generateAttributes(props as any);
 
       expect(attributes).toMatchObject({
         src: props.attributes.src,
         loading: 'lazy',
         fetchpriority: 'auto',
         decoding: 'async',
-        style: 'object-fit:cover;width:100%;max-width:800px;max-height:600px',
+        style: 'object-fit:cover;width:100%;aspect-ratio:800/600',
       });
     });
 
@@ -137,7 +137,7 @@ describe('ImageRenderer', () => {
         },
         aspectRatio: '16/9',
       };
-      const attributes = renderer.generateAttributes(props);
+      const attributes = renderer.generateAttributes(props as any);
 
       expect(attributes?.style).toContain('aspect-ratio:16/9');
       expect(attributes?.height).toBeUndefined();

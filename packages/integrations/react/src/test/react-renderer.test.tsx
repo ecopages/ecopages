@@ -95,34 +95,4 @@ describe('ReactRenderer', () => {
       }),
     ).rejects.toThrow('Failed to render component');
   });
-
-  it('should include page dependencies in head content', async () => {
-    const body = await renderer.render({
-      params: {},
-      query: {},
-      props: {},
-      file: pageFilePath,
-      metadata: {
-        title: 'Dependency Test',
-        description: 'Test Description',
-      },
-      dependencies: {
-        scripts: ['test-script.js'],
-        stylesheets: ['test-style.css'],
-      },
-      Page,
-      HtmlTemplate,
-    });
-
-    const text = await new Response(body as BodyInit).text();
-    expect(text).toContain('test-script.js');
-    expect(text).toContain('test-style.css');
-    expect(text).toContain('<link');
-    expect(text).toContain('<script');
-    expect(text).toContain('type="importmap"');
-    expect(text).toContain('react-dom/client');
-    expect(text).toContain('react/jsx-runtime');
-    expect(text).toContain('react');
-    expect(text).toContain('__integrations__');
-  });
 });

@@ -3,7 +3,7 @@
  * @module
  */
 
-import { deepMerge } from '@ecopages/core';
+import { type EcoPagesElement, deepMerge } from '@ecopages/core';
 import { invariant } from '@ecopages/core';
 import { PLUGIN_NAME } from './mdx.plugin.ts';
 
@@ -32,15 +32,14 @@ export type MDXFile = {
 /**
  * Options for the MDX renderer
  */
-interface MDXIntegrationRendererOpions extends IntegrationRendererRenderOptions {
+interface MDXIntegrationRendererOpions<C = EcoPagesElement> extends IntegrationRendererRenderOptions<C> {
   layout?: EcoComponent;
-  mdxDependencies: EcoComponentDependencies;
 }
 
 /**
  * A renderer for the MDX integration.
  */
-export class MDXRenderer extends IntegrationRenderer {
+export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
   name = PLUGIN_NAME;
 
   protected override async importPageFile(file: string): Promise<
@@ -50,20 +49,22 @@ export class MDXRenderer extends IntegrationRenderer {
         | {
             config: EcoComponentConfig | undefined;
           };
-      mdxDependencies: EcoComponentDependencies;
     }>
   > {
     try {
-      const { default: Page, config, layout = { config }, getMetadata } = (await import(file)) as MDXFile;
+      const { default: Page, config, layout = { config }, getMetadata } = await import(file);
 
-      const layoutDependencies = layout ? await this.collectDependencies({ config: layout.config }) : {};
+      if (layout.config?.dependencies) {
+        await this.collectDependencies({ config: layout.config });
+      }
 
-      const pageDependencies = await this.collectDependencies({ config });
+      if (config?.dependencies) {
+        await this.collectDependencies({ config });
+      }
 
       return {
         default: Page,
         layout,
-        mdxDependencies: deepMerge(layoutDependencies, pageDependencies),
         getMetadata,
       };
     } catch (error) {
@@ -71,21 +72,12 @@ export class MDXRenderer extends IntegrationRenderer {
     }
   }
 
-  async render({
-    metadata,
-    Page,
-    HtmlTemplate,
-    mdxDependencies,
-    layout,
-  }: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
+  async render({ metadata, Page, HtmlTemplate, layout }: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
     try {
-      const headContent = await this.getHeadContent(mdxDependencies);
-
       const children = typeof layout === 'function' ? layout({ children: Page({}) }) : Page({});
 
       const body = await HtmlTemplate({
         metadata,
-        headContent,
         children,
       });
 

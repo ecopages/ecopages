@@ -10,7 +10,7 @@ import {
   type ProcessorBuildPlugin,
   type ProcessorConfig,
   type ProcessorWatchConfig,
-} from '@ecopages/core/processors/processor';
+} from '@ecopages/core/plugins/processor';
 import { type Dependency, DependencyHelpers } from '@ecopages/core/services/dependency-service';
 import { Logger } from '@ecopages/logger';
 import { createImagePlugin, createImagePluginBundler } from './bun-plugins';

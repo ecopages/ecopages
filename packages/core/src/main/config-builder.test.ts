@@ -1,20 +1,18 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
-import type { IntegrationPlugin, IntegrationRendererRenderOptions } from '../public-types.ts';
-import { IntegrationRenderer } from '../route-renderer/integration-renderer.ts';
+import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { ConfigBuilder } from './config-builder.ts';
 
 const createMockIntegration = (name: string, extensions: string[]): IntegrationPlugin => {
-  return {
-    name,
-    extensions,
-    renderer: class extends IntegrationRenderer {
-      name = name;
-      async render(_: IntegrationRendererRenderOptions) {
-        return '';
-      }
-    },
-  };
+  return new (class extends IntegrationPlugin {
+    override extensions: string[];
+    constructor() {
+      super({ name, extensions });
+      this.extensions = extensions;
+    }
+
+    createRenderer = mock();
+  })();
 };
 
 describe('EcoConfigBuilder', () => {

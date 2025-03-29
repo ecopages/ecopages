@@ -4,10 +4,11 @@
  */
 
 import path from 'node:path';
-import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
+import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
-import type { Processor } from '../processors/processor';
-import type { IntegrationPlugin, PageMetadataProps } from '../public-types.ts';
+import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
+import type { Processor } from '../plugins/processor';
+import type { PageMetadataProps } from '../public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 
 export class ConfigBuilder {
@@ -223,7 +224,7 @@ export class ConfigBuilder {
       throw new Error('[ecopages] baseUrl is required');
     }
 
-    if (!this.config.integrations.some((integration) => integration.name === 'ghtml')) {
+    if (!this.config.integrations.some((integration) => integration.name === GHTML_PLUGIN_NAME)) {
       this.config.integrations.push(ghtmlPlugin());
     }
 
@@ -232,6 +233,10 @@ export class ConfigBuilder {
 
     for (const processor of this.config.processors.values()) {
       this.initializeProcessor(processor);
+    }
+
+    for (const integration of this.config.integrations) {
+      integration.setConfig(this.config);
     }
 
     globalThis.ecoConfig = this.config;

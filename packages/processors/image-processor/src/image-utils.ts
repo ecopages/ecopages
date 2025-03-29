@@ -78,7 +78,7 @@ export class ImageUtils {
    * @private
    */
   static generateLayoutStyles(
-    config: Pick<EcoImageProps, 'layout' | 'width' | 'height' | 'aspectRatio'>,
+    config: Pick<EcoImageProps, 'layout' | 'width' | 'height' | 'aspectRatio' | 'attributes'>,
   ): [string, string][] {
     const layout = config.layout || ImageUtils.DEFAULT_LAYOUT;
     const styles: [string, string][] = [['object-fit', 'cover']];
@@ -102,27 +102,26 @@ export class ImageUtils {
 
         if (config.width && config.height) {
           styles.push(['max-width', `${config.width}px`], ['max-height', `${config.height}px`]);
+          if (!config.aspectRatio) {
+            styles.push(['aspect-ratio', `${config.width}/${config.height}`]);
+          }
         } else if (config.height) {
-          styles.push(['height', `${config.height}px`]);
+          styles.push(['height', `${config.height}px`], ['min-height', `${config.height}px`]);
         } else if (config.width) {
           styles.push(['max-width', `${config.width}px`]);
+        } else if (!config.aspectRatio) {
+          styles.push(['aspect-ratio', `${config.attributes.width}/${config.attributes.height}`]);
         }
-
         break;
 
       case 'full-width':
         styles.push(['width', '100%']);
         if (config.height) {
-          styles.push(['height', `${config.height}px`]);
+          styles.push(['height', `${config.height}px`], ['min-height', `${config.height}px`]);
         }
         break;
     }
 
     return styles;
-  }
-
-  static generateStyles(config: Pick<EcoImageProps, 'layout' | 'width' | 'height' | 'aspectRatio'>): string {
-    const styles = ImageUtils.generateLayoutStyles(config);
-    return styles.map(([key, value]) => `${key}:${value}`).join(';');
   }
 }

@@ -3,8 +3,12 @@
  * @module
  */
 
-import type { IntegrationPlugin } from '@ecopages/core';
+import type { IntegrationRenderer } from '@ecopages/core';
+import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
+import { type Dependency, DependencyHelpers } from '@ecopages/core/services/dependency-service';
 import { Logger } from '@ecopages/logger';
+import type { JSX } from 'react';
+import type React from 'react';
 import { ReactRenderer } from './react-renderer';
 
 const appLogger = new Logger('[@ecopages/react]');
@@ -23,34 +27,123 @@ export type ReactPluginOptions = {
 export const PLUGIN_NAME = 'react';
 
 /**
- * Creates a React plugin
- * @param options - The options for the plugin
- * @returns The React plugin
+ * The React plugin class
+ * This plugin provides support for React components in Ecopages
  */
-export function reactPlugin(options?: ReactPluginOptions): IntegrationPlugin {
-  const { extensions = ['.tsx'], dependencies = [] } = options || {};
-  appLogger.warn('React plugin alone does not support MDX files at this time.');
-  return {
-    name: PLUGIN_NAME,
-    extensions,
-    renderer: ReactRenderer,
-    dependencies: [
-      {
-        kind: 'script',
+export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
+  constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
+    super({
+      name: PLUGIN_NAME,
+      extensions: ['.tsx'],
+      ...options,
+    });
+
+    this.dependencies = [...this.generateDependencies(), ...this.dependencies];
+
+    appLogger.warn('React plugin alone does not support MDX files at this time.');
+  }
+
+  /**
+   * Generate dependencies for processor.
+   * It is ossible to define which one should be included in the final bundle based on the environment.
+   * @returns
+   */
+  private generateDependencies(): Dependency[] {
+    if (import.meta.env.NODE_ENV === 'development') {
+      return [
+        DependencyHelpers.createInlineScriptDependency({
+          position: 'head',
+          content: JSON.stringify(
+            {
+              imports: {
+                react: '/__dependencies__/react-dev-esm.js',
+                'react-dom/client': '/__dependencies__/react-dev-esm.js',
+                'react/jsx-dev-runtime': '/__dependencies__/react-dev-esm.js',
+                'react-dom': '/__dependencies__/react-dom-esm.js',
+              },
+            },
+            null,
+            2,
+          ),
+          attributes: {
+            type: 'importmap',
+          },
+        }),
+        DependencyHelpers.createNodeModuleScriptDependency({
+          position: 'head',
+          importPath: '@ecopages/react/react-dev-esm.ts',
+          attributes: {
+            type: 'module',
+            defer: '',
+          },
+        }),
+        DependencyHelpers.createNodeModuleScriptDependency({
+          position: 'head',
+          importPath: '@ecopages/react/react-dom-esm.ts',
+          attributes: {
+            type: 'module',
+            defer: '',
+          },
+        }),
+      ];
+    }
+
+    return [
+      DependencyHelpers.createInlineScriptDependency({
+        position: 'head',
+        content: JSON.stringify(
+          {
+            imports: {
+              react: '/__dependencies__/react-esm.js',
+              'react-dom/client': '/__dependencies__/react-esm.js',
+              'react/jsx-runtime': '/__dependencies__/react-esm.js',
+              'react-dom': '/__dependencies__/react-dom-esm.js',
+            },
+          },
+          null,
+          2,
+        ),
+        attributes: {
+          type: 'importmap',
+          defer: '',
+        },
+      }),
+      DependencyHelpers.createNodeModuleScriptDependency({
         position: 'head',
         importPath: '@ecopages/react/react-esm.ts',
-      },
-      {
-        kind: 'script',
-        position: 'head',
-        importPath: '@ecopages/react/react-dev-esm.ts',
-      },
-      {
-        kind: 'script',
+        attributes: {
+          type: 'module',
+          defer: '',
+        },
+      }),
+      DependencyHelpers.createNodeModuleScriptDependency({
         position: 'head',
         importPath: '@ecopages/react/react-dom-esm.ts',
-      },
-      ...dependencies,
-    ],
-  };
+        attributes: {
+          type: 'module',
+          defer: '',
+        },
+      }),
+    ];
+  }
+
+  createRenderer(): IntegrationRenderer<JSX.Element> {
+    if (!this.appConfig) {
+      throw new Error('Plugin not initialized with app config');
+    }
+
+    return new ReactRenderer({
+      appConfig: this.appConfig,
+      dependencyService: this.dependencyService,
+    });
+  }
+}
+
+/**
+ * Factory function to create a React plugin instance
+ * @param options Configuration options for the React plugin
+ * @returns A new ReactPlugin instance
+ */
+export function reactPlugin(options?: Omit<IntegrationPluginConfig, 'name'>): ReactPlugin {
+  return new ReactPlugin(options);
 }

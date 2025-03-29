@@ -27,7 +27,6 @@ describe('CssParserService', () => {
   });
 
   afterAll(() => {
-    console.log('---------------------------_________-----------__>> testDir', testDir);
     if (FileUtils.existsSync(testDir)) {
       FileUtils.rmdirSync(testDir, { recursive: true });
     }

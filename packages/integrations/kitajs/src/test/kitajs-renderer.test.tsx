@@ -28,8 +28,8 @@ const mockConfig = await new ConfigBuilder()
   .setBaseUrl('http://localhost:3000')
   .build();
 
-const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ headContent, children }) => {
-  return `<html><head>${headContent}</head><body>${children}</body></html>`;
+const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
+  return `<html><body>${children}</body></html>`;
 };
 
 describe('KitaRenderer', () => {
@@ -50,7 +50,7 @@ describe('KitaRenderer', () => {
         HtmlTemplate,
       })
       .then((body) => {
-        expect(body).toBe('<!DOCTYPE html><html><head></head><body>Hello World</body></html>');
+        expect(body).toBe('<!DOCTYPE html><html><body>Hello World</body></html>');
       });
   });
 
@@ -74,35 +74,6 @@ describe('KitaRenderer', () => {
       })
       .catch((error) => {
         expect(error.message).toBe('[ecopages] Error rendering page: Error: Page failed to render');
-      });
-  });
-
-  it('should include page dependencies in head content', async () => {
-    const renderer = new KitaRenderer({ appConfig: mockConfig });
-
-    const Page: EcoPage = async () => 'Hello World';
-
-    renderer
-      .render({
-        params: {},
-        query: {},
-        props: {},
-        file: 'file',
-        metadata: {
-          title: 'Hello World',
-          description: 'Hello World',
-        },
-        dependencies: {
-          scripts: ['my-script.js'],
-          stylesheets: ['my-dependency.css'],
-        },
-        Page,
-        HtmlTemplate,
-      })
-      .then((body) => {
-        expect(body).toBe(
-          '<!DOCTYPE html><html><head><link rel="stylesheet" href="my-dependency.css" /><script defer type="module" src="my-script.js"></script></head><body>Hello World</body></html>',
-        );
       });
   });
 });

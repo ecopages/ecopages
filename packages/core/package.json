@@ -71,9 +71,13 @@
 			"types": "./src/utils/component-dependencies-utils.ts",
 			"default": "./src/utils/component-dependencies-utils.ts"
 		},
-		"./processors/processor": {
-			"types": "./src/processors/processor.ts",
-			"default": "./src/processors/processor.ts"
+		"./plugins/processor": {
+			"types": "./src/plugins/processor.ts",
+			"default": "./src/plugins/processor.ts"
+		},
+		"./plugins/integration-plugin": {
+			"types": "./src/plugins/integration-plugin.ts",
+			"default": "./src/plugins/integration-plugin.ts"
 		},
 		"./html": {
 			"import": "./src/utils/html.ts",

@@ -18,7 +18,7 @@ const HomePage: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
       <h1 class="main-title">Home</h1>
-      <EcoImage {...ezi76Gu53NklsuUnsplashJpg} alt="A computer" layout="constrained" />
+      <EcoImage {...ezi76Gu53NklsuUnsplashJpg} alt="A computer" width={500} height={500} />
       <Introduction />
       <span class="font-bold text-xl">Alpine Counter</span>
       <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([AlpineCounter])}>

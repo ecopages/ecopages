@@ -13,7 +13,8 @@
 		"./utils/deep-merge": "./src/utils/deep-merge.ts",
 		"./utils/invariant": "./src/utils/invariant.ts",
 		"./utils/component-dependencies-utils": "./src/utils/component-dependencies-utils.ts",
-		"./processors/processor": "./src/processors/processor.ts",
+		"./plugins/processor": "./src/plugins/processor.ts",
+		"./plugins/integration-plugin": "./src/plugins/integration-plugin.ts",
 		"./html": "./src/utils/html.ts",
 		"./css": "./src/utils/css.ts"
 	},

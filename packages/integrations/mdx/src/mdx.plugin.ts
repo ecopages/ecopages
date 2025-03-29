@@ -1,13 +1,6 @@
-import type { IntegrationPlugin } from '@ecopages/core';
+import type { IntegrationRenderer } from '@ecopages/core';
+import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { MDXRenderer } from './mdx-renderer.ts';
-
-/**
- * Options for the MDX plugin
- */
-export type MDXPluginOptions = {
-  extensions: string[];
-  dependencies: IntegrationPlugin['dependencies'];
-};
 
 /**
  * The name of the MDX plugin
@@ -15,11 +8,35 @@ export type MDXPluginOptions = {
 export const PLUGIN_NAME = 'MDX';
 
 /**
- * Creates an MDX plugin
- * @param options - The options for the plugin
- * @returns The MDX plugin
+ * The MDX plugin class
+ * This plugin provides support for MDX components in Ecopages
  */
-export function mdxPlugin(options?: MDXPluginOptions): IntegrationPlugin {
-  const { extensions = ['.mdx'], dependencies = [] } = options || {};
-  return { name: PLUGIN_NAME, extensions, renderer: MDXRenderer, dependencies };
+export class MDXPlugin extends IntegrationPlugin {
+  constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
+    super({
+      name: PLUGIN_NAME,
+      extensions: ['.mdx'],
+      ...options,
+    });
+  }
+
+  createRenderer(): IntegrationRenderer {
+    if (!this.appConfig) {
+      throw new Error('Plugin not initialized with app config');
+    }
+
+    return new MDXRenderer({
+      appConfig: this.appConfig,
+      dependencyService: this.dependencyService,
+    });
+  }
+}
+
+/**
+ * Factory function to create a MDX plugin instance
+ * @param options Configuration options for the MDX plugin
+ * @returns A new MDXPlugin instance
+ */
+export function mdxPlugin(options?: Omit<IntegrationPluginConfig, 'name'>): MDXPlugin {
+  return new MDXPlugin(options);
 }

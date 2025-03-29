@@ -25,7 +25,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
     query,
     props,
     metadata,
-    dependencies,
     Page,
     HtmlTemplate,
   }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
@@ -34,7 +33,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 
       const template = (await HtmlTemplate({
         metadata,
-        headContent: await this.getHeadContent(dependencies),
         children: '<--content-->',
       })) as string;
 

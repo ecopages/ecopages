@@ -156,17 +156,6 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     }
   }
 
-  private createStylesheetElements(stylesheets: string[]): React.JSX.Element[] {
-    return stylesheets.map((stylesheet) => {
-      return createElement('link', {
-        key: stylesheet,
-        rel: 'stylesheet',
-        href: stylesheet,
-        as: 'style',
-      });
-    });
-  }
-
   private createScriptElements(scripts: string[]): React.JSX.Element[] {
     return scripts.map((script) => {
       return createElement('script', {
@@ -178,39 +167,18 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     });
   }
 
-  private async createDynamicHead({ dependencies, pagePath }: HeadConfig) {
-    const hydrationScriptPath = await this.generateHydrationScript(pagePath);
-
-    const elements: React.JSX.Element[] = [];
-
-    if (dependencies) {
-      if (dependencies.stylesheets?.length) {
-        elements.push(...this.createStylesheetElements(dependencies.stylesheets));
-      }
-
-      if (dependencies.scripts?.length) {
-        elements.push(...this.createScriptElements([...dependencies.scripts, hydrationScriptPath]));
-      }
-    }
-
-    return elements;
-  }
-
   async render({
     params,
     query,
     props,
     metadata,
-    dependencies,
     Page,
     file,
     HtmlTemplate,
   }: IntegrationRendererRenderOptions<JSX.Element>): Promise<RouteRendererBody> {
     try {
-      const headContent = (await this.createDynamicHead({
-        dependencies,
-        pagePath: file,
-      })) as any;
+      const hydrationScriptPath = await this.generateHydrationScript(file);
+      const headContent = this.createScriptElements([hydrationScriptPath]) as any;
 
       const body = await renderToReadableStream(
         createElement(

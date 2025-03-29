@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { appLogger } from 'src/global/app-logger';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { deepMerge } from '../utils/deep-merge';
 import { FileUtils } from '../utils/file-utils.module';
@@ -58,6 +59,17 @@ export type ScriptSrcDependency = BaseDependency & {
 };
 
 /**
+ * This interface represents a script dependency with a src URL that's already bundled
+ */
+export type ScriptSrcDependencyPreBundled = BaseDependency & {
+  kind: 'script';
+  source: 'url';
+  position: DependencyPosition;
+  srcUrl: string;
+  preBundled: true;
+};
+
+/**
  * This interface represents a script dependency from node_modules
  */
 export type ScriptNodeModuleDependency = BaseDependency & {
@@ -84,7 +96,8 @@ export type ScriptDependency =
   | ScriptInlineDependency
   | ScriptSrcDependency
   | ScriptJsonDependency
-  | ScriptNodeModuleDependency;
+  | ScriptNodeModuleDependency
+  | ScriptSrcDependencyPreBundled;
 
 /**
  * This interface represents a stylesheet dependency with inline content
@@ -105,9 +118,22 @@ export type StylesheetSrcDependency = BaseDependency & {
 };
 
 /**
+ * This interface represents a stylesheet dependency with a src URL that's already bundled
+ */
+export type StylesheetSrcDependencyPreBundled = BaseDependency & {
+  kind: 'stylesheet';
+  position: Extract<DependencyPosition, 'head'>;
+  srcUrl: string;
+  preBundled: true;
+};
+
+/**
  * StylesheetDependency
  */
-export type StylesheetDependency = StylesheetInlineDependency | StylesheetSrcDependency;
+export type StylesheetDependency =
+  | StylesheetInlineDependency
+  | StylesheetSrcDependency
+  | StylesheetSrcDependencyPreBundled;
 
 /**
  * Available dependency types
@@ -153,7 +179,8 @@ export interface IDependencyService {
   addProvider(provider: DependencyProvider): void;
   removeProvider(providerName: string): void;
   prepareDependencies(): Promise<ProcessedDependency[]>;
-  getDependencies(): ProcessedDependency[];
+  hasProvider(providerName: string): boolean;
+  getProviderDependencies(providerName: string): ProcessedDependency[];
 }
 
 /**
@@ -179,7 +206,12 @@ export class DependencyService implements IDependencyService {
    * @param provider
    */
   addProvider(provider: DependencyProvider): void {
+    if (this.providersMap.has(provider.name)) {
+      appLogger.error(`Dependency provider "${provider.name}" already exists. Skipping registration.`);
+      return;
+    }
     this.providersMap.set(provider.name, provider);
+    appLogger.debug(`Dependency provider ${provider.name} added`);
   }
 
   /**
@@ -191,11 +223,21 @@ export class DependencyService implements IDependencyService {
   }
 
   /**
-   * Get processed dependencies
-   * @returns
+   * Check if a provider is already registered
+   * @param providerName
+   * @returns boolean
    */
-  getDependencies(): ProcessedDependency[] {
-    return this.dependencies;
+  hasProvider(providerName: string): boolean {
+    return this.providersMap.has(providerName);
+  }
+
+  /**
+   * Get the dependencies of a provider
+   * @param providerName
+   * @returns {@link ProcessedDependency[]}
+   */
+  getProviderDependencies(providerName: string): ProcessedDependency[] {
+    return this.dependencies.filter((dep) => dep.provider === providerName);
   }
 
   private writeFileToDist({
@@ -280,14 +322,14 @@ export class DependencyService implements IDependencyService {
         kind: dep.kind,
         inline: this.isInlineDependency(dep),
         filePath: result.filepath,
-        srcUrl: this.getSrcUrl(result.filepath),
+        srcUrl: result.filepath,
         attributes: dep.attributes,
         position: dep.position,
       };
 
-      if (this.isInlineDependency(dep)) {
+      if (processedDep.inline) {
         processedDep.content = result.content;
-      } else {
+      } else if (!('preBundled' in dep)) {
         processedDep.srcUrl = this.getSrcUrl(result.filepath);
       }
 
@@ -311,6 +353,13 @@ export class DependencyService implements IDependencyService {
       let filepath: string;
       let content: string;
 
+      if ('preBundled' in dep && dep.preBundled) {
+        return {
+          filepath: dep.srcUrl,
+          content: '',
+        };
+      }
+
       switch (dep.source) {
         case 'nodeModule': {
           const nodeModuleDep = dep as ScriptNodeModuleDependency;
@@ -325,10 +374,11 @@ export class DependencyService implements IDependencyService {
         }
         case 'url': {
           if (dep.kind === 'script') {
+            const scriptDep = dep as ScriptSrcDependency;
             filepath = await this.bundleScript({
-              entrypoint: dep.srcUrl,
+              entrypoint: scriptDep.srcUrl,
               outdir: depsDir,
-              minify: dep.minify,
+              minify: scriptDep.minify,
             });
             content = FileUtils.readFileSync(filepath, 'utf-8');
           } else {
@@ -344,8 +394,7 @@ export class DependencyService implements IDependencyService {
           }
           break;
         }
-        case 'inline':
-        case 'json': {
+        case 'inline': {
           const inlineDep = dep as ScriptInlineDependency;
           content = inlineDep.content;
           const result = this.writeFileToDist({
@@ -355,6 +404,14 @@ export class DependencyService implements IDependencyService {
           });
           filepath = result.filepath;
           break;
+        }
+        case 'json': {
+          const jsonDep = dep as ScriptJsonDependency;
+          // For JSON, we want to use the content directly without writing to a file
+          return {
+            filepath: '',
+            content: jsonDep.content,
+          };
         }
       }
 
@@ -507,6 +564,45 @@ export class DependencyHelpers {
       kind: 'stylesheet',
       position,
       source: 'url',
+      ...options,
+    };
+  };
+
+  /**
+   * Create a script dependency with a src URL that's already bundled
+   * @param options {@link ScriptSrcDependencyPreBundled}
+   * @returns
+   */
+  static createPreBundledScriptDependency = ({
+    position = 'body',
+    ...options
+  }: CreateDependecy<ScriptSrcDependencyPreBundled, 'srcUrl' | 'attributes'>): ScriptSrcDependencyPreBundled => {
+    return {
+      kind: 'script',
+      source: 'url',
+      position,
+      preBundled: true,
+      ...options,
+    };
+  };
+
+  /**
+   * Create a stylesheet dependency with a src URL that's already bundled
+   * @param options {@link StylesheetSrcDependencyPreBundled}
+   * @returns
+   */
+  static createPreBundledStylesheetDependency = ({
+    position = 'head',
+    ...options
+  }: CreateDependecy<
+    StylesheetSrcDependencyPreBundled,
+    'srcUrl' | 'attributes'
+  >): StylesheetSrcDependencyPreBundled => {
+    return {
+      kind: 'stylesheet',
+      source: 'url',
+      position,
+      preBundled: true,
       ...options,
     };
   };

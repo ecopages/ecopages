@@ -49,6 +49,7 @@ export class LitPlugin extends IntegrationPlugin {
 
     return new LitRenderer({
       appConfig: this.appConfig,
+      dependencyService: this.dependencyService,
     });
   }
 }

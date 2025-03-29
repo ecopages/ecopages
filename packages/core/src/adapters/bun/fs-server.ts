@@ -109,6 +109,7 @@ export class BunFileSystemServerAdapter implements EcoPagesFileSystemServerAdapt
     const fileSystemResponseFactory = new FileSystemServerResponseFactory({
       appConfig,
       routeRendererFactory,
+      transformIndexHtml,
       options: {
         watchMode,
         port,

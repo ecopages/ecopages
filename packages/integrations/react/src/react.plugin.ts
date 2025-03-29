@@ -132,6 +132,7 @@ export class ReactPlugin extends IntegrationPlugin {
 
     return new ReactRenderer({
       appConfig: this.appConfig,
+      dependencyService: this.dependencyService,
     });
   }
 }

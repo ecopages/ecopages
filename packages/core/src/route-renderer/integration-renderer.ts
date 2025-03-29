@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { appLogger } from 'src/global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,
@@ -21,7 +22,7 @@ import type {
   RouteRendererBody,
   RouteRendererOptions,
 } from '../public-types.ts';
-import { HeadContentBuilder } from '../route-renderer/utils/head-content-builder.ts';
+import { DependencyHelpers, type DependencyService } from '../services/dependency.service.ts';
 import { invariant } from '../utils/invariant.ts';
 
 /**
@@ -30,12 +31,20 @@ import { invariant } from '../utils/invariant.ts';
 export abstract class IntegrationRenderer<C = EcoPagesElement> {
   abstract name: string;
   protected appConfig: EcoPagesAppConfig;
+  protected dependencyService?: DependencyService;
   protected declare options: Required<IntegrationRendererRenderOptions>;
 
   protected DOC_TYPE = '<!DOCTYPE html>';
 
-  constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
+  constructor({
+    appConfig,
+    dependencyService,
+  }: {
+    appConfig: EcoPagesAppConfig;
+    dependencyService?: DependencyService;
+  }) {
     this.appConfig = appConfig;
+    this.dependencyService = dependencyService;
   }
 
   protected getHtmlPath({ file }: { file: string }): string {
@@ -57,17 +66,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     } catch (error) {
       invariant(false, `Error importing HtmlTemplate: ${error}`);
     }
-  }
-
-  protected async getHeadContent(dependencies?: EcoComponentDependencies): Promise<string | undefined> {
-    const headContentBuilder = new HeadContentBuilder({
-      appConfig: this.appConfig,
-    });
-    const headContent = await headContentBuilder.buildRequestDependencies({
-      integrationName: this.name,
-      dependencies,
-    });
-    return headContent;
   }
 
   protected async getStaticProps(
@@ -135,16 +133,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     };
   }
 
-  protected async collectDependencies(
-    Page:
-      | EcoPage
-      | {
-          config?: EcoComponent['config'];
-        },
-  ): Promise<EcoComponentDependencies> {
-    if (!Page.config) {
-      return {};
-    }
+  protected async collectDependencies(Page: EcoPage | { config?: EcoComponent['config'] }): Promise<void> {
+    if (!Page.config || !this.dependencyService) return;
+    if (!Page.config.importMeta) appLogger.warn('No importMeta found in page config');
+    if (!Page.config.dependencies) return;
+
+    const providerName = `${this.name}-${Page.config.importMeta.filename}`;
+    const areDependenciesResolved = this.dependencyService?.hasProvider(providerName);
+
+    if (areDependenciesResolved) return;
 
     const stylesheetsSet = new Set<string>();
     const scriptsSet = new Set<string>();
@@ -176,15 +173,38 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
     collect(Page.config);
 
-    return {
+    const deps = {
       stylesheets: Array.from(stylesheetsSet),
       scripts: Array.from(scriptsSet),
     };
+
+    this.dependencyService.addProvider({
+      name: providerName,
+      getDependencies: () => [
+        ...deps.stylesheets.map((srcUrl) =>
+          DependencyHelpers.createPreBundledStylesheetDependency({
+            srcUrl,
+            position: 'head',
+            attributes: { rel: 'stylesheet' },
+          }),
+        ),
+        ...deps.scripts.map((srcUrl) =>
+          DependencyHelpers.createPreBundledScriptDependency({
+            srcUrl,
+            position: 'head',
+            attributes: {
+              type: 'module',
+              defer: '',
+            },
+          }),
+        ),
+      ],
+    });
   }
 
   protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
     if (typeof HTMLElement === 'undefined') {
-      // @ts-expect-error - This issues appeared from one moment to another, need to investigate
+      // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
       global.HTMLElement = class {};
     }
 
@@ -194,8 +214,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       getMetadata,
       ...integrationSpecificProps
     } = await this.importPageFile(options.file);
-
-    const dependencies = await this.collectDependencies(Page);
 
     const HtmlTemplate = await this.getHtmlTemplate();
 
@@ -207,13 +225,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       query: options.query ?? {},
     } as GetMetadataContext);
 
+    await this.collectDependencies(Page);
+
     return {
       ...options,
       ...integrationSpecificProps,
       HtmlTemplate,
       props,
       Page,
-      dependencies,
       metadata,
       params: options.params || {},
       query: options.query || {},
@@ -222,7 +241,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
     const renderOptions = await this.prepareRenderOptions(options);
-
     return this.render(renderOptions as IntegrationRendererRenderOptions<C>);
   }
 

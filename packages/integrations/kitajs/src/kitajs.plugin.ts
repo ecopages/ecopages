@@ -29,6 +29,7 @@ export class KitaHtmlPlugin extends IntegrationPlugin {
 
     return new KitaRenderer({
       appConfig: this.appConfig,
+      dependencyService: this.dependencyService,
     });
   }
 }

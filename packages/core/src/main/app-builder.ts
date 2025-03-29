@@ -97,7 +97,7 @@ export class AppBuilder {
   }
 
   private async transformIndexHtml(res: Response): Promise<Response> {
-    this.htmlTransformer.setProcessedDependencies(this.dependencyService.getDependencies());
+    this.htmlTransformer.setProcessedDependencies(await this.dependencyService.prepareDependencies());
     return this.htmlTransformer.transform(res);
   }
 
@@ -150,20 +150,21 @@ export class AppBuilder {
 
   private async initializePlugins() {
     for (const processor of this.appConfig.processors.values()) {
+      await processor.setup();
       this.dependencyService.addProvider({
         name: processor.getName(),
         getDependencies: () => processor.getDependencies(),
       });
-
-      await processor.setup();
     }
 
     for (const integration of this.appConfig.integrations) {
+      integration.setConfig(this.appConfig);
+      integration.setDependencyService(this.dependencyService);
+      await integration.setup();
       this.dependencyService.addProvider({
         name: integration.name,
         getDependencies: () => integration.getDependencies(),
       });
-      await integration.setup();
     }
   }
 
@@ -171,17 +172,10 @@ export class AppBuilder {
     const { distDir } = this.appConfig;
 
     this.prepareDistDir();
-
     this.copyPublicDir();
-
     await this.initializePlugins();
-
-    await this.dependencyService.prepareDependencies();
-
     await this.execTailwind();
-
     await this.cssParser.build();
-
     await this.scriptsBuilder.build();
 
     if (this.options.watch) {

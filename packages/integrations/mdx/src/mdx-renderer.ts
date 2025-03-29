@@ -34,7 +34,6 @@ export type MDXFile = {
  */
 interface MDXIntegrationRendererOpions<C = EcoPagesElement> extends IntegrationRendererRenderOptions<C> {
   layout?: EcoComponent;
-  mdxDependencies?: EcoComponentDependencies;
 }
 
 /**
@@ -50,20 +49,22 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
         | {
             config: EcoComponentConfig | undefined;
           };
-      mdxDependencies: EcoComponentDependencies;
     }>
   > {
     try {
-      const { default: Page, config, layout = { config }, getMetadata } = (await import(file)) as MDXFile;
+      const { default: Page, config, layout = { config }, getMetadata } = await import(file);
 
-      const layoutDependencies = layout ? await this.collectDependencies({ config: layout.config }) : {};
+      if (layout.config?.dependencies) {
+        await this.collectDependencies({ config: layout.config });
+      }
 
-      const pageDependencies = await this.collectDependencies({ config });
+      if (config?.dependencies) {
+        await this.collectDependencies({ config });
+      }
 
       return {
         default: Page,
         layout,
-        mdxDependencies: deepMerge(layoutDependencies, pageDependencies),
         getMetadata,
       };
     } catch (error) {
@@ -71,21 +72,12 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
     }
   }
 
-  async render({
-    metadata,
-    Page,
-    HtmlTemplate,
-    mdxDependencies,
-    layout,
-  }: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
+  async render({ metadata, Page, HtmlTemplate, layout }: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
     try {
-      const headContent = await this.getHeadContent(mdxDependencies);
-
       const children = typeof layout === 'function' ? layout({ children: Page({}) }) : Page({});
 
       const body = await HtmlTemplate({
         metadata,
-        headContent,
         children,
       });
 

@@ -58,29 +58,4 @@ describe('GhtmlRenderer', () => {
         expect(error.message).toBe('[ecopages] Error rendering page: Error: Page failed to render');
       });
   });
-
-  it('should include page dependencies in head content', async () => {
-    const renderer = new GhtmlRenderer({ appConfig });
-
-    const Page: EcoPage = async () => pageBody;
-
-    renderer
-      .render({
-        params: {},
-        query: {},
-        props: {},
-        file: 'file',
-        metadata,
-        dependencies: {
-          scripts: ['my-script.js'],
-          stylesheets: ['my-dependency.css'],
-        },
-        Page,
-        HtmlTemplate,
-      })
-      .then((body) => {
-        expect(body).toInclude('<link rel="stylesheet" href="my-dependency.css" />');
-        expect(body).toInclude('<script defer type="module" src="my-script.js"></script>');
-      });
-  });
 });

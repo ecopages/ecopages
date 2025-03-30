@@ -22,7 +22,7 @@ import type {
   RouteRendererBody,
   RouteRendererOptions,
 } from '../public-types.ts';
-import { DependencyHelpers, type DependencyService } from '../services/dependency.service.ts';
+import { AssetDependencyHelpers, type AssetsDependencyService } from '../services/assets-dependency.service.ts';
 import { invariant } from '../utils/invariant.ts';
 
 /**
@@ -31,20 +31,20 @@ import { invariant } from '../utils/invariant.ts';
 export abstract class IntegrationRenderer<C = EcoPagesElement> {
   abstract name: string;
   protected appConfig: EcoPagesAppConfig;
-  protected dependencyService?: DependencyService;
+  protected assetsDependencyService?: AssetsDependencyService;
   protected declare options: Required<IntegrationRendererRenderOptions>;
 
   protected DOC_TYPE = '<!DOCTYPE html>';
 
   constructor({
     appConfig,
-    dependencyService,
+    assetsDependencyService,
   }: {
     appConfig: EcoPagesAppConfig;
-    dependencyService?: DependencyService;
+    assetsDependencyService?: AssetsDependencyService;
   }) {
     this.appConfig = appConfig;
-    this.dependencyService = dependencyService;
+    this.assetsDependencyService = assetsDependencyService;
   }
 
   protected getHtmlPath({ file }: { file: string }): string {
@@ -134,12 +134,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   }
 
   protected async collectDependencies(Page: EcoPage | { config?: EcoComponent['config'] }): Promise<void> {
-    if (!Page.config || !this.dependencyService) return;
+    if (!Page.config || !this.assetsDependencyService) return;
     if (!Page.config.importMeta) appLogger.warn('No importMeta found in page config');
     if (!Page.config.dependencies) return;
 
     const providerName = `${this.name}-${Page.config.importMeta?.filename}`;
-    const areDependenciesResolved = this.dependencyService?.hasProvider(providerName);
+    const areDependenciesResolved = this.assetsDependencyService?.hasDependencies(providerName);
 
     if (areDependenciesResolved) return;
 
@@ -178,18 +178,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       scripts: Array.from(scriptsSet),
     };
 
-    this.dependencyService.addProvider({
+    this.assetsDependencyService.registerDependencies({
       name: providerName,
       getDependencies: () => [
         ...deps.stylesheets.map((srcUrl) =>
-          DependencyHelpers.createPreBundledStylesheetDependency({
+          AssetDependencyHelpers.createPreBundledStylesheetAsset({
             srcUrl,
             position: 'head',
             attributes: { rel: 'stylesheet' },
           }),
         ),
         ...deps.scripts.map((srcUrl) =>
-          DependencyHelpers.createPreBundledScriptDependency({
+          AssetDependencyHelpers.createPreBundledScriptAsset({
             srcUrl,
             position: 'head',
             attributes: {

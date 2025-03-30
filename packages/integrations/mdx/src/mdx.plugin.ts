@@ -27,7 +27,7 @@ export class MDXPlugin extends IntegrationPlugin {
 
     return new MDXRenderer({
       appConfig: this.appConfig,
-      dependencyService: this.dependencyService,
+      assetsDependencyService: this.assetsDependencyService,
     });
   }
 }

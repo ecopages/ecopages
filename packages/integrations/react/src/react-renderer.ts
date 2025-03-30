@@ -12,7 +12,7 @@ import {
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
-import { DependencyService } from '@ecopages/core/services/dependency-service';
+import { AssetsDependencyService } from '@ecopages/core/services/assets-dependency-service';
 import type { BunPlugin } from 'bun';
 import { type JSX, createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
@@ -63,7 +63,7 @@ interface ReactUrls {
  */
 export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
   name = PLUGIN_NAME;
-  componentDirectory = DependencyService.DEPS_DIR;
+  componentDirectory = AssetsDependencyService.DEPS_DIR;
 
   private createHydrationScript(importPath: string) {
     return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;

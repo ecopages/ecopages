@@ -6,8 +6,8 @@ import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { AppBuilder } from '../main/app-builder.ts';
 import { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { StaticPageGenerator } from '../main/static-page-generator.ts';
+import { AssetsDependencyService } from '../services/assets-dependency.service.ts';
 import { CssParserService } from '../services/css-parser.service.ts';
-import { DependencyService } from '../services/dependency.service.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 
 const validateConfig = (config: unknown): EcoPagesAppConfig => {
@@ -45,7 +45,7 @@ export async function buildApp({
       appConfig,
       options: { watchMode: watch as boolean },
     }),
-    dependencyService: new DependencyService({ appConfig }),
+    assetsDependencyService: new AssetsDependencyService({ appConfig }),
     htmlTransformer: new HtmlTransformerService(),
     options: {
       watch: watch as boolean,

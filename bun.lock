@@ -21,7 +21,7 @@
     },
     "packages/core": {
       "name": "@ecopages/core",
-      "version": "0.1.22",
+      "version": "0.1.24",
       "bin": {
         "ecopages": "./src/bin/ecopages.ts",
       },
@@ -48,7 +48,7 @@
     },
     "packages/integrations/kitajs": {
       "name": "@ecopages/kitajs",
-      "version": "0.1.22",
+      "version": "0.1.24",
       "dependencies": {
         "@ecopages/core": "workspace:*",
         "@kitajs/html": "^4.1.0",
@@ -57,7 +57,7 @@
     },
     "packages/integrations/lit": {
       "name": "@ecopages/lit",
-      "version": "0.1.22",
+      "version": "0.1.24",
       "dependencies": {
         "@lit-labs/ssr": "^3.3.0",
         "@lit-labs/ssr-client": "^1.1.7",
@@ -69,7 +69,7 @@
     },
     "packages/integrations/mdx": {
       "name": "@ecopages/mdx",
-      "version": "0.1.22",
+      "version": "0.1.24",
       "peerDependencies": {
         "@ecopages/core": "workspace:*",
         "@kitajs/html": "^4.1.0",
@@ -77,7 +77,7 @@
     },
     "packages/integrations/react": {
       "name": "@ecopages/react",
-      "version": "0.1.22",
+      "version": "0.1.24",
       "dependencies": {
         "@ecopages/logger": "^0.2.0",
         "react": "^19.0.0",
@@ -93,7 +93,7 @@
     },
     "packages/loaders/bun-mdx-kitajs-loader": {
       "name": "@ecopages/bun-mdx-kitajs-loader",
-      "version": "0.1.22",
+      "version": "0.1.24",
       "dependencies": {
         "@mdx-js/esbuild": "^3.0.1",
       },
@@ -104,14 +104,14 @@
     },
     "packages/loaders/bun-postcss-loader": {
       "name": "@ecopages/bun-postcss-loader",
-      "version": "0.1.22",
+      "version": "0.1.24",
       "dependencies": {
         "@ecopages/postcss-processor": "workspace:*",
       },
     },
     "packages/plugins/bun-inline-css-plugin": {
       "name": "@ecopages/bun-inline-css-plugin",
-      "version": "0.1.22",
+      "version": "0.1.24",
       "devDependencies": {
         "@ecopages/logger": "^0.2.0",
         "@ecopages/postcss-processor": "workspace:*",
@@ -119,7 +119,7 @@
     },
     "packages/processors/image-processor": {
       "name": "@ecopages/image-processor",
-      "version": "0.1.22",
+      "version": "0.1.24",
       "dependencies": {
         "@ecopages/logger": "^0.2.0",
         "react": "^19.0.0",
@@ -136,7 +136,7 @@
     },
     "packages/processors/postcss-processor": {
       "name": "@ecopages/postcss-processor",
-      "version": "0.1.22",
+      "version": "0.1.24",
       "dependencies": {
         "@ecopages/logger": "^0.2.0",
         "@types/postcss-import": "^14.0.3",
@@ -153,6 +153,24 @@
     },
     "playground/global": {
       "name": "@ecopages/playground-global",
+      "devDependencies": {
+        "@ecopages/bun-mdx-kitajs-loader": "workspace:*",
+        "@ecopages/bun-postcss-loader": "workspace:*",
+        "@ecopages/core": "workspace:*",
+        "@ecopages/image-processor": "workspace:*",
+        "@ecopages/kitajs": "workspace:*",
+        "@ecopages/lit": "workspace:*",
+        "@ecopages/mdx": "workspace:*",
+        "@ecopages/postcss-processor": "workspace:*",
+        "@ecopages/radiant": "^0.1.7",
+        "@ecopages/scripts-injector": "^0.1.1",
+        "@types/alpinejs": "^3.13.6",
+        "alpinejs": "^3.13.10",
+        "shiki": "^1.1.2",
+      },
+    },
+    "playground/manual": {
+      "name": "@ecopages/playground-manual",
       "devDependencies": {
         "@ecopages/bun-mdx-kitajs-loader": "workspace:*",
         "@ecopages/bun-postcss-loader": "workspace:*",
@@ -214,6 +232,8 @@
     "@ecopages/mdx": ["@ecopages/mdx@workspace:packages/integrations/mdx"],
 
     "@ecopages/playground-global": ["@ecopages/playground-global@workspace:playground/global"],
+
+    "@ecopages/playground-manual": ["@ecopages/playground-manual@workspace:playground/manual"],
 
     "@ecopages/playground-react": ["@ecopages/playground-react@workspace:playground/react"],
 
@@ -709,7 +729,7 @@
 
     "browserslist": ["browserslist@4.24.4", "", { "dependencies": { "caniuse-lite": "^1.0.30001688", "electron-to-chromium": "^1.5.73", "node-releases": "^2.0.19", "update-browserslist-db": "^1.1.1" }, "bin": { "browserslist": "cli.js" } }, "sha512-KDi1Ny1gSePi1vm0q4oxSF8b4DR44GF4BbmS2YdhPLOEqd8pDviZOGH/GsmRwoWJ2+5Lr085X7naowMwKHDG1A=="],
 
-    "bun-types": ["bun-types@1.2.5", "", { "dependencies": { "@types/node": "*", "@types/ws": "~8.5.10" } }, "sha512-3oO6LVGGRRKI4kHINx5PIdIgnLRb7l/SprhzqXapmoYkFl5m4j6EvALvbDVuuBFaamB46Ap6HCUxIXNLCGy+tg=="],
+    "bun-types": ["bun-types@1.2.7", "", { "dependencies": { "@types/node": "*", "@types/ws": "*" } }, "sha512-P4hHhk7kjF99acXqKvltyuMQ2kf/rzIw3ylEDpCxDS9Xa0X0Yp/gJu/vDCucmWpiur5qJ0lwB2bWzOXa2GlHqA=="],
 
     "camelcase-css": ["camelcase-css@2.0.1", "", {}, "sha512-QOSvevhslijgYwRx6Rv7zKdMF8lbRmx+uQGx2+vDc+KI/eBnsy9kit5aj23AgGu3pa4t9AgwbnXWqS+iOY+2aA=="],
 
@@ -1340,6 +1360,8 @@
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
 
     "@ecopages/playground-global/@ecopages/radiant": ["@ecopages/radiant@0.1.8", "", { "dependencies": { "@kitajs/html": "^4.1.0" } }, "sha512-blXhVkFFZVB2LVZmn1hzT7B46JsHDkPW1rT4l73gpcpyERX27N4MLCrH9nq39Vn8+SdZVtSXnvdy/2Lhcjz3LQ=="],
+
+    "@ecopages/playground-manual/@ecopages/radiant": ["@ecopages/radiant@0.1.8", "", { "dependencies": { "@kitajs/html": "^4.1.0" } }, "sha512-blXhVkFFZVB2LVZmn1hzT7B46JsHDkPW1rT4l73gpcpyERX27N4MLCrH9nq39Vn8+SdZVtSXnvdy/2Lhcjz3LQ=="],
 
     "@isaacs/cliui/string-width": ["string-width@5.1.2", "", { "dependencies": { "eastasianwidth": "^0.2.0", "emoji-regex": "^9.2.2", "strip-ansi": "^7.0.1" } }, "sha512-HnLOCR3vjcY8beoNLtcjZ5/nxn2afmME6lhrDrebokqMap+XbeW8n9TXpPDOqdGK5qcI3oT0GKTW6wC7EMiVqA=="],
 

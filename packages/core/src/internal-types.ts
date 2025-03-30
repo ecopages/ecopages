@@ -180,7 +180,7 @@ export type Routes = Record<string, Route>;
  */
 export type FileSystemServerOptions = {
   watchMode: boolean;
-  port?: number;
+  port?: number | string;
 };
 
 /**

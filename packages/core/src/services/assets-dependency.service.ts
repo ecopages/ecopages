@@ -532,7 +532,7 @@ export class AssetDependencyHelpers {
    * @param options {@link InlineStylesheetAsset}
    * @returns
    */
-  static createnlineStylesheetAsset = ({
+  static createInlineStylesheetAsset = ({
     ...options
   }: CreateDependencyPartial<InlineStylesheetAsset, 'content' | 'attributes'>): StylesheetAsset => {
     return {

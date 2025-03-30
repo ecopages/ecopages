@@ -147,7 +147,7 @@ describe('DependencyHelpers', () => {
   });
 
   it('should create inline stylesheet dependency', () => {
-    const dep = AssetDependencyHelpers.createnlineStylesheetAsset({
+    const dep = AssetDependencyHelpers.createInlineStylesheetAsset({
       content: 'body { color: red; }',
       attributes: { id: 'test-style' },
     });

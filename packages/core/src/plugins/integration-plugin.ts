@@ -27,8 +27,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
     this.appConfig = appConfig;
   }
 
-  setDependencyService(assetsDepenencyService: AssetsDependencyService): void {
-    this.assetsDependencyService = assetsDepenencyService;
+  setDependencyService(assetsDependencyService: AssetsDependencyService): void {
+    this.assetsDependencyService = assetsDependencyService;
   }
 
   getDependencies(): AssetDependency[] {

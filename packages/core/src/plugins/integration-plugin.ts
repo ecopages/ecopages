@@ -1,21 +1,21 @@
 import type { EcoPagesAppConfig } from '../internal-types';
 import type { EcoPagesElement } from '../public-types';
 import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
-import type { Dependency, DependencyService } from '../services/dependency.service';
+import type { AssetDependency, AssetsDependencyService } from '../services/assets-dependency.service';
 
 export interface IntegrationPluginConfig {
   name: string;
   extensions: string[];
-  dependencies?: Dependency[];
+  dependencies?: AssetDependency[];
 }
 
 export abstract class IntegrationPlugin<C = EcoPagesElement> {
   readonly name: string;
   readonly extensions: string[];
-  protected dependencies: Dependency[] = [];
+  protected dependencies: AssetDependency[] = [];
   protected options?: Record<string, unknown>;
   protected appConfig?: EcoPagesAppConfig;
-  protected dependencyService?: DependencyService;
+  protected assetsDependencyService?: AssetsDependencyService;
 
   constructor(config: IntegrationPluginConfig) {
     this.name = config.name;
@@ -27,11 +27,11 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
     this.appConfig = appConfig;
   }
 
-  setDependencyService(dependencyService: DependencyService): void {
-    this.dependencyService = dependencyService;
+  setDependencyService(assetsDepenencyService: AssetsDependencyService): void {
+    this.assetsDependencyService = assetsDepenencyService;
   }
 
-  getDependencies(): Dependency[] {
+  getDependencies(): AssetDependency[] {
     return this.dependencies;
   }
 

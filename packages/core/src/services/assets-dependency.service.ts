@@ -5,33 +5,33 @@ import { deepMerge } from '../utils/deep-merge';
 import { FileUtils } from '../utils/file-utils.module';
 
 /**
- * DependencyKind, the kind of the dependency
+ * AssetCategory, the kind of the dependency
  */
-export type DependencyKind = 'script' | 'stylesheet';
+export type AssetCategory = 'script' | 'stylesheet';
 
 /**
- * DependencyPosition, where the dependency should be injected
+ * AssetInjectionPosition, where the dependency should be injected
  */
-export type DependencyPosition = 'head' | 'body';
+export type AssetInjectionPosition = 'head' | 'body';
 
 /**
- * DependencySource, how the dependency is sourced
+ * AssetTarget, how the dependency is sourced
  */
-export type DependencySource = 'inline' | 'url' | 'nodeModule' | 'json';
+export type AssetTarget = 'inline' | 'url' | 'nodeModule' | 'json';
 
 /**
  * BaseDependency, common attributes for all dependencies
  */
-export interface BaseDependency {
-  kind: DependencyKind;
+export interface CoreAsset {
+  kind: AssetCategory;
   attributes?: Record<string, string>;
-  source: DependencySource;
+  source: AssetTarget;
 }
 
 /**
  * This interface represents a dependency with inline content
  */
-type InlinedDependency = {
+type InlinedAsset = {
   inline: true;
   content: string;
 };
@@ -39,21 +39,21 @@ type InlinedDependency = {
 /**
  * This interface represents a script dependency with inline content
  */
-export type ScriptInlineDependency = BaseDependency &
-  InlinedDependency & {
+export type InlineScriptAsset = CoreAsset &
+  InlinedAsset & {
     kind: 'script';
     source: 'inline';
-    position?: DependencyPosition;
+    position?: AssetInjectionPosition;
     minify?: boolean;
   };
 
 /**
  * This interface represents a script dependency with a src URL
  */
-export type ScriptSrcDependency = BaseDependency & {
+export type ScriptAssetFromUrl = CoreAsset & {
   kind: 'script';
   source: 'url';
-  position: DependencyPosition;
+  position: AssetInjectionPosition;
   minify?: boolean;
   srcUrl: string;
 };
@@ -61,10 +61,10 @@ export type ScriptSrcDependency = BaseDependency & {
 /**
  * This interface represents a script dependency with a src URL that's already bundled
  */
-export type ScriptSrcDependencyPreBundled = BaseDependency & {
+export type PreBundledScriptAsset = CoreAsset & {
   kind: 'script';
   source: 'url';
-  position: DependencyPosition;
+  position: AssetInjectionPosition;
   srcUrl: string;
   preBundled: true;
 };
@@ -72,10 +72,10 @@ export type ScriptSrcDependencyPreBundled = BaseDependency & {
 /**
  * This interface represents a script dependency from node_modules
  */
-export type ScriptNodeModuleDependency = BaseDependency & {
+export type ModuleScriptReference = CoreAsset & {
   kind: 'script';
   source: 'nodeModule';
-  position: DependencyPosition;
+  position: AssetInjectionPosition;
   minify?: boolean;
   importPath: string;
 };
@@ -83,62 +83,59 @@ export type ScriptNodeModuleDependency = BaseDependency & {
 /**
  * This interface represents a script dependency with JSON content
  */
-export type ScriptJsonDependency = BaseDependency & {
+export type JsonScriptAsset = CoreAsset & {
   content: string;
   source: 'json';
-  position?: DependencyPosition;
+  position?: AssetInjectionPosition;
 };
 
 /**
  * This interface represents a script dependency
  */
-export type ScriptDependency =
-  | ScriptInlineDependency
-  | ScriptSrcDependency
-  | ScriptJsonDependency
-  | ScriptNodeModuleDependency
-  | ScriptSrcDependencyPreBundled;
+export type ScriptAsset =
+  | InlineScriptAsset
+  | ScriptAssetFromUrl
+  | JsonScriptAsset
+  | ModuleScriptReference
+  | PreBundledScriptAsset;
 
 /**
  * This interface represents a stylesheet dependency with inline content
  */
-export type StylesheetInlineDependency = BaseDependency &
-  InlinedDependency & {
+export type InlineStylesheetAsset = CoreAsset &
+  InlinedAsset & {
     kind: 'stylesheet';
-    position: Extract<DependencyPosition, 'head'>;
+    position: Extract<AssetInjectionPosition, 'head'>;
   };
 
 /**
  * This interface represents a stylesheet dependency with a src URL
  */
-export type StylesheetSrcDependency = BaseDependency & {
+export type StylesheetAssetFromUrl = CoreAsset & {
   kind: 'stylesheet';
-  position: Extract<DependencyPosition, 'head'>;
+  position: Extract<AssetInjectionPosition, 'head'>;
   srcUrl: string;
 };
 
 /**
  * This interface represents a stylesheet dependency with a src URL that's already bundled
  */
-export type StylesheetSrcDependencyPreBundled = BaseDependency & {
+export type PreBundledStylesheetAsset = CoreAsset & {
   kind: 'stylesheet';
-  position: Extract<DependencyPosition, 'head'>;
+  position: Extract<AssetInjectionPosition, 'head'>;
   srcUrl: string;
   preBundled: true;
 };
 
 /**
- * StylesheetDependency
+ * StylesheetAsset
  */
-export type StylesheetDependency =
-  | StylesheetInlineDependency
-  | StylesheetSrcDependency
-  | StylesheetSrcDependencyPreBundled;
+export type StylesheetAsset = InlineStylesheetAsset | StylesheetAssetFromUrl | PreBundledStylesheetAsset;
 
 /**
- * Available dependency types
+ * Available assets types
  */
-export type Dependency = ScriptDependency | StylesheetDependency;
+export type AssetDependency = ScriptAsset | StylesheetAsset;
 
 /**
  * DependencyProvider
@@ -146,18 +143,18 @@ export type Dependency = ScriptDependency | StylesheetDependency;
  */
 export interface DependencyProvider {
   name: string;
-  getDependencies(): Dependency[];
+  getDependencies(): AssetDependency[];
 }
 
 /**
- * ProcessedDependency
+ * ResolvedAsset
  * This interface represents a processed dependency that can be used to create the markup to inject
  */
-export interface ProcessedDependency {
+export interface ResolvedAsset {
   provider: string;
-  kind: DependencyKind;
+  kind: AssetCategory;
   srcUrl: string;
-  position?: DependencyPosition;
+  position?: AssetInjectionPosition;
   filePath: string;
   inline: boolean;
   attributes?: Record<string, string>;
@@ -165,79 +162,73 @@ export interface ProcessedDependency {
 }
 
 /**
- * DependencyServiceOptions
+ * AssetsServiceOptions
  * This interface represents the options that the DependencyService accepts
  */
-export interface DependencyServiceOptions {
+export interface AssetsServiceOptions {
   appConfig: EcoPagesAppConfig;
 }
 
 /**
- * DependencyService interface
+ * IAssetsDependencyService interface
  */
-export interface IDependencyService {
-  addProvider(provider: DependencyProvider): void;
-  removeProvider(providerName: string): void;
-  prepareDependencies(): Promise<ProcessedDependency[]>;
-  hasProvider(providerName: string): boolean;
-  getProviderDependencies(providerName: string): ProcessedDependency[];
+export interface IAssetsDependencyService {
+  registerDependencies(source: DependencyProvider): void;
+  unregisterDependencies(sourceName: string): void;
+  getDependencies(sourceName: string): ResolvedAsset[];
+  hasDependencies(sourceName: string): boolean;
+  prepareDependencies(): Promise<ResolvedAsset[]>;
 }
 
 /**
- * DependencyService is responsible for:
- * - Managing dependency providers
- * - Processing raw dependencies into processed ones
+ * AssetsDependencyService is responsible for:
+ * - Managing assets providers
+ * - Processing raw assets into processed ones
  * - Handling file operations (bundling, minification)
  * - Caching and optimization
  */
-export class DependencyService implements IDependencyService {
+export class AssetsDependencyService implements IAssetsDependencyService {
   static readonly DEPS_DIR = '__dependencies__';
 
   private config: EcoPagesAppConfig;
-  private providersMap = new Map<string, DependencyProvider>();
-  private dependencies: ProcessedDependency[] = [];
+  private dependencyMap = new Map<string, DependencyProvider>();
+  private dependencies: ResolvedAsset[] = [];
 
-  constructor({ appConfig }: DependencyServiceOptions) {
+  constructor({ appConfig }: AssetsServiceOptions) {
     this.config = appConfig;
   }
 
   /**
-   * Add a dependency provider
-   * @param provider
+   * Register dependencies for a component/page
    */
-  addProvider(provider: DependencyProvider): void {
-    if (this.providersMap.has(provider.name)) {
-      appLogger.error(`Dependency provider "${provider.name}" already exists. Skipping registration.`);
+  registerDependencies(source: DependencyProvider): void {
+    if (this.dependencyMap.has(source.name)) {
+      appLogger.error(`Dependency source "${source.name}" already exists. Skipping registration.`);
       return;
     }
-    this.providersMap.set(provider.name, provider);
-    appLogger.debug(`Dependency provider ${provider.name} added`);
+    this.dependencyMap.set(source.name, source);
+    appLogger.debug(`Dependency source ${source.name} added`);
   }
 
   /**
-   * Remove a dependency provider
-   * @param providerName
+   * Unregister dependencies for a component/page
    */
-  removeProvider(providerName: string): void {
-    this.providersMap.delete(providerName);
+  unregisterDependencies(sourceName: string): void {
+    this.dependencyMap.delete(sourceName);
   }
 
   /**
-   * Check if a provider is already registered
-   * @param providerName
-   * @returns boolean
+   * Check if dependencies exist for a provider
    */
-  hasProvider(providerName: string): boolean {
-    return this.providersMap.has(providerName);
+  hasDependencies(sourceName: string): boolean {
+    return this.dependencyMap.has(sourceName);
   }
 
   /**
-   * Get the dependencies of a provider
-   * @param providerName
-   * @returns {@link ProcessedDependency[]}
+   * Get dependencies for a provider
    */
-  getProviderDependencies(providerName: string): ProcessedDependency[] {
-    return this.dependencies.filter((dep) => dep.provider === providerName);
+  getDependencies(sourceName: string): ResolvedAsset[] {
+    return this.dependencies.filter((dep) => dep.provider === sourceName);
   }
 
   private writeFileToDist({
@@ -251,7 +242,7 @@ export class DependencyService implements IDependencyService {
   }): { filepath: string } {
     const filepath = path.join(
       this.config.absolutePaths.distDir,
-      DependencyService.DEPS_DIR,
+      AssetsDependencyService.DEPS_DIR,
       `${name}-${Math.random().toString(36).slice(2)}.${ext}`,
     );
     FileUtils.write(filepath, content);
@@ -287,14 +278,14 @@ export class DependencyService implements IDependencyService {
   }
 
   /**
-   * This method is responsible for preparing the dependencies
+   * This method is responsible for preparing the assets dependencies
    * It will process all the dependencies and write them to the dist directory
-   * @returns {@link ProcessedDependency[]}
+   * @returns {@link ResolvedAsset[]}
    */
-  async prepareDependencies(): Promise<ProcessedDependency[]> {
+  async prepareDependencies(): Promise<ResolvedAsset[]> {
     this.dependencies = [];
 
-    for (const provider of this.providersMap.values()) {
+    for (const provider of this.dependencyMap.values()) {
       const deps = provider.getDependencies();
       await this.processDependencies(provider, deps);
     }
@@ -308,16 +299,16 @@ export class DependencyService implements IDependencyService {
    * This method is responsible for processing dependencies
    * This is where we inline the content of the dependencies and write them to the dist directory
    * @param provider {@link DependencyProvider}
-   * @param deps {@link Dependency[]}
+   * @param deps {@link AssetDependency[]}
    */
-  private async processDependencies(provider: DependencyProvider, deps: Dependency[]): Promise<void> {
+  private async processDependencies(provider: DependencyProvider, deps: AssetDependency[]): Promise<void> {
     for (const dep of deps) {
-      const depsDir = path.join(this.config.absolutePaths.distDir, DependencyService.DEPS_DIR);
+      const depsDir = path.join(this.config.absolutePaths.distDir, AssetsDependencyService.DEPS_DIR);
       FileUtils.ensureDirectoryExists(depsDir);
 
       const result = await this.processDepFile(dep, provider, depsDir);
 
-      const processedDep: ProcessedDependency = {
+      const processedDep: ResolvedAsset = {
         provider: provider.name,
         kind: dep.kind,
         inline: this.isInlineDependency(dep),
@@ -337,7 +328,7 @@ export class DependencyService implements IDependencyService {
     }
   }
 
-  private isInlineDependency(dep: Dependency): boolean {
+  private isInlineDependency(dep: AssetDependency): boolean {
     if ('inline' in dep) {
       return dep.inline === true;
     }
@@ -345,7 +336,7 @@ export class DependencyService implements IDependencyService {
   }
 
   private async processDepFile(
-    dep: Dependency,
+    dep: AssetDependency,
     provider: DependencyProvider,
     depsDir: string,
   ): Promise<{ filepath: string; content: string }> {
@@ -362,7 +353,7 @@ export class DependencyService implements IDependencyService {
 
       switch (dep.source) {
         case 'nodeModule': {
-          const nodeModuleDep = dep as ScriptNodeModuleDependency;
+          const nodeModuleDep = dep as ModuleScriptReference;
           const absolutePath = this.findNodeModuleDependency(nodeModuleDep.importPath);
           filepath = await this.bundleScript({
             entrypoint: absolutePath,
@@ -374,7 +365,7 @@ export class DependencyService implements IDependencyService {
         }
         case 'url': {
           if (dep.kind === 'script') {
-            const scriptDep = dep as ScriptSrcDependency;
+            const scriptDep = dep as ScriptAssetFromUrl;
             filepath = await this.bundleScript({
               entrypoint: scriptDep.srcUrl,
               outdir: depsDir,
@@ -382,7 +373,7 @@ export class DependencyService implements IDependencyService {
             });
             content = FileUtils.readFileSync(filepath, 'utf-8');
           } else {
-            const stylesheetDep = dep as StylesheetSrcDependency;
+            const stylesheetDep = dep as StylesheetAssetFromUrl;
             const buffer = FileUtils.getFileAsBuffer(stylesheetDep.srcUrl);
             const result = this.writeFileToDist({
               content: buffer,
@@ -395,7 +386,7 @@ export class DependencyService implements IDependencyService {
           break;
         }
         case 'inline': {
-          const inlineDep = dep as ScriptInlineDependency;
+          const inlineDep = dep as InlineScriptAsset;
           content = inlineDep.content;
           const result = this.writeFileToDist({
             content,
@@ -406,7 +397,7 @@ export class DependencyService implements IDependencyService {
           break;
         }
         case 'json': {
-          const jsonDep = dep as ScriptJsonDependency;
+          const jsonDep = dep as JsonScriptAsset;
           return {
             filepath: '',
             content: jsonDep.content,
@@ -426,7 +417,10 @@ export class DependencyService implements IDependencyService {
 
   private async optimizeDependencies(): Promise<void> {
     if (this.dependencies.length) {
-      FileUtils.gzipDirSync(path.join(this.config.absolutePaths.distDir, DependencyService.DEPS_DIR), ['css', 'js']);
+      FileUtils.gzipDirSync(path.join(this.config.absolutePaths.distDir, AssetsDependencyService.DEPS_DIR), [
+        'css',
+        'js',
+      ]);
     }
   }
 
@@ -461,21 +455,21 @@ export class DependencyService implements IDependencyService {
  * CreateDependecy
  * Helper type to create a dependency type
  */
-type CreateDependecy<T extends Dependency, U extends keyof T> = Partial<Pick<T, 'position'>> & Pick<T, U>;
+type CreateDependencyPartial<T extends AssetDependency, U extends keyof T> = Partial<Pick<T, 'position'>> & Pick<T, U>;
 
 /**
  * Helper class to create script and stylesheet dependencies
  */
-export class DependencyHelpers {
+export class AssetDependencyHelpers {
   /**
    * Create a script dependency with inline content
-   * @param options {@link ScriptDependency}
+   * @param options {@link ScriptAsset}
    * @returns
    */
-  static createInlineScriptDependency = ({
+  static createInlineScriptAsset = ({
     position = 'body',
     ...options
-  }: CreateDependecy<ScriptInlineDependency, 'content' | 'attributes'>): ScriptDependency => {
+  }: CreateDependencyPartial<InlineScriptAsset, 'content' | 'attributes'>): ScriptAsset => {
     return {
       kind: 'script',
       source: 'inline',
@@ -487,13 +481,13 @@ export class DependencyHelpers {
 
   /**
    * Create a script dependency with a src URL
-   * @param options {@link ScriptDependency}
+   * @param options {@link ScriptAsset}
    * @returns
    */
-  static createSrcScriptDependency = ({
+  static createSrcScriptAsset = ({
     position = 'body',
     ...options
-  }: CreateDependecy<ScriptSrcDependency, 'srcUrl' | 'attributes'>): ScriptDependency => {
+  }: CreateDependencyPartial<ScriptAssetFromUrl, 'srcUrl' | 'attributes'>): ScriptAsset => {
     return {
       kind: 'script',
       source: 'url',
@@ -502,10 +496,10 @@ export class DependencyHelpers {
     };
   };
 
-  static createNodeModuleScriptDependency = ({
+  static createNodeModuleScriptAsset = ({
     position = 'body',
     ...options
-  }: CreateDependecy<ScriptNodeModuleDependency, 'importPath' | 'attributes'>): ScriptDependency => {
+  }: CreateDependencyPartial<ModuleScriptReference, 'importPath' | 'attributes'>): ScriptAsset => {
     return {
       kind: 'script',
       source: 'nodeModule',
@@ -516,14 +510,14 @@ export class DependencyHelpers {
 
   /**
    * Create a script dependency with a JSON content
-   * @param options {@link ScriptJsonDependency}
+   * @param options {@link JsonScriptAsset}
    * @returns
    */
-  static createJsonScriptDependency = ({
+  static createJsonAssetScript = ({
     attributes,
     position = 'body',
     ...options
-  }: CreateDependecy<ScriptJsonDependency, 'content' | 'attributes'>): ScriptDependency => {
+  }: CreateDependencyPartial<JsonScriptAsset, 'content' | 'attributes'>): ScriptAsset => {
     return {
       kind: 'script',
       source: 'json',
@@ -535,12 +529,12 @@ export class DependencyHelpers {
 
   /**
    * Create a stylesheet dependency with inline content
-   * @param options {@link StylesheetInlineDependency}
+   * @param options {@link InlineStylesheetAsset}
    * @returns
    */
-  static createInlineStylesheetDependency = ({
+  static createnlineStylesheetAsset = ({
     ...options
-  }: CreateDependecy<StylesheetInlineDependency, 'content' | 'attributes'>): StylesheetDependency => {
+  }: CreateDependencyPartial<InlineStylesheetAsset, 'content' | 'attributes'>): StylesheetAsset => {
     return {
       kind: 'stylesheet',
       source: 'inline',
@@ -552,13 +546,13 @@ export class DependencyHelpers {
 
   /**
    * Create a stylesheet dependency with a src URL
-   * @param options {@link StylesheetSrcDependency}
+   * @param options {@link StylesheetAssetFromUrl}
    * @returns
    */
-  static createSrcStylesheetDependency = ({
+  static createStylesheetAsset = ({
     position = 'head',
     ...options
-  }: CreateDependecy<StylesheetSrcDependency, 'srcUrl' | 'attributes'>): StylesheetDependency => {
+  }: CreateDependencyPartial<StylesheetAssetFromUrl, 'srcUrl' | 'attributes'>): StylesheetAsset => {
     return {
       kind: 'stylesheet',
       position,
@@ -569,13 +563,13 @@ export class DependencyHelpers {
 
   /**
    * Create a script dependency with a src URL that's already bundled
-   * @param options {@link ScriptSrcDependencyPreBundled}
+   * @param options {@link PreBundledScriptAsset}
    * @returns
    */
-  static createPreBundledScriptDependency = ({
+  static createPreBundledScriptAsset = ({
     position = 'body',
     ...options
-  }: CreateDependecy<ScriptSrcDependencyPreBundled, 'srcUrl' | 'attributes'>): ScriptSrcDependencyPreBundled => {
+  }: CreateDependencyPartial<PreBundledScriptAsset, 'srcUrl' | 'attributes'>): PreBundledScriptAsset => {
     return {
       kind: 'script',
       source: 'url',
@@ -587,16 +581,13 @@ export class DependencyHelpers {
 
   /**
    * Create a stylesheet dependency with a src URL that's already bundled
-   * @param options {@link StylesheetSrcDependencyPreBundled}
+   * @param options {@link PreBundledStylesheetAsset}
    * @returns
    */
-  static createPreBundledStylesheetDependency = ({
+  static createPreBundledStylesheetAsset = ({
     position = 'head',
     ...options
-  }: CreateDependecy<
-    StylesheetSrcDependencyPreBundled,
-    'srcUrl' | 'attributes'
-  >): StylesheetSrcDependencyPreBundled => {
+  }: CreateDependencyPartial<PreBundledStylesheetAsset, 'srcUrl' | 'attributes'>): PreBundledStylesheetAsset => {
     return {
       kind: 'stylesheet',
       source: 'url',

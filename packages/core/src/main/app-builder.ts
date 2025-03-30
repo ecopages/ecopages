@@ -7,8 +7,8 @@ import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { Processor } from '../plugins/processor.ts';
+import type { AssetsDependencyService } from '../services/assets-dependency.service.ts';
 import type { CssParserService } from '../services/css-parser.service.ts';
-import type { DependencyService } from '../services/dependency.service.ts';
 import type { HtmlTransformerService } from '../services/html-transformer.service';
 import { FileUtils } from '../utils/file-utils.module.ts';
 import { ProjectWatcher } from './project-watcher.ts';
@@ -26,7 +26,7 @@ export class AppBuilder {
   private cssParser: CssParserService;
   private scriptsBuilder: ScriptsBuilder;
   private options: AppBuilderOptions;
-  private dependencyService: DependencyService;
+  private assetsDependencyService: AssetsDependencyService;
   private htmlTransformer: HtmlTransformerService;
 
   constructor({
@@ -35,7 +35,7 @@ export class AppBuilder {
     cssParser,
     scriptsBuilder,
     options,
-    dependencyService,
+    assetsDependencyService,
     htmlTransformer,
   }: {
     appConfig: EcoPagesAppConfig;
@@ -43,7 +43,7 @@ export class AppBuilder {
     cssParser: CssParserService;
     scriptsBuilder: ScriptsBuilder;
     options: AppBuilderOptions;
-    dependencyService: DependencyService;
+    assetsDependencyService: AssetsDependencyService;
     htmlTransformer: HtmlTransformerService;
   }) {
     this.appConfig = appConfig;
@@ -51,7 +51,7 @@ export class AppBuilder {
     this.cssParser = cssParser;
     this.scriptsBuilder = scriptsBuilder;
     this.options = options;
-    this.dependencyService = dependencyService;
+    this.assetsDependencyService = assetsDependencyService;
     this.htmlTransformer = htmlTransformer;
   }
 
@@ -97,7 +97,8 @@ export class AppBuilder {
   }
 
   private async transformIndexHtml(res: Response): Promise<Response> {
-    this.htmlTransformer.setProcessedDependencies(await this.dependencyService.prepareDependencies());
+    const dependencies = await this.assetsDependencyService.prepareDependencies();
+    this.htmlTransformer.setProcessedDependencies(dependencies);
     return this.htmlTransformer.transform(res);
   }
 
@@ -151,7 +152,7 @@ export class AppBuilder {
   private async initializePlugins() {
     for (const processor of this.appConfig.processors.values()) {
       await processor.setup();
-      this.dependencyService.addProvider({
+      this.assetsDependencyService.registerDependencies({
         name: processor.getName(),
         getDependencies: () => processor.getDependencies(),
       });
@@ -159,9 +160,9 @@ export class AppBuilder {
 
     for (const integration of this.appConfig.integrations) {
       integration.setConfig(this.appConfig);
-      integration.setDependencyService(this.dependencyService);
+      integration.setDependencyService(this.assetsDependencyService);
       await integration.setup();
-      this.dependencyService.addProvider({
+      this.assetsDependencyService.registerDependencies({
         name: integration.name,
         getDependencies: () => integration.getDependencies(),
       });

@@ -5,7 +5,7 @@
 
 import type { IntegrationRenderer } from '@ecopages/core';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import { type Dependency, DependencyHelpers } from '@ecopages/core/services/dependency-service';
+import { type AssetDependency, AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
 import type { JSX } from 'react';
 import type React from 'react';
@@ -48,10 +48,10 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
    * It is ossible to define which one should be included in the final bundle based on the environment.
    * @returns
    */
-  private generateDependencies(): Dependency[] {
+  private generateDependencies(): AssetDependency[] {
     if (import.meta.env.NODE_ENV === 'development') {
       return [
-        DependencyHelpers.createInlineScriptDependency({
+        AssetDependencyHelpers.createInlineScriptAsset({
           position: 'head',
           content: JSON.stringify(
             {
@@ -69,7 +69,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
             type: 'importmap',
           },
         }),
-        DependencyHelpers.createNodeModuleScriptDependency({
+        AssetDependencyHelpers.createNodeModuleScriptAsset({
           position: 'head',
           importPath: '@ecopages/react/react-dev-esm.ts',
           attributes: {
@@ -77,7 +77,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
             defer: '',
           },
         }),
-        DependencyHelpers.createNodeModuleScriptDependency({
+        AssetDependencyHelpers.createNodeModuleScriptAsset({
           position: 'head',
           importPath: '@ecopages/react/react-dom-esm.ts',
           attributes: {
@@ -89,7 +89,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
     }
 
     return [
-      DependencyHelpers.createInlineScriptDependency({
+      AssetDependencyHelpers.createInlineScriptAsset({
         position: 'head',
         content: JSON.stringify(
           {
@@ -108,7 +108,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
           defer: '',
         },
       }),
-      DependencyHelpers.createNodeModuleScriptDependency({
+      AssetDependencyHelpers.createNodeModuleScriptAsset({
         position: 'head',
         importPath: '@ecopages/react/react-esm.ts',
         attributes: {
@@ -116,7 +116,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
           defer: '',
         },
       }),
-      DependencyHelpers.createNodeModuleScriptDependency({
+      AssetDependencyHelpers.createNodeModuleScriptAsset({
         position: 'head',
         importPath: '@ecopages/react/react-dom-esm.ts',
         attributes: {
@@ -134,7 +134,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 
     return new ReactRenderer({
       appConfig: this.appConfig,
-      dependencyService: this.dependencyService,
+      assetsDependencyService: this.assetsDependencyService,
     });
   }
 }

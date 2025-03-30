@@ -5,7 +5,7 @@
 
 import type { IntegrationRenderer } from '@ecopages/core';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import { DependencyHelpers } from '@ecopages/core/services/dependency-service';
+import { AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
 import { litElementHydrateScript } from './lit-element-hydrate';
 import { LitRenderer } from './lit-renderer';
 
@@ -24,7 +24,7 @@ export class LitPlugin extends IntegrationPlugin {
       name: PLUGIN_NAME,
       extensions: ['.lit.tsx'],
       dependencies: [
-        DependencyHelpers.createInlineScriptDependency({
+        AssetDependencyHelpers.createInlineScriptAsset({
           position: 'head',
           /**
            * BUG ALERT
@@ -49,7 +49,7 @@ export class LitPlugin extends IntegrationPlugin {
 
     return new LitRenderer({
       appConfig: this.appConfig,
-      dependencyService: this.dependencyService,
+      assetsDependencyService: this.assetsDependencyService,
     });
   }
 }

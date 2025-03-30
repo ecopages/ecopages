@@ -1,7 +1,8 @@
-import type { DependencyPosition, ProcessedDependency } from './dependency.service';
+import { appLogger } from 'src/global/app-logger';
+import type { AssetInjectionPosition, ResolvedAsset } from './assets-dependency.service';
 
 export class HtmlTransformerService {
-  constructor(private processedDependencies: ProcessedDependency[] = []) {}
+  constructor(private processedDependencies: ResolvedAsset[] = []) {}
 
   private formatAttributes(attrs?: Record<string, string>): string {
     if (!attrs) return '';
@@ -10,31 +11,33 @@ export class HtmlTransformerService {
       .join(' ')}`;
   }
 
-  private generateScriptTag(dep: ProcessedDependency): string {
+  private generateScriptTag(dep: ResolvedAsset): string {
     return dep.inline
       ? `<script${this.formatAttributes(dep.attributes)}>${dep.content}</script>`
       : `<script src="${dep.srcUrl}"${this.formatAttributes(dep.attributes)}></script>`;
   }
 
-  private generateStylesheetTag(dep: ProcessedDependency): string {
+  private generateStylesheetTag(dep: ResolvedAsset): string {
     return dep.inline
       ? `<style${this.formatAttributes(dep.attributes)}>${dep.content}</style>`
       : `<link rel="stylesheet" href="${dep.srcUrl}"${this.formatAttributes(dep.attributes)}>`;
   }
 
-  private appendDependencies(element: HTMLRewriterTypes.Element, dependencies: ProcessedDependency[]) {
+  private appendDependencies(element: HTMLRewriterTypes.Element, dependencies: ResolvedAsset[]) {
     for (const dep of dependencies) {
       const tag = dep.kind === 'script' ? this.generateScriptTag(dep) : this.generateStylesheetTag(dep);
       element.append(tag, { html: true });
     }
   }
 
-  setProcessedDependencies(processedDependencies: ProcessedDependency[]) {
+  setProcessedDependencies(processedDependencies: ResolvedAsset[]) {
+    appLogger.debug('Setting processed dependencies', { count: processedDependencies.length });
     this.processedDependencies = processedDependencies;
   }
 
   async transform(res: Response): Promise<Response> {
     const { head, body } = this.groupDependenciesByPosition();
+    appLogger.debug('Transforming HTML with dependencies', { head: head.length, body: body.length });
 
     const html = await res.text();
 
@@ -66,7 +69,7 @@ export class HtmlTransformerService {
         }
         return acc;
       },
-      { head: [], body: [] } as Record<DependencyPosition, ProcessedDependency[]>,
+      { head: [], body: [] } as Record<AssetInjectionPosition, ResolvedAsset[]>,
     );
   }
 }

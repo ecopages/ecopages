@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import type { ProcessedDependency } from './dependency.service';
+import type { ResolvedAsset } from './assets-dependency.service';
 import { HtmlTransformerService } from './html-transformer.service';
 
 describe('HtmlTransformerService', () => {
@@ -10,7 +10,7 @@ describe('HtmlTransformerService', () => {
   };
 
   it('should inject script dependencies correctly', async () => {
-    const dependencies: ProcessedDependency[] = [
+    const dependencies: ResolvedAsset[] = [
       {
         provider: 'test',
         kind: 'script',
@@ -32,7 +32,7 @@ describe('HtmlTransformerService', () => {
   });
 
   it('should inject stylesheet dependencies correctly', async () => {
-    const dependencies: ProcessedDependency[] = [
+    const dependencies: ResolvedAsset[] = [
       {
         provider: 'test',
         kind: 'stylesheet',
@@ -53,7 +53,7 @@ describe('HtmlTransformerService', () => {
   });
 
   it('should handle both inline and src dependencies', async () => {
-    const dependencies: ProcessedDependency[] = [
+    const dependencies: ResolvedAsset[] = [
       {
         provider: 'test',
         kind: 'script',
@@ -83,7 +83,7 @@ describe('HtmlTransformerService', () => {
   });
 
   it('should preserve existing HTML content', async () => {
-    const dependencies: ProcessedDependency[] = [
+    const dependencies: ResolvedAsset[] = [
       {
         provider: 'test',
         kind: 'script',

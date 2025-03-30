@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { ConfigBuilder } from '../main/config-builder';
-import { DependencyHelpers, type DependencyProvider, DependencyService } from './dependency.service';
+import { AssetDependencyHelpers, AssetsDependencyService, type DependencyProvider } from './assets-dependency.service';
 
 describe('DependencyService', () => {
-  let service: DependencyService;
+  let service: AssetsDependencyService;
 
   beforeEach(async () => {
-    service = new DependencyService({
+    service = new AssetsDependencyService({
       appConfig: await new ConfigBuilder().setRootDir('test').setBaseUrl('.').build(),
     });
   });
@@ -17,10 +17,10 @@ describe('DependencyService', () => {
       getDependencies: () => [],
     };
 
-    service.addProvider(provider);
+    service.registerDependencies(provider);
     expect(await service.prepareDependencies()).toEqual([]);
 
-    service.removeProvider('test-provider');
+    service.unregisterDependencies('test-provider');
     expect(await service.prepareDependencies()).toEqual([]);
   });
 
@@ -28,14 +28,14 @@ describe('DependencyService', () => {
     const provider: DependencyProvider = {
       name: 'test-provider',
       getDependencies: () => [
-        DependencyHelpers.createPreBundledScriptDependency({
+        AssetDependencyHelpers.createPreBundledScriptAsset({
           srcUrl: '/dist/test.js',
           attributes: { type: 'module' },
         }),
       ],
     };
 
-    service.addProvider(provider);
+    service.registerDependencies(provider);
     const deps = await service.prepareDependencies();
 
     expect(deps).toHaveLength(1);
@@ -52,14 +52,14 @@ describe('DependencyService', () => {
     const provider: DependencyProvider = {
       name: 'inline-provider',
       getDependencies: () => [
-        DependencyHelpers.createInlineScriptDependency({
+        AssetDependencyHelpers.createInlineScriptAsset({
           content: inlineContent,
           position: 'head',
         }),
       ],
     };
 
-    service.addProvider(provider);
+    service.registerDependencies(provider);
     const deps = await service.prepareDependencies();
 
     expect(deps).toHaveLength(1);
@@ -76,18 +76,18 @@ describe('DependencyService', () => {
     const provider: DependencyProvider = {
       name: 'ordered-provider',
       getDependencies: () => [
-        DependencyHelpers.createPreBundledScriptDependency({
+        AssetDependencyHelpers.createPreBundledScriptAsset({
           srcUrl: '/first.js',
           position: 'head',
         }),
-        DependencyHelpers.createPreBundledScriptDependency({
+        AssetDependencyHelpers.createPreBundledScriptAsset({
           srcUrl: '/second.js',
           position: 'head',
         }),
       ],
     };
 
-    service.addProvider(provider);
+    service.registerDependencies(provider);
     const deps = await service.prepareDependencies();
 
     expect(deps).toHaveLength(2);
@@ -106,8 +106,8 @@ describe('DependencyService', () => {
       getDependencies: () => [],
     };
 
-    service.addProvider(provider1);
-    service.addProvider(provider2);
+    service.registerDependencies(provider1);
+    service.registerDependencies(provider2);
 
     const deps = await service.prepareDependencies();
     expect(deps).toEqual([]);
@@ -116,7 +116,7 @@ describe('DependencyService', () => {
 
 describe('DependencyHelpers', () => {
   it('should create inline script dependency', () => {
-    const dep = DependencyHelpers.createInlineScriptDependency({
+    const dep = AssetDependencyHelpers.createInlineScriptAsset({
       content: "console.log('test')",
       attributes: { id: 'test' },
     });
@@ -132,7 +132,7 @@ describe('DependencyHelpers', () => {
   });
 
   it('should create src script dependency', () => {
-    const dep = DependencyHelpers.createSrcScriptDependency({
+    const dep = AssetDependencyHelpers.createSrcScriptAsset({
       srcUrl: '/test.js',
       attributes: { defer: 'true' },
     });
@@ -147,7 +147,7 @@ describe('DependencyHelpers', () => {
   });
 
   it('should create inline stylesheet dependency', () => {
-    const dep = DependencyHelpers.createInlineStylesheetDependency({
+    const dep = AssetDependencyHelpers.createnlineStylesheetAsset({
       content: 'body { color: red; }',
       attributes: { id: 'test-style' },
     });
@@ -163,7 +163,7 @@ describe('DependencyHelpers', () => {
   });
 
   it('should create src stylesheet dependency', () => {
-    const dep = DependencyHelpers.createSrcStylesheetDependency({
+    const dep = AssetDependencyHelpers.createStylesheetAsset({
       srcUrl: '/test.css',
       attributes: { media: 'screen' },
     });

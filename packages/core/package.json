@@ -86,6 +86,10 @@
 		"./css": {
 			"import": "./src/utils/css.ts",
 			"require": "./src/utils/css.ts"
+		},
+		"./hash": {
+			"import": "./src/utils/hash.ts",
+			"require": "./src/utils/hash.ts"
 		}
 	}
 }

@@ -12,6 +12,7 @@ import {
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
+import { rapidhash } from '@ecopages/core/hash';
 import { AssetsDependencyService } from '@ecopages/core/services/assets-dependency-service';
 import type { BunPlugin } from 'bun';
 import { type JSX, createElement } from 'react';
@@ -127,11 +128,15 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 
   private async generateHydrationScript(pagePath: string) {
     try {
-      const componentName = `component-${Math.random().toString(36).slice(2)}`;
+      const pathHash = rapidhash(pagePath);
+      const componentName = `component-${pathHash}`;
 
       const absolutePath = path.join(this.appConfig.absolutePaths.distDir, this.componentDirectory);
-
       const hydrationScriptPath = path.join(absolutePath, `${componentName}-hydration.js`);
+
+      if (FileUtils.existsSync(hydrationScriptPath)) {
+        return hydrationScriptPath.split(this.appConfig.absolutePaths.distDir)[1];
+      }
 
       const relativeImportInScript = await this.bundleComponent({
         pagePath,

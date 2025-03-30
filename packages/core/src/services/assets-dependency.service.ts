@@ -3,6 +3,7 @@ import { appLogger } from '../global/app-logger';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { deepMerge } from '../utils/deep-merge';
 import { FileUtils } from '../utils/file-utils.module';
+import { rapidhash } from '../utils/hash';
 
 /**
  * AssetCategory, the kind of the dependency
@@ -240,12 +241,20 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     name: string;
     ext: 'css' | 'js';
   }): { filepath: string } {
+    const contentHash = rapidhash(content);
     const filepath = path.join(
       this.config.absolutePaths.distDir,
       AssetsDependencyService.DEPS_DIR,
-      `${name}-${Math.random().toString(36).slice(2)}.${ext}`,
+      `${name}-${contentHash}.${ext}`,
     );
-    FileUtils.write(filepath, content);
+
+    if (!FileUtils.existsSync(filepath)) {
+      FileUtils.write(filepath, content);
+      appLogger.debug(`Writing new dependency file: ${filepath}`);
+    } else {
+      appLogger.debug(`Reusing existing dependency file: ${filepath}`);
+    }
+
     return { filepath };
   }
 
@@ -340,72 +349,73 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     provider: DependencyProvider,
     depsDir: string,
   ): Promise<{ filepath: string; content: string }> {
-    try {
-      let filepath: string;
-      let content: string;
+    if ('preBundled' in dep && dep.preBundled) {
+      return { filepath: dep.srcUrl, content: '' };
+    }
 
-      if ('preBundled' in dep && dep.preBundled) {
-        return {
-          filepath: dep.srcUrl,
-          content: '',
-        };
-      }
+    const processors: Record<AssetTarget, (dep: AssetDependency) => Promise<{ filepath: string; content: string }>> = {
+      nodeModule: async (dep) => {
+        const nodeDep = dep as ModuleScriptReference;
+        const absolutePath = this.findNodeModuleDependency(nodeDep.importPath);
+        const filepath = await this.bundleScript({
+          entrypoint: absolutePath,
+          outdir: depsDir,
+          minify: nodeDep.minify,
+        });
+        const content = FileUtils.readFileSync(filepath, 'utf-8');
+        return { filepath, content };
+      },
 
-      switch (dep.source) {
-        case 'nodeModule': {
-          const nodeModuleDep = dep as ModuleScriptReference;
-          const absolutePath = this.findNodeModuleDependency(nodeModuleDep.importPath);
-          filepath = await this.bundleScript({
-            entrypoint: absolutePath,
+      url: async (dep) => {
+        if (dep.kind === 'script') {
+          const scriptDep = dep as ScriptAssetFromUrl;
+          const filepath = await this.bundleScript({
+            entrypoint: scriptDep.srcUrl,
             outdir: depsDir,
-            minify: nodeModuleDep.minify,
+            minify: scriptDep.minify,
           });
-          content = FileUtils.readFileSync(filepath, 'utf-8');
-          break;
-        }
-        case 'url': {
-          if (dep.kind === 'script') {
-            const scriptDep = dep as ScriptAssetFromUrl;
-            filepath = await this.bundleScript({
-              entrypoint: scriptDep.srcUrl,
-              outdir: depsDir,
-              minify: scriptDep.minify,
-            });
-            content = FileUtils.readFileSync(filepath, 'utf-8');
-          } else {
-            const stylesheetDep = dep as StylesheetAssetFromUrl;
-            const buffer = FileUtils.getFileAsBuffer(stylesheetDep.srcUrl);
-            const result = this.writeFileToDist({
-              content: buffer,
-              name: provider.name,
-              ext: 'css',
-            });
-            filepath = result.filepath;
-            content = buffer.toString('utf-8');
-          }
-          break;
-        }
-        case 'inline': {
-          const inlineDep = dep as InlineScriptAsset;
-          content = inlineDep.content;
-          const result = this.writeFileToDist({
-            content,
-            name: provider.name,
-            ext: dep.kind === 'script' ? 'js' : 'css',
-          });
-          filepath = result.filepath;
-          break;
-        }
-        case 'json': {
-          const jsonDep = dep as JsonScriptAsset;
           return {
-            filepath: '',
-            content: jsonDep.content,
+            filepath,
+            content: FileUtils.readFileSync(filepath, 'utf-8'),
           };
         }
-      }
+        const styleDep = dep as StylesheetAssetFromUrl;
+        const buffer = FileUtils.getFileAsBuffer(styleDep.srcUrl);
+        const { filepath } = this.writeFileToDist({
+          content: buffer,
+          name: provider.name,
+          ext: 'css',
+        });
+        return {
+          filepath,
+          content: buffer.toString('utf-8'),
+        };
+      },
 
-      return { filepath, content };
+      inline: async (dep) => {
+        const inlineDep = dep as InlineScriptAsset;
+        const { filepath } = this.writeFileToDist({
+          content: inlineDep.content,
+          name: provider.name,
+          ext: dep.kind === 'script' ? 'js' : 'css',
+        });
+        return {
+          filepath,
+          content: inlineDep.content,
+        };
+      },
+
+      json: async (dep) => {
+        const jsonDep = dep as JsonScriptAsset;
+        return {
+          filepath: '',
+          content: jsonDep.content,
+        };
+      },
+    };
+
+    try {
+      return await processors[dep.source](dep);
     } catch (error) {
       throw new Error(
         `Failed to process dependency from provider ${provider.name}: ${

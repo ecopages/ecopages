@@ -86,14 +86,14 @@ export class ProjectWatcher {
     const actionVerb = `${type}d`;
 
     if (this.isFileOfType(path, ['.css'])) {
-      this.cssBuilder.buildCssFromPath({ path });
+      await this.cssBuilder.buildCssFromPath({ path });
       appLogger.info(`CSS File ${actionVerb}:`, updatedFileName);
       return;
     }
 
     if (this.isFileOfType(path, this.appConfig.scriptsExtensions)) {
       await this.execTailwind();
-      this.scriptsBuilder.build();
+      await this.scriptsBuilder.build();
       this.uncacheModules();
       appLogger.info(`File ${actionVerb}`, updatedFileName);
       return;

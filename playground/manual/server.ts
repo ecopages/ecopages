@@ -1,10 +1,14 @@
+import { withHtmlLiveReload } from '@ecopages/core/adapters/bun/hmr';
 import { createBunServerAdapter } from '@ecopages/core/adapters/bun/server-adapter';
+import { Logger } from '@ecopages/logger';
 import type { Server } from 'bun';
-import { appLogger } from '../../packages/core/src/global/app-logger';
 import appConfig from './eco.config';
 
-const server = await createBunServerAdapter({
-  serve: Bun.serve,
+const appLogger = new Logger('[@ecopages/serve-options]');
+
+const watchMode = true;
+
+const serveOptions = await createBunServerAdapter({
   appConfig,
   options: { watch: true },
   serveOptions: {
@@ -18,5 +22,7 @@ const server = await createBunServerAdapter({
     },
   },
 });
+
+const server = Bun.serve(watchMode ? withHtmlLiveReload(serveOptions, appConfig) : serveOptions);
 
 appLogger.info(`Server running at http://localhost:${server.port}`);

@@ -1,3 +1,4 @@
+import '../../global/init.ts';
 import path from 'node:path';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 import type { RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
@@ -192,16 +193,14 @@ export class BunServerAdapter {
 }
 
 export async function createBunServerAdapter({
-  serve,
   appConfig,
   serveOptions,
   options = { watch: false },
 }: {
-  serve: typeof Bun.serve;
   appConfig: EcoPagesAppConfig;
   serveOptions: BunServeAdapterServerOptions;
   options?: { watch: boolean } | undefined;
-}): Promise<Server> {
+}): Promise<BunServeOptions> {
   import.meta.env.NODE_ENV = 'development';
 
   const assetsDependencyService = new AssetsDependencyService({ appConfig });
@@ -277,14 +276,5 @@ export async function createBunServerAdapter({
 
   await adapter.initialize();
 
-  const settings = adapter.buildServerSettings();
-
-  const server = serve(options?.watch ? withHtmlLiveReload(settings, appConfig) : settings);
-
-  router.onReload = () => {
-    console.log('Reloading routes...');
-    if (server) server.reload(settings);
-  };
-
-  return server;
+  return adapter.buildServerSettings();
 }

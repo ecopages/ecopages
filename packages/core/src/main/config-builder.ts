@@ -33,9 +33,6 @@ export class ConfigBuilder {
         Googlebot: ['/public/'],
       },
     },
-    tailwind: {
-      input: 'styles/tailwind.css',
-    },
     integrations: [],
     integrationsDependencies: [],
     distDir: '.eco',
@@ -114,11 +111,6 @@ export class ConfigBuilder {
 
   setRobotsTxt(robotsTxt: { preferences: RobotsPreference }): this {
     this.config.robotsTxt = robotsTxt;
-    return this;
-  }
-
-  setTailwind(tailwind: { input: string }): this {
-    this.config.tailwind = tailwind;
     return this;
   }
 

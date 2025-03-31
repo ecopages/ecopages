@@ -98,13 +98,6 @@ export type EcoPagesAppConfig = {
      */
     preferences: RobotsPreference;
   };
-  tailwind: {
-    /**
-     * The input file for tailwind relative to the src directory
-     * @default "styles/tailwind.css"
-     */
-    input: string;
-  };
   /** Additional paths to watch. Use this to monitor extra files. It is relative to the rootDir */
   additionalWatchPaths: string[];
   /**

@@ -10,7 +10,7 @@ declare global {
   interface Window {
     Alpine: typeof Alpine;
   }
-  //declare mdx files
+
   declare module '*.mdx' {
     const content: string;
     export default content;

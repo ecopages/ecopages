@@ -9,25 +9,21 @@ import type { ScriptsBuilder } from './scripts-builder.ts';
 
 type ProjectWatcherConfig = {
   config: EcoPagesAppConfig;
-  cssBuilder: CssParserService;
   scriptsBuilder: ScriptsBuilder;
   router: FSRouter;
-  execTailwind: () => Promise<void>;
+  cssBuilder?: CssParserService;
+  execTailwind?: () => Promise<void>;
 };
 
 export class ProjectWatcher {
   private appConfig: EcoPagesAppConfig;
-  private cssBuilder: CssParserService;
   private scriptsBuilder: ScriptsBuilder;
   private router: FSRouter;
-  private execTailwind: () => Promise<void>;
 
-  constructor({ config, cssBuilder, scriptsBuilder, router, execTailwind }: ProjectWatcherConfig) {
+  constructor({ config, scriptsBuilder, router }: ProjectWatcherConfig) {
     this.appConfig = config;
-    this.cssBuilder = cssBuilder;
     this.scriptsBuilder = scriptsBuilder;
     this.router = router;
-    this.execTailwind = execTailwind;
     this.handlePageCreation = this.handlePageCreation.bind(this);
     this.handleChange = this.handleChange.bind(this);
     this.handleDelete = this.handleDelete.bind(this);
@@ -85,14 +81,7 @@ export class ProjectWatcher {
     const updatedFileName = path.replace(`${this.appConfig.absolutePaths.srcDir}/`, '');
     const actionVerb = `${type}d`;
 
-    if (this.isFileOfType(path, ['.css'])) {
-      await this.cssBuilder.buildCssFromPath({ path });
-      appLogger.info(`CSS File ${actionVerb}:`, updatedFileName);
-      return;
-    }
-
     if (this.isFileOfType(path, this.appConfig.scriptsExtensions)) {
-      await this.execTailwind();
       await this.scriptsBuilder.build();
       this.uncacheModules();
       appLogger.info(`File ${actionVerb}`, updatedFileName);
@@ -100,7 +89,6 @@ export class ProjectWatcher {
     }
 
     if (this.isFileOfType(path, this.appConfig.templatesExt)) {
-      await this.execTailwind();
       appLogger.info(`Template file ${actionVerb}:`, updatedFileName);
       this.uncacheModules();
       return;

@@ -40,7 +40,6 @@ export async function buildApp({
   new AppBuilder({
     appConfig,
     staticPageGenerator: new StaticPageGenerator({ appConfig }),
-    cssParser: new CssParserService({ processor: PostCssProcessor, appConfig }),
     scriptsBuilder: new ScriptsBuilder({
       appConfig,
       options: { watchMode: watch as boolean },

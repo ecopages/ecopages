@@ -180,6 +180,8 @@ export interface IAssetsDependencyService {
   hasDependencies(sourceName: string): boolean;
   prepareDependencies(): Promise<ResolvedAsset[]>;
   cleanupPageDependencies(): void;
+  invalidateCache(path?: string): void;
+  setCurrentPath(path: string): void;
 }
 
 /**
@@ -195,6 +197,8 @@ export class AssetsDependencyService implements IAssetsDependencyService {
   private config: EcoPagesAppConfig;
   private dependencyMap = new Map<string, DependencyProvider>();
   private dependencies: ResolvedAsset[] = [];
+  private dependencyCache = new Map<string, ResolvedAsset[]>();
+  private currentPath = '/';
 
   constructor({ appConfig }: AssetsServiceOptions) {
     this.config = appConfig;
@@ -239,11 +243,31 @@ export class AssetsDependencyService implements IAssetsDependencyService {
    */
   cleanupPageDependencies(): void {
     const coreDependencies = Array.from(this.dependencyMap.entries())
-      .filter(([name]) => !name.includes('/'))
+      .filter(([name]) => this.isGlobalDependency(name))
       .map(([name, provider]): [string, DependencyProvider] => [name, provider]);
 
     this.dependencyMap = new Map(coreDependencies);
     this.dependencies = [];
+  }
+
+  /**
+   * Invalidate the dependency cache for a specific path or all paths
+   * @param path Optional path to invalidate cache for. If not provided, all cache will be cleared
+   */
+  invalidateCache(path?: string): void {
+    if (path) {
+      this.dependencyCache.delete(path);
+    } else {
+      this.dependencyCache.clear();
+    }
+  }
+
+  setCurrentPath(path: string): void {
+    this.currentPath = path;
+  }
+
+  private isGlobalDependency(name: string): boolean {
+    return !name.includes('/');
   }
 
   private writeFileToDist({
@@ -306,6 +330,11 @@ export class AssetsDependencyService implements IAssetsDependencyService {
    * @returns {@link ResolvedAsset[]}
    */
   async prepareDependencies(): Promise<ResolvedAsset[]> {
+    const cacheKey = this.getCurrentRouteKey();
+    if (this.dependencyCache.has(cacheKey)) {
+      return this.dependencyCache.get(cacheKey) as ResolvedAsset[];
+    }
+
     this.dependencies = [];
 
     for (const provider of this.dependencyMap.values()) {
@@ -314,8 +343,13 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     }
 
     await this.optimizeDependencies();
+    this.dependencyCache.set(cacheKey, this.dependencies);
 
     return this.dependencies;
+  }
+
+  private getCurrentRouteKey(): string {
+    return this.currentPath;
   }
 
   /**

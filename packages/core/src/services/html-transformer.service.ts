@@ -1,4 +1,4 @@
-import { appLogger } from 'src/global/app-logger';
+import { appLogger } from '../global/app-logger';
 import type { AssetInjectionPosition, ResolvedAsset } from './assets-dependency.service';
 
 export class HtmlTransformerService {

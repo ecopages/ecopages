@@ -202,6 +202,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     });
   }
 
+  protected async cleanupAndPrepareDependencies(file: string): Promise<void> {
+    if (!this.assetsDependencyService) return;
+
+    const currentPath = this.getHtmlPath({ file });
+    this.assetsDependencyService.setCurrentPath(currentPath);
+    if (import.meta.env.NODE_ENV === 'development') this.assetsDependencyService.invalidateCache(currentPath);
+    this.assetsDependencyService.cleanupPageDependencies();
+
+    const { default: Page } = await this.importPageFile(file);
+    await this.collectDependencies(Page);
+  }
+
   protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
     if (typeof HTMLElement === 'undefined') {
       // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
@@ -240,6 +252,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   }
 
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
+    await this.cleanupAndPrepareDependencies(options.file);
+
     const renderOptions = await this.prepareRenderOptions(options);
     return this.render(renderOptions as IntegrationRendererRenderOptions<C>);
   }

@@ -16,7 +16,8 @@
 		"./plugins/processor": "./src/plugins/processor.ts",
 		"./plugins/integration-plugin": "./src/plugins/integration-plugin.ts",
 		"./html": "./src/utils/html.ts",
-		"./css": "./src/utils/css.ts"
+		"./css": "./src/utils/css.ts",
+		"./hash": "./src/utils/hash.ts"
 	},
 	"exclude": ["fixtures", "**/*.test.ts"],
 	"imports": {

@@ -240,6 +240,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   }
 
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
+    if (this.assetsDependencyService) this.assetsDependencyService.cleanupPageDependencies();
+
     const renderOptions = await this.prepareRenderOptions(options);
     return this.render(renderOptions as IntegrationRendererRenderOptions<C>);
   }

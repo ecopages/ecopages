@@ -179,6 +179,7 @@ export interface IAssetsDependencyService {
   getDependencies(sourceName: string): ResolvedAsset[];
   hasDependencies(sourceName: string): boolean;
   prepareDependencies(): Promise<ResolvedAsset[]>;
+  cleanupPageDependencies(): void;
 }
 
 /**
@@ -230,6 +231,19 @@ export class AssetsDependencyService implements IAssetsDependencyService {
    */
   getDependencies(sourceName: string): ResolvedAsset[] {
     return this.dependencies.filter((dep) => dep.provider === sourceName);
+  }
+
+  /**
+   * Cleans up all page-specific dependencies
+   * This should be called when navigating between pages
+   */
+  cleanupPageDependencies(): void {
+    const coreDependencies = Array.from(this.dependencyMap.entries())
+      .filter(([name]) => !name.includes('/'))
+      .map(([name, provider]): [string, DependencyProvider] => [name, provider]);
+
+    this.dependencyMap = new Map(coreDependencies);
+    this.dependencies = [];
   }
 
   private writeFileToDist({

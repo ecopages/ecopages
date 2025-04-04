@@ -59,12 +59,7 @@ export class ScriptsBuilder {
       minify: !this.options.watchMode,
       format: 'esm',
       splitting: true,
-      plugins: [
-        bunInlineCssPlugin({
-          transform: (content) => this.cssProcessor.processStringOrBuffer(content),
-        }),
-        ...this.collectBuildPlugins(),
-      ],
+      plugins: this.collectBuildPlugins(),
     });
 
     if (!build.success) {

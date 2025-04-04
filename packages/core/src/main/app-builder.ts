@@ -153,11 +153,21 @@ export class AppBuilder {
     }
   }
 
+  private setupLoaders() {
+    const loaders = this.appConfig.loaders;
+    for (const loader of loaders.values()) {
+      Bun.plugin(loader);
+    }
+  }
+
   async run() {
     const { distDir } = this.appConfig;
 
+    this.setupLoaders();
+
     this.prepareDistDir();
     this.copyPublicDir();
+
     await this.initializePlugins();
     await this.scriptsBuilder.build();
 

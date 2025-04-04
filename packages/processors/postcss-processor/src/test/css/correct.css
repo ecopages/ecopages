@@ -1,3 +1,5 @@
+@reference "tailwindcss";
+
 .test {
-  @apply bg-red-500;
+	@apply bg-red-500;
 }

@@ -1,4 +1,5 @@
-import mdx from '@mdx-js/esbuild';
+import mdx, { type Options } from '@mdx-js/esbuild';
+import type { BunPlugin } from 'bun';
 
 /**
  * A bun plugin to process mdx files using mdx
@@ -9,11 +10,13 @@ import mdx from '@mdx-js/esbuild';
  * preload = ["@ecopages/bun-mdx-kitajs-loader"]
  * ```
  */
-Bun.plugin(
-  // @ts-expect-error: esbuild plugin vs bun plugin
-  mdx({
+
+export function bunMdxLoader(
+  options: Partial<Options> = {
     format: 'detect',
     outputFormat: 'program',
     jsxImportSource: '@kitajs/html',
-  }),
-);
+  },
+): BunPlugin {
+  return mdx(options) as unknown as BunPlugin;
+}

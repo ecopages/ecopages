@@ -5,6 +5,7 @@ import { TanstackTable } from '@/components/tanstack-table';
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoPage, GetMetadata } from '@ecopages/core';
 import type { JSX } from 'react';
+import Mdx from './about.mdx';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',
@@ -14,6 +15,7 @@ export const getMetadata: GetMetadata = () => ({
 });
 
 const HomePage: EcoPage<unknown, JSX.Element> = () => {
+  console.log(Mdx());
   return (
     <BaseLayout className="main-content">
       <h1 className="main-title">Ecopages</h1>
@@ -31,6 +33,7 @@ const HomePage: EcoPage<unknown, JSX.Element> = () => {
         <Item>Strawberry</Item>
         <Item>Vanilla</Item>
       </Select>
+      <Mdx />
       <TanstackTable />
     </BaseLayout>
   );

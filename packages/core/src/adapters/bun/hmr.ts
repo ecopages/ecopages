@@ -10,6 +10,10 @@ export const HMR_RELOAD_EVENT = 'ecopages:reload';
 
 if (ECO_PAGES_HMR_WS) ECO_PAGES_HMR_WS.send(HMR_RELOAD_EVENT);
 
+export function hmrServerReload() {
+  if (ECO_PAGES_HMR_WS) ECO_PAGES_HMR_WS.send(HMR_RELOAD_EVENT);
+}
+
 /**
  * Creates the live reload script to be injected into the html
  * @param {string} wsUrl

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
+import type { BunPlugin } from 'bun';
 
 function getFileAsBuffer(path: string): Buffer {
   try {
@@ -13,27 +14,32 @@ function getFileAsBuffer(path: string): Buffer {
   }
 }
 
-/**
- * A Bun plugin that processes PostCSS files
- * Just add this plugin to your bunfig.toml file and it will process all .css files
- * @example
- * ```toml
- * preload = ["@ecopages/bun-postcss-loader"]
- * ```
- */
-Bun.plugin({
-  name: 'bun-postcss-loader',
-  setup(build) {
-    const postcssFilter = /\.css/;
+export type BunPostCssLoaderOptions = {
+  name?: string;
+  inputHeader?: string;
+};
 
-    build.onLoad({ filter: postcssFilter }, async (args) => {
-      const text = getFileAsBuffer(args.path);
-      const contents = await PostCssProcessor.processStringOrBuffer(text);
-      return {
-        contents,
-        exports: { default: contents },
-        loader: 'object',
-      };
-    });
-  },
-});
+export function bunPostCssLoader(options: BunPostCssLoaderOptions = {}): BunPlugin {
+  const { inputHeader, name = 'bun-plugin-postcss-loader' } = options;
+  return {
+    name,
+    setup(build) {
+      const postcssFilter = /\.css/;
+
+      build.onLoad({ filter: postcssFilter }, async (args) => {
+        let text = getFileAsBuffer(args.path).toString();
+
+        if (inputHeader) {
+          text = `${inputHeader}\n${text}`;
+        }
+
+        const contents = await PostCssProcessor.processStringOrBuffer(text);
+        return {
+          contents,
+          exports: { default: contents },
+          loader: 'object',
+        };
+      });
+    },
+  };
+}

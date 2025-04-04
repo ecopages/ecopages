@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 .test {
-  @apply bg-reds-500;
+	@apply bg-reds-500;
 }

@@ -6,7 +6,8 @@ import { PostCssProcessor } from '../postcss-processor';
 describe('PostCssProcessor', () => {
   test('processPath should return the processed CSS', async () => {
     const filePath = path.resolve(__dirname, './css/correct.css');
-    const expected = '.test{--tw-bg-opacity:1;background-color:rgb(239 68 68/var(--tw-bg-opacity,1))}';
+    const expected =
+      '/*! tailwindcss v4.1.0 | MIT License | https://tailwindcss.com */\n.test {\n  background-color: var(--color-red-500, oklch(63.7% 0.237 25.331));\n}\n';
     const result = await PostCssProcessor.processPath(filePath);
     expect(result).toEqual(expected);
   });
@@ -25,24 +26,11 @@ describe('PostCssProcessor', () => {
 
   test('processPath should use the custom plugins', async () => {
     const filePath = path.resolve(__dirname, './css/external-plugins.css');
-    const expected = '.menu_link{background:#056ef0;width:200px}.menu{margin-top:10px;width:800px}';
+    const expected =
+      '/*! tailwindcss v4.1.0 | MIT License | https://tailwindcss.com */\n.menu_link {\n  background: #056ef0;\n  width: 200px;\n}\n.menu {\n  width: calc(4 * 200px);\n  margin-top: 10px;\n}\n';
     const result = await PostCssProcessor.processPath(filePath, {
-      plugins: [
-        PostCssProcessor.defaultPlugins['postcss-import'],
-        PostCssProcessor.defaultPlugins.tailwindcss,
-        PostCssProcessor.defaultPlugins['tailwindcss-nesting'],
-        PostCssProcessor.defaultPlugins.autoprefixer,
-        postCssSimpleVars(),
-        PostCssProcessor.defaultPlugins.cssnano,
-      ],
+      plugins: [PostCssProcessor.defaultPlugins['@tailwindcss/postcss'], postCssSimpleVars()],
     });
-    expect(result).toEqual(expected);
-  });
-
-  test('processStringOrBuffer should return the processed CSS', async () => {
-    const string = 'body { @apply bg-white; }';
-    const expected = 'body{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}';
-    const result = await PostCssProcessor.processStringOrBuffer(string);
     expect(result).toEqual(expected);
   });
 
@@ -62,16 +50,9 @@ describe('PostCssProcessor', () => {
 
   test('processStringOrBuffer should use the custom plugins', async () => {
     const string = '$blue: #056ef0; body { background: $blue; }';
-    const expected = 'body{background:#056ef0}';
+    const expected = 'body { background: #056ef0; }';
     const result = await PostCssProcessor.processStringOrBuffer(string, {
-      plugins: [
-        PostCssProcessor.defaultPlugins['postcss-import'],
-        PostCssProcessor.defaultPlugins.tailwindcss,
-        PostCssProcessor.defaultPlugins['tailwindcss-nesting'],
-        PostCssProcessor.defaultPlugins.autoprefixer,
-        postCssSimpleVars(),
-        PostCssProcessor.defaultPlugins.cssnano,
-      ],
+      plugins: [postCssSimpleVars(), PostCssProcessor.defaultPlugins['@tailwindcss/postcss']],
     });
     expect(result).toEqual(expected);
   });

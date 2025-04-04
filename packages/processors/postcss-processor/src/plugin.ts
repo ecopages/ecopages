@@ -4,6 +4,7 @@
  */
 
 import path from 'node:path';
+import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
 import { FileUtils, deepMerge } from '@ecopages/core';
 import {
   Processor,
@@ -13,8 +14,9 @@ import {
 } from '@ecopages/core/plugins/processor';
 import { type AssetDependency, AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
+import { $ } from 'bun';
 import { type PluginsRecord, defaultPlugins } from './default-plugins';
-import { PostCssProcessor } from './postcss-processor';
+import { PostCssProcessor, getFileAsBuffer } from './postcss-processor';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
   debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
@@ -53,6 +55,11 @@ export interface PostCssProcessorPluginConfig {
    * @default 'styles/tailwind.css'
    */
   tailwindInput?: string;
+
+  /**
+   * Input header for the PostCSS loader
+   */
+  inputHeader?: string;
 }
 
 /**
@@ -77,22 +84,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
       onCreate: async (filePath: string) => {
         if (filePath.endsWith('.css')) {
           await this.processCssFile(filePath);
-        } else if (config.options?.processTailwind !== false) {
-          await this.execTailwind();
         }
       },
       onChange: async (filePath) => {
         if (filePath.endsWith('.css')) {
           await this.processCssFile(filePath);
-        } else if (config.options?.processTailwind !== false) {
-          await this.execTailwind();
         }
       },
       onDelete: async (filePath) => {
         if (filePath.endsWith('.css')) {
           await this.deleteProcessedCssFile(filePath);
-        } else if (config.options?.processTailwind !== false) {
-          await this.execTailwind();
         }
       },
       onError: (error) => logger.error('Watcher error', { error }),
@@ -106,8 +107,20 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
     });
   }
 
-  get buildPlugin(): ProcessorBuildPlugin | undefined {
-    return undefined;
+  get buildPlugin(): ProcessorBuildPlugin {
+    return {
+      name: 'postcss-processor-plugin',
+      createBuildPlugin: () => {
+        return bunInlineCssPlugin({
+          filter: /\.css$/,
+          namespace: 'postcss-processor-plugin',
+          inputHeader: this.options?.inputHeader,
+          transform: async (contents: string | Buffer) => {
+            return await this.buildInputToProcess(contents.toString());
+          },
+        });
+      },
+    };
   }
 
   /**
@@ -161,7 +174,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
     await this.processAll();
 
     if (this.options.processTailwind) {
-      await this.execTailwind();
+      this.execTailwind();
     }
 
     logger.debug('PostCssProcessor setup time', {
@@ -174,27 +187,29 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
       throw new Error('Options and context must be set');
     }
 
-    const { processTailwind, tailwindInput } = this.options;
+    const watch = import.meta.env.NODE_ENV === 'development';
 
+    const { processTailwind, tailwindInput } = this.options;
     if (!processTailwind || !tailwindInput) return;
 
     const input = path.join(this.options.sourceDir ?? this.context.srcDir, tailwindInput);
-
     const output = path.join(this.options.outputDir ?? this.context.distDir, tailwindInput);
 
-    logger.debug('Processing Tailwind CSS', { input, output });
+    FileUtils.ensureDirectoryExists(path.dirname(output));
 
     try {
-      const content = await PostCssProcessor.processPath(input, {
-        plugins: Object.values(this.options.plugins ?? defaultPlugins),
+      await $`bunx @tailwindcss/cli -i ${input} -o ${output} ${watch ? '--watch' : '--minify'}`.catch((error) => {
+        logger.error('Failed to execute Tailwind CSS', {
+          error: error.toString(),
+          stderr: error.stderr?.toString(),
+        });
       });
 
-      FileUtils.ensureDirectoryExists(path.dirname(output));
-      FileUtils.writeFileSync(output, content);
-
-      logger.debug('Processed Tailwind CSS', { output });
+      logger.info(watch ? 'Tailwind CSS watching for changes' : 'Tailwind CSS build completed');
     } catch (error) {
-      logger.error('Failed to process Tailwind CSS', { error });
+      logger.error('Failed to execute Tailwind CSS command', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -215,20 +230,40 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
   }
 
   /**
+   * Get the content of a CSS file with the input header.
+   * @param filePath Path to the CSS file
+   * @returns Referenced content
+   */
+  private async buildInputToProcess(fileAsString: string): Promise<string> {
+    if (!this.options || !this.context) {
+      throw new Error('Options and context must be set');
+    }
+
+    let stringToProcess = fileAsString;
+
+    if (this.options.inputHeader) {
+      stringToProcess = `${this.options.inputHeader}\n${stringToProcess}`;
+    }
+
+    const plugins = Object.values(this.options.plugins ?? defaultPlugins);
+
+    return await PostCssProcessor.processStringOrBuffer(stringToProcess, { plugins });
+  }
+
+  /**
    * Process a single CSS file.
    * @param filePath Path to the CSS file
    */
   private async processCssFile(filePath: string): Promise<void> {
-    if (!this.options) {
+    if (!this.options || !this.context) {
       throw new Error('Options not set');
     }
 
     try {
-      const content = await PostCssProcessor.processPath(filePath, {
-        plugins: Object.values(this.options.plugins ?? defaultPlugins),
-      });
-
+      const fileAsString = getFileAsBuffer(filePath);
+      const content = await this.buildInputToProcess(fileAsString.toString());
       const outputPath = this.getOutputPath(filePath);
+
       FileUtils.ensureDirectoryExists(path.dirname(outputPath));
       FileUtils.writeFileSync(outputPath, content);
 

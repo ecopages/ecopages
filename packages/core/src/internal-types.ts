@@ -1,3 +1,4 @@
+import type { BunPlugin } from 'bun';
 import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
 import type { Processor } from './plugins/processor.ts';
 import type { PageMetadataProps } from './public-types.ts';
@@ -126,6 +127,10 @@ export type EcoPagesAppConfig = {
    * The processors to be used in the app
    */
   processors: Map<string, Processor>;
+  /**
+   * Loaders to be used in the app, these are used to process the files when importing them
+   */
+  loaders: Map<string, BunPlugin>;
 };
 
 export type IntegrationDependencyConfig = {

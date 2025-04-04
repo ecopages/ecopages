@@ -3,12 +3,8 @@
  * @module
  */
 
-import autoprefixer from 'autoprefixer';
-import cssnano from 'cssnano';
+import tailwindcssPostcss from '@tailwindcss/postcss';
 import type postcss from 'postcss';
-import postCssImport from 'postcss-import';
-import tailwindcss from 'tailwindcss';
-import tailwindcssNesting from 'tailwindcss/nesting/index.js';
 
 export type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
 
@@ -16,9 +12,5 @@ export type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
  * Default plugins used by the PostCSS Processor
  */
 export const defaultPlugins: PluginsRecord = {
-  'postcss-import': postCssImport(),
-  'tailwindcss-nesting': tailwindcssNesting,
-  tailwindcss: tailwindcss,
-  autoprefixer: autoprefixer,
-  cssnano: cssnano,
+  '@tailwindcss/postcss': tailwindcssPostcss,
 };

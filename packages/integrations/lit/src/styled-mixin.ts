@@ -23,5 +23,6 @@ export const StyledMixin = <T extends Constructor<LitElement>>(
       ...css.map((styles) => unsafeCSS(styles)),
     ];
   }
+
   return StyledMixinClass as Constructor<LitElement> & T;
 };

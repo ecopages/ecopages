@@ -1,0 +1,18 @@
+import { BaseLayout } from '@/layouts/base-layout';
+
+export const layout = BaseLayout;
+
+export const config = {
+  importMeta: import.meta,
+  dependencies: {
+    components: [BaseLayout],
+  }
+};
+
+<BaseLayout class="prose">
+
+# MDX Page
+
+This is a test page.
+
+</BaseLayout>

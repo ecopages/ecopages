@@ -33,7 +33,7 @@ export type ProcessStringOrBuffer = (contents: string | Buffer, options?: PostCs
 
 const appLogger = new Logger('[@ecopages/postcss-processor]');
 
-function getFileAsBuffer(path: string): Buffer {
+export function getFileAsBuffer(path: string): Buffer {
   try {
     if (!existsSync(path)) {
       throw new Error(`File: ${path} not found`);
@@ -61,7 +61,7 @@ const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[]
  * console.log(processedCss);
  * });
  */
-const processPath: ProcessPath = async (path, options) => {
+export const processPath: ProcessPath = async (path, options) => {
   const contents = getFileAsBuffer(path);
 
   return postcss(getPlugins(options))
@@ -88,7 +88,7 @@ const processPath: ProcessPath = async (path, options) => {
  * });
  * ```
  */
-const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) => {
+export const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) => {
   if (!contents) return '';
 
   return postcss(getPlugins(options))

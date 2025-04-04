@@ -1,18 +1,16 @@
 import fs from 'node:fs';
 import { join } from 'node:path';
+import watcher from '@parcel/watcher';
 import type { EventType } from '@parcel/watcher';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { FSRouter } from '../router/fs-router.ts';
-import type { CssParserService } from '../services/css-parser.service.ts';
 import type { ScriptsBuilder } from './scripts-builder.ts';
 
 type ProjectWatcherConfig = {
   config: EcoPagesAppConfig;
   scriptsBuilder: ScriptsBuilder;
   router: FSRouter;
-  cssBuilder?: CssParserService;
-  execTailwind?: () => Promise<void>;
 };
 
 export class ProjectWatcher {
@@ -106,7 +104,6 @@ export class ProjectWatcher {
 
   public async createWatcherSubscription() {
     await this.setupProcessorWatchers();
-    const watcher = await import('@parcel/watcher');
     return watcher.subscribe('src', async (err, events) => {
       if (err) {
         this.handleError(err);

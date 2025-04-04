@@ -1,6 +1,5 @@
 import '../../global/init.ts';
 import path from 'node:path';
-import { PostCssProcessor } from '@ecopages/postcss-processor';
 import type { RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
@@ -10,7 +9,6 @@ import { RouteRendererFactory } from '../../route-renderer/route-renderer';
 import { FSRouter } from '../../router/fs-router';
 import { FSRouterScanner } from '../../router/fs-router-scanner';
 import { AssetsDependencyService } from '../../services/assets-dependency.service';
-import { CssParserService } from '../../services/css-parser.service';
 import { HtmlTransformerService } from '../../services/html-transformer.service';
 import { deepMerge } from '../../utils/deep-merge';
 import { FileUtils } from '../../utils/file-utils.module';
@@ -43,7 +41,6 @@ interface IBunServerAdapterConstructor {
   serveOptions: BunServeAdapterServerOptions;
   appConfig: EcoPagesAppConfig;
   assetsDependencyService: AssetsDependencyService;
-  cssParser: CssParserService;
   scriptsBuilder: ScriptsBuilder;
   router: FSRouter;
   fileSystemResponseMatcher: FileSystemResponseMatcher;
@@ -56,7 +53,6 @@ export class BunServerAdapter {
   private serveOptions: BunServeAdapterServerOptions;
   private appConfig: EcoPagesAppConfig;
   private assetsDependencyService: AssetsDependencyService;
-  private cssParser: CssParserService;
   private scriptsBuilder: ScriptsBuilder;
   private router: FSRouter;
   private fileSystemResponseMatcher: FileSystemResponseMatcher;
@@ -68,7 +64,6 @@ export class BunServerAdapter {
     this.serveOptions = config.serveOptions;
     this.appConfig = config.appConfig;
     this.assetsDependencyService = config.assetsDependencyService;
-    this.cssParser = config.cssParser;
     this.scriptsBuilder = config.scriptsBuilder;
     this.router = config.router;
     this.fileSystemResponseMatcher = config.fileSystemResponseMatcher;
@@ -77,9 +72,9 @@ export class BunServerAdapter {
 
   public async initialize() {
     appLogger.time('BunServerAdapter:initialize');
+    this.setupLoaders();
     this.copyPublicDir();
     await this.initializePlugins();
-    await this.buildCss();
     await this.buildScripts();
     await this.initRouter();
     this.collectRoutes();
@@ -104,22 +99,18 @@ export class BunServerAdapter {
     };
   }
 
-  private async execTailwind() {
-    const { srcDir, distDir, tailwind } = this.appConfig;
-    const input = `${srcDir}/${tailwind.input}`;
-    const output = `${distDir}/${tailwind.input}`;
-    const cssString = await this.cssParser.processor.processPath(input);
-    FileUtils.ensureDirectoryExists(path.dirname(output));
-    FileUtils.writeFileSync(output, cssString);
+  private setupLoaders() {
+    const loaders = this.appConfig.loaders;
+    for (const loader of loaders.values()) {
+      Bun.plugin(loader);
+    }
   }
 
   private async watch() {
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
-      cssBuilder: this.cssParser,
       scriptsBuilder: this.scriptsBuilder,
       router: this.router,
-      execTailwind: this.execTailwind.bind(this),
     });
 
     await watcherInstance.createWatcherSubscription();
@@ -135,25 +126,27 @@ export class BunServerAdapter {
   private async initializePlugins() {
     for (const processor of this.appConfig.processors.values()) {
       await processor.setup();
-      this.assetsDependencyService.registerDependencies({
-        name: processor.getName(),
-        getDependencies: () => processor.getDependencies(),
-      });
+      this.assetsDependencyService.registerDependencies(
+        {
+          name: processor.getName(),
+          getDependencies: () => processor.getDependencies(),
+        },
+        true,
+      );
     }
 
     for (const integration of this.appConfig.integrations) {
       integration.setConfig(this.appConfig);
       integration.setDependencyService(this.assetsDependencyService);
       await integration.setup();
-      this.assetsDependencyService.registerDependencies({
-        name: integration.name,
-        getDependencies: () => integration.getDependencies(),
-      });
+      this.assetsDependencyService.registerDependencies(
+        {
+          name: integration.name,
+          getDependencies: () => integration.getDependencies(),
+        },
+        true,
+      ); // Mark as global
     }
-  }
-
-  private async buildCss() {
-    await this.cssParser.build();
   }
 
   private async buildScripts() {
@@ -206,8 +199,6 @@ export async function createBunServerAdapter({
   const assetsDependencyService = new AssetsDependencyService({ appConfig });
 
   const htmlTransformer = new HtmlTransformerService();
-
-  const cssParser = new CssParserService({ processor: PostCssProcessor, appConfig });
 
   const scriptsBuilder = new ScriptsBuilder({ appConfig, options: { watchMode: options?.watch } });
 
@@ -266,7 +257,6 @@ export async function createBunServerAdapter({
     serveOptions,
     appConfig,
     assetsDependencyService,
-    cssParser,
     scriptsBuilder,
     router,
     fileSystemResponseMatcher,

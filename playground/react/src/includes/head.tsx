@@ -10,7 +10,6 @@ export function Head({ metadata, children }: PageHeadProps) {
       <meta charSet="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <Seo {...metadata} />
-      <link href="/styles/tailwind.css" rel="stylesheet" />
       {children}
     </head>
   );

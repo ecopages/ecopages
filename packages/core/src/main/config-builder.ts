@@ -116,7 +116,7 @@ export class ConfigBuilder {
     return this;
   }
 
-  setIntegrations(integrations: IntegrationPlugin[]): this {
+  setIntegrations(integrations: IntegrationPlugin<unknown>[]): this {
     this.config.integrations = integrations;
     return this;
   }

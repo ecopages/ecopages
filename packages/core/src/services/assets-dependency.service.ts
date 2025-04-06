@@ -1,10 +1,10 @@
 import path from 'node:path';
+import { RESOLVED_ASSETS_DIR } from 'src/constants';
 import { appLogger } from '../global/app-logger';
+import type { EcoPagesAppConfig } from '../internal-types';
 import { deepMerge } from '../utils/deep-merge';
 import { FileUtils } from '../utils/file-utils.module';
 import { rapidhash } from '../utils/hash';
-import { RESOLVED_ASSETS_DIR } from 'src/constants';
-import type { EcoPagesAppConfig } from '../internal-types';
 
 /**
  * AssetCategory, the kind of the dependency
@@ -399,36 +399,19 @@ export class AssetsDependencyService implements IAssetsDependencyService {
   }
 
   private async processDynamicDependency(dep: ScriptAssetFromUrl): Promise<void> {
-    try {
-      const relativePath = dep.srcUrl.replace('?dynamic=true', '');
-      const cacheKey = `dynamic:${relativePath}`;
+    const relativePath = dep.srcUrl.replace('?dynamic=true', '');
+    const cacheKey = `dynamic:${relativePath}`;
 
-      if (!this.dynamicDependencyMap.has(cacheKey)) {
-        // Try to resolve the actual file path
-        const absolutePath = path.isAbsolute(relativePath)
-          ? path.join(this.config.absolutePaths.distDir, relativePath)
-          : path.resolve(this.config.absolutePaths.distDir, relativePath);
-
-        // Check if file exists before processing
-        if (!FileUtils.existsSync(absolutePath)) {
-          appLogger.warn(`Dynamic script not found: ${absolutePath}`);
-          return;
-        }
-
-        this.dynamicDependencyMap.set(cacheKey, {
-          provider: 'dynamic',
-          kind: dep.kind,
-          srcUrl: relativePath,
-          position: dep.position,
-          filePath: absolutePath,
-          inline: false,
-          attributes: dep.attributes,
-        });
-      }
-    } catch (error) {
-      appLogger.error(
-        `Failed to process dynamic dependency: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    if (!this.dynamicDependencyMap.has(cacheKey)) {
+      this.dynamicDependencyMap.set(cacheKey, {
+        provider: 'dynamic',
+        kind: dep.kind,
+        srcUrl: relativePath,
+        position: dep.position,
+        filePath: relativePath,
+        inline: false,
+        attributes: dep.attributes,
+      });
     }
   }
 
@@ -468,51 +451,35 @@ export class AssetsDependencyService implements IAssetsDependencyService {
       },
 
       url: async (dep) => {
-        try {
-          if (dep.kind === 'script') {
-            const scriptDep = dep as ScriptAssetFromUrl;
-            const entrypoint = path.isAbsolute(scriptDep.srcUrl)
-              ? path.join(this.config.absolutePaths.distDir, scriptDep.srcUrl)
-              : path.resolve(this.config.absolutePaths.distDir, scriptDep.srcUrl);
-
-            // Check if file exists
-            if (!FileUtils.existsSync(entrypoint)) {
-              throw new Error(`Script file not found: ${entrypoint}`);
-            }
-
-            const filepath = await this.bundleScript({
-              entrypoint,
-              outdir: depsDir,
-              minify: scriptDep.minify,
-            });
-
-            const content = FileUtils.readFileSync(filepath, 'utf-8');
-            const { filepath: cleanedFilepath } = this.writeFileToDist({
-              content,
-              name: this.getCleanAssetUrl(scriptDep.srcUrl),
-              ext: 'js',
-            });
-            return {
-              filepath: cleanedFilepath,
-              content,
-            };
-          }
-          const styleDep = dep as StylesheetAssetFromUrl;
-          const buffer = FileUtils.getFileAsBuffer(styleDep.srcUrl);
-          const { filepath } = this.writeFileToDist({
-            content: buffer,
-            name: this.getCleanAssetUrl(styleDep.srcUrl),
-            ext: 'css',
+        if (dep.kind === 'script') {
+          const scriptDep = dep as ScriptAssetFromUrl;
+          const filepath = await this.bundleScript({
+            entrypoint: scriptDep.srcUrl,
+            outdir: depsDir,
+            minify: scriptDep.minify,
+          });
+          const content = FileUtils.readFileSync(filepath, 'utf-8');
+          const { filepath: cleanedFilepath } = this.writeFileToDist({
+            content,
+            name: this.getCleanAssetUrl(scriptDep.srcUrl),
+            ext: 'js',
           });
           return {
-            filepath,
-            content: buffer.toString('utf-8'),
+            filepath: cleanedFilepath,
+            content,
           };
-        } catch (error) {
-          throw new Error(
-            `Failed to process URL dependency: ${error instanceof Error ? error.message : String(error)}`,
-          );
         }
+        const styleDep = dep as StylesheetAssetFromUrl;
+        const buffer = FileUtils.getFileAsBuffer(styleDep.srcUrl);
+        const { filepath } = this.writeFileToDist({
+          content: buffer,
+          name: this.getCleanAssetUrl(styleDep.srcUrl),
+          ext: 'css',
+        });
+        return {
+          filepath,
+          content: buffer.toString('utf-8'),
+        };
       },
 
       inline: async (dep) => {
@@ -540,10 +507,11 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     try {
       return await processors[dep.source](dep);
     } catch (error) {
-      // More detailed error message
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      appLogger.error(`Failed to process dependency from ${provider.name}: ${errorMsg}`);
-      throw new Error(`Failed to process dependency from provider ${provider.name}: ${errorMsg}`);
+      throw new Error(
+        `Failed to process dependency from provider ${provider.name}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 

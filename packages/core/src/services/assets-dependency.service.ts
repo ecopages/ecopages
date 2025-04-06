@@ -399,19 +399,47 @@ export class AssetsDependencyService implements IAssetsDependencyService {
   }
 
   private async processDynamicDependency(dep: ScriptAssetFromUrl): Promise<void> {
-    const relativePath = dep.srcUrl.replace('?dynamic=true', '');
-    const cacheKey = `dynamic:${relativePath}`;
+    try {
+      const assetPath = dep.srcUrl.replace('?dynamic=true', '');
+      const cacheKey = `dynamic:${assetPath}`;
 
-    if (!this.dynamicDependencyMap.has(cacheKey)) {
-      this.dynamicDependencyMap.set(cacheKey, {
-        provider: 'dynamic',
-        kind: dep.kind,
-        srcUrl: relativePath,
-        position: dep.position,
-        filePath: relativePath,
-        inline: false,
-        attributes: dep.attributes,
-      });
+      if (!this.dynamicDependencyMap.has(cacheKey)) {
+        const pathFromSrcDir = assetPath.split(this.config.srcDir)[1];
+        const depsDir = path.join(
+          this.config.absolutePaths.distDir,
+          AssetsDependencyService.RESOLVED_ASSETS_DIR,
+          path.dirname(pathFromSrcDir),
+        );
+
+        FileUtils.ensureDirectoryExists(depsDir);
+
+        if (!FileUtils.existsSync(assetPath)) {
+          throw new Error(`Dynamic script not found: ${assetPath}`);
+        }
+
+        const result = await this.processDepFile(
+          {
+            ...dep,
+            srcUrl: assetPath,
+          },
+          { name: 'dynamic' },
+          depsDir,
+        );
+
+        this.dynamicDependencyMap.set(cacheKey, {
+          provider: 'dynamic',
+          kind: dep.kind,
+          srcUrl: this.getSrcUrl(result.filepath),
+          position: dep.position,
+          filePath: result.filepath,
+          inline: false,
+          attributes: dep.attributes,
+        });
+      }
+    } catch (error) {
+      appLogger.error(
+        `Failed to process dynamic dependency: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

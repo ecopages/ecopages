@@ -81,7 +81,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
   /**
    * Generate dependencies for processor.
-   * It is possible to define which one should be included in the final bundle based on the environment.
+   * It is ossible to define which one should be included in the final bundle based on the environment.
    * @returns
    */
   private generateDependencies(): AssetDependency[] {
@@ -250,3 +250,7 @@ declare module "ecopages:images" {
     return this.processor;
   }
 }
+
+export const imageProcessorPlugin = (config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>) => {
+  return new ImageProcessorPlugin(config);
+};

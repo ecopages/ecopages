@@ -1,3 +1,4 @@
+import type { BunPlugin } from 'bun';
 import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
 import type { Processor } from './plugins/processor.ts';
 import type { PageMetadataProps } from './public-types.ts';
@@ -98,13 +99,6 @@ export type EcoPagesAppConfig = {
      */
     preferences: RobotsPreference;
   };
-  tailwind: {
-    /**
-     * The input file for tailwind relative to the src directory
-     * @default "styles/tailwind.css"
-     */
-    input: string;
-  };
   /** Additional paths to watch. Use this to monitor extra files. It is relative to the rootDir */
   additionalWatchPaths: string[];
   /**
@@ -133,6 +127,10 @@ export type EcoPagesAppConfig = {
    * The processors to be used in the app
    */
   processors: Map<string, Processor>;
+  /**
+   * Loaders to be used in the app, these are used to process the files when importing them
+   */
+  loaders: Map<string, BunPlugin>;
 };
 
 export type IntegrationDependencyConfig = {
@@ -180,7 +178,7 @@ export type Routes = Record<string, Route>;
  */
 export type FileSystemServerOptions = {
   watchMode: boolean;
-  port?: number;
+  port?: number | string;
 };
 
 /**

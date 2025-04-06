@@ -42,9 +42,9 @@ By default, Ecopages uses Tailwind CSS with PostCSS for styling. This provides a
 ```typescript
 const config = await new ConfigBuilder()
   // ... other configurations
-  .setTailwindConfig({
-    input: 'styles/tailwind.css',
-  })
+  .setProcessors([
+    postcssProcessorPlugin()
+  ])
   .build();
 ```
 </CodeBlock>

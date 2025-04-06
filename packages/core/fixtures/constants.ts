@@ -10,7 +10,7 @@ export const FIXTURE_APP_CSS_FILE = path.resolve(import.meta.dir, 'css/test.css'
 
 export const FIXTURE_CSS_FILE_ERROR = path.resolve(import.meta.dir, 'css/error.css');
 
-export const FIXTURE_EXISTING_CSS_FILE_IN_DIST = 'styles/tailwind.css';
+export const FIXTURE_EXISTING_CSS_FILE_IN_DIST = 'public/style.css';
 
 export const FIXTURE_EXISTING_SVG_FILE_IN_DIST = 'public/assets/favicon.svg';
 

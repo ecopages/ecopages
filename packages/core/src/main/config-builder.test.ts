@@ -96,13 +96,6 @@ describe('EcoConfigBuilder', () => {
     expect(config.robotsTxt).toEqual(robotsTxt);
   });
 
-  test('should set tailwind', async () => {
-    const tailwind = { input: 'custom-tailwind.css' };
-    const config = await builder.setBaseUrl('https://example.com').setRootDir('/project').setTailwind(tailwind).build();
-
-    expect(config.tailwind).toEqual(tailwind);
-  });
-
   test('should set integrations', async () => {
     const integrations: IntegrationPlugin[] = [createMockIntegration('test-integration', ['.test'])];
     const config = await builder

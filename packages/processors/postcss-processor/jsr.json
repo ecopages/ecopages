@@ -2,8 +2,10 @@
 	"name": "@ecopages/postcss-processor",
 	"version": "0.1.26",
 	"exports": {
-		".": "./src/postcss-processor.ts",
-		"./default-plugins": "./src/default-plugins.ts"
+		".": "./src/index.ts",
+		"./postcss-processor": "./src/postcss-processor.ts",
+		"./default-plugins": "./src/default-plugins.ts",
+		"./plugin": "./src/plugin.ts"
 	},
 	"exclude": ["src/test"],
 	"publish": {

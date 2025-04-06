@@ -30,12 +30,20 @@
 	},
 	"exports": {
 		".": {
+			"default": "./src/index.ts",
+			"types": "./src/index.ts"
+		},
+		"./postcss-processor": {
 			"default": "./src/postcss-processor.ts",
 			"types": "./src/postcss-processor.ts"
 		},
 		"./default-plugins": {
 			"default": "./src/default-plugins.ts",
 			"types": "./src/default-plugins.ts"
+		},
+		"./plugin": {
+			"default": "./src/plugin.ts",
+			"types": "./src/plugin.ts"
 		}
 	}
 }

@@ -33,7 +33,7 @@ export type ProcessStringOrBuffer = (contents: string | Buffer, options?: PostCs
 
 const appLogger = new Logger('[@ecopages/postcss-processor]');
 
-function getFileAsBuffer(path: string): Buffer {
+export function getFileAsBuffer(path: string): Buffer {
   try {
     if (!existsSync(path)) {
       throw new Error(`File: ${path} not found`);

@@ -4,7 +4,6 @@ import { appLogger } from '../global/app-logger';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { deepMerge } from '../utils/deep-merge';
 import { FileUtils } from '../utils/file-utils.module';
-import { rapidhash } from '../utils/hash';
 
 /**
  * AssetCategory, the kind of the dependency
@@ -283,11 +282,10 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     name: string;
     ext: 'css' | 'js';
   }): { filepath: string } {
-    const contentHash = rapidhash(content);
     const filepath = path.join(
       this.config.absolutePaths.distDir,
       AssetsDependencyService.RESOLVED_ASSETS_DIR,
-      `${name}-${contentHash}.${ext}`,
+      `${name}.${ext}`,
     );
 
     if (!FileUtils.existsSync(filepath)) {
@@ -498,7 +496,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
           };
         }
         const styleDep = dep as StylesheetAssetFromUrl;
-        const buffer = FileUtils.getFileAsBuffer(styleDep.srcUrl);
+        const buffer = await import(styleDep.srcUrl).then((module) => module.default);
         const { filepath } = this.writeFileToDist({
           content: buffer,
           name: this.getCleanAssetUrl(styleDep.srcUrl),

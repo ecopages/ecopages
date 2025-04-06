@@ -8,7 +8,6 @@ import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { Processor } from '../plugins/processor.ts';
 import type { AssetsDependencyService } from '../services/assets-dependency.service.ts';
-import type { CssParserService } from '../services/css-parser.service.ts';
 import type { HtmlTransformerService } from '../services/html-transformer.service';
 import { FileUtils } from '../utils/file-utils.module.ts';
 import { ProjectWatcher } from './project-watcher.ts';
@@ -23,7 +22,6 @@ type AppBuilderOptions = {
 export class AppBuilder {
   private appConfig: EcoPagesAppConfig;
   private staticPageGenerator: StaticPageGenerator;
-  private cssParser: CssParserService;
   private scriptsBuilder: ScriptsBuilder;
   private options: AppBuilderOptions;
   private assetsDependencyService: AssetsDependencyService;
@@ -32,7 +30,6 @@ export class AppBuilder {
   constructor({
     appConfig,
     staticPageGenerator,
-    cssParser,
     scriptsBuilder,
     options,
     assetsDependencyService,
@@ -40,7 +37,6 @@ export class AppBuilder {
   }: {
     appConfig: EcoPagesAppConfig;
     staticPageGenerator: StaticPageGenerator;
-    cssParser: CssParserService;
     scriptsBuilder: ScriptsBuilder;
     options: AppBuilderOptions;
     assetsDependencyService: AssetsDependencyService;
@@ -48,7 +44,6 @@ export class AppBuilder {
   }) {
     this.appConfig = appConfig;
     this.staticPageGenerator = staticPageGenerator;
-    this.cssParser = cssParser;
     this.scriptsBuilder = scriptsBuilder;
     this.options = options;
     this.assetsDependencyService = assetsDependencyService;
@@ -87,15 +82,6 @@ export class AppBuilder {
     FileUtils.copyDirSync(path.join(srcDir, publicDir), path.join(distDir, publicDir));
   }
 
-  private async execTailwind() {
-    const { srcDir, distDir, tailwind } = this.appConfig;
-    const input = `${srcDir}/${tailwind.input}`;
-    const output = `${distDir}/${tailwind.input}`;
-    const cssString = await this.cssParser.processor.processPath(input);
-    FileUtils.ensureDirectoryExists(path.dirname(output));
-    FileUtils.writeFileSync(output, cssString);
-  }
-
   private async transformIndexHtml(res: Response): Promise<Response> {
     const dependencies = await this.assetsDependencyService.prepareDependencies();
     this.htmlTransformer.setProcessedDependencies(dependencies);
@@ -120,10 +106,8 @@ export class AppBuilder {
 
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
-      cssBuilder: this.cssParser,
       scriptsBuilder: this.scriptsBuilder,
       router: dev.router,
-      execTailwind: this.execTailwind.bind(this),
     });
 
     await watcherInstance.createWatcherSubscription();
@@ -169,15 +153,23 @@ export class AppBuilder {
     }
   }
 
+  private setupLoaders() {
+    const loaders = this.appConfig.loaders;
+    for (const loader of loaders.values()) {
+      Bun.plugin(loader);
+    }
+  }
+
   async run() {
     const { distDir } = this.appConfig;
 
+    this.setupLoaders();
+
     this.prepareDistDir();
     this.copyPublicDir();
+
     await this.initializePlugins();
-    await this.execTailwind();
-    await this.cssParser.build();
-    // await this.scriptsBuilder.build();
+    await this.scriptsBuilder.build();
 
     if (this.options.watch) {
       return await this.watch();

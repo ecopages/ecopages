@@ -45,6 +45,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   }) {
     this.appConfig = appConfig;
     this.assetsDependencyService = assetsDependencyService;
+
+    if (typeof HTMLElement === 'undefined') {
+      // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
+      global.HTMLElement = class {};
+    }
   }
 
   protected getHtmlPath({ file }: { file: string }): string {
@@ -109,11 +114,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     }
   }
 
-  protected getDependencyDistPath(importMeta: ImportMeta, pathUrl: string): string {
-    const EXTENSIONS_TO_JS = ['ts', 'tsx', 'jsx'];
-    const safeFileName = pathUrl.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
-    const distUrl = importMeta.url.split(this.appConfig.srcDir)[1].split(importMeta.file)[0];
-    return path.join(distUrl, safeFileName);
+  protected resolveDependencyPath(importMeta: ImportMeta, pathUrl: string): string {
+    return path.join(importMeta.dir, pathUrl);
   }
 
   protected extractDependencies({
@@ -123,9 +125,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   }: {
     importMeta: ImportMeta;
   } & EcoComponentDependencies): EcoComponentDependencies {
-    const scriptsPaths = [...new Set(scripts?.map((script) => this.getDependencyDistPath(importMeta, script)))];
+    const scriptsPaths = [...new Set(scripts?.map((script) => this.resolveDependencyPath(importMeta, script)))];
 
-    const stylesheetsPaths = [...new Set(stylesheets?.map((style) => this.getDependencyDistPath(importMeta, style)))];
+    const stylesheetsPaths = [...new Set(stylesheets?.map((style) => this.resolveDependencyPath(importMeta, style)))];
 
     return {
       scripts: scriptsPaths,
@@ -182,14 +184,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       name: providerName,
       getDependencies: () => [
         ...deps.stylesheets.map((srcUrl) =>
-          AssetDependencyHelpers.createPreBundledStylesheetAsset({
+          AssetDependencyHelpers.createStylesheetAsset({
             srcUrl,
             position: 'head',
             attributes: { rel: 'stylesheet' },
           }),
         ),
         ...deps.scripts.map((srcUrl) =>
-          AssetDependencyHelpers.createPreBundledScriptAsset({
+          AssetDependencyHelpers.createSrcScriptAsset({
             srcUrl,
             position: 'head',
             attributes: {
@@ -215,11 +217,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   }
 
   protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
-    if (typeof HTMLElement === 'undefined') {
-      // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
-      global.HTMLElement = class {};
-    }
-
     const {
       default: Page,
       getStaticProps,

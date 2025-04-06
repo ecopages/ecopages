@@ -64,7 +64,7 @@ interface ReactUrls {
  */
 export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
   name = PLUGIN_NAME;
-  componentDirectory = AssetsDependencyService.DEPS_DIR;
+  componentDirectory = AssetsDependencyService.RESOLVED_ASSETS_DIR;
 
   private createHydrationScript(importPath: string) {
     return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;

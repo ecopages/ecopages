@@ -43,6 +43,10 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
     appLogger.warn('React plugin alone does not support MDX files at this time.');
   }
 
+  private buildImportMapSourceUrl(fileName: string): string {
+    return `/${AssetDependencyHelpers.RESOLVED_ASSETS_DIR}/${fileName}`;
+  }
+
   /**
    * Generate dependencies for processor.
    * It is ossible to define which one should be included in the final bundle based on the environment.
@@ -56,10 +60,10 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
           content: JSON.stringify(
             {
               imports: {
-                react: '/__dependencies__/react-dev-esm.js',
-                'react-dom/client': '/__dependencies__/react-dev-esm.js',
-                'react/jsx-dev-runtime': '/__dependencies__/react-dev-esm.js',
-                'react-dom': '/__dependencies__/react-dom-esm.js',
+                react: this.buildImportMapSourceUrl('react-dev-esm.js'),
+                'react-dom/client': this.buildImportMapSourceUrl('react-dev-esm.js'),
+                'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-dev-esm.js'),
+                'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
               },
             },
             null,
@@ -94,10 +98,10 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
         content: JSON.stringify(
           {
             imports: {
-              react: '/__dependencies__/react-esm.js',
-              'react-dom/client': '/__dependencies__/react-esm.js',
-              'react/jsx-runtime': '/__dependencies__/react-esm.js',
-              'react-dom': '/__dependencies__/react-dom-esm.js',
+              react: this.buildImportMapSourceUrl('react-esm.js'),
+              'react-dom/client': this.buildImportMapSourceUrl('react-esm.js'),
+              'react/jsx-runtime': this.buildImportMapSourceUrl('react-esm.js'),
+              'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
             },
           },
           null,

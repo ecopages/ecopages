@@ -74,7 +74,7 @@ export const RadiantTodoApp: EcoComponent = async () => {
 RadiantTodoApp.config = {
   importMeta: import.meta,
   dependencies: {
-    scripts: ['./radiant-todo-app.script.ts'],
+    scripts: ['./radiant-todo-app.script.tsx'],
     stylesheets: ['./radiant-todo-app.css'],
   },
 };

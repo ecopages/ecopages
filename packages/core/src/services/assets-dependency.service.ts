@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { appLogger } from '../global/app-logger';
-import type { EcoPagesAppConfig } from '../internal-types';
 import { deepMerge } from '../utils/deep-merge';
 import { FileUtils } from '../utils/file-utils.module';
 import { rapidhash } from '../utils/hash';
+import { RESOLVED_ASSETS_DIR } from 'src/constants';
+import type { EcoPagesAppConfig } from '../internal-types';
 
 /**
  * AssetCategory, the kind of the dependency
@@ -192,13 +193,14 @@ export interface IAssetsDependencyService {
  * - Caching and optimization
  */
 export class AssetsDependencyService implements IAssetsDependencyService {
-  static readonly DEPS_DIR = '__dependencies__';
+  static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
 
   private config: EcoPagesAppConfig;
   private dependencyMap = new Map<string, DependencyProvider>();
   private dependencies: ResolvedAsset[] = [];
   private dependencyCache = new Map<string, ResolvedAsset[]>();
   private currentPath = '/';
+  private dynamicDependencyMap = new Map<string, ResolvedAsset>();
 
   constructor({ appConfig }: AssetsServiceOptions) {
     this.config = appConfig;
@@ -248,6 +250,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
 
     this.dependencyMap = new Map(coreDependencies);
     this.dependencies = [];
+    this.dynamicDependencyMap.clear();
   }
 
   /**
@@ -259,6 +262,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
       this.dependencyCache.delete(path);
     } else {
       this.dependencyCache.clear();
+      this.dynamicDependencyMap.clear();
     }
   }
 
@@ -282,7 +286,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     const contentHash = rapidhash(content);
     const filepath = path.join(
       this.config.absolutePaths.distDir,
-      AssetsDependencyService.DEPS_DIR,
+      AssetsDependencyService.RESOLVED_ASSETS_DIR,
       `${name}-${contentHash}.${ext}`,
     );
 
@@ -360,7 +364,12 @@ export class AssetsDependencyService implements IAssetsDependencyService {
    */
   private async processDependencies(provider: DependencyProvider, deps: AssetDependency[]): Promise<void> {
     for (const dep of deps) {
-      const depsDir = path.join(this.config.absolutePaths.distDir, AssetsDependencyService.DEPS_DIR);
+      if (this.isDynamicDependency(dep)) {
+        await this.processDynamicDependency(dep as ScriptAssetFromUrl);
+        continue;
+      }
+
+      const depsDir = path.join(this.config.absolutePaths.distDir, AssetsDependencyService.RESOLVED_ASSETS_DIR);
       FileUtils.ensureDirectoryExists(depsDir);
 
       const result = await this.processDepFile(dep, provider, depsDir);
@@ -385,6 +394,44 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     }
   }
 
+  private isDynamicDependency(dep: AssetDependency): dep is ScriptAssetFromUrl {
+    return dep.kind === 'script' && dep.source === 'url' && dep.srcUrl.includes('?dynamic=true');
+  }
+
+  private async processDynamicDependency(dep: ScriptAssetFromUrl): Promise<void> {
+    try {
+      const relativePath = dep.srcUrl.replace('?dynamic=true', '');
+      const cacheKey = `dynamic:${relativePath}`;
+
+      if (!this.dynamicDependencyMap.has(cacheKey)) {
+        // Try to resolve the actual file path
+        const absolutePath = path.isAbsolute(relativePath)
+          ? path.join(this.config.absolutePaths.distDir, relativePath)
+          : path.resolve(this.config.absolutePaths.distDir, relativePath);
+
+        // Check if file exists before processing
+        if (!FileUtils.existsSync(absolutePath)) {
+          appLogger.warn(`Dynamic script not found: ${absolutePath}`);
+          return;
+        }
+
+        this.dynamicDependencyMap.set(cacheKey, {
+          provider: 'dynamic',
+          kind: dep.kind,
+          srcUrl: relativePath,
+          position: dep.position,
+          filePath: absolutePath,
+          inline: false,
+          attributes: dep.attributes,
+        });
+      }
+    } catch (error) {
+      appLogger.error(
+        `Failed to process dynamic dependency: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   private isInlineDependency(dep: AssetDependency): boolean {
     if ('inline' in dep) {
       return dep.inline === true;
@@ -392,9 +439,15 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     return 'content' in dep;
   }
 
+  private getCleanAssetUrl(srcPath: string): string {
+    const { srcDir } = this.config;
+    const url = srcPath.split(srcDir)[1];
+    return url.split('.').slice(0, -1).join('.');
+  }
+
   private async processDepFile(
     dep: AssetDependency,
-    provider: DependencyProvider,
+    provider: DependencyProvider | { name: string },
     depsDir: string,
   ): Promise<{ filepath: string; content: string }> {
     if ('preBundled' in dep && dep.preBundled) {
@@ -415,36 +468,58 @@ export class AssetsDependencyService implements IAssetsDependencyService {
       },
 
       url: async (dep) => {
-        if (dep.kind === 'script') {
-          const scriptDep = dep as ScriptAssetFromUrl;
-          const filepath = await this.bundleScript({
-            entrypoint: scriptDep.srcUrl,
-            outdir: depsDir,
-            minify: scriptDep.minify,
+        try {
+          if (dep.kind === 'script') {
+            const scriptDep = dep as ScriptAssetFromUrl;
+            const entrypoint = path.isAbsolute(scriptDep.srcUrl)
+              ? path.join(this.config.absolutePaths.distDir, scriptDep.srcUrl)
+              : path.resolve(this.config.absolutePaths.distDir, scriptDep.srcUrl);
+
+            // Check if file exists
+            if (!FileUtils.existsSync(entrypoint)) {
+              throw new Error(`Script file not found: ${entrypoint}`);
+            }
+
+            const filepath = await this.bundleScript({
+              entrypoint,
+              outdir: depsDir,
+              minify: scriptDep.minify,
+            });
+
+            const content = FileUtils.readFileSync(filepath, 'utf-8');
+            const { filepath: cleanedFilepath } = this.writeFileToDist({
+              content,
+              name: this.getCleanAssetUrl(scriptDep.srcUrl),
+              ext: 'js',
+            });
+            return {
+              filepath: cleanedFilepath,
+              content,
+            };
+          }
+          const styleDep = dep as StylesheetAssetFromUrl;
+          const buffer = FileUtils.getFileAsBuffer(styleDep.srcUrl);
+          const { filepath } = this.writeFileToDist({
+            content: buffer,
+            name: this.getCleanAssetUrl(styleDep.srcUrl),
+            ext: 'css',
           });
           return {
             filepath,
-            content: FileUtils.readFileSync(filepath, 'utf-8'),
+            content: buffer.toString('utf-8'),
           };
+        } catch (error) {
+          throw new Error(
+            `Failed to process URL dependency: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
-        const styleDep = dep as StylesheetAssetFromUrl;
-        const buffer = FileUtils.getFileAsBuffer(styleDep.srcUrl);
-        const { filepath } = this.writeFileToDist({
-          content: buffer,
-          name: provider.name,
-          ext: 'css',
-        });
-        return {
-          filepath,
-          content: buffer.toString('utf-8'),
-        };
       },
 
       inline: async (dep) => {
         const inlineDep = dep as InlineScriptAsset;
         const { filepath } = this.writeFileToDist({
           content: inlineDep.content,
-          name: provider.name,
+          name: `inline-${inlineDep.kind}`,
           ext: dep.kind === 'script' ? 'js' : 'css',
         });
         return {
@@ -465,17 +540,16 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     try {
       return await processors[dep.source](dep);
     } catch (error) {
-      throw new Error(
-        `Failed to process dependency from provider ${provider.name}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      // More detailed error message
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      appLogger.error(`Failed to process dependency from ${provider.name}: ${errorMsg}`);
+      throw new Error(`Failed to process dependency from provider ${provider.name}: ${errorMsg}`);
     }
   }
 
   private async optimizeDependencies(): Promise<void> {
     if (this.dependencies.length) {
-      FileUtils.gzipDirSync(path.join(this.config.absolutePaths.distDir, AssetsDependencyService.DEPS_DIR), [
+      FileUtils.gzipDirSync(path.join(this.config.absolutePaths.distDir, AssetsDependencyService.RESOLVED_ASSETS_DIR), [
         'css',
         'js',
       ]);
@@ -519,6 +593,7 @@ type CreateDependencyPartial<T extends AssetDependency, U extends keyof T> = Par
  * Helper class to create script and stylesheet dependencies
  */
 export class AssetDependencyHelpers {
+  static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
   /**
    * Create a script dependency with inline content
    * @param options {@link ScriptAsset}

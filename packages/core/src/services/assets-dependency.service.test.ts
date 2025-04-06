@@ -112,6 +112,90 @@ describe('DependencyService', () => {
     const deps = await service.prepareDependencies();
     expect(deps).toEqual([]);
   });
+
+  it('should handle dynamic script dependencies separately', async () => {
+    const provider: DependencyProvider = {
+      name: 'dynamic-provider',
+      getDependencies: () => [
+        AssetDependencyHelpers.createSrcScriptAsset({
+          srcUrl: '/test.js?dynamic=true',
+          position: 'body',
+        }),
+        AssetDependencyHelpers.createPreBundledScriptAsset({
+          srcUrl: '/regular.js',
+          position: 'body',
+        }),
+      ],
+    };
+
+    service.registerDependencies(provider);
+    const deps = await service.prepareDependencies().catch(() => []);
+
+    expect(deps).toHaveLength(1);
+    expect(deps[0].srcUrl).toBe('/regular.js');
+  });
+
+  it('should handle bundle failures for dynamic dependencies', async () => {
+    const provider: DependencyProvider = {
+      name: 'dynamic-provider',
+      getDependencies: () => [
+        AssetDependencyHelpers.createSrcScriptAsset({
+          srcUrl: '/dynamic-script.js?dynamic=true',
+          position: 'body',
+          attributes: { type: 'module' },
+        }),
+      ],
+    };
+
+    service.registerDependencies(provider);
+
+    await service.prepareDependencies().catch((error) => {
+      expect(error.message).toContain('Bundle failed');
+    });
+
+    const deps = await service.prepareDependencies();
+    expect(deps).toHaveLength(0);
+  });
+
+  it('should cache dynamic dependencies and reuse them', async () => {
+    const provider: DependencyProvider = {
+      name: 'dynamic-provider',
+      getDependencies: () => [
+        AssetDependencyHelpers.createSrcScriptAsset({
+          srcUrl: '/dynamic-script.js?dynamic=true',
+          position: 'body',
+          attributes: { type: 'module' },
+        }),
+      ],
+    };
+
+    service.registerDependencies(provider);
+    await service.prepareDependencies();
+
+    // Second preparation should reuse cached dynamic dependency
+    const deps = await service.prepareDependencies();
+    expect(deps).toHaveLength(0);
+  });
+
+  it('should clear dynamic dependencies when cleaning up page dependencies', async () => {
+    const provider: DependencyProvider = {
+      name: 'dynamic-provider',
+      getDependencies: () => [
+        AssetDependencyHelpers.createSrcScriptAsset({
+          srcUrl: '/to-clean.js?dynamic=true',
+          position: 'body',
+        }),
+      ],
+    };
+
+    service.registerDependencies(provider);
+    await service.prepareDependencies();
+
+    service.cleanupPageDependencies();
+    const deps = await service.prepareDependencies();
+
+    expect(deps).toHaveLength(0);
+  });
 });
 
 describe('DependencyHelpers', () => {

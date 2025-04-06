@@ -81,7 +81,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
   /**
    * Generate dependencies for processor.
-   * It is ossible to define which one should be included in the final bundle based on the environment.
+   * It is possible to define which one should be included in the final bundle based on the environment.
    * @returns
    */
   private generateDependencies(): AssetDependency[] {

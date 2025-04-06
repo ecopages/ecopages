@@ -177,7 +177,7 @@ export class AppBuilder {
     await this.initializePlugins();
     await this.execTailwind();
     await this.cssParser.build();
-    await this.scriptsBuilder.build();
+    // await this.scriptsBuilder.build();
 
     if (this.options.watch) {
       return await this.watch();

@@ -5,22 +5,18 @@ import type { EventType } from '@parcel/watcher';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { FSRouter } from '../router/fs-router.ts';
-import type { ScriptsBuilder } from './scripts-builder.ts';
 
 type ProjectWatcherConfig = {
   config: EcoPagesAppConfig;
-  scriptsBuilder: ScriptsBuilder;
   router: FSRouter;
 };
 
 export class ProjectWatcher {
   private appConfig: EcoPagesAppConfig;
-  private scriptsBuilder: ScriptsBuilder;
   private router: FSRouter;
 
-  constructor({ config, scriptsBuilder, router }: ProjectWatcherConfig) {
+  constructor({ config, router }: ProjectWatcherConfig) {
     this.appConfig = config;
-    this.scriptsBuilder = scriptsBuilder;
     this.router = router;
     this.handlePageCreation = this.handlePageCreation.bind(this);
     this.handleChange = this.handleChange.bind(this);
@@ -78,13 +74,6 @@ export class ProjectWatcher {
   async handleChange(path: string, type: EventType) {
     const updatedFileName = path.replace(`${this.appConfig.absolutePaths.srcDir}/`, '');
     const actionVerb = `${type}d`;
-
-    if (this.isFileOfType(path, this.appConfig.scriptsExtensions)) {
-      await this.scriptsBuilder.build();
-      this.uncacheModules();
-      appLogger.info(`File ${actionVerb}`, updatedFileName);
-      return;
-    }
 
     if (this.isFileOfType(path, this.appConfig.templatesExt)) {
       appLogger.info(`Template file ${actionVerb}:`, updatedFileName);

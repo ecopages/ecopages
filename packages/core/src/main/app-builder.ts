@@ -5,7 +5,6 @@ import { BunFileSystemServerAdapter, type CreateServerOptions } from '../adapter
 import { StaticContentServer } from '../dev/sc-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { Processor } from '../plugins/processor.ts';
 import type { AssetsDependencyService } from '../services/assets-dependency.service.ts';
 import type { HtmlTransformerService } from '../services/html-transformer.service';
@@ -22,7 +21,6 @@ type AppBuilderOptions = {
 export class AppBuilder {
   private appConfig: EcoPagesAppConfig;
   private staticPageGenerator: StaticPageGenerator;
-  private scriptsBuilder: ScriptsBuilder;
   private options: AppBuilderOptions;
   private assetsDependencyService: AssetsDependencyService;
   private htmlTransformer: HtmlTransformerService;
@@ -30,21 +28,18 @@ export class AppBuilder {
   constructor({
     appConfig,
     staticPageGenerator,
-    scriptsBuilder,
     options,
     assetsDependencyService,
     htmlTransformer,
   }: {
     appConfig: EcoPagesAppConfig;
     staticPageGenerator: StaticPageGenerator;
-    scriptsBuilder: ScriptsBuilder;
     options: AppBuilderOptions;
     assetsDependencyService: AssetsDependencyService;
     htmlTransformer: HtmlTransformerService;
   }) {
     this.appConfig = appConfig;
     this.staticPageGenerator = staticPageGenerator;
-    this.scriptsBuilder = scriptsBuilder;
     this.options = options;
     this.assetsDependencyService = assetsDependencyService;
     this.htmlTransformer = htmlTransformer;
@@ -106,7 +101,6 @@ export class AppBuilder {
 
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
-      scriptsBuilder: this.scriptsBuilder,
       router: dev.router,
     });
 
@@ -169,7 +163,6 @@ export class AppBuilder {
     this.copyPublicDir();
 
     await this.initializePlugins();
-    await this.scriptsBuilder.build();
 
     if (this.options.watch) {
       return await this.watch();

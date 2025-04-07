@@ -4,7 +4,6 @@ import type { RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import { ProjectWatcher } from '../../main/project-watcher';
-import { ScriptsBuilder } from '../../main/scripts-builder';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer';
 import { FSRouter } from '../../router/fs-router';
 import { FSRouterScanner } from '../../router/fs-router-scanner';
@@ -41,7 +40,6 @@ interface IBunServerAdapterConstructor {
   serveOptions: BunServeAdapterServerOptions;
   appConfig: EcoPagesAppConfig;
   assetsDependencyService: AssetsDependencyService;
-  scriptsBuilder: ScriptsBuilder;
   router: FSRouter;
   fileSystemResponseMatcher: FileSystemResponseMatcher;
   routeRendererFactory: RouteRendererFactory;
@@ -53,7 +51,6 @@ export class BunServerAdapter {
   private serveOptions: BunServeAdapterServerOptions;
   private appConfig: EcoPagesAppConfig;
   private assetsDependencyService: AssetsDependencyService;
-  private scriptsBuilder: ScriptsBuilder;
   private router: FSRouter;
   private fileSystemResponseMatcher: FileSystemResponseMatcher;
   private routes: BunServerRoutes = {};
@@ -64,7 +61,6 @@ export class BunServerAdapter {
     this.serveOptions = config.serveOptions;
     this.appConfig = config.appConfig;
     this.assetsDependencyService = config.assetsDependencyService;
-    this.scriptsBuilder = config.scriptsBuilder;
     this.router = config.router;
     this.fileSystemResponseMatcher = config.fileSystemResponseMatcher;
     this.transformIndexHtml = config.transformIndexHtml;
@@ -75,7 +71,6 @@ export class BunServerAdapter {
     this.setupLoaders();
     this.copyPublicDir();
     await this.initializePlugins();
-    await this.buildScripts();
     await this.initRouter();
     this.collectRoutes();
     if (this.options.watch) await this.watch();
@@ -109,7 +104,6 @@ export class BunServerAdapter {
   private async watch() {
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
-      scriptsBuilder: this.scriptsBuilder,
       router: this.router,
     });
 
@@ -141,10 +135,6 @@ export class BunServerAdapter {
         getDependencies: () => integration.getDependencies(),
       });
     }
-  }
-
-  private async buildScripts() {
-    await this.scriptsBuilder.build();
   }
 
   private async initRouter() {
@@ -193,8 +183,6 @@ export async function createBunServerAdapter({
   const assetsDependencyService = new AssetsDependencyService({ appConfig });
 
   const htmlTransformer = new HtmlTransformerService();
-
-  const scriptsBuilder = new ScriptsBuilder({ appConfig, options: { watchMode: options?.watch } });
 
   const scanner = new FSRouterScanner({
     dir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
@@ -251,7 +239,6 @@ export async function createBunServerAdapter({
     serveOptions,
     appConfig,
     assetsDependencyService,
-    scriptsBuilder,
     router,
     fileSystemResponseMatcher,
     routeRendererFactory,

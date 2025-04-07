@@ -54,12 +54,18 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
     try {
       const { default: Page, config, layout = { config }, getMetadata } = await import(file);
 
+      const components: Partial<EcoComponent>[] = [];
+
       if (layout.config?.dependencies) {
-        await this.collectDependencies({ config: layout.config });
+        components.push({ config: layout.config });
       }
 
       if (config?.dependencies) {
-        await this.collectDependencies({ config });
+        components.push({ config });
+      }
+
+      if (components.length > 0) {
+        await this.collectDependencies(components);
       }
 
       return {

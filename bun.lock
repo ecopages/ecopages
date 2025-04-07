@@ -169,6 +169,24 @@
         "shiki": "^1.1.2",
       },
     },
+    "playground/manual": {
+      "name": "@ecopages/playground-manual",
+      "devDependencies": {
+        "@ecopages/bun-mdx-kitajs-loader": "workspace:*",
+        "@ecopages/bun-postcss-loader": "workspace:*",
+        "@ecopages/core": "workspace:*",
+        "@ecopages/image-processor": "workspace:*",
+        "@ecopages/kitajs": "workspace:*",
+        "@ecopages/lit": "workspace:*",
+        "@ecopages/mdx": "workspace:*",
+        "@ecopages/postcss-processor": "workspace:*",
+        "@ecopages/radiant": "^0.1.7",
+        "@ecopages/scripts-injector": "^0.1.1",
+        "@types/alpinejs": "^3.13.6",
+        "alpinejs": "^3.13.10",
+        "shiki": "^1.1.2",
+      },
+    },
     "playground/react": {
       "name": "@ecopages/playground-react",
       "dependencies": {
@@ -214,6 +232,8 @@
     "@ecopages/mdx": ["@ecopages/mdx@workspace:packages/integrations/mdx"],
 
     "@ecopages/playground-global": ["@ecopages/playground-global@workspace:playground/global"],
+
+    "@ecopages/playground-manual": ["@ecopages/playground-manual@workspace:playground/manual"],
 
     "@ecopages/playground-react": ["@ecopages/playground-react@workspace:playground/react"],
 
@@ -809,7 +829,7 @@
 
     "eastasianwidth": ["eastasianwidth@0.2.0", "", {}, "sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA=="],
 
-    "electron-to-chromium": ["electron-to-chromium@1.5.132", "", {}, "sha512-QgX9EBvWGmvSRa74zqfnG7+Eno0Ak0vftBll0Pt2/z5b3bEGYL6OUXLgKPtvx73dn3dvwrlyVkjPKRRlhLYTEg=="],
+    "electron-to-chromium": ["electron-to-chromium@1.5.133", "", {}, "sha512-mrR+g6Y1at0GKDlPlMMwLAkI6c47q3d7U/vKS3rGTa3V4xStu18oT4UCPg5ErcAhUqk7swSjXSPUGstOYd2qBw=="],
 
     "emoji-regex": ["emoji-regex@8.0.0", "", {}, "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="],
 
@@ -1342,6 +1362,8 @@
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
 
     "@ecopages/playground-global/@ecopages/radiant": ["@ecopages/radiant@0.1.8", "", { "dependencies": { "@kitajs/html": "^4.1.0" } }, "sha512-blXhVkFFZVB2LVZmn1hzT7B46JsHDkPW1rT4l73gpcpyERX27N4MLCrH9nq39Vn8+SdZVtSXnvdy/2Lhcjz3LQ=="],
+
+    "@ecopages/playground-manual/@ecopages/radiant": ["@ecopages/radiant@0.1.8", "", { "dependencies": { "@kitajs/html": "^4.1.0" } }, "sha512-blXhVkFFZVB2LVZmn1hzT7B46JsHDkPW1rT4l73gpcpyERX27N4MLCrH9nq39Vn8+SdZVtSXnvdy/2Lhcjz3LQ=="],
 
     "@isaacs/cliui/string-width": ["string-width@5.1.2", "", { "dependencies": { "eastasianwidth": "^0.2.0", "emoji-regex": "^9.2.2", "strip-ansi": "^7.0.1" } }, "sha512-HnLOCR3vjcY8beoNLtcjZ5/nxn2afmME6lhrDrebokqMap+XbeW8n9TXpPDOqdGK5qcI3oT0GKTW6wC7EMiVqA=="],
 

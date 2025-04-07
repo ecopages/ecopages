@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { BunPlugin } from 'bun';
 import { RESOLVED_ASSETS_DIR } from 'src/constants';
 import { appLogger } from '../global/app-logger';
 import type { EcoPagesAppConfig } from '../internal-types';
@@ -303,6 +304,18 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     return srcPath.split(distDir)[1];
   }
 
+  private collectBuildPlugins(): BunPlugin[] {
+    const plugins: BunPlugin[] = [];
+
+    for (const processor of this.config.processors.values()) {
+      if (processor.buildPlugin) {
+        plugins.push(processor.buildPlugin.createBuildPlugin());
+      }
+    }
+
+    return plugins;
+  }
+
   private async bundleScript({
     entrypoint,
     outdir,
@@ -321,6 +334,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
       format: 'esm',
       splitting: true,
       naming: '[name].[ext]',
+      plugins: this.collectBuildPlugins(),
     });
 
     return build.outputs[0].path;

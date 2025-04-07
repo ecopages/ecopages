@@ -1,0 +1,147 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | PostCSS Processor',
+    description: 'Learn how to use the PostCSS processor in Ecopages',
+})
+
+# PostCSS Processor
+
+The `@ecopages/postcss-processor` package provides a set of utility functions for processing CSS files using PostCSS along with a set of essential plugins like Tailwind CSS, Autoprefixer, and cssnano.
+
+## Installation
+
+Install the package from JSR:
+
+<CodeBlock>
+```bash
+bunx jsr add @ecopages/postcss-processor
+```
+</CodeBlock>
+
+## Built-in Plugins
+
+The PostCSS processor comes with several built-in plugins:
+
+- `postcss-import`: Transform @import rules by inlining content
+- `@tailwindcss/nesting`: Enable Tailwind CSS nesting features
+- `tailwindcss`: Core Tailwind CSS framework
+- `autoprefixer`: Add vendor prefixes automatically
+- `cssnano`: Optimize and minify CSS
+
+## Configuration
+
+Add the PostCSS processor to your Ecopages configuration:
+
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+
+const config = await new ConfigBuilder()
+  .setProcessors([
+    postcssProcessorPlugin({
+      sourceDir: 'src',
+      outputDir: '.eco/__assets__',
+      processTailwind: true,
+      tailwindInput: 'styles/tailwind.css',
+      plugins: {
+        // Optionally override default plugins
+      },
+      inputHeader: '/* Custom header */',
+    }),
+  ])
+  .build();
+```
+</CodeBlock>
+
+### Configuration Options
+
+- `sourceDir`: Directory containing your source CSS files (default: 'src')
+- `outputDir`: Output directory for processed CSS files (default: '.eco/__assets__')
+- `processTailwind`: Enable Tailwind CSS processing (default: true)
+- `tailwindInput`: Path to your main Tailwind CSS file (default: 'styles/tailwind.css')
+- `plugins`: Custom PostCSS plugins configuration
+- `inputHeader`: Optional header to add to processed CSS files
+
+## Using with Bun
+
+To enable CSS imports in your TypeScript/JavaScript files, add the PostCSS loader to your `bunfig.toml`:
+
+<CodeBlock>
+```toml
+preload = ["@ecopages/bun-postcss-loader"]
+```
+</CodeBlock>
+
+Now you can import CSS files directly in your code:
+
+<CodeBlock>
+```typescript
+import styles from './styles.css';
+```
+</CodeBlock>
+
+## Custom Plugin Usage
+
+You can customize the PostCSS processing pipeline by providing your own plugins:
+
+<CodeBlock>
+```typescript
+import { PostCssProcessor } from '@ecopages/postcss-processor';
+import customPlugin from 'postcss-custom-plugin';
+
+const result = await PostCssProcessor.processPath('path/to/file.css', {
+  plugins: [
+    PostCssProcessor.defaultPlugins['postcss-import'],
+    PostCssProcessor.defaultPlugins.tailwindcss,
+    PostCssProcessor.defaultPlugins['tailwindcss-nesting'],
+    PostCssProcessor.defaultPlugins.autoprefixer,
+    customPlugin(),
+    PostCssProcessor.defaultPlugins.cssnano,
+  ],
+});
+```
+</CodeBlock>
+
+## Processing Methods
+
+The processor provides two main methods for processing CSS:
+
+### Process File by Path
+
+<CodeBlock>
+```typescript
+import { PostCssProcessor } from '@ecopages/postcss-processor';
+
+const css = await PostCssProcessor.processPath('path/to/file.css');
+```
+</CodeBlock>
+
+### Process String or Buffer
+
+<CodeBlock>
+```typescript
+import { PostCssProcessor } from '@ecopages/postcss-processor';
+
+const css = `body { @apply bg-blue-500; }`;
+const processed = await PostCssProcessor.processStringOrBuffer(css);
+```
+</CodeBlock>
+
+## Error Handling
+
+The processor includes built-in error handling:
+
+- File not found errors are thrown with clear messages
+- Processing errors are caught and logged
+- On error, processing methods return an empty string instead of failing
+
+## Best Practices
+
+1. Keep your Tailwind CSS file in a dedicated `styles` directory
+2. Use PostCSS features like nesting for better CSS organization
+3. Let the processor handle vendor prefixing and optimization

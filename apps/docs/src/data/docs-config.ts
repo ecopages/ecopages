@@ -40,6 +40,7 @@ export const docsConfig: DocsConfig = {
         { title: 'Components', slug: 'components' },
         { title: 'Layouts', slug: 'layouts' },
         { title: 'Pages', slug: 'pages' },
+        { title: 'Includes', slug: 'includes' },
       ],
     },
     {
@@ -57,6 +58,7 @@ export const docsConfig: DocsConfig = {
       subdirectory: 'ecosystem',
       pages: [
         { title: 'Packages', slug: 'packages' },
+        { title: 'PostCSS Processor', slug: 'postcss-processor' },
         { title: 'Image Processor', slug: 'image-processor' },
       ],
     },

@@ -10,4 +10,11 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({ children, metadata, hea
   );
 };
 
+HtmlTemplate.config = {
+  importMeta: import.meta,
+  dependencies: {
+    components: [Head],
+  },
+};
+
 export default HtmlTemplate;

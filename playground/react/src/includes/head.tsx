@@ -1,10 +1,11 @@
 import { Seo } from '@/includes/seo';
-import type { PageHeadProps } from '@ecopages/core';
+import type { EcoComponent, PageHeadProps } from '@ecopages/core';
+import type { JSX } from 'react';
 
 /**
  * @todo https://react.dev/blog/2024/04/25/react-19#support-for-preloading-resources
  */
-export function Head({ metadata, children }: PageHeadProps) {
+export const Head: EcoComponent<PageHeadProps, JSX.Element> = ({ metadata, children }) => {
   return (
     <head>
       <meta charSet="UTF-8" />
@@ -13,4 +14,11 @@ export function Head({ metadata, children }: PageHeadProps) {
       {children}
     </head>
   );
-}
+};
+
+Head.config = {
+  importMeta: import.meta,
+  dependencies: {
+    stylesheets: ['../styles/tailwind.css'],
+  },
+};

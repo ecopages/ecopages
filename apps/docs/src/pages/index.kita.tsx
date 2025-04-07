@@ -1,6 +1,6 @@
 import { DocsLayout } from '@/layouts/docs-layout';
 import Introduction from '@/pages/docs/getting-started/introduction.mdx';
-import type { EcoPage, GetMetadata } from '@ecopages/core';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Ecopages - Docs',
@@ -9,7 +9,7 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static', 'site', 'generator', 'lit', 'kita'],
 });
 
-const HomePage: EcoPage = () => {
+const HomePage: EcoComponent = () => {
   return (
     <DocsLayout class="main-content">
       <Introduction />

@@ -3,27 +3,23 @@
  * @module
  */
 
-import { type EcoPagesElement, deepMerge } from '@ecopages/core';
-import { invariant } from '@ecopages/core';
-import { PLUGIN_NAME } from './mdx.plugin.ts';
-
+import { type EcoPagesElement, invariant } from '@ecopages/core';
 import {
   type EcoComponent,
   type EcoComponentConfig,
-  type EcoComponentDependencies,
-  type EcoPage,
   type EcoPageFile,
   type GetMetadata,
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
+import { PLUGIN_NAME } from './mdx.plugin.ts';
 
 /**
  * A structure representing an MDX file
  */
 export type MDXFile = {
-  default: EcoPage;
+  default: EcoComponent;
   layout?: EcoComponent;
   config?: EcoComponentConfig;
   getMetadata: GetMetadata;

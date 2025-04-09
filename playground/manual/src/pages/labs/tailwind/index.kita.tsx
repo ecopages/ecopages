@@ -1,7 +1,7 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoPage, GetMetadata } from '@ecopages/core';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
-const TailwindPage: EcoPage = () => {
+const TailwindPage: EcoComponent = () => {
   return (
     <BaseLayout>
       <div class="banner">

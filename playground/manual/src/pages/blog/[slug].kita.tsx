@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoPage, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
+import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
 
 export type BlogPostProps = {
   slug: string;
@@ -7,7 +7,7 @@ export type BlogPostProps = {
   text: string;
 };
 
-const BlogPost: EcoPage<PageProps<BlogPostProps>> = ({ params, query, title, text, slug }) => {
+const BlogPost: EcoComponent<PageProps<BlogPostProps>> = ({ params, query, title, text, slug }) => {
   return (
     <BaseLayout>
       <div>

@@ -14,7 +14,6 @@ import {
 } from '@ecopages/core/plugins/processor';
 import { type AssetDependency, AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
-import { $ } from 'bun';
 import { type PluginsRecord, defaultPlugins } from './default-plugins';
 import { PostCssProcessor, getFileAsBuffer } from './postcss-processor';
 
@@ -131,14 +130,18 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
     const deps: AssetDependency[] = [];
 
     if (import.meta.env.NODE_ENV === 'development') {
-      deps.push(
-        AssetDependencyHelpers.createInlineScriptAsset({
-          content: `document.addEventListener("DOMContentLoaded",() => console.log("[@ecopages/postcss-processor] Processor is loaded"));`,
-          attributes: {
-            type: 'module',
-          },
-        }),
-      );
+      /**
+       * Here we can define the dependencies for the development environment
+       * @example
+       * deps.push(
+       *   AssetDependencyHelpers.createInlineScriptAsset({
+       *     content: `document.addEventListener("DOMContentLoaded",() => console.log("[@ecopages/image-processor] Processor is loaded"));`,
+       *     attributes: {
+       *       type: 'module',
+       *     },
+       *   }),
+       * );
+       */
     }
 
     return deps;

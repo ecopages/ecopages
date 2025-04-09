@@ -10,7 +10,6 @@ import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,
   EcoComponentDependencies,
-  EcoPage,
   EcoPageFile,
   EcoPagesElement,
   GetMetadata,

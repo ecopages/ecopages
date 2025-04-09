@@ -1,6 +1,7 @@
 import { Counter } from '@/components/counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoPage, GetMetadata } from '@ecopages/core';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
+import type { JSX } from 'react';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',
@@ -9,7 +10,7 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static'],
 });
 
-const HomePage: EcoPage = () => {
+const HomePage: EcoComponent<unknown, JSX.Element> = () => {
   return (
     <BaseLayout class="main-content">
       <>

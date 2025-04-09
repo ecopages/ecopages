@@ -24,7 +24,7 @@
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@parcel/watcher": "^2.4.0",
-		"ghtml": "^2.1.2"
+		"ghtml": "^3.1.2"
 	},
 	"devDependencies": {
 		"bun-types": "latest"

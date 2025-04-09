@@ -2,7 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import HtmlTemplate from '../../../fixtures/app/src/includes/html.ghtml.ts';
 import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
 import { ConfigBuilder } from '../../main/config-builder.ts';
-import type { EcoPage } from '../../public-types.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
 
 const appConfig = await new ConfigBuilder()

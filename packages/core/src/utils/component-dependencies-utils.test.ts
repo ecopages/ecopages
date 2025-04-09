@@ -4,7 +4,7 @@ import { AssetDependencyHelpers } from 'src/services/assets-dependency.service.t
 import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
 import { ConfigBuilder } from '../main/config-builder.ts';
 import type { EcoComponentConfig, EcoComponentDependencies } from '../public-types.ts';
-import { removeComponentsScripts, resolveComponentsScripts } from './component-dependencies-utils.ts';
+import { flagComponentsAsDynamic, resolveComponentsScripts } from './component-dependencies-utils.ts';
 
 await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).setBaseUrl(FIXTURE_APP_BASE_URL).build();
 
@@ -47,9 +47,9 @@ describe('component-dependencies-utils', () => {
     });
   });
 
-  describe('removeComponentsScripts', () => {
+  describe('flagComponentsAsDynamic', () => {
     it('should mark scripts as dynamic by adding ?dynamic=true', () => {
-      const result = removeComponentsScripts(componentsMock);
+      const result = flagComponentsAsDynamic(componentsMock);
       expect(result).toEqual([
         {
           config: {
@@ -83,7 +83,7 @@ describe('component-dependencies-utils', () => {
           },
         },
       ];
-      const result = removeComponentsScripts(componentsWithoutScripts);
+      const result = flagComponentsAsDynamic(componentsWithoutScripts);
       expect(result).toEqual(componentsWithoutScripts);
     });
   });

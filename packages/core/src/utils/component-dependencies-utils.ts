@@ -36,11 +36,39 @@ export function resolveComponentsScripts(components: Required<EcoComponentDepend
 
 /**
  * It marks scripts as dynamic by adding ?dynamic=true to their paths
+ * @deprecated This function is deprecated and will be removed in the next versions. Use `flagComponentsAsDynamic` instead.
  * @function removeComponentsScripts
  * @param {EcoComponent[]} components
  * @returns {EcoComponent[]}
  */
 export function removeComponentsScripts(
+  components: (EcoComponent | EcoWebComponent)[],
+): (EcoComponent | EcoWebComponent)[] {
+  return components.map((component) => {
+    if (!component.config?.dependencies?.scripts) {
+      return component;
+    }
+
+    return {
+      ...component,
+      config: {
+        ...component.config,
+        dependencies: {
+          ...component.config.dependencies,
+          scripts: component.config.dependencies.scripts.map((script) => `${script}?dynamic=true`),
+        },
+      },
+    };
+  });
+}
+
+/**
+ * It marks scripts as dynamic by adding ?dynamic=true to their paths
+ * @function removeComponentsScripts
+ * @param {EcoComponent[]} components
+ * @returns {EcoComponent[]}
+ */
+export function flagComponentsAsDynamic(
   components: (EcoComponent | EcoWebComponent)[],
 ): (EcoComponent | EcoWebComponent)[] {
   return components.map((component) => {

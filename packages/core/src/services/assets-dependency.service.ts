@@ -319,7 +319,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
   private async bundleScript({
     entrypoint,
     outdir,
-    minify,
+    minify = import.meta.env.NODE_ENV !== 'development',
   }: {
     entrypoint: string;
     outdir: string;

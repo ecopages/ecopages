@@ -210,7 +210,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
     const currentPath = this.getHtmlPath({ file });
     this.assetsDependencyService.setCurrentPath(currentPath);
-    if (import.meta.env.NODE_ENV === 'development') this.assetsDependencyService.invalidateCache(currentPath);
+
+    if (!this.assetsDependencyService.hasDependencies(currentPath)) {
+      this.assetsDependencyService.invalidateCache(currentPath);
+    }
+
     this.assetsDependencyService.cleanupPageDependencies();
   }
 

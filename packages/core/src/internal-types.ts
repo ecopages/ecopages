@@ -84,12 +84,6 @@ export type EcoPagesAppConfig = {
    */
   componentsDir: string;
   /**
-   * Specifies the prefix used for file extensions that indicate a script dependency of a template.
-   * For example, "function.script.ts" will be identified as a dependency and built accordingly.
-   * @default "script"
-   */
-  scriptsExtensions: string[];
-  /**
    * The robots.txt configuration
    */
   robotsTxt: {

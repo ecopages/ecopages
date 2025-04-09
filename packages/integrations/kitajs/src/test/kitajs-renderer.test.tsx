@@ -17,7 +17,6 @@ const mockConfig = await new ConfigBuilder()
     },
   })
   .setIntegrations([])
-  .setScriptsExtensions(['.script.ts', '.script.tsx'])
   .setDefaultMetadata({
     title: 'Ecopages',
     description: 'Ecopages',

@@ -337,6 +337,12 @@ export class AssetsDependencyService implements IAssetsDependencyService {
       plugins: this.collectBuildPlugins(),
     });
 
+    if (!build.success) {
+      for (const log of build.logs) {
+        appLogger.debug(log);
+      }
+    }
+
     return build.outputs[0].path;
   }
 

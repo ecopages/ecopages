@@ -37,7 +37,6 @@ export class ConfigBuilder {
     integrations: [],
     integrationsDependencies: [],
     distDir: '.eco',
-    scriptsExtensions: ['.script.ts', '.script.tsx'],
     defaultMetadata: {
       title: 'Ecopages',
       description: 'Ecopages',
@@ -123,11 +122,6 @@ export class ConfigBuilder {
 
   setDistDir(distDir: string): this {
     this.config.distDir = distDir;
-    return this;
-  }
-
-  setScriptsExtensions(scriptsExtensions: string[]): this {
-    this.config.scriptsExtensions = scriptsExtensions;
     return this;
   }
 

@@ -107,17 +107,6 @@ describe('EcoConfigBuilder', () => {
     expect(config.integrations).toEqual(integrations);
   });
 
-  test('should set scriptsExtensions', async () => {
-    const scriptsExtensions = ['.custom.ts', '.custom.tsx'];
-    const config = await builder
-      .setBaseUrl('https://example.com')
-      .setRootDir('/project')
-      .setScriptsExtensions(scriptsExtensions)
-      .build();
-
-    expect(config.scriptsExtensions).toEqual(scriptsExtensions);
-  });
-
   test('should set defaultMetadata', async () => {
     const defaultMetadata = {
       title: 'Custom Title',

@@ -5,6 +5,7 @@ This is a minimal starter template for building websites with Ecopages using Lit
 ## Quick Start
 
 1. Create a new project using this template:
+
 ```bash
 bunx degit ecopages/ecopages/examples/starter-lit-jsx my-lit-site
 cd my-lit-site
@@ -12,11 +13,13 @@ bun install
 ```
 
 2. Start the development server:
+
 ```bash
 bun dev
 ```
 
 3. Build for production:
+
 ```bash
 bun run build
 ```
@@ -42,7 +45,6 @@ bun run build
 - JSX syntax via KitaJS
 - TypeScript configuration
 - Component-based architecture
-- CSS scoping per component
 - Fast development environment
 
 ## Basic Usage
@@ -51,61 +53,61 @@ bun run build
 
 ```ts
 // components/counter.script.ts
-import { html } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
-import { EcoWebComponent } from '@ecopages/lit';
+import { html } from "lit";
+import { customElement, property } from "lit/decorators.js";
+import { EcoWebComponent } from "@ecopages/lit";
 
-@customElement('my-counter')
+@customElement("my-counter")
 export class Counter extends EcoWebComponent {
-  @property({ type: Number })
-  count = 0;
+	@property({ type: Number })
+	count = 0;
 
-  render() {
-    return html`
-      <div>
-        <p>Count: ${this.count}</p>
-        <button @click=${() => this.count--}>-</button>
-        <button @click=${() => this.count++}>+</button>
-      </div>
-    `;
-  }
+	render() {
+		return html`
+			<div>
+				<p>Count: ${this.count}</p>
+				<button @click=${() => this.count--}>-</button>
+				<button @click=${() => this.count++}>+</button>
+			</div>
+		`;
+	}
 }
 
 // components/counter.ts
-import type { EcoWebComponent } from '@ecopages/core';
-import './counter.script';
+import type { EcoWebComponent } from "@ecopages/core";
+import "./counter.script";
 
 export const Counter: EcoWebComponent = {
-  config: {
-    importMeta: import.meta,
-    dependencies: {
-      scripts: ['counter.script.ts'],
-    },
-  },
+	config: {
+		importMeta: import.meta,
+		dependencies: {
+			scripts: ["counter.script.ts"],
+		},
+	},
 };
 ```
 
 ### Creating a Page with JSX
 
 ```tsx
-import { Counter } from '@/components/counter';
-import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoComponent } from '@ecopages/core';
+import { Counter } from "@/components/counter";
+import { BaseLayout } from "@/layouts/base-layout";
+import type { EcoComponent } from "@ecopages/core";
 
 const HomePage: EcoComponent = () => {
-  return (
-    <BaseLayout>
-      <h1>Welcome</h1>
-      <my-counter count={5} />
-    </BaseLayout>
-  );
+	return (
+		<BaseLayout>
+			<h1>Welcome</h1>
+			<my-counter count={5} />
+		</BaseLayout>
+	);
 };
 
 HomePage.config = {
-  importMeta: import.meta,
-  dependencies: {
-    components: [BaseLayout, Counter],
-  },
+	importMeta: import.meta,
+	dependencies: {
+		components: [BaseLayout, Counter],
+	},
 };
 
 export default HomePage;
@@ -116,14 +118,14 @@ export default HomePage;
 The project uses Ecopages configuration with both Lit and KitaJS plugins:
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core';
-import { litPlugin } from '@ecopages/lit';
-import { kitajsPlugin } from '@ecopages/kitajs';
+import { ConfigBuilder } from "@ecopages/core";
+import { litPlugin } from "@ecopages/lit";
+import { kitajsPlugin } from "@ecopages/kitajs";
 
 const config = await new ConfigBuilder()
-  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-  .setIntegrations([litPlugin(), kitajsPlugin()])
-  .build();
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([litPlugin(), kitajsPlugin()])
+	.build();
 
 export default config;
 ```
@@ -131,6 +133,7 @@ export default config;
 ## Learn More
 
 For more detailed information, check out:
+
 - [Ecopages Lit Integration Documentation](https://ecopages.app/docs/integrations/lit)
 - [Ecopages KitaJS Integration Documentation](https://ecopages.app/docs/integrations/kitajs)
 - [Lit Documentation](https://lit.dev)

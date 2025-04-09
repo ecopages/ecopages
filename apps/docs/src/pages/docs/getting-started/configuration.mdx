@@ -46,60 +46,56 @@ The root directory of your project, used to resolve paths to your project files.
 The base URL of your project, used for generating absolute URLs for your pages.
 </ApiField>
 
-<ApiField name="defaultMetadata" type="PageMetadataProps" setter="setDefaultMetadata">
+<ApiField name="defaultMetadata" type="PageMetadataProps" defaultValue="{ title: 'Ecopages', description: 'Ecopages' }" setter="setDefaultMetadata">
 Default metadata for your pages. This is merged with page-specific metadata when provided.
 </ApiField>
 
 <ApiField name="srcDir" type="string" defaultValue="src" setter="setSrcDir">
-The directory containing your source files, relative to the root project directory. Set to '.' to use the root directory.
+The directory containing your source files, relative to the root project directory.
 </ApiField>
 
-<ApiField name="public" type="string" defaultValue="public" setter="setPublicDir">
+<ApiField name="publicDir" type="string" defaultValue="public" setter="setPublicDir">
 The directory for static assets, relative to the src directory.
 </ApiField>
 
-<ApiField name="pages" type="string" defaultValue="pages" setter="setPagesDir">
+<ApiField name="pagesDir" type="string" defaultValue="pages" setter="setPagesDir">
 The directory containing your page files, relative to the src directory.
 </ApiField>
 
-<ApiField name="includes" type="string" defaultValue="includes" setter="setIncludesDir">
+<ApiField name="includesDir" type="string" defaultValue="includes" setter="setIncludesDir">
 The directory for include templates, relative to the src directory.
 </ApiField>
 
-<ApiField name="layouts" type="string" defaultValue="layouts" setter="setLayoutsDir">
+<ApiField name="layoutsDir" type="string" defaultValue="layouts" setter="setLayoutsDir">
 The directory for layout components, relative to the src directory.
 </ApiField>
 
-<ApiField name="includesTemplates" type="IncludesTemplates" defaultValue="{head: 'head.kita.tsx', html: 'html.kita.tsx', seo: 'seo.kita.tsx'}" setter="setIncludesTemplates">
+<ApiField name="includesTemplates" type="IncludesTemplates" defaultValue="{head: 'head.ghtml.ts', html: 'html.ghtml.ts', seo: 'seo.ghtml.ts'}" setter="setIncludesTemplates">
 Specifies the templates used for different parts of your pages.
 </ApiField>
 
-<ApiField name="error404Template" type="string" defaultValue="404.kita.tsx" setter="setError404Template">
+<ApiField name="error404Template" type="string" defaultValue="404.ghtml.ts" setter="setError404Template">
 The template for the 404 error page, located in the pages directory.
 </ApiField>
 
-<ApiField name="dist" type="string" defaultValue=".eco" setter="setDistDir">
+<ApiField name="distDir" type="string" defaultValue=".eco" setter="setDistDir">
 The output directory for the built files.
 </ApiField>
 
-<ApiField name="components" type="string" defaultValue="components" setter="setComponentsDir">
+<ApiField name="componentsDir" type="string" defaultValue="components" setter="setComponentsDir">
 The directory containing your reusable components.
 </ApiField>
 
-<ApiField name="additionalWatchPaths" type="string[]" setter="setAdditionalWatchPaths">
-Add additional files to monitor for changes. This is useful for tracking files that are not included in the Ecopages build process. It accepts an array of files or directories.
+<ApiField name="additionalWatchPaths" type="string[]" defaultValue="[]" setter="setAdditionalWatchPaths">
+Add additional files to monitor for changes. This is useful for tracking files that are not included in the Ecopages build process.
 </ApiField>
 
-<ApiField name="robotsTxt" type="RobotsPreferences" defaultValue={`{ "*": [], Googlebot: ["/public/assets/images/"] }`} setter="setRobotsTxt">
+<ApiField name="robotsTxt" type="RobotsPreferences" defaultValue={`{ preferences: { "*": [], Googlebot: ["/public/"] } }`} setter="setRobotsTxt">
 Configuration for the robots.txt file.
 </ApiField>
 
-<ApiField name="tailwind" type="object" defaultValue={`{ input: "styles/tailwind.css" }`} setter="setTailwindConfig">
-Configuration for Tailwind CSS.
-</ApiField>
-
-<ApiField name="integrations" type="IntegrationConfig[]" defaultValue="[]" setter="setIntegrations">
-An array of integration plugins to enhance Ecopages functionality. Common integrations include KitaJS, Lit, MDX, and React.
+<ApiField name="integrations" type="IntegrationPlugin[]" defaultValue="[]" setter="setIntegrations">
+An array of integration plugins to enhance Ecopages functionality.
 </ApiField>
 
 ## Integrations

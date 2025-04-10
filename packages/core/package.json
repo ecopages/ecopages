@@ -48,17 +48,17 @@
 			"types": "./src/main/project-watcher.ts",
 			"default": "./src/main/project-watcher.ts"
 		},
-		"./adapters/bun/fs-server": {
-			"types": "./src/adapters/bun/fs-server.ts",
-			"default": "./src/adapters/bun/fs-server.ts"
-		},
-		"./adapters/bun/shared/fs-server-response-factory": {
+		"./adapters/shared/fs-server-response-factory": {
 			"types": "./src/adapters/shared/fs-server-response-factory.ts",
 			"default": "./src/adapters/shared/fs-server-response-factory.ts"
 		},
-		"./adapters/bun/shared/fs-server-response-matcher": {
+		"./adapters/shared/fs-server-response-matcher": {
 			"types": "./src/adapters/shared/fs-server-response-matcher.ts",
 			"default": "./src/adapters/shared/fs-server-response-matcher.ts"
+		},
+		"./adapters/bun/fs-server": {
+			"types": "./src/adapters/bun/fs-server.ts",
+			"default": "./src/adapters/bun/fs-server.ts"
 		},
 		"./adapters/bun/hmr": {
 			"types": "./src/adapters/bun/hmr.ts",

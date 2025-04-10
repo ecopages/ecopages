@@ -8,6 +8,7 @@ import { FileUtils, deepMerge } from '@ecopages/core';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import type { AssetDependency } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
+import type { BunPlugin } from 'bun';
 import { createImagePlugin, createImagePluginBundler } from './bun-plugins';
 import { ImageProcessor } from './image-processor';
 import type { ImageSpecifications } from './types';
@@ -67,11 +68,11 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     });
   }
 
-  get buildPlugins() {
+  get buildPlugins(): BunPlugin[] {
     return [createImagePluginBundler(this.processedImages)];
   }
 
-  get plugins() {
+  get plugins(): BunPlugin[] {
     return [createImagePlugin(this.processedImages)];
   }
 

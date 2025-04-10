@@ -9,7 +9,7 @@ import { FileUtils, deepMerge } from '@ecopages/core';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import { type AssetDependency, AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
-import type { PluginBuilder } from 'bun';
+import type { BunPlugin, PluginBuilder } from 'bun';
 import { type PluginsRecord, defaultPlugins } from './default-plugins';
 import { PostCssProcessor, getFileAsBuffer } from './postcss-processor';
 
@@ -102,7 +102,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
     });
   }
 
-  get buildPlugins() {
+  get buildPlugins(): BunPlugin[] {
     return [
       bunInlineCssPlugin({
         filter: /\.css$/,
@@ -115,10 +115,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
     ];
   }
 
-  get plugins(): {
-    name: string;
-    setup(build: PluginBuilder): void;
-  }[] {
+  get plugins(): BunPlugin[] {
     const bindedInputProcessing = this.buildInputToProcess.bind(this);
     return [
       {

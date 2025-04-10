@@ -7,7 +7,6 @@
 		"./bin": "./src/bin/ecopages.ts",
 		"./build-app": "./src/main/build-app.ts",
 		"./config-builder": "./src/main/config-builder.ts",
-		"./scripts-builder": "./src/main/scripts-builder.ts",
 		"./project-watcher": "./src/main/project-watcher.ts",
 		"./adapters/bun/fs-server": "./src/adapters/bun/fs-server.ts",
 		"./adapters/bun/hmr": "./src/adapters/bun/hmr.ts",

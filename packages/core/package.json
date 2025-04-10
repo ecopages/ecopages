@@ -44,10 +44,6 @@
 			"types": "./src/main/config-builder.ts",
 			"default": "./src/main/config-builder.ts"
 		},
-		"./scripts-builder": {
-			"types": "./src/main/scripts-builder.ts",
-			"default": "./src/main/scripts-builder.ts"
-		},
 		"./project-watcher": {
 			"types": "./src/main/project-watcher.ts",
 			"default": "./src/main/project-watcher.ts"

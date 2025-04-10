@@ -3,7 +3,7 @@
  * @module
  */
 
-import { RESOLVED_ASSETS_DIR } from 'src/constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../constants.ts';
 import type { EcoComponent, EcoComponentDependencies, EcoWebComponent } from '../public-types.ts';
 
 function getSafeFileName(path: string): string {

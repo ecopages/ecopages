@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { AssetDependencyHelpers } from 'src/services/assets-dependency.service.ts';
 import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
 import { ConfigBuilder } from '../main/config-builder.ts';
 import type { EcoComponentConfig, EcoComponentDependencies } from '../public-types.ts';
+import { AssetDependencyHelpers } from '../services/assets-dependency.service.ts';
 import { flagComponentsAsDynamic, resolveComponentsScripts } from './component-dependencies-utils.ts';
 
 await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).setBaseUrl(FIXTURE_APP_BASE_URL).build();

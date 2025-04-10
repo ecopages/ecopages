@@ -39,7 +39,7 @@ export class ConfigBuilder {
     distDir: '.eco',
     defaultMetadata: {
       title: 'Ecopages',
-      description: 'Ecopages',
+      description: 'This is a static site generated with Ecopages',
     },
     additionalWatchPaths: [],
     templatesExt: [],

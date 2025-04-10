@@ -250,6 +250,8 @@ declare module "ecopages:images" {
   }
 }
 
-export const imageProcessorPlugin = (config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>) => {
+export const imageProcessorPlugin = (
+  config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>,
+): ImageProcessorPlugin => {
   return new ImageProcessorPlugin(config);
 };

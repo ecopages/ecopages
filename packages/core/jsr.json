@@ -14,7 +14,6 @@
 		"./adapters/bun/shared/fs-server-response-factory": "./src/adapters/bun/shared/fs-server-response-factory.ts",
 		"./adapters/bun/shared/fs-server-response-matcher": "./src/adapters/bun/shared/fs-server-response-matcher.ts",
 		"./services/assets-dependency-service": "./src/services/assets-dependency-service.service.ts",
-		"./services/css-parser-service": "./src/services/css-parser.service.ts",
 		"./services/html-transformer-service": "./src/services/html-transformer.service.ts",
 		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",
 		"./route-renderer/route-renderer": "./src/route-renderer/route-renderer.ts",

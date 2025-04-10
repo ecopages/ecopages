@@ -84,10 +84,6 @@
 			"types": "./src/services/assets-dependency.service.ts",
 			"default": "./src/services/assets-dependency.service.ts"
 		},
-		"./services/css-parser-service": {
-			"types": "./src/services/css-parser.service.ts",
-			"default": "./src/services/css-parser.service.ts"
-		},
 		"./services/html-transformer-service": {
 			"types": "./src/services/html-transformer.service.ts",
 			"default": "./src/services/html-transformer.service.ts"

@@ -19,7 +19,7 @@ export function hmrServerReload() {
  * @param {string} wsUrl
  * @returns {string}
  */
-export const makeLiveReloadScript = (wsUrl: string) => html`
+export const makeLiveReloadScript = (wsUrl: string): string => html`
 <!-- [ecopages] live reload start script -->
 <script type="text/javascript">
   (function() {

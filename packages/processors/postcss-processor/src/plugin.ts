@@ -9,7 +9,7 @@ import { FileUtils, deepMerge } from '@ecopages/core';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import { type AssetDependency, AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
-import type { BunPlugin, PluginBuilder } from 'bun';
+import type { BunPlugin } from 'bun';
 import { type PluginsRecord, defaultPlugins } from './default-plugins';
 import { PostCssProcessor, getFileAsBuffer } from './postcss-processor';
 

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { BunPlugin } from 'bun';
-import { RESOLVED_ASSETS_DIR } from 'src/constants';
+import { RESOLVED_ASSETS_DIR } from '../constants';
 import { appLogger } from '../global/app-logger';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { deepMerge } from '../utils/deep-merge';

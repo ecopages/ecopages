@@ -19,10 +19,7 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
-		"@ecopages/bun-inline-css-plugin": "workspace:*",
 		"@ecopages/logger": "latest",
-		"@ecopages/image-processor": "workspace:*",
-		"@ecopages/postcss-processor": "workspace:*",
 		"@parcel/watcher": "^2.4.0",
 		"ghtml": "^3.1.2"
 	},

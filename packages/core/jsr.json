@@ -1,14 +1,23 @@
 {
 	"$schema": "https://jsr.io/schema/config-file.v1.json",
 	"name": "@ecopages/core",
-	"version": "0.1.26",
+	"version": "0.1.24",
 	"exports": {
 		".": "./src/index.ts",
 		"./bin": "./src/bin/ecopages.ts",
 		"./build-app": "./src/main/build-app.ts",
 		"./config-builder": "./src/main/config-builder.ts",
-		"./services/assets-dependency-service": "./src/services/assets-dependency.service.ts",
+		"./scripts-builder": "./src/main/scripts-builder.ts",
+		"./project-watcher": "./src/main/project-watcher.ts",
+		"./adapters/bun/fs-server": "./src/adapters/bun/fs-server.ts",
+		"./adapters/bun/hmr": "./src/adapters/bun/hmr.ts",
+		"./adapters/bun/shared/fs-server-response-factory": "./src/adapters/bun/shared/fs-server-response-factory.ts",
+		"./adapters/bun/shared/fs-server-response-matcher": "./src/adapters/bun/shared/fs-server-response-matcher.ts",
+		"./services/assets-dependency-service": "./src/services/assets-dependency-service.service.ts",
+		"./services/css-parser-service": "./src/services/css-parser.service.ts",
+		"./services/html-transformer-service": "./src/services/html-transformer.service.ts",
 		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",
+		"./route-renderer/route-renderer": "./src/route-renderer/route-renderer.ts",
 		"./utils/add-base-url-to-pathname": "./src/utils/add-base-url-to-pathname.ts",
 		"./utils/deep-merge": "./src/utils/deep-merge.ts",
 		"./utils/invariant": "./src/utils/invariant.ts",
@@ -16,8 +25,7 @@
 		"./plugins/processor": "./src/plugins/processor.ts",
 		"./plugins/integration-plugin": "./src/plugins/integration-plugin.ts",
 		"./html": "./src/utils/html.ts",
-		"./css": "./src/utils/css.ts",
-		"./hash": "./src/utils/hash.ts"
+		"./css": "./src/utils/css.ts"
 	},
 	"exclude": ["fixtures", "**/*.test.ts"],
 	"imports": {

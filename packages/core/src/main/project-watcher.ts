@@ -1,33 +1,23 @@
 import fs from 'node:fs';
 import { join } from 'node:path';
+import watcher from '@parcel/watcher';
 import type { EventType } from '@parcel/watcher';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { FSRouter } from '../router/fs-router.ts';
-import type { CssParserService } from '../services/css-parser.service.ts';
-import type { ScriptsBuilder } from './scripts-builder.ts';
 
 type ProjectWatcherConfig = {
   config: EcoPagesAppConfig;
-  cssBuilder: CssParserService;
-  scriptsBuilder: ScriptsBuilder;
   router: FSRouter;
-  execTailwind: () => Promise<void>;
 };
 
 export class ProjectWatcher {
   private appConfig: EcoPagesAppConfig;
-  private cssBuilder: CssParserService;
-  private scriptsBuilder: ScriptsBuilder;
   private router: FSRouter;
-  private execTailwind: () => Promise<void>;
 
-  constructor({ config, cssBuilder, scriptsBuilder, router, execTailwind }: ProjectWatcherConfig) {
+  constructor({ config, router }: ProjectWatcherConfig) {
     this.appConfig = config;
-    this.cssBuilder = cssBuilder;
-    this.scriptsBuilder = scriptsBuilder;
     this.router = router;
-    this.execTailwind = execTailwind;
     this.handlePageCreation = this.handlePageCreation.bind(this);
     this.handleChange = this.handleChange.bind(this);
     this.handleDelete = this.handleDelete.bind(this);
@@ -85,22 +75,7 @@ export class ProjectWatcher {
     const updatedFileName = path.replace(`${this.appConfig.absolutePaths.srcDir}/`, '');
     const actionVerb = `${type}d`;
 
-    if (this.isFileOfType(path, ['.css'])) {
-      this.cssBuilder.buildCssFromPath({ path });
-      appLogger.info(`CSS File ${actionVerb}:`, updatedFileName);
-      return;
-    }
-
-    if (this.isFileOfType(path, this.appConfig.scriptsExtensions)) {
-      await this.execTailwind();
-      this.scriptsBuilder.build();
-      this.uncacheModules();
-      appLogger.info(`File ${actionVerb}`, updatedFileName);
-      return;
-    }
-
     if (this.isFileOfType(path, this.appConfig.templatesExt)) {
-      await this.execTailwind();
       appLogger.info(`Template file ${actionVerb}:`, updatedFileName);
       this.uncacheModules();
       return;
@@ -118,7 +93,6 @@ export class ProjectWatcher {
 
   public async createWatcherSubscription() {
     await this.setupProcessorWatchers();
-    const watcher = await import('@parcel/watcher');
     return watcher.subscribe('src', async (err, events) => {
       if (err) {
         this.handleError(err);

@@ -3,12 +3,13 @@
  * @module
  */
 
+import { RESOLVED_ASSETS_DIR } from 'src/constants.ts';
 import type { EcoComponent, EcoComponentDependencies, EcoWebComponent } from '../public-types.ts';
 
 function getSafeFileName(path: string): string {
   const EXTENSIONS_TO_JS = ['ts', 'tsx'];
   const safeFileName = path.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
-  return safeFileName;
+  return safeFileName.startsWith('./') ? safeFileName.slice(2) : safeFileName;
 }
 
 /**
@@ -18,17 +19,24 @@ function getSafeFileName(path: string): string {
  * @returns {string}
  */
 export function resolveComponentsScripts(components: Required<EcoComponentDependencies>['components']): string {
+  const normalizePath = (baseDir: string, fileName: string): string => {
+    return [RESOLVED_ASSETS_DIR, baseDir, getSafeFileName(fileName)].filter(Boolean).join('/').replace(/\/+/g, '/'); // More efficient than replaceAll
+  };
+
   return components
     .flatMap((component) => {
-      const baseDir = component.config?.importMeta.dir.split(globalThis.ecoConfig.srcDir)[1];
-      const dependencies = component.config?.dependencies?.scripts || [];
-      return dependencies.map((fileName) => `${baseDir}/${getSafeFileName(fileName)}`);
+      const baseDir = component.config?.importMeta.dir.split(globalThis.ecoConfig.srcDir)[1] ?? '';
+      const scripts = component.config?.dependencies?.scripts ?? [];
+
+      return scripts.map((script) => normalizePath(baseDir, script));
     })
-    .join();
+    .filter(Boolean)
+    .join(',');
 }
 
 /**
- * It removes the scripts from the components dependencies
+ * It marks scripts as dynamic by adding ?dynamic=true to their paths
+ * @deprecated This function is deprecated and will be removed in the next versions. Use `flagComponentsAsDynamic` instead.
  * @function removeComponentsScripts
  * @param {EcoComponent[]} components
  * @returns {EcoComponent[]}
@@ -36,23 +44,47 @@ export function resolveComponentsScripts(components: Required<EcoComponentDepend
 export function removeComponentsScripts(
   components: (EcoComponent | EcoWebComponent)[],
 ): (EcoComponent | EcoWebComponent)[] {
-  const filteredComponents: (EcoComponent | EcoWebComponent)[] = [];
-
-  for (const component of components) {
-    if (!component.config?.dependencies) {
-      continue;
+  return components.map((component) => {
+    if (!component.config?.dependencies?.scripts) {
+      return component;
     }
 
-    const { scripts, ...otherDependencies } = component.config.dependencies;
-
-    filteredComponents.push({
+    return {
       ...component,
       config: {
         ...component.config,
-        dependencies: otherDependencies,
+        dependencies: {
+          ...component.config.dependencies,
+          scripts: component.config.dependencies.scripts.map((script) => `${script}?dynamic=true`),
+        },
       },
-    });
-  }
+    };
+  });
+}
 
-  return filteredComponents;
+/**
+ * It marks scripts as dynamic by adding ?dynamic=true to their paths
+ * @function removeComponentsScripts
+ * @param {EcoComponent[]} components
+ * @returns {EcoComponent[]}
+ */
+export function flagComponentsAsDynamic(
+  components: (EcoComponent | EcoWebComponent)[],
+): (EcoComponent | EcoWebComponent)[] {
+  return components.map((component) => {
+    if (!component.config?.dependencies?.scripts) {
+      return component;
+    }
+
+    return {
+      ...component,
+      config: {
+        ...component.config,
+        dependencies: {
+          ...component.config.dependencies,
+          scripts: component.config.dependencies.scripts.map((script) => `${script}?dynamic=true`),
+        },
+      },
+    };
+  });
 }

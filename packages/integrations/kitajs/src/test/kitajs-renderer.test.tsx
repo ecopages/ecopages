@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import type { EcoComponent, EcoPage, HtmlTemplateProps } from '@ecopages/core';
+import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
@@ -16,11 +16,7 @@ const mockConfig = await new ConfigBuilder()
       Googlebot: ['/public/'],
     },
   })
-  .setTailwind({
-    input: 'styles/tailwind.css',
-  })
   .setIntegrations([])
-  .setScriptsExtensions(['.script.ts', '.script.tsx'])
   .setDefaultMetadata({
     title: 'Ecopages',
     description: 'Ecopages',

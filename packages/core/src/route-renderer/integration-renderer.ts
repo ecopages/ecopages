@@ -10,7 +10,6 @@ import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,
   EcoComponentDependencies,
-  EcoPage,
   EcoPageFile,
   EcoPagesElement,
   GetMetadata,
@@ -45,6 +44,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   }) {
     this.appConfig = appConfig;
     this.assetsDependencyService = assetsDependencyService;
+
+    if (typeof HTMLElement === 'undefined') {
+      // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
+      global.HTMLElement = class {};
+    }
   }
 
   protected getHtmlPath({ file }: { file: string }): string {
@@ -109,11 +113,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     }
   }
 
-  protected getDependencyDistPath(importMeta: ImportMeta, pathUrl: string): string {
-    const EXTENSIONS_TO_JS = ['ts', 'tsx', 'jsx'];
-    const safeFileName = pathUrl.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
-    const distUrl = importMeta.url.split(this.appConfig.srcDir)[1].split(importMeta.file)[0];
-    return path.join(distUrl, safeFileName);
+  protected resolveDependencyPath(importMeta: ImportMeta, pathUrl: string): string {
+    return path.join(importMeta.dir, pathUrl);
   }
 
   protected extractDependencies({
@@ -123,9 +124,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   }: {
     importMeta: ImportMeta;
   } & EcoComponentDependencies): EcoComponentDependencies {
-    const scriptsPaths = [...new Set(scripts?.map((script) => this.getDependencyDistPath(importMeta, script)))];
+    const scriptsPaths = [...new Set(scripts?.map((script) => this.resolveDependencyPath(importMeta, script)))];
 
-    const stylesheetsPaths = [...new Set(stylesheets?.map((style) => this.getDependencyDistPath(importMeta, style)))];
+    const stylesheetsPaths = [...new Set(stylesheets?.map((style) => this.resolveDependencyPath(importMeta, style)))];
 
     return {
       scripts: scriptsPaths,
@@ -133,73 +134,75 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     };
   }
 
-  protected async collectDependencies(Page: EcoPage | { config?: EcoComponent['config'] }): Promise<void> {
-    if (!Page.config || !this.assetsDependencyService) return;
-    if (!Page.config.importMeta) appLogger.warn('No importMeta found in page config');
-    if (!Page.config.dependencies) return;
+  protected async collectDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): Promise<void> {
+    for (const component of components) {
+      if (!component.config || !this.assetsDependencyService) return;
+      if (!component.config.importMeta) appLogger.warn('No importMeta found in page config');
+      if (!component.config.dependencies) return;
 
-    const providerName = `${this.name}-${Page.config.importMeta?.filename}`;
-    const areDependenciesResolved = this.assetsDependencyService?.hasDependencies(providerName);
+      const providerName = `${this.name}-${component.config.importMeta?.filename}`;
+      const areDependenciesResolved = this.assetsDependencyService?.hasDependencies(providerName);
 
-    if (areDependenciesResolved) return;
+      if (areDependenciesResolved) return;
 
-    const stylesheetsSet = new Set<string>();
-    const scriptsSet = new Set<string>();
+      const stylesheetsSet = new Set<string>();
+      const scriptsSet = new Set<string>();
 
-    const collect = (config: EcoComponent['config']) => {
-      if (!config?.dependencies) return;
+      const collect = (config: EcoComponent['config']) => {
+        if (!config?.dependencies) return;
 
-      const collectedDependencies = this.extractDependencies({
-        ...config.dependencies,
-        importMeta: config.importMeta,
-      });
+        const collectedDependencies = this.extractDependencies({
+          ...config.dependencies,
+          importMeta: config.importMeta,
+        });
 
-      for (const stylesheet of collectedDependencies.stylesheets || []) {
-        stylesheetsSet.add(stylesheet);
-      }
+        for (const stylesheet of collectedDependencies.stylesheets || []) {
+          stylesheetsSet.add(stylesheet);
+        }
 
-      for (const script of collectedDependencies.scripts || []) {
-        scriptsSet.add(script);
-      }
+        for (const script of collectedDependencies.scripts || []) {
+          scriptsSet.add(script);
+        }
 
-      if (config.dependencies.components) {
-        for (const component of config.dependencies.components) {
-          if (component.config) {
-            collect(component.config);
+        if (config.dependencies.components) {
+          for (const component of config.dependencies.components) {
+            if (component.config) {
+              collect(component.config);
+            }
           }
         }
-      }
-    };
+      };
 
-    collect(Page.config);
+      collect(component.config);
 
-    const deps = {
-      stylesheets: Array.from(stylesheetsSet),
-      scripts: Array.from(scriptsSet),
-    };
+      const deps = {
+        stylesheets: Array.from(stylesheetsSet),
+        scripts: Array.from(scriptsSet),
+      };
 
-    this.assetsDependencyService.registerDependencies({
-      name: providerName,
-      getDependencies: () => [
-        ...deps.stylesheets.map((srcUrl) =>
-          AssetDependencyHelpers.createPreBundledStylesheetAsset({
-            srcUrl,
-            position: 'head',
-            attributes: { rel: 'stylesheet' },
-          }),
-        ),
-        ...deps.scripts.map((srcUrl) =>
-          AssetDependencyHelpers.createPreBundledScriptAsset({
-            srcUrl,
-            position: 'head',
-            attributes: {
-              type: 'module',
-              defer: '',
-            },
-          }),
-        ),
-      ],
-    });
+      this.assetsDependencyService.registerDependencies({
+        name: providerName,
+        getDependencies: () => [
+          ...deps.stylesheets.map((srcUrl) =>
+            AssetDependencyHelpers.createStylesheetAsset({
+              srcUrl,
+              position: 'head',
+              attributes: { rel: 'stylesheet' },
+            }),
+          ),
+          ...deps.scripts.map((srcUrl) =>
+            AssetDependencyHelpers.createSrcScriptAsset({
+              srcUrl,
+              position: 'head',
+              attributes: {
+                type: 'module',
+                defer: '',
+              },
+            }),
+          ),
+        ],
+      });
+    }
   }
 
   protected async cleanupAndPrepareDependencies(file: string): Promise<void> {
@@ -207,19 +210,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
     const currentPath = this.getHtmlPath({ file });
     this.assetsDependencyService.setCurrentPath(currentPath);
-    if (import.meta.env.NODE_ENV === 'development') this.assetsDependencyService.invalidateCache(currentPath);
-    this.assetsDependencyService.cleanupPageDependencies();
 
-    const { default: Page } = await this.importPageFile(file);
-    await this.collectDependencies(Page);
+    if (!this.assetsDependencyService.hasDependencies(currentPath)) {
+      this.assetsDependencyService.invalidateCache(currentPath);
+    }
+
+    this.assetsDependencyService.cleanupPageDependencies();
   }
 
   protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
-    if (typeof HTMLElement === 'undefined') {
-      // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
-      global.HTMLElement = class {};
-    }
-
     const {
       default: Page,
       getStaticProps,
@@ -237,7 +236,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       query: options.query ?? {},
     } as GetMetadataContext);
 
-    await this.collectDependencies(Page);
+    await this.collectDependencies([HtmlTemplate, Page]);
 
     return {
       ...options,

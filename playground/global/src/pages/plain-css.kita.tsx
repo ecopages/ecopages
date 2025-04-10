@@ -1,7 +1,5 @@
-import { Counter } from '@/components/counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
-import type { JSX } from 'react';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',
@@ -10,13 +8,13 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static'],
 });
 
-const HomePage: EcoComponent<unknown, JSX.Element> = () => {
+const HomePage: EcoComponent = () => {
   return (
-    <BaseLayout class="main-content">
-      <>
-        <h1 className="main-title">React App</h1>
-        <Counter defaultValue={10} />
-      </>
+    <BaseLayout>
+      <h1 class="title">Home</h1>
+      <p class="description">
+        This page is styled with plain CSS. You can find the styles in <code>plain-css.css</code>.
+      </p>
     </BaseLayout>
   );
 };
@@ -24,8 +22,8 @@ const HomePage: EcoComponent<unknown, JSX.Element> = () => {
 HomePage.config = {
   importMeta: import.meta,
   dependencies: {
-    stylesheets: ['./index.css'],
-    components: [Counter, BaseLayout],
+    stylesheets: ['./plain-css.css'],
+    components: [BaseLayout],
   },
 };
 

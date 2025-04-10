@@ -5,10 +5,8 @@ import { BunFileSystemServerAdapter, type CreateServerOptions } from '../adapter
 import { StaticContentServer } from '../dev/sc-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { ScriptsBuilder } from '../main/scripts-builder.ts';
 import { Processor } from '../plugins/processor.ts';
 import type { AssetsDependencyService } from '../services/assets-dependency.service.ts';
-import type { CssParserService } from '../services/css-parser.service.ts';
 import type { HtmlTransformerService } from '../services/html-transformer.service';
 import { FileUtils } from '../utils/file-utils.module.ts';
 import { ProjectWatcher } from './project-watcher.ts';
@@ -23,8 +21,6 @@ type AppBuilderOptions = {
 export class AppBuilder {
   private appConfig: EcoPagesAppConfig;
   private staticPageGenerator: StaticPageGenerator;
-  private cssParser: CssParserService;
-  private scriptsBuilder: ScriptsBuilder;
   private options: AppBuilderOptions;
   private assetsDependencyService: AssetsDependencyService;
   private htmlTransformer: HtmlTransformerService;
@@ -32,24 +28,18 @@ export class AppBuilder {
   constructor({
     appConfig,
     staticPageGenerator,
-    cssParser,
-    scriptsBuilder,
     options,
     assetsDependencyService,
     htmlTransformer,
   }: {
     appConfig: EcoPagesAppConfig;
     staticPageGenerator: StaticPageGenerator;
-    cssParser: CssParserService;
-    scriptsBuilder: ScriptsBuilder;
     options: AppBuilderOptions;
     assetsDependencyService: AssetsDependencyService;
     htmlTransformer: HtmlTransformerService;
   }) {
     this.appConfig = appConfig;
     this.staticPageGenerator = staticPageGenerator;
-    this.cssParser = cssParser;
-    this.scriptsBuilder = scriptsBuilder;
     this.options = options;
     this.assetsDependencyService = assetsDependencyService;
     this.htmlTransformer = htmlTransformer;
@@ -87,15 +77,6 @@ export class AppBuilder {
     FileUtils.copyDirSync(path.join(srcDir, publicDir), path.join(distDir, publicDir));
   }
 
-  private async execTailwind() {
-    const { srcDir, distDir, tailwind } = this.appConfig;
-    const input = `${srcDir}/${tailwind.input}`;
-    const output = `${distDir}/${tailwind.input}`;
-    const cssString = await this.cssParser.processor.processPath(input);
-    FileUtils.ensureDirectoryExists(path.dirname(output));
-    FileUtils.writeFileSync(output, cssString);
-  }
-
   private async transformIndexHtml(res: Response): Promise<Response> {
     const dependencies = await this.assetsDependencyService.prepareDependencies();
     this.htmlTransformer.setProcessedDependencies(dependencies);
@@ -120,10 +101,7 @@ export class AppBuilder {
 
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
-      cssBuilder: this.cssParser,
-      scriptsBuilder: this.scriptsBuilder,
       router: dev.router,
-      execTailwind: this.execTailwind.bind(this),
     });
 
     await watcherInstance.createWatcherSubscription();
@@ -150,34 +128,65 @@ export class AppBuilder {
   }
 
   private async initializePlugins() {
-    for (const processor of this.appConfig.processors.values()) {
-      await processor.setup();
-      this.assetsDependencyService.registerDependencies({
-        name: processor.getName(),
-        getDependencies: () => processor.getDependencies(),
+    try {
+      const processorPromises = Array.from(this.appConfig.processors.values()).map(async (processor) => {
+        await processor.setup();
+        if (processor.plugins) {
+          for (const plugin of processor.plugins) {
+            Bun.plugin(plugin);
+          }
+        }
+        return this.registerDependencyProvider({
+          name: processor.getName(),
+          getDependencies: () => processor.getDependencies(),
+        });
       });
-    }
 
-    for (const integration of this.appConfig.integrations) {
-      integration.setConfig(this.appConfig);
-      integration.setDependencyService(this.assetsDependencyService);
-      await integration.setup();
-      this.assetsDependencyService.registerDependencies({
-        name: integration.name,
-        getDependencies: () => integration.getDependencies(),
+      const integrationPromises = this.appConfig.integrations.map(async (integration) => {
+        integration.setConfig(this.appConfig);
+        integration.setDependencyService(this.assetsDependencyService);
+        await integration.setup();
+        return this.registerDependencyProvider({
+          name: integration.name,
+          getDependencies: () => integration.getDependencies(),
+        });
       });
+
+      await Promise.all([...processorPromises, ...integrationPromises]);
+    } catch (error) {
+      appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+  private registerDependencyProvider(provider: { name: string; getDependencies: () => any[] }) {
+    try {
+      this.assetsDependencyService.registerDependencies(provider);
+    } catch (error) {
+      appLogger.error(
+        `Failed to register dependency provider ${provider.name}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      throw error;
+    }
+  }
+
+  private setupLoaders() {
+    const loaders = this.appConfig.loaders;
+    for (const loader of loaders.values()) {
+      Bun.plugin(loader);
     }
   }
 
   async run() {
     const { distDir } = this.appConfig;
 
+    this.setupLoaders();
+
     this.prepareDistDir();
     this.copyPublicDir();
+
     await this.initializePlugins();
-    await this.execTailwind();
-    await this.cssParser.build();
-    await this.scriptsBuilder.build();
 
     if (this.options.watch) {
       return await this.watch();

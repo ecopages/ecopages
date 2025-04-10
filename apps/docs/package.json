@@ -13,6 +13,7 @@
 		"@ecopages/bun-postcss-loader": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/radiant": "latest",
+		"@ecopages/postcss-processor": "workspace:*",
 		"shiki": "^1.1.2"
 	}
 }

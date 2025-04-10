@@ -3,7 +3,7 @@ import { RadiantCounter } from '@/components/radiant-counter';
 import { Item, Select } from '@/components/select';
 import { TanstackTable } from '@/components/tanstack-table';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoPage, GetMetadata } from '@ecopages/core';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import type { JSX } from 'react';
 
 export const getMetadata: GetMetadata = () => ({
@@ -13,7 +13,7 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static'],
 });
 
-const HomePage: EcoPage<unknown, JSX.Element> = () => {
+const HomePage: EcoComponent<unknown, JSX.Element> = () => {
   return (
     <BaseLayout className="main-content">
       <h1 className="main-title">Ecopages</h1>

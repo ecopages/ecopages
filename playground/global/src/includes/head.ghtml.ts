@@ -1,13 +1,18 @@
 import { Seo } from '@/includes/seo.ghtml';
-import { type PageHeadProps, html } from '@ecopages/core';
+import { type EcoComponent, type PageHeadProps, html } from '@ecopages/core';
 
-export function Head({ metadata, children }: PageHeadProps) {
+export const Head: EcoComponent<PageHeadProps> = ({ metadata, children }) => {
   return html`<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     !${Seo(metadata)}
-    <link href="/styles/tailwind.css" rel="stylesheet" />
-    <link href="/styles/alpine.css" rel="stylesheet" />
     !${children}
   </head>`;
-}
+};
+
+Head.config = {
+  importMeta: import.meta,
+  dependencies: {
+    stylesheets: ['../styles/tailwind.css', '../styles/alpine.css'],
+  },
+};

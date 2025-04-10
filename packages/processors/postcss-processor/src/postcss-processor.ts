@@ -33,7 +33,7 @@ export type ProcessStringOrBuffer = (contents: string | Buffer, options?: PostCs
 
 const appLogger = new Logger('[@ecopages/postcss-processor]');
 
-function getFileAsBuffer(path: string): Buffer {
+export function getFileAsBuffer(path: string): Buffer {
   try {
     if (!existsSync(path)) {
       throw new Error(`File: ${path} not found`);
@@ -58,7 +58,7 @@ const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[]
  * @example
  * ```ts
  * PostCssProcessor.processPath('path/to/file.css').then((processedCss) => {
- * console.log(processedCss);
+ *  console.log(processedCss);
  * });
  */
 const processPath: ProcessPath = async (path, options) => {

@@ -22,11 +22,7 @@ const mockConfig = await new ConfigBuilder()
       Googlebot: ['/public/'],
     },
   })
-  .setTailwind({
-    input: 'styles/tailwind.css',
-  })
   .setIntegrations([])
-  .setScriptsExtensions(['.script.ts', '.script.tsx'])
   .setDefaultMetadata({
     title: 'Ecopages',
     description: 'Ecopages',

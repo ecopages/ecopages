@@ -5,13 +5,8 @@
 
 import path from 'node:path';
 import { FileUtils, deepMerge } from '@ecopages/core';
-import {
-  Processor,
-  type ProcessorBuildPlugin,
-  type ProcessorConfig,
-  type ProcessorWatchConfig,
-} from '@ecopages/core/plugins/processor';
-import { type AssetDependency, AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
+import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
+import type { AssetDependency } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
 import { createImagePlugin, createImagePluginBundler } from './bun-plugins';
 import { ImageProcessor } from './image-processor';
@@ -72,11 +67,12 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     });
   }
 
-  get buildPlugin(): ProcessorBuildPlugin {
-    return {
-      name: 'ecopages-image-processor',
-      createBuildPlugin: () => createImagePluginBundler(this.processedImages),
-    };
+  get buildPlugins() {
+    return [createImagePluginBundler(this.processedImages)];
+  }
+
+  get plugins() {
+    return [createImagePlugin(this.processedImages)];
   }
 
   /**
@@ -88,14 +84,18 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     const deps: AssetDependency[] = [];
 
     if (import.meta.env.NODE_ENV === 'development') {
-      deps.push(
-        AssetDependencyHelpers.createInlineScriptAsset({
-          content: `document.addEventListener("DOMContentLoaded",() => console.log("[@ecopages/image-processor] Processor is loaded"));`,
-          attributes: {
-            type: 'module',
-          },
-        }),
-      );
+      /**
+       * Here we can define the dependencies for the development environment
+       * @example
+       * deps.push(
+       *   AssetDependencyHelpers.createInlineScriptAsset({
+       *     content: `document.addEventListener("DOMContentLoaded",() => console.log("[@ecopages/image-processor] Processor is loaded"));`,
+       *     attributes: {
+       *       type: 'module',
+       *     },
+       *   }),
+       * );
+       */
     }
 
     return deps;
@@ -128,8 +128,6 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     this.processor = new ImageProcessor(config);
 
     this.processedImages = await this.processor.processDirectory();
-
-    Bun.plugin(createImagePlugin(this.processedImages));
 
     if (this.watchConfig) {
       this.watchConfig.paths = [config.sourceDir];
@@ -250,3 +248,7 @@ declare module "ecopages:images" {
     return this.processor;
   }
 }
+
+export const imageProcessorPlugin = (config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>) => {
+  return new ImageProcessorPlugin(config);
+};

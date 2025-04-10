@@ -12,10 +12,11 @@
 		"@ecopages/bun-mdx-kitajs-loader": "npm:@jsr/ecopages__bun-mdx-kitajs-loader@latest",
 		"@ecopages/bun-postcss-loader": "npm:@jsr/ecopages__bun-postcss-loader@latest",
 		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
-		"@ecopages/radiant": "latest",
+		"@ecopages/kitajs": "npm:@jsr/ecopages__kitajs@latest",
 		"@ecopages/lit": "npm:@jsr/ecopages__lit@latest",
 		"@ecopages/mdx": "npm:@jsr/ecopages__mdx@latest",
-		"@ecopages/kitajs": "npm:@jsr/ecopages__kitajs@latest",
+		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
+		"@ecopages/radiant": "latest",
 		"@ecopages/scripts-injector": "latest"
 	}
 }

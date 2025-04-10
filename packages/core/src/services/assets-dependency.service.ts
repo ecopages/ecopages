@@ -1,9 +1,10 @@
 import path from 'node:path';
+import type { BunPlugin } from 'bun';
+import { RESOLVED_ASSETS_DIR } from 'src/constants';
 import { appLogger } from '../global/app-logger';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { deepMerge } from '../utils/deep-merge';
 import { FileUtils } from '../utils/file-utils.module';
-import { rapidhash } from '../utils/hash';
 
 /**
  * AssetCategory, the kind of the dependency
@@ -192,13 +193,14 @@ export interface IAssetsDependencyService {
  * - Caching and optimization
  */
 export class AssetsDependencyService implements IAssetsDependencyService {
-  static readonly DEPS_DIR = '__dependencies__';
+  static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
 
   private config: EcoPagesAppConfig;
   private dependencyMap = new Map<string, DependencyProvider>();
   private dependencies: ResolvedAsset[] = [];
   private dependencyCache = new Map<string, ResolvedAsset[]>();
   private currentPath = '/';
+  private dynamicDependencyMap = new Map<string, ResolvedAsset>();
 
   constructor({ appConfig }: AssetsServiceOptions) {
     this.config = appConfig;
@@ -248,6 +250,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
 
     this.dependencyMap = new Map(coreDependencies);
     this.dependencies = [];
+    this.dynamicDependencyMap.clear();
   }
 
   /**
@@ -259,6 +262,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
       this.dependencyCache.delete(path);
     } else {
       this.dependencyCache.clear();
+      this.dynamicDependencyMap.clear();
     }
   }
 
@@ -279,11 +283,10 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     name: string;
     ext: 'css' | 'js';
   }): { filepath: string } {
-    const contentHash = rapidhash(content);
     const filepath = path.join(
       this.config.absolutePaths.distDir,
-      AssetsDependencyService.DEPS_DIR,
-      `${name}-${contentHash}.${ext}`,
+      AssetsDependencyService.RESOLVED_ASSETS_DIR,
+      `${name}.${ext}`,
     );
 
     if (!FileUtils.existsSync(filepath)) {
@@ -301,10 +304,22 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     return srcPath.split(distDir)[1];
   }
 
+  private collectBuildPlugins(): BunPlugin[] {
+    const plugins: BunPlugin[] = [];
+
+    for (const processor of this.config.processors.values()) {
+      if (processor.buildPlugins) {
+        plugins.push(...processor.buildPlugins);
+      }
+    }
+
+    return plugins;
+  }
+
   private async bundleScript({
     entrypoint,
     outdir,
-    minify,
+    minify = import.meta.env.NODE_ENV !== 'development',
   }: {
     entrypoint: string;
     outdir: string;
@@ -319,7 +334,14 @@ export class AssetsDependencyService implements IAssetsDependencyService {
       format: 'esm',
       splitting: true,
       naming: '[name].[ext]',
+      plugins: this.collectBuildPlugins(),
     });
+
+    if (!build.success) {
+      for (const log of build.logs) {
+        appLogger.debug(log);
+      }
+    }
 
     return build.outputs[0].path;
   }
@@ -360,7 +382,12 @@ export class AssetsDependencyService implements IAssetsDependencyService {
    */
   private async processDependencies(provider: DependencyProvider, deps: AssetDependency[]): Promise<void> {
     for (const dep of deps) {
-      const depsDir = path.join(this.config.absolutePaths.distDir, AssetsDependencyService.DEPS_DIR);
+      if (this.isDynamicDependency(dep)) {
+        await this.processDynamicDependency(dep as ScriptAssetFromUrl);
+        continue;
+      }
+
+      const depsDir = path.join(this.config.absolutePaths.distDir, AssetsDependencyService.RESOLVED_ASSETS_DIR);
       FileUtils.ensureDirectoryExists(depsDir);
 
       const result = await this.processDepFile(dep, provider, depsDir);
@@ -385,6 +412,55 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     }
   }
 
+  private isDynamicDependency(dep: AssetDependency): dep is ScriptAssetFromUrl {
+    return dep.kind === 'script' && dep.source === 'url' && dep.srcUrl.includes('?dynamic=true');
+  }
+
+  private async processDynamicDependency(dep: ScriptAssetFromUrl): Promise<void> {
+    try {
+      const assetPath = dep.srcUrl.replace('?dynamic=true', '');
+      const cacheKey = `dynamic:${assetPath}`;
+
+      if (!this.dynamicDependencyMap.has(cacheKey)) {
+        const pathFromSrcDir = assetPath.split(this.config.srcDir)[1];
+        const depsDir = path.join(
+          this.config.absolutePaths.distDir,
+          AssetsDependencyService.RESOLVED_ASSETS_DIR,
+          path.dirname(pathFromSrcDir),
+        );
+
+        FileUtils.ensureDirectoryExists(depsDir);
+
+        if (!FileUtils.existsSync(assetPath)) {
+          throw new Error(`Dynamic script not found: ${assetPath}`);
+        }
+
+        const result = await this.processDepFile(
+          {
+            ...dep,
+            srcUrl: assetPath,
+          },
+          { name: 'dynamic' },
+          depsDir,
+        );
+
+        this.dynamicDependencyMap.set(cacheKey, {
+          provider: 'dynamic',
+          kind: dep.kind,
+          srcUrl: this.getSrcUrl(result.filepath),
+          position: dep.position,
+          filePath: result.filepath,
+          inline: false,
+          attributes: dep.attributes,
+        });
+      }
+    } catch (error) {
+      appLogger.error(
+        `Failed to process dynamic dependency: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   private isInlineDependency(dep: AssetDependency): boolean {
     if ('inline' in dep) {
       return dep.inline === true;
@@ -392,9 +468,27 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     return 'content' in dep;
   }
 
+  private getCleanAssetUrl(srcPath: string): string {
+    const { srcDir } = this.config;
+    const url = srcPath.split(srcDir)[1];
+    return url.split('.').slice(0, -1).join('.');
+  }
+
+  getStyleContent = async (srcUrl: string): Promise<Buffer | string> => {
+    try {
+      const imported = await import(srcUrl).then((module) => module.default);
+      if (typeof imported === 'string' && imported.endsWith('.css')) {
+        return FileUtils.readFileSync(srcUrl);
+      }
+      return imported;
+    } catch (error) {
+      return FileUtils.readFileSync(srcUrl);
+    }
+  };
+
   private async processDepFile(
     dep: AssetDependency,
-    provider: DependencyProvider,
+    provider: DependencyProvider | { name: string },
     depsDir: string,
   ): Promise<{ filepath: string; content: string }> {
     if ('preBundled' in dep && dep.preBundled) {
@@ -422,16 +516,22 @@ export class AssetsDependencyService implements IAssetsDependencyService {
             outdir: depsDir,
             minify: scriptDep.minify,
           });
+          const content = FileUtils.readFileSync(filepath, 'utf-8');
+          const { filepath: cleanedFilepath } = this.writeFileToDist({
+            content,
+            name: this.getCleanAssetUrl(scriptDep.srcUrl),
+            ext: 'js',
+          });
           return {
-            filepath,
-            content: FileUtils.readFileSync(filepath, 'utf-8'),
+            filepath: cleanedFilepath,
+            content,
           };
         }
         const styleDep = dep as StylesheetAssetFromUrl;
-        const buffer = FileUtils.getFileAsBuffer(styleDep.srcUrl);
+        const buffer = await this.getStyleContent(styleDep.srcUrl);
         const { filepath } = this.writeFileToDist({
           content: buffer,
-          name: provider.name,
+          name: this.getCleanAssetUrl(styleDep.srcUrl),
           ext: 'css',
         });
         return {
@@ -444,7 +544,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
         const inlineDep = dep as InlineScriptAsset;
         const { filepath } = this.writeFileToDist({
           content: inlineDep.content,
-          name: provider.name,
+          name: `inline-${inlineDep.kind}`,
           ext: dep.kind === 'script' ? 'js' : 'css',
         });
         return {
@@ -475,7 +575,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
 
   private async optimizeDependencies(): Promise<void> {
     if (this.dependencies.length) {
-      FileUtils.gzipDirSync(path.join(this.config.absolutePaths.distDir, AssetsDependencyService.DEPS_DIR), [
+      FileUtils.gzipDirSync(path.join(this.config.absolutePaths.distDir, AssetsDependencyService.RESOLVED_ASSETS_DIR), [
         'css',
         'js',
       ]);
@@ -519,6 +619,7 @@ type CreateDependencyPartial<T extends AssetDependency, U extends keyof T> = Par
  * Helper class to create script and stylesheet dependencies
  */
 export class AssetDependencyHelpers {
+  static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
   /**
    * Create a script dependency with inline content
    * @param options {@link ScriptAsset}

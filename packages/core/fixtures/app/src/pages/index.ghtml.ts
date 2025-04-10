@@ -1,5 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoPage, type GetMetadata, type PageProps, html } from '@ecopages/core';
+import { type EcoComponent, type GetMetadata, type PageProps, html } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',
@@ -8,7 +8,7 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static'],
 });
 
-const HomePage: EcoPage<PageProps> = ({ params, query }) =>
+const HomePage: EcoComponent<PageProps> = ({ params, query }) =>
   html`!${BaseLayout({
     class: 'main-content',
     children: html`<h1 class="main-title">Home Page</h1>

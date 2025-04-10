@@ -4,6 +4,7 @@
  */
 
 import path from 'node:path';
+import type { BunPlugin } from 'bun';
 import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
@@ -33,13 +34,9 @@ export class ConfigBuilder {
         Googlebot: ['/public/'],
       },
     },
-    tailwind: {
-      input: 'styles/tailwind.css',
-    },
     integrations: [],
     integrationsDependencies: [],
     distDir: '.eco',
-    scriptsExtensions: ['.script.ts', '.script.tsx'],
     defaultMetadata: {
       title: 'Ecopages',
       description: 'Ecopages',
@@ -60,6 +57,7 @@ export class ConfigBuilder {
       error404TemplatePath: '',
     },
     processors: new Map(),
+    loaders: new Map(),
   };
 
   setBaseUrl(baseUrl: string): this {
@@ -117,23 +115,13 @@ export class ConfigBuilder {
     return this;
   }
 
-  setTailwind(tailwind: { input: string }): this {
-    this.config.tailwind = tailwind;
-    return this;
-  }
-
-  setIntegrations(integrations: IntegrationPlugin[]): this {
+  setIntegrations(integrations: IntegrationPlugin<unknown>[]): this {
     this.config.integrations = integrations;
     return this;
   }
 
   setDistDir(distDir: string): this {
     this.config.distDir = distDir;
-    return this;
-  }
-
-  setScriptsExtensions(scriptsExtensions: string[]): this {
-    this.config.scriptsExtensions = scriptsExtensions;
     return this;
   }
 
@@ -163,6 +151,22 @@ export class ConfigBuilder {
       throw new Error(`Processor with name "${processor.name}" already exists`);
     }
     this.config.processors.set(processor.name, processor);
+    return this;
+  }
+
+  setLoaders(loaders: BunPlugin[]): this {
+    this.config.loaders.clear();
+    for (const loader of loaders) {
+      this.addLoader(loader.name, loader);
+    }
+    return this;
+  }
+
+  addLoader(name: string, loader: BunPlugin): this {
+    if (this.config.loaders.has(name)) {
+      throw new Error(`Loader with name "${name}" already exists`);
+    }
+    this.config.loaders.set(name, loader);
     return this;
   }
 

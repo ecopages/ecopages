@@ -33,17 +33,6 @@ export interface ProcessorContext {
  * For instance it can become very handy when dealing with virtual modules that needs to be recognized by the bundler
  * i.e. @ecopages/image-processor
  */
-export interface ProcessorBuildPlugin {
-  /**
-   * Unique name to identify the plugin
-   */
-  name: string;
-  /**
-   * Factory function that returns the build plugin
-   */
-  createBuildPlugin(): BunPlugin;
-}
-
 export abstract class Processor<TOptions = Record<string, unknown>> {
   static CACHE_DIR = '__cache__';
   readonly name: string;
@@ -51,7 +40,12 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
   protected context?: ProcessorContext;
   protected options?: TOptions;
   protected watchConfig?: ProcessorWatchConfig;
-  abstract buildPlugin?: ProcessorBuildPlugin;
+
+  /** Plugins that are only used during the build process */
+  abstract buildPlugins?: BunPlugin[];
+
+  /** Plugins that are used during runtime for file processing */
+  abstract plugins?: BunPlugin[];
 
   constructor(config: ProcessorConfig<TOptions>) {
     this.name = config.name;

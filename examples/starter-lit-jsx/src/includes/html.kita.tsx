@@ -5,9 +5,16 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({ children, metadata, hea
   return (
     <html lang={language}>
       <Head metadata={metadata}>{headContent as 'safe'}</Head>
-      {children}
+      {children as 'safe'}
     </html>
   );
+};
+
+HtmlTemplate.config = {
+  importMeta: import.meta,
+  dependencies: {
+    components: [Head],
+  },
 };
 
 export default HtmlTemplate;

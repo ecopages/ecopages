@@ -5,7 +5,7 @@ import {
 } from 'ecopages:images';
 import { ClientImageGenerator } from '@/components/client-image-generator';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoPage, GetMetadata } from '@ecopages/core';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import { EcoImage } from '@ecopages/image-processor/component/react';
 import type { JSX } from 'react';
 
@@ -16,7 +16,7 @@ export const getMetadata: GetMetadata = () => ({
   keywords: ['typescript', 'framework', 'static'],
 });
 
-const ImagesPage: EcoPage<unknown, JSX.Element> = () => {
+const ImagesPage: EcoComponent<unknown, JSX.Element> = () => {
   return (
     <BaseLayout className="grid gap-12 px-4 py-8">
       <a href="/" className="text-blue-700 underline">

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
+import { AssetDependencyHelpers } from 'src/services/assets-dependency.service.ts';
 import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
 import { ConfigBuilder } from '../main/config-builder.ts';
-import type { EcoComponentDependencies } from '../public-types.ts';
-import { removeComponentsScripts, resolveComponentsScripts } from './component-dependencies-utils.ts';
+import type { EcoComponentConfig, EcoComponentDependencies } from '../public-types.ts';
+import { flagComponentsAsDynamic, resolveComponentsScripts } from './component-dependencies-utils.ts';
 
 await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).setBaseUrl(FIXTURE_APP_BASE_URL).build();
 
@@ -23,7 +24,6 @@ const componentsMock: Required<EcoComponentDependencies>['components'] = [
       },
     },
   },
-
   {
     config: {
       importMeta: {
@@ -42,29 +42,49 @@ describe('component-dependencies-utils', () => {
     it('should resolve the scripts of the components dependencies', () => {
       const result = resolveComponentsScripts(componentsMock);
       expect(result).toEqual(
-        '/components/component1/script1.js,/components/component1/script2.js,/components/component2/script3.js',
+        `${AssetDependencyHelpers.RESOLVED_ASSETS_DIR}/components/component1/script1.js,${AssetDependencyHelpers.RESOLVED_ASSETS_DIR}/components/component1/script2.js,${AssetDependencyHelpers.RESOLVED_ASSETS_DIR}/components/component2/script3.js`,
       );
     });
   });
 
-  describe('removeComponentsScripts', () => {
-    it('should remove the scripts from the components dependencies', () => {
-      const result = removeComponentsScripts(componentsMock);
-      expect(result).toEqual(
-        componentsMock.map((component) => {
-          if (!component.config?.dependencies) {
-            return component;
-          }
-          const { scripts, ...otherDependencies } = component.config.dependencies;
-          return {
-            ...component,
-            config: {
-              ...component.config,
-              dependencies: otherDependencies,
+  describe('flagComponentsAsDynamic', () => {
+    it('should mark scripts as dynamic by adding ?dynamic=true', () => {
+      const result = flagComponentsAsDynamic(componentsMock);
+      expect(result).toEqual([
+        {
+          config: {
+            importMeta: (componentsMock[0].config as EcoComponentConfig).importMeta,
+            dependencies: {
+              scripts: ['script1.ts?dynamic=true', 'script2.ts?dynamic=true'],
+              stylesheets: ['style1.css'],
             },
-          };
-        }),
-      );
+          },
+        },
+        {
+          config: {
+            importMeta: (componentsMock[1].config as EcoComponentConfig).importMeta,
+            dependencies: {
+              scripts: ['script3.ts?dynamic=true'],
+              stylesheets: ['style2.css'],
+            },
+          },
+        },
+      ]);
+    });
+
+    it('should handle components without scripts', () => {
+      const componentsWithoutScripts = [
+        {
+          config: {
+            importMeta: (componentsMock[0].config as EcoComponentConfig).importMeta,
+            dependencies: {
+              stylesheets: ['style1.css'],
+            },
+          },
+        },
+      ];
+      const result = flagComponentsAsDynamic(componentsWithoutScripts);
+      expect(result).toEqual(componentsWithoutScripts);
     });
   });
 });

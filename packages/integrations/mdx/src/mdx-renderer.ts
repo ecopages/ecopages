@@ -3,27 +3,23 @@
  * @module
  */
 
-import { type EcoPagesElement, deepMerge } from '@ecopages/core';
-import { invariant } from '@ecopages/core';
-import { PLUGIN_NAME } from './mdx.plugin.ts';
-
+import { type EcoPagesElement, invariant } from '@ecopages/core';
 import {
   type EcoComponent,
   type EcoComponentConfig,
-  type EcoComponentDependencies,
-  type EcoPage,
   type EcoPageFile,
   type GetMetadata,
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
+import { PLUGIN_NAME } from './mdx.plugin.ts';
 
 /**
  * A structure representing an MDX file
  */
 export type MDXFile = {
-  default: EcoPage;
+  default: EcoComponent;
   layout?: EcoComponent;
   config?: EcoComponentConfig;
   getMetadata: GetMetadata;
@@ -54,12 +50,18 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
     try {
       const { default: Page, config, layout = { config }, getMetadata } = await import(file);
 
+      const components: Partial<EcoComponent>[] = [];
+
       if (layout.config?.dependencies) {
-        await this.collectDependencies({ config: layout.config });
+        components.push({ config: layout.config });
       }
 
       if (config?.dependencies) {
-        await this.collectDependencies({ config });
+        components.push({ config });
+      }
+
+      if (components.length > 0) {
+        await this.collectDependencies(components);
       }
 
       return {

@@ -96,13 +96,6 @@ describe('EcoConfigBuilder', () => {
     expect(config.robotsTxt).toEqual(robotsTxt);
   });
 
-  test('should set tailwind', async () => {
-    const tailwind = { input: 'custom-tailwind.css' };
-    const config = await builder.setBaseUrl('https://example.com').setRootDir('/project').setTailwind(tailwind).build();
-
-    expect(config.tailwind).toEqual(tailwind);
-  });
-
   test('should set integrations', async () => {
     const integrations: IntegrationPlugin[] = [createMockIntegration('test-integration', ['.test'])];
     const config = await builder
@@ -112,17 +105,6 @@ describe('EcoConfigBuilder', () => {
       .build();
 
     expect(config.integrations).toEqual(integrations);
-  });
-
-  test('should set scriptsExtensions', async () => {
-    const scriptsExtensions = ['.custom.ts', '.custom.tsx'];
-    const config = await builder
-      .setBaseUrl('https://example.com')
-      .setRootDir('/project')
-      .setScriptsExtensions(scriptsExtensions)
-      .build();
-
-    expect(config.scriptsExtensions).toEqual(scriptsExtensions);
   });
 
   test('should set defaultMetadata', async () => {

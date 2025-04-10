@@ -1,0 +1,123 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | Includes',
+    description: 'Learn about includes in Ecopages and how to configure them',
+})
+
+# Includes in Ecopages
+
+Includes are special templates that define the structure of your pages. They help maintain consistency across your site and allow you to configure common elements like the HTML head and SEO meta tags.
+
+## Basic Structure
+
+By default, Ecopages looks for three main include files:
+
+1. `html.{ext}`: The root HTML template
+2. `head.{ext}`: The HTML head section
+3. `seo.{ext}`: SEO-related meta tags
+
+The extension depends on your chosen integration (e.g., `.kita.tsx`, `.lit.ts`, etc.).
+
+## Configuration
+
+You can configure includes in your `eco.config.ts`:
+
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+
+const config = await new ConfigBuilder()
+  .setIncludesTemplates({
+    head: 'head.kita.tsx',
+    html: 'html.kita.tsx',
+    seo: 'seo.kita.tsx',
+  })
+  .build();
+```
+</CodeBlock>
+
+## Include Templates
+
+### HTML Template
+
+The HTML template defines the overall structure of your pages:
+
+<CodeBlock>
+```typescript
+import { type EcoComponent, html } from '@ecopages/core';
+
+const Html: EcoComponent<HtmlProps> = ({ head, body, lang = 'en' }) => html`
+<!DOCTYPE html>
+<html lang="${lang}">
+  ${head}
+  ${body}
+</html>`;
+
+Html.config = {
+  importMeta: import.meta,
+};
+
+export default Html;
+```
+</CodeBlock>
+
+### Head Template
+
+The head template manages your document's head section:
+
+<CodeBlock>
+```typescript
+import { type EcoComponent, html } from '@ecopages/core';
+
+const Head: EcoComponent<HeadProps> = ({ title, meta, links, scripts }) => html`
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  ${meta}
+  <title>${title}</title>
+  ${links}
+  ${scripts}
+</head>`;
+
+Head.config = {
+  importMeta: import.meta,
+};
+
+export default Head;
+```
+</CodeBlock>
+
+### SEO Template
+
+The SEO template handles meta tags for search engines and social sharing:
+
+<CodeBlock>
+```typescript
+import { type EcoComponent, html } from '@ecopages/core';
+
+const Seo: EcoComponent<SeoProps> = ({ title, description, image, keywords }) => html`
+<meta name="description" content="${description}" />
+<meta name="keywords" content="${keywords?.join(',')}" />
+<meta property="og:title" content="${title}" />
+<meta property="og:description" content="${description}" />
+${image ? html`<meta property="og:image" content="${image}" />` : ''}`;
+
+Seo.config = {
+  importMeta: import.meta,
+};
+
+export default Seo;
+```
+</CodeBlock>
+
+## Best Practices
+
+1. **Keep Templates Simple**: Include templates should focus on structure and essential metadata
+2. **Use TypeScript**: Define proper interfaces for your template props
+3. **Maintain Consistency**: Use the same extension for all includes
+4. **Configure Properly**: Always set up includes in your config file
+5. **Handle Dependencies**: If your includes need scripts or styles, declare them in the config

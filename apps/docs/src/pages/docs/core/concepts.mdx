@@ -36,15 +36,17 @@ This configuration tells Ecopages which files to use for specific parts of the p
 
 ## CSS Processing
 
-By default, Ecopages uses Tailwind CSS with PostCSS for styling. This provides a powerful and flexible system for managing your styles. You can customize this in your `eco.config.ts` file:
+By default, Ecopages uses plain css for styling. 
+We currently provide a simple Postcss and Tailwind (v3) plugin that provides a powerful and flexible system for managing your styles. 
+You can customize this in your `eco.config.ts` file:
 
 <CodeBlock>
 ```typescript
 const config = await new ConfigBuilder()
   // ... other configurations
-  .setTailwindConfig({
-    input: 'styles/tailwind.css',
-  })
+  .setProcessors([
+    postcssProcessorPlugin()
+  ])
   .build();
 ```
 </CodeBlock>

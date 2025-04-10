@@ -3,3 +3,5 @@ export const STATUS_MESSAGE = {
 };
 
 export const IS_BUN = typeof Bun !== 'undefined';
+
+export const RESOLVED_ASSETS_DIR = '__assets__';

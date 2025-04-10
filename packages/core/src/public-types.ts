@@ -64,24 +64,6 @@ export type EcoWebComponent<T = any> = {
 };
 
 /**
- * Represents an EcoPage component.
- * @template T - The type of props that the component accepts.
- */
-export interface EcoPage<T = any, C = EcoPagesElement> {
-  /**
-   * Renders the EcoPage component.
-   * @param props - The props to be passed to the component.
-   * @returns The rendered JSX element.
-   */
-  (props: T): C;
-
-  /**
-   * The configuration options for the EcoPage component.
-   */
-  config?: EcoComponentConfig;
-}
-
-/**
  * Represents a page in EcoPages.
  */
 export type PageProps<T = unknown> = T & StaticPageContext;
@@ -177,7 +159,7 @@ export type GetStaticProps<T> = (context: { pathname: StaticPath }) => Promise<{
  * @template T - The type of the page props.
  */
 export type EcoPageFile<T = unknown> = T & {
-  default: EcoPage;
+  default: EcoComponent;
   getStaticPaths?: GetStaticPaths;
   getStaticProps?: GetStaticProps<Record<string, unknown>>;
   getMetadata?: GetMetadata;
@@ -285,7 +267,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
   props?: Record<string, unknown>;
   metadata: PageMetadataProps;
   HtmlTemplate: EcoComponent<HtmlTemplateProps, C>;
-  Page: EcoPage<PageProps, C>;
+  Page: EcoComponent<PageProps, C>;
   dependencies?: EcoComponentDependencies;
 };
 

@@ -64,7 +64,7 @@ interface ReactUrls {
  */
 export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
   name = PLUGIN_NAME;
-  componentDirectory = AssetsDependencyService.DEPS_DIR;
+  componentDirectory = AssetsDependencyService.RESOLVED_ASSETS_DIR;
 
   private createHydrationScript(importPath: string) {
     return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;
@@ -74,8 +74,8 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     const plugins: BunPlugin[] = [];
 
     for (const processor of this.appConfig.processors.values()) {
-      if (processor.buildPlugin) {
-        plugins.push(processor.buildPlugin.createBuildPlugin());
+      if (processor.buildPlugins) {
+        plugins.push(...processor.buildPlugins);
       }
     }
 

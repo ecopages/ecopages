@@ -4,7 +4,7 @@ import Introduction from '@/components/introduction.mdx';
 import { LitCounter } from '@/components/lit-counter';
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, type GetMetadata, removeComponentsScripts, resolveComponentsScripts } from '@ecopages/core';
+import { type EcoComponent, type GetMetadata, flagComponentsAsDynamic, resolveComponentsScripts } from '@ecopages/core';
 import { EcoImage } from '@ecopages/image-processor/component/html';
 
 export const getMetadata: GetMetadata = () => ({
@@ -17,7 +17,7 @@ export const getMetadata: GetMetadata = () => ({
 const HomePage: EcoComponent = () => {
   return (
     <BaseLayout class="main-content">
-      <h1 class="main-title">Home</h1>
+      <h1 class="main-title text-4xl">Home</h1>
       <EcoImage {...ezi76Gu53NklsuUnsplashJpg} alt="A computer" width={500} height={500} />
       <Introduction />
       <span class="font-bold text-xl">Alpine Counter</span>
@@ -40,7 +40,7 @@ HomePage.config = {
   importMeta: import.meta,
   dependencies: {
     stylesheets: ['./index.css'],
-    components: [BaseLayout, ...removeComponentsScripts([AlpineCounter, RadiantCounter, LitCounter])],
+    components: [BaseLayout, ...flagComponentsAsDynamic([AlpineCounter, RadiantCounter, LitCounter])],
   },
 };
 

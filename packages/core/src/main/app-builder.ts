@@ -128,22 +128,46 @@ export class AppBuilder {
   }
 
   private async initializePlugins() {
-    for (const processor of this.appConfig.processors.values()) {
-      await processor.setup();
-      this.assetsDependencyService.registerDependencies({
-        name: processor.getName(),
-        getDependencies: () => processor.getDependencies(),
+    try {
+      const processorPromises = Array.from(this.appConfig.processors.values()).map(async (processor) => {
+        await processor.setup();
+        if (processor.plugins) {
+          for (const plugin of processor.plugins) {
+            Bun.plugin(plugin);
+          }
+        }
+        return this.registerDependencyProvider({
+          name: processor.getName(),
+          getDependencies: () => processor.getDependencies(),
+        });
       });
-    }
 
-    for (const integration of this.appConfig.integrations) {
-      integration.setConfig(this.appConfig);
-      integration.setDependencyService(this.assetsDependencyService);
-      await integration.setup();
-      this.assetsDependencyService.registerDependencies({
-        name: integration.name,
-        getDependencies: () => integration.getDependencies(),
+      const integrationPromises = this.appConfig.integrations.map(async (integration) => {
+        integration.setConfig(this.appConfig);
+        integration.setDependencyService(this.assetsDependencyService);
+        await integration.setup();
+        return this.registerDependencyProvider({
+          name: integration.name,
+          getDependencies: () => integration.getDependencies(),
+        });
       });
+
+      await Promise.all([...processorPromises, ...integrationPromises]);
+    } catch (error) {
+      appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+  private registerDependencyProvider(provider: { name: string; getDependencies: () => any[] }) {
+    try {
+      this.assetsDependencyService.registerDependencies(provider);
+    } catch (error) {
+      appLogger.error(
+        `Failed to register dependency provider ${provider.name}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      throw error;
     }
   }
 

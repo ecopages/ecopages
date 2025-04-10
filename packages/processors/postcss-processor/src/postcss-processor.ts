@@ -58,7 +58,7 @@ const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[]
  * @example
  * ```ts
  * PostCssProcessor.processPath('path/to/file.css').then((processedCss) => {
- * console.log(processedCss);
+ *  console.log(processedCss);
  * });
  */
 const processPath: ProcessPath = async (path, options) => {

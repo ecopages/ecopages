@@ -308,8 +308,8 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     const plugins: BunPlugin[] = [];
 
     for (const processor of this.config.processors.values()) {
-      if (processor.buildPlugin) {
-        plugins.push(processor.buildPlugin.createBuildPlugin());
+      if (processor.buildPlugins) {
+        plugins.push(...processor.buildPlugins);
       }
     }
 
@@ -474,6 +474,18 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     return url.split('.').slice(0, -1).join('.');
   }
 
+  getStyleContent = async (srcUrl: string): Promise<Buffer | string> => {
+    try {
+      const imported = await import(srcUrl).then((module) => module.default);
+      if (typeof imported === 'string' && imported.endsWith('.css')) {
+        return FileUtils.readFileSync(srcUrl);
+      }
+      return imported;
+    } catch (error) {
+      return FileUtils.readFileSync(srcUrl);
+    }
+  };
+
   private async processDepFile(
     dep: AssetDependency,
     provider: DependencyProvider | { name: string },
@@ -516,7 +528,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
           };
         }
         const styleDep = dep as StylesheetAssetFromUrl;
-        const buffer = await import(styleDep.srcUrl).then((module) => module.default);
+        const buffer = await this.getStyleContent(styleDep.srcUrl);
         const { filepath } = this.writeFileToDist({
           content: buffer,
           name: this.getCleanAssetUrl(styleDep.srcUrl),

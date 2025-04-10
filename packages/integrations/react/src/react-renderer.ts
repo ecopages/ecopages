@@ -74,8 +74,8 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     const plugins: BunPlugin[] = [];
 
     for (const processor of this.appConfig.processors.values()) {
-      if (processor.buildPlugin) {
-        plugins.push(processor.buildPlugin.createBuildPlugin());
+      if (processor.buildPlugins) {
+        plugins.push(...processor.buildPlugins);
       }
     }
 

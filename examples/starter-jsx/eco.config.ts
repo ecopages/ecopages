@@ -1,4 +1,3 @@
-import '@ecopages/bun-postcss-loader';
 import '@ecopages/bun-mdx-kitajs-loader';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';

@@ -6,14 +6,10 @@
 import path from 'node:path';
 import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
 import { FileUtils, deepMerge } from '@ecopages/core';
-import {
-  Processor,
-  type ProcessorBuildPlugin,
-  type ProcessorConfig,
-  type ProcessorWatchConfig,
-} from '@ecopages/core/plugins/processor';
+import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import { type AssetDependency, AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
+import type { PluginBuilder } from 'bun';
 import { type PluginsRecord, defaultPlugins } from './default-plugins';
 import { PostCssProcessor, getFileAsBuffer } from './postcss-processor';
 
@@ -106,20 +102,42 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
     });
   }
 
-  get buildPlugin(): ProcessorBuildPlugin {
-    return {
-      name: 'postcss-processor-plugin',
-      createBuildPlugin: () => {
-        return bunInlineCssPlugin({
-          filter: /\.css$/,
-          namespace: 'postcss-processor-plugin',
-          inputHeader: this.options?.inputHeader,
-          transform: async (contents: string | Buffer) => {
-            return await this.buildInputToProcess(contents.toString());
-          },
-        });
+  get buildPlugins() {
+    return [
+      bunInlineCssPlugin({
+        filter: /\.css$/,
+        namespace: 'bun-postcss-processor-build-plugin',
+        inputHeader: this.options?.inputHeader,
+        transform: async (contents: string | Buffer) => {
+          return await this.buildInputToProcess(contents.toString());
+        },
+      }),
+    ];
+  }
+
+  get plugins(): {
+    name: string;
+    setup(build: PluginBuilder): void;
+  }[] {
+    const bindedInputProcessing = this.buildInputToProcess.bind(this);
+    return [
+      {
+        name: 'bun-postcss-processor-plugin-loader',
+        setup(build) {
+          const postcssFilter = /\.css/;
+
+          build.onLoad({ filter: postcssFilter }, async (args) => {
+            const text = getFileAsBuffer(args.path);
+            const contents = await bindedInputProcessing(text.toString());
+            return {
+              contents,
+              exports: { default: contents },
+              loader: 'object',
+            };
+          });
+        },
       },
-    };
+    ];
   }
 
   /**

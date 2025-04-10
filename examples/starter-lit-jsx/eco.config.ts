@@ -1,3 +1,4 @@
+import '@ecopages/bun-mdx-kitajs-loader';
 import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';

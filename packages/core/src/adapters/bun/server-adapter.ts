@@ -120,6 +120,13 @@ export class BunServerAdapter {
   private async initializePlugins() {
     for (const processor of this.appConfig.processors.values()) {
       await processor.setup();
+
+      if (processor.plugins) {
+        for (const plugin of processor.plugins) {
+          Bun.plugin(plugin);
+        }
+      }
+
       this.assetsDependencyService.registerDependencies({
         name: processor.getName(),
         getDependencies: () => processor.getDependencies(),

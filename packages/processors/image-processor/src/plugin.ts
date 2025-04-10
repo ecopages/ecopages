@@ -5,12 +5,7 @@
 
 import path from 'node:path';
 import { FileUtils, deepMerge } from '@ecopages/core';
-import {
-  Processor,
-  type ProcessorBuildPlugin,
-  type ProcessorConfig,
-  type ProcessorWatchConfig,
-} from '@ecopages/core/plugins/processor';
+import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import type { AssetDependency } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
 import { createImagePlugin, createImagePluginBundler } from './bun-plugins';
@@ -72,11 +67,12 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     });
   }
 
-  get buildPlugin(): ProcessorBuildPlugin {
-    return {
-      name: 'ecopages-image-processor',
-      createBuildPlugin: () => createImagePluginBundler(this.processedImages),
-    };
+  get buildPlugins() {
+    return [createImagePluginBundler(this.processedImages)];
+  }
+
+  get plugins() {
+    return [createImagePlugin(this.processedImages)];
   }
 
   /**
@@ -132,8 +128,6 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
     this.processor = new ImageProcessor(config);
 
     this.processedImages = await this.processor.processDirectory();
-
-    Bun.plugin(createImagePlugin(this.processedImages));
 
     if (this.watchConfig) {
       this.watchConfig.paths = [config.sourceDir];

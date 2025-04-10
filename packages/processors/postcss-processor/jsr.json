@@ -4,8 +4,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./postcss-processor": "./src/postcss-processor.ts",
-		"./default-plugins": "./src/default-plugins.ts",
-		"./plugin": "./src/plugin.ts"
+		"./default-plugins": "./src/default-plugins.ts"
 	},
 	"exclude": ["src/test"],
 	"publish": {

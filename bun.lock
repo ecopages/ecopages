@@ -28,7 +28,6 @@
       },
       "dependencies": {
         "@ecopages/logger": "latest",
-        "@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@0.1.26",
         "@parcel/watcher": "^2.4.0",
         "ghtml": "^3.1.2",
       },
@@ -1339,8 +1338,6 @@
     "yargs-parser": ["yargs-parser@21.1.1", "", {}, "sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw=="],
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
-
-    "@ecopages/core/@ecopages/postcss-processor": ["@jsr/ecopages__postcss-processor@0.1.26", "https://npm.jsr.io/~/11/@jsr/ecopages__postcss-processor/0.1.26.tgz", { "dependencies": { "@ecopages/logger": "^0.2.0", "autoprefixer": "^10.4.16", "cssnano": "^6.0.2", "postcss": "^8.4.32", "postcss-import": "^15.1.0", "tailwindcss": "^3.4.1" } }, "sha512-cxqPQ9+AHLwA43wLHATcRuN2VoZSeAiDR39x1Mg5oW9Hh40rW0mh84bvj7E7hnCCtSwrUErFuAkXrrr5YnhV2A=="],
 
     "@ecopages/playground-global/@ecopages/radiant": ["@ecopages/radiant@0.1.8", "", { "dependencies": { "@kitajs/html": "^4.1.0" } }, "sha512-blXhVkFFZVB2LVZmn1hzT7B46JsHDkPW1rT4l73gpcpyERX27N4MLCrH9nq39Vn8+SdZVtSXnvdy/2Lhcjz3LQ=="],
 

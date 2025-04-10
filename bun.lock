@@ -28,7 +28,7 @@
       },
       "dependencies": {
         "@ecopages/logger": "latest",
-        "@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
+        "@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@0.1.26",
         "@parcel/watcher": "^2.4.0",
         "ghtml": "^3.1.2",
       },

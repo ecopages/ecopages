@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/kitajs",
-	"version": "0.1.26",
+	"version": "0.1.27",
 	"description": "Kitajs plugin for Ecopages",
 	"keywords": ["ecopages", "kitajs", "plugin"],
 	"license": "MIT",

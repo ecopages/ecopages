@@ -8,6 +8,7 @@
 		"./build-app": "./src/main/build-app.ts",
 		"./config-builder": "./src/main/config-builder.ts",
 		"./adapters/bun/hmr": "./src/adapters/bun/hmr.ts",
+		"./adapters/bun/server-adapter": "./src/adapters/bun/server-adapter.ts",
 		"./services/assets-dependency-service": "./src/services/assets-dependency.service.ts",
 		"./utils/add-base-url-to-pathname": "./src/utils/add-base-url-to-pathname.ts",
 		"./utils/deep-merge": "./src/utils/deep-merge.ts",

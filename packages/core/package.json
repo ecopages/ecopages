@@ -48,6 +48,10 @@
 			"types": "./src/adapters/bun/hmr.ts",
 			"default": "./src/adapters/bun/hmr.ts"
 		},
+		"./adapters/bun/server-adapter": {
+			"types": "./src/adapters/bun/server-adapter.ts",
+			"default": "./src/adapters/bun/server-adapter.ts"
+		},
 		"./services/assets-dependency-service": {
 			"types": "./src/services/assets-dependency.service.ts",
 			"default": "./src/services/assets-dependency.service.ts"

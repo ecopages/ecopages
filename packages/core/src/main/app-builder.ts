@@ -158,6 +158,7 @@ export class AppBuilder {
       throw error;
     }
   }
+
   private registerDependencyProvider(provider: { name: string; getDependencies: () => any[] }) {
     try {
       this.assetsDependencyService.registerDependencies(provider);

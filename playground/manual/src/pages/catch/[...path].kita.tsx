@@ -9,3 +9,7 @@ export default function BlogPost({ params, query }: PageProps) {
     </div>
   );
 }
+
+BlogPost.config = {
+  importMeta: import.meta,
+};

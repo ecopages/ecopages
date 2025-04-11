@@ -197,9 +197,18 @@ export class BunServerAdapter {
     return this.handleNoMatch(req);
   }
 
-  public handleNoMatch(req: Request) {
+  /**
+   * Handles requests that do not match any routes.
+   * This method is responsible for generating a 404 response or serving static files.
+   *
+   * @param req The incoming HTTP request
+   * @returns A Promise resolving to the HTTP response
+   */
+  public async handleNoMatch(req: Request) {
     const pathname = new URL(req.url).pathname;
-    return this.fileSystemResponseMatcher.handleNoMatch(pathname);
+    const response = await this.fileSystemResponseMatcher.handleNoMatch(pathname);
+
+    return response;
   }
 }
 

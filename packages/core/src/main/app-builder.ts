@@ -110,6 +110,7 @@ export class AppBuilder {
   private serveStatic() {
     const { server } = StaticContentServer.createServer({
       appConfig: this.appConfig,
+      transformIndexHtml: this.transformIndexHtml.bind(this),
     });
 
     appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);

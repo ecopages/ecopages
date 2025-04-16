@@ -15,7 +15,7 @@ import { deepMerge } from '../../utils/deep-merge';
 import { FileUtils } from '../../utils/file-utils.module';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher';
-import { WS_PATH, appendHmrScriptToBody, makeLiveReloadScript } from './hmr';
+import { WS_PATH, appendHmrScriptToBody, makeLiveReloadScript, withHtmlLiveReload } from './hmr';
 import { BunRouterAdapter } from './router-adapter.ts';
 
 type BunServerRoutes = {
@@ -221,11 +221,11 @@ export type CreateBunServerAdapterOptions = {
 };
 
 export type CreateBunServerAdapterReturn = {
-  serveOptions: BunServeOptions;
+  getServerOptions: (options?: { enableHmr?: boolean }) => BunServeOptions;
   buildStatic: (options?: { preview?: boolean }) => Promise<void>;
 };
 
-export async function createBunServerAdapter({
+export async function createServerAdapter({
   appConfig,
   serveOptions,
   options = { watch: false },
@@ -306,6 +306,14 @@ export async function createBunServerAdapter({
 
   const staticPageGenerator = new StaticPageGenerator({ appConfig });
 
+  /**
+   * Builds static pages for the application.
+   * This function generates static HTML files for all routes and handles the preview mode.
+   * If the `preview` option is set to true, it starts a server to preview the generated pages.
+   *
+   * @param options Optional configuration for the build process
+   * @param options.preview Whether to enable preview mode (default: false)
+   */
   async function buildStatic(options?: {
     preview?: boolean;
   }) {
@@ -322,10 +330,23 @@ export async function createBunServerAdapter({
     appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
   }
 
+  /**
+   * Returns the server options for the Bun server.
+   * If `enableHmr` is true, it applies HTML live reload to the server options.
+   */
+  function getServerOptions({
+    enableHmr = false,
+  }: {
+    enableHmr?: boolean;
+  } = {}): BunServeOptions {
+    const serverOptions = adapter.buildServerSettings();
+    return enableHmr ? (withHtmlLiveReload(serverOptions, appConfig) as BunServeOptions) : serverOptions;
+  }
+
   await adapter.initialize();
 
   return {
-    serveOptions: adapter.buildServerSettings(),
+    getServerOptions,
     buildStatic,
   };
 }

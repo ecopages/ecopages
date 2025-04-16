@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Logger } from '@ecopages/logger';
-import type { EcoPagesAppConfig } from 'src/internal-types';
+import type { EcoPagesAppConfig } from '../internal-types';
 import { parseCliArgs } from '../utils/parse-cli-args';
 
 const { watch, preview, build, port, hostname } = parseCliArgs();

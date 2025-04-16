@@ -1,18 +1,18 @@
 import '../../global/init.ts';
 import path from 'node:path';
 import type { RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
-import { StaticContentServer } from 'src/dev/sc-server.ts';
+import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
-import { ProjectWatcher } from '../../main/project-watcher';
-import { StaticPageGenerator } from '../../main/static-page-generator.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer';
 import { FSRouter } from '../../router/fs-router';
 import { FSRouterScanner } from '../../router/fs-router-scanner';
 import { AssetsDependencyService } from '../../services/assets-dependency.service';
 import { HtmlTransformerService } from '../../services/html-transformer.service';
+import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { deepMerge } from '../../utils/deep-merge';
 import { FileUtils } from '../../utils/file-utils.module';
+import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher';
 import { WS_PATH, appendHmrScriptToBody, makeLiveReloadScript, withHtmlLiveReload } from './hmr';
@@ -304,7 +304,7 @@ export async function createServerAdapter({
     transformIndexHtml,
   });
 
-  const staticPageGenerator = new StaticPageGenerator({ appConfig });
+  const staticSiteGenerator = new StaticSiteGenerator({ appConfig });
 
   /**
    * Builds static pages for the application.
@@ -318,7 +318,7 @@ export async function createServerAdapter({
     preview?: boolean;
   }) {
     const { preview = false } = options ?? {};
-    await staticPageGenerator.run({ transformIndexHtml });
+    await staticSiteGenerator.run({ transformIndexHtml });
 
     if (!preview) {
       appLogger.info('Build completed');

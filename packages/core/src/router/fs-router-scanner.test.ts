@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
-import { ConfigBuilder } from '../main/config-builder.ts';
+import { ConfigBuilder } from '../config/config-builder.ts';
 import { FSRouterScanner } from './fs-router-scanner.ts';
 
 const {

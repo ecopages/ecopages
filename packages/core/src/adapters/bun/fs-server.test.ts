@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import type { Server } from 'bun';
 import { APP_TEST_ROUTES_URLS, FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
-import { ConfigBuilder } from '../../main/config-builder.ts';
+import { ConfigBuilder } from '../../config/config-builder.ts';
 import { BunFileSystemServerAdapter } from './fs-server.ts';
 
 const appConfig = await new ConfigBuilder()

@@ -2,7 +2,7 @@
 	"name": "@ecopages/playground-react",
 	"private": true,
 	"scripts": {
-		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
+		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/bin/ecopages --watch",
 		"dev": "ecopages dev",
 		"build": "NODE_ENV=production ecopages build",
 		"start": "NODE_ENV=production ecopages start",

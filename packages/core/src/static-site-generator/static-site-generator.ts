@@ -7,7 +7,7 @@ import { FileUtils } from '../utils/file-utils.module.ts';
 const STATIC_GENERATION_ADAPTER_PORT = 2020;
 const STATIC_GENERATION_ADAPTER_BASE_URL = `http://localhost:${STATIC_GENERATION_ADAPTER_PORT}`;
 
-export class StaticPageGenerator {
+export class StaticSiteGenerator {
   appConfig: EcoPagesAppConfig;
   declare transformIndexHtml: (res: Response) => Promise<Response>;
 

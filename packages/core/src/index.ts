@@ -1,5 +1,5 @@
 export type * from './public-types.ts';
-export * from './main/config-builder.ts';
+export * from './config/config-builder.ts';
 export * from './route-renderer/integration-renderer.ts';
 export * from './utils/add-base-url-to-pathname.ts';
 export * from './utils/component-dependencies-utils.ts';

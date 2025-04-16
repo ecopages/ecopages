@@ -36,13 +36,9 @@
 			"types": "./src/bin/ecopages.ts",
 			"default": "./src/bin/ecopages.ts"
 		},
-		"./build-app": {
-			"types": "./src/main/build-app.ts",
-			"default": "./src/main/build-app.ts"
-		},
 		"./config-builder": {
-			"types": "./src/main/config-builder.ts",
-			"default": "./src/main/config-builder.ts"
+			"types": "./src/config/config-builder.ts",
+			"default": "./src/config/config-builder.ts"
 		},
 		"./adapters/bun/hmr": {
 			"types": "./src/adapters/bun/hmr.ts",

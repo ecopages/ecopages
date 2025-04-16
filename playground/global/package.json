@@ -2,11 +2,11 @@
 	"name": "@ecopages/playground-global",
 	"private": true,
 	"scripts": {
-		"watch:dev": "rm -rf .eco/__cache__ && bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
+		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/bin/ecopages --watch",
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",
-		"preview": "rm -rf .eco/__cache__ && ecopages preview"
+		"preview": "ecopages preview"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

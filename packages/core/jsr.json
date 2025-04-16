@@ -5,8 +5,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./bin": "./src/bin/ecopages.ts",
-		"./build-app": "./src/main/build-app.ts",
-		"./config-builder": "./src/main/config-builder.ts",
+		"./config-builder": "./src/config/config-builder.ts",
 		"./adapters/bun/hmr": "./src/adapters/bun/hmr.ts",
 		"./adapters/bun/server-adapter": "./src/adapters/bun/server-adapter.ts",
 		"./services/assets-dependency-service": "./src/services/assets-dependency.service.ts",

@@ -6,9 +6,9 @@ import {
   FIXTURE_APP_PROJECT_DIR,
   INDEX_TEMPLATE_FILE,
 } from '../../../fixtures/constants.ts';
+import { ConfigBuilder } from '../../config/config-builder.ts';
 import { STATUS_MESSAGE } from '../../constants.ts';
 import type { MatchResult } from '../../internal-types.ts';
-import { ConfigBuilder } from '../../main/config-builder.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';

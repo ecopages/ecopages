@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { ConfigBuilder } from '../main/config-builder';
+import { ConfigBuilder } from '../config/config-builder';
 import { AssetDependencyHelpers, AssetsDependencyService, type DependencyProvider } from './assets-dependency.service';
 
 describe('DependencyService', () => {

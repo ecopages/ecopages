@@ -8,7 +8,7 @@ import type { BunPlugin } from 'bun';
 import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
-import type { Processor } from '../plugins/processor';
+import type { Processor } from '../plugins/processor.ts';
 import type { PageMetadataProps } from '../public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 

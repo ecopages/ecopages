@@ -70,14 +70,14 @@ export class BunServerAdapter {
   }
 
   public async initialize() {
-    appLogger.time('BunServerAdapter:initialize');
+    appLogger.debugTime('BunServerAdapter:initialize');
     this.setupLoaders();
     this.copyPublicDir();
     await this.initializePlugins();
     await this.initRouter();
     this.collectRoutes();
     if (this.options.watch) await this.watch();
-    appLogger.timeEnd('BunServerAdapter:initialize');
+    appLogger.debugTimeEnd('BunServerAdapter:initialize');
   }
 
   public buildServerSettings(): BunServeOptions {

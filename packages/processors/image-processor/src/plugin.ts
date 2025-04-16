@@ -14,7 +14,9 @@ import { ImageProcessor } from './image-processor';
 import type { ImageSpecifications } from './types';
 import { anyCaseToCamelCase } from './utils';
 
-const logger = new Logger('[@ecopages/image-processor]');
+const logger = new Logger('[@ecopages/image-processor]', {
+  debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
+});
 
 /**
  * Configuration for the image processor
@@ -230,8 +232,7 @@ declare module "ecopages:images" {
     const typesDir = path.join(this.context.distDir, '__types__', this.name);
     FileUtils.ensureDirectoryExists(typesDir);
     FileUtils.writeFileSync(path.join(typesDir, 'virtual-module.d.ts'), typeContent);
-    logger.info('Generated types for virtual module');
-    logger.debug({ typesDir });
+    logger.debug('Generated types for virtual module', { typesDir });
   }
 
   /**

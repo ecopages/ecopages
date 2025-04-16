@@ -187,7 +187,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
     this.dependencies = this.generateDependencies();
 
-    logger.time('PostCssProcessor setup time');
+    logger.debugTime('PostCssProcessor setup time');
 
     await this.processAll();
 
@@ -195,9 +195,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
       this.execTailwind();
     }
 
-    logger.debug('PostCssProcessor setup time', {
-      time: logger.timeEnd('PostCssProcessor setup time'),
-    });
+    logger.debugTimeEnd('PostCssProcessor setup time');
   }
 
   private async execTailwind(): Promise<void> {
@@ -342,7 +340,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
     try {
       const files = await FileUtils.glob([`${this.options.sourceDir}/**/*.css`]);
       await this.process(files);
-      logger.info(`Processed ${files.length} CSS files`);
+      logger.debug(`Processed ${files.length} CSS files`);
     } catch (error) {
       logger.error('Failed to process all CSS files', { error });
     }

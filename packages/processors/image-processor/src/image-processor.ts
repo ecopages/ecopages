@@ -6,7 +6,9 @@ import { ImageUtils } from './image-utils';
 import type { ImageMap, ImageProcessorConfig } from './plugin';
 import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types';
 
-const appLogger = new Logger('[@ecopages/image-processor]');
+const appLogger = new Logger('[@ecopages/image-processor]', {
+  debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
+});
 
 /**
  * ImageProcessor
@@ -127,7 +129,7 @@ export class ImageProcessor {
 
     const images = await FileUtils.glob([`${this.config.sourceDir}/**/*.{${acceptedFormats.join(',')}}`]);
 
-    appLogger.time('Processing images');
+    if (appLogger.options.debug) appLogger.debugTime('Processing images');
 
     const results = (await Promise.all(
       images.map(async (file) => {
@@ -137,7 +139,8 @@ export class ImageProcessor {
       }),
     )) as [string, ImageSpecifications][];
 
-    appLogger.timeEnd('Processing images');
+    if (appLogger.options.debug) appLogger.debugTimeEnd('Processing images');
+
     appLogger.info(`Processed ${results.length} images`);
 
     return Object.fromEntries(results.filter(Boolean));

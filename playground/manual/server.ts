@@ -10,7 +10,7 @@ const { watch, preview, build, port, hostname } = parseCliArgs();
 
 const { getServerOptions, buildStatic } = await createServerAdapter({
   appConfig,
-  options: { watch: true },
+  options: { watch },
   serveOptions: {
     port,
     hostname,
@@ -31,10 +31,10 @@ if (!build && !preview) {
 }
 
 if (build || preview) {
-  appLogger.time('Building static pages');
+  appLogger.debugTime('Building static pages');
   await buildStatic({ preview });
   server.stop(true);
-  appLogger.timeEnd('Building static pages');
+  appLogger.debugTimeEnd('Building static pages');
 }
 
 if (build) {

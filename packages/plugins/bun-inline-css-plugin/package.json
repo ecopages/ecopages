@@ -18,6 +18,6 @@
 	},
 	"devDependencies": {
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/logger": "^0.2.0"
+		"@ecopages/logger": "latest"
 	}
 }

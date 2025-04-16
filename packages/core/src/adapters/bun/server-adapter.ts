@@ -1,9 +1,11 @@
 import '../../global/init.ts';
 import path from 'node:path';
 import type { RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
+import { StaticContentServer } from 'src/dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import { ProjectWatcher } from '../../main/project-watcher';
+import { StaticPageGenerator } from '../../main/static-page-generator.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer';
 import { FSRouter } from '../../router/fs-router';
 import { FSRouterScanner } from '../../router/fs-router-scanner';
@@ -212,15 +214,22 @@ export class BunServerAdapter {
   }
 }
 
+export type CreateBunServerAdapterOptions = {
+  appConfig: EcoPagesAppConfig;
+  serveOptions: BunServeAdapterServerOptions;
+  options?: { watch: boolean } | undefined;
+};
+
+export type CreateBunServerAdapterReturn = {
+  serveOptions: BunServeOptions;
+  buildStatic: (options?: { preview?: boolean }) => Promise<void>;
+};
+
 export async function createBunServerAdapter({
   appConfig,
   serveOptions,
   options = { watch: false },
-}: {
-  appConfig: EcoPagesAppConfig;
-  serveOptions: BunServeAdapterServerOptions;
-  options?: { watch: boolean } | undefined;
-}): Promise<BunServeOptions> {
+}: CreateBunServerAdapterOptions): Promise<CreateBunServerAdapterReturn> {
   import.meta.env.NODE_ENV = 'development';
 
   const assetsDependencyService = new AssetsDependencyService({ appConfig });
@@ -288,7 +297,28 @@ export async function createBunServerAdapter({
     transformIndexHtml,
   });
 
+  const staticPageGenerator = new StaticPageGenerator({ appConfig });
+
+  async function buildStatic(options?: {
+    preview?: boolean;
+  }) {
+    const { preview = false } = options ?? {};
+    await staticPageGenerator.run({ transformIndexHtml });
+
+    if (!preview) {
+      appLogger.info('Build completed');
+      process.exit(0);
+    }
+
+    const { server } = StaticContentServer.createServer({ appConfig, transformIndexHtml });
+
+    appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
+  }
+
   await adapter.initialize();
 
-  return adapter.buildServerSettings();
+  return {
+    serveOptions: adapter.buildServerSettings(),
+    buildStatic,
+  };
 }

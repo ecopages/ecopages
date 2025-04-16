@@ -14,6 +14,7 @@
 		"./utils/deep-merge": "./src/utils/deep-merge.ts",
 		"./utils/invariant": "./src/utils/invariant.ts",
 		"./utils/component-dependencies-utils": "./src/utils/component-dependencies-utils.ts",
+		"./utils/parse-cli-args": "./src/utils/parse-cli-args.ts",
 		"./plugins/processor": "./src/plugins/processor.ts",
 		"./plugins/integration-plugin": "./src/plugins/integration-plugin.ts",
 		"./html": "./src/utils/html.ts",

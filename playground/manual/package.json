@@ -2,8 +2,10 @@
 	"name": "@ecopages/playground-manual",
 	"private": true,
 	"scripts": {
-		"dev": "bun run server.ts",
-		"preview": "bun run server.ts --preview"
+		"start": "bun run server.ts",
+		"dev": "bun run server.ts --watch",
+		"preview": "bun run server.ts --preview",
+		"build": "bun run build.ts --build"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

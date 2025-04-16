@@ -5,7 +5,7 @@ import { Logger } from '@ecopages/logger';
 import type { Server } from 'bun';
 import appConfig from './eco.config';
 
-const appLogger = new Logger('[@ecopages/serve-options]');
+const appLogger = new Logger('[playground-manual]', { debug: true });
 
 const { watch, preview, build, port, hostname } = parseCliArgs();
 
@@ -28,17 +28,12 @@ const shouldUseHmr = watch || (!preview && !build);
 const server = Bun.serve(shouldUseHmr ? withHtmlLiveReload(serveOptions, appConfig) : serveOptions);
 
 if (build || preview) {
+  appLogger.time('Building static pages');
   await buildStatic({ preview: preview });
-}
-
-if (build) {
-  appLogger.info('Build completed');
   server.stop(true);
-  process.exit(0);
-}
-if (preview) {
-  appLogger.info('Preview mode enabled');
-  server.stop(true);
+  appLogger.info(build ? 'Build completed' : 'Preview mode enabled');
+  appLogger.timeEnd('Building static pages');
+  if (build) process.exit(0);
 } else if (server) {
   appLogger.info(`Server running at http://${server.hostname}:${server.port}`);
 }

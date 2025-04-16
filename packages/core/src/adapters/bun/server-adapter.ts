@@ -255,6 +255,13 @@ export async function createBunServerAdapter({
     appConfig,
   });
 
+  /**
+   * Transform the HTML response by applying the necessary transformations.
+   * This includes processing dependencies and adding live reload scripts if watch mode is enabled.
+   *
+   * @param res The original HTML response
+   * @returns The transformed HTML response
+   */
   const transformIndexHtml = async (res: Response): Promise<Response> => {
     const dependencies = await assetsDependencyService.prepareDependencies();
     htmlTransformer.setProcessedDependencies(dependencies);

@@ -129,7 +129,7 @@ export class ImageProcessor {
 
     const images = await FileUtils.glob([`${this.config.sourceDir}/**/*.{${acceptedFormats.join(',')}}`]);
 
-    if (appLogger.options.debug) appLogger.debugTime('Processing images');
+    appLogger.debugTime('Processing images');
 
     const results = (await Promise.all(
       images.map(async (file) => {
@@ -139,7 +139,7 @@ export class ImageProcessor {
       }),
     )) as [string, ImageSpecifications][];
 
-    if (appLogger.options.debug) appLogger.debugTimeEnd('Processing images');
+    appLogger.debugTimeEnd('Processing images');
 
     appLogger.info(`Processed ${results.length} images`);
 

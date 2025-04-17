@@ -1,4 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
+import { getAllBlogPostSlugs, getBlogPost } from '@/mocks/data';
 import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
 
 export type BlogPostProps = {
@@ -35,17 +36,18 @@ export const getMetadata: GetMetadata<BlogPostProps> = async ({ props: { title, 
 };
 
 export const getStaticPaths: GetStaticPaths = async () => {
-  return {
-    paths: [{ params: { slug: 'blog-post' } }, { params: { slug: 'another-blog-post' } }],
-  };
+  return { paths: getAllBlogPostSlugs() };
 };
 
 export const getStaticProps: GetStaticProps<BlogPostProps> = async ({ pathname }) => {
+  const slug = pathname.params.slug as string;
+  const blogPost = getBlogPost(slug);
+  if (!blogPost) throw new Error(`Blog post with slug "${slug}" not found`);
   return {
     props: {
-      slug: pathname.params.slug as string,
-      title: `Hello World | ${pathname.params.slug}`,
-      text: 'This is a blog post',
+      slug,
+      title: blogPost.title,
+      text: blogPost.text,
     },
   };
 };

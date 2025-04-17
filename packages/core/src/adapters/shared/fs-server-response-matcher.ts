@@ -52,10 +52,10 @@ export class FileSystemResponseMatcher {
         appLogger.error('[FileSystemResponseMatcher] Error rendering route:', {
           filePath: match.filePath,
           message: error.message,
+          params: match.params,
         });
       }
-      appLogger.error('[FileSystemResponseMatcher] Error handling route:', match.filePath);
-      return this.fileSystemResponseFactory.createDefaultNotFoundResponse();
+      return this.fileSystemResponseFactory.createCustomNotFoundResponse();
     }
   }
 }

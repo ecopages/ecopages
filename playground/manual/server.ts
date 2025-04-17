@@ -17,14 +17,16 @@ const { getServerOptions, buildStatic } = await createServerAdapter({
     fetch: async function (this: Server, request: Request) {
       const pathname = new URL(request.url).pathname;
       if (pathname.includes('/api/test')) {
-        return new Response('Api test');
+        return new Response(JSON.stringify({ message: 'Hello from the API!' }));
       }
     },
   },
 });
 
 const enableHmr = watch || (!preview && !build);
-const server = Bun.serve(getServerOptions({ enableHmr }));
+const options = getServerOptions({ enableHmr });
+
+const server = Bun.serve(options);
 
 if (!build && !preview) {
   appLogger.info(`Server running at http://${server.hostname}:${server.port}`);
@@ -39,8 +41,4 @@ if (build || preview) {
 
 if (build) {
   process.exit(0);
-}
-
-if (preview) {
-  appLogger.info(`Preview running at http://${server.hostname}:${server.port}`);
 }

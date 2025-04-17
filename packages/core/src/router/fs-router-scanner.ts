@@ -90,15 +90,19 @@ export class FSRouterScanner {
     routePath,
     getStaticPaths,
   }: CreateRouteArgs & { getStaticPaths: GetStaticPaths }): Promise<void> {
-    this.getStaticPathsFromDynamicRoute({ route, filePath, getStaticPaths })
-      .then((routesWithParams) => {
-        for (const routeWithParams of routesWithParams) {
-          this.createRoute('dynamic', { filePath, route: routeWithParams, routePath });
-        }
-      })
-      .catch((error) => {
-        appLogger.error(error);
+    try {
+      const routesWithParams = await this.getStaticPathsFromDynamicRoute({
+        route,
+        filePath,
+        getStaticPaths,
       });
+
+      for (const routeWithParams of routesWithParams) {
+        this.createRoute('dynamic', { filePath, route: routeWithParams, routePath });
+      }
+    } catch (error) {
+      appLogger.error(`[ecopages] Error creating static routes for ${filePath}: ${error}`);
+    }
   }
 
   private async handleDynamicRouteCreation({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {

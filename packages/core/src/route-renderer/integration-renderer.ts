@@ -108,7 +108,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
         })
           .then((data) => data)
           .catch((err) => {
-            throw new Error(`[ecopages] Error fetching static props: ${err.message}`);
+            throw new Error(`Error fetching static props: ${err.message}`);
           })
       : {
           props: {},

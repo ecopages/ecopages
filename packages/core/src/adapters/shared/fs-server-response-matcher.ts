@@ -49,11 +49,7 @@ export class FileSystemResponseMatcher {
       return this.fileSystemResponseFactory.createResponseWithBody(renderedBody);
     } catch (error) {
       if (error instanceof Error) {
-        appLogger.error('[FileSystemResponseMatcher] Error rendering route:', {
-          filePath: match.filePath,
-          message: error.message,
-          params: match.params,
-        });
+        appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.pathname}`);
       }
       return this.fileSystemResponseFactory.createCustomNotFoundResponse();
     }

@@ -1,11 +1,8 @@
 #!/usr/bin/env bun
 import fs from 'node:fs';
 import path from 'node:path';
-import { Logger } from '@ecopages/logger';
+import type { Server } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types';
-import { parseCliArgs } from '../utils/parse-cli-args';
-
-const { watch, preview, build, port, hostname } = parseCliArgs();
 
 const isBun = process.versions.bun !== undefined;
 
@@ -27,35 +24,18 @@ if (isBun) {
 
   const appConfig = validateConfig(config.default);
 
-  const { createServerAdapter } = await import('../adapters/bun/server-adapter');
-  const appLogger = new Logger('[ecopages]');
-  const { getServerOptions, buildStatic } = await createServerAdapter({
+  const { createApp } = await import('../adapters/bun/create-app');
+  const app = await createApp({
     appConfig,
-    options: { watch },
-    serveOptions: {
-      port,
-      hostname,
+    serverOptions: {
+      fetch: async function (this: Server, request: Request) {
+        const pathname = new URL(request.url).pathname;
+        if (pathname.includes('/api/test')) {
+          return new Response(JSON.stringify({ message: 'Hello from the API!' }));
+        }
+      },
     },
   });
-  const enableHmr = watch || (!preview && !build);
-  const server = Bun.serve(getServerOptions({ enableHmr }));
 
-  if (!build && !preview) {
-    appLogger.info(`Server running at http://${server.hostname}:${server.port}`);
-  }
-
-  if (build || preview) {
-    appLogger.debugTime('Building static pages');
-    await buildStatic({ preview });
-    server.stop(true);
-    appLogger.debugTimeEnd('Building static pages');
-  }
-
-  if (build) {
-    process.exit(0);
-  }
-
-  if (preview) {
-    appLogger.info(`Preview running at http://${server.hostname}:${server.port}`);
-  }
+  await app.start();
 }

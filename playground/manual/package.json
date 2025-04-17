@@ -2,9 +2,9 @@
 	"name": "@ecopages/playground-manual",
 	"private": true,
 	"scripts": {
-		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/bin/ecopages --watch",
+		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/bin/ecopages --dev",
 		"start": "bun run server.ts",
-		"dev": "bun run server.ts --watch",
+		"dev": "bun run server.ts --dev",
 		"preview": "bun run server.ts --preview",
 		"build": "bun run build.ts --build"
 	},

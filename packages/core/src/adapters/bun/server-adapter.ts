@@ -2,109 +2,91 @@ import '../../global/init.ts';
 import path from 'node:path';
 import type { RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
 import { StaticContentServer } from '../../dev/sc-server.ts';
-import { appLogger } from '../../global/app-logger';
-import type { EcoPagesAppConfig } from '../../internal-types';
-import { RouteRendererFactory } from '../../route-renderer/route-renderer';
-import { FSRouter } from '../../router/fs-router';
-import { FSRouterScanner } from '../../router/fs-router-scanner';
-import { AssetsDependencyService } from '../../services/assets-dependency.service';
-import { HtmlTransformerService } from '../../services/html-transformer.service';
+import { appLogger } from '../../global/app-logger.ts';
+import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
+import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
+import { FSRouter } from '../../router/fs-router.ts';
+import { AssetsDependencyService } from '../../services/assets-dependency.service.ts';
+import { HtmlTransformerService } from '../../services/html-transformer.service.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
-import { deepMerge } from '../../utils/deep-merge';
-import { FileUtils } from '../../utils/file-utils.module';
+import { deepMerge } from '../../utils/deep-merge.ts';
+import { FileUtils } from '../../utils/file-utils.module.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
-import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory';
-import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher';
-import { WS_PATH, appendHmrScriptToBody, makeLiveReloadScript, withHtmlLiveReload } from './hmr';
+import {
+  AbstractServerAdapter,
+  type ServerAdapterOptions,
+  type ServerAdapterResult,
+} from '../abstract/server-adapter.ts';
+import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
+import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
+import { WS_PATH, appendHmrScriptToBody, makeLiveReloadScript, withHtmlLiveReload } from './hmr.ts';
 import { BunRouterAdapter } from './router-adapter.ts';
 
-type BunServerRoutes = {
+export type BunServerRoutes = {
   [K: string]: RouterTypes.RouteValue<string>;
 };
 
-type BunServeAdapterServerOptions = Partial<
+export type BunServeAdapterServerOptions = Partial<
   Omit<ServeOptions, 'fetch'> & {
     routes: BunServerRoutes;
     fetch(this: Server, request: Request): Promise<void | Response>;
   }
 >;
 
-type BunServeOptions = ServeOptions & {
+export type BunServeOptions = ServeOptions & {
   routes: BunServerRoutes;
   websocket?: WebSocketHandler<any>;
 };
 
-type BunServerAdapterOptions = {
-  watch?: boolean;
-};
-
-interface IBunServerAdapterConstructor {
-  options: BunServerAdapterOptions;
+export interface BunServerAdapterOptions extends ServerAdapterOptions {
   serveOptions: BunServeAdapterServerOptions;
-  appConfig: EcoPagesAppConfig;
-  assetsDependencyService: AssetsDependencyService;
-  router: FSRouter;
-  fileSystemResponseMatcher: FileSystemResponseMatcher;
-  routeRendererFactory: RouteRendererFactory;
-  transformIndexHtml: (res: Response) => Promise<Response>;
+  options?: { watch: boolean };
 }
 
-export class BunServerAdapter {
-  private options: BunServerAdapterOptions;
-  private serveOptions: BunServeAdapterServerOptions;
-  private appConfig: EcoPagesAppConfig;
-  private assetsDependencyService: AssetsDependencyService;
-  private router: FSRouter;
-  private fileSystemResponseMatcher: FileSystemResponseMatcher;
+export interface BunServerAdapterResult extends ServerAdapterResult {
+  getServerOptions: (options?: { enableHmr?: boolean }) => BunServeOptions;
+  buildStatic: (options?: { preview?: boolean }) => Promise<void>;
+}
+
+export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOptions, BunServerAdapterResult> {
+  private assetsDependencyService!: AssetsDependencyService;
+  private router!: FSRouter;
+  private fileSystemResponseMatcher!: FileSystemResponseMatcher;
+  private routeRendererFactory!: RouteRendererFactory;
+  private transformIndexHtml!: (res: Response) => Promise<Response>;
   private routes: BunServerRoutes = {};
-  private transformIndexHtml: (res: Response) => Promise<Response>;
+  private htmlTransformer!: HtmlTransformerService;
+  private staticSiteGenerator!: StaticSiteGenerator;
 
-  constructor(config: IBunServerAdapterConstructor) {
-    this.options = config.options;
-    this.serveOptions = config.serveOptions;
-    this.appConfig = config.appConfig;
-    this.assetsDependencyService = config.assetsDependencyService;
-    this.router = config.router;
-    this.fileSystemResponseMatcher = config.fileSystemResponseMatcher;
-    this.transformIndexHtml = config.transformIndexHtml;
-  }
-
-  public async initialize() {
+  public async initialize(): Promise<void> {
     appLogger.debugTime('BunServerAdapter:initialize');
+
+    this.assetsDependencyService = new AssetsDependencyService({ appConfig: this.appConfig });
+    this.htmlTransformer = new HtmlTransformerService();
+    this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
+
     this.setupLoaders();
     this.copyPublicDir();
-    await this.initializePlugins();
     await this.initRouter();
+    await this.initializePlugins();
+    this.setupTransformFunction();
+    this.setupResponseFactories();
+
     this.collectRoutes();
-    if (this.options.watch) await this.watch();
+    if (this.options?.watch) await this.watch();
+
     appLogger.debugTimeEnd('BunServerAdapter:initialize');
   }
 
-  public buildServerSettings(): BunServeOptions {
-    const { routes, fetch, ...serverOptions } = this.serveOptions;
-    const handleNoMatch = this.handleNoMatch.bind(this);
-    return {
-      routes: deepMerge(routes || {}, this.routes),
-      async fetch(this: Server, request: Request) {
-        if (fetch) {
-          const response = await fetch.bind(this)(request);
-          if (response) return response;
-        }
-
-        return handleNoMatch(request);
-      },
-      ...serverOptions,
-    };
-  }
-
-  private setupLoaders() {
+  private setupLoaders(): void {
     const loaders = this.appConfig.loaders;
     for (const loader of loaders.values()) {
       Bun.plugin(loader);
     }
   }
 
-  private async watch() {
+  private async watch(): Promise<void> {
+    import.meta.env.NODE_ENV = 'development';
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
       router: this.router,
@@ -113,14 +95,33 @@ export class BunServerAdapter {
     await watcherInstance.createWatcherSubscription();
   }
 
-  private copyPublicDir() {
+  private copyPublicDir(): void {
     FileUtils.copyDirSync(
       path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir),
       path.join(this.appConfig.rootDir, this.appConfig.distDir, this.appConfig.publicDir),
     );
   }
 
-  private async initializePlugins() {
+  private async initRouter(): Promise<void> {
+    const scanner = new FSRouterScanner({
+      dir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
+      origin: '',
+      templatesExt: this.appConfig.templatesExt,
+      options: {
+        buildMode: !this.options?.watch,
+      },
+    });
+
+    this.router = new FSRouter({
+      origin: '',
+      assetPrefix: path.join(this.appConfig.rootDir, this.appConfig.distDir),
+      scanner,
+    });
+
+    await this.router.init();
+  }
+
+  private async initializePlugins(): Promise<void> {
     try {
       const processorPromises = Array.from(this.appConfig.processors.values()).map(async (processor) => {
         await processor.setup();
@@ -152,7 +153,7 @@ export class BunServerAdapter {
     }
   }
 
-  private registerDependencyProvider(provider: { name: string; getDependencies: () => any[] }) {
+  private registerDependencyProvider(provider: { name: string; getDependencies: () => any[] }): void {
     try {
       this.assetsDependencyService.registerDependencies(provider);
     } catch (error) {
@@ -165,27 +166,112 @@ export class BunServerAdapter {
     }
   }
 
-  private async initRouter() {
-    await this.router.init();
+  private setupTransformFunction(): void {
+    this.routeRendererFactory = new RouteRendererFactory({
+      appConfig: this.appConfig,
+    });
+
+    this.transformIndexHtml = async (res: Response): Promise<Response> => {
+      const dependencies = await this.assetsDependencyService.prepareDependencies();
+      this.htmlTransformer.setProcessedDependencies(dependencies);
+      let transformedResponse = await this.htmlTransformer.transform(res);
+
+      if (this.options?.watch) {
+        const liveReloadScript = makeLiveReloadScript(
+          `${this.serveOptions.hostname}:${this.serveOptions.port}/${WS_PATH}`,
+        );
+        const html = await transformedResponse.text();
+        const newHtml = appendHmrScriptToBody(html, liveReloadScript);
+        transformedResponse = new Response(newHtml, transformedResponse);
+      }
+
+      return transformedResponse;
+    };
   }
 
-  private collectRoutes() {
+  private setupResponseFactories(): void {
+    const fileSystemResponseFactory = new FileSystemServerResponseFactory({
+      appConfig: this.appConfig,
+      routeRendererFactory: this.routeRendererFactory,
+      transformIndexHtml: this.transformIndexHtml,
+      options: {
+        watchMode: !!this.options?.watch,
+        port: this.serveOptions.port ?? 3000,
+      },
+    });
+
+    this.fileSystemResponseMatcher = new FileSystemResponseMatcher({
+      router: this.router,
+      routeRendererFactory: this.routeRendererFactory,
+      fileSystemResponseFactory,
+    });
+  }
+
+  private collectRoutes(): void {
     const routerAdapter = new BunRouterAdapter(this);
     this.routes = routerAdapter.adaptRoutes(this.router.routes);
   }
 
+  public getServerOptions({ enableHmr = false } = {}): BunServeOptions {
+    const serverOptions = this.buildServerSettings();
+    return enableHmr ? (withHtmlLiveReload(serverOptions, this.appConfig) as BunServeOptions) : serverOptions;
+  }
+
+  private buildServerSettings(): BunServeOptions {
+    const { routes, fetch, ...serverOptions } = this.serveOptions as BunServeAdapterServerOptions;
+    const handleNoMatch = this.handleNoMatch.bind(this);
+
+    return {
+      routes: deepMerge(routes || {}, this.routes),
+      async fetch(this: Server, request: Request) {
+        if (fetch) {
+          const response = await fetch.bind(this)(request);
+          if (response) return response;
+        }
+
+        return handleNoMatch(request);
+      },
+      ...serverOptions,
+    };
+  }
+
+  public async buildStatic(options?: { preview?: boolean }): Promise<void> {
+    const { preview = false } = options ?? {};
+    await this.staticSiteGenerator.run({ transformIndexHtml: this.transformIndexHtml });
+
+    if (!preview) {
+      appLogger.info('Build completed');
+      return;
+    }
+
+    const { server } = StaticContentServer.createServer({
+      appConfig: this.appConfig,
+      transformIndexHtml: this.transformIndexHtml,
+    });
+
+    appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
+  }
+
+  public async createAdapter(): Promise<BunServerAdapterResult> {
+    await this.initialize();
+
+    return {
+      getServerOptions: this.getServerOptions.bind(this),
+      buildStatic: this.buildStatic.bind(this),
+    };
+  }
+
+  public async handleRequest(request: Request): Promise<Response> {
+    return this.handleResponse(request);
+  }
+
   /**
    * Handles HTTP requests from the router adapter.
-   * This method centralizes request processing logic and maintains separation of concerns.
-   * The router is responsible for matching routes, while this adapter handles the actual
-   * request processing and response generation.
-   *
-   * @param req The incoming HTTP request
-   * @returns A Promise resolving to the HTTP response
    */
-  public async handleResponse(req: Request) {
-    const pathname = new URL(req.url).pathname;
-    const match = !pathname.includes('.') && this.router.match(req.url);
+  public async handleResponse(request: Request): Promise<Response> {
+    const pathname = new URL(request.url).pathname;
+    const match = !pathname.includes('.') && this.router.match(request.url);
+
     if (match) {
       const response = await this.fileSystemResponseMatcher.handleMatch(match);
 
@@ -196,157 +282,22 @@ export class BunServerAdapter {
       return response;
     }
 
-    return this.handleNoMatch(req);
+    return this.handleNoMatch(request);
   }
 
   /**
    * Handles requests that do not match any routes.
-   * This method is responsible for generating a 404 response or serving static files.
-   *
-   * @param req The incoming HTTP request
-   * @returns A Promise resolving to the HTTP response
    */
-  public async handleNoMatch(req: Request) {
-    const pathname = new URL(req.url).pathname;
-    const response = await this.fileSystemResponseMatcher.handleNoMatch(pathname);
-
-    return response;
+  private async handleNoMatch(request: Request): Promise<Response> {
+    const pathname = new URL(request.url).pathname;
+    return await this.fileSystemResponseMatcher.handleNoMatch(pathname);
   }
 }
 
-export type CreateBunServerAdapterOptions = {
-  appConfig: EcoPagesAppConfig;
-  serveOptions: BunServeAdapterServerOptions;
-  options?: { watch: boolean } | undefined;
-};
-
-export type CreateBunServerAdapterReturn = {
-  getServerOptions: (options?: { enableHmr?: boolean }) => BunServeOptions;
-  buildStatic: (options?: { preview?: boolean }) => Promise<void>;
-};
-
-export async function createServerAdapter({
-  appConfig,
-  serveOptions,
-  options = { watch: false },
-}: CreateBunServerAdapterOptions): Promise<CreateBunServerAdapterReturn> {
-  import.meta.env.NODE_ENV = 'development';
-
-  const assetsDependencyService = new AssetsDependencyService({ appConfig });
-
-  const htmlTransformer = new HtmlTransformerService();
-
-  const scanner = new FSRouterScanner({
-    dir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
-    origin: '',
-    templatesExt: appConfig.templatesExt,
-    options: {
-      buildMode: !options?.watch,
-    },
-  });
-
-  const router = new FSRouter({
-    origin: '',
-    assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
-    scanner,
-  });
-
-  const routeRendererFactory = new RouteRendererFactory({
-    appConfig,
-  });
-
-  /**
-   * Transform the HTML response by applying the necessary transformations.
-   * This includes processing dependencies and adding live reload scripts if watch mode is enabled.
-   *
-   * @param res The original HTML response
-   * @returns The transformed HTML response
-   */
-  const transformIndexHtml = async (res: Response): Promise<Response> => {
-    const dependencies = await assetsDependencyService.prepareDependencies();
-    htmlTransformer.setProcessedDependencies(dependencies);
-    let transformedResponse = await htmlTransformer.transform(res);
-
-    if (options?.watch) {
-      const liveReloadScript = makeLiveReloadScript(`${serveOptions.hostname}:${serveOptions.port}/${WS_PATH}`);
-      const html = await transformedResponse.text();
-      const newHtml = appendHmrScriptToBody(html, liveReloadScript);
-      transformedResponse = new Response(newHtml, transformedResponse);
-    }
-
-    return transformedResponse;
-  };
-
-  const fileSystemResponseFactory = new FileSystemServerResponseFactory({
-    appConfig,
-    routeRendererFactory,
-    transformIndexHtml,
-    options: {
-      watchMode: options?.watch,
-      port: serveOptions.port ?? 3000,
-    },
-  });
-
-  const fileSystemResponseMatcher = new FileSystemResponseMatcher({
-    router,
-    routeRendererFactory,
-    fileSystemResponseFactory,
-  });
-
-  const adapter = new BunServerAdapter({
-    options,
-    serveOptions,
-    appConfig,
-    assetsDependencyService,
-    router,
-    fileSystemResponseMatcher,
-    routeRendererFactory,
-    transformIndexHtml,
-  });
-
-  const staticSiteGenerator = new StaticSiteGenerator({ appConfig });
-
-  /**
-   * Builds static pages for the application.
-   * This function generates static HTML files for all routes and handles the preview mode.
-   * If the `preview` option is set to true, it starts a server to preview the generated pages.
-   *
-   * @param options Optional configuration for the build process
-   * @param options.preview Whether to enable preview mode (default: false)
-   */
-  async function buildStatic(options?: {
-    preview?: boolean;
-  }) {
-    const { preview = false } = options ?? {};
-    await staticSiteGenerator.run({ transformIndexHtml });
-
-    if (!preview) {
-      appLogger.info('Build completed');
-      process.exit(0);
-    }
-
-    const { server } = StaticContentServer.createServer({ appConfig, transformIndexHtml });
-
-    appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
-  }
-
-  /**
-   * Returns the server options for the Bun server.
-   * If `enableHmr` is true, it applies HTML live reload to the server options.
-   */
-  function getServerOptions({
-    enableHmr = false,
-  }: {
-    enableHmr?: boolean;
-  } = {}): BunServeOptions {
-    const serverOptions = adapter.buildServerSettings();
-    return enableHmr ? (withHtmlLiveReload(serverOptions, appConfig) as BunServeOptions) : serverOptions;
-  }
-
-  await adapter.initialize();
-
-  return {
-    getServerOptions,
-    buildStatic,
-  };
+/**
+ * Factory function to create a Bun server adapter
+ */
+export async function createBunServerAdapter(options: BunServerAdapterOptions): Promise<BunServerAdapterResult> {
+  const adapter = new BunServerAdapter(options);
+  return adapter.createAdapter();
 }

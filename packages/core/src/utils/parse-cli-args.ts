@@ -7,7 +7,6 @@ const DEFAULT_HOSTNAME = 'localhost';
  * The return type of the parseCliArgs function.
  */
 export type ReturnParseCliArgs = {
-  watch: boolean;
   preview: boolean;
   build: boolean;
   start: boolean;
@@ -28,7 +27,7 @@ export function parseCliArgs(): ReturnParseCliArgs {
   const { values } = parseArgs({
     args: Bun.argv,
     options: {
-      watch: { type: 'boolean' },
+      dev: { type: 'boolean' },
       preview: { type: 'boolean' },
       build: { type: 'boolean' },
       port: { type: 'string' },
@@ -58,7 +57,6 @@ export function parseCliArgs(): ReturnParseCliArgs {
   const isPreviewCommand = command === 'preview';
 
   const parsedCommandOptions = {
-    watch: Boolean(values.watch),
     preview: Boolean(values.preview) || isPreviewCommand,
     build: Boolean(values.build) || isBuildCommand,
     start: isStartCommand,

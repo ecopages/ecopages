@@ -1,20 +1,17 @@
 import type { RouterTypes } from 'bun';
-import { appLogger } from '../../global/app-logger';
-import type { Route, Routes } from '../../internal-types';
-import type { BunServerAdapter } from './server-adapter';
-
-type BunServerRoutes = {
-  [K: string]: RouterTypes.RouteValue<string>;
-};
+import { appLogger } from '../../global/app-logger.ts';
+import type { Route, Routes } from '../../internal-types.ts';
+import { AbstractRouterAdapter } from '../abstract/router-adapter.ts';
+import type { BunServerAdapter, BunServerRoutes } from './server-adapter.ts';
 
 /**
- * The BunRouterAdapter class is responsible for adapting routes from the EcoPages framework to the Bun server's routing format.
- * It handles the conversion of dynamic and catch-all routes, ensuring that the routes are correctly formatted for Bun's routing system.
+ * Bun-specific router adapter
  */
-export class BunRouterAdapter {
+export class BunRouterAdapter extends AbstractRouterAdapter<BunServerRoutes> {
   private bunServerAdapter: BunServerAdapter;
 
   constructor(bunServerAdapter: BunServerAdapter) {
+    super();
     this.bunServerAdapter = bunServerAdapter;
   }
 
@@ -22,11 +19,8 @@ export class BunRouterAdapter {
    * Converts a pathname from EcoPages format to Bun's routing format.
    * - Converts dynamic routes from [param] to :param
    * - Converts catch-all routes from [...param] to /*
-   *
-   * @param pathname The pathname to convert
-   * @returns The converted pathname in Bun's routing format
    */
-  private convertPathToBunFormat(pathname: string): string {
+  protected convertPath(pathname: string): string {
     if (pathname.includes('[...')) {
       return pathname.replace(/\/\[\.{3}.*\]/, '/*');
     }
@@ -36,17 +30,9 @@ export class BunRouterAdapter {
   }
 
   /**
-   * Creates a route handler function that delegates request handling to the server adapter.
-   * This approach maintains clear separation of concerns:
-   * - Router adapter: Translates routes to Bun's format and manages routing concerns
-   * - Server adapter: Handles the actual processing of requests and response generation
-   *
-   * This delegation pattern centralizes error handling and response processing in one place.
-   *
-   * @param route The route configuration
-   * @returns A route handler function compatible with Bun's router
+   * Creates a route handler function for Bun's router
    */
-  private createRouteHandler(route: Route): RouterTypes.RouteValue<string> {
+  protected createRouteHandler(route: Route): RouterTypes.RouteValue<string> {
     return async (req: Request) => {
       appLogger.debug('[BunRouterAdapter] Handling route request:', {
         url: req.url,
@@ -54,7 +40,7 @@ export class BunRouterAdapter {
       });
 
       try {
-        return await this.bunServerAdapter.handleResponse(req);
+        return await this.bunServerAdapter.handleRequest(req);
       } catch (error) {
         if (error instanceof Error) {
           appLogger.error('[BunRouterAdapter] Error handling route:', {
@@ -74,34 +60,33 @@ export class BunRouterAdapter {
   }
 
   /**
-   * Adapts routes from the EcoPages framework to Bun's routing format.
-   * This method processes exact, dynamic, and catch-all routes in that order.
-   *
-   * @param routes The routes to adapt
-   * @returns An object containing the adapted routes for Bun
+   * Adapts framework routes to Bun's routing format
    */
   public adaptRoutes(routes: Routes): BunServerRoutes {
     const bunRoutes: BunServerRoutes = {};
 
+    // Process exact routes first
     for (const [_, route] of Object.entries(routes)) {
       if (route.kind === 'exact') {
-        const path = this.convertPathToBunFormat(route.pathname);
+        const path = this.convertPath(route.pathname);
         bunRoutes[path] = this.createRouteHandler(route);
         appLogger.debug(`[BunRouterAdapter] Added exact route: ${path}`);
       }
     }
 
+    // Process dynamic routes second
     for (const [_, route] of Object.entries(routes)) {
       if (route.kind === 'dynamic') {
-        const path = this.convertPathToBunFormat(route.pathname);
+        const path = this.convertPath(route.pathname);
         bunRoutes[path] = this.createRouteHandler(route);
         appLogger.debug(`[BunRouterAdapter] Added dynamic route: ${path}`);
       }
     }
 
+    // Process catch-all routes last
     for (const [_, route] of Object.entries(routes)) {
       if (route.kind === 'catch-all') {
-        const path = this.convertPathToBunFormat(route.pathname);
+        const path = this.convertPath(route.pathname);
         bunRoutes[path] = this.createRouteHandler(route);
         appLogger.debug(`[BunRouterAdapter] Added catch-all route: ${path}`);
       }

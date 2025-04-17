@@ -2,7 +2,7 @@
 	"name": "@ecopages/playground-global",
 	"private": true,
 	"scripts": {
-		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/bin/ecopages --watch",
+		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/bin/ecopages --dev",
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",

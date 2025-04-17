@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
+import type { ApiHandler } from 'src/public-types.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { ConfigBuilder } from './config-builder.ts';
 
@@ -176,5 +177,66 @@ describe('EcoConfigBuilder', () => {
       .build();
 
     expect(config.additionalWatchPaths).toEqual(['/additional-path']);
+  });
+
+  test('should add API handlers', async () => {
+    const apiHandlers: ApiHandler[] = [
+      {
+        path: '/api/test',
+        method: 'GET',
+        handler: async () => new Response('Test'),
+      },
+      {
+        path: '/api/users',
+        method: 'POST',
+        handler: async () => new Response('Create user'),
+      },
+    ];
+
+    const config = await builder
+      .setBaseUrl('https://example.com')
+      .setRootDir('/project')
+      .setApiHandlers(apiHandlers)
+      .build();
+
+    expect(config.apiHandlers).toEqual(apiHandlers);
+  });
+
+  test('should add a single API handler', async () => {
+    const apiHandler: ApiHandler = {
+      path: '/api/test',
+      method: 'GET',
+      handler: async () => new Response('Test'),
+    };
+
+    const config = await builder
+      .setBaseUrl('https://example.com')
+      .setRootDir('/project')
+      .addApiHandler(apiHandler)
+      .build();
+
+    expect(config.apiHandlers).toHaveLength(1);
+    expect(config.apiHandlers[0]).toEqual(apiHandler);
+  });
+
+  test('should add multiple API handlers using addApiHandler', async () => {
+    const config = await builder
+      .setBaseUrl('https://example.com')
+      .setRootDir('/project')
+      .addApiHandler({
+        path: '/api/test1',
+        method: 'GET',
+        handler: async () => new Response('Test 1'),
+      })
+      .addApiHandler({
+        path: '/api/test2',
+        method: 'POST',
+        handler: async () => new Response('Test 2'),
+      })
+      .build();
+
+    expect(config.apiHandlers).toHaveLength(2);
+    expect(config.apiHandlers[0].path).toBe('/api/test1');
+    expect(config.apiHandlers[1].path).toBe('/api/test2');
   });
 });

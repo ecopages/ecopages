@@ -220,10 +220,39 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   private buildServerSettings(): BunServeOptions {
     const { routes, fetch, ...serverOptions } = this.serveOptions as BunServeAdapterServerOptions;
     const handleNoMatch = this.handleNoMatch.bind(this);
+    const apiHandlers = this.appConfig.apiHandlers || [];
+
+    let mergedRoutes = deepMerge(routes || {}, this.routes);
+
+    for (const handler of apiHandlers) {
+      const method = handler.method || 'GET';
+      const path = handler.path;
+
+      const wrappedHandler = async (request: Request): Promise<Response> => {
+        try {
+          return await handler.handler(request);
+        } catch (error) {
+          appLogger.error(`Error in API handler for ${path}: ${error}`);
+          return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      };
+
+      mergedRoutes = {
+        ...mergedRoutes,
+        [path]: {
+          ...mergedRoutes[path],
+          [method.toUpperCase()]: wrappedHandler,
+        },
+      };
+    }
 
     return {
-      routes: deepMerge(routes || {}, this.routes),
+      routes: mergedRoutes,
       async fetch(this: Server, request: Request) {
+        // This will only run if no route matched
         if (fetch) {
           const response = await fetch.bind(this)(request);
           if (response) return response;
@@ -234,7 +263,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       ...serverOptions,
     };
   }
-
   public async buildStatic(options?: { preview?: boolean }): Promise<void> {
     const { preview = false } = options ?? {};
     await this.staticSiteGenerator.run({ transformIndexHtml: this.transformIndexHtml });

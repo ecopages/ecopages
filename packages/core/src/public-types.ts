@@ -1,7 +1,6 @@
 import type { Readable } from 'node:stream';
-import type { BunPlugin } from 'bun';
+import type { BunRequest } from 'bun';
 import type { EcoPagesAppConfig } from './internal-types.ts';
-import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
 
 /**
  * Represents the dependencies for an EcoComponent.
@@ -284,3 +283,22 @@ export type DeepRequired<T> = Required<{
 export type Prettify<T> = {
   [K in keyof T]: T[K];
 } & {};
+
+/**
+ * Represents an API handler for server-side API routes.
+ */
+export interface ApiHandler<T extends string = string> {
+  /**
+   * The path for the API endpoint (e.g. '/api/users')
+   */
+  path: T;
+  /**
+   * The HTTP method for the endpoint
+   * @default 'GET'
+   */
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
+  /**
+   * The handler function that processes the request and returns a response
+   */
+  handler: (request: BunRequest<T>) => Promise<Response> | Response;
+}

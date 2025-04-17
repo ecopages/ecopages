@@ -1,7 +1,7 @@
 import type { BunPlugin } from 'bun';
 import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
 import type { Processor } from './plugins/processor.ts';
-import type { PageMetadataProps } from './public-types.ts';
+import type { ApiHandler, PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from './router/fs-router.ts';
 
 /**
@@ -125,6 +125,10 @@ export type EcoPagesAppConfig = {
    * Loaders to be used in the app, these are used to process the files when importing them
    */
   loaders: Map<string, BunPlugin>;
+  /**
+   * API handlers for server-side functionality
+   */
+  apiHandlers: ApiHandler[];
 };
 
 export type IntegrationDependencyConfig = {

@@ -1,6 +1,6 @@
 import '@ecopages/bun-mdx-kitajs-loader';
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
@@ -30,5 +30,22 @@ export default await new ConfigBuilder()
         ],
       },
     }),
+  ])
+  .setApiHandlers([
+    {
+      path: '/api/test/:id/subpath/:subpath',
+      method: 'GET',
+      handler: async (request) => {
+        const { id, subpath } = request.params;
+        return new Response(JSON.stringify({ message: 'Hello from the API!', id, subpath }));
+      },
+    },
+    {
+      path: '/api/*',
+      method: 'GET',
+      handler: async () => {
+        return new Response(JSON.stringify({ message: 'Hello from the API! > /api/*' }));
+      },
+    },
   ])
   .build();

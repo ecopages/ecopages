@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { FileUtils } from '@ecopages/core';
+import { FileUtils, deepMerge } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
 import { ImageUtils } from './image-utils';
@@ -17,9 +17,39 @@ const appLogger = new Logger('[@ecopages/image-processor]', {
  */
 export class ImageProcessor {
   private imageCache = new Map<string, ImageSpecifications>();
+  private cacheFilePath: string;
+  private config: ImageProcessorConfig;
 
-  constructor(private config: ImageProcessorConfig) {
+  constructor(config: ImageProcessorConfig) {
+    this.config = deepMerge({ cacheEnabled: true }, config);
     FileUtils.ensureDirectoryExists(this.config.outputDir);
+    this.cacheFilePath = path.join(this.config.outputDir, '.image-cache.json');
+
+    if (this.config.cacheEnabled) this.loadCache();
+  }
+
+  private loadCache(): void {
+    try {
+      if (FileUtils.existsSync(this.cacheFilePath)) {
+        const cacheData = JSON.parse(FileUtils.readFileSync(this.cacheFilePath).toString());
+        this.imageCache = new Map(Object.entries(cacheData));
+        appLogger.debug(`Loaded image cache with ${this.imageCache.size} entries`);
+      }
+    } catch (error) {
+      appLogger.warn('Failed to load image cache:', error as Error);
+    }
+  }
+
+  private saveCache(): void {
+    if (this.config.cacheEnabled === false) return;
+
+    try {
+      const cacheData = Object.fromEntries(this.imageCache.entries());
+      FileUtils.writeFileSync(this.cacheFilePath, JSON.stringify(cacheData));
+      appLogger.debug(`Saved image cache with ${this.imageCache.size} entries`);
+    } catch (error) {
+      appLogger.warn('Failed to save image cache:', error as Error);
+    }
   }
 
   private async calculateDimensions(metadata: sharp.Metadata, targetWidth: number) {
@@ -41,8 +71,12 @@ export class ImageProcessor {
 
   async processImage(imagePath: string): Promise<ImageSpecifications | null> {
     try {
-      if (this.imageCache.has(imagePath)) {
-        return this.imageCache.get(imagePath) as ImageSpecifications;
+      const fileHash = FileUtils.getFileHash(imagePath);
+      const cacheKey = `${imagePath}:${fileHash}`;
+
+      if (this.imageCache.has(cacheKey)) {
+        appLogger.debug(`Cache hit for ${imagePath}`);
+        return this.imageCache.get(cacheKey) as ImageSpecifications;
       }
 
       FileUtils.ensureDirectoryExists(this.config.outputDir);
@@ -54,7 +88,11 @@ export class ImageProcessor {
       if (this.config.sizes.length === 0) {
         const outputPath = this.getOutputPath(imagePath, originalWidth);
 
-        await sharp(imagePath).toFormat(this.config.format, { quality: this.config.quality }).toFile(outputPath);
+        if (FileUtils.existsSync(outputPath)) {
+          appLogger.debug(`Using existing file for ${imagePath}`);
+        } else {
+          await sharp(imagePath).toFormat(this.config.format, { quality: this.config.quality }).toFile(outputPath);
+        }
 
         const src = path.join(this.config.publicPath, path.basename(outputPath));
 
@@ -68,7 +106,9 @@ export class ImageProcessor {
           variants: [],
         };
 
-        this.imageCache.set(imagePath, imageSpecifications);
+        this.imageCache.set(cacheKey, imageSpecifications);
+        if (this.config.cacheEnabled) this.saveCache();
+
         return imageSpecifications;
       }
 
@@ -85,10 +125,14 @@ export class ImageProcessor {
           const { width, height } = await this.calculateDimensions(metadata, targetWidth);
           const outputPath = this.getOutputPath(imagePath, width);
 
-          await sharp(imagePath)
-            .resize(width, height)
-            .toFormat(this.config.format, { quality: this.config.quality })
-            .toFile(outputPath);
+          if (FileUtils.existsSync(outputPath)) {
+            appLogger.debug(`Variant ${width}px already exists for ${imagePath}`);
+          } else {
+            await sharp(imagePath)
+              .resize(width, height)
+              .toFormat(this.config.format, { quality: this.config.quality })
+              .toFile(outputPath);
+          }
 
           const src = path.join(this.config.publicPath, path.basename(outputPath));
 
@@ -115,7 +159,8 @@ export class ImageProcessor {
         variants,
       };
 
-      this.imageCache.set(imagePath, imageSpecifications);
+      this.imageCache.set(cacheKey, imageSpecifications);
+      if (this.config.cacheEnabled) this.saveCache();
 
       return imageSpecifications;
     } catch (error) {
@@ -131,18 +176,21 @@ export class ImageProcessor {
 
     appLogger.debugTime('Processing images');
 
-    const results = (await Promise.all(
-      images.map(async (file) => {
-        const processed = await this.processImage(file);
-        if (!processed) return null;
-        return [path.basename(file), processed];
-      }),
-    )) as [string, ImageSpecifications][];
+    const results = (
+      await Promise.all(
+        images.map(async (file) => {
+          const processed = await this.processImage(file);
+          if (!processed) return null;
+          return [path.basename(file), processed] as [string, ImageSpecifications];
+        }),
+      )
+    ).filter(Boolean) as [string, ImageSpecifications][];
 
     appLogger.debugTimeEnd('Processing images');
-
     appLogger.info(`Processed ${results.length} images`);
 
-    return Object.fromEntries(results.filter(Boolean));
+    this.saveCache();
+
+    return Object.fromEntries(results);
   }
 }

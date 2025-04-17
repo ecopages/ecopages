@@ -1,6 +1,6 @@
 import '../../global/init.ts';
 import path from 'node:path';
-import type { RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
+import type { BunRequest, RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
@@ -86,7 +86,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   }
 
   private async watch(): Promise<void> {
-    import.meta.env.NODE_ENV = 'development';
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
       router: this.router,
@@ -228,7 +227,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       const method = handler.method || 'GET';
       const path = handler.path;
 
-      const wrappedHandler = async (request: Request): Promise<Response> => {
+      const wrappedHandler = async (request: BunRequest): Promise<Response> => {
         try {
           return await handler.handler(request);
         } catch (error) {
@@ -252,7 +251,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     return {
       routes: mergedRoutes,
       async fetch(this: Server, request: Request) {
-        // This will only run if no route matched
         if (fetch) {
           const response = await fetch.bind(this)(request);
           if (response) return response;

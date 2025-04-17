@@ -15,7 +15,7 @@ export type ReturnParseCliArgs = {
   hostname: string;
 };
 
-const ECOPAGES_COMMAND = 'ecopages';
+const ECOPAGES_BIN_FILE = 'ecopages.ts';
 
 const ECOPAGES_AVAILABLE_COMMANDS = ['dev', 'build', 'start', 'preview'];
 
@@ -37,7 +37,7 @@ export function parseCliArgs(): ReturnParseCliArgs {
   });
 
   let command = '';
-  const ecopagesIndex = Bun.argv.findIndex((arg) => arg.includes(ECOPAGES_COMMAND));
+  const ecopagesIndex = Bun.argv.findIndex((arg) => arg.endsWith(ECOPAGES_BIN_FILE));
 
   const isAvailableCommand = ecopagesIndex !== -1;
 
@@ -51,16 +51,16 @@ export function parseCliArgs(): ReturnParseCliArgs {
         : 'start';
   }
 
-  const isDevCommand = command === 'dev';
-  const isBuildCommand = command === 'build';
-  const isStartCommand = command === 'start';
-  const isPreviewCommand = command === 'preview';
+  const isStartCommand = command === 'start' || (!values.dev && !values.build && !values.preview);
+  const isDevCommand = command === 'dev' || !!values.dev;
+  const isBuildCommand = command === 'build' || !!values.build;
+  const isPreviewCommand = command === 'preview' || !!values.preview;
 
   const parsedCommandOptions = {
-    preview: Boolean(values.preview) || isPreviewCommand,
-    build: Boolean(values.build) || isBuildCommand,
+    preview: isPreviewCommand,
+    build: isBuildCommand,
     start: isStartCommand,
-    dev: isDevCommand || (!isPreviewCommand && !isBuildCommand && !isStartCommand && !values.preview && !values.build),
+    dev: isDevCommand,
     port: values.port ? Number.parseInt(values.port) : DEFAULT_PORT,
     hostname: values.hostname || DEFAULT_HOSTNAME,
   };

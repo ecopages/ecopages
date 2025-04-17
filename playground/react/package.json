@@ -4,9 +4,9 @@
 	"scripts": {
 		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/bin/ecopages --dev",
 		"dev": "ecopages dev",
-		"build": "NODE_ENV=production ecopages build",
-		"start": "NODE_ENV=production ecopages start",
-		"preview": "NODE_ENV=production ecopages preview"
+		"build": "ecopages build",
+		"start": "ecopages start",
+		"preview": "ecopages preview"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

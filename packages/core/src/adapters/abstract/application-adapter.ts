@@ -1,5 +1,5 @@
-import type { ReturnParseCliArgs } from 'src/utils/parse-cli-args.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import { type ReturnParseCliArgs, parseCliArgs } from '../../utils/parse-cli-args.ts';
 
 /**
  * Configuration options for application adapters
@@ -28,10 +28,10 @@ export abstract class AbstractApplicationAdapter<
   protected serverOptions: Record<string, any>;
   protected cliArgs: ReturnParseCliArgs;
 
-  constructor(options: TOptions, cliArgs: ReturnParseCliArgs) {
+  constructor(options: TOptions) {
     this.appConfig = options.appConfig;
     this.serverOptions = options.serverOptions || {};
-    this.cliArgs = cliArgs;
+    this.cliArgs = parseCliArgs();
   }
 
   /**

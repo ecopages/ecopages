@@ -11,7 +11,7 @@ import { Logger } from '@ecopages/logger';
 import type { BunPlugin } from 'bun';
 import { createImagePlugin, createImagePluginBundler } from './bun-plugins';
 import { ImageProcessor } from './image-processor';
-import type { ImageSpecifications } from './types';
+import type { ImageSize, ImageSpecifications } from './types';
 import { anyCaseToCamelCase } from './utils';
 
 const logger = new Logger('[@ecopages/image-processor]', {
@@ -28,7 +28,7 @@ export interface ImageProcessorConfig {
   /**
    * @default []
    */
-  sizes: { width: number; label: string }[];
+  sizes: ImageSize[];
   quality: number;
   format: 'webp' | 'jpeg' | 'png' | 'avif';
   /**
@@ -36,6 +36,10 @@ export interface ImageProcessorConfig {
    * @default ["jpg", "jpeg", "png", "webp"]
    */
   acceptedFormats?: string[];
+  /**
+   * @default true
+   */
+  cacheEnabled?: boolean;
 }
 
 /**

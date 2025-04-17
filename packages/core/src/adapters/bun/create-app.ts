@@ -1,11 +1,10 @@
 import type { Server } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import { parseCliArgs } from '../../utils/parse-cli-args.ts';
 import { AbstractApplicationAdapter, type ApplicationAdapterOptions } from '../abstract/application-adapter.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
 
-export interface BunApplicationOptions extends ApplicationAdapterOptions {
+export interface EcopagesAppOptions extends ApplicationAdapterOptions {
   appConfig: EcoPagesAppConfig;
   serverOptions?: Record<string, any>;
 }
@@ -13,12 +12,8 @@ export interface BunApplicationOptions extends ApplicationAdapterOptions {
 /**
  * Bun-specific application adapter implementation
  */
-export class BunApplicationAdapter extends AbstractApplicationAdapter<BunApplicationOptions, Server> {
+export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, Server> {
   private serverAdapter!: BunServerAdapterResult;
-
-  constructor(options: BunApplicationOptions) {
-    super(options, parseCliArgs());
-  }
 
   /**
    * Initialize the Bun server adapter
@@ -44,6 +39,8 @@ export class BunApplicationAdapter extends AbstractApplicationAdapter<BunApplica
     if (!this.serverAdapter) {
       this.serverAdapter = await this.initializeServerAdapter();
     }
+
+    console.log(this.cliArgs);
 
     const { dev, preview, build } = this.cliArgs;
     const enableHmr = dev || (!preview && !build);
@@ -74,7 +71,7 @@ export class BunApplicationAdapter extends AbstractApplicationAdapter<BunApplica
  * Factory function to create a Bun application
  */
 export async function createApp(
-  options: BunApplicationOptions,
-): Promise<AbstractApplicationAdapter<BunApplicationOptions, Server>> {
-  return new BunApplicationAdapter(options);
+  options: EcopagesAppOptions,
+): Promise<AbstractApplicationAdapter<EcopagesAppOptions, Server>> {
+  return new EcopagesApp(options);
 }

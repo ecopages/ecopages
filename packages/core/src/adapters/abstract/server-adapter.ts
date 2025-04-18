@@ -1,10 +1,21 @@
+/**
+ * This file contains the abstract server adapter class and its related types.
+ * It is designed to be extended by specific server adapters for different runtimes.
+ * The class provides methods for initializing the server, creating server options,
+ * building static files, and handling HTTP requests.
+ *
+ * @module ServerAdapter
+ */
+
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { ApiHandler } from '../../public-types.ts';
 
 /**
  * Configuration options for all server adapters
  */
 export interface ServerAdapterOptions {
   appConfig: EcoPagesAppConfig;
+  apiHandlers?: ApiHandler[];
   options?: {
     watch?: boolean;
     [key: string]: any;

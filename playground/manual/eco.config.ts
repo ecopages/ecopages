@@ -31,21 +31,4 @@ export default await new ConfigBuilder()
       },
     }),
   ])
-  .setApiHandlers([
-    {
-      path: '/api/test/:id/subpath/:subpath',
-      method: 'GET',
-      handler: async (request) => {
-        const { id, subpath } = request.params;
-        return new Response(JSON.stringify({ message: 'Hello from the API!', id, subpath }));
-      },
-    },
-    {
-      path: '/api/*',
-      method: 'GET',
-      handler: async () => {
-        return new Response(JSON.stringify({ message: 'Hello from the API! > /api/*' }));
-      },
-    },
-  ])
   .build();

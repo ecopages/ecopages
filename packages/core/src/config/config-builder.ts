@@ -9,7 +9,7 @@ import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plug
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
-import type { ApiHandler, PageMetadataProps } from '../public-types.ts';
+import type { PageMetadataProps } from '../public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 
 /**
@@ -88,7 +88,6 @@ export class ConfigBuilder {
     },
     processors: new Map(),
     loaders: new Map(),
-    apiHandlers: [],
   };
 
   /**
@@ -329,32 +328,6 @@ export class ConfigBuilder {
       throw new Error(`Loader with name "${name}" already exists`);
     }
     this.config.loaders.set(name, loader);
-    return this;
-  }
-
-  /**
-   * Sets the API handlers for the application.
-   * This replaces any existing API handlers.
-   *
-   * @param handlers - An array of API handlers to set
-   * @returns The ConfigBuilder instance for method chaining
-   */
-  setApiHandlers<T extends string[]>(handlers: { [K in keyof T]: ApiHandler<T[K]> }): this {
-    this.config.apiHandlers = handlers as ApiHandler[];
-    return this;
-  }
-
-  /**
-   * Adds a single API handler to the application.
-   *
-   * @param handler - The API handler to add
-   * @returns The ConfigBuilder instance for method chaining
-   */
-  addApiHandler<T extends string>(handler: ApiHandler<T>): this {
-    if (!this.config.apiHandlers) {
-      this.config.apiHandlers = [];
-    }
-    this.config.apiHandlers.push(handler);
     return this;
   }
 

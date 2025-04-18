@@ -1,4 +1,14 @@
+/**
+ * This file defines the abstract class for application adapters in EcoPages.
+ * It provides a common interface for different runtimes (e.g., Node.js, Deno) to implement.
+ * The class includes methods for handling HTTP requests and managing application state.
+ * It also includes a method for parsing command-line arguments.
+ *
+ * @module ApplicationAdapter
+ */
+
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { ApiHandler } from '../../public-types.ts';
 import { type ReturnParseCliArgs, parseCliArgs } from '../../utils/parse-cli-args.ts';
 
 /**
@@ -17,21 +27,120 @@ export interface ApplicationAdapter<T = any> {
 }
 
 /**
+ * Handler context containing the request, app config, and other contextual data
+ */
+export interface HandlerContext<RuntimeSpecificRequest = any> {
+  request: RuntimeSpecificRequest;
+  appConfig: EcoPagesAppConfig;
+}
+
+/**
  * Abstract base class for application adapters across different runtimes
  */
 export abstract class AbstractApplicationAdapter<
   TOptions extends ApplicationAdapterOptions = ApplicationAdapterOptions,
   TServer = any,
+  TRequest = any,
 > implements ApplicationAdapter<TServer>
 {
   protected appConfig: EcoPagesAppConfig;
   protected serverOptions: Record<string, any>;
   protected cliArgs: ReturnParseCliArgs;
+  protected apiHandlers: ApiHandler[] = [];
 
   constructor(options: TOptions) {
     this.appConfig = options.appConfig;
     this.serverOptions = options.serverOptions || {};
     this.cliArgs = parseCliArgs();
+  }
+
+  /**
+   * Register a GET route handler
+   * The handler expects a context where request.params exists.
+   */
+  abstract get<P extends string>(
+    path: P,
+    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+  ): this;
+
+  /**
+   * Register a POST route handler
+   */
+  abstract post<P extends string>(
+    path: P,
+    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+  ): this;
+
+  /**
+   * Register a PUT route handler
+   */
+  abstract put<P extends string>(
+    path: P,
+    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+  ): this;
+
+  /**
+   * Register a DELETE route handler
+   */
+  abstract delete<P extends string>(
+    path: P,
+    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+  ): this;
+
+  /**
+   * Register a PATCH route handler
+   */
+  abstract patch<P extends string>(
+    path: P,
+    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+  ): this;
+
+  /**
+   * Register an OPTIONS route handler
+   */
+  abstract options<P extends string>(
+    path: P,
+    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+  ): this;
+
+  /**
+   * Register a HEAD route handler
+   */
+  abstract head<P extends string>(
+    path: P,
+    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+  ): this;
+
+  /**
+   * Register a route with any HTTP method
+   */
+  abstract route<P extends string>(
+    path: P,
+    method: ApiHandler['method'],
+    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+  ): this;
+
+  /**
+   * Internal method to add route handlers to the API handlers array
+   */
+  protected addRouteHandler<P extends string>(
+    path: P,
+    method: ApiHandler['method'],
+    handler: (context: HandlerContext<any>) => Promise<Response> | Response,
+  ): this {
+    this.apiHandlers.push({
+      path,
+      method,
+      handler: handler as unknown as (context: any) => Promise<Response> | Response,
+    });
+    return this;
+  }
+
+  /**
+   * Get all registered API handlers
+   */
+  getApiHandlers(): ApiHandler[] {
+    return this.apiHandlers;
   }
 
   /**

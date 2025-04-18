@@ -3,6 +3,8 @@ import path from 'node:path';
 import type { BunRequest, RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { ApiHandler } from '../../public-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
@@ -41,6 +43,7 @@ export type BunServeOptions = ServeOptions & {
 export interface BunServerAdapterOptions extends ServerAdapterOptions {
   serveOptions: BunServeAdapterServerOptions;
   options?: { watch: boolean };
+  apiHandlers?: ApiHandler[];
 }
 
 export interface BunServerAdapterResult extends ServerAdapterResult {
@@ -49,6 +52,11 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
 }
 
 export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOptions, BunServerAdapterResult> {
+  declare appConfig: EcoPagesAppConfig;
+  declare options: BunServerAdapterOptions['options'];
+  declare serveOptions: BunServerAdapterOptions['serveOptions'];
+  protected apiHandlers: ApiHandler[];
+
   private assetsDependencyService!: AssetsDependencyService;
   private router!: FSRouter;
   private fileSystemResponseMatcher!: FileSystemResponseMatcher;
@@ -57,6 +65,11 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   private routes: BunServerRoutes = {};
   private htmlTransformer!: HtmlTransformerService;
   private staticSiteGenerator!: StaticSiteGenerator;
+
+  constructor(options: BunServerAdapterOptions) {
+    super(options);
+    this.apiHandlers = options.apiHandlers || [];
+  }
 
   public async initialize(): Promise<void> {
     appLogger.debugTime('BunServerAdapter:initialize');
@@ -219,11 +232,11 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   private buildServerSettings(): BunServeOptions {
     const { routes, fetch, ...serverOptions } = this.serveOptions as BunServeAdapterServerOptions;
     const handleNoMatch = this.handleNoMatch.bind(this);
-    const apiHandlers = this.appConfig.apiHandlers || [];
 
     let mergedRoutes = deepMerge(routes || {}, this.routes);
 
-    for (const handler of apiHandlers) {
+    // Use apiHandlers from this instance instead of appConfig
+    for (const handler of this.apiHandlers) {
       const method = handler.method || 'GET';
       const path = handler.path;
 
@@ -261,6 +274,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       ...serverOptions,
     };
   }
+
   public async buildStatic(options?: { preview?: boolean }): Promise<void> {
     const { preview = false } = options ?? {};
     await this.staticSiteGenerator.run({ transformIndexHtml: this.transformIndexHtml });

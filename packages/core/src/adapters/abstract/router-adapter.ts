@@ -1,3 +1,12 @@
+/**
+ * This file contains the abstract router adapter class and its methods.
+ * It is designed to be extended by specific router adapters for different runtimes.
+ * The class provides methods for converting paths, creating route handlers,
+ * and adapting routes to the expected format of the runtime.
+ *
+ * @module RouterAdapter
+ */
+
 import type { Routes } from '../../internal-types.ts';
 
 /**

@@ -125,10 +125,6 @@ export type EcoPagesAppConfig = {
    * Loaders to be used in the app, these are used to process the files when importing them
    */
   loaders: Map<string, BunPlugin>;
-  /**
-   * API handlers for server-side functionality
-   */
-  apiHandlers: ApiHandler[];
 };
 
 export type IntegrationDependencyConfig = {

@@ -105,6 +105,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     return getStaticProps && options?.params
       ? await getStaticProps({
           pathname: { params: options.params },
+          appConfig: this.appConfig,
         })
           .then((data) => data)
           .catch((err) => {
@@ -130,7 +131,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   ): Promise<PageMetadataProps> {
     let metadata: PageMetadataProps = this.appConfig.defaultMetadata;
     if (getMetadata) {
-      const dynamicMetadata = await getMetadata({ params, query, props });
+      const dynamicMetadata = await getMetadata({ params, query, props, appConfig: this.appConfig });
       metadata = { ...metadata, ...dynamicMetadata };
     }
     return metadata;

@@ -116,6 +116,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   private async initRouter(): Promise<void> {
     const scanner = new FSRouterScanner({
       dir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
+      appConfig: this.appConfig,
       origin: '',
       templatesExt: this.appConfig.templatesExt,
       options: {

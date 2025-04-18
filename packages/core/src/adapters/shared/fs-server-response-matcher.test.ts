@@ -22,6 +22,7 @@ const appConfig = await new ConfigBuilder()
 
 const scanner = new FSRouterScanner({
   dir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
+  appConfig,
   origin: appConfig.baseUrl,
   templatesExt: appConfig.templatesExt,
   options: {

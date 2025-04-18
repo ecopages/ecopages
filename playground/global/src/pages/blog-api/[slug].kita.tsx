@@ -37,15 +37,15 @@ export const getMetadata: GetMetadata<BlogPostProps> = async ({ props: { title, 
 export const GET_POSTS_URL = 'http://localhost:3000/api/blog/posts';
 export const createGetPostUrl = (slug: string) => `http://localhost:3000/api/blog/post/${slug}`;
 
-export const getStaticPaths: GetStaticPaths = async () => {
-  const response = await fetch(GET_POSTS_URL);
+export const getStaticPaths: GetStaticPaths = async ({ appConfig }) => {
+  const response = await fetch(`${appConfig.baseUrl}/api/blog/posts`);
   const paths = await response.json();
   return { paths };
 };
 
-export const getStaticProps: GetStaticProps<BlogPostProps> = async ({ pathname }) => {
+export const getStaticProps: GetStaticProps<BlogPostProps> = async ({ pathname, appConfig }) => {
   const slug = pathname.params.slug as string;
-  const response = await fetch(createGetPostUrl(slug));
+  const response = await fetch(`${appConfig.baseUrl}/api/blog/post/${slug}`);
 
   if (!response.ok) {
     throw new Error(`Blog post with slug "${slug}" not found`);

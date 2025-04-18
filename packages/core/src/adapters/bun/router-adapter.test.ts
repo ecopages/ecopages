@@ -8,22 +8,36 @@ describe('BunRouterAdapter', () => {
     handleRequest: mock(() => Promise.resolve(new Response())),
   } as any;
 
-  const adapter = new BunRouterAdapter(mockServerAdapter);
+  class TestBunRouterAdapter extends BunRouterAdapter {
+    public override convertPath(path: string): string {
+      return super.convertPath(path);
+    }
+
+    public override adaptRoutes(routes: Routes) {
+      return super.adaptRoutes(routes);
+    }
+
+    public override createRouteHandler(route: Route) {
+      return super.createRouteHandler(route);
+    }
+  }
+
+  const testAdapter = new TestBunRouterAdapter(mockServerAdapter);
 
   describe('convertPath', () => {
     it('should convert dynamic route parameters', () => {
-      expect((adapter as any).convertPath('/users/[id]')).toBe('/users/:id');
-      expect((adapter as any).convertPath('/posts/[postId]/comments/[commentId]')).toBe(
+      expect(testAdapter.convertPath('/users/[id]')).toBe('/users/:id');
+      expect(testAdapter.convertPath('/posts/[postId]/comments/[commentId]')).toBe(
         '/posts/:postId/comments/:commentId',
       );
     });
 
     it('should convert catch-all routes', () => {
-      expect((adapter as any).convertPath('/docs/[...slug]')).toBe('/docs/*');
+      expect(testAdapter.convertPath('/docs/[...slug]')).toBe('/docs/*');
     });
 
     it('should handle empty paths', () => {
-      expect((adapter as any).convertPath('')).toBe('/');
+      expect(testAdapter.convertPath('')).toBe('/');
     });
   });
 
@@ -47,13 +61,13 @@ describe('BunRouterAdapter', () => {
     };
 
     it('should adapt routes in correct order', () => {
-      const adapted = adapter.adaptRoutes(testRoutes);
+      const adapted = testAdapter.adaptRoutes(testRoutes);
 
       expect(Object.keys(adapted)).toEqual(['/about', '/users/:id', '/docs/*']);
     });
 
     it('should create route handlers', async () => {
-      const adapted = adapter.adaptRoutes(testRoutes);
+      const adapted = testAdapter.adaptRoutes(testRoutes);
       const request = new Request('http://localhost/about');
 
       await (adapted['/about'] as any)(request);
@@ -63,7 +77,7 @@ describe('BunRouterAdapter', () => {
     it('should handle errors in route handlers', async () => {
       mockServerAdapter.handleRequest = mock(() => Promise.reject(new Error('Test error')));
 
-      const adapted = adapter.adaptRoutes(testRoutes);
+      const adapted = testAdapter.adaptRoutes(testRoutes);
       const request = new Request('http://localhost/about');
       const response = await (adapted['/about'] as any)(request);
 

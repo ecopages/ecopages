@@ -4,8 +4,8 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-    title: 'Docs | Server API',
-    description: 'Learn how to use the Ecopages Server API',
+  title: 'Docs | Server API',
+  description: 'Learn how to use the Ecopages Server API',
 })
 
 # Server API
@@ -87,8 +87,8 @@ During static site generation, the server can still handle API requests, making 
 
 <CodeBlock>
 ```typescript
-export const getStaticProps = async () => {
-  const response = await fetch('http://localhost:3000/api/data');
+export const getStaticProps: GetStaticProps = async ({ appConfig }) => {
+  const response = await fetch(`${appConfig.baseUrl}/api/data`);
   const data = await response.json();
   
   return {

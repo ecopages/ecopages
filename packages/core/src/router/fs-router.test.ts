@@ -12,6 +12,8 @@ const {
 
 const scanner = new FSRouterScanner({
   dir: pagesDir,
+  // @ts-expect-error
+  appConfig: {},
   origin: 'http://localhost:3000',
   templatesExt,
   options: {

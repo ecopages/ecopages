@@ -132,13 +132,14 @@ export type StaticPath = { params: PageParams };
 /**
  * The function that returns the static paths for a page.
  */
-export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
+export type GetStaticPaths = (context: { appConfig: EcoPagesAppConfig }) => Promise<{ paths: StaticPath[] }>;
 
 /**
  * The context object for the getMetadata function.
  */
 export type GetMetadataContext<T = Record<string, unknown>> = Required<StaticPageContext> & {
   props: T;
+  appConfig: EcoPagesAppConfig;
 };
 
 /**
@@ -151,7 +152,9 @@ export type GetMetadata<T = Record<string, unknown>> = (
 /**
  * The function that returns the static props for a page.
  */
-export type GetStaticProps<T> = (context: { pathname: StaticPath }) => Promise<{ props: T }>;
+export type GetStaticProps<T> = (context: { pathname: StaticPath; appConfig: EcoPagesAppConfig }) => Promise<{
+  props: T;
+}>;
 
 /**
  * Represents a page file in EcoPages.

@@ -29,7 +29,10 @@ export interface EcopagesAppOptions extends ApplicationAdapterOptions {
 
 /**
  * Bun-specific application adapter implementation
+ * This class extends the {@link AbstractApplicationAdapter}
+ * and provides methods for handling HTTP requests and managing the server.
  */
+
 export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, Server, BunRequest<string>> {
   serverAdapter: BunServerAdapterResult | undefined;
 
@@ -96,14 +99,12 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
   protected async initializeServerAdapter(): Promise<BunServerAdapterResult> {
     const { dev, port, hostname } = this.cliArgs;
 
-    // Process handlers to ensure proper path typing
     const processedHandlers = this.apiHandlers.map((handler) => {
       const { path, method, handler: handlerFn } = handler;
 
       return {
         path,
         method,
-        // This wrapper preserves the path type for BunRequest<P>
         handler: (request: BunRequest<typeof path>) => {
           const context = {
             request,

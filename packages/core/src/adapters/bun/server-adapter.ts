@@ -235,7 +235,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
     let mergedRoutes = deepMerge(routes || {}, this.routes);
 
-    // Use apiHandlers from this instance instead of appConfig
     for (const handler of this.apiHandlers) {
       const method = handler.method || 'GET';
       const path = handler.path;

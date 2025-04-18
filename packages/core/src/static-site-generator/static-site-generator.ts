@@ -1,11 +1,8 @@
 import path from 'node:path';
-import { BunFileSystemServerAdapter } from '../adapters/bun/fs-server.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { FSRouter } from '../router/fs-router.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
-
-const STATIC_GENERATION_ADAPTER_PORT = 2020;
-const STATIC_GENERATION_ADAPTER_BASE_URL = `http://localhost:${STATIC_GENERATION_ADAPTER_PORT}`;
 
 export class StaticSiteGenerator {
   appConfig: EcoPagesAppConfig;
@@ -39,7 +36,7 @@ export class StaticSiteGenerator {
     const directories = new Set<string>();
 
     for (const route of routes) {
-      const path = route.replace(STATIC_GENERATION_ADAPTER_BASE_URL, '');
+      const path = route.startsWith('http') ? new URL(route).pathname : route;
 
       const segments = path.split('/');
 
@@ -51,18 +48,7 @@ export class StaticSiteGenerator {
     return Array.from(directories);
   }
 
-  async generateStaticPages() {
-    const { router, server } = await BunFileSystemServerAdapter.createServer({
-      appConfig: {
-        ...this.appConfig,
-        baseUrl: STATIC_GENERATION_ADAPTER_BASE_URL,
-      },
-      options: {
-        watchMode: false,
-        port: STATIC_GENERATION_ADAPTER_PORT,
-      },
-    });
-
+  async generateStaticPages(router: FSRouter, baseUrl: string) {
     const routes = Object.keys(router.routes).filter((route) => !route.includes('['));
 
     appLogger.debug('Static Pages', routes);
@@ -75,10 +61,11 @@ export class StaticSiteGenerator {
 
     for (const route of routes) {
       try {
-        let response = await fetch(route);
+        const fetchUrl = route.startsWith('http') ? route : `${baseUrl}${route}`;
+        let response = await fetch(fetchUrl);
 
         if (!response.ok) {
-          console.error(`Failed to fetch ${route}. Status: ${response.status}`);
+          console.error(`Failed to fetch ${fetchUrl}. Status: ${response.status}`);
           continue;
         }
 
@@ -109,13 +96,19 @@ export class StaticSiteGenerator {
         console.error(`Error fetching or writing ${route}:`, error);
       }
     }
-
-    server.stop();
   }
 
-  async run({ transformIndexHtml }: { transformIndexHtml: (res: Response) => Promise<Response> }) {
+  async run({
+    transformIndexHtml,
+    router,
+    baseUrl,
+  }: {
+    transformIndexHtml: (res: Response) => Promise<Response>;
+    router: FSRouter;
+    baseUrl: string;
+  }) {
     this.transformIndexHtml = transformIndexHtml;
     this.generateRobotsTxt();
-    await this.generateStaticPages();
+    await this.generateStaticPages(router, baseUrl);
   }
 }

@@ -283,7 +283,13 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       this.adaptRouterRoutes();
     }
 
-    await this.staticSiteGenerator.run({ transformIndexHtml: this.transformIndexHtml });
+    const baseUrl = `http://${this.serveOptions.hostname || 'localhost'}:${this.serveOptions.port || 3000}`;
+
+    await this.staticSiteGenerator.run({
+      transformIndexHtml: this.transformIndexHtml,
+      router: this.router,
+      baseUrl,
+    });
 
     if (!preview) {
       appLogger.info('Build completed');

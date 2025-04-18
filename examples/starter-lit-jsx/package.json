@@ -2,11 +2,11 @@
 	"name": "@ecopages/starter-lit-jsx",
 	"private": true,
 	"scripts": {
-		"dev": "ecopages dev",
-		"build": "ecopages build",
-		"start": "ecopages start",
-		"preview": "ecopages preview",
-		"postinstall": "bunx symlink-dir node_modules/@ecopages/core/src/bin/ecopages.js node_modules/.bin/ecopages"
+		"start": "bun run app.ts",
+		"dev": "bun run app.ts --dev",
+		"build": "bun run app.ts --build",
+		"preview": "bun run app.ts --preview",
+		"watch:dev": "bun --watch run app.ts --dev"
 	},
 	"devDependencies": {
 		"@ecopages/bun-mdx-kitajs-loader": "npm:@jsr/ecopages__bun-mdx-kitajs-loader@latest",

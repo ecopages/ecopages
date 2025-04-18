@@ -6,7 +6,12 @@
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"start": "ecopages start",
-		"preview": "ecopages preview"
+		"preview": "ecopages preview",
+		"watch:manual:dev": "bun --watch run server.ts --dev",
+		"dev:manual": "bun run server.ts --dev",
+		"build:manual": "bun run server.ts --build",
+		"start:manual": "bun run server.ts",
+		"preview:manual": "bun run server.ts --preview"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

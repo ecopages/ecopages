@@ -94,6 +94,18 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
   }
 
   /**
+   * Complete the initialization of the server adapter by processing dynamic routes
+   * @param server The Bun server instance
+   */
+  public async completeInitialization(server: Server): Promise<void> {
+    if (!this.serverAdapter) {
+      throw new Error('Server adapter not initialized. Call start() first.');
+    }
+
+    await this.serverAdapter.completeInitialization(server);
+  }
+
+  /**
    * Initialize the Bun server adapter
    */
   protected async initializeServerAdapter(): Promise<BunServerAdapterResult> {
@@ -130,6 +142,8 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 
   /**
    * Start the Bun application server
+   * @param options Optional settings
+   * @param options.autoCompleteInitialization Whether to automatically complete initialization with dynamic routes after server start (defaults to true)
    */
   public async start(): Promise<Server | void> {
     if (!this.serverAdapter) {
@@ -138,13 +152,15 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 
     const { dev, preview, build } = this.cliArgs;
     const enableHmr = dev || (!preview && !build);
-    const options = this.serverAdapter.getServerOptions({ enableHmr });
+    const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
 
-    const server = Bun.serve(options);
+    const server = Bun.serve(serverOptions);
 
-    if (!build && !preview) {
-      appLogger.info(`Server running at http://${server.hostname}:${server.port}`);
-    }
+    await this.serverAdapter.completeInitialization(server).catch((error) => {
+      appLogger.error(`Failed to complete initialization: ${error}`);
+    });
+
+    appLogger.info(`Server running at http://${server.hostname}:${server.port}`);
 
     if (build || preview) {
       appLogger.debugTime('Building static pages');

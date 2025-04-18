@@ -49,6 +49,7 @@ export interface BunServerAdapterOptions extends ServerAdapterOptions {
 export interface BunServerAdapterResult extends ServerAdapterResult {
   getServerOptions: (options?: { enableHmr?: boolean }) => BunServeOptions;
   buildStatic: (options?: { preview?: boolean }) => Promise<void>;
+  completeInitialization: (server: Server) => Promise<void>;
 }
 
 export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOptions, BunServerAdapterResult> {
@@ -65,6 +66,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   private routes: BunServerRoutes = {};
   private htmlTransformer!: HtmlTransformerService;
   private staticSiteGenerator!: StaticSiteGenerator;
+  private fullyInitialized = false;
+  declare serverInstance: Server | null;
 
   constructor(options: BunServerAdapterOptions) {
     super(options);
@@ -80,12 +83,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
     this.setupLoaders();
     this.copyPublicDir();
-    await this.initRouter();
     await this.initializePlugins();
-    this.setupTransformFunction();
-    this.setupResponseFactories();
 
-    this.collectRoutes();
     if (this.options?.watch) await this.watch();
 
     appLogger.debugTimeEnd('BunServerAdapter:initialize');
@@ -219,7 +218,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     });
   }
 
-  private collectRoutes(): void {
+  private adaptRouterRoutes(): void {
     const routerAdapter = new BunRouterAdapter(this);
     this.routes = routerAdapter.adaptRoutes(this.router.routes);
   }
@@ -276,6 +275,14 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
   public async buildStatic(options?: { preview?: boolean }): Promise<void> {
     const { preview = false } = options ?? {};
+
+    if (!this.fullyInitialized) {
+      await this.initRouter();
+      this.setupTransformFunction();
+      this.setupResponseFactories();
+      this.adaptRouterRoutes();
+    }
+
     await this.staticSiteGenerator.run({ transformIndexHtml: this.transformIndexHtml });
 
     if (!preview) {
@@ -291,12 +298,35 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
   }
 
+  public async completeInitialization(server: Server): Promise<void> {
+    if (this.fullyInitialized) return;
+
+    this.serverInstance = server;
+    appLogger.debug('Completing server initialization with dynamic routes');
+
+    await this.initRouter();
+
+    this.setupTransformFunction();
+    this.setupResponseFactories();
+
+    this.adaptRouterRoutes();
+
+    this.fullyInitialized = true;
+
+    if (server && typeof server.reload === 'function') {
+      const updatedOptions = this.getServerOptions(this.options?.watch ? { enableHmr: true } : undefined);
+      server.reload(updatedOptions);
+      appLogger.debug('Server routes updated with dynamic routes');
+    }
+  }
+
   public async createAdapter(): Promise<BunServerAdapterResult> {
     await this.initialize();
 
     return {
       getServerOptions: this.getServerOptions.bind(this),
       buildStatic: this.buildStatic.bind(this),
+      completeInitialization: this.completeInitialization.bind(this),
     };
   }
 

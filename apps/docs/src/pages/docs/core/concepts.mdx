@@ -159,6 +159,34 @@ my-project/
 
 This structure helps Ecopages efficiently process and build your site.
 
+## Runtime Support
+
+Currently, Ecopages is designed to work exclusively with the Bun runtime. While the architecture supports multiple runtime adapters, at the moment only the Bun adapter is implemented and maintained.
+
+This means you'll need to:
+- Have Bun installed in your development environment [https://bun.sh/docs/installation](https://bun.sh/docs/installation)
+- Use Bun's package manager for dependencies
+- Take advantage of Bun's built-in features like TypeScript support and fast bundling
+
+## Server and API Handlers
+
+Ecopages provides a simple and intuitive way to create API endpoints and handle server-side logic. You can find more details in the [Server API](/docs/core/server-api) documentation.
+
+<CodeBlock>
+```typescript
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import appConfig from './eco.config';
+
+const app = new EcopagesApp({ appConfig });
+
+app.get('/api/hello', async () => {
+  return new Response(JSON.stringify({ message: 'Hello world!' }));
+});
+
+await app.start();
+```
+</CodeBlock>
+
 ## Additional Features
 
 - **Hot Reload**: Ecopages supports hot reloading during development, making the development process more efficient.

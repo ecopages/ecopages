@@ -21,7 +21,8 @@
 	"dependencies": {
 		"@ecopages/logger": "latest",
 		"@parcel/watcher": "^2.4.0",
-		"ghtml": "^3.1.2"
+		"ghtml": "^3.1.2",
+		"redis": "^4.7.0"
 	},
 	"devDependencies": {
 		"bun-types": "latest"
@@ -39,6 +40,10 @@
 		"./config-builder": {
 			"types": "./src/config/config-builder.ts",
 			"default": "./src/config/config-builder.ts"
+		},
+		"./constants": {
+			"types": "./src/constants.ts",
+			"default": "./src/constants.ts"
 		},
 		"./adapters/bun/create-app": {
 			"types": "./src/adapters/bun/create-app.ts",

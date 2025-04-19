@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { BunPlugin } from 'bun';
+import { GENERATED_DIRS } from 'src/constants';
 import type { EcoPagesAppConfig } from '../internal-types';
 import type { AssetDependency } from '../services/assets-dependency.service';
 import { FileUtils } from '../utils/file-utils.module';
@@ -34,7 +35,6 @@ export interface ProcessorContext {
  * i.e. @ecopages/image-processor
  */
 export abstract class Processor<TOptions = Record<string, unknown>> {
-  static CACHE_DIR = '__cache__';
   readonly name: string;
   protected dependencies: AssetDependency[] = [];
   protected context?: ProcessorContext;
@@ -59,7 +59,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
       rootDir: appConfig.rootDir,
       srcDir: appConfig.absolutePaths.srcDir,
       distDir: appConfig.absolutePaths.distDir,
-      cache: `${appConfig.absolutePaths.distDir}/${Processor.CACHE_DIR}/${this.name}`,
+      cache: `${appConfig.rootDir}/${GENERATED_DIRS.cache}/${this.name}`,
     };
   }
 

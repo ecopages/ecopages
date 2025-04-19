@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types';
-import { FileUtils } from '../utils/file-utils.module';
 import { Processor, type ProcessorConfig } from './processor';
 
 class TestProcessor extends Processor {

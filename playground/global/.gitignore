@@ -1,8 +1,10 @@
 # dependencies
 /node_modules
 
-# production
+# ecopages
 .eco
+.cache
+.generated
 
 # build
 public/js
@@ -24,7 +26,3 @@ public/js
 **/*.tgz
 **/*.log
 **/*.bun
-
-# optimized images
-src/public/assets/optimized
-__cache__

@@ -16,41 +16,22 @@ const appLogger = new Logger('[@ecopages/image-processor]', {
  * It uses the sharp library to resize and optimize images.
  */
 export class ImageProcessor {
-  private imageCache = new Map<string, ImageSpecifications>();
-  private cacheFilePath: string;
-  private config: ImageProcessorConfig;
+  private readonly config: ImageProcessorConfig;
+  private readonly cacheManager: {
+    readCache: <T>(key: string) => Promise<T | null>;
+    writeCache: <T>(key: string, data: T) => Promise<void>;
+  };
 
-  constructor(config: ImageProcessorConfig) {
+  constructor(
+    config: ImageProcessorConfig,
+    cacheManager: {
+      readCache: <T>(key: string) => Promise<T | null>;
+      writeCache: <T>(key: string, data: T) => Promise<void>;
+    },
+  ) {
     this.config = deepMerge({ cacheEnabled: true }, config);
+    this.cacheManager = cacheManager;
     FileUtils.ensureDirectoryExists(this.config.outputDir);
-    this.cacheFilePath = path.join(this.config.outputDir, '.image-cache.json');
-
-    if (this.config.cacheEnabled) this.loadCache();
-  }
-
-  private loadCache(): void {
-    try {
-      if (FileUtils.existsSync(this.cacheFilePath)) {
-        const cacheData = JSON.parse(FileUtils.readFileSync(this.cacheFilePath).toString());
-        this.imageCache = new Map(Object.entries(cacheData));
-        appLogger.debug(`Loaded image cache with ${this.imageCache.size} entries`);
-      }
-    } catch (error) {
-      appLogger.warn('Failed to load image cache:', error as Error);
-    }
-  }
-
-  private saveCache(): void {
-    if (this.config.cacheEnabled === false) return;
-
-    try {
-      const cacheData = Object.fromEntries(this.imageCache.entries());
-      FileUtils.ensureDirectoryExists(path.dirname(this.cacheFilePath));
-      FileUtils.writeFileSync(this.cacheFilePath, JSON.stringify(cacheData));
-      appLogger.debug(`Saved image cache with ${this.imageCache.size} entries`);
-    } catch (error) {
-      appLogger.warn('Failed to save image cache:', error as Error);
-    }
   }
 
   private async calculateDimensions(metadata: sharp.Metadata, targetWidth: number) {
@@ -73,11 +54,14 @@ export class ImageProcessor {
   async processImage(imagePath: string): Promise<ImageSpecifications | null> {
     try {
       const fileHash = FileUtils.getFileHash(imagePath);
-      const cacheKey = `${imagePath}:${fileHash}`;
+      const cacheKey = `${path.basename(imagePath)}:${fileHash}`;
 
-      if (this.imageCache.has(cacheKey)) {
-        appLogger.debug(`Cache hit for ${imagePath}`);
-        return this.imageCache.get(cacheKey) as ImageSpecifications;
+      if (this.config.cacheEnabled) {
+        const cached = await this.cacheManager.readCache<ImageSpecifications>(cacheKey);
+        if (cached) {
+          appLogger.debug(`Cache hit for ${imagePath}`);
+          return cached;
+        }
       }
 
       FileUtils.ensureDirectoryExists(this.config.outputDir);
@@ -107,8 +91,9 @@ export class ImageProcessor {
           variants: [],
         };
 
-        this.imageCache.set(cacheKey, imageSpecifications);
-        if (this.config.cacheEnabled) this.saveCache();
+        if (this.config.cacheEnabled) {
+          await this.cacheManager.writeCache(cacheKey, imageSpecifications);
+        }
 
         return imageSpecifications;
       }
@@ -160,8 +145,9 @@ export class ImageProcessor {
         variants,
       };
 
-      this.imageCache.set(cacheKey, imageSpecifications);
-      if (this.config.cacheEnabled) this.saveCache();
+      if (this.config.cacheEnabled) {
+        await this.cacheManager.writeCache(cacheKey, imageSpecifications);
+      }
 
       return imageSpecifications;
     } catch (error) {
@@ -189,8 +175,6 @@ export class ImageProcessor {
 
     appLogger.debugTimeEnd('Processing images');
     appLogger.info(`Processed ${results.length} images`);
-
-    this.saveCache();
 
     return Object.fromEntries(results);
   }

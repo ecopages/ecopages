@@ -4,8 +4,8 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-    title: 'Docs | Custom Processor',
-    description: 'Learn how to create custom processors in Ecopages',
+  title: 'Docs | Custom Processor',
+  description: 'Learn how to create custom processors in Ecopages',
 })
 
 # Creating Custom Processors
@@ -77,7 +77,7 @@ class CustomProcessor extends Processor {
     
     // Process and cache result
     const result = await someExpensiveOperation(input);
-    this.writeCache(cacheKey, result);
+    await this.writeCache(cacheKey, result);
     
     return result;
   }

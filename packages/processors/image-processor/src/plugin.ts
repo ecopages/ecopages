@@ -5,6 +5,7 @@
 
 import path from 'node:path';
 import { FileUtils, deepMerge } from '@ecopages/core';
+import { GENERATED_DIRS } from '@ecopages/core/constants';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import type { AssetDependency } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
@@ -132,7 +133,10 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
     const config = this.options ? deepMerge(defaultConfig, this.options) : defaultConfig;
 
-    this.processor = new ImageProcessor(config);
+    this.processor = new ImageProcessor(config, {
+      readCache: (key) => this.readCache(key),
+      writeCache: (key, data) => this.writeCache(key, data),
+    });
 
     this.processedImages = await this.processor.processDirectory();
 
@@ -233,7 +237,7 @@ declare module "ecopages:images" {
 
     if (!this.context) throw new Error('Processor is not configured correctly');
 
-    const typesDir = path.join(this.context.distDir, '__types__', this.name);
+    const typesDir = path.join(this.context.rootDir, GENERATED_DIRS.types, this.name);
     FileUtils.ensureDirectoryExists(typesDir);
     FileUtils.writeFileSync(path.join(typesDir, 'virtual-module.d.ts'), typeContent);
     logger.debug('Generated types for virtual module', { typesDir });

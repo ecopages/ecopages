@@ -3,6 +3,7 @@
  * @module
  */
 
+import './console';
 import type { IntegrationRenderer } from '@ecopages/core';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';

@@ -1,4 +1,3 @@
-import '../../global/init.ts';
 import path from 'node:path';
 import type { BunRequest, RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
 import { StaticContentServer } from '../../dev/sc-server.ts';

@@ -69,6 +69,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
     tailwindInput: 'styles/tailwind.css',
   };
 
+  static EXTENSIONS_TO_WATCH = ['css', 'jsx', 'tsx', 'js', 'ts', 'html'];
+
   constructor(config: Omit<ProcessorConfig<PostCssProcessorPluginConfig>, 'name' | 'description'>) {
     const defaultWatchConfig: ProcessorWatchConfig = {
       paths: [],
@@ -84,6 +86,13 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
       onChange: async (filePath) => {
         if (filePath.endsWith('.css')) {
           await this.processCssFile(filePath);
+        }
+
+        if (
+          PostCssProcessorPlugin.EXTENSIONS_TO_WATCH.some((ext) => filePath.endsWith(ext)) &&
+          this.options?.processTailwind
+        ) {
+          await this.execTailwind();
         }
       },
       onDelete: async (filePath) => {
@@ -172,7 +181,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
     const defaultConfig: PostCssProcessorPluginConfig = {
       sourceDir: `${this.context.srcDir}`,
-      outputDir: `${this.context.distDir}`,
+      outputDir: `${this.context.distDir}/${AssetDependencyHelpers.RESOLVED_ASSETS_DIR}`,
       processTailwind: true,
       tailwindInput: 'styles/tailwind.css',
     };
@@ -203,8 +212,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
       throw new Error('Options and context must be set');
     }
 
-    const watch = import.meta.env.NODE_ENV === 'development';
-
     const { processTailwind, tailwindInput } = this.options;
     if (!processTailwind || !tailwindInput) return;
 
@@ -213,14 +220,9 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
     FileUtils.ensureDirectoryExists(path.dirname(output));
 
-    try {
-      this.processCssFile(input);
-      logger.info(watch ? 'Tailwind CSS watching for changes' : 'Tailwind CSS build completed');
-    } catch (error) {
-      logger.error('Failed to execute Tailwind CSS command', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    this.processCssFile(input).catch((error) => {
+      logger.error('Failed to process Tailwind CSS', { error });
+    });
   }
 
   /**

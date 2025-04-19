@@ -21,7 +21,7 @@ import { type ReturnParseCliArgs, parseCliArgs } from '../../utils/parse-cli-arg
 export interface ClearOutputOptions {
   /**
    * Whether to clear the output directory
-   * @default true
+   * @default false
    */
   enabled: boolean;
   /**
@@ -39,7 +39,7 @@ export interface ApplicationAdapterOptions {
   serverOptions?: Record<string, any>;
   /**
    * Options for clearing the output directory before starting the server
-   * @default { enabled: true, filter: [] }
+   * @default false
    */
   clearOutput?: boolean | ClearOutputOptions;
 }
@@ -78,7 +78,7 @@ export abstract class AbstractApplicationAdapter<
     this.serverOptions = options.serverOptions || {};
     this.cliArgs = parseCliArgs();
 
-    const clearOutput = options.clearOutput ?? { enabled: true, filter: [] };
+    const clearOutput = options.clearOutput ?? false;
     if (clearOutput) {
       const { enabled, filter } = typeof clearOutput === 'boolean' ? { enabled: true, filter: [] } : clearOutput;
       if (enabled) {

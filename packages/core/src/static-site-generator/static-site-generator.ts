@@ -24,6 +24,7 @@ export class StaticSiteGenerator {
       data += '\n';
     }
 
+    FileUtils.ensureDirectoryExists(this.appConfig.distDir);
     FileUtils.writeFileSync(`${this.appConfig.distDir}/robots.txt`, data);
   }
 

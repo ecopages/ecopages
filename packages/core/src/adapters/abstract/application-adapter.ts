@@ -7,9 +7,29 @@
  * @module ApplicationAdapter
  */
 
+import path from 'node:path';
+import { Processor } from 'src/plugins/processor.ts';
+import { FileUtils } from 'src/utils/file-utils.module.ts';
+import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { ApiHandler } from '../../public-types.ts';
 import { type ReturnParseCliArgs, parseCliArgs } from '../../utils/parse-cli-args.ts';
+
+/**
+ * Configuration options for clearing the output directory before starting the server
+ */
+export interface ClearOutputOptions {
+  /**
+   * Whether to clear the output directory
+   * @default true
+   */
+  enabled: boolean;
+  /**
+   * Directories to filter out from deletion
+   * @default []
+   */
+  filter: string[];
+}
 
 /**
  * Configuration options for application adapters
@@ -17,6 +37,11 @@ import { type ReturnParseCliArgs, parseCliArgs } from '../../utils/parse-cli-arg
 export interface ApplicationAdapterOptions {
   appConfig: EcoPagesAppConfig;
   serverOptions?: Record<string, any>;
+  /**
+   * Options for clearing the output directory before starting the server
+   * @default { enabled: true, filter: [] }
+   */
+  clearOutput?: boolean | ClearOutputOptions;
 }
 
 /**
@@ -52,6 +77,42 @@ export abstract class AbstractApplicationAdapter<
     this.appConfig = options.appConfig;
     this.serverOptions = options.serverOptions || {};
     this.cliArgs = parseCliArgs();
+
+    const clearOutput = options.clearOutput ?? { enabled: true, filter: [] };
+    if (clearOutput) {
+      const { enabled, filter } = typeof clearOutput === 'boolean' ? { enabled: true, filter: [] } : clearOutput;
+      if (enabled) {
+        this.clearDistFolder(filter).catch((error) => {
+          appLogger.error('Error clearing dist folder', error as Error);
+        });
+      }
+    }
+  }
+
+  private async clearDistFolder(filter: string[] = []): Promise<void> {
+    const distPath = this.appConfig.absolutePaths.distDir;
+    const distExists = FileUtils.existsSync(distPath);
+
+    if (!distExists) return;
+
+    try {
+      if (filter.length) {
+        const entries = FileUtils.readdirSync(distPath);
+
+        for (const entry of entries) {
+          const fullPath = path.join(distPath, entry);
+          if (filter.includes(entry)) {
+            await FileUtils.rmAsync(fullPath, { recursive: true });
+          }
+        }
+        appLogger.debug(`Cleared dist folder (preserved cache): ${distPath}`);
+      } else {
+        await FileUtils.rmAsync(distPath, { recursive: true });
+        appLogger.debug(`Cleared dist folder: ${distPath}`);
+      }
+    } catch (error) {
+      appLogger.error(`Error clearing dist folder: ${distPath}`, error as Error);
+    }
   }
 
   /**

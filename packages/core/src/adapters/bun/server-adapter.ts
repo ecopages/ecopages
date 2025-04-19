@@ -42,7 +42,7 @@ export type BunServeOptions = ServeOptions & {
 
 export interface BunServerAdapterOptions extends ServerAdapterOptions {
   serveOptions: BunServeAdapterServerOptions;
-  options?: { watch: boolean };
+  appConfig: EcoPagesAppConfig;
   apiHandlers?: ApiHandler[];
 }
 

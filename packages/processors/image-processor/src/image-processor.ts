@@ -45,6 +45,7 @@ export class ImageProcessor {
 
     try {
       const cacheData = Object.fromEntries(this.imageCache.entries());
+      FileUtils.ensureDirectoryExists(path.dirname(this.cacheFilePath));
       FileUtils.writeFileSync(this.cacheFilePath, JSON.stringify(cacheData));
       appLogger.debug(`Saved image cache with ${this.imageCache.size} entries`);
     } catch (error) {

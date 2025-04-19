@@ -5,7 +5,6 @@
  */
 
 import path from 'node:path';
-import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,

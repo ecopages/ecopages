@@ -6,10 +6,6 @@ main {
 	@apply p-8 mx-auto;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 .prose {
 	h1 {
 		@apply text-4xl font-bold my-6;

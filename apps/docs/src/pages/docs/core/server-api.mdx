@@ -71,7 +71,7 @@ import type { ApiHandler } from '@ecopages/core';
 const handler: ApiHandler = {
   path: '/api/users/:id',
   method: 'GET',
-  handler: async (request) => {
+  handler: async ({request}) => {
     const { id } = request.params;
     return new Response(JSON.stringify({ id }));
   },

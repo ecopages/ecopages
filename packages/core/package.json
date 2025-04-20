@@ -32,10 +32,6 @@
 			"require": "./src/index.ts",
 			"types": "./src/public-types.ts"
 		},
-		"./bin": {
-			"types": "./src/bin/ecopages.ts",
-			"default": "./src/bin/ecopages.ts"
-		},
 		"./config-builder": {
 			"types": "./src/config/config-builder.ts",
 			"default": "./src/config/config-builder.ts"

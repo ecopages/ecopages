@@ -287,21 +287,20 @@ export type Prettify<T> = {
   [K in keyof T]: T[K];
 } & {};
 
-/**
- * Represents an API handler for server-side API routes.
- */
-export interface ApiHandler<T extends string = string> {
-  /**
-   * The path for the API endpoint (e.g. '/api/users')
-   */
-  path: T;
-  /**
-   * The HTTP method for the endpoint
-   * @default 'GET'
-   */
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
-  /**
-   * The handler function that processes the request and returns a response
-   */
-  handler: (request: BunRequest<T>) => Promise<Response> | Response;
+export interface BaseRequest<TPath extends string = string> {
+  params: Record<string, string>;
+  path: string;
+  method: string;
+  [key: string]: any;
+}
+
+export interface HandlerContext<TRequest extends BaseRequest> {
+  request: TRequest;
+  appConfig: EcoPagesAppConfig;
+}
+
+export interface ApiHandler<TPath extends string = string, TRequest extends BaseRequest<TPath> = BaseRequest<TPath>> {
+  path: TPath;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
+  handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response;
 }

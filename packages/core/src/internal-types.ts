@@ -1,7 +1,7 @@
 import type { BunPlugin } from 'bun';
 import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
 import type { Processor } from './plugins/processor.ts';
-import type { ApiHandler, PageMetadataProps } from './public-types.ts';
+import type { PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from './router/fs-router.ts';
 
 /**

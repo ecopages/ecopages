@@ -11,13 +11,13 @@
 import type { BunRequest, Server } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler } from '../../public-types.ts';
+import type { ApiHandler, BaseRequest } from '../../public-types.ts';
 import {
   AbstractApplicationAdapter,
   type ApplicationAdapterOptions,
   type HandlerContext,
 } from '../abstract/application-adapter.ts';
-import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
+import { type BunServerAdapterResult, type BunServerRequest, createBunServerAdapter } from './server-adapter.ts';
 
 /**
  * Configuration options for the Bun application adapter
@@ -38,49 +38,49 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 
   get<P extends string>(
     path: P,
-    handler: (context: HandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: HandlerContext<BunServerRequest<P>>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'GET', handler);
   }
 
   post<P extends string>(
     path: P,
-    handler: (context: HandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: HandlerContext<BunServerRequest<P>>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'POST', handler);
   }
 
   put<P extends string>(
     path: P,
-    handler: (context: HandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: HandlerContext<BunServerRequest<P>>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'PUT', handler);
   }
 
   delete<P extends string>(
     path: P,
-    handler: (context: HandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: HandlerContext<BunServerRequest<P>>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'DELETE', handler);
   }
 
   patch<P extends string>(
     path: P,
-    handler: (context: HandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: HandlerContext<BunServerRequest<P>>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'PATCH', handler);
   }
 
   options<P extends string>(
     path: P,
-    handler: (context: HandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: HandlerContext<BunServerRequest<P>>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'OPTIONS', handler);
   }
 
   head<P extends string>(
     path: P,
-    handler: (context: HandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: HandlerContext<BunServerRequest<P>>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'HEAD', handler);
   }
@@ -88,7 +88,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
   route<P extends string>(
     path: P,
     method: ApiHandler['method'],
-    handler: (context: HandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: HandlerContext<BunServerRequest<P>>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, method, handler);
   }
@@ -111,26 +111,9 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
   protected async initializeServerAdapter(): Promise<BunServerAdapterResult> {
     const { dev, port, hostname } = this.cliArgs;
 
-    const processedHandlers = this.apiHandlers.map((handler) => {
-      const { path, method, handler: handlerFn } = handler;
-
-      return {
-        path,
-        method,
-        handler: (request: BunRequest<typeof path>) => {
-          const context = {
-            request,
-            appConfig: this.appConfig,
-          };
-
-          return (handlerFn as any)(context);
-        },
-      };
-    });
-
     return await createBunServerAdapter({
       appConfig: this.appConfig,
-      apiHandlers: processedHandlers as ApiHandler[],
+      apiHandlers: this.apiHandlers,
       options: { watch: dev },
       serveOptions: {
         port,

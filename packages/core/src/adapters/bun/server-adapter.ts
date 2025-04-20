@@ -3,7 +3,7 @@ import type { BunRequest, RouterTypes, ServeOptions, Server, WebSocketHandler } 
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler } from '../../public-types.ts';
+import type { ApiHandler, BaseRequest } from '../../public-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
@@ -50,6 +50,8 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
   buildStatic: (options?: { preview?: boolean }) => Promise<void>;
   completeInitialization: (server: Server) => Promise<void>;
 }
+
+export type BunServerRequest<TPath extends string = string> = BunRequest<TPath> & BaseRequest<TPath>;
 
 export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOptions, BunServerAdapterResult> {
   declare appConfig: EcoPagesAppConfig;
@@ -238,9 +240,12 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       const method = handler.method || 'GET';
       const path = handler.path;
 
-      const wrappedHandler = async (request: BunRequest): Promise<Response> => {
+      const wrappedHandler = async (request: BunServerRequest<string>): Promise<Response> => {
         try {
-          return await handler.handler(request);
+          return await handler.handler({
+            request,
+            appConfig: this.appConfig,
+          });
         } catch (error) {
           appLogger.error(`Error in API handler for ${path}: ${error}`);
           return new Response(JSON.stringify({ error: 'Internal Server Error' }), {

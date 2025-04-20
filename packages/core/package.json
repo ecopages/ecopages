@@ -21,8 +21,7 @@
 	"dependencies": {
 		"@ecopages/logger": "latest",
 		"@parcel/watcher": "^2.4.0",
-		"ghtml": "^3.1.2",
-		"redis": "^4.7.0"
+		"ghtml": "^3.1.2"
 	},
 	"devDependencies": {
 		"bun-types": "latest"

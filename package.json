@@ -17,7 +17,7 @@
 		"build:docs": "bun run --filter @ecopages/docs build",
 		"start:docs": "bun run --filter @ecopages/docs start",
 		"preview:docs": "bun run --filter @ecopages/docs preview",
-		"clean": "clear && rm -rf node_modules bun.lock && bun install",
+		"clean": "clear && bunx npkill -D -y && rm -rf bun.lock && bun install",
 		"format": "bunx @biomejs/biome format --write .",
 		"lint": "bunx @biomejs/biome check --write .",
 		"lint-staged": "lint-staged",

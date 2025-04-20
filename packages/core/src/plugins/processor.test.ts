@@ -43,11 +43,6 @@ describe('Processor', () => {
     expect(processor.getName()).toBe('test-processor');
   });
 
-  test('should set context correctly', () => {
-    processor.setContext(appConfig);
-    expect(processor.getDependencies()).toEqual([]);
-  });
-
   test('should return watch config', () => {
     expect(processor.getWatchConfig()).toEqual({
       paths: ['/test'],

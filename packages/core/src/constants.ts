@@ -3,6 +3,9 @@
  * @module constants
  **/
 
+import path from 'node:path';
+import { FileUtils } from './utils/file-utils.module';
+
 /**
  * Collection of status messages used in the application.
  */
@@ -20,15 +23,32 @@ export const IS_BUN = typeof Bun !== 'undefined';
  */
 export const RESOLVED_ASSETS_DIR = 'assets';
 
-/**
- * Base directory for all generated content
- */
-export const GENERATED_DIR = '.generated';
+interface GeneratedPathOptions {
+  root: string;
+  module: string;
+  subPath?: string;
+  ensureDirExists?: boolean;
+}
+
+const GENERATED_BASE_PATHS = {
+  types: 'node_modules/@types',
+  cache: 'node_modules/@ecopages/cache',
+} as const;
 
 /**
- * Directory structure for generated content
+ * Resolves a path for generated project files based on the type and options.
+ * Used for managing generated files like types, cache, and assets.
  */
-export const GENERATED_DIRS = {
-  types: `${GENERATED_DIR}/types`,
-  cache: `${GENERATED_DIR}/cache`,
-} as const;
+export function resolveGeneratedPath(type: keyof typeof GENERATED_BASE_PATHS, options: GeneratedPathOptions): string {
+  const { root, module, subPath, ensureDirExists } = options;
+
+  const parts = [root, GENERATED_BASE_PATHS[type], module, subPath].filter(Boolean);
+
+  const fullPath = path.join(...(parts as string[]));
+
+  if (ensureDirExists) {
+    FileUtils.ensureDirectoryExists(path.dirname(fullPath));
+  }
+
+  return fullPath;
+}

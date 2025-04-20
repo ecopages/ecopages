@@ -5,7 +5,7 @@
 
 import path from 'node:path';
 import { FileUtils, deepMerge } from '@ecopages/core';
-import { GENERATED_DIRS } from '@ecopages/core/constants';
+import { resolveGeneratedPath } from '@ecopages/core/constants';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import type { AssetDependency } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
@@ -221,7 +221,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
     const requiredTypes = FileUtils.readFileSync(path.join(__dirname, 'types.ts')).toString().replaceAll('export ', '');
 
-    const typeContent = `
+    const content = `
 /**
  * Do not edit manually. This file is auto-generated.
  * This file contains the type definitions for the virtual module "ecopages:images".
@@ -237,9 +237,14 @@ declare module "ecopages:images" {
 
     if (!this.context) throw new Error('Processor is not configured correctly');
 
-    const typesDir = path.join(this.context.rootDir, GENERATED_DIRS.types, this.name);
-    FileUtils.ensureDirectoryExists(typesDir);
-    FileUtils.writeFileSync(path.join(typesDir, 'virtual-module.d.ts'), typeContent);
+    const typesDir = resolveGeneratedPath('types', {
+      root: this.context.rootDir,
+      module: this.name,
+      subPath: 'virtual-module.d.ts',
+      ensureDirExists: true,
+    });
+
+    FileUtils.writeFileSync(typesDir, content);
     logger.debug('Generated types for virtual module', { typesDir });
   }
 

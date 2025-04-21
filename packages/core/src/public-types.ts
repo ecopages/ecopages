@@ -287,18 +287,28 @@ export type Prettify<T> = {
   [K in keyof T]: T[K];
 } & {};
 
+/**
+ * Generic type for the request object in EcoPages server adapters.
+ */
 export interface BaseRequest<TPath extends string = string> {
   params: Record<string, string>;
-  path: string;
+  path: TPath;
   method: string;
   [key: string]: any;
 }
 
+/**
+ * Context provided to the API handler.
+ */
 export interface HandlerContext<TRequest extends BaseRequest> {
   request: TRequest;
   appConfig: EcoPagesAppConfig;
 }
 
+/**
+ * Represents an API handler in EcoPages.
+ * It defines the path, method, and handler function for the API endpoint.
+ */
 export interface ApiHandler<TPath extends string = string, TRequest extends BaseRequest<TPath> = BaseRequest<TPath>> {
   path: TPath;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';

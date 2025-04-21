@@ -13,7 +13,7 @@ import {
   type RouteRendererBody,
 } from '@ecopages/core';
 import { rapidhash } from '@ecopages/core/hash';
-import { AssetsDependencyService } from '@ecopages/core/services/assets-dependency-service';
+import { AssetDependencyHelpers, AssetsDependencyService } from '@ecopages/core/services/assets-dependency-service';
 import type { BunPlugin } from 'bun';
 import { type JSX, createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
@@ -92,6 +92,11 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     absolutePath: string;
   }) {
     try {
+      const expectedOutputPath = path.join(absolutePath, `${componentName}.js`);
+      if (FileUtils.existsSync(expectedOutputPath)) {
+        return expectedOutputPath.split(this.appConfig.absolutePaths.distDir)[1];
+      }
+
       const build = await Bun.build({
         entrypoints: [pagePath],
         format: 'esm',
@@ -126,31 +131,53 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     }
   }
 
-  private async generateHydrationScript(pagePath: string) {
+  private async prepareHydrationAsset(pagePath: string) {
     try {
       const pathHash = rapidhash(pagePath);
       const componentName = `component-${pathHash}`;
 
+      if (this.assetsDependencyService?.hasDependencies(componentName)) {
+        this.assetsDependencyService.invalidateCache(componentName);
+        return;
+      }
+
       const absolutePath = path.join(this.appConfig.absolutePaths.distDir, this.componentDirectory);
       const hydrationScriptPath = path.join(absolutePath, `${componentName}-hydration.js`);
-
-      if (FileUtils.existsSync(hydrationScriptPath)) {
-        return hydrationScriptPath.split(this.appConfig.absolutePaths.distDir)[1];
-      }
 
       const relativeImportInScript = await this.bundleComponent({
         pagePath,
         componentName,
         absolutePath,
       });
-
       const hydrationCode = this.createHydrationScript(relativeImportInScript);
 
       FileUtils.writeFileSync(hydrationScriptPath, hydrationCode);
 
       FileUtils.gzipFileSync(hydrationScriptPath);
 
-      return hydrationScriptPath.split(this.appConfig.absolutePaths.distDir)[1];
+      const dependencies = [
+        AssetDependencyHelpers.createPreBundledScriptAsset({
+          position: 'head',
+          srcUrl: relativeImportInScript,
+          attributes: {
+            type: 'module',
+            defer: '',
+          },
+        }),
+        AssetDependencyHelpers.createPreBundledScriptAsset({
+          position: 'head',
+          srcUrl: hydrationScriptPath.split(this.appConfig.absolutePaths.distDir)[1],
+          attributes: {
+            type: 'module',
+            defer: '',
+          },
+        }),
+      ];
+
+      this.assetsDependencyService?.registerDependencies({
+        name: componentName,
+        getDependencies: () => dependencies,
+      });
     } catch (error) {
       if (error instanceof BundleError) {
         console.error('[ecopages] Bundle errors:', error.logs);
@@ -159,17 +186,6 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
         `Failed to generate hydration script: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-  }
-
-  private createScriptElements(scripts: string[]): React.JSX.Element[] {
-    return scripts.map((script) => {
-      return createElement('script', {
-        key: script,
-        defer: true,
-        type: 'module',
-        src: script,
-      });
-    });
   }
 
   async render({
@@ -182,15 +198,13 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     HtmlTemplate,
   }: IntegrationRendererRenderOptions<JSX.Element>): Promise<RouteRendererBody> {
     try {
-      const hydrationScriptPath = await this.generateHydrationScript(file);
-      const headContent = this.createScriptElements([hydrationScriptPath]) as any;
+      await this.prepareHydrationAsset(file);
 
       const body = await renderToReadableStream(
         createElement(
           HtmlTemplate,
           {
             metadata,
-            headContent,
           } as HtmlTemplateProps,
           createElement(Page, { params, query, ...props }),
         ),

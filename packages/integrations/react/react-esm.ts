@@ -4,7 +4,22 @@
  */
 
 import * as React from 'react';
-import { hydrateRoot } from 'react-dom/client';
+import {
+  createPortal,
+  flushSync,
+  preconnect,
+  prefetchDNS,
+  preinit,
+  preinitModule,
+  preload,
+  preloadModule,
+  requestFormReset,
+  unstable_batchedUpdates,
+  useFormState,
+  useFormStatus,
+} from 'react-dom';
+import { createRoot, hydrateRoot } from 'react-dom/client';
+import { jsxDEV } from 'react/jsx-dev-runtime';
 import { jsx, jsxs } from 'react/jsx-runtime';
 
 import {
@@ -83,9 +98,23 @@ export {
   useSyncExternalStore,
   useTransition,
   version,
-  hydrateRoot,
   jsx,
   jsxs,
+  jsxDEV,
+  hydrateRoot,
+  createRoot,
+  createPortal,
+  flushSync,
+  preconnect,
+  unstable_batchedUpdates,
+  prefetchDNS,
+  preinit,
+  preinitModule,
+  preload,
+  preloadModule,
+  requestFormReset,
+  useFormState,
+  useFormStatus,
 };
 
 export default React;

@@ -80,6 +80,7 @@ export type ModuleScriptReference = CoreAsset & {
   position: AssetInjectionPosition;
   minify?: boolean;
   importPath: string;
+  name?: string;
 };
 
 /**
@@ -505,6 +506,16 @@ export class AssetsDependencyService implements IAssetsDependencyService {
           minify: nodeDep.minify,
         });
         const content = FileUtils.readFileSync(filepath, 'utf-8');
+
+        if (nodeDep.name) {
+          const { filepath: renamedFilepath } = this.writeFileToDist({
+            content,
+            name: nodeDep.name,
+            ext: 'js',
+          });
+          return { filepath: renamedFilepath, content };
+        }
+
         return { filepath, content };
       },
 
@@ -664,7 +675,7 @@ export class AssetDependencyHelpers {
   static createNodeModuleScriptAsset = ({
     position = 'body',
     ...options
-  }: CreateDependencyPartial<ModuleScriptReference, 'importPath' | 'attributes'>): ScriptAsset => {
+  }: CreateDependencyPartial<ModuleScriptReference, 'importPath' | 'attributes' | 'name'>): ScriptAsset => {
     return {
       kind: 'script',
       source: 'nodeModule',

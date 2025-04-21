@@ -53,45 +53,6 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
    * @returns
    */
   private generateDependencies(): AssetDependency[] {
-    if (import.meta.env.NODE_ENV === 'development') {
-      return [
-        AssetDependencyHelpers.createInlineScriptAsset({
-          position: 'head',
-          content: JSON.stringify(
-            {
-              imports: {
-                react: this.buildImportMapSourceUrl('react-dev-esm.js'),
-                'react-dom/client': this.buildImportMapSourceUrl('react-dev-esm.js'),
-                'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-dev-esm.js'),
-                'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
-              },
-            },
-            null,
-            2,
-          ),
-          attributes: {
-            type: 'importmap',
-          },
-        }),
-        AssetDependencyHelpers.createNodeModuleScriptAsset({
-          position: 'head',
-          importPath: '@ecopages/react/react-dev-esm.ts',
-          attributes: {
-            type: 'module',
-            defer: '',
-          },
-        }),
-        AssetDependencyHelpers.createNodeModuleScriptAsset({
-          position: 'head',
-          importPath: '@ecopages/react/react-dom-esm.ts',
-          attributes: {
-            type: 'module',
-            defer: '',
-          },
-        }),
-      ];
-    }
-
     return [
       AssetDependencyHelpers.createInlineScriptAsset({
         position: 'head',
@@ -99,9 +60,10 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
           {
             imports: {
               react: this.buildImportMapSourceUrl('react-esm.js'),
-              'react-dom/client': this.buildImportMapSourceUrl('react-esm.js'),
               'react/jsx-runtime': this.buildImportMapSourceUrl('react-esm.js'),
-              'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
+              'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-esm.js'),
+              'react-dom': this.buildImportMapSourceUrl('react-esm.js'),
+              'react-dom/client': this.buildImportMapSourceUrl('react-esm.js'),
             },
           },
           null,
@@ -109,20 +71,11 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
         ),
         attributes: {
           type: 'importmap',
-          defer: '',
         },
       }),
       AssetDependencyHelpers.createNodeModuleScriptAsset({
         position: 'head',
         importPath: '@ecopages/react/react-esm.ts',
-        attributes: {
-          type: 'module',
-          defer: '',
-        },
-      }),
-      AssetDependencyHelpers.createNodeModuleScriptAsset({
-        position: 'head',
-        importPath: '@ecopages/react/react-dom-esm.ts',
         attributes: {
           type: 'module',
           defer: '',

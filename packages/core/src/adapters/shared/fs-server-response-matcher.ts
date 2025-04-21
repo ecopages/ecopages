@@ -46,7 +46,7 @@ export class FileSystemResponseMatcher {
         query: match.query,
       });
 
-      return this.fileSystemResponseFactory.createResponseWithBody(renderedBody);
+      return await this.fileSystemResponseFactory.createResponseWithBody(renderedBody);
     } catch (error) {
       if (error instanceof Error) {
         appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.pathname}`);

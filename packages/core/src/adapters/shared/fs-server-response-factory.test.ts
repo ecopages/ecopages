@@ -20,6 +20,7 @@ describe('FileSystemServerResponseFactory', () => {
   beforeAll(async () => {
     responseFactory = new FileSystemServerResponseFactory({
       appConfig,
+      transformIndexHtml: async (res) => res,
       routeRendererFactory: new RouteRendererFactory({
         appConfig,
       }),
@@ -50,6 +51,7 @@ describe('FileSystemServerResponseFactory', () => {
     it('should return false in watch mode', () => {
       const responseFactoryWatch = new FileSystemServerResponseFactory({
         appConfig,
+        transformIndexHtml: async (res) => res,
         routeRendererFactory: new RouteRendererFactory({
           appConfig,
         }),
@@ -81,7 +83,7 @@ describe('FileSystemServerResponseFactory', () => {
   describe('createResponseWithBody', async () => {
     it('should create a response with the given route renderer body', async () => {
       const routeRendererBody = '<html><body>Test</body></html>';
-      const response = responseFactory.createResponseWithBody(routeRendererBody);
+      const response = await responseFactory.createResponseWithBody(routeRendererBody);
       const body = await response.text();
       expect(body).toBe(routeRendererBody);
       expect(response.headers.get('Content-Type')).toBe('text/html');
@@ -109,6 +111,7 @@ describe('FileSystemServerResponseFactory', () => {
 
       const responseFactoryNo404Template = new FileSystemServerResponseFactory({
         appConfig: customAppConfig,
+        transformIndexHtml: async (res) => res,
         routeRendererFactory: new RouteRendererFactory({
           appConfig: customAppConfig,
         }),

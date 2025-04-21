@@ -291,7 +291,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     const baseUrl = `http://${this.serveOptions.hostname || 'localhost'}:${this.serveOptions.port || 3000}`;
 
     await this.staticSiteGenerator.run({
-      transformIndexHtml: this.transformIndexHtml,
       router: this.router,
       baseUrl,
     });
@@ -303,7 +302,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
     const { server } = StaticContentServer.createServer({
       appConfig: this.appConfig,
-      transformIndexHtml: this.transformIndexHtml,
     });
 
     appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
@@ -354,10 +352,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
     if (match) {
       const response = await this.fileSystemResponseMatcher.handleMatch(match);
-
-      if (this.transformIndexHtml && response.headers.get('content-type')?.includes('text/html')) {
-        return this.transformIndexHtml(response);
-      }
 
       return response;
     }

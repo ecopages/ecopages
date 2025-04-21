@@ -9,7 +9,7 @@ export class FileSystemServerResponseFactory {
   private appConfig: EcoPagesAppConfig;
   private routeRendererFactory: RouteRendererFactory;
   private options: FileSystemServerOptions;
-  private transformIndexHtml?: (res: Response) => Promise<Response>;
+  private transformIndexHtml: (res: Response) => Promise<Response>;
 
   constructor({
     appConfig,
@@ -20,7 +20,7 @@ export class FileSystemServerResponseFactory {
     appConfig: EcoPagesAppConfig;
     routeRendererFactory: RouteRendererFactory;
     options: FileSystemServerOptions;
-    transformIndexHtml?: (res: Response) => Promise<Response>;
+    transformIndexHtml: (res: Response) => Promise<Response>;
   }) {
     this.appConfig = appConfig;
     this.routeRendererFactory = routeRendererFactory;
@@ -38,7 +38,7 @@ export class FileSystemServerResponseFactory {
     return gzipEnabledExtensions.includes(contentType);
   }
 
-  createResponseWithBody(
+  async createResponseWithBody(
     body: RouteRendererBody,
     init: ResponseInit = {
       headers: {
@@ -46,6 +46,7 @@ export class FileSystemServerResponseFactory {
       },
     },
   ) {
+    if (this.transformIndexHtml) return await this.transformIndexHtml(new Response(body as BodyInit, init));
     return new Response(body as BodyInit, init);
   }
 
@@ -74,11 +75,7 @@ export class FileSystemServerResponseFactory {
       file: error404TemplatePath,
     });
 
-    const response = this.createResponseWithBody(routeRendererBody);
-
-    if (this.transformIndexHtml) return await this.transformIndexHtml(response);
-
-    return response;
+    return await this.createResponseWithBody(routeRendererBody);
   }
   async createFileResponse(filePath: string, contentType: string) {
     try {
@@ -93,7 +90,7 @@ export class FileSystemServerResponseFactory {
         file = FileUtils.getFileAsBuffer(filePath);
       }
 
-      return this.createResponseWithBody(file, {
+      return await this.createResponseWithBody(file, {
         headers: {
           'Content-Type': contentType,
           ...contentEncodingHeader,

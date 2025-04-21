@@ -6,7 +6,6 @@ import { FileUtils } from '../utils/file-utils.module.ts';
 
 export class StaticSiteGenerator {
   appConfig: EcoPagesAppConfig;
-  declare transformIndexHtml: (res: Response) => Promise<Response>;
 
   constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
     this.appConfig = appConfig;
@@ -63,7 +62,7 @@ export class StaticSiteGenerator {
     for (const route of routes) {
       try {
         const fetchUrl = route.startsWith('http') ? route : `${baseUrl}${route}`;
-        let response = await fetch(fetchUrl);
+        const response = await fetch(fetchUrl);
 
         if (!response.ok) {
           console.error(`Failed to fetch ${fetchUrl}. Status: ${response.status}`);
@@ -86,10 +85,6 @@ export class StaticSiteGenerator {
 
         const filePath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname);
 
-        if (this.transformIndexHtml) {
-          response = await this.transformIndexHtml(response);
-        }
-
         const contents = await response.text();
 
         FileUtils.write(filePath, contents);
@@ -100,15 +95,12 @@ export class StaticSiteGenerator {
   }
 
   async run({
-    transformIndexHtml,
     router,
     baseUrl,
   }: {
-    transformIndexHtml: (res: Response) => Promise<Response>;
     router: FSRouter;
     baseUrl: string;
   }) {
-    this.transformIndexHtml = transformIndexHtml;
     this.generateRobotsTxt();
     await this.generateStaticPages(router, baseUrl);
   }

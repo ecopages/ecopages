@@ -62,7 +62,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
               react: this.buildImportMapSourceUrl('react-esm.js'),
               'react/jsx-runtime': this.buildImportMapSourceUrl('react-esm.js'),
               'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-esm.js'),
-              'react-dom': this.buildImportMapSourceUrl('react-esm.js'),
+              'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
               'react-dom/client': this.buildImportMapSourceUrl('react-esm.js'),
             },
           },
@@ -76,6 +76,14 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
       AssetDependencyHelpers.createNodeModuleScriptAsset({
         position: 'head',
         importPath: '@ecopages/react/react-esm.ts',
+        attributes: {
+          type: 'module',
+          defer: '',
+        },
+      }),
+      AssetDependencyHelpers.createNodeModuleScriptAsset({
+        position: 'head',
+        importPath: '@ecopages/react/react-dom-esm.ts',
         attributes: {
           type: 'module',
           defer: '',

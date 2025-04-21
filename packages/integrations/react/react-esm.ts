@@ -4,20 +4,6 @@
  */
 
 import * as React from 'react';
-import {
-  createPortal,
-  flushSync,
-  preconnect,
-  prefetchDNS,
-  preinit,
-  preinitModule,
-  preload,
-  preloadModule,
-  requestFormReset,
-  unstable_batchedUpdates,
-  useFormState,
-  useFormStatus,
-} from 'react-dom';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 import { jsxDEV } from 'react/jsx-dev-runtime';
 import { jsx, jsxs } from 'react/jsx-runtime';
@@ -103,18 +89,6 @@ export {
   jsxDEV,
   hydrateRoot,
   createRoot,
-  createPortal,
-  flushSync,
-  preconnect,
-  unstable_batchedUpdates,
-  prefetchDNS,
-  preinit,
-  preinitModule,
-  preload,
-  preloadModule,
-  requestFormReset,
-  useFormState,
-  useFormStatus,
 };
 
 export default React;

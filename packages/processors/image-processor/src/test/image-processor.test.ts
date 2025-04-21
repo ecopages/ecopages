@@ -16,7 +16,7 @@ async function createTestImage(width: number, height: number, path: string): Pro
   }).toFile(path);
 }
 
-const testDir = path.join(process.cwd(), 'test-tmp');
+const testDir = path.join(__dirname, 'test');
 const testImage = path.join(testDir, 'images/test.jpg');
 
 function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProcessor {

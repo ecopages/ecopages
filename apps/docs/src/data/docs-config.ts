@@ -41,6 +41,7 @@ export const docsConfig: DocsConfig = {
         { title: 'Layouts', slug: 'layouts' },
         { title: 'Pages', slug: 'pages' },
         { title: 'Includes', slug: 'includes' },
+        { title: 'Server API', slug: 'server-api' },
       ],
     },
     {
@@ -60,6 +61,15 @@ export const docsConfig: DocsConfig = {
         { title: 'Packages', slug: 'packages' },
         { title: 'PostCSS Processor', slug: 'postcss-processor' },
         { title: 'Image Processor', slug: 'image-processor' },
+      ],
+    },
+    {
+      name: 'Plugins',
+      subdirectory: 'plugins',
+      pages: [
+        { title: 'Overview', slug: 'overview' },
+        { title: 'Custom Processor', slug: 'custom-processor' },
+        { title: 'Custom Integration', slug: 'custom-integration' },
       ],
     },
   ],

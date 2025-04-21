@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { join } from 'node:path';
-import watcher from '@parcel/watcher';
 import type { EventType } from '@parcel/watcher';
+import type ParcelWatcher from '@parcel/watcher';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { FSRouter } from '../router/fs-router.ts';
@@ -14,14 +14,21 @@ type ProjectWatcherConfig = {
 export class ProjectWatcher {
   private appConfig: EcoPagesAppConfig;
   private router: FSRouter;
+  private watcher: typeof ParcelWatcher | undefined;
 
   constructor({ config, router }: ProjectWatcherConfig) {
+    import.meta.env.NODE_ENV = 'development';
     this.appConfig = config;
     this.router = router;
     this.handlePageCreation = this.handlePageCreation.bind(this);
     this.handleChange = this.handleChange.bind(this);
     this.handleDelete = this.handleDelete.bind(this);
     this.handleError = this.handleError.bind(this);
+    this.loadWatcher();
+  }
+
+  private async loadWatcher() {
+    this.watcher = await import('@parcel/watcher');
   }
 
   private uncacheModules(): void {
@@ -92,33 +99,9 @@ export class ProjectWatcher {
   }
 
   public async createWatcherSubscription() {
-    await this.setupProcessorWatchers();
-    return watcher.subscribe('src', async (err, events) => {
-      if (err) {
-        this.handleError(err);
-        return;
-      }
+    if (typeof this.watcher === 'undefined') await this.loadWatcher();
+    if (!this.watcher) throw new Error('Watcher failed to initialize');
 
-      for await (const event of events) {
-        const isDir = !event.path.includes('.');
-        const isCss = event.path.endsWith('.css');
-        const isPage = event.path.includes(this.appConfig.absolutePaths.pagesDir) && !isDir && !isCss;
-
-        if (event.type === 'delete') {
-          this.handleDelete(event.path, isDir);
-          continue;
-        }
-
-        if (event.type === 'create' && isPage) {
-          this.handlePageCreation(event.path, isDir);
-        }
-
-        await this.handleChange(event.path, event.type);
-      }
-    });
-  }
-
-  private async setupProcessorWatchers() {
     for (const processor of this.appConfig.processors.values()) {
       const watchConfig = processor.getWatchConfig();
       if (!watchConfig) continue;
@@ -126,8 +109,7 @@ export class ProjectWatcher {
       const { paths, extensions, onCreate, onChange, onDelete, onError } = watchConfig;
 
       for (const watchPath of paths) {
-        const watcher = await import('@parcel/watcher');
-        await watcher.subscribe(watchPath, async (err, events) => {
+        await this.watcher.subscribe(watchPath, async (err, events) => {
           if (err) {
             onError?.(err);
             return;
@@ -153,5 +135,29 @@ export class ProjectWatcher {
         });
       }
     }
+
+    return this.watcher.subscribe('src', async (err, events) => {
+      if (err) {
+        this.handleError(err);
+        return;
+      }
+
+      for await (const event of events) {
+        const isDir = !event.path.includes('.');
+        const isCss = event.path.endsWith('.css');
+        const isPage = event.path.includes(this.appConfig.absolutePaths.pagesDir) && !isDir && !isCss;
+
+        if (event.type === 'delete') {
+          this.handleDelete(event.path, isDir);
+          continue;
+        }
+
+        if (event.type === 'create' && isPage) {
+          this.handlePageCreation(event.path, isDir);
+        }
+
+        await this.handleChange(event.path, event.type);
+      }
+    });
   }
 }

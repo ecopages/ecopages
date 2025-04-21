@@ -32,6 +32,7 @@ const HomePage: EcoComponent = () => {
       <scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([LitCounter])}>
         <lit-counter class="lit-counter" count={8}></lit-counter>
       </scripts-injector>
+      <EndpointsTesting />
     </BaseLayout>
   );
 };
@@ -45,3 +46,55 @@ HomePage.config = {
 };
 
 export default HomePage;
+
+const EndpointsTesting: EcoComponent = () => {
+  return (
+    <>
+      <h2>Endpoints Testing</h2>
+      <h3 class="font-bold mt-4">Blog Posts</h3>
+      <p>
+        <a href="/api/blog/posts" class="text-blue-500 hover:underline">
+          /api/blog/posts
+        </a>
+      </p>
+      <p>
+        <a href="/api/blog/post/post-1" class="text-blue-500 hover:underline">
+          /api/blog/post/post-1
+        </a>
+      </p>
+      <h3 class="font-bold mt-4">Authors</h3>
+      <p>
+        <a href="/api/blog/authors" class="text-blue-500 hover:underline">
+          /api/blog/authors
+        </a>
+      </p>
+      <p>
+        <a href="/api/blog/author/author-1" class="text-blue-500 hover:underline">
+          /api/blog/author/author-1
+        </a>
+      </p>
+      <h3 class="font-bold mt-4">Subpath Test</h3>
+      <p>
+        <a href="/api/test/123/subpath/example" class="text-blue-500 hover:underline">
+          /api/test/123/subpath/example
+        </a>
+      </p>
+      <p>
+        <a href="/api/test/456/subpath/test" class="text-blue-500 hover:underline">
+          /api/test/456/subpath/test
+        </a>
+      </p>
+      <h3 class="font-bold mt-4">Catch-all Route</h3>
+      <p>
+        <a href="/api/anything/here" class="text-blue-500 hover:underline">
+          /api/anything/here
+        </a>
+      </p>
+      <p>
+        <a href="/api/test/catch/all/example" class="text-blue-500 hover:underline">
+          /api/test/catch/all/example
+        </a>
+      </p>
+    </>
+  );
+};

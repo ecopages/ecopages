@@ -2,11 +2,11 @@
 	"name": "@ecopages/playground-react",
 	"private": true,
 	"scripts": {
-		"watch:dev": "bun --watch ../../node_modules/@ecopages/core/src/main/build-app.ts --watch-lib",
-		"dev": "ecopages dev",
-		"build": "NODE_ENV=production ecopages build",
-		"start": "NODE_ENV=production ecopages start",
-		"preview": "NODE_ENV=production ecopages preview"
+		"start": "bun run app.ts",
+		"dev": "bun run app.ts --dev",
+		"build": "bun run app.ts --build",
+		"preview": "bun run app.ts --preview",
+		"watch:dev": "bun --watch run app.ts --dev"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

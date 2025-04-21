@@ -4,6 +4,7 @@ declare module 'bun' {
   interface Env {
     ECOPAGES_BASE_URL: string;
     ECOPAGES_LOGGER_DEBUG: 'true' | 'false';
+    REDIS_URL: string;
   }
 }
 

@@ -1,4 +1,5 @@
 import { BaseLayout } from '@/layouts/base-layout';
+import { getAllAuthorIds, getAuthor } from '@/mocks/data';
 import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
 
 type AuthorProps = {
@@ -39,17 +40,18 @@ export const getMetadata: GetMetadata<AuthorProps> = async ({ props: { name, slu
 };
 
 export const getStaticPaths: GetStaticPaths = async () => {
-  return {
-    paths: [{ params: { id: 'author-one' } }, { params: { id: 'author-two' } }],
-  };
+  return { paths: getAllAuthorIds() };
 };
 
 export const getStaticProps: GetStaticProps<AuthorProps> = async ({ pathname }) => {
+  const id = pathname.params.id as string;
+  const author = getAuthor(id);
+  if (!author) throw new Error(`Author with id "${id}" not found`);
   return {
     props: {
-      slug: pathname.params.id as string,
-      name: pathname.params.id as string,
-      bio: 'This is a bio',
+      slug: author.slug,
+      name: author.name,
+      bio: author.bio,
     },
   };
 };

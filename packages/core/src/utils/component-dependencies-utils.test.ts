@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
-import { ConfigBuilder } from '../main/config-builder.ts';
+import { ConfigBuilder } from '../config/config-builder.ts';
 import type { EcoComponentConfig, EcoComponentDependencies } from '../public-types.ts';
 import { AssetDependencyHelpers } from '../services/assets-dependency.service.ts';
 import { flagComponentsAsDynamic, resolveComponentsScripts } from './component-dependencies-utils.ts';

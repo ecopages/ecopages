@@ -4,8 +4,8 @@ import {
   FIXTURE_APP_PROJECT_DIR,
   FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH,
 } from '../../../fixtures/constants.ts';
+import { ConfigBuilder } from '../../config/config-builder.ts';
 import { STATUS_MESSAGE } from '../../constants.ts';
-import { ConfigBuilder } from '../../main/config-builder.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 

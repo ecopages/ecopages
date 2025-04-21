@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
+import { ConfigBuilder } from '../config/config-builder.ts';
 import type { Route } from '../internal-types.ts';
-import { ConfigBuilder } from '../main/config-builder.ts';
 import { FSRouterScanner } from './fs-router-scanner.ts';
 import { FSRouter } from './fs-router.ts';
 
@@ -12,6 +12,8 @@ const {
 
 const scanner = new FSRouterScanner({
   dir: pagesDir,
+  // @ts-expect-error
+  appConfig: {},
   origin: 'http://localhost:3000',
   templatesExt,
   options: {

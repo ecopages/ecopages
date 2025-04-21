@@ -5,16 +5,19 @@
 
 import path from 'node:path';
 import { FileUtils, deepMerge } from '@ecopages/core';
+import { resolveGeneratedPath } from '@ecopages/core/constants';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import type { AssetDependency } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
 import type { BunPlugin } from 'bun';
 import { createImagePlugin, createImagePluginBundler } from './bun-plugins';
 import { ImageProcessor } from './image-processor';
-import type { ImageSpecifications } from './types';
+import type { ImageSize, ImageSpecifications } from './types';
 import { anyCaseToCamelCase } from './utils';
 
-const logger = new Logger('[@ecopages/image-processor]');
+const logger = new Logger('[@ecopages/image-processor]', {
+  debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
+});
 
 /**
  * Configuration for the image processor
@@ -26,7 +29,7 @@ export interface ImageProcessorConfig {
   /**
    * @default []
    */
-  sizes: { width: number; label: string }[];
+  sizes: ImageSize[];
   quality: number;
   format: 'webp' | 'jpeg' | 'png' | 'avif';
   /**
@@ -34,6 +37,10 @@ export interface ImageProcessorConfig {
    * @default ["jpg", "jpeg", "png", "webp"]
    */
   acceptedFormats?: string[];
+  /**
+   * @default true
+   */
+  cacheEnabled?: boolean;
 }
 
 /**
@@ -126,7 +133,10 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
     const config = this.options ? deepMerge(defaultConfig, this.options) : defaultConfig;
 
-    this.processor = new ImageProcessor(config);
+    this.processor = new ImageProcessor(config, {
+      readCache: (key) => this.readCache(key),
+      writeCache: (key, data) => this.writeCache(key, data),
+    });
 
     this.processedImages = await this.processor.processDirectory();
 
@@ -211,7 +221,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
     const requiredTypes = FileUtils.readFileSync(path.join(__dirname, 'types.ts')).toString().replaceAll('export ', '');
 
-    const typeContent = `
+    const content = `
 /**
  * Do not edit manually. This file is auto-generated.
  * This file contains the type definitions for the virtual module "ecopages:images".
@@ -227,11 +237,15 @@ declare module "ecopages:images" {
 
     if (!this.context) throw new Error('Processor is not configured correctly');
 
-    const typesDir = path.join(this.context.distDir, '__types__', this.name);
-    FileUtils.ensureDirectoryExists(typesDir);
-    FileUtils.writeFileSync(path.join(typesDir, 'virtual-module.d.ts'), typeContent);
-    logger.info('Generated types for virtual module');
-    logger.debug({ typesDir });
+    const typesDir = resolveGeneratedPath('types', {
+      root: this.context.rootDir,
+      module: this.name,
+      subPath: 'virtual-module.d.ts',
+      ensureDirExists: true,
+    });
+
+    FileUtils.writeFileSync(typesDir, content);
+    logger.debug('Generated types for virtual module', { typesDir });
   }
 
   /**

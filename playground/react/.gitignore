@@ -1,7 +1,7 @@
 # dependencies
 /node_modules
 
-# production
+# ecopages
 .eco
 
 # build
@@ -24,4 +24,3 @@ public/js
 **/*.tgz
 **/*.log
 **/*.bun
-

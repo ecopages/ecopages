@@ -28,3 +28,12 @@ export interface ImageSpecifications {
   attributes: ImageAttributes;
   variants: ImageVariant[];
 }
+
+/**
+ * This is the representation of an image breakpoint
+ * This is used to generate the srcset attribute
+ */
+export type ImageSize = {
+  width: number;
+  label: string;
+};

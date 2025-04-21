@@ -1,0 +1,208 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | Custom Integration',
+    description: 'Learn how to create custom integrations in Ecopages',
+})
+
+# Creating Custom Integrations
+
+Integrations in Ecopages add support for new templating engines or frameworks. This guide will show you how to create your own integration.
+
+## Basic Structure
+
+An integration extends the `IntegrationPlugin` abstract class:
+
+<CodeBlock>
+```typescript
+import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+
+class CustomIntegration extends IntegrationPlugin {
+  constructor() {
+    super({
+      name: 'custom-integration',
+      extensions: ['.custom'], // File extensions to handle
+    });
+  }
+
+  createRenderer(): IntegrationRenderer {
+    return new CustomRenderer({
+      appConfig: this.appConfig!,
+      assetsDependencyService: this.assetsDependencyService,
+    });
+  }
+}
+```
+</CodeBlock>
+
+## Creating a Custom Renderer
+
+The renderer handles the actual transformation of your templates:
+
+<CodeBlock>
+```typescript
+class CustomRenderer extends IntegrationRenderer {
+  name = 'custom-renderer';
+
+  async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+    const { Page, props, metadata, HtmlTemplate } = options;
+
+    // Transform the page content
+    const pageContent = await this.renderPage(Page, props);
+
+    // Render the final HTML using the template
+    return HtmlTemplate({
+      children: pageContent,
+      metadata,
+    });
+  }
+
+  private async renderPage(Page: EcoComponent, props: any): Promise<string> {
+    // Implement your rendering logic here
+    return '';
+  }
+}
+```
+</CodeBlock>
+
+## Handling Dependencies
+
+Manage assets and dependencies for your integration:
+
+<CodeBlock>
+```typescript
+class CustomIntegration extends IntegrationPlugin {
+  constructor() {
+    super({
+      name: 'custom-integration',
+      extensions: ['.custom'],
+      dependencies: [
+        {
+          kind: 'script',
+          importPath: './runtime.js',
+          position: 'head',
+        },
+        {
+          kind: 'stylesheet',
+          importPath: './styles.css',
+        },
+      ],
+    });
+  }
+}
+```
+</CodeBlock>
+
+## Setup and Teardown
+
+Handle initialization and cleanup:
+
+<CodeBlock>
+```typescript
+class CustomIntegration extends IntegrationPlugin {
+  async setup(): Promise<void> {
+    // Initialize resources
+    // Register dependencies
+    // Set up compilation
+  }
+
+  async teardown(): Promise<void> {
+    // Clean up resources
+  }
+}
+```
+</CodeBlock>
+
+## Using the Integration
+
+Register your integration in the Ecopages configuration:
+
+<CodeBlock>
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+
+const customIntegration = new CustomIntegration();
+
+const config = await new ConfigBuilder()
+  .setIntegrations([customIntegration])
+  .build();
+```
+</CodeBlock>
+
+## Best Practices
+
+1. Follow the Single Responsibility Principle
+2. Handle errors gracefully
+3. Provide clear documentation
+4. Use TypeScript for type safety
+5. Test your integration thoroughly
+6. Manage dependencies efficiently
+
+## Example: Complete Integration
+
+Here's a complete example of a custom integration:
+
+<CodeBlock>
+```typescript
+import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+import type { 
+  EcoComponent, 
+  RouteRendererBody, 
+  IntegrationRendererRenderOptions 
+} from '@ecopages/core/public-types';
+
+class CustomRenderer extends IntegrationRenderer {
+  name = 'custom-renderer';
+
+  async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+    const { Page, props, metadata, HtmlTemplate } = options;
+
+    // Transform the page
+    const pageContent = await this.renderPage(Page, props);
+
+    // Return the complete HTML
+    return HtmlTemplate({
+      children: pageContent,
+      metadata,
+      dependencies: {
+        scripts: ['./runtime.js'],
+        stylesheets: ['./styles.css'],
+      },
+    });
+  }
+
+  private async renderPage(Page: EcoComponent, props: any): Promise<string> {
+    return Page(props);
+  }
+}
+
+export class CustomIntegration extends IntegrationPlugin {
+  constructor() {
+    super({
+      name: 'custom-integration',
+      extensions: ['.custom'],
+    });
+  }
+
+  createRenderer(): IntegrationRenderer {
+    return new CustomRenderer({
+      appConfig: this.appConfig!,
+      assetsDependencyService: this.assetsDependencyService,
+    });
+  }
+
+  async setup(): Promise<void> {
+    // Setup logic
+  }
+
+  async teardown(): Promise<void> {
+    // Cleanup logic
+  }
+}
+```
+</CodeBlock>

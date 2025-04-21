@@ -16,7 +16,7 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
-		"@ecopages/logger": "^0.2.0",
+		"@ecopages/logger": "latest",
 		"@types/postcss-import": "^14.0.3",
 		"autoprefixer": "^10.4.16",
 		"cssnano": "^6.0.2",

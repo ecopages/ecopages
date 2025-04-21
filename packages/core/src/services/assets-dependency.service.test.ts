@@ -1,14 +1,21 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
-import { ConfigBuilder } from '../main/config-builder';
+import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
+import path from 'node:path';
+import { FileUtils } from 'src/utils/file-utils.module';
+import { ConfigBuilder } from '../config/config-builder';
 import { AssetDependencyHelpers, AssetsDependencyService, type DependencyProvider } from './assets-dependency.service';
 
 describe('DependencyService', () => {
+  const directory = path.join(__dirname, 'test');
   let service: AssetsDependencyService;
 
   beforeEach(async () => {
     service = new AssetsDependencyService({
-      appConfig: await new ConfigBuilder().setRootDir('test').setBaseUrl('.').build(),
+      appConfig: await new ConfigBuilder().setRootDir(directory).setBaseUrl('.').build(),
     });
+  });
+
+  afterAll(() => {
+    FileUtils.rmdirSync(directory, { recursive: true });
   });
 
   it('should add and remove providers', async () => {

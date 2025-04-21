@@ -1,9 +1,4 @@
-import {
-  ezi76Gu53NklsuUnsplashJpg,
-  smallJpg,
-  theodorePoncetQzephogqd7WUnsplashJpg,
-  urbanVintage78A265Wpio4UnsplashJpg,
-} from 'ecopages:images';
+import { smallJpg, theodorePoncetQzephogqd7WUnsplashJpg, urbanVintage78A265Wpio4UnsplashJpg } from 'ecopages:images';
 import { html } from '@ecopages/core/html';
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import { RadiantElement, customElement, onEvent, query } from '@ecopages/radiant';
@@ -19,12 +14,7 @@ export class EcoImages extends RadiantElement {
 
   @onEvent({ ref: 'create-img', type: 'click' })
   createRandomImage() {
-    const availableImages = [
-      urbanVintage78A265Wpio4UnsplashJpg,
-      theodorePoncetQzephogqd7WUnsplashJpg,
-      ezi76Gu53NklsuUnsplashJpg,
-      smallJpg,
-    ];
+    const availableImages = [urbanVintage78A265Wpio4UnsplashJpg, theodorePoncetQzephogqd7WUnsplashJpg, smallJpg];
 
     const randomImage = availableImages[Math.floor(Math.random() * availableImages.length)];
 

@@ -69,6 +69,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
     tailwindInput: 'styles/tailwind.css',
   };
 
+  static EXTENSIONS_TO_WATCH = ['css', 'jsx', 'tsx', 'js', 'ts', 'html'];
+
   constructor(config: Omit<ProcessorConfig<PostCssProcessorPluginConfig>, 'name' | 'description'>) {
     const defaultWatchConfig: ProcessorWatchConfig = {
       paths: [],
@@ -84,6 +86,13 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
       onChange: async (filePath) => {
         if (filePath.endsWith('.css')) {
           await this.processCssFile(filePath);
+        }
+
+        if (
+          PostCssProcessorPlugin.EXTENSIONS_TO_WATCH.some((ext) => filePath.endsWith(ext)) &&
+          this.options?.processTailwind
+        ) {
+          await this.execTailwind();
         }
       },
       onDelete: async (filePath) => {
@@ -172,7 +181,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
     const defaultConfig: PostCssProcessorPluginConfig = {
       sourceDir: `${this.context.srcDir}`,
-      outputDir: `${this.context.distDir}`,
+      outputDir: `${this.context.distDir}/${AssetDependencyHelpers.RESOLVED_ASSETS_DIR}`,
       processTailwind: true,
       tailwindInput: 'styles/tailwind.css',
     };
@@ -187,7 +196,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
     this.dependencies = this.generateDependencies();
 
-    logger.time('PostCssProcessor setup time');
+    logger.debugTime('PostCssProcessor setup time');
 
     await this.processAll();
 
@@ -195,17 +204,13 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
       this.execTailwind();
     }
 
-    logger.debug('PostCssProcessor setup time', {
-      time: logger.timeEnd('PostCssProcessor setup time'),
-    });
+    logger.debugTimeEnd('PostCssProcessor setup time');
   }
 
   private async execTailwind(): Promise<void> {
     if (!this.options || !this.context) {
       throw new Error('Options and context must be set');
     }
-
-    const watch = import.meta.env.NODE_ENV === 'development';
 
     const { processTailwind, tailwindInput } = this.options;
     if (!processTailwind || !tailwindInput) return;
@@ -215,14 +220,9 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
     FileUtils.ensureDirectoryExists(path.dirname(output));
 
-    try {
-      this.processCssFile(input);
-      logger.info(watch ? 'Tailwind CSS watching for changes' : 'Tailwind CSS build completed');
-    } catch (error) {
-      logger.error('Failed to execute Tailwind CSS command', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    this.processCssFile(input).catch((error) => {
+      logger.error('Failed to process Tailwind CSS', { error });
+    });
   }
 
   /**
@@ -342,7 +342,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
     try {
       const files = await FileUtils.glob([`${this.options.sourceDir}/**/*.css`]);
       await this.process(files);
-      logger.info(`Processed ${files.length} CSS files`);
+      logger.debug(`Processed ${files.length} CSS files`);
     } catch (error) {
       logger.error('Failed to process all CSS files', { error });
     }

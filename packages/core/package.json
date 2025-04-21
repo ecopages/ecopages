@@ -32,21 +32,17 @@
 			"require": "./src/index.ts",
 			"types": "./src/public-types.ts"
 		},
-		"./bin": {
-			"types": "./src/bin/ecopages.ts",
-			"default": "./src/bin/ecopages.ts"
-		},
-		"./build-app": {
-			"types": "./src/main/build-app.ts",
-			"default": "./src/main/build-app.ts"
-		},
 		"./config-builder": {
-			"types": "./src/main/config-builder.ts",
-			"default": "./src/main/config-builder.ts"
+			"types": "./src/config/config-builder.ts",
+			"default": "./src/config/config-builder.ts"
 		},
-		"./adapters/bun/hmr": {
-			"types": "./src/adapters/bun/hmr.ts",
-			"default": "./src/adapters/bun/hmr.ts"
+		"./constants": {
+			"types": "./src/constants.ts",
+			"default": "./src/constants.ts"
+		},
+		"./adapters/bun/create-app": {
+			"types": "./src/adapters/bun/create-app.ts",
+			"default": "./src/adapters/bun/create-app.ts"
 		},
 		"./services/assets-dependency-service": {
 			"types": "./src/services/assets-dependency.service.ts",
@@ -63,6 +59,10 @@
 		"./utils/invariant": {
 			"types": "./src/utils/invariant.ts",
 			"default": "./src/utils/invariant.ts"
+		},
+		"./utils/parse-cli-args": {
+			"types": "./src/utils/parse-cli-args.ts",
+			"default": "./src/utils/parse-cli-args.ts"
 		},
 		"./utils/component-dependencies-utils": {
 			"types": "./src/utils/component-dependencies-utils.ts",

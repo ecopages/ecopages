@@ -8,7 +8,9 @@ const originalConsoleWarn = console.warn;
  * Make sure to test your application with a production build as repeat registrations will throw in production.
  */
 console.warn = (...messages: any[]) => {
-  if (messages.some((message) => message.includes("'CustomElementRegistry' already has"))) {
+  if (
+    messages.some((message) => typeof message === 'string' && message.includes("'CustomElementRegistry' already has"))
+  ) {
     return;
   }
   originalConsoleWarn.apply(console, messages);

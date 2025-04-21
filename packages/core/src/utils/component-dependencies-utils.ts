@@ -20,7 +20,7 @@ function getSafeFileName(path: string): string {
  */
 export function resolveComponentsScripts(components: Required<EcoComponentDependencies>['components']): string {
   const normalizePath = (baseDir: string, fileName: string): string => {
-    return [RESOLVED_ASSETS_DIR, baseDir, getSafeFileName(fileName)].filter(Boolean).join('/').replace(/\/+/g, '/'); // More efficient than replaceAll
+    return [RESOLVED_ASSETS_DIR, baseDir, getSafeFileName(fileName)].filter(Boolean).join('/').replace(/\/+/g, '/');
   };
 
   return components

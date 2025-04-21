@@ -1,7 +1,6 @@
 import type { Readable } from 'node:stream';
-import type { BunPlugin } from 'bun';
+import type { BunRequest } from 'bun';
 import type { EcoPagesAppConfig } from './internal-types.ts';
-import type { IntegrationRenderer } from './route-renderer/integration-renderer.ts';
 
 /**
  * Represents the dependencies for an EcoComponent.
@@ -133,13 +132,14 @@ export type StaticPath = { params: PageParams };
 /**
  * The function that returns the static paths for a page.
  */
-export type GetStaticPaths = () => Promise<{ paths: StaticPath[] }>;
+export type GetStaticPaths = (context: { appConfig: EcoPagesAppConfig }) => Promise<{ paths: StaticPath[] }>;
 
 /**
  * The context object for the getMetadata function.
  */
 export type GetMetadataContext<T = Record<string, unknown>> = Required<StaticPageContext> & {
   props: T;
+  appConfig: EcoPagesAppConfig;
 };
 
 /**
@@ -152,7 +152,9 @@ export type GetMetadata<T = Record<string, unknown>> = (
 /**
  * The function that returns the static props for a page.
  */
-export type GetStaticProps<T> = (context: { pathname: StaticPath }) => Promise<{ props: T }>;
+export type GetStaticProps<T> = (context: { pathname: StaticPath; appConfig: EcoPagesAppConfig }) => Promise<{
+  props: T;
+}>;
 
 /**
  * Represents a page file in EcoPages.
@@ -284,3 +286,31 @@ export type DeepRequired<T> = Required<{
 export type Prettify<T> = {
   [K in keyof T]: T[K];
 } & {};
+
+/**
+ * Generic type for the request object in EcoPages server adapters.
+ */
+export interface BaseRequest<TPath extends string = string> {
+  params: Record<string, string>;
+  path: TPath;
+  method: string;
+  [key: string]: any;
+}
+
+/**
+ * Context provided to the API handler.
+ */
+export interface HandlerContext<TRequest extends BaseRequest> {
+  request: TRequest;
+  appConfig: EcoPagesAppConfig;
+}
+
+/**
+ * Represents an API handler in EcoPages.
+ * It defines the path, method, and handler function for the API endpoint.
+ */
+export interface ApiHandler<TPath extends string = string, TRequest extends BaseRequest<TPath> = BaseRequest<TPath>> {
+  path: TPath;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
+  handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response;
+}

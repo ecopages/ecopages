@@ -35,6 +35,6 @@
 	"dependencies": {
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
-		"@ecopages/logger": "^0.2.0"
+		"@ecopages/logger": "latest"
 	}
 }

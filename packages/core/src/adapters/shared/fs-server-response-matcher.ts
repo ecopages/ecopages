@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { appLogger } from '../../global/app-logger.ts';
 import type { MatchResult } from '../../internal-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../../router/fs-router.ts';
@@ -36,14 +37,21 @@ export class FileSystemResponseMatcher {
   }
 
   async handleMatch(match: MatchResult): Promise<Response> {
-    const routeRenderer = this.routeRendererFactory.createRenderer(match.filePath);
+    try {
+      const routeRenderer = this.routeRendererFactory.createRenderer(match.filePath);
 
-    const renderedBody = await routeRenderer.createRoute({
-      file: match.filePath,
-      params: match.params,
-      query: match.query,
-    });
+      const renderedBody = await routeRenderer.createRoute({
+        file: match.filePath,
+        params: match.params,
+        query: match.query,
+      });
 
-    return this.fileSystemResponseFactory.createResponseWithBody(renderedBody);
+      return this.fileSystemResponseFactory.createResponseWithBody(renderedBody);
+    } catch (error) {
+      if (error instanceof Error) {
+        appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.pathname}`);
+      }
+      return this.fileSystemResponseFactory.createCustomNotFoundResponse();
+    }
   }
 }

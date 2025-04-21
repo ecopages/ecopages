@@ -6,7 +6,7 @@
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"module": "ESNext",
-		"moduleResolution": "node",
+		"moduleResolution": "bundler",
 		"noImplicitOverride": true,
 		"paths": {
 			"@/*": ["./src/*"]
@@ -15,7 +15,7 @@
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "ES2021",
-		"types": ["bun-types", "@ecopages/core"],
+		"types": ["bun-types"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	}

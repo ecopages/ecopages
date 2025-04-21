@@ -2,7 +2,8 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import sharp from 'sharp';
-import { ImageProcessor, type ImageProcessorConfig } from '../image-processor';
+import { ImageProcessor } from '../image-processor';
+import type { ImageProcessorConfig } from '../plugin';
 
 async function createTestImage(width: number, height: number, path: string): Promise<void> {
   await sharp({
@@ -15,7 +16,7 @@ async function createTestImage(width: number, height: number, path: string): Pro
   }).toFile(path);
 }
 
-const testDir = path.join(process.cwd(), 'test-tmp');
+const testDir = path.join(__dirname, 'test');
 const testImage = path.join(testDir, 'images/test.jpg');
 
 function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProcessor {
@@ -31,10 +32,20 @@ function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProce
   FileUtils.ensureDirectoryExists(defaultConfig.sourceDir);
   FileUtils.ensureDirectoryExists(defaultConfig.outputDir);
 
-  return new ImageProcessor({
-    ...defaultConfig,
-    ...config,
-  });
+  return new ImageProcessor(
+    {
+      ...defaultConfig,
+      ...config,
+      cacheManager: {
+        readCache: async () => null,
+        writeCache: async () => {},
+      },
+    } as ImageProcessorConfig,
+    {
+      readCache: async () => null,
+      writeCache: async () => {},
+    },
+  );
 }
 
 describe('ImageProcessor', () => {

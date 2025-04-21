@@ -1,4 +1,4 @@
-import { Seo } from '@/includes/seo';
+import { Seo } from '@/includes/seo.ghtml';
 import { type EcoComponent, type PageHeadProps, html } from '@ecopages/core';
 
 export const Head: EcoComponent<PageHeadProps> = ({ metadata, children }) => {
@@ -13,6 +13,6 @@ export const Head: EcoComponent<PageHeadProps> = ({ metadata, children }) => {
 Head.config = {
   importMeta: import.meta,
   dependencies: {
-    stylesheets: ['../styles/tailwind.css', '../styles/alpine.css'],
+    stylesheets: ['../styles/tailwind.css'],
   },
 };

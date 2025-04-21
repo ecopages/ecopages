@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
-import type { RouteKind, Routes } from '../internal-types.ts';
+import type { EcoPagesAppConfig, RouteKind, Routes } from '../internal-types.ts';
 import type { EcoPageFile, GetStaticPaths } from '../public-types.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
 import { invariant } from '../utils/invariant.ts';
@@ -31,6 +31,7 @@ export class FSRouterScanner {
   private origin = '';
   private templatesExt: string[];
   private options: FSRouterScannerOptions;
+  private appConfig: EcoPagesAppConfig;
   routes: Routes = {};
 
   constructor({
@@ -38,16 +39,19 @@ export class FSRouterScanner {
     origin,
     templatesExt,
     options,
+    appConfig,
   }: {
     dir: string;
     origin: string;
     templatesExt: string[];
     options: FSRouterScannerOptions;
+    appConfig: EcoPagesAppConfig;
   }) {
     this.dir = dir;
     this.origin = origin;
     this.templatesExt = templatesExt;
     this.options = options;
+    this.appConfig = appConfig;
   }
 
   private getRoutePath(path: string): string {
@@ -71,7 +75,7 @@ export class FSRouterScanner {
     filePath: string;
     getStaticPaths: GetStaticPaths;
   }): Promise<string[]> {
-    const staticPaths = await getStaticPaths();
+    const staticPaths = await getStaticPaths({ appConfig: this.appConfig });
     return staticPaths.paths.map((path) => {
       const dynamicParamsNames = this.getDynamicParamsNames(filePath);
       let routeWithParams = route;
@@ -90,15 +94,19 @@ export class FSRouterScanner {
     routePath,
     getStaticPaths,
   }: CreateRouteArgs & { getStaticPaths: GetStaticPaths }): Promise<void> {
-    this.getStaticPathsFromDynamicRoute({ route, filePath, getStaticPaths })
-      .then((routesWithParams) => {
-        for (const routeWithParams of routesWithParams) {
-          this.createRoute('dynamic', { filePath, route: routeWithParams, routePath });
-        }
-      })
-      .catch((error) => {
-        appLogger.error(error);
+    try {
+      const routesWithParams = await this.getStaticPathsFromDynamicRoute({
+        route,
+        filePath,
+        getStaticPaths,
       });
+
+      for (const routeWithParams of routesWithParams) {
+        this.createRoute('dynamic', { filePath, route: routeWithParams, routePath });
+      }
+    } catch (error) {
+      appLogger.error(`[ecopages] Error creating static routes for ${filePath}: ${error}`);
+    }
   }
 
   private async handleDynamicRouteCreation({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {

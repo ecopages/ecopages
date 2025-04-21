@@ -15,18 +15,22 @@ export class StaticContentServer {
   private appConfig: EcoPagesAppConfig;
   private options: StaticContentServerOptions = { port: 3000 };
   private routeRendererFactory: RouteRendererFactory;
+  private transformIndexHtml: (res: Response) => Promise<Response>;
 
   constructor({
     appConfig,
     options,
     routeRendererFactory,
+    transformIndexHtml,
   }: {
     appConfig: EcoPagesAppConfig;
     options?: StaticContentServerOptions;
     routeRendererFactory: RouteRendererFactory;
+    transformIndexHtml: (res: Response) => Promise<Response>;
   }) {
     this.appConfig = appConfig;
     this.routeRendererFactory = routeRendererFactory;
+    this.transformIndexHtml = transformIndexHtml;
     if (options) this.options = options;
     this.startServer();
   }
@@ -56,9 +60,15 @@ export class StaticContentServer {
       file: error404TemplatePath,
     });
 
-    return new Response(routeRendererConfig as BodyInit, {
+    const response = new Response(routeRendererConfig as BodyInit, {
       headers: { 'Content-Type': 'text/html' },
     });
+
+    if (this.transformIndexHtml) {
+      return await this.transformIndexHtml(response);
+    }
+
+    return response;
   }
 
   private async serveFromDir({ path }: { path: string }): Promise<Response> {
@@ -135,9 +145,11 @@ export class StaticContentServer {
   static createServer({
     appConfig,
     options,
+    transformIndexHtml,
   }: {
     appConfig: EcoPagesAppConfig;
     options?: StaticContentServerOptions;
+    transformIndexHtml: (res: Response) => Promise<Response>;
   }) {
     const routeRendererFactory = new RouteRendererFactory({
       appConfig,
@@ -146,6 +158,7 @@ export class StaticContentServer {
     return new StaticContentServer({
       appConfig: appConfig,
       routeRendererFactory,
+      transformIndexHtml,
       options,
     });
   }

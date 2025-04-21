@@ -1,12 +1,14 @@
 import path from 'node:path';
-import { FileUtils } from '@ecopages/core';
+import { FileUtils, deepMerge } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
 import { ImageUtils } from './image-utils';
 import type { ImageMap, ImageProcessorConfig } from './plugin';
 import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types';
 
-const appLogger = new Logger('[@ecopages/image-processor]');
+const appLogger = new Logger('[@ecopages/image-processor]', {
+  debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
+});
 
 /**
  * ImageProcessor
@@ -14,9 +16,21 @@ const appLogger = new Logger('[@ecopages/image-processor]');
  * It uses the sharp library to resize and optimize images.
  */
 export class ImageProcessor {
-  private imageCache = new Map<string, ImageSpecifications>();
+  private readonly config: ImageProcessorConfig;
+  private readonly cacheManager: {
+    readCache: <T>(key: string) => Promise<T | null>;
+    writeCache: <T>(key: string, data: T) => Promise<void>;
+  };
 
-  constructor(private config: ImageProcessorConfig) {
+  constructor(
+    config: ImageProcessorConfig,
+    cacheManager: {
+      readCache: <T>(key: string) => Promise<T | null>;
+      writeCache: <T>(key: string, data: T) => Promise<void>;
+    },
+  ) {
+    this.config = deepMerge({ cacheEnabled: true }, config);
+    this.cacheManager = cacheManager;
     FileUtils.ensureDirectoryExists(this.config.outputDir);
   }
 
@@ -39,8 +53,15 @@ export class ImageProcessor {
 
   async processImage(imagePath: string): Promise<ImageSpecifications | null> {
     try {
-      if (this.imageCache.has(imagePath)) {
-        return this.imageCache.get(imagePath) as ImageSpecifications;
+      const fileHash = FileUtils.getFileHash(imagePath);
+      const cacheKey = `${path.basename(imagePath)}:${fileHash}`;
+
+      if (this.config.cacheEnabled) {
+        const cached = await this.cacheManager.readCache<ImageSpecifications>(cacheKey);
+        if (cached) {
+          appLogger.debug(`Cache hit for ${imagePath}`);
+          return cached;
+        }
       }
 
       FileUtils.ensureDirectoryExists(this.config.outputDir);
@@ -52,7 +73,11 @@ export class ImageProcessor {
       if (this.config.sizes.length === 0) {
         const outputPath = this.getOutputPath(imagePath, originalWidth);
 
-        await sharp(imagePath).toFormat(this.config.format, { quality: this.config.quality }).toFile(outputPath);
+        if (FileUtils.existsSync(outputPath)) {
+          appLogger.debug(`Using existing file for ${imagePath}`);
+        } else {
+          await sharp(imagePath).toFormat(this.config.format, { quality: this.config.quality }).toFile(outputPath);
+        }
 
         const src = path.join(this.config.publicPath, path.basename(outputPath));
 
@@ -66,7 +91,10 @@ export class ImageProcessor {
           variants: [],
         };
 
-        this.imageCache.set(imagePath, imageSpecifications);
+        if (this.config.cacheEnabled) {
+          await this.cacheManager.writeCache(cacheKey, imageSpecifications);
+        }
+
         return imageSpecifications;
       }
 
@@ -83,10 +111,14 @@ export class ImageProcessor {
           const { width, height } = await this.calculateDimensions(metadata, targetWidth);
           const outputPath = this.getOutputPath(imagePath, width);
 
-          await sharp(imagePath)
-            .resize(width, height)
-            .toFormat(this.config.format, { quality: this.config.quality })
-            .toFile(outputPath);
+          if (FileUtils.existsSync(outputPath)) {
+            appLogger.debug(`Variant ${width}px already exists for ${imagePath}`);
+          } else {
+            await sharp(imagePath)
+              .resize(width, height)
+              .toFormat(this.config.format, { quality: this.config.quality })
+              .toFile(outputPath);
+          }
 
           const src = path.join(this.config.publicPath, path.basename(outputPath));
 
@@ -113,7 +145,9 @@ export class ImageProcessor {
         variants,
       };
 
-      this.imageCache.set(imagePath, imageSpecifications);
+      if (this.config.cacheEnabled) {
+        await this.cacheManager.writeCache(cacheKey, imageSpecifications);
+      }
 
       return imageSpecifications;
     } catch (error) {
@@ -127,19 +161,21 @@ export class ImageProcessor {
 
     const images = await FileUtils.glob([`${this.config.sourceDir}/**/*.{${acceptedFormats.join(',')}}`]);
 
-    appLogger.time('Processing images');
+    appLogger.debugTime('Processing images');
 
-    const results = (await Promise.all(
-      images.map(async (file) => {
-        const processed = await this.processImage(file);
-        if (!processed) return null;
-        return [path.basename(file), processed];
-      }),
-    )) as [string, ImageSpecifications][];
+    const results = (
+      await Promise.all(
+        images.map(async (file) => {
+          const processed = await this.processImage(file);
+          if (!processed) return null;
+          return [path.basename(file), processed] as [string, ImageSpecifications];
+        }),
+      )
+    ).filter(Boolean) as [string, ImageSpecifications][];
 
-    appLogger.timeEnd('Processing images');
+    appLogger.debugTimeEnd('Processing images');
     appLogger.info(`Processed ${results.length} images`);
 
-    return Object.fromEntries(results.filter(Boolean));
+    return Object.fromEntries(results);
   }
 }

@@ -1,6 +1,6 @@
 import type { EcoComponent } from '@ecopages/core';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { useReducer, useState } from 'react';
+import { type JSX, useReducer, useState } from 'react';
 
 type Person = {
   firstName: string;
@@ -70,7 +70,7 @@ const columns = [
   }),
 ];
 
-export const TanstackTable: EcoComponent = () => {
+export const TanstackTable: EcoComponent<unknown, JSX.Element> = () => {
   const [data, _setData] = useState(() => [...defaultData]);
   const rerender = useReducer(() => ({}), {})[1];
 

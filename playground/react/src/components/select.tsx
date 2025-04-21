@@ -14,7 +14,7 @@ import {
 } from 'react-aria-components';
 
 import type { EcoComponent } from '@ecopages/core';
-import type { ReactNode } from 'react';
+import type { JSX, ReactNode } from 'react';
 
 interface MySelectProps<T extends object> extends Omit<SelectProps<T>, 'children'> {
   label?: string;
@@ -24,7 +24,7 @@ interface MySelectProps<T extends object> extends Omit<SelectProps<T>, 'children
   children: ReactNode | ((item: T) => ReactNode);
 }
 
-export const Select: EcoComponent<MySelectProps<object>> = ({
+export const Select: EcoComponent<MySelectProps<object>, JSX.Element> = ({
   label,
   description,
   errorMessage,

@@ -32,7 +32,7 @@ interface GeneratedPathOptions {
 
 const GENERATED_BASE_PATHS = {
   types: 'node_modules/@types',
-  cache: 'node_modules/@ecopages/cache',
+  cache: 'node_modules/.cache/@ecopages',
 } as const;
 
 /**

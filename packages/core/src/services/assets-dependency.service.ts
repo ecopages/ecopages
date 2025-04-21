@@ -565,6 +565,12 @@ export class AssetsDependencyService implements IAssetsDependencyService {
     try {
       return await processors[dep.source](dep);
     } catch (error) {
+      console.log({
+        error,
+        provider,
+        dep,
+        depsDir,
+      });
       throw new Error(
         `Failed to process dependency from provider ${provider.name}: ${
           error instanceof Error ? error.message : String(error)

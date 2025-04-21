@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { FileUtils } from 'src/utils/file-utils.module';
 import { ConfigBuilder } from '../config/config-builder';
+import { FileUtils } from '../utils/file-utils.module';
 import { AssetDependencyHelpers, AssetsDependencyService, type DependencyProvider } from './assets-dependency.service';
 
 describe('DependencyService', () => {

@@ -7,11 +7,10 @@
  * @module ApplicationAdapter
  */
 
-import path from 'node:path';
-import { FileUtils } from 'src/utils/file-utils.module.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { ApiHandler } from '../../public-types.ts';
+import { FileUtils } from '../../utils/file-utils.module.ts';
 import { type ReturnParseCliArgs, parseCliArgs } from '../../utils/parse-cli-args.ts';
 
 /**

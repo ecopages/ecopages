@@ -25,17 +25,19 @@ export class LitPlugin extends IntegrationPlugin {
       name: PLUGIN_NAME,
       extensions: ['.lit.tsx'],
       dependencies: [
+        /**
+         * BUG ALERT
+         * Due to an issue appeared in Bun 1.2.2, we need to use a workaround to import the hydrate script.
+         * This is a temporary solution until the issue is resolved.
+         * The litElementHydrateScript is the same file built on Bun 1.4.5.
+         *
+         * AssetDependencyHelpers.createNodeModuleScriptAsset({
+         *    position: 'head',
+         *    importPath: '@lit-labs/ssr-client/lit-element-hydrate-support.js'
+         * })
+         */
         AssetDependencyHelpers.createInlineScriptAsset({
           position: 'head',
-          /**
-           * BUG ALERT
-           * Due to an issue appeared in Bun 1.2.2, we need to use a workaround to import the hydrate script.
-           * This is a temporary solution until the issue is resolved.
-           * The litElementHydrateScript is the same file built on Bun 1.4.5.
-           *
-           * + importPath: '@lit-labs/ssr-client/lit-element-hydrate-support.js',
-           * - content: litElementHydrateScript
-           */
           content: litElementHydrateScript,
         }),
         ...(options?.dependencies || []),

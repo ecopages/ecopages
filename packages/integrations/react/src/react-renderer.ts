@@ -132,7 +132,8 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
   private async prepareHydrationAsset(pagePath: string) {
     try {
       const pathHash = rapidhash(pagePath);
-      const componentName = `component-${pathHash}`;
+      const { name } = path.parse(pagePath);
+      const componentName = `${name}-${pathHash}`;
 
       const absolutePath = path.join(this.appConfig.absolutePaths.distDir, this.componentDirectory);
       const hydrationScriptPath = path.join(absolutePath, `${componentName}-hydration.js`);

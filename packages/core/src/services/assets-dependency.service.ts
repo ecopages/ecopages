@@ -182,7 +182,6 @@ export interface IAssetsDependencyService {
   hasDependencies(sourceName: string): boolean;
   prepareDependencies(): Promise<ResolvedAsset[]>;
   cleanupPageDependencies(): void;
-  invalidateCache(path?: string): void;
   setCurrentPath(path: string): void;
 }
 
@@ -197,9 +196,9 @@ export class AssetsDependencyService implements IAssetsDependencyService {
   static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
 
   private config: EcoPagesAppConfig;
-  private dependencyMap = new Map<string, DependencyProvider>();
+  private globalDependencyMap = new Map<string, DependencyProvider>();
+  private pageDependencyMap = new Map<string, DependencyProvider>();
   private dependencies: ResolvedAsset[] = [];
-  private dependencyCache = new Map<string, ResolvedAsset[]>();
   private currentPath = '/';
   private dynamicDependencyMap = new Map<string, ResolvedAsset>();
 
@@ -211,26 +210,34 @@ export class AssetsDependencyService implements IAssetsDependencyService {
    * Register dependencies for a component/page
    */
   registerDependencies(source: DependencyProvider): void {
-    if (this.dependencyMap.has(source.name)) {
-      appLogger.error(`Dependency source "${source.name}" already exists. Skipping registration.`);
-      return;
+    const isGlobal = this.isGlobalDependency(source.name);
+    const targetMap = isGlobal ? this.globalDependencyMap : this.pageDependencyMap;
+
+    if (targetMap.has(source.name)) {
+      if (isGlobal) {
+        appLogger.debug(`Global dependency source "${source.name}" already exists. Skipping registration.`);
+        return;
+      }
+      appLogger.debug(`Updating page dependency source ${source.name}`);
     }
-    this.dependencyMap.set(source.name, source);
-    appLogger.debug(`Dependency source ${source.name} added`);
+
+    targetMap.set(source.name, source);
+    appLogger.debug(`${isGlobal ? 'Global' : 'Page'} dependency source ${source.name} registered`);
   }
 
   /**
    * Unregister dependencies for a component/page
    */
   unregisterDependencies(sourceName: string): void {
-    this.dependencyMap.delete(sourceName);
+    this.globalDependencyMap.delete(sourceName);
+    this.pageDependencyMap.delete(sourceName);
   }
 
   /**
    * Check if dependencies exist for a provider
    */
   hasDependencies(sourceName: string): boolean {
-    return this.dependencyMap.has(sourceName);
+    return this.globalDependencyMap.has(sourceName) || this.pageDependencyMap.has(sourceName);
   }
 
   /**
@@ -241,30 +248,13 @@ export class AssetsDependencyService implements IAssetsDependencyService {
   }
 
   /**
-   * Cleans up all page-specific dependencies
+   * Cleans up page-specific dependencies
    * This should be called when navigating between pages
    */
   cleanupPageDependencies(): void {
-    const coreDependencies = Array.from(this.dependencyMap.entries())
-      .filter(([name]) => this.isGlobalDependency(name))
-      .map(([name, provider]): [string, DependencyProvider] => [name, provider]);
-
-    this.dependencyMap = new Map(coreDependencies);
+    appLogger.debug(`Cleaning up ${this.pageDependencyMap.size} page-specific dependency providers`);
+    this.pageDependencyMap.clear();
     this.dependencies = [];
-    this.dynamicDependencyMap.clear();
-  }
-
-  /**
-   * Invalidate the dependency cache for a specific path or all paths
-   * @param path Optional path to invalidate cache for. If not provided, all cache will be cleared
-   */
-  invalidateCache(path?: string): void {
-    if (path) {
-      this.dependencyCache.delete(path);
-    } else {
-      this.dependencyCache.clear();
-      this.dynamicDependencyMap.clear();
-    }
   }
 
   setCurrentPath(path: string): void {
@@ -272,7 +262,7 @@ export class AssetsDependencyService implements IAssetsDependencyService {
   }
 
   private isGlobalDependency(name: string): boolean {
-    return !name.includes('/');
+    return !name.includes('/') && !name.startsWith('component-');
   }
 
   private writeFileToDist({
@@ -353,34 +343,26 @@ export class AssetsDependencyService implements IAssetsDependencyService {
    * @returns {@link ResolvedAsset[]}
    */
   async prepareDependencies(): Promise<ResolvedAsset[]> {
-    const cacheKey = this.getCurrentRouteKey();
-    if (this.dependencyCache.has(cacheKey)) {
-      return this.dependencyCache.get(cacheKey) as ResolvedAsset[];
-    }
-
+    appLogger.debug(`Preparing dependencies for path: ${this.currentPath}`);
     this.dependencies = [];
 
-    for (const provider of this.dependencyMap.values()) {
+    appLogger.debug(`Processing ${this.globalDependencyMap.size} global providers`);
+    for (const provider of this.globalDependencyMap.values()) {
+      const deps = provider.getDependencies();
+      await this.processDependencies(provider, deps);
+    }
+
+    appLogger.debug(`Processing ${this.pageDependencyMap.size} page providers`);
+    for (const provider of this.pageDependencyMap.values()) {
       const deps = provider.getDependencies();
       await this.processDependencies(provider, deps);
     }
 
     await this.optimizeDependencies();
-    this.dependencyCache.set(cacheKey, this.dependencies);
 
     return this.dependencies;
   }
 
-  private getCurrentRouteKey(): string {
-    return this.currentPath;
-  }
-
-  /**
-   * This method is responsible for processing dependencies
-   * This is where we inline the content of the dependencies and write them to the dist directory
-   * @param provider {@link DependencyProvider}
-   * @param deps {@link AssetDependency[]}
-   */
   private async processDependencies(provider: DependencyProvider, deps: AssetDependency[]): Promise<void> {
     for (const dep of deps) {
       if (this.isDynamicDependency(dep)) {

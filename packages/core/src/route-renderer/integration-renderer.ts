@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { appLogger } from 'src/global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,
@@ -277,10 +278,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     const currentPath = this.getHtmlPath({ file });
     this.assetsDependencyService.setCurrentPath(currentPath);
 
-    if (!this.assetsDependencyService.hasDependencies(currentPath)) {
-      this.assetsDependencyService.invalidateCache(currentPath);
-    }
-
     this.assetsDependencyService.cleanupPageDependencies();
   }
 
@@ -325,13 +322,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
   /**
    * Executes the integration renderer with the provided options.
-   * It cleans up and prepares dependencies, prepares render options, and calls the render method.
+   * It cleans up page dependencies, sets the path context, prepares render options, and calls the render method.
    *
    * @param options - The route renderer options.
    * @returns The rendered body.
    */
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
-    await this.cleanupAndPrepareDependencies(options.file);
+    if (this.assetsDependencyService) {
+      appLogger.debug(`Cleaning page dependencies before rendering ${options.file}`);
+      this.assetsDependencyService.cleanupPageDependencies();
+      const currentPath = this.getHtmlPath({ file: options.file });
+      appLogger.debug(`Setting current path for ${options.file} to: ${currentPath}`);
+      this.assetsDependencyService.setCurrentPath(currentPath);
+    }
 
     const renderOptions = await this.prepareRenderOptions(options);
     return this.render(renderOptions as IntegrationRendererRenderOptions<C>);

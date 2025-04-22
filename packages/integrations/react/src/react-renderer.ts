@@ -134,11 +134,6 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
       const pathHash = rapidhash(pagePath);
       const componentName = `component-${pathHash}`;
 
-      if (this.assetsDependencyService?.hasDependencies(componentName)) {
-        this.assetsDependencyService.invalidateCache(componentName);
-        return;
-      }
-
       const absolutePath = path.join(this.appConfig.absolutePaths.distDir, this.componentDirectory);
       const hydrationScriptPath = path.join(absolutePath, `${componentName}-hydration.js`);
 
@@ -150,7 +145,6 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
       const hydrationCode = this.createHydrationScript(relativeImportInScript);
 
       FileUtils.writeFileSync(hydrationScriptPath, hydrationCode);
-
       FileUtils.gzipFileSync(hydrationScriptPath);
 
       const dependencies = [
@@ -172,6 +166,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
         }),
       ];
 
+      // Register with the consistent component name
       this.assetsDependencyService?.registerDependencies({
         name: componentName,
         getDependencies: () => dependencies,

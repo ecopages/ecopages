@@ -11,7 +11,7 @@ const createMockIntegration = (name: string, extensions: string[]): IntegrationP
       this.extensions = extensions;
     }
 
-    createRenderer = mock();
+    initializeRenderer = mock();
   })();
 };
 

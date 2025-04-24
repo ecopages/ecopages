@@ -3,7 +3,7 @@ import path from 'node:path';
 import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import type { EcoComponentConfig, EcoComponentDependencies } from '../public-types.ts';
-import { AssetDependencyHelpers } from '../services/assets-dependency.service.ts';
+import { AssetDependencyHelpers } from '../services/assets-dependency-service/assets-dependency.helpers.ts';
 import { flagComponentsAsDynamic, resolveComponentsScripts } from './component-dependencies-utils.ts';
 
 await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).setBaseUrl(FIXTURE_APP_BASE_URL).build();

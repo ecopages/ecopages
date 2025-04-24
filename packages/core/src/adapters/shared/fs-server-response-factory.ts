@@ -77,6 +77,7 @@ export class FileSystemServerResponseFactory {
 
     return await this.createResponseWithBody(routeRendererBody);
   }
+
   async createFileResponse(filePath: string, contentType: string) {
     try {
       let file: Buffer;

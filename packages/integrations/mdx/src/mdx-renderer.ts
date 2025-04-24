@@ -61,7 +61,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
       }
 
       if (components.length > 0) {
-        await this.collectDependencies(components);
+        await this.resolveDependencies(components);
       }
 
       return {

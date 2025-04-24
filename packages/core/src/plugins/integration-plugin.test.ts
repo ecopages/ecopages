@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
-import type { AssetDependency } from '../services/assets-dependency.service';
+import type { AssetDependency } from '../services/assets-dependency-service/assets-dependency.service';
 import { IntegrationPlugin, type IntegrationPluginConfig } from './integration-plugin';
 
 class TestIntegrationPlugin extends IntegrationPlugin {
-  createRenderer(): IntegrationRenderer<any> {
+  initializeRenderer(): IntegrationRenderer<any> {
     return {} as IntegrationRenderer<any>;
   }
   override setup(): Promise<void> {

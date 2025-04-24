@@ -22,7 +22,7 @@ export class KitaHtmlPlugin extends IntegrationPlugin {
     this.dependencies = options?.dependencies || [];
   }
 
-  createRenderer(): IntegrationRenderer {
+  initializeRenderer(): IntegrationRenderer {
     if (!this.appConfig) {
       throw new Error('Plugin not initialized with app config');
     }

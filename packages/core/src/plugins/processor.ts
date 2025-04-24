@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { BunPlugin } from 'bun';
 import { resolveGeneratedPath } from '../constants';
 import type { EcoPagesAppConfig } from '../internal-types';
-import type { AssetDependency } from '../services/assets-dependency.service';
+import type { AssetDependency } from '../services/assets-dependency-service/assets-dependency.service';
 import { FileUtils } from '../utils/file-utils.module';
 
 export interface ProcessorWatchConfig {

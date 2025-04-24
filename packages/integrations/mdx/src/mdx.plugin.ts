@@ -20,7 +20,7 @@ export class MDXPlugin extends IntegrationPlugin {
     });
   }
 
-  createRenderer(): IntegrationRenderer {
+  initializeRenderer(): IntegrationRenderer {
     if (!this.appConfig) {
       throw new Error('Plugin not initialized with app config');
     }

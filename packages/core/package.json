@@ -2,11 +2,17 @@
 	"name": "@ecopages/core",
 	"version": "0.1.30",
 	"description": "Core package for Ecopages",
-	"keywords": ["ecopages", "core", "ssg"],
+	"keywords": [
+		"ecopages",
+		"core",
+		"ssg"
+	],
 	"license": "MIT",
 	"main": "./src/index.ts",
 	"type": "module",
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"bin": {
 		"ecopages": "./src/bin/ecopages.ts"
 	},
@@ -45,8 +51,8 @@
 			"default": "./src/adapters/bun/create-app.ts"
 		},
 		"./services/assets-dependency-service": {
-			"types": "./src/services/assets-dependency.service.ts",
-			"default": "./src/services/assets-dependency.service.ts"
+			"types": "./src/services/assets-dependency-service/index.ts",
+			"default": "./src/services/assets-dependency-service/index.ts"
 		},
 		"./utils/add-base-url-to-pathname": {
 			"types": "./src/utils/add-base-url-to-pathname.ts",

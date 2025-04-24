@@ -5,7 +5,6 @@
  */
 
 import path from 'node:path';
-import { appLogger } from 'src/global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,
@@ -21,8 +20,14 @@ import type {
   RouteRendererBody,
   RouteRendererOptions,
 } from '../public-types.ts';
-import { AssetDependencyHelpers, type AssetsDependencyService } from '../services/assets-dependency.service.ts';
+import {
+  AssetDependencyHelpers,
+  type AssetDependency,
+  type AssetsDependencyService,
+  type ProcessedAsset,
+} from '../services/assets-dependency-service/index.ts';
 import { invariant } from '../utils/invariant.ts';
+import { HtmlTransformerService } from 'src/services/html-transformer.service.ts';
 
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
@@ -32,7 +37,9 @@ import { invariant } from '../utils/invariant.ts';
 export abstract class IntegrationRenderer<C = EcoPagesElement> {
   abstract name: string;
   protected appConfig: EcoPagesAppConfig;
-  protected assetsDependencyService?: AssetsDependencyService;
+  protected assetsDependencyService: AssetsDependencyService;
+  protected htmlTransformer: HtmlTransformerService;
+  private resolvedIntegrationDependencies: ProcessedAsset[] = [];
   protected declare options: Required<IntegrationRendererRenderOptions>;
 
   protected DOC_TYPE = '<!DOCTYPE html>';
@@ -40,17 +47,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   constructor({
     appConfig,
     assetsDependencyService,
+    resolvedIntegrationDependencies,
   }: {
     appConfig: EcoPagesAppConfig;
-    assetsDependencyService?: AssetsDependencyService;
+    assetsDependencyService: AssetsDependencyService;
+    resolvedIntegrationDependencies?: ProcessedAsset[];
   }) {
     this.appConfig = appConfig;
     this.assetsDependencyService = assetsDependencyService;
+    this.htmlTransformer = new HtmlTransformerService();
+    this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 
-    if (typeof HTMLElement === 'undefined') {
-      // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
-      global.HTMLElement = class {};
-    }
+    // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
+    if (typeof HTMLElement === 'undefined') global.HTMLElement = class {};
   }
 
   /**
@@ -196,15 +205,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
    *
    * @param components - The components to collect dependencies from.
    */
-  protected async collectDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): Promise<void> {
-    if (!this.assetsDependencyService) return;
+  protected async resolveDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): Promise<ProcessedAsset[]> {
+    if (!this.assetsDependencyService) return [];
+    const dependencies: AssetDependency[] = [];
 
     for (const component of components) {
       if (!component.config?.importMeta) continue;
-      const providerName = `${this.name}-${component.config.importMeta?.filename}`;
-      const areDependenciesResolved = this.assetsDependencyService?.hasDependencies(providerName);
-
-      if (areDependenciesResolved) continue;
 
       const stylesheetsSet = new Set<string>();
       const scriptsSet = new Set<string>();
@@ -241,44 +247,30 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
         scripts: Array.from(scriptsSet),
       };
 
-      this.assetsDependencyService.registerDependencies({
-        name: providerName,
-        getDependencies: () => [
-          ...deps.stylesheets.map((srcUrl) =>
-            AssetDependencyHelpers.createStylesheetAsset({
-              srcUrl,
-              position: 'head',
-              attributes: { rel: 'stylesheet' },
-            }),
-          ),
-          ...deps.scripts.map((srcUrl) =>
-            AssetDependencyHelpers.createSrcScriptAsset({
-              srcUrl,
-              position: 'head',
-              attributes: {
-                type: 'module',
-                defer: '',
-              },
-            }),
-          ),
-        ],
-      });
+      dependencies.push(
+        ...deps.stylesheets.map((stylesheet) =>
+          AssetDependencyHelpers.createFileStylesheet({
+            filepath: stylesheet,
+            position: 'head',
+            attributes: { rel: 'stylesheet' },
+          }),
+        ),
+        ...deps.scripts.map((script) =>
+          AssetDependencyHelpers.createFileScript({
+            filepath: script,
+            position: 'head',
+            attributes: {
+              type: 'module',
+              defer: '',
+            },
+          }),
+        ),
+      );
     }
-  }
 
-  /**
-   * Cleans up and prepares the dependencies for the provided file.
-   * It sets the current path in the assets dependency service and invalidates the cache if needed.
-   *
-   * @param file - The file path to clean up and prepare dependencies for.
-   */
-  protected async cleanupAndPrepareDependencies(file: string): Promise<void> {
-    if (!this.assetsDependencyService) return;
+    const routeAssetsDependencies = await this.assetsDependencyService.processDependencies(dependencies, this.name);
 
-    const currentPath = this.getHtmlPath({ file });
-    this.assetsDependencyService.setCurrentPath(currentPath);
-
-    this.assetsDependencyService.cleanupPageDependencies();
+    return this.resolvedIntegrationDependencies.concat(routeAssetsDependencies);
   }
 
   /**
@@ -306,11 +298,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       query: options.query ?? {},
     } as GetMetadataContext);
 
-    await this.collectDependencies([HtmlTemplate, Page]);
+    const resolvedDepenencies = await this.resolveDependencies([HtmlTemplate, Page]);
 
     return {
       ...options,
       ...integrationSpecificProps,
+      resolvedDepenencies,
       HtmlTemplate,
       props,
       Page,
@@ -328,14 +321,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
    * @returns The rendered body.
    */
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
-    if (this.assetsDependencyService) {
-      appLogger.debug(`Cleaning page dependencies before rendering ${options.file}`);
-      this.assetsDependencyService.cleanupPageDependencies();
-      const currentPath = this.getHtmlPath({ file: options.file });
-      appLogger.debug(`Setting current path for ${options.file} to: ${currentPath}`);
-      this.assetsDependencyService.setCurrentPath(currentPath);
-    }
-
     const renderOptions = await this.prepareRenderOptions(options);
     return this.render(renderOptions as IntegrationRendererRenderOptions<C>);
   }

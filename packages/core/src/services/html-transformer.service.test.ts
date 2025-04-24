@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import type { ResolvedAsset } from './assets-dependency.service';
+import type { ResolvedAsset } from './assets-dependency-service/assets-dependency.service';
 import { HtmlTransformerService } from './html-transformer.service';
 
 describe('HtmlTransformerService', () => {

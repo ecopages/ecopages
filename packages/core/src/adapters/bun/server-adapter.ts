@@ -7,7 +7,6 @@ import type { ApiHandler, BaseRequest } from '../../public-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
-import { AssetsDependencyService } from '../../services/assets-dependency.service.ts';
 import { HtmlTransformerService } from '../../services/html-transformer.service.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { deepMerge } from '../../utils/deep-merge.ts';
@@ -59,7 +58,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   declare serveOptions: BunServerAdapterOptions['serveOptions'];
   protected apiHandlers: ApiHandler[];
 
-  private assetsDependencyService!: AssetsDependencyService;
   private router!: FSRouter;
   private fileSystemResponseMatcher!: FileSystemResponseMatcher;
   private routeRendererFactory!: RouteRendererFactory;
@@ -78,7 +76,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   public async initialize(): Promise<void> {
     appLogger.debugTime('BunServerAdapter:initialize');
 
-    this.assetsDependencyService = new AssetsDependencyService({ appConfig: this.appConfig });
     this.htmlTransformer = new HtmlTransformerService();
     this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 
@@ -143,38 +140,16 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
             Bun.plugin(plugin);
           }
         }
-        return this.registerDependencyProvider({
-          name: processor.getName(),
-          getDependencies: () => processor.getDependencies(),
-        });
       });
 
       const integrationPromises = this.appConfig.integrations.map(async (integration) => {
         integration.setConfig(this.appConfig);
-        integration.setDependencyService(this.assetsDependencyService);
         await integration.setup();
-        return this.registerDependencyProvider({
-          name: integration.name,
-          getDependencies: () => integration.getDependencies(),
-        });
       });
 
       await Promise.all([...processorPromises, ...integrationPromises]);
     } catch (error) {
       appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
-    }
-  }
-
-  private registerDependencyProvider(provider: { name: string; getDependencies: () => any[] }): void {
-    try {
-      this.assetsDependencyService.registerDependencies(provider);
-    } catch (error) {
-      appLogger.error(
-        `Failed to register dependency provider ${provider.name}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
       throw error;
     }
   }
@@ -185,8 +160,13 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     });
 
     this.transformIndexHtml = async (res: Response): Promise<Response> => {
-      const dependencies = await this.assetsDependencyService.prepareDependencies();
-      this.htmlTransformer.setProcessedDependencies(dependencies);
+      /**
+       * @todo we need to pass the dependencies to the HTML transformer.
+       * Best option is to proably to pass the htmlTransform to the route renderer factory
+       * and then pass the dependencies to the route renderer.
+       * Please check in initializePlugins if we can pass the dependencies to renderer directly.
+       */
+      // this.htmlTransformer.setProcessedDependencies(dependencies);
       let transformedResponse = await this.htmlTransformer.transform(res);
 
       if (this.options?.watch) {

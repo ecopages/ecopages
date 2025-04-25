@@ -46,7 +46,6 @@ export class FileSystemServerResponseFactory {
       },
     },
   ) {
-    if (this.transformIndexHtml) return await this.transformIndexHtml(new Response(body as BodyInit, init));
     return new Response(body as BodyInit, init);
   }
 

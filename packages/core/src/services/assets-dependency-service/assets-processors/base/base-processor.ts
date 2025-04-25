@@ -19,7 +19,7 @@ export abstract class BaseProcessor<T extends BaseAsset> {
     return import.meta.env.NODE_ENV === 'production';
   }
 
-  abstract process(dep: T, key: string, config: EcoPagesAppConfig): Promise<ProcessedAsset>;
+  abstract process(dep: T, config: EcoPagesAppConfig): Promise<ProcessedAsset>;
 
   protected getDistDir(): string {
     return path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
@@ -37,8 +37,8 @@ export abstract class BaseProcessor<T extends BaseAsset> {
     return filepath;
   }
 
-  protected generateHash(key: string, content: string): string {
-    return rapidhash(`${key}:${content}`).toString();
+  protected generateHash(content: string): string {
+    return rapidhash(content).toString();
   }
 
   protected writeAssetToFile({

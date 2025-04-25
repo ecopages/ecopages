@@ -4,8 +4,8 @@ import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types';
 import { FileUtils } from 'src/utils/file-utils.module';
 
 export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAsset> {
-  async process(dep: ContentScriptAsset, key: string): Promise<ProcessedAsset> {
-    const hash = this.generateHash(key, dep.content);
+  async process(dep: ContentScriptAsset): Promise<ProcessedAsset> {
+    const hash = this.generateHash(dep.content);
     const filename = dep.name ? `${dep.name}.js` : `script-${hash}.js`;
     const outPath = this.getFilepath(filename);
     const shouldBundle = this.shouldBundle(dep);

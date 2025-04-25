@@ -2,7 +2,7 @@ import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
 import appConfig from './eco.config';
 import { getAllAuthorIds, getAllBlogPostSlugs, getAuthor, getBlogPost } from './src/mocks/data';
 
-const app = new EcopagesApp({ appConfig });
+const app = new EcopagesApp({ appConfig, clearOutput: true });
 
 app.get('/api/hello', async ({ appConfig }) => {
   return new Response(

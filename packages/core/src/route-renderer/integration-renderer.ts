@@ -303,7 +303,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
     const resolvedDepenencies = await this.resolveDependencies([HtmlTemplate, Page]);
 
-    const pageDeps = (await this.buildRouteRenderAssets?.(options.file)) || [];
+    const pageDeps = (await this.buildRouteRenderAssets(options.file)) || [];
 
     const allDependencies = [...resolvedDepenencies, ...pageDeps];
 
@@ -355,11 +355,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   abstract render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
 
   /**
-   * Abstract method to build route render assets.
-   * This method could be implemented by the specific integration renderer.
+   * Method to build route render assets.
+   * This method can be optionally overridden by the specific integration renderer.
    *
    * @param file - The file path to build assets for.
    * @returns The processed assets or undefined.
    */
-  abstract buildRouteRenderAssets?(file: string): Promise<ProcessedAsset[]>;
+  protected buildRouteRenderAssets(file: string): Promise<ProcessedAsset[]> | undefined {
+    return undefined;
+  }
 }

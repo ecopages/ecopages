@@ -37,7 +37,7 @@ export class AssetsDependencyService {
       }
 
       try {
-        const processed = await processor.process(dep, key, this.config);
+        const processed = await processor.process(dep, this.config);
         results.push({
           key,
           ...processed,
@@ -70,7 +70,6 @@ export class AssetsDependencyService {
 
     service.registerProcessor('stylesheet', 'content', new ContentStylesheetProcessor({ appConfig }));
     service.registerProcessor('stylesheet', 'file', new FileStylesheetProcessor({ appConfig }));
-    // service.registerProcessor('stylesheet', 'file', new PreBundledProcessor({ appConfig }));
 
     return service;
   }

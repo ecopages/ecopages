@@ -3,10 +3,7 @@
  * @module
  */
 
-import path from 'node:path';
 import {
-  type EcoComponentDependencies,
-  FileUtils,
   type HtmlTemplateProps,
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
@@ -18,12 +15,10 @@ import {
   AssetsDependencyService,
   type ProcessedAsset,
 } from '@ecopages/core/services/assets-dependency-service';
-import type { BunPlugin } from 'bun';
 import { type JSX, createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
-import type { EcoPagesAppConfig } from '../../../core/src/internal-types';
 
 /**
  * Error thrown when an error occurs while rendering a React component.
@@ -60,7 +55,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;
   }
 
-  async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
+  override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
     try {
       const pathHash = rapidhash(pagePath);
       const componentName = `ecopages-react-${pathHash}`;

@@ -16,8 +16,8 @@ export class FileStylesheetProcessor extends BaseStylesheetProcessor<FileStylesh
     }
   };
 
-  async process(dep: FileStylesheetAsset, key: string): Promise<ProcessedAsset> {
-    const hash = this.generateHash(key, dep.filepath);
+  async process(dep: FileStylesheetAsset): Promise<ProcessedAsset> {
+    const hash = this.generateHash(dep.filepath);
     const { name } = path.parse(dep.filepath);
     const filename = `${name}-${hash}.css`;
     const outPath = this.getFilepath(filename);

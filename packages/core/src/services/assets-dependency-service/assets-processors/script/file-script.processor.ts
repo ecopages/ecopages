@@ -2,12 +2,19 @@ import path from 'node:path';
 import { BaseScriptProcessor } from '../base/base-script-processor';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types';
 import { FileUtils } from '../../../../utils/file-utils.module';
+import { EXCLUDE_FROM_HTML_FLAG } from '../../../../constants';
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
-  async process(dep: FileScriptAsset, key: string): Promise<ProcessedAsset> {
-    const hash = this.generateHash(key, dep.filepath);
+  async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
+    const hash = this.generateHash(dep.filepath);
     const filename = dep.name ? `${dep.name}.js` : `${this.getCleanAssetUrl(dep.filepath)}-${hash}.js`;
     const shouldBundle = this.shouldBundle(dep);
+
+    if (dep.filepath.endsWith(EXCLUDE_FROM_HTML_FLAG)) {
+      dep.filepath = dep.filepath.replace(EXCLUDE_FROM_HTML_FLAG, '');
+      dep.inline = true;
+      dep.excludeFromHtml = true;
+    }
 
     if (!shouldBundle) {
       const content = dep.inline ? FileUtils.readFileSync(dep.filepath, 'utf-8') : undefined;

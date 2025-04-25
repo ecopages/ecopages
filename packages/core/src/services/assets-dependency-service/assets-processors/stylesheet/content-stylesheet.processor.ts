@@ -3,8 +3,8 @@ import type { ContentStylesheetAsset, ProcessedAsset } from '../../assets.types'
 import { FileUtils } from 'src/utils/file-utils.module';
 
 export class ContentStylesheetProcessor extends BaseStylesheetProcessor<ContentStylesheetAsset> {
-  async process(dep: ContentStylesheetAsset, key: string): Promise<ProcessedAsset> {
-    const hash = this.generateHash(key, dep.content);
+  async process(dep: ContentStylesheetAsset): Promise<ProcessedAsset> {
+    const hash = this.generateHash(dep.content);
     const filename = `style-${hash}.css`;
     const outPath = this.getFilepath(filename);
 

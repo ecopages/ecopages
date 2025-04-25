@@ -1,19 +1,17 @@
-import { Card } from '@/components/card';
 import { BaseLayout } from '@/layouts/base-layout';
+import { Card } from '@/components/card';
+
+export const layout = BaseLayout;
 
 export const config = {
   importMeta: import.meta,
   dependencies: {
-    components: [Card, BaseLayout],
+    components: [BaseLayout, Card]
   }
-};
-
-<BaseLayout class="prose">
+}
 
 # MDX Page
 
 This is a test page.
 
 <Card title="Hello" copy="This is the card copy" />
-
-</BaseLayout>

@@ -3,7 +3,7 @@
  * @module
  */
 
-import { RESOLVED_ASSETS_DIR } from '../constants.ts';
+import { RESOLVED_ASSETS_DIR, EXCLUDE_FROM_HTML_FLAG } from '../constants.ts';
 import type { EcoComponent, EcoComponentDependencies, EcoWebComponent } from '../public-types.ts';
 
 function getSafeFileName(path: string): string {
@@ -82,7 +82,7 @@ export function flagComponentsAsDynamic(
         ...component.config,
         dependencies: {
           ...component.config.dependencies,
-          scripts: component.config.dependencies.scripts.map((script) => `${script}?dynamic=true`),
+          scripts: component.config.dependencies.scripts.map((script) => `${script}${EXCLUDE_FROM_HTML_FLAG}`),
         },
       },
     };

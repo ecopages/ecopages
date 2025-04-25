@@ -1,5 +1,4 @@
 import type { Readable } from 'node:stream';
-import type { BunRequest } from 'bun';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { ProcessedAsset } from './services/assets-dependency-service/assets.types.ts';
 
@@ -56,7 +55,7 @@ export type EcoComponent<T = any, C = EcoPagesElement> = {
  *
  * @template T - The type of the props object.
  */
-export type EcoWebComponent<T = any> = {
+export type EcoWebComponent = {
   /**
    * The configuration options for the EcoComponent.
    */

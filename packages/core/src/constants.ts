@@ -52,3 +52,5 @@ export function resolveGeneratedPath(type: keyof typeof GENERATED_BASE_PATHS, op
 
   return fullPath;
 }
+
+export const EXCLUDE_FROM_HTML_FLAG = '?excludeFromHtml=true';

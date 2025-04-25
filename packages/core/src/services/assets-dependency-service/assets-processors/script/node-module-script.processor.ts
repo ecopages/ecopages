@@ -5,9 +5,9 @@ import type { NodeModuleScriptAsset } from '../../assets.types';
 import { FileUtils } from '../../../../utils/file-utils.module';
 
 export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScriptAsset> {
-  async process(dep: NodeModuleScriptAsset, key: string, config: EcoPagesAppConfig) {
+  async process(dep: NodeModuleScriptAsset, config: EcoPagesAppConfig) {
     const modulePath = this.resolveModulePath(dep.importPath, config.rootDir);
-    const hash = this.generateHash(key, modulePath);
+    const hash = this.generateHash(modulePath);
     const filename = dep.name ? `${dep.name}` : `nodemodule-${hash}`;
     const filepath = this.getFilepath(filename);
 

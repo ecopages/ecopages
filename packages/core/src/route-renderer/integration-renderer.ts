@@ -303,6 +303,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
     const resolvedDepenencies = await this.resolveDependencies([HtmlTemplate, Page]);
 
+    const pageDeps = (await this.buildRouteRenderAssets?.(options.file)) || [];
+
+    const allDependencies = [...resolvedDepenencies, ...pageDeps];
+
+    this.htmlTransformer.setProcessedDependencies(allDependencies);
+
     return {
       ...options,
       ...integrationSpecificProps,
@@ -325,7 +331,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
    */
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
     const renderOptions = await this.prepareRenderOptions(options);
-    return this.render(renderOptions as IntegrationRendererRenderOptions<C>);
+
+    return await this.htmlTransformer
+      .transform(
+        new Response((await this.render(renderOptions as IntegrationRendererRenderOptions<C>)) as BodyInit, {
+          headers: {
+            'Content-Type': 'text/html',
+          },
+        }),
+      )
+      .then((res: Response) => {
+        return res.body as RouteRendererBody;
+      });
   }
 
   /**
@@ -336,4 +353,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
    * @returns The rendered body.
    */
   abstract render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
+
+  /**
+   * Abstract method to build route render assets.
+   * This method could be implemented by the specific integration renderer.
+   *
+   * @param file - The file path to build assets for.
+   * @returns The processed assets or undefined.
+   */
+  abstract buildRouteRenderAssets?(file: string): Promise<ProcessedAsset[]>;
 }

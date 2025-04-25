@@ -60,21 +60,19 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;
   }
 
-  private async preparePageSpecificDependencies(pagePath: string): Promise<ProcessedAsset[]> {
+  async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
     try {
       const pathHash = rapidhash(pagePath);
       const componentName = `ecopages-react-${pathHash}`;
 
-      const resolvedReactDependency = this.urlResolver
+      const resolvedAssetDir = this.urlResolver
         .from(pagePath)
-        .toRelativePath()
+        .toRelativeSrcPath()
         .setParentDir(RESOLVED_ASSETS_DIR)
         .replaceFilenameInUrl(componentName)
         .replaceExtensionInUrl('.js')
         .withLeadingSlash()
         .build();
-
-      console.log('Resolved React dependency:', resolvedReactDependency);
 
       const dependencies = [
         AssetDependencyHelpers.createFileScript({
@@ -94,7 +92,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
         }),
         AssetDependencyHelpers.createContentScript({
           position: 'head',
-          content: this.createHydrationScript(resolvedReactDependency),
+          content: this.createHydrationScript(resolvedAssetDir),
           name: `${componentName}-hydration`,
           bundle: false,
           attributes: {
@@ -122,16 +120,10 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     props,
     metadata,
     Page,
-    file,
     HtmlTemplate,
-    resolvedDepenencies,
   }: IntegrationRendererRenderOptions<JSX.Element>): Promise<RouteRendererBody> {
     try {
-      const pageDeps = await this.preparePageSpecificDependencies(file);
-      const allDependencies = [...resolvedDepenencies, ...pageDeps];
-      this.htmlTransformer.setProcessedDependencies(allDependencies);
-
-      const body = await renderToReadableStream(
+      return await renderToReadableStream(
         createElement(
           HtmlTemplate,
           {
@@ -140,18 +132,6 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
           createElement(Page, { params, query, ...props }),
         ),
       );
-
-      return await this.htmlTransformer
-        .transform(
-          new Response(body, {
-            headers: {
-              'Content-Type': 'text/html',
-            },
-          }),
-        )
-        .then((res: Response) => {
-          return res.body as RouteRendererBody;
-        });
     } catch (error) {
       throw new ReactRenderError(
         `Failed to render component: ${error instanceof Error ? error.message : String(error)}`,

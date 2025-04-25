@@ -1,5 +1,5 @@
 import type { AssetKind, AssetSource } from './assets.types';
-import type { BaseProcessor } from './assets-processors/base-processor';
+import type { BaseProcessor } from './assets-processors/base/base-processor';
 
 export class ProcessorRegistry {
   private processors = new Map<`${AssetKind}-${AssetSource}`, BaseProcessor<any>>();

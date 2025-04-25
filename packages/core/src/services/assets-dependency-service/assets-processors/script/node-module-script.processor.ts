@@ -1,10 +1,10 @@
 import path from 'node:path';
-import { BaseProcessor } from './base-processor';
-import type { EcoPagesAppConfig } from '../../../internal-types';
-import type { NodeModuleScriptAsset } from '../assets.types';
-import { FileUtils } from '../../../utils/file-utils.module';
+import { BaseScriptProcessor } from '../base/base-script-processor';
+import type { EcoPagesAppConfig } from '../../../../internal-types';
+import type { NodeModuleScriptAsset } from '../../assets.types';
+import { FileUtils } from '../../../../utils/file-utils.module';
 
-export class NodeModuleScriptProcessor extends BaseProcessor<NodeModuleScriptAsset> {
+export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScriptAsset> {
   async process(dep: NodeModuleScriptAsset, key: string, config: EcoPagesAppConfig) {
     const modulePath = this.resolveModulePath(dep.importPath, config.rootDir);
     const hash = this.generateHash(key, modulePath);
@@ -27,6 +27,7 @@ export class NodeModuleScriptProcessor extends BaseProcessor<NodeModuleScriptAss
       entrypoint: modulePath,
       outdir: this.getDistDir(),
       minify: this.isProduction,
+      ...this.getBundlerOptions(dep),
     });
 
     return {

@@ -23,6 +23,7 @@ import { type JSX, createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
+import type { EcoPagesAppConfig } from '../../../core/src/internal-types';
 
 /**
  * Error thrown when an error occurs while rendering a React component.
@@ -62,8 +63,18 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
   private async preparePageSpecificDependencies(pagePath: string): Promise<ProcessedAsset[]> {
     try {
       const pathHash = rapidhash(pagePath);
-      const { name } = path.parse(pagePath);
-      const componentName = `pages/${name}/ecopages-react-${pathHash}`;
+      const componentName = `ecopages-react-${pathHash}`;
+
+      const resolvedReactDependency = this.urlResolver
+        .from(pagePath)
+        .toRelativePath()
+        .setParentDir(RESOLVED_ASSETS_DIR)
+        .replaceFilenameInUrl(componentName)
+        .replaceExtensionInUrl('.js')
+        .withLeadingSlash()
+        .build();
+
+      console.log('Resolved React dependency:', resolvedReactDependency);
 
       const dependencies = [
         AssetDependencyHelpers.createFileScript({
@@ -83,7 +94,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
         }),
         AssetDependencyHelpers.createContentScript({
           position: 'head',
-          content: this.createHydrationScript(path.join('/', RESOLVED_ASSETS_DIR, `${componentName}.js`)),
+          content: this.createHydrationScript(resolvedReactDependency),
           name: `${componentName}-hydration`,
           bundle: false,
           attributes: {

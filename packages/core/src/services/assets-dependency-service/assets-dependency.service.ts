@@ -4,7 +4,13 @@ import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import { FileUtils } from '../../utils/file-utils.module';
 import { ProcessorRegistry } from './processor.registry';
-import { NodeModuleScriptProcessor, PreBundledProcessor, ContentProcessor, FileProcessor } from './assets-processors';
+import {
+  ContentScriptProcessor,
+  ContentStylesheetProcessor,
+  FileScriptProcessor,
+  FileStylesheetProcessor,
+  NodeModuleScriptProcessor,
+} from './assets-processors';
 import type { AssetDependency, AssetKind, AssetSource } from './assets.types';
 
 export class AssetsDependencyService {
@@ -38,6 +44,7 @@ export class AssetsDependencyService {
           srcUrl: this.getSrcUrl(processed.filepath),
         });
       } catch (error) {
+        appLogger.error(`Error processing dependency: ${dep.kind}/${dep.source}`, dep);
         appLogger.error(`Failed to process dependency: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
@@ -57,19 +64,13 @@ export class AssetsDependencyService {
   static createWithDefaultProcessors(appConfig: EcoPagesAppConfig): AssetsDependencyService {
     const service = new AssetsDependencyService(appConfig);
 
-    const fileProcessor = new FileProcessor({ appConfig });
-    const contentProcessor = new ContentProcessor({ appConfig });
-    const preBundledProcessor = new PreBundledProcessor({ appConfig });
-    const nodeModuleProcessor = new NodeModuleScriptProcessor({ appConfig });
+    service.registerProcessor('script', 'content', new ContentScriptProcessor({ appConfig }));
+    service.registerProcessor('script', 'file', new FileScriptProcessor({ appConfig }));
+    service.registerProcessor('script', 'node-module', new NodeModuleScriptProcessor({ appConfig }));
 
-    service.registerProcessor('script', 'content', contentProcessor);
-    service.registerProcessor('script', 'file', fileProcessor);
-    service.registerProcessor('script', 'node-module', nodeModuleProcessor);
-    // service.registerProcessor('script', 'url', preBundledProcessor);
-
-    service.registerProcessor('stylesheet', 'content', contentProcessor);
-    service.registerProcessor('stylesheet', 'file', fileProcessor);
-    service.registerProcessor('stylesheet', 'file', preBundledProcessor);
+    service.registerProcessor('stylesheet', 'content', new ContentStylesheetProcessor({ appConfig }));
+    service.registerProcessor('stylesheet', 'file', new FileStylesheetProcessor({ appConfig }));
+    // service.registerProcessor('stylesheet', 'file', new PreBundledProcessor({ appConfig }));
 
     return service;
   }

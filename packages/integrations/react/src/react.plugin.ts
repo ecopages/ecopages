@@ -51,6 +51,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
     return [
       AssetDependencyHelpers.createInlineContentScript({
         position: 'head',
+        bundle: false,
         content: JSON.stringify(
           {
             imports: {

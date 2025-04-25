@@ -62,6 +62,10 @@
 			"types": "./src/utils/deep-merge.ts",
 			"default": "./src/utils/deep-merge.ts"
 		},
+		"./utils/ecopages-url-resolver": {
+			"types": "./src/utils/ecopages-url-resolver.ts",
+			"default": "./src/utils/ecopages-url-resolver.ts"
+		},
 		"./utils/invariant": {
 			"types": "./src/utils/invariant.ts",
 			"default": "./src/utils/invariant.ts"

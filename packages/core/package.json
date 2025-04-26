@@ -44,6 +44,10 @@
 			"types": "./src/adapters/bun/create-app.ts",
 			"default": "./src/adapters/bun/create-app.ts"
 		},
+		"./adapters/bun/hmr": {
+			"types": "./src/adapters/bun/hmr.ts",
+			"default": "./src/adapters/bun/hmr.ts"
+		},
 		"./services/assets-dependency-service": {
 			"types": "./src/services/assets-dependency-service/index.ts",
 			"default": "./src/services/assets-dependency-service/index.ts"

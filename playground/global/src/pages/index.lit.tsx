@@ -49,7 +49,7 @@ export default HomePage;
 
 const EndpointsTesting: EcoComponent = () => {
   return (
-    <>
+    <div class="prose">
       <h2>Endpoints Testing</h2>
       <h3 class="font-bold mt-4">Blog Posts</h3>
       <p>
@@ -95,6 +95,6 @@ const EndpointsTesting: EcoComponent = () => {
           /api/test/catch/all/example
         </a>
       </p>
-    </>
+    </div>
   );
 };

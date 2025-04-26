@@ -58,7 +58,10 @@ export class ImageProcessor {
 
       if (this.config.cacheEnabled) {
         const cached = await this.cacheManager.readCache<ImageSpecifications>(cacheKey);
-        if (cached) return cached;
+        if (cached) {
+          appLogger.debug(`Cache hit for ${imagePath}`);
+          return cached;
+        }
       }
 
       FileUtils.ensureDirectoryExists(this.config.outputDir);

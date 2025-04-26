@@ -2,7 +2,10 @@ import { appLogger } from '../global/app-logger';
 import type { AssetPosition, ProcessedAsset } from './assets-dependency-service/assets.types';
 
 export class HtmlTransformerService {
-  constructor(private processedDependencies: ProcessedAsset[] = []) {}
+  htmlRewriter: HTMLRewriter;
+  constructor(private processedDependencies: ProcessedAsset[] = []) {
+    this.htmlRewriter = new HTMLRewriter();
+  }
 
   private formatAttributes(attrs?: Record<string, string>): string {
     if (!attrs) return '';
@@ -40,7 +43,7 @@ export class HtmlTransformerService {
 
     const html = await res.text();
 
-    const rewriter = new HTMLRewriter()
+    this.htmlRewriter
       .on('head', {
         element: (element) => this.appendDependencies(element, head),
       })
@@ -48,7 +51,7 @@ export class HtmlTransformerService {
         element: (element) => this.appendDependencies(element, body),
       });
 
-    return rewriter.transform(
+    return this.htmlRewriter.transform(
       new Response(html, {
         headers: res.headers,
         status: res.status,

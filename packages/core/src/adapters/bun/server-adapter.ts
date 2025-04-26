@@ -110,7 +110,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir),
       path.join(this.appConfig.rootDir, this.appConfig.distDir, this.appConfig.publicDir),
     );
-    console.log('Assets dir', path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
     FileUtils.ensureDirectoryExists(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
   }
 
@@ -163,14 +162,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     });
 
     this.transformIndexHtml = async (res: Response): Promise<Response> => {
-      /**
-       * @todo we need to pass the dependencies to the HTML transformer.
-       * Best option is to proably to pass the htmlTransform to the route renderer factory
-       * and then pass the dependencies to the route renderer.
-       * Please check in initializePlugins if we can pass the dependencies to renderer directly.
-       */
-      // this.htmlTransformer.setProcessedDependencies(dependencies);
       let transformedResponse = await this.htmlTransformer.transform(res);
+      console.log('Transformed response:', transformedResponse);
 
       if (this.options?.watch) {
         const liveReloadScript = makeLiveReloadScript(

@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { WS_PATH, makeLiveReloadScript } from 'src/adapters/bun/hmr.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,
@@ -328,6 +329,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
    */
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
     const renderOptions = await this.prepareRenderOptions(options);
+
+    this.htmlTransformer.htmlRewriter.on('body', {
+      element(body) {
+        const serveOptions = {
+          hostname: 'localhost',
+          port: 3000,
+        };
+
+        const liveReloadScript = makeLiveReloadScript(`${serveOptions.hostname}:${serveOptions.port}/${WS_PATH}`);
+        body.append(liveReloadScript, { html: true });
+      },
+    });
 
     return await this.htmlTransformer
       .transform(

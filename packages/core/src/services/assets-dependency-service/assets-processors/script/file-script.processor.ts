@@ -6,7 +6,14 @@ import { BaseScriptProcessor } from '../base/base-script-processor';
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
   async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
-    const hash = this.generateHash(dep.filepath);
+    if (dep.filepath.endsWith(EXCLUDE_FROM_HTML_FLAG)) {
+      dep.filepath = dep.filepath.replace(EXCLUDE_FROM_HTML_FLAG, '');
+      dep.inline = true;
+      dep.excludeFromHtml = true;
+    }
+
+    const content = FileUtils.readFileSync(dep.filepath, 'utf-8');
+    const hash = this.generateHash(content);
     const cachekey = `${dep.filepath}:${hash}`;
 
     if (this.hasCacheFile(cachekey)) {
@@ -15,15 +22,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
     const shouldBundle = this.shouldBundle(dep);
 
-    if (dep.filepath.endsWith(EXCLUDE_FROM_HTML_FLAG)) {
-      dep.filepath = dep.filepath.replace(EXCLUDE_FROM_HTML_FLAG, '');
-      dep.inline = true;
-      dep.excludeFromHtml = true;
-    }
-
     if (!shouldBundle) {
-      const content = dep.inline ? FileUtils.readFileSync(dep.filepath, 'utf-8') : undefined;
-
       const outFilepath = path.relative(this.appConfig.srcDir, dep.filepath);
       let filepath: string | undefined = undefined;
 

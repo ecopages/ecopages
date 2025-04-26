@@ -1,4 +1,4 @@
-import { RESOLVED_ASSETS_DIR } from '../../constants';
+import { RESOLVED_ASSETS_DIR, RESOLVED_ASSETS_VENDORS_DIR } from '../../constants';
 import { deepMerge } from '../../utils/deep-merge';
 import type {
   ContentScriptAsset,
@@ -17,6 +17,7 @@ type CreateAssetOptions<T> = Omit<T, 'kind' | 'source' | 'inline' | 'preBundled'
 
 export class AssetDependencyHelpers {
   static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
+  static readonly RESOLVED_ASSETS_VENDORS_DIR = RESOLVED_ASSETS_VENDORS_DIR;
 
   static createContentScript(options: CreateAssetOptions<ContentScriptAsset>): ContentScriptAsset {
     return {

@@ -28,7 +28,6 @@ import {
 } from '../services/assets-dependency-service/index.ts';
 import { invariant } from '../utils/invariant.ts';
 import { HtmlTransformerService } from 'src/services/html-transformer.service.ts';
-import { EcopagesUrlResolver } from 'src/utils/ecopages-url-resolver.ts';
 
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
@@ -40,7 +39,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   protected appConfig: EcoPagesAppConfig;
   protected assetsDependencyService: AssetsDependencyService;
   protected htmlTransformer: HtmlTransformerService;
-  protected urlResolver: EcopagesUrlResolver;
   private resolvedIntegrationDependencies: ProcessedAsset[] = [];
   protected declare options: Required<IntegrationRendererRenderOptions>;
 
@@ -58,7 +56,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     this.appConfig = appConfig;
     this.assetsDependencyService = assetsDependencyService;
     this.htmlTransformer = new HtmlTransformerService();
-    this.urlResolver = new EcopagesUrlResolver(appConfig);
     this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 
     // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate

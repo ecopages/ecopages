@@ -6,14 +6,14 @@ export class HtmlTransformerService {
 
   private formatAttributes(attrs?: Record<string, string>): string {
     if (!attrs) return '';
-    return `${Object.entries(attrs)
+    return ` ${Object.entries(attrs)
       .map(([key, value]) => `${key}="${value}"`)
       .join(' ')}`;
   }
 
   private generateScriptTag(dep: ProcessedAsset & { kind: 'script' }): string {
     return dep.inline
-      ? `<script ${this.formatAttributes(dep.attributes)}>${dep.content}</script>`
+      ? `<script${this.formatAttributes(dep.attributes)}>${dep.content}</script>`
       : `<script src="${dep.srcUrl}"${this.formatAttributes(dep.attributes)}></script>`;
   }
 

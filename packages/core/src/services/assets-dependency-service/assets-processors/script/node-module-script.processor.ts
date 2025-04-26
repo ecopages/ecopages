@@ -1,43 +1,55 @@
 import path from 'node:path';
 import { BaseScriptProcessor } from '../base/base-script-processor';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
-import type { NodeModuleScriptAsset } from '../../assets.types';
+import type { NodeModuleScriptAsset, ProcessedAsset } from '../../assets.types';
 import { FileUtils } from '../../../../utils/file-utils.module';
 
 export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScriptAsset> {
   async process(dep: NodeModuleScriptAsset, config: EcoPagesAppConfig) {
     const modulePath = this.resolveModulePath(dep.importPath, config.rootDir);
+    const moduleName = path.basename(modulePath);
     const hash = this.generateHash(modulePath);
-    const filename = dep.name ? `${dep.name}` : `nodemodule-${hash}`;
-    const filepath = this.getFilepath(filename);
+    const filename = dep.name ? `${dep.name}` : `nm-${moduleName}-${hash}`;
+    const cachekey = `${filename}:${hash}`;
+
+    if (this.hasCacheFile(cachekey)) {
+      return this.getCacheFile(cachekey) as ProcessedAsset;
+    }
 
     if (dep.inline) {
       const content = FileUtils.getFileAsBuffer(modulePath).toString();
-      return {
-        filepath,
+      const inlineProcessedAsset: ProcessedAsset = {
         content,
         kind: dep.kind,
         position: dep.position,
         attributes: dep.attributes,
         inline: true,
       };
+
+      this.writeCacheFile(cachekey, inlineProcessedAsset);
+      return inlineProcessedAsset;
     }
+
+    const outdir = path.join(this.getAssetsDir(), 'vendors');
 
     const filePath = await this.bundleScript({
       entrypoint: modulePath,
-      outdir: this.getDistDir(),
+      outdir: outdir,
       minify: this.isProduction,
       ...this.getBundlerOptions(dep),
     });
 
-    return {
+    const processedAsset: ProcessedAsset = {
       filepath: filePath,
-      srcUrl: filepath,
       kind: dep.kind,
       position: dep.position,
       attributes: dep.attributes,
       inline: dep.inline,
     };
+
+    this.writeCacheFile(cachekey, processedAsset);
+
+    return processedAsset;
   }
 
   private resolveModulePath(importPath: string, rootDir: string, maxDepth = 5): string {

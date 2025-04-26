@@ -2,18 +2,21 @@ import { BaseProcessor } from './base-processor';
 import type { ScriptAsset } from '../../assets.types';
 import type { BunPlugin } from 'bun';
 import { appLogger } from '../../../../global/app-logger';
+import type { EcoPagesAppConfig } from '../../../../internal-types';
 
 export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BaseProcessor<T> {
+  buildPlugins: BunPlugin[] = [];
+  constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
+    super({ appConfig });
+    this.buildPlugins = this.collectBuildPlugins();
+  }
+
   protected shouldBundle(dep: T): boolean {
     return dep.bundle !== false;
   }
 
   protected getBundlerOptions(dep: T): Record<string, any> {
     return dep.bundleOptions || {};
-  }
-
-  protected getExtension(): string {
-    return 'js';
   }
 
   private collectBuildPlugins(): BunPlugin[] {
@@ -44,7 +47,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
       format: 'esm',
       splitting: true,
       naming: '[name].[ext]',
-      plugins: this.collectBuildPlugins(),
+      plugins: this.buildPlugins,
       ...rest,
     });
 

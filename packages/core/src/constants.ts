@@ -23,6 +23,12 @@ export const IS_BUN = typeof Bun !== 'undefined';
  */
 export const RESOLVED_ASSETS_DIR = 'assets';
 
+/**
+ * Directory used for storing vendor assets.
+ * This is a subdirectory of the assets directory.
+ */
+export const RESOLVED_ASSETS_VENDORS_DIR = `${RESOLVED_ASSETS_DIR}/vendors`;
+
 interface GeneratedPathOptions {
   root: string;
   module: string;
@@ -53,4 +59,4 @@ export function resolveGeneratedPath(type: keyof typeof GENERATED_BASE_PATHS, op
   return fullPath;
 }
 
-export const EXCLUDE_FROM_HTML_FLAG = '?excludeFromHtml=true';
+export const EXCLUDE_FROM_HTML_FLAG = '?exclude-from-html=true';

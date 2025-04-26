@@ -44,7 +44,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
   }
 
   private buildImportMapSourceUrl(fileName: string): string {
-    return `/${AssetDependencyHelpers.RESOLVED_ASSETS_DIR}/${fileName}`;
+    return `/${AssetDependencyHelpers.RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
   }
 
   private getDependencies(): AssetDependency[] {

@@ -17,7 +17,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { rm as rmAsync, rmdir as rmdirAsync } from 'node:fs/promises';
-import { extname } from 'node:path';
+import path, { extname } from 'node:path';
 import zlib from 'node:zlib';
 import type { GlobScanOptions } from 'bun';
 
@@ -136,12 +136,12 @@ function gzipDirSync(path: string, extensionsToGzip: string[]) {
 
 /**
  * Write contents to a file.
- * @param path
+ * @param filepath
  * @param contents
  */
-function write(path: string, contents: string | Buffer): void {
+function write(filepath: string, contents: string | Buffer): void {
   try {
-    const dirs = path.split('/');
+    const dirs = filepath.split('/');
     let currentPath = '';
     for (let i = 0; i < dirs.length - 1; i++) {
       currentPath += `${dirs[i]}/`;
@@ -149,7 +149,8 @@ function write(path: string, contents: string | Buffer): void {
         mkdirSync(currentPath);
       }
     }
-    writeFileSync(path, contents);
+    FileUtils.ensureDirectoryExists(path.dirname(filepath));
+    writeFileSync(filepath, contents);
   } catch (error) {
     throw new Error(`[ecopages] Error writing file: ${path}`);
   }

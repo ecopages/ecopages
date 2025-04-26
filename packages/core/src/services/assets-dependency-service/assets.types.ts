@@ -105,7 +105,7 @@ export interface PreBundledStylesheetAsset extends BaseAsset {
 }
 
 export type ProcessedAsset = {
-  filepath: string;
+  filepath?: string;
   srcUrl?: string;
   content?: string;
   kind: AssetKind;

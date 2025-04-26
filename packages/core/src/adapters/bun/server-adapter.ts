@@ -21,6 +21,7 @@ import { FileSystemServerResponseFactory } from '../shared/fs-server-response-fa
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
 import { WS_PATH, appendHmrScriptToBody, makeLiveReloadScript, withHtmlLiveReload } from './hmr.ts';
 import { BunRouterAdapter } from './router-adapter.ts';
+import { RESOLVED_ASSETS_DIR } from 'src/constants.ts';
 
 export type BunServerRoutes = {
   [K: string]: RouterTypes.RouteValue<string>;
@@ -109,6 +110,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir),
       path.join(this.appConfig.rootDir, this.appConfig.distDir, this.appConfig.publicDir),
     );
+    console.log('Assets dir', path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
+    FileUtils.ensureDirectoryExists(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
   }
 
   private async initRouter(): Promise<void> {

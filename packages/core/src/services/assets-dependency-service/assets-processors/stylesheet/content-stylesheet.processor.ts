@@ -1,24 +1,31 @@
-import { BaseStylesheetProcessor } from '../base/base-stylesheet-processor';
+import path from 'node:path';
+import { BaseProcessor } from '../base/base-processor';
 import type { ContentStylesheetAsset, ProcessedAsset } from '../../assets.types';
-import { FileUtils } from 'src/utils/file-utils.module';
+import { FileUtils } from '../../../../utils/file-utils.module';
 
-export class ContentStylesheetProcessor extends BaseStylesheetProcessor<ContentStylesheetAsset> {
+export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetAsset> {
   async process(dep: ContentStylesheetAsset): Promise<ProcessedAsset> {
     const hash = this.generateHash(dep.content);
     const filename = `style-${hash}.css`;
-    const outPath = this.getFilepath(filename);
+    const cachekey = `${filename}-${hash}`;
 
-    if (!dep.inline) {
-      FileUtils.write(outPath, dep.content);
-    }
+    if (this.hasCacheFile(cachekey)) return this.getCacheFile(cachekey) as ProcessedAsset;
 
-    return {
-      filepath: outPath,
+    const filepath = path.join(this.getAssetsDir(), 'styles', filename);
+
+    if (!dep.inline) FileUtils.write(filepath, dep.content);
+
+    const processedAsset: ProcessedAsset = {
+      filepath: dep.inline ? undefined : filepath,
       content: dep.inline ? dep.content : undefined,
       kind: 'stylesheet',
       position: dep.position,
       attributes: dep.attributes,
       inline: dep.inline,
     };
+
+    this.writeCacheFile(cachekey, processedAsset);
+
+    return processedAsset;
   }
 }

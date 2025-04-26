@@ -190,56 +190,56 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
     logger.debug('PostCssProcessor config', { config: this.options });
 
-    if (this.watchConfig) {
-      this.watchConfig.paths = [this.options.sourceDir ?? this.context.srcDir];
-    }
+    // if (this.watchConfig) {
+    //   this.watchConfig.paths = [this.options.sourceDir ?? this.context.srcDir];
+    // }
 
     this.dependencies = this.generateDependencies();
 
     logger.debugTime('PostCssProcessor setup time');
 
-    await this.processAll();
+    // await this.processAll();
 
-    if (this.options.processTailwind) {
-      this.execTailwind();
-    }
+    // if (this.options.processTailwind) {
+    //   this.execTailwind();
+    // }
 
     logger.debugTimeEnd('PostCssProcessor setup time');
   }
 
-  private async execTailwind(): Promise<void> {
-    if (!this.options || !this.context) {
-      throw new Error('Options and context must be set');
-    }
+  // private async execTailwind(): Promise<void> {
+  //   if (!this.options || !this.context) {
+  //     throw new Error('Options and context must be set');
+  //   }
 
-    const { processTailwind, tailwindInput } = this.options;
-    if (!processTailwind || !tailwindInput) return;
+  //   const { processTailwind, tailwindInput } = this.options;
+  //   if (!processTailwind || !tailwindInput) return;
 
-    const input = path.join(this.options.sourceDir ?? this.context.srcDir, tailwindInput);
-    const output = path.join(this.options.outputDir ?? this.context.distDir, tailwindInput);
+  //   const input = path.join(this.options.sourceDir ?? this.context.srcDir, tailwindInput);
+  //   const output = path.join(this.options.outputDir ?? this.context.distDir, tailwindInput);
 
-    FileUtils.ensureDirectoryExists(path.dirname(output));
+  //   FileUtils.ensureDirectoryExists(path.dirname(output));
 
-    this.processCssFile(input).catch((error) => {
-      logger.error('Failed to process Tailwind CSS', { error });
-    });
-  }
+  //   this.processCssFile(input).catch((error) => {
+  //     logger.error('Failed to process Tailwind CSS', { error });
+  //   });
+  // }
 
-  /**
-   * Process CSS files.
-   * @param files Array of file paths to process
-   */
-  async process(files: string[]): Promise<void> {
-    logger.debug('Processing CSS files', { count: files.length });
+  // /**
+  //  * Process CSS files.
+  //  * @param files Array of file paths to process
+  //  */
+  // async process(files: string[]): Promise<void> {
+  //   logger.debug('Processing CSS files', { count: files.length });
 
-    for (const file of files) {
-      try {
-        await this.processCssFile(file);
-      } catch (error) {
-        logger.error('Failed to process CSS file', { file, error });
-      }
-    }
-  }
+  //   for (const file of files) {
+  //     try {
+  //       await this.processCssFile(file);
+  //     } catch (error) {
+  //       logger.error('Failed to process CSS file', { file, error });
+  //     }
+  //   }
+  // }
 
   /**
    * Get the content of a CSS file with the input header.

@@ -48,14 +48,14 @@ describe('component-dependencies-utils', () => {
   });
 
   describe('flagComponentsAsDynamic', () => {
-    it('should mark scripts as dynamic by adding ?dynamic=true', () => {
+    it('should mark scripts as dynamic by adding ?exclude-from-html=true', () => {
       const result = flagComponentsAsDynamic(componentsMock);
       expect(result).toEqual([
         {
           config: {
             importMeta: (componentsMock[0].config as EcoComponentConfig).importMeta,
             dependencies: {
-              scripts: ['script1.ts?dynamic=true', 'script2.ts?dynamic=true'],
+              scripts: ['script1.ts?exclude-from-html=true', 'script2.ts?exclude-from-html=true'],
               stylesheets: ['style1.css'],
             },
           },
@@ -64,7 +64,7 @@ describe('component-dependencies-utils', () => {
           config: {
             importMeta: (componentsMock[1].config as EcoComponentConfig).importMeta,
             dependencies: {
-              scripts: ['script3.ts?dynamic=true'],
+              scripts: ['script3.ts?exclude-from-html=true'],
               stylesheets: ['style2.css'],
             },
           },

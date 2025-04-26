@@ -2,11 +2,17 @@ import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
 import type { BaseAsset, ProcessedAsset } from '../../assets.types';
 import { RESOLVED_ASSETS_DIR } from '../../../../constants';
-import { FileUtils } from '../../../../utils/file-utils.module';
 import { rapidhash } from '../../../../utils/hash';
 
 export abstract class BaseProcessor<T extends BaseAsset> {
   protected appConfig: EcoPagesAppConfig;
+  /**
+   * Cache for processed assets to avoid reprocessing the same asset multiple times.
+   * The cache key is a combination of the asset name and its hash.
+   * The cache value is the processed asset.
+   */
+  protected cache: Map<string, ProcessedAsset> = new Map();
+
   constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
     this.appConfig = appConfig;
   }
@@ -21,37 +27,23 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 
   abstract process(dep: T, config: EcoPagesAppConfig): Promise<ProcessedAsset>;
 
-  protected getDistDir(): string {
+  protected getAssetsDir(): string {
     return path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
   }
 
-  protected getCleanAssetUrl(pathname: string): string {
-    const { srcDir } = this.appConfig;
-    const url = pathname.split(srcDir)[1];
-    return url.split('.').slice(0, -1).join('.');
+  protected writeCacheFile(key: string, path: ProcessedAsset): void {
+    this.cache.set(key, path);
   }
 
-  protected getFilepath(filename: string): string {
-    const distDir = this.getDistDir();
-    const filepath = path.join(distDir, filename);
-    return filepath;
+  protected getCacheFile(key: string): ProcessedAsset | undefined {
+    return this.cache.get(key);
+  }
+
+  protected hasCacheFile(key: string): boolean {
+    return this.cache.has(key);
   }
 
   protected generateHash(content: string): string {
     return rapidhash(content).toString();
-  }
-
-  protected writeAssetToFile({
-    content,
-    name,
-    ext,
-  }: {
-    content: string | Buffer;
-    name: string;
-    ext: 'css' | 'js';
-  }): string {
-    const filepath = this.getFilepath(`${name}.${ext}`);
-    if (!FileUtils.existsSync(filepath)) FileUtils.write(filepath, content);
-    return filepath;
   }
 }

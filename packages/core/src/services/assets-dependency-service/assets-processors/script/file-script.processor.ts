@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { BaseScriptProcessor } from '../base/base-script-processor';
-import type { FileScriptAsset, ProcessedAsset } from '../../assets.types';
-import { FileUtils } from '../../../../utils/file-utils.module';
 import { EXCLUDE_FROM_HTML_FLAG, RESOLVED_ASSETS_DIR } from '../../../../constants';
+import { FileUtils } from '../../../../utils/file-utils.module';
+import type { FileScriptAsset, ProcessedAsset } from '../../assets.types';
+import { BaseScriptProcessor } from '../base/base-script-processor';
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
   async process(dep: FileScriptAsset): Promise<ProcessedAsset> {

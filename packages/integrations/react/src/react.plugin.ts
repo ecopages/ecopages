@@ -4,7 +4,7 @@
  */
 
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import { AssetDependencyHelpers, type AssetDependency } from '@ecopages/core/services/assets-dependency-service';
+import { type AssetDependency, AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
 import { Logger } from '@ecopages/logger';
 import type React from 'react';
 import { ReactRenderer } from './react-renderer';

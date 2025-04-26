@@ -1,9 +1,8 @@
-import type { AssetDependency, ProcessedAsset } from '../services/assets-dependency-service/assets.types';
 import type { EcoPagesAppConfig } from '../internal-types';
 import type { EcoPagesElement } from '../public-types';
 import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
 import { AssetsDependencyService } from '../services/assets-dependency-service/assets-dependency.service';
-import { HtmlTransformerService } from 'src/services/html-transformer.service';
+import type { AssetDependency, ProcessedAsset } from '../services/assets-dependency-service/assets.types';
 
 export interface IntegrationPluginConfig {
   /**

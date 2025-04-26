@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { BaseScriptProcessor } from '../base/base-script-processor';
+import { FileUtils } from '../../../../utils/file-utils.module';
 import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types';
-import { FileUtils } from 'src/utils/file-utils.module';
+import { BaseScriptProcessor } from '../base/base-script-processor';
 
 export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAsset> {
   async process(dep: ContentScriptAsset): Promise<ProcessedAsset> {

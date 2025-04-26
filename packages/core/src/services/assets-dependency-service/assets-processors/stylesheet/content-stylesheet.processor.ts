@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { BaseProcessor } from '../base/base-processor';
-import type { ContentStylesheetAsset, ProcessedAsset } from '../../assets.types';
 import { FileUtils } from '../../../../utils/file-utils.module';
+import type { ContentStylesheetAsset, ProcessedAsset } from '../../assets.types';
+import { BaseProcessor } from '../base/base-processor';
 
 export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetAsset> {
   async process(dep: ContentStylesheetAsset): Promise<ProcessedAsset> {

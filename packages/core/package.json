@@ -2,17 +2,11 @@
 	"name": "@ecopages/core",
 	"version": "0.1.30",
 	"description": "Core package for Ecopages",
-	"keywords": [
-		"ecopages",
-		"core",
-		"ssg"
-	],
+	"keywords": ["ecopages", "core", "ssg"],
 	"license": "MIT",
 	"main": "./src/index.ts",
 	"type": "module",
-	"files": [
-		"src"
-	],
+	"files": ["src"],
 	"bin": {
 		"ecopages": "./src/bin/ecopages.ts"
 	},

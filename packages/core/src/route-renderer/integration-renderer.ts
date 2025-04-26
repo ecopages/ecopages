@@ -21,13 +21,13 @@ import type {
   RouteRendererOptions,
 } from '../public-types.ts';
 import {
-  AssetDependencyHelpers,
   type AssetDependency,
+  AssetDependencyHelpers,
   type AssetsDependencyService,
   type ProcessedAsset,
 } from '../services/assets-dependency-service/index.ts';
+import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
-import { HtmlTransformerService } from 'src/services/html-transformer.service.ts';
 
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.

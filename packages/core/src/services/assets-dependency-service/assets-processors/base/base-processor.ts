@@ -1,8 +1,8 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../../../../internal-types';
-import type { BaseAsset, ProcessedAsset } from '../../assets.types';
 import { RESOLVED_ASSETS_DIR } from '../../../../constants';
+import type { EcoPagesAppConfig } from '../../../../internal-types';
 import { rapidhash } from '../../../../utils/hash';
+import type { BaseAsset, ProcessedAsset } from '../../assets.types';
 
 export abstract class BaseProcessor<T extends BaseAsset> {
   protected appConfig: EcoPagesAppConfig;

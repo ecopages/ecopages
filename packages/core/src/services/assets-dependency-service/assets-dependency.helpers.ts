@@ -2,15 +2,15 @@ import { RESOLVED_ASSETS_DIR, RESOLVED_ASSETS_VENDORS_DIR } from '../../constant
 import { deepMerge } from '../../utils/deep-merge';
 import type {
   ContentScriptAsset,
-  FileScriptAsset,
-  NodeModuleScriptAsset,
-  JsonScriptAsset,
-  PreBundledScriptAsset,
   ContentStylesheetAsset,
+  FileScriptAsset,
   FileStylesheetAsset,
-  PreBundledStylesheetAsset,
   InlineContentScriptAsset,
   InlineContentStylesheetAsset,
+  JsonScriptAsset,
+  NodeModuleScriptAsset,
+  PreBundledScriptAsset,
+  PreBundledStylesheetAsset,
 } from './assets.types';
 
 type CreateAssetOptions<T> = Omit<T, 'kind' | 'source' | 'inline' | 'preBundled'>;

@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { BaseScriptProcessor } from '../base/base-script-processor';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
-import type { NodeModuleScriptAsset, ProcessedAsset } from '../../assets.types';
 import { FileUtils } from '../../../../utils/file-utils.module';
+import type { NodeModuleScriptAsset, ProcessedAsset } from '../../assets.types';
+import { BaseScriptProcessor } from '../base/base-script-processor';
 
 export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScriptAsset> {
   async process(dep: NodeModuleScriptAsset, config: EcoPagesAppConfig) {

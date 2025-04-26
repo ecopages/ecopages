@@ -3,12 +3,14 @@
  * @module
  */
 
+import path from 'node:path';
 import {
   type HtmlTemplateProps,
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
+import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
 import {
   AssetDependencyHelpers,
@@ -18,8 +20,6 @@ import {
 import { type JSX, createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
-import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
-import path from 'node:path';
 
 /**
  * Error thrown when an error occurs while rendering a React component.

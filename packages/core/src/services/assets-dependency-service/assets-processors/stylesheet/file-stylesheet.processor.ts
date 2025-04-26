@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { BaseProcessor } from '../base/base-processor';
-import type { FileStylesheetAsset, ProcessedAsset } from '../../assets.types';
 import { FileUtils } from '../../../../utils/file-utils.module';
+import type { FileStylesheetAsset, ProcessedAsset } from '../../assets.types';
+import { BaseProcessor } from '../base/base-processor';
 
 export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> {
   getStyleContent = async (srcUrl: string): Promise<Buffer | string> => {

@@ -20,23 +20,12 @@
 		"./css": "./src/utils/css.ts",
 		"./hash": "./src/utils/hash.ts"
 	},
-	"exclude": [
-		"fixtures",
-		"**/*.test.ts"
-	],
+	"exclude": ["fixtures", "**/*.test.ts"],
 	"imports": {
 		"bun": "npm:@types/bun@latest"
 	},
 	"publish": {
-		"include": [
-			"src/**/*.ts",
-			"LICENSE",
-			"README.md",
-			"jsr.json"
-		],
-		"exclude": [
-			"src/**/*.test.ts",
-			"fixtures"
-		]
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],
+		"exclude": ["src/**/*.test.ts", "fixtures"]
 	}
 }

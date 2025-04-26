@@ -13,8 +13,8 @@ import {
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
-import { PLUGIN_NAME } from './mdx.plugin.ts';
 import type { ProcessedAsset } from '@ecopages/core/services/assets-dependency-service';
+import { PLUGIN_NAME } from './mdx.plugin.ts';
 
 /**
  * A structure representing an MDX file

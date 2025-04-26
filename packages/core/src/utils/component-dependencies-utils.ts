@@ -3,7 +3,7 @@
  * @module
  */
 
-import { RESOLVED_ASSETS_DIR, EXCLUDE_FROM_HTML_FLAG } from '../constants.ts';
+import { EXCLUDE_FROM_HTML_FLAG, RESOLVED_ASSETS_DIR } from '../constants.ts';
 import type { EcoComponent, EcoComponentDependencies, EcoWebComponent } from '../public-types.ts';
 
 function getSafeFileName(path: string): string {

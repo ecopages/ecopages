@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { BunRequest, RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
+import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
@@ -21,7 +22,6 @@ import { FileSystemServerResponseFactory } from '../shared/fs-server-response-fa
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
 import { WS_PATH, appendHmrScriptToBody, makeLiveReloadScript, withHtmlLiveReload } from './hmr.ts';
 import { BunRouterAdapter } from './router-adapter.ts';
-import { RESOLVED_ASSETS_DIR } from 'src/constants.ts';
 
 export type BunServerRoutes = {
   [K: string]: RouterTypes.RouteValue<string>;

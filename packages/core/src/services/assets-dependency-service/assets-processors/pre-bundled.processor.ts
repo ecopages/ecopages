@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { rapidhash } from '../../../utils/hash';
-import { BaseProcessor } from './base/base-processor';
 import type { EcoPagesAppConfig } from '../../../internal-types';
+import { rapidhash } from '../../../utils/hash';
 import type { PreBundledScriptAsset, PreBundledStylesheetAsset } from '../assets.types';
+import { BaseProcessor } from './base/base-processor';
 
 export class PreBundledProcessor extends BaseProcessor<PreBundledScriptAsset | PreBundledStylesheetAsset> {
   async process(dep: PreBundledScriptAsset | PreBundledStylesheetAsset, key: string, config: EcoPagesAppConfig) {

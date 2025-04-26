@@ -156,33 +156,35 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     }
   }
 
-  private setupTransformFunction(): void {
+  // private setupTransformFunction(): void {
+  //   this.routeRendererFactory = new RouteRendererFactory({
+  //     appConfig: this.appConfig,
+  //   });
+
+  //   this.transformIndexHtml = async (res: Response): Promise<Response> => {
+  //     let transformedResponse = await this.htmlTransformer.transform(res);
+
+  //     if (this.options?.watch) {
+  //       const liveReloadScript = makeLiveReloadScript(
+  //         `${this.serveOptions.hostname}:${this.serveOptions.port}/${WS_PATH}`,
+  //       );
+  //       const html = await transformedResponse.text();
+  //       const newHtml = appendHmrScriptToBody(html, liveReloadScript);
+  //       transformedResponse = new Response(newHtml, transformedResponse);
+  //     }
+
+  //     return transformedResponse;
+  //   };
+  // }
+
+  private configureResponseHandlers(): void {
     this.routeRendererFactory = new RouteRendererFactory({
       appConfig: this.appConfig,
     });
 
-    this.transformIndexHtml = async (res: Response): Promise<Response> => {
-      let transformedResponse = await this.htmlTransformer.transform(res);
-      console.log('Transformed response:', transformedResponse);
-
-      if (this.options?.watch) {
-        const liveReloadScript = makeLiveReloadScript(
-          `${this.serveOptions.hostname}:${this.serveOptions.port}/${WS_PATH}`,
-        );
-        const html = await transformedResponse.text();
-        const newHtml = appendHmrScriptToBody(html, liveReloadScript);
-        transformedResponse = new Response(newHtml, transformedResponse);
-      }
-
-      return transformedResponse;
-    };
-  }
-
-  private setupResponseFactories(): void {
     const fileSystemResponseFactory = new FileSystemServerResponseFactory({
       appConfig: this.appConfig,
       routeRendererFactory: this.routeRendererFactory,
-      transformIndexHtml: this.transformIndexHtml,
       options: {
         watchMode: !!this.options?.watch,
         port: this.serveOptions.port ?? 3000,
@@ -259,8 +261,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
     if (!this.fullyInitialized) {
       await this.initRouter();
-      this.setupTransformFunction();
-      this.setupResponseFactories();
+      this.configureResponseHandlers();
       this.adaptRouterRoutes();
     }
 
@@ -290,10 +291,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     appLogger.debug('Completing server initialization with dynamic routes');
 
     await this.initRouter();
-
-    this.setupTransformFunction();
-    this.setupResponseFactories();
-
+    this.configureResponseHandlers();
     this.adaptRouterRoutes();
 
     this.fullyInitialized = true;

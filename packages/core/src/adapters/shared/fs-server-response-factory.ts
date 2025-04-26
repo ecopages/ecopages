@@ -9,23 +9,19 @@ export class FileSystemServerResponseFactory {
   private appConfig: EcoPagesAppConfig;
   private routeRendererFactory: RouteRendererFactory;
   private options: FileSystemServerOptions;
-  private transformIndexHtml: (res: Response) => Promise<Response>;
 
   constructor({
     appConfig,
     routeRendererFactory,
     options,
-    transformIndexHtml,
   }: {
     appConfig: EcoPagesAppConfig;
     routeRendererFactory: RouteRendererFactory;
     options: FileSystemServerOptions;
-    transformIndexHtml: (res: Response) => Promise<Response>;
   }) {
     this.appConfig = appConfig;
     this.routeRendererFactory = routeRendererFactory;
     this.options = options;
-    this.transformIndexHtml = transformIndexHtml;
   }
 
   isHtmlOrPlainText(contentType: string) {

@@ -1,5 +1,10 @@
 import { appLogger } from '../global/app-logger';
-import type { AssetPosition, ProcessedAsset } from './assets-dependency-service/assets.types';
+import type {
+  AssetDependency,
+  AssetPosition,
+  ProcessedAsset,
+  ScriptAsset,
+} from './assets-dependency-service/assets.types';
 
 export class HtmlTransformerService {
   htmlRewriter: HTMLRewriter;
@@ -28,7 +33,7 @@ export class HtmlTransformerService {
 
   private appendDependencies(element: HTMLRewriterTypes.Element, dependencies: ProcessedAsset[]) {
     for (const dep of dependencies) {
-      const tag = dep.kind === 'script' ? this.generateScriptTag(dep) : this.generateStylesheetTag(dep);
+      const tag = dep.kind === 'script' ? this.generateScriptTag(dep as ScriptAsset) : this.generateStylesheetTag(dep);
       element.append(tag, { html: true });
     }
   }

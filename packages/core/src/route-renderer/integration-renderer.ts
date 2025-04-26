@@ -329,15 +329,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
    */
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
     const renderOptions = await this.prepareRenderOptions(options);
-
+    const { hostname, port } = new URL(this.appConfig.baseUrl);
     this.htmlTransformer.htmlRewriter.on('body', {
       element(body) {
-        const serveOptions = {
-          hostname: 'localhost',
-          port: 3000,
-        };
-
-        const liveReloadScript = makeLiveReloadScript(`${serveOptions.hostname}:${serveOptions.port}/${WS_PATH}`);
+        const liveReloadScript = makeLiveReloadScript(`${hostname}:${port}/${WS_PATH}`);
         body.append(liveReloadScript, { html: true });
       },
     });

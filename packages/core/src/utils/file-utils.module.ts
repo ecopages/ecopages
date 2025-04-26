@@ -39,20 +39,12 @@ function copyFileSync(source: string, destination: string) {
  * @param path
  * @param forceCleanup
  */
-function ensureDirectoryExists(path: string, forceCleanup?: boolean): void {
-  if (existsSync(path)) {
-    if (forceCleanup) {
-      rmdirSync(path, {
-        recursive: true,
-      });
-
-      mkdirSync(path, { recursive: true });
-
-      return;
-    }
-  } else {
-    mkdirSync(path, { recursive: true });
+function ensureDirectoryExists(dirPath: string, forceCleanup?: boolean): void {
+  if (forceCleanup && existsSync(dirPath)) {
+    rmSync(dirPath, { recursive: true, force: true });
   }
+
+  mkdirSync(dirPath, { recursive: true });
 }
 
 /**

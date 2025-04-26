@@ -3,7 +3,6 @@ import { RESOLVED_ASSETS_DIR } from '../../constants';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import { FileUtils } from '../../utils/file-utils.module';
-import { ProcessorRegistry } from './processor.registry';
 import {
   ContentScriptProcessor,
   ContentStylesheetProcessor,
@@ -12,6 +11,7 @@ import {
   NodeModuleScriptProcessor,
 } from './assets-processors';
 import type { AssetDependency, AssetKind, AssetSource } from './assets.types';
+import { ProcessorRegistry } from './processor.registry';
 
 export class AssetsDependencyService {
   static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
@@ -41,7 +41,7 @@ export class AssetsDependencyService {
         results.push({
           key,
           ...processed,
-          srcUrl: this.getSrcUrl(processed.filepath),
+          srcUrl: processed.filepath ? this.getSrcUrl(processed.filepath) : undefined,
         });
       } catch (error) {
         appLogger.error(`Error processing dependency: ${dep.kind}/${dep.source}`, dep);
@@ -53,7 +53,7 @@ export class AssetsDependencyService {
     return results;
   }
 
-  private getSrcUrl(filepath: string): string {
+  private getSrcUrl(filepath: string): string | undefined {
     return filepath.split(this.config.absolutePaths.distDir)[1];
   }
 

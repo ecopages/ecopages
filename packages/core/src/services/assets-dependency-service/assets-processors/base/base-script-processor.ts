@@ -1,8 +1,8 @@
-import { BaseProcessor } from './base-processor';
-import type { ScriptAsset } from '../../assets.types';
 import type { BunPlugin } from 'bun';
 import { appLogger } from '../../../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
+import type { ScriptAsset } from '../../assets.types';
+import { BaseProcessor } from './base-processor';
 
 export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BaseProcessor<T> {
   buildPlugins: BunPlugin[] = [];
@@ -21,6 +21,10 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 
   private collectBuildPlugins(): BunPlugin[] {
     const plugins: BunPlugin[] = [];
+
+    if (!this.appConfig.processors?.size) {
+      return plugins;
+    }
 
     for (const processor of this.appConfig.processors.values()) {
       if (processor.buildPlugins) {

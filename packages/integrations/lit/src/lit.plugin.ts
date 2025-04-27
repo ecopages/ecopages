@@ -5,7 +5,7 @@
 
 import './console';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import { AssetFactory } from '@ecopages/core/services/asset-processing-service';
+import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import { litElementHydrateScript } from './lit-element-hydrate';
 import { LitRenderer } from './lit-renderer';
 
@@ -31,7 +31,7 @@ export class LitPlugin extends IntegrationPlugin {
     this.integrationDependencies.unshift(...this.getDependencies());
   }
 
-  getDependencies() {
+  getDependencies(): AssetDefinition[] {
     return [
       /**
        * BUG ALERT

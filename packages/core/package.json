@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.1.30",
+	"version": "0.1.31",
 	"description": "Core package for Ecopages",
 	"keywords": ["ecopages", "core", "ssg"],
 	"license": "MIT",
@@ -55,6 +55,10 @@
 		"./utils/deep-merge": {
 			"types": "./src/utils/deep-merge.ts",
 			"default": "./src/utils/deep-merge.ts"
+		},
+		"./utils/ecopages-url-resolver": {
+			"types": "./src/utils/ecopages-url-resolver.ts",
+			"default": "./src/utils/ecopages-url-resolver.ts"
 		},
 		"./utils/invariant": {
 			"types": "./src/utils/invariant.ts",

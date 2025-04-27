@@ -3,7 +3,7 @@ import { RESOLVED_ASSETS_DIR } from '../../constants';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import { FileUtils } from '../../utils/file-utils.module';
-import type { AssetDefinition, AssetKind, AssetSource } from './assets.types';
+import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types';
 import { ProcessorRegistry } from './processor.registry';
 import {
   ContentScriptProcessor,
@@ -23,7 +23,7 @@ export class AssetProcessingService {
     this.registry.register(kind, variant, processor);
   }
 
-  async processDependencies(deps: AssetDefinition[], key: string) {
+  async processDependencies(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
     const results = [];
     const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
 
@@ -74,7 +74,7 @@ export class AssetProcessingService {
     return service;
   }
 
-  getRegistry() {
+  getRegistry(): ProcessorRegistry {
     return this.registry;
   }
 }

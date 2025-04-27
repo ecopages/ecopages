@@ -8,7 +8,6 @@ import type { ApiHandler, BaseRequest } from '../../public-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
-import { HtmlTransformerService } from '../../services/html-transformer.service.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { deepMerge } from '../../utils/deep-merge.ts';
 import { FileUtils } from '../../utils/file-utils.module.ts';
@@ -20,7 +19,7 @@ import {
 } from '../abstract/server-adapter.ts';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
-import { WS_PATH, appendHmrScriptToBody, makeLiveReloadScript, withHtmlLiveReload } from './hmr.ts';
+import { withHtmlLiveReload } from './hmr.ts';
 import { BunRouterAdapter } from './router-adapter.ts';
 
 export type BunServerRoutes = {
@@ -73,8 +72,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   }
 
   public async initialize(): Promise<void> {
-    appLogger.debugTime('BunServerAdapter:initialize');
-
     this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 
     this.setupLoaders();
@@ -82,8 +79,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     await this.initializePlugins();
 
     if (this.options?.watch) await this.watch();
-
-    appLogger.debugTimeEnd('BunServerAdapter:initialize');
   }
 
   private setupLoaders(): void {

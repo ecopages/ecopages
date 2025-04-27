@@ -94,9 +94,9 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
         }),
       ];
 
-      if (!this.AssetProcessingService) throw new Error('AssetProcessingService is not set');
+      if (!this.assetProcessingService) throw new Error('AssetProcessingService is not set');
 
-      return await this.AssetProcessingService?.processDependencies(dependencies, componentName);
+      return await this.assetProcessingService?.processDependencies(dependencies, componentName);
     } catch (error) {
       if (error instanceof BundleError) console.error('[ecopages] Bundle errors:', error.logs);
 

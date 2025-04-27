@@ -27,7 +27,7 @@ describe('IntegrationPlugin', () => {
   it('should initialize with correct config values', () => {
     expect(plugin.name).toBe(config.name);
     expect(plugin.extensions).toEqual(config.extensions);
-    expect(plugin.getResolvedIntegrationDependencies()).toEqual(config.integrationDependencies as AssetDependency[]);
+    expect(plugin.getResolvedIntegrationDependencies()).toEqual(config.integrationDependencies as AssetDefinition[]);
   });
 
   it('should initialize with empty dependencies if not provided', () => {

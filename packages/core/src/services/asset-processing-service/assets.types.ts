@@ -115,7 +115,7 @@ export type ProcessedAsset = {
   excludeFromHtml?: boolean;
 };
 
-export type AssetDependency =
+export type AssetDefinition =
   | ContentScriptAsset
   | FileScriptAsset
   | NodeModuleScriptAsset

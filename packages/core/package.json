@@ -44,13 +44,9 @@
 			"types": "./src/adapters/bun/create-app.ts",
 			"default": "./src/adapters/bun/create-app.ts"
 		},
-		"./adapters/bun/hmr": {
-			"types": "./src/adapters/bun/hmr.ts",
-			"default": "./src/adapters/bun/hmr.ts"
-		},
-		"./services/assets-dependency-service": {
-			"types": "./src/services/assets-dependency-service/index.ts",
-			"default": "./src/services/assets-dependency-service/index.ts"
+		"./services/asset-processing-service": {
+			"types": "./src/services/asset-processing-service/index.ts",
+			"default": "./src/services/asset-processing-service/index.ts"
 		},
 		"./utils/add-base-url-to-pathname": {
 			"types": "./src/utils/add-base-url-to-pathname.ts",

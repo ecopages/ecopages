@@ -1,11 +1,10 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../../../internal-types';
-import { rapidhash } from '../../../utils/hash';
-import type { PreBundledScriptAsset, PreBundledStylesheetAsset } from '../assets.types';
-import { BaseProcessor } from './base/base-processor';
+import { rapidhash } from '../../../../utils/hash';
+import type { PreBundledScriptAsset, PreBundledStylesheetAsset } from '../../assets.types';
+import { BaseProcessor } from '../base/base-processor';
 
 export class PreBundledProcessor extends BaseProcessor<PreBundledScriptAsset | PreBundledStylesheetAsset> {
-  async process(dep: PreBundledScriptAsset | PreBundledStylesheetAsset, key: string, config: EcoPagesAppConfig) {
+  async process(dep: PreBundledScriptAsset | PreBundledStylesheetAsset) {
     const segments = dep.filepath.split(path.sep);
     const filename = segments.pop() || '';
     const hash = rapidhash(filename);

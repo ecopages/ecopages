@@ -5,7 +5,7 @@
 
 import './console';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import { AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
+import { AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import { litElementHydrateScript } from './lit-element-hydrate';
 import { LitRenderer } from './lit-renderer';
 
@@ -40,12 +40,12 @@ export class LitPlugin extends IntegrationPlugin {
        * The litElementHydrateScript is the same file built on Bun 1.4.5.
        * https://github.com/oven-sh/bun/issues/17180
        *
-       * AssetDependencyHelpers.createNodeModuleScriptAsset({
+       * AssetFactory.createNodeModuleScriptAsset({
        *    position: 'head',
        *    importPath: '@lit-labs/ssr-client/lit-element-hydrate-support.js'
        * })
        */
-      AssetDependencyHelpers.createInlineContentScript({
+      AssetFactory.createInlineContentScript({
         position: 'head',
         content: litElementHydrateScript,
         bundle: false,

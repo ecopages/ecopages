@@ -25,7 +25,7 @@ export abstract class BaseProcessor<T extends BaseAsset> {
     return import.meta.env.NODE_ENV === 'production';
   }
 
-  abstract process(dep: T, config: EcoPagesAppConfig): Promise<ProcessedAsset>;
+  abstract process(dep: T): Promise<ProcessedAsset>;
 
   protected getAssetsDir(): string {
     return path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR);

@@ -15,7 +15,7 @@ import type {
 
 type CreateAssetOptions<T> = Omit<T, 'kind' | 'source' | 'inline' | 'preBundled'>;
 
-export class AssetDependencyHelpers {
+export class AssetFactory {
   static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
   static readonly RESOLVED_ASSETS_VENDORS_DIR = RESOLVED_ASSETS_VENDORS_DIR;
 
@@ -30,7 +30,7 @@ export class AssetDependencyHelpers {
 
   static createInlineContentScript(options: CreateAssetOptions<InlineContentScriptAsset>): InlineContentScriptAsset {
     return {
-      ...AssetDependencyHelpers.createContentScript(options),
+      ...AssetFactory.createContentScript(options),
       inline: true,
     };
   }
@@ -55,7 +55,7 @@ export class AssetDependencyHelpers {
 
   static createInlineNodeModuleScript(options: CreateAssetOptions<NodeModuleScriptAsset>): NodeModuleScriptAsset {
     return {
-      ...AssetDependencyHelpers.createNodeModuleScript(options),
+      ...AssetFactory.createNodeModuleScript(options),
       inline: true,
     };
   }
@@ -83,7 +83,7 @@ export class AssetDependencyHelpers {
     options: CreateAssetOptions<InlineContentStylesheetAsset>,
   ): InlineContentStylesheetAsset {
     return {
-      ...AssetDependencyHelpers.createContentStylesheet(options),
+      ...AssetFactory.createContentStylesheet(options),
       inline: true,
     };
   }

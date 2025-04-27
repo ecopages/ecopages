@@ -3,17 +3,17 @@ import { RESOLVED_ASSETS_DIR } from '../../constants';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import { FileUtils } from '../../utils/file-utils.module';
+import type { AssetDefinition, AssetKind, AssetSource } from './assets.types';
+import { ProcessorRegistry } from './processor.registry';
 import {
   ContentScriptProcessor,
   ContentStylesheetProcessor,
   FileScriptProcessor,
   FileStylesheetProcessor,
   NodeModuleScriptProcessor,
-} from './assets-processors';
-import type { AssetDependency, AssetKind, AssetSource } from './assets.types';
-import { ProcessorRegistry } from './processor.registry';
+} from './processors';
 
-export class AssetsDependencyService {
+export class AssetProcessingService {
   static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
   private registry = new ProcessorRegistry();
 
@@ -23,7 +23,7 @@ export class AssetsDependencyService {
     this.registry.register(kind, variant, processor);
   }
 
-  async processDependencies(deps: AssetDependency[], key: string) {
+  async processDependencies(deps: AssetDefinition[], key: string) {
     const results = [];
     const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
 
@@ -37,7 +37,7 @@ export class AssetsDependencyService {
       }
 
       try {
-        const processed = await processor.process(dep, this.config);
+        const processed = await processor.process(dep);
         results.push({
           key,
           ...processed,
@@ -61,8 +61,8 @@ export class AssetsDependencyService {
     FileUtils.gzipDirSync(depsDir, ['css', 'js']);
   }
 
-  static createWithDefaultProcessors(appConfig: EcoPagesAppConfig): AssetsDependencyService {
-    const service = new AssetsDependencyService(appConfig);
+  static createWithDefaultProcessors(appConfig: EcoPagesAppConfig): AssetProcessingService {
+    const service = new AssetProcessingService(appConfig);
 
     service.registerProcessor('script', 'content', new ContentScriptProcessor({ appConfig }));
     service.registerProcessor('script', 'file', new FileScriptProcessor({ appConfig }));

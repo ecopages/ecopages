@@ -1,6 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { EcoPagesAppConfig } from './internal-types.ts';
-import type { ProcessedAsset } from './services/assets-dependency-service/assets.types.ts';
+import type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
 
 /**
  * Represents the dependencies for an EcoComponent.

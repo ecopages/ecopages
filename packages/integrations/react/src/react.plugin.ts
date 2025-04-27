@@ -4,7 +4,7 @@
  */
 
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import { type AssetDependency, AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
+import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import { Logger } from '@ecopages/logger';
 import type React from 'react';
 import { ReactRenderer } from './react-renderer';
@@ -16,7 +16,7 @@ const appLogger = new Logger('[@ecopages/react]');
  */
 export type ReactPluginOptions = {
   extensions?: string[];
-  dependencies?: AssetDependency[];
+  dependencies?: AssetDefinition[];
 };
 
 /**
@@ -44,12 +44,12 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
   }
 
   private buildImportMapSourceUrl(fileName: string): string {
-    return `/${AssetDependencyHelpers.RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
+    return `/${AssetFactory.RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
   }
 
-  private getDependencies(): AssetDependency[] {
+  private getDependencies(): AssetDefinition[] {
     return [
-      AssetDependencyHelpers.createInlineContentScript({
+      AssetFactory.createInlineContentScript({
         position: 'head',
         bundle: false,
         content: JSON.stringify(
@@ -69,7 +69,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
           type: 'importmap',
         },
       }),
-      AssetDependencyHelpers.createNodeModuleScript({
+      AssetFactory.createNodeModuleScript({
         position: 'head',
         importPath: '@ecopages/react/react-esm.ts',
         name: 'react-esm',
@@ -78,7 +78,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
           defer: '',
         },
       }),
-      AssetDependencyHelpers.createNodeModuleScript({
+      AssetFactory.createNodeModuleScript({
         position: 'head',
         importPath: '@ecopages/react/react-dom-esm.ts',
         name: 'react-dom-esm',

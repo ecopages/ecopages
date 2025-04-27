@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { AssetDependencyHelpers } from './assets-dependency.helpers';
+import { AssetFactory } from './asset.factory';
 
-test('AssetDependencyHelpers - createInlineScriptAsset', () => {
-  const asset = AssetDependencyHelpers.createInlineContentScript({
+test('AssetFactory - createInlineScriptAsset', () => {
+  const asset = AssetFactory.createInlineContentScript({
     content: 'console.log("test")',
   });
   expect(asset.kind).toBe('script');
@@ -11,16 +11,16 @@ test('AssetDependencyHelpers - createInlineScriptAsset', () => {
   expect(asset.position).toBe('body');
 });
 
-test('AssetDependencyHelpers - createSrcScriptAsset', () => {
-  const asset = AssetDependencyHelpers.createFileScript({
+test('AssetFactory - createSrcScriptAsset', () => {
+  const asset = AssetFactory.createFileScript({
     filepath: 'https://test.com/script.js',
   });
   expect(asset.kind).toBe('script');
   expect(asset.source).toBe('file');
 });
 
-test('AssetDependencyHelpers - createJsonAssetScript', () => {
-  const asset = AssetDependencyHelpers.createJsonScript({
+test('AssetFactory - createJsonAssetScript', () => {
+  const asset = AssetFactory.createJsonScript({
     content: '{"test": true}',
   });
   expect(asset.kind).toBe('script');
@@ -28,8 +28,8 @@ test('AssetDependencyHelpers - createJsonAssetScript', () => {
   expect(asset.attributes?.type).toBe('application/json');
 });
 
-test('AssetDependencyHelpers - createInlineStylesheetAsset', () => {
-  const asset = AssetDependencyHelpers.createInlineContentStylesheet({
+test('AssetFactory - createInlineStylesheetAsset', () => {
+  const asset = AssetFactory.createInlineContentStylesheet({
     content: 'body { color: red; }',
   });
   expect(asset.kind).toBe('stylesheet');
@@ -37,8 +37,8 @@ test('AssetDependencyHelpers - createInlineStylesheetAsset', () => {
   expect(asset.position).toBe('head');
 });
 
-test('AssetDependencyHelpers - createPreBundledScriptAsset', () => {
-  const asset = AssetDependencyHelpers.createPreBundledScript({
+test('AssetFactory - createPreBundledScriptAsset', () => {
+  const asset = AssetFactory.createPreBundledScript({
     filepath: '/dist/bundle.js',
   });
   expect(asset.kind).toBe('script');
@@ -46,8 +46,8 @@ test('AssetDependencyHelpers - createPreBundledScriptAsset', () => {
   expect(asset.preBundled).toBe(true);
 });
 
-test('AssetDependencyHelpers - createPreBundledStylesheetAsset', () => {
-  const asset = AssetDependencyHelpers.createPreBundledStylesheet({
+test('AssetFactory - createPreBundledStylesheetAsset', () => {
+  const asset = AssetFactory.createPreBundledStylesheet({
     filepath: '/dist/styles.css',
   });
   expect(asset.kind).toBe('stylesheet');
@@ -55,8 +55,8 @@ test('AssetDependencyHelpers - createPreBundledStylesheetAsset', () => {
   expect(asset.preBundled).toBe(true);
 });
 
-test('AssetDependencyHelpers - createContentScript', () => {
-  const asset = AssetDependencyHelpers.createContentScript({
+test('AssetFactory - createContentScript', () => {
+  const asset = AssetFactory.createContentScript({
     content: 'console.log("test")',
   });
   expect(asset.kind).toBe('script');
@@ -64,16 +64,16 @@ test('AssetDependencyHelpers - createContentScript', () => {
   expect(asset.position).toBe('body');
 });
 
-test('AssetDependencyHelpers - createInlineContentScript', () => {
-  const asset = AssetDependencyHelpers.createInlineContentScript({
+test('AssetFactory - createInlineContentScript', () => {
+  const asset = AssetFactory.createInlineContentScript({
     content: 'console.log("test")',
   });
   expect(asset.inline).toBe(true);
   expect(asset.source).toBe('content');
 });
 
-test('AssetDependencyHelpers - createFileScript', () => {
-  const asset = AssetDependencyHelpers.createFileScript({
+test('AssetFactory - createFileScript', () => {
+  const asset = AssetFactory.createFileScript({
     filepath: '/path/to/script.js',
   });
   expect(asset.kind).toBe('script');

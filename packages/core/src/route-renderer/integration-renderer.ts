@@ -5,7 +5,7 @@
  */
 
 import path from 'node:path';
-import { WS_PATH, makeLiveReloadScript } from 'src/adapters/bun/hmr.ts';
+import { WS_PATH, makeLiveReloadScript } from '../adapters/bun/hmr.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,
@@ -22,11 +22,11 @@ import type {
   RouteRendererOptions,
 } from '../public-types.ts';
 import {
-  type AssetDependency,
-  AssetDependencyHelpers,
-  type AssetsDependencyService,
+  type AssetDefinition,
+  AssetFactory,
+  type AssetProcessingService,
   type ProcessedAsset,
-} from '../services/assets-dependency-service/index.ts';
+} from '../services/asset-processing-service/index.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
 
@@ -38,7 +38,7 @@ import { invariant } from '../utils/invariant.ts';
 export abstract class IntegrationRenderer<C = EcoPagesElement> {
   abstract name: string;
   protected appConfig: EcoPagesAppConfig;
-  protected assetsDependencyService: AssetsDependencyService;
+  protected AssetProcessingService: AssetProcessingService;
   protected htmlTransformer: HtmlTransformerService;
   private resolvedIntegrationDependencies: ProcessedAsset[] = [];
   protected declare options: Required<IntegrationRendererRenderOptions>;
@@ -47,15 +47,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
   constructor({
     appConfig,
-    assetsDependencyService,
+    AssetProcessingService,
     resolvedIntegrationDependencies,
   }: {
     appConfig: EcoPagesAppConfig;
-    assetsDependencyService: AssetsDependencyService;
+    AssetProcessingService: AssetProcessingService;
     resolvedIntegrationDependencies?: ProcessedAsset[];
   }) {
     this.appConfig = appConfig;
-    this.assetsDependencyService = assetsDependencyService;
+    this.AssetProcessingService = AssetProcessingService;
     this.htmlTransformer = new HtmlTransformerService();
     this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 
@@ -207,8 +207,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
    * @param components - The components to collect dependencies from.
    */
   protected async resolveDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): Promise<ProcessedAsset[]> {
-    if (!this.assetsDependencyService) return [];
-    const dependencies: AssetDependency[] = [];
+    if (!this.AssetProcessingService) return [];
+    const dependencies: AssetDefinition[] = [];
 
     for (const component of components) {
       if (!component.config?.importMeta) continue;
@@ -250,14 +250,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
       dependencies.push(
         ...deps.stylesheets.map((stylesheet) =>
-          AssetDependencyHelpers.createFileStylesheet({
+          AssetFactory.createFileStylesheet({
             filepath: stylesheet,
             position: 'head',
             attributes: { rel: 'stylesheet' },
           }),
         ),
         ...deps.scripts.map((script) =>
-          AssetDependencyHelpers.createFileScript({
+          AssetFactory.createFileScript({
             filepath: script,
             position: 'head',
             attributes: {
@@ -269,7 +269,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       );
     }
 
-    const routeAssetsDependencies = await this.assetsDependencyService.processDependencies(dependencies, this.name);
+    const routeAssetsDependencies = await this.AssetProcessingService.processDependencies(dependencies, this.name);
 
     return this.resolvedIntegrationDependencies.concat(routeAssetsDependencies);
   }

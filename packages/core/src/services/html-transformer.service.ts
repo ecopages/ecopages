@@ -1,10 +1,10 @@
 import { appLogger } from '../global/app-logger';
 import type {
-  AssetDependency,
+  AssetDefinition,
   AssetPosition,
   ProcessedAsset,
   ScriptAsset,
-} from './assets-dependency-service/assets.types';
+} from './asset-processing-service/assets.types';
 
 export class HtmlTransformerService {
   htmlRewriter: HTMLRewriter;

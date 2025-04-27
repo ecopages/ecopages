@@ -13,7 +13,7 @@ import {
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
-import type { ProcessedAsset } from '@ecopages/core/services/assets-dependency-service';
+import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { PLUGIN_NAME } from './mdx.plugin.ts';
 
 /**

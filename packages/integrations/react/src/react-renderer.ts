@@ -13,10 +13,10 @@ import {
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
 import {
-  AssetDependencyHelpers,
-  AssetsDependencyService,
+  AssetFactory,
+  AssetProcessingService,
   type ProcessedAsset,
-} from '@ecopages/core/services/assets-dependency-service';
+} from '@ecopages/core/services/asset-processing-service';
 import { type JSX, createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
@@ -50,7 +50,7 @@ export class BundleError extends Error {
  */
 export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
   name = PLUGIN_NAME;
-  componentDirectory = AssetsDependencyService.RESOLVED_ASSETS_DIR;
+  componentDirectory = AssetProcessingService.RESOLVED_ASSETS_DIR;
 
   private createHydrationScript(importPath: string): string {
     return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;
@@ -67,7 +67,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
         .replace(/\\/g, '/')}`;
 
       const dependencies = [
-        AssetDependencyHelpers.createFileScript({
+        AssetFactory.createFileScript({
           position: 'head',
           filepath: pagePath,
           name: componentName,
@@ -82,7 +82,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
             defer: '',
           },
         }),
-        AssetDependencyHelpers.createContentScript({
+        AssetFactory.createContentScript({
           position: 'head',
           content: this.createHydrationScript(resolvedAssetImportFilename),
           name: `${componentName}-hydration`,
@@ -94,9 +94,9 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
         }),
       ];
 
-      if (!this.assetsDependencyService) throw new Error('AssetsDependencyService is not set');
+      if (!this.AssetProcessingService) throw new Error('AssetProcessingService is not set');
 
-      return await this.assetsDependencyService?.processDependencies(dependencies, componentName);
+      return await this.AssetProcessingService?.processDependencies(dependencies, componentName);
     } catch (error) {
       if (error instanceof BundleError) console.error('[ecopages] Bundle errors:', error.logs);
 

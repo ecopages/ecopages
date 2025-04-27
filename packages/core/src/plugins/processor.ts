@@ -1,8 +1,8 @@
 import path from 'node:path';
 import type { BunPlugin } from 'bun';
-import type { AssetDependency } from 'src/services/assets-dependency-service';
 import { resolveGeneratedPath } from '../constants';
 import type { EcoPagesAppConfig } from '../internal-types';
+import type { AssetDefinition } from '../services/asset-processing-service';
 import { FileUtils } from '../utils/file-utils.module';
 
 export interface ProcessorWatchConfig {
@@ -36,7 +36,7 @@ export interface ProcessorContext {
  */
 export abstract class Processor<TOptions = Record<string, unknown>> {
   readonly name: string;
-  protected dependencies: AssetDependency[] = [];
+  protected dependencies: AssetDefinition[] = [];
   protected context?: ProcessorContext;
   protected options?: TOptions;
   protected watchConfig?: ProcessorWatchConfig;
@@ -98,7 +98,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
     return this.watchConfig;
   }
 
-  getDependencies(): AssetDependency[] {
+  getDependencies(): AssetDefinition[] {
     return this.dependencies;
   }
 

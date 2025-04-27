@@ -5,8 +5,8 @@ import type { NodeModuleScriptAsset, ProcessedAsset } from '../../assets.types';
 import { BaseScriptProcessor } from '../base/base-script-processor';
 
 export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScriptAsset> {
-  async process(dep: NodeModuleScriptAsset, config: EcoPagesAppConfig) {
-    const modulePath = this.resolveModulePath(dep.importPath, config.rootDir);
+  async process(dep: NodeModuleScriptAsset) {
+    const modulePath = this.resolveModulePath(dep.importPath, this.appConfig.rootDir);
     const moduleName = path.basename(modulePath);
     const hash = this.generateHash(modulePath);
     const filename = dep.name ? `${dep.name}` : `nm-${moduleName}-${hash}`;

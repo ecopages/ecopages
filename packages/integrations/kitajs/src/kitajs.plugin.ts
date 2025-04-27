@@ -12,24 +12,12 @@ export const PLUGIN_NAME = 'kitajs';
  * This plugin provides support for Kita.js components in Ecopages
  */
 export class KitaHtmlPlugin extends IntegrationPlugin {
+  renderer = KitaRenderer;
   constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
     super({
       name: PLUGIN_NAME,
       extensions: ['.kita.tsx'],
       ...options,
-    });
-
-    this.dependencies = options?.dependencies || [];
-  }
-
-  initializeRenderer(): IntegrationRenderer {
-    if (!this.appConfig) {
-      throw new Error('Plugin not initialized with app config');
-    }
-
-    return new KitaRenderer({
-      appConfig: this.appConfig,
-      assetsDependencyService: this.assetsDependencyService,
     });
   }
 }

@@ -16,7 +16,7 @@ const TailwindPage: EcoComponent = () => {
           in this page styles are applied using tailwindcss on the <span class="text-red-500 font-bold">markup</span>.
         </p>
         <p>
-          Please note the preferred way is to use it following the scaffolding pattern using "my-component.css" and the
+          Please note the preferblue way is to use it following the scaffolding pattern using "my-component.css" and the
           "@apply" directive.
         </p>
       </div>

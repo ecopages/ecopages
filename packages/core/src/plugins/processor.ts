@@ -69,6 +69,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 
   abstract setup(): Promise<void>;
   abstract teardown(): Promise<void>;
+  abstract process(input: unknown): Promise<unknown>;
 
   protected getCachePath(key: string): string {
     return `${this.context?.cache}/${key}`;

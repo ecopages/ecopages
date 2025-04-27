@@ -1,11 +1,12 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import fs from 'node:fs';
 import path from 'node:path';
 import { FileUtils } from '@ecopages/core';
 import sharp from 'sharp';
 import { ImageProcessor } from '../image-processor';
 import type { ImageProcessorConfig } from '../plugin';
 
-async function createTestImage(width: number, height: number, path: string): Promise<void> {
+async function createTestImage(width: number, height: number, filepath: string): Promise<void> {
   await sharp({
     create: {
       width,
@@ -13,10 +14,10 @@ async function createTestImage(width: number, height: number, path: string): Pro
       channels: 4,
       background: '#ffffff',
     },
-  }).toFile(path);
+  }).toFile(filepath);
 }
 
-const testDir = path.join(__dirname, 'test');
+const testDir = path.join(__dirname, '__fixtures__');
 const testImage = path.join(testDir, 'images/test.jpg');
 
 function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProcessor {
@@ -28,9 +29,6 @@ function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProce
     quality: 80,
     format: 'webp',
   };
-
-  FileUtils.ensureDirectoryExists(defaultConfig.sourceDir);
-  FileUtils.ensureDirectoryExists(defaultConfig.outputDir);
 
   return new ImageProcessor(
     {
@@ -50,16 +48,22 @@ function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProce
 
 describe('ImageProcessor', () => {
   beforeEach(async () => {
-    if (FileUtils.existsSync(testDir)) {
-      FileUtils.rmSync(testDir, { recursive: true });
+    const imagesDir = path.join(testDir, 'images');
+    const optimizedDir = path.join(testDir, 'optimized');
+
+    if (fs.existsSync(testDir)) {
+      fs.rmSync(testDir, { recursive: true, force: true });
     }
-    FileUtils.ensureDirectoryExists(path.dirname(testImage));
+
+    fs.mkdirSync(imagesDir, { recursive: true });
+    fs.mkdirSync(optimizedDir, { recursive: true });
+
     await createTestImage(1920, 1080, testImage);
   });
 
   afterAll(() => {
-    if (FileUtils.existsSync(testDir)) {
-      FileUtils.rmSync(testDir, { recursive: true });
+    if (fs.existsSync(testDir)) {
+      fs.rmSync(testDir, { recursive: true, force: true });
     }
   });
 

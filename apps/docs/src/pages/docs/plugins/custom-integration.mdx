@@ -4,8 +4,8 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-    title: 'Docs | Custom Integration',
-    description: 'Learn how to create custom integrations in Ecopages',
+  title: 'Docs | Custom Integration',
+  description: 'Learn how to create custom integrations in Ecopages',
 })
 
 # Creating Custom Integrations
@@ -32,7 +32,6 @@ class CustomIntegration extends IntegrationPlugin {
   createRenderer(): IntegrationRenderer {
     return new CustomRenderer({
       appConfig: this.appConfig!,
-      assetsDependencyService: this.assetsDependencyService,
     });
   }
 }
@@ -192,7 +191,6 @@ export class CustomIntegration extends IntegrationPlugin {
   createRenderer(): IntegrationRenderer {
     return new CustomRenderer({
       appConfig: this.appConfig!,
-      assetsDependencyService: this.assetsDependencyService,
     });
   }
 

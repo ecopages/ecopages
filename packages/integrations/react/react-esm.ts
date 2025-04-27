@@ -4,7 +4,8 @@
  */
 
 import * as React from 'react';
-import { hydrateRoot } from 'react-dom/client';
+import { createRoot, hydrateRoot } from 'react-dom/client';
+import { jsxDEV } from 'react/jsx-dev-runtime';
 import { jsx, jsxs } from 'react/jsx-runtime';
 
 import {
@@ -83,9 +84,11 @@ export {
   useSyncExternalStore,
   useTransition,
   version,
-  hydrateRoot,
   jsx,
   jsxs,
+  jsxDEV,
+  hydrateRoot,
+  createRoot,
 };
 
 export default React;

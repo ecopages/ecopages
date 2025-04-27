@@ -3,7 +3,7 @@
  * @module
  */
 
-import { RESOLVED_ASSETS_DIR } from '../constants.ts';
+import { EXCLUDE_FROM_HTML_FLAG, RESOLVED_ASSETS_DIR } from '../constants.ts';
 import type { EcoComponent, EcoComponentDependencies, EcoWebComponent } from '../public-types.ts';
 
 function getSafeFileName(path: string): string {
@@ -35,7 +35,7 @@ export function resolveComponentsScripts(components: Required<EcoComponentDepend
 }
 
 /**
- * It marks scripts as dynamic by adding ?dynamic=true to their paths
+ * It marks scripts as dynamic by adding ?exclude-from-html=true to their paths
  * @deprecated This function is deprecated and will be removed in the next versions. Use `flagComponentsAsDynamic` instead.
  * @function removeComponentsScripts
  * @param {EcoComponent[]} components
@@ -55,7 +55,7 @@ export function removeComponentsScripts(
         ...component.config,
         dependencies: {
           ...component.config.dependencies,
-          scripts: component.config.dependencies.scripts.map((script) => `${script}?dynamic=true`),
+          scripts: component.config.dependencies.scripts.map((script) => `${script}?exclude-from-html=true`),
         },
       },
     };
@@ -63,7 +63,7 @@ export function removeComponentsScripts(
 }
 
 /**
- * It marks scripts as dynamic by adding ?dynamic=true to their paths
+ * It marks scripts as dynamic by adding ?exclude-from-html=true to their paths
  * @function removeComponentsScripts
  * @param {EcoComponent[]} components
  * @returns {EcoComponent[]}
@@ -82,7 +82,7 @@ export function flagComponentsAsDynamic(
         ...component.config,
         dependencies: {
           ...component.config.dependencies,
-          scripts: component.config.dependencies.scripts.map((script) => `${script}?dynamic=true`),
+          scripts: component.config.dependencies.scripts.map((script) => `${script}${EXCLUDE_FROM_HTML_FLAG}`),
         },
       },
     };

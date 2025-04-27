@@ -7,7 +7,7 @@ import path from 'node:path';
 import { FileUtils, deepMerge } from '@ecopages/core';
 import { resolveGeneratedPath } from '@ecopages/core/constants';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
-import type { AssetDependency } from '@ecopages/core/services/assets-dependency-service';
+import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { Logger } from '@ecopages/logger';
 import type { BunPlugin } from 'bun';
 import { createImagePlugin, createImagePluginBundler } from './bun-plugins';
@@ -88,15 +88,15 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
    * It is ossible to define which one should be included in the final bundle based on the environment.
    * @returns
    */
-  private generateDependencies(): AssetDependency[] {
-    const deps: AssetDependency[] = [];
+  private generateDependencies(): AssetDefinition[] {
+    const deps: AssetDefinition[] = [];
 
     if (import.meta.env.NODE_ENV === 'development') {
       /**
        * Here we can define the dependencies for the development environment
        * @example
        * deps.push(
-       *   AssetDependencyHelpers.createInlineScriptAsset({
+       *   AssetFactory.createInlineScriptAsset({
        *     content: `document.addEventListener("DOMContentLoaded",() => console.log("[@ecopages/image-processor] Processor is loaded"));`,
        *     attributes: {
        *       type: 'module',

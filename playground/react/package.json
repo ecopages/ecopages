@@ -2,11 +2,11 @@
 	"name": "@ecopages/playground-react",
 	"private": true,
 	"scripts": {
-		"start": "bun run app.ts",
-		"dev": "bun run app.ts --dev",
-		"build": "bun run app.ts --build",
-		"preview": "bun run app.ts --preview",
-		"watch:dev": "bun --watch run app.ts --dev"
+		"start": "NODE_ENV=production bun run app.ts",
+		"dev": "NODE_ENV=development bun run app.ts --dev",
+		"build": "NODE_ENV=production bun run app.ts --build",
+		"preview": "NODE_ENV=production bun run app.ts --preview",
+		"watch:dev": "NODE_ENV=development bun --watch run app.ts --dev"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

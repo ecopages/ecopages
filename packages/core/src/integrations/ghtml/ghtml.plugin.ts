@@ -20,7 +20,7 @@ export class GhtmlPlugin extends IntegrationPlugin {
     });
   }
 
-  createRenderer(): IntegrationRenderer {
+  initializeRenderer(): IntegrationRenderer {
     if (!this.appConfig) {
       throw new Error('Plugin not initialized with app config');
     }

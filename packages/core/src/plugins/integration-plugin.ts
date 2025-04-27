@@ -1,42 +1,86 @@
 import type { EcoPagesAppConfig } from '../internal-types';
 import type { EcoPagesElement } from '../public-types';
 import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
-import type { AssetDependency, AssetsDependencyService } from '../services/assets-dependency.service';
+import { AssetProcessingService } from '../services/asset-processing-service/asset-processing.service';
+import type { AssetDefinition, ProcessedAsset } from '../services/asset-processing-service/assets.types';
 
 export interface IntegrationPluginConfig {
+  /**
+   * The name of the integration plugin.
+   */
   name: string;
+  /**
+   * The extensions that this plugin supports (e.g., ['.kita.js', '.kita.tsx']).
+   */
   extensions: string[];
-  dependencies?: AssetDependency[];
+  /**
+   * The dependencies that this plugin requires on a global level.
+   * These dependencies will be resolved during the setup process and injected into the global scope of the application.
+   * They are not specific to any particular page or component.
+   */
+  integrationDependencies?: AssetDefinition[];
 }
+
+type RendererClass<C> = new (options: {
+  appConfig: EcoPagesAppConfig;
+  assetProcessingService: AssetProcessingService;
+  resolvedIntegrationDependencies: ProcessedAsset[];
+}) => IntegrationRenderer<C>;
 
 export abstract class IntegrationPlugin<C = EcoPagesElement> {
   readonly name: string;
   readonly extensions: string[];
-  protected dependencies: AssetDependency[] = [];
+  abstract renderer: RendererClass<C>;
+
+  protected integrationDependencies: AssetDefinition[];
+  protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
   protected options?: Record<string, unknown>;
   protected appConfig?: EcoPagesAppConfig;
-  protected assetsDependencyService?: AssetsDependencyService;
+  protected assetProcessingService?: AssetProcessingService;
 
   constructor(config: IntegrationPluginConfig) {
     this.name = config.name;
     this.extensions = config.extensions;
-    this.dependencies = config.dependencies || [];
+    this.integrationDependencies = config.integrationDependencies || [];
   }
 
   setConfig(appConfig: EcoPagesAppConfig): void {
     this.appConfig = appConfig;
+    this.initializeAssetDefinitionService();
   }
 
-  setDependencyService(assetsDependencyService: AssetsDependencyService): void {
-    this.assetsDependencyService = assetsDependencyService;
+  initializeAssetDefinitionService(): void {
+    if (!this.appConfig) throw new Error('Plugin not initialized with app config');
+
+    this.assetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
   }
 
-  getDependencies(): AssetDependency[] {
-    return this.dependencies;
+  getResolvedIntegrationDependencies(): ProcessedAsset[] {
+    return this.resolvedIntegrationDependencies;
   }
 
-  abstract createRenderer(): IntegrationRenderer<C>;
+  initializeRenderer(): IntegrationRenderer<C> {
+    if (!this.appConfig) {
+      throw new Error('Plugin not initialized with app config');
+    }
 
-  async setup(): Promise<void> {}
+    return new this.renderer({
+      appConfig: this.appConfig,
+      assetProcessingService: AssetProcessingService.createWithDefaultProcessors(this.appConfig),
+      resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
+    });
+  }
+
+  async setup(): Promise<void> {
+    if (this.integrationDependencies.length === 0) return;
+    if (!this.assetProcessingService) throw new Error('Plugin not initialized with asset dependency service');
+
+    this.resolvedIntegrationDependencies = await this.assetProcessingService.processDependencies(
+      this.integrationDependencies,
+      this.name,
+    );
+
+    this.initializeRenderer();
+  }
   async teardown(): Promise<void> {}
 }

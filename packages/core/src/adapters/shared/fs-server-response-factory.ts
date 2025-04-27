@@ -9,23 +9,19 @@ export class FileSystemServerResponseFactory {
   private appConfig: EcoPagesAppConfig;
   private routeRendererFactory: RouteRendererFactory;
   private options: FileSystemServerOptions;
-  private transformIndexHtml?: (res: Response) => Promise<Response>;
 
   constructor({
     appConfig,
     routeRendererFactory,
     options,
-    transformIndexHtml,
   }: {
     appConfig: EcoPagesAppConfig;
     routeRendererFactory: RouteRendererFactory;
     options: FileSystemServerOptions;
-    transformIndexHtml?: (res: Response) => Promise<Response>;
   }) {
     this.appConfig = appConfig;
     this.routeRendererFactory = routeRendererFactory;
     this.options = options;
-    this.transformIndexHtml = transformIndexHtml;
   }
 
   isHtmlOrPlainText(contentType: string) {
@@ -38,7 +34,7 @@ export class FileSystemServerResponseFactory {
     return gzipEnabledExtensions.includes(contentType);
   }
 
-  createResponseWithBody(
+  async createResponseWithBody(
     body: RouteRendererBody,
     init: ResponseInit = {
       headers: {
@@ -74,12 +70,9 @@ export class FileSystemServerResponseFactory {
       file: error404TemplatePath,
     });
 
-    const response = this.createResponseWithBody(routeRendererBody);
-
-    if (this.transformIndexHtml) return await this.transformIndexHtml(response);
-
-    return response;
+    return await this.createResponseWithBody(routeRendererBody);
   }
+
   async createFileResponse(filePath: string, contentType: string) {
     try {
       let file: Buffer;
@@ -93,7 +86,7 @@ export class FileSystemServerResponseFactory {
         file = FileUtils.getFileAsBuffer(filePath);
       }
 
-      return this.createResponseWithBody(file, {
+      return await this.createResponseWithBody(file, {
         headers: {
           'Content-Type': contentType,
           ...contentEncodingHeader,

@@ -5,16 +5,18 @@
 
 import path from 'node:path';
 import {
-  type EcoComponentDependencies,
-  FileUtils,
   type HtmlTemplateProps,
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
+import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
-import { AssetsDependencyService } from '@ecopages/core/services/assets-dependency-service';
-import type { BunPlugin } from 'bun';
+import {
+  AssetFactory,
+  AssetProcessingService,
+  type ProcessedAsset,
+} from '@ecopages/core/services/asset-processing-service';
 import { type JSX, createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
@@ -43,133 +45,65 @@ export class BundleError extends Error {
 }
 
 /**
- * Configuration for the head of the page.
- */
-interface HeadConfig {
-  dependencies?: EcoComponentDependencies;
-  pagePath: string;
-}
-
-/**
- * URLs for React scripts.
- */
-interface ReactUrls {
-  current: string;
-  toRemove: string;
-}
-
-/**
  * Renderer for React components.
  * @extends IntegrationRenderer
  */
 export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
   name = PLUGIN_NAME;
-  componentDirectory = AssetsDependencyService.RESOLVED_ASSETS_DIR;
+  componentDirectory = AssetProcessingService.RESOLVED_ASSETS_DIR;
 
-  private createHydrationScript(importPath: string) {
+  private createHydrationScript(importPath: string): string {
     return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;
   }
 
-  private getBuildPlugins(): BunPlugin[] {
-    const plugins: BunPlugin[] = [];
-
-    for (const processor of this.appConfig.processors.values()) {
-      if (processor.buildPlugins) {
-        plugins.push(...processor.buildPlugins);
-      }
-    }
-
-    return plugins;
-  }
-
-  private async bundleComponent({
-    pagePath,
-    componentName,
-    absolutePath,
-  }: {
-    pagePath: string;
-    componentName: string;
-    absolutePath: string;
-  }) {
-    try {
-      const build = await Bun.build({
-        entrypoints: [pagePath],
-        format: 'esm',
-        minify: true,
-        outdir: absolutePath,
-        naming: `${componentName}.[ext]`,
-        external: ['react', 'react-dom'],
-        plugins: this.getBuildPlugins(),
-      });
-
-      if (!build.success) {
-        throw new BundleError(
-          'Failed to bundle component',
-          build.logs.map((log) => log.toString()),
-        );
-      }
-
-      if (!build.outputs.length) {
-        throw new BundleError('Bundle succeeded but no outputs were generated', []);
-      }
-
-      const outputPath = build.outputs[0].path;
-      FileUtils.gzipFileSync(outputPath);
-      return outputPath.split(this.appConfig.absolutePaths.distDir)[1];
-    } catch (error) {
-      if (error instanceof BundleError) {
-        throw error;
-      }
-      throw new ReactRenderError(
-        `Unexpected error while bundling component: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
-  private async generateHydrationScript(pagePath: string) {
+  override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
     try {
       const pathHash = rapidhash(pagePath);
-      const componentName = `component-${pathHash}`;
+      const componentName = `ecopages-react-${pathHash}`;
 
-      const absolutePath = path.join(this.appConfig.absolutePaths.distDir, this.componentDirectory);
-      const hydrationScriptPath = path.join(absolutePath, `${componentName}-hydration.js`);
+      const resolvedAssetImportFilename = `/${path
+        .join(RESOLVED_ASSETS_DIR, path.relative(this.appConfig.srcDir, pagePath))
+        .replace(path.basename(pagePath), `${componentName}.js`)
+        .replace(/\\/g, '/')}`;
 
-      if (FileUtils.existsSync(hydrationScriptPath)) {
-        return hydrationScriptPath.split(this.appConfig.absolutePaths.distDir)[1];
-      }
+      const dependencies = [
+        AssetFactory.createFileScript({
+          position: 'head',
+          filepath: pagePath,
+          name: componentName,
+          excludeFromHtml: true,
+          bundle: true,
+          bundleOptions: {
+            external: ['react', 'react-dom'],
+            naming: `${componentName}.[ext]`,
+          },
+          attributes: {
+            type: 'module',
+            defer: '',
+          },
+        }),
+        AssetFactory.createContentScript({
+          position: 'head',
+          content: this.createHydrationScript(resolvedAssetImportFilename),
+          name: `${componentName}-hydration`,
+          bundle: false,
+          attributes: {
+            type: 'module',
+            defer: '',
+          },
+        }),
+      ];
 
-      const relativeImportInScript = await this.bundleComponent({
-        pagePath,
-        componentName,
-        absolutePath,
-      });
+      if (!this.AssetProcessingService) throw new Error('AssetProcessingService is not set');
 
-      const hydrationCode = this.createHydrationScript(relativeImportInScript);
-
-      FileUtils.writeFileSync(hydrationScriptPath, hydrationCode);
-
-      FileUtils.gzipFileSync(hydrationScriptPath);
-
-      return hydrationScriptPath.split(this.appConfig.absolutePaths.distDir)[1];
+      return await this.AssetProcessingService?.processDependencies(dependencies, componentName);
     } catch (error) {
-      if (error instanceof BundleError) {
-        console.error('[ecopages] Bundle errors:', error.logs);
-      }
+      if (error instanceof BundleError) console.error('[ecopages] Bundle errors:', error.logs);
+
       throw new ReactRenderError(
         `Failed to generate hydration script: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-  }
-
-  private createScriptElements(scripts: string[]): React.JSX.Element[] {
-    return scripts.map((script) => {
-      return createElement('script', {
-        key: script,
-        defer: true,
-        type: 'module',
-        src: script,
-      });
-    });
   }
 
   async render({
@@ -178,25 +112,18 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
     props,
     metadata,
     Page,
-    file,
     HtmlTemplate,
   }: IntegrationRendererRenderOptions<JSX.Element>): Promise<RouteRendererBody> {
     try {
-      const hydrationScriptPath = await this.generateHydrationScript(file);
-      const headContent = this.createScriptElements([hydrationScriptPath]) as any;
-
-      const body = await renderToReadableStream(
+      return await renderToReadableStream(
         createElement(
           HtmlTemplate,
           {
             metadata,
-            headContent,
           } as HtmlTemplateProps,
           createElement(Page, { params, query, ...props }),
         ),
       );
-
-      return body;
     } catch (error) {
       throw new ReactRenderError(
         `Failed to render component: ${error instanceof Error ? error.message : String(error)}`,

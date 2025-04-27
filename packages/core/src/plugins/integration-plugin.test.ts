@@ -1,12 +1,8 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
-import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
-import type { AssetDependency } from '../services/assets-dependency.service';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { IntegrationPlugin, type IntegrationPluginConfig } from './integration-plugin';
 
 class TestIntegrationPlugin extends IntegrationPlugin {
-  createRenderer(): IntegrationRenderer<any> {
-    return {} as IntegrationRenderer<any>;
-  }
+  renderer = mock() as any;
   override setup(): Promise<void> {
     return Promise.resolve();
   }
@@ -21,7 +17,7 @@ describe('IntegrationPlugin', () => {
   const config: IntegrationPluginConfig = {
     name: 'test-plugin',
     extensions: ['.test'],
-    dependencies: [],
+    integrationDependencies: [],
   };
 
   beforeEach(() => {
@@ -31,7 +27,7 @@ describe('IntegrationPlugin', () => {
   it('should initialize with correct config values', () => {
     expect(plugin.name).toBe(config.name);
     expect(plugin.extensions).toEqual(config.extensions);
-    expect(plugin.getDependencies()).toEqual(config.dependencies as AssetDependency[]);
+    expect(plugin.getResolvedIntegrationDependencies()).toEqual(config.integrationDependencies as AssetDefinition[]);
   });
 
   it('should initialize with empty dependencies if not provided', () => {
@@ -39,7 +35,7 @@ describe('IntegrationPlugin', () => {
       name: 'test',
       extensions: [],
     });
-    expect(pluginWithoutDeps.getDependencies()).toEqual([]);
+    expect(pluginWithoutDeps.getResolvedIntegrationDependencies()).toEqual([]);
   });
 
   it('should implement setup and teardown methods', () => {

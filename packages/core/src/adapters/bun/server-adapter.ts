@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { BunRequest, RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
+import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
@@ -7,7 +8,6 @@ import type { ApiHandler, BaseRequest } from '../../public-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
-import { AssetsDependencyService } from '../../services/assets-dependency.service.ts';
 import { HtmlTransformerService } from '../../services/html-transformer.service.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { deepMerge } from '../../utils/deep-merge.ts';
@@ -59,13 +59,10 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   declare serveOptions: BunServerAdapterOptions['serveOptions'];
   protected apiHandlers: ApiHandler[];
 
-  private assetsDependencyService!: AssetsDependencyService;
   private router!: FSRouter;
   private fileSystemResponseMatcher!: FileSystemResponseMatcher;
   private routeRendererFactory!: RouteRendererFactory;
-  private transformIndexHtml!: (res: Response) => Promise<Response>;
   private routes: BunServerRoutes = {};
-  private htmlTransformer!: HtmlTransformerService;
   private staticSiteGenerator!: StaticSiteGenerator;
   private fullyInitialized = false;
   declare serverInstance: Server | null;
@@ -78,8 +75,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   public async initialize(): Promise<void> {
     appLogger.debugTime('BunServerAdapter:initialize');
 
-    this.assetsDependencyService = new AssetsDependencyService({ appConfig: this.appConfig });
-    this.htmlTransformer = new HtmlTransformerService();
     this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 
     this.setupLoaders();
@@ -112,6 +107,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir),
       path.join(this.appConfig.rootDir, this.appConfig.distDir, this.appConfig.publicDir),
     );
+    FileUtils.ensureDirectoryExists(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
   }
 
   private async initRouter(): Promise<void> {
@@ -143,20 +139,11 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
             Bun.plugin(plugin);
           }
         }
-        return this.registerDependencyProvider({
-          name: processor.getName(),
-          getDependencies: () => processor.getDependencies(),
-        });
       });
 
       const integrationPromises = this.appConfig.integrations.map(async (integration) => {
         integration.setConfig(this.appConfig);
-        integration.setDependencyService(this.assetsDependencyService);
         await integration.setup();
-        return this.registerDependencyProvider({
-          name: integration.name,
-          getDependencies: () => integration.getDependencies(),
-        });
       });
 
       await Promise.all([...processorPromises, ...integrationPromises]);
@@ -166,47 +153,14 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     }
   }
 
-  private registerDependencyProvider(provider: { name: string; getDependencies: () => any[] }): void {
-    try {
-      this.assetsDependencyService.registerDependencies(provider);
-    } catch (error) {
-      appLogger.error(
-        `Failed to register dependency provider ${provider.name}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      throw error;
-    }
-  }
-
-  private setupTransformFunction(): void {
+  private configureResponseHandlers(): void {
     this.routeRendererFactory = new RouteRendererFactory({
       appConfig: this.appConfig,
     });
 
-    this.transformIndexHtml = async (res: Response): Promise<Response> => {
-      const dependencies = await this.assetsDependencyService.prepareDependencies();
-      this.htmlTransformer.setProcessedDependencies(dependencies);
-      let transformedResponse = await this.htmlTransformer.transform(res);
-
-      if (this.options?.watch) {
-        const liveReloadScript = makeLiveReloadScript(
-          `${this.serveOptions.hostname}:${this.serveOptions.port}/${WS_PATH}`,
-        );
-        const html = await transformedResponse.text();
-        const newHtml = appendHmrScriptToBody(html, liveReloadScript);
-        transformedResponse = new Response(newHtml, transformedResponse);
-      }
-
-      return transformedResponse;
-    };
-  }
-
-  private setupResponseFactories(): void {
     const fileSystemResponseFactory = new FileSystemServerResponseFactory({
       appConfig: this.appConfig,
       routeRendererFactory: this.routeRendererFactory,
-      transformIndexHtml: this.transformIndexHtml,
       options: {
         watchMode: !!this.options?.watch,
         port: this.serveOptions.port ?? 3000,
@@ -283,15 +237,13 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
     if (!this.fullyInitialized) {
       await this.initRouter();
-      this.setupTransformFunction();
-      this.setupResponseFactories();
+      this.configureResponseHandlers();
       this.adaptRouterRoutes();
     }
 
     const baseUrl = `http://${this.serveOptions.hostname || 'localhost'}:${this.serveOptions.port || 3000}`;
 
     await this.staticSiteGenerator.run({
-      transformIndexHtml: this.transformIndexHtml,
       router: this.router,
       baseUrl,
     });
@@ -303,7 +255,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
     const { server } = StaticContentServer.createServer({
       appConfig: this.appConfig,
-      transformIndexHtml: this.transformIndexHtml,
     });
 
     appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
@@ -316,10 +267,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     appLogger.debug('Completing server initialization with dynamic routes');
 
     await this.initRouter();
-
-    this.setupTransformFunction();
-    this.setupResponseFactories();
-
+    this.configureResponseHandlers();
     this.adaptRouterRoutes();
 
     this.fullyInitialized = true;
@@ -354,10 +302,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
     if (match) {
       const response = await this.fileSystemResponseMatcher.handleMatch(match);
-
-      if (this.transformIndexHtml && response.headers.get('content-type')?.includes('text/html')) {
-        return this.transformIndexHtml(response);
-      }
 
       return response;
     }

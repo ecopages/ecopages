@@ -45,6 +45,6 @@ export class RouteRendererFactory {
 
   private getRouteRendererEngine(filePath: string): IntegrationRenderer {
     const integrationPlugin = this.getIntegrationPlugin(filePath);
-    return integrationPlugin.createRenderer();
+    return integrationPlugin.initializeRenderer();
   }
 }

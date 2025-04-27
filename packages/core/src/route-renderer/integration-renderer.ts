@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { WS_PATH, makeLiveReloadScript } from '../adapters/bun/hmr.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,
@@ -20,7 +21,13 @@ import type {
   RouteRendererBody,
   RouteRendererOptions,
 } from '../public-types.ts';
-import { AssetDependencyHelpers, type AssetsDependencyService } from '../services/assets-dependency.service.ts';
+import {
+  type AssetDefinition,
+  AssetFactory,
+  type AssetProcessingService,
+  type ProcessedAsset,
+} from '../services/asset-processing-service/index.ts';
+import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
 
 /**
@@ -31,25 +38,29 @@ import { invariant } from '../utils/invariant.ts';
 export abstract class IntegrationRenderer<C = EcoPagesElement> {
   abstract name: string;
   protected appConfig: EcoPagesAppConfig;
-  protected assetsDependencyService?: AssetsDependencyService;
+  protected assetProcessingService: AssetProcessingService;
+  protected htmlTransformer: HtmlTransformerService;
+  private resolvedIntegrationDependencies: ProcessedAsset[] = [];
   protected declare options: Required<IntegrationRendererRenderOptions>;
 
   protected DOC_TYPE = '<!DOCTYPE html>';
 
   constructor({
     appConfig,
-    assetsDependencyService,
+    assetProcessingService,
+    resolvedIntegrationDependencies,
   }: {
     appConfig: EcoPagesAppConfig;
-    assetsDependencyService?: AssetsDependencyService;
+    assetProcessingService: AssetProcessingService;
+    resolvedIntegrationDependencies?: ProcessedAsset[];
   }) {
     this.appConfig = appConfig;
-    this.assetsDependencyService = assetsDependencyService;
+    this.assetProcessingService = assetProcessingService;
+    this.htmlTransformer = new HtmlTransformerService();
+    this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 
-    if (typeof HTMLElement === 'undefined') {
-      // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
-      global.HTMLElement = class {};
-    }
+    // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
+    if (typeof HTMLElement === 'undefined') global.HTMLElement = class {};
   }
 
   /**
@@ -195,15 +206,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
    *
    * @param components - The components to collect dependencies from.
    */
-  protected async collectDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): Promise<void> {
-    if (!this.assetsDependencyService) return;
+  protected async resolveDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): Promise<ProcessedAsset[]> {
+    if (!this.assetProcessingService) return [];
+    const dependencies: AssetDefinition[] = [];
 
     for (const component of components) {
       if (!component.config?.importMeta) continue;
-      const providerName = `${this.name}-${component.config.importMeta?.filename}`;
-      const areDependenciesResolved = this.assetsDependencyService?.hasDependencies(providerName);
-
-      if (areDependenciesResolved) continue;
 
       const stylesheetsSet = new Set<string>();
       const scriptsSet = new Set<string>();
@@ -240,48 +248,30 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
         scripts: Array.from(scriptsSet),
       };
 
-      this.assetsDependencyService.registerDependencies({
-        name: providerName,
-        getDependencies: () => [
-          ...deps.stylesheets.map((srcUrl) =>
-            AssetDependencyHelpers.createStylesheetAsset({
-              srcUrl,
-              position: 'head',
-              attributes: { rel: 'stylesheet' },
-            }),
-          ),
-          ...deps.scripts.map((srcUrl) =>
-            AssetDependencyHelpers.createSrcScriptAsset({
-              srcUrl,
-              position: 'head',
-              attributes: {
-                type: 'module',
-                defer: '',
-              },
-            }),
-          ),
-        ],
-      });
-    }
-  }
-
-  /**
-   * Cleans up and prepares the dependencies for the provided file.
-   * It sets the current path in the assets dependency service and invalidates the cache if needed.
-   *
-   * @param file - The file path to clean up and prepare dependencies for.
-   */
-  protected async cleanupAndPrepareDependencies(file: string): Promise<void> {
-    if (!this.assetsDependencyService) return;
-
-    const currentPath = this.getHtmlPath({ file });
-    this.assetsDependencyService.setCurrentPath(currentPath);
-
-    if (!this.assetsDependencyService.hasDependencies(currentPath)) {
-      this.assetsDependencyService.invalidateCache(currentPath);
+      dependencies.push(
+        ...deps.stylesheets.map((stylesheet) =>
+          AssetFactory.createFileStylesheet({
+            filepath: stylesheet,
+            position: 'head',
+            attributes: { rel: 'stylesheet' },
+          }),
+        ),
+        ...deps.scripts.map((script) =>
+          AssetFactory.createFileScript({
+            filepath: script,
+            position: 'head',
+            attributes: {
+              type: 'module',
+              defer: '',
+            },
+          }),
+        ),
+      );
     }
 
-    this.assetsDependencyService.cleanupPageDependencies();
+    const routeAssetsDependencies = await this.assetProcessingService.processDependencies(dependencies, this.name);
+
+    return this.resolvedIntegrationDependencies.concat(routeAssetsDependencies);
   }
 
   /**
@@ -309,11 +299,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       query: options.query ?? {},
     } as GetMetadataContext);
 
-    await this.collectDependencies([HtmlTemplate, Page]);
+    const resolvedDependencies = await this.resolveDependencies([HtmlTemplate, Page]);
+
+    const pageDeps = (await this.buildRouteRenderAssets(options.file)) || [];
+
+    const allDependencies = [...resolvedDependencies, ...pageDeps];
+
+    this.htmlTransformer.setProcessedDependencies(allDependencies);
 
     return {
       ...options,
       ...integrationSpecificProps,
+      resolvedDependencies,
       HtmlTemplate,
       props,
       Page,
@@ -325,16 +322,35 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
   /**
    * Executes the integration renderer with the provided options.
-   * It cleans up and prepares dependencies, prepares render options, and calls the render method.
    *
    * @param options - The route renderer options.
    * @returns The rendered body.
    */
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
-    await this.cleanupAndPrepareDependencies(options.file);
-
     const renderOptions = await this.prepareRenderOptions(options);
-    return this.render(renderOptions as IntegrationRendererRenderOptions<C>);
+
+    const { hostname, port } = new URL(this.appConfig.baseUrl);
+
+    if (import.meta.env.NODE_ENV === 'development') {
+      this.htmlTransformer.htmlRewriter.on('body', {
+        element(body) {
+          const liveReloadScript = makeLiveReloadScript(`${hostname}:${port}/${WS_PATH}`);
+          body.append(liveReloadScript, { html: true });
+        },
+      });
+    }
+
+    return await this.htmlTransformer
+      .transform(
+        new Response((await this.render(renderOptions as IntegrationRendererRenderOptions<C>)) as BodyInit, {
+          headers: {
+            'Content-Type': 'text/html',
+          },
+        }),
+      )
+      .then((res: Response) => {
+        return res.body as RouteRendererBody;
+      });
   }
 
   /**
@@ -345,4 +361,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
    * @returns The rendered body.
    */
   abstract render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
+
+  /**
+   * Method to build route render assets.
+   * This method can be optionally overridden by the specific integration renderer.
+   *
+   * @param file - The file path to build assets for.
+   * @returns The processed assets or undefined.
+   */
+  protected buildRouteRenderAssets(file: string): Promise<ProcessedAsset[]> | undefined {
+    return undefined;
+  }
 }

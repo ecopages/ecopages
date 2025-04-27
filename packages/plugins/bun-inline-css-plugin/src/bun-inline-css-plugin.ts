@@ -13,7 +13,6 @@ type BunInlineCssPluginOptions = {
   filter?: RegExp;
   namespace?: string;
   transform?: (contents: string | Buffer, args: { path: string; [key: string]: any }) => Promise<string> | string;
-  inputHeader?: string;
 };
 
 function getFileAsBuffer(path: string): Buffer {
@@ -37,7 +36,7 @@ function getFileAsBuffer(path: string): Buffer {
  * @returns The bun plugin
  */
 export const bunInlineCssPlugin = (options: BunInlineCssPluginOptions): BunPlugin => {
-  const { filter, namespace, transform, inputHeader } = Object.assign(
+  const { filter, namespace, transform } = Object.assign(
     {
       filter: /\.css$/,
       namespace: 'bun-inline-css-plugin',
@@ -61,12 +60,7 @@ export const bunInlineCssPlugin = (options: BunInlineCssPluginOptions): BunPlugi
       });
 
       build.onLoad({ filter: /.*/, namespace }, async (args) => {
-        let text = getFileAsBuffer(args.path).toString();
-
-        if (inputHeader) {
-          text = `${inputHeader}\n${text}`;
-        }
-
+        const text = getFileAsBuffer(args.path).toString();
         return {
           contents: transform ? await transform(text) : text,
           loader: 'text',

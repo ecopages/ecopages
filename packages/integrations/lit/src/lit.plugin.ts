@@ -4,9 +4,8 @@
  */
 
 import './console';
-import type { IntegrationRenderer } from '@ecopages/core';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import { AssetDependencyHelpers } from '@ecopages/core/services/assets-dependency-service';
+import { AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import { litElementHydrateScript } from './lit-element-hydrate';
 import { LitRenderer } from './lit-renderer';
 
@@ -20,41 +19,38 @@ export const PLUGIN_NAME = 'lit';
  * This plugin provides support for Lit components in Ecopages
  */
 export class LitPlugin extends IntegrationPlugin {
+  renderer = LitRenderer;
+
   constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
     super({
       name: PLUGIN_NAME,
       extensions: ['.lit.tsx'],
-      dependencies: [
-        /**
-         * BUG ALERT
-         * Due to an issue appeared in Bun 1.2.2, we need to use a workaround to import the hydrate script.
-         * This is a temporary solution until the issue is resolved.
-         * The litElementHydrateScript is the same file built on Bun 1.4.5.
-         * https://github.com/oven-sh/bun/issues/17180
-         *
-         * AssetDependencyHelpers.createNodeModuleScriptAsset({
-         *    position: 'head',
-         *    importPath: '@lit-labs/ssr-client/lit-element-hydrate-support.js'
-         * })
-         */
-        AssetDependencyHelpers.createInlineScriptAsset({
-          position: 'head',
-          content: litElementHydrateScript,
-        }),
-        ...(options?.dependencies || []),
-      ],
+      ...options,
     });
+
+    this.integrationDependencies.unshift(...this.getDependencies());
   }
 
-  createRenderer(): IntegrationRenderer {
-    if (!this.appConfig) {
-      throw new Error('Plugin not initialized with app config');
-    }
-
-    return new LitRenderer({
-      appConfig: this.appConfig,
-      assetsDependencyService: this.assetsDependencyService,
-    });
+  getDependencies() {
+    return [
+      /**
+       * BUG ALERT
+       * Due to an issue appeared in Bun 1.2.2, we need to use a workaround to import the hydrate script.
+       * This is a temporary solution until the issue is resolved.
+       * The litElementHydrateScript is the same file built on Bun 1.4.5.
+       * https://github.com/oven-sh/bun/issues/17180
+       *
+       * AssetFactory.createNodeModuleScriptAsset({
+       *    position: 'head',
+       *    importPath: '@lit-labs/ssr-client/lit-element-hydrate-support.js'
+       * })
+       */
+      AssetFactory.createInlineContentScript({
+        position: 'head',
+        content: litElementHydrateScript,
+        bundle: false,
+      }),
+    ];
   }
 }
 

@@ -13,6 +13,7 @@ import {
   type IntegrationRendererRenderOptions,
   type RouteRendererBody,
 } from '@ecopages/core';
+import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { PLUGIN_NAME } from './mdx.plugin.ts';
 
 /**
@@ -38,6 +39,21 @@ interface MDXIntegrationRendererOpions<C = EcoPagesElement> extends IntegrationR
 export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
   name = PLUGIN_NAME;
 
+  override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
+    const { config, layout } = await import(pagePath);
+    const components: Partial<EcoComponent>[] = [];
+
+    if (layout.config?.dependencies) {
+      components.push({ config: layout.config });
+    }
+
+    if (config?.dependencies) {
+      components.push({ config });
+    }
+
+    return await this.resolveDependencies(components);
+  }
+
   protected override async importPageFile(file: string): Promise<
     EcoPageFile<{
       layout?:
@@ -48,20 +64,10 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
     }>
   > {
     try {
-      const { default: Page, config, layout = { config }, getMetadata } = await import(file);
+      const { default: Page, layout, getMetadata } = await import(file);
 
-      const components: Partial<EcoComponent>[] = [];
-
-      if (layout.config?.dependencies) {
-        components.push({ config: layout.config });
-      }
-
-      if (config?.dependencies) {
-        components.push({ config });
-      }
-
-      if (components.length > 0) {
-        await this.collectDependencies(components);
+      if (typeof Page !== 'function') {
+        throw new Error('MDX file must export a default function');
       }
 
       return {

@@ -44,9 +44,9 @@
 			"types": "./src/adapters/bun/create-app.ts",
 			"default": "./src/adapters/bun/create-app.ts"
 		},
-		"./services/assets-dependency-service": {
-			"types": "./src/services/assets-dependency.service.ts",
-			"default": "./src/services/assets-dependency.service.ts"
+		"./services/asset-processing-service": {
+			"types": "./src/services/asset-processing-service/index.ts",
+			"default": "./src/services/asset-processing-service/index.ts"
 		},
 		"./utils/add-base-url-to-pathname": {
 			"types": "./src/utils/add-base-url-to-pathname.ts",
@@ -55,6 +55,10 @@
 		"./utils/deep-merge": {
 			"types": "./src/utils/deep-merge.ts",
 			"default": "./src/utils/deep-merge.ts"
+		},
+		"./utils/ecopages-url-resolver": {
+			"types": "./src/utils/ecopages-url-resolver.ts",
+			"default": "./src/utils/ecopages-url-resolver.ts"
 		},
 		"./utils/invariant": {
 			"types": "./src/utils/invariant.ts",

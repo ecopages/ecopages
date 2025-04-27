@@ -1,19 +1,15 @@
-/**
- * This is the export file for the react-dom package to be compiled as an ESM module.
- * @module
- */
-
 import * as ReactDOM from 'react-dom';
-
 import {
   createPortal,
   flushSync,
+  preconnect,
   prefetchDNS,
   preinit,
   preinitModule,
   preload,
   preloadModule,
   requestFormReset,
+  unstable_batchedUpdates,
   useFormState,
   useFormStatus,
 } from 'react-dom';
@@ -21,14 +17,16 @@ import {
 export {
   createPortal,
   flushSync,
-  useFormStatus,
-  useFormState,
+  preconnect,
   prefetchDNS,
-  preload,
-  preloadModule,
   preinit,
   preinitModule,
+  preload,
+  preloadModule,
   requestFormReset,
+  unstable_batchedUpdates,
+  useFormState,
+  useFormStatus,
 };
 
 export default ReactDOM;

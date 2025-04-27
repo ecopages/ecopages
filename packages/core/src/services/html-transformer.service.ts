@@ -1,8 +1,16 @@
 import { appLogger } from '../global/app-logger';
-import type { AssetInjectionPosition, ResolvedAsset } from './assets-dependency.service';
+import type {
+  AssetDefinition,
+  AssetPosition,
+  ProcessedAsset,
+  ScriptAsset,
+} from './asset-processing-service/assets.types';
 
 export class HtmlTransformerService {
-  constructor(private processedDependencies: ResolvedAsset[] = []) {}
+  htmlRewriter: HTMLRewriter;
+  constructor(private processedDependencies: ProcessedAsset[] = []) {
+    this.htmlRewriter = new HTMLRewriter();
+  }
 
   private formatAttributes(attrs?: Record<string, string>): string {
     if (!attrs) return '';
@@ -11,37 +19,36 @@ export class HtmlTransformerService {
       .join(' ')}`;
   }
 
-  private generateScriptTag(dep: ResolvedAsset): string {
+  private generateScriptTag(dep: ProcessedAsset & { kind: 'script' }): string {
     return dep.inline
       ? `<script${this.formatAttributes(dep.attributes)}>${dep.content}</script>`
       : `<script src="${dep.srcUrl}"${this.formatAttributes(dep.attributes)}></script>`;
   }
 
-  private generateStylesheetTag(dep: ResolvedAsset): string {
+  private generateStylesheetTag(dep: ProcessedAsset): string {
     return dep.inline
       ? `<style${this.formatAttributes(dep.attributes)}>${dep.content}</style>`
       : `<link rel="stylesheet" href="${dep.srcUrl}"${this.formatAttributes(dep.attributes)}>`;
   }
 
-  private appendDependencies(element: HTMLRewriterTypes.Element, dependencies: ResolvedAsset[]) {
+  private appendDependencies(element: HTMLRewriterTypes.Element, dependencies: ProcessedAsset[]) {
     for (const dep of dependencies) {
-      const tag = dep.kind === 'script' ? this.generateScriptTag(dep) : this.generateStylesheetTag(dep);
+      const tag = dep.kind === 'script' ? this.generateScriptTag(dep as ScriptAsset) : this.generateStylesheetTag(dep);
       element.append(tag, { html: true });
     }
   }
 
-  setProcessedDependencies(processedDependencies: ResolvedAsset[]) {
+  setProcessedDependencies(processedDependencies: ProcessedAsset[]) {
     appLogger.debug('Setting processed dependencies', { count: processedDependencies.length });
     this.processedDependencies = processedDependencies;
   }
 
   async transform(res: Response): Promise<Response> {
     const { head, body } = this.groupDependenciesByPosition();
-    appLogger.debug('Transforming HTML with dependencies', { head: head.length, body: body.length });
 
     const html = await res.text();
 
-    const rewriter = new HTMLRewriter()
+    this.htmlRewriter
       .on('head', {
         element: (element) => this.appendDependencies(element, head),
       })
@@ -49,7 +56,7 @@ export class HtmlTransformerService {
         element: (element) => this.appendDependencies(element, body),
       });
 
-    return rewriter.transform(
+    return this.htmlRewriter.transform(
       new Response(html, {
         headers: res.headers,
         status: res.status,
@@ -62,6 +69,7 @@ export class HtmlTransformerService {
     return this.processedDependencies.reduce(
       (acc, dep) => {
         if (dep.kind === 'script') {
+          if (dep.excludeFromHtml) return acc;
           const position = dep.position || 'body';
           acc[position].push(dep);
         } else if (dep.kind === 'stylesheet') {
@@ -69,7 +77,7 @@ export class HtmlTransformerService {
         }
         return acc;
       },
-      { head: [], body: [] } as Record<AssetInjectionPosition, ResolvedAsset[]>,
+      { head: [], body: [] } as Record<AssetPosition, ProcessedAsset[]>,
     );
   }
 }

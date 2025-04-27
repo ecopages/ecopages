@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.1.31",
+	"version": "0.1.32",
 	"description": "Core package for Ecopages",
 	"keywords": ["ecopages", "core", "ssg"],
 	"license": "MIT",

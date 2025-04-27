@@ -271,7 +271,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
   HtmlTemplate: EcoComponent<HtmlTemplateProps, C>;
   Page: EcoComponent<PageProps, C>;
   dependencies?: EcoComponentDependencies;
-  resolvedDepenencies: ProcessedAsset[];
+  resolvedDependencies: ProcessedAsset[];
 };
 
 /**

@@ -299,18 +299,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       query: options.query ?? {},
     } as GetMetadataContext);
 
-    const resolvedDepenencies = await this.resolveDependencies([HtmlTemplate, Page]);
+    const resolvedDependencies = await this.resolveDependencies([HtmlTemplate, Page]);
 
     const pageDeps = (await this.buildRouteRenderAssets(options.file)) || [];
 
-    const allDependencies = [...resolvedDepenencies, ...pageDeps];
+    const allDependencies = [...resolvedDependencies, ...pageDeps];
 
     this.htmlTransformer.setProcessedDependencies(allDependencies);
 
     return {
       ...options,
       ...integrationSpecificProps,
-      resolvedDepenencies,
+      resolvedDependencies,
       HtmlTemplate,
       props,
       Page,
@@ -331,12 +331,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
     const { hostname, port } = new URL(this.appConfig.baseUrl);
 
-    this.htmlTransformer.htmlRewriter.on('body', {
-      element(body) {
-        const liveReloadScript = makeLiveReloadScript(`${hostname}:${port}/${WS_PATH}`);
-        body.append(liveReloadScript, { html: true });
-      },
-    });
+    if (import.meta.env.NODE_ENV === 'development') {
+      this.htmlTransformer.htmlRewriter.on('body', {
+        element(body) {
+          const liveReloadScript = makeLiveReloadScript(`${hostname}:${port}/${WS_PATH}`);
+          body.append(liveReloadScript, { html: true });
+        },
+      });
+    }
 
     return await this.htmlTransformer
       .transform(

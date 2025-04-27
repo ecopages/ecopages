@@ -12,6 +12,7 @@ export const PLUGIN_NAME = 'MDX';
  */
 export class MDXPlugin extends IntegrationPlugin {
   renderer = MDXRenderer;
+
   constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
     super({
       name: PLUGIN_NAME,

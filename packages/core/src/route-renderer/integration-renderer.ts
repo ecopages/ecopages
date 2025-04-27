@@ -38,7 +38,7 @@ import { invariant } from '../utils/invariant.ts';
 export abstract class IntegrationRenderer<C = EcoPagesElement> {
   abstract name: string;
   protected appConfig: EcoPagesAppConfig;
-  protected AssetProcessingService: AssetProcessingService;
+  protected assetProcessingService: AssetProcessingService;
   protected htmlTransformer: HtmlTransformerService;
   private resolvedIntegrationDependencies: ProcessedAsset[] = [];
   protected declare options: Required<IntegrationRendererRenderOptions>;
@@ -47,15 +47,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
   constructor({
     appConfig,
-    AssetProcessingService,
+    assetProcessingService,
     resolvedIntegrationDependencies,
   }: {
     appConfig: EcoPagesAppConfig;
-    AssetProcessingService: AssetProcessingService;
+    assetProcessingService: AssetProcessingService;
     resolvedIntegrationDependencies?: ProcessedAsset[];
   }) {
     this.appConfig = appConfig;
-    this.AssetProcessingService = AssetProcessingService;
+    this.assetProcessingService = assetProcessingService;
     this.htmlTransformer = new HtmlTransformerService();
     this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 
@@ -207,7 +207,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
    * @param components - The components to collect dependencies from.
    */
   protected async resolveDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): Promise<ProcessedAsset[]> {
-    if (!this.AssetProcessingService) return [];
+    if (!this.assetProcessingService) return [];
     const dependencies: AssetDefinition[] = [];
 
     for (const component of components) {
@@ -269,7 +269,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       );
     }
 
-    const routeAssetsDependencies = await this.AssetProcessingService.processDependencies(dependencies, this.name);
+    const routeAssetsDependencies = await this.assetProcessingService.processDependencies(dependencies, this.name);
 
     return this.resolvedIntegrationDependencies.concat(routeAssetsDependencies);
   }
@@ -322,14 +322,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
   /**
    * Executes the integration renderer with the provided options.
-   * It cleans up page dependencies, sets the path context, prepares render options, and calls the render method.
    *
    * @param options - The route renderer options.
    * @returns The rendered body.
    */
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
     const renderOptions = await this.prepareRenderOptions(options);
+
     const { hostname, port } = new URL(this.appConfig.baseUrl);
+
     this.htmlTransformer.htmlRewriter.on('body', {
       element(body) {
         const liveReloadScript = makeLiveReloadScript(`${hostname}:${port}/${WS_PATH}`);

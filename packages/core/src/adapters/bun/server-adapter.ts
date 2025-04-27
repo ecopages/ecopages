@@ -62,9 +62,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   private router!: FSRouter;
   private fileSystemResponseMatcher!: FileSystemResponseMatcher;
   private routeRendererFactory!: RouteRendererFactory;
-  private transformIndexHtml!: (res: Response) => Promise<Response>;
   private routes: BunServerRoutes = {};
-  private htmlTransformer!: HtmlTransformerService;
   private staticSiteGenerator!: StaticSiteGenerator;
   private fullyInitialized = false;
   declare serverInstance: Server | null;
@@ -77,7 +75,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   public async initialize(): Promise<void> {
     appLogger.debugTime('BunServerAdapter:initialize');
 
-    this.htmlTransformer = new HtmlTransformerService();
     this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 
     this.setupLoaders();
@@ -155,27 +152,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       throw error;
     }
   }
-
-  // private setupTransformFunction(): void {
-  //   this.routeRendererFactory = new RouteRendererFactory({
-  //     appConfig: this.appConfig,
-  //   });
-
-  //   this.transformIndexHtml = async (res: Response): Promise<Response> => {
-  //     let transformedResponse = await this.htmlTransformer.transform(res);
-
-  //     if (this.options?.watch) {
-  //       const liveReloadScript = makeLiveReloadScript(
-  //         `${this.serveOptions.hostname}:${this.serveOptions.port}/${WS_PATH}`,
-  //       );
-  //       const html = await transformedResponse.text();
-  //       const newHtml = appendHmrScriptToBody(html, liveReloadScript);
-  //       transformedResponse = new Response(newHtml, transformedResponse);
-  //     }
-
-  //     return transformedResponse;
-  //   };
-  // }
 
   private configureResponseHandlers(): void {
     this.routeRendererFactory = new RouteRendererFactory({

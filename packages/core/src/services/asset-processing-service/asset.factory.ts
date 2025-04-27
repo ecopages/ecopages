@@ -9,11 +9,9 @@ import type {
   InlineContentStylesheetAsset,
   JsonScriptAsset,
   NodeModuleScriptAsset,
-  PreBundledScriptAsset,
-  PreBundledStylesheetAsset,
 } from './assets.types';
 
-type CreateAssetOptions<T> = Omit<T, 'kind' | 'source' | 'inline' | 'preBundled'>;
+type CreateAssetOptions<T> = Omit<T, 'kind' | 'source' | 'inline'>;
 
 export class AssetFactory {
   static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
@@ -93,26 +91,6 @@ export class AssetFactory {
       kind: 'stylesheet',
       source: 'file',
       position: options.position || 'head',
-      ...options,
-    };
-  }
-
-  static createPreBundledScript(options: CreateAssetOptions<PreBundledScriptAsset>): PreBundledScriptAsset {
-    return {
-      kind: 'script',
-      source: 'file',
-      position: options.position || 'body',
-      preBundled: true,
-      ...options,
-    };
-  }
-
-  static createPreBundledStylesheet(options: CreateAssetOptions<PreBundledStylesheetAsset>): PreBundledStylesheetAsset {
-    return {
-      kind: 'stylesheet',
-      source: 'file',
-      position: options.position || 'head',
-      preBundled: true,
       ...options,
     };
   }

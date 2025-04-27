@@ -23,7 +23,7 @@ export interface IntegrationPluginConfig {
 
 type RendererClass<C> = new (options: {
   appConfig: EcoPagesAppConfig;
-  AssetProcessingService: AssetProcessingService;
+  assetProcessingService: AssetProcessingService;
   resolvedIntegrationDependencies: ProcessedAsset[];
 }) => IntegrationRenderer<C>;
 
@@ -36,7 +36,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
   protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
   protected options?: Record<string, unknown>;
   protected appConfig?: EcoPagesAppConfig;
-  protected AssetProcessingService?: AssetProcessingService;
+  protected assetProcessingService?: AssetProcessingService;
 
   constructor(config: IntegrationPluginConfig) {
     this.name = config.name;
@@ -52,7 +52,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
   initializeAssetDefinitionService(): void {
     if (!this.appConfig) throw new Error('Plugin not initialized with app config');
 
-    this.AssetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
+    this.assetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
   }
 
   getResolvedIntegrationDependencies(): ProcessedAsset[] {
@@ -66,16 +66,16 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
     return new this.renderer({
       appConfig: this.appConfig,
-      AssetProcessingService: AssetProcessingService.createWithDefaultProcessors(this.appConfig),
+      assetProcessingService: AssetProcessingService.createWithDefaultProcessors(this.appConfig),
       resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
     });
   }
 
   async setup(): Promise<void> {
     if (this.integrationDependencies.length === 0) return;
-    if (!this.AssetProcessingService) throw new Error('Plugin not initialized with asset dependency service');
+    if (!this.assetProcessingService) throw new Error('Plugin not initialized with asset dependency service');
 
-    this.resolvedIntegrationDependencies = await this.AssetProcessingService.processDependencies(
+    this.resolvedIntegrationDependencies = await this.assetProcessingService.processDependencies(
       this.integrationDependencies,
       this.name,
     );

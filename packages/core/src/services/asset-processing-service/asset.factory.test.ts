@@ -37,24 +37,6 @@ test('AssetFactory - createInlineStylesheetAsset', () => {
   expect(asset.position).toBe('head');
 });
 
-test('AssetFactory - createPreBundledScriptAsset', () => {
-  const asset = AssetFactory.createPreBundledScript({
-    filepath: '/dist/bundle.js',
-  });
-  expect(asset.kind).toBe('script');
-  expect(asset.source).toBe('file');
-  expect(asset.preBundled).toBe(true);
-});
-
-test('AssetFactory - createPreBundledStylesheetAsset', () => {
-  const asset = AssetFactory.createPreBundledStylesheet({
-    filepath: '/dist/styles.css',
-  });
-  expect(asset.kind).toBe('stylesheet');
-  expect(asset.source).toBe('file');
-  expect(asset.preBundled).toBe(true);
-});
-
 test('AssetFactory - createContentScript', () => {
   const asset = AssetFactory.createContentScript({
     content: 'console.log("test")',

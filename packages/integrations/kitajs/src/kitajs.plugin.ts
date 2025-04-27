@@ -13,6 +13,7 @@ export const PLUGIN_NAME = 'kitajs';
  */
 export class KitaHtmlPlugin extends IntegrationPlugin {
   renderer = KitaRenderer;
+
   constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
     super({
       name: PLUGIN_NAME,

@@ -90,20 +90,6 @@ export interface JsonScriptAsset extends BaseAsset {
   content: string;
 }
 
-export interface PreBundledScriptAsset extends BaseAsset {
-  kind: 'script';
-  source: 'file';
-  filepath: string;
-  preBundled: true;
-}
-
-export interface PreBundledStylesheetAsset extends BaseAsset {
-  kind: 'stylesheet';
-  source: 'file';
-  filepath: string;
-  preBundled: true;
-}
-
 export type ProcessedAsset = {
   filepath?: string;
   srcUrl?: string;
@@ -120,7 +106,5 @@ export type AssetDefinition =
   | FileScriptAsset
   | NodeModuleScriptAsset
   | JsonScriptAsset
-  | PreBundledScriptAsset
   | ContentStylesheetAsset
-  | FileStylesheetAsset
-  | PreBundledStylesheetAsset;
+  | FileStylesheetAsset;

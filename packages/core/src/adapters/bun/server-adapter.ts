@@ -109,7 +109,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     const scanner = new FSRouterScanner({
       dir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
       appConfig: this.appConfig,
-      origin: '',
+      origin: this.runtimeOrigin,
       templatesExt: this.appConfig.templatesExt,
       options: {
         buildMode: !this.options?.watch,
@@ -117,7 +117,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     });
 
     this.router = new FSRouter({
-      origin: '',
+      origin: this.runtimeOrigin,
       assetPrefix: path.join(this.appConfig.rootDir, this.appConfig.distDir),
       scanner,
     });
@@ -138,6 +138,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
       const integrationPromises = this.appConfig.integrations.map(async (integration) => {
         integration.setConfig(this.appConfig);
+        integration.setRuntimeOrigin(this.runtimeOrigin);
         await integration.setup();
       });
 
@@ -151,6 +152,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   private configureResponseHandlers(): void {
     this.routeRendererFactory = new RouteRendererFactory({
       appConfig: this.appConfig,
+      runtimeOrigin: this.runtimeOrigin,
     });
 
     const fileSystemResponseFactory = new FileSystemServerResponseFactory({
@@ -158,7 +160,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       routeRendererFactory: this.routeRendererFactory,
       options: {
         watchMode: !!this.options?.watch,
-        port: this.serveOptions.port ?? 3000,
       },
     });
 

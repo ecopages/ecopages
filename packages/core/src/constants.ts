@@ -60,3 +60,7 @@ export function resolveGeneratedPath(type: keyof typeof GENERATED_BASE_PATHS, op
 }
 
 export const EXCLUDE_FROM_HTML_FLAG = '?exclude-from-html=true';
+
+export const DEFAULT_ECOPAGES_PORT = 3000;
+
+export const DEFAULT_ECOPAGES_HOSTNAME = 'localhost';

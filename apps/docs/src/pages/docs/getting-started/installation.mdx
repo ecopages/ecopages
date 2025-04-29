@@ -22,17 +22,22 @@ This example installs the core package along with the KitaJS and MDX integration
 
 ## Configuration
 
-After installation, create an `eco.config.ts` file in your project's root directory to configure Ecopages:
+After installation, create an `eco.config.ts` file in your project's root directory to configure Ecopages. This file defines your site's structure, integrations, and canonical base URL.
 
 <CodeBlock>
 ```typescript
+// filepath: eco.config.ts
 import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
   .setRootDir(import.meta.dir)
-  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+  // Optional: Set the canonical base URL for your site.
+  // Used for generating absolute URLs in production builds.
+  // If omitted, it defaults to http://localhost:3000 during development.
+  // Can be overridden by the ECOPAGES_BASE_URL environment variable.
+  .setBaseUrl('https://your-production-domain.com') 
   .setIntegrations([kitajsPlugin(), mdxPlugin()])
   .build();
 
@@ -40,7 +45,31 @@ export default config;
 ```
 </CodeBlock>
 
-This configuration sets up Ecopages with the KitaJS and MDX integrations. Adjust the integrations and other settings as needed for your project.
+### Environment Variables
+
+Ecopages uses environment variables for configuration overrides. Create a `.env` file in your project root (and add it to `.gitignore`).
+
+<CodeBlock>
+```bash
+# filepath: .env.example
+# Overrides the baseUrl set in eco.config.ts (e.g., for different deployment stages)
+ECOPAGES_BASE_URL=https://staging.your-production-domain.com
+
+# Overrides the hostname the server listens on (Default: localhost)
+ECOPAGES_HOSTNAME=0.0.0.0
+
+# Overrides the port the server listens on (Default: 3000)
+ECOPAGES_PORT=8080
+
+# Enable debug logging (Default: false)
+ECOPAGES_LOGGER_DEBUG=true 
+```
+</CodeBlock>
+
+**Configuration Precedence:**
+
+*   **Server Hostname/Port:** Command Line Flags (`--hostname`, `--port`) > Environment Variables (`ECOPAGES_HOSTNAME`, `ECOPAGES_PORT`) > Defaults (`localhost:3000`).
+*   **Canonical Base URL:** Environment Variable (`ECOPAGES_BASE_URL`) > `eco.config.ts` (`setBaseUrl`) > Default (`http://localhost:3000`).
 
 ## Project Structure
 
@@ -54,8 +83,10 @@ my-project/
 │   ├── components/
 │   └── includes/
 ├── public/
-├── eco.config.ts
-└── package.json
+├── app.ts           # Your application entry point
+├── eco.config.ts    # Ecopages configuration
+├── package.json
+└── .env             # Environment variables (optional)
 ```
 
 - `src/pages/`: Contains your page files (e.g., `.mdx`, `.kita.tsx`, `.lit.tsx`)
@@ -63,9 +94,22 @@ my-project/
 - `src/components/`: Stores reusable components
 - `src/includes/`: Contains include templates (e.g., `head.kita.tsx`, `html.kita.tsx`)
 - `public/`: Static assets that will be copied to the build directory
-- `eco.config.ts`: Ecopages configuration file
+- `app.ts`: The main script to run Ecopages commands.
+- `eco.config.ts`: Ecopages configuration file.
 
 ## Usage
+
+Create an entry point file (e.g., `app.ts`) to initialize and run Ecopages:
+
+<CodeBlock>
+```typescript
+// filepath: app.ts
+import { EcopagesApp } from '@ecopages/core';
+import config from './eco.config.ts';
+
+await new EcopagesApp(config).run(); 
+```
+</CodeBlock>
 
 Add the following scripts to your `package.json`:
 
@@ -73,34 +117,23 @@ Add the following scripts to your `package.json`:
 ```json
 {
   "scripts": {
-    "dev": "ecopages dev",
-    "build": "ecopages build",
-    "start": "ecopages start",
-    "preview": "ecopages preview"
+    "dev": "bun run app.ts --dev",
+    "build": "bun run app.ts --build",
+    "start": "bun run app.ts --start",
+    "preview": "bun run app.ts --preview",
+    "watch:dev": "bun --watch run app.ts --dev" 
   }
 }
 ``` 
 </CodeBlock>
 
-| Note:
-Due to current limitations of jsr, the bin directory should be added manually on postinstall.
-Please add the following postinstall script to your `package.json`:
-  
-<CodeBlock>
-```json
-{
-  "postinstall": "bunx symlink-dir node_modules/@ecopages/core/src/bin/ecopages.js node_modules/.bin/ecopages"
-}
-```
-</CodeBlock>
+Now you can use these commands:
 
-Now you can use these commands to develop and build your Ecopages project:
-
-- `bun run dev`: Starts the development server
-- `bun run build`: Builds your project for production
-- `bun run start`: Serves the production build
-- `bun run preview`: Previews the production build locally
+- `bun run dev`: Starts the development server (with HMR). You can override the host/port with flags (`bun run dev --port 4000`) or environment variables.
+- `bun run build`: Builds your project for production into the `dist` directory. Uses the configured `baseUrl`.
+- `bun run start`: Serves the production build from the `dist` directory. Uses the configured `baseUrl`.
+- `bun run preview`: Builds and serves the production build locally for previewing.
 
 ## Next Steps
 
-With Ecopages installed and configured, you're ready to start building your static site. Check out the [Creating Pages](/docs/guides/creating-pages) guide to learn how to create content using different integrations.
+With Ecopages installed and configured, you're ready to start building your site. Check out the [Creating Pages](/docs/guides/creating-pages) guide to learn how to create content using different integrations.

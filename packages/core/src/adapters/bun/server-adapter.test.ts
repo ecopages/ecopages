@@ -1,13 +1,10 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { Server } from 'bun';
-import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
+import { FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { createBunServerAdapter } from './server-adapter.ts';
 
-const appConfig = await new ConfigBuilder()
-  .setRootDir(FIXTURE_APP_PROJECT_DIR)
-  .setBaseUrl(FIXTURE_APP_BASE_URL)
-  .build();
+const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
 
 let server: Server;
 
@@ -15,6 +12,7 @@ describe('BunServerAdapter', () => {
   beforeAll(async () => {
     const adapter = await createBunServerAdapter({
       appConfig,
+      runtimeOrigin: appConfig.baseUrl,
       options: { watch: false },
       serveOptions: {
         port: 3001,

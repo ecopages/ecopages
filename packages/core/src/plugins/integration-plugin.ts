@@ -25,6 +25,7 @@ type RendererClass<C> = new (options: {
   appConfig: EcoPagesAppConfig;
   assetProcessingService: AssetProcessingService;
   resolvedIntegrationDependencies: ProcessedAsset[];
+  runtimeOrigin: string;
 }) => IntegrationRenderer<C>;
 
 export abstract class IntegrationPlugin<C = EcoPagesElement> {
@@ -37,6 +38,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
   protected options?: Record<string, unknown>;
   protected appConfig?: EcoPagesAppConfig;
   protected assetProcessingService?: AssetProcessingService;
+  declare runtimeOrigin: string;
 
   constructor(config: IntegrationPluginConfig) {
     this.name = config.name;
@@ -47,6 +49,10 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
   setConfig(appConfig: EcoPagesAppConfig): void {
     this.appConfig = appConfig;
     this.initializeAssetDefinitionService();
+  }
+
+  setRuntimeOrigin(runtimeOrigin: string) {
+    this.runtimeOrigin = runtimeOrigin;
   }
 
   initializeAssetDefinitionService(): void {
@@ -68,6 +74,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
       appConfig: this.appConfig,
       assetProcessingService: AssetProcessingService.createWithDefaultProcessors(this.appConfig),
       resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
+      runtimeOrigin: this.runtimeOrigin,
     });
   }
 

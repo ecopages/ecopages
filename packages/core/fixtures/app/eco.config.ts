@@ -1,8 +1,5 @@
 import { ConfigBuilder } from '@ecopages/core';
 
-const config = await new ConfigBuilder()
-  .setRootDir(import.meta.dir)
-  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-  .build();
+const config = await new ConfigBuilder().setRootDir(import.meta.dir).build();
 
 export default config;

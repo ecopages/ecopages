@@ -19,9 +19,11 @@ export class RouteRenderer {
 
 export class RouteRendererFactory {
   private appConfig: EcoPagesAppConfig;
+  runtimeOrigin: string;
 
-  constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
+  constructor({ appConfig, runtimeOrigin }: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }) {
     this.appConfig = appConfig;
+    this.runtimeOrigin = runtimeOrigin;
   }
 
   createRenderer(filePath: string): RouteRenderer {

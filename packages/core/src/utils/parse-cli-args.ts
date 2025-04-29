@@ -1,8 +1,5 @@
 import { parseArgs } from 'node:util';
 
-const DEFAULT_PORT = 3000;
-const DEFAULT_HOSTNAME = 'localhost';
-
 /**
  * The return type of the parseCliArgs function.
  */
@@ -11,8 +8,8 @@ export type ReturnParseCliArgs = {
   build: boolean;
   start: boolean;
   dev: boolean;
-  port: number;
-  hostname: string;
+  port?: number;
+  hostname?: string;
 };
 
 const ECOPAGES_BIN_FILE = 'ecopages.ts';
@@ -61,8 +58,8 @@ export function parseCliArgs(): ReturnParseCliArgs {
     build: isBuildCommand,
     start: isStartCommand,
     dev: isDevCommand,
-    port: values.port ? Number.parseInt(values.port) : DEFAULT_PORT,
-    hostname: values.hostname || DEFAULT_HOSTNAME,
+    port: values.port,
+    hostname: values.hostname,
   };
 
   return parsedCommandOptions;

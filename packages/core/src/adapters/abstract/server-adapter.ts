@@ -21,6 +21,7 @@ export interface ServerAdapterOptions {
     [key: string]: any;
   };
   serveOptions?: Record<string, any>;
+  runtimeOrigin: string;
 }
 
 /**
@@ -42,11 +43,13 @@ export abstract class AbstractServerAdapter<
   protected appConfig: EcoPagesAppConfig;
   protected options: TOptions['options'];
   protected serveOptions: TOptions['serveOptions'];
+  protected runtimeOrigin: string;
 
   constructor(options: TOptions) {
     this.appConfig = options.appConfig;
     this.options = options.options || {};
     this.serveOptions = options.serveOptions || {};
+    this.runtimeOrigin = options.runtimeOrigin;
   }
 
   /**

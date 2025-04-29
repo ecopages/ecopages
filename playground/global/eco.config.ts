@@ -9,7 +9,6 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
 export default await new ConfigBuilder()
   .setRootDir(import.meta.dir)
-  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
   .setIntegrations([kitajsPlugin(), litPlugin(), mdxPlugin()])
   .setError404Template('404.kita.tsx')
   .setProcessors([

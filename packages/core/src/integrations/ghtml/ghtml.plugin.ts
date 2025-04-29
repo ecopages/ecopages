@@ -12,21 +12,13 @@ export const GHTML_PLUGIN_NAME = 'ghtml';
  * This plugin provides support for ghtml components in Ecopages
  */
 export class GhtmlPlugin extends IntegrationPlugin {
+  renderer = GhtmlRenderer;
+
   constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
     super({
       name: GHTML_PLUGIN_NAME,
       extensions: ['.ghtml.ts', '.ghtml'],
       ...options,
-    });
-  }
-
-  initializeRenderer(): IntegrationRenderer {
-    if (!this.appConfig) {
-      throw new Error('Plugin not initialized with app config');
-    }
-
-    return new GhtmlRenderer({
-      appConfig: this.appConfig,
     });
   }
 }

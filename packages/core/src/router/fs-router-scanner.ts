@@ -75,7 +75,7 @@ export class FSRouterScanner {
     filePath: string;
     getStaticPaths: GetStaticPaths;
   }): Promise<string[]> {
-    const staticPaths = await getStaticPaths({ appConfig: this.appConfig });
+    const staticPaths = await getStaticPaths({ appConfig: this.appConfig, runtimeOrigin: this.origin });
     return staticPaths.paths.map((path) => {
       const dynamicParamsNames = this.getDynamicParamsNames(filePath);
       let routeWithParams = route;

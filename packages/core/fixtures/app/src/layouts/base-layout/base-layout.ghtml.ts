@@ -17,6 +17,5 @@ BaseLayout.config = {
   importMeta: import.meta,
   dependencies: {
     stylesheets: ['./base-layout.css'],
-    scripts: ['./base-layout.ts'],
   },
 };

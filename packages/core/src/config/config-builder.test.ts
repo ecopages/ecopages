@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from 'src/constants.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { ConfigBuilder } from './config-builder.ts';
 
 const createMockIntegration = (name: string, extensions: string[]): IntegrationPlugin => {
   return new (class extends IntegrationPlugin {
+    renderer = mock() as any;
     override extensions: string[];
     constructor() {
       super({ name, extensions });
       this.extensions = extensions;
     }
-
-    initializeRenderer = mock();
   })();
 };
 
@@ -29,8 +29,9 @@ describe('EcoConfigBuilder', () => {
     expect(config.rootDir).toBe('/project');
   });
 
-  test('should throw error if baseUrl is not set', async () => {
-    expect(async () => await builder.build()).toThrow();
+  test('should set default baseUrl it is not set', async () => {
+    const config = await builder.setRootDir('/project').build();
+    expect(config.baseUrl).toBe(`http://${DEFAULT_ECOPAGES_HOSTNAME}:${DEFAULT_ECOPAGES_PORT}`);
   });
 
   test('should set custom directories', async () => {

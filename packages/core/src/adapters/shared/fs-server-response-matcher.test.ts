@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import {
-  APP_TEST_ROUTES,
-  FIXTURE_APP_BASE_URL,
-  FIXTURE_APP_PROJECT_DIR,
-  INDEX_TEMPLATE_FILE,
-} from '../../../fixtures/constants.ts';
+import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../fixtures/constants.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { STATUS_MESSAGE } from '../../constants.ts';
 import type { MatchResult } from '../../internal-types.ts';
@@ -15,10 +10,12 @@ import { FSRouter } from '../../router/fs-router.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 
-const appConfig = await new ConfigBuilder()
-  .setRootDir(FIXTURE_APP_PROJECT_DIR)
-  .setBaseUrl(FIXTURE_APP_BASE_URL)
-  .build();
+const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+
+for (const integration of appConfig.integrations) {
+  integration.setConfig(appConfig);
+  integration.setRuntimeOrigin(appConfig.baseUrl);
+}
 
 const scanner = new FSRouterScanner({
   dir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
@@ -38,6 +35,7 @@ const router = new FSRouter({
 
 const routeRendererFactory = new RouteRendererFactory({
   appConfig,
+  runtimeOrigin: appConfig.baseUrl,
 });
 
 const fileSystemResponseFactory = new FileSystemServerResponseFactory({

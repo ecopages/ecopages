@@ -42,6 +42,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   protected htmlTransformer: HtmlTransformerService;
   private resolvedIntegrationDependencies: ProcessedAsset[] = [];
   protected declare options: Required<IntegrationRendererRenderOptions>;
+  protected runtimeOrigin: string;
 
   protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -49,15 +50,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     appConfig,
     assetProcessingService,
     resolvedIntegrationDependencies,
+    runtimeOrigin,
   }: {
     appConfig: EcoPagesAppConfig;
     assetProcessingService: AssetProcessingService;
     resolvedIntegrationDependencies?: ProcessedAsset[];
+    runtimeOrigin: string;
   }) {
     this.appConfig = appConfig;
     this.assetProcessingService = assetProcessingService;
     this.htmlTransformer = new HtmlTransformerService();
     this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
+    this.runtimeOrigin = runtimeOrigin;
 
     // @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
     if (typeof HTMLElement === 'undefined') global.HTMLElement = class {};
@@ -116,6 +120,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
       ? await getStaticProps({
           pathname: { params: options.params },
           appConfig: this.appConfig,
+          runtimeOrigin: this.runtimeOrigin,
         })
           .then((data) => data)
           .catch((err) => {
@@ -329,7 +334,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
   public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
     const renderOptions = await this.prepareRenderOptions(options);
 
-    const { hostname, port } = new URL(this.appConfig.baseUrl);
+    const { hostname, port } = new URL(this.runtimeOrigin);
 
     if (import.meta.env.NODE_ENV === 'development') {
       this.htmlTransformer.htmlRewriter.on('body', {

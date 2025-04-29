@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'bun:test';
+import type { AssetProcessingService } from 'src/services/asset-processing-service/asset-processing.service.ts';
 import HtmlTemplate from '../../../fixtures/app/src/includes/html.ghtml.ts';
-import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
+import { FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
 
-const appConfig = await new ConfigBuilder()
-  .setRootDir(FIXTURE_APP_PROJECT_DIR)
-  .setBaseUrl(FIXTURE_APP_BASE_URL)
-  .build();
+const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
 
 const metadata = {
   title: 'Ecopages',
@@ -16,9 +14,13 @@ const metadata = {
 
 const pageBody = '<body>Hello World</body>';
 
+const rendererContext = {
+  appConfig,
+} as unknown as any;
+
 describe('GhtmlRenderer', () => {
   it('should render the page', async () => {
-    const renderer = new GhtmlRenderer({ appConfig });
+    const renderer = new GhtmlRenderer(rendererContext);
 
     renderer
       .render({
@@ -28,6 +30,7 @@ describe('GhtmlRenderer', () => {
         file: 'file',
         metadata,
         Page: async () => pageBody,
+        resolvedDependencies: [],
         HtmlTemplate,
       })
       .then((body) => {
@@ -39,7 +42,7 @@ describe('GhtmlRenderer', () => {
   });
 
   it('should throw an error if the page fails to render', async () => {
-    const renderer = new GhtmlRenderer({ appConfig });
+    const renderer = new GhtmlRenderer(rendererContext);
 
     renderer
       .render({
@@ -47,6 +50,7 @@ describe('GhtmlRenderer', () => {
         query: {},
         props: {},
         file: 'file',
+        resolvedDependencies: [],
         metadata,
         Page: async () => {
           throw new Error('Page failed to render');

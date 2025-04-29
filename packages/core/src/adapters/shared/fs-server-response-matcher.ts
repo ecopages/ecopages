@@ -49,7 +49,9 @@ export class FileSystemResponseMatcher {
       return await this.fileSystemResponseFactory.createResponseWithBody(renderedBody);
     } catch (error) {
       if (error instanceof Error) {
-        appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.pathname}`);
+        if (appLogger.isDebugEnabled()) {
+          appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.pathname}`);
+        }
       }
       return this.fileSystemResponseFactory.createCustomNotFoundResponse();
     }

@@ -1,12 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { APP_TEST_ROUTES_URLS, FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
+import { APP_TEST_ROUTES_URLS, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { StaticContentServer } from './sc-server.ts';
 
-const appConfig = await new ConfigBuilder()
-  .setRootDir(FIXTURE_APP_PROJECT_DIR)
-  .setBaseUrl(FIXTURE_APP_BASE_URL)
-  .build();
+const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
 
 describe('StaticContentServer', () => {
   let server: StaticContentServer;

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
+import { FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { ServerUtils } from './server-utils.module.ts';
 
-await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).setBaseUrl(FIXTURE_APP_BASE_URL).build();
+await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
 
 describe('ServerUtils', () => {
   test.each([

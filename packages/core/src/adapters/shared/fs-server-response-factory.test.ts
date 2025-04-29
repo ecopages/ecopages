@@ -1,18 +1,16 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
-import {
-  FIXTURE_APP_BASE_URL,
-  FIXTURE_APP_PROJECT_DIR,
-  FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH,
-} from '../../../fixtures/constants.ts';
+import { FIXTURE_APP_PROJECT_DIR, FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH } from '../../../fixtures/constants.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { STATUS_MESSAGE } from '../../constants.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
-const appConfig = await new ConfigBuilder()
-  .setRootDir(FIXTURE_APP_PROJECT_DIR)
-  .setBaseUrl(FIXTURE_APP_BASE_URL)
-  .build();
+const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+
+for (const integration of appConfig.integrations) {
+  integration.setConfig(appConfig);
+  integration.setRuntimeOrigin(appConfig.baseUrl);
+}
 
 let responseFactory: FileSystemServerResponseFactory;
 
@@ -20,9 +18,9 @@ describe('FileSystemServerResponseFactory', () => {
   beforeAll(async () => {
     responseFactory = new FileSystemServerResponseFactory({
       appConfig,
-      transformIndexHtml: async (res) => res,
       routeRendererFactory: new RouteRendererFactory({
         appConfig,
+        runtimeOrigin: appConfig.baseUrl,
       }),
       options: {
         watchMode: false,
@@ -51,9 +49,9 @@ describe('FileSystemServerResponseFactory', () => {
     it('should return false in watch mode', () => {
       const responseFactoryWatch = new FileSystemServerResponseFactory({
         appConfig,
-        transformIndexHtml: async (res) => res,
         routeRendererFactory: new RouteRendererFactory({
           appConfig,
+          runtimeOrigin: appConfig.baseUrl,
         }),
         options: {
           watchMode: true,
@@ -111,9 +109,9 @@ describe('FileSystemServerResponseFactory', () => {
 
       const responseFactoryNo404Template = new FileSystemServerResponseFactory({
         appConfig: customAppConfig,
-        transformIndexHtml: async (res) => res,
         routeRendererFactory: new RouteRendererFactory({
           appConfig: customAppConfig,
+          runtimeOrigin: customAppConfig.baseUrl,
         }),
         options: {
           watchMode: false,

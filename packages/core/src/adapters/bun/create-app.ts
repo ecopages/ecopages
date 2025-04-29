@@ -9,9 +9,10 @@
  */
 
 import type { BunRequest, Server } from 'bun';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, BaseRequest } from '../../public-types.ts';
+import type { ApiHandler } from '../../public-types.ts';
 import {
   AbstractApplicationAdapter,
   type ApplicationAdapterOptions,
@@ -109,15 +110,34 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
    * Initialize the Bun server adapter
    */
   protected async initializeServerAdapter(): Promise<BunServerAdapterResult> {
-    const { dev, port, hostname } = this.cliArgs;
+    const { dev } = this.cliArgs;
+    const { port: cliPort, hostname: cliHostname } = this.cliArgs;
+
+    const envPort = import.meta.env.ECOPAGES_PORT ? import.meta.env.ECOPAGES_PORT : undefined;
+    const envHostname = import.meta.env.ECOPAGES_HOSTNAME;
+
+    const preferredPort = cliPort ?? envPort ?? DEFAULT_ECOPAGES_PORT;
+    const preferredHostname = cliHostname ?? envHostname ?? DEFAULT_ECOPAGES_HOSTNAME;
+
+    appLogger.debug('initializeServerAdapter', {
+      dev,
+      cliPort,
+      cliHostname,
+      envPort,
+      envHostname,
+      preferredPort,
+      preferredHostname,
+      composeD: `http://${preferredHostname}:${preferredPort}`,
+    });
 
     return await createBunServerAdapter({
+      runtimeOrigin: `http://${preferredHostname}:${preferredPort}`,
       appConfig: this.appConfig,
       apiHandlers: this.apiHandlers,
       options: { watch: dev },
       serveOptions: {
-        port,
-        hostname,
+        port: preferredPort,
+        hostname: preferredHostname,
         ...this.serverOptions,
       },
     });

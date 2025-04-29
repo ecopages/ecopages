@@ -5,6 +5,7 @@
 
 import path from 'node:path';
 import type { BunPlugin } from 'bun';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
 import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
@@ -380,8 +381,25 @@ export class ConfigBuilder {
     this.config.templatesExt = integrationsExtensions;
   }
 
-  private initializeProcessor(processor: Processor): void {
-    processor.setContext(this.config);
+  private initializeProcessors(): void {
+    for (const processor of this.config.processors.values()) {
+      processor.setContext(this.config);
+    }
+  }
+
+  private reviewBaseUrl(baseUrl: string): void {
+    if (baseUrl) {
+      this.config.baseUrl = baseUrl;
+      return;
+    }
+
+    const envBaseUrl = import.meta.env.ECOPAGES_BASE_URL;
+
+    if (envBaseUrl) {
+      this.config.baseUrl = envBaseUrl;
+    } else if (!this.config.baseUrl) {
+      this.config.baseUrl = `http://${DEFAULT_ECOPAGES_HOSTNAME}:${DEFAULT_ECOPAGES_PORT}`;
+    }
   }
 
   /**
@@ -392,9 +410,7 @@ export class ConfigBuilder {
    * @throws Error if required configuration is missing (e.g., baseUrl)
    */
   async build(): Promise<EcoPagesAppConfig> {
-    if (!this.config.baseUrl) {
-      throw new Error('[ecopages] baseUrl is required');
-    }
+    this.reviewBaseUrl(this.config.baseUrl);
 
     if (!this.config.integrations.some((integration) => integration.name === GHTML_PLUGIN_NAME)) {
       this.config.integrations.push(ghtmlPlugin());
@@ -403,13 +419,7 @@ export class ConfigBuilder {
     this.createAbsolutePaths(this.config);
     this.createIntegrationTemplatesExt(this.config.integrations);
 
-    for (const processor of this.config.processors.values()) {
-      this.initializeProcessor(processor);
-    }
-
-    for (const integration of this.config.integrations) {
-      integration.setConfig(this.config);
-    }
+    this.initializeProcessors();
 
     globalThis.ecoConfig = this.config;
 

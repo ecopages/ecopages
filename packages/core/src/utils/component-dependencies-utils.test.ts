@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { FIXTURE_APP_BASE_URL, FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
+import { FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import type { EcoComponentConfig, EcoComponentDependencies } from '../public-types.ts';
 import { AssetFactory } from '../services/asset-processing-service/asset.factory.ts';
 import { flagComponentsAsDynamic, resolveComponentsScripts } from './component-dependencies-utils.ts';
 
-await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).setBaseUrl(FIXTURE_APP_BASE_URL).build();
+await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
 
 const baseComponentUrl = path.join(globalThis.ecoConfig.srcDir, globalThis.ecoConfig.componentsDir);
 

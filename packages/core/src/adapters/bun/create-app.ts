@@ -127,7 +127,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
       envHostname,
       preferredPort,
       preferredHostname,
-      composeD: `http://${preferredHostname}:${preferredPort}`,
+      composedUrl: `http://${preferredHostname}:${preferredPort}`,
     });
 
     return await createBunServerAdapter({

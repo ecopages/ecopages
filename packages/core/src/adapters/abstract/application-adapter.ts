@@ -9,7 +9,7 @@
 
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler } from '../../public-types.ts';
+import type { ApiHandler, HandlerContext } from '../../public-types.ts';
 import { FileUtils } from '../../utils/file-utils.module.ts';
 import { type ReturnParseCliArgs, parseCliArgs } from '../../utils/parse-cli-args.ts';
 
@@ -34,20 +34,12 @@ export interface ApplicationAdapter<T = any> {
 }
 
 /**
- * Handler context containing the request, app config, and other contextual data
- */
-export interface HandlerContext<RuntimeSpecificRequest = any> {
-  request: RuntimeSpecificRequest;
-  appConfig: EcoPagesAppConfig;
-}
-
-/**
  * Abstract base class for application adapters across different runtimes
  */
 export abstract class AbstractApplicationAdapter<
   TOptions extends ApplicationAdapterOptions = ApplicationAdapterOptions,
   TServer = any,
-  TRequest = any,
+  TRequest extends Request = any,
 > implements ApplicationAdapter<TServer>
 {
   protected appConfig: EcoPagesAppConfig;

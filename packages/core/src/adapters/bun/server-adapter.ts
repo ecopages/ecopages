@@ -19,6 +19,7 @@ import {
 } from '../abstract/server-adapter.ts';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
+import { ApiResponseBuilder } from './api-response.ts';
 import { withHtmlLiveReload } from './hmr.ts';
 import { BunRouterAdapter } from './router-adapter.ts';
 
@@ -49,8 +50,6 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
   buildStatic: (options?: { preview?: boolean }) => Promise<void>;
   completeInitialization: (server: Server) => Promise<void>;
 }
-
-export type BunServerRequest<TPath extends string = string> = BunRequest<TPath>;
 
 export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOptions, BunServerAdapterResult> {
   declare appConfig: EcoPagesAppConfig;
@@ -190,11 +189,12 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       const method = handler.method || 'GET';
       const path = handler.path;
 
-      const wrappedHandler = async (request: BunServerRequest<string>): Promise<Response> => {
+      const wrappedHandler = async (request: BunRequest<string>): Promise<Response> => {
         try {
           return await handler.handler({
             request,
             appConfig: this.appConfig,
+            response: new ApiResponseBuilder(),
           });
         } catch (error) {
           appLogger.error(`Error in API handler for ${path}: ${error}`);

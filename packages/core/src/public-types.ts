@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream';
+import type { ApiResponseBuilder } from './adapters/bun/api-response.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
 
@@ -299,6 +300,7 @@ export type Prettify<T> = {
  */
 export interface HandlerContext<TRequest extends Request = Request> {
   request: TRequest;
+  response: ApiResponseBuilder;
   appConfig: EcoPagesAppConfig;
 }
 
@@ -312,6 +314,5 @@ export interface ApiHandler<
 > {
   path: TPath;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
-  // Handler uses the generic TRequest
   handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response;
 }

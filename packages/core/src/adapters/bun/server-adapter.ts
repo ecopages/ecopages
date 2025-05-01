@@ -42,7 +42,7 @@ export type BunServeOptions = ServeOptions & {
 export interface BunServerAdapterOptions extends ServerAdapterOptions {
   serveOptions: BunServeAdapterServerOptions;
   appConfig: EcoPagesAppConfig;
-  apiHandlers?: ApiHandler[];
+  apiHandlers?: ApiHandler<any, BunRequest>[];
 }
 
 export interface BunServerAdapterResult extends ServerAdapterResult {
@@ -55,7 +55,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   declare appConfig: EcoPagesAppConfig;
   declare options: BunServerAdapterOptions['options'];
   declare serveOptions: BunServerAdapterOptions['serveOptions'];
-  protected apiHandlers: ApiHandler[];
+  protected apiHandlers: ApiHandler<any, BunRequest>[];
 
   private router!: FSRouter;
   private fileSystemResponseMatcher!: FileSystemResponseMatcher;
@@ -193,7 +193,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
         try {
           return await handler.handler({
             request,
-            appConfig: this.appConfig,
             response: new ApiResponseBuilder(),
           });
         } catch (error) {

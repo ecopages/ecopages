@@ -15,7 +15,7 @@ import type { ApiHandler } from '../../public-types.ts';
  */
 export interface ServerAdapterOptions {
   appConfig: EcoPagesAppConfig;
-  apiHandlers?: ApiHandler[];
+  apiHandlers?: ApiHandler<string, any>[];
   options?: {
     watch?: boolean;
     [key: string]: any;

@@ -301,7 +301,6 @@ export type Prettify<T> = {
 export interface HandlerContext<TRequest extends Request = Request> {
   request: TRequest;
   response: ApiResponseBuilder;
-  appConfig: EcoPagesAppConfig;
 }
 
 /**

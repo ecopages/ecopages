@@ -44,6 +44,10 @@
 			"types": "./src/adapters/bun/create-app.ts",
 			"default": "./src/adapters/bun/create-app.ts"
 		},
+		"./adapters/bun/define-api-handler": {
+			"types": "./src/adapters/bun/define-api-handler.ts",
+			"default": "./src/adapters/bun/define-api-handler.ts"
+		},
 		"./services/asset-processing-service": {
 			"types": "./src/services/asset-processing-service/index.ts",
 			"default": "./src/services/asset-processing-service/index.ts"

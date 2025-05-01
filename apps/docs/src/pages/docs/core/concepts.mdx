@@ -159,6 +159,61 @@ my-project/
 
 This structure helps Ecopages efficiently process and build your site.
 
+## Runtime Origin and API Requests
+
+When fetching data in `getStaticPaths` or `getStaticProps`, Ecopages provides two approaches:
+
+### Using Runtime Origin
+
+The `runtimeOrigin` parameter is particularly powerful for complex scenarios where you need the full server URL:
+
+<CodeBlock>
+```typescript
+export const getStaticPaths: GetStaticPaths = async ({ runtimeOrigin }) => {
+  // Full URL for complex scenarios
+  const response = await fetch(`${runtimeOrigin}/api/blog/posts`);
+  const posts = await response.json();
+  
+  return {
+    paths: posts.map(post => ({
+      params: { slug: post.slug }
+    }))
+  };
+};
+```
+</CodeBlock>
+
+Using `runtimeOrigin` is beneficial when:
+- Your API routes need the complete server URL
+- You're dealing with preview environments
+- You have different API endpoints for different environments
+- You need to handle cross-origin requests during development
+
+### Using Relative Paths
+
+For simpler scenarios, you can use relative paths:
+
+<CodeBlock>
+```typescript
+export const getStaticPaths: GetStaticPaths = async () => {
+  // Simple relative path works fine for basic cases
+  const response = await fetch('/api/blog/posts');
+  const posts = await response.json();
+  
+  return {
+    paths: posts.map(post => ({
+      params: { slug: post.slug }
+    }))
+  };
+};
+```
+</CodeBlock>
+
+Relative paths are suitable when:
+- Your API is always on the same origin
+- You don't need environment-specific URLs
+- You want simpler, more portable code
+
 ## Runtime Support
 
 Currently, Ecopages is designed to work exclusively with the Bun runtime. While the architecture supports multiple runtime adapters, at the moment only the Bun adapter is implemented and maintained.

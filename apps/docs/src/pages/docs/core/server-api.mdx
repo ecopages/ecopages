@@ -62,24 +62,62 @@ app.get('/api/users/:id/posts/:postId', async ({ request }) => {
 
 ## Type Safety
 
-The API handlers are fully typed, providing excellent TypeScript support:
+Ecopages leverages TypeScript to provide strong type safety for your API handlers, especially for route parameters.
+
+While you can define handlers directly, ensuring the `request.params` type matches the `path` string requires careful manual typing. To simplify this and improve code organization, Ecopages provides adapter-specific helper functions.
+
+### Using `defineBunApiHandler`
+
+When using the Bun adapter, you can use the `defineBunApiHandler` helper function. This function automatically infers the parameter types from the `path` string literal, ensuring your `request.params` object is correctly typed without explicit annotations.
 
 <CodeBlock>
 ```typescript
-import type { ApiHandler } from '@ecopages/core';
+// Import the adapter-specific helper
+import { defineBunApiHandler } from '@ecopages/core/adapters/bun/define-handler'; // Adjust path if needed
 
-const handler: ApiHandler = {
-  path: '/api/users/:id',
+// Define the handler using the helper
+const getUserHandler = defineBunApiHandler({
   method: 'GET',
-  handler: async ({request}) => {
-    const { id } = request.params;
-    return new Response(JSON.stringify({ id }));
+  path: '/api/users/:id', // Type of 'id' is inferred from here
+  handler: async ({ request }) => {
+    // request.params is automatically typed as { id: string }
+    const { id } = request.params; 
+    // Fetch user logic...
+    const user = { id: id, name: 'Example User' }; 
+    
+    if (!user) {
+      return new Response('User not found', { status: 404 });
+    }
+    return new Response(JSON.stringify(user));
   },
-};
+});
 
-app.get(handler.path, handler.handler);
+// Register the handler with the app
+app.get(getUserHandler.path, getUserHandler.handler);
+
+// You can define multiple handlers this way and keep them organized
+const updateUserHandler = defineBunApiHandler({
+  method: 'PUT',
+  path: '/api/users/:id',
+  handler: async ({ request }) => {
+    const { id } = request.params;
+    // Update user logic...
+    return new Response(JSON.stringify({ id, message: 'User updated' }));
+  }
+});
+
+app.put(updateUserHandler.path, updateUserHandler.handler);
 ```
 </CodeBlock>
+
+### Benefits of Using `defineBunApiHandler`
+
+Using defineBunApiHandler offers several advantages:
+
+- Automatic Parameter Typing: Eliminates the need to manually type request.params.
+- Improved Readability: Keeps the handler definition concise.
+- Enhanced Organization: Encourages defining handlers as separate, reusable constants before registering them.
+- Reduced Errors: Prevents type mismatches between the path string and the parameters used in the handler.
 
 ## Static Site Generation
 

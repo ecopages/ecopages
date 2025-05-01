@@ -297,12 +297,7 @@ export type Prettify<T> = {
 /**
  * Generic type for the request object in EcoPages server adapters.
  */
-export interface BaseRequest<TPath extends string = string> {
-  params: Record<string, string>;
-  path: TPath;
-  method: string;
-  [key: string]: any;
-}
+export interface BaseRequest<TPath extends string = string> {}
 
 /**
  * Context provided to the API handler.

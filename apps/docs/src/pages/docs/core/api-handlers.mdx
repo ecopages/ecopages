@@ -4,13 +4,13 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-    title: 'Docs | API Handlers',
-    description: 'Learn how to create and use API handlers in Ecopages',
+  title: 'Docs | API Handlers',
+  description: 'Learn how to create and use API handlers in Ecopages',
 })
 
 # API Handlers
 
-Ecopages provides a streamlined way to define API endpoints within your application. This allows you to build server-side logic, fetch data, or perform actions directly from your Ecopages project.
+Ecopages provides a straightforward way to define API endpoints within your application. This allows you to build server-side logic, fetch data, or perform actions directly from your Ecopages project.
 
 ## Defining Handlers
 
@@ -49,15 +49,12 @@ Every API handler function receives a `HandlerContext` object as its argument. T
 // Example handler signature
 app.get('/api/example/:id', async (context) => {
   // context is the HandlerContext object
-  const { request, response, appConfig } = context;
+  const { request, response } = context;
 
   // Access request details
   const { id } = request.params; // Route parameters
   const userAgent = request.headers.get('user-agent');
   const queryParam = request.query.get('search'); // Query parameters
-
-  // Access app configuration
-  console.log('Base URL:', appConfig.baseUrl);
 
   // Use the response builder
   return response.status(200).json({ userId: id, agent: userAgent, query: queryParam });
@@ -72,7 +69,6 @@ The `HandlerContext` contains:
     -   Standard `Request` properties like `headers`, `method`, `url`, etc.
     -   Methods like `json()`, `text()`, `formData()` to parse the request body.
 -   `response`: An instance of `ApiResponseBuilder`, a utility for constructing `Response` objects fluently.
--   `appConfig`: The fully resolved Ecopages application configuration object.
 
 ## The `ApiResponseBuilder`
 

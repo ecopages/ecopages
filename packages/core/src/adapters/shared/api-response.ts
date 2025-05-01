@@ -34,7 +34,6 @@ export class ApiResponseBuilder {
    * @returns A Response object.
    */
   json(data: any): Response {
-    // Ensure Content-Type is set, but allow override via headers()
     if (!this._headers.has('Content-Type')) {
       this._headers.set('Content-Type', 'application/json; charset=utf-8');
     }
@@ -86,16 +85,14 @@ export class ApiResponseBuilder {
    */
   error(data: string | object, explicitStatus?: Response['status']): Response {
     const errorStatus = explicitStatus ?? (this._status === 200 ? 500 : this._status); // Default to 500 if status wasn't explicitly set
-    this.status(errorStatus); // Update internal status for content type logic
+    this.status(errorStatus);
 
     if (typeof data === 'object' && data !== null) {
-      // Use json() logic but ensure status is errorStatus
       if (!this._headers.has('Content-Type')) {
         this._headers.set('Content-Type', 'application/json; charset=utf-8');
       }
       return new Response(JSON.stringify({ error: data }), { status: this._status, headers: this._headers });
     }
-    // Use text() logic but ensure status is errorStatus
     if (!this._headers.has('Content-Type')) {
       this._headers.set('Content-Type', 'text/plain; charset=utf-8');
     }

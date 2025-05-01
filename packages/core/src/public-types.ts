@@ -1,5 +1,5 @@
 import type { Readable } from 'node:stream';
-import type { ApiResponseBuilder } from './adapters/bun/api-response.ts';
+import type { ApiResponseBuilder } from './adapters/shared/api-response.js';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
 

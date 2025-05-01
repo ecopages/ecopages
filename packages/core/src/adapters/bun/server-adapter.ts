@@ -17,9 +17,9 @@ import {
   type ServerAdapterOptions,
   type ServerAdapterResult,
 } from '../abstract/server-adapter.ts';
+import { ApiResponseBuilder } from '../shared/api-response.js';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
-import { ApiResponseBuilder } from './api-response.ts';
 import { withHtmlLiveReload } from './hmr.ts';
 import { BunRouterAdapter } from './router-adapter.ts';
 

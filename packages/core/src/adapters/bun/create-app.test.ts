@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import type { BunRequest } from 'bun';
-import type { HandlerContext } from '../abstract/application-adapter';
 import { EcopagesApp } from './create-app';
 
 describe('EcopagesApp', () => {
@@ -14,7 +12,7 @@ describe('EcopagesApp', () => {
 
   describe('HTTP Method Handlers', () => {
     const testPath = '/test';
-    const testHandler = async (context: HandlerContext<BunRequest<string>>) => {
+    const testHandler = async () => {
       return new Response('OK');
     };
 

@@ -42,6 +42,7 @@ export const docsConfig: DocsConfig = {
         { title: 'Pages', slug: 'pages' },
         { title: 'Includes', slug: 'includes' },
         { title: 'Server API', slug: 'server-api' },
+        { title: 'API Handlers', slug: 'api-handlers' },
       ],
     },
     {

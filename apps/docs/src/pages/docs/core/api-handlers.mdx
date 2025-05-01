@@ -1,0 +1,152 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | API Handlers',
+  description: 'Learn how to create and use API handlers in Ecopages',
+})
+
+# API Handlers
+
+Ecopages provides a straightforward way to define API endpoints within your application. This allows you to build server-side logic, fetch data, or perform actions directly from your Ecopages project.
+
+## Defining Handlers
+
+You define API handlers using methods on your `EcopagesApp` instance, typically in your `app.ts` file. Each method corresponds to an HTTP verb (GET, POST, etc.).
+
+<CodeBlock>
+```typescript
+// filepath: app.ts
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import appConfig from './eco.config';
+
+const app = new EcopagesApp({ appConfig });
+
+// Define a GET handler
+app.get('/api/greet', async ({ response }) => {
+  return response.text('Hello from the API!');
+});
+
+// Define a POST handler
+app.post('/api/submit', async ({ request, response }) => {
+  const body = await request.json(); // Assuming JSON body
+  console.log('Received data:', body);
+  return response.json({ success: true, received: body });
+});
+
+await app.start();
+```
+</CodeBlock>
+
+## Handler Context
+
+Every API handler function receives a `HandlerContext` object as its argument. This object provides access to essential information and utilities for handling the request and constructing the response.
+
+<CodeBlock>
+```typescript
+// Example handler signature
+app.get('/api/example/:id', async (context) => {
+  // context is the HandlerContext object
+  const { request, response } = context;
+
+  // Access request details
+  const { id } = request.params; // Route parameters
+  const userAgent = request.headers.get('user-agent');
+  const queryParam = request.query.get('search'); // Query parameters
+
+  // Use the response builder
+  return response.status(200).json({ userId: id, agent: userAgent, query: queryParam });
+});
+```
+</CodeBlock>
+
+The `HandlerContext` contains:
+
+-   `request`: The incoming request object (specific to the adapter, e.g., `BunRequest` for the Bun adapter). It includes:
+    -   `params`: An object containing route parameters (e.g., `:id` in `/api/users/:id`).
+    -   Standard `Request` properties like `headers`, `method`, `url`, etc.
+    -   Methods like `json()`, `text()`, `formData()` to parse the request body.
+-   `response`: An instance of `ApiResponseBuilder`, a utility for constructing `Response` objects fluently.
+
+## The `ApiResponseBuilder`
+
+Instead of manually creating `new Response(...)` objects, Ecopages provides the `ApiResponseBuilder` via `context.response`. This utility simplifies response creation with a fluent API.
+
+### Basic Usage
+
+<CodeBlock>
+```typescript
+app.get('/api/data', async ({ response }) => {
+  const data = { message: 'Here is your data' };
+  // Automatically sets Content-Type to application/json
+  return response.json(data); 
+});
+
+app.get('/api/plain', async ({ response }) => {
+  // Automatically sets Content-Type to text/plain
+  return response.text('Plain text response.');
+});
+
+app.get('/api/html-page', async ({ response }) => {
+  // Automatically sets Content-Type to text/html
+  return response.html('<h1>Hello HTML</h1>');
+});
+```
+</CodeBlock>
+
+### Chaining Methods
+
+You can chain methods to customize the response status and headers before sending the body.
+
+<CodeBlock>
+```typescript
+app.post('/api/create', async ({ response }) => {
+  // ... creation logic ...
+  const newItem = { id: 123, name: 'New Item' };
+  
+  return response
+    .status(201) // Set status to 201 Created
+    .headers({ 'X-Custom-Header': 'CreatedValue' }) // Add custom headers
+    .json(newItem); // Send JSON body
+});
+```
+</CodeBlock>
+
+### Available Methods
+
+-   `.status(code: number)`: Sets the HTTP status code (e.g., `response.status(404)`).
+-   `.headers(headersInit: HeadersInit)`: Adds or merges headers (e.g., `response.headers({ 'Cache-Control': 'no-cache' })`).
+-   `.json(data: any)`: Sends a JSON response. Sets `Content-Type: application/json`.
+-   `.text(data: string)`: Sends a plain text response. Sets `Content-Type: text/plain`.
+-   `.html(data: string)`: Sends an HTML response. Sets `Content-Type: text/html`.
+-   `.redirect(url: string, explicitStatus?: number)`: Sends a redirect response. Sets the `Location` header. Defaults to status 302 if not set via `.status()` or `explicitStatus`.
+-   `.error(data: string | object, explicitStatus?: number)`: Sends an error response. Defaults to status 500. If `data` is an object, sends JSON; otherwise, sends text.
+
+<CodeBlock>
+```typescript
+app.get('/api/old-path', async ({ response }) => {
+  // Permanent redirect (301)
+  return response.status(301).redirect('/api/new-path'); 
+});
+
+app.get('/api/find/:id', async ({ request, response }) => {
+  const { id } = request.params;
+  const item = // ... find item logic ...
+
+  if (!item) {
+    // Send a 404 error with a JSON body
+    return response.error({ message: `Item ${id} not found` }, 404); 
+  }
+  
+  return response.json(item);
+});
+```
+</CodeBlock>
+
+Using the `ApiResponseBuilder` makes your API handler code cleaner, more readable, and less prone to errors compared to manually constructing `Response` objects.
+
+## Type Safety with `defineApiHandler`
+
+For enhanced type safety, especially with route parameters, consider using the adapter-specific `defineApiHandler` helper. See the [Server API](/docs/core/server-api#type-safety) documentation for details.

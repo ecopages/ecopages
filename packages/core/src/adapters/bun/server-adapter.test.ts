@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { Server } from 'bun';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
+import { defineApiHandler } from './define-api-handler.ts';
 import { createBunServerAdapter } from './server-adapter.ts';
 
 const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
@@ -19,39 +20,39 @@ describe('BunServerAdapter', () => {
         hostname: 'localhost',
       },
       apiHandlers: [
-        {
+        defineApiHandler({
           path: '/api/test',
           method: 'GET',
           handler: async () => new Response('Hello World'),
-        },
-        {
+        }),
+        defineApiHandler<'/api/:id'>({
           path: '/api/:id',
           method: 'GET',
           handler: async ({ request }) => {
             const { id } = request.params;
             return new Response(id);
           },
-        },
-        {
+        }),
+        defineApiHandler({
           path: '/api/error',
           method: 'GET',
           handler: async () => {
             throw new Error('Test error');
           },
-        },
-        {
+        }),
+        defineApiHandler({
           path: '/api/post-test',
           method: 'POST',
           handler: async ({ request }) => {
             const body = await request.json();
             return new Response(JSON.stringify(body));
           },
-        },
-        {
+        }),
+        defineApiHandler({
           path: '/api/*',
           method: 'GET',
           handler: async () => new Response('Catch all'),
-        },
+        }),
       ],
     });
 

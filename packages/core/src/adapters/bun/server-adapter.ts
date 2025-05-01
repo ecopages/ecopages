@@ -17,6 +17,7 @@ import {
   type ServerAdapterOptions,
   type ServerAdapterResult,
 } from '../abstract/server-adapter.ts';
+import { ApiResponseBuilder } from '../shared/api-response.js';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
 import { withHtmlLiveReload } from './hmr.ts';
@@ -41,7 +42,7 @@ export type BunServeOptions = ServeOptions & {
 export interface BunServerAdapterOptions extends ServerAdapterOptions {
   serveOptions: BunServeAdapterServerOptions;
   appConfig: EcoPagesAppConfig;
-  apiHandlers?: ApiHandler[];
+  apiHandlers?: ApiHandler<any, BunRequest>[];
 }
 
 export interface BunServerAdapterResult extends ServerAdapterResult {
@@ -50,13 +51,11 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
   completeInitialization: (server: Server) => Promise<void>;
 }
 
-export type BunServerRequest<TPath extends string = string> = BunRequest<TPath>;
-
 export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOptions, BunServerAdapterResult> {
   declare appConfig: EcoPagesAppConfig;
   declare options: BunServerAdapterOptions['options'];
   declare serveOptions: BunServerAdapterOptions['serveOptions'];
-  protected apiHandlers: ApiHandler[];
+  protected apiHandlers: ApiHandler<any, BunRequest>[];
 
   private router!: FSRouter;
   private fileSystemResponseMatcher!: FileSystemResponseMatcher;
@@ -190,11 +189,11 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       const method = handler.method || 'GET';
       const path = handler.path;
 
-      const wrappedHandler = async (request: BunServerRequest<string>): Promise<Response> => {
+      const wrappedHandler = async (request: BunRequest<string>): Promise<Response> => {
         try {
           return await handler.handler({
             request,
-            appConfig: this.appConfig,
+            response: new ApiResponseBuilder(),
           });
         } catch (error) {
           appLogger.error(`Error in API handler for ${path}: ${error}`);

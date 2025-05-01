@@ -2,7 +2,6 @@ import { extname, join } from 'node:path';
 import type { Server } from 'bun';
 import { STATUS_MESSAGE } from '../constants.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
 import { ServerUtils } from '../utils/server-utils.module.ts';
 
@@ -14,19 +13,15 @@ export class StaticContentServer {
   server: Server | null = null;
   private appConfig: EcoPagesAppConfig;
   private options: StaticContentServerOptions = { port: 3000 };
-  private routeRendererFactory: RouteRendererFactory;
 
   constructor({
     appConfig,
     options,
-    routeRendererFactory,
   }: {
     appConfig: EcoPagesAppConfig;
     options?: StaticContentServerOptions;
-    routeRendererFactory: RouteRendererFactory;
   }) {
     this.appConfig = appConfig;
-    this.routeRendererFactory = routeRendererFactory;
     if (options) this.options = options;
     this.startServer();
   }
@@ -135,13 +130,8 @@ export class StaticContentServer {
     appConfig: EcoPagesAppConfig;
     options?: StaticContentServerOptions;
   }) {
-    const routeRendererFactory = new RouteRendererFactory({
-      appConfig,
-    });
-
     return new StaticContentServer({
       appConfig: appConfig,
-      routeRendererFactory,
       options,
     });
   }

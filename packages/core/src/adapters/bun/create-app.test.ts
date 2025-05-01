@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import type { BunRequest, Server } from 'bun';
+import type { BunRequest } from 'bun';
 import type { HandlerContext } from '../abstract/application-adapter';
 import { EcopagesApp } from './create-app';
 

@@ -1,4 +1,5 @@
 import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { defineApiHandler } from '@ecopages/core/adapters/bun/define-api-handler';
 import appConfig from './eco.config';
 import { getAllAuthorIds, getAllBlogPostSlugs, getAuthor, getBlogPost } from './src/mocks/data';
 
@@ -48,21 +49,27 @@ app.get('/api/blog/authors', async () => {
   });
 });
 
-app.get('/api/blog/author/:id', async ({ request }) => {
-  const { id } = request.params;
-  const author = getAuthor(id);
+const getAuthorApiHandler = defineApiHandler({
+  method: 'GET',
+  path: '/api/blog/author/:id',
+  handler: async ({ request }) => {
+    const { id } = request.params;
+    const author = getAuthor(id);
 
-  if (author) {
-    return new Response(JSON.stringify(author), {
+    if (author) {
+      return new Response(JSON.stringify(author), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: 'Author not found' }), {
+      status: 404,
       headers: { 'Content-Type': 'application/json' },
     });
-  }
-
-  return new Response(JSON.stringify({ error: 'Author not found' }), {
-    status: 404,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  },
 });
+
+app.get(getAuthorApiHandler.path, getAuthorApiHandler.handler);
 
 app.get('/api/*', async () => {
   return new Response(JSON.stringify({ message: 'Hello from the API! > /api/*' }));

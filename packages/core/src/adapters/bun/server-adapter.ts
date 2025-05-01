@@ -4,7 +4,7 @@ import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, BaseRequest } from '../../public-types.ts';
+import type { ApiHandler } from '../../public-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
@@ -50,7 +50,7 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
   completeInitialization: (server: Server) => Promise<void>;
 }
 
-export type BunServerRequest<TPath extends string = string> = BunRequest<TPath> & BaseRequest<TPath>;
+export type BunServerRequest<TPath extends string = string> = BunRequest<TPath>;
 
 export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOptions, BunServerAdapterResult> {
   declare appConfig: EcoPagesAppConfig;

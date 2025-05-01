@@ -298,7 +298,7 @@ export type Prettify<T> = {
 /**
  * Context provided to the API handler.
  */
-export interface HandlerContext<TRequest extends Request = Request> {
+export interface ApiHandlerContext<TRequest extends Request = Request> {
   request: TRequest;
   response: ApiResponseBuilder;
 }
@@ -313,5 +313,5 @@ export interface ApiHandler<
 > {
   path: TPath;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
-  handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response;
+  handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response;
 }

@@ -9,7 +9,7 @@
 
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, HandlerContext } from '../../public-types.ts';
+import type { ApiHandler, ApiHandlerContext } from '../../public-types.ts';
 import { FileUtils } from '../../utils/file-utils.module.ts';
 import { type ReturnParseCliArgs, parseCliArgs } from '../../utils/parse-cli-args.ts';
 
@@ -79,7 +79,7 @@ export abstract class AbstractApplicationAdapter<
    */
   abstract get<P extends string>(
     path: P,
-    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
   ): this;
 
   /**
@@ -87,7 +87,7 @@ export abstract class AbstractApplicationAdapter<
    */
   abstract post<P extends string>(
     path: P,
-    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
   ): this;
 
   /**
@@ -95,7 +95,7 @@ export abstract class AbstractApplicationAdapter<
    */
   abstract put<P extends string>(
     path: P,
-    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
   ): this;
 
   /**
@@ -103,7 +103,7 @@ export abstract class AbstractApplicationAdapter<
    */
   abstract delete<P extends string>(
     path: P,
-    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
   ): this;
 
   /**
@@ -111,7 +111,7 @@ export abstract class AbstractApplicationAdapter<
    */
   abstract patch<P extends string>(
     path: P,
-    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
   ): this;
 
   /**
@@ -119,7 +119,7 @@ export abstract class AbstractApplicationAdapter<
    */
   abstract options<P extends string>(
     path: P,
-    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
   ): this;
 
   /**
@@ -127,7 +127,7 @@ export abstract class AbstractApplicationAdapter<
    */
   abstract head<P extends string>(
     path: P,
-    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
   ): this;
 
   /**
@@ -136,7 +136,7 @@ export abstract class AbstractApplicationAdapter<
   abstract route<P extends string>(
     path: P,
     method: ApiHandler['method'],
-    handler: (context: HandlerContext<TRequest>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
   ): this;
 
   /**
@@ -145,7 +145,7 @@ export abstract class AbstractApplicationAdapter<
   protected addRouteHandler<P extends string>(
     path: P,
     method: ApiHandler['method'],
-    handler: (context: HandlerContext<any>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<any>) => Promise<Response> | Response,
   ): this {
     this.apiHandlers.push({
       path,

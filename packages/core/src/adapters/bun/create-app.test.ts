@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import type { BunRequest } from 'bun';
-import type { HandlerContext } from '../../public-types';
+import type { ApiHandlerContext } from '../../public-types';
 import { EcopagesApp } from './create-app';
 
 describe('EcopagesApp', () => {
@@ -14,7 +14,7 @@ describe('EcopagesApp', () => {
 
   describe('HTTP Method Handlers', () => {
     const testPath = '/test';
-    const testHandler = async (context: HandlerContext<BunRequest<string>>) => {
+    const testHandler = async (context: ApiHandlerContext<BunRequest<string>>) => {
       return new Response('OK');
     };
 

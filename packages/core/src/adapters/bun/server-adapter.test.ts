@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import type { BunRequest, Server } from 'bun';
+import type { Server } from 'bun';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { defineApiHandler } from './define-api-handler.ts';

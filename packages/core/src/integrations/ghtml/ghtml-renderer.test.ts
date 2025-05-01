@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'bun:test';
-import type { AssetProcessingService } from 'src/services/asset-processing-service/asset-processing.service.ts';
 import HtmlTemplate from '../../../fixtures/app/src/includes/html.ghtml.ts';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';

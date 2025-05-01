@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from 'src/constants.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { ConfigBuilder } from './config-builder.ts';
 

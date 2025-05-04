@@ -44,7 +44,6 @@ export class AssetProcessingService {
           srcUrl: processed.filepath ? this.getSrcUrl(processed.filepath) : undefined,
         });
       } catch (error) {
-        appLogger.error(`Error processing dependency: ${dep.kind}/${dep.source}`, dep);
         appLogger.error(`Failed to process dependency: ${error instanceof Error ? error.message : String(error)}`);
       }
     }

@@ -162,7 +162,10 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
     for (const image of images) {
       try {
-        await this.processor.processImage(image);
+        const result = await this.processor.processImage(image);
+        if (result) {
+          this.processedImages[path.basename(image)] = result;
+        }
       } catch (error) {
         logger.error('Failed to process image', { image, error });
       }
@@ -204,7 +207,17 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
         }),
       );
 
+      try {
+        const cacheKey = this.processedImages[path.basename(imagePath)].cacheKey;
+        const cachePath = this.getCachePath(cacheKey);
+        await FileUtils.rmAsync(cachePath);
+        logger.debug('Deleted cache file for image', { cachePath });
+      } catch (error) {
+        logger.error('Failed to delete cache file for image', { imagePath, error });
+      }
+
       delete this.processedImages[path.basename(imagePath)];
+
       this.generateTypes();
     } catch (error) {
       logger.error('Failed to delete processed images', { path: imagePath, error });

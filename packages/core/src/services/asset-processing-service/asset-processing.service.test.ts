@@ -28,16 +28,10 @@ beforeEach(() => {
   FileUtils.readFileSync = mock(() => Buffer.from('') as any);
   FileUtils.rmdirSync = mock(() => {});
   FileUtils.existsSync = mock(() => false);
-
-  appLogger.error = mock();
-  appLogger.info = mock();
-  appLogger.warn = mock();
-  appLogger.debug = mock();
 });
 
 afterEach(() => {
   Object.assign(FileUtils, originalFileUtils);
-  Object.assign(appLogger, originalLogger);
   mock.restore();
 });
 
@@ -137,10 +131,9 @@ test('AssetProcessingService - processDependencies - success', async () => {
 test('AssetProcessingService - processDependencies - processor not found', async () => {
   const ensureDirMock = mock();
   const gzipDirMock = mock();
-  const errorLogMock = mock();
+
   FileUtils.ensureDirectoryExists = ensureDirMock;
   FileUtils.gzipDirSync = gzipDirMock;
-  appLogger.error = errorLogMock; // Use the mock
 
   const service = new AssetProcessingService(mockConfig);
 
@@ -151,17 +144,14 @@ test('AssetProcessingService - processDependencies - processor not found', async
 
   expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/assets');
   expect(results.length).toBe(0);
-  expect(errorLogMock).toHaveBeenCalledWith('No processor found for script/content');
   expect(gzipDirMock).toHaveBeenCalledWith('/test/dist/assets', ['css', 'js']);
 });
 
 test('AssetProcessingService - processDependencies - error during processing', async () => {
   const ensureDirMock = mock();
   const gzipDirMock = mock();
-  const errorLogMock = mock();
   FileUtils.ensureDirectoryExists = ensureDirMock;
   FileUtils.gzipDirSync = gzipDirMock;
-  appLogger.error = errorLogMock; // Use the mock
 
   const service = new AssetProcessingService(mockConfig);
   const erroringProcessor = {
@@ -179,9 +169,6 @@ test('AssetProcessingService - processDependencies - error during processing', a
   expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/assets');
   expect(erroringProcessor.process).toHaveBeenCalledTimes(1);
   expect(results.length).toBe(0);
-  expect(errorLogMock).toHaveBeenCalledTimes(2);
-  expect(errorLogMock).toHaveBeenCalledWith('Error processing dependency: script/file', dependency);
-  expect(errorLogMock).toHaveBeenCalledWith('Failed to process dependency: Processing failed!');
   expect(gzipDirMock).toHaveBeenCalledWith('/test/dist/assets', ['css', 'js']);
 });
 

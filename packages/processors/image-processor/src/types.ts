@@ -27,6 +27,12 @@ export interface ImageVariant {
 export interface ImageSpecifications {
   attributes: ImageAttributes;
   variants: ImageVariant[];
+  /**
+   * A unique key used to cache the image specifications.
+   * This key should uniquely identify the combination of attributes and variants
+   * to ensure proper caching behavior.
+   */
+  cacheKey: string;
 }
 
 /**

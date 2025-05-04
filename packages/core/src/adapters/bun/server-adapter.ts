@@ -20,7 +20,7 @@ import {
 import { ApiResponseBuilder } from '../shared/api-response.js';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
-import { withHtmlLiveReload } from './hmr.ts';
+import { hmrServerReload, withHtmlLiveReload } from './hmr.ts';
 import { BunRouterAdapter } from './router-adapter.ts';
 
 export type BunServerRoutes = {
@@ -76,8 +76,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     this.setupLoaders();
     this.copyPublicDir();
     await this.initializePlugins();
-
-    if (this.options?.watch) await this.watch();
   }
 
   private setupLoaders(): void {
@@ -87,10 +85,23 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     }
   }
 
+  private async refreshRouterRoutes(): Promise<void> {
+    if (this.serverInstance && typeof this.serverInstance.reload === 'function') {
+      await this.router.init();
+      this.adaptRouterRoutes();
+      const options = this.getServerOptions({ enableHmr: true });
+      this.serverInstance.reload(options);
+      appLogger.debug('Server routes updated with dynamic routes');
+      hmrServerReload();
+    } else {
+      appLogger.error('Server instance is not available for reloading');
+    }
+  }
+
   private async watch(): Promise<void> {
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
-      router: this.router,
+      refreshRouterRoutesCallback: this.refreshRouterRoutes.bind(this),
     });
 
     await watcherInstance.createWatcherSubscription();
@@ -266,6 +277,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     this.adaptRouterRoutes();
 
     this.fullyInitialized = true;
+
+    if (this.options?.watch) await this.watch();
 
     if (server && typeof server.reload === 'function') {
       const updatedOptions = this.getServerOptions(this.options?.watch ? { enableHmr: true } : undefined);

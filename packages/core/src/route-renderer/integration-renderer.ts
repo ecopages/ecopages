@@ -339,7 +339,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
     if (import.meta.env.NODE_ENV === 'development') {
       this.htmlTransformer.htmlRewriter.on('body', {
         element(body) {
-          const liveReloadScript = makeLiveReloadScript(`${hostname}:${port}/${WS_PATH}`);
+          const liveReloadScript = makeLiveReloadScript();
           body.append(liveReloadScript, { html: true });
         },
       });

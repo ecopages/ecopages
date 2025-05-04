@@ -27,6 +27,7 @@ export interface ImageVariant {
 export interface ImageSpecifications {
   attributes: ImageAttributes;
   variants: ImageVariant[];
+  cacheKey: string;
 }
 
 /**

@@ -89,6 +89,7 @@ export class ImageProcessor {
             sizes: '',
           },
           variants: [],
+          cacheKey,
         };
 
         if (this.config.cacheEnabled) {
@@ -143,6 +144,7 @@ export class ImageProcessor {
       const imageSpecifications: ImageSpecifications = {
         attributes,
         variants,
+        cacheKey,
       };
 
       if (this.config.cacheEnabled) {

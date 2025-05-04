@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/image-processor",
-	"version": "0.1.35",
+	"version": "0.1.36",
 	"description": "Image processor, transform and optimize images for web",
 	"keywords": ["image", "processor"],
 	"license": "MIT",

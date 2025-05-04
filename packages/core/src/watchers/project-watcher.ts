@@ -20,6 +20,18 @@ export class ProjectWatcher {
     this.handleError = this.handleError.bind(this);
   }
 
+  private uncacheModules(): void {
+    const { srcDir, rootDir } = this.appConfig;
+
+    const regex = new RegExp(`${rootDir}/${srcDir}/.*`);
+
+    for (const key in require.cache) {
+      if (regex.test(key)) {
+        delete require.cache[key];
+      }
+    }
+  }
+
   triggerRouterRefresh(path: string) {
     const isPageDir = path.includes(this.appConfig.pagesDir);
     if (isPageDir) this.refreshRouterRoutesCallback();
@@ -57,17 +69,18 @@ export class ProjectWatcher {
       if (onCreate) this.watcher.on('add', (path) => this.shouldProcess(path, extensions, onCreate));
       if (onChange) this.watcher.on('change', (path) => this.shouldProcess(path, extensions, onChange));
       if (onDelete) this.watcher.on('unlink', (path) => this.shouldProcess(path, extensions, onDelete));
-      if (onError) this.watcher.on('error', onError);
+      if (onError) this.watcher.on('error', onError as (error: unknown) => void);
     }
 
     this.watcher.add(this.appConfig.absolutePaths.srcDir);
 
     this.watcher
+      .on('change', () => this.uncacheModules())
       .on('add', (path) => this.triggerRouterRefresh(path))
       .on('addDir', (path) => this.triggerRouterRefresh(path))
       .on('unlink', (path) => this.triggerRouterRefresh(path))
       .on('unlinkDir', (path) => this.triggerRouterRefresh(path))
-      .on('error', (error) => this.handleError(error));
+      .on('error', (error) => this.handleError(error as Error));
 
     return this.watcher;
   }

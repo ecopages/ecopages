@@ -14,16 +14,16 @@ export function hmrServerReload() {
   if (ECO_PAGES_HMR_WS) ECO_PAGES_HMR_WS.send(HMR_RELOAD_EVENT);
 }
 
+export const WS_PATH = '__ecopages_live_reload_websocket__';
+
 /**
  * Creates the live reload script to be injected into the html
- * @param {string} wsUrl
- * @returns {string}
  */
-export const makeLiveReloadScript = (wsUrl: string): string => html`
+export const makeLiveReloadScript = (): string => html`
 <!-- [ecopages] live reload start script -->
 <script type="text/javascript">
   (function() {
-    const socket = new WebSocket("ws://${wsUrl}");
+    const socket = new WebSocket('ws://' + location.host + '/${WS_PATH}');
       socket.onmessage = function(msg) {
       if(msg.data === '${HMR_RELOAD_EVENT}') {
         location.reload()
@@ -45,8 +45,6 @@ export type PureWebSocketServeOptions<WebSocketDataType> = Omit<
   fetch(request: Request, server: Server): Promise<Response> | Response;
   websocket?: WebSocketHandler<WebSocketDataType>;
 };
-
-export const WS_PATH = '__ecopages_live_reload_websocket__';
 
 /**
  * Append the live reload script to the html response
@@ -99,7 +97,7 @@ export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketSer
         return response;
       }
 
-      const liveReloadScript = makeLiveReloadScript(wsUrl);
+      const liveReloadScript = makeLiveReloadScript();
 
       const html = await response.text();
       const newHtml = appendHmrScriptToBody(html, liveReloadScript);

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/mdx",
-	"version": "0.1.36",
+	"version": "0.1.37",
 	"description": "MDX plugin for Ecopages",
 	"keywords": ["ecopages", "mdx", "plugin"],
 	"license": "MIT",

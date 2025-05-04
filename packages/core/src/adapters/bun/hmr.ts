@@ -23,7 +23,8 @@ export const makeLiveReloadScript = (): string => html`
 <!-- [ecopages] live reload start script -->
 <script type="text/javascript">
   (function() {
-    const socket = new WebSocket('ws://' + location.host + '/${WS_PATH}');
+    const websocketUrl = 'ws://' + location.host + '/' + '${WS_PATH}';
+     const socket = new WebSocket(websocketUrl);
       socket.onmessage = function(msg) {
       if(msg.data === '${HMR_RELOAD_EVENT}') {
         location.reload()

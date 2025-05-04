@@ -37,7 +37,7 @@ export class ProjectWatcher {
     if (isPageDir) this.refreshRouterRoutesCallback();
   }
 
-  handleError(error: Error) {
+  handleError(error: unknown) {
     appLogger.error(`Watcher error: ${error}`);
   }
 
@@ -80,7 +80,7 @@ export class ProjectWatcher {
       .on('addDir', (path) => this.triggerRouterRefresh(path))
       .on('unlink', (path) => this.triggerRouterRefresh(path))
       .on('unlinkDir', (path) => this.triggerRouterRefresh(path))
-      .on('error', (error) => this.handleError(error as Error));
+      .on('error', (error) => this.handleError(error));
 
     return this.watcher;
   }

@@ -79,9 +79,8 @@ export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketSer
   return {
     ...serveOptions,
     fetch: async (req, server) => {
-      const wsUrl = `${server.hostname}:${server.port}/${WS_PATH}`;
-
-      if (req.url === `http://${wsUrl}`) {
+      const url = new URL(req.url);
+      if (url.pathname === `/${WS_PATH}`) {
         const upgraded = server.upgrade(req);
 
         if (!upgraded) {

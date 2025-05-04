@@ -60,7 +60,7 @@ export class ProjectWatcher {
       if (onError) this.watcher.on('error', onError);
     }
 
-    this.watcher.add('src');
+    this.watcher.add(this.appConfig.absolutePaths.srcDir);
 
     this.watcher
       .on('add', (path) => this.triggerRouterRefresh(path))

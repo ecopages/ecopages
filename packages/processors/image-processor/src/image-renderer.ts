@@ -3,14 +3,9 @@
  * @module
  */
 
+import { DEFAULT_LAYOUT } from './constants';
 import { ImageUtils } from './image-utils';
 import type { ImageSpecifications, ImageVariant } from './types';
-
-/**
- * Default image layout
- * @constant "constrained"
- */
-export const DEFAULT_LAYOUT: ImageLayout = 'constrained';
 
 /**
  * Image layout options

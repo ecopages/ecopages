@@ -49,7 +49,7 @@ export class FileSystemResponseMatcher {
       return await this.fileSystemResponseFactory.createResponseWithBody(renderedBody);
     } catch (error) {
       if (error instanceof Error) {
-        if (appLogger.isDebugEnabled()) {
+        if (import.meta.env.NODE_ENV === 'development' || appLogger.isDebugEnabled()) {
           appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.pathname}`);
         }
       }

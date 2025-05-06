@@ -1,4 +1,5 @@
-import { DEFAULT_LAYOUT, type EcoImageProps } from './image-renderer';
+import { DEFAULT_LAYOUT } from './constants';
+import type { EcoImageProps } from './image-renderer';
 
 /**
  * ImageUtils

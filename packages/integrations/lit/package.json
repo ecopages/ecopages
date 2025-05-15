@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/lit",
-	"version": "0.1.38",
+	"version": "0.1.39",
 	"description": "Ecopages lit integration",
 	"keywords": ["ecopages", "lit", "plugin"],
 	"license": "MIT",

@@ -119,6 +119,23 @@ Using defineBunApiHandler offers several advantages:
 - Enhanced Organization: Encourages defining handlers as separate, reusable constants before registering them.
 - Reduced Errors: Prevents type mismatches between the path string and the parameters used in the handler.
 
+## Handler Context: Accessing the Server Instance
+
+The handler context now includes a `server` property, which exposes the underlying server instance (such as Bun's server object). This allows you to access advanced utilities, such as retrieving the request IP address or triggering a server reload.
+
+<CodeBlock>
+```typescript
+app.get('/api/hello', async ({ response, request, server }) => {
+  return response.json({
+    message: 'Hello world!',
+    requestIp: server.requestIP(request),
+  });
+});
+```
+</CodeBlock>
+
+You can use `server` for advanced debugging, runtime methods, or accessing server-specific utilities.
+
 ## Static Site Generation
 
 During static site generation, the server can still handle API requests, making it possible to generate static content from API responses:

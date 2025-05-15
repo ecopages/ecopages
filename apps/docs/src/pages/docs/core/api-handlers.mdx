@@ -69,6 +69,22 @@ The `HandlerContext` contains:
     -   Standard `Request` properties like `headers`, `method`, `url`, etc.
     -   Methods like `json()`, `text()`, `formData()` to parse the request body.
 -   `response`: An instance of `ApiResponseBuilder`, a utility for constructing `Response` objects fluently.
+-   `server`: The underlying server instance (e.g., Bun's server object), which exposes advanced utilities such as `requestIP`, `reload`, and other debugging or runtime methods.
+
+### Accessing the Server Instance
+
+You can use the `server` property in the handler context for advanced use cases. For example, to get the request IP address:
+
+<CodeBlock>
+```typescript
+app.get('/api/hello', async ({ response, request, server }) => {
+  return response.json({
+    message: 'Hello world!',
+    requestIp: server.requestIP(request),
+  });
+});
+```
+</CodeBlock>
 
 ## The `ApiResponseBuilder`
 

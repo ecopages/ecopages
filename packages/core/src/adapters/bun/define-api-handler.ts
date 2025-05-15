@@ -1,4 +1,4 @@
-import type { BunRequest } from 'bun';
+import type { BunRequest, Server } from 'bun';
 import type { ApiHandler } from '../../public-types';
 
 /**
@@ -10,8 +10,7 @@ import type { ApiHandler } from '../../public-types';
  * @returns The same handler object, strongly typed for Bun.
  */
 export function defineApiHandler<TPath extends string>(
-  // The handler object expects ApiHandler structure, but specifically uses BunRequest<TPath>
-  handler: ApiHandler<TPath, BunRequest<TPath>>,
-): ApiHandler<TPath, BunRequest<TPath>> {
+  handler: ApiHandler<TPath, BunRequest<TPath>, Server>,
+): ApiHandler<TPath, BunRequest<TPath>, Server> {
   return handler;
 }

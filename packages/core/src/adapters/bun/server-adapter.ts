@@ -42,7 +42,7 @@ export type BunServeOptions = ServeOptions & {
 export interface BunServerAdapterOptions extends ServerAdapterOptions {
   serveOptions: BunServeAdapterServerOptions;
   appConfig: EcoPagesAppConfig;
-  apiHandlers?: ApiHandler<any, BunRequest>[];
+  apiHandlers?: ApiHandler<any, BunRequest, Server>[];
 }
 
 export interface BunServerAdapterResult extends ServerAdapterResult {
@@ -196,15 +196,16 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
     let mergedRoutes = deepMerge(routes || {}, this.routes);
 
-    for (const handler of this.apiHandlers) {
-      const method = handler.method || 'GET';
-      const path = handler.path;
+    for (const routeConfig of this.apiHandlers) {
+      const method = routeConfig.method || 'GET';
+      const path = routeConfig.path;
 
       const wrappedHandler = async (request: BunRequest<string>): Promise<Response> => {
         try {
-          return await handler.handler({
+          return await routeConfig.handler({
             request,
             response: new ApiResponseBuilder(),
+            server: this.serverInstance,
           });
         } catch (error) {
           appLogger.error(`Error in API handler for ${path}: ${error}`);

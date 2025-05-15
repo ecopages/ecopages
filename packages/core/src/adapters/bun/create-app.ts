@@ -35,49 +35,49 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 
   get<P extends string>(
     path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'GET', handler);
   }
 
   post<P extends string>(
     path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'POST', handler);
   }
 
   put<P extends string>(
     path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'PUT', handler);
   }
 
   delete<P extends string>(
     path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'DELETE', handler);
   }
 
   patch<P extends string>(
     path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'PATCH', handler);
   }
 
   options<P extends string>(
     path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'OPTIONS', handler);
   }
 
   head<P extends string>(
     path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, 'HEAD', handler);
   }
@@ -85,7 +85,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
   route<P extends string>(
     path: P,
     method: ApiHandler['method'],
-    handler: (context: ApiHandlerContext<BunRequest<P>>) => Promise<Response> | Response,
+    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, method, handler);
   }

@@ -5,10 +5,10 @@ import { getAllAuthorIds, getAllBlogPostSlugs, getAuthor, getBlogPost } from './
 
 const app = new EcopagesApp({ appConfig });
 
-app.get('/api/hello', async ({ response, request, ...rest }) => {
+app.get('/api/hello', async ({ response, request, server }) => {
   return response.json({
     message: 'Hello world!',
-    requestIp: rest.server.requestIP(request),
+    requestIp: server.requestIP(request),
   });
 });
 

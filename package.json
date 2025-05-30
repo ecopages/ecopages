@@ -4,11 +4,13 @@
 	"version": "0.1.39",
 	"scripts": {
 		"watch:dev:playground-global": "bun run --elide-lines 0 --filter @ecopages/playground-global watch:dev",
+		"hot:dev:playground-global": "bun run --elide-lines 0 --filter @ecopages/playground-global hot:dev",
 		"dev:playground-global": "bun run --elide-lines 0 --filter @ecopages/playground-global dev",
 		"build:playground-global": "bun run --filter @ecopages/playground-global build",
 		"start:playground-global": "bun run --filter @ecopages/playground-global start",
 		"preview:playground-global": "bun run --elide-lines 0 --filter @ecopages/playground-global preview",
 		"watch:dev:playground-react": "bun run --elide-lines 0 --filter @ecopages/playground-react watch:dev",
+		"hot:dev:playground-react": "bun run --elide-lines 0 --filter @ecopages/playground-react hot:dev",
 		"dev:playground-react": "bun run --elide-lines 0 --filter @ecopages/playground-react dev",
 		"build:playground-react": "bun run --filter @ecopages/playground-react build",
 		"start:playground-react": "bun run --filter @ecopages/playground-react start",

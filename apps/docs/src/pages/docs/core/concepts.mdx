@@ -161,18 +161,18 @@ This structure helps Ecopages efficiently process and build your site.
 
 ## Runtime Origin and API Requests
 
-When fetching data in `getStaticPaths` or `getStaticProps`, Ecopages provides two approaches:
+When fetching data in `getStaticPaths` or `getStaticProps`, Ecopages provides different approaches. **For most cases, calling your data functions directly is recommended** for better performance and reliability.
 
-### Using Runtime Origin
+### Direct Function Calls (Recommended)
 
-The `runtimeOrigin` parameter is particularly powerful for complex scenarios where you need the full server URL:
+For the best performance during static generation, call your data layer functions directly:
 
 <CodeBlock>
 ```typescript
-export const getStaticPaths: GetStaticPaths = async ({ runtimeOrigin }) => {
-  // Full URL for complex scenarios
-  const response = await fetch(`${runtimeOrigin}/api/blog/posts`);
-  const posts = await response.json();
+import { getAllBlogPosts, getBlogPost } from '@/data/blog';
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const posts = getAllBlogPosts();
   
   return {
     paths: posts.map(post => ({
@@ -180,24 +180,28 @@ export const getStaticPaths: GetStaticPaths = async ({ runtimeOrigin }) => {
     }))
   };
 };
+
+export const getStaticProps: GetStaticProps = async ({ pathname }) => {
+  const slug = pathname.params.slug as string;
+  const post = getBlogPost(slug);
+  
+  if (!post) {
+    throw new Error(`Post not found: ${slug}`);
+  }
+  
+  return { props: { post } };
+};
 ```
 </CodeBlock>
 
-Using `runtimeOrigin` is beneficial when:
-- Your API routes need the complete server URL
-- You're dealing with preview environments
-- You have different API endpoints for different environments
-- You need to handle cross-origin requests during development
+### HTTP Requests to External APIs
 
-### Using Relative Paths
-
-For simpler scenarios, you can use relative paths:
+For external data sources, HTTP requests are necessary:
 
 <CodeBlock>
 ```typescript
 export const getStaticPaths: GetStaticPaths = async () => {
-  // Simple relative path works fine for basic cases
-  const response = await fetch('/api/blog/posts');
+  const response = await fetch('https://external-api.com/posts');
   const posts = await response.json();
   
   return {
@@ -208,11 +212,6 @@ export const getStaticPaths: GetStaticPaths = async () => {
 };
 ```
 </CodeBlock>
-
-Relative paths are suitable when:
-- Your API is always on the same origin
-- You don't need environment-specific URLs
-- You want simpler, more portable code
 
 ## Runtime Support
 

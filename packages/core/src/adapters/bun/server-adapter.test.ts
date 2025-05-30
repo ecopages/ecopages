@@ -95,8 +95,8 @@ describe('BunServerAdapter', () => {
     const res = await fetch('http://localhost:3001/api/error');
 
     expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body).toEqual({ error: 'Internal Server Error' });
+    const body = await res.text();
+    expect(body).toEqual('Internal Server Error');
   });
 
   test('POST /api/post-test should handle JSON body', async () => {

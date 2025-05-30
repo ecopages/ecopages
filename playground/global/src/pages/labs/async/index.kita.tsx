@@ -14,7 +14,7 @@ const LabsAsyncPage: EcoComponent = async () => {
     <BaseLayout>
       <div class="banner">
         <h1 class="banner__title">Async Page</h1>
-        <p>The data below is collected asyncronously</p>
+        <p>The data below is collected asynchronously</p>
         <p>
           <b safe>{data.message}</b>
           <br />

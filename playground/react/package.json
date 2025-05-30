@@ -6,7 +6,8 @@
 		"dev": "NODE_ENV=development bun run app.ts --dev",
 		"build": "NODE_ENV=production bun run app.ts --build",
 		"preview": "NODE_ENV=production bun run app.ts --preview",
-		"watch:dev": "NODE_ENV=development bun --watch run app.ts --dev"
+		"watch:dev": "NODE_ENV=development bun --watch run app.ts --dev",
+		"hot:dev": "NODE_ENV=development bun --hot run app.ts --dev"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

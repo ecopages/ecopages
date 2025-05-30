@@ -2,11 +2,9 @@ import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent } from '@ecopages/core';
 
 const getData = async () => {
-  return new Promise<string>((resolve) => {
-    setTimeout(() => {
-      resolve(`Async·page·${new Date().toISOString()}`);
-    }, 1000);
-  });
+  const res = await fetch('http://localhost:3000/api/hello');
+  const data = await res.json();
+  return data;
 };
 
 const LabsAsyncPage: EcoComponent = async () => {
@@ -16,9 +14,11 @@ const LabsAsyncPage: EcoComponent = async () => {
     <BaseLayout>
       <div class="banner">
         <h1 class="banner__title">Async Page</h1>
-        <p>The text below is collected asyncronously</p>
+        <p>The data below is collected asynchronously</p>
         <p>
-          <i safe>{data}</i>
+          <b safe>{data.message}</b>
+          <br />
+          <i safe>{JSON.stringify(data.requestIp)}</i>
         </p>
       </div>
     </BaseLayout>

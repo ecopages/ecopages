@@ -20,7 +20,7 @@ import {
 import { ApiResponseBuilder } from '../shared/api-response.js';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
-import { hmrServerReload, withHtmlLiveReload } from './hmr.ts';
+import { hmrServerError, hmrServerReload, withHtmlLiveReload } from './hmr.ts';
 import { BunRouterAdapter } from './router-adapter.ts';
 
 export type BunServerRoutes = {
@@ -62,6 +62,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
   private routeRendererFactory!: RouteRendererFactory;
   private routes: BunServerRoutes = {};
   private staticSiteGenerator!: StaticSiteGenerator;
+  private initializationPromise: Promise<void> | null = null;
   private fullyInitialized = false;
   declare serverInstance: Server | null;
 
@@ -87,21 +88,30 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
   private async refreshRouterRoutes(): Promise<void> {
     if (this.serverInstance && typeof this.serverInstance.reload === 'function') {
-      await this.router.init();
-      this.adaptRouterRoutes();
-      const options = this.getServerOptions({ enableHmr: true });
-      this.serverInstance.reload(options);
-      appLogger.debug('Server routes updated with dynamic routes');
-      hmrServerReload();
+      try {
+        await this.router.init();
+        this.configureResponseHandlers();
+        this.adaptRouterRoutes();
+        const options = this.getServerOptions({ enableHmr: true });
+        this.serverInstance.reload(options);
+        appLogger.debug('Server routes updated with dynamic routes');
+        hmrServerReload();
+      } catch (error) {
+        if (error instanceof Error) {
+          hmrServerError(error);
+          appLogger.error('Failed to refresh router routes:', error);
+        }
+      }
     } else {
       appLogger.error('Server instance is not available for reloading');
     }
   }
 
   private async watch(): Promise<void> {
+    const refreshRouterRoutesCallback = this.refreshRouterRoutes.bind(this);
     const watcherInstance = new ProjectWatcher({
       config: this.appConfig,
-      refreshRouterRoutesCallback: this.refreshRouterRoutes.bind(this),
+      refreshRouterRoutesCallback,
     });
 
     await watcherInstance.createWatcherSubscription();
@@ -190,11 +200,17 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     return enableHmr ? (withHtmlLiveReload(serverOptions, this.appConfig) as BunServeOptions) : serverOptions;
   }
 
+  /**
+   * Creates complete server configuration with merged routes, API handlers, and request handling.
+   * @returns Server options ready for Bun.serve()
+   */
   private buildServerSettings(): BunServeOptions {
     const { routes, fetch, ...serverOptions } = this.serveOptions as BunServeAdapterServerOptions;
     const handleNoMatch = this.handleNoMatch.bind(this);
+    const waitForInit = this.waitForInitialization.bind(this);
+    const handleReq = this.handleRequest.bind(this);
 
-    let mergedRoutes = deepMerge(routes || {}, this.routes);
+    const mergedRoutes = deepMerge(routes || {}, this.routes);
 
     for (const routeConfig of this.apiHandlers) {
       const method = routeConfig.method || 'GET';
@@ -202,43 +218,46 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
       const wrappedHandler = async (request: BunRequest<string>): Promise<Response> => {
         try {
+          await waitForInit();
           return await routeConfig.handler({
             request,
             response: new ApiResponseBuilder(),
             server: this.serverInstance,
           });
         } catch (error) {
-          appLogger.error(`Error in API handler for ${path}: ${error}`);
-          return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          });
+          appLogger.error(`[ecopages] Error handling API request: ${error}`);
+          return new Response('Internal Server Error', { status: 500 });
         }
       };
 
-      mergedRoutes = {
-        ...mergedRoutes,
-        [path]: {
-          ...mergedRoutes[path],
-          [method.toUpperCase()]: wrappedHandler,
-        },
+      mergedRoutes[path] = {
+        [method.toUpperCase()]: wrappedHandler,
       };
     }
 
     return {
+      ...serverOptions,
       routes: mergedRoutes,
       async fetch(this: Server, request: Request) {
-        if (fetch) {
-          const response = await fetch.bind(this)(request);
-          if (response) return response;
+        try {
+          await waitForInit();
+          const response = await handleReq(request);
+          return response;
+        } catch (error) {
+          appLogger.error(`[ecopages] Error handling request: ${error}`);
+          return new Response('Internal Server Error', { status: 500 });
         }
-
-        return handleNoMatch(request);
       },
-      ...serverOptions,
+      error(this: Server, error: Error) {
+        return handleNoMatch(new Request('http://localhost'));
+      },
     };
   }
 
+  /**
+   * Generates a static build of the site for deployment.
+   * @param options.preview - If true, starts a preview server after build
+   */
   public async buildStatic(options?: { preview?: boolean }): Promise<void> {
     const { preview = false } = options ?? {};
 
@@ -267,9 +286,25 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
   }
 
+  /**
+   * Initializes the server with dynamic routes after server creation.
+   * Must be called before handling any requests.
+   * @param server - The Bun server instance
+   */
   public async completeInitialization(server: Server): Promise<void> {
     if (this.fullyInitialized) return;
 
+    if (!this.initializationPromise) {
+      this.initializationPromise = this._performInitialization(server);
+    }
+
+    return this.initializationPromise;
+  }
+
+  /**
+   * Performs complete server setup including routing, watchers, and HMR.
+   */
+  private async _performInitialization(server: Server): Promise<void> {
     this.serverInstance = server;
     appLogger.debug('Completing server initialization with dynamic routes');
 
@@ -288,6 +323,10 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     }
   }
 
+  /**
+   * Creates and initializes the Bun server adapter.
+   * @returns Configured adapter with server methods
+   */
   public async createAdapter(): Promise<BunServerAdapterResult> {
     await this.initialize();
 
@@ -298,21 +337,49 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     };
   }
 
+  /**
+   * Handles HTTP requests from the router adapter.
+   */
   public async handleRequest(request: Request): Promise<Response> {
     return this.handleResponse(request);
+  }
+
+  /**
+   * Ensures server initialization completes before request handling.
+   * Prevents race conditions during startup.
+   */
+  private async waitForInitialization(): Promise<void> {
+    if (this.fullyInitialized) {
+      return;
+    }
+
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    throw new Error('Server not initialized. Call completeInitialization() first.');
   }
 
   /**
    * Handles HTTP requests from the router adapter.
    */
   public async handleResponse(request: Request): Promise<Response> {
+    await this.waitForInitialization();
+
     const pathname = new URL(request.url).pathname;
     const match = !pathname.includes('.') && this.router.match(request.url);
 
     if (match) {
-      const response = await this.fileSystemResponseMatcher.handleMatch(match);
-
-      return response;
+      try {
+        const response = await this.fileSystemResponseMatcher.handleMatch(match);
+        return response;
+      } catch (error) {
+        if (error instanceof Error) {
+          hmrServerError(error);
+          appLogger.error('Error handling route match:', error);
+        }
+        return new Response('Internal Server Error', { status: 500 });
+      }
     }
 
     return this.handleNoMatch(request);
@@ -322,8 +389,18 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
    * Handles requests that do not match any routes.
    */
   private async handleNoMatch(request: Request): Promise<Response> {
-    const pathname = new URL(request.url).pathname;
-    return await this.fileSystemResponseMatcher.handleNoMatch(pathname);
+    await this.waitForInitialization();
+
+    try {
+      const pathname = new URL(request.url).pathname;
+      return await this.fileSystemResponseMatcher.handleNoMatch(pathname);
+    } catch (error) {
+      if (error instanceof Error) {
+        hmrServerError(error);
+        appLogger.error('Error handling no match:', error);
+      }
+      return new Response('Internal Server Error', { status: 500 });
+    }
   }
 }
 

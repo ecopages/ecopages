@@ -1,6 +1,6 @@
 import { watch } from 'node:fs';
 import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from 'bun';
-import { appLogger } from 'src/global/app-logger.ts';
+import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 
 const ECO_PAGES_HMR_WS: Set<ServerWebSocket<unknown>> = new Set();

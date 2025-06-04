@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { BunRequest, RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
+import { deepMerge } from 'src/utils/deep-merge.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -9,7 +10,6 @@ import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
-import { deepMerge } from '../../utils/deep-merge.ts';
 import { FileUtils } from '../../utils/file-utils.module.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import {
@@ -91,7 +91,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
       try {
         await this.router.init();
         this.configureResponseHandlers();
-        this.adaptRouterRoutes();
         const options = this.getServerOptions({ enableHmr: true });
         this.serverInstance.reload(options);
         appLogger.debug('Server routes updated with dynamic routes');
@@ -211,10 +210,13 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
     const handleReq = this.handleRequest.bind(this);
 
     const mergedRoutes = deepMerge(routes || {}, this.routes);
+    appLogger.debug(`[BunServerAdapter] Building server settings with ${this.apiHandlers.length} API handlers`);
 
     for (const routeConfig of this.apiHandlers) {
       const method = routeConfig.method || 'GET';
       const path = routeConfig.path;
+
+      appLogger.debug(`[BunServerAdapter] Registering API route: ${method} ${path}`);
 
       const wrappedHandler = async (request: BunRequest<string>): Promise<Response> => {
         try {
@@ -234,6 +236,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
         [method.toUpperCase()]: wrappedHandler,
       };
     }
+
+    appLogger.debug('[BunServerAdapter] Final bunRoutes:', Object.keys(mergedRoutes));
 
     return {
       ...serverOptions,

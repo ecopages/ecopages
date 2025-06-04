@@ -32,6 +32,7 @@ export interface EcopagesAppOptions extends ApplicationAdapterOptions {
 
 export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, Server, BunRequest<string>> {
   serverAdapter: BunServerAdapterResult | undefined;
+  private server: Server | null = null;
 
   get<P extends string>(
     path: P,
@@ -88,6 +89,22 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
     handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
   ): this {
     return this.addRouteHandler(path, method, handler);
+  }
+
+  /**
+   * Makes a request to the running server using real HTTP fetch.
+   * This is useful for testing API endpoints.
+   * @param request - URL string or Request object
+   * @returns Promise<Response>
+   */
+  public async request(request: string | Request): Promise<Response> {
+    const server = this.server;
+
+    if (!server) throw new Error('Server not started. Call start() first.');
+
+    const url = typeof request === 'string' ? `http://${server.hostname}:${server.port}${request}` : request;
+
+    return fetch(url);
   }
 
   /**
@@ -153,18 +170,18 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
     const enableHmr = dev || (!preview && !build);
     const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
 
-    const server = Bun.serve(serverOptions);
+    this.server = Bun.serve(serverOptions);
 
-    await this.serverAdapter.completeInitialization(server).catch((error) => {
+    await this.serverAdapter.completeInitialization(this.server).catch((error) => {
       appLogger.error(`Failed to complete initialization: ${error}`);
     });
 
-    appLogger.info(`Server running at http://${server.hostname}:${server.port}`);
+    appLogger.info(`Server running at http://${this.server.hostname}:${this.server.port}`);
 
     if (build || preview) {
       appLogger.debugTime('Building static pages');
       await this.serverAdapter.buildStatic({ preview });
-      server.stop(true);
+      this.server.stop(true);
       appLogger.debugTimeEnd('Building static pages');
 
       if (build) {
@@ -172,7 +189,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
       }
     }
 
-    return server;
+    return this.server;
   }
 }
 

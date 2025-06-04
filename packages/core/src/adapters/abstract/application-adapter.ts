@@ -171,4 +171,12 @@ export abstract class AbstractApplicationAdapter<
    * Start the application server
    */
   public abstract start(): Promise<TServer | void>;
+
+  /**
+   * Makes a request to the running server using real HTTP fetch.
+   * This is useful for testing API endpoints.
+   * @param request - URL string or Request object
+   * @returns Promise<Response>
+   */
+  public abstract request(request: string | Request): Promise<Response>;
 }

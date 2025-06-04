@@ -1,6 +1,5 @@
 import path from 'node:path';
 import type { BunRequest, RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
-import { deepMerge } from 'src/utils/deep-merge.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -10,6 +9,7 @@ import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { FSRouter } from '../../router/fs-router.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
+import { deepMerge } from '../../utils/deep-merge.ts';
 import { FileUtils } from '../../utils/file-utils.module.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import {

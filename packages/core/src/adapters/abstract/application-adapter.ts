@@ -171,4 +171,9 @@ export abstract class AbstractApplicationAdapter<
    * Start the application server
    */
   public abstract start(): Promise<TServer | void>;
+
+  /**
+   * Get the server adapter
+   */
+  public abstract request(request: string | Request): Promise<Response>;
 }

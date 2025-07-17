@@ -7,12 +7,12 @@
 import type Alpine from 'alpinejs';
 
 declare global {
-  interface Window {
-    Alpine: typeof Alpine;
-  }
+	interface Window {
+		Alpine: typeof Alpine;
+	}
 
-  declare module '*.mdx' {
-    const content: string;
-    export default content;
-  }
+	declare module '*.mdx' {
+		const content: string;
+		export default content;
+	}
 }

@@ -15,8 +15,8 @@ const appLogger = new Logger('[@ecopages/react]');
  * Options for the React plugin
  */
 export type ReactPluginOptions = {
-  extensions?: string[];
-  dependencies?: AssetDefinition[];
+	extensions?: string[];
+	dependencies?: AssetDefinition[];
 };
 
 /**
@@ -29,66 +29,66 @@ export const PLUGIN_NAME = 'react';
  * This plugin provides support for React components in Ecopages
  */
 export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
-  renderer = ReactRenderer;
+	renderer = ReactRenderer;
 
-  constructor(options?: Omit<ReactPluginOptions, 'name'>) {
-    super({
-      name: PLUGIN_NAME,
-      extensions: ['.tsx'],
-      ...options,
-    });
+	constructor(options?: Omit<ReactPluginOptions, 'name'>) {
+		super({
+			name: PLUGIN_NAME,
+			extensions: ['.tsx'],
+			...options,
+		});
 
-    this.integrationDependencies.unshift(...this.getDependencies());
+		this.integrationDependencies.unshift(...this.getDependencies());
 
-    appLogger.warn('React plugin alone does not support MDX files at this time.');
-  }
+		appLogger.warn('React plugin alone does not support MDX files at this time.');
+	}
 
-  private buildImportMapSourceUrl(fileName: string): string {
-    return `/${AssetFactory.RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
-  }
+	private buildImportMapSourceUrl(fileName: string): string {
+		return `/${AssetFactory.RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
+	}
 
-  private getDependencies(): AssetDefinition[] {
-    return [
-      AssetFactory.createInlineContentScript({
-        position: 'head',
-        bundle: false,
-        content: JSON.stringify(
-          {
-            imports: {
-              react: this.buildImportMapSourceUrl('react-esm.js'),
-              'react/jsx-runtime': this.buildImportMapSourceUrl('react-esm.js'),
-              'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-esm.js'),
-              'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
-              'react-dom/client': this.buildImportMapSourceUrl('react-esm.js'),
-            },
-          },
-          null,
-          2,
-        ),
-        attributes: {
-          type: 'importmap',
-        },
-      }),
-      AssetFactory.createNodeModuleScript({
-        position: 'head',
-        importPath: '@ecopages/react/react-esm.ts',
-        name: 'react-esm',
-        attributes: {
-          type: 'module',
-          defer: '',
-        },
-      }),
-      AssetFactory.createNodeModuleScript({
-        position: 'head',
-        importPath: '@ecopages/react/react-dom-esm.ts',
-        name: 'react-dom-esm',
-        attributes: {
-          type: 'module',
-          defer: '',
-        },
-      }),
-    ];
-  }
+	private getDependencies(): AssetDefinition[] {
+		return [
+			AssetFactory.createInlineContentScript({
+				position: 'head',
+				bundle: false,
+				content: JSON.stringify(
+					{
+						imports: {
+							react: this.buildImportMapSourceUrl('react-esm.js'),
+							'react/jsx-runtime': this.buildImportMapSourceUrl('react-esm.js'),
+							'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-esm.js'),
+							'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
+							'react-dom/client': this.buildImportMapSourceUrl('react-esm.js'),
+						},
+					},
+					null,
+					2,
+				),
+				attributes: {
+					type: 'importmap',
+				},
+			}),
+			AssetFactory.createNodeModuleScript({
+				position: 'head',
+				importPath: '@ecopages/react/react-esm.ts',
+				name: 'react-esm',
+				attributes: {
+					type: 'module',
+					defer: '',
+				},
+			}),
+			AssetFactory.createNodeModuleScript({
+				position: 'head',
+				importPath: '@ecopages/react/react-dom-esm.ts',
+				name: 'react-dom-esm',
+				attributes: {
+					type: 'module',
+					defer: '',
+				},
+			}),
+		];
+	}
 }
 
 /**
@@ -97,5 +97,5 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
  * @returns A new ReactPlugin instance
  */
 export function reactPlugin(options?: Omit<IntegrationPluginConfig, 'name'>): ReactPlugin {
-  return new ReactPlugin(options);
+	return new ReactPlugin(options);
 }

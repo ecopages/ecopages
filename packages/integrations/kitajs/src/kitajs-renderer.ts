@@ -4,10 +4,10 @@
  */
 
 import {
-  type EcoPagesElement,
-  IntegrationRenderer,
-  type IntegrationRendererRenderOptions,
-  type RouteRendererBody,
+	type EcoPagesElement,
+	IntegrationRenderer,
+	type IntegrationRendererRenderOptions,
+	type RouteRendererBody,
 } from '@ecopages/core';
 import { PLUGIN_NAME } from './kitajs.plugin.ts';
 
@@ -16,26 +16,26 @@ import { PLUGIN_NAME } from './kitajs.plugin.ts';
  * It renders a page using the HtmlTemplate and Page components.
  */
 export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
-  name = PLUGIN_NAME;
+	name = PLUGIN_NAME;
 
-  async render({
-    params,
-    query,
-    props,
-    metadata,
-    Page,
-    HtmlTemplate,
-  }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-    try {
-      const children = await Page({ params, query, ...props });
-      const body = await HtmlTemplate({
-        metadata,
-        children,
-      });
+	async render({
+		params,
+		query,
+		props,
+		metadata,
+		Page,
+		HtmlTemplate,
+	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+		try {
+			const children = await Page({ params, query, ...props });
+			const body = await HtmlTemplate({
+				metadata,
+				children,
+			});
 
-      return this.DOC_TYPE + body;
-    } catch (error) {
-      throw new Error(`[ecopages] Error rendering page: ${error}`);
-    }
-  }
+			return this.DOC_TYPE + body;
+		} catch (error) {
+			throw new Error(`[ecopages] Error rendering page: ${error}`);
+		}
+	}
 }

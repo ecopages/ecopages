@@ -6,36 +6,36 @@ import { getAllAuthorIds, getAllBlogPostSlugs, getAuthor, getBlogPost } from './
 const app = new EcopagesApp({ appConfig });
 
 app.get('/api/hello', async ({ response, request, server }) => {
-  return response.json({
-    message: 'Hello world!',
-    requestIp: server.requestIP(request),
-  });
+	return response.json({
+		message: 'Hello world!',
+		requestIp: server.requestIP(request),
+	});
 });
 
 app.get('/api/test/:id/subpath/:subpath', async ({ request, response }) => {
-  const { id, subpath } = request.params;
-  return response.json({ message: 'Hello from the API!', id, subpath });
+	const { id, subpath } = request.params;
+	return response.json({ message: 'Hello from the API!', id, subpath });
 });
 
 app.get('/api/blog/posts', async ({ response }) => {
-  const posts = getAllBlogPostSlugs();
-  return response.json(posts);
+	const posts = getAllBlogPostSlugs();
+	return response.json(posts);
 });
 
 app.get('/api/blog/post/:slug', async ({ request, response }) => {
-  const { slug } = request.params;
-  const post = getBlogPost(slug);
+	const { slug } = request.params;
+	const post = getBlogPost(slug);
 
-  if (post) {
-    return response.json(post);
-  }
+	if (post) {
+		return response.json(post);
+	}
 
-  return response.status(404).json({ error: 'Post not found' });
+	return response.status(404).json({ error: 'Post not found' });
 });
 
 app.get('/api/blog/authors', async ({ response }) => {
-  const authors = getAllAuthorIds();
-  return response.json(authors);
+	const authors = getAllAuthorIds();
+	return response.json(authors);
 });
 
 /**
@@ -45,24 +45,24 @@ app.get('/api/blog/authors', async ({ response }) => {
  * to ensure that the request parameters are correctly typed.
  */
 const getAuthorApiHandler = defineApiHandler({
-  method: 'GET',
-  path: '/api/blog/author/:id',
-  handler: async ({ request, response }) => {
-    const { id } = request.params;
-    const author = getAuthor(id);
+	method: 'GET',
+	path: '/api/blog/author/:id',
+	handler: async ({ request, response }) => {
+		const { id } = request.params;
+		const author = getAuthor(id);
 
-    if (author) {
-      return response.json(author);
-    }
+		if (author) {
+			return response.json(author);
+		}
 
-    return response.status(404).json({ error: 'Author not found' });
-  },
+		return response.status(404).json({ error: 'Author not found' });
+	},
 });
 
 app.get(getAuthorApiHandler.path, getAuthorApiHandler.handler);
 
 app.get('/api/*', async ({ response }) => {
-  return response.json({ message: 'Hello from the API! > /api/*' });
+	return response.json({ message: 'Hello from the API! > /api/*' });
 });
 
 await app.start();

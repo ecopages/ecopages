@@ -13,8 +13,8 @@ import { type EcoImageProps, renderer } from '../image-renderer';
  * @returns
  */
 export const EcoImage = (props: EcoImageProps): JSX.Element => {
-  return createElement('img', {
-    ...renderer.generateAttributesJsx(props),
-    suppressHydrationWarning: true,
-  });
+	return createElement('img', {
+		...renderer.generateAttributesJsx(props),
+		suppressHydrationWarning: true,
+	});
 };

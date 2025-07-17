@@ -9,122 +9,122 @@ import type { FSRouterScanner } from './fs-router-scanner.ts';
  * It can be used to reload the routes when the file system changes.
  */
 export class FSRouter {
-  origin: string;
-  assetPrefix: string;
-  routes: Routes = {};
-  scanner: FSRouterScanner;
-  onReload?: () => void;
+	origin: string;
+	assetPrefix: string;
+	routes: Routes = {};
+	scanner: FSRouterScanner;
+	onReload?: () => void;
 
-  constructor({
-    origin,
-    assetPrefix,
-    scanner,
-  }: {
-    origin: string;
-    assetPrefix: string;
-    scanner: FSRouterScanner;
-  }) {
-    this.origin = origin;
-    this.assetPrefix = assetPrefix;
-    this.scanner = scanner;
-  }
+	constructor({
+		origin,
+		assetPrefix,
+		scanner,
+	}: {
+		origin: string;
+		assetPrefix: string;
+		scanner: FSRouterScanner;
+	}) {
+		this.origin = origin;
+		this.assetPrefix = assetPrefix;
+		this.scanner = scanner;
+	}
 
-  async init() {
-    this.routes = await this.scanner.scan();
-    appLogger.debug('FSRouter initialized', this.routes);
-  }
+	async init() {
+		this.routes = await this.scanner.scan();
+		appLogger.debug('FSRouter initialized', this.routes);
+	}
 
-  getDynamicParams(route: Route, pathname: string): Record<string, string | string[]> {
-    const params: Record<string, string | string[]> = {};
-    const routeParts = route.pathname.split('/');
-    const pathnameParts = pathname.split('/');
+	getDynamicParams(route: Route, pathname: string): Record<string, string | string[]> {
+		const params: Record<string, string | string[]> = {};
+		const routeParts = route.pathname.split('/');
+		const pathnameParts = pathname.split('/');
 
-    for (let i = 0; i < routeParts.length; i++) {
-      const part = routeParts[i];
-      if (part.startsWith('[') && part.endsWith(']')) {
-        if (part.startsWith('[...')) {
-          const param = part.slice(4, -1);
-          params[param] = pathnameParts.slice(i);
-          break;
-        }
-        const param = part.slice(1, -1);
-        params[param] = pathnameParts[i];
-      }
-    }
-    return params;
-  }
+		for (let i = 0; i < routeParts.length; i++) {
+			const part = routeParts[i];
+			if (part.startsWith('[') && part.endsWith(']')) {
+				if (part.startsWith('[...')) {
+					const param = part.slice(4, -1);
+					params[param] = pathnameParts.slice(i);
+					break;
+				}
+				const param = part.slice(1, -1);
+				params[param] = pathnameParts[i];
+			}
+		}
+		return params;
+	}
 
-  getSearchParams(url: URL): Record<string, string> {
-    const query: Record<string, string> = {};
-    for (const [key, value] of url.searchParams) {
-      query[key] = value;
-    }
-    return query;
-  }
+	getSearchParams(url: URL): Record<string, string> {
+		const query: Record<string, string> = {};
+		for (const [key, value] of url.searchParams) {
+			query[key] = value;
+		}
+		return query;
+	}
 
-  match(requestUrl: string): MatchResult | null {
-    const url = new URL(requestUrl);
-    const pathname = url.pathname.replace(this.origin, '');
+	match(requestUrl: string): MatchResult | null {
+		const url = new URL(requestUrl);
+		const pathname = url.pathname.replace(this.origin, '');
 
-    const routeValues = Object.values(this.routes);
+		const routeValues = Object.values(this.routes);
 
-    for (const route of routeValues) {
-      if (route.kind === 'exact' && (pathname === route.pathname || pathname === `${route.pathname}/`)) {
-        return {
-          filePath: route.filePath,
-          kind: 'exact',
-          pathname: route.pathname,
-          query: this.getSearchParams(url),
-        };
-      }
-    }
+		for (const route of routeValues) {
+			if (route.kind === 'exact' && (pathname === route.pathname || pathname === `${route.pathname}/`)) {
+				return {
+					filePath: route.filePath,
+					kind: 'exact',
+					pathname: route.pathname,
+					query: this.getSearchParams(url),
+				};
+			}
+		}
 
-    for (const route of routeValues) {
-      const cleanPathname = route.pathname.replace(/\[.*?\]/g, '');
-      const isValidDynamicRoute = pathname.includes(cleanPathname);
+		for (const route of routeValues) {
+			const cleanPathname = route.pathname.replace(/\[.*?\]/g, '');
+			const isValidDynamicRoute = pathname.includes(cleanPathname);
 
-      if (route.kind === 'dynamic' && isValidDynamicRoute) {
-        const routeParts = route.pathname.split('/');
-        const pathnameParts = pathname.split('/');
+			if (route.kind === 'dynamic' && isValidDynamicRoute) {
+				const routeParts = route.pathname.split('/');
+				const pathnameParts = pathname.split('/');
 
-        if (routeParts.length === pathnameParts.length) {
-          return {
-            filePath: route.filePath,
-            kind: 'dynamic',
-            pathname: route.pathname,
-            query: this.getSearchParams(url),
-            params: this.getDynamicParams(route, pathname),
-          };
-        }
-      }
-    }
+				if (routeParts.length === pathnameParts.length) {
+					return {
+						filePath: route.filePath,
+						kind: 'dynamic',
+						pathname: route.pathname,
+						query: this.getSearchParams(url),
+						params: this.getDynamicParams(route, pathname),
+					};
+				}
+			}
+		}
 
-    for (const route of routeValues) {
-      const cleanPathname = route.pathname.replace(/\[.*?\]/g, '');
-      const isValidCatchAllRoute = pathname.includes(cleanPathname);
+		for (const route of routeValues) {
+			const cleanPathname = route.pathname.replace(/\[.*?\]/g, '');
+			const isValidCatchAllRoute = pathname.includes(cleanPathname);
 
-      if (route.kind === 'catch-all' && isValidCatchAllRoute) {
-        return {
-          filePath: route.filePath,
-          kind: 'catch-all',
-          pathname: route.pathname,
-          query: this.getSearchParams(url),
-          params: this.getDynamicParams(route, pathname),
-        };
-      }
-    }
+			if (route.kind === 'catch-all' && isValidCatchAllRoute) {
+				return {
+					filePath: route.filePath,
+					kind: 'catch-all',
+					pathname: route.pathname,
+					query: this.getSearchParams(url),
+					params: this.getDynamicParams(route, pathname),
+				};
+			}
+		}
 
-    return null;
-  }
+		return null;
+	}
 
-  setOnReload(cb: () => void) {
-    this.onReload = cb;
-  }
+	setOnReload(cb: () => void) {
+		this.onReload = cb;
+	}
 
-  reload() {
-    this.init();
-    if (this.onReload) {
-      this.onReload();
-    }
-  }
+	reload() {
+		this.init();
+		if (this.onReload) {
+			this.onReload();
+		}
+	}
 }

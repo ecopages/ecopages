@@ -12,25 +12,25 @@ import { GHTML_PLUGIN_NAME } from './ghtml.plugin.ts';
  * It renders a page using the HtmlTemplate and Page components.
  */
 export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
-  name = GHTML_PLUGIN_NAME;
+	name = GHTML_PLUGIN_NAME;
 
-  async render({
-    params,
-    query,
-    props,
-    metadata,
-    Page,
-    HtmlTemplate,
-  }: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-    try {
-      const body = await HtmlTemplate({
-        metadata,
-        children: await Page({ params, query, ...props }),
-      });
+	async render({
+		params,
+		query,
+		props,
+		metadata,
+		Page,
+		HtmlTemplate,
+	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+		try {
+			const body = await HtmlTemplate({
+				metadata,
+				children: await Page({ params, query, ...props }),
+			});
 
-      return this.DOC_TYPE + body;
-    } catch (error) {
-      throw new Error(`[ecopages] Error rendering page: ${error}`);
-    }
-  }
+			return this.DOC_TYPE + body;
+		} catch (error) {
+			throw new Error(`[ecopages] Error rendering page: ${error}`);
+		}
+	}
 }

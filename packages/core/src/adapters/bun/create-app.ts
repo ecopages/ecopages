@@ -20,8 +20,8 @@ import { type BunServerAdapterResult, createBunServerAdapter } from './server-ad
  * Configuration options for the Bun application adapter
  */
 export interface EcopagesAppOptions extends ApplicationAdapterOptions {
-  appConfig: EcoPagesAppConfig;
-  serverOptions?: Record<string, any>;
+	appConfig: EcoPagesAppConfig;
+	serverOptions?: Record<string, any>;
 }
 
 /**
@@ -31,173 +31,173 @@ export interface EcopagesAppOptions extends ApplicationAdapterOptions {
  */
 
 export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, Server, BunRequest<string>> {
-  serverAdapter: BunServerAdapterResult | undefined;
-  private server: Server | null = null;
+	serverAdapter: BunServerAdapterResult | undefined;
+	private server: Server | null = null;
 
-  get<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
-  ): this {
-    return this.addRouteHandler(path, 'GET', handler);
-  }
+	get<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+	): this {
+		return this.addRouteHandler(path, 'GET', handler);
+	}
 
-  post<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
-  ): this {
-    return this.addRouteHandler(path, 'POST', handler);
-  }
+	post<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+	): this {
+		return this.addRouteHandler(path, 'POST', handler);
+	}
 
-  put<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
-  ): this {
-    return this.addRouteHandler(path, 'PUT', handler);
-  }
+	put<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+	): this {
+		return this.addRouteHandler(path, 'PUT', handler);
+	}
 
-  delete<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
-  ): this {
-    return this.addRouteHandler(path, 'DELETE', handler);
-  }
+	delete<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+	): this {
+		return this.addRouteHandler(path, 'DELETE', handler);
+	}
 
-  patch<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
-  ): this {
-    return this.addRouteHandler(path, 'PATCH', handler);
-  }
+	patch<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+	): this {
+		return this.addRouteHandler(path, 'PATCH', handler);
+	}
 
-  options<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
-  ): this {
-    return this.addRouteHandler(path, 'OPTIONS', handler);
-  }
+	options<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+	): this {
+		return this.addRouteHandler(path, 'OPTIONS', handler);
+	}
 
-  head<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
-  ): this {
-    return this.addRouteHandler(path, 'HEAD', handler);
-  }
+	head<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+	): this {
+		return this.addRouteHandler(path, 'HEAD', handler);
+	}
 
-  route<P extends string>(
-    path: P,
-    method: ApiHandler['method'],
-    handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
-  ): this {
-    return this.addRouteHandler(path, method, handler);
-  }
+	route<P extends string>(
+		path: P,
+		method: ApiHandler['method'],
+		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+	): this {
+		return this.addRouteHandler(path, method, handler);
+	}
 
-  /**
-   * Makes a request to the running server using real HTTP fetch.
-   * This is useful for testing API endpoints.
-   * @param request - URL string or Request object
-   * @returns Promise<Response>
-   */
-  public async request(request: string | Request): Promise<Response> {
-    const server = this.server;
+	/**
+	 * Makes a request to the running server using real HTTP fetch.
+	 * This is useful for testing API endpoints.
+	 * @param request - URL string or Request object
+	 * @returns Promise<Response>
+	 */
+	public async request(request: string | Request): Promise<Response> {
+		const server = this.server;
 
-    if (!server) throw new Error('Server not started. Call start() first.');
+		if (!server) throw new Error('Server not started. Call start() first.');
 
-    const url = typeof request === 'string' ? `http://${server.hostname}:${server.port}${request}` : request;
+		const url = typeof request === 'string' ? `http://${server.hostname}:${server.port}${request}` : request;
 
-    return fetch(url);
-  }
+		return fetch(url);
+	}
 
-  /**
-   * Complete the initialization of the server adapter by processing dynamic routes
-   * @param server The Bun server instance
-   */
-  public async completeInitialization(server: Server): Promise<void> {
-    if (!this.serverAdapter) {
-      throw new Error('Server adapter not initialized. Call start() first.');
-    }
+	/**
+	 * Complete the initialization of the server adapter by processing dynamic routes
+	 * @param server The Bun server instance
+	 */
+	public async completeInitialization(server: Server): Promise<void> {
+		if (!this.serverAdapter) {
+			throw new Error('Server adapter not initialized. Call start() first.');
+		}
 
-    await this.serverAdapter.completeInitialization(server);
-  }
+		await this.serverAdapter.completeInitialization(server);
+	}
 
-  /**
-   * Initialize the Bun server adapter
-   */
-  protected async initializeServerAdapter(): Promise<BunServerAdapterResult> {
-    const { dev } = this.cliArgs;
-    const { port: cliPort, hostname: cliHostname } = this.cliArgs;
+	/**
+	 * Initialize the Bun server adapter
+	 */
+	protected async initializeServerAdapter(): Promise<BunServerAdapterResult> {
+		const { dev } = this.cliArgs;
+		const { port: cliPort, hostname: cliHostname } = this.cliArgs;
 
-    const envPort = import.meta.env.ECOPAGES_PORT ? import.meta.env.ECOPAGES_PORT : undefined;
-    const envHostname = import.meta.env.ECOPAGES_HOSTNAME;
+		const envPort = import.meta.env.ECOPAGES_PORT ? import.meta.env.ECOPAGES_PORT : undefined;
+		const envHostname = import.meta.env.ECOPAGES_HOSTNAME;
 
-    const preferredPort = cliPort ?? envPort ?? DEFAULT_ECOPAGES_PORT;
-    const preferredHostname = cliHostname ?? envHostname ?? DEFAULT_ECOPAGES_HOSTNAME;
+		const preferredPort = cliPort ?? envPort ?? DEFAULT_ECOPAGES_PORT;
+		const preferredHostname = cliHostname ?? envHostname ?? DEFAULT_ECOPAGES_HOSTNAME;
 
-    appLogger.debug('initializeServerAdapter', {
-      dev,
-      cliPort,
-      cliHostname,
-      envPort,
-      envHostname,
-      preferredPort,
-      preferredHostname,
-      composedUrl: `http://${preferredHostname}:${preferredPort}`,
-    });
+		appLogger.debug('initializeServerAdapter', {
+			dev,
+			cliPort,
+			cliHostname,
+			envPort,
+			envHostname,
+			preferredPort,
+			preferredHostname,
+			composedUrl: `http://${preferredHostname}:${preferredPort}`,
+		});
 
-    return await createBunServerAdapter({
-      runtimeOrigin: `http://${preferredHostname}:${preferredPort}`,
-      appConfig: this.appConfig,
-      apiHandlers: this.apiHandlers,
-      options: { watch: dev },
-      serveOptions: {
-        port: preferredPort,
-        hostname: preferredHostname,
-        ...this.serverOptions,
-      },
-    });
-  }
+		return await createBunServerAdapter({
+			runtimeOrigin: `http://${preferredHostname}:${preferredPort}`,
+			appConfig: this.appConfig,
+			apiHandlers: this.apiHandlers,
+			options: { watch: dev },
+			serveOptions: {
+				port: preferredPort,
+				hostname: preferredHostname,
+				...this.serverOptions,
+			},
+		});
+	}
 
-  /**
-   * Start the Bun application server
-   * @param options Optional settings
-   * @param options.autoCompleteInitialization Whether to automatically complete initialization with dynamic routes after server start (defaults to true)
-   */
-  public async start(): Promise<Server | void> {
-    if (!this.serverAdapter) {
-      this.serverAdapter = await this.initializeServerAdapter();
-    }
+	/**
+	 * Start the Bun application server
+	 * @param options Optional settings
+	 * @param options.autoCompleteInitialization Whether to automatically complete initialization with dynamic routes after server start (defaults to true)
+	 */
+	public async start(): Promise<Server | void> {
+		if (!this.serverAdapter) {
+			this.serverAdapter = await this.initializeServerAdapter();
+		}
 
-    const { dev, preview, build } = this.cliArgs;
-    const enableHmr = dev || (!preview && !build);
-    const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
+		const { dev, preview, build } = this.cliArgs;
+		const enableHmr = dev || (!preview && !build);
+		const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
 
-    this.server = Bun.serve(serverOptions);
+		this.server = Bun.serve(serverOptions);
 
-    await this.serverAdapter.completeInitialization(this.server).catch((error) => {
-      appLogger.error(`Failed to complete initialization: ${error}`);
-    });
+		await this.serverAdapter.completeInitialization(this.server).catch((error) => {
+			appLogger.error(`Failed to complete initialization: ${error}`);
+		});
 
-    appLogger.info(`Server running at http://${this.server.hostname}:${this.server.port}`);
+		appLogger.info(`Server running at http://${this.server.hostname}:${this.server.port}`);
 
-    if (build || preview) {
-      appLogger.debugTime('Building static pages');
-      await this.serverAdapter.buildStatic({ preview });
-      this.server.stop(true);
-      appLogger.debugTimeEnd('Building static pages');
+		if (build || preview) {
+			appLogger.debugTime('Building static pages');
+			await this.serverAdapter.buildStatic({ preview });
+			this.server.stop(true);
+			appLogger.debugTimeEnd('Building static pages');
 
-      if (build) {
-        process.exit(0);
-      }
-    }
+			if (build) {
+				process.exit(0);
+			}
+		}
 
-    return this.server;
-  }
+		return this.server;
+	}
 }
 
 /**
  * Factory function to create a Bun application
  */
 export async function createApp(
-  options: EcopagesAppOptions,
+	options: EcopagesAppOptions,
 ): Promise<AbstractApplicationAdapter<EcopagesAppOptions, Server>> {
-  return new EcopagesApp(options);
+	return new EcopagesApp(options);
 }

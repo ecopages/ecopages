@@ -4,17 +4,17 @@
  */
 
 import {
-  cpSync,
-  existsSync,
-  mkdir,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmdirSync,
-  rmSync,
-  statSync,
-  writeFile,
-  writeFileSync,
+	cpSync,
+	existsSync,
+	mkdir,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmdirSync,
+	rmSync,
+	statSync,
+	writeFile,
+	writeFileSync,
 } from 'node:fs';
 import { rm as rmAsync, rmdir as rmdirAsync } from 'node:fs/promises';
 import path, { extname } from 'node:path';
@@ -27,11 +27,11 @@ import type { GlobScanOptions } from 'bun';
  * @param destination
  */
 function copyDirSync(source: string, destination: string) {
-  cpSync(source, destination, { recursive: true });
+	cpSync(source, destination, { recursive: true });
 }
 
 function copyFileSync(source: string, destination: string) {
-  cpSync(source, destination);
+	cpSync(source, destination);
 }
 
 /**
@@ -40,11 +40,11 @@ function copyFileSync(source: string, destination: string) {
  * @param forceCleanup
  */
 function ensureDirectoryExists(dirPath: string, forceCleanup?: boolean): void {
-  if (forceCleanup && existsSync(dirPath)) {
-    rmSync(dirPath, { recursive: true, force: true });
-  }
+	if (forceCleanup && existsSync(dirPath)) {
+		rmSync(dirPath, { recursive: true, force: true });
+	}
 
-  mkdirSync(dirPath, { recursive: true });
+	mkdirSync(dirPath, { recursive: true });
 }
 
 /**
@@ -53,9 +53,9 @@ function ensureDirectoryExists(dirPath: string, forceCleanup?: boolean): void {
  * @throws Error
  */
 function verifyFileExists(path: string): void {
-  if (!existsSync(path)) {
-    throw new Error(`File: ${path} not found`);
-  }
+	if (!existsSync(path)) {
+		throw new Error(`File: ${path} not found`);
+	}
 }
 
 /**
@@ -64,23 +64,23 @@ function verifyFileExists(path: string): void {
  * @returns
  */
 function getFileAsBuffer(path: string): Buffer {
-  try {
-    verifyFileExists(path);
-    return readFileSync(path);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
-  }
+	try {
+		verifyFileExists(path);
+		return readFileSync(path);
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
+	}
 }
 
 async function getFileAsString(path: string): Promise<string> {
-  try {
-    verifyFileExists(path);
-    return Bun.file(path).text();
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
-  }
+	try {
+		verifyFileExists(path);
+		return Bun.file(path).text();
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
+	}
 }
 
 /**
@@ -90,16 +90,16 @@ async function getFileAsString(path: string): Promise<string> {
  * @returns
  */
 async function glob(
-  pattern: string[],
-  scanOptions: string | GlobScanOptions = { cwd: process.cwd() },
+	pattern: string[],
+	scanOptions: string | GlobScanOptions = { cwd: process.cwd() },
 ): Promise<string[]> {
-  const promises = pattern.map((p) => {
-    const glob = new Bun.Glob(p);
-    return Array.fromAsync(glob.scan(scanOptions));
-  });
+	const promises = pattern.map((p) => {
+		const glob = new Bun.Glob(p);
+		return Array.fromAsync(glob.scan(scanOptions));
+	});
 
-  const results = await Promise.all(promises);
-  return results.flat();
+	const results = await Promise.all(promises);
+	return results.flat();
 }
 
 /**
@@ -107,10 +107,10 @@ async function glob(
  * @param path
  */
 function gzipFileSync(path: string) {
-  const data = getFileAsBuffer(path);
-  const compressedData = zlib.gzipSync(Buffer.from(data));
-  const gzipFile = `${path}.gz`;
-  writeFileSync(gzipFile, compressedData);
+	const data = getFileAsBuffer(path);
+	const compressedData = zlib.gzipSync(Buffer.from(data));
+	const gzipFile = `${path}.gz`;
+	writeFileSync(gzipFile, compressedData);
 }
 
 /**
@@ -119,11 +119,11 @@ function gzipFileSync(path: string) {
  * @param extensionsToGzip
  */
 function gzipDirSync(path: string, extensionsToGzip: string[]) {
-  const files = readdirSync(path, { recursive: true });
-  for (const file of files) {
-    const ext = extname(file as string).slice(1);
-    if (extensionsToGzip.includes(ext)) gzipFileSync(`${path}/${file}`);
-  }
+	const files = readdirSync(path, { recursive: true });
+	for (const file of files) {
+		const ext = extname(file as string).slice(1);
+		if (extensionsToGzip.includes(ext)) gzipFileSync(`${path}/${file}`);
+	}
 }
 
 /**
@@ -132,20 +132,20 @@ function gzipDirSync(path: string, extensionsToGzip: string[]) {
  * @param contents
  */
 function write(filepath: string, contents: string | Buffer): void {
-  try {
-    const dirs = filepath.split('/');
-    let currentPath = '';
-    for (let i = 0; i < dirs.length - 1; i++) {
-      currentPath += `${dirs[i]}/`;
-      if (!existsSync(currentPath)) {
-        mkdirSync(currentPath);
-      }
-    }
-    FileUtils.ensureDirectoryExists(path.dirname(filepath));
-    writeFileSync(filepath, contents);
-  } catch (error) {
-    throw new Error(`[ecopages] Error writing file: ${path}`);
-  }
+	try {
+		const dirs = filepath.split('/');
+		let currentPath = '';
+		for (let i = 0; i < dirs.length - 1; i++) {
+			currentPath += `${dirs[i]}/`;
+			if (!existsSync(currentPath)) {
+				mkdirSync(currentPath);
+			}
+		}
+		FileUtils.ensureDirectoryExists(path.dirname(filepath));
+		writeFileSync(filepath, contents);
+	} catch (error) {
+		throw new Error(`[ecopages] Error writing file: ${path}`);
+	}
 }
 
 /**
@@ -154,12 +154,12 @@ function write(filepath: string, contents: string | Buffer): void {
  * @returns
  */
 function getFileHash(path: string): string {
-  try {
-    const buffer = getFileAsBuffer(path);
-    return Bun.hash(buffer).toString();
-  } catch (error) {
-    throw new Error(`[ecopages] Error hashing file: ${path}`);
-  }
+	try {
+		const buffer = getFileAsBuffer(path);
+		return Bun.hash(buffer).toString();
+	} catch (error) {
+		throw new Error(`[ecopages] Error hashing file: ${path}`);
+	}
 }
 
 /**
@@ -167,42 +167,42 @@ function getFileHash(path: string): string {
  * @param path
  */
 function emptyDirSync(path: string) {
-  rmSync(path, {
-    recursive: true,
-    force: true,
-  });
+	rmSync(path, {
+		recursive: true,
+		force: true,
+	});
 }
 
 function isDirectory(path: string): boolean {
-  return existsSync(path) && statSync(path).isDirectory();
+	return existsSync(path) && statSync(path).isDirectory();
 }
 
 /**
  * Utility functions for file operations.
  */
 export const FileUtils = {
-  glob,
-  getFileAsBuffer,
-  existsSync,
-  write,
-  verifyFileExists,
-  ensureDirectoryExists,
-  copyDirSync,
-  copyFileSync,
-  gzipDirSync,
-  gzipFileSync,
-  writeFileSync,
-  readFileSync,
-  readdirSync,
-  isDirectory,
-  mkdirSync,
-  getFileHash,
-  rmSync,
-  emptyDirSync,
-  getFileAsString,
-  rmAsync,
-  rmdirAsync,
-  rmdirSync,
-  mkdir,
-  writeFile,
+	glob,
+	getFileAsBuffer,
+	existsSync,
+	write,
+	verifyFileExists,
+	ensureDirectoryExists,
+	copyDirSync,
+	copyFileSync,
+	gzipDirSync,
+	gzipFileSync,
+	writeFileSync,
+	readFileSync,
+	readdirSync,
+	isDirectory,
+	mkdirSync,
+	getFileHash,
+	rmSync,
+	emptyDirSync,
+	getFileAsString,
+	rmAsync,
+	rmdirAsync,
+	rmdirSync,
+	mkdir,
+	writeFile,
 };

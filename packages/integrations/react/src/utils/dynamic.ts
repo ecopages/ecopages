@@ -19,11 +19,7 @@ export function dynamic(
 ): LazyExoticComponent<ComponentType<any>> | ComponentType {
 	const { ssr = false } = options;
 
-	if (ssr) {
-		return lazy(importFn);
-	}
-
-	if (typeof window !== 'undefined') {
+	if (ssr || typeof window !== 'undefined') {
 		return lazy(importFn);
 	}
 

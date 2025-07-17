@@ -1,6 +1,6 @@
+import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { getAllBlogPostSlugs, getBlogPost } from '@/mocks/data';
-import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
 
 export type BlogPostProps = {
   slug: string;

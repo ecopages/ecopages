@@ -1,8 +1,8 @@
+import type { EcoComponent } from '@ecopages/core';
 import { ApiField } from '@/components/api-field/api-field.kita';
 import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { docsConfig } from '@/data/docs-config';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoComponent } from '@ecopages/core';
 
 export type DocsLayoutProps = {
   children: JSX.Element;

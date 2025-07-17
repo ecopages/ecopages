@@ -2,12 +2,18 @@
 	"name": "@ecopages/mdx",
 	"version": "0.1.41",
 	"description": "MDX plugin for Ecopages",
-	"keywords": ["ecopages", "mdx", "plugin"],
+	"keywords": [
+		"ecopages",
+		"mdx",
+		"plugin"
+	],
 	"license": "MIT",
 	"main": "./src/mdx.plugin.ts",
 	"types": "./src/mdx.plugin.ts",
 	"type": "module",
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",

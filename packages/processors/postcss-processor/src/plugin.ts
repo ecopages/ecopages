@@ -10,8 +10,8 @@ import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processo
 import { Logger } from '@ecopages/logger';
 import type { BunPlugin } from 'bun';
 import type postcss from 'postcss';
-import { type PluginsRecord, defaultPlugins } from './default-plugins';
-import { PostCssProcessor, getFileAsBuffer } from './postcss-processor';
+import { defaultPlugins, type PluginsRecord } from './default-plugins';
+import { getFileAsBuffer, PostCssProcessor } from './postcss-processor';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
   debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',

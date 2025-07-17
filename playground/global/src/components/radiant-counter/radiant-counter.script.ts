@@ -1,4 +1,4 @@
-import { RadiantElement, customElement, onEvent, onUpdated, query, reactiveProp } from '@ecopages/radiant';
+import { customElement, onEvent, onUpdated, query, RadiantElement, reactiveProp } from '@ecopages/radiant';
 
 export type RadiantCounterProps = {
   count?: number;

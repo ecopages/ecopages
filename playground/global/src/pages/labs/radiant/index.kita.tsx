@@ -1,6 +1,6 @@
+import type { EcoComponent } from '@ecopages/core';
 import { RadiantTodoApp } from '@/components/radiant-todo-app';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoComponent } from '@ecopages/core';
 
 const RadiantPage: EcoComponent = async () => {
   return (

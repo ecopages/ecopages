@@ -1,12 +1,12 @@
-import { BaseLayout } from '@/layouts/base-layout';
 import {
   type EcoComponent,
   type GetMetadata,
   type GetStaticPaths,
   type GetStaticProps,
-  type PageProps,
   html,
+  type PageProps,
 } from '@ecopages/core';
+import { BaseLayout } from '@/layouts/base-layout';
 
 export type BlogPostProps = {
   slug: string;

@@ -1,7 +1,7 @@
+import type { EcoComponent } from '@ecopages/core';
 import { Burger } from '@/components/burger';
 import { Logo } from '@/components/logo';
 import { Navigation, type NavigationProps } from '@/components/navigation';
-import type { EcoComponent } from '@ecopages/core';
 import rootJson from '../../../../../package.json';
 
 export type HeaderProps = {

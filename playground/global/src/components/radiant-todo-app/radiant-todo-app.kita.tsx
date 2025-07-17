@@ -1,7 +1,7 @@
 import type { EcoComponent } from '@ecopages/core';
 import { stringifyTyped } from '@ecopages/radiant';
-import type { TodoContext } from './radiant-todo-app.script';
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './radiant-todo.templates';
+import type { TodoContext } from './radiant-todo-app.script';
 
 type RadiantTodoAppTemplateProps = {
   todos: TodoContext['todos'];
@@ -23,7 +23,12 @@ const TodoPanel = ({
   count,
   children,
   ref,
-}: { title: string; count: number; children: JSX.Element; ref: string }) => {
+}: {
+  title: string;
+  count: number;
+  children: JSX.Element;
+  ref: string;
+}) => {
   return (
     <article class="todo__panel">
       <h2 safe>{title}</h2>

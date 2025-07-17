@@ -2,11 +2,16 @@
 	"name": "@ecopages/image-processor",
 	"version": "0.1.41",
 	"description": "Image processor, transform and optimize images for web",
-	"keywords": ["image", "processor"],
+	"keywords": [
+		"image",
+		"processor"
+	],
 	"license": "MIT",
 	"main": "./src/image-processor.ts",
 	"type": "module",
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
@@ -47,7 +52,9 @@
 	},
 	"typesVersions": {
 		"*": {
-			"ecopages:images": ["./virtual-module.d.ts"]
+			"ecopages:images": [
+				"./virtual-module.d.ts"
+			]
 		}
 	}
 }

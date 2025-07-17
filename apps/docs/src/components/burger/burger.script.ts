@@ -1,9 +1,9 @@
-import { BurgerEvents } from '@/components/burger/burger.events';
 import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { debounce } from '@ecopages/radiant/decorators/debounce';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
 import { query } from '@ecopages/radiant/decorators/query';
+import { BurgerEvents } from '@/components/burger/burger.events';
 
 @customElement('radiant-burger')
 export class RadiantCounter extends RadiantElement {

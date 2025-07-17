@@ -3,10 +3,16 @@
 	"version": "0.1.41",
 	"license": "MIT",
 	"description": "Bun plugin to inline css",
-	"keywords": ["bun", "plugin", "inline-css"],
+	"keywords": [
+		"bun",
+		"plugin",
+		"inline-css"
+	],
 	"main": "./src/bun-inline-css-plugin.ts",
 	"type": "module",
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",

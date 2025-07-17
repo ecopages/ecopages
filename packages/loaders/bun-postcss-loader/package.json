@@ -2,11 +2,17 @@
 	"name": "@ecopages/bun-postcss-loader",
 	"version": "0.1.41",
 	"description": "Bun loader to load postcss file",
-	"keywords": ["bun", "loader", "postcss"],
+	"keywords": [
+		"bun",
+		"loader",
+		"postcss"
+	],
 	"license": "MIT",
 	"main": "./src/bun-postcss-loader.ts",
 	"type": "module",
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",

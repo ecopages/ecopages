@@ -24,7 +24,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
     if (!shouldBundle) {
       const outFilepath = path.relative(this.appConfig.srcDir, dep.filepath);
-      let filepath: string | undefined = undefined;
+      let filepath: string | undefined;
 
       if (!dep.inline) {
         filepath = path.join(this.getAssetsDir(), outFilepath);

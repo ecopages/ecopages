@@ -1,6 +1,6 @@
+import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts } from '@ecopages/core';
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',

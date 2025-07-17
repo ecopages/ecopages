@@ -1,10 +1,10 @@
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
+import type { JSX } from 'react';
 import { Counter } from '@/components/counter';
 import { RadiantCounter } from '@/components/radiant-counter';
 import { Item, Select } from '@/components/select';
 import { TanstackTable } from '@/components/tanstack-table';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoComponent, GetMetadata } from '@ecopages/core';
-import type { JSX } from 'react';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',

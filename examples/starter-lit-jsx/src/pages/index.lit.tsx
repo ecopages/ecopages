@@ -1,6 +1,6 @@
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import { Card } from '@/components/card';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',

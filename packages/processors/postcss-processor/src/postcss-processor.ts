@@ -6,7 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
-import { type PluginsRecord, defaultPlugins } from './default-plugins.ts';
+import { defaultPlugins, type PluginsRecord } from './default-plugins.ts';
 
 /**
  * PostCSS Processor Options

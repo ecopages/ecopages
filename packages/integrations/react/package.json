@@ -2,19 +2,27 @@
 	"name": "@ecopages/react",
 	"version": "0.1.41",
 	"description": "React integration for Ecopages",
-	"keywords": ["ecopages", "react", "plugin"],
+	"keywords": [
+		"ecopages",
+		"react",
+		"plugin"
+	],
 	"license": "MIT",
 	"main": "./src/react.plugin.ts",
 	"types": "./src/react.plugin.ts",
 	"type": "module",
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"exports": {
 		".": {
 			"default": "./src/react.plugin.ts",
 			"types": "./src/react.plugin.ts"
 		},
 		"./react-esm": "./react-esm.ts",
-		"./react-dom-esm": "./react-dom-esm.ts"
+		"./react-dom-esm": "./react-dom-esm.ts",
+		"./utils/dynamic": "./src/utils/dynamic.ts",
+		"./utils/client-only": "./src/utils/client-only.ts"
 	},
 	"repository": {
 		"type": "git",

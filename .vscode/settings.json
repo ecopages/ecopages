@@ -8,5 +8,9 @@
 	"tailwindCSS.includeLanguages": {
 		"typescript": "javascript",
 		"typescriptreact": "javascript"
+	},
+	"editor.codeActionsOnSave": {
+		"source.organizeImports.biome": "explicit",
+		"source.fixAll.biome": "explicit"
 	}
 }

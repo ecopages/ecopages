@@ -4,7 +4,9 @@
 	"exports": {
 		".": "./src/react.plugin.ts",
 		"./react-esm": "./react-esm.ts",
-		"./react-dom-esm": "./react-dom-esm.ts"
+		"./react-dom-esm": "./react-dom-esm.ts",
+		"./utils/dynamic": "./src/utils/dynamic.ts",
+		"./utils/client-only": "./src/utils/client-only.ts"
 	},
 	"exclude": ["src/test", "**/*.test.ts"],
 	"publish": {

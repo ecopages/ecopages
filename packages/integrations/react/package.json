@@ -2,12 +2,18 @@
 	"name": "@ecopages/react",
 	"version": "0.1.41",
 	"description": "React integration for Ecopages",
-	"keywords": ["ecopages", "react", "plugin"],
+	"keywords": [
+		"ecopages",
+		"react",
+		"plugin"
+	],
 	"license": "MIT",
 	"main": "./src/react.plugin.ts",
 	"types": "./src/react.plugin.ts",
 	"type": "module",
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"exports": {
 		".": {
 			"default": "./src/react.plugin.ts",

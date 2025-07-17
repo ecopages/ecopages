@@ -17,7 +17,7 @@ import {
   AssetProcessingService,
   type ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
-import { type JSX, createElement } from 'react';
+import { createElement, type JSX } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
 

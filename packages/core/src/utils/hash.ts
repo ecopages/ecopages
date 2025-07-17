@@ -1,3 +1,3 @@
 export const rapidhash = (content: string | Buffer<ArrayBufferLike>): number | bigint => {
-  return Bun.hash(content);
+	return Bun.hash(content);
 };

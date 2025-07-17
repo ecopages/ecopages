@@ -12,15 +12,15 @@ export const GHTML_PLUGIN_NAME = 'ghtml';
  * This plugin provides support for ghtml components in Ecopages
  */
 export class GhtmlPlugin extends IntegrationPlugin {
-  renderer = GhtmlRenderer;
+	renderer = GhtmlRenderer;
 
-  constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
-    super({
-      name: GHTML_PLUGIN_NAME,
-      extensions: ['.ghtml.ts', '.ghtml'],
-      ...options,
-    });
-  }
+	constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
+		super({
+			name: GHTML_PLUGIN_NAME,
+			extensions: ['.ghtml.ts', '.ghtml'],
+			...options,
+		});
+	}
 }
 
 /**
@@ -29,5 +29,5 @@ export class GhtmlPlugin extends IntegrationPlugin {
  * @returns A new GhtmlPlugin instance
  */
 export function ghtmlPlugin(options?: Omit<IntegrationPluginConfig, 'name'>): GhtmlPlugin {
-  return new GhtmlPlugin(options);
+	return new GhtmlPlugin(options);
 }

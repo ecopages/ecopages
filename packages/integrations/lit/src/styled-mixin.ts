@@ -14,14 +14,14 @@ type Constructor<T> = new (...args: any[]) => T;
  * @returns The class with the styles added
  */
 export const StyledMixin = <T extends Constructor<LitElement>>(
-  superClass: T,
-  css: string[] = [],
+	superClass: T,
+	css: string[] = [],
 ): Constructor<LitElement> & T => {
-  class StyledMixinClass extends superClass {
-    static styles = [
-      (superClass as unknown as typeof LitElement).styles ?? [],
-      ...css.map((styles) => unsafeCSS(styles)),
-    ];
-  }
-  return StyledMixinClass as Constructor<LitElement> & T;
+	class StyledMixinClass extends superClass {
+		static styles = [
+			(superClass as unknown as typeof LitElement).styles ?? [],
+			...css.map((styles) => unsafeCSS(styles)),
+		];
+	}
+	return StyledMixinClass as Constructor<LitElement> & T;
 };

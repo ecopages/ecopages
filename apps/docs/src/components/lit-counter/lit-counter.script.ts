@@ -3,25 +3,25 @@ import { customElement, property } from 'lit/decorators.js';
 import styles from './lit-counter.css';
 
 export type LitCounterProps = {
-  count?: number;
+	count?: number;
 };
 
 @customElement('lit-counter')
 export class LitCounter extends LitElement {
-  static override styles = [unsafeCSS(styles)];
+	static override styles = [unsafeCSS(styles)];
 
-  @property({ type: Number }) count = 0;
+	@property({ type: Number }) count = 0;
 
-  decrement() {
-    if (this.count > 0) this.count--;
-  }
+	decrement() {
+		if (this.count > 0) this.count--;
+	}
 
-  increment() {
-    this.count++;
-  }
+	increment() {
+		this.count++;
+	}
 
-  override render() {
-    return html`
+	override render() {
+		return html`
       <button @click=${this.decrement} aria-label="Decrement" class="decrement">
         -
       </button>
@@ -35,13 +35,13 @@ export class LitCounter extends LitElement {
         +
       </button>
     `;
-  }
+	}
 }
 
 declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'lit-counter': HtmlTag & LitCounterProps;
-    }
-  }
+	namespace JSX {
+		interface IntrinsicElements {
+			'lit-counter': HtmlTag & LitCounterProps;
+		}
+	}
 }

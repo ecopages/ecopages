@@ -6,63 +6,63 @@ import type { EcoPagesAppConfig } from '../../internal-types.ts';
 const ECO_PAGES_HMR_WS: Set<ServerWebSocket<unknown>> = new Set();
 
 export const HMR_EVENTS = {
-  RELOAD: 'ecopages:reload',
-  ERROR: 'ecopages:error',
+	RELOAD: 'ecopages:reload',
+	ERROR: 'ecopages:error',
 } as const;
 
 export type HMRPayload = {
-  type: keyof typeof HMR_EVENTS;
-  path?: string;
-  message?: string;
-  timestamp: number;
+	type: keyof typeof HMR_EVENTS;
+	path?: string;
+	message?: string;
+	timestamp: number;
 };
 
 export function hmrServerReload(path?: string): void {
-  if (ECO_PAGES_HMR_WS.size === 0) return;
+	if (ECO_PAGES_HMR_WS.size === 0) return;
 
-  const payload: HMRPayload = {
-    type: 'RELOAD',
-    path,
-    timestamp: Date.now(),
-  };
+	const payload: HMRPayload = {
+		type: 'RELOAD',
+		path,
+		timestamp: Date.now(),
+	};
 
-  const message = JSON.stringify(payload);
-  for (const ws of ECO_PAGES_HMR_WS) {
-    try {
-      if (ws.readyState === 1) {
-        ws.send(message);
-      } else {
-        ECO_PAGES_HMR_WS.delete(ws);
-      }
-    } catch (error) {
-      console.error('[ecopages] Failed to send HMR reload message:', error);
-      ECO_PAGES_HMR_WS.delete(ws);
-    }
-  }
+	const message = JSON.stringify(payload);
+	for (const ws of ECO_PAGES_HMR_WS) {
+		try {
+			if (ws.readyState === 1) {
+				ws.send(message);
+			} else {
+				ECO_PAGES_HMR_WS.delete(ws);
+			}
+		} catch (error) {
+			console.error('[ecopages] Failed to send HMR reload message:', error);
+			ECO_PAGES_HMR_WS.delete(ws);
+		}
+	}
 }
 
 export function hmrServerError(error: Error): void {
-  if (ECO_PAGES_HMR_WS.size === 0) return;
+	if (ECO_PAGES_HMR_WS.size === 0) return;
 
-  const payload: HMRPayload = {
-    type: 'ERROR',
-    message: error.message,
-    timestamp: Date.now(),
-  };
+	const payload: HMRPayload = {
+		type: 'ERROR',
+		message: error.message,
+		timestamp: Date.now(),
+	};
 
-  const message = JSON.stringify(payload);
-  for (const ws of ECO_PAGES_HMR_WS) {
-    try {
-      if (ws.readyState === 1) {
-        ws.send(message);
-      } else {
-        ECO_PAGES_HMR_WS.delete(ws);
-      }
-    } catch (error) {
-      console.error('[ecopages] Failed to send HMR error message:', error);
-      ECO_PAGES_HMR_WS.delete(ws);
-    }
-  }
+	const message = JSON.stringify(payload);
+	for (const ws of ECO_PAGES_HMR_WS) {
+		try {
+			if (ws.readyState === 1) {
+				ws.send(message);
+			} else {
+				ECO_PAGES_HMR_WS.delete(ws);
+			}
+		} catch (error) {
+			console.error('[ecopages] Failed to send HMR error message:', error);
+			ECO_PAGES_HMR_WS.delete(ws);
+		}
+	}
 }
 
 export const WS_PATH = '__ecopages_live_reload_websocket__';
@@ -71,7 +71,7 @@ export const WS_PATH = '__ecopages_live_reload_websocket__';
  * Creates the live reload script to be injected into the html
  */
 export const makeLiveReloadScript = (): string => {
-  return `
+	return `
 <!-- [ecopages] live reload start script -->
 <script type="text/javascript">
 (function() {
@@ -171,11 +171,11 @@ export const makeLiveReloadScript = (): string => {
 };
 
 export type PureWebSocketServeOptions<WebSocketDataType> = Omit<
-  WebSocketServeOptions<WebSocketDataType>,
-  'fetch' | 'websocket'
+	WebSocketServeOptions<WebSocketDataType>,
+	'fetch' | 'websocket'
 > & {
-  fetch(request: Request, server: Server): Promise<Response> | Response;
-  websocket?: WebSocketHandler<WebSocketDataType>;
+	fetch(request: Request, server: Server): Promise<Response> | Response;
+	websocket?: WebSocketHandler<WebSocketDataType>;
 };
 
 /**
@@ -184,13 +184,13 @@ export type PureWebSocketServeOptions<WebSocketDataType> = Omit<
  * @param {string} liveReloadScript
  */
 export function appendHmrScriptToBody(response: string, liveReloadScript: string): string {
-  return new HTMLRewriter()
-    .on('body', {
-      element(body) {
-        body.append(liveReloadScript, { html: true });
-      },
-    })
-    .transform(response);
+	return new HTMLRewriter()
+		.on('body', {
+			element(body) {
+				body.append(liveReloadScript, { html: true });
+			},
+		})
+		.transform(response);
 }
 
 /**
@@ -202,60 +202,60 @@ export function appendHmrScriptToBody(response: string, liveReloadScript: string
  * @param {EcoPagesAppConfig} config
  */
 export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketServeOptions<WebSocketDataType>>(
-  serveOptions: T,
-  config: EcoPagesAppConfig,
+	serveOptions: T,
+	config: EcoPagesAppConfig,
 ): WebSocketServeOptions<WebSocketDataType> => {
-  const watcher = watch(config.absolutePaths.srcDir, { recursive: true });
+	const watcher = watch(config.absolutePaths.srcDir, { recursive: true });
 
-  return {
-    ...serveOptions,
-    fetch: async (req, server) => {
-      const url = new URL(req.url);
-      if (url.pathname === `/${WS_PATH}`) {
-        const upgraded = server.upgrade(req);
+	return {
+		...serveOptions,
+		fetch: async (req, server) => {
+			const url = new URL(req.url);
+			if (url.pathname === `/${WS_PATH}`) {
+				const upgraded = server.upgrade(req);
 
-        if (!upgraded) {
-          return new Response('Failed to upgrade websocket connection for live reload', {
-            status: 400,
-          });
-        }
-        return;
-      }
+				if (!upgraded) {
+					return new Response('Failed to upgrade websocket connection for live reload', {
+						status: 400,
+					});
+				}
+				return;
+			}
 
-      const response = await serveOptions.fetch(req, server);
+			const response = await serveOptions.fetch(req, server);
 
-      if (!response.headers.get('Content-Type')?.startsWith('text/html')) {
-        return response;
-      }
+			if (!response.headers.get('Content-Type')?.startsWith('text/html')) {
+				return response;
+			}
 
-      const liveReloadScript = makeLiveReloadScript();
-      const html = await response.text();
-      const newHtml = appendHmrScriptToBody(html, liveReloadScript);
-      return new Response(newHtml, response);
-    },
-    websocket: {
-      ...serveOptions.websocket,
-      open: async (ws) => {
-        ECO_PAGES_HMR_WS.add(ws);
-        appLogger.debug(`[ecopages] HMR client connected. Total connections: ${ECO_PAGES_HMR_WS.size}`);
+			const liveReloadScript = makeLiveReloadScript();
+			const html = await response.text();
+			const newHtml = appendHmrScriptToBody(html, liveReloadScript);
+			return new Response(newHtml, response);
+		},
+		websocket: {
+			...serveOptions.websocket,
+			open: async (ws) => {
+				ECO_PAGES_HMR_WS.add(ws);
+				appLogger.debug(`[ecopages] HMR client connected. Total connections: ${ECO_PAGES_HMR_WS.size}`);
 
-        await serveOptions.websocket?.open?.(ws);
+				await serveOptions.websocket?.open?.(ws);
 
-        if (watcher) {
-          watcher.removeAllListeners('change');
-          watcher.on('change', async (path) => {
-            hmrServerReload(path);
-          });
-        }
-      },
-      close: async (ws, code, message) => {
-        ECO_PAGES_HMR_WS.delete(ws);
-        appLogger.debug(`[ecopages] HMR client disconnected. Total connections: ${ECO_PAGES_HMR_WS.size}`);
-        await serveOptions.websocket?.close?.(ws, code, message);
-      },
-      message: async (ws, message) => {
-        await serveOptions.websocket?.message?.(ws, message);
-      },
-    },
-  };
+				if (watcher) {
+					watcher.removeAllListeners('change');
+					watcher.on('change', async (path) => {
+						hmrServerReload(path);
+					});
+				}
+			},
+			close: async (ws, code, message) => {
+				ECO_PAGES_HMR_WS.delete(ws);
+				appLogger.debug(`[ecopages] HMR client disconnected. Total connections: ${ECO_PAGES_HMR_WS.size}`);
+				await serveOptions.websocket?.close?.(ws, code, message);
+			},
+			message: async (ws, message) => {
+				await serveOptions.websocket?.message?.(ws, message);
+			},
+		},
+	};
 };

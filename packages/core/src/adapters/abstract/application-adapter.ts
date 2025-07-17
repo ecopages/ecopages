@@ -17,166 +17,166 @@ import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-arg
  * Configuration options for application adapters
  */
 export interface ApplicationAdapterOptions {
-  appConfig: EcoPagesAppConfig;
-  serverOptions?: Record<string, any>;
-  /**
-   * Options for clearing the output directory before starting the server
-   * @default false
-   */
-  clearOutput?: boolean;
+	appConfig: EcoPagesAppConfig;
+	serverOptions?: Record<string, any>;
+	/**
+	 * Options for clearing the output directory before starting the server
+	 * @default false
+	 */
+	clearOutput?: boolean;
 }
 
 /**
  * Common interface for application adapters
  */
 export interface ApplicationAdapter<T = any> {
-  start(): Promise<T | void>;
+	start(): Promise<T | void>;
 }
 
 /**
  * Abstract base class for application adapters across different runtimes
  */
 export abstract class AbstractApplicationAdapter<
-  TOptions extends ApplicationAdapterOptions = ApplicationAdapterOptions,
-  TServer = any,
-  TRequest extends Request = any,
+	TOptions extends ApplicationAdapterOptions = ApplicationAdapterOptions,
+	TServer = any,
+	TRequest extends Request = any,
 > implements ApplicationAdapter<TServer>
 {
-  protected appConfig: EcoPagesAppConfig;
-  protected serverOptions: Record<string, any>;
-  protected cliArgs: ReturnParseCliArgs;
-  protected apiHandlers: ApiHandler[] = [];
+	protected appConfig: EcoPagesAppConfig;
+	protected serverOptions: Record<string, any>;
+	protected cliArgs: ReturnParseCliArgs;
+	protected apiHandlers: ApiHandler[] = [];
 
-  constructor(options: TOptions) {
-    this.appConfig = options.appConfig;
-    this.serverOptions = options.serverOptions || {};
-    this.cliArgs = parseCliArgs();
+	constructor(options: TOptions) {
+		this.appConfig = options.appConfig;
+		this.serverOptions = options.serverOptions || {};
+		this.cliArgs = parseCliArgs();
 
-    if (options.clearOutput) {
-      this.clearDistFolder().catch((error) => {
-        appLogger.error('Error clearing dist folder', error as Error);
-      });
-    }
-  }
+		if (options.clearOutput) {
+			this.clearDistFolder().catch((error) => {
+				appLogger.error('Error clearing dist folder', error as Error);
+			});
+		}
+	}
 
-  private async clearDistFolder(filter: string[] = []): Promise<void> {
-    const distPath = this.appConfig.absolutePaths.distDir;
-    const distExists = FileUtils.existsSync(distPath);
+	private async clearDistFolder(filter: string[] = []): Promise<void> {
+		const distPath = this.appConfig.absolutePaths.distDir;
+		const distExists = FileUtils.existsSync(distPath);
 
-    if (!distExists) return;
+		if (!distExists) return;
 
-    try {
-      await FileUtils.rmAsync(distPath, { recursive: true });
-      appLogger.debug(`Cleared dist folder: ${distPath}`);
-    } catch (error) {
-      appLogger.error(`Error clearing dist folder: ${distPath}`, error as Error);
-    }
-  }
+		try {
+			await FileUtils.rmAsync(distPath, { recursive: true });
+			appLogger.debug(`Cleared dist folder: ${distPath}`);
+		} catch (error) {
+			appLogger.error(`Error clearing dist folder: ${distPath}`, error as Error);
+		}
+	}
 
-  /**
-   * Register a GET route handler
-   * The handler expects a context where request.params exists.
-   */
-  abstract get<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
-  ): this;
+	/**
+	 * Register a GET route handler
+	 * The handler expects a context where request.params exists.
+	 */
+	abstract get<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+	): this;
 
-  /**
-   * Register a POST route handler
-   */
-  abstract post<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
-  ): this;
+	/**
+	 * Register a POST route handler
+	 */
+	abstract post<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+	): this;
 
-  /**
-   * Register a PUT route handler
-   */
-  abstract put<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
-  ): this;
+	/**
+	 * Register a PUT route handler
+	 */
+	abstract put<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+	): this;
 
-  /**
-   * Register a DELETE route handler
-   */
-  abstract delete<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
-  ): this;
+	/**
+	 * Register a DELETE route handler
+	 */
+	abstract delete<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+	): this;
 
-  /**
-   * Register a PATCH route handler
-   */
-  abstract patch<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
-  ): this;
+	/**
+	 * Register a PATCH route handler
+	 */
+	abstract patch<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+	): this;
 
-  /**
-   * Register an OPTIONS route handler
-   */
-  abstract options<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
-  ): this;
+	/**
+	 * Register an OPTIONS route handler
+	 */
+	abstract options<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+	): this;
 
-  /**
-   * Register a HEAD route handler
-   */
-  abstract head<P extends string>(
-    path: P,
-    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
-  ): this;
+	/**
+	 * Register a HEAD route handler
+	 */
+	abstract head<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+	): this;
 
-  /**
-   * Register a route with any HTTP method
-   */
-  abstract route<P extends string>(
-    path: P,
-    method: ApiHandler['method'],
-    handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
-  ): this;
+	/**
+	 * Register a route with any HTTP method
+	 */
+	abstract route<P extends string>(
+		path: P,
+		method: ApiHandler['method'],
+		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+	): this;
 
-  /**
-   * Internal method to add route handlers to the API handlers array
-   */
-  protected addRouteHandler<P extends string>(
-    path: P,
-    method: ApiHandler['method'],
-    handler: (context: ApiHandlerContext<any>) => Promise<Response> | Response,
-  ): this {
-    this.apiHandlers.push({
-      path,
-      method,
-      handler: handler as unknown as (context: any) => Promise<Response> | Response,
-    });
-    return this;
-  }
+	/**
+	 * Internal method to add route handlers to the API handlers array
+	 */
+	protected addRouteHandler<P extends string>(
+		path: P,
+		method: ApiHandler['method'],
+		handler: (context: ApiHandlerContext<any>) => Promise<Response> | Response,
+	): this {
+		this.apiHandlers.push({
+			path,
+			method,
+			handler: handler as unknown as (context: any) => Promise<Response> | Response,
+		});
+		return this;
+	}
 
-  /**
-   * Get all registered API handlers
-   */
-  getApiHandlers(): ApiHandler[] {
-    return this.apiHandlers;
-  }
+	/**
+	 * Get all registered API handlers
+	 */
+	getApiHandlers(): ApiHandler[] {
+		return this.apiHandlers;
+	}
 
-  /**
-   * Initialize the server adapter based on the runtime
-   */
-  protected abstract initializeServerAdapter(): Promise<any>;
+	/**
+	 * Initialize the server adapter based on the runtime
+	 */
+	protected abstract initializeServerAdapter(): Promise<any>;
 
-  /**
-   * Start the application server
-   */
-  public abstract start(): Promise<TServer | void>;
+	/**
+	 * Start the application server
+	 */
+	public abstract start(): Promise<TServer | void>;
 
-  /**
-   * Makes a request to the running server using real HTTP fetch.
-   * This is useful for testing API endpoints.
-   * @param request - URL string or Request object
-   * @returns Promise<Response>
-   */
-  public abstract request(request: string | Request): Promise<Response>;
+	/**
+	 * Makes a request to the running server using real HTTP fetch.
+	 * This is useful for testing API endpoints.
+	 * @param request - URL string or Request object
+	 * @returns Promise<Response>
+	 */
+	public abstract request(request: string | Request): Promise<Response>;
 }

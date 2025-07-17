@@ -11,12 +11,12 @@ import { anyCaseToCamelCase } from './utils';
  * This function creates the plugin result for the image specifications.
  */
 function createPluginResult(exports: ImageMap): OnLoadResult {
-  return {
-    contents: `${Object.entries(exports)
-      .map(([key, value]) => `export const ${anyCaseToCamelCase(key)} = ${JSON.stringify(value)};`)
-      .join('\n')}`,
-    loader: 'ts',
-  };
+	return {
+		contents: `${Object.entries(exports)
+			.map(([key, value]) => `export const ${anyCaseToCamelCase(key)} = ${JSON.stringify(value)};`)
+			.join('\n')}`,
+		loader: 'ts',
+	};
 }
 
 /**
@@ -26,12 +26,12 @@ function createPluginResult(exports: ImageMap): OnLoadResult {
  * @returns
  */
 export function createImagePlugin(exports: ImageMap): BunPlugin {
-  return {
-    name: 'ecopages:images',
-    setup(build) {
-      build.module('ecopages:images', () => createPluginResult(exports));
-    },
-  };
+	return {
+		name: 'ecopages:images',
+		setup(build) {
+			build.module('ecopages:images', () => createPluginResult(exports));
+		},
+	};
 }
 
 /**
@@ -43,17 +43,17 @@ export function createImagePlugin(exports: ImageMap): BunPlugin {
  * @returns
  */
 export function createImagePluginBundler(exports: ImageMap): BunPlugin {
-  return {
-    name: 'ecopages:images',
-    setup(build) {
-      build.onResolve({ filter: /^ecopages:images$/ }, () => {
-        return {
-          namespace: 'ecopages-images',
-          path: 'ecopages:images',
-        };
-      });
+	return {
+		name: 'ecopages:images',
+		setup(build) {
+			build.onResolve({ filter: /^ecopages:images$/ }, () => {
+				return {
+					namespace: 'ecopages-images',
+					path: 'ecopages:images',
+				};
+			});
 
-      build.onLoad({ filter: /.*/, namespace: 'ecopages-images' }, () => createPluginResult(exports));
-    },
-  };
+			build.onLoad({ filter: /.*/, namespace: 'ecopages-images' }, () => createPluginResult(exports));
+		},
+	};
 }

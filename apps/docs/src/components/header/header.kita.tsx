@@ -5,28 +5,28 @@ import { Navigation, type NavigationProps } from '@/components/navigation';
 import rootJson from '../../../../../package.json';
 
 export type HeaderProps = {
-  navigation: NavigationProps;
+	navigation: NavigationProps;
 };
 
 export const Header: EcoComponent<HeaderProps> = ({ navigation }) => {
-  return (
-    <header class="header">
-      <div class="header__inner">
-        <div class="header__inner-left-side">
-          <Burger class="md:hidden" />
-          <Logo href="/" target="_self" title="Ecopages" />
-          <p class="version">v {rootJson.version as 'safe'}</p>
-        </div>
-        <Navigation {...navigation} />
-      </div>
-    </header>
-  );
+	return (
+		<header class="header">
+			<div class="header__inner">
+				<div class="header__inner-left-side">
+					<Burger class="md:hidden" />
+					<Logo href="/" target="_self" title="Ecopages" />
+					<p class="version">v {rootJson.version as 'safe'}</p>
+				</div>
+				<Navigation {...navigation} />
+			</div>
+		</header>
+	);
 };
 
 Header.config = {
-  importMeta: import.meta,
-  dependencies: {
-    stylesheets: ['./header.css'],
-    components: [Navigation, Logo, Burger],
-  },
+	importMeta: import.meta,
+	dependencies: {
+		stylesheets: ['./header.css'],
+		components: [Navigation, Logo, Burger],
+	},
 };

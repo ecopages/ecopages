@@ -11,15 +11,15 @@ export const PLUGIN_NAME = 'MDX';
  * This plugin provides support for MDX components in Ecopages
  */
 export class MDXPlugin extends IntegrationPlugin {
-  renderer = MDXRenderer;
+	renderer = MDXRenderer;
 
-  constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
-    super({
-      name: PLUGIN_NAME,
-      extensions: ['.mdx'],
-      ...options,
-    });
-  }
+	constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
+		super({
+			name: PLUGIN_NAME,
+			extensions: ['.mdx'],
+			...options,
+		});
+	}
 }
 
 /**
@@ -28,5 +28,5 @@ export class MDXPlugin extends IntegrationPlugin {
  * @returns A new MDXPlugin instance
  */
 export function mdxPlugin(options?: Omit<IntegrationPluginConfig, 'name'>): MDXPlugin {
-  return new MDXPlugin(options);
+	return new MDXPlugin(options);
 }

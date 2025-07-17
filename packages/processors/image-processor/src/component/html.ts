@@ -11,5 +11,5 @@ import { type EcoImageProps, renderer } from '../image-renderer';
  * @param props {@link EcoImageProps}
  */
 export const EcoImage = (props: EcoImageProps): string => {
-  return renderer.renderToString(props);
+	return renderer.renderToString(props);
 };

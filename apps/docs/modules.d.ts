@@ -2,6 +2,6 @@
 /// <reference path="../../node_modules/@ecopages/core/src/env.d.ts" />
 
 declare module '*.mdx' {
-  const content: string;
-  export default content;
+	const content: string;
+	export default content;
 }

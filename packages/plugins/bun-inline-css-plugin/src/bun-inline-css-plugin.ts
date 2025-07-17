@@ -10,21 +10,21 @@ import type { BunPlugin } from 'bun';
  * @param inputHeader - Optional input header to be added to the file
  */
 type BunInlineCssPluginOptions = {
-  filter?: RegExp;
-  namespace?: string;
-  transform?: (contents: string | Buffer, args: { path: string; [key: string]: any }) => Promise<string> | string;
+	filter?: RegExp;
+	namespace?: string;
+	transform?: (contents: string | Buffer, args: { path: string; [key: string]: any }) => Promise<string> | string;
 };
 
 function getFileAsBuffer(path: string): Buffer {
-  try {
-    if (!existsSync(path)) {
-      throw new Error(`File: ${path} not found`);
-    }
-    return readFileSync(path);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
-  }
+	try {
+		if (!existsSync(path)) {
+			throw new Error(`File: ${path} not found`);
+		}
+		return readFileSync(path);
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
+	}
 }
 
 /**
@@ -36,36 +36,36 @@ function getFileAsBuffer(path: string): Buffer {
  * @returns The bun plugin
  */
 export const bunInlineCssPlugin = (options: BunInlineCssPluginOptions): BunPlugin => {
-  const { filter, namespace, transform } = Object.assign(
-    {
-      filter: /\.css$/,
-      namespace: 'bun-inline-css-plugin',
-      transform: async (contents: string | Buffer) => contents,
-    },
-    options,
-  );
+	const { filter, namespace, transform } = Object.assign(
+		{
+			filter: /\.css$/,
+			namespace: 'bun-inline-css-plugin',
+			transform: async (contents: string | Buffer) => contents,
+		},
+		options,
+	);
 
-  return {
-    name: 'bun-inline-css-plugin',
-    setup(build) {
-      build.onResolve({ filter }, (args) => {
-        const absoluteImporter = path.resolve(args.importer);
-        const importerDir = path.dirname(absoluteImporter);
-        const absolutePath = `${path.join(importerDir, args.path)}`;
+	return {
+		name: 'bun-inline-css-plugin',
+		setup(build) {
+			build.onResolve({ filter }, (args) => {
+				const absoluteImporter = path.resolve(args.importer);
+				const importerDir = path.dirname(absoluteImporter);
+				const absolutePath = `${path.join(importerDir, args.path)}`;
 
-        return {
-          path: absolutePath,
-          namespace,
-        };
-      });
+				return {
+					path: absolutePath,
+					namespace,
+				};
+			});
 
-      build.onLoad({ filter: /.*/, namespace }, async (args) => {
-        const text = getFileAsBuffer(args.path).toString();
-        return {
-          contents: transform ? await transform(text) : text,
-          loader: 'text',
-        };
-      });
-    },
-  };
+			build.onLoad({ filter: /.*/, namespace }, async (args) => {
+				const text = getFileAsBuffer(args.path).toString();
+				return {
+					contents: transform ? await transform(text) : text,
+					loader: 'text',
+				};
+			});
+		},
+	};
 };

@@ -12,7 +12,7 @@ import { defaultPlugins, type PluginsRecord } from './default-plugins.ts';
  * PostCSS Processor Options
  */
 export type PostCssProcessorOptions = {
-  plugins: postcss.AcceptedPlugin[];
+	plugins: postcss.AcceptedPlugin[];
 };
 
 /**
@@ -34,19 +34,19 @@ export type ProcessStringOrBuffer = (contents: string | Buffer, options?: PostCs
 const appLogger = new Logger('[@ecopages/postcss-processor]');
 
 export function getFileAsBuffer(path: string): Buffer {
-  try {
-    if (!existsSync(path)) {
-      throw new Error(`File: ${path} not found`);
-    }
-    return readFileSync(path);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
-  }
+	try {
+		if (!existsSync(path)) {
+			throw new Error(`File: ${path} not found`);
+		}
+		return readFileSync(path);
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
+	}
 }
 
 const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[] => {
-  return options ? Object.values(options.plugins) : Object.values(defaultPlugins);
+	return options ? Object.values(options.plugins) : Object.values(defaultPlugins);
 };
 
 /**
@@ -62,15 +62,15 @@ const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[]
  * });
  */
 const processPath: ProcessPath = async (path, options) => {
-  const contents = getFileAsBuffer(path);
+	const contents = getFileAsBuffer(path);
 
-  return postcss(getPlugins(options))
-    .process(contents, { from: path })
-    .then((result) => result.css)
-    .catch((error) => {
-      appLogger.error('Error processing file with PostCssProcessor', error.message);
-      return '';
-    });
+	return postcss(getPlugins(options))
+		.process(contents, { from: path })
+		.then((result) => result.css)
+		.catch((error) => {
+			appLogger.error('Error processing file with PostCssProcessor', error.message);
+			return '';
+		});
 };
 
 /**
@@ -89,15 +89,15 @@ const processPath: ProcessPath = async (path, options) => {
  * ```
  */
 const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) => {
-  if (!contents) return '';
+	if (!contents) return '';
 
-  return postcss(getPlugins(options))
-    .process(contents, { from: undefined })
-    .then((result) => result.css)
-    .catch((error) => {
-      appLogger.error('Error processing string or buffer with PostCssProcessor', error.message);
-      return '';
-    });
+	return postcss(getPlugins(options))
+		.process(contents, { from: undefined })
+		.then((result) => result.css)
+		.catch((error) => {
+			appLogger.error('Error processing string or buffer with PostCssProcessor', error.message);
+			return '';
+		});
 };
 
 /**
@@ -107,11 +107,11 @@ const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) =
  * - {@link PluginsRecord}: Default plugins used by the PostCSS Processor
  */
 export const PostCssProcessor: {
-  processPath: ProcessPath;
-  processStringOrBuffer: ProcessStringOrBuffer;
-  defaultPlugins: PluginsRecord;
+	processPath: ProcessPath;
+	processStringOrBuffer: ProcessStringOrBuffer;
+	defaultPlugins: PluginsRecord;
 } = {
-  processPath,
-  processStringOrBuffer,
-  defaultPlugins,
+	processPath,
+	processStringOrBuffer,
+	defaultPlugins,
 };

@@ -17,20 +17,20 @@ export const FIXTURE_EXISTING_FILE_GZ_IN_DIST = `${FIXTURE_EXISTING_CSS_FILE_IN_
 export const FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH = `${FIXTURE_APP_PROJECT_DIR}/.eco/${FIXTURE_EXISTING_SVG_FILE_IN_DIST}`;
 
 export const APP_TEST_ROUTES = {
-  nonExistentFile: 'non-existent-file.css',
-  nonExistentPage: 'non-existent-page',
-  existingCssFile: FIXTURE_EXISTING_CSS_FILE_IN_DIST,
-  existingSvgFile: FIXTURE_EXISTING_SVG_FILE_IN_DIST,
-  index: '/',
-  withQuery: '?page=1',
-  dynamic: 'dynamic/123',
-  dynamicWithQuery: 'dynamic/123?page=1',
-  dynamicWithQuryAndParams: 'dynamic/123?page=1',
-  catchAll: 'catch-all/123/456',
+	nonExistentFile: 'non-existent-file.css',
+	nonExistentPage: 'non-existent-page',
+	existingCssFile: FIXTURE_EXISTING_CSS_FILE_IN_DIST,
+	existingSvgFile: FIXTURE_EXISTING_SVG_FILE_IN_DIST,
+	index: '/',
+	withQuery: '?page=1',
+	dynamic: 'dynamic/123',
+	dynamicWithQuery: 'dynamic/123?page=1',
+	dynamicWithQuryAndParams: 'dynamic/123?page=1',
+	catchAll: 'catch-all/123/456',
 };
 
 export const BASE_URL = import.meta.env.ECOPAGES_BASE_URL;
 
 export const APP_TEST_ROUTES_URLS: Record<keyof typeof APP_TEST_ROUTES, string> = Object.fromEntries(
-  Object.entries(APP_TEST_ROUTES).map(([key, value]) => [key, `${BASE_URL}/${value}`]),
+	Object.entries(APP_TEST_ROUTES).map(([key, value]) => [key, `${BASE_URL}/${value}`]),
 ) as Record<keyof typeof APP_TEST_ROUTES, string>;

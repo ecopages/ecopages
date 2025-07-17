@@ -1,13 +1,13 @@
 import { addBaseUrlToPathname, html, type PageMetadataProps } from '@ecopages/core';
 
 export function Seo({
-  title,
-  description,
-  image = '/public/assets/images/default-og.webp',
-  url,
-  keywords,
+	title,
+	description,
+	image = '/public/assets/images/default-og.webp',
+	url,
+	keywords,
 }: PageMetadataProps) {
-  return html`<title>${title}</title>
+	return html`<title>${title}</title>
     <link rel="icon" type="image/x-icon" href="/public/assets/favicon.svg" />
     <link rel="robots" href="/robots.txt" />
     <meta name="description" content="${description}" />

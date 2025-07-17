@@ -1,12 +1,12 @@
 import { type EcoComponent, html } from '@ecopages/core';
 
 export type BaseLayoutProps = {
-  children: string;
-  class?: string;
+	children: string;
+	class?: string;
 };
 
 export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: className }) => {
-  return html`
+	return html`
     <body>
       <main class="${className}">!${children}</main>
     </body>
@@ -14,8 +14,8 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
 };
 
 BaseLayout.config = {
-  importMeta: import.meta,
-  dependencies: {
-    stylesheets: ['./base-layout.css'],
-  },
+	importMeta: import.meta,
+	dependencies: {
+		stylesheets: ['./base-layout.css'],
+	},
 };

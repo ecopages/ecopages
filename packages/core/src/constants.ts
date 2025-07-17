@@ -10,7 +10,7 @@ import { FileUtils } from './utils/file-utils.module';
  * Collection of status messages used in the application.
  */
 export const STATUS_MESSAGE = {
-  404: '404 Not Found',
+	404: '404 Not Found',
 };
 
 /**
@@ -30,15 +30,15 @@ export const RESOLVED_ASSETS_DIR: string = 'assets';
 export const RESOLVED_ASSETS_VENDORS_DIR: string = `${RESOLVED_ASSETS_DIR}/vendors`;
 
 interface GeneratedPathOptions {
-  root: string;
-  module: string;
-  subPath?: string;
-  ensureDirExists?: boolean;
+	root: string;
+	module: string;
+	subPath?: string;
+	ensureDirExists?: boolean;
 }
 
 const GENERATED_BASE_PATHS = {
-  types: 'node_modules/@types',
-  cache: 'node_modules/.cache/@ecopages',
+	types: 'node_modules/@types',
+	cache: 'node_modules/.cache/@ecopages',
 } as const;
 
 /**
@@ -46,17 +46,17 @@ const GENERATED_BASE_PATHS = {
  * Used for managing generated files like types, cache, and assets.
  */
 export function resolveGeneratedPath(type: keyof typeof GENERATED_BASE_PATHS, options: GeneratedPathOptions): string {
-  const { root, module, subPath, ensureDirExists } = options;
+	const { root, module, subPath, ensureDirExists } = options;
 
-  const parts = [root, GENERATED_BASE_PATHS[type], module, subPath].filter(Boolean);
+	const parts = [root, GENERATED_BASE_PATHS[type], module, subPath].filter(Boolean);
 
-  const fullPath = path.join(...(parts as string[]));
+	const fullPath = path.join(...(parts as string[]));
 
-  if (ensureDirExists) {
-    FileUtils.ensureDirectoryExists(path.dirname(fullPath));
-  }
+	if (ensureDirExists) {
+		FileUtils.ensureDirectoryExists(path.dirname(fullPath));
+	}
 
-  return fullPath;
+	return fullPath;
 }
 
 export const EXCLUDE_FROM_HTML_FLAG = '?exclude-from-html=true';

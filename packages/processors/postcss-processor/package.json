@@ -2,11 +2,18 @@
 	"name": "@ecopages/postcss-processor",
 	"version": "0.1.41",
 	"description": "Postcss processor, transform string or postcss file to css",
-	"keywords": ["postcss", "processor", "css"],
+	"keywords": [
+		"postcss",
+		"processor",
+		"css"
+	],
 	"license": "MIT",
 	"main": "./src/postcss-processor.ts",
 	"type": "module",
-	"files": ["src"],
+	"types": "./src/postcss-processor.ts",
+	"files": [
+		"src"
+	],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",

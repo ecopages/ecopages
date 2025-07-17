@@ -4,8 +4,8 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-    title: 'Docs | React Integration',
-    description: 'Learn how to use the React integration with Ecopages',
+  title: 'Docs | React Integration',
+  description: 'Learn how to use the React integration with Ecopages',
 })
 
 # React Integration
@@ -112,6 +112,15 @@ export default HomePage;
 2. **Component-based Architecture**: Create reusable React components within Ecopages.
 3. **State Management**: Use React hooks and state management as you would in a regular React application.
 4. **TypeScript Support**: Full TypeScript support with `EcoComponent` type.
+
+## Utilities
+
+The React integration provides two helpful utilities:
+
+- `dynamic`: Dynamically load React components with optional SSR support.
+- `ClientOnly`: Render children only on the client side, useful for browser-specific logic.
+
+You can import these from `@ecopages/react/utils/dynamic` and `@ecopages/react/utils/client-only`.
 
 ## Limitations
 

@@ -6,7 +6,7 @@ type ClientOnlyProps = {
 	fallback?: ReactNode;
 };
 
-export const useIsClient = () => {
+export const useIsClient = (): boolean => {
 	const [isClient, setIsClient] = useState(false);
 
 	useEffect(() => {
@@ -16,7 +16,7 @@ export const useIsClient = () => {
 	return isClient;
 };
 
-export const ClientOnly = ({ children, fallback = null }: ClientOnlyProps) => {
+export const ClientOnly = ({ children, fallback = null }: ClientOnlyProps): ReactNode => {
 	const isClient = useIsClient();
 
 	if (!isClient) {

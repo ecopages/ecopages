@@ -32,7 +32,8 @@
 	},
 	"devDependencies": {
 		"husky": "^9.0.10",
-		"lint-staged": "^15.2.2"
+		"lint-staged": "^15.2.2",
+		"@biomejs/biome": "2.0.6"
 	},
 	"module": "src/index.js",
 	"repository": "https://github.com/ecopages/ecopages.git",

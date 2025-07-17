@@ -44,7 +44,12 @@ export class AssetProcessingService {
           srcUrl: processed.filepath ? this.getSrcUrl(processed.filepath) : undefined,
         });
       } catch (error) {
-        appLogger.error(`Failed to process dependency: ${error instanceof Error ? error.message : String(error)}`);
+        appLogger.error(
+          `Failed to process dependency: ${
+            error instanceof Error ? error.message : String(error)
+          } for ${dep.kind}/${dep.source}`,
+        );
+        appLogger.debug(error as Error);
       }
     }
 

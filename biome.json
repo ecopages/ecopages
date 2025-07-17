@@ -1,14 +1,21 @@
 {
-	"$schema": "https://biomejs.dev/schemas/1.9.2/schema.json",
-	"organizeImports": {
-		"enabled": true
-	},
+	"$schema": "https://biomejs.dev/schemas/2.0.6/schema.json",
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
 	"linter": {
 		"enabled": true,
 		"rules": {
 			"recommended": true,
 			"style": {
-				"useSelfClosingElements": "off"
+				"useSelfClosingElements": "off",
+				"noParameterAssign": "error",
+				"useAsConstAssertion": "error",
+				"useDefaultParameterLast": "error",
+				"useEnumInitializers": "error",
+				"useSingleVarDeclarator": "error",
+				"noUnusedTemplateLiteral": "error",
+				"useNumberNamespace": "error",
+				"noInferrableTypes": "error",
+				"noUselessElse": "error"
 			},
 			"suspicious": {
 				"noExplicitAny": "off",
@@ -25,15 +32,16 @@
 		}
 	},
 	"files": {
-		"ignore": [
-			"node_modules",
-			"dist",
-			"out",
-			"coverage",
-			".nyc_output",
-			".vscode",
-			".env",
-			".eco"
+		"includes": [
+			"**",
+			"!**/node_modules",
+			"!**/dist",
+			"!**/out",
+			"!**/coverage",
+			"!**/.nyc_output",
+			"!**/.vscode",
+			"!**/.env",
+			"!**/.eco"
 		]
 	},
 	"javascript": {

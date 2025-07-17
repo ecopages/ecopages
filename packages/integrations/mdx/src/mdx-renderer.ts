@@ -3,14 +3,15 @@
  * @module
  */
 
-import { type EcoPagesElement, invariant } from '@ecopages/core';
 import {
   type EcoComponent,
   type EcoComponentConfig,
   type EcoPageFile,
+  type EcoPagesElement,
   type GetMetadata,
   IntegrationRenderer,
   type IntegrationRendererRenderOptions,
+  invariant,
   type RouteRendererBody,
 } from '@ecopages/core';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';

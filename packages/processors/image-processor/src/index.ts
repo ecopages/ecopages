@@ -1,3 +1,3 @@
-export * from './types';
-export * from './plugin';
 export * from './image-processor';
+export * from './plugin';
+export * from './types';

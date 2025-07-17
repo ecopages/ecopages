@@ -1,5 +1,5 @@
-import { Head } from '@/includes/head.kita';
 import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
+import { Head } from '@/includes/head.kita';
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({ children, metadata, headContent, language = 'en' }) => {
   return (

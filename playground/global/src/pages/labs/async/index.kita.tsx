@@ -1,5 +1,5 @@
-import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent } from '@ecopages/core';
+import { BaseLayout } from '@/layouts/base-layout';
 
 const getData = async () => {
   const res = await fetch('http://localhost:3000/api/hello');

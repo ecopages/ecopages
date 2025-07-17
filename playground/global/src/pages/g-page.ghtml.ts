@@ -1,7 +1,6 @@
-import { RadiantCounter } from '@/components/radiant-counter';
-import { type EcoComponent, resolveComponentsScripts } from '@ecopages/core';
-import { css, html } from '@ecopages/core';
+import { css, type EcoComponent, html, resolveComponentsScripts } from '@ecopages/core';
 import type { ScriptInjectorProps } from '@ecopages/scripts-injector';
+import { RadiantCounter } from '@/components/radiant-counter';
 
 function getAsyncData(): Promise<{
   username: string;

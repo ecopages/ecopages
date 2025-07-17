@@ -1,6 +1,6 @@
-import { Seo } from '@/includes/seo';
 import type { EcoComponent, PageHeadProps } from '@ecopages/core';
 import type { JSX } from 'react';
+import { Seo } from '@/includes/seo';
 
 /**
  * @todo https://react.dev/blog/2024/04/25/react-19#support-for-preloading-resources

@@ -1,5 +1,5 @@
-import { Header } from '@/components/header';
 import type { EcoComponent } from '@ecopages/core';
+import { Header } from '@/components/header';
 
 export type BaseLayoutProps = {
   children: JSX.Element;

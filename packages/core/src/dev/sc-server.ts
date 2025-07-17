@@ -123,13 +123,7 @@ export class StaticContentServer {
     }
   }
 
-  static createServer({
-    appConfig,
-    options,
-  }: {
-    appConfig: EcoPagesAppConfig;
-    options?: StaticContentServerOptions;
-  }) {
+  static createServer({ appConfig, options }: { appConfig: EcoPagesAppConfig; options?: StaticContentServerOptions }) {
     return new StaticContentServer({
       appConfig: appConfig,
       options,

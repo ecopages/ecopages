@@ -3,9 +3,9 @@ import {
   theodorePoncetQzephogqd7WUnsplashJpg,
   urbanVintage78A265Wpio4UnsplashJpg,
 } from 'ecopages:images';
-import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import { EcoImage } from '@ecopages/image-processor/component/html';
+import { BaseLayout } from '@/layouts/base-layout';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Images Labs page',

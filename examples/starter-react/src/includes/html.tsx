@@ -1,6 +1,6 @@
-import { Head } from '@/includes/head';
 import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
 import type { JSX } from 'react';
+import { Head } from '@/includes/head';
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps, JSX.Element> = ({
   children,

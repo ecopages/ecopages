@@ -1,5 +1,5 @@
-import { Navigation } from '@/components/navigation';
 import type { EcoComponent } from '@ecopages/core';
+import { Navigation } from '@/components/navigation';
 
 export type BaseLayoutProps = {
   children: JSX.Element | JSX.Element[];

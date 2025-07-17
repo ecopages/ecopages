@@ -3,11 +3,11 @@ import {
   theodorePoncetQzephogqd7WUnsplashJpg,
   urbanVintage78A265Wpio4UnsplashJpg,
 } from 'ecopages:images';
-import { ClientImageGenerator } from '@/components/client-image-generator';
-import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import { EcoImage } from '@ecopages/image-processor/component/react';
 import type { JSX } from 'react';
+import { ClientImageGenerator } from '@/components/client-image-generator';
+import { BaseLayout } from '@/layouts/base-layout';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Images Labs page',

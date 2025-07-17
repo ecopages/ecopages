@@ -1,5 +1,5 @@
-import { Seo } from '@/includes/seo.kita';
 import type { EcoComponent, PageHeadProps } from '@ecopages/core';
+import { Seo } from '@/includes/seo.kita';
 
 export const Head: EcoComponent<PageHeadProps> = ({ metadata, children }) => {
   return (

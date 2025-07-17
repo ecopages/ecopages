@@ -2,12 +2,18 @@
 	"name": "@ecopages/lit",
 	"version": "0.1.41",
 	"description": "Ecopages lit integration",
-	"keywords": ["ecopages", "lit", "plugin"],
+	"keywords": [
+		"ecopages",
+		"lit",
+		"plugin"
+	],
 	"license": "MIT",
 	"main": "./src/lit.plugin.ts",
 	"types": "./src/lit.plugin.ts",
 	"type": "module",
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"exports": {
 		".": {
 			"default": "./src/lit.plugin.ts",

@@ -1,7 +1,7 @@
 import { smallJpg, theodorePoncetQzephogqd7WUnsplashJpg, urbanVintage78A265Wpio4UnsplashJpg } from 'ecopages:images';
 import { html } from '@ecopages/core/html';
 import { EcoImage } from '@ecopages/image-processor/component/html';
-import { RadiantElement, customElement, onEvent, query } from '@ecopages/radiant';
+import { customElement, onEvent, query, RadiantElement } from '@ecopages/radiant';
 
 @customElement('eco-images')
 export class EcoImages extends RadiantElement {

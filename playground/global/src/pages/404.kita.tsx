@@ -1,5 +1,5 @@
-import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, Error404TemplateProps } from '@ecopages/core';
+import { BaseLayout } from '@/layouts/base-layout';
 
 const Error404: EcoComponent<Error404TemplateProps> = (htmlTemplateProps) => {
   return (

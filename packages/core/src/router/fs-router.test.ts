@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import type { Route } from '../internal-types.ts';
-import { FSRouterScanner } from './fs-router-scanner.ts';
 import { FSRouter } from './fs-router.ts';
+import { FSRouterScanner } from './fs-router-scanner.ts';
 
 const {
   templatesExt,

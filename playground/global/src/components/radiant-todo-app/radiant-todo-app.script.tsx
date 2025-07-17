@@ -1,7 +1,5 @@
 import {
   type ContextProvider,
-  RadiantElement,
-  WithKita,
   consumeContext,
   contextSelector,
   createContext,
@@ -9,7 +7,9 @@ import {
   onEvent,
   provideContext,
   query,
+  RadiantElement,
   reactiveProp,
+  WithKita,
 } from '@ecopages/radiant';
 
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './radiant-todo.templates';

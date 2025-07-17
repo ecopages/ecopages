@@ -3,7 +3,7 @@
  * @module @ecopages/image-processor/component/react
  */
 
-import { type JSX, createElement } from 'react';
+import { createElement, type JSX } from 'react';
 import { type EcoImageProps, renderer } from '../image-renderer';
 
 /**

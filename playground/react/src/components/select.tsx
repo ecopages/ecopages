@@ -1,3 +1,5 @@
+import type { EcoComponent } from '@ecopages/core';
+import type { JSX, ReactNode } from 'react';
 import {
   Select as AriaSelect,
   Button,
@@ -12,9 +14,6 @@ import {
   Text,
   type ValidationResult,
 } from 'react-aria-components';
-
-import type { EcoComponent } from '@ecopages/core';
-import type { JSX, ReactNode } from 'react';
 
 interface MySelectProps<T extends object> extends Omit<SelectProps<T>, 'children'> {
   label?: string;

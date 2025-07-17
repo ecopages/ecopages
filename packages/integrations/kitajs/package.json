@@ -2,12 +2,18 @@
 	"name": "@ecopages/kitajs",
 	"version": "0.1.41",
 	"description": "Kitajs plugin for Ecopages",
-	"keywords": ["ecopages", "kitajs", "plugin"],
+	"keywords": [
+		"ecopages",
+		"kitajs",
+		"plugin"
+	],
 	"license": "MIT",
 	"main": "./src/kitajs.plugin.ts",
 	"types": "./src/kitajs.plugin.ts",
 	"type": "module",
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",

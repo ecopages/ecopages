@@ -94,13 +94,7 @@ export class StaticSiteGenerator {
     }
   }
 
-  async run({
-    router,
-    baseUrl,
-  }: {
-    router: FSRouter;
-    baseUrl: string;
-  }) {
+  async run({ router, baseUrl }: { router: FSRouter; baseUrl: string }) {
     this.generateRobotsTxt();
     await this.generateStaticPages(router, baseUrl);
   }

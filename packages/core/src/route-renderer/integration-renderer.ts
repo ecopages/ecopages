@@ -5,7 +5,7 @@
  */
 
 import path from 'node:path';
-import { WS_PATH, makeLiveReloadScript } from '../adapters/bun/hmr.ts';
+import { makeLiveReloadScript, WS_PATH } from '../adapters/bun/hmr.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
   EcoComponent,

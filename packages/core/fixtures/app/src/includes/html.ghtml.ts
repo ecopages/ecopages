@@ -1,5 +1,5 @@
-import { Head } from '@/includes/head.ghtml';
 import { type EcoComponent, type HtmlTemplateProps, html } from '@ecopages/core';
+import { Head } from '@/includes/head.ghtml';
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({ children, metadata, headContent, language = 'en' }) => {
   return html`<html lang="${language}">

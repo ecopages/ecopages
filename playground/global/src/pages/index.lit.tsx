@@ -1,11 +1,11 @@
 import { ezi76Gu53NklsuUnsplashJpg } from 'ecopages:images';
+import { type EcoComponent, flagComponentsAsDynamic, type GetMetadata, resolveComponentsScripts } from '@ecopages/core';
+import { EcoImage } from '@ecopages/image-processor/component/html';
 import { AlpineCounter } from '@/components/alpine-counter';
 import Introduction from '@/components/introduction.mdx';
 import { LitCounter } from '@/components/lit-counter';
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, type GetMetadata, flagComponentsAsDynamic, resolveComponentsScripts } from '@ecopages/core';
-import { EcoImage } from '@ecopages/image-processor/component/html';
 
 export const getMetadata: GetMetadata = () => ({
   title: 'Home page',

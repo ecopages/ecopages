@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { FileUtils, deepMerge } from '@ecopages/core';
+import { deepMerge, FileUtils } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
 import { ImageUtils } from './image-utils';

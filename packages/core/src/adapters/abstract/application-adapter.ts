@@ -11,7 +11,7 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { ApiHandler, ApiHandlerContext } from '../../public-types.ts';
 import { FileUtils } from '../../utils/file-utils.module.ts';
-import { type ReturnParseCliArgs, parseCliArgs } from '../../utils/parse-cli-args.ts';
+import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 
 /**
  * Configuration options for application adapters

@@ -1,7 +1,8 @@
 import type { EcoComponent, Error404TemplateProps } from '@ecopages/core';
+import type { JSX } from 'react';
 import { BaseLayout } from '@/layouts/base-layout';
 
-const Error404: EcoComponent<Error404TemplateProps> = (htmlTemplateProps) => {
+const Error404: EcoComponent<Error404TemplateProps, JSX.Element> = () => {
 	return (
 		<BaseLayout>
 			<div className="error404">

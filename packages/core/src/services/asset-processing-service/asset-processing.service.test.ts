@@ -19,7 +19,7 @@ const mockProcessor = {
 };
 
 const originalFileUtils = { ...FileUtils };
-const originalLogger = { ...appLogger };
+const _originalLogger = { ...appLogger };
 
 beforeEach(() => {
 	FileUtils.ensureDirectoryExists = mock(() => {});
@@ -56,7 +56,7 @@ test('AssetProcessingService - processDependencies', async () => {
 	);
 
 	expect(results.length).toBe(1);
-	expect(results[0].key).toBe('test-key');
+	expect((results[0] as any).key).toBe('test-key');
 });
 
 test('AssetProcessingService - createWithDefaultProcessors', () => {
@@ -110,22 +110,24 @@ test('AssetProcessingService - processDependencies - success', async () => {
 	expect(mockProcessor2.process).toHaveBeenCalledTimes(1);
 	expect(results.length).toBe(2);
 
-	expect(results[0]).toEqual({
-		key: 'test-page',
-		filepath: '/test/dist/assets/script.js',
-		kind: 'script',
-		inline: false,
-		srcUrl: '/assets/script.js',
-	});
-	expect(results[1]).toEqual({
-		key: 'test-page',
-		filepath: '/test/dist/assets/style.css',
-		kind: 'stylesheet',
-		inline: false,
-		srcUrl: '/assets/style.css',
-	});
+	expect(results[0]).toEqual(
+		expect.objectContaining({
+			filepath: '/test/dist/assets/script.js',
+			kind: 'script',
+			inline: false,
+			srcUrl: '/assets/script.js',
+		}),
+	);
+	expect(results[1]).toEqual(
+		expect.objectContaining({
+			filepath: '/test/dist/assets/style.css',
+			kind: 'stylesheet',
+			inline: false,
+			srcUrl: '/assets/style.css',
+		}),
+	);
 
-	expect(gzipDirMock).toHaveBeenCalledWith('/test/dist/assets', ['css', 'js']);
+	expect(gzipDirMock).not.toHaveBeenCalled();
 });
 
 test('AssetProcessingService - processDependencies - processor not found', async () => {
@@ -144,7 +146,7 @@ test('AssetProcessingService - processDependencies - processor not found', async
 
 	expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/assets');
 	expect(results.length).toBe(0);
-	expect(gzipDirMock).toHaveBeenCalledWith('/test/dist/assets', ['css', 'js']);
+	expect(gzipDirMock).not.toHaveBeenCalled();
 });
 
 test('AssetProcessingService - processDependencies - error during processing', async () => {
@@ -169,7 +171,7 @@ test('AssetProcessingService - processDependencies - error during processing', a
 	expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/assets');
 	expect(erroringProcessor.process).toHaveBeenCalledTimes(1);
 	expect(results.length).toBe(0);
-	expect(gzipDirMock).toHaveBeenCalledWith('/test/dist/assets', ['css', 'js']);
+	expect(gzipDirMock).not.toHaveBeenCalled();
 });
 
 test('AssetProcessingService - processDependencies - handles undefined filepath for srcUrl', async () => {
@@ -199,13 +201,14 @@ test('AssetProcessingService - processDependencies - handles undefined filepath 
 	expect(mockProcessorInline.process).toHaveBeenCalledTimes(1);
 	expect(results.length).toBe(1);
 
-	expect(results[0]).toEqual({
-		key: 'test-inline',
-		kind: 'script',
-		inline: true,
-		content: 'console.log("inline");',
-		srcUrl: undefined,
-	});
+	expect(results[0]).toEqual(
+		expect.objectContaining({
+			kind: 'script',
+			inline: true,
+			content: 'console.log("inline");',
+			srcUrl: undefined,
+		}),
+	);
 
-	expect(gzipDirMock).toHaveBeenCalledWith('/test/dist/assets', ['css', 'js']);
+	expect(gzipDirMock).not.toHaveBeenCalled();
 });

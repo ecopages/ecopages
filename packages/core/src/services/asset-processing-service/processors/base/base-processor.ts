@@ -18,7 +18,7 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 	}
 
 	get isDevelopment(): boolean {
-		return import.meta.env.NODE_ENV !== 'development';
+		return import.meta.env.NODE_ENV === 'development';
 	}
 
 	get isProduction(): boolean {

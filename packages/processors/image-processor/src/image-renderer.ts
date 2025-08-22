@@ -186,6 +186,7 @@ export class ImageRenderer implements IImageRenderer {
 		'priority',
 		'width',
 		'height',
+		'cacheKey',
 	];
 
 	generateAttributes(props: EcoImageProps): GenerateAttributesResult | null {
@@ -201,7 +202,7 @@ export class ImageRenderer implements IImageRenderer {
 		});
 
 		const htmlAttributes = this.getHtmlAttributes(props);
-		const generatedStyles = collected.styles ? this.generateStyleString(collected.styles) : '';
+		const generatedStyles = styles ? this.generateStyleString(styles) : '';
 		const userStyles = props.style || '';
 
 		return {
@@ -225,7 +226,7 @@ export class ImageRenderer implements IImageRenderer {
 		const collected = this.collectAttributes(props);
 		if (!collected) return null;
 
-		const { styles, fetchpriority, loading, decoding, src, srcset, sizes, width, height, ...rest } = collected;
+		const { styles, fetchpriority, loading, decoding, src, srcset, sizes, width, height } = collected;
 
 		const dimensions = LayoutAttributesManager.filterDimensionAttributes({
 			width,

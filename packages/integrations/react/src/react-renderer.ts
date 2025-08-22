@@ -74,8 +74,19 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 					excludeFromHtml: true,
 					bundle: true,
 					bundleOptions: {
-						external: ['react', 'react-dom'],
+						external: [
+							'react',
+							'react-dom',
+							'react/jsx-runtime',
+							'react/jsx-dev-runtime',
+							'react-dom/client',
+						],
 						naming: `${componentName}.[ext]`,
+						...(import.meta.env.NODE_ENV === 'production' && {
+							minify: true,
+							splitting: false,
+							treeshaking: true,
+						}),
 					},
 					attributes: {
 						type: 'module',
@@ -96,7 +107,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 
 			if (!this.assetProcessingService) throw new Error('AssetProcessingService is not set');
 
-			return await this.assetProcessingService?.processDependencies(dependencies, componentName);
+			return await this.assetProcessingService.processDependencies(dependencies, componentName);
 		} catch (error) {
 			if (error instanceof BundleError) console.error('[ecopages] Bundle errors:', error.logs);
 

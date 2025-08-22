@@ -1,10 +1,4 @@
-import { appLogger } from '../global/app-logger';
-import type {
-	AssetDefinition,
-	AssetPosition,
-	ProcessedAsset,
-	ScriptAsset,
-} from './asset-processing-service/assets.types';
+import type { AssetPosition, ProcessedAsset, ScriptAsset } from './asset-processing-service/assets.types';
 
 export class HtmlTransformerService {
 	htmlRewriter: HTMLRewriter;
@@ -40,7 +34,6 @@ export class HtmlTransformerService {
 	}
 
 	setProcessedDependencies(processedDependencies: ProcessedAsset[]) {
-		appLogger.debug('Setting processed dependencies', { count: processedDependencies.length });
 		this.processedDependencies = processedDependencies;
 	}
 

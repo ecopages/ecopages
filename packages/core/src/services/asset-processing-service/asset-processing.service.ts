@@ -24,37 +24,63 @@ export class AssetProcessingService {
 	}
 
 	async processDependencies(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
-		const results = [];
 		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
-
 		FileUtils.ensureDirectoryExists(depsDir);
 
-		for (const dep of deps) {
-			const processor = this.registry.getProcessor(dep.kind, dep.source);
-			if (!processor) {
-				appLogger.error(`No processor found for ${dep.kind}/${dep.source}`);
-				continue;
-			}
-
-			try {
-				const processed = await processor.process(dep);
-				results.push({
-					key,
-					...processed,
-					srcUrl: processed.filepath ? this.getSrcUrl(processed.filepath) : undefined,
-				});
-			} catch (error) {
-				appLogger.error(
-					`Failed to process dependency: ${
-						error instanceof Error ? error.message : String(error)
-					} for ${dep.kind}/${dep.source}`,
-				);
-				appLogger.debug(error as Error);
-			}
-		}
+		const results = await this.processDependenciesParallel(deps, key);
 
 		await this.optimizeDependencies(depsDir);
 		return results;
+	}
+
+	private async processDependenciesParallel(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
+		const grouped = this.groupDependenciesByType(deps);
+
+		const groupPromises = Object.entries(grouped).map(async ([, typeDeps]) => {
+			const typePromises = typeDeps.map(async (dep) => {
+				const processor = this.registry.getProcessor(dep.kind, dep.source);
+				if (!processor) {
+					appLogger.error(`No processor found for ${dep.kind}/${dep.source}`);
+					return null;
+				}
+
+				try {
+					const processed = await processor.process(dep);
+					const processedWithKey = {
+						key,
+						...processed,
+						srcUrl: processed.filepath ? this.getSrcUrl(processed.filepath) : undefined,
+					};
+					return processedWithKey as ProcessedAsset;
+				} catch (error) {
+					appLogger.error(
+						`Failed to process dependency: ${
+							error instanceof Error ? error.message : String(error)
+						} for ${dep.kind}/${dep.source}`,
+					);
+					appLogger.debug(error as Error);
+					return null;
+				}
+			});
+
+			const typeResults = await Promise.all(typePromises);
+			return typeResults.filter((result) => result !== null);
+		});
+
+		const allTypeResults = await Promise.all(groupPromises);
+		return allTypeResults.flat();
+	}
+
+	private groupDependenciesByType(deps: AssetDefinition[]): Record<string, AssetDefinition[]> {
+		return deps.reduce(
+			(acc, dep) => {
+				const key = `${dep.kind}_${dep.source}`;
+				if (!acc[key]) acc[key] = [];
+				acc[key].push(dep);
+				return acc;
+			},
+			{} as Record<string, AssetDefinition[]>,
+		);
 	}
 
 	private getSrcUrl(filepath: string): string | undefined {
@@ -62,7 +88,9 @@ export class AssetProcessingService {
 	}
 
 	private async optimizeDependencies(depsDir: string): Promise<void> {
-		FileUtils.gzipDirSync(depsDir, ['css', 'js']);
+		if (import.meta.env.NODE_ENV === 'production') {
+			FileUtils.gzipDirSync(depsDir, ['css', 'js']);
+		}
 	}
 
 	static createWithDefaultProcessors(appConfig: EcoPagesAppConfig): AssetProcessingService {

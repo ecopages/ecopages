@@ -5,7 +5,7 @@
  */
 
 import path from 'node:path';
-import { makeLiveReloadScript, WS_PATH } from '../adapters/bun/hmr.ts';
+import { makeLiveReloadScript } from '../adapters/bun/hmr.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
 	EcoComponent,
@@ -146,7 +146,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	): Promise<PageMetadataProps> {
 		let metadata: PageMetadataProps = this.appConfig.defaultMetadata;
 		if (getMetadata) {
-			const dynamicMetadata = await getMetadata({ params, query, props, appConfig: this.appConfig });
+			const dynamicMetadata = await getMetadata({
+				params,
+				query,
+				props,
+				appConfig: this.appConfig,
+			});
 			metadata = { ...metadata, ...dynamicMetadata };
 		}
 		return metadata;
@@ -279,7 +284,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		}
 
 		const routeAssetsDependencies = await this.assetProcessingService.processDependencies(dependencies, this.name);
-
 		return this.resolvedIntegrationDependencies.concat(routeAssetsDependencies);
 	}
 
@@ -338,8 +342,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
 		const renderOptions = await this.prepareRenderOptions(options);
 
-		const { hostname, port } = new URL(this.runtimeOrigin);
-
 		if (import.meta.env.NODE_ENV === 'development') {
 			this.htmlTransformer.htmlRewriter.on('body', {
 				element(body) {
@@ -378,7 +380,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @param file - The file path to build assets for.
 	 * @returns The processed assets or undefined.
 	 */
-	protected buildRouteRenderAssets(file: string): Promise<ProcessedAsset[]> | undefined {
+	protected buildRouteRenderAssets(_file: string): Promise<ProcessedAsset[]> | undefined {
 		return undefined;
 	}
 }

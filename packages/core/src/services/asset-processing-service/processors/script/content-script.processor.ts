@@ -28,10 +28,9 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		}
 
 		if (dep.content) {
-			const tempDir = path.join(this.appConfig.absolutePaths.distDir, 'scripts-temp');
+			const tempDir = this.appConfig.absolutePaths.distDir;
 			FileUtils.ensureDirectoryExists(tempDir);
 			const tempFileName = path.join(tempDir, filename);
-			FileUtils.ensureDirectoryExists(tempDir);
 			FileUtils.write(tempFileName, dep.content);
 
 			const bundledFilePath = await this.bundleScript({
@@ -52,7 +51,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				excludeFromHtml: dep.excludeFromHtml,
 			};
 
-			FileUtils.rmdirSync(tempFileName);
+			FileUtils.rmSync(tempFileName);
 
 			this.writeCacheFile(filename, processedAsset);
 

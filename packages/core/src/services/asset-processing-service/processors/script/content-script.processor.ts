@@ -28,7 +28,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		}
 
 		if (dep.content) {
-			const tempDir = path.join(this.appConfig.absolutePaths.distDir, 'scripts-temp');
+			const tempDir = this.appConfig.absolutePaths.distDir;
 			FileUtils.ensureDirectoryExists(tempDir);
 			const tempFileName = path.join(tempDir, filename);
 			FileUtils.ensureDirectoryExists(tempDir);

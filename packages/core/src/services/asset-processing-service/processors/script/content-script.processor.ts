@@ -31,7 +31,6 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 			const tempDir = this.appConfig.absolutePaths.distDir;
 			FileUtils.ensureDirectoryExists(tempDir);
 			const tempFileName = path.join(tempDir, filename);
-			FileUtils.ensureDirectoryExists(tempDir);
 			FileUtils.write(tempFileName, dep.content);
 
 			const bundledFilePath = await this.bundleScript({

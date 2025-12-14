@@ -5,11 +5,8 @@
 
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
-import { Logger } from '@ecopages/logger';
 import type React from 'react';
 import { ReactRenderer } from './react-renderer';
-
-const appLogger = new Logger('[@ecopages/react]');
 
 /**
  * Options for the React plugin
@@ -39,8 +36,6 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		});
 
 		this.integrationDependencies.unshift(...this.getDependencies());
-
-		appLogger.warn('React plugin alone does not support MDX files at this time.');
 	}
 
 	private buildImportMapSourceUrl(fileName: string): string {

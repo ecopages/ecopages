@@ -11,6 +11,6 @@
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/bun-postcss-loader": "workspace:*",
-		"@ecopages/bun-mdx-kitajs-loader": "workspace:*"
+		"@ecopages/mdx": "workspace:*"
 	}
 }

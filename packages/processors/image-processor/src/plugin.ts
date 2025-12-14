@@ -261,6 +261,18 @@ declare module "ecopages:images" {
 
 		FileUtils.writeFileSync(typesDir, content);
 		logger.debug('Generated types for virtual module', { typesDir });
+
+		const indexTypesDir = resolveGeneratedPath('types', {
+			root: this.context.rootDir,
+			module: this.name,
+			subPath: 'index.d.ts',
+			ensureDirExists: true,
+		});
+
+		const indexContent = 'import "./virtual-module.d.ts";';
+
+		FileUtils.writeFileSync(indexTypesDir, indexContent);
+		logger.debug('Generated index types for virtual module', { indexTypesDir });
 	}
 
 	/**

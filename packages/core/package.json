@@ -39,6 +39,12 @@
 			"require": "./src/index.ts",
 			"types": "./src/public-types.ts"
 		},
+		"./declarations": {
+			"types": "./src/declarations.d.ts"
+		},
+		"./env": {
+			"types": "./src/env.d.ts"
+		},
 		"./config-builder": {
 			"types": "./src/config/config-builder.ts",
 			"default": "./src/config/config-builder.ts"

@@ -23,6 +23,9 @@ const HomePage: EcoComponent<unknown, JSX.Element> = () => {
 			<a href="/images" className="text-blue-700 underline">
 				Test Images
 			</a>
+			<a href="/mdx-test" className="text-blue-700 underline">
+				Test MDX
+			</a>
 			<Counter defaultValue={10} />
 			<RadiantCounter value={5} />
 			<Select label="Ice cream flavor">

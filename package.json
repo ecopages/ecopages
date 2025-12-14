@@ -39,7 +39,6 @@
 		"lint-staged": "^15.2.2",
 		"oxlint": "^1.32.0",
 		"@ecopages/bun-postcss-loader": "workspace:*",
-		"@ecopages/bun-mdx-kitajs-loader": "workspace:*",
 		"prettier": "^3.7.4"
 	},
 	"module": "src/index.js",

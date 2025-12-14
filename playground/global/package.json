@@ -18,7 +18,6 @@
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/bun-mdx-kitajs-loader": "workspace:*",
 		"@ecopages/bun-postcss-loader": "workspace:*",
 		"@faker-js/faker": "9.7.0",
 		"@types/alpinejs": "^3.13.6",

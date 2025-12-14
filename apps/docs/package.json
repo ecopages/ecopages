@@ -10,7 +10,7 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/bun-mdx-kitajs-loader": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
 		"@ecopages/bun-postcss-loader": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/radiant": "latest",

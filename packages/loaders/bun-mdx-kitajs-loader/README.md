@@ -2,6 +2,10 @@
 
 A Bun plugin that processes `.mdx` files
 
+## Deprecated
+
+This loader is deprecated in favor of the [`@ecopages/mdx`](https://github.com/ecopages/ecopages/tree/main/packages/integrations/mdx) integration.
+
 ## Install
 
 ```bash

@@ -17,7 +17,7 @@
 
 - Avoid TypeScript hacks and anti-patterns.
 - Do not use `any` unless absolutely necessary.
-  - If you must use `any`, add a comment explaining why.
+    - If you must use `any`, add a comment explaining why.
 - Prefer `unknown` over `any` when possible.
 
 ## JS Runtime

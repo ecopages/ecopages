@@ -4,9 +4,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-    title: 'Docs | Plugins Overview',
-    description: 'Overview of the Ecopages plugin system',
-})
+	title: 'Docs | Plugins Overview',
+	description: 'Overview of the Ecopages plugin system',
+});
 
 # Plugins Overview
 
@@ -18,7 +18,9 @@ Ecopages provides two main types of plugins to extend its functionality:
 ## Types of Plugins
 
 ### Processors
+
 Processors are plugins that handle file transformations. They can:
+
 - Transform files during build time
 - Generate additional assets
 - Optimize content
@@ -27,7 +29,9 @@ Processors are plugins that handle file transformations. They can:
 Examples include the PostCSS processor and Image processor.
 
 ### Integrations
+
 Integrations add support for different templating engines and frameworks. They:
+
 - Define file extensions to handle
 - Provide rendering logic
 - Manage dependencies
@@ -46,14 +50,16 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { kitaPlugin } from '@ecopages/kitajs';
 
 const config = await new ConfigBuilder()
-  .setProcessors([
-    postcssProcessorPlugin(),
-  ])
-  .setIntegrations([
-    kitaPlugin(),
-  ])
-  .build();
+.setProcessors([
+postcssProcessorPlugin(),
+])
+.setIntegrations([
+kitaPlugin(),
+])
+.build();
+
 ```
 </CodeBlock>
 
 See [Custom Processor](/docs/plugins/custom-processor) and [Custom Integration](/docs/plugins/custom-integration) for details on creating your own plugins.
+```

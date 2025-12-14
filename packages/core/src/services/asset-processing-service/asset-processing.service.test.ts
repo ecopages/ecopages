@@ -163,7 +163,11 @@ test('AssetProcessingService - processDependencies - error during processing', a
 	};
 	service.registerProcessor('script', 'file', erroringProcessor);
 
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/failing.js' };
+	const dependency: AssetDefinition = {
+		kind: 'script',
+		source: 'file',
+		filepath: 'path/to/failing.js',
+	};
 	const key = 'test-key-error';
 
 	const results = await service.processDependencies([dependency], key);

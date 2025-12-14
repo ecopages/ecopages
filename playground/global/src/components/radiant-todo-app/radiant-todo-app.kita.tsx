@@ -22,20 +22,20 @@ const TodoPanel = ({
 	title,
 	count,
 	children,
-	ref,
+	dataRef,
 }: {
 	title: string;
 	count: number;
 	children: JSX.Element;
-	ref: string;
+	dataRef: string;
 }) => {
 	return (
 		<article class="todo__panel">
 			<h2 safe>{title}</h2>
 			<p class="todo__count">
-				{title as 'safe'}: <span data-ref={`count-${ref}`}>{count}</span>
+				{title as 'safe'}: <span data-ref={`count-${dataRef}`}>{count}</span>
 			</p>
-			<div class="todo__list" data-ref={`list-${ref}`}>
+			<div class="todo__list" data-ref={`list-${dataRef}`}>
 				{children}
 			</div>
 		</article>
@@ -61,10 +61,10 @@ export const RadiantTodoApp: EcoComponent = async () => {
 	return (
 		<radiant-todo-app class="todo">
 			<section class="todo__board">
-				<TodoPanel title="Incomplete Todos" count={incompleteTodos.length} ref="incomplete">
+				<TodoPanel title="Incomplete Todos" count={incompleteTodos.length} dataRef="incomplete">
 					{incompleteTodos.length > 0 ? <TodoList todos={incompleteTodos} /> : <NoTodosMessage />}
 				</TodoPanel>
-				<TodoPanel title="Completed Todos" count={completedTodos.length} ref="complete">
+				<TodoPanel title="Completed Todos" count={completedTodos.length} dataRef="complete">
 					{completedTodos.length > 0 ? <TodoList todos={completedTodos} /> : <NoCompletedTodosMessage />}
 				</TodoPanel>
 			</section>

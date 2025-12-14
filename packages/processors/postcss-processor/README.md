@@ -23,8 +23,8 @@ Integrate the processor into your Ecopages configuration:
 
 ```typescript
 // ecopages.config.ts
-import { ConfigBuilder } from "@ecopages/core";
-import { postcssProcessorPlugin } from "@ecopages/postcss-processor";
+import { ConfigBuilder } from '@ecopages/core';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
 const config = await new ConfigBuilder()
 	.setProcessors([
@@ -52,9 +52,9 @@ You can also use the underlying processor functions directly:
 ### Processing a CSS File
 
 ```ts
-import { PostCssProcessor } from "@ecopages/postcss-processor";
+import { PostCssProcessor } from '@ecopages/postcss-processor';
 
-PostCssProcessor.processPath("path/to/file.css").then((processedCss) => {
+PostCssProcessor.processPath('path/to/file.css').then((processedCss) => {
 	console.log(processedCss);
 });
 ```
@@ -62,7 +62,7 @@ PostCssProcessor.processPath("path/to/file.css").then((processedCss) => {
 ### Processing a CSS String or Buffer
 
 ```ts
-import { PostCssProcessor } from "@ecopages/postcss-processor";
+import { PostCssProcessor } from '@ecopages/postcss-processor';
 
 const css = `body { @apply bg-blue-500; }`;
 
@@ -91,12 +91,12 @@ Create a `postcss.config.js` (or `.cjs`, `.mjs`, `.ts`) file in your project roo
 // postcss.config.js
 module.exports = {
 	plugins: {
-		"postcss-import": {},
-		"tailwindcss/nesting": {},
+		'postcss-import': {},
+		'tailwindcss/nesting': {},
 		tailwindcss: {},
 		autoprefixer: {},
 		// Add or override plugins here
-		"postcss-simple-vars": {},
+		'postcss-simple-vars': {},
 		cssnano: {},
 	},
 };
@@ -110,16 +110,16 @@ You can override the automatic detection and default plugins by passing a `plugi
 
 ```typescript
 // ecopages.config.ts
-import { ConfigBuilder } from "@ecopages/core";
-import { postcssProcessorPlugin, defaultPlugins } from "@ecopages/postcss-processor";
-import postCssSimpleVars from "postcss-simple-vars";
+import { ConfigBuilder } from '@ecopages/core';
+import { postcssProcessorPlugin, defaultPlugins } from '@ecopages/postcss-processor';
+import postCssSimpleVars from 'postcss-simple-vars';
 
 const config = await new ConfigBuilder()
 	.setProcessors([
 		postcssProcessorPlugin({
 			plugins: {
 				...defaultPlugins, // Include defaults if needed
-				"postcss-simple-vars": postCssSimpleVars(),
+				'postcss-simple-vars': postCssSimpleVars(),
 			},
 		}),
 	])
@@ -133,14 +133,14 @@ export default config;
 When using `processPath` or `processStringOrBuffer` directly, pass plugins via the options argument:
 
 ```ts
-import { PostCssProcessor, defaultPlugins } from "@ecopages/postcss-processor";
-import anotherPostCssPlugin from "another-postcss-plugin";
+import { PostCssProcessor, defaultPlugins } from '@ecopages/postcss-processor';
+import anotherPostCssPlugin from 'another-postcss-plugin';
 
 const result = await PostCssProcessor.processPath(filePath, {
 	plugins: [
-		defaultPlugins["postcss-import"],
+		defaultPlugins['postcss-import'],
 		defaultPlugins.tailwindcss,
-		defaultPlugins["tailwindcss-nesting"],
+		defaultPlugins['tailwindcss-nesting'],
 		defaultPlugins.autoprefixer,
 		anotherPostCssPlugin(),
 		defaultPlugins.cssnano,

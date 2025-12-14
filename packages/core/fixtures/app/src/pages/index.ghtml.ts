@@ -12,8 +12,8 @@ const HomePage: EcoComponent<PageProps> = ({ params, query }) =>
 	html`!${BaseLayout({
 		class: 'main-content',
 		children: html`<h1 class="main-title">Home Page</h1>
-      <p>!${JSON.stringify(query || [])}</p>
-      <p>!${JSON.stringify(params || [])}</p>`,
+			<p>!${JSON.stringify(query || [])}</p>
+			<p>!${JSON.stringify(params || [])}</p>`,
 	})}`;
 
 HomePage.config = {

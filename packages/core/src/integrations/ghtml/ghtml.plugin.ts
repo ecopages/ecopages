@@ -1,5 +1,4 @@
 import { IntegrationPlugin, type IntegrationPluginConfig } from '../../plugins/integration-plugin';
-import type { IntegrationRenderer } from '../../route-renderer/integration-renderer';
 import { GhtmlRenderer } from './ghtml-renderer';
 
 /**

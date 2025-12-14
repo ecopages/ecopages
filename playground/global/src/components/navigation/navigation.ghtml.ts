@@ -9,17 +9,17 @@ export type NavigationProps = {
 
 export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
 	return html`
-    <nav class="navigation">
-      <ul>
-        !${items.map(
-			({ label, url }) =>
-				html`<li>
-              <a href="${url}">${label}</a>
-            </li>`,
-		)}
-      </ul>
-    </nav>
-  `;
+		<nav class="navigation">
+			<ul>
+				!${items.map(
+					({ label, url }) =>
+						html`<li>
+							<a href="${url}">${label}</a>
+						</li>`,
+				)}
+			</ul>
+		</nav>
+	`;
 };
 
 Navigation.config = {

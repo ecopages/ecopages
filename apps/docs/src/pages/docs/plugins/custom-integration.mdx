@@ -4,9 +4,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | Custom Integration',
-  description: 'Learn how to create custom integrations in Ecopages',
-})
+	title: 'Docs | Custom Integration',
+	description: 'Learn how to create custom integrations in Ecopages',
+});
 
 # Creating Custom Integrations
 
@@ -22,20 +22,21 @@ import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import type { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
 
 class CustomIntegration extends IntegrationPlugin {
-  constructor() {
-    super({
-      name: 'custom-integration',
-      extensions: ['.custom'], // File extensions to handle
-    });
-  }
-
-  createRenderer(): IntegrationRenderer {
-    return new CustomRenderer({
-      appConfig: this.appConfig!,
-    });
-  }
+constructor() {
+super({
+name: 'custom-integration',
+extensions: ['.custom'], // File extensions to handle
+});
 }
-```
+
+createRenderer(): IntegrationRenderer {
+return new CustomRenderer({
+appConfig: this.appConfig!,
+});
+}
+}
+
+````
 </CodeBlock>
 
 ## Creating a Custom Renderer
@@ -65,7 +66,8 @@ class CustomRenderer extends IntegrationRenderer {
     return '';
   }
 }
-```
+````
+
 </CodeBlock>
 
 ## Handling Dependencies
@@ -109,11 +111,12 @@ class CustomIntegration extends IntegrationPlugin {
     // Set up compilation
   }
 
-  async teardown(): Promise<void> {
-    // Clean up resources
-  }
+async teardown(): Promise<void> {
+// Clean up resources
 }
-```
+}
+
+````
 </CodeBlock>
 
 ## Using the Integration
@@ -129,7 +132,8 @@ const customIntegration = new CustomIntegration();
 const config = await new ConfigBuilder()
   .setIntegrations([customIntegration])
   .build();
-```
+````
+
 </CodeBlock>
 
 ## Best Practices
@@ -156,10 +160,10 @@ import type {
 } from '@ecopages/core/public-types';
 
 class CustomRenderer extends IntegrationRenderer {
-  name = 'custom-renderer';
+name = 'custom-renderer';
 
-  async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-    const { Page, props, metadata, HtmlTemplate } = options;
+async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+const { Page, props, metadata, HtmlTemplate } = options;
 
     // Transform the page
     const pageContent = await this.renderPage(Page, props);
@@ -173,11 +177,12 @@ class CustomRenderer extends IntegrationRenderer {
         stylesheets: ['./styles.css'],
       },
     });
-  }
 
-  private async renderPage(Page: EcoComponent, props: any): Promise<string> {
-    return Page(props);
-  }
+}
+
+private async renderPage(Page: EcoComponent, props: any): Promise<string> {
+return Page(props);
+}
 }
 
 export class CustomIntegration extends IntegrationPlugin {
@@ -188,19 +193,21 @@ export class CustomIntegration extends IntegrationPlugin {
     });
   }
 
-  createRenderer(): IntegrationRenderer {
-    return new CustomRenderer({
-      appConfig: this.appConfig!,
-    });
-  }
-
-  async setup(): Promise<void> {
-    // Setup logic
-  }
-
-  async teardown(): Promise<void> {
-    // Cleanup logic
-  }
+createRenderer(): IntegrationRenderer {
+return new CustomRenderer({
+appConfig: this.appConfig!,
+});
 }
+
+async setup(): Promise<void> {
+// Setup logic
+}
+
+async teardown(): Promise<void> {
+// Cleanup logic
+}
+}
+
 ```
 </CodeBlock>
+```

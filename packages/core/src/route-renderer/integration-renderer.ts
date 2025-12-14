@@ -41,7 +41,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected assetProcessingService: AssetProcessingService;
 	protected htmlTransformer: HtmlTransformerService;
 	private resolvedIntegrationDependencies: ProcessedAsset[] = [];
-	protected declare options: Required<IntegrationRendererRenderOptions>;
+	declare protected options: Required<IntegrationRendererRenderOptions>;
 	protected runtimeOrigin: string;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';

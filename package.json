@@ -20,20 +20,24 @@
 		"start:docs": "bun run --filter @ecopages/docs start",
 		"preview:docs": "bun run --filter @ecopages/docs preview",
 		"clean": "clear && bunx npkill -D -y && rm -rf bun.lock && bun install",
-		"format": "bunx @biomejs/biome format --write .",
-		"lint": "bunx @biomejs/biome check --write .",
+		"format": "bunx prettier --write .",
+		"lint": "bunx oxlint . --fix",
 		"lint-staged": "lint-staged",
 		"jsr:sync-version": "bun scripts/jsr-sync-version.ts",
 		"prerelease": "bun test --coverage && bun run jsr:sync-version",
 		"release": "bun run --filter '*' release:jsr",
 		"bump:patch": "bun run scripts/bump-version.ts patch && bun run jsr:sync-version",
 		"bump:minor": "bun run scripts/bump-version.ts minor && bun run jsr:sync-version",
-		"bump:major": "bun run scripts/bump-version.ts major && bun run jsr:sync-version"
+		"bump:major": "bun run scripts/bump-version.ts major && bun run jsr:sync-version",
+		"commit": "better-commits"
 	},
 	"devDependencies": {
+		"@biomejs/biome": "2.0.6",
+		"better-commits": "^1.18.1",
 		"husky": "^9.0.10",
 		"lint-staged": "^15.2.2",
-		"@biomejs/biome": "2.0.6"
+		"oxlint": "^1.32.0",
+		"prettier": "^3.7.4"
 	},
 	"module": "src/index.js",
 	"repository": "https://github.com/ecopages/ecopages.git",

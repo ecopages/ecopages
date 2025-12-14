@@ -91,7 +91,10 @@ export class ApiResponseBuilder {
 			if (!this._headers.has('Content-Type')) {
 				this._headers.set('Content-Type', 'application/json; charset=utf-8');
 			}
-			return new Response(JSON.stringify({ error: data }), { status: this._status, headers: this._headers });
+			return new Response(JSON.stringify({ error: data }), {
+				status: this._status,
+				headers: this._headers,
+			});
 		}
 		if (!this._headers.has('Content-Type')) {
 			this._headers.set('Content-Type', 'text/plain; charset=utf-8');

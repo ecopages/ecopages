@@ -1,9 +1,9 @@
 .error404 {
-  @apply flex flex-col gap-4 items-center justify-center bg-slate-200 rounded-md p-4 my-20 max-w-fit mx-auto shadow-md;
-  h1 {
-    @apply text-4xl font-bold text-slate-900;
-  }
-  p {
-    @apply text-lg text-slate-700 p-8 bg-slate-100 rounded-md;
-  }
+	@apply flex flex-col gap-4 items-center justify-center bg-slate-200 rounded-md p-4 my-20 max-w-fit mx-auto shadow-md;
+	h1 {
+		@apply text-4xl font-bold text-slate-900;
+	}
+	p {
+		@apply text-lg text-slate-700 p-8 bg-slate-100 rounded-md;
+	}
 }

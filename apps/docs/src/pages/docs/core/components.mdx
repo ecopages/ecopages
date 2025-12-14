@@ -4,9 +4,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | Creating Components',
-  description: 'Learn how to create reusable components in Ecopages using ghtml',
-})
+	title: 'Docs | Creating Components',
+	description: 'Learn how to create reusable components in Ecopages using ghtml',
+});
 
 # Creating Components in Ecopages
 
@@ -15,6 +15,7 @@ Components are the building blocks of your Ecopages project. They allow you to c
 ## Basic Component Structure
 
 A typical component in Ecopages consists of two files:
+
 1. A `.ts` file for the component's structure and logic
 2. A `.script.ts` file for additional client-side interactivity (optional)
 3. A `.css` file for styling (optional)
@@ -36,13 +37,14 @@ export const RadiantCounter: EcoComponent<RadiantCounterProps> = ({ count }) =>
   </radiant-counter>`;
 
 RadiantCounter.config = {
-  importMeta: import.meta,
-  dependencies: {
-    scripts: ['./radiant-counter.script.ts'],
-    stylesheets: ['./radiant-counter.css'],
-  },
+importMeta: import.meta,
+dependencies: {
+scripts: ['./radiant-counter.script.ts'],
+stylesheets: ['./radiant-counter.css'],
+},
 };
-```
+
+````
 </CodeBlock>
 
 ### radiant-counter.script.ts
@@ -89,10 +91,12 @@ declare global {
     }
   }
 }
-```
+````
+
 </CodeBlock>
 
 ## Key Points:
+
 - Use the `EcoComponent` type and `html` template literal from `@ecopages/core`.
 - Define props using an interface.
 - Use custom elements for client-side interactivity.
@@ -119,10 +123,9 @@ Mandatory fields:
 1. `importMeta`: This field must be set to `import.meta`. It provides the framework with information about the component's location and context.
 
 2. `dependencies`: This object specifies the component's dependencies. While not all sub-fields are mandatory, it's crucial to include this object in the config.
-
-   - `scripts`: An array of paths to script files that the component depends on. These are typically used for client-side interactivity.
-   - `stylesheets`: An array of paths to CSS files that style the component.
-   - `components`: An array of other components that this component depends on (not shown in the example above, but used in page components).
+    - `scripts`: An array of paths to script files that the component depends on. These are typically used for client-side interactivity.
+    - `stylesheets`: An array of paths to CSS files that style the component.
+    - `components`: An array of other components that this component depends on (not shown in the example above, but used in page components).
 
 The `dependencies` object helps Ecopages manage asset loading and optimize performance by only loading necessary resources.
 
@@ -130,7 +133,7 @@ While not mandatory, it's a best practice to include all relevant dependencies i
 
 ## CSS in Ecopages Components
 
-In Ecopages, CSS for components is typically defined in separate files and loaded through the component's config. 
+In Ecopages, CSS for components is typically defined in separate files and loaded through the component's config.
 Please note that `tailwind` and `postcss` are supported by default in Ecopages. Please refer to the configuration section for more details.
 
 Here's how it works:
@@ -155,21 +158,22 @@ export const getMetadata: GetMetadata = () => ({
 });
 
 const HomePage: EcoComponent = () =>
-  html`${BaseLayout({
+html`${BaseLayout({
     class: 'main-content',
     children: html`
-      <h1>Ecopages</h1>
-      ${RadiantCounter({
-        count: 5,
-      })}
-    `,
+
+<h1>Ecopages</h1>
+${RadiantCounter({
+count: 5,
+})}
+`,
   })}`;
 
 HomePage.config = {
-    importMeta: import.meta,
-    dependencies: {
-      components: [BaseLayout, RadiantCounter],
-    },
+importMeta: import.meta,
+dependencies: {
+components: [BaseLayout, RadiantCounter],
+},
 };
 
 export default HomePage;

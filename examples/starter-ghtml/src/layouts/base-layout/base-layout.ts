@@ -7,8 +7,8 @@ export type BaseLayoutProps = {
 
 export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: className }) =>
 	html`<body>
-    <main class=${className}>!${children}</main>
-  </body>`;
+		<main class=${className}>!${children}</main>
+	</body>`;
 
 BaseLayout.config = {
 	importMeta: import.meta,

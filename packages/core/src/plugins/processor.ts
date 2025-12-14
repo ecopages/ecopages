@@ -1,9 +1,8 @@
-import path from 'node:path';
-import type { BunPlugin } from 'bun';
 import { resolveGeneratedPath } from '../constants';
+import { FileUtils } from '../utils/file-utils.module';
+import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types';
 import type { AssetDefinition } from '../services/asset-processing-service';
-import { FileUtils } from '../utils/file-utils.module';
 
 export interface ProcessorWatchConfig {
 	paths: string[];

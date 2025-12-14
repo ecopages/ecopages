@@ -4,19 +4,15 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | Installation',
-  description: 'Learn how to install and set up Ecopages for your project',
-})
+	title: 'Docs | Installation',
+	description: 'Learn how to install and set up Ecopages for your project',
+});
 
 ## Installation
 
 To create a new Ecopages project, you can install the core package and desired integrations using Bun:
 
-<CodeBlock>
-```bash
-bun jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx
-```
-</CodeBlock>
+<CodeBlock>```bash bun jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx ```</CodeBlock>
 
 This example installs the core package along with the KitaJS and MDX integrations. You can add or remove integrations based on your project needs.
 
@@ -32,14 +28,14 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-  .setRootDir(import.meta.dir)
-  // Optional: Set the canonical base URL for your site.
-  // Used for generating absolute URLs in production builds.
-  // If omitted, it defaults to http://localhost:3000 during development.
-  // Can be overridden by the ECOPAGES_BASE_URL environment variable.
-  .setBaseUrl('https://your-production-domain.com') 
-  .setIntegrations([kitajsPlugin(), mdxPlugin()])
-  .build();
+.setRootDir(import.meta.dir)
+// Optional: Set the canonical base URL for your site.
+// Used for generating absolute URLs in production builds.
+// If omitted, it defaults to http://localhost:3000 during development.
+// Can be overridden by the ECOPAGES_BASE_URL environment variable.
+.setBaseUrl('https://your-production-domain.com')
+.setIntegrations([kitajsPlugin(), mdxPlugin()])
+.build();
 
 export default config;
 ```
@@ -56,13 +52,17 @@ Ecopages uses environment variables for configuration overrides. Create a `.env`
 ECOPAGES_BASE_URL=https://staging.your-production-domain.com
 
 # Overrides the hostname the server listens on (Default: localhost)
+
 ECOPAGES_HOSTNAME=0.0.0.0
 
 # Overrides the port the server listens on (Default: 3000)
+
 ECOPAGES_PORT=8080
 
 # Enable debug logging (Default: false)
-ECOPAGES_LOGGER_DEBUG=true 
+
+ECOPAGES_LOGGER_DEBUG=true
+
 ```
 </CodeBlock>
 
@@ -76,18 +76,20 @@ ECOPAGES_LOGGER_DEBUG=true
 A typical Ecopages project structure looks like this:
 
 ```
+
 my-project/
 ├── src/
-│   ├── pages/
-│   ├── layouts/
-│   ├── components/
-│   └── includes/
+│ ├── pages/
+│ ├── layouts/
+│ ├── components/
+│ └── includes/
 ├── public/
-├── app.ts           # Your application entry point
-├── eco.config.ts    # Ecopages configuration
+├── app.ts # Your application entry point
+├── eco.config.ts # Ecopages configuration
 ├── package.json
-└── .env             # Environment variables (optional)
-```
+└── .env # Environment variables (optional)
+
+````
 
 - `src/pages/`: Contains your page files (e.g., `.mdx`, `.kita.tsx`, `.lit.tsx`)
 - `src/layouts/`: Holds layout components
@@ -107,8 +109,9 @@ Create an entry point file (e.g., `app.ts`) to initialize and run Ecopages:
 import { EcopagesApp } from '@ecopages/core';
 import config from './eco.config.ts';
 
-await new EcopagesApp(config).run(); 
-```
+await new EcopagesApp(config).run();
+````
+
 </CodeBlock>
 
 Add the following scripts to your `package.json`:

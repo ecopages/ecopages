@@ -51,8 +51,8 @@ bun run build
 ### Creating a Page with JSX
 
 ```tsx
-import { BaseLayout } from "@/layouts/base-layout";
-import type { EcoComponent } from "@ecopages/core";
+import { BaseLayout } from '@/layouts/base-layout';
+import type { EcoComponent } from '@ecopages/core';
 
 const HomePage: EcoComponent = () => {
 	return (
@@ -78,10 +78,10 @@ export default HomePage;
 The project uses Ecopages configuration with both Lit and KitaJS plugins:
 
 ```ts
-import { ConfigBuilder } from "@ecopages/core";
-import { litPlugin } from "@ecopages/lit";
-import { kitajsPlugin } from "@ecopages/kitajs";
-import { postcssProcessorPlugin } from "@ecopages/postcss-processor";
+import { ConfigBuilder } from '@ecopages/core';
+import { litPlugin } from '@ecopages/lit';
+import { kitajsPlugin } from '@ecopages/kitajs';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
 const config = await new ConfigBuilder()
 	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)

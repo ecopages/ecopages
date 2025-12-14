@@ -4,9 +4,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | PostCSS Processor',
-  description: 'Learn how to use the PostCSS processor in Ecopages',
-})
+	title: 'Docs | PostCSS Processor',
+	description: 'Learn how to use the PostCSS processor in Ecopages',
+});
 
 # PostCSS Processor
 
@@ -16,11 +16,7 @@ The `@ecopages/postcss-processor` package provides a set of utility functions fo
 
 Install the package from JSR:
 
-<CodeBlock>
-```bash
-bunx jsr add @ecopages/postcss-processor
-```
-</CodeBlock>
+<CodeBlock>```bash bunx jsr add @ecopages/postcss-processor ```</CodeBlock>
 
 ## Built-in Plugins
 
@@ -42,20 +38,21 @@ import { ConfigBuilder } from '@ecopages/core';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
 const config = await new ConfigBuilder()
-  .setProcessors([
-    postcssProcessorPlugin({
-      sourceDir: 'src',
-      outputDir: '.eco/__assets__',
-      processTailwind: true,
-      tailwindInput: 'styles/tailwind.css',
-      plugins: {
-        // Optionally override default plugins
-      },
-      inputHeader: '/* Custom header */',
-    }),
-  ])
-  .build();
-```
+.setProcessors([
+postcssProcessorPlugin({
+sourceDir: 'src',
+outputDir: '.eco/__assets__',
+processTailwind: true,
+tailwindInput: 'styles/tailwind.css',
+plugins: {
+// Optionally override default plugins
+},
+inputHeader: '/* Custom header */',
+}),
+])
+.build();
+
+````
 </CodeBlock>
 
 ### Configuration Options
@@ -74,16 +71,13 @@ To enable CSS imports in your TypeScript/JavaScript files, add the PostCSS loade
 <CodeBlock>
 ```toml
 preload = ["@ecopages/bun-postcss-loader"]
-```
+````
+
 </CodeBlock>
 
 Now you can import CSS files directly in your code:
 
-<CodeBlock>
-```typescript
-import styles from './styles.css';
-```
-</CodeBlock>
+<CodeBlock>```typescript import styles from './styles.css'; ```</CodeBlock>
 
 ## Custom Plugin Usage
 
@@ -95,16 +89,17 @@ import { PostCssProcessor } from '@ecopages/postcss-processor';
 import customPlugin from 'postcss-custom-plugin';
 
 const result = await PostCssProcessor.processPath('path/to/file.css', {
-  plugins: [
-    PostCssProcessor.defaultPlugins['postcss-import'],
-    PostCssProcessor.defaultPlugins.tailwindcss,
-    PostCssProcessor.defaultPlugins['tailwindcss-nesting'],
-    PostCssProcessor.defaultPlugins.autoprefixer,
-    customPlugin(),
-    PostCssProcessor.defaultPlugins.cssnano,
-  ],
+plugins: [
+PostCssProcessor.defaultPlugins['postcss-import'],
+PostCssProcessor.defaultPlugins.tailwindcss,
+PostCssProcessor.defaultPlugins['tailwindcss-nesting'],
+PostCssProcessor.defaultPlugins.autoprefixer,
+customPlugin(),
+PostCssProcessor.defaultPlugins.cssnano,
+],
 });
-```
+
+````
 </CodeBlock>
 
 ## Processing Methods
@@ -118,7 +113,8 @@ The processor provides two main methods for processing CSS:
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 
 const css = await PostCssProcessor.processPath('path/to/file.css');
-```
+````
+
 </CodeBlock>
 
 ### Process String or Buffer
@@ -129,6 +125,7 @@ import { PostCssProcessor } from '@ecopages/postcss-processor';
 
 const css = `body { @apply bg-blue-500; }`;
 const processed = await PostCssProcessor.processStringOrBuffer(css);
+
 ```
 </CodeBlock>
 
@@ -147,3 +144,4 @@ The processor includes built-in error handling:
    - Organize styles into separate files for better maintainability
 2. Use PostCSS features like nesting for better CSS organization
 3. Let the processor handle vendor prefixing and optimization
+```

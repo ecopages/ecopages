@@ -47,7 +47,7 @@ describe('bunPostCssPlugin', () => {
 		const processedFile = build.outputs[0].path;
 		const result = await import(processedFile).then((res) => res.default);
 
-		expect(result).toEqual(result);
+		expect(result).toEqual(expected);
 	});
 
 	test('On error bunPostCssPlugin should return the postcss file without transformation', async () => {

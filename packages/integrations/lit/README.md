@@ -13,14 +13,14 @@ bunx jsr add @ecopages/lit
 For effective utilization of Lit in your Ecopages projects, it is recommended to use it in conjunction with Kita. This ensures a seamless development experience, allowing you to incorporate Lit components within JSX templates effortlessly. Configure your project to include both `@ecopages/lit` and `@ecopages/kitajs` as follows:
 
 ```ts
-import { ConfigBuilder } from "@ecopages/core";
-import { kitajsPlugin } from "@ecopages/kitajs";
-import { litPlugin } from "@ecopages/lit";
+import { ConfigBuilder } from '@ecopages/core';
+import { kitajsPlugin } from '@ecopages/kitajs';
+import { litPlugin } from '@ecopages/lit';
 
 const config = await new ConfigBuilder()
-  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-  .setIntegrations([kitajsPlugin(), litPlugin()])
-  .build();
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([kitajsPlugin(), litPlugin()])
+	.build();
 
 export default config;
 ```

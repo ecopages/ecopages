@@ -6,7 +6,7 @@ export const layout = DocsLayout;
 export const getMetadata = () => ({
 	title: 'Docs | KitaJS Integration',
 	description: 'Learn how to use the KitaJS integration with Ecopages',
-})
+});
 
 # KitaJS Integration
 
@@ -16,11 +16,7 @@ The `@ecopages/kitajs` package provides seamless integration with [Kita](https:/
 
 To install the KitaJS integration plugin, run the following command in your project directory:
 
-<CodeBlock>
-```bash
-bunx jsr add @ecopages/kitajs
-```
-</CodeBlock>
+<CodeBlock>```bash bunx jsr add @ecopages/kitajs ```</CodeBlock>
 
 ## Usage
 
@@ -29,10 +25,7 @@ To incorporate the KitaJS integration into your Ecopages project, follow these s
 1. Import the `kitajsPlugin` in your Ecopages configuration file:
 
 <CodeBlock>
-```typescript
-import { ConfigBuilder } from '@ecopages/core';
-import { kitajsPlugin } from '@ecopages/kitajs'
-```
+	```typescript import {ConfigBuilder} from '@ecopages/core'; import {kitajsPlugin} from '@ecopages/kitajs' ```
 </CodeBlock>
 
 2. Add the `kitajsPlugin` to your configuration:
@@ -62,18 +55,19 @@ import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
 const HomePage: EcoComponent = () => {
-  return (
-    <BaseLayout>
-      <h1>Welcome to Ecopages</h1>
-    </BaseLayout>
-  );
+return (
+
+<BaseLayout>
+<h1>Welcome to Ecopages</h1>
+</BaseLayout>
+);
 };
 
 HomePage.config = {
-	importMeta: import.meta,
-	dependencies: {
-		components: [BaseLayout],
-	},
+importMeta: import.meta,
+dependencies: {
+components: [BaseLayout],
+},
 };
 
 export default HomePage;
@@ -104,10 +98,10 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([kitajsPlugin(), mdxPlugin()])
-	.build();
+.setRootDir(import.meta.dir)
+.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+.setIntegrations([kitajsPlugin(), mdxPlugin()])
+.build();
 
 export default config;
 ```

@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 @layer components {
-  .banner {
-    @apply grid gap-2 p-4 px-6 bg-yellow-50 border-l-4 border-l-blue-500;
-  }
-  .banner__title {
-    @apply text-2xl font-bold text-gray-900;
-  }
+	.banner {
+		@apply grid gap-2 p-4 px-6 bg-yellow-50 border-l-4 border-l-blue-500;
+	}
+	.banner__title {
+		@apply text-2xl font-bold text-gray-900;
+	}
 }
 
 button {
-  @apply cursor-pointer;
+	@apply cursor-pointer;
 }

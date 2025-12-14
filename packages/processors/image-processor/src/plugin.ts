@@ -54,7 +54,7 @@ export type ImageMap = Record<string, ImageSpecifications>;
  * A Processor for optimizing images.
  */
 export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
-	private declare processor: ImageProcessor;
+	declare private processor: ImageProcessor;
 	public processedImages: Record<string, ImageSpecifications> = {};
 
 	constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>) {

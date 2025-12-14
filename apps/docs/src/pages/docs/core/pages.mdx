@@ -4,9 +4,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | Creating Pages',
-  description: 'Learn how to create pages in Ecopages using the ghtml integration',
-})
+	title: 'Docs | Creating Pages',
+	description: 'Learn how to create pages in Ecopages using the ghtml integration',
+});
 
 # Creating Pages in Ecopages
 
@@ -31,16 +31,17 @@ export const getMetadata: GetMetadata = () => ({
 const HomePage: EcoComponent = () => html`${BaseLayout({
     class: 'main-content',
     children: html`
-      <h1>Ecopages</h1>
-      <p>Welcome to my Ecopages website!</p>
-    `,
+
+<h1>Ecopages</h1>
+<p>Welcome to my Ecopages website!</p>
+`,
   })}`;
 
 HomePage.config = {
-    importMeta: import.meta,
-    dependencies: {
-      components: [BaseLayout],
-    },
+importMeta: import.meta,
+dependencies: {
+components: [BaseLayout],
+},
 };
 
 export default HomePage;
@@ -74,25 +75,27 @@ import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts, fl
 const HomePage: EcoComponent = () => html`${BaseLayout({
     class: 'main-content',
     children: html`
-      <h1>Ecopages</h1>
-      <scripts-injector
+
+<h1>Ecopages</h1>
+<scripts-injector
         on:interaction="mouseenter,focusin"
         scripts="${resolveComponentsScripts([RadiantCounter])}"
       >
-        !${RadiantCounter({
-          count: 5,
-        })}
-      </scripts-injector>
-    `,
+!${RadiantCounter({
+count: 5,
+})}
+</scripts-injector>
+`,
   })}`;
 
 HomePage.config = {
-    importMeta: import.meta,
-    dependencies: {
-      components: [BaseLayout, ...flagComponentsAsDynamic([RadiantCounter])],
-    },
+importMeta: import.meta,
+dependencies: {
+components: [BaseLayout, ...flagComponentsAsDynamic([RadiantCounter])],
+},
 };
-```
+
+````
 </CodeBlock>
 
 You're absolutely right. Adding information about `getMetadata`, `getStaticProps`, and `getStaticPaths` is crucial for understanding how to work with data in Ecopages. I'll create a new section called "Working with Data" to cover these important concepts. Here's the addition we can make to the existing content:
@@ -103,7 +106,7 @@ Ecopages provides several powerful functions for working with data in your pages
 
 ### getMetadata
 
-The `getMetadata` function allows you to define page-specific metadata. 
+The `getMetadata` function allows you to define page-specific metadata.
 Please note that you can set defaultMetadata in the config to avoid repeating yourself.
 This is useful for SEO and social sharing:
 
@@ -117,7 +120,8 @@ export const getMetadata: GetMetadata = () => ({
   image: 'path/to/og-image.jpg',
   keywords: ['ecopages', 'static site', 'typescript'],
 });
-```
+````
+
 </CodeBlock>
 
 ### getStaticProps
@@ -138,6 +142,7 @@ export const getStaticProps: GetStaticProps = async () => {
 };
 
 const MyPage: EcoComponent<{ data: any }> = ({ data }) => html`
+
   <div>
     <h1>My Page</h1>
     <p>${data.someField}</p>
@@ -185,6 +190,7 @@ export const getStaticProps: GetStaticProps<BlogPostProps> = async ({ pathname }
 };
 
 const DynamicPage: EcoComponent<BlogPostProps> = (props) => html`
+
   <div>
     <h1>${props.title}</h1>
     <p>${props.content}</p>
@@ -195,7 +201,7 @@ const DynamicPage: EcoComponent<BlogPostProps> = (props) => html`
 
 ## Lazy Loading Components
 
-Ecopages provides powerful tools for lazy loading components, which can significantly improve your site's performance. 
+Ecopages provides powerful tools for lazy loading components, which can significantly improve your site's performance.
 
 The main tool for this is the custom component `scripts-injector`, which allows you to load scripts only when needed. Two key functions for this are `resolveComponentsScripts` and `removeComponentScripts`.
 

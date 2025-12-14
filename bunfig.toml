@@ -1,10 +1,9 @@
-preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-kitajs-loader"]
+preload = ["@ecopages/bun-postcss-loader"]
 
 [test]
 preload = [
   "./scripts/setup-test.ts",
   "@ecopages/bun-postcss-loader",
-  "@ecopages/bun-mdx-kitajs-loader",
 ]
 
 [install.scopes]

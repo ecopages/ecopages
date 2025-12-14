@@ -1,4 +1,3 @@
-import '@ecopages/bun-mdx-kitajs-loader';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
@@ -8,8 +7,15 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([kitajsPlugin(), mdxPlugin()])
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL || '')
+	.setIntegrations([
+		kitajsPlugin(),
+		mdxPlugin({
+			compilerOptions: {
+				jsxImportSource: '@kitajs/html',
+			},
+		}),
+	])
 	.setProcessors([
 		postcssProcessorPlugin(),
 		imageProcessorPlugin({

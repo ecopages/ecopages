@@ -28,7 +28,7 @@ export class RadiantCounter extends RadiantElement {
 declare global {
 	namespace JSX {
 		interface IntrinsicElements {
-			'radiant-counter': RadiantCounterProps;
+			'radiant-counter': HtmlTag & RadiantCounterProps;
 		}
 	}
 }

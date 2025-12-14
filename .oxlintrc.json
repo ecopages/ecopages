@@ -1,0 +1,23 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript", "react"],
+	"ignorePatterns": ["node_modules", "dist", "out", "coverage", ".nyc_output", ".vscode", ".env", ".eco"],
+	"rules": {
+		"no-param-reassign": "error",
+		"default-param-last": "error",
+		"no-else-return": "error",
+		"typescript/no-explicit-any": "off",
+		"typescript/no-empty-interface": "off",
+		"typescript/no-inferrable-types": "error",
+		"react/jsx-key": "off"
+	},
+	"overrides": [
+		{
+			"files": ["**.ts", "**.tsx"],
+			"rules": {
+				"typescript/no-explicit-any": "off",
+				"typescript/triple-slash-reference": "off"
+			}
+		}
+	]
+}

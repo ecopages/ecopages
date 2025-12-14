@@ -23,6 +23,7 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"devDependencies": {
+		"@types/bun": "latest",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@ecopages/logger": "latest"
 	}

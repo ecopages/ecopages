@@ -15,15 +15,7 @@ export class FSRouter {
 	scanner: FSRouterScanner;
 	onReload?: () => void;
 
-	constructor({
-		origin,
-		assetPrefix,
-		scanner,
-	}: {
-		origin: string;
-		assetPrefix: string;
-		scanner: FSRouterScanner;
-	}) {
+	constructor({ origin, assetPrefix, scanner }: { origin: string; assetPrefix: string; scanner: FSRouterScanner }) {
 		this.origin = origin;
 		this.assetPrefix = assetPrefix;
 		this.scanner = scanner;

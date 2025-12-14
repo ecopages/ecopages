@@ -4,9 +4,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | Creating Layouts',
-  description: 'Learn how to create layouts and use includes files in Ecopages',
-})
+	title: 'Docs | Creating Layouts',
+	description: 'Learn how to create layouts and use includes files in Ecopages',
+});
 
 # Creating Layouts in Ecopages
 
@@ -37,9 +37,10 @@ export const Html: EcoComponent<{ children: string }> = ({ children }) => html`
 `;
 
 Html.config = {
-  importMeta: import.meta,
+importMeta: import.meta,
 };
-```
+
+````
 </CodeBlock>
 
 ### head.ts
@@ -63,7 +64,8 @@ export const Head: EcoComponent<{ title: string; description: string }> = ({ tit
 Head.config = {
   importMeta: import.meta,
 };
-```
+````
+
 </CodeBlock>
 
 These includes files are automatically used by Ecopages to structure your HTML. You don't need to explicitly import or use them in your pages or layouts.
@@ -91,10 +93,11 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
   </body>`;
 
 BaseLayout.config = {
-    importMeta: import.meta,
-    dependencies: { stylesheets: ['./base-layout.css'], scripts: ['./base-layout.script.ts'] },
+importMeta: import.meta,
+dependencies: { stylesheets: ['./base-layout.css'], scripts: ['./base-layout.script.ts'] },
 };
-```
+
+````
 </CodeBlock>
 
 3. Create associated files for styles (`base-layout.css`) and scripts (`base-layout.script.ts`) if needed.
@@ -122,7 +125,8 @@ HomePage.config = {
 };
 
 export default HomePage;
-```
+````
+
 </CodeBlock>
 
 By using layouts and includes files effectively, you can create a consistent structure for your Ecopages project while keeping your code modular and maintainable.

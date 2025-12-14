@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
+import path from 'node:path';
+import fs from 'node:fs';
 import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { Processor, type ProcessorConfig } from './processor';
@@ -28,15 +30,22 @@ describe('Processor', () => {
 			},
 		};
 
+		const testRoot = path.join(process.cwd(), '.test-tmp', 'processor-test');
+
+		if (fs.existsSync(testRoot)) {
+			fs.rmSync(testRoot, { recursive: true, force: true });
+		}
+
 		appConfig = {
-			rootDir: '/root',
+			rootDir: testRoot,
 			absolutePaths: {
-				srcDir: '/root/src',
-				distDir: '/root/dist',
+				srcDir: path.join(testRoot, 'src'),
+				distDir: path.join(testRoot, 'dist'),
 			},
 		} as EcoPagesAppConfig;
 
 		processor = new TestProcessor(config);
+		processor.setContext(appConfig);
 	});
 
 	test('should initialize with correct name', () => {

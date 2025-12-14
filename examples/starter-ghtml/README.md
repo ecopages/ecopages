@@ -5,6 +5,7 @@ This is a minimal starter template for building websites with Ecopages using GHT
 ## Quick Start
 
 1. Create a new project using this template:
+
 ```bash
 bunx degit ecopages/ecopages/examples/starter-ghtml my-site
 cd my-site
@@ -12,11 +13,13 @@ bun install
 ```
 
 2. Start the development server:
+
 ```bash
 bun dev
 ```
 
 3. Build for production:
+
 ```bash
 bun run build
 ```
@@ -52,19 +55,19 @@ import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent } from '@ecopages/core';
 import { html } from '@ecopages/core';
 
-const HomePage: EcoComponent = () => 
-  html`${BaseLayout({
-    children: html`
-      <h1>Welcome</h1>
-      <p>This is a minimal Ecopages site!</p>
-    `
-  })}`;
+const HomePage: EcoComponent = () =>
+	html`${BaseLayout({
+		children: html`
+			<h1>Welcome</h1>
+			<p>This is a minimal Ecopages site!</p>
+		`,
+	})}`;
 
 HomePage.config = {
-  importMeta: import.meta,
-  dependencies: {
-    components: [BaseLayout],
-  },
+	importMeta: import.meta,
+	dependencies: {
+		components: [BaseLayout],
+	},
 };
 
 export default HomePage;
@@ -77,16 +80,16 @@ import type { EcoComponent } from '@ecopages/core';
 import { html } from '@ecopages/core';
 
 export const Header: EcoComponent<{ title: string }> = ({ title }) =>
-  html`<header>
-    <h1>${title}</h1>
-    <nav>
-      <a href="/">Home</a>
-      <a href="/about">About</a>
-    </nav>
-  </header>`;
+	html`<header>
+		<h1>${title}</h1>
+		<nav>
+			<a href="/">Home</a>
+			<a href="/about">About</a>
+		</nav>
+	</header>`;
 
 Header.config = {
-  importMeta: import.meta,
+	importMeta: import.meta,
 };
 ```
 
@@ -97,9 +100,7 @@ The project uses a minimal Ecopages configuration:
 ```ts
 import { ConfigBuilder } from '@ecopages/core';
 
-const config = await new ConfigBuilder()
-  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-  .build();
+const config = await new ConfigBuilder().setBaseUrl(import.meta.env.ECOPAGES_BASE_URL).build();
 
 export default config;
 ```
@@ -114,22 +115,23 @@ import type { EcoComponent } from '@ecopages/core';
 import { html } from '@ecopages/core';
 
 const InteractivePage: EcoComponent = () =>
-  html`<div>
-    <h2>Interactive Counter</h2>
-    <radiant-counter initial-count="0"></radiant-counter>
-  </div>`;
+	html`<div>
+		<h2>Interactive Counter</h2>
+		<radiant-counter initial-count="0"></radiant-counter>
+	</div>`;
 
 InteractivePage.config = {
-  importMeta: import.meta,
-  dependencies: {
-    components: [RadiantCounter],
-  },
+	importMeta: import.meta,
+	dependencies: {
+		components: [RadiantCounter],
+	},
 };
 ```
 
 ## Learn More
 
 For more detailed information, check out:
+
 - [Ecopages Documentation](https://ecopages.app/docs/getting-started/introduction)
 - [Radiant Components](https://radiant.ecopages.app)
 - [GHTML Template Syntax](https://www.npmjs.com/package/ghtml)

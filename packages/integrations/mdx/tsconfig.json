@@ -18,7 +18,6 @@
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "ES2021",
-		"types": ["bun-types"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	}

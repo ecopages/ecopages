@@ -20,25 +20,25 @@ npm install @ecopages/image-processor
 ## Configuration
 
 ```typescript
-import path from "node:path";
-import { ConfigBuilder } from "@ecopages/core";
-import { ImageProcessorPlugin } from "@ecopages/image-processor";
+import path from 'node:path';
+import { ConfigBuilder } from '@ecopages/core';
+import { ImageProcessorPlugin } from '@ecopages/image-processor';
 
 const imageProcessor = new ImageProcessorPlugin({
-	name: "ecopages-image-processor",
-	type: "image",
+	name: 'ecopages-image-processor',
+	type: 'image',
 	options: {
-		sourceDir: path.resolve(import.meta.dir, "src/images"),
-		outputDir: path.resolve(import.meta.dir, ".eco/public/images"),
-		publicPath: "/public/images",
-		acceptedFormats: ["jpg", "jpeg", "png", "webp"],
+		sourceDir: path.resolve(import.meta.dir, 'src/images'),
+		outputDir: path.resolve(import.meta.dir, '.eco/public/images'),
+		publicPath: '/public/images',
+		acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 		quality: 80,
-		format: "webp",
+		format: 'webp',
 		sizes: [
-			{ width: 320, label: "sm" },
-			{ width: 768, label: "md" },
-			{ width: 1024, label: "lg" },
-			{ width: 1920, label: "xl" },
+			{ width: 320, label: 'sm' },
+			{ width: 768, label: 'md' },
+			{ width: 1024, label: 'lg' },
+			{ width: 1920, label: 'xl' },
 		],
 	},
 });
@@ -72,7 +72,7 @@ The `ecopages:images` virtual module provides a unified, type-safe way to handle
 
 ```typescript
 // All images from your source directory are available as named exports
-import { heroImage, profilePicture, blogThumbnail } from "ecopages:images";
+import { heroImage, profilePicture, blogThumbnail } from 'ecopages:images';
 
 // Names are automatically converted to camelCase
 // example:
@@ -93,7 +93,7 @@ import { heroImage, profilePicture, blogThumbnail } from "ecopages:images";
 Images are available through the virtual module `ecopages:images`:
 
 ```typescript
-import { myImage } from "ecopages:images";
+import { myImage } from 'ecopages:images';
 
 // myImage contains:
 // {
@@ -111,24 +111,24 @@ import { myImage } from "ecopages:images";
 ### HTML Component
 
 ```typescript
-import { EcoImage } from "@ecopages/image-processor/component/html";
+import { EcoImage } from '@ecopages/image-processor/component/html';
 
 // Basic usage
 EcoImage({
 	...myImage,
 	width: 800,
 	height: 600,
-	alt: "My image",
+	alt: 'My image',
 });
 
 // Advanced usage
 EcoImage({
 	...myImage,
-	alt: "My image",
-	layout: "constrained",
+	alt: 'My image',
+	layout: 'constrained',
 	priority: true,
-	aspectRatio: "16/9",
-	staticVariant: "xl",
+	aspectRatio: '16/9',
+	staticVariant: 'xl',
 });
 ```
 
@@ -177,10 +177,10 @@ Note: Images imported through `ecopages:images` automatically include their widt
 ```typescript
 EcoImage({
 	...myImage,
-	layout: "fixed",
+	layout: 'fixed',
 	width: 400,
 	height: 300,
-	alt: "Fixed image",
+	alt: 'Fixed image',
 });
 ```
 
@@ -189,9 +189,9 @@ EcoImage({
 ```typescript
 EcoImage({
 	...myImage,
-	layout: "constrained",
+	layout: 'constrained',
 	width: 800,
-	alt: "Constrained image",
+	alt: 'Constrained image',
 });
 ```
 
@@ -200,8 +200,8 @@ EcoImage({
 ```typescript
 EcoImage({
 	...myImage,
-	layout: "full-width",
-	alt: "Full-width image",
+	layout: 'full-width',
+	alt: 'Full-width image',
 });
 ```
 

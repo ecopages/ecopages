@@ -204,7 +204,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	 * @returns Server options ready for Bun.serve()
 	 */
 	private buildServerSettings(): BunServeOptions {
-		const { routes, fetch, ...serverOptions } = this.serveOptions as BunServeAdapterServerOptions;
+		const { routes, ...serverOptions } = this.serveOptions as BunServeAdapterServerOptions;
 		const handleNoMatch = this.handleNoMatch.bind(this);
 		const waitForInit = this.waitForInitialization.bind(this);
 		const handleReq = this.handleRequest.bind(this);
@@ -253,6 +253,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 				}
 			},
 			error(this: Server, error: Error) {
+				appLogger.error(`[ecopages] Error handling request: ${error}`);
 				return handleNoMatch(new Request('http://localhost'));
 			},
 		};

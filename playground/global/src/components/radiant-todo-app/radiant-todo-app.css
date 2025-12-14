@@ -58,13 +58,13 @@
 
 	&__item {
 		@apply flex items-center justify-between gap-2 p-2 bg-blue-100 rounded-md;
-		&[complete="true"] {
+		&[complete='true'] {
 			@apply bg-green-200;
 		}
 		& label {
 			@apply flex items-center gap-2 cursor-pointer;
 		}
-		& input[type="checkbox"] {
+		& input[type='checkbox'] {
 			@apply w-4 h-4 rounded-md accent-green-500 cursor-pointer;
 		}
 		&-remove {

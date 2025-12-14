@@ -3,12 +3,12 @@ import { Head } from '@/includes/head.ghtml';
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({ children, metadata, headContent, language = 'en' }) => {
 	return html`<html lang="${language}">
-    !${Head({
-		metadata,
-		children: headContent,
-	})}
-    !${children}
-  </html>`;
+		!${Head({
+			metadata,
+			children: headContent,
+		})}
+		!${children}
+	</html>`;
 };
 
 HtmlTemplate.config = {

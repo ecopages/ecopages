@@ -23,30 +23,30 @@ bunx jsr add @ecopages/bun-inline-css-plugin
 **Import the Plugin:** First, import the bunPostCssPlugin function from the module.
 
 ```ts
-import { bunPostCssPlugin } from "./path/to/bun-postcss.plugin";
+import { bunPostCssPlugin } from './path/to/bun-postcss.plugin';
 ```
 
 **Configure the Plugin:** Define your plugin options. You can specify a filter regex to process only certain files, a namespace to avoid conflicts, and a transform function to customize how CSS is processed.
 
 ```ts
 const postCssPluginOptions = {
-  filter: /\.css$/, // Only process .css files
-  namespace: "my-custom-namespace",
-  transform: async (contents, { path }) => {
-    // Implement your transformation logic here
-    // For example, using PostCSS to process the contents
-    return processedContents;
-  },
+	filter: /\.css$/, // Only process .css files
+	namespace: 'my-custom-namespace',
+	transform: async (contents, { path }) => {
+		// Implement your transformation logic here
+		// For example, using PostCSS to process the contents
+		return processedContents;
+	},
 };
 ```
 
 **Add the Plugin to Your Bun Configuration:** Finally, integrate the plugin into your Bun.build configuration.
 
 ```ts
-import Bun from "bun";
+import Bun from 'bun';
 
 Bun.build({
-  plugins: [bunPostCssPlugin(postCssPluginOptions)],
+	plugins: [bunPostCssPlugin(postCssPluginOptions)],
 });
 ```
 

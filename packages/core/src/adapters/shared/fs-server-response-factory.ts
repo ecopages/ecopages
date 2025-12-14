@@ -60,6 +60,7 @@ export class FileSystemServerResponseFactory {
 			appLogger.error(
 				'Error 404 template not found, looks like it has not being configured correctly',
 				error404TemplatePath,
+				error as Error,
 			);
 			return this.createDefaultNotFoundResponse();
 		}
@@ -93,6 +94,7 @@ export class FileSystemServerResponseFactory {
 				},
 			});
 		} catch (error) {
+			appLogger.error('Error reading file', filePath, error as Error);
 			return this.createDefaultNotFoundResponse();
 		}
 	}

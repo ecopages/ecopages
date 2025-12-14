@@ -1,4 +1,4 @@
-import { type EcoComponent, html } from '@ecopages/core';
+import { type EcoComponent } from '@ecopages/core';
 import type { RadiantCounterProps } from './radiant-counter.script';
 
 export const RadiantCounter: EcoComponent<RadiantCounterProps> = ({ count }) => (

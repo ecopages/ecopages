@@ -13,13 +13,13 @@ bunx jsr add @ecopages/mdx
 Integrating MDX into your Ecopages project is made simple. Import and apply the `mdxPlugin` in your Ecopages configuration as demonstrated below:
 
 ```ts
-import { ConfigBuilder } from "@ecopages/core";
-import { mdxPlugin } from "@ecopages/mdx";
+import { ConfigBuilder } from '@ecopages/core';
+import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-  .setIntegrations([mdxPlugin()])
-  .build();
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([mdxPlugin()])
+	.build();
 
 export default config;
 ```

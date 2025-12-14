@@ -1,0 +1,142 @@
+{
+	"check_status": true,
+	"commit_type": {
+		"enable": true,
+		"initial_value": "feat",
+		"infer_type_from_branch": true,
+		"options": [
+			{
+				"value": "feat",
+				"label": "feat",
+				"hint": "A new feature"
+			},
+			{
+				"value": "fix",
+				"label": "fix",
+				"hint": "A bug fix"
+			},
+			{
+				"value": "docs",
+				"label": "docs",
+				"hint": "Documentation only changes"
+			},
+			{
+				"value": "refactor",
+				"label": "refactor",
+				"hint": "A code change that neither fixes a bug nor adds a feature"
+			},
+			{
+				"value": "perf",
+				"label": "perf",
+				"hint": "A code change that improves performance"
+			},
+			{
+				"value": "test",
+				"label": "test",
+				"hint": "Adding missing tests or correcting existing tests"
+			},
+			{
+				"value": "build",
+				"label": "build",
+				"hint": "Changes that affect the build system or external dependencies"
+			},
+			{
+				"value": "ci",
+				"label": "ci",
+				"hint": "Changes to our CI configuration files and scripts"
+			},
+			{
+				"value": "chore",
+				"label": "chore",
+				"hint": "Other changes that do not modify src or test files"
+			}
+		]
+	},
+	"commit_scope": {
+		"enable": true,
+		"custom_scope": true,
+		"infer_scope_from_branch": true,
+		"options": [
+			{
+				"value": "app",
+				"label": "app"
+			},
+			{
+				"value": "core",
+				"label": "core"
+			},
+			{
+				"value": "docs",
+				"label": "docs"
+			},
+			{
+				"value": "global",
+				"label": "global"
+			},
+			{
+				"value": "examples",
+				"label": "examples"
+			},
+			{
+				"value": "integration/kitajs",
+				"label": "integration/kitajs"
+			},
+			{
+				"value": "integration/lit",
+				"label": "integration/lit"
+			},
+			{
+				"value": "integration/mdx",
+				"label": "integration/mdx"
+			},
+			{
+				"value": "integration/react",
+				"label": "integration/react"
+			},
+			{
+				"value": "loader/mdx-kitajs",
+				"label": "loader/mdx-kitajs"
+			},
+			{
+				"value": "loader/postcss",
+				"label": "loader/postcss"
+			},
+			{
+				"value": "playground",
+				"label": "playground"
+			},
+			{
+				"value": "plugin/inline-css",
+				"label": "plugin/inline-css"
+			},
+			{
+				"value": "processor/image",
+				"label": "processor/image"
+			},
+			{
+				"value": "processor/postcss",
+				"label": "processor/postcss"
+			},
+			{
+				"value": "scripts",
+				"label": "scripts"
+			}
+		]
+	},
+	"commit_title": {
+		"max_size": 70
+	},
+	"commit_body": {
+		"enable": true,
+		"required": false
+	},
+	"commit_footer": {
+		"enable": false
+	},
+	"breaking_change": {
+		"add_exclamation_to_title": true
+	},
+	"confirm_commit": true,
+	"cache_last_value": true,
+	"print_commit_output": true
+}

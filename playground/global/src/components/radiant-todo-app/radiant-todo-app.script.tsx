@@ -117,7 +117,11 @@ export class RadiantTodoApp extends WithKita(RadiantElement) {
 	onTodosUpdated({ todosCompleted, todosIncomplete }: Record<string, TodoContext['todos']>) {
 		const todosMapping = [
 			{ todos: todosCompleted, list: this.listComplete, noTodosMessage: <NoTodosMessage /> },
-			{ todos: todosIncomplete, list: this.listIncomplete, noTodosMessage: <NoCompletedTodosMessage /> },
+			{
+				todos: todosIncomplete,
+				list: this.listIncomplete,
+				noTodosMessage: <NoCompletedTodosMessage />,
+			},
 		];
 
 		for (const { todos, list, noTodosMessage } of todosMapping) {

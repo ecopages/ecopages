@@ -15,10 +15,8 @@ export type BlogPostProps = {
 const BlogPost: EcoComponent<PageProps<BlogPostProps>> = ({ query, slug }) =>
 	html`!${BaseLayout({
 		children: html`<div>
-        <h1>
-          Blog Post ${slug} !${JSON.stringify(query || [])}
-        </h1>
-      </div>`,
+			<h1>Blog Post ${slug} !${JSON.stringify(query || [])}</h1>
+		</div>`,
 	})}`;
 
 BlogPost.config = {

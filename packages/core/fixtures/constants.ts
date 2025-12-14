@@ -29,7 +29,7 @@ export const APP_TEST_ROUTES = {
 	catchAll: 'catch-all/123/456',
 };
 
-export const BASE_URL = import.meta.env.ECOPAGES_BASE_URL;
+export const BASE_URL = import.meta.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000';
 
 export const APP_TEST_ROUTES_URLS: Record<keyof typeof APP_TEST_ROUTES, string> = Object.fromEntries(
 	Object.entries(APP_TEST_ROUTES).map(([key, value]) => [key, `${BASE_URL}/${value}`]),

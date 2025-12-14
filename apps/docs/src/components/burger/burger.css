@@ -1,23 +1,23 @@
 .burger {
-  @apply flex flex-col justify-between w-10 h-10 bg-none border-none cursor-pointer rounded-full px-2 py-3;
+	@apply flex flex-col justify-between w-10 h-10 bg-none border-none cursor-pointer rounded-full px-2 py-3;
 
-  &__line {
-    @apply w-full bg-on-background  h-0.5 pointer-events-none transition-transform transform-gpu;
-  }
+	&__line {
+		@apply w-full bg-on-background  h-0.5 pointer-events-none transition-transform transform-gpu;
+	}
 
-  &[aria-expanded] {
-    .burger__line {
-      &:nth-child(1) {
-        @apply transform rotate-45 translate-y-1.5;
-      }
+	&[aria-expanded] {
+		.burger__line {
+			&:nth-child(1) {
+				@apply transform rotate-45 translate-y-1.5;
+			}
 
-      &:nth-child(2) {
-        @apply opacity-0;
-      }
+			&:nth-child(2) {
+				@apply opacity-0;
+			}
 
-      &:nth-child(3) {
-        @apply transform -rotate-45 -translate-y-2;
-      }
-    }
-  }
+			&:nth-child(3) {
+				@apply transform -rotate-45 -translate-y-2;
+			}
+		}
+	}
 }

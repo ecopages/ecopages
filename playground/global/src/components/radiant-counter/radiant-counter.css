@@ -1,7 +1,7 @@
 radiant-counter {
 	@apply flex gap-4 items-center bg-indigo-200 rounded-md max-w-fit p-2;
-	[data-ref="increment"],
-	[data-ref="decrement"] {
+	[data-ref='increment'],
+	[data-ref='decrement'] {
 		@apply flex items-center justify-center bg-indigo-600 text-white rounded-md w-8 h-8;
 	}
 	span {

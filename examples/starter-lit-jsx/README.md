@@ -53,11 +53,11 @@ bun run build
 
 ```ts
 // components/counter.script.ts
-import { html } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { EcoWebComponent } from "@ecopages/lit";
+import { html } from 'lit';
+import { customElement, property } from 'lit/decorators.js';
+import { EcoWebComponent } from '@ecopages/lit';
 
-@customElement("my-counter")
+@customElement('my-counter')
 export class Counter extends EcoWebComponent {
 	@property({ type: Number })
 	count = 0;
@@ -74,14 +74,14 @@ export class Counter extends EcoWebComponent {
 }
 
 // components/counter.ts
-import type { EcoWebComponent } from "@ecopages/core";
-import "./counter.script";
+import type { EcoWebComponent } from '@ecopages/core';
+import './counter.script';
 
 export const Counter: EcoWebComponent = {
 	config: {
 		importMeta: import.meta,
 		dependencies: {
-			scripts: ["counter.script.ts"],
+			scripts: ['counter.script.ts'],
 		},
 	},
 };
@@ -90,9 +90,9 @@ export const Counter: EcoWebComponent = {
 ### Creating a Page with JSX
 
 ```tsx
-import { Counter } from "@/components/counter";
-import { BaseLayout } from "@/layouts/base-layout";
-import type { EcoComponent } from "@ecopages/core";
+import { Counter } from '@/components/counter';
+import { BaseLayout } from '@/layouts/base-layout';
+import type { EcoComponent } from '@ecopages/core';
 
 const HomePage: EcoComponent = () => {
 	return (
@@ -118,9 +118,9 @@ export default HomePage;
 The project uses Ecopages configuration with both Lit and KitaJS plugins:
 
 ```ts
-import { ConfigBuilder } from "@ecopages/core";
-import { litPlugin } from "@ecopages/lit";
-import { kitajsPlugin } from "@ecopages/kitajs";
+import { ConfigBuilder } from '@ecopages/core';
+import { litPlugin } from '@ecopages/lit';
+import { kitajsPlugin } from '@ecopages/kitajs';
 
 const config = await new ConfigBuilder()
 	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)

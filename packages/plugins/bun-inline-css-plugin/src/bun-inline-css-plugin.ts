@@ -62,7 +62,7 @@ export const bunInlineCssPlugin = (options: BunInlineCssPluginOptions): BunPlugi
 			build.onLoad({ filter: /.*/, namespace }, async (args) => {
 				const text = getFileAsBuffer(args.path).toString();
 				return {
-					contents: transform ? await transform(text) : text,
+					contents: transform ? await transform(text, { path: args.path }) : text,
 					loader: 'text',
 				};
 			});

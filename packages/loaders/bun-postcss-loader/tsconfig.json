@@ -12,7 +12,6 @@
 		"strict": true,
 		"target": "ES2021",
 		"useDefineForClassFields": true,
-		"verbatimModuleSyntax": true,
-		"types": ["bun-types"]
+		"verbatimModuleSyntax": true
 	}
 }

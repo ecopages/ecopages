@@ -3,13 +3,13 @@
  * @module
  */
 
-const prefix: string = '[ecopages]';
+const prefix = '[ecopages]';
 
-export function invariant(condition: any, message?: string): asserts condition {
+export function invariant(condition: boolean, message?: string): asserts condition {
 	if (condition) {
 		return;
 	}
 
-	const value: string = message ? `${prefix} ${message}` : `${prefix} An error occurred`;
+	const value = message ? `${prefix} ${message}` : `${prefix} An error occurred`;
 	throw new Error(value);
 }

@@ -4,9 +4,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | React Integration',
-  description: 'Learn how to use the React integration with Ecopages',
-})
+	title: 'Docs | React Integration',
+	description: 'Learn how to use the React integration with Ecopages',
+});
 
 # React Integration
 
@@ -16,11 +16,7 @@ The `@ecopages/react` package provides experimental integration with [React](htt
 
 To install the React integration plugin, run the following command in your project directory:
 
-<CodeBlock>
-```bash
-bunx jsr add @ecopages/react
-```
-</CodeBlock>
+<CodeBlock>```bash bunx jsr add @ecopages/react ```</CodeBlock>
 
 ## Usage
 
@@ -29,10 +25,7 @@ To incorporate the React integration into your Ecopages project, follow these st
 1. Import the `reactPlugin` in your Ecopages configuration file:
 
 <CodeBlock>
-```typescript
-import { ConfigBuilder } from '@ecopages/core';
-import { reactPlugin } from '@ecopages/react';
-```
+	```typescript import {ConfigBuilder} from '@ecopages/core'; import {reactPlugin} from '@ecopages/react'; ```
 </CodeBlock>
 
 2. Add the `reactPlugin` to your configuration:
@@ -61,19 +54,21 @@ import type { EcoComponent } from '@ecopages/core';
 export const Counter: EcoComponent = () => {
   const [count, setCount] = useState(0);
 
-  return (
-    <div>
-      <p>Count: {count}</p>
-      <button onClick={() => setCount(count - 1)}>-</button>
-      <button onClick={() => setCount(count + 1)}>+</button>
-    </div>
-  );
+return (
+
+<div>
+<p>Count: {count}</p>
+<button onClick={() => setCount(count - 1)}>-</button>
+<button onClick={() => setCount(count + 1)}>+</button>
+</div>
+);
 };
 
 Counter.config = {
-  importMeta: import.meta,
+importMeta: import.meta,
 };
-```
+
+````
 </CodeBlock>
 
 ## Using React Components in Pages
@@ -103,7 +98,8 @@ HomePage.config = {
 };
 
 export default HomePage;
-```
+````
+
 </CodeBlock>
 
 ## Key Features

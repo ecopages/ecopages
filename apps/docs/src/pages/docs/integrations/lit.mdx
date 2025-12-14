@@ -4,9 +4,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | Lit Integration',
-  description: 'Learn how to use the Lit integration with Ecopages',
-})
+	title: 'Docs | Lit Integration',
+	description: 'Learn how to use the Lit integration with Ecopages',
+});
 
 # Lit Integration
 
@@ -16,11 +16,7 @@ The `@ecopages/lit` package provides seamless integration with [Lit](https://lit
 
 To install the Lit integration plugin, run the following command in your project directory:
 
-<CodeBlock>
-```bash
-bunx jsr add @ecopages/lit
-```
-</CodeBlock>
+<CodeBlock>```bash bunx jsr add @ecopages/lit ```</CodeBlock>
 
 ## Usage
 
@@ -29,10 +25,7 @@ To incorporate the Lit integration into your Ecopages project, follow these step
 1. Import the `litPlugin` in your Ecopages configuration file:
 
 <CodeBlock>
-```typescript
-import { ConfigBuilder } from '@ecopages/core';
-import { litPlugin } from '@ecopages/lit';
-```
+	```typescript import {ConfigBuilder} from '@ecopages/core'; import {litPlugin} from '@ecopages/lit'; ```
 </CodeBlock>
 
 2. Add the `litPlugin` to your configuration:
@@ -61,40 +54,40 @@ import { EcoWebComponent } from '@ecopages/lit';
 
 @customElement('lit-counter')
 export class LitCounter extends EcoWebComponent {
-  @property({ type: Number })
-  count = 0;
+@property({ type: Number })
+count = 0;
 
-  render() {
-    return html`
-      <div>
+render() {
+return html`       <div>
         <p>Count: \${this.count}</p>
         <button @click=\${this._decrement}>-</button>
         <button @click=\${this._increment}>+</button>
       </div>
     `;
-  }
+}
 
-  private _decrement() {
-    this.count--;
-  }
+private \_decrement() {
+this.count--;
+}
 
-  private _increment() {
-    this.count++;
-  }
+private \_increment() {
+this.count++;
+}
 }
 
 declare global {
-  interface HTMLElementTagNameMap {
-    'lit-counter': LitCounter;
-  }
+interface HTMLElementTagNameMap {
+'lit-counter': LitCounter;
 }
-```
+}
+
+````
 </CodeBlock>
 
 Note that styles are defined in a separate CSS file, promoting separation of concerns:
 
 <CodeBlock>
-```css 
+```css
 lit-counter {
   display: block;
   padding: 16px;
@@ -110,7 +103,8 @@ button {
   padding: 5px 10px;
   margin: 0 5px;
 }
-```
+````
+
 </CodeBlock>
 
 ## Define the config
@@ -131,7 +125,7 @@ export const LitCounter: EcoWebComponent = {
   },
 };
 
-```
+````
 </CodeBlock>
 
 As you can see we don't need to define it on the function that creates the component, due the fact we do not need it.
@@ -169,7 +163,8 @@ HomePage.config = {
 };
 
 export default HomePage;
-```
+````
+
 </CodeBlock>
 
 ## Key Features
@@ -198,10 +193,10 @@ import { litPlugin } from '@ecopages/lit';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
 const config = await new ConfigBuilder()
-  .setRootDir(import.meta.dir)
-  .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-  .setIntegrations([litPlugin(), kitajsPlugin()])
-  .build();
+.setRootDir(import.meta.dir)
+.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+.setIntegrations([litPlugin(), kitajsPlugin()])
+.build();
 
 export default config;
 ```

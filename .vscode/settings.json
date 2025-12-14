@@ -3,7 +3,8 @@
 	"workbench.tree.enableStickyScroll": false,
 	"files.associations": {
 		"*.lit.tsx": "typescriptreact",
-		"*.kita.tsx": "typescriptreact"
+		"*.kita.tsx": "typescriptreact",
+		"*.css": "postcss"
 	},
 	"tailwindCSS.includeLanguages": {
 		"typescript": "javascript",
@@ -12,5 +13,7 @@
 	"editor.codeActionsOnSave": {
 		"source.organizeImports.biome": "explicit",
 		"source.fixAll.biome": "explicit"
-	}
+	},
+	"oxc.requireConfig": true,
+	"prettier.requireConfig": true
 }

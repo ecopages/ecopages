@@ -1,5 +1,6 @@
-/// <reference path="../../node_modules/@ecopages/core/src/declarations.d.ts" />
-/// <reference path="../../node_modules/@ecopages/core/src/env.d.ts" />
+import '@ecopages/core/declarations';
+import '@ecopages/core/env';
+import '@ecopages/image-processor/types';
 
 declare module '*.mdx' {
 	const content: string;

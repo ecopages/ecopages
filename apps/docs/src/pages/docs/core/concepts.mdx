@@ -4,9 +4,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | Core Concepts',
-  description: 'How Ecopages works',
-})
+	title: 'Docs | Core Concepts',
+	description: 'How Ecopages works',
+});
 
 # Understanding Ecopages Core
 
@@ -30,25 +30,19 @@ For example, the KitaJS integration might set up template extensions like this:
     seo: 'seo.kita.tsx',
   })
 ```
-</CodeBlock>  
+</CodeBlock>
 
 This configuration tells Ecopages which files to use for specific parts of the page structure.
 
 ## CSS Processing
 
-By default, Ecopages uses plain css for styling. 
-We currently provide a simple Postcss and Tailwind (v3) plugin that provides a powerful and flexible system for managing your styles. 
+By default, Ecopages uses plain css for styling.
+We currently provide a simple Postcss and Tailwind (v3) plugin that provides a powerful and flexible system for managing your styles.
 You can customize this in your `eco.config.ts` file:
 
 <CodeBlock>
-```typescript
-const config = await new ConfigBuilder()
-  // ... other configurations
-  .setProcessors([
-    postcssProcessorPlugin()
-  ])
-  .build();
-```
+	```typescript const config = await new ConfigBuilder() // ... other configurations .setProcessors([
+	postcssProcessorPlugin() ]) .build(); ```
 </CodeBlock>
 
 ## Script and CSS Loading
@@ -61,7 +55,7 @@ This will chain all hte dependencies and remove duplicates, permitting you to sh
 
 1. **CSS Loading**: CSS files are typically loaded as separate files. They are referenced in the component's config and are automatically included in the final HTML.
 
-2. **Script Loading**: Scripts essential for the initial page render are loaded immediately. 
+2. **Script Loading**: Scripts essential for the initial page render are loaded immediately.
 
 ### Script File Detection
 
@@ -82,20 +76,22 @@ import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
 const HomePage: EcoComponent = () => html`${BaseLayout({
     class: 'main-content',
     children: html`
-      <h1>Ecopages</h1>
-      !${RadiantCounter({
-        count: 5,
-      })}
-    `,
+
+<h1>Ecopages</h1>
+!${RadiantCounter({
+count: 5,
+})}
+`,
   })}`;
 
 HomePage.config = {
-    importMeta: import.meta,
-    dependencies: {
-      components: [BaseLayout, RadiantCounter],
-    },
+importMeta: import.meta,
+dependencies: {
+components: [BaseLayout, RadiantCounter],
+},
 };
-```
+
+````
 </CodeBlock>
 
 ## Robots.txt Generation
@@ -113,9 +109,9 @@ You can add it to your bunfig.toml file:
 <CodeBlock>
 ```toml
 preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-kitajs-loader"]
-```
-</CodeBlock>
+````
 
+</CodeBlock>
 
 ## Import CSS as String in JS Files
 
@@ -131,6 +127,7 @@ This is possible thanks to the `@ecopages/bun-mdx-kitajs-loader`.
 import Component from '@/components/mdx-component';
 
 const MyPage = () => html`${Component()}`;
+
 ```
 </CodeBlock>
 
@@ -139,16 +136,18 @@ const MyPage = () => html`${Component()}`;
 Ecopages expects a specific project structure:
 
 ```
+
 my-project/
 ├── src/
-│   ├── pages/
-│   ├── layouts/
-│   ├── components/
-│   └── includes/
+│ ├── pages/
+│ ├── layouts/
+│ ├── components/
+│ └── includes/
 ├── public/
 ├── eco.config.ts
 └── package.json
-```
+
+````
 
 - `src/components/`: Stores reusable components
 - `src/pages/`: Contains your page files (e.g., `.mdx`, `.kita.tsx`, `.lit.tsx`)
@@ -173,7 +172,7 @@ import { getAllBlogPosts, getBlogPost } from '@/data/blog';
 
 export const getStaticPaths: GetStaticPaths = async () => {
   const posts = getAllBlogPosts();
-  
+
   return {
     paths: posts.map(post => ({
       params: { slug: post.slug }
@@ -184,14 +183,15 @@ export const getStaticPaths: GetStaticPaths = async () => {
 export const getStaticProps: GetStaticProps = async ({ pathname }) => {
   const slug = pathname.params.slug as string;
   const post = getBlogPost(slug);
-  
+
   if (!post) {
     throw new Error(`Post not found: ${slug}`);
   }
-  
+
   return { props: { post } };
 };
-```
+````
+
 </CodeBlock>
 
 ### HTTP Requests to External APIs
@@ -218,6 +218,7 @@ export const getStaticPaths: GetStaticPaths = async () => {
 Currently, Ecopages is designed to work exclusively with the Bun runtime. While the architecture supports multiple runtime adapters, at the moment only the Bun adapter is implemented and maintained.
 
 This means you'll need to:
+
 - Have Bun installed in your development environment [https://bun.sh/docs/installation](https://bun.sh/docs/installation)
 - Use Bun's package manager for dependencies
 - Take advantage of Bun's built-in features like TypeScript support and fast bundling
@@ -234,10 +235,11 @@ import appConfig from './eco.config';
 const app = new EcopagesApp({ appConfig });
 
 app.get('/api/hello', async () => {
-  return new Response(JSON.stringify({ message: 'Hello world!' }));
+return new Response(JSON.stringify({ message: 'Hello world!' }));
 });
 
 await app.start();
+
 ```
 </CodeBlock>
 
@@ -246,3 +248,4 @@ await app.start();
 - **Hot Reload**: Ecopages supports hot reloading during development, making the development process more efficient.
 - **Static Site Generation**: Ecopages generates static HTML files, improving performance and reducing server load.
 - **TypeScript Support**: Ecopages is built with TypeScript and provides excellent TypeScript support out of the box.
+```

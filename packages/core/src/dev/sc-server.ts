@@ -1,5 +1,6 @@
 import { extname, join } from 'node:path';
 import type { Server } from 'bun';
+import { appLogger } from '../global/app-logger';
 import { STATUS_MESSAGE } from '../constants.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
@@ -14,13 +15,7 @@ export class StaticContentServer {
 	private appConfig: EcoPagesAppConfig;
 	private options: StaticContentServerOptions = { port: 3000 };
 
-	constructor({
-		appConfig,
-		options,
-	}: {
-		appConfig: EcoPagesAppConfig;
-		options?: StaticContentServerOptions;
-	}) {
+	constructor({ appConfig, options }: { appConfig: EcoPagesAppConfig; options?: StaticContentServerOptions }) {
 		this.appConfig = appConfig;
 		if (options) this.options = options;
 		this.startServer();
@@ -40,6 +35,7 @@ export class StaticContentServer {
 		try {
 			FileUtils.existsSync(error404TemplatePath);
 		} catch (error) {
+			appLogger.error(error as Error);
 			return new Response(STATUS_MESSAGE[404], {
 				status: 404,
 			});
@@ -60,7 +56,7 @@ export class StaticContentServer {
 		try {
 			if (this.shouldServeGzip(contentType)) {
 				const gzipPath = `${basePath}.gz`;
-				const file = FileUtils.getFileAsBuffer(gzipPath);
+				const file = FileUtils.getFileAsBuffer(gzipPath) as BodyInit;
 				return new Response(file, {
 					headers: {
 						'Content-Type': contentType,
@@ -70,7 +66,7 @@ export class StaticContentServer {
 			}
 
 			if (path.includes('.')) {
-				const file = FileUtils.getFileAsBuffer(basePath);
+				const file = FileUtils.getFileAsBuffer(basePath) as BodyInit;
 				return new Response(file, {
 					headers: { 'Content-Type': contentType },
 				});
@@ -82,7 +78,7 @@ export class StaticContentServer {
 
 			if (!fileExists) pathWithSuffix = `${basePath}/index.html`;
 
-			const file = FileUtils.getFileAsBuffer(pathWithSuffix);
+			const file = FileUtils.getFileAsBuffer(pathWithSuffix) as BodyInit;
 
 			return new Response(file, {
 				headers: {
@@ -91,6 +87,7 @@ export class StaticContentServer {
 			});
 		} catch (error) {
 			if (this.isHtmlOrPlainText(contentType)) return this.sendNotFoundPage();
+			appLogger.error(error as Error);
 			return new Response(STATUS_MESSAGE[404], {
 				status: 404,
 			});
@@ -114,7 +111,10 @@ export class StaticContentServer {
 	}
 
 	private startServer() {
-		this.server = Bun.serve({ fetch: this.fetch.bind(this), port: this.options.port });
+		this.server = Bun.serve({
+			fetch: this.fetch.bind(this),
+			port: this.options.port,
+		});
 	}
 
 	stop() {

@@ -184,7 +184,9 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 * @returns Referenced content
 	 */
 	async process(fileAsString: string): Promise<string> {
-		return await PostCssProcessor.processStringOrBuffer(fileAsString, { plugins: this.postcssPlugins });
+		return await PostCssProcessor.processStringOrBuffer(fileAsString, {
+			plugins: this.postcssPlugins,
+		});
 	}
 
 	/**

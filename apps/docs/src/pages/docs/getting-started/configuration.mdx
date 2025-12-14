@@ -5,9 +5,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | Configuration',
-  description: 'Learn how to configure Ecopages for your project',
-})
+	title: 'Docs | Configuration',
+	description: 'Learn how to configure Ecopages for your project',
+});
 
 # Configuration
 
@@ -22,15 +22,15 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-    .setRootDir(import.meta.dir)
-    .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-    .setIntegrations([kitajsPlugin(), mdxPlugin()])
-    .setDefaultMetadata({
-      title: 'Your Site Title',
-      description: 'Your site description',
-      image: 'https://your-domain.com/og-image.png',
-    })
-    .build();
+.setRootDir(import.meta.dir)
+.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+.setIntegrations([kitajsPlugin(), mdxPlugin()])
+.setDefaultMetadata({
+title: 'Your Site Title',
+description: 'Your site description',
+image: 'https://your-domain.com/og-image.png',
+})
+.build();
 
 export default config;
 ```
@@ -39,63 +39,79 @@ export default config;
 ## Configuration API
 
 <ApiField name="rootDir" mandatory defaultValue="." type="string" setter="setRootDir">
-The root directory of your project, used to resolve paths to your project files.
+	The root directory of your project, used to resolve paths to your project files.
 </ApiField>
 
 <ApiField name="baseUrl" mandatory type="string" setter="setBaseUrl">
-The base URL of your project, used for generating absolute URLs for your pages.
+	The base URL of your project, used for generating absolute URLs for your pages.
 </ApiField>
 
-<ApiField name="defaultMetadata" type="PageMetadataProps" defaultValue="{ title: 'Ecopages', description: 'This is a static site generated with Ecopages' }" setter="setDefaultMetadata">
-Default metadata for your pages. This is merged with page-specific metadata when provided.
+<ApiField
+	name="defaultMetadata"
+	type="PageMetadataProps"
+	defaultValue="{ title: 'Ecopages', description: 'This is a static site generated with Ecopages' }"
+	setter="setDefaultMetadata"
+>
+	Default metadata for your pages. This is merged with page-specific metadata when provided.
 </ApiField>
 
 <ApiField name="srcDir" type="string" defaultValue="src" setter="setSrcDir">
-The directory containing your source files, relative to the root project directory.
+	The directory containing your source files, relative to the root project directory.
 </ApiField>
 
 <ApiField name="publicDir" type="string" defaultValue="public" setter="setPublicDir">
-The directory for static assets, relative to the src directory.
+	The directory for static assets, relative to the src directory.
 </ApiField>
 
 <ApiField name="pagesDir" type="string" defaultValue="pages" setter="setPagesDir">
-The directory containing your page files, relative to the src directory.
+	The directory containing your page files, relative to the src directory.
 </ApiField>
 
 <ApiField name="includesDir" type="string" defaultValue="includes" setter="setIncludesDir">
-The directory for include templates, relative to the src directory.
+	The directory for include templates, relative to the src directory.
 </ApiField>
 
 <ApiField name="layoutsDir" type="string" defaultValue="layouts" setter="setLayoutsDir">
-The directory for layout components, relative to the src directory.
+	The directory for layout components, relative to the src directory.
 </ApiField>
 
-<ApiField name="includesTemplates" type="IncludesTemplates" defaultValue="{head: 'head.ghtml.ts', html: 'html.ghtml.ts', seo: 'seo.ghtml.ts'}" setter="setIncludesTemplates">
-Specifies the templates used for different parts of your pages.
+<ApiField
+	name="includesTemplates"
+	type="IncludesTemplates"
+	defaultValue="{head: 'head.ghtml.ts', html: 'html.ghtml.ts', seo: 'seo.ghtml.ts'}"
+	setter="setIncludesTemplates"
+>
+	Specifies the templates used for different parts of your pages.
 </ApiField>
 
 <ApiField name="error404Template" type="string" defaultValue="404.ghtml.ts" setter="setError404Template">
-The template for the 404 error page, located in the pages directory.
+	The template for the 404 error page, located in the pages directory.
 </ApiField>
 
 <ApiField name="distDir" type="string" defaultValue=".eco" setter="setDistDir">
-The output directory for the built files.
+	The output directory for the built files.
 </ApiField>
 
 <ApiField name="componentsDir" type="string" defaultValue="components" setter="setComponentsDir">
-The directory containing your reusable components.
+	The directory containing your reusable components.
 </ApiField>
 
 <ApiField name="additionalWatchPaths" type="string[]" defaultValue="[]" setter="setAdditionalWatchPaths">
-Add additional files to monitor for changes. This is useful for tracking files that are not included in the Ecopages build process.
+	Add additional files to monitor for changes. This is useful for tracking files that are not included in the Ecopages
+	build process.
 </ApiField>
 
-<ApiField name="robotsTxt" type="RobotsPreferences" defaultValue={`{ preferences: { "*": [], Googlebot: ["/public/"] } }`} setter="setRobotsTxt">
-Configuration for the robots.txt file.
+<ApiField
+	name="robotsTxt"
+	type="RobotsPreferences"
+	defaultValue={`{ preferences: { "*": [], Googlebot: ["/public/"] } }`}
+	setter="setRobotsTxt"
+>
+	Configuration for the robots.txt file.
 </ApiField>
 
 <ApiField name="integrations" type="IntegrationPlugin[]" defaultValue="[]" setter="setIntegrations">
-An array of integration plugins to enhance Ecopages functionality.
+	An array of integration plugins to enhance Ecopages functionality.
 </ApiField>
 
 ## Integrations
@@ -115,10 +131,10 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-    .setRootDir(import.meta.dir)
-    .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-    .setIntegrations([kitajsPlugin(), mdxPlugin()])
-    .build();
+.setRootDir(import.meta.dir)
+.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+.setIntegrations([kitajsPlugin(), mdxPlugin()])
+.build();
 
 export default config;
 ```

@@ -30,7 +30,8 @@
 		"ghtml": "^3.1.2"
 	},
 	"devDependencies": {
-		"bun-types": "latest"
+		"@ecopages/bun-postcss-loader": "workspace:*",
+		"@types/bun": "latest"
 	},
 	"exports": {
 		".": {

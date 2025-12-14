@@ -40,8 +40,7 @@ export abstract class AbstractApplicationAdapter<
 	TOptions extends ApplicationAdapterOptions = ApplicationAdapterOptions,
 	TServer = any,
 	TRequest extends Request = any,
-> implements ApplicationAdapter<TServer>
-{
+> implements ApplicationAdapter<TServer> {
 	protected appConfig: EcoPagesAppConfig;
 	protected serverOptions: Record<string, any>;
 	protected cliArgs: ReturnParseCliArgs;
@@ -59,7 +58,7 @@ export abstract class AbstractApplicationAdapter<
 		}
 	}
 
-	private async clearDistFolder(filter: string[] = []): Promise<void> {
+	private async clearDistFolder(_filter: string[] = []): Promise<void> {
 		const distPath = this.appConfig.absolutePaths.distDir;
 		const distExists = FileUtils.existsSync(distPath);
 

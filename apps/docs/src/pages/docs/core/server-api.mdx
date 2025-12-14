@@ -4,9 +4,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | Server API',
-  description: 'Learn how to use the Ecopages Server API',
-})
+	title: 'Docs | Server API',
+	description: 'Learn how to use the Ecopages Server API',
+});
 
 # Server API
 
@@ -24,11 +24,12 @@ import appConfig from './eco.config';
 const app = new EcopagesApp({ appConfig });
 
 app.get('/api/hello', async () => {
-  return new Response('Hello World');
+return new Response('Hello World');
 });
 
 await app.start();
-```
+
+````
 </CodeBlock>
 
 ## HTTP Methods
@@ -44,7 +45,8 @@ app.patch('/api/resource', handler);
 app.delete('/api/resource', handler);
 app.options('/api/resource', handler);
 app.head('/api/resource', handler);
-```
+````
+
 </CodeBlock>
 
 ## Route Parameters
@@ -77,19 +79,20 @@ import { defineBunApiHandler } from '@ecopages/core/adapters/bun/define-handler'
 
 // Define the handler using the helper
 const getUserHandler = defineBunApiHandler({
-  method: 'GET',
-  path: '/api/users/:id', // Type of 'id' is inferred from here
-  handler: async ({ request }) => {
-    // request.params is automatically typed as { id: string }
-    const { id } = request.params; 
-    // Fetch user logic...
-    const user = { id: id, name: 'Example User' }; 
-    
+method: 'GET',
+path: '/api/users/:id', // Type of 'id' is inferred from here
+handler: async ({ request }) => {
+// request.params is automatically typed as { id: string }
+const { id } = request.params;
+// Fetch user logic...
+const user = { id: id, name: 'Example User' };
+
     if (!user) {
       return new Response('User not found', { status: 404 });
     }
     return new Response(JSON.stringify(user));
-  },
+
+},
 });
 
 // Register the handler with the app
@@ -97,17 +100,18 @@ app.get(getUserHandler.path, getUserHandler.handler);
 
 // You can define multiple handlers this way and keep them organized
 const updateUserHandler = defineBunApiHandler({
-  method: 'PUT',
-  path: '/api/users/:id',
-  handler: async ({ request }) => {
-    const { id } = request.params;
-    // Update user logic...
-    return new Response(JSON.stringify({ id, message: 'User updated' }));
-  }
+method: 'PUT',
+path: '/api/users/:id',
+handler: async ({ request }) => {
+const { id } = request.params;
+// Update user logic...
+return new Response(JSON.stringify({ id, message: 'User updated' }));
+}
 });
 
 app.put(updateUserHandler.path, updateUserHandler.handler);
-```
+
+````
 </CodeBlock>
 
 ### Benefits of Using `defineBunApiHandler`
@@ -131,7 +135,8 @@ app.get('/api/hello', async ({ response, request, server }) => {
     requestIp: server.requestIP(request),
   });
 });
-```
+````
+
 </CodeBlock>
 
 You can use `server` for advanced debugging, runtime methods, or accessing server-specific utilities.
@@ -191,10 +196,6 @@ app.get('/api/error', async () => {
 Server configuration can be customized in your `eco.config.ts`:
 
 <CodeBlock>
-```typescript
-const config = await new ConfigBuilder()
-  .setBaseUrl('http://localhost:3000')
-  // ... other config
-  .build();
-```
+	```typescript const config = await new ConfigBuilder() .setBaseUrl('http://localhost:3000') // ... other config
+	.build(); ```
 </CodeBlock>

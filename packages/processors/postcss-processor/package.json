@@ -23,6 +23,8 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
+		"@ecopages/bun-inline-css-plugin": "workspace:*",
+		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "latest",
 		"@types/postcss-import": "^14.0.3",
 		"autoprefixer": "^10.4.16",
@@ -32,7 +34,7 @@
 		"tailwindcss": "^3.4.1"
 	},
 	"devDependencies": {
-		"bun-types": "latest",
+		"@types/bun": "latest",
 		"postcss-simple-vars": "^7.0.1"
 	},
 	"exports": {

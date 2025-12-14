@@ -22,19 +22,10 @@ export class LitCounter extends LitElement {
 
 	override render() {
 		return html`
-      <button @click=${this.decrement} aria-label="Decrement" class="decrement">
-        -
-      </button>
-      <span>${this.count}</span>
-      <button
-        data-increment
-        @click=${this.increment}
-        aria-label="Increment"
-        class="increment"
-      >
-        +
-      </button>
-    `;
+			<button @click=${this.decrement} aria-label="Decrement" class="decrement">-</button>
+			<span>${this.count}</span>
+			<button data-increment @click=${this.increment} aria-label="Increment" class="increment">+</button>
+		`;
 	}
 }
 

@@ -1,21 +1,24 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PostCssProcessor } from '@ecopages/postcss-processor';
 import { bunInlineCssPlugin } from '../bun-inline-css-plugin.ts';
 
-const outdir = path.join(__dirname, 'dist');
+const TMP_DIR = path.join(__dirname, 'dist-test');
 
-afterEach(() => {
-	if (fs.existsSync(outdir)) {
-		fs.rmSync(outdir, { recursive: true });
+const cleanup = () => {
+	if (fs.existsSync(TMP_DIR)) {
+		fs.rmSync(TMP_DIR, { recursive: true });
 	}
-});
+};
 
-describe('bunPostCssPlugin', () => {
-	test('bunPostCssPlugin should return the postcss file with default transformation', async () => {
+afterEach(cleanup);
+
+describe('bunInlineCssPlugin', () => {
+	test('should return the css file content as-is with default options', async () => {
+		const outdir = path.join(TMP_DIR, 'dist-1');
 		const filePath = path.resolve(__dirname, './correct.ts');
-		const expected = '.test {\n  @apply bg-red-500;\n}\n';
+		const cssPath = path.resolve(__dirname, './css/correct.css');
+		const expected = fs.readFileSync(cssPath, 'utf-8');
 
 		const build = await Bun.build({
 			entrypoints: [filePath],
@@ -24,35 +27,45 @@ describe('bunPostCssPlugin', () => {
 			plugins: [bunInlineCssPlugin({})],
 		});
 
-		const processedFile = build.outputs[0].path;
-		const result = await import(processedFile).then((res) => res.default);
+		expect(build.success).toBe(true);
 
-		expect(result.default).toEqual(expected);
+		const processedFile = build.outputs[0].path;
+		const bundle = await import(processedFile);
+		const cssModule = await bundle.default;
+
+		expect(cssModule.default).toEqual(expected);
 	});
 
-	test('bunPostCssPlugin should build correctly the css file with a custom postcss processor', async () => {
+	test('should apply custom transformations', async () => {
+		const outdir = path.join(TMP_DIR, 'dist-2');
 		const filePath = path.resolve(__dirname, './correct.ts');
-		const expected = '.test{--tw-bg-opacity:1;background-color:rgb(239 68 68/var(--tw-bg-opacity,1))}';
+		const cssPath = path.resolve(__dirname, './css/correct.css');
+		const expected = fs.readFileSync(cssPath, 'utf-8').replace('bg-red-500', 'bg-blue-500');
 
 		const build = await Bun.build({
 			entrypoints: [filePath],
 			outdir,
 			plugins: [
 				bunInlineCssPlugin({
-					transform: (text) => PostCssProcessor.processStringOrBuffer(text),
+					transform: async (text) => text.toString().replace('bg-red-500', 'bg-blue-500'),
 				}),
 			],
 		});
 
-		const processedFile = build.outputs[0].path;
-		const result = await import(processedFile).then((res) => res.default);
+		expect(build.success).toBe(true);
 
-		expect(result).toEqual(result);
+		const processedFile = build.outputs[0].path;
+		const bundle = await import(processedFile);
+		const cssModule = await bundle.default;
+
+		expect(cssModule.default).toEqual(expected);
 	});
 
-	test('On error bunPostCssPlugin should return the postcss file without transformation', async () => {
+	test('should return content without transformation on files with errors if no validator is present (default behavior)', async () => {
+		const outdir = path.join(TMP_DIR, 'dist-3');
 		const filePath = path.resolve(__dirname, './with-error.ts');
-		const expected = '.test {\n  @apply bg-reds-500;\n}\n';
+		const cssPath = path.resolve(__dirname, './css/with-error.css');
+		const expected = fs.readFileSync(cssPath, 'utf-8');
 
 		const build = await Bun.build({
 			entrypoints: [filePath],
@@ -61,9 +74,12 @@ describe('bunPostCssPlugin', () => {
 			plugins: [bunInlineCssPlugin({})],
 		});
 
-		const processedFile = build.outputs[0].path;
-		const result = await import(processedFile).then((res) => res.default);
+		expect(build.success).toBe(true);
 
-		expect(result.default).toEqual(expected);
+		const processedFile = build.outputs[0].path;
+		const bundle = await import(processedFile);
+		const cssModule = await bundle.default;
+
+		expect(cssModule.default).toEqual(expected);
 	});
 });

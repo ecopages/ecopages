@@ -20,6 +20,7 @@ import { rm as rmAsync, rmdir as rmdirAsync } from 'node:fs/promises';
 import path, { extname } from 'node:path';
 import zlib from 'node:zlib';
 import type { GlobScanOptions } from 'bun';
+import { appLogger } from '../global/app-logger';
 
 /**
  * Copy a directory synchronously.
@@ -144,7 +145,9 @@ function write(filepath: string, contents: string | Buffer): void {
 		FileUtils.ensureDirectoryExists(path.dirname(filepath));
 		writeFileSync(filepath, contents);
 	} catch (error) {
-		throw new Error(`[ecopages] Error writing file: ${path}`);
+		appLogger.error(error as Error);
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`[ecopages] Error writing file: ${path}. Cause: ${message}`);
 	}
 }
 
@@ -158,7 +161,9 @@ function getFileHash(path: string): string {
 		const buffer = getFileAsBuffer(path);
 		return Bun.hash(buffer).toString();
 	} catch (error) {
-		throw new Error(`[ecopages] Error hashing file: ${path}`);
+		appLogger.error(error as Error);
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`[ecopages] Error hashing file: ${path}. Cause: ${message}`);
 	}
 }
 

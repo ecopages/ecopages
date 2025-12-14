@@ -1,28 +1,28 @@
 .docs-layout {
-  @apply md:grid md:grid-cols-[auto,1fr];
-  .docs-layout__aside {
-    @apply fixed top-16 h-[calc(100svh_-_4rem)] md:sticky overflow-auto;
-    @apply bg-background p-6 md:p-8 border-r border-r-background-accent;
+	@apply md:grid md:grid-cols-[auto,1fr];
+	.docs-layout__aside {
+		@apply fixed top-16 h-[calc(100svh_-_4rem)] md:sticky overflow-auto;
+		@apply bg-background p-6 md:p-8 border-r border-r-background-accent;
 
-    ul,
-    ol {
-      @apply list-none p-0;
-    }
+		ul,
+		ol {
+			@apply list-none p-0;
+		}
 
-    a {
-      @apply text-link no-underline;
-    }
-  }
+		a {
+			@apply text-link no-underline;
+		}
+	}
 
-  .docs-layout__content {
-    @apply px-6 md:px-12 py-4;
-  }
+	.docs-layout__content {
+		@apply px-6 md:px-12 py-4;
+	}
 
-  .docs-layout__nav-group {
-    @apply my-8 uppercase text-sm font-bold text-on-background;
-  }
+	.docs-layout__nav-group {
+		@apply my-8 uppercase text-sm font-bold text-on-background;
+	}
 
-  .docs-layout__nav-group-list {
-    @apply ml-4 mt-2 mb-8;
-  }
+	.docs-layout__nav-group-list {
+		@apply ml-4 mt-2 mb-8;
+	}
 }

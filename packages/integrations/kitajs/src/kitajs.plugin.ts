@@ -1,4 +1,3 @@
-import type { IntegrationRenderer } from '@ecopages/core';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { KitaRenderer } from './kitajs-renderer';
 

@@ -7,7 +7,7 @@ main {
 	font-size: 2rem;
 	margin-bottom: 1rem;
 	color: #333;
-	font-family: "Arial", sans-serif;
+	font-family: 'Arial', sans-serif;
 	font-weight: bold;
 }
 
@@ -20,5 +20,5 @@ code {
 	background-color: #f4f4f4;
 	padding: 0.5rem;
 	border-radius: 5px;
-	font-family: "Courier New", monospace;
+	font-family: 'Courier New', monospace;
 }

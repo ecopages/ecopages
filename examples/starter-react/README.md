@@ -50,8 +50,8 @@ bun run build
 ### Creating a Page
 
 ```tsx
-import { BaseLayout } from "@/layouts/base-layout";
-import type { EcoReactComponent } from "@ecopages/react";
+import { BaseLayout } from '@/layouts/base-layout';
+import type { EcoReactComponent } from '@ecopages/react';
 
 const HomePage: EcoReactComponent = () => {
 	return (
@@ -75,8 +75,8 @@ export default HomePage;
 ### Creating a Component
 
 ```tsx
-import { useState } from "react";
-import type { EcoReactComponent } from "@ecopages/react";
+import { useState } from 'react';
+import type { EcoReactComponent } from '@ecopages/react';
 
 export const Counter: EcoReactComponent = () => {
 	const [count, setCount] = useState(0);
@@ -100,8 +100,8 @@ Counter.config = {
 The project uses a standard Ecopages configuration with React integration:
 
 ```ts
-import { ConfigBuilder } from "@ecopages/core";
-import { reactPlugin } from "@ecopages/react";
+import { ConfigBuilder } from '@ecopages/core';
+import { reactPlugin } from '@ecopages/react';
 
 const config = await new ConfigBuilder()
 	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)

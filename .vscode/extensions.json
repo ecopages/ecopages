@@ -1,8 +1,10 @@
 {
-  "recommendations": [
-    "biomejs.biome",
-    "runem.lit-plugin",
-    "wix.vscode-import-cost",
-    "bradlc.vscode-tailwindcss"
-  ],
+	"recommendations": [
+		"wix.vscode-import-cost",
+		"bradlc.vscode-tailwindcss",
+		"csstools.postcss",
+		"esbenp.prettier-vscode",
+		"oxc.oxc-vscode",
+		"unifiedjs.vscode-mdx"
+	]
 }

@@ -1,17 +1,16 @@
 import { extname, join } from 'node:path';
-import type { Server } from 'bun';
-import { appLogger } from '../global/app-logger';
 import { STATUS_MESSAGE } from '../constants.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
 import { ServerUtils } from '../utils/server-utils.module.ts';
+import type { Server } from 'bun';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
 
 type StaticContentServerOptions = {
 	port?: number;
 };
 
 export class StaticContentServer {
-	server: Server | null = null;
+	server: Server<unknown> | null = null;
 	private appConfig: EcoPagesAppConfig;
 	private options: StaticContentServerOptions = { port: 3000 };
 
@@ -34,8 +33,7 @@ export class StaticContentServer {
 
 		try {
 			FileUtils.existsSync(error404TemplatePath);
-		} catch (error) {
-			appLogger.error(error as Error);
+		} catch {
 			return new Response(STATUS_MESSAGE[404], {
 				status: 404,
 			});
@@ -85,9 +83,8 @@ export class StaticContentServer {
 					'Content-Type': ServerUtils.getContentType(extname(pathWithSuffix)),
 				},
 			});
-		} catch (error) {
+		} catch {
 			if (this.isHtmlOrPlainText(contentType)) return this.sendNotFoundPage();
-			appLogger.error(error as Error);
 			return new Response(STATUS_MESSAGE[404], {
 				status: 404,
 			});

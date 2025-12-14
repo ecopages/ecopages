@@ -12,7 +12,9 @@
 	"types": "./src/react.plugin.ts",
 	"type": "module",
 	"files": [
-		"src"
+		"src",
+		"react-esm.ts",
+		"react-dom-esm.ts"
 	],
 	"exports": {
 		".": {

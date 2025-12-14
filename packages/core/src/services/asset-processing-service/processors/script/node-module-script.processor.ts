@@ -2,7 +2,6 @@ import path from 'node:path';
 import { FileUtils } from '../../../../utils/file-utils.module';
 import type { NodeModuleScriptAsset, ProcessedAsset } from '../../assets.types';
 import { BaseScriptProcessor } from '../base/base-script-processor';
-import { appLogger } from '../../../../global/app-logger';
 
 export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScriptAsset> {
 	async process(dep: NodeModuleScriptAsset) {
@@ -64,8 +63,7 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 		const findInParentDirs = (dir: string, depth: number): string => {
 			try {
 				return tryPath(dir);
-			} catch (error) {
-				appLogger.error(error as Error);
+			} catch {
 				if (depth === 0 || dir === path.parse(dir).root) {
 					throw new Error(`Could not find module '${importPath}' in '${rootDir}' or its parent directories`);
 				}

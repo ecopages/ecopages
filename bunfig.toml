@@ -9,3 +9,6 @@ preload = [
 
 [install.scopes]
 "@jsr" = "https://npm.jsr.io"
+
+[install]
+linker = "hoisted"

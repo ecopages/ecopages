@@ -120,6 +120,7 @@ function gzipFileSync(path: string) {
  * @param extensionsToGzip
  */
 function gzipDirSync(path: string, extensionsToGzip: string[]) {
+	// @ts-expect-error: inconsistent type for readdirSync
 	const files = readdirSync(path, { recursive: true });
 	for (const file of files) {
 		const ext = extname(file as string).slice(1);
@@ -145,7 +146,7 @@ function write(filepath: string, contents: string | Buffer): void {
 		FileUtils.ensureDirectoryExists(path.dirname(filepath));
 		writeFileSync(filepath, contents);
 	} catch (error) {
-		appLogger.error(error as Error);
+		appLogger.error(error instanceof Error ? error.message : String(error));
 		const message = error instanceof Error ? error.message : String(error);
 		throw new Error(`[ecopages] Error writing file: ${path}. Cause: ${message}`);
 	}
@@ -161,7 +162,7 @@ function getFileHash(path: string): string {
 		const buffer = getFileAsBuffer(path);
 		return Bun.hash(buffer).toString();
 	} catch (error) {
-		appLogger.error(error as Error);
+		appLogger.error(error instanceof Error ? error.message : String(error));
 		const message = error instanceof Error ? error.message : String(error);
 		throw new Error(`[ecopages] Error hashing file: ${path}. Cause: ${message}`);
 	}

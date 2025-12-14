@@ -37,10 +37,10 @@ export class LitPlugin extends IntegrationPlugin {
 			 * BUG ALERT
 			 * Due to an issue appeared in Bun 1.2.2, we need to use a workaround to import the hydrate script.
 			 * This is a temporary solution until the issue is resolved.
-			 * The litElementHydrateScript is the same file built on Bun 1.4.5.
+			 * The litElementHydrateScript is the same file built on Bun 1.1.45.
 			 * https://github.com/oven-sh/bun/issues/17180
 			 *
-			 * AssetFactory.createNodeModuleScriptAsset({
+			 * AssetFactory.createNodeModuleScript({
 			 *    position: 'head',
 			 *    importPath: '@lit-labs/ssr-client/lit-element-hydrate-support.js'
 			 * })

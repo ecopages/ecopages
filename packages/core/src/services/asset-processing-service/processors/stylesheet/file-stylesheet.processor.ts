@@ -2,7 +2,6 @@ import path from 'node:path';
 import { FileUtils } from '../../../../utils/file-utils.module';
 import type { FileStylesheetAsset, ProcessedAsset } from '../../assets.types';
 import { BaseProcessor } from '../base/base-processor';
-import { appLogger } from '../../../../global/app-logger';
 
 export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> {
 	getStyleContent = async (srcUrl: string): Promise<Buffer | string> => {
@@ -13,8 +12,7 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 				return FileUtils.readFileSync(srcUrl);
 			}
 			return imported;
-		} catch (error) {
-			appLogger.error(error as Error);
+		} catch {
 			return FileUtils.readFileSync(srcUrl);
 		}
 	};

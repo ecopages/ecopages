@@ -6,18 +6,9 @@
 		"no-param-reassign": "error",
 		"default-param-last": "error",
 		"no-else-return": "error",
-		"typescript/no-explicit-any": "off",
-		"typescript/no-empty-interface": "off",
-		"typescript/no-inferrable-types": "error",
+		"no-explicit-any": "off",
+		"no-empty-interface": "off",
+		"no-inferrable-types": "off",
 		"react/jsx-key": "off"
-	},
-	"overrides": [
-		{
-			"files": ["**.ts", "**.tsx"],
-			"rules": {
-				"typescript/no-explicit-any": "off",
-				"typescript/triple-slash-reference": "off"
-			}
-		}
-	]
+	}
 }

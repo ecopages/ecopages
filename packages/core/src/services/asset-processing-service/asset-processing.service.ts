@@ -88,7 +88,7 @@ export class AssetProcessingService {
 	}
 
 	private async optimizeDependencies(depsDir: string): Promise<void> {
-		if (import.meta.env.NODE_ENV === 'production') {
+		if (process.env.NODE_ENV === 'production') {
 			FileUtils.gzipDirSync(depsDir, ['css', 'js']);
 		}
 	}

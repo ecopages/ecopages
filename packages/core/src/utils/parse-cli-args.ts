@@ -62,5 +62,14 @@ export function parseCliArgs(): ReturnParseCliArgs {
 		hostname: values.hostname,
 	};
 
+	/**
+	 * If no NODE_ENV is set, set it based on the command
+	 * This is to ensure that the app is built in the correct mode
+	 * gzip compression is only enabled in production
+	 */
+	if (!process.env.NODE_ENV) {
+		process.env.NODE_ENV = isDevCommand ? 'development' : 'production';
+	}
+
 	return parsedCommandOptions;
 }

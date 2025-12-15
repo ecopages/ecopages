@@ -27,7 +27,7 @@ export const RESOLVED_ASSETS_DIR = 'assets';
  * Directory used for storing vendor assets.
  * This is a subdirectory of the assets directory.
  */
-export const RESOLVED_ASSETS_VENDORS_DIR = `${RESOLVED_ASSETS_DIR}/vendors`;
+export const RESOLVED_ASSETS_VENDORS_DIR: string = `${RESOLVED_ASSETS_DIR}/vendors`;
 
 interface GeneratedPathOptions {
 	root: string;

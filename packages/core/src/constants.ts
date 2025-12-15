@@ -36,9 +36,12 @@ interface GeneratedPathOptions {
 	ensureDirExists?: boolean;
 }
 
-const GENERATED_BASE_PATHS = {
+/**
+ * Base paths for generated project files.
+ */
+export const GENERATED_BASE_PATHS = {
 	types: 'node_modules/@types',
-	cache: 'node_modules/.cache/@ecopages',
+	cache: 'cache',
 } as const;
 
 /**

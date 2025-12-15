@@ -59,7 +59,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 			srcDir: appConfig.absolutePaths.srcDir,
 			distDir: appConfig.absolutePaths.distDir,
 			cache: resolveGeneratedPath('cache', {
-				root: appConfig.rootDir,
+				root: appConfig.absolutePaths.distDir,
 				module: this.name,
 				ensureDirExists: true,
 			}),

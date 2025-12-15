@@ -59,8 +59,23 @@ export class ImageProcessor {
 			if (this.config.cacheEnabled) {
 				const cached = await this.cacheManager.readCache<ImageSpecifications>(cacheKey);
 				if (cached) {
-					appLogger.debug(`Cache hit for ${imagePath}`);
-					return cached;
+					/**
+					 * Verify that the files actually exist
+					 * We construct the absolute path relative to the process current working directory
+					 * since the src in attributes is relative from the root
+					 */
+					const mainFilePath = path.join(process.cwd(), cached.attributes.src);
+					const mainFileExists = FileUtils.existsSync(mainFilePath);
+					const variantsExist = cached.variants.every((v) =>
+						FileUtils.existsSync(path.join(process.cwd(), v.src)),
+					);
+
+					if (mainFileExists && variantsExist) {
+						appLogger.debug(`Cache hit for ${imagePath}`);
+						return cached;
+					}
+
+					appLogger.debug(`Cache invalid for ${imagePath}, reprocessing`);
 				}
 			}
 

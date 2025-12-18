@@ -9,8 +9,8 @@ import type { ApiHandler } from '../../public-types';
  * @param handler The API handler configuration object using BunRequest.
  * @returns The same handler object, strongly typed for Bun.
  */
-export function defineApiHandler<TPath extends string>(
-	handler: ApiHandler<TPath, BunRequest<TPath>, Server>,
-): ApiHandler<TPath, BunRequest<TPath>, Server> {
+export function defineApiHandler<TPath extends string, WebSocketData = undefined>(
+	handler: ApiHandler<TPath, BunRequest<TPath>, Server<WebSocketData>>,
+): ApiHandler<TPath, BunRequest<TPath>, Server<WebSocketData>> {
 	return handler;
 }

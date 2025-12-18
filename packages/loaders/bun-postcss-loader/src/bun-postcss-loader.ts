@@ -28,7 +28,7 @@ Bun.plugin({
 
 		build.onLoad({ filter: postcssFilter }, async (args) => {
 			const text = getFileAsBuffer(args.path);
-			const contents = await PostCssProcessor.processStringOrBuffer(text);
+			const contents = await PostCssProcessor.processStringOrBuffer(text, { filePath: args.path });
 			return {
 				contents,
 				exports: { default: contents },

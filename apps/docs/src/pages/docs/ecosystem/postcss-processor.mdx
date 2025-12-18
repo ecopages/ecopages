@@ -124,7 +124,7 @@ const css = await PostCssProcessor.processPath('path/to/file.css');
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 
 const css = `body { @apply bg-blue-500; }`;
-const processed = await PostCssProcessor.processStringOrBuffer(css);
+const processed = await PostCssProcessor.processStringOrBuffer(css, { filePath: 'style.css' });
 
 ```
 </CodeBlock>

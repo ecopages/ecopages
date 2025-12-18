@@ -66,7 +66,7 @@ import { PostCssProcessor } from '@ecopages/postcss-processor';
 
 const css = `body { @apply bg-blue-500; }`;
 
-PostCssProcessor.processStringOrBuffer(css).then((processedCss) => {
+PostCssProcessor.processStringOrBuffer(css, { filePath: 'style.css' }).then((processedCss) => {
 	console.log(processedCss);
 });
 ```

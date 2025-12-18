@@ -75,4 +75,31 @@ describe('PostCssProcessor', () => {
 		});
 		expect(result).toEqual(expected);
 	});
+
+	test('processStringOrBuffer should use the transformOutput', async () => {
+		const string = 'body { background: #056ef0; }';
+		const expected = '@reference "../app.css";\nbody{background:#056ef0}';
+		const result = await PostCssProcessor.processStringOrBuffer(string, {
+			plugins: [PostCssProcessor.defaultPlugins.cssnano],
+			transformOutput: (css) => {
+				return `@reference "../app.css";\n${css}`;
+			},
+		});
+		expect(result).toEqual(expected);
+	});
+
+	test('processPath should resolve @import', async () => {
+		const filePath = path.resolve(__dirname, './css/import.css');
+		const expected = '.base{color:red}.main{background:blue}';
+		const result = await PostCssProcessor.processPath(filePath);
+		expect(result).toEqual(expected);
+	});
+
+	test('processStringOrBuffer should resolve @import', async () => {
+		const string = '@import "base.css"; .main { background: blue; }';
+		const filePath = path.resolve(__dirname, './css/import.css');
+		const expected = '.base{color:red}.main{background:blue}';
+		const result = await PostCssProcessor.processStringOrBuffer(string, { filePath });
+		expect(result).toEqual(expected);
+	});
 });

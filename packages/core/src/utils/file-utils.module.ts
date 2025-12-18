@@ -28,6 +28,17 @@ import { appLogger } from '../global/app-logger';
  * @param destination
  */
 /**
+ * Custom error class for file not found errors.
+ */
+export class FileNotFoundError extends Error {
+	code = 'ENOENT';
+	constructor(path: string) {
+		super(`File: ${path} not found`);
+		this.name = 'FileNotFoundError';
+	}
+}
+
+/**
  * Utility functions for file operations.
  */
 export class FileUtils {
@@ -57,22 +68,21 @@ export class FileUtils {
 	 */
 	static getFileAsBuffer(path: string): Buffer {
 		try {
-			FileUtils.verifyFileExists(path);
 			return readFileSync(path);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
+			throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`, { cause: error });
 		}
 	}
 
 	/**
 	 * Verify that a file exists.
 	 * @param path
-	 * @throws Error
+	 * @throws FileNotFoundError
 	 */
 	static verifyFileExists(path: string): void {
 		if (!existsSync(path)) {
-			throw new Error(`File: ${path} not found`);
+			throw new FileNotFoundError(path);
 		}
 	}
 

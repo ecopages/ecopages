@@ -87,14 +87,20 @@ export class FileSystemServerResponseFactory {
 				file = FileUtils.getFileAsBuffer(filePath);
 			}
 
-			return await this.createResponseWithBody(file, {
+			return await this.createResponseWithBody(file as unknown as BodyInit, {
 				headers: {
 					'Content-Type': contentType,
 					...contentEncodingHeader,
 				},
 			});
 		} catch (error) {
-			appLogger.error('Error reading file', filePath, error as Error);
+			const err = error as Error & { code?: string; cause?: { code?: string } };
+			const code = err.code || err.cause?.code;
+			if (code === 'ENOENT') {
+				appLogger.debug('File not found', filePath);
+			} else {
+				appLogger.error('Error reading file', filePath, err);
+			}
 			return this.createDefaultNotFoundResponse();
 		}
 	}

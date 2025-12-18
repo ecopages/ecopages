@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { FIXTURE_APP_PROJECT_DIR, FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH } from '../../../fixtures/constants.ts';
+import { appLogger } from '../../global/app-logger.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { STATUS_MESSAGE } from '../../constants.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
@@ -144,6 +145,31 @@ describe('FileSystemServerResponseFactory', () => {
 			const response = await responseFactory.createFileResponse('/path/to/nonexistent.txt', 'text/plain');
 			expect(response.status).toBe(404);
 			expect(await response.text()).toBe(STATUS_MESSAGE[404]);
+		});
+
+		it('should log debug for ENOENT errors', async () => {
+			const originalDebug = appLogger.debug;
+			const originalError = appLogger.error;
+			let debugCalled = false;
+			let errorCalled = false;
+
+			appLogger.debug = (...args: Parameters<typeof originalDebug>) => {
+				debugCalled = true;
+				return originalDebug.apply(appLogger, args);
+			};
+			appLogger.error = (...args: Parameters<typeof originalError>) => {
+				errorCalled = true;
+				return originalError.apply(appLogger, args);
+			};
+
+			try {
+				await responseFactory.createFileResponse('/path/to/nonexistent-debug.txt', 'text/plain');
+				expect(debugCalled).toBe(true);
+				expect(errorCalled).toBe(false);
+			} finally {
+				appLogger.debug = originalDebug;
+				appLogger.error = originalError;
+			}
 		});
 	});
 });

@@ -1,4 +1,3 @@
-import type { RouterTypes } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { Route, Routes } from '../../internal-types.ts';
 import { AbstractRouterAdapter } from '../abstract/router-adapter.ts';
@@ -32,7 +31,7 @@ export class BunRouterAdapter extends AbstractRouterAdapter<BunServerRoutes> {
 	/**
 	 * Creates a route handler function for Bun's router
 	 */
-	protected createRouteHandler(route: Route): RouterTypes.RouteValue<string> {
+	protected createRouteHandler(route: Route): BunServerRoutes[string] {
 		return async (req: Request) => {
 			appLogger.debug('[BunRouterAdapter] Handling route request:', {
 				url: req.url,

@@ -1,7 +1,14 @@
 import { parseArgs } from 'node:util';
 
 /**
- * The return type of the parseCliArgs function.
+ * Parsed command line arguments for the Ecopages server.
+ * @property preview - Whether to run in preview mode
+ * @property build - Whether to run a static build
+ * @property start - Whether to start the server
+ * @property dev - Whether to run in development mode
+ * @property port - Optional port number
+ * @property hostname - Optional hostname
+ * @property reactFastRefresh - Whether React Fast Refresh is enabled
  */
 export type ReturnParseCliArgs = {
 	preview: boolean;
@@ -10,6 +17,7 @@ export type ReturnParseCliArgs = {
 	dev: boolean;
 	port?: number;
 	hostname?: string;
+	reactFastRefresh?: boolean;
 };
 
 const ECOPAGES_BIN_FILE = 'ecopages.ts';
@@ -29,6 +37,7 @@ export function parseCliArgs(): ReturnParseCliArgs {
 			build: { type: 'boolean' },
 			port: { type: 'string' },
 			hostname: { type: 'string' },
+			'react-fast-refresh': { type: 'boolean' },
 		},
 		allowPositionals: true,
 	});
@@ -60,6 +69,7 @@ export function parseCliArgs(): ReturnParseCliArgs {
 		dev: isDevCommand,
 		port: values.port,
 		hostname: values.hostname,
+		reactFastRefresh: values['react-fast-refresh'],
 	};
 
 	/**

@@ -3,7 +3,7 @@
 	"private": true,
 	"scripts": {
 		"start": "bun run app.ts",
-		"dev": "bun run app.ts --dev",
+		"dev": "bun run app.ts --dev --react-fast-refresh",
 		"build": "bun run app.ts --build",
 		"preview": "bun run app.ts --preview",
 		"watch:dev": "bun --watch run app.ts --dev",

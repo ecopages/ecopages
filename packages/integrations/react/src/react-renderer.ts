@@ -52,8 +52,44 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 	name = PLUGIN_NAME;
 	componentDirectory = AssetProcessingService.RESOLVED_ASSETS_DIR;
 
-	private createHydrationScript(importPath: string): string {
-		return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}";window.onload=()=>hr(document,ce(c))`;
+	/**
+	 * Creates a hydration script for the React page component.
+	 * In development mode, registers a global HMR handler that re-renders the component on updates.
+	 * @param importPath - The import path for the page component module
+	 * @param isDevelopment - Whether to generate development mode script with HMR support
+	 */
+	private createHydrationScript(importPath: string, isDevelopment = false): string {
+		if (isDevelopment) {
+			return `
+import { hydrateRoot } from "react-dom/client";
+import { createElement } from "react";
+import Component from "${importPath}";
+
+window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
+let root = null;
+
+const mount = () => {
+  root = hydrateRoot(document, createElement(Component));
+  window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
+    try {
+      const newModule = await import(newUrl);
+      root.render(createElement(newModule.default));
+      console.log("[ecopages] React component updated");
+    } catch (e) {
+      console.error("[ecopages] Failed to hot-reload React component:", e);
+    }
+  };
+};
+
+if (document.readyState === "complete") {
+  mount();
+} else {
+  window.onload = mount;
+}
+`.trim();
+		}
+
+		return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}"; const mount=()=>hr(document,ce(c)); if(document.readyState === 'complete'){mount()}else{window.onload=mount}`;
 	}
 
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
@@ -61,10 +97,17 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 			const pathHash = rapidhash(pagePath);
 			const componentName = `ecopages-react-${pathHash}`;
 
-			const resolvedAssetImportFilename = `/${path
-				.join(RESOLVED_ASSETS_DIR, path.relative(this.appConfig.srcDir, pagePath))
-				.replace(path.basename(pagePath), `${componentName}.js`)
-				.replace(/\\/g, '/')}`;
+			const hmrManager = this.assetProcessingService?.getHmrManager();
+			let resolvedAssetImportFilename: string;
+
+			if (hmrManager?.isEnabled()) {
+				resolvedAssetImportFilename = await hmrManager.registerEntrypoint(pagePath);
+			} else {
+				resolvedAssetImportFilename = `/${path
+					.join(RESOLVED_ASSETS_DIR, path.relative(this.appConfig.srcDir, pagePath))
+					.replace(path.basename(pagePath), `${componentName}.js`)
+					.replace(/\\/g, '/')}`;
+			}
 
 			const dependencies = [
 				AssetFactory.createFileScript({
@@ -95,7 +138,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 				}),
 				AssetFactory.createContentScript({
 					position: 'head',
-					content: this.createHydrationScript(resolvedAssetImportFilename),
+					content: this.createHydrationScript(resolvedAssetImportFilename, hmrManager?.isEnabled() ?? false),
 					name: `${componentName}-hydration`,
 					bundle: false,
 					attributes: {

@@ -117,12 +117,64 @@ export class MDXReactRenderer extends IntegrationRenderer {
 	 * 2. Checking if a `layout` export exists.
 	 * 3. Composing the Page within the Layout if present.
 	 * 4. Hydrating the React root.
+	 * 5. In development mode, registering an HMR handler for hot updates.
 	 *
 	 * @param importPath - The public path to the bundled component file.
+	 * @param isDevelopment - Whether to generate development mode script with HMR support.
 	 */
-	private createHydrationScript(importPath: string): string {
+	private createHydrationScript(importPath: string, isDevelopment = false): string {
+		if (isDevelopment) {
+			return `
+import { createElement } from "react";
+import { hydrateRoot } from "react-dom/client";
+import * as MDXComponent from "${importPath}";
+
+window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
+let root = null;
+
+const { default: Page, layout } = MDXComponent;
+
+async function mount() {
+    try {
+        const container = document.querySelector('[data-react-root]');
+        if (!container) return;
+        
+        const element = layout 
+            ? createElement(layout, null, createElement(Page))
+            : createElement(Page);
+            
+        root = hydrateRoot(container, element);
+        
+        // Register HMR handler
+        window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
+            try {
+                const newModule = await import(newUrl);
+                const { default: NewPage, layout: newLayout } = newModule;
+                const newElement = newLayout 
+                    ? createElement(newLayout, null, createElement(NewPage))
+                    : createElement(NewPage);
+                root.render(newElement);
+                console.log("[ecopages] MDX component updated");
+            } catch (e) {
+                console.error("[ecopages] Failed to hot-reload MDX component:", e);
+            }
+        };
+    } catch (error) {
+        console.error('[MDX React] Hydration failed:', error);
+    }
+}
+
+if (document.readyState === 'complete') {
+    mount();
+} else {
+    window.onload = mount;
+}
+`.trim();
+		}
+
 		return `
-import { createElement, hydrateRoot } from "react";
+import { createElement } from "react";
+import { hydrateRoot } from "react-dom/client";
 import * as MDXComponent from "${importPath}";
 
 const { default: Page, layout } = MDXComponent;
@@ -171,77 +223,77 @@ if (document.readyState === 'loading') {
 			const pathHash = rapidhash(pagePath);
 			const componentName = `ecopages-react-${pathHash}`;
 
+			const absolutePagePath = path.resolve(pagePath);
+			const relativePath = path.relative(this.appConfig.srcDir, absolutePagePath);
+
 			const resolvedAssetImportFilename = `/${path
-				.join(RESOLVED_ASSETS_DIR, path.relative(this.appConfig.srcDir, pagePath))
+				.join(RESOLVED_ASSETS_DIR, relativePath)
 				.replace(path.basename(pagePath), `${componentName}.js`)
 				.replace(/\\/g, '/')}`;
 
-			const dependencies = [
-				AssetFactory.createFileScript({
-					position: 'head',
-					filepath: pagePath,
-					name: componentName,
-					excludeFromHtml: true,
-					bundle: true,
-					bundleOptions: {
-						loading: 'lazy',
-						external: [
-							'react',
-							'react-dom',
-							'react/jsx-runtime',
-							'react/jsx-dev-runtime',
-							'react-dom/client',
-						],
-						naming: `${componentName}.[ext]`,
-						plugins: [mdx({})], // Explicitly inject plugin
-						...(import.meta.env.NODE_ENV === 'production' && {
-							minify: true,
-							splitting: false,
-							treeshaking: true,
-						}),
-					} as any,
-					attributes: {
-						type: 'module',
-						defer: '',
-					},
-				}),
-
-				AssetFactory.createContentScript({
-					position: 'head',
-					content: this.createHydrationScript(resolvedAssetImportFilename),
-					name: `${componentName}-hydration`,
-					bundle: false,
-					attributes: {
-						type: 'module',
-						defer: '',
-					},
-				}),
-			];
+			const fileScript = AssetFactory.createFileScript({
+				position: 'head',
+				filepath: pagePath,
+				name: componentName,
+				excludeFromHtml: true,
+				bundle: true,
+				bundleOptions: {
+					loading: 'lazy',
+					external: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
+					naming: `${componentName}.[ext]`,
+					plugins: [mdx({})], // Explicitly inject plugin
+					...(import.meta.env.NODE_ENV === 'production' && {
+						minify: true,
+						splitting: false,
+						treeshaking: true,
+					}),
+				} as any,
+				attributes: {
+					type: 'module',
+					defer: '',
+				},
+			});
 
 			if (!this.assetProcessingService) throw new Error('AssetProcessingService is not set');
 
-			const reactAssets = await this.assetProcessingService.processDependencies(dependencies, componentName);
+			const [processedFileScript] = await this.assetProcessingService.processDependencies(
+				[fileScript],
+				componentName,
+			);
+
+			const resolvedScriptUrl = processedFileScript.srcUrl || resolvedAssetImportFilename;
+
+			const hmrManager = this.assetProcessingService.getHmrManager?.();
+			const isDevelopment = hmrManager?.isEnabled() ?? false;
+
+			const hydrationScript = AssetFactory.createContentScript({
+				position: 'head',
+				content: this.createHydrationScript(resolvedScriptUrl, isDevelopment),
+				name: `${componentName}-hydration`,
+				bundle: false,
+				attributes: {
+					type: 'module',
+					defer: '',
+				},
+			});
+
+			const [processedHydrationScript] = await this.assetProcessingService.processDependencies(
+				[hydrationScript],
+				componentName,
+			);
+			const reactAssets = [processedFileScript, processedHydrationScript];
 
 			const { config, layout } = await this.importPageFile(pagePath);
 			const components: Partial<EcoComponent>[] = [];
 
-			if ((layout as any)?.config?.dependencies) {
-				const layoutConfig = (layout as any).config;
-				// Ensure importMeta is set for layout config if missing
-				if (!layoutConfig.importMeta) {
-					// This is a best effort, as we don't know the layout file path easily here without resolving it separately
-					// But usually layouts should export config with import.meta
-				}
-				components.push({ config: layoutConfig });
+			if (layout?.config?.dependencies) {
+				components.push({ config: layout.config });
 			}
 
 			if (config?.dependencies) {
 				const configWithMeta = {
 					...config,
-					importMeta: {
-						url: new URL(`file://${pagePath}`).href,
-						dir: path.dirname(pagePath),
-					} as ImportMeta,
+					componentDir: path.dirname(pagePath),
 				};
 				components.push({ config: configWithMeta });
 			}
@@ -260,7 +312,7 @@ if (document.readyState === 'loading') {
 
 	protected override async importPageFile(file: string): Promise<
 		EcoPageFile<{
-			layout?: React.ComponentType<{ children: ReactNode }>;
+			layout?: EcoComponent<React.ComponentType<{ children: ReactNode }>>;
 			config?: EcoComponentConfig;
 		}>
 	> {
@@ -275,9 +327,9 @@ if (document.readyState === 'loading') {
 
 			return {
 				default: Page,
-				layout: layout as React.ComponentType<{ children: ReactNode }> | undefined,
-				getMetadata: getMetadata as GetMetadata | undefined,
-				config: config as EcoComponentConfig | undefined,
+				layout,
+				getMetadata,
+				config,
 			};
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);

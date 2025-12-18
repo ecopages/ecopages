@@ -194,3 +194,6 @@ export interface ProcessorPlugin {
 	process<T = unknown>(input: T): Promise<T>;
 	teardown?(): Promise<void>;
 }
+
+// Re-export HMR types from public-types for internal use
+export type { HmrEvent, DefaultHmrContext, IHmrManager } from './public-types.ts';

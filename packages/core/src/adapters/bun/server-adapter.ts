@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { BunRequest, RouterTypes, ServeOptions, Server, WebSocketHandler } from 'bun';
+import type { BunPlugin, BunRequest, Server, WebSocketHandler } from 'bun';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -20,35 +20,34 @@ import {
 import { ApiResponseBuilder } from '../shared/api-response.js';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
-import { hmrServerError, hmrServerReload, withHtmlLiveReload } from './hmr.ts';
+import { HmrManager } from './hmr-manager';
 import { BunRouterAdapter } from './router-adapter.ts';
 
-export type BunServerRoutes = {
-	[K: string]: RouterTypes.RouteValue<string>;
-};
+export type BunServerRoutes = Bun.Serve.Routes<unknown, string>;
 
 export type BunServeAdapterServerOptions = Partial<
-	Omit<ServeOptions, 'fetch'> & {
+	Omit<Bun.Serve.Options<unknown>, 'fetch'> & {
 		routes: BunServerRoutes;
-		fetch(this: Server, request: Request): Promise<void | Response>;
+		fetch(this: Server<unknown>, request: Request): Promise<void | Response>;
 	}
 >;
 
-export type BunServeOptions = ServeOptions & {
+export type BunServeOptions = Omit<Bun.Serve.Options<unknown>, 'fetch'> & {
 	routes: BunServerRoutes;
-	websocket?: WebSocketHandler<any>;
+	fetch?: (this: Server<unknown>, request: Request, server: Server<unknown>) => Promise<void | Response>;
+	websocket?: WebSocketHandler<unknown>;
 };
 
 export interface BunServerAdapterOptions extends ServerAdapterOptions {
 	serveOptions: BunServeAdapterServerOptions;
 	appConfig: EcoPagesAppConfig;
-	apiHandlers?: ApiHandler<any, BunRequest, Server>[];
+	apiHandlers?: ApiHandler<any, BunRequest, Server<unknown>>[];
 }
 
 export interface BunServerAdapterResult extends ServerAdapterResult {
 	getServerOptions: (options?: { enableHmr?: boolean }) => BunServeOptions;
 	buildStatic: (options?: { preview?: boolean }) => Promise<void>;
-	completeInitialization: (server: Server) => Promise<void>;
+	completeInitialization: (server: Server<unknown>) => Promise<void>;
 }
 
 export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOptions, BunServerAdapterResult> {
@@ -62,17 +61,24 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	private routeRendererFactory!: RouteRendererFactory;
 	private routes: BunServerRoutes = {};
 	private staticSiteGenerator!: StaticSiteGenerator;
+	public hmrManager!: HmrManager;
 	private initializationPromise: Promise<void> | null = null;
 	private fullyInitialized = false;
-	declare serverInstance: Server | null;
+	declare serverInstance: Server<unknown> | null;
 
 	constructor(options: BunServerAdapterOptions) {
 		super(options);
 		this.apiHandlers = options.apiHandlers || [];
 	}
 
+	/**
+	 * Initializes the server adapter's core components.
+	 * Sets up static site generator, HMR manager, loaders, and plugins.
+	 */
 	public async initialize(): Promise<void> {
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
+		this.hmrManager = new HmrManager(this.appConfig);
+		await this.hmrManager.buildRuntime();
 
 		this.setupLoaders();
 		this.copyPublicDir();
@@ -86,18 +92,20 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 		}
 	}
 
+	/**
+	 * Refreshes the router routes during watch mode.
+	 */
 	private async refreshRouterRoutes(): Promise<void> {
 		if (this.serverInstance && typeof this.serverInstance.reload === 'function') {
 			try {
 				await this.router.init();
 				this.configureResponseHandlers();
 				const options = this.getServerOptions({ enableHmr: true });
-				this.serverInstance.reload(options);
+				this.serverInstance.reload(options as Bun.Serve.Options<unknown>);
 				appLogger.debug('Server routes updated with dynamic routes');
-				hmrServerReload();
 			} catch (error) {
 				if (error instanceof Error) {
-					hmrServerError(error);
+					this.hmrManager.broadcast({ type: 'error', message: error.message });
 					appLogger.error('Failed to refresh router routes:', error);
 				}
 			}
@@ -111,6 +119,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 		const watcherInstance = new ProjectWatcher({
 			config: this.appConfig,
 			refreshRouterRoutesCallback,
+			hmrManager: this.hmrManager,
 		});
 
 		await watcherInstance.createWatcherSubscription();
@@ -124,6 +133,9 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 		FileUtils.ensureDirectoryExists(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 	}
 
+	/**
+	 * Initializes the file system router.
+	 */
 	private async initRouter(): Promise<void> {
 		const scanner = new FSRouterScanner({
 			dir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
@@ -146,6 +158,11 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
 	private async initializePlugins(): Promise<void> {
 		try {
+			const hmrEnabled = !!this.options?.watch;
+			this.hmrManager.setEnabled(hmrEnabled);
+
+			const processorBuildPlugins: BunPlugin[] = [];
+
 			const processorPromises = Array.from(this.appConfig.processors.values()).map(async (processor) => {
 				await processor.setup();
 				if (processor.plugins) {
@@ -153,15 +170,21 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 						Bun.plugin(plugin);
 					}
 				}
+				if (processor.buildPlugins) {
+					processorBuildPlugins.push(...processor.buildPlugins);
+				}
 			});
 
 			const integrationPromises = this.appConfig.integrations.map(async (integration) => {
 				integration.setConfig(this.appConfig);
 				integration.setRuntimeOrigin(this.runtimeOrigin);
+				integration.setHmrManager(this.hmrManager);
 				await integration.setup();
 			});
 
 			await Promise.all([...processorPromises, ...integrationPromises]);
+
+			this.hmrManager.setPlugins(processorBuildPlugins);
 		} catch (error) {
 			appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);
 			throw error;
@@ -194,9 +217,61 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 		this.routes = routerAdapter.adaptRoutes(this.router.routes);
 	}
 
+	/**
+	 * Retrieves the current server options, optionally enabling HMR.
+	 * @param options.enableHmr Whether to enable Hot Module Replacement
+	 */
 	public getServerOptions({ enableHmr = false } = {}): BunServeOptions {
+		appLogger.debug(`[BunServerAdapter] getServerOptions called with enableHmr: ${enableHmr}`);
 		const serverOptions = this.buildServerSettings();
-		return enableHmr ? (withHtmlLiveReload(serverOptions, this.appConfig) as BunServeOptions) : serverOptions;
+
+		if (enableHmr) {
+			const originalFetch = serverOptions.fetch;
+			const hmrHandler = this.hmrManager.getWebSocketHandler();
+			const hmrManager = this.hmrManager;
+
+			(serverOptions as any).development = true;
+
+			serverOptions.websocket = hmrHandler;
+			serverOptions.fetch = async function (
+				this: Server<unknown>,
+				request: Request,
+				_server: Server<unknown>,
+			): Promise<Response | void> {
+				const url = new URL(request.url);
+				appLogger.debug(`[HMR] Request: ${url.pathname}`);
+
+				/** Handle HMR WebSocket upgrade */
+				if (url.pathname === '/_hmr') {
+					const success = this.upgrade(request, {
+						data: undefined,
+					});
+					if (success) return;
+					return new Response('WebSocket upgrade failed', { status: 400 });
+				}
+
+				/** Serve HMR runtime script */
+				if (url.pathname === '/_hmr_runtime.js') {
+					appLogger.debug(`[HMR] Serving runtime from ${hmrManager.getRuntimePath()}`);
+					return new Response(Bun.file(hmrManager.getRuntimePath()), {
+						headers: { 'Content-Type': 'application/javascript' },
+					});
+				}
+
+				/** Proceed with normal request handling */
+				let response: Response;
+				if (originalFetch) {
+					const res = await originalFetch.call(this, request, this);
+					response = res instanceof Response ? res : new Response('Not Found', { status: 404 });
+				} else {
+					response = new Response('Not Found', { status: 404 });
+				}
+
+				return response;
+			};
+		}
+
+		return serverOptions as BunServeOptions;
 	}
 
 	/**
@@ -239,10 +314,10 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
 		appLogger.debug('[BunServerAdapter] Final bunRoutes:', Object.keys(mergedRoutes));
 
-		return {
+		const finalOptions: BunServeOptions = {
 			...serverOptions,
 			routes: mergedRoutes,
-			async fetch(this: Server, request: Request) {
+			async fetch(this: Server<unknown>, request: Request, _server: Server<unknown>) {
 				try {
 					await waitForInit();
 					const response = await handleReq(request);
@@ -252,11 +327,13 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 					return new Response('Internal Server Error', { status: 500 });
 				}
 			},
-			error(this: Server, error: Error) {
+			error(this: Server<unknown>, error: Error) {
 				appLogger.error(`[ecopages] Error handling request: ${error}`);
 				return handleNoMatch(new Request('http://localhost'));
 			},
 		};
+
+		return finalOptions as unknown as BunServeOptions;
 	}
 
 	/**
@@ -277,6 +354,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 		await this.staticSiteGenerator.run({
 			router: this.router,
 			baseUrl,
+			routeRendererFactory: this.routeRendererFactory,
 		});
 
 		if (!preview) {
@@ -288,7 +366,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 			appConfig: this.appConfig,
 		});
 
-		appLogger.info(`Preview running at http://localhost:${(server as Server).port}`);
+		appLogger.info(`Preview running at http://localhost:${(server as Server<unknown>).port}`);
 	}
 
 	/**
@@ -296,7 +374,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	 * Must be called before handling any requests.
 	 * @param server - The Bun server instance
 	 */
-	public async completeInitialization(server: Server): Promise<void> {
+	public async completeInitialization(server: Server<unknown>): Promise<void> {
 		if (this.fullyInitialized) return;
 
 		if (!this.initializationPromise) {
@@ -309,7 +387,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	/**
 	 * Performs complete server setup including routing, watchers, and HMR.
 	 */
-	private async _performInitialization(server: Server): Promise<void> {
+	private async _performInitialization(server: Server<unknown>): Promise<void> {
 		this.serverInstance = server;
 		appLogger.debug('Completing server initialization with dynamic routes');
 
@@ -323,7 +401,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 
 		if (server && typeof server.reload === 'function') {
 			const updatedOptions = this.getServerOptions(this.options?.watch ? { enableHmr: true } : undefined);
-			server.reload(updatedOptions);
+			server.reload(updatedOptions as Bun.Serve.Options<unknown>);
 			appLogger.debug('Server routes updated with dynamic routes');
 		}
 	}
@@ -374,20 +452,38 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 		const pathname = new URL(request.url).pathname;
 		const match = !pathname.includes('.') && this.router.match(request.url);
 
-		if (match) {
-			try {
-				const response = await this.fileSystemResponseMatcher.handleMatch(match);
-				return response;
-			} catch (error) {
-				if (error instanceof Error) {
-					hmrServerError(error);
-					appLogger.error('Error handling route match:', error);
-				}
-				return new Response('Internal Server Error', { status: 500 });
-			}
+		const response = await (match
+			? this.fileSystemResponseMatcher.handleMatch(match)
+			: this.handleNoMatch(request));
+
+		/** Inject HMR client script into HTML responses in watch mode */
+		if (
+			this.options?.watch &&
+			this.hmrManager?.isEnabled() &&
+			response &&
+			response.headers.get('Content-Type')?.startsWith('text/html')
+		) {
+			const html = await response.text();
+
+			const hmrScript = `
+<script type="module">
+  import '/_hmr_runtime.js';
+</script>
+`;
+
+			const updatedHtml = html.replace(/<\/html>/i, `${hmrScript}</html>`);
+
+			const headers = new Headers(response.headers);
+			headers.delete('Content-Length');
+
+			return new Response(updatedHtml, {
+				status: response.status,
+				statusText: response.statusText,
+				headers,
+			});
 		}
 
-		return this.handleNoMatch(request);
+		return response;
 	}
 
 	/**
@@ -401,7 +497,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 			return await this.fileSystemResponseMatcher.handleNoMatch(pathname);
 		} catch (error) {
 			if (error instanceof Error) {
-				hmrServerError(error);
+				this.hmrManager.broadcast({ type: 'error', message: error.message });
 				appLogger.error('Error handling no match:', error);
 			}
 			return new Response('Internal Server Error', { status: 500 });

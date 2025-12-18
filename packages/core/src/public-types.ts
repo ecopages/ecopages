@@ -1,7 +1,133 @@
 import type { Readable } from 'node:stream';
+import type { BunPlugin } from 'bun';
 import type { ApiResponseBuilder } from './adapters/shared/api-response.js';
 import type { EcoPagesAppConfig } from './internal-types.ts';
+import type { HmrStrategy } from './hmr/hmr-strategy.ts';
 import type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
+
+/**
+ * Context interface for HMR strategies.
+ * Provides access to watched files, specifier mappings, and build configuration.
+ */
+export interface DefaultHmrContext {
+	/**
+	 * Map of registered entrypoints to their output URLs.
+	 */
+	getWatchedFiles(): Map<string, string>;
+
+	/**
+	 * Map of bare specifiers to vendor URLs for import resolution.
+	 */
+	getSpecifierMap(): Map<string, string>;
+
+	/**
+	 * Directory where HMR bundles are written.
+	 */
+	getDistDir(): string;
+
+	/**
+	 * Bun plugins to use during bundling.
+	 */
+	getPlugins(): BunPlugin[];
+}
+
+/**
+ * Hot Module Replacement event payload.
+ */
+export type HmrEvent = {
+	/**
+	 * Event type: 'reload' triggers full refresh, 'update' for JS modules, 'css-update' for stylesheets
+	 */
+	type: 'reload' | 'error' | 'update' | 'css-update';
+	/**
+	 * Path to the changed file
+	 */
+	path?: string;
+	/**
+	 * Optional message for error or debug info
+	 */
+	message?: string;
+	/**
+	 * Timestamp for cache busting
+	 */
+	timestamp?: number;
+};
+
+/**
+ * Interface for the HMR Manager.
+ * Used by integration plugins to register entrypoints and strategies.
+ */
+export interface IHmrManager {
+	/**
+	 * Registers a client entrypoint to be built and watched.
+	 */
+	registerEntrypoint(entrypointPath: string): Promise<string>;
+
+	/**
+	 * Registers mappings from bare specifiers to vendor URLs.
+	 */
+	registerSpecifierMap(map: Record<string, string>): void;
+
+	/**
+	 * Registers a custom HMR strategy.
+	 */
+	registerStrategy(strategy: HmrStrategy): void;
+
+	/**
+	 * Sets the Bun plugins to use during bundling.
+	 */
+	setPlugins(plugins: BunPlugin[]): void;
+
+	/**
+	 * Enables or disables HMR.
+	 */
+	setEnabled(enabled: boolean): void;
+
+	/**
+	 * Returns whether HMR is enabled.
+	 */
+	isEnabled(): boolean;
+
+	/**
+	 * Broadcasts an HMR event to connected clients.
+	 */
+	broadcast(event: HmrEvent): void;
+
+	/**
+	 * Gets the output URL for a registered entrypoint.
+	 */
+	getOutputUrl(entrypointPath: string): string | undefined;
+
+	/**
+	 * Gets the map of watched files.
+	 */
+	getWatchedFiles(): Map<string, string>;
+
+	/**
+	 * Gets the specifier map.
+	 */
+	getSpecifierMap(): Map<string, string>;
+
+	/**
+	 * Gets the HMR dist directory.
+	 */
+	getDistDir(): string;
+
+	/**
+	 * Gets the Bun plugins.
+	 */
+	getPlugins(): BunPlugin[];
+
+	/**
+	 * Gets the default HMR context.
+	 */
+	getDefaultContext(): DefaultHmrContext;
+
+	/**
+	 * Handles a file change event.
+	 */
+	handleFileChange(path: string): Promise<void>;
+}
 
 /**
  * Represents the dependencies for an EcoComponent.

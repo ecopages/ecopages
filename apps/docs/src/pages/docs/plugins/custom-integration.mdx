@@ -72,28 +72,109 @@ class CustomRenderer extends IntegrationRenderer {
 
 ## Handling Dependencies
 
-Manage assets and dependencies for your integration:
+Manage assets and dependencies for your integration using the `integrationDependencies` array in the constructor:
+
+<CodeBlock>
+```typescript
+import { AssetFactory } from '@ecopages/core/services/asset-processing-service';
+
+class CustomIntegration extends IntegrationPlugin {
+	renderer = CustomRenderer;
+
+	constructor() {
+		super({
+			name: 'custom-integration',
+			extensions: ['.custom'],
+			integrationDependencies: [
+				AssetFactory.createFileScript({
+					importPath: './runtime.js',
+					position: 'head',
+				}),
+				AssetFactory.createFileStylesheet({
+					filepath: './styles.css',
+				}),
+			],
+		});
+	}
+}
+```
+</CodeBlock>
+
+## Hot Module Replacement (HMR)
+
+To support HMR in your custom integration, you need to implement an `HmrStrategy` and register it in your plugin.
+
+### Creating an HMR Strategy
+
+The strategy determines how file changes are handled. It should identify matches and process the updates:
+
+<CodeBlock>
+```typescript
+import {
+	HmrStrategy,
+	HmrStrategyType,
+	type HmrAction,
+	type DefaultHmrContext,
+} from '@ecopages/core';
+
+class CustomHmrStrategy extends HmrStrategy {
+	readonly type = HmrStrategyType.INTEGRATION;
+
+	constructor(private context: DefaultHmrContext) {
+		super();
+	}
+
+	// Determine if this strategy should handle the changed file
+	matches(filePath: string): boolean {
+		return filePath.endsWith('.custom');
+	}
+
+	// Process the change and return an action
+	async process(filePath: string): Promise<HmrAction> {
+		// Get the public URL for the changed file (if registered)
+		const watchedFiles = this.context.getWatchedFiles();
+		const outputUrl = watchedFiles.get(filePath) || filePath;
+
+		// You can perform rebuilds or code transformations here
+		// ...
+
+		return {
+			type: 'broadcast',
+			events: [
+				{
+					type: 'update',
+					path: outputUrl,
+					timestamp: Date.now(),
+				},
+			],
+		};
+	}
+}
+```
+</CodeBlock>
+
+### Registering the Strategy
+
+Override `getHmrStrategy` in your `IntegrationPlugin` to return your custom strategy:
 
 <CodeBlock>
 ```typescript
 class CustomIntegration extends IntegrationPlugin {
-  constructor() {
-    super({
-      name: 'custom-integration',
-      extensions: ['.custom'],
-      dependencies: [
-        {
-          kind: 'script',
-          importPath: './runtime.js',
-          position: 'head',
-        },
-        {
-          kind: 'stylesheet',
-          importPath: './styles.css',
-        },
-      ],
-    });
-  }
+	renderer = CustomRenderer;
+
+	override getHmrStrategy() {
+		if (!this.hmrManager) return undefined;
+
+		return new CustomHmrStrategy(this.hmrManager.getDefaultContext());
+	}
+
+	// You can also register specifier mappings for the browser
+	override setHmrManager(hmrManager: IHmrManager) {
+		super.setHmrManager(hmrManager);
+		hmrManager.registerSpecifierMap({
+			'custom-pkg': '/assets/vendors/custom-pkg-esm.js',
+		});
+	}
 }
 ```
 </CodeBlock>
@@ -132,8 +213,7 @@ const customIntegration = new CustomIntegration();
 const config = await new ConfigBuilder()
   .setIntegrations([customIntegration])
   .build();
-````
-
+```
 </CodeBlock>
 
 ## Best Practices
@@ -180,9 +260,24 @@ const { Page, props, metadata, HtmlTemplate } = options;
 
 }
 
-private async renderPage(Page: EcoComponent, props: any): Promise<string> {
-return Page(props);
-}
+class CustomHmrStrategy extends HmrStrategy {
+	readonly type = HmrStrategyType.INTEGRATION;
+
+	constructor(private context: DefaultHmrContext) {
+		super();
+	}
+
+	matches(filePath: string) {
+		return filePath.endsWith('.custom');
+	}
+
+	async process(filePath: string): Promise<HmrAction> {
+		const outputUrl = this.context.getWatchedFiles().get(filePath) || filePath;
+		return {
+			type: 'broadcast',
+			events: [{ type: 'update', path: outputUrl, timestamp: Date.now() }],
+		};
+	}
 }
 
 export class CustomIntegration extends IntegrationPlugin {
@@ -193,10 +288,18 @@ export class CustomIntegration extends IntegrationPlugin {
     });
   }
 
-createRenderer(): IntegrationRenderer {
-return new CustomRenderer({
-appConfig: this.appConfig!,
-});
+	constructor() {
+		super({
+			name: 'custom-integration',
+			extensions: ['.custom'],
+		});
+	}
+
+	override getHmrStrategy() {
+		return this.hmrManager
+			? new CustomHmrStrategy(this.hmrManager.getDefaultContext())
+			: undefined;
+	}
 }
 
 async setup(): Promise<void> {
@@ -210,4 +313,3 @@ async teardown(): Promise<void> {
 
 ```
 </CodeBlock>
-```

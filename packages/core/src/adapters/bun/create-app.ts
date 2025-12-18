@@ -174,7 +174,7 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 		const enableHmr = dev || (!preview && !build);
 		const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
 
-		const bunServer = Bun.serve(serverOptions);
+		const bunServer = Bun.serve(serverOptions as Bun.Serve.Options<WebSocketData>);
 		this.server = bunServer as Server<WebSocketData>;
 
 		await this.serverAdapter.completeInitialization(this.server).catch((error) => {

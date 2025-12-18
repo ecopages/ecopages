@@ -1,8 +1,10 @@
 import path from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../router/fs-router.ts';
 import { FileUtils } from '../utils/file-utils.module.ts';
+import { PathUtils } from '../utils/path-utils.module.ts';
 
 export class StaticSiteGenerator {
 	appConfig: EcoPagesAppConfig;
@@ -48,7 +50,7 @@ export class StaticSiteGenerator {
 		return Array.from(directories);
 	}
 
-	async generateStaticPages(router: FSRouter, baseUrl: string) {
+	async generateStaticPages(router: FSRouter, baseUrl: string, routeRendererFactory?: RouteRendererFactory) {
 		const routes = Object.keys(router.routes).filter((route) => !route.includes('['));
 
 		appLogger.debug('Static Pages', routes);
@@ -61,16 +63,41 @@ export class StaticSiteGenerator {
 
 		for (const route of routes) {
 			try {
-				const fetchUrl = route.startsWith('http') ? route : `${baseUrl}${route}`;
-				const response = await fetch(fetchUrl);
+				const { filePath, pathname: routePathname } = router.routes[route];
+				const ext = PathUtils.getEcoTemplateExtension(filePath);
+				const integration = this.appConfig.integrations.find((plugin) => plugin.extensions.includes(ext));
+				const strategy = integration?.staticBuildStep || 'render';
 
-				if (!response.ok) {
-					console.error(`Failed to fetch ${fetchUrl}. Status: ${response.status}`);
-					continue;
+				let contents: string | Buffer;
+
+				if (strategy === 'fetch') {
+					const fetchUrl = route.startsWith('http') ? route : `${baseUrl}${route}`;
+					const response = await fetch(fetchUrl);
+
+					if (!response.ok) {
+						appLogger.error(`Failed to fetch ${fetchUrl}. Status: ${response.status}`);
+						continue;
+					}
+					contents = await response.text();
+				} else {
+					if (!routeRendererFactory) {
+						throw new Error('RouteRendererFactory is required for render strategy');
+					}
+					const renderer = routeRendererFactory.createRenderer(filePath);
+					const body = await renderer.createRoute({
+						file: filePath,
+					});
+
+					if (typeof body === 'string' || Buffer.isBuffer(body)) {
+						contents = body;
+					} else if (body instanceof ReadableStream) {
+						contents = await Bun.readableStreamToText(body);
+					} else {
+						throw new Error(`Unsupported body type for static generation: ${typeof body}`);
+					}
 				}
 
-				let pathname = router.routes[route].pathname;
-
+				let pathname = routePathname;
 				const pathnameSegments = pathname.split('/').filter(Boolean);
 
 				if (pathname === '/') {
@@ -83,19 +110,27 @@ export class StaticSiteGenerator {
 					pathname += '.html';
 				}
 
-				const filePath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname);
-
-				const contents = await response.text();
-
-				FileUtils.write(filePath, contents);
+				const outputPath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname);
+				FileUtils.write(outputPath, contents);
 			} catch (error) {
-				console.error(`Error fetching or writing ${route}:`, error);
+				appLogger.error(
+					`Error generating static page for ${route}:`,
+					error instanceof Error ? error : String(error),
+				);
 			}
 		}
 	}
 
-	async run({ router, baseUrl }: { router: FSRouter; baseUrl: string }) {
+	async run({
+		router,
+		baseUrl,
+		routeRendererFactory,
+	}: {
+		router: FSRouter;
+		baseUrl: string;
+		routeRendererFactory?: RouteRendererFactory;
+	}) {
 		this.generateRobotsTxt();
-		await this.generateStaticPages(router, baseUrl);
+		await this.generateStaticPages(router, baseUrl, routeRendererFactory);
 	}
 }

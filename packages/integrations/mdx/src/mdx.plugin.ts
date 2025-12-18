@@ -1,22 +1,10 @@
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import {
-	AssetFactory,
-	type AssetDefinition,
-	type AssetProcessingService,
-	type ProcessedAsset,
-} from '@ecopages/core/services/asset-processing-service';
-import { deepMerge, type EcoPagesElement, type EcoPagesAppConfig, IntegrationRenderer } from '@ecopages/core';
-import mdx from '@mdx-js/esbuild';
+import { AssetFactory, type AssetDefinition } from '@ecopages/core/services/asset-processing-service';
+import { deepMerge, type EcoPagesElement, type IHmrManager, type HmrStrategy } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { MDXRenderer } from './mdx-renderer';
 import { createMDXReactRenderer } from './mdx-react-renderer';
-
-type RendererClass<C> = new (options: {
-	appConfig: EcoPagesAppConfig;
-	assetProcessingService: AssetProcessingService;
-	resolvedIntegrationDependencies: ProcessedAsset[];
-	runtimeOrigin: string;
-}) => IntegrationRenderer<C>;
+import { MdxHmrStrategy } from './mdx-hmr-strategy';
 
 /**
  * The name of the MDX plugin
@@ -39,9 +27,11 @@ const defaultOptions: CompileOptions = {
  * The MDX plugin class
  * This plugin provides support for MDX components in Ecopages
  */
-export class MDXPlugin extends IntegrationPlugin {
-	renderer: RendererClass<EcoPagesElement>;
+export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
+	renderer;
 	private dependencies: AssetDefinition[] | undefined;
+	private isReact = false;
+	private compilerOptions: CompileOptions;
 
 	constructor({ compilerOptions, ...options }: MDXPluginConfig = { extensions: ['.mdx'] }) {
 		super({
@@ -51,11 +41,12 @@ export class MDXPlugin extends IntegrationPlugin {
 		});
 
 		const finalCompilerOptions = deepMerge({ ...defaultOptions }, compilerOptions);
-		const isReact =
+		this.compilerOptions = finalCompilerOptions;
+		this.isReact =
 			finalCompilerOptions.jsxImportSource === 'react' ||
-			finalCompilerOptions.jsxImportSource?.startsWith('react/');
+			(finalCompilerOptions.jsxImportSource?.startsWith('react/') ?? false);
 
-		if (isReact) {
+		if (this.isReact) {
 			this.renderer = createMDXReactRenderer(finalCompilerOptions);
 			this.integrationDependencies.unshift(...this.getReactDependencies());
 		} else {
@@ -66,9 +57,35 @@ export class MDXPlugin extends IntegrationPlugin {
 	}
 
 	/**
+	 * Override to register React-specific specifier mappings for HMR.
+	 */
+	override setHmrManager(hmrManager: IHmrManager): void {
+		super.setHmrManager(hmrManager);
+
+		if (this.isReact) {
+			hmrManager.registerSpecifierMap(this.getSpecifierMap());
+		}
+	}
+
+	/**
+	 * Provides MDX-specific HMR strategy with Fast Refresh support.
+	 */
+	override getHmrStrategy(): HmrStrategy | undefined {
+		if (!this.hmrManager || !this.isReact) {
+			return undefined;
+		}
+
+		const hmrManager = this.hmrManager;
+		const context = hmrManager.getDefaultContext();
+
+		return new MdxHmrStrategy(context, this.compilerOptions);
+	}
+
+	/**
 	 * Registers the MDX plugin with Bun globally.
 	 */
 	async setupBunPlugin(options?: Readonly<CompileOptions>): Promise<void> {
+		const mdx = (await import('@mdx-js/esbuild')).default;
 		// @ts-expect-error: esbuild plugin vs bun plugin
 		await Bun.plugin(mdx(deepMerge({ ...defaultOptions }, options)));
 	}
@@ -81,7 +98,22 @@ export class MDXPlugin extends IntegrationPlugin {
 	}
 
 	/**
-	 * Retrieves the integration dependencies matching React requirements
+	 * Returns the bare specifier to vendor URL mappings for React.
+	 */
+	private getSpecifierMap(): Record<string, string> {
+		return {
+			react: this.buildImportMapSourceUrl('react-esm.js'),
+			'react/jsx-runtime': this.buildImportMapSourceUrl('react-esm.js'),
+			'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-esm.js'),
+			'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
+			'react-dom/client': this.buildImportMapSourceUrl('react-esm.js'),
+		};
+	}
+
+	/**
+	 * Retrieves the integration dependencies for React-based MDX.
+	 * Note: When MDXPlugin is used alongside ReactPlugin, duplicate import map warnings
+	 * may appear in the browser. These are harmless - the browser uses the first map.
 	 */
 	private getReactDependencies(): AssetDefinition[] {
 		if (this.dependencies) return this.dependencies;
@@ -92,12 +124,7 @@ export class MDXPlugin extends IntegrationPlugin {
 				bundle: false,
 				content: JSON.stringify(
 					{
-						imports: {
-							react: this.buildImportMapSourceUrl('react-esm.js'),
-							'react/jsx-runtime': this.buildImportMapSourceUrl('react-esm.js'),
-							'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-esm.js'),
-							'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
-						},
+						imports: this.getSpecifierMap(),
 					},
 					null,
 					2,

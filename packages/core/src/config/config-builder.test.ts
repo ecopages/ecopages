@@ -145,7 +145,7 @@ describe('EcoConfigBuilder', () => {
 			.setIntegrations(integrations)
 			.build();
 
-		expect(config.templatesExt).toEqual(['.test1', '.test2', '.test3', '.ghtml.ts', '.ghtml']);
+		expect(config.templatesExt).toEqual(['.test1', '.test2', '.test3', '.ghtml.ts', '.ghtml.tsx', '.ghtml']);
 	});
 
 	test('should throw error for duplicate integration names', async () => {

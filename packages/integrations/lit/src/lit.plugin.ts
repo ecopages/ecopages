@@ -25,6 +25,7 @@ export class LitPlugin extends IntegrationPlugin {
 		super({
 			name: PLUGIN_NAME,
 			extensions: ['.lit.tsx'],
+			staticBuildStep: 'fetch',
 			...options,
 		});
 

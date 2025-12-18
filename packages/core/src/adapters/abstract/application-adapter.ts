@@ -76,66 +76,66 @@ export abstract class AbstractApplicationAdapter<
 	 * Register a GET route handler
 	 * The handler expects a context where request.params exists.
 	 */
-	abstract get<P extends string>(
+	abstract get<P extends string, TSpecRequest extends TRequest = TRequest>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
 	): this;
 
 	/**
 	 * Register a POST route handler
 	 */
-	abstract post<P extends string>(
+	abstract post<P extends string, TSpecRequest extends TRequest = TRequest>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
 	): this;
 
 	/**
 	 * Register a PUT route handler
 	 */
-	abstract put<P extends string>(
+	abstract put<P extends string, TSpecRequest extends TRequest = TRequest>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
 	): this;
 
 	/**
 	 * Register a DELETE route handler
 	 */
-	abstract delete<P extends string>(
+	abstract delete<P extends string, TSpecRequest extends TRequest = TRequest>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
 	): this;
 
 	/**
 	 * Register a PATCH route handler
 	 */
-	abstract patch<P extends string>(
+	abstract patch<P extends string, TSpecRequest extends TRequest = TRequest>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
 	): this;
 
 	/**
 	 * Register an OPTIONS route handler
 	 */
-	abstract options<P extends string>(
+	abstract options<P extends string, TSpecRequest extends TRequest = TRequest>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
 	): this;
 
 	/**
 	 * Register a HEAD route handler
 	 */
-	abstract head<P extends string>(
+	abstract head<P extends string, TSpecRequest extends TRequest = TRequest>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
 	): this;
 
 	/**
 	 * Register a route with any HTTP method
 	 */
-	abstract route<P extends string>(
+	abstract route<P extends string, TSpecRequest extends TRequest = TRequest>(
 		path: P,
 		method: ApiHandler['method'],
-		handler: (context: ApiHandlerContext<TRequest>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
 	): this;
 
 	/**

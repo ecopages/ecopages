@@ -30,63 +30,67 @@ export interface EcopagesAppOptions extends ApplicationAdapterOptions {
  * and provides methods for handling HTTP requests and managing the server.
  */
 
-export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, Server, BunRequest<string>> {
+export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationAdapter<
+	EcopagesAppOptions,
+	Server<WebSocketData>,
+	BunRequest<string>
+> {
 	serverAdapter: BunServerAdapterResult | undefined;
-	private server: Server | null = null;
+	private server: Server<WebSocketData> | null = null;
 
-	get<P extends string>(
+	get<P extends string, TSpecRequest extends Request = BunRequest<P>>(
 		path: P,
-		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
 	): this {
 		return this.addRouteHandler(path, 'GET', handler);
 	}
 
-	post<P extends string>(
+	post<P extends string, TSpecRequest extends Request = BunRequest<P>>(
 		path: P,
-		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
 	): this {
 		return this.addRouteHandler(path, 'POST', handler);
 	}
 
-	put<P extends string>(
+	put<P extends string, TSpecRequest extends Request = BunRequest<P>>(
 		path: P,
-		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
 	): this {
 		return this.addRouteHandler(path, 'PUT', handler);
 	}
 
-	delete<P extends string>(
+	delete<P extends string, TSpecRequest extends Request = BunRequest<P>>(
 		path: P,
-		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
 	): this {
 		return this.addRouteHandler(path, 'DELETE', handler);
 	}
 
-	patch<P extends string>(
+	patch<P extends string, TSpecRequest extends Request = BunRequest<P>>(
 		path: P,
-		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
 	): this {
 		return this.addRouteHandler(path, 'PATCH', handler);
 	}
 
-	options<P extends string>(
+	options<P extends string, TSpecRequest extends Request = BunRequest<P>>(
 		path: P,
-		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
 	): this {
 		return this.addRouteHandler(path, 'OPTIONS', handler);
 	}
 
-	head<P extends string>(
+	head<P extends string, TSpecRequest extends Request = BunRequest<P>>(
 		path: P,
-		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
 	): this {
 		return this.addRouteHandler(path, 'HEAD', handler);
 	}
 
-	route<P extends string>(
+	route<P extends string, TSpecRequest extends Request = BunRequest<P>>(
 		path: P,
 		method: ApiHandler['method'],
-		handler: (context: ApiHandlerContext<BunRequest<P>, Server>) => Promise<Response> | Response,
+		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
 	): this {
 		return this.addRouteHandler(path, method, handler);
 	}
@@ -111,7 +115,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 	 * Complete the initialization of the server adapter by processing dynamic routes
 	 * @param server The Bun server instance
 	 */
-	public async completeInitialization(server: Server): Promise<void> {
+	public async completeInitialization(server: Server<WebSocketData>): Promise<void> {
 		if (!this.serverAdapter) {
 			throw new Error('Server adapter not initialized. Call start() first.');
 		}
@@ -161,7 +165,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 	 * @param options Optional settings
 	 * @param options.autoCompleteInitialization Whether to automatically complete initialization with dynamic routes after server start (defaults to true)
 	 */
-	public async start(): Promise<Server | void> {
+	public async start(): Promise<Server<WebSocketData> | void> {
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
@@ -170,12 +174,16 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 		const enableHmr = dev || (!preview && !build);
 		const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
 
-		this.server = Bun.serve(serverOptions);
+		const bunServer = Bun.serve(serverOptions);
+		this.server = bunServer as Server<WebSocketData>;
 
 		await this.serverAdapter.completeInitialization(this.server).catch((error) => {
 			appLogger.error(`Failed to complete initialization: ${error}`);
 		});
 
+		if (!this.server) {
+			throw new Error('Server failed to start');
+		}
 		appLogger.info(`Server running at http://${this.server.hostname}:${this.server.port}`);
 
 		if (build || preview) {
@@ -196,8 +204,8 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 /**
  * Factory function to create a Bun application
  */
-export async function createApp(
+export async function createApp<WebSocketData = undefined>(
 	options: EcopagesAppOptions,
-): Promise<AbstractApplicationAdapter<EcopagesAppOptions, Server>> {
+): Promise<AbstractApplicationAdapter<EcopagesAppOptions, Server<WebSocketData>>> {
 	return new EcopagesApp(options);
 }

@@ -1,5 +1,5 @@
 import { watch } from 'node:fs';
-import type { Server, ServerWebSocket, WebSocketHandler, WebSocketServeOptions } from 'bun';
+import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 
@@ -171,10 +171,10 @@ export const makeLiveReloadScript = (): string => {
 };
 
 export type PureWebSocketServeOptions<WebSocketDataType> = Omit<
-	WebSocketServeOptions<WebSocketDataType>,
+	Bun.Serve.Options<WebSocketDataType>,
 	'fetch' | 'websocket'
 > & {
-	fetch(request: Request, server: Server): Promise<Response> | Response;
+	fetch(request: Request, server: Server<WebSocketDataType>): Promise<Response> | Response;
 	websocket?: WebSocketHandler<WebSocketDataType>;
 };
 
@@ -201,10 +201,13 @@ export function appendHmrScriptToBody(response: string, liveReloadScript: string
  * @param {PureWebSocketServeOptions} serveOptions
  * @param {EcoPagesAppConfig} config
  */
-export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketServeOptions<WebSocketDataType>>(
+export const withHtmlLiveReload = <
+	WebSocketDataType = undefined,
+	T extends PureWebSocketServeOptions<WebSocketDataType> = PureWebSocketServeOptions<WebSocketDataType>,
+>(
 	serveOptions: T,
 	config: EcoPagesAppConfig,
-): WebSocketServeOptions<WebSocketDataType> => {
+): Bun.Serve.FetchOrRoutesWithWebSocket<WebSocketDataType, string> => {
 	const watcher = watch(config.absolutePaths.srcDir, { recursive: true });
 
 	return {
@@ -212,7 +215,7 @@ export const withHtmlLiveReload = <WebSocketDataType, T extends PureWebSocketSer
 		fetch: async (req, server) => {
 			const url = new URL(req.url);
 			if (url.pathname === `/${WS_PATH}`) {
-				const upgraded = server.upgrade(req);
+				const upgraded = (server as Server<undefined>).upgrade(req);
 
 				if (!upgraded) {
 					return new Response('Failed to upgrade websocket connection for live reload', {

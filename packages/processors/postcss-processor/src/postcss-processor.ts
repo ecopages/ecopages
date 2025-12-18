@@ -6,13 +6,23 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
-import { defaultPlugins, type PluginsRecord } from './default-plugins.ts';
+import { defaultPlugins, type PluginsRecord } from './default-plugins';
 
 /**
  * PostCSS Processor Options
  */
 export type PostCssProcessorOptions = {
-	plugins: postcss.AcceptedPlugin[];
+	plugins?: postcss.AcceptedPlugin[];
+	/**
+	 * Optional file path for resolving relative imports
+	 */
+	filePath?: string;
+	/**
+	 * Optional callback to transform the output CSS
+	 * @param css The processed CSS
+	 * @returns The transformed CSS
+	 */
+	transformOutput?: (css: string) => string | Promise<string>;
 };
 
 /**
@@ -46,7 +56,8 @@ export function getFileAsBuffer(path: string): Buffer {
 }
 
 const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[] => {
-	return options ? Object.values(options.plugins) : Object.values(defaultPlugins);
+	if (!options || !options.plugins) return Object.values(defaultPlugins);
+	return Array.isArray(options.plugins) ? options.plugins : Object.values(options.plugins);
 };
 
 /**
@@ -92,8 +103,14 @@ const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) =
 	if (!contents) return '';
 
 	return postcss(getPlugins(options))
-		.process(contents, { from: undefined })
-		.then((result) => result.css)
+		.process(contents, { from: options?.filePath })
+		.then(async (result) => {
+			let css = result.css;
+			if (options?.transformOutput) {
+				css = await options.transformOutput(css);
+			}
+			return css;
+		})
 		.catch((error) => {
 			appLogger.error('Error processing string or buffer with PostCssProcessor', error.message);
 			return '';

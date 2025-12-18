@@ -33,6 +33,13 @@ export interface PostCssProcessorPluginConfig {
 	 */
 	transformInput?: (contents: string | Buffer) => Promise<string>;
 	/**
+	 * Function to transform the output CSS after PostCSS processing.
+	 * It can be handy to add a custom header or footer to the processed CSS.
+	 * @param css The processed CSS
+	 * @returns The transformed CSS
+	 */
+	transformOutput?: (css: string) => Promise<string> | string;
+	/**
 	 * Custom PostCSS plugins to use instead of the default ones
 	 * @default undefined (uses default plugins)
 	 */
@@ -68,11 +75,11 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			bunInlineCssPlugin({
 				filter: this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter,
 				namespace: 'bun-postcss-processor-build-plugin',
-				transform: async (contents: string | Buffer) => {
+				transform: async (contents: string | Buffer, args: { path: string }) => {
 					const transformedContents = options?.transformInput
 						? await options.transformInput(contents)
 						: contents;
-					return await this.process(transformedContents as string);
+					return await this.process(transformedContents as string, args.path);
 				},
 			}),
 		];
@@ -94,7 +101,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 							text = await options.transformInput(text);
 						}
 
-						const contents = await bindedInputProcessing(text as string);
+						const contents = await bindedInputProcessing(text as string, args.path);
 
 						return {
 							contents,
@@ -179,13 +186,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	/**
-	 * Get the content of a CSS file with the input header.
-	 * @param filePath Path to the CSS file
-	 * @returns Referenced content
+	 * Process CSS content
+	 * @param fileAsString CSS content as string
+	 * @param filePath Optional file path for resolving relative imports
+	 * @returns Processed CSS
 	 */
-	async process(fileAsString: string): Promise<string> {
+	async process(fileAsString: string, filePath?: string): Promise<string> {
 		return await PostCssProcessor.processStringOrBuffer(fileAsString, {
+			filePath,
 			plugins: this.postcssPlugins,
+			transformOutput: this.options?.transformOutput,
 		});
 	}
 

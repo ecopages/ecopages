@@ -1,4 +1,5 @@
-import type { EcoPagesAppConfig } from '../internal-types';
+import type { EcoPagesAppConfig, IHmrManager } from '../internal-types';
+import type { HmrStrategy } from '../hmr/hmr-strategy';
 import type { EcoPagesElement } from '../public-types';
 import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
 import { AssetProcessingService } from '../services/asset-processing-service/asset-processing.service';
@@ -19,6 +20,13 @@ export interface IntegrationPluginConfig {
 	 * They are not specific to any particular page or component.
 	 */
 	integrationDependencies?: AssetDefinition[];
+	/**
+	 * The strategy to use for static building.
+	 * - 'render': Execute component function directly (faster, efficient).
+	 * - 'fetch': Start server and fetch URL (slower, needed for some SSR like Lit).
+	 * @default 'render'
+	 */
+	staticBuildStep?: 'render' | 'fetch';
 }
 
 type RendererClass<C> = new (options: {
@@ -32,18 +40,21 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly name: string;
 	readonly extensions: string[];
 	abstract renderer: RendererClass<C>;
+	readonly staticBuildStep: 'render' | 'fetch';
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	protected options?: Record<string, unknown>;
 	protected appConfig?: EcoPagesAppConfig;
 	protected assetProcessingService?: AssetProcessingService;
+	protected hmrManager?: IHmrManager;
 	declare runtimeOrigin: string;
 
 	constructor(config: IntegrationPluginConfig) {
 		this.name = config.name;
 		this.extensions = config.extensions;
 		this.integrationDependencies = config.integrationDependencies || [];
+		this.staticBuildStep = config.staticBuildStep || 'render';
 	}
 
 	setConfig(appConfig: EcoPagesAppConfig): void {
@@ -55,10 +66,42 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.runtimeOrigin = runtimeOrigin;
 	}
 
+	/**
+	 * Returns an HMR strategy for this integration, if applicable.
+	 * The strategy will be registered with the HmrManager during initialization.
+	 *
+	 * @returns HmrStrategy instance or undefined if no custom HMR handling needed
+	 *
+	 * @example
+	 * ```typescript
+	 * getHmrStrategy(): HmrStrategy {
+	 *   const context = this.hmrManager!.getDefaultContext();
+	 *   return new ReactHmrStrategy(context);
+	 * }
+	 * ```
+	 */
+	getHmrStrategy?(): HmrStrategy | undefined;
+
+	setHmrManager(hmrManager: IHmrManager) {
+		this.hmrManager = hmrManager;
+
+		const strategy = this.getHmrStrategy?.();
+		if (strategy) {
+			hmrManager.registerStrategy(strategy);
+		}
+
+		if (this.assetProcessingService) {
+			this.assetProcessingService.setHmrManager(hmrManager);
+		}
+	}
+
 	initializeAssetDefinitionService(): void {
 		if (!this.appConfig) throw new Error('Plugin not initialized with app config');
 
 		this.assetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
+		if (this.hmrManager) {
+			this.assetProcessingService.setHmrManager(this.hmrManager);
+		}
 	}
 
 	getResolvedIntegrationDependencies(): ProcessedAsset[] {
@@ -70,12 +113,23 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 			throw new Error('Plugin not initialized with app config');
 		}
 
-		return new this.renderer({
+		const assetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
+		if (this.hmrManager) {
+			assetProcessingService.setHmrManager(this.hmrManager);
+		}
+
+		const renderer = new this.renderer({
 			appConfig: this.appConfig,
-			assetProcessingService: AssetProcessingService.createWithDefaultProcessors(this.appConfig),
+			assetProcessingService,
 			resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
 			runtimeOrigin: this.runtimeOrigin,
 		});
+
+		if (this.hmrManager) {
+			renderer.setHmrManager(this.hmrManager);
+		}
+
+		return renderer;
 	}
 
 	async setup(): Promise<void> {

@@ -1,15 +1,38 @@
 import path from 'node:path';
 import { EXCLUDE_FROM_HTML_FLAG, RESOLVED_ASSETS_DIR } from '../../../../constants';
 import { FileUtils } from '../../../../utils/file-utils.module';
+import type { IHmrManager } from '../../../../internal-types';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types';
 import { BaseScriptProcessor } from '../base/base-script-processor';
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
+	private hmrManager?: IHmrManager;
+
+	setHmrManager(hmrManager: IHmrManager) {
+		this.hmrManager = hmrManager;
+	}
+
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
 		if (dep.filepath.endsWith(EXCLUDE_FROM_HTML_FLAG)) {
 			dep.filepath = dep.filepath.replace(EXCLUDE_FROM_HTML_FLAG, '');
 			dep.inline = true;
 			dep.excludeFromHtml = true;
+		}
+
+		/**
+		 * If HMR Manager is active, delegate build/watch to it.
+		 */
+		if (this.hmrManager?.isEnabled() && !dep.inline) {
+			const outputUrl = await this.hmrManager.registerEntrypoint(dep.filepath);
+			return {
+				filepath: dep.filepath,
+				srcUrl: outputUrl,
+				kind: 'script',
+				position: dep.position,
+				attributes: dep.attributes,
+				inline: false,
+				excludeFromHtml: false,
+			};
 		}
 
 		const content = FileUtils.readFileSync(dep.filepath, 'utf-8');
@@ -60,7 +83,6 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		const processedAsset: ProcessedAsset = {
 			filepath: bundledFilePath,
 			content: dep.inline ? FileUtils.readFileSync(bundledFilePath).toString() : undefined,
-			srcUrl: bundledFilePath,
 			kind: 'script',
 			position: dep.position,
 			attributes: dep.attributes,

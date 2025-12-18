@@ -61,6 +61,10 @@
 			"types": "./src/adapters/bun/define-api-handler.ts",
 			"default": "./src/adapters/bun/define-api-handler.ts"
 		},
+		"./hmr/hmr-strategy": {
+			"types": "./src/hmr/hmr-strategy.ts",
+			"default": "./src/hmr/hmr-strategy.ts"
+		},
 		"./services/asset-processing-service": {
 			"types": "./src/services/asset-processing-service/index.ts",
 			"default": "./src/services/asset-processing-service/index.ts"

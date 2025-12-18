@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
 import { appLogger } from '../../global/app-logger';
-import type { EcoPagesAppConfig } from '../../internal-types';
+import type { EcoPagesAppConfig, IHmrManager } from '../../internal-types';
 import { FileUtils } from '../../utils/file-utils.module';
 import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types';
 import { ProcessorRegistry } from './processor.registry';
@@ -16,10 +16,38 @@ import {
 export class AssetProcessingService {
 	static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
 	private registry = new ProcessorRegistry();
+	private hmrManager?: IHmrManager;
 
 	constructor(private readonly config: EcoPagesAppConfig) {}
 
+	/**
+	 * Set the HMR manager for the asset processing service.
+	 * @param hmrManager The HMR manager to set.
+	 */
+	setHmrManager(hmrManager: IHmrManager) {
+		this.hmrManager = hmrManager;
+
+		for (const processor of this.registry.getAllProcessors().values()) {
+			if ('setHmrManager' in processor && typeof (processor as any).setHmrManager === 'function') {
+				(processor as any).setHmrManager(hmrManager);
+			}
+		}
+	}
+
+	getHmrManager(): IHmrManager | undefined {
+		return this.hmrManager;
+	}
+
+	/**
+	 * Register a processor for a specific asset kind and source.
+	 * @param kind The asset kind.
+	 * @param variant The asset source.
+	 * @param processor The processor to register.
+	 */
 	registerProcessor(kind: AssetKind, variant: AssetSource, processor: any): void {
+		if (this.hmrManager && 'setHmrManager' in processor && typeof processor.setHmrManager === 'function') {
+			processor.setHmrManager(this.hmrManager);
+		}
 		this.registry.register(kind, variant, processor);
 	}
 
@@ -46,10 +74,17 @@ export class AssetProcessingService {
 
 				try {
 					const processed = await processor.process(dep);
+					const srcUrl =
+						processed.srcUrl && processed.srcUrl.startsWith('/')
+							? processed.srcUrl
+							: processed.filepath
+								? this.getSrcUrl(processed.filepath)
+								: undefined;
+
 					const processedWithKey = {
 						key,
 						...processed,
-						srcUrl: processed.filepath ? this.getSrcUrl(processed.filepath) : undefined,
+						srcUrl,
 					};
 					return processedWithKey as ProcessedAsset;
 				} catch (error) {
@@ -84,7 +119,9 @@ export class AssetProcessingService {
 	}
 
 	private getSrcUrl(filepath: string): string | undefined {
-		return filepath.split(this.config.absolutePaths.distDir)[1];
+		const relativePath = filepath.split(this.config.absolutePaths.distDir)[1];
+		if (!relativePath) return undefined;
+		return relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
 	}
 
 	private async optimizeDependencies(depsDir: string): Promise<void> {

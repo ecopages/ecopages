@@ -5,10 +5,8 @@ import type { ScriptAsset } from '../../assets.types';
 import { BaseProcessor } from './base-processor';
 
 export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BaseProcessor<T> {
-	buildPlugins: BunPlugin[] = [];
 	constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
 		super({ appConfig });
-		this.buildPlugins = this.collectBuildPlugins();
 	}
 
 	protected shouldBundle(dep: T): boolean {
@@ -22,14 +20,16 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 	private collectBuildPlugins(): BunPlugin[] {
 		const plugins: BunPlugin[] = [];
 
-		if (!this.appConfig.processors?.size) {
-			return plugins;
+		if (this.appConfig.processors?.size) {
+			for (const processor of this.appConfig.processors.values()) {
+				if (processor.buildPlugins) {
+					plugins.push(...processor.buildPlugins);
+				}
+			}
 		}
 
-		for (const processor of this.appConfig.processors.values()) {
-			if (processor.buildPlugins) {
-				plugins.push(...processor.buildPlugins);
-			}
+		if (this.appConfig.loaders?.size) {
+			plugins.push(...this.appConfig.loaders.values());
 		}
 
 		return plugins;
@@ -43,6 +43,8 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		entrypoint: string;
 		outdir: string;
 	} & ScriptAsset['bundleOptions']): Promise<string> {
+		const buildPlugins = this.collectBuildPlugins();
+
 		const build = await Bun.build({
 			entrypoints: [entrypoint],
 			outdir,
@@ -51,13 +53,13 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			format: 'esm',
 			splitting: true,
 			naming: '[name].[ext]',
-			plugins: this.buildPlugins,
+			plugins: buildPlugins,
 			...rest,
 		});
 
 		if (!build.success) {
 			for (const log of build.logs) {
-				appLogger.debug(log);
+				appLogger.debug(log.message, log);
 			}
 		}
 

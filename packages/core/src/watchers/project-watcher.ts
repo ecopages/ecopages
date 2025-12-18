@@ -1,17 +1,19 @@
+import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
-import { hmrServerError, hmrServerReload } from '../adapters/bun/hmr.ts';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
 
 /**
  * Configuration options for the ProjectWatcher
  * @interface ProjectWatcherConfig
  * @property {EcoPagesAppConfig} config - The application configuration
  * @property {() => void} refreshRouterRoutesCallback - Callback to refresh router routes when files change
+ * @property {IHmrManager} hmrManager - The HMR manager to broadcast changes
  */
 type ProjectWatcherConfig = {
 	config: EcoPagesAppConfig;
 	refreshRouterRoutesCallback: () => void;
+	hmrManager: IHmrManager;
 };
 
 /**
@@ -32,12 +34,14 @@ type ProjectWatcherConfig = {
 export class ProjectWatcher {
 	private appConfig: EcoPagesAppConfig;
 	private refreshRouterRoutesCallback: () => void;
+	private hmrManager: IHmrManager;
 	private watcher: FSWatcher | undefined;
 
-	constructor({ config, refreshRouterRoutesCallback }: ProjectWatcherConfig) {
+	constructor({ config, refreshRouterRoutesCallback, hmrManager }: ProjectWatcherConfig) {
 		import.meta.env.NODE_ENV = 'development';
 		this.appConfig = config;
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
+		this.hmrManager = hmrManager;
 		this.triggerRouterRefresh = this.triggerRouterRefresh.bind(this);
 		this.handleError = this.handleError.bind(this);
 		this.handleFileChange = this.handleFileChange.bind(this);
@@ -60,27 +64,24 @@ export class ProjectWatcher {
 	}
 
 	/**
-	 * Handles file changes by:
-	 * 1. Uncaching affected modules
-	 * 2. Refreshing router routes if it's a page file
-	 * 3. Triggering HMR server reload
-	 *
-	 * @private
-	 * @param {string} path - Path of the changed file
+	 * Handles file changes by uncaching modules, refreshing routes, and delegating to HMR strategies.
+	 * @param rawPath - Path of the changed file
 	 */
-	private handleFileChange(path: string): void {
+	private async handleFileChange(rawPath: string): Promise<void> {
+		const filePath = path.resolve(rawPath);
+		// appLogger.debug(`[ProjectWatcher] File changed: ${filePath}`);
 		try {
 			this.uncacheModules();
-			const isPageFile = path.includes(this.appConfig.pagesDir);
+			const isPageFile = filePath.startsWith(this.appConfig.absolutePaths.pagesDir);
 
 			if (isPageFile) {
 				this.refreshRouterRoutesCallback();
 			}
 
-			hmrServerReload(path);
+			await this.hmrManager.handleFileChange(filePath);
 		} catch (error) {
 			if (error instanceof Error) {
-				hmrServerError(error);
+				this.hmrManager.broadcast({ type: 'error', message: error.message });
 				this.handleError(error);
 			}
 		}
@@ -93,7 +94,7 @@ export class ProjectWatcher {
 	 * @param {string} path - Path of the changed directory
 	 */
 	triggerRouterRefresh(path: string) {
-		const isPageDir = path.includes(this.appConfig.pagesDir);
+		const isPageDir = path.startsWith(this.appConfig.absolutePaths.pagesDir);
 		if (isPageDir) {
 			this.refreshRouterRoutesCallback();
 		}
@@ -106,7 +107,7 @@ export class ProjectWatcher {
 	 */
 	handleError(error: unknown) {
 		if (error instanceof Error) {
-			hmrServerError(error);
+			this.hmrManager.broadcast({ type: 'error', message: error.message });
 		}
 		appLogger.error(`Watcher error: ${error}`);
 	}
@@ -172,7 +173,7 @@ export class ProjectWatcher {
 		this.watcher.add(this.appConfig.absolutePaths.srcDir);
 
 		this.watcher
-			.on('change', this.handleFileChange)
+			.on('change', (path) => this.handleFileChange(path))
 			.on('add', (path) => this.triggerRouterRefresh(path))
 			.on('addDir', (path) => this.triggerRouterRefresh(path))
 			.on('unlink', (path) => this.triggerRouterRefresh(path))

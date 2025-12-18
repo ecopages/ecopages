@@ -5,11 +5,11 @@
  */
 
 import path from 'node:path';
-import { makeLiveReloadScript } from '../adapters/bun/hmr.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
 import type {
 	EcoComponent,
 	EcoComponentDependencies,
+	EcoFunctionComponent,
 	EcoPageFile,
 	EcoPagesElement,
 	GetMetadata,
@@ -20,6 +20,7 @@ import type {
 	PageMetadataProps,
 	RouteRendererBody,
 	RouteRendererOptions,
+	StaticPageContext,
 } from '../public-types.ts';
 import {
 	type AssetDefinition,
@@ -40,11 +41,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected appConfig: EcoPagesAppConfig;
 	protected assetProcessingService: AssetProcessingService;
 	protected htmlTransformer: HtmlTransformerService;
+	protected hmrManager?: IHmrManager;
 	private resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	declare protected options: Required<IntegrationRendererRenderOptions>;
 	protected runtimeOrigin: string;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
+
+	public setHmrManager(hmrManager: IHmrManager) {
+		this.hmrManager = hmrManager;
+
+		/** Also set it on the asset processing service if available */
+		if (this.assetProcessingService) {
+			this.assetProcessingService.setHmrManager(hmrManager);
+		}
+	}
 
 	constructor({
 		appConfig,
@@ -166,7 +177,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	protected async importPageFile(file: string): Promise<EcoPageFile> {
 		try {
-			return await import(file);
+			const query = process.env.NODE_ENV === 'development' ? `?update=${Date.now()}` : '';
+			return await import(file + query);
 		} catch (error) {
 			invariant(false, `Error importing page file: ${error}`);
 		}
@@ -326,7 +338,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			resolvedDependencies,
 			HtmlTemplate,
 			props,
-			Page,
+			Page: Page as EcoFunctionComponent<StaticPageContext, EcoPagesElement>,
 			metadata,
 			params: options.params || {},
 			query: options.query || {},
@@ -341,15 +353,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
 		const renderOptions = await this.prepareRenderOptions(options);
-
-		if (import.meta.env.NODE_ENV === 'development') {
-			this.htmlTransformer.htmlRewriter.on('body', {
-				element(body) {
-					const liveReloadScript = makeLiveReloadScript();
-					body.append(liveReloadScript, { html: true });
-				},
-			});
-		}
 
 		return await this.htmlTransformer
 			.transform(

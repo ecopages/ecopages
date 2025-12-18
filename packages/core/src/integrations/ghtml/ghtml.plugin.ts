@@ -16,7 +16,7 @@ export class GhtmlPlugin extends IntegrationPlugin {
 	constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
 		super({
 			name: GHTML_PLUGIN_NAME,
-			extensions: ['.ghtml.ts', '.ghtml'],
+			extensions: ['.ghtml.ts', '.ghtml.tsx', '.ghtml'],
 			...options,
 		});
 	}

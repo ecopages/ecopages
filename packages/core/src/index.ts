@@ -9,4 +9,4 @@ export * from './utils/deep-merge.ts';
 export * from './utils/file-utils.module.ts';
 export * from './utils/html.ts';
 export * from './utils/invariant.ts';
-export type { EcoPagesAppConfig } from './internal-types.ts';
+export * from './hmr/hmr-strategy.ts';

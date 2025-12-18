@@ -3,6 +3,7 @@
  * @module
  */
 
+import path from 'node:path';
 import {
 	type EcoComponent,
 	type EcoComponentConfig,
@@ -44,12 +45,17 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		const { config, layout } = await import(pagePath);
 		const components: Partial<EcoComponent>[] = [];
 
-		if (layout.config?.dependencies) {
+		if (layout?.config?.dependencies) {
 			components.push({ config: layout.config });
 		}
 
 		if (config?.dependencies) {
-			components.push({ config });
+			components.push({
+				config: {
+					...config,
+					componentDir: path.dirname(pagePath),
+				},
+			});
 		}
 
 		return await this.resolveDependencies(components);

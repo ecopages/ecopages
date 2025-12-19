@@ -185,37 +185,37 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Resolves the dependency path based on the import meta information.
-	 * It combines the directory of the import meta with the provided path URL.
+	 * Resolves the dependency path based on the component directory.
+	 * It combines the component directory with the provided path URL.
 	 *
-	 * @param importMeta - The import meta information.
+	 * @param componentDir - The component directory path.
 	 * @param pathUrl - The path URL to resolve.
 	 * @returns The resolved dependency path.
 	 */
-	protected resolveDependencyPath(importMeta: ImportMeta, pathUrl: string): string {
-		return path.join(importMeta.dir, pathUrl);
+	protected resolveDependencyPath(componentDir: string, pathUrl: string): string {
+		return path.join(componentDir, pathUrl);
 	}
 
 	/**
 	 * Extracts the dependencies from the provided component configuration.
-	 * It resolves the paths for scripts and stylesheets based on the import meta information.
+	 * It resolves the paths for scripts and stylesheets based on the component directory.
 	 *
-	 * @param importMeta - The import meta information.
+	 * @param componentDir - The component directory path.
 	 * @param scripts - The scripts to extract.
 	 * @param stylesheets - The stylesheets to extract.
 	 * @returns The extracted dependencies.
 	 */
 	protected extractDependencies({
-		importMeta,
+		componentDir,
 		scripts,
 		stylesheets,
 	}: {
-		importMeta: ImportMeta;
+		componentDir: string;
 	} & EcoComponentDependencies): EcoComponentDependencies {
-		const scriptsPaths = [...new Set(scripts?.map((script) => this.resolveDependencyPath(importMeta, script)))];
+		const scriptsPaths = [...new Set(scripts?.map((script) => this.resolveDependencyPath(componentDir, script)))];
 
 		const stylesheetsPaths = [
-			...new Set(stylesheets?.map((style) => this.resolveDependencyPath(importMeta, style))),
+			...new Set(stylesheets?.map((style) => this.resolveDependencyPath(componentDir, style))),
 		];
 
 		return {
@@ -237,7 +237,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const dependencies: AssetDefinition[] = [];
 
 		for (const component of components) {
-			if (!component.config?.importMeta) continue;
+			const componentDir = component.config?.componentDir;
+			if (!componentDir) continue;
 
 			const stylesheetsSet = new Set<string>();
 			const scriptsSet = new Set<string>();
@@ -245,9 +246,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			const collect = (config: EcoComponent['config']) => {
 				if (!config?.dependencies) return;
 
+				const dir = config.componentDir;
+				if (!dir) return;
+
 				const collectedDependencies = this.extractDependencies({
 					...config.dependencies,
-					importMeta: config.importMeta,
+					componentDir: dir,
 				});
 
 				for (const stylesheet of collectedDependencies.stylesheets || []) {

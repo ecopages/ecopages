@@ -55,7 +55,6 @@ export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
 };
 
 DocsLayout.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
 		scripts: ['./docs-layout.script.ts'],

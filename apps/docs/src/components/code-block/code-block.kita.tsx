@@ -31,5 +31,3 @@ export const CodeBlock: EcoComponent<{
 
 	return <div class="code-block">{safeHtml as 'safe'}</div>;
 };
-
-CodeBlock.config = { importMeta: import.meta, dependencies: { stylesheets: ['./code-block.css'] } };

@@ -26,7 +26,6 @@ const LabsAsyncPage: EcoComponent = async () => {
 };
 
 LabsAsyncPage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout],
 	},

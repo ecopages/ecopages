@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
-import type { EcoComponentConfig, EcoComponentDependencies } from '../public-types.ts';
+import type { EcoComponentDependencies } from '../public-types.ts';
 import { AssetFactory } from '../services/asset-processing-service/asset.factory.ts';
 import { flagComponentsAsDynamic, resolveComponentsScripts } from './component-dependencies-utils.ts';
 
@@ -15,9 +15,7 @@ const createComponentUrl = (componentName: string) => path.join(baseComponentUrl
 const componentsMock: Required<EcoComponentDependencies>['components'] = [
 	{
 		config: {
-			importMeta: {
-				dir: createComponentUrl('component1'),
-			} as ImportMeta,
+			componentDir: createComponentUrl('component1'),
 			dependencies: {
 				scripts: ['script1.ts', 'script2.ts'],
 				stylesheets: ['style1.css'],
@@ -26,9 +24,7 @@ const componentsMock: Required<EcoComponentDependencies>['components'] = [
 	},
 	{
 		config: {
-			importMeta: {
-				dir: createComponentUrl('component2'),
-			} as ImportMeta,
+			componentDir: createComponentUrl('component2'),
 			dependencies: {
 				scripts: ['script3.ts'],
 				stylesheets: ['style2.css'],
@@ -53,7 +49,7 @@ describe('component-dependencies-utils', () => {
 			expect(result).toEqual([
 				{
 					config: {
-						importMeta: (componentsMock[0].config as EcoComponentConfig).importMeta,
+						componentDir: componentsMock[0].config?.componentDir,
 						dependencies: {
 							scripts: ['script1.ts?exclude-from-html=true', 'script2.ts?exclude-from-html=true'],
 							stylesheets: ['style1.css'],
@@ -62,7 +58,7 @@ describe('component-dependencies-utils', () => {
 				},
 				{
 					config: {
-						importMeta: (componentsMock[1].config as EcoComponentConfig).importMeta,
+						componentDir: componentsMock[1].config?.componentDir,
 						dependencies: {
 							scripts: ['script3.ts?exclude-from-html=true'],
 							stylesheets: ['style2.css'],
@@ -76,7 +72,7 @@ describe('component-dependencies-utils', () => {
 			const componentsWithoutScripts = [
 				{
 					config: {
-						importMeta: (componentsMock[0].config as EcoComponentConfig).importMeta,
+						componentDir: componentsMock[0].config?.componentDir,
 						dependencies: {
 							stylesheets: ['style1.css'],
 						},

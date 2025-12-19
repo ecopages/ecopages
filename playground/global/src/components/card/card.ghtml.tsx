@@ -15,6 +15,5 @@ export const Card: EcoComponent<CardProps> = ({ copy, title }) => {
 };
 
 Card.config = {
-	importMeta: import.meta,
 	dependencies: { stylesheets: ['./card.css'] },
 };

@@ -19,7 +19,6 @@ export const AlpineCounter: EcoComponent<AlpineCounterProps> = ({ count = 0 }) =
 };
 
 AlpineCounter.config = {
-	importMeta: import.meta,
 	dependencies: {
 		scripts: ['./alpine-counter.script.ts'],
 		stylesheets: ['./alpine-counter.css'],

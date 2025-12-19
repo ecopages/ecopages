@@ -58,8 +58,6 @@ export const ClientImageGenerator: EcoComponent<unknown, JSX.Element> = () => {
 	);
 };
 
-ClientImageGenerator.config = {
-	importMeta: import.meta,
-};
+ClientImageGenerator.config = {};
 
 export default ClientImageGenerator;

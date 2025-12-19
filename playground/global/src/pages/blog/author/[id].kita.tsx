@@ -24,7 +24,6 @@ export const Author: EcoComponent<PageProps<AuthorProps>> = ({ params, query, na
 };
 
 Author.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout],
 	},

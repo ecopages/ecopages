@@ -26,7 +26,6 @@ const TailwindPage: EcoComponent = () => {
 };
 
 TailwindPage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout],
 	},

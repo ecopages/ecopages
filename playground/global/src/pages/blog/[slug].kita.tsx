@@ -24,7 +24,6 @@ const BlogPost: EcoComponent<PageProps<BlogPostProps>> = ({ params, query, title
 };
 
 BlogPost.config = {
-	importMeta: import.meta,
 	dependencies: { components: [BaseLayout] },
 };
 

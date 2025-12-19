@@ -63,6 +63,4 @@ export function Item(props: ListBoxItemProps) {
 	);
 }
 
-Select.config = {
-	importMeta: import.meta,
-};
+Select.config = {};

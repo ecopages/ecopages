@@ -14,7 +14,6 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
 };
 
 BaseLayout.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 	},

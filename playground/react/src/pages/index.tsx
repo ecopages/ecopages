@@ -40,7 +40,6 @@ const HomePage: EcoComponent<unknown, JSX.Element> = () => {
 };
 
 HomePage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./index.css'],
 		components: [Counter, BaseLayout, TanstackTable, Select, RadiantCounter],

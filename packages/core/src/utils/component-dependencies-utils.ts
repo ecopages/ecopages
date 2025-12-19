@@ -15,23 +15,29 @@ function getSafeFileName(path: string): string {
 /**
  * It resolves the scripts of the components dependencies
  * @function resolveComponentsScripts
- * @param {EcoComponent[]} components
- * @returns {string}
+ * @param components - Array of components with dependencies
+ * @returns Comma-separated string of resolved script paths
  */
 export function resolveComponentsScripts(components: Required<EcoComponentDependencies>['components']): string {
 	const normalizePath = (baseDir: string, fileName: string): string => {
 		return [RESOLVED_ASSETS_DIR, baseDir, getSafeFileName(fileName)].filter(Boolean).join('/').replace(/\/+/g, '/');
 	};
 
-	return components
-		.flatMap((component) => {
-			const baseDir = component.config?.importMeta.dir.split(globalThis.ecoConfig.srcDir)[1] ?? '';
-			const scripts = component.config?.dependencies?.scripts ?? [];
+	const resolvedScripts: string[] = [];
 
-			return scripts.map((script) => normalizePath(baseDir, script));
-		})
-		.filter(Boolean)
-		.join(',');
+	for (const component of components) {
+		const componentDir = component.config?.componentDir;
+		if (!componentDir) continue;
+
+		const baseDir = componentDir.split(globalThis.ecoConfig.srcDir)[1] ?? '';
+		const scripts = component.config?.dependencies?.scripts ?? [];
+
+		for (const script of scripts) {
+			resolvedScripts.push(normalizePath(baseDir, script));
+		}
+	}
+
+	return resolvedScripts.join(',');
 }
 
 /**

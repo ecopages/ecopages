@@ -11,7 +11,6 @@ export const Logo: EcoComponent<LogoProps> = (props) => {
 };
 
 Logo.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./logo.css'],
 	},

@@ -13,7 +13,6 @@ export const Burger: EcoComponent<{ class?: string }> = ({ class: className }) =
 };
 
 Burger.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./burger.css'],
 		scripts: ['./burger.script.ts'],

@@ -17,7 +17,6 @@ const DistScaffoldingTest: EcoComponent = async () => {
 };
 
 DistScaffoldingTest.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout],
 	},

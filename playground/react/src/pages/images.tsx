@@ -221,7 +221,6 @@ function UrbanVintageCredits() {
 }
 
 ImagesPage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout],
 	},

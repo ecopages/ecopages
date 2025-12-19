@@ -36,7 +36,6 @@ const HomePage: EcoComponent = () =>
 	})}`;
 
 HomePage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./index.css'],
 		components: [BaseLayout, RadiantCounter],

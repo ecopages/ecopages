@@ -128,7 +128,6 @@ export const TanstackTable: EcoComponent<unknown, JSX.Element> = () => {
 };
 
 TanstackTable.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./tanstack-table.css'],
 	},

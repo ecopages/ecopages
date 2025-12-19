@@ -11,7 +11,6 @@ const RadiantPage: EcoComponent = async () => {
 };
 
 RadiantPage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout, RadiantTodoApp],
 	},

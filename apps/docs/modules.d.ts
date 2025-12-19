@@ -1,6 +1,6 @@
-import '@ecopages/core/declarations';
-import '@ecopages/core/env';
-import '@ecopages/image-processor/types';
+/// <reference types="@ecopages/core/declarations" />
+/// <reference types="@ecopages/core/env" />
+/// <reference types="@ecopages/image-processor/types" />
 
 declare module '*.mdx' {
 	const content: string;

@@ -82,7 +82,6 @@ const GhtmlPage: EcoComponent = async () => {
 };
 
 GhtmlPage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [RadiantCounter],
 	},

@@ -28,5 +28,3 @@ export const ApiField: EcoComponent<{
 		</div>
 	);
 };
-
-ApiField.config = { importMeta: import.meta, dependencies: { stylesheets: ['./api-field.css'] } };

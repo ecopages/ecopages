@@ -211,7 +211,6 @@ function UrbanVintageCredits() {
 }
 
 HomePage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout],
 	},

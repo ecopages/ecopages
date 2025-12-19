@@ -153,7 +153,11 @@ export type EcoPagesConfig = Omit<
  * Configuration object for an EcoComponent.
  */
 export type EcoComponentConfig = {
-	importMeta: ImportMeta;
+	/**
+	 * The directory path of the component file.
+	 * This is auto-injected by the eco-component-dir-plugin at load time.
+	 */
+	componentDir?: string;
 	dependencies?: EcoComponentDependencies;
 };
 

@@ -24,7 +24,6 @@ export const Header: EcoComponent<HeaderProps> = ({ navigation }) => {
 };
 
 Header.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./header.css'],
 		components: [Navigation, Logo, Burger],

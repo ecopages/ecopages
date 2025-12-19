@@ -20,7 +20,6 @@ const HomePage: EcoComponent = () => {
 };
 
 HomePage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./plain-css.css'],
 		components: [BaseLayout],

@@ -17,7 +17,6 @@ const HomePage: EcoComponent<PageProps> = ({ params, query }) =>
 	})}`;
 
 HomePage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./index.css'],
 		components: [BaseLayout],

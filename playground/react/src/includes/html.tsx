@@ -17,7 +17,6 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps, JSX.Element> = ({
 };
 
 HtmlTemplate.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [Head],
 	},

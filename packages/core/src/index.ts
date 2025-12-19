@@ -1,5 +1,6 @@
 export * from './config/config-builder.ts';
 export * from './integrations/ghtml/ghtml.plugin.ts';
+export * from './plugins/eco-component-dir-plugin.ts';
 export type * from './public-types.ts';
 export * from './route-renderer/integration-renderer.ts';
 export * from './utils/add-base-url-to-pathname.ts';

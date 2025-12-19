@@ -20,7 +20,6 @@ const BlogPost: EcoComponent<PageProps<BlogPostProps>> = ({ query, slug }) =>
 	})}`;
 
 BlogPost.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout],
 	},

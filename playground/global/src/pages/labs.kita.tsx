@@ -10,7 +10,6 @@ const LabsRoot: EcoComponent = () => {
 };
 
 LabsRoot.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./404.css'],
 		components: [BaseLayout],

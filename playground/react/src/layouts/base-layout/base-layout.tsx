@@ -16,7 +16,6 @@ export const BaseLayout: EcoComponent<BaseLayoutProps, JSX.Element> = ({ childre
 };
 
 BaseLayout.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],

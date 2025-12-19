@@ -116,8 +116,8 @@ export class FSRouterScanner {
 		const { getStaticPaths, getStaticProps }: EcoPageFile = await import(filePath);
 
 		if (this.options.buildMode) {
-			invariant(getStaticProps, `[ecopages] Missing getStaticProps in ${filePath}`);
-			invariant(getStaticPaths, `[ecopages] Missing getStaticPaths in ${filePath}`);
+			invariant(getStaticProps !== undefined, `[ecopages] Missing getStaticProps in ${filePath}`);
+			invariant(getStaticPaths !== undefined, `[ecopages] Missing getStaticPaths in ${filePath}`);
 		}
 
 		if (getStaticPaths) {

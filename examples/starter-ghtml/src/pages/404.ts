@@ -10,7 +10,6 @@ const Error404: EcoComponent<Error404TemplateProps> = () =>
 	})}`;
 
 Error404.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./404.css'],
 		components: [BaseLayout],

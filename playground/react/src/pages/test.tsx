@@ -27,7 +27,6 @@ const TestPage: EcoComponent<unknown, JSX.Element> = () => {
 };
 
 TestPage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['./index.css'],
 		components: [Counter, BaseLayout],

@@ -17,7 +17,6 @@ export const RadiantCounter: EcoComponent<RadiantCounterProps, JSX.Element> = ({
 };
 
 RadiantCounter.config = {
-	importMeta: import.meta,
 	dependencies: {
 		scripts: ['./radiant-counter.script.ts'],
 	},

@@ -9,7 +9,6 @@ export const RadiantCounter: EcoComponent<RadiantCounterProps> = ({ count }) =>
 	</radiant-counter>`;
 
 RadiantCounter.config = {
-	importMeta: import.meta,
 	dependencies: {
 		scripts: ['./radiant-counter.script.ts'],
 		stylesheets: ['./radiant-counter.css'],

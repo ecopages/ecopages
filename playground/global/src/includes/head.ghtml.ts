@@ -10,7 +10,6 @@ export const Head: EcoComponent<PageHeadProps> = ({ metadata, children }) => {
 };
 
 Head.config = {
-	importMeta: import.meta,
 	dependencies: {
 		stylesheets: ['../styles/tailwind.css', '../styles/alpine.css'],
 	},

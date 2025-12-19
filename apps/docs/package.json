@@ -2,10 +2,10 @@
 	"name": "@ecopages/docs",
 	"private": true,
 	"scripts": {
-		"start": "bun run app.ts",
+		"start": "NODE_ENV=production bun run app.ts",
 		"dev": "bun run app.ts --dev",
-		"build": "bun run app.ts --build",
-		"preview": "bun run app.ts --preview",
+		"build": "NODE_ENV=production bun run app.ts --build",
+		"preview": "NODE_ENV=production bun run app.ts --preview",
 		"watch:dev": "bun --watch run app.ts --dev"
 	},
 	"devDependencies": {

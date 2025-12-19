@@ -1,14 +1,13 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 import { createEcoComponentDirPlugin } from './eco-component-dir-plugin';
 import type { EcoPagesAppConfig } from '../internal-types';
-import { FileUtils } from '../utils/file-utils.module';
 
 describe('eco-component-dir-plugin', () => {
 	const mockConfig = {
 		integrations: [
 			{
 				name: 'react',
-				extensions: ['.tsx', '.mdx'],
+				extensions: ['.tsx', '.mdx', '.ts'],
 			},
 		],
 	} as EcoPagesAppConfig;
@@ -42,12 +41,22 @@ describe('eco-component-dir-plugin', () => {
 			throw new Error(`File path ${filePath} does not match plugin filter ${regexFilter}`);
 		}
 
-		const fileSpy = spyOn(FileUtils, 'getFileAsString').mockImplementation(async () => content);
+		// Mock Bun.file to return the content
+		const originalBunFile = Bun.file;
+		spyOn(Bun, 'file').mockImplementation((path) => {
+			if (path === filePath) {
+				return {
+					text: async () => content,
+				} as any;
+			}
+			return originalBunFile(path as string);
+		});
 
 		try {
 			return await onLoadCallback({ path: filePath });
 		} finally {
-			fileSpy.mockRestore();
+			// Restore original Bun.file implementation
+			(Bun.file as any).mockRestore();
 		}
 	}
 

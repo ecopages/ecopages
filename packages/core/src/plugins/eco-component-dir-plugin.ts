@@ -12,10 +12,30 @@ import type { EcoPagesAppConfig } from '../internal-types.ts';
 const CONFIG_ASSIGNMENT_PATTERN = /\.config\s*=\s*\{/g;
 
 /**
+ * Regex pattern to match `config: {` in object literals.
+ * Uses word boundary to avoid matching partial words like "myconfig:".
+ * i.e. `export const MyElement = { config: { ... } }`
+ */
+const CONFIG_PROPERTY_PATTERN = /\bconfig\s*:\s*\{/g;
+
+/**
+ * Regex pattern to match `export const config = {` assignments.
+ * i.e. `export const config = { ... }`
+ */
+const CONFIG_EXPORT_PATTERN = /export\s+const\s+config\s*=\s*\{/g;
+
+/**
  * Creates a RegExp pattern from integration extensions.
  *
- * @param extensions - Array of file extensions (e.g., ['.kita.tsx', '.ghtml.ts'])
- * @returns RegExp pattern that matches any of the extensions
+ * The pattern matches files ending with any of the provided extensions,
+ * optionally followed by a query string (e.g., `file.tsx?update=123`).
+ * Query strings are used for cache-busting in development mode.
+ *
+ * Always includes `.ts` to support definitions in plain
+ * TypeScript files (commonly used for Lit elements and web components).
+ *
+ * @param extensions - Array of file extensions (e.g., ['.kita.tsx', '.ghtml.ts', '.tsx'])
+ * @returns RegExp pattern that matches any of the extensions with optional query strings
  */
 function createExtensionPattern(extensions: string[]): RegExp {
 	if (extensions.length === 0) {
@@ -33,10 +53,12 @@ export interface EcoComponentDirPluginOptions {
 /**
  * Creates a Bun plugin that auto-injects `componentDir` into EcoComponent config objects.
  *
- * When a component file is loaded, this plugin:
- * 1. Reads the file contents
- * 2. Finds all `.config = {` assignments
- * 3. Injects `componentDir: "/path/to/component/dir"` as the first property
+ * This plugin intercepts file loading for all integration-compatible files and:
+ * 1. Strips any query string from the file path (for dev mode cache-busting)
+ * 2. Reads the file contents
+ * 3. Finds all `.config = {` assignments (EcoComponent) and `config: {` properties
+ * 4. Injects `componentDir: "/path/to/component/dir"` as the first property
+ * 5. Returns the transformed content with the appropriate loader
  *
  * The plugin uses the integration extensions from the provided config to determine
  * which files to process.

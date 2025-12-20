@@ -4,7 +4,7 @@
  */
 
 import { EXCLUDE_FROM_HTML_FLAG, RESOLVED_ASSETS_DIR } from '../constants.ts';
-import type { EcoComponent, EcoComponentDependencies, EcoWebComponent } from '../public-types.ts';
+import type { EcoComponent, EcoComponentDependencies } from '../public-types.ts';
 
 function getSafeFileName(path: string): string {
 	const EXTENSIONS_TO_JS = ['ts', 'tsx'];
@@ -47,9 +47,7 @@ export function resolveComponentsScripts(components: Required<EcoComponentDepend
  * @param {EcoComponent[]} components
  * @returns {EcoComponent[]}
  */
-export function removeComponentsScripts(
-	components: (EcoComponent | EcoWebComponent)[],
-): (EcoComponent | EcoWebComponent)[] {
+export function removeComponentsScripts(components: EcoComponent[]): EcoComponent[] {
 	return components.map((component) => {
 		if (!component.config?.dependencies?.scripts) {
 			return component;
@@ -74,9 +72,7 @@ export function removeComponentsScripts(
  * @param {EcoComponent[]} components
  * @returns {EcoComponent[]}
  */
-export function flagComponentsAsDynamic(
-	components: (EcoComponent | EcoWebComponent)[],
-): (EcoComponent | EcoWebComponent)[] {
+export function flagComponentsAsDynamic(components: EcoComponent[]): EcoComponent[] {
 	return components.map((component) => {
 		if (!component.config?.dependencies?.scripts) {
 			return component;

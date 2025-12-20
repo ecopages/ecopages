@@ -55,10 +55,9 @@ bun run build
 // components/counter.script.ts
 import { html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { EcoWebComponent } from '@ecopages/lit';
 
 @customElement('my-counter')
-export class Counter extends EcoWebComponent {
+export class Counter {
 	@property({ type: Number })
 	count = 0;
 
@@ -74,10 +73,10 @@ export class Counter extends EcoWebComponent {
 }
 
 // components/counter.ts
-import type { EcoWebComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 import './counter.script';
 
-export const Counter: EcoWebComponent = {
+export const Counter: EcoComponent = {
 	config: {
 		importMeta: import.meta,
 		dependencies: {

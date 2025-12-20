@@ -135,7 +135,7 @@ export interface IHmrManager {
 export type EcoComponentDependencies = {
 	stylesheets?: string[];
 	scripts?: string[];
-	components?: (EcoComponent | EcoWebComponent)[];
+	components?: EcoComponent[];
 };
 
 export type EcoPagesElement = string | Promise<string>;
@@ -162,19 +162,9 @@ export type EcoComponentConfig = {
 };
 
 /**
- * Represents an EcoComponent.
- *
- * @template T - The type of the props object.
+ * The base structure for any EcoPages component.
  */
-export type EcoComponent<T = any, C = EcoPagesElement> = {
-	/**
-	 * Renders the component with the given props.
-	 *
-	 * @param props - The props object.
-	 * @returns The rendered element.
-	 */
-	(props: T): C;
-
+export type EcoComponentBase = {
 	/**
 	 * The configuration options for the EcoComponent.
 	 */
@@ -182,16 +172,58 @@ export type EcoComponent<T = any, C = EcoPagesElement> = {
 };
 
 /**
- * Represents an EcoComponent. It doesn't have a render function.
- *
- * @template T - The type of the props object.
+ * Checks if a type is `any`.
  */
-export type EcoWebComponent = {
-	/**
-	 * The configuration options for the EcoComponent.
-	 */
-	config?: EcoComponentConfig;
-};
+type IsAny<T> = 0 extends 1 & T ? true : false;
+
+/**
+ * A function component type that is framework-agnostic.
+ * Uses a broader signature to support both direct calls and HOC wrappers.
+ */
+type EcoFunctionComponent<P, R> = {
+	(props: P, ...args: any[]): R;
+} & EcoComponentBase;
+
+/**
+ * Represents an EcoComponent.
+ *
+ * It can be defined by passing the props type as the first generic,
+ * or by passing the component type itself to infer the signature.
+ *
+ * @template T - The type of the props object or the component function itself.
+ * @template C - The type of the rendered element.
+ *
+ * @example
+ * //1. Simplest usage
+ * export const MyComponent: EcoComponent<{prop1: string}> = ({prop1}) => {
+ *   return <div>...</div>;
+ * };
+ *
+ * @example
+ * // 2. Using with HOCs like MobX observer (passing the props type)
+ * export const MyObservedComponent: EcoComponent<object> = observer(function MyObservedComponent() {
+ *   return <div>...</div>;
+ * });
+ *
+ * @example
+ * // 3. Passing the full function signature (Perfect for Generic Components)
+ * export const Select: EcoComponent<<T extends object>(props: SelectProps<T>) => JSX.Element> = <T extends object>({
+ *   label,
+ *   items,
+ * }: SelectProps<T>) => {
+ *   return <select>...</select>;
+ * };
+ */
+/**
+ * A function component type that is framework-agnostic.
+ * Uses a broader signature to support both direct calls and HOC wrappers.
+ */
+export type EcoComponent<P = any, R = any> =
+	IsAny<P> extends true
+		? EcoFunctionComponent<any, any> | EcoComponentBase
+		: P extends (props: infer Props, ...args: any[]) => infer Return
+			? EcoFunctionComponent<Props, Return>
+			: EcoFunctionComponent<P, R>;
 
 /**
  * Represents a page in EcoPages.

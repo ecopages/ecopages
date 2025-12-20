@@ -4,8 +4,8 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-	title: 'Docs | Lit Integration',
-	description: 'Learn how to use the Lit integration with Ecopages',
+  title: 'Docs | Lit Integration',
+  description: 'Learn how to use the Lit integration with Ecopages',
 });
 
 # Lit Integration
@@ -44,18 +44,17 @@ export default config;
 
 ## Creating Components with Lit
 
-Once the Lit integration is set up, you can create components using Lit's syntax and the `EcoWebComponent` class. Here's an example of a Lit component using ghtml:
+Once the Lit integration is set up, you can create components. Here's an example of a Lit component using ghtml:
 
 <CodeBlock>
 ```typescript
 import { html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { EcoWebComponent } from '@ecopages/lit';
 
 @customElement('lit-counter')
-export class LitCounter extends EcoWebComponent {
-@property({ type: Number })
-count = 0;
+export class LitCounter {
+	@property({ type: Number })
+	count = 0;
 
 render() {
 return html`       <div>
@@ -66,22 +65,16 @@ return html`       <div>
     `;
 }
 
-private \_decrement() {
-this.count--;
+    private _decrement() {
+    	this.count--;
+    }
+
+    private _increment() {
+    	this.count++;
+    }
 }
 
-private \_increment() {
-this.count++;
-}
-}
-
-declare global {
-interface HTMLElementTagNameMap {
-'lit-counter': LitCounter;
-}
-}
-
-````
+```
 </CodeBlock>
 
 Note that styles are defined in a separate CSS file, promoting separation of concerns:
@@ -103,29 +96,27 @@ button {
   padding: 5px 10px;
   margin: 0 5px;
 }
-````
-
+```
 </CodeBlock>
 
 ## Define the config
 
-To properly define the config for the component and avoid issues related to multiple definitions, you should use the `EcoWebComponent` type.
+To properly define the config for the component and avoid issues related to multiple definitions, you should use the `EcoComponent` type.
 
 <CodeBlock>
 ```typescript
-import type { EcoWebComponent } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
 import './lit-counter.script';
 
-export const LitCounter: EcoWebComponent = {
-  config: {
-    importMeta: import.meta,
-    dependencies: {
-      scripts: ['lit-counter.script.ts'],
-    },
-  },
+export const LitCounter: EcoComponent = {
+	config: {
+		dependencies: {
+			scripts: ['lit-counter.script.ts'],
+		},
+	},
 };
 
-````
+```
 </CodeBlock>
 
 As you can see we don't need to define it on the function that creates the component, due the fact we do not need it.
@@ -163,13 +154,11 @@ HomePage.config = {
 };
 
 export default HomePage;
-````
-
+```
 </CodeBlock>
 
 ## Key Features
 
-1. **EcoWebComponent**: Extend from `EcoWebComponent` to create Lit components that integrate seamlessly with Ecopages.
 2. **Server-Side Rendering (SSR)**: Lit components are server-side rendered by default in Ecopages, except when used within MDX files (currently).
 3. **Reactive Properties**: Utilize Lit's reactive properties for efficient updates.
 4. **Declarative Templates**: Use Lit's html template literal for creating component templates.
@@ -202,4 +191,4 @@ export default config;
 ```
 </CodeBlock>
 
-By leveraging the Lit integration and `EcoWebComponent`, you can create powerful, reactive components within your Ecopages project, combining the efficiency of static site generation with the interactivity of modern web components.
+By leveraging the Lit integration, you can create powerful, reactive components within your Ecopages project, combining the efficiency of static site generation with the interactivity of modern web components.

@@ -78,7 +78,6 @@ import './counter.script';
 
 export const Counter: EcoComponent = {
 	config: {
-		importMeta: import.meta,
 		dependencies: {
 			scripts: ['counter.script.ts'],
 		},
@@ -103,7 +102,6 @@ const HomePage: EcoComponent = () => {
 };
 
 HomePage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout, Counter],
 	},

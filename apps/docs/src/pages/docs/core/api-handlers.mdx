@@ -26,19 +26,18 @@ const app = new EcopagesApp({ appConfig });
 
 // Define a GET handler
 app.get('/api/greet', async ({ response }) => {
-	return response.text('Hello from the API!');
+return response.text('Hello from the API!');
 });
 
 // Define a POST handler
 app.post('/api/submit', async ({ request, response }) => {
-	const body = await request.json(); // Assuming JSON body
-	console.log('Received data:', body);
-	return response.json({ success: true, received: body });
+const body = await request.json(); // Assuming JSON body
+console.log('Received data:', body);
+return response.json({ success: true, received: body });
 });
 
 await app.start();
-
-````
+```
 </CodeBlock>
 
 ## Handler Context
@@ -48,20 +47,20 @@ Every API handler function receives a `HandlerContext` object as its argument. T
 <CodeBlock>
 ```typescript
 // Example handler signature
+// Example handler signature
 app.get('/api/example/:id', async (context) => {
-  // context is the HandlerContext object
-  const { request, response } = context;
+	// context is the HandlerContext object
+	const { request, response } = context;
 
-  // Access request details
-  const { id } = request.params; // Route parameters
-  const userAgent = request.headers.get('user-agent');
-  const queryParam = request.query.get('search'); // Query parameters
+	// Access request details
+	const { id } = request.params; // Route parameters
+	const userAgent = request.headers.get('user-agent');
+	const queryParam = request.query.get('search'); // Query parameters
 
-  // Use the response builder
-  return response.status(200).json({ userId: id, agent: userAgent, query: queryParam });
+	// Use the response builder
+	return response.status(200).json({ userId: id, agent: userAgent, query: queryParam });
 });
-````
-
+```
 </CodeBlock>
 
 The `HandlerContext` contains:
@@ -80,10 +79,10 @@ You can use the `server` property in the handler context for advanced use cases.
 <CodeBlock>
 ```typescript
 app.get('/api/hello', async ({ response, request, server }) => {
-  return response.json({
-    message: 'Hello world!',
-    requestIp: server.requestIP(request),
-  });
+	return response.json({
+		message: 'Hello world!',
+		requestIp: server.requestIP(request),
+	});
 });
 ```
 </CodeBlock>
@@ -97,21 +96,20 @@ Instead of manually creating `new Response(...)` objects, Ecopages provides the 
 <CodeBlock>
 ```typescript
 app.get('/api/data', async ({ response }) => {
-  const data = { message: 'Here is your data' };
-  // Automatically sets Content-Type to application/json
-  return response.json(data); 
+	const data = { message: 'Here is your data' };
+	// Automatically sets Content-Type to application/json
+	return response.json(data);
 });
 
 app.get('/api/plain', async ({ response }) => {
-	// Automatically sets Content-Type to text/plain
-	return response.text('Plain text response.');
+// Automatically sets Content-Type to text/plain
+return response.text('Plain text response.');
 });
 
 app.get('/api/html-page', async ({ response }) => {
-	// Automatically sets Content-Type to text/html
-	return response.html('<h1>Hello HTML</h1>');
+// Automatically sets Content-Type to text/html
+return response.html('<h1>Hello HTML</h1>');
 });
-
 ```
 </CodeBlock>
 
@@ -122,16 +120,15 @@ You can chain methods to customize the response status and headers before sendin
 <CodeBlock>
 ```typescript
 app.post('/api/create', async ({ response }) => {
-  // ... creation logic ...
-  const newItem = { id: 123, name: 'New Item' };
+	// ... creation logic ...
+	const newItem = { id: 123, name: 'New Item' };
 
-  return response
-    .status(201) // Set status to 201 Created
-    .headers({ 'X-Custom-Header': 'CreatedValue' }) // Add custom headers
-    .json(newItem); // Send JSON body
+	return response
+		.status(201) // Set status to 201 Created
+		.headers({ 'X-Custom-Header': 'CreatedValue' }) // Add custom headers
+		.json(newItem); // Send JSON body
 });
 ```
-
 </CodeBlock>
 
 ### Available Methods
@@ -147,22 +144,22 @@ app.post('/api/create', async ({ response }) => {
 <CodeBlock>
 ```typescript
 app.get('/api/old-path', async ({ response }) => {
-  // Permanent redirect (301)
-  return response.status(301).redirect('/api/new-path'); 
+	// Permanent redirect (301)
+	return response.status(301).redirect('/api/new-path');
 });
 
 app.get('/api/find/:id', async ({ request, response }) => {
 const { id } = request.params;
 const item = // ... find item logic ...
 
-if (!item) {
-// Send a 404 error with a JSON body
-return response.error({ message: `Item ${id} not found` }, 404);
-}
+    if (!item) {
+    	// Send a 404 error with a JSON body
+    	return response.error({ message: `Item ${id} not found` }, 404);
+    }
 
-return response.json(item);
+    return response.json(item);
+
 });
-
 ```
 </CodeBlock>
 

@@ -24,12 +24,12 @@ import appConfig from './eco.config';
 const app = new EcopagesApp({ appConfig });
 
 app.get('/api/hello', async () => {
-return new Response('Hello World');
+	return new Response('Hello World');
 });
 
 await app.start();
 
-````
+```
 </CodeBlock>
 
 ## HTTP Methods
@@ -45,7 +45,7 @@ app.patch('/api/resource', handler);
 app.delete('/api/resource', handler);
 app.options('/api/resource', handler);
 app.head('/api/resource', handler);
-````
+```
 
 </CodeBlock>
 
@@ -56,8 +56,8 @@ You can define dynamic route parameters using the `:param` syntax:
 <CodeBlock>
 ```typescript
 app.get('/api/users/:id/posts/:postId', async ({ request }) => {
-  const { id, postId } = request.params;
-  return new Response(JSON.stringify({ userId: id, postId }));
+	const { id, postId } = request.params;
+	return new Response(JSON.stringify({ userId: id, postId }));
 });
 ```
 </CodeBlock>
@@ -79,19 +79,18 @@ import { defineBunApiHandler } from '@ecopages/core/adapters/bun/define-handler'
 
 // Define the handler using the helper
 const getUserHandler = defineBunApiHandler({
-method: 'GET',
-path: '/api/users/:id', // Type of 'id' is inferred from here
-handler: async ({ request }) => {
-// request.params is automatically typed as { id: string }
-const { id } = request.params;
-// Fetch user logic...
-const user = { id: id, name: 'Example User' };
+	method: 'GET',
+	path: '/api/users/:id', // Type of 'id' is inferred from here
+	handler: async ({ request }) => {
+		// request.params is automatically typed as { id: string }
+	const { id } = request.params;
+		// Fetch user logic...
+	const user = { id: id, name: 'Example User' };
 
-    if (!user) {
-      return new Response('User not found', { status: 404 });
-    }
-    return new Response(JSON.stringify(user));
-
+	if (!user) {
+		return new Response('User not found', { status: 404 });
+	}
+	return new Response(JSON.stringify(user));
 },
 });
 
@@ -100,18 +99,18 @@ app.get(getUserHandler.path, getUserHandler.handler);
 
 // You can define multiple handlers this way and keep them organized
 const updateUserHandler = defineBunApiHandler({
-method: 'PUT',
-path: '/api/users/:id',
-handler: async ({ request }) => {
-const { id } = request.params;
-// Update user logic...
-return new Response(JSON.stringify({ id, message: 'User updated' }));
-}
+	method: 'PUT',
+	path: '/api/users/:id',
+	handler: async ({ request }) => {
+		const { id } = request.params;
+		// Update user logic...
+		return new Response(JSON.stringify({ id, message: 'User updated' }));
+	}
 });
 
 app.put(updateUserHandler.path, updateUserHandler.handler);
 
-````
+```
 </CodeBlock>
 
 ### Benefits of Using `defineBunApiHandler`
@@ -130,12 +129,12 @@ The handler context now includes a `server` property, which exposes the underlyi
 <CodeBlock>
 ```typescript
 app.get('/api/hello', async ({ response, request, server }) => {
-  return response.json({
-    message: 'Hello world!',
-    requestIp: server.requestIP(request),
-  });
+	return response.json({
+		message: 'Hello world!',
+		requestIp: server.requestIP(request),
+	});
 });
-````
+```
 
 </CodeBlock>
 
@@ -148,12 +147,12 @@ During static site generation, the server can still handle API requests, making 
 <CodeBlock>
 ```typescript
 export const getStaticProps: GetStaticProps = async ({ appConfig }) => {
-  const response = await fetch(`${appConfig.baseUrl}/api/data`);
-  const data = await response.json();
-  
-  return {
-    props: { data },
-  };
+	const response = await fetch(`${appConfig.baseUrl}/api/data`);
+	const data = await response.json();
+	
+	return {
+		props: { data },
+	};
 };
 ```
 </CodeBlock>
@@ -184,9 +183,9 @@ The server includes built-in error handling:
 <CodeBlock>
 ```typescript
 app.get('/api/error', async () => {
-  throw new Error('Something went wrong');
-  // Will return a 500 response with error details in development
-  // and a safe error message in production
+	throw new Error('Something went wrong');
+	// Will return a 500 response with error details in development
+	// and a safe error message in production
 });
 ```
 </CodeBlock>
@@ -196,6 +195,10 @@ app.get('/api/error', async () => {
 Server configuration can be customized in your `eco.config.ts`:
 
 <CodeBlock>
-	```typescript const config = await new ConfigBuilder() .setBaseUrl('http://localhost:3000') // ... other config
-	.build(); ```
+```typescript 
+const config = await new ConfigBuilder() 
+	.setBaseUrl('http://localhost:3000') 
+	// ... other config
+	.build(); 
+```
 </CodeBlock>

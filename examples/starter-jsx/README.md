@@ -64,7 +64,6 @@ const HomePage: EcoComponent = () => {
 };
 
 HomePage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout],
 	},

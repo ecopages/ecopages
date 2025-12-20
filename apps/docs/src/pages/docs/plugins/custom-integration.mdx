@@ -14,60 +14,59 @@ Integrations in Ecopages add support for new templating engines or frameworks. T
 
 ## Basic Structure
 
-An integration extends the `IntegrationPlugin` abstract class:
+An integration extends the `IntegrationPlugin` abstract class and must provide a renderer class:
 
 <CodeBlock>
 ```typescript
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import type { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+import { CustomRenderer } from './custom-renderer';
 
 class CustomIntegration extends IntegrationPlugin {
-constructor() {
-super({
-name: 'custom-integration',
-extensions: ['.custom'], // File extensions to handle
-});
-}
+	renderer = CustomRenderer;
+	staticBuildStep = 'render'; // 'render' (default) or 'fetch'
 
-createRenderer(): IntegrationRenderer {
-return new CustomRenderer({
-appConfig: this.appConfig!,
-});
+	constructor() {
+		super({
+			name: 'custom-integration',
+			extensions: ['.custom'], // File extensions to handle
+		});
+	}
 }
-}
-
-````
+```
 </CodeBlock>
 
 ## Creating a Custom Renderer
 
-The renderer handles the actual transformation of your templates:
+The renderer handles the actual transformation of your templates. It extends the `IntegrationRenderer` class:
 
 <CodeBlock>
 ```typescript
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+import type { IntegrationRendererRenderOptions, RouteRendererBody, EcoComponent } from '@ecopages/core/public-types';
+
 class CustomRenderer extends IntegrationRenderer {
-  name = 'custom-renderer';
+	name = 'custom-renderer';
 
-  async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-    const { Page, props, metadata, HtmlTemplate } = options;
+	async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+		const { Page, props, metadata, HtmlTemplate } = options;
 
-    // Transform the page content
-    const pageContent = await this.renderPage(Page, props);
+		// Transform the page content
+		const pageContent = await this.renderPage(Page, props);
 
-    // Render the final HTML using the template
-    return HtmlTemplate({
-      children: pageContent,
-      metadata,
-    });
-  }
+		// Render the final HTML using the template
+		return HtmlTemplate({
+			children: pageContent,
+			metadata,
+		});
+	}
 
-  private async renderPage(Page: EcoComponent, props: any): Promise<string> {
-    // Implement your rendering logic here
-    return '';
-  }
+	private async renderPage(Page: EcoComponent, props: any): Promise<string> {
+		// Implement your rendering logic here
+		// For example, if Page is a function that returns a string:
+		return Page(props);
+	}
 }
-````
-
+```
 </CodeBlock>
 
 ## Handling Dependencies
@@ -181,23 +180,24 @@ class CustomIntegration extends IntegrationPlugin {
 
 ## Setup and Teardown
 
-Handle initialization and cleanup:
+Handle initialization and cleanup of resources needed by your integration:
 
 <CodeBlock>
 ```typescript
 class CustomIntegration extends IntegrationPlugin {
-  async setup(): Promise<void> {
-    // Initialize resources
-    // Register dependencies
-    // Set up compilation
-  }
+	renderer = CustomRenderer;
 
-async teardown(): Promise<void> {
-// Clean up resources
-}
-}
+	async setup(): Promise<void> {
+		await super.setup();
+		// Additional initialization logic
+		// e.g., Bun.plugin(customCompilerPlugin())
+	}
 
-````
+	async teardown(): Promise<void> {
+		// Clean up resources when the process stops
+	}
+}
+```
 </CodeBlock>
 
 ## Using the Integration
@@ -207,57 +207,71 @@ Register your integration in the Ecopages configuration:
 <CodeBlock>
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
+import { CustomIntegration } from './custom-integration';
 
 const customIntegration = new CustomIntegration();
 
-const config = await new ConfigBuilder()
-  .setIntegrations([customIntegration])
-  .build();
+const config = await new ConfigBuilder().setIntegrations([customIntegration]).build();
 ```
 </CodeBlock>
 
 ## Best Practices
 
-1. Follow the Single Responsibility Principle
-2. Handle errors gracefully
-3. Provide clear documentation
-4. Use TypeScript for type safety
-5. Test your integration thoroughly
-6. Manage dependencies efficiently
+1. **Follow Single Responsibility Principle**: Keep your renderer focused on transforming templates.
+2. **Type Safety**: Use TypeScript interfaces for props and state.
+3. **Error Handling**: Provide descriptive errors during rendering and HMR.
+4. **Efficiency**: Use `HmrStrategy` to only update what's necessary. Avoid unnecesary rebuilds.
+5. **Caching**: If your rendering or transformation is expensive, implement a caching mechanism.
+6. **Graceful Degradation**: Fall back to full page reload if a hot update cannot be performed safely.
 
 ## Example: Complete Integration
 
-Here's a complete example of a custom integration:
+Here's a complete example including the plugin, renderer, and HMR strategy:
 
 <CodeBlock>
 ```typescript
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import type { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
-import type { 
-  EcoComponent, 
-  RouteRendererBody, 
-  IntegrationRendererRenderOptions 
+import { IntegrationPlugin, IntegrationRenderer, HmrStrategy, HmrStrategyType } from '@ecopages/core';
+import type {
+	IntegrationRendererRenderOptions,
+	RouteRendererBody,
+	EcoComponent,
+	HmrAction,
+	DefaultHmrContext,
 } from '@ecopages/core/public-types';
 
 class CustomRenderer extends IntegrationRenderer {
-name = 'custom-renderer';
+	name = 'custom-renderer';
 
-async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-const { Page, props, metadata, HtmlTemplate } = options;
+	async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+		const { Page, props, metadata, HtmlTemplate } = options;
+		return HtmlTemplate({
+			children: Page(props),
+			metadata,
+		});
+	}
+}
 
-    // Transform the page
-    const pageContent = await this.renderPage(Page, props);
+class CustomHmrStrategy extends HmrStrategy {
+	readonly type = HmrStrategyType.INTEGRATION;
 
-    // Return the complete HTML
-    return HtmlTemplate({
-      children: pageContent,
-      metadata,
-      dependencies: {
-        scripts: ['./runtime.js'],
-        stylesheets: ['./styles.css'],
-      },
-    });
+	constructor(
+		appConfig: any,
+		private context: DefaultHmrContext,
+	) {
+		super(appConfig);
+	}
 
+	matches(filePath: string) {
+		return filePath.endsWith('.custom');
+	}
+
+	async process(filePath: string): Promise<HmrAction> {
+		const outputUrl = this.context.getWatchedFiles().get(filePath) || filePath;
+		return {
+			type: 'broadcast',
+			events: [{ type: 'update', path: outputUrl, timestamp: Date.now() }],
+		};
+	}
 }
 
 class CustomHmrStrategy extends HmrStrategy {
@@ -281,12 +295,14 @@ class CustomHmrStrategy extends HmrStrategy {
 }
 
 export class CustomIntegration extends IntegrationPlugin {
-  constructor() {
-    super({
-      name: 'custom-integration',
-      extensions: ['.custom'],
-    });
-  }
+	renderer = CustomRenderer;
+
+	constructor() {
+		super({
+			name: 'custom-integration',
+			extensions: ['.custom'],
+		});
+	}
 
 	constructor() {
 		super({
@@ -302,14 +318,10 @@ export class CustomIntegration extends IntegrationPlugin {
 	}
 }
 
-async setup(): Promise<void> {
-// Setup logic
-}
+	async setup(): Promise<void> {
+		// Setup logic
+	}
 
-async teardown(): Promise<void> {
-// Cleanup logic
 }
-}
-
 ```
 </CodeBlock>

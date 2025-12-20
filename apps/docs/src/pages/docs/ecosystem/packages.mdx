@@ -13,55 +13,55 @@ export const getMetadata = () => ({
 Ecopages is composed of several packages that work together to provide a comprehensive static site generation solution. Here's an overview of the main packages in the Ecopages ecosystem.
 Please note that almost all packages had been released on [JSR](https://jsr.io/packages?search=ecopages).
 
-## @ecopages/core
+- `@ecopages/core`
 
-The core package of Ecopages, providing the fundamental functionality for static site generation.
-
-Key features:
+The core package of Ecopages.
 
 - Configuration builder
 - Build and development scripts
 - Core utilities and types
 
-## @ecopages/kitajs
+This is the main package of Ecopages, it provides the core functionalities that are used also by other packages.
+
+- `@ecopages/kitajs`
 
 Integration with KitaJS, allowing the use of JSX-like syntax in Ecopages projects.
 
-## @ecopages/mdx
+- `@ecopages/mdx`
 
 Enables the use of MDX (Markdown with JSX) in Ecopages projects, providing a powerful way to create content-rich pages.
 
-## @ecopages/lit
+- `@ecopages/lit`
 
 Integration with Lit, allowing the creation of web components using Lit within Ecopages projects.
 It also permits to SSR lit components simply using the `.lit.ts` suffix using your preferred templating extension (kitajs, ghtml).
 
-## @ecopages/bun-postcss-loader
+- `@ecopages/bun-postcss-loader`
 
 A Bun loader for PostCSS, enabling advanced CSS processing and loading in Ecopages projects.
 
-## @ecopages/bun-mdx-kitajs-loader
+- `@ecopages/bun-mdx-kitajs-loader`
 
 A Bun loader that allows importing MDX files as components, facilitating the creation of reusable content blocks.
 
-## @ecopages/bun-inline-css-plugin
+- `@ecopages/bun-inline-css-plugin`
 
 A plugin for inlining CSS directly into JavaScript files, useful for component-specific styling.
 
-## @ecopages/postcss-processor
+- `@ecopages/postcss-processor`
 
 A PostCSS processor tailored for use with Ecopages, providing efficient CSS processing capabilities.
 This is the current default integration for processing css files.
 
-## @ecopages/radiant
+- `@ecopages/radiant`
 
 [NPM](https://www.npmjs.com/package/@ecopages/radiant) - Radiant is a minimalist web component library designed for simplicity and flexibility.
 
-## @ecopages/logger
+- `@ecopages/logger`
 
 [NPM](https://www.npmjs.com/package/@ecopages/logger) - A logging utility designed for use across Ecopages packages, ensuring consistent and informative logging throughout the project.
 
-## @ecopages/scripts-injector
+- `@ecopages/scripts-injector`
 
 [NPM](https://www.npmjs.com/package/@ecopages/scripts-injector) - A package that helps lazy loading scripts in the browser.
 

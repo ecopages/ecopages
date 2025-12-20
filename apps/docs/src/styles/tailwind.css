@@ -3,17 +3,17 @@
 @tailwind utilities;
 
 :root {
-	--color-tropical-rain-forest-50-hsla: 100 14% 96%;
-	--color-tropical-rain-forest-100-hsla: 104 11% 81%;
-	--color-tropical-rain-forest-200-hsla: 107 11% 66%;
-	--color-tropical-rain-forest-300-hsla: 109 11% 52%;
-	--color-tropical-rain-forest-400-hsla: 108 19% 37%;
-	--color-tropical-rain-forest-500-hsla: 109 37% 23%;
-	--color-tropical-rain-forest-600-hsla: 108 38% 18%;
-	--color-tropical-rain-forest-700-hsla: 109 37% 14%;
-	--color-tropical-rain-forest-800-hsla: 107 37% 10%;
-	--color-tropical-rain-forest-900-hsla: 105 40% 6%;
-	--color-tropical-rain-forest-950-hsla: 100 33% 2%;
+	--color-night-sky-50-hsla: 222 47% 98%;
+	--color-night-sky-100-hsla: 222 47% 94%;
+	--color-night-sky-200-hsla: 222 40% 88%;
+	--color-night-sky-300-hsla: 222 35% 78%;
+	--color-night-sky-400-hsla: 222 30% 65%;
+	--color-night-sky-500-hsla: 225 45% 45%;
+	--color-night-sky-600-hsla: 225 45% 35%;
+	--color-night-sky-700-hsla: 225 50% 25%;
+	--color-night-sky-800-hsla: 225 55% 15%;
+	--color-night-sky-900-hsla: 225 60% 10%;
+	--color-night-sky-950-hsla: 225 70% 5%;
 
 	--color-scarlet-100-hsla: 353 100% 89%;
 	--color-scarlet-200-hsla: 351 100% 81%;
@@ -26,17 +26,17 @@
 	--color-scarlet-900-hsla: 353 76% 15%;
 	--color-scarlet-950-hsla: 8 60% 5%;
 
-	--color-silver-50-hsla: 0 0% 99%;
-	--color-silver-100-hsla: 0 0% 95%;
-	--color-silver-200-hsla: 0 0% 91%;
-	--color-silver-300-hsla: 0 1% 87%;
-	--color-silver-400-hsla: 0 1% 77%;
-	--color-silver-500-hsla: 0 1% 69%;
-	--color-silver-600-hsla: 0 0% 54%;
-	--color-silver-700-hsla: 0 0% 30%;
-	--color-silver-800-hsla: 0 0% 20%;
-	--color-silver-900-hsla: 0 0% 10%;
-	--color-silver-950-hsla: 0 0% 5%;
+	--color-glacier-white-50-hsla: 220 20% 99%;
+	--color-glacier-white-100-hsla: 220 20% 97%;
+	--color-glacier-white-200-hsla: 220 20% 94%;
+	--color-glacier-white-300-hsla: 220 15% 90%;
+	--color-glacier-white-400-hsla: 220 12% 80%;
+	--color-glacier-white-500-hsla: 220 10% 72%;
+	--color-glacier-white-600-hsla: 220 8% 58%;
+	--color-glacier-white-700-hsla: 220 10% 35%;
+	--color-glacier-white-800-hsla: 220 12% 25%;
+	--color-glacier-white-900-hsla: 220 15% 8%;
+	--color-glacier-white-950-hsla: 220 20% 3%;
 
 	--color-laser-lemon-50-hsla: 60 100% 98%;
 	--color-laser-lemon-100-hsla: 60 100% 88%;
@@ -62,70 +62,70 @@
 	--color-navy-blue-900-hsla: 214 64% 13%;
 	--color-navy-blue-950-hsla: 225 36% 4%;
 
-	--background: var(--color-silver-50-hsla);
-	--on-background: var(--color-silver-900-hsla);
-	--background-accent: var(--color-silver-100-hsla);
-	--on-background-accent: var(--color-silver-950-hsla);
-	--primary-container: var(--color-tropical-rain-forest-100-hsla);
-	--on-primary-container: var(--color-rain-forest-900-hsla);
-	--primary: var(--color-tropical-rain-forest-500-hsla);
-	--on-primary: var(--color-silver-50-hsla);
+	--background: var(--color-glacier-white-50-hsla);
+	--on-background: var(--color-glacier-white-900-hsla);
+	--background-accent: var(--color-glacier-white-100-hsla);
+	--on-background-accent: var(--color-glacier-white-950-hsla);
+	--primary-container: var(--color-night-sky-100-hsla);
+	--on-primary-container: var(--color-night-sky-900-hsla);
+	--primary: var(--color-night-sky-500-hsla);
+	--on-primary: var(--color-glacier-white-50-hsla);
 	--secondary: var(--color-scarlet-500-hsla);
-	--on-secondary: var(--color-silver-50-hsla);
+	--on-secondary: var(--color-glacier-white-50-hsla);
 
-	--border: var(--color-silver-200-hsla);
+	--border: var(--color-glacier-white-200-hsla);
 	--link: var(--color-navy-blue-700-hsla);
 
-	--background-code: var(--color-silver-100-hsla);
+	--background-code: var(--color-glacier-white-100-hsla);
 	--on-background-code: var(--color-laser-lemon-800-hsla);
 }
 
-.dark {
-	--background: var(--color-silver-950-hsla);
-	--on-background: var(--color-silver-50-hsla);
-	--background-accent: var(--color-silver-900-hsla);
-	--on-background-accent: var(--color-silver-50-hsla);
-	--primary-container: var(--color-tropical-rain-forest-800-hsla);
-	--on-primary-container: var(--color-tropical-rain-forest-50-hsla);
-	--primary: var(--color-tropical-rain-forest-500-hsla);
-	--on-primary: var(--color-silver-950-hsla);
+html[data-theme='dark'] {
+	--background: var(--color-glacier-white-950-hsla);
+	--on-background: var(--color-glacier-white-50-hsla);
+	--background-accent: var(--color-glacier-white-900-hsla);
+	--on-background-accent: var(--color-glacier-white-50-hsla);
+	--primary-container: var(--color-night-sky-800-hsla);
+	--on-primary-container: var(--color-night-sky-50-hsla);
+	--primary: var(--color-night-sky-500-hsla);
+	--on-primary: var(--color-glacier-white-950-hsla);
 	--secondary: var(--color-scarlet-500-hsla);
-	--on-secondary: var(--color-silver-950-hsla);
+	--on-secondary: var(--color-glacier-white-950-hsla);
 
-	--border: var(--color-silver-900-hsla);
+	--border: var(--color-glacier-white-900-hsla);
 	--link: var(--color-navy-blue-400-hsla);
 
-	--background-code: var(--color-silver-900-hsla);
+	--background-code: var(--color-glacier-white-900-hsla);
 	--on-background-code: var(--color-laser-lemon-300-hsla);
 }
 
 body {
-	@apply bg-background text-on-background min-h-[100svh] w-screen overflow-x-hidden;
+	@apply bg-background-accent text-on-background min-h-[100svh] w-screen overflow-x-hidden font-sans;
 }
 
 .prose {
 	h1 {
-		@apply text-4xl font-bold text-on-background-accent my-6;
+		@apply text-4xl font-bold text-on-background-accent my-6 font-heading;
 	}
 
 	h2 {
-		@apply text-3xl font-bold text-on-background-accent my-6;
+		@apply text-3xl font-bold text-on-background-accent my-6 font-heading;
 	}
 
 	h3 {
-		@apply text-2xl font-bold text-on-background-accent my-5;
+		@apply text-2xl font-bold text-on-background-accent my-5 font-heading;
 	}
 
 	h4 {
-		@apply text-xl font-bold text-on-background-accent my-5;
+		@apply text-xl font-bold text-on-background-accent my-5 font-heading;
 	}
 
 	h5 {
-		@apply text-lg font-bold text-on-background-accent my-4;
+		@apply text-lg font-bold text-on-background-accent my-4 font-heading;
 	}
 
 	h6 {
-		@apply text-base font-bold text-on-background-accent my-4;
+		@apply text-base font-bold text-on-background-accent my-4 font-heading;
 	}
 
 	p {
@@ -142,7 +142,7 @@ body {
 	}
 
 	code {
-		@apply bg-background-code text-sm text-on-background-code rounded-md;
+		@apply bg-background-code text-sm text-on-background-code rounded-md font-mono;
 	}
 
 	pre {
@@ -166,6 +166,20 @@ body {
 		span,
 		a {
 			@apply text-yellow-700;
+		}
+	}
+
+	&--info {
+		@apply bg-blue-100 border-blue-500;
+
+		p,
+		span,
+		a {
+			@apply text-blue-700;
+		}
+
+		.banner__link {
+			@apply hover:text-blue-900 hover:bg-blue-50;
 		}
 	}
 

@@ -31,14 +31,14 @@ You can configure includes in your `eco.config.ts`:
 import { ConfigBuilder } from '@ecopages/core';
 
 const config = await new ConfigBuilder()
-.setIncludesTemplates({
-head: 'head.kita.tsx',
-html: 'html.kita.tsx',
-seo: 'seo.kita.tsx',
-})
-.build();
+	.setIncludesTemplates({
+		head: 'head.kita.tsx',
+		html: 'html.kita.tsx',
+		seo: 'seo.kita.tsx',
+	})
+	.build();
 
-````
+```
 </CodeBlock>
 
 ## Include Templates
@@ -52,18 +52,20 @@ The HTML template defines the overall structure of your pages:
 import { type EcoComponent, html } from '@ecopages/core';
 
 const Html: EcoComponent<HtmlProps> = ({ head, body, lang = 'en' }) => html`
-<!DOCTYPE html>
-<html lang="${lang}">
-  ${head}
-  ${body}
-</html>`;
+	<!DOCTYPE html>
+	<html lang="${lang}">
+		${head}
+		${body}
+	</html>`;
 
 Html.config = {
-  importMeta: import.meta,
+	dependencies: {
+		stylesheets: ['./html.css'],
+	},
 };
 
 export default Html;
-````
+```
 
 </CodeBlock>
 
@@ -75,17 +77,13 @@ The head template manages your document's head section:
 ```typescript
 import { type EcoComponent, html } from '@ecopages/core';
 
-const Head: EcoComponent<HeadProps> = ({ title, meta, links, scripts }) => html`
-
-<head>
-	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />${meta}
-	<title>${title}</title>${links}${scripts}
-</head>
-`;
+const Head: EcoComponent<HeadProps> = ({ title, meta, links, scripts }) => html`	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />${meta}
+		<title>${title}</title>${links}${scripts}
+	</head>`;
 
 Head.config = {
-importMeta: import.meta,
 };
 
 export default Head;
@@ -101,16 +99,11 @@ The SEO template handles meta tags for search engines and social sharing:
 import { type EcoComponent, html } from '@ecopages/core';
 
 const Seo: EcoComponent<SeoProps> = ({ title, description, image, keywords }) => html`
-
-<meta name="description" content="${description}" />
-<meta name="keywords" content="${keywords?.join(',')}" />
-<meta property="og:title" content="${title}" />
-<meta property="og:description" content="${description}" />$
-{image ? html`<meta property="og:image" content="${image}" />` : ''}`;
-
-Seo.config = {
-importMeta: import.meta,
-};
+	<meta name="description" content="${description}" />
+	<meta name="keywords" content="${keywords?.join(',')}" />
+	<meta property="og:title" content="${title}" />
+	<meta property="og:description" content="${description}" />
+	${image ? html`<meta property="og:image" content="${image}" />` : ''}`;
 
 export default Seo;
 ```

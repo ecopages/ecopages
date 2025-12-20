@@ -30,21 +30,20 @@ import { type EcoComponent, html } from '@ecopages/core';
 import type { RadiantCounterProps } from './radiant-counter.script';
 
 export const RadiantCounter: EcoComponent<RadiantCounterProps> = ({ count }) =>
-  html`<radiant-counter count="${count}">
-      <button type="button" data-ref="decrement" aria-label="Decrement">-</button>
-      <span data-ref="count">${count}</span>
-      <button type="button" data-ref="increment" aria-label="Increment">+</button>
-  </radiant-counter>`;
+	html`<radiant-counter count="${count}">
+		<button type="button" data-ref="decrement" aria-label="Decrement">-</button>
+		<span data-ref="count">${count}</span>
+		<button type="button" data-ref="increment" aria-label="Increment">+</button>
+	</radiant-counter>`;
 
 RadiantCounter.config = {
-importMeta: import.meta,
-dependencies: {
-scripts: ['./radiant-counter.script.ts'],
-stylesheets: ['./radiant-counter.css'],
-},
+	dependencies: {
+		scripts: ['./radiant-counter.script.ts'],
+		stylesheets: ['./radiant-counter.css'],
+	},
 };
 
-````
+```
 </CodeBlock>
 
 ### radiant-counter.script.ts
@@ -59,39 +58,41 @@ import { query } from '@ecopages/radiant/decorators/query';
 import { reactiveProp } from '@ecopages/radiant/decorators/reactive-prop';
 
 export type RadiantCounterProps = {
-    value?: number;
+	value?: number;
 };
 
 @customElement('radiant-counter')
 export class RadiantCounter extends RadiantElement {
-  @reactiveProp({ type: Number, reflect: true }) declare value: number;
-  @query({ ref: 'count' }) countText!: HTMLElement;
+	@reactiveProp({ type: Number, reflect: true }) declare value: number;
+	@query({ ref: 'count' }) countText!: HTMLElement;
 
-  @onEvent({ ref: 'decrement', type: 'click' })
-  decrement() {
-    if (this.value > 0) this.value--;
-  }
+    @onEvent({ ref: 'decrement', type: 'click' })
+    decrement() {
+    	if (this.value > 0) this.value--;
+    }
 
-  @onEvent({ ref: 'increment', type: 'click' })
-  increment() {
-    this.value++;
-  }
+    @onEvent({ ref: 'increment', type: 'click' })
+    increment() {
+    	this.value++;
+    }
 
-  @onUpdated('value')
-  updateCount() {
-    this.countText.textContent = this.value.toString();
-    this.dispatchEvent(new Event('change'));
-  }
+    @onUpdated('value')
+    updateCount() {
+    	this.countText.textContent = this.value.toString();
+    	this.dispatchEvent(new Event('change'));
+    }
+
 }
 
 declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'radiant-counter': HtmlTag & RadiantCounterProps;
-    }
-  }
+	namespace JSX {
+		interface IntrinsicElements {
+			'radiant-counter': HtmlTag & RadiantCounterProps;
+		}
+	}
 }
-````
+
+```
 
 </CodeBlock>
 
@@ -100,7 +101,7 @@ declare global {
 - Use the `EcoComponent` type and `html` template literal from `@ecopages/core`.
 - Define props using an interface.
 - Use custom elements for client-side interactivity.
-- Include the `config` object with `importMeta` and list the script and stylesheet files in the `dependencies`.
+- Include the `config` object with a list of the script and stylesheet files in the `dependencies`.
 
 ## Component Config
 
@@ -109,20 +110,17 @@ The EcoComponent config is an essential part of creating components in Ecopages.
 <CodeBlock>
 ```typescript
 RadiantCounter.config = {
-  importMeta: import.meta,
-  dependencies: {
-    scripts: ['./radiant-counter.script.ts'],
-    stylesheets: ['./radiant-counter.css'],
-  },
+	dependencies: {
+		scripts: ['./radiant-counter.script.ts'],
+		stylesheets: ['./radiant-counter.css'],
+	},
 };
 ```
 </CodeBlock>
 
 Mandatory fields:
 
-1. `importMeta`: This field must be set to `import.meta`. It provides the framework with information about the component's location and context.
-
-2. `dependencies`: This object specifies the component's dependencies. While not all sub-fields are mandatory, it's crucial to include this object in the config.
+1. `dependencies`: This object specifies the component's dependencies. While not all sub-fields are mandatory, it's crucial to include this object in the config.
     - `scripts`: An array of paths to script files that the component depends on. These are typically used for client-side interactivity.
     - `stylesheets`: An array of paths to CSS files that style the component.
     - `components`: An array of other components that this component depends on (not shown in the example above, but used in page components).
@@ -153,24 +151,16 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
-  title: 'Home page',
-  description: 'This is the homepage of the website',
+	title: 'Home page',
+	description: 'This is the homepage of the website',
 });
 
-const HomePage: EcoComponent = () =>
-html`${BaseLayout({
-    class: 'main-content',
-    children: html`
-
-<h1>Ecopages</h1>
-${RadiantCounter({
-count: 5,
-})}
-`,
-  })}`;
+const HomePage: EcoComponent = () => html`${BaseLayout({
+	class: 'main-content',
+	children: html`<h1>Ecopages</h1>${RadiantCounter({ count: 5 })}`,
+})}`;
 
 HomePage.config = {
-importMeta: import.meta,
 dependencies: {
 components: [BaseLayout, RadiantCounter],
 },
@@ -187,6 +177,6 @@ export default HomePage;
 3. **Custom Elements**: Use custom elements for adding client-side interactivity to your components.
 4. **TypeScript**: Use TypeScript for better type checking and improved developer experience.
 5. **Styling**: Use separate CSS files for styling your components.
-6. **Config Object**: Always include the `config` object with `importMeta` and necessary dependencies.
+6. **Config Object**: Always include the `config` object with necessary dependencies.
 
 By following these guidelines and leveraging the power of ghtml components with @ecopages/core, you can create robust, reusable, and interactive components that will help you build efficient and maintainable websites with Ecopages.

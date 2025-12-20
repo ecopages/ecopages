@@ -22,15 +22,15 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-.setRootDir(import.meta.dir)
-.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-.setIntegrations([kitajsPlugin(), mdxPlugin()])
-.setDefaultMetadata({
-title: 'Your Site Title',
-description: 'Your site description',
-image: 'https://your-domain.com/og-image.png',
-})
-.build();
+	.setRootDir(import.meta.dir)
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([kitajsPlugin(), mdxPlugin()])
+	.setDefaultMetadata({
+		title: 'Your Site Title',
+		description: 'Your site description',
+		image: 'https://your-domain.com/og-image.png',
+	})
+	.build();
 
 export default config;
 ```
@@ -131,10 +131,10 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-.setRootDir(import.meta.dir)
-.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-.setIntegrations([kitajsPlugin(), mdxPlugin()])
-.build();
+	.setRootDir(import.meta.dir)
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([kitajsPlugin(), mdxPlugin()])
+	.build();
 
 export default config;
 ```

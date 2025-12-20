@@ -63,7 +63,6 @@ const HomePage: EcoReactComponent = () => {
 };
 
 HomePage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout],
 	},
@@ -90,9 +89,7 @@ export const Counter: EcoReactComponent = () => {
 	);
 };
 
-Counter.config = {
-	importMeta: import.meta,
-};
+Counter.config = {};
 ```
 
 ## Configuration

@@ -22,38 +22,37 @@ import { Processor } from '@ecopages/core/plugins/processor';
 import type { BunPlugin } from 'bun';
 
 class CustomProcessor extends Processor {
-// Plugins used during build time
-buildPlugins: BunPlugin[] = [];
+	// Plugins used during build time
+	buildPlugins: BunPlugin[] = [];
 
-// Plugins used during runtime
-plugins: BunPlugin[] = [];
+	// Plugins used during runtime
+	plugins: BunPlugin[] = [];
 
-constructor(config: ProcessorConfig) {
-super({
-name: 'custom-processor',
-watch: {
-paths: ['src/custom'],
-extensions: ['.custom'],
-},
-...config
-});
+	constructor(config: ProcessorConfig) {
+		super({
+			name: 'custom-processor',
+			watch: {
+				paths: ['src/custom'],
+				extensions: ['.custom'],
+			},
+			...config,
+		});
+	}
+
+	async setup(): Promise<void> {
+		// Initialize resources, create cache directories, etc.
+	}
+
+	async process(input: unknown): Promise<unknown> {
+		// Transform the input
+		return input;
+	}
+
+	async teardown(): Promise<void> {
+		// Cleanup resources
+	}
 }
-
-async setup(): Promise<void> {
-// Initialize resources, create cache directories, etc.
-}
-
-async process(input: unknown): Promise<unknown> {
-// Transform the input
-return input;
-}
-
-async teardown(): Promise<void> {
-// Cleanup resources
-}
-}
-
-````
+```
 </CodeBlock>
 
 ## Processor Lifecycle
@@ -69,22 +68,21 @@ Processors have built-in caching capabilities:
 <CodeBlock>
 ```typescript
 class CustomProcessor extends Processor {
-  async process(input: string): Promise<string> {
-    const cacheKey = 'my-cache-key';
+	async process(input: string): Promise<string> {
+		const cacheKey = 'my-cache-key';
 
-    // Try to read from cache first
-    const cached = await this.readCache<string>(cacheKey);
-    if (cached) return cached;
+		// Try to read from cache first
+		const cached = await this.readCache<string>(cacheKey);
+		if (cached) return cached;
 
-    // Process and cache result
-    const result = await someExpensiveOperation(input);
-    await this.writeCache(cacheKey, result);
+		// Process and cache result
+		const result = await someExpensiveOperation(input);
+		await this.writeCache(cacheKey, result);
 
-    return result;
-  }
+		return result;
+	}
 }
-````
-
+```
 </CodeBlock>
 
 ## Adding Bun Plugins
@@ -96,26 +94,25 @@ You can add Bun plugins for both build time and runtime:
 import { plugin } from 'bun';
 
 class CustomProcessor extends Processor {
-buildPlugins = [
-plugin({
-name: 'custom-build-plugin',
-setup(build) {
-// Build-time plugin configuration
-},
-}),
-];
+	buildPlugins = [
+		plugin({
+			name: 'custom-build-plugin',
+			setup(build) {
+				// Build-time plugin configuration
+			},
+		}),
+	];
 
-plugins = [
-plugin({
-name: 'custom-runtime-plugin',
-setup(build) {
-// Runtime plugin configuration
-},
-}),
-];
+	plugins = [
+		plugin({
+			name: 'custom-runtime-plugin',
+			setup(build) {
+				// Runtime plugin configuration
+			},
+		}),
+	];
 }
-
-````
+```
 </CodeBlock>
 
 ## File Watching
@@ -125,24 +122,23 @@ Configure file watching for development mode:
 <CodeBlock>
 ```typescript
 class CustomProcessor extends Processor {
-  constructor() {
-    super({
-      name: 'custom-processor',
-      watch: {
-        paths: ['src/custom'],
-        extensions: ['.custom'],
-        onChange: async (path) => {
-          // Handle file changes
-        },
-        onDelete: async (path) => {
-          // Handle file deletions
-        },
-      },
-    });
-  }
+	constructor() {
+		super({
+			name: 'custom-processor',
+			watch: {
+				paths: ['src/custom'],
+				extensions: ['.custom'],
+				onChange: async (path) => {
+					// Handle file changes
+				},
+				onDelete: async (path) => {
+					// Handle file deletions
+				},
+			},
+		});
+	}
 }
-````
-
+```
 </CodeBlock>
 
 ## Using the Processor
@@ -154,13 +150,10 @@ Register your processor in the Ecopages configuration:
 import { ConfigBuilder } from '@ecopages/core';
 
 const customProcessor = new CustomProcessor({
-// processor options
+	// processor options
 });
 
-const config = await new ConfigBuilder()
-.addProcessor(customProcessor)
-.build();
-
+const config = await new ConfigBuilder().addProcessor(customProcessor).build();
 ```
 </CodeBlock>
 

@@ -1,3 +1,11 @@
+html {
+	scroll-behavior: smooth;
+}
+
+::selection {
+	@apply bg-primary/30 text-on-background;
+}
+
 main {
 	@apply container mx-auto w-screen;
 }

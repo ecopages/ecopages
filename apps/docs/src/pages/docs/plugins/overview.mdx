@@ -50,14 +50,9 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { kitaPlugin } from '@ecopages/kitajs';
 
 const config = await new ConfigBuilder()
-.setProcessors([
-postcssProcessorPlugin(),
-])
-.setIntegrations([
-kitaPlugin(),
-])
-.build();
-
+	.setProcessors([postcssProcessorPlugin()])
+	.setIntegrations([kitaPlugin()])
+	.build();
 ```
 </CodeBlock>
 

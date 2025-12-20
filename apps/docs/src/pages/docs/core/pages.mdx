@@ -22,26 +22,25 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
-    title: 'Home page',
-    description: 'This is the homepage of the website',
-    image: 'public/assets/images/default-og.png',
-    keywords: ['typescript', 'framework', 'static'],
+	title: 'Home page',
+	description: 'This is the homepage of the website',
+	image: 'public/assets/images/default-og.png',
+	keywords: ['typescript', 'framework', 'static'],
 });
 
 const HomePage: EcoComponent = () => html`${BaseLayout({
-    class: 'main-content',
-    children: html`
+	class: 'main-content',
+	children: html`
 
 <h1>Ecopages</h1>
 <p>Welcome to my Ecopages website!</p>
 `,
-  })}`;
+})}`;
 
 HomePage.config = {
-importMeta: import.meta,
-dependencies: {
-components: [BaseLayout],
-},
+	dependencies: {
+		components: [BaseLayout],
+	},
 };
 
 export default HomePage;
@@ -58,7 +57,7 @@ Let's break down the key elements of a page:
 
 4. **HTML Template**: Use the `html` template literal to define your page's structure.
 
-5. **Config**: Always include the `config` object with `importMeta` and any necessary dependencies.
+5. **Config**: Always include the `config` object with any necessary dependencies.
 
 6. **Export**: Export your page component as the default export.
 
@@ -73,29 +72,25 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts, flagComponentsAsDynamic } from '@ecopages/core';
 
 const HomePage: EcoComponent = () => html`${BaseLayout({
-    class: 'main-content',
-    children: html`
-
+	class: 'main-content',
+	children: html`
 <h1>Ecopages</h1>
 <scripts-injector
-        on:interaction="mouseenter,focusin"
-        scripts="${resolveComponentsScripts([RadiantCounter])}"
-      >
-!${RadiantCounter({
-count: 5,
-})}
-</scripts-injector>
+		on:interaction="mouseenter,focusin"
+		scripts="${resolveComponentsScripts([RadiantCounter])}"
+	>
+		!${RadiantCounter({ count: 5 })}
+	</scripts-injector>
 `,
-  })}`;
+})}`;
 
 HomePage.config = {
-importMeta: import.meta,
-dependencies: {
-components: [BaseLayout, ...flagComponentsAsDynamic([RadiantCounter])],
-},
+	dependencies: {
+		components: [BaseLayout, ...flagComponentsAsDynamic([RadiantCounter])],
+	},
 };
 
-````
+```
 </CodeBlock>
 
 You're absolutely right. Adding information about `getMetadata`, `getStaticProps`, and `getStaticPaths` is crucial for understanding how to work with data in Ecopages. I'll create a new section called "Working with Data" to cover these important concepts. Here's the addition we can make to the existing content:
@@ -115,12 +110,12 @@ This is useful for SEO and social sharing:
 import { type GetMetadata } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
-  title: 'My Page Title',
-  description: 'A description of my page',
-  image: 'path/to/og-image.jpg',
-  keywords: ['ecopages', 'static site', 'typescript'],
+	title: 'My Page Title',
+	description: 'A description of my page',
+	image: 'path/to/og-image.jpg',
+	keywords: ['ecopages', 'static site', 'typescript'],
 });
-````
+```
 
 </CodeBlock>
 
@@ -133,21 +128,19 @@ export const getMetadata: GetMetadata = () => ({
 import { type GetStaticProps } from '@ecopages/core';
 
 export const getStaticProps: GetStaticProps = async () => {
-  const data = await fetchSomeData();
-  return {
-    props: {
-      data,
-    },
-  };
+	const data = await fetchSomeData();
+	return {
+		props: {
+			data,
+		},
+	};
 };
 
-const MyPage: EcoComponent<{ data: any }> = ({ data }) => html`
+const MyPage: EcoComponent<{ data: any }> = ({ data }) => html`	<div>
+		<h1>My Page</h1>
+		<p>${data.someField}</p>
+	</div>`;
 
-  <div>
-    <h1>My Page</h1>
-    <p>${data.someField}</p>
-  </div>
-`;
 ```
 </CodeBlock>
 
@@ -158,45 +151,36 @@ For dynamic routes, `getStaticPaths` is used to specify which paths will be pre-
 <CodeBlock>
 ```typescript
 export const getMetadata: GetMetadata<BlogPostProps> = async ({ props: { title, slug } }) => {
-  return {
-    title,
-    description: `This is a blog post with the slug ${slug}`,
-  };
+	return {
+		title,
+		description: `This is a blog post with the slug ${slug}`,
+	};
 };
 
 export const getStaticProps: GetStaticProps = async ({ params }) => {
-  const data = await fetchDataForSlug(params.slug);
-  return {
-    props: {
-      data,
-    },
-  };
+	const data = await fetchDataForSlug(params.slug);
+	return {
+		props: {
+			data,
+		},
+	};
 };
 
 export const getStaticPaths: GetStaticPaths = async () => {
- const paths = await fetchAvailablePaths();
-  return {
-    paths: paths.map(path => ({ params: { slug: path } })),
-  };
-};
-
-export const getStaticProps: GetStaticProps<BlogPostProps> = async ({ pathname }) => {
-  const data = await fetchDataForSlug(params.slug);
-  return {
-    props: {
-      ...data,
-    },
-  };
+	const paths = await fetchAvailablePaths();
+	return {
+		paths: paths.map(path => ({ params: { slug: path } })),
+	};
 };
 
 const DynamicPage: EcoComponent<BlogPostProps> = (props) => html`
-
-  <div>
-    <h1>${props.title}</h1>
-    <p>${props.content}</p>
-  </div>
+	<div>
+		<h1>${props.title}</h1>
+		<p>${props.content}</p>
+	</div>
 `;
 ```
+
 </CodeBlock>
 
 ## Lazy Loading Components

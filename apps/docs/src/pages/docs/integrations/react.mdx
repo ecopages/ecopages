@@ -10,120 +10,136 @@ export const getMetadata = () => ({
 
 # React Integration
 
-The `@ecopages/react` package provides experimental integration with [React](https://reactjs.org/) version 19, enabling the use of React components within the Ecopages framework.
+The `@ecopages/react` package introduces first-class integration with [React](https://reactjs.org/) version 19, enabling developers to build dynamic components using the latest React features within the Ecopages platform.
+
+
 
 ## Installation
 
-To install the React integration plugin, run the following command in your project directory:
-
-<CodeBlock>```bash bunx jsr add @ecopages/react ```</CodeBlock>
+<CodeBlock>
+```bash
+bunx jsr add @ecopages/react
+```
+</CodeBlock>
 
 ## Usage
 
-To incorporate the React integration into your Ecopages project, follow these steps:
-
-1. Import the `reactPlugin` in your Ecopages configuration file:
-
-<CodeBlock>
-	```typescript import {ConfigBuilder} from '@ecopages/core'; import {reactPlugin} from '@ecopages/react'; ```
-</CodeBlock>
-
-2. Add the `reactPlugin` to your configuration:
+To enable React support, add the `reactPlugin` to your Ecopages configuration.
 
 <CodeBlock>
 ```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { reactPlugin } from '@ecopages/react';
+
 const config = await new ConfigBuilder()
-    .setRootDir(import.meta.dir)
-    .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-    .setIntegrations([reactPlugin()])
-    .build();
+	.setRootDir(import.meta.dir)
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([reactPlugin()])
+	.build();
 
 export default config;
 ```
 </CodeBlock>
 
-## Creating Components with React
+## Creating Components
 
-Here's an example of a simple React component:
+You can standard React functional components. Ecopages uses the `EcoComponent` type to ensure compatibility.
 
 <CodeBlock>
-```typescript
+```tsx
 import { useState } from 'react';
 import type { EcoComponent } from '@ecopages/core';
 
 export const Counter: EcoComponent = () => {
-  const [count, setCount] = useState(0);
+	const [count, setCount] = useState(0);
 
-return (
-
-<div>
-<p>Count: {count}</p>
-<button onClick={() => setCount(count - 1)}>-</button>
-<button onClick={() => setCount(count + 1)}>+</button>
-</div>
-);
+	return (
+		<div className="flex gap-4 items-center">
+			<p>Count: {count}</p>
+			<button onClick={() => setCount(prev => prev - 1)}>-</button>
+			<button onClick={() => setCount(prev => prev + 1)}>+</button>
+		</div>
+	);
 };
 
 Counter.config = {
-importMeta: import.meta,
+	// Define any client-side dependencies here if needed
 };
-
-````
+```
 </CodeBlock>
 
-## Using React Components in Pages
+### Using in Pages
 
-To use React components in your pages:
+Import your component and include it in your page. Don't forget to register it in the page's `dependencies`.
 
 <CodeBlock>
-```typescript
+```tsx
 import { Counter } from '@/components/counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent } from '@ecopages/core';
 
 const HomePage: EcoComponent = () => {
-  return (
-    <BaseLayout>
-      <h1>Welcome</h1>
-      <Counter />
-    </BaseLayout>
-  );
+	return (
+		<BaseLayout>
+			<h1>Welcome to React on Ecopages</h1>
+			<Counter />
+		</BaseLayout>
+	);
 };
 
 HomePage.config = {
-  importMeta: import.meta,
-  dependencies: {
-    components: [BaseLayout, Counter],
-  },
+	dependencies: {
+		components: [BaseLayout, Counter],
+	},
 };
 
 export default HomePage;
-````
+```
+</CodeBlock>
 
+## Utilities
+
+### `dynamic`
+
+Use the `dynamic` utility to lazy-load components or render them only on the client.
+
+<CodeBlock>
+```tsx
+import { dynamic } from '@ecopages/react/utils/dynamic';
+
+const HeavyComponent = dynamic(() => import('@/components/heavy-chart'), {
+    ssr: false, // Defaults to true
+    loading: () => <p>Loading chart...</p>
+});
+```
+</CodeBlock>
+
+### `ClientOnly`
+
+The `ClientOnly` component is useful for parts of the UI that should strictly render in the browser (e.g., accessing `window` or `localStorage`).
+
+<CodeBlock>
+```tsx
+import { ClientOnly } from '@ecopages/react/utils/client-only';
+
+<ClientOnly fallback={<Spinner />}>
+    <BrowserSpecificFeature />
+</ClientOnly>
+```
 </CodeBlock>
 
 ## Key Features
 
-1. **React 19 Support**: Leverage the latest React features and improvements.
-2. **Component-based Architecture**: Create reusable React components within Ecopages.
-3. **State Management**: Use React hooks and state management as you would in a regular React application.
-4. **TypeScript Support**: Full TypeScript support with `EcoComponent` type.
+- **React 19**: Full support for Server Components concepts and latest hooks.
+- **Fast Refresh**: Built-in Hot Module Replacement (HMR) for instant feedback.
+- **TypeScript**: First-class type definitions.
+- **Streaming**: (Coming Soon) Support for React Server Components streaming.
 
-## Utilities
+## MDX Support
 
-The React integration provides two helpful utilities:
-
-- `dynamic`: Dynamically load React components with optional SSR support.
-- `ClientOnly`: Render children only on the client side, useful for browser-specific logic.
-
-You can import these from `@ecopages/react/utils/dynamic` and `@ecopages/react/utils/client-only`.
-
-## Limitations
-
-- Currently, MDX is not supported when using only the React integration.
-
-## Best Practices
-
-1. **Component Structure**: Follow React best practices for component organization.
-2. **Config Object**: Always include the `config` object with `importMeta` for proper integration.
-3. **TypeScript**: Use the `EcoComponent` type for better type checking.
+<div class="banner banner--info mt-4" role="alert">
+	<p class="banner__title">MDX Support</p>
+	<p>
+		This integration focuses on rendering React components in your pages. For using React within Markdown/MDX, please see the <a href="/docs/integrations/mdx">MDX Integration</a>.
+	</p>
+</div>

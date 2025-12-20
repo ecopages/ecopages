@@ -64,7 +64,6 @@ const HomePage: EcoComponent = () =>
 	})}`;
 
 HomePage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [BaseLayout],
 	},
@@ -88,9 +87,7 @@ export const Header: EcoComponent<{ title: string }> = ({ title }) =>
 		</nav>
 	</header>`;
 
-Header.config = {
-	importMeta: import.meta,
-};
+Header.config = {};
 ```
 
 ## Configuration
@@ -121,7 +118,6 @@ const InteractivePage: EcoComponent = () =>
 	</div>`;
 
 InteractivePage.config = {
-	importMeta: import.meta,
 	dependencies: {
 		components: [RadiantCounter],
 	},

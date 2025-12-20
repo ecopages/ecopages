@@ -22,7 +22,7 @@ export const CodeBlock: EcoComponent<{
 
 	const language = lang || getCodeLanguageFromString(childrenOrCode);
 
-	const unformattedCode = getCodeWithinCodeTag(childrenOrCode);
+	const unformattedCode = getCodeWithinCodeTag(childrenOrCode).trim();
 
 	const safeHtml = await codeToHtml(unformattedCode, {
 		lang: language,
@@ -30,4 +30,10 @@ export const CodeBlock: EcoComponent<{
 	});
 
 	return <div class="code-block">{safeHtml as 'safe'}</div>;
+};
+
+CodeBlock.config = {
+	dependencies: {
+		stylesheets: ['./code-block.css'],
+	},
 };

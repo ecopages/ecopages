@@ -1,0 +1,20 @@
+.breadcrumb-list {
+	@apply flex flex-wrap gap-x-2 items-center list-none p-0 m-0;
+}
+
+.breadcrumb-item {
+	@apply flex items-center text-sm leading-3;
+
+	&:not(:last-child)::after {
+		content: '>';
+		@apply ml-2 text-on-background/50 align-middle;
+	}
+
+	a {
+		@apply hover:underline;
+	}
+
+	span[aria-current='page'] {
+		@apply text-on-background/70;
+	}
+}

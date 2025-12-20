@@ -1,6 +1,9 @@
 /**
  * Bun plugin that auto-injects `componentDir` into EcoComponent config objects.
- * This eliminates the need for developers to manually add `importMeta: import.meta`.
+ *
+ * This plugin injects the `componentDir` property into EcoComponent config objects
+ * automatically. It intercepts file loading and transforms component config objects
+ * to include the `componentDir` property based on the file's absolute path.
  *
  * @module
  */
@@ -9,7 +12,7 @@ import path from 'node:path';
 import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 
-const CONFIG_ASSIGNMENT_PATTERN = /\.config\s*=\s*\{/g;
+const CONFIG_ASSIGNMENT_PATTERN = /(?:export\s+const\s+config\s*=|(?:\w+\.)?config\s*=|config\s*:)\s*\{/g;
 
 /**
  * Regex pattern to match `config: {` in object literals.

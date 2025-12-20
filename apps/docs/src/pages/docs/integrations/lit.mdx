@@ -16,7 +16,11 @@ The `@ecopages/lit` package provides seamless integration with [Lit](https://lit
 
 To install the Lit integration plugin, run the following command in your project directory:
 
-<CodeBlock>```bash bunx jsr add @ecopages/lit ```</CodeBlock>
+<CodeBlock>
+```bash
+bunx jsr add @ecopages/lit
+```
+</CodeBlock>
 
 ## Usage
 
@@ -25,7 +29,10 @@ To incorporate the Lit integration into your Ecopages project, follow these step
 1. Import the `litPlugin` in your Ecopages configuration file:
 
 <CodeBlock>
-	```typescript import {ConfigBuilder} from '@ecopages/core'; import {litPlugin} from '@ecopages/lit'; ```
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { litPlugin } from '@ecopages/lit';
+```
 </CodeBlock>
 
 2. Add the `litPlugin` to your configuration:
@@ -33,10 +40,10 @@ To incorporate the Lit integration into your Ecopages project, follow these step
 <CodeBlock>
 ```typescript
 const config = await new ConfigBuilder()
-    .setRootDir(import.meta.dir)
-    .setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-    .setIntegrations([litPlugin()])
-    .build();
+	.setRootDir(import.meta.dir)
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([litPlugin()])
+	.build();
 
 export default config;
 ```
@@ -56,24 +63,24 @@ export class LitCounter {
 	@property({ type: Number })
 	count = 0;
 
-render() {
-return html`       <div>
-        <p>Count: \${this.count}</p>
-        <button @click=\${this._decrement}>-</button>
-        <button @click=\${this._increment}>+</button>
-      </div>
-    `;
+	render() {
+		return html`
+			<div>
+				<p>Count: ${this.count}</p>
+				<button @click=${this._decrement}>-</button>
+				<button @click=${this._increment}>+</button>
+			</div>
+		`;
+	}
+
+	private _decrement() {
+		this.count--;
+	}
+
+	private _increment() {
+		this.count++;
+	}
 }
-
-    private _decrement() {
-    	this.count--;
-    }
-
-    private _increment() {
-    	this.count++;
-    }
-}
-
 ```
 </CodeBlock>
 
@@ -82,19 +89,19 @@ Note that styles are defined in a separate CSS file, promoting separation of con
 <CodeBlock>
 ```css
 lit-counter {
-  display: block;
-  padding: 16px;
-  max-width: 800px;
+	display: block;
+	padding: 16px;
+	max-width: 800px;
 }
 
 p {
-  font-size: 18px;
+	font-size: 18px;
 }
 
 button {
-  font-size: 16px;
-  padding: 5px 10px;
-  margin: 0 5px;
+	font-size: 16px;
+	padding: 5px 10px;
+	margin: 0 5px;
 }
 ```
 </CodeBlock>
@@ -115,7 +122,6 @@ export const LitCounter: EcoComponent = {
 		},
 	},
 };
-
 ```
 </CodeBlock>
 
@@ -133,24 +139,23 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts } from '@ecopages/core';
 
 export const getMetadata: GetMetadata = () => ({
-  title: 'Home page',
-  description: 'This is the homepage of the website',
+	title: 'Home page',
+	description: 'This is the homepage of the website',
 });
 
 const HomePage: EcoComponent = () =>
-  html`${BaseLayout({
-    class: 'main-content',
-    children: html\`
-      <h1>Home</h1>
-      <lit-counter count="8"></lit-counter>
-    `,
-  })}`;
+	html`${BaseLayout({
+		class: 'main-content',
+		children: html`
+			<h1>Home</h1>
+			<lit-counter count="8"></lit-counter>
+		`,
+	})}`;
 
 HomePage.config = {
-  importMeta: import.meta,
-  dependencies: {
-    components: [BaseLayout, LitCounter],
-  },
+	dependencies: {
+		components: [BaseLayout, LitCounter],
+	},
 };
 
 export default HomePage;
@@ -168,7 +173,7 @@ export default HomePage;
 
 1. **Component Naming**: Use kebab-case for custom element names (e.g., `lit-counter`).
 2. **Separate CSS Files**: Keep styles in separate CSS files to improve maintainability.
-3. **Config Object**: Always include the `config` object with `importMeta` and necessary dependencies.
+3. **Config Object**: Always include the `config` object with any necessary dependencies.
 4. **Type Declarations**: Include type declarations for custom elements to improve TypeScript support.
 
 ## Integration with Other Plugins
@@ -182,10 +187,10 @@ import { litPlugin } from '@ecopages/lit';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
 const config = await new ConfigBuilder()
-.setRootDir(import.meta.dir)
-.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-.setIntegrations([litPlugin(), kitajsPlugin()])
-.build();
+	.setRootDir(import.meta.dir)
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([litPlugin(), kitajsPlugin()])
+	.build();
 
 export default config;
 ```

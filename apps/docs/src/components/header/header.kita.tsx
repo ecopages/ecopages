@@ -12,7 +12,7 @@ export const Header: EcoComponent<HeaderProps> = ({ navigation }) => {
 	return (
 		<header class="header">
 			<div class="header__inner">
-				<div class="header__inner-left-side">
+				<div class="header__inner-left">
 					<Burger class="md:hidden" />
 					<Logo href="/" target="_self" title="Ecopages" />
 					<p class="version">v {rootJson.version as 'safe'}</p>

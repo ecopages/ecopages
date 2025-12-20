@@ -12,11 +12,17 @@ export const getMetadata = () => ({
 
 The `@ecopages/kitajs` package provides seamless integration with [Kita](https://kita.js.org/), enabling effortless rendering of JSX templates within the Ecopages framework.
 
+
+
 ## Installation
 
 To install the KitaJS integration plugin, run the following command in your project directory:
 
-<CodeBlock>```bash bunx jsr add @ecopages/kitajs ```</CodeBlock>
+<CodeBlock>
+```bash
+bunx jsr add @ecopages/kitajs
+```
+</CodeBlock>
 
 ## Usage
 
@@ -25,7 +31,10 @@ To incorporate the KitaJS integration into your Ecopages project, follow these s
 1. Import the `kitajsPlugin` in your Ecopages configuration file:
 
 <CodeBlock>
-	```typescript import {ConfigBuilder} from '@ecopages/core'; import {kitajsPlugin} from '@ecopages/kitajs' ```
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { kitajsPlugin } from '@ecopages/kitajs';
+```
 </CodeBlock>
 
 2. Add the `kitajsPlugin` to your configuration:
@@ -55,19 +64,17 @@ import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
 const HomePage: EcoComponent = () => {
-return (
-
-<BaseLayout>
-<h1>Welcome to Ecopages</h1>
-</BaseLayout>
-);
+	return (
+		<BaseLayout>
+			<h1>Welcome to Ecopages</h1>
+		</BaseLayout>
+	);
 };
 
 HomePage.config = {
-importMeta: import.meta,
-dependencies: {
-components: [BaseLayout],
-},
+	dependencies: {
+		components: [BaseLayout],
+	},
 };
 
 export default HomePage;
@@ -85,11 +92,18 @@ export default HomePage;
 
 1. **Layouts**: Create layout components (like `BaseLayout` in the example) to maintain consistent page structures.
 2. **Typing**: Utilize TypeScript types like `EcoComponent` and `GetMetadata` for better type checking and IDE support.
-3. **Config Object**: Always include the `config` object with `importMeta` and any necessary dependencies for proper page rendering.
+3. **Config Object**: Always include the `config` object with any necessary dependencies for proper page rendering.
 
 ## Integration with Other Plugins
 
 The KitaJS integration works well with other Ecopages plugins. For example, you can use it alongside the MDX plugin for markdown support:
+
+<div class="banner banner--info mt-4" role="alert">
+	<p class="banner__title">MDX Support</p>
+	<p>
+		For using JSX within Markdown/MDX, please see the <a href="/docs/integrations/mdx">MDX Integration</a>. The KitaJS plugin works seamlessly with MDX!
+	</p>
+</div>
 
 <CodeBlock>
 ```typescript
@@ -98,13 +112,20 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-.setRootDir(import.meta.dir)
-.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-.setIntegrations([kitajsPlugin(), mdxPlugin()])
-.build();
+	.setRootDir(import.meta.dir)
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([
+		kitajsPlugin(), 
+		mdxPlugin({
+			compilerOptions: {
+				jsxImportSource: '@kitajs/html',
+			},
+		})
+	])
+	.build();
 
 export default config;
 ```
 </CodeBlock>
 
-This setup allows you to use both KitaJS and MDX in your project, giving you flexibility in how you create your pages and components.
+This setup allows you to use both KitaJS and MDX in your project, giving you flexibility in how you create your pages and components. Remember to set the `jsxImportSource` to `@kitajs/html` in the MDX plugin options to ensure compatibility.

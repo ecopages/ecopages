@@ -1,4 +1,5 @@
 import type { EcoComponent } from '@ecopages/core';
+import { RadiantSwitch } from '../switch/switch.kita';
 
 export type NavigationProps = {
 	items: {
@@ -12,6 +13,9 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
 	return (
 		<nav class="navigation">
 			<ul>
+				<li>
+					<RadiantSwitch id="toggle-dark-mode" checked={true} label="Theme" hiddenLabel />
+				</li>
 				{items.map(({ label, href, target = '_self' }) => (
 					<li>
 						<a href={href} target={target}>
@@ -25,5 +29,8 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
 };
 
 Navigation.config = {
-	dependencies: { stylesheets: ['./navigation.css'] },
+	dependencies: {
+		stylesheets: ['./navigation.css'],
+		components: [RadiantSwitch],
+	},
 };

@@ -28,14 +28,14 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
-.setRootDir(import.meta.dir)
-// Optional: Set the canonical base URL for your site.
-// Used for generating absolute URLs in production builds.
-// If omitted, it defaults to http://localhost:3000 during development.
-// Can be overridden by the ECOPAGES_BASE_URL environment variable.
-.setBaseUrl('https://your-production-domain.com')
-.setIntegrations([kitajsPlugin(), mdxPlugin()])
-.build();
+	.setRootDir(import.meta.dir)
+	// Optional: Set the canonical base URL for your site.
+	// Used for generating absolute URLs in production builds.
+	// If omitted, it defaults to http://localhost:3000 during development.
+	// Can be overridden by the ECOPAGES_BASE_URL environment variable.
+	.setBaseUrl('https://your-production-domain.com')
+	.setIntegrations([kitajsPlugin(), mdxPlugin()])
+	.build();
 
 export default config;
 ```
@@ -89,7 +89,7 @@ my-project/
 ├── package.json
 └── .env # Environment variables (optional)
 
-````
+```
 
 - `src/pages/`: Contains your page files (e.g., `.mdx`, `.kita.tsx`, `.lit.tsx`)
 - `src/layouts/`: Holds layout components
@@ -110,7 +110,7 @@ import { EcopagesApp } from '@ecopages/core';
 import config from './eco.config.ts';
 
 await new EcopagesApp(config).run();
-````
+```
 
 </CodeBlock>
 
@@ -119,22 +119,22 @@ Add the following scripts to your `package.json`:
 <CodeBlock>
 ```json
 {
-  "scripts": {
-    "dev": "bun run app.ts --dev",
-    "build": "bun run app.ts --build",
-    "start": "bun run app.ts --start",
-    "preview": "bun run app.ts --preview",
-    "watch:dev": "bun --watch run app.ts --dev" 
-  }
+	"scripts": {
+		"build": "NODE_ENV=production bun run app.ts --build",
+		"dev": "bun run app.ts --dev",
+		"preview": "NODE_ENV=production bun run app.ts --preview",
+		"start": "NODE_ENV=production bun run app.ts --start",
+		"watch:dev": "bun --watch run app.ts --dev" 
+	}
 }
 ``` 
 </CodeBlock>
 
 Now you can use these commands:
 
-- `bun run dev`: Starts the development server (with HMR). You can override the host/port with flags (`bun run dev --port 4000`) or environment variables.
-- `bun run build`: Builds your project for production into the `dist` directory. Uses the configured `baseUrl`.
-- `bun run start`: Serves the production build from the `dist` directory. Uses the configured `baseUrl`.
+- `bun run dev`: Starts the development server (with HMR). You can override the host/port with environment variables.
+- `bun run build`: Builds your project for production into the `.eco` directory. Uses the configured `baseUrl`.
+- `bun run start`: Serves the production build from the `.eco` directory. Uses the configured `baseUrl`.
 - `bun run preview`: Builds and serves the production build locally for previewing.
 
 ## Next Steps

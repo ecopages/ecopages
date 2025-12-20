@@ -1,28 +1,48 @@
 .docs-layout {
-	@apply md:grid md:grid-cols-[auto,1fr];
-	.docs-layout__aside {
-		@apply fixed top-16 h-[calc(100svh_-_4rem)] md:sticky overflow-auto;
-		@apply bg-background p-6 md:p-8 border-r border-r-background-accent;
+	@apply md:grid md:grid-cols-[250px,1fr] min-h-screen relative;
 
-		ul,
-		ol {
-			@apply list-none p-0;
+	.docs-layout__aside {
+		@apply fixed inset-0 z-40 md:z-0 md:relative md:block;
+		@apply h-svh md:h-[calc(100svh_-_4rem)] md:sticky md:top-16 overflow-y-auto;
+		@apply bg-background-accent border-r border-border;
+
+		nav {
+			@apply p-4 pt-20 md:pt-8;
 		}
 
-		a {
-			@apply text-link no-underline;
+		ul {
+			@apply list-none p-0 m-0;
+		}
+
+		.docs-layout__nav-group {
+			@apply flex items-center mb-2 mt-6 first:mt-0 font-heading gap-2;
+			@apply text-[11px] font-bold uppercase tracking-wider text-on-background/70;
+
+			&-icon {
+				@apply text-on-background/50;
+			}
+		}
+
+		.docs-layout__nav-separator {
+			@apply h-px bg-border my-6 mx-3;
+		}
+
+		.docs-layout__nav-group-list {
+			@apply space-y-0.5 mb-4;
+
+			li a {
+				@apply block px-3 py-1.5 rounded-md text-[13px] transition-colors duration-150 font-sans;
+				@apply text-on-background/80 hover:text-on-background hover:bg-background-accent;
+				@apply no-underline font-medium;
+
+				&.active {
+					@apply text-on-primary-container bg-primary-container font-semibold;
+				}
+			}
 		}
 	}
 
 	.docs-layout__content {
-		@apply px-6 md:px-12 py-4;
-	}
-
-	.docs-layout__nav-group {
-		@apply my-8 uppercase text-sm font-bold text-on-background;
-	}
-
-	.docs-layout__nav-group-list {
-		@apply ml-4 mt-2 mb-8;
+		@apply px-6 py-4 md:px-12 md:py-8 max-w-[800px] mx-auto w-full;
 	}
 }

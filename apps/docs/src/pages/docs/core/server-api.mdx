@@ -190,6 +190,42 @@ app.get('/api/error', async () => {
 ```
 </CodeBlock>
 
+## WebSocket Support
+
+Ecopages supports WebSockets through Bun's native implementation. You can define WebSocket handlers when creating your app:
+
+<CodeBlock>
+```typescript
+interface WebSocketData { sessionId: string }
+
+const app = new EcopagesApp<WebSocketData>({ appConfig });
+
+// Start the server with WebSocket options
+await app.start({
+    websocket: {
+        open(ws) { console.log('WebSocket opened'); },
+        message(ws, message) { ws.send(`Echo: ${message}`); },
+    }
+});
+```
+</CodeBlock>
+
+## Testing API Endpoints
+
+Ecopages provides a convenient `request()` method on the app instance that allows you to trigger internal HTTP requests for testing without needing to manage actual network connections.
+
+<CodeBlock>
+```typescript
+const app = new EcopagesApp({ appConfig });
+await app.start();
+
+const response = await app.request('/api/hello');
+const data = await response.json();
+
+console.log(data); // { message: 'Hello World' }
+```
+</CodeBlock>
+
 ## Configuration
 
 Server configuration can be customized in your `eco.config.ts`:

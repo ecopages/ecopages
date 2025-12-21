@@ -1,0 +1,57 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | Integrations Overview',
+    description: 'Choosing the right rendering integration for your Ecopages project',
+});
+
+# Integrations Overview
+
+Ecopages is framework-agnostic. You can use one or multiple rendering integrations together in the same project. Each integration brings its own strengths to the table.
+
+## Comparison Table
+
+| Integration | Technology | Primary Use Case | SSR Support |
+| :--- | :--- | :--- | :--- |
+| **[KitaJS](/docs/integrations/kitajs)** | JSX (Fast) | High-performance static sites | Full |
+| **[React 19](/docs/integrations/react)** | React | Dynamic apps, rich interactivity | Full |
+| **[Lit](/docs/integrations/lit)** | Web Components | Reusable UI, micro-frontends | Full |
+| **[MDX](/docs/integrations/mdx)** | Markdown + JSX | Documentation, Blogs, Content | Full (via React) |
+
+---
+
+## Choosing an Integration
+
+### Use KitaJS if...
+- You want the best possible performance for static pages.
+- You like JSX syntax but don't need the overhead of a full frontend framework.
+- You are building a content-heavy site (docs, blogs, marketing).
+
+### Use React if...
+- You are building a complex dashboard or interactive app.
+- You want to leverage the massive React ecosystem and libraries.
+- You are familiar with React Server Components patterns.
+
+### Use Lit if...
+- You want to build standard-compliant Web Components.
+- You want your components to be portable across different projects.
+- You prefer a more "native" browser feel with declarative templates.
+
+### Use MDX if...
+- Your primary focus is content (Markdown).
+- You want to embed interactive components directly into your articles.
+
+---
+
+## Mixing Integrations
+
+You can combine multiple integrations in your `eco.config.ts`. This allows you to use MDX for your blog, KitaJS for your landing page, and React for a specific interactive checkout component.
+
+<div class="banner banner--info mt-4" role="alert">
+	<p class="banner__title">Pro Tip</p>
+	<p>
+		When mixing integrations, make sure to set the correct `jsxImportSource` in your MDX configuration if you want it to align with either React or KitaJS.
+	</p>
+</div>

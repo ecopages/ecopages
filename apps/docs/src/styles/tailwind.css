@@ -150,6 +150,36 @@ body {
 			@apply bg-transparent text-inherit rounded-md my-8;
 		}
 	}
+
+	table {
+		@apply w-full text-left border-collapse my-8 text-sm;
+
+		thead {
+			@apply border-b border-border bg-background-accent/50;
+
+			th {
+				@apply py-3 px-4 font-semibold text-on-background-accent;
+			}
+		}
+
+		tbody {
+			tr {
+				@apply border-b border-border/50 transition-colors hover:bg-background-accent/30;
+
+				td {
+					@apply py-3 px-4 text-on-background align-top;
+
+					code {
+						@apply whitespace-nowrap;
+					}
+				}
+
+				&:last-child {
+					@apply border-0;
+				}
+			}
+		}
+	}
 }
 
 .banner {

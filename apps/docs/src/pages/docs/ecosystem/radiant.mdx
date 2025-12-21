@@ -1,0 +1,74 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | Radiant Library',
+    description: 'Minimalist web component library for reactive UI in Ecopages',
+});
+
+# Radiant
+
+**@ecopages/radiant** is a ultra-minimalist library for building reactive Web Components. It is designed to play perfectly with Ecopages' dependency management and SSR capabilities.
+
+## Introduction
+
+Radiant uses standard CUSTOM Elements with a thin layer of decorators to handle reactivity and DOM queries. Use it when you need interactivity without the overhead of a full framework.
+
+## Component Example
+
+<CodeBlock>
+```typescript
+import { customElement, reactiveProp, onEvent, query } from '@ecopages/radiant';
+
+@customElement('radiant-counter')
+export class RadiantCounter extends HTMLElement {
+    @reactiveProp() 
+    value = 0;
+
+    @query('span') 
+    display!: HTMLSpanElement;
+
+    @onEvent('click', 'button.increment')
+    inc() {
+        this.value++;
+    }
+
+    render() {
+        this.display.textContent = this.value.toString();
+    }
+}
+```
+</CodeBlock>
+
+## Decorators
+
+### `@customElement(tag: string)`
+Registers the class as a custom element with the given tag name.
+
+### `@reactiveProp()`
+Marks a property as reactive. When the property changes, it automatically triggers a re-render or a specific update logic.
+
+### `@onEvent(type: string, selector?: string)`
+Declaratively attaches an event listener. If a selector is provided, it uses event delegation.
+
+### `@query(selector: string)`
+A shorthand for `this.querySelector(selector)`. Returns the element every time it is accessed.
+
+## Using with Ecopages
+
+To use a Radiant component in your Ecopages project:
+
+1. Create a `*.script.ts` file for the component logic.
+2. Define the component in your page or layout config:
+
+<CodeBlock>
+```typescript
+MyPage.config = {
+    dependencies: {
+        scripts: ['./counter.script.ts'],
+    }
+};
+```
+</CodeBlock>

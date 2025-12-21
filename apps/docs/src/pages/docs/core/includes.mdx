@@ -77,7 +77,8 @@ The head template manages your document's head section:
 ```typescript
 import { type EcoComponent, html } from '@ecopages/core';
 
-const Head: EcoComponent<HeadProps> = ({ title, meta, links, scripts }) => html`	<head>
+const Head: EcoComponent<HeadProps> = ({ title, meta, links, scripts }) => html`	
+	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />${meta}
 		<title>${title}</title>${links}${scripts}

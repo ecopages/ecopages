@@ -9,12 +9,13 @@
 		"watch:dev": "bun --watch run app.ts --dev"
 	},
 	"devDependencies": {
-		"@ecopages/core": "workspace:*",
-		"@ecopages/mdx": "workspace:*",
 		"@ecopages/bun-postcss-loader": "workspace:*",
+		"@ecopages/core": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
-		"@ecopages/radiant": "latest",
+		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
+		"@ecopages/radiant": "latest",
+		"remark-gfm": "^4.0.1",
 		"shiki": "^1.1.2"
 	}
 }

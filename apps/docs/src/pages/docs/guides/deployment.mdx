@@ -1,0 +1,89 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | Deployment',
+    description: 'Learn how to build and deploy your Ecopages application',
+});
+
+# Deployment
+
+Deploying an Ecopages application depends on whether you are using only static features or if you've added API routes and server-side logic.
+
+## Production Build
+
+Before deploying, you must create a production build. This processes your assets, pre-renders static pages, and prepares the `.eco` directory.
+
+```bash
+bun run build
+```
+
+This command will:
+1. Set `NODE_ENV=production`.
+2. Clean the `.eco` directory.
+3. Generate static HTML for all files in `src/pages`.
+4. Process images and CSS.
+5. Collect all necessary server-side files.
+
+---
+
+## Static Hosting
+
+If your site **does not** use API routes or programmatic server logic, you can host the contents of the `.eco/public` (or similar output) directory on any static provider.
+
+- **Vercel / Netlify**: Connect your repository and set the build command to `bun run build`. Set the output directory to `.eco`.
+- **GitHub Pages**: Use a GitHub Action to run `bun run build` and deploy the output directory.
+
+> [!NOTE]
+> Even for static sites, ensure your `ECOPAGES_BASE_URL` is set correctly during the build so that metadata and links are absolute.
+
+---
+
+## Server Hosting (Node/Bun)
+
+If your application uses **API routes** or **dynamic server logic**, you need a runtime environment that supports Bun.
+
+### 1. Using `bun run start`
+After building, you can start the production server:
+
+```bash
+bun run start
+```
+
+### 2. Docker Deployment
+You can easily containerize your Ecopages app using the official Bun image.
+
+<CodeBlock>
+```dockerfile
+FROM oven/bun:latest
+
+WORKDIR /app
+
+COPY package.json bun.lockb ./
+RUN bun install --production
+
+COPY . .
+RUN bun run build
+
+EXPOSE 3000
+CMD ["bun", "run", "start"]
+```
+</CodeBlock>
+
+### 3. VPS / PaaS (Railway, Fly.io)
+Deploy the server by pointing the platform to your `app.ts` as the entry point and ensuring it runs with the `start` command in production.
+
+---
+
+## Environment Check
+
+Before going live, check that these environment variables are set on your hosting provider:
+
+| Variable | Recommended Value |
+| :--- | :--- |
+| `NODE_ENV` | `production` |
+| `ECOPAGES_BASE_URL` | Your production domain (e.g., `https://example.com`) |
+| `ECOPAGES_PORT` | The port required by your host (e.g., `8080`) |
+| `ECOPAGES_HOSTNAME` | `0.0.0.0` (for Docker/Cloud environments) |

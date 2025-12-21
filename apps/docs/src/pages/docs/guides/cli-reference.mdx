@@ -1,0 +1,99 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | CLI Reference',
+    description: 'Complete reference of Ecopages CLI commands and flags',
+});
+
+# CLI Reference
+
+The Ecopages CLI is your main tool for developing, building, and serving your application. You typically run it via a script file (e.g., `app.ts`) using Bun.
+
+## Commands
+
+Ecopages supports four main commands that determine the server's behavior.
+
+### `dev`
+Starts the development server.
+- Enables **Hot Module Replacement (HMR)**.
+- Enables file watching for automatic reloads.
+- Uses `http://localhost:3000` by default (unless overridden).
+
+### `build`
+Generates a static production build of your project.
+- Pre-renders all static pages in `src/pages`.
+- Optimizes assets and images.
+- Outputs the build to the `.eco` directory.
+- Strips development-only code.
+
+### `preview`
+Builds your project and starts a local production server for testing.
+- Useful for verifying the production build before deployment.
+- Behaves like the `start` command but triggers a `build` first.
+
+### `start`
+Starts the production server using the existing build in the `.eco` directory.
+- Does not watch files for changes.
+- optimized for performance.
+
+---
+
+## Global Flags
+
+These flags can be appended to any command to override default behavior.
+
+| Flag | Type | Description |
+| :--- | :--- | :--- |
+| `--dev` | `boolean` | Forces development mode regardless of the command. |
+| `--build` | `boolean` | Forces build mode regardless of the command. |
+| `--preview` | `boolean` | Forces preview mode regardless of the command. |
+| `--react-fast-refresh` | `boolean` | Enables React Fast Refresh during development. |
+
+---
+
+## Environment Variables
+
+Ecopages listens to environment variables for configuration. When these are set, they often override defaults, but specific rules apply for precedence.
+
+### Canonical Base URL
+Used for generating absolute URLs in production builds (meta tags, sitemaps, etc.).
+
+1. **`ConfigBuilder.setBaseUrl()`**: Highest priority. Set directly in `eco.config.ts`.
+2. **`ECOPAGES_BASE_URL`**: Environment variable override.
+3. **Default**: `http://localhost:3000`.
+
+### Server Hostname & Port
+Used to determine where the server listens.
+
+1. **`serverOptions`**: Highest priority. Passed to the `EcopagesApp` constructor.
+2. **Environment Variables**: `ECOPAGES_PORT` and `ECOPAGES_HOSTNAME`.
+3. **Defaults**: `localhost:3000`.
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `ECOPAGES_BASE_URL` | The canonical base URL of your site. | `http://localhost:3000` |
+| `ECOPAGES_PORT` | The port the server listens on. | `3000` |
+| `ECOPAGES_HOSTNAME` | The hostname the server binds to. | `localhost` |
+| `ECOPAGES_LOGGER_DEBUG` | Enables verbose debug logging. | `false` |
+
+---
+
+## Example Usage
+
+### Run development server
+```bash
+bun run app.ts dev
+```
+
+### Build for production with a specific base URL
+```bash
+ECOPAGES_BASE_URL=https://my-site.com bun run app.ts build
+```
+
+### Start the production server
+```bash
+NODE_ENV=production bun run app.ts start
+```

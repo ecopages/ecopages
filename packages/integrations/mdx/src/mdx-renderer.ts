@@ -15,7 +15,8 @@ import {
 	invariant,
 	type RouteRendererBody,
 } from '@ecopages/core';
-import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import type { CompileOptions } from '@mdx-js/mdx';
 import { PLUGIN_NAME } from './mdx.plugin.ts';
 
 /**
@@ -40,6 +41,21 @@ interface MDXIntegrationRendererOpions<C = EcoPagesElement> extends IntegrationR
  */
 export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = PLUGIN_NAME;
+	compilerOptions: CompileOptions;
+
+	constructor({
+		compilerOptions,
+		...options
+	}: {
+		appConfig: any;
+		assetProcessingService: AssetProcessingService;
+		resolvedIntegrationDependencies: ProcessedAsset[];
+		runtimeOrigin: string;
+		compilerOptions?: CompileOptions;
+	}) {
+		super(options);
+		this.compilerOptions = compilerOptions || {};
+	}
 
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
 		const { config, layout } = await import(pagePath);
@@ -101,4 +117,26 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 			throw new Error(`[ecopages] Error rendering page: ${error}`);
 		}
 	}
+}
+
+/**
+ * Factory function to create an MDX renderer class with specific compiler options.
+ *
+ * @param compilerOptions - Compiler options for MDX compilation.
+ * @returns A new MDXRenderer class extended with the provided context.
+ */
+export function createMDXRenderer(compilerOptions: CompileOptions): typeof MDXRenderer {
+	return class extends MDXRenderer {
+		constructor(options: {
+			appConfig: any;
+			assetProcessingService: AssetProcessingService;
+			resolvedIntegrationDependencies: ProcessedAsset[];
+			runtimeOrigin: string;
+		}) {
+			super({
+				...options,
+				compilerOptions,
+			});
+		}
+	};
 }

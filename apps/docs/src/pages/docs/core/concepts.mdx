@@ -51,44 +51,42 @@ const config = await new ConfigBuilder()
 
 ## Script and CSS Loading
 
-Ecopages handles script and CSS loading efficiently.
+Ecopages handles script and CSS loading efficiently by analyzing component dependencies.
 
-Please note that in order to have the scripts and css loaded, you need to set the `dependencies` property in the component's config.
+### Explicit Dependencies
 
-This will chain all hte dependencies and remove duplicates, permitting you to ship just the scripts you need.
+To ensure that your components have the necessary scripts and styles, you must explicitly declare them in the component's `config.dependencies` property. This allows Ecopages to:
 
-1. **CSS Loading**: CSS files are typically loaded as separate files. They are referenced in the component's config and are automatically included in the final HTML.
-
-2. **Script Loading**: Scripts essential for the initial page render are loaded immediately.
-
-### Script File Detection
-
-Ecopages uses a default extension prefix to detect script files: `script.ts`. This means that any file with the name pattern `*.script.ts` will be automatically recognized as a script file by Ecopages. For example:
-
-- `myComponent.script.ts`
-- `utils.script.ts`
-- `main.script.ts`
-
-These files will be processed and included in the build according to the dependencies specified in your component configurations.
+1.  **Deduplicate**: If multiple components share the same script, Ecopages only ships it once.
+2.  **Order**: Dependencies are loaded in the correct order based on the component tree.
+3.  **Optimize**: Only the code used on a specific page is sent to the browser.
 
 <CodeBlock>
 ```typescript
-import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
+import { type EcoComponent, html } from '@ecopages/core';
 
-const HomePage: EcoComponent = () => html`${BaseLayout({
-	class: 'main-content',
-	children: html`<h1>Ecopages</h1>!${RadiantCounter({ count: 5,})}`,
-})}`;
+const HomePage: EcoComponent = () => html`
+  <div class="main-content">
+    <h1>Welcome to Ecopages</h1>
+  </div>
+`;
 
 HomePage.config = {
-	dependencies: {
-		components: [BaseLayout, RadiantCounter],
-	},
+  dependencies: {
+    // Scripts must be explicitly declared
+    scripts: ['./home-page.script.ts'],
+    // Stylesheets must be explicitly declared
+    stylesheets: ['./home-page.css'],
+    // Child components to crawl for their own dependencies
+    components: [BaseLayout],
+  },
 };
 ```
 </CodeBlock>
+
+> [!NOTE]
+> Ecopages does **not** automatically detect script files by name pattern. You must always include them in the `dependencies.scripts` array if you want them to be processed and included in the build.
 
 ## Robots.txt Generation
 
@@ -104,7 +102,7 @@ You can add it to your bunfig.toml file:
 
 <CodeBlock>
 ```toml
-preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-kitajs-loader"]
+preload = ["@ecopages/bun-postcss-loader"]
 ```
 </CodeBlock>
 
@@ -112,10 +110,11 @@ preload = ["@ecopages/bun-postcss-loader", "@ecopages/bun-mdx-kitajs-loader"]
 
 Ecopages provides a way to load CSS directly into your JavaScript files as strings using Bun's preload tools. This feature is available through the `@ecopages/bun-postcss-loader` package.
 
-## Import Mdx as a Component
+## Import MDX as a Component
 
-Ecopages allows you to import MDX files as components. This is useful for creating reusable components that can be used across your site.
-This is possible thanks to the `@ecopages/bun-mdx-kitajs-loader`.
+Ecopages allows you to import MDX files as components. This is useful for creating reusable content and components that can be used across your site.
+
+This capability is provided by the [MDX Integration](/docs/integrations/mdx), which automatically handles MDX transformations using `@mdx-js/esbuild` internally.
 
 <CodeBlock>
 ```typescript
@@ -240,4 +239,3 @@ await app.start();
 - **Hot Reload**: Ecopages supports hot reloading during development, making the development process more efficient.
 - **Static Site Generation**: Ecopages generates static HTML files, improving performance and reducing server load.
 - **TypeScript Support**: Ecopages is built with TypeScript and provides excellent TypeScript support out of the box.
-```

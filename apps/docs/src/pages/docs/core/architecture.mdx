@@ -1,0 +1,42 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | Architecture',
+    description: 'A high-level overview of the Ecopages architecture and request lifecycle',
+});
+
+# Architecture Overview
+
+Ecopages is designed to be modular, leveraging the speed of [Bun](https://bun.sh/) and the flexibility of multiple rendering engines. This guide provides a brief overview of how things connect under the hood.
+
+## Request Lifecycle
+
+When a request hits your Ecopages application, it follows this simplified flow:
+
+1. **Bun.serve**: Bun receives the HTTP request and passes it to the Ecopages adapter.
+2. **Router**: The router matching logic identifies if the path corresponds to a static file, an API route, or a page file in `src/pages`.
+3. **Route Resolver**: If it's a page, Ecopages determines which integration handles the file extension (e.g., KitaJS for `.kita.tsx`).
+4. **Integration Renderer**: The specific renderer (React, Lit, etc.) is invoked with the page component and props.
+5. **Template Composition**: The page content is wrapped in the specified `HtmlTemplate`, `Head`, and `Seo` includes.
+6. **Response**: The final HTML (or JSON for APIs) is sent back to the client.
+
+## Core Modules
+
+For those wishing to dive deeper, we recommend exploring the source code:
+
+- **[`EcopagesApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/bun/create-app.ts)**: The main entry point and orchestrator.
+- **[`BunServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/bun/server-adapter.ts)**: Handles the low-level Bun server interface.
+- **[`IntegrationPlugin`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/plugins/integration-plugin.ts)**: The base class for all templating integrations.
+- **[`ConfigBuilder`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/config/config-builder.ts)**: Validates and constructs your application state.
+
+## Design Philosophy
+
+- **Zero-Config by Default**: Sensible defaults for structure and asset loading.
+- **Explicit Dependencies**: Components declare their own scripts and styles, preventing global bloat.
+- **Hybrid by Choice**: Optimization for static builds while maintaining full server capabilities.
+
+> [!TIP]
+> Ecopages' strength lies in its **Integration System**. You can add support for any view library by extending the `IntegrationPlugin` class. Check out the [Custom Integration](/docs/plugins/custom-integration) guide to learn how.

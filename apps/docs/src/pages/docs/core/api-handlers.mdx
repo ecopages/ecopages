@@ -26,14 +26,14 @@ const app = new EcopagesApp({ appConfig });
 
 // Define a GET handler
 app.get('/api/greet', async ({ response }) => {
-return response.text('Hello from the API!');
+	return response.text('Hello from the API!');
 });
 
 // Define a POST handler
 app.post('/api/submit', async ({ request, response }) => {
-const body = await request.json(); // Assuming JSON body
-console.log('Received data:', body);
-return response.json({ success: true, received: body });
+	const body = await request.json(); // Assuming JSON body
+	console.log('Received data:', body);
+	return response.json({ success: true, received: body });
 });
 
 await app.start();
@@ -102,13 +102,13 @@ app.get('/api/data', async ({ response }) => {
 });
 
 app.get('/api/plain', async ({ response }) => {
-// Automatically sets Content-Type to text/plain
-return response.text('Plain text response.');
+	// Automatically sets Content-Type to text/plain
+	return response.text('Plain text response.');
 });
 
 app.get('/api/html-page', async ({ response }) => {
-// Automatically sets Content-Type to text/html
-return response.html('<h1>Hello HTML</h1>');
+	// Automatically sets Content-Type to text/html
+	return response.html('<h1>Hello HTML</h1>');
 });
 ```
 </CodeBlock>

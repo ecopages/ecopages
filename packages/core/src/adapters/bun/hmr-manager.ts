@@ -1,17 +1,18 @@
-import type { BunPlugin, ServerWebSocket, WebSocketHandler } from 'bun';
+import type { BunPlugin, WebSocketHandler, ServerWebSocket } from 'bun';
 import fs from 'node:fs';
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
-import type { DefaultHmrContext, EcoPagesAppConfig, HmrEvent } from '../../internal-types';
+import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../internal-types';
 import { FileUtils } from '../../utils/file-utils.module';
 import type { HmrStrategy } from '../../hmr/hmr-strategy';
-import { CssHmrStrategy } from '../../hmr/strategies/css-hmr-strategy';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy';
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy';
 import { appLogger } from '../../global/app-logger';
+import type { ClientBridge } from './client-bridge';
+import type { ClientBridgeEvent } from '../../public-types';
 
-export class HmrManager {
-	private subscribers = new Set<ServerWebSocket<unknown>>();
+export class HmrManager implements IHmrManager {
+	private readonly bridge: ClientBridge;
 	/** Keep track of watchers */
 	private watchers = new Map<string, fs.FSWatcher>();
 	/** entrypoint -> output path */
@@ -22,8 +23,16 @@ export class HmrManager {
 	private plugins: BunPlugin[] = [];
 	private enabled = true;
 	private strategies: HmrStrategy[] = [];
+	private wsHandler!: {
+		open: (ws: ServerWebSocket<unknown>) => void;
+		close: (ws: ServerWebSocket<unknown>) => void;
+	};
 
-	constructor(public readonly appConfig: EcoPagesAppConfig) {
+	constructor(
+		public readonly appConfig: EcoPagesAppConfig,
+		bridge: ClientBridge,
+	) {
+		this.bridge = bridge;
 		this.distDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, '_hmr');
 		FileUtils.ensureDirectoryExists(this.distDir);
 		this.initializeStrategies();
@@ -34,11 +43,6 @@ export class HmrManager {
 	 * Strategies are evaluated in priority order (highest first).
 	 */
 	private initializeStrategies(): void {
-		const cssContext = {
-			getSrcDir: () => this.appConfig.srcDir,
-			getDistDir: () => this.appConfig.absolutePaths.distDir,
-		};
-
 		const jsContext = {
 			getWatchedFiles: () => this.watchedFiles,
 			getSpecifierMap: () => this.specifierMap,
@@ -47,7 +51,7 @@ export class HmrManager {
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 		};
 
-		this.strategies = [new CssHmrStrategy(cssContext), new JsHmrStrategy(jsContext), new DefaultHmrStrategy()];
+		this.strategies = [new JsHmrStrategy(jsContext), new DefaultHmrStrategy()];
 	}
 
 	/**
@@ -83,15 +87,21 @@ export class HmrManager {
 	}
 
 	public getWebSocketHandler(): WebSocketHandler<unknown> {
+		const open = (ws: ServerWebSocket<unknown>) => {
+			this.bridge.subscribe(ws);
+			appLogger.debug(`[HmrManager] Connection opened. Subscribers: ${this.bridge.subscriberCount}`);
+		};
+
+		const close = (ws: ServerWebSocket<unknown>) => {
+			this.bridge.unsubscribe(ws);
+			appLogger.debug(`[HmrManager] Connection closed. Subscribers: ${this.bridge.subscriberCount}`);
+		};
+
+		this.wsHandler = { open, close };
+
 		return {
-			open: (ws) => {
-				this.subscribers.add(ws);
-				appLogger.debug(`[HMR] Client connected. Total subscribers: ${this.subscribers.size}`);
-			},
-			close: (ws) => {
-				this.subscribers.delete(ws);
-				appLogger.debug(`[HMR] Client disconnected. Total subscribers: ${this.subscribers.size}`);
-			},
+			open: this.wsHandler.open,
+			close: this.wsHandler.close,
 			message: (_ws, message) => {
 				appLogger.debug('[HMR] Received message from client:', message);
 			},
@@ -122,14 +132,11 @@ export class HmrManager {
 		return path.join(this.distDir, '_hmr_runtime.js');
 	}
 
-	public broadcast(event: HmrEvent) {
+	public broadcast(event: ClientBridgeEvent) {
 		appLogger.debug(
-			`[HMR] Broadcasting ${event.type} event, path=${event.path || 'all'}, subscribers=${this.subscribers.size}`,
+			`[HMR] Broadcasting ${event.type} event, path=${event.path || 'all'}, subscribers=${this.bridge.subscriberCount}`,
 		);
-		const payload = JSON.stringify(event);
-		for (const ws of this.subscribers) {
-			ws.send(payload);
-		}
+		this.bridge.broadcast(event);
 	}
 
 	/**
@@ -221,6 +228,5 @@ export class HmrManager {
 			watcher.close();
 		}
 		this.watchers.clear();
-		this.subscribers.clear();
 	}
 }

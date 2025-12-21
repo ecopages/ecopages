@@ -2,14 +2,20 @@ import { resolveGeneratedPath } from '../constants';
 import { FileUtils } from '../utils/file-utils.module';
 import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types';
+import type { ClientBridge } from '../adapters/bun/client-bridge';
 import type { AssetDefinition } from '../services/asset-processing-service';
+
+export interface ProcessorWatchContext {
+	path: string;
+	bridge: ClientBridge;
+}
 
 export interface ProcessorWatchConfig {
 	paths: string[];
 	extensions?: string[];
-	onCreate?: (path: string) => Promise<void>;
-	onChange?: (path: string) => Promise<void>;
-	onDelete?: (path: string) => Promise<void>;
+	onCreate?: (ctx: ProcessorWatchContext) => Promise<void>;
+	onChange?: (ctx: ProcessorWatchContext) => Promise<void>;
+	onDelete?: (ctx: ProcessorWatchContext) => Promise<void>;
 	onError?: (error: Error) => void;
 }
 

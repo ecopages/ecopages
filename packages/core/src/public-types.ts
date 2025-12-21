@@ -32,9 +32,9 @@ export interface DefaultHmrContext {
 }
 
 /**
- * Hot Module Replacement event payload.
+ * Represents an event broadcast to connected clients via the ClientBridge.
  */
-export type HmrEvent = {
+export type ClientBridgeEvent = {
 	/**
 	 * Event type: 'reload' triggers full refresh, 'update' for JS modules, 'css-update' for stylesheets
 	 */
@@ -91,7 +91,7 @@ export interface IHmrManager {
 	/**
 	 * Broadcasts an HMR event to connected clients.
 	 */
-	broadcast(event: HmrEvent): void;
+	broadcast(event: ClientBridgeEvent): void;
 
 	/**
 	 * Gets the output URL for a registered entrypoint.

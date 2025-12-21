@@ -128,10 +128,11 @@ class CustomProcessor extends Processor {
 			watch: {
 				paths: ['src/custom'],
 				extensions: ['.custom'],
-				onChange: async (path) => {
+				onChange: async ({ path, bridge }) => {
 					// Handle file changes
+					// bridge.reload() or bridge.cssUpdate(path)
 				},
-				onDelete: async (path) => {
+				onDelete: async ({ path, bridge }) => {
 					// Handle file deletions
 				},
 			},
@@ -157,6 +158,54 @@ const config = await new ConfigBuilder().addProcessor(customProcessor).build();
 ```
 </CodeBlock>
 
+## Communicating with the Browser (ClientBridge)
+
+Processors can broadcast events to connected browser clients for live updates (e.g., CSS hot reload) using the `bridge` provided in the `onChange` callback:
+
+<CodeBlock>
+```typescript
+class StyleProcessor extends Processor {
+	constructor() {
+		super({
+			name: 'style-processor',
+			watch: {
+				paths: ['src/styles'],
+				extensions: ['.css'],
+				onChange: async ({ path, bridge }) => {
+					await this.processFile(path, bridge);
+				},
+			},
+		});
+	}
+
+	private async processFile(filePath: string, bridge: ClientBridge) {
+		if (!this.context) return;
+
+		// Process and write the file...
+		const processed = await this.process(await Bun.file(filePath).text());
+		await Bun.write(outputPath, processed);
+
+		// Broadcast CSS update to connected browsers
+		// This will trigger a hot reload of the stylesheet
+		bridge.cssUpdate(filePath);
+
+		// Or trigger a full reload if needed:
+		// bridge.reload();
+
+		// Or send a custom error:
+		// bridge.error("Processing failed");
+	}
+}
+```
+</CodeBlock>
+
+The `ClientBridge` provides several utility methods:
+- `reload()`: Triggers a full page reload.
+- `cssUpdate(path)`: Triggers a CSS hot update for the given path.
+- `update(path)`: Triggers a JS module update.
+- `error(message)`: Sends an error notification to the client.
+- `broadcast(event)`: Sends a raw `ClientBridgeEvent`.
+
 ## Best Practices
 
 1. Use meaningful names for your processors
@@ -165,4 +214,4 @@ const config = await new ConfigBuilder().addProcessor(customProcessor).build();
 4. Clean up resources in teardown
 5. Follow TypeScript best practices
 6. Document your processor's API
-```
+7. Use `bridge` for live updates instead of full reloads when possible

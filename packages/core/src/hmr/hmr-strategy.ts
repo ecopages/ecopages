@@ -24,7 +24,7 @@
  * ```
  */
 
-import type { HmrEvent } from '../internal-types';
+import type { ClientBridgeEvent } from '../internal-types';
 
 /**
  * Defines the category of an HMR strategy, which determines its execution priority.
@@ -73,13 +73,13 @@ export interface HmrAction {
 	 * The HMR event to broadcast, if type is 'broadcast'.
 	 * @deprecated Use events for multiple updates
 	 */
-	event?: HmrEvent;
+	event?: ClientBridgeEvent;
 
 	/**
 	 * The HMR events to broadcast, if type is 'broadcast'.
 	 * capable of broadcasting multiple events at once.
 	 */
-	events?: HmrEvent[];
+	events?: ClientBridgeEvent[];
 }
 
 /**

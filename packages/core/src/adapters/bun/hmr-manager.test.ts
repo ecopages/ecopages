@@ -1,0 +1,119 @@
+import { describe, expect, it, mock, spyOn, beforeEach, afterEach } from 'bun:test';
+import { HmrManager } from './hmr-manager';
+import type { EcoPagesAppConfig } from '../../internal-types';
+import type { ClientBridge } from './client-bridge';
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../hmr/hmr-strategy';
+import type { ClientBridgeEvent } from '../../public-types';
+import { FileUtils } from '../../utils/file-utils.module';
+
+type MockConfig = Partial<EcoPagesAppConfig>;
+type MockClientBridge = Partial<ClientBridge> & {
+	subscribe: ReturnType<typeof mock>;
+	unsubscribe: ReturnType<typeof mock>;
+	broadcast: ReturnType<typeof mock>;
+};
+
+const mockConfig: MockConfig = {
+	absolutePaths: {
+		distDir: '/tmp/dist',
+		srcDir: '/tmp/src',
+	} as any,
+};
+
+const mockBridge: MockClientBridge = {
+	subscribe: mock(),
+	unsubscribe: mock(),
+	broadcast: mock(),
+	subscriberCount: 0,
+};
+
+class MockStrategy extends HmrStrategy {
+	readonly type = HmrStrategyType.INTEGRATION;
+	matches(path: string): boolean {
+		return path.endsWith('.mock');
+	}
+	async process(path: string): Promise<HmrAction> {
+		return {
+			type: 'broadcast',
+			event: { type: 'update', path, timestamp: 123 },
+		};
+	}
+}
+
+describe('HmrManager', () => {
+	let manager: HmrManager;
+
+	beforeEach(() => {
+		spyOn(FileUtils, 'ensureDirectoryExists').mockImplementation(() => {});
+		spyOn(FileUtils, 'write').mockImplementation(() => {});
+		spyOn(FileUtils, 'getFileAsString').mockResolvedValue('');
+
+		mockBridge.broadcast = mock();
+		manager = new HmrManager(mockConfig as EcoPagesAppConfig, mockBridge as unknown as ClientBridge);
+	});
+
+	afterEach(() => {
+		mock.restore();
+	});
+
+	it('should initialize with default strategies', async () => {
+		await manager.handleFileChange('unknown.file');
+		expect(mockBridge.broadcast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'reload',
+				path: 'unknown.file',
+			}),
+		);
+	});
+
+	it('should allow registering custom strategies', async () => {
+		const strategy = new MockStrategy();
+		manager.registerStrategy(strategy);
+
+		await manager.handleFileChange('test.mock');
+
+		expect(mockBridge.broadcast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'update',
+				path: 'test.mock',
+			}),
+		);
+	});
+
+	it('should respect strategy priority', async () => {
+		const strategy = new MockStrategy();
+		manager.registerStrategy(strategy);
+
+		await manager.handleFileChange('test.mock');
+
+		expect(mockBridge.broadcast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'update',
+				path: 'test.mock',
+			}),
+		);
+	});
+
+	it('should broadcast events correctly', () => {
+		const event: ClientBridgeEvent = { type: 'reload' };
+		manager.broadcast(event);
+		expect(mockBridge.broadcast).toHaveBeenCalledWith(event);
+	});
+
+	it('should manage WebSocket connections', () => {
+		const handler = manager.getWebSocketHandler();
+		const ws = {} as any;
+
+		handler?.open?.(ws);
+		expect(mockBridge.subscribe).toHaveBeenCalledWith(ws);
+
+		handler?.close?.(ws, 1000, 'Test close');
+		expect(mockBridge.unsubscribe).toHaveBeenCalledWith(ws);
+	});
+
+	it('should enabled/disable HMR', () => {
+		expect(manager.isEnabled()).toBe(true);
+		manager.setEnabled(false);
+		expect(manager.isEnabled()).toBe(false);
+	});
+});

@@ -28,7 +28,7 @@ const defaultOptions: CompileOptions = {
  * This plugin provides support for MDX components in Ecopages
  */
 export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
-	renderer;
+	renderer: typeof MDXRenderer | ReturnType<typeof createMDXReactRenderer>;
 	private dependencies: AssetDefinition[] | undefined;
 	private isReact = false;
 	private compilerOptions: CompileOptions;

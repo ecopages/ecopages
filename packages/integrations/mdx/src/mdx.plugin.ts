@@ -3,7 +3,7 @@ import { AssetFactory, type AssetDefinition } from '@ecopages/core/services/asse
 import { deepMerge, type EcoPagesElement, type IHmrManager, type HmrStrategy } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { MDXRenderer } from './mdx-renderer';
-import { createMDXReactRenderer } from './mdx-react-renderer';
+import { createMDXReactRenderer, MDXReactRenderer } from './mdx-react-renderer';
 import { MdxHmrStrategy } from './mdx-hmr-strategy';
 
 /**
@@ -28,7 +28,7 @@ const defaultOptions: CompileOptions = {
  * This plugin provides support for MDX components in Ecopages
  */
 export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
-	renderer: typeof MDXRenderer | ReturnType<typeof createMDXReactRenderer>;
+	renderer: typeof MDXRenderer | typeof MDXReactRenderer;
 	private dependencies: AssetDefinition[] | undefined;
 	private isReact = false;
 	private compilerOptions: CompileOptions;
@@ -112,8 +112,6 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 
 	/**
 	 * Retrieves the integration dependencies for React-based MDX.
-	 * Note: When MDXPlugin is used alongside ReactPlugin, duplicate import map warnings
-	 * may appear in the browser. These are harmless - the browser uses the first map.
 	 */
 	private getReactDependencies(): AssetDefinition[] {
 		if (this.dependencies) return this.dependencies;

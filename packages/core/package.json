@@ -13,9 +13,6 @@
 	"files": [
 		"src"
 	],
-	"bin": {
-		"ecopages": "./src/bin/ecopages.ts"
-	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",

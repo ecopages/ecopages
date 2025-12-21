@@ -14,6 +14,7 @@ import mdx from '@mdx-js/esbuild';
 import type { CompileOptions } from '@mdx-js/mdx';
 
 const appLogger = new Logger('[MdxHmrStrategy]');
+
 export class MdxHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
 

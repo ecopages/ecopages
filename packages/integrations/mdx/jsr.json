@@ -1,4 +1,5 @@
 {
+	"$schema": "https://jsr.io/schema/config-file.v1.json",
 	"name": "@ecopages/mdx",
 	"version": "0.1.47",
 	"exports": {

@@ -20,6 +20,7 @@ import {
 import { ApiResponseBuilder } from '../shared/api-response.js';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
+import { ClientBridge } from './client-bridge';
 import { HmrManager } from './hmr-manager';
 import { BunRouterAdapter } from './router-adapter.ts';
 
@@ -61,6 +62,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	private routeRendererFactory!: RouteRendererFactory;
 	private routes: BunServerRoutes = {};
 	private staticSiteGenerator!: StaticSiteGenerator;
+	private bridge!: ClientBridge;
 	public hmrManager!: HmrManager;
 	private initializationPromise: Promise<void> | null = null;
 	private fullyInitialized = false;
@@ -77,7 +79,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	 */
 	public async initialize(): Promise<void> {
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
-		this.hmrManager = new HmrManager(this.appConfig);
+		this.bridge = new ClientBridge();
+		this.hmrManager = new HmrManager(this.appConfig, this.bridge);
 		await this.hmrManager.buildRuntime();
 
 		this.setupLoaders();
@@ -120,6 +123,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 			config: this.appConfig,
 			refreshRouterRoutesCallback,
 			hmrManager: this.hmrManager,
+			bridge: this.bridge,
 		});
 
 		await watcherInstance.createWatcherSubscription();
@@ -465,11 +469,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 		) {
 			const html = await response.text();
 
-			const hmrScript = `
-<script type="module">
-  import '/_hmr_runtime.js';
-</script>
-`;
+			const hmrScript = `<script type="module">import '/_hmr_runtime.js';</script>`;
 
 			const updatedHtml = html.replace(/<\/html>/i, `${hmrScript}</html>`);
 

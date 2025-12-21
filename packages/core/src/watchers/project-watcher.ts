@@ -2,19 +2,23 @@ import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
+import type { ClientBridge } from '../adapters/bun/client-bridge';
+import type { ProcessorWatchContext } from '../plugins/processor.ts';
 
 /**
  * Configuration options for the ProjectWatcher
  * @interface ProjectWatcherConfig
  * @property {EcoPagesAppConfig} config - The application configuration
- * @property {() => void} refreshRouterRoutesCallback - Callback to refresh router routes when files change
- * @property {IHmrManager} hmrManager - The HMR manager to broadcast changes
+ * @property {() => void} refreshRouterRoutesCallback - Callback to refresh router routes
+ * @property {IHmrManager} hmrManager - The HMR manager instance
+ * @property {ClientBridge} bridge - The client bridge instance
  */
-type ProjectWatcherConfig = {
+export interface ProjectWatcherConfig {
 	config: EcoPagesAppConfig;
 	refreshRouterRoutesCallback: () => void;
 	hmrManager: IHmrManager;
-};
+	bridge: ClientBridge;
+}
 
 /**
  * ProjectWatcher handles file system changes for hot module replacement (HMR).
@@ -35,13 +39,14 @@ export class ProjectWatcher {
 	private appConfig: EcoPagesAppConfig;
 	private refreshRouterRoutesCallback: () => void;
 	private hmrManager: IHmrManager;
-	private watcher: FSWatcher | undefined;
+	private bridge: ClientBridge;
+	private watcher: FSWatcher | null = null;
 
-	constructor({ config, refreshRouterRoutesCallback, hmrManager }: ProjectWatcherConfig) {
-		import.meta.env.NODE_ENV = 'development';
+	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge }: ProjectWatcherConfig) {
 		this.appConfig = config;
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;
+		this.bridge = bridge;
 		this.triggerRouterRefresh = this.triggerRouterRefresh.bind(this);
 		this.handleError = this.handleError.bind(this);
 		this.handleFileChange = this.handleFileChange.bind(this);
@@ -64,12 +69,15 @@ export class ProjectWatcher {
 	}
 
 	/**
-	 * Handles file changes by uncaching modules, refreshing routes, and delegating to HMR strategies.
+	 * Handles file changes by uncaching modules, refreshing routes, and delegating appropriately.
+	 * Follows 3-rule logic:
+	 * 1. additionalWatchPaths match? → reload
+	 * 2. Processor extension match? → processor handles (skip HMR)
+	 * 3. Otherwise → HMR strategies
 	 * @param rawPath - Path of the changed file
 	 */
 	private async handleFileChange(rawPath: string): Promise<void> {
 		const filePath = path.resolve(rawPath);
-		// appLogger.debug(`[ProjectWatcher] File changed: ${filePath}`);
 		try {
 			this.uncacheModules();
 			const isPageFile = filePath.startsWith(this.appConfig.absolutePaths.pagesDir);
@@ -78,13 +86,63 @@ export class ProjectWatcher {
 				this.refreshRouterRoutesCallback();
 			}
 
+			// Rule 1: additionalWatchPaths → reload
+			if (this.matchesAdditionalWatchPaths(filePath)) {
+				this.bridge.reload();
+				return;
+			}
+
+			// Rule 2: Processor extension → processor handles (skip HMR)
+			if (this.isHandledByProcessor(filePath)) {
+				return;
+			}
+
+			// Rule 3: Otherwise → HMR strategies
 			await this.hmrManager.handleFileChange(filePath);
 		} catch (error) {
 			if (error instanceof Error) {
-				this.hmrManager.broadcast({ type: 'error', message: error.message });
+				this.bridge.error(error.message);
 				this.handleError(error);
 			}
 		}
+	}
+
+	/**
+	 * Checks if file path matches any additionalWatchPaths patterns.
+	 */
+	private matchesAdditionalWatchPaths(filePath: string): boolean {
+		const patterns = this.appConfig.additionalWatchPaths;
+		if (!patterns.length) return false;
+
+		// Simple glob matching - check if file matches any pattern
+		for (const pattern of patterns) {
+			if (pattern.includes('*')) {
+				// Basic glob: check if extension matches
+				const ext = pattern.replace(/\*\*?\/\*/, '');
+				if (filePath.endsWith(ext)) return true;
+			} else {
+				// Exact match
+				if (filePath.endsWith(pattern) || filePath === path.resolve(pattern)) return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Checks if a file is handled by a processor.
+	 * Processors that declare extensions own those file types.
+	 */
+	private isHandledByProcessor(filePath: string): boolean {
+		for (const processor of this.appConfig.processors.values()) {
+			const watchConfig = processor.getWatchConfig();
+			if (!watchConfig) continue;
+
+			const { extensions = [] } = watchConfig;
+			if (extensions.length && extensions.some((ext) => filePath.endsWith(ext))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -119,11 +177,11 @@ export class ProjectWatcher {
 	 * @private
 	 * @param {string} path - Path of the changed file
 	 * @param {string[]} extensions - File extensions to process
-	 * @param {(path: string) => void} handler - Handler function for the file change
+	 * @param {(ctx: ProcessorWatchContext) => void} handler - Handler function for the file change
 	 */
-	private shouldProcess(path: string, extensions: string[], handler: (path: string) => void) {
+	private shouldProcess(path: string, extensions: string[], handler: (ctx: ProcessorWatchContext) => void) {
 		if (!extensions.length || extensions.some((ext) => path.endsWith(ext))) {
-			handler(path);
+			handler({ path, bridge: this.bridge });
 		}
 	}
 
@@ -148,6 +206,11 @@ export class ProjectWatcher {
 			}
 
 			processorPaths.push(this.appConfig.absolutePaths.pagesDir);
+
+			// Add additionalWatchPaths for config files etc.
+			if (this.appConfig.additionalWatchPaths.length) {
+				processorPaths.push(...this.appConfig.additionalWatchPaths);
+			}
 
 			this.watcher = chokidar.watch(processorPaths, {
 				ignoreInitial: true,

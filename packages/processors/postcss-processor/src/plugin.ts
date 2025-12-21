@@ -5,7 +5,7 @@
 
 import path from 'node:path';
 import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
-import { FileUtils } from '@ecopages/core';
+import { ClientBridge, FileUtils } from '@ecopages/core';
 import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
 import type { BunPlugin } from 'bun';
@@ -65,8 +65,42 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		super({
 			name: 'ecopages-postcss-processor',
 			description: 'A Processor for transforming CSS files using PostCSS.',
+			watch: {
+				paths: [],
+				extensions: ['.css', '.scss', '.sass', '.less'],
+				onChange: async ({ path, bridge }) => {
+					await this.handleCssChange(path, bridge);
+				},
+			},
 			...config,
 		});
+	}
+
+	/**
+	 * Handles CSS file changes during development.
+	 * Processes the file and broadcasts a css-update event for hot reloading.
+	 */
+	private async handleCssChange(filePath: string, bridge: ClientBridge): Promise<void> {
+		if (!this.context) return;
+
+		try {
+			const relativePath = path.relative(this.context.srcDir, filePath);
+			const outputPath = path.join(this.context.distDir, 'assets', relativePath);
+
+			const content = await FileUtils.getFileAsString(filePath);
+			const processed = await this.process(content, filePath);
+
+			FileUtils.ensureDirectoryExists(path.dirname(outputPath));
+			FileUtils.write(outputPath, processed);
+
+			bridge.cssUpdate(filePath);
+
+			logger.debug(`Processed CSS: ${filePath}`);
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to process CSS: ${filePath}`, errorMessage);
+			bridge.error(errorMessage);
+		}
 	}
 
 	get buildPlugins(): BunPlugin[] {

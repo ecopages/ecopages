@@ -165,6 +165,26 @@ const item = // ... find item logic ...
 
 Using the `ApiResponseBuilder` makes your API handler code cleaner, more readable, and less prone to errors compared to manually constructing `Response` objects.
 
+## WebSocket Handlers
+
+If your application requires real-time bidirectional communication, you can define WebSocket handlers when starting your application. Ecopages inherits Bun's powerful WebSocket implementation.
+
+<CodeBlock>
+```typescript
+await app.start({
+    websocket: {
+        open(ws) {
+            console.log('Client connected');
+        },
+        message(ws, message) {
+            console.log('Received:', message);
+            ws.send(`Server received: ${message}`);
+        },
+    },
+});
+```
+</CodeBlock>
+
 ## Type Safety with `defineApiHandler`
 
 For enhanced type safety, especially with route parameters, consider using the adapter-specific `defineApiHandler` helper. See the [Server API](/docs/core/server-api#type-safety) documentation for details.

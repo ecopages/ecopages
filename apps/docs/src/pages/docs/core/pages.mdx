@@ -30,11 +30,7 @@ export const getMetadata: GetMetadata = () => ({
 
 const HomePage: EcoComponent = () => html`${BaseLayout({
 	class: 'main-content',
-	children: html`
-
-<h1>Ecopages</h1>
-<p>Welcome to my Ecopages website!</p>
-`,
+	children: html`<h1>Ecopages</h1><p>Welcome to my Ecopages website!</p>`,
 })}`;
 
 HomePage.config = {
@@ -74,12 +70,12 @@ import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts, fl
 const HomePage: EcoComponent = () => html`${BaseLayout({
 	class: 'main-content',
 	children: html`
-<h1>Ecopages</h1>
-<scripts-injector
+	<h1>Ecopages</h1>
+	<scripts-injector
 		on:interaction="mouseenter,focusin"
 		scripts="${resolveComponentsScripts([RadiantCounter])}"
 	>
-		!${RadiantCounter({ count: 5 })}
+			!${RadiantCounter({ count: 5 })}
 	</scripts-injector>
 `,
 })}`;
@@ -93,114 +89,22 @@ HomePage.config = {
 ```
 </CodeBlock>
 
-You're absolutely right. Adding information about `getMetadata`, `getStaticProps`, and `getStaticPaths` is crucial for understanding how to work with data in Ecopages. I'll create a new section called "Working with Data" to cover these important concepts. Here's the addition we can make to the existing content:
-
 ## Working with Data
 
-Ecopages provides several powerful functions for working with data in your pages:
-
-### getMetadata
-
-The `getMetadata` function allows you to define page-specific metadata.
-Please note that you can set defaultMetadata in the config to avoid repeating yourself.
-This is useful for SEO and social sharing:
-
-<CodeBlock>
-```typescript
-import { type GetMetadata } from '@ecopages/core';
-
-export const getMetadata: GetMetadata = () => ({
-	title: 'My Page Title',
-	description: 'A description of my page',
-	image: 'path/to/og-image.jpg',
-	keywords: ['ecopages', 'static site', 'typescript'],
-});
-```
-
-</CodeBlock>
-
-### getStaticProps
-
-`getStaticProps` is used to fetch data at build time. This is ideal for data that do not depend on page parameters.
-
-<CodeBlock>
-```typescript
-import { type GetStaticProps } from '@ecopages/core';
-
-export const getStaticProps: GetStaticProps = async () => {
-	const data = await fetchSomeData();
-	return {
-		props: {
-			data,
-		},
-	};
-};
-
-const MyPage: EcoComponent<{ data: any }> = ({ data }) => html`	<div>
-		<h1>My Page</h1>
-		<p>${data.someField}</p>
-	</div>`;
-
-```
-</CodeBlock>
-
-### getStaticPaths
-
-For dynamic routes, `getStaticPaths` is used to specify which paths will be pre-rendered at build time:
-
-<CodeBlock>
-```typescript
-export const getMetadata: GetMetadata<BlogPostProps> = async ({ props: { title, slug } }) => {
-	return {
-		title,
-		description: `This is a blog post with the slug ${slug}`,
-	};
-};
-
-export const getStaticProps: GetStaticProps = async ({ params }) => {
-	const data = await fetchDataForSlug(params.slug);
-	return {
-		props: {
-			data,
-		},
-	};
-};
-
-export const getStaticPaths: GetStaticPaths = async () => {
-	const paths = await fetchAvailablePaths();
-	return {
-		paths: paths.map(path => ({ params: { slug: path } })),
-	};
-};
-
-const DynamicPage: EcoComponent<BlogPostProps> = (props) => html`
-	<div>
-		<h1>${props.title}</h1>
-		<p>${props.content}</p>
-	</div>
-`;
-```
-
-</CodeBlock>
+Ecopages provides built-in support for data fetching and metadata management. For a deep dive into how to handle data at build-time and runtime, check out the [Data Fetching Guide](/docs/guides/data-fetching).
 
 ## Lazy Loading Components
 
 Ecopages provides powerful tools for lazy loading components, which can significantly improve your site's performance.
 
-The main tool for this is the custom component `scripts-injector`, which allows you to load scripts only when needed. Two key functions for this are `resolveComponentsScripts` and `removeComponentScripts`.
+The main tool for this is the custom component `scripts-injector`, which allows you to load scripts only when needed. Two key functions for this are `resolveComponentsScripts` and `flagComponentsAsDynamic`.
 
-### resolveComponentsScripts
+### `resolveComponentsScripts`
 
-This function is used to resolve the scripts associated with components for lazy loading. It's typically used with the `scripts-injector` component.
+This function is used to resolve the scripts associated with components for lazy loading. It's typically used with the `scripts-injector` component to ensure scripts are only loaded when a user interacts with a specific part of the page.
 
-`resolveComponentsScripts` takes an array of components and returns a string of resolved script paths. This allows the `scripts-injector` to load these scripts only when needed (in this case, on mouse enter or focus).
+### `flagComponentsAsDynamic`
 
-### removeComponentScripts
-
-As you can see in the example above, `removeComponentScripts` is used to remove scripts from the initial page load, further optimizing performance:
-
-This function removes the scripts associated with the specified components from the initial page load. The scripts will be loaded later when needed, typically through a `scripts-injector`.
+To prevent scripts from being included in the initial page load, you can use `flagComponentsAsDynamic`. This marks the components as "dynamic," allowing their assets to be deferred and loaded later via a `scripts-injector`.
 
 By using these functions, you can create pages that are lightweight on initial load but still provide rich interactivity when needed. This approach is particularly useful for components that are not immediately visible or not used by all users.
-
-Remember to always balance performance optimization with user experience. Some critical components might need to be loaded immediately, while others can be safely deferred.

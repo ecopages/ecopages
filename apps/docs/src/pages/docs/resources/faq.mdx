@@ -1,0 +1,42 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | FAQ',
+    description: 'Frequently asked questions about Ecopages',
+});
+
+# FAQ
+
+## General Questions
+
+### Do I need a server to run Ecopages?
+**No**, if you are only using static pages. Ecopages will generate standard HTML/CSS files that can be hosted on any static provider (Vercel, GitHub Pages, Netlify). 
+**Yes**, if you use API routes (`app.get`, `app.post`) or dynamic server logic.
+
+### Is Ecopages ready for production?
+Ecopages is currently in **Beta**. While it is stable enough for many projects and used in production for several sites, the API might evolve. We recommend following our [GitHub](https://github.com/ecopages/ecopages) for updates.
+
+### How does Ecopages compare to Next.js or Astro?
+- **vs Next.js**: Ecopages is significantly lighter, built on Bun instead of Node, and doesn't force a specific framework (like React). It uses a "you don't always need a server" philosophy.
+- **vs Astro**: Similar in "zero-JS by default" goal, but Ecopages provides a more unified server API and deeply integrates with Bun's native features like the lightning-fast bundler and image processor.
+
+---
+
+## Technical Questions
+
+### Can I use React and Lit components together?
+**Yes!** Since Ecopages is framework-agnostic, you can mix them. You can use Lit Web Components inside your React pages, or vice versa (though using React components inside Lit usually requires a bit more setup for hydration).
+
+### How do I add a new integration?
+Ecopages is built to be extended. You can create a new integration by extending the `IntegrationPlugin` class. Check out our [Custom Integration](/docs/plugins/custom-integration) guide.
+
+### Why is my HMR not working?
+Most HMR issues are caused by:
+1. Missing `*.script.ts` suffix on client files.
+2. Forgetting to register the script in the component `config.dependencies.scripts`.
+3. Blocking WebSocket ports on your local machine.
+
+### Can I use Tailwind CSS?
+**Yes!** Ecopages has first-class support for Tailwind CSS via the `@ecopages/postcss-processor`. It is highly recommended to use the `@apply` directive in CSS files to keep your components clean.

@@ -66,21 +66,21 @@ export class RadiantCounter extends RadiantElement {
 	@reactiveProp({ type: Number, reflect: true }) declare value: number;
 	@query({ ref: 'count' }) countText!: HTMLElement;
 
-    @onEvent({ ref: 'decrement', type: 'click' })
-    decrement() {
-    	if (this.value > 0) this.value--;
-    }
+	@onEvent({ ref: 'decrement', type: 'click' })
+	decrement() {
+		if (this.value > 0) this.value--;
+	}
 
-    @onEvent({ ref: 'increment', type: 'click' })
-    increment() {
-    	this.value++;
-    }
+	@onEvent({ ref: 'increment', type: 'click' })
+	increment() {
+		this.value++;
+	}
 
-    @onUpdated('value')
-    updateCount() {
-    	this.countText.textContent = this.value.toString();
-    	this.dispatchEvent(new Event('change'));
-    }
+	@onUpdated('value')
+	updateCount() {
+		this.countText.textContent = this.value.toString();
+		this.dispatchEvent(new Event('change'));
+	}
 
 }
 
@@ -161,8 +161,8 @@ const HomePage: EcoComponent = () => html`${BaseLayout({
 })}`;
 
 HomePage.config = {
-dependencies: {
-components: [BaseLayout, RadiantCounter],
+	dependencies: {
+	components: [BaseLayout, RadiantCounter],
 },
 };
 
@@ -179,4 +179,4 @@ export default HomePage;
 5. **Styling**: Use separate CSS files for styling your components.
 6. **Config Object**: Always include the `config` object with necessary dependencies.
 
-By following these guidelines and leveraging the power of ghtml components with @ecopages/core, you can create robust, reusable, and interactive components that will help you build efficient and maintainable websites with Ecopages.
+By following these guidelines and leveraging the power of ghtml components with `@ecopages/core`, you can create robust, reusable, and interactive components that will help you build efficient and maintainable websites with Ecopages.

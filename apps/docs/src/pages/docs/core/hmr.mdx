@@ -1,0 +1,65 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | Hot Module Replacement',
+    description: 'Learn how HMR works in Ecopages and how it keeps your development workflow fast',
+});
+
+# Hot Module Replacement (HMR)
+
+Ecopages features a custom, integration-aware Hot Module Replacement system designed to provide instant feedback while preserving your application's state where possible.
+
+## How it Works
+
+The HMR system consists of three main parts:
+
+1. **HMR Manager**: Runs on the server and watches for file changes in your project.
+2. **Client Bridge**: A WebSocket-based communication channel that connects your browser to the development server.
+3. **HMR Strategies**: Specific logic for each integration that tells the browser how to handle a specific file change (e.g., update a CSS link or reload a specific JS module).
+
+## HMR Strategies
+
+Different file types require different update methods. Ecopages handles this automatically:
+
+- **CSS Updates**: When a `.css` file changes, Ecopages broadcasts a `css-update` event. The browser hot-swaps the dynamic `<link>` tag without a full page reload.
+- **React Fast Refresh**: The React integration uses a custom strategy to apply component updates in-place while keeping state.
+- **Full Reload**: If a core configuration or an include file (like `head.ts`) changes, Ecopages triggers a full page reload to ensure consistency.
+
+## Client-Side Scripting
+
+For HMR to work on your custom scripts, make sure they are:
+1. Defined as `*.script.ts` files.
+2. Registered in your component's `config.dependencies.scripts`.
+
+## Customizing HMR
+
+If you are building a [Custom Integration](/docs/plugins/custom-integration), you can define your own HMR strategy by extending the `HmrStrategy` class.
+
+<CodeBlock>
+```typescript
+class MyCustomStrategy extends HmrStrategy {
+    matches(filePath: string) {
+        return filePath.endsWith('.myext');
+    }
+
+    async process(filePath: string): Promise<HmrAction> {
+        // Return a broadcast action to the client
+        return {
+            type: 'broadcast',
+            events: [{ type: 'update', path: filePath, timestamp: Date.now() }],
+        };
+    }
+}
+```
+</CodeBlock>
+
+---
+
+## Troubleshooting HMR
+
+- **WebSocket Connection**: Ensure no firewall or proxy is blocking the WebSocket connection (defaults to the same port as the server).
+- **Console Errors**: Check the browser console for HMR logs. Ecopages will report if a hot-update fails and a full reload is required.
+- **Dependency Map**: If a change doesn't trigger an update, verify the file is correctly listed in the component dependencies.

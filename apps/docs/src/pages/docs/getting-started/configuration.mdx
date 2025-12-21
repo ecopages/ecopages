@@ -114,6 +114,14 @@ export default config;
 	An array of integration plugins to enhance Ecopages functionality.
 </ApiField>
 
+<ApiField name="processors" type="Processor[]" defaultValue="[]" setter="setProcessors">
+	An array of processors to handle file transformations (e.g., PostCSS, Images).
+</ApiField>
+
+<ApiField name="loaders" type="BunPlugin[]" defaultValue="[]" setter="setLoaders">
+	An array of Bun plugins to use as loaders for custom file types.
+</ApiField>
+
 ## Integrations
 
 Ecopages supports various integrations to extend its capabilities. Here are some commonly used integrations:

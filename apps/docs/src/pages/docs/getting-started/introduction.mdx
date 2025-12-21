@@ -1,17 +1,17 @@
 import { DocsLayout } from '@/layouts/docs-layout';
+import { CodeBlock } from '@/components/code-block/code-block.kita';
 
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
 	title: 'Docs | Introduction',
-	description: 'Discover Ecopages: A resource-efficient static site generator',
+	description: 'Discover Ecopages: A modern web framework built on Bun',
 });
 
 <div class="banner banner--alert mt-4" role="alert">
 	<p class="banner__title">Beta Notice</p>
 	<p>
-		The Ecopages documentation is currently in beta. The API is not stable yet and will have major changes before
-		the first stable release. <a href="https://github.com/ecopages/ecopages/tree/main/examples" target="_blank">Check out the examples.</a>
+		Ecopages is currently in beta. The API may change before the stable release. <a href="https://github.com/ecopages/ecopages/tree/main/examples" target="_blank">Check out the examples.</a>
 	</p>
 	<code>
 		<span class="select-none">$ </span>bunx degit ecopages/ecopages/examples/starter-jsx my-ecopages
@@ -20,36 +20,76 @@ export const getMetadata = () => ({
 
 # Welcome to Ecopages
 
-Ecopages is a static site generator currently under active development. While it's still evolving, it's stable enough for use in projects.
+Ecopages is a modern web framework built on [Bun](https://bun.sh/) that lets you build fast, static-first websites. The core philosophy is simple: **you don't always need a server** but, when you do, Ecopages has you covered.
 
-## What is it?
+## What Makes Ecopages Different?
 
-Ecopages is a tool designed to help developers create static websites efficiently. It aims to balance simplicity with the features needed for modern web development, while also considering environmental impact.
+Most web frameworks force you to choose: either a static site generator or a full server framework. Ecopages gives you both. Start with lightning fast static pages, then add API routes and server-side logic only where you need them.
 
-### Key Features:
+### Key Features
 
-1. **Static Site Generation**: Ecopages creates static HTML files, which can lead to faster load times and reduced server load.
+1. **Static-First Architecture**: Generate static HTML at build time for maximum performance and minimal hosting costs. No server required for most sites.
 
-2. **Minimal Dependencies**: We try to keep external dependencies to a minimum to reduce complexity and decrease the overall footprint of your project.
+2. **Server When You Need It**: Full HTTP API with Express-like routing (`app.get()`, `app.post()`, etc.) for dynamic features, webhooks, or data endpoints.
 
-3. **Flexibility**: Ecopages works with various templating options, including MDX, Kita, and Lit.
+3. **Multi-Framework Support**: Use the templating engine that fits your project:
+   - **[KitaJS](/docs/integrations/kitajs)** – Fast JSX templates, great for static content
+   - **[React 19](/docs/integrations/react)** – Full React with hydration and Server Components
+   - **[Lit](/docs/integrations/lit)** – Web Components with SSR support
+   - **[MDX](/docs/integrations/mdx)** – Markdown with embedded components
 
-4. **Built on Bun**: Leveraging Bun's speed for improved build times and energy efficiency.
+4. **Image Processing Pipeline**: Automatic responsive images with the `ecopages:images` virtual module. Generate optimized WebP at multiple sizes with zero configuration.
 
-5. **Tailwind Integration**: Built-in support for Tailwind CSS with PostCSS for efficient styling.
+5. **Hot Module Replacement**: Fast refresh during development with framework-aware HMR strategies.
 
-6. **Eco-friendly Approach**: By generating static sites and optimizing asset loading, Ecopages aims to reduce the energy consumption of websites built with it.
+6. **TypeScript-First**: Full type inference for routes, props, and API handlers. No runtime overhead.
+
+7. **Built on Bun**: Leverages Bun's speed for fast builds, fast development, and fast production servers.
+
+## What Can You Build?
+
+- **Marketing sites** – Static pages with excellent SEO
+- **Documentation** – MDX-powered docs like the one you're reading
+- **Blogs** – Dynamic routes with `getStaticPaths` for each post
+- **Portfolios** – Beautiful static sites with interactive components
+- **Dashboards** – React or Lit components with live API data
+- **APIs** – REST endpoints alongside your static pages
+
+## Quick Example
+
+Here's a taste of what Ecopages looks like:
+
+<CodeBlock>
+```typescript
+// app.ts
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import config from './eco.config';
+
+const app = new EcopagesApp({ appConfig: config });
+
+// Static pages are automatically served from src/pages/
+// Add API routes when you need dynamic behavior
+app.get('/api/hello', async ({ response }) => {
+	return response.json({ message: 'Hello from the API!' });
+});
+
+await app.start();
+```
+</CodeBlock>
 
 ## Current Status
 
-Ecopages is in active development. While it's functional and can be used for projects, you may encounter bugs or missing features. We're continuously working on improvements and welcome feedback from users.
-
-## Environmental Consideration
-
-We believe that every bit counts when it comes to reducing the environmental impact of web development. Ecopages strives to create lightweight, efficient websites that consume less energy both during development and in production. However, we're still learning and improving in this area, and we welcome ideas on how to make Ecopages even more eco-friendly.
+Ecopages is in active development. The core features are stable and used in production, but APIs may evolve before the 1.0 release. We welcome feedback and contributions via our [GitHub repository](https://github.com/ecopages/ecopages).
 
 ## Getting Started
 
-If you're interested in trying Ecopages, check out our [Installation Guide](/docs/getting-started/installation). We recommend starting with small projects as you get familiar with the tool.
+Ready to try Ecopages? Check out the [Installation Guide](/docs/getting-started/installation) to create your first project.
 
-We appreciate your interest in Ecopages and welcome any contributions or feedback you might have as we continue to develop and improve the project, both in terms of functionality and environmental impact.
+<CodeBlock>
+```bash
+bunx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+cd my-ecopages
+bun install
+bun run dev
+```
+</CodeBlock>

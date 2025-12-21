@@ -1,0 +1,120 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | Routing',
+    description: 'Learn how routing works in Ecopages, from file-based routes to dynamic parameters',
+});
+
+# Routing
+
+Ecopages uses a file-based routing system for your pages and a programmatic routing system for your API endpoints. This combination provides both simplicity for content and flexibility for logic.
+
+## File-Based Routing
+
+Every file in your `src/pages` directory corresponds to a route in your application. The path of the file relative to `src/pages` determines the URL.
+
+### Supported File Extensions
+
+Ecopages handles different file types based on your active integrations:
+- `.kita.tsx` (KitaJS)
+- `.tsx` (React)
+- `.lit.ts` (Lit)
+- `.mdx` (MDX)
+- `.ghtml.ts` (Core HTML)
+
+### Index Routes
+
+A file named `index` will represent the root of its directory.
+- `src/pages/index.kita.tsx` → `/`
+- `src/pages/blog/index.kita.tsx` → `/blog`
+
+### Nested Routes
+
+Simply create subdirectories in `src/pages` to create nested paths.
+- `src/pages/about/team.kita.tsx` → `/about/team`
+
+---
+
+## Dynamic Routes
+
+Ecopages supports dynamic routing using the square bracket syntax: `[param]`.
+
+### Path Parameters
+
+To create a dynamic path, use brackets in the filename or directory name.
+- `src/pages/blog/[slug].kita.tsx` → `/blog/:slug`
+- `src/pages/users/[id]/profile.kita.tsx` → `/users/:id/profile`
+
+Inside your page, you can access these parameters via `getStaticPaths` or `getStaticProps`.
+
+### Catch-all Routes
+
+You can capture all remaining path segments using `[...param]`.
+- `src/pages/docs/[...slug].kita.tsx` → `/docs/a`, `/docs/a/b`, `/docs/a/b/c`, etc.
+
+---
+
+## Programmatic API Routing
+
+While pages are file-based, API routes are defined programmatically on your `EcopagesApp` instance, typically in `app.ts`.
+
+<CodeBlock>
+```typescript
+// app.ts
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+
+const app = new EcopagesApp({ appConfig: config });
+
+app.get('/api/users/:id', async ({ request, response }) => {
+    const { id } = request.params;
+    return response.json({ userId: id });
+});
+```
+</CodeBlock>
+
+### Route Priority
+
+1. **API Routes**: Programmatic routes defined in `app.ts` are evaluated first.
+2. **Static Files**: Files in the `public` directory are served if no API route matches.
+3. **File-Based Routes**: Pages in `src/pages` are evaluated last.
+
+---
+
+## Route Configuration
+
+### Canonical Base URL
+
+In production, Ecopages needs to know your site's base URL to generate correct canonical links and social share images. This is set in `eco.config.ts`:
+
+<CodeBlock>
+```typescript
+const config = await new ConfigBuilder()
+    .setBaseUrl('https://example.com')
+    .build();
+```
+</CodeBlock>
+
+### 404 Error Page
+
+You can define a custom 404 page by creating a `404.{ext}` file in your `src/pages` directory and configuring it:
+
+<CodeBlock>
+```typescript
+const config = await new ConfigBuilder()
+    .setError404Template('404.kita.tsx')
+    .build();
+```
+</CodeBlock>
+
+---
+
+## Summary
+
+| Type | Definition | Usage |
+| :--- | :--- | :--- |
+| **Static Pages** | `src/pages/*.{ext}` | Marketing, Docs, Blogs |
+| **Dynamic Pages** | `src/pages/[slug].{ext}` | Individual blog posts, user profiles |
+| **API Endpoints** | `app.get('/api/...')` | Data fetching, form submissions |

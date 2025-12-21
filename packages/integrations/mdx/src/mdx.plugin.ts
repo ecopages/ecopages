@@ -2,7 +2,7 @@ import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/
 import { AssetFactory, type AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { deepMerge, type EcoPagesElement, type IHmrManager, type HmrStrategy } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
-import { MDXRenderer } from './mdx-renderer';
+import { createMDXRenderer, MDXRenderer } from './mdx-renderer';
 import { createMDXReactRenderer, MDXReactRenderer } from './mdx-react-renderer';
 import { MdxHmrStrategy } from './mdx-hmr-strategy';
 
@@ -50,10 +50,13 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 			this.renderer = createMDXReactRenderer(finalCompilerOptions);
 			this.integrationDependencies.unshift(...this.getReactDependencies());
 		} else {
-			this.renderer = MDXRenderer;
+			this.renderer = createMDXRenderer(finalCompilerOptions);
 		}
+	}
 
-		void this.setupBunPlugin(finalCompilerOptions);
+	override async setup(): Promise<void> {
+		await this.setupBunPlugin(this.compilerOptions);
+		await super.setup();
 	}
 
 	/**
@@ -87,7 +90,7 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 	async setupBunPlugin(options?: Readonly<CompileOptions>): Promise<void> {
 		const mdx = (await import('@mdx-js/esbuild')).default;
 		// @ts-expect-error: esbuild plugin vs bun plugin
-		await Bun.plugin(mdx(deepMerge({ ...defaultOptions }, options)));
+		await Bun.plugin(mdx(options));
 	}
 
 	/**

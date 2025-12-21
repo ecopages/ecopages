@@ -1,0 +1,57 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | Troubleshooting',
+    description: 'Solutions for common issues and errors in Ecopages',
+});
+
+# Troubleshooting
+
+This guide covers common issues you might encounter while working with Ecopages and how to resolve them.
+
+## Installation & Setup
+
+### `bun: command not found`
+Ecopages exclusively uses the Bun runtime. You must have Bun installed on your system.
+**Fix**: Install Bun via `curl -fsSL https://bun.sh/install | bash`.
+
+### `package not found`
+If you see errors about missing `@ecopages/*` packages.
+**Fix**: Ecopages uses [JSR](https://jsr.io/). Use `bunx jsr add` instead of `bun add` for most ecosystem packages.
+
+---
+
+## Development & HMR
+
+### Changes not appearing in the browser
+If you edit a file but the browser doesn't update.
+- **Check the Terminal**: Does it say "File changed: ..." after you save?
+- **Check component dependencies**: Is the modified file (CSS or Script) listed in the component's `config.dependencies`?
+- **Check for `*.script.ts` suffix**: Client-side TypeScript files must end with `.script.ts` for automatic detection.
+
+### `Hydration failed` (React Integration)
+This happens when the HTML generated on the server doesn't match the HTML on the client.
+- **Cause**: Using browser-only globals (like `window` or `document`) during the initial render.
+- **Fix**: Wrap browser-specific code in a `useEffect` hook or use the `ClientOnly` component.
+
+---
+
+## Build & Production
+
+### `Error: baseUrl is required`
+The production build requires a canonical URL to generate meta tags correctly.
+**Fix**: Set `ECOPAGES_BASE_URL` in your `.env` file or use `configBuilder.setBaseUrl()` in `eco.config.ts`.
+
+### Images not rendering after build
+If optimized images are missing in production.
+- **Fix**: Ensure your `ECOPAGES_BASE_URL` includes the protocol (e.g., `https://`). Verify the `outputDir` in your image processor configuration matches your distribution directory.
+
+---
+
+## Still Need Help?
+
+- **Open an Issue**: Post on our [GitHub Issues](https://github.com/ecopages/ecopages/issues) page.
+- **Check the Examples**: Many common patterns are demonstrated in the [examples directory](https://github.com/ecopages/ecopages/tree/main/examples).
+- **Review the FAQ**: Check our [FAQ](/docs/resources/faq) for general questions.

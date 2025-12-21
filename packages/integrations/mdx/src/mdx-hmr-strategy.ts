@@ -9,11 +9,8 @@
 
 import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction, type DefaultHmrContext } from '@ecopages/core';
-import { Logger } from '@ecopages/logger';
 import mdx from '@mdx-js/esbuild';
 import type { CompileOptions } from '@mdx-js/mdx';
-
-const appLogger = new Logger('[MdxHmrStrategy]');
 
 export class MdxHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
@@ -43,8 +40,6 @@ export class MdxHmrStrategy extends HmrStrategy {
 	 * @returns Action to broadcast update events
 	 */
 	async process(filePath: string): Promise<HmrAction> {
-		appLogger.debug(`Processing MDX file: ${filePath}`);
-
 		const watchedFiles = this.context.getWatchedFiles();
 		let outputUrl = watchedFiles.get(filePath);
 
@@ -58,7 +53,6 @@ export class MdxHmrStrategy extends HmrStrategy {
 		const success = await this.bundleMdxEntrypoint(filePath, outputUrl);
 
 		if (success) {
-			appLogger.debug(`Broadcasting update for ${outputUrl}`);
 			return {
 				type: 'broadcast',
 				events: [
@@ -71,7 +65,6 @@ export class MdxHmrStrategy extends HmrStrategy {
 			};
 		}
 
-		appLogger.debug(`Failed to bundle ${filePath}`);
 		return { type: 'none' };
 	}
 
@@ -101,14 +94,12 @@ export class MdxHmrStrategy extends HmrStrategy {
 			});
 
 			if (!result.success) {
-				appLogger.error(`Failed to build ${entrypointPath}:`, result.logs);
 				return false;
 			}
 
 			const processed = await this.processOutput(outputPath, outputUrl);
 			return processed;
-		} catch (error) {
-			appLogger.error(`Error bundling ${entrypointPath}:`, error as Error);
+		} catch {
 			return false;
 		}
 	}
@@ -120,7 +111,7 @@ export class MdxHmrStrategy extends HmrStrategy {
 	 * @param url - URL path for the bundled file
 	 * @returns True if processing was successful
 	 */
-	private async processOutput(filepath: string, url: string): Promise<boolean> {
+	private async processOutput(filepath: string, _url: string): Promise<boolean> {
 		try {
 			let code = await Bun.file(filepath).text();
 
@@ -132,10 +123,8 @@ export class MdxHmrStrategy extends HmrStrategy {
 			code = this.injectReactFastRefresh(code);
 			await Bun.write(filepath, code);
 
-			appLogger.debug(`Processed ${url} with Fast Refresh`);
 			return true;
-		} catch (error) {
-			appLogger.error(`Error processing output for ${url}:`, error as Error);
+		} catch {
 			return false;
 		}
 	}

@@ -42,7 +42,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected assetProcessingService: AssetProcessingService;
 	protected htmlTransformer: HtmlTransformerService;
 	protected hmrManager?: IHmrManager;
-	private resolvedIntegrationDependencies: ProcessedAsset[] = [];
+	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	declare protected options: Required<IntegrationRendererRenderOptions>;
 	protected runtimeOrigin: string;
 
@@ -50,8 +50,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	public setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
-
-		/** Also set it on the asset processing service if available */
 		if (this.assetProcessingService) {
 			this.assetProcessingService.setHmrManager(hmrManager);
 		}
@@ -73,9 +71,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.htmlTransformer = new HtmlTransformerService();
 		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 		this.runtimeOrigin = runtimeOrigin;
-
-		// @ts-expect-error - This issues appeared from one moment to another after a bun update, need to investigate
-		if (typeof HTMLElement === 'undefined') global.HTMLElement = class {};
 	}
 
 	/**
@@ -226,11 +221,24 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	/**
 	 * Collects the dependencies for the provided components.
-	 * It registers the dependencies with the assets dependency service.
+	 * Combines component-specific dependencies with global integration dependencies.
 	 *
 	 * @param components - The components to collect dependencies from.
 	 */
 	protected async resolveDependencies(
+		components: (EcoComponent | Partial<EcoComponent>)[],
+	): Promise<ProcessedAsset[]> {
+		const componentDeps = await this.processComponentDependencies(components);
+		return this.resolvedIntegrationDependencies.concat(componentDeps);
+	}
+
+	/**
+	 * Processes component-specific dependencies WITHOUT prepending global integration dependencies.
+	 * Use this method when you need only the component's own assets.
+	 *
+	 * @param components - The components to collect dependencies from.
+	 */
+	protected async processComponentDependencies(
 		components: (EcoComponent | Partial<EcoComponent>)[],
 	): Promise<ProcessedAsset[]> {
 		if (!this.assetProcessingService) return [];
@@ -299,8 +307,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			);
 		}
 
-		const routeAssetsDependencies = await this.assetProcessingService.processDependencies(dependencies, this.name);
-		return this.resolvedIntegrationDependencies.concat(routeAssetsDependencies);
+		return await this.assetProcessingService.processDependencies(dependencies, this.name);
 	}
 
 	/**

@@ -108,6 +108,21 @@ interface MDXReactIntegrationRendererOptions<C = ReactNode> extends IntegrationR
  */
 export class MDXReactRenderer extends IntegrationRenderer {
 	name = PLUGIN_NAME;
+	compilerOptions: CompileOptions;
+
+	constructor({
+		compilerOptions,
+		...options
+	}: {
+		appConfig: any;
+		assetProcessingService: AssetProcessingService;
+		resolvedIntegrationDependencies: ProcessedAsset[];
+		runtimeOrigin: string;
+		compilerOptions?: CompileOptions;
+	}) {
+		super(options);
+		this.compilerOptions = compilerOptions || {};
+	}
 
 	/**
 	 * Creates a client-side hydration script.
@@ -241,7 +256,7 @@ if (document.readyState === 'loading') {
 					loading: 'lazy',
 					external: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
 					naming: `${componentName}.[ext]`,
-					plugins: [mdx({})], // Explicitly inject plugin
+					plugins: [mdx(this.compilerOptions)],
 					...(import.meta.env.NODE_ENV === 'production' && {
 						minify: true,
 						splitting: false,
@@ -298,7 +313,7 @@ if (document.readyState === 'loading') {
 				components.push({ config: configWithMeta });
 			}
 
-			const configAssets = await this.resolveDependencies(components);
+			const configAssets = await this.processComponentDependencies(components);
 
 			return [...reactAssets, ...configAssets];
 		} catch (error) {
@@ -385,14 +400,14 @@ if (document.readyState === 'loading') {
 /**
  * Factory function to create an MDX React renderer class with specific compiler options.
  *
- * @param _compilerOptions - Compiler options for MDX compilation.
+ * @param compilerOptions - Compiler options for MDX compilation.
  * Note: These are passed to ensure strict typing adherence to the interface expected by `mdx-react.plugin.ts`.
  * In the current implementation, the compilation is handled by the global plugin registered in `MDXPlugin`,
  * so these options are not directly used in the renderer logic but are consistent with the plugin configuration.
  *
  * @returns A new MDXReactRenderer class extended with the provided context.
  */
-export function createMDXReactRenderer(_compilerOptions: CompileOptions) {
+export function createMDXReactRenderer(compilerOptions: CompileOptions): typeof MDXReactRenderer {
 	return class extends MDXReactRenderer {
 		constructor(options: {
 			appConfig: any;
@@ -402,6 +417,7 @@ export function createMDXReactRenderer(_compilerOptions: CompileOptions) {
 		}) {
 			super({
 				...options,
+				compilerOptions,
 			});
 		}
 	};

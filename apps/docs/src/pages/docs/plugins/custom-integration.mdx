@@ -254,29 +254,6 @@ class CustomRenderer extends IntegrationRenderer {
 class CustomHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
 
-	constructor(
-		appConfig: any,
-		private context: DefaultHmrContext,
-	) {
-		super(appConfig);
-	}
-
-	matches(filePath: string) {
-		return filePath.endsWith('.custom');
-	}
-
-	async process(filePath: string): Promise<HmrAction> {
-		const outputUrl = this.context.getWatchedFiles().get(filePath) || filePath;
-		return {
-			type: 'broadcast',
-			events: [{ type: 'update', path: outputUrl, timestamp: Date.now() }],
-		};
-	}
-}
-
-class CustomHmrStrategy extends HmrStrategy {
-	readonly type = HmrStrategyType.INTEGRATION;
-
 	constructor(private context: DefaultHmrContext) {
 		super();
 	}
@@ -304,24 +281,11 @@ export class CustomIntegration extends IntegrationPlugin {
 		});
 	}
 
-	constructor() {
-		super({
-			name: 'custom-integration',
-			extensions: ['.custom'],
-		});
-	}
-
 	override getHmrStrategy() {
 		return this.hmrManager
 			? new CustomHmrStrategy(this.hmrManager.getDefaultContext())
 			: undefined;
 	}
-}
-
-	async setup(): Promise<void> {
-		// Setup logic
-	}
-
 }
 ```
 </CodeBlock>

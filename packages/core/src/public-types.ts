@@ -174,13 +174,13 @@ export type EcoComponentBase = {
 /**
  * Checks if a type is `any`.
  */
-type IsAny<T> = 0 extends 1 & T ? true : false;
+export type IsAny<T> = 0 extends 1 & T ? true : false;
 
 /**
  * A function component type that is framework-agnostic.
  * Uses a broader signature to support both direct calls and HOC wrappers.
  */
-type EcoFunctionComponent<P, R> = {
+export type EcoFunctionComponent<P, R> = {
 	(props: P, ...args: any[]): R;
 } & EcoComponentBase;
 

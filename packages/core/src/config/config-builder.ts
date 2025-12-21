@@ -392,10 +392,11 @@ export class ConfigBuilder {
 	 * Initializes default loaders that are required for EcoPages to function.
 	 * This includes the eco-component-dir-plugin which auto-injects componentDir into component configs.
 	 */
-	private initializeDefaultLoaders(): void {
+	private async initializeDefaultLoaders(): Promise<void> {
 		const componentDirPlugin = createEcoComponentDirPlugin({ config: this.config });
 		if (!this.config.loaders.has(componentDirPlugin.name)) {
 			this.config.loaders.set(componentDirPlugin.name, componentDirPlugin);
+			await Bun.plugin(componentDirPlugin);
 		}
 	}
 
@@ -431,7 +432,7 @@ export class ConfigBuilder {
 		this.createAbsolutePaths(this.config);
 		this.createIntegrationTemplatesExt(this.config.integrations);
 
-		this.initializeDefaultLoaders();
+		await this.initializeDefaultLoaders();
 		this.initializeProcessors();
 
 		globalThis.ecoConfig = this.config;

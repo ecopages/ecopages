@@ -11,8 +11,13 @@
 import path from 'node:path';
 import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
+import { FileUtils } from '../utils/file-utils.module.ts';
 
-const CONFIG_ASSIGNMENT_PATTERN = /(?:export\s+const\s+config\s*=|(?:\w+\.)?config\s*=|config\s*:)\s*\{/g;
+/**
+ * Regex pattern to match `.config = {` assignments in component files (EcoComponent).
+ * i.e. `MyComponent.config = { ... }`
+ */
+const CONFIG_ASSIGNMENT_PATTERN = /\.config\s*=\s*\{/g;
 
 /**
  * Regex pattern to match `config: {` in object literals.
@@ -42,14 +47,16 @@ const CONFIG_EXPORT_PATTERN = /export\s+const\s+config\s*=\s*\{/g;
  */
 function createExtensionPattern(extensions: string[]): RegExp {
 	if (extensions.length === 0) {
-		return /\.(kita\.tsx|ghtml\.ts|ghtml\.tsx|lit\.tsx)$/;
+		return /\.(kita\.tsx|ghtml\.ts|ghtml\.tsx|lit\.tsx|ts)(\?.*)?$/;
 	}
 
-	const escaped = extensions.map((ext) => ext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-	return new RegExp(`(${escaped.join('|')})$`);
+	const allExtensions = [...new Set([...extensions, '.ts'])].filter((ext) => ext !== '.mdx');
+	const escaped = allExtensions.map((ext) => ext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+	return new RegExp(`(${escaped.join('|')})(\\?.*)?$`);
 }
 
 export interface EcoComponentDirPluginOptions {
+	/** The EcoPages application configuration containing integration settings */
 	config: EcoPagesAppConfig;
 }
 
@@ -63,15 +70,16 @@ export interface EcoComponentDirPluginOptions {
  * 4. Injects `componentDir: "/path/to/component/dir"` as the first property
  * 5. Returns the transformed content with the appropriate loader
  *
- * The plugin uses the integration extensions from the provided config to determine
- * which files to process.
+ * The injected `componentDir` is used by the dependency resolution system to locate
+ * relative script and stylesheet dependencies defined in component configs.
  *
  * @param options - Plugin options containing the EcoPages config
- * @returns A Bun plugin instance
+ * @returns A Bun plugin instance ready for registration with `Bun.plugin()`
  *
  * @example
  * ```typescript
  * const plugin = createEcoComponentDirPlugin({ config: appConfig });
+ * await Bun.plugin(plugin);
  * ```
  */
 export function createEcoComponentDirPlugin(options: EcoComponentDirPluginOptions): BunPlugin {
@@ -82,14 +90,11 @@ export function createEcoComponentDirPlugin(options: EcoComponentDirPluginOption
 		name: 'eco-component-dir-plugin',
 		setup(build) {
 			build.onLoad({ filter: extensionPattern }, async (args) => {
-				const contents = await Bun.file(args.path).text();
-				const componentDir = path.dirname(args.path);
+				const filePath = args.path.split('?')[0];
+				const contents = await FileUtils.getFileAsString(filePath);
+				const transformedContents = injectComponentDir(contents, filePath);
 
-				const transformedContents = contents.replace(CONFIG_ASSIGNMENT_PATTERN, (match) => {
-					return `${match}\n\tcomponentDir: "${componentDir}",`;
-				});
-
-				const ext = path.extname(args.path).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';
+				const ext = path.extname(filePath).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';
 
 				return {
 					contents: transformedContents,
@@ -98,6 +103,39 @@ export function createEcoComponentDirPlugin(options: EcoComponentDirPluginOption
 			});
 		},
 	};
+}
+
+/**
+ * Injects `componentDir` into EcoComponent config objects in file content.
+ * This utility can be used by integrations that handle their own file loading
+ * (like MDX) but still need componentDir injection for dependency resolution.
+ *
+ * @param contents - The file content to transform
+ * @param filePath - Absolute path to the file (used to derive componentDir)
+ * @returns Transformed content with componentDir injected
+ *
+ * @example
+ * ```typescript
+ * const contents = await Bun.file(filePath).text();
+ * const transformed = injectComponentDir(contents, filePath);
+ * ```
+ */
+export function injectComponentDir(contents: string, filePath: string): string {
+	const componentDir = path.dirname(filePath);
+
+	let result = contents.replace(CONFIG_ASSIGNMENT_PATTERN, (match) => {
+		return `${match}\n\tcomponentDir: "${componentDir}",`;
+	});
+
+	result = result.replace(CONFIG_PROPERTY_PATTERN, () => {
+		return `config: {\n\t\tcomponentDir: "${componentDir}",`;
+	});
+
+	result = result.replace(CONFIG_EXPORT_PATTERN, (match) => {
+		return `${match}\n\tcomponentDir: "${componentDir}",`;
+	});
+
+	return result;
 }
 
 export default createEcoComponentDirPlugin;

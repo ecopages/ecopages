@@ -6,8 +6,7 @@
 	}
 
 	&__code {
-		@apply font-bold font-heading mb-4 select-none tracking-tighter text-on-background/10;
-		font-size: clamp(8rem, 25vw, 12rem);
+		@apply font-bold font-heading mb-4 select-none tracking-tighter text-on-background/30 text-8xl;
 		line-height: 0.85;
 	}
 

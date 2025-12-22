@@ -5,6 +5,7 @@ preload = [
   "./scripts/setup-test.ts",
   "@ecopages/bun-postcss-loader",
 ]
+exclude = ["**/*.test.browser.ts"]
 
 [install.scopes]
 "@jsr" = "https://npm.jsr.io"

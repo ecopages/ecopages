@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/transitions",
-	"version": "0.1.0",
+	"version": "0.1.48",
 	"description": "Client-side navigation and view transitions for Ecopages",
 	"keywords": [
 		"ecopages",

@@ -1,5 +1,5 @@
 .code-block {
-	@apply my-8 rounded-md [&_pre.shiki]:col-span-4 [&_pre.shiki]:col-start-2 [&_pre.shiki]:whitespace-pre-wrap [&_pre.shiki]:p-4 [&_pre.shiki]:rounded-md [&_pre.shiki]:overflow-scroll;
+	@apply border border-border my-8 rounded-md [&_pre.shiki]:col-span-4 [&_pre.shiki]:col-start-2 [&_pre.shiki]:whitespace-pre-wrap [&_pre.shiki]:p-4 [&_pre.shiki]:rounded-md [&_pre.shiki]:overflow-scroll;
 }
 
 html.dark .shiki,

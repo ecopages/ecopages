@@ -58,3 +58,6 @@ jobs:
 
             - name: Publish package @ecopages/react
               run: bun run --filter @ecopages/react release:jsr
+
+            - name: Publish package @ecopages/transition
+              run: bun run --filter @ecopages/transition release:jsr

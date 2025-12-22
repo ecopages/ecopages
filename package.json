@@ -30,16 +30,21 @@
 		"bump:minor": "bun run scripts/bump-version.ts minor && bun run jsr:sync-version",
 		"bump:major": "bun run scripts/bump-version.ts major && bun run jsr:sync-version",
 		"commit": "better-commits",
-		"prepare": "husky"
+		"prepare": "husky",
+		"test:browser": "vitest run"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.0.6",
+		"@vitest/browser": "^4.0.16",
+		"@vitest/browser-playwright": "^4.0.16",
 		"better-commits": "^1.18.1",
 		"husky": "^9.0.10",
 		"lint-staged": "^15.2.2",
 		"oxlint": "^1.32.0",
 		"@ecopages/bun-postcss-loader": "workspace:*",
-		"prettier": "^3.7.4"
+		"playwright": "^1.57.0",
+		"prettier": "^3.7.4",
+		"vitest": "^4.0.16"
 	},
 	"module": "src/index.js",
 	"repository": "https://github.com/ecopages/ecopages.git",

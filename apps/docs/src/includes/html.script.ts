@@ -1,3 +1,3 @@
-import { createRouter } from '@ecopages/transitions/client';
+import { createRouter } from '@ecopages/browser-router/client';
 
 createRouter();

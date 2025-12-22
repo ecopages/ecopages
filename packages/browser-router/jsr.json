@@ -1,5 +1,5 @@
 {
-	"name": "@ecopages/transitions",
+	"name": "@ecopages/browser-router",
 	"version": "0.1.0",
 	"exports": {
 		".": "./src/index.ts",

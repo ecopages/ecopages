@@ -1,4 +1,4 @@
-@import '@ecopages/transitions/src/styles.css';
+@import '@ecopages/browser-router/src/styles.css';
 
 @tailwind base;
 @tailwind components;

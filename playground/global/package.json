@@ -16,7 +16,7 @@
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
-		"@ecopages/transitions": "workspace:*",
+		"@ecopages/browser-router": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@ecopages/bun-postcss-loader": "workspace:*",

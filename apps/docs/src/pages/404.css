@@ -1,6 +1,25 @@
 .error404 {
-	@apply flex flex-col gap-4 items-center justify-center bg-background-accent rounded-md p-4 my-20 max-w-fit mx-auto shadow-md;
-	p {
-		@apply text-lg text-on-background p-8 bg-background rounded-md;
+	@apply min-h-[calc(100vh-64px)] flex items-center justify-center p-8 bg-background;
+
+	&__content {
+		@apply max-w-xl w-full text-center;
+	}
+
+	&__code {
+		@apply font-bold font-heading mb-4 select-none tracking-tighter text-on-background/10;
+		font-size: clamp(8rem, 25vw, 12rem);
+		line-height: 0.85;
+	}
+
+	&__title {
+		@apply text-2xl md:text-3xl font-bold font-heading text-on-background mb-3 tracking-tight;
+	}
+
+	&__message {
+		@apply text-base md:text-lg text-on-background/60 mb-8 leading-relaxed font-sans max-w-sm mx-auto;
+	}
+
+	&__actions {
+		@apply flex justify-center;
 	}
 }

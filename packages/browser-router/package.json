@@ -1,10 +1,11 @@
 {
-	"name": "@ecopages/transitions",
+	"name": "@ecopages/browser-router",
 	"version": "0.1.48",
-	"description": "Client-side navigation and view transitions for Ecopages",
+	"description": "Client-side router for Ecopages with view transitions support",
 	"keywords": [
 		"ecopages",
-		"transitions",
+		"router",
+		"browser-router",
 		"navigation",
 		"spa",
 		"view-transitions"
@@ -25,7 +26,7 @@
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
-		"directory": "packages/transitions"
+		"directory": "packages/browser-router"
 	},
 	"scripts": {
 		"release:jsr": "bunx jsr publish"

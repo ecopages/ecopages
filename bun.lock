@@ -21,15 +21,22 @@
     "apps/docs": {
       "name": "@ecopages/docs",
       "devDependencies": {
+        "@ecopages/browser-router": "workspace:*",
         "@ecopages/bun-postcss-loader": "workspace:*",
         "@ecopages/core": "workspace:*",
         "@ecopages/image-processor": "workspace:*",
         "@ecopages/mdx": "workspace:*",
         "@ecopages/postcss-processor": "workspace:*",
         "@ecopages/radiant": "latest",
-        "@ecopages/transitions": "workspace:*",
         "remark-gfm": "^4.0.1",
         "shiki": "^1.1.2",
+      },
+    },
+    "packages/browser-router": {
+      "name": "@ecopages/browser-router",
+      "version": "0.1.48",
+      "dependencies": {
+        "@ecopages/core": "workspace:*",
       },
     },
     "packages/core": {
@@ -174,16 +181,10 @@
         "postcss-simple-vars": "^7.0.1",
       },
     },
-    "packages/transitions": {
-      "name": "@ecopages/transitions",
-      "version": "0.1.48",
-      "dependencies": {
-        "@ecopages/core": "workspace:*",
-      },
-    },
     "playground/global": {
       "name": "@ecopages/playground-global",
       "devDependencies": {
+        "@ecopages/browser-router": "workspace:*",
         "@ecopages/bun-postcss-loader": "workspace:*",
         "@ecopages/core": "workspace:*",
         "@ecopages/image-processor": "workspace:*",
@@ -193,7 +194,6 @@
         "@ecopages/postcss-processor": "workspace:*",
         "@ecopages/radiant": "^0.1.7",
         "@ecopages/scripts-injector": "^0.1.1",
-        "@ecopages/transitions": "workspace:*",
         "@faker-js/faker": "9.7.0",
         "@types/alpinejs": "^3.13.6",
         "alpinejs": "^3.13.10",
@@ -244,6 +244,8 @@
 
     "@clack/prompts": ["@clack/prompts@0.7.0", "", { "dependencies": { "@clack/core": "^0.3.3", "is-unicode-supported": "*", "picocolors": "^1.0.0", "sisteransi": "^1.0.5" } }, "sha512-0MhX9/B4iL6Re04jPrttDm+BsP8y6mS7byuv0BvXgdXhbV5PdlsHt55dvNsuBCPZ7xq1oTAOOuotR9NFbQyMSA=="],
 
+    "@ecopages/browser-router": ["@ecopages/browser-router@workspace:packages/browser-router"],
+
     "@ecopages/bun-inline-css-plugin": ["@ecopages/bun-inline-css-plugin@workspace:packages/plugins/bun-inline-css-plugin"],
 
     "@ecopages/bun-mdx-kitajs-loader": ["@ecopages/bun-mdx-kitajs-loader@workspace:packages/loaders/bun-mdx-kitajs-loader"],
@@ -277,8 +279,6 @@
     "@ecopages/react": ["@ecopages/react@workspace:packages/integrations/react"],
 
     "@ecopages/scripts-injector": ["@ecopages/scripts-injector@0.1.2", "", { "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-ocdUcI5ZCYqvsfSKuqLMkr8uvdK3nwOGeTlf9nCb+ei0QuC4KU7cl3GliSYfdjgKxBeEadFkB4dfE6Juvj4MXQ=="],
-
-    "@ecopages/transitions": ["@ecopages/transitions@workspace:packages/transitions"],
 
     "@emnapi/runtime": ["@emnapi/runtime@1.7.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-PVtJr5CmLwYAU9PZDMITZoR5iAOShYREoR45EyyLrbntV50mdePTgUn4AmOw90Ifcj+x2kRjdzr1HP3RrNiHGA=="],
 

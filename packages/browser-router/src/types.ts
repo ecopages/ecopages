@@ -1,5 +1,5 @@
 /**
- * Types for the @ecopages/transitions package
+ * Types for the @ecopages/browser-router package
  * @module
  */
 

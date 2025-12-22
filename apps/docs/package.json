@@ -15,7 +15,7 @@
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@ecopages/radiant": "latest",
-		"@ecopages/transitions": "workspace:*",
+		"@ecopages/browser-router": "workspace:*",
 		"remark-gfm": "^4.0.1",
 		"shiki": "^1.1.2"
 	}

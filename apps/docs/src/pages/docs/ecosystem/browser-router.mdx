@@ -10,7 +10,7 @@ export const getMetadata = () => ({
 
 # Client-Side Navigation
 
-The `@ecopages/transitions` package enables Single Page Application (SPA) navigation behavior in your Ecopages application. It intercepts link clicks, fetches the next page via fetch, and swaps the DOM content seamlessly, updating the browser history and merging `<head>` elements.
+The `@ecopages/browser-router` package enables Single Page Application (SPA) navigation behavior in your Ecopages application. It intercepts link clicks, fetches the next page via fetch, and swaps the DOM content seamlessly, updating the browser history and merging `<head>` elements.
 
 This enables persistent state (like audio players or scroll positions) and native View Transitions.
 
@@ -18,7 +18,7 @@ This enables persistent state (like audio players or scroll positions) and nativ
 
 <CodeBlock>
 ```bash
-bun add @ecopages/transitions
+bunx jsr add @ecopages/browser-router
 ```
 </CodeBlock>
 
@@ -28,7 +28,7 @@ To enable client-side routing, initialize the `EcoRouter` in your global script 
 
 <CodeBlock>
 ```typescript
-import { EcoRouter } from '@ecopages/transitions/client';
+import { EcoRouter } from '@ecopages/browser-router/client';
 
 // Initialize with default options
 new EcoRouter({
@@ -107,7 +107,7 @@ The package includes default fade and slide animations. Import them in your CSS:
 
 <CodeBlock>
 ```css
-@import '@ecopages/transitions/styles.css';
+@import '@ecopages/browser-router/styles.css';
 ```
 </CodeBlock>
 

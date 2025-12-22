@@ -1,5 +1,5 @@
 /**
- * @ecopages/transitions
+ * @ecopages/browser-router
  * Client-side navigation and view transitions for Ecopages
  * @module
  */

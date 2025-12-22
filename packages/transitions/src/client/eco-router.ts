@@ -26,7 +26,11 @@ export class EcoRouter {
 
 		this.domSwapper = new DomSwapper();
 		this.persistenceManager = new PersistenceManager(this.options.persistAttribute);
-		this.scrollManager = new ScrollManager(this.options.scrollPersistAttribute, this.options.scrollBehavior);
+		this.scrollManager = new ScrollManager(
+			this.options.scrollPersistAttribute,
+			this.options.scrollBehavior,
+			this.options.smoothScroll,
+		);
 		this.viewTransitionManager = new ViewTransitionManager(this.options.viewTransitions);
 	}
 

@@ -11,10 +11,16 @@ import type { EcoRouterOptions } from '../types';
 export class ScrollManager {
 	private scrollPersistAttribute: string;
 	private scrollBehavior: Required<EcoRouterOptions>['scrollBehavior'];
+	private smoothScroll: boolean;
 
-	constructor(scrollPersistAttribute: string, scrollBehavior: Required<EcoRouterOptions>['scrollBehavior']) {
+	constructor(
+		scrollPersistAttribute: string,
+		scrollBehavior: Required<EcoRouterOptions>['scrollBehavior'],
+		smoothScroll: boolean,
+	) {
 		this.scrollPersistAttribute = scrollPersistAttribute;
 		this.scrollBehavior = scrollBehavior;
+		this.smoothScroll = smoothScroll;
 	}
 
 	/**
@@ -55,21 +61,23 @@ export class ScrollManager {
 	handleScroll(newUrl: URL, previousUrl: URL): void {
 		if (newUrl.hash) {
 			const target = document.querySelector(newUrl.hash);
-			target?.scrollIntoView();
+			target?.scrollIntoView({ behavior: this.smoothScroll ? 'smooth' : 'instant' });
 			return;
 		}
+
+		const behavior = this.smoothScroll ? 'smooth' : 'instant';
 
 		switch (this.scrollBehavior) {
 			case 'preserve':
 				break;
 			case 'auto':
 				if (newUrl.pathname !== previousUrl.pathname) {
-					window.scrollTo(0, 0);
+					window.scrollTo({ top: 0, left: 0, behavior });
 				}
 				break;
 			case 'top':
 			default:
-				window.scrollTo(0, 0);
+				window.scrollTo({ top: 0, left: 0, behavior });
 				break;
 		}
 	}

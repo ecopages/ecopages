@@ -30,6 +30,12 @@ export interface EcoRouterOptions {
 	 * @default true
 	 */
 	viewTransitions?: boolean;
+	/**
+	 * Whether to use smooth scrolling during navigation.
+	 * If true, uses 'smooth' behavior. If false, uses 'instant' behavior.
+	 * @default false
+	 */
+	smoothScroll?: boolean;
 }
 
 /** Events emitted during the navigation lifecycle */
@@ -58,4 +64,5 @@ export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	updateHistory: true,
 	scrollBehavior: 'top',
 	viewTransitions: false,
+	smoothScroll: false,
 };

@@ -1,0 +1,147 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | Transitions',
+  description: 'Add SPA-like client-side navigation and view transitions to your Ecopages application',
+});
+
+# Client-Side Navigation
+
+The `@ecopages/transitions` package enables Single Page Application (SPA) navigation behavior in your Ecopages application. It intercepts link clicks, fetches the next page via fetch, and swaps the DOM content seamlessly, updating the browser history and merging `<head>` elements.
+
+This enables persistent state (like audio players or scroll positions) and native View Transitions.
+
+## Installation
+
+<CodeBlock>
+```bash
+bun add @ecopages/transitions
+```
+</CodeBlock>
+
+## Setup
+
+To enable client-side routing, initialize the `EcoRouter` in your global script (e.g., `src/includes/html.script.ts`).
+
+<CodeBlock>
+```typescript
+import { EcoRouter } from '@ecopages/transitions/client';
+
+// Initialize with default options
+new EcoRouter({
+  viewTransitions: true, // Enable View Transitions API
+});
+```
+</CodeBlock>
+
+## Configuration
+
+You can customize the router behavior by passing an options object to the constructor:
+
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `linkSelector` | `string` | `'a[href]'` | Selector for links to intercept. |
+| `persistAttribute` | `string` | `'data-eco-persist'` | Attribute to mark elements that should persist across navigations. |
+| `scrollPersistAttribute` | `string` | `'data-eco-scroll-persist'` | Attribute to mark elements that should retain their scroll position. |
+| `reloadAttribute` | `string` | `'data-eco-reload'` | Attribute (on link or element) to force a full hard reload. |
+| `scrollBehavior` | `'top' \| 'preserve' \| 'auto'` | `'top'` | Controls scroll behavior after navigation. |
+| `viewTransitions` | `boolean` | `false` | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) support. |
+
+### Example with Options
+
+<CodeBlock>
+```typescript
+new EcoRouter({
+  viewTransitions: true,
+  scrollBehavior: 'preserve',
+  linkSelector: 'a:not([data-no-route])',
+});
+```
+</CodeBlock>
+
+## Features
+
+### Persistence
+
+You can stick elements to the DOM so they are not destroyed/re-created during navigation. This preserves their internal state (like audio playback, input values, or complex component state).
+
+Add the `data-eco-persist` attribute with a unique ID to the element you want to persist.
+
+<CodeBlock>
+```tsx
+<audio 
+  controls 
+  src="/music.mp3" 
+  data-eco-persist="global-player" 
+/>
+```
+</CodeBlock>
+
+<div class="banner banner--alert" role="alert">
+  <p class="banner__title">Important</p>
+  <p>The persisted element must exist on <strong>both</strong> the current page and the next page (the placeholder). The placeholder will be replaced by the live element.</p>
+</div>
+
+### Scroll Persistence
+
+To preserve the scroll position of a specific container (like a sidebar) across navigations, use `data-eco-scroll-persist`.
+
+<CodeBlock>
+```tsx
+<aside class="sidebar" data-eco-scroll-persist="main-sidebar">
+  {/* Content */}
+</aside>
+```
+</CodeBlock>
+
+### View Transitions
+
+If `viewTransitions: true` is enabled, Ecopages will trigger a View Transition on navigation. You can customize the animation using standard CSS or the provided optional styles.
+
+#### Using Included Styles
+
+The package includes default fade and slide animations. Import them in your CSS:
+
+<CodeBlock>
+```css
+@import '@ecopages/transitions/styles.css';
+```
+</CodeBlock>
+
+Then use the `data-eco-transition` attribute on elements to apply specific animations:
+
+| Value | Description |
+| :--- | :--- |
+| `slide` | Slides the element horizontally during transition. |
+
+<CodeBlock>
+```html
+<main data-eco-transition="slide">
+  <!-- Content slides in -->
+</main>
+```
+</CodeBlock>
+
+## Lifecycle Events
+
+The router emits lifecycle custom events on the `window` object, allowing you to hook into the navigation process.
+
+| Event | Detail | Description |
+| :--- | :--- | :--- |
+| `eco:before-swap` | `{ url, direction, newDocument, reload }` | Fired after fetching new content but **before** updating the DOM. Use `newDocument` to inspect upcoming content. Call `reload()` to force a hard reload. |
+| `eco:after-swap` | `{ url, direction, persistedElements }` | Fired **after** the DOM has been updated. Useful for re-initializing scripts or analytics. |
+| `eco:page-load` | `{ url, direction }` | Fired on both initial load and subsequent navigations. |
+
+### Example: Re-initializing Scripts
+
+<CodeBlock>
+```typescript
+window.addEventListener('eco:after-swap', () => {
+  console.log('Page updated!');
+  // Re-run any page-specific logic here
+});
+```
+</CodeBlock>

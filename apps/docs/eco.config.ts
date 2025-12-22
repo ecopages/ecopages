@@ -6,6 +6,7 @@ import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import remarkGfm from 'remark-gfm';
+import { rehypeSimpleTableWrapper } from './src/plugins/rehype-simple-table-wrapper';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
@@ -17,6 +18,7 @@ const config = await new ConfigBuilder()
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
 				remarkPlugins: [remarkGfm],
+				rehypePlugins: [rehypeSimpleTableWrapper],
 			},
 		}),
 	])

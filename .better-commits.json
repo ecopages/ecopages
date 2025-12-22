@@ -120,6 +120,10 @@
 			{
 				"value": "scripts",
 				"label": "scripts"
+			},
+			{
+				"value": "transitions",
+				"label": "transitions"
 			}
 		]
 	},

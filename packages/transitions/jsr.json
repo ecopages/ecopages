@@ -1,0 +1,13 @@
+{
+	"name": "@ecopages/transitions",
+	"version": "0.1.0",
+	"exports": {
+		".": "./src/index.ts",
+		"./client": "./src/client/eco-router.ts"
+	},
+	"exclude": ["src/test", "**/*.test.ts"],
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],
+		"exclude": ["src/test"]
+	}
+}

@@ -1,5 +1,6 @@
 import type { EcoComponent } from '@ecopages/core';
 import { Navigation } from '@/components/navigation';
+import { RadiantCounter } from '@/components/radiant-counter';
 
 export type BaseLayoutProps = {
 	children: JSX.Element | JSX.Element[];
@@ -20,6 +21,7 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
 					{ label: 'Plain Css', url: '/plain-css' },
 				]}
 			/>
+			<RadiantCounter data-eco-persist="counter" count={5} />
 			<main class={className}>{children as 'safe'}</main>
 		</body>
 	);
@@ -29,6 +31,6 @@ BaseLayout.config = {
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
-		components: [Navigation],
+		components: [Navigation, RadiantCounter],
 	},
 };

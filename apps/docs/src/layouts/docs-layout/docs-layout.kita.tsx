@@ -159,7 +159,7 @@ export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
 	return (
 		<BaseLayout class="docs-layout prose">
 			<>
-				<radiant-navigation class="docs-layout__aside hidden md:block">
+				<radiant-navigation data-eco-scroll-persist="docs-sidebar" class="docs-layout__aside hidden md:block">
 					<DocsNavigation />
 				</radiant-navigation>
 				<div class="docs-layout__content">{children}</div>

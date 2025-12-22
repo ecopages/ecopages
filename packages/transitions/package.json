@@ -13,7 +13,11 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./client": "./src/client/eco-router.ts"
+		"./client": "./src/client/eco-router.ts",
+		"./src/styles.css": {
+			"import": "./src/styles.css",
+			"require": "./src/styles.css"
+		}
 	},
 	"files": [
 		"src"

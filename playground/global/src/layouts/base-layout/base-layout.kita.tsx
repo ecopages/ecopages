@@ -19,6 +19,8 @@ export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: cla
 					{ label: 'Radiant', url: '/labs/radiant' },
 					{ label: 'Images', url: '/labs/images' },
 					{ label: 'Plain Css', url: '/plain-css' },
+					{ label: 'Video', url: '/video' },
+					{ label: 'Video Detail', url: '/video-detail' },
 				]}
 			/>
 			<RadiantCounter data-eco-persist="counter" count={5} />

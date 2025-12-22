@@ -18,7 +18,7 @@ export class RadiantSwitch extends RadiantElement {
 	@reactiveProp({ type: Boolean, reflect: true, defaultValue: false })
 	checked!: boolean;
 
-	@reactiveProp({ type: Boolean, reflect: true, defaultValue: false })
+	@reactiveProp({ type: Boolean, reflect: true })
 	disabled!: boolean;
 
 	@query({ ref: 'switch' })
@@ -43,19 +43,10 @@ export class RadiantSwitch extends RadiantElement {
 	}
 }
 
-@customElement('dark-mode-toggle')
-export class DarkModeToggle extends RadiantSwitch {
-	@onUpdated('checked')
-	updateTheme() {
-		document.body.classList.toggle('dark', this.checked);
-	}
-}
-
 declare global {
 	namespace JSX {
 		interface IntrinsicElements {
-			'radiant-switch': RadiantSwitchProps & { children: JSX.Element };
-			'dark-mode-toggle': RadiantSwitchProps & { children: JSX.Element };
+			'radiant-switch': RadiantSwitchProps & HtmlTag;
 		}
 	}
 }

@@ -11,6 +11,12 @@ Client-side navigation and view transitions for Ecopages. Intercepts same-origin
 - **Scroll persistence** — Restore scroll positions for specific elements
 - **Lifecycle events** — Hook into navigation with `eco:before-swap`, `eco:after-swap`, `eco:page-load`
 
+## Compatibility
+
+This package works with MPA-style rendering (KitaJS, Lit, vanilla JS) where the server returns full HTML pages.
+
+**Not compatible with React/Preact** — These frameworks manage their own virtual DOM and component trees. Replacing the DOM breaks hydration, state, and event handlers. For React apps, use a framework-specific routing solution.
+
 ## Installation
 
 ```bash

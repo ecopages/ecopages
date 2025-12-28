@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -43,7 +42,6 @@ Examples include the KitaJS, React, and Lit integrations.
 
 Plugins are configured in your `eco.config.ts` file:
 
-<CodeBlock>
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
@@ -54,7 +52,6 @@ const config = await new ConfigBuilder()
 	.setIntegrations([kitaPlugin()])
 	.build();
 ```
-</CodeBlock>
 
 See [Custom Processor](/docs/plugins/custom-processor) and [Custom Integration](/docs/plugins/custom-integration) for details on creating your own plugins.
 ```

@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -12,7 +11,9 @@ export const getMetadata = () => ({
 
 To create a new Ecopages project, you can install the core package and desired integrations using Bun:
 
-<CodeBlock>```bash bunx jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx ```</CodeBlock>
+```bash
+bunx jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx
+```
 
 This example installs the core package along with the KitaJS and MDX integrations. You can add or remove integrations based on your project needs.
 
@@ -20,7 +21,6 @@ This example installs the core package along with the KitaJS and MDX integration
 
 After installation, create an `eco.config.ts` file in your project's root directory to configure Ecopages. This file defines your site's structure, integrations, and canonical base URL.
 
-<CodeBlock>
 ```typescript
 // filepath: eco.config.ts
 import { ConfigBuilder } from '@ecopages/core';
@@ -39,13 +39,11 @@ const config = await new ConfigBuilder()
 
 export default config;
 ```
-</CodeBlock>
 
 ### Environment Variables
 
 Ecopages uses environment variables for configuration overrides. Create a `.env` file in your project root (and add it to `.gitignore`).
 
-<CodeBlock>
 ```bash
 # filepath: .env.example
 # Overrides the baseUrl set in eco.config.ts (e.g., for different deployment stages)
@@ -62,9 +60,7 @@ ECOPAGES_PORT=8080
 # Enable debug logging (Default: false)
 
 ECOPAGES_LOGGER_DEBUG=true
-
 ```
-</CodeBlock>
 
 **Configuration Precedence:**
 
@@ -103,7 +99,6 @@ my-project/
 
 Create an entry point file (e.g., `app.ts`) to initialize and run Ecopages:
 
-<CodeBlock>
 ```typescript
 // filepath: app.ts
 import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
@@ -113,11 +108,8 @@ const app = new EcopagesApp({ appConfig: config });
 await app.start();
 ```
 
-</CodeBlock>
-
 Add the following scripts to your `package.json`:
 
-<CodeBlock>
 ```json
 {
 	"scripts": {
@@ -128,8 +120,7 @@ Add the following scripts to your `package.json`:
 		"watch:dev": "bun --watch run app.ts --dev" 
 	}
 }
-``` 
-</CodeBlock>
+```
 
 Now you can use these commands:
 

@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
@@ -23,11 +22,9 @@ This preserves element state (like audio players, web component internals, or fo
 
 ## Installation
 
-<CodeBlock>
 ```bash
 bunx jsr add @ecopages/browser-router
 ```
-</CodeBlock>
 
 ## Setup
 
@@ -35,7 +32,6 @@ To enable client-side routing, initialize the router in your global script (e.g.
 
 The simplest approach is to use `createRouter`, which creates and starts the router in one call:
 
-<CodeBlock>
 ```typescript
 import { createRouter } from '@ecopages/browser-router/client';
 
@@ -43,11 +39,9 @@ const router = createRouter({
   viewTransitions: true,
 });
 ```
-</CodeBlock>
 
 For manual control over when the router starts and stops, use the `EcoRouter` class directly:
 
-<CodeBlock>
 ```typescript
 import { EcoRouter } from '@ecopages/browser-router/client';
 
@@ -60,7 +54,6 @@ router.start();
 // Later, if needed:
 // router.stop();
 ```
-</CodeBlock>
 
 ## Configuration
 
@@ -78,7 +71,6 @@ You can customize the router behavior by passing an options object:
 
 ### Example with Options
 
-<CodeBlock>
 ```typescript
 const router = createRouter({
   viewTransitions: true,
@@ -86,7 +78,6 @@ const router = createRouter({
   linkSelector: 'a:not([data-no-route])',
 });
 ```
-</CodeBlock>
 
 ## Features
 
@@ -96,7 +87,6 @@ Elements marked with `data-eco-persist` are **never recreated** during navigatio
 
 Add the `data-eco-persist` attribute with a unique ID:
 
-<CodeBlock>
 ```tsx
 <audio 
   controls 
@@ -104,7 +94,6 @@ Add the `data-eco-persist` attribute with a unique ID:
   data-eco-persist="global-player" 
 />
 ```
-</CodeBlock>
 
 <Banner type="info">
   <Banner.Title>How It Works</Banner.Title>
@@ -119,11 +108,9 @@ If `viewTransitions: true` is enabled, Ecopages will trigger a View Transition o
 
 The package includes default fade and slide animations. Import them in your CSS:
 
-<CodeBlock>
 ```css
 @import '@ecopages/browser-router/styles.css';
 ```
-</CodeBlock>
 
 Then use the `data-eco-transition` attribute on elements to apply specific animations:
 
@@ -131,13 +118,11 @@ Then use the `data-eco-transition` attribute on elements to apply specific anima
 | :--- | :--- |
 | `slide` | Slides the element horizontally during transition. |
 
-<CodeBlock>
 ```html
 <main data-eco-transition="slide">
   <!-- Content slides in -->
 </main>
 ```
-</CodeBlock>
 
 ## Lifecycle Events
 
@@ -151,24 +136,20 @@ The router emits lifecycle custom events on the `document` object, allowing you 
 
 ### Example: Re-initializing Scripts
 
-<CodeBlock>
 ```typescript
 document.addEventListener('eco:after-swap', () => {
   console.log('Page updated!');
   // Re-run any page-specific logic here
 });
 ```
-</CodeBlock>
 
 ### Example: Navigation-Aware Components
 
 For components that need to react to URL changes (like updating active states), listen for `eco:page-load`:
 
-<CodeBlock>
 ```typescript
 document.addEventListener('eco:page-load', () => {
   // Update active states, re-highlight nav links, etc.
   highlightActiveLink();
 });
 ```
-</CodeBlock>

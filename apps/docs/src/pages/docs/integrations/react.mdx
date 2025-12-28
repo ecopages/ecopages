@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
@@ -17,17 +16,14 @@ The `@ecopages/react` package introduces first-class integration with [React](ht
 
 ## Installation
 
-<CodeBlock>
 ```bash
 bunx jsr add @ecopages/react
 ```
-</CodeBlock>
 
 ## Usage
 
 To enable React support, add the `reactPlugin` to your Ecopages configuration.
 
-<CodeBlock>
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
 import { reactPlugin } from '@ecopages/react';
@@ -40,13 +36,11 @@ const config = await new ConfigBuilder()
 
 export default config;
 ```
-</CodeBlock>
 
 ## Creating Components
 
 You can standard React functional components. Ecopages uses the `EcoComponent` type to ensure compatibility.
 
-<CodeBlock>
 ```tsx
 import { useState } from 'react';
 import type { EcoComponent } from '@ecopages/core';
@@ -67,13 +61,11 @@ Counter.config = {
 	// Define any client-side dependencies here if needed
 };
 ```
-</CodeBlock>
 
 ### Using in Pages
 
 Import your component and include it in your page. Don't forget to register it in the page's `dependencies`.
 
-<CodeBlock>
 ```tsx
 import { Counter } from '@/components/counter';
 import { BaseLayout } from '@/layouts/base-layout';
@@ -96,7 +88,6 @@ HomePage.config = {
 
 export default HomePage;
 ```
-</CodeBlock>
 
 ## Utilities
 
@@ -104,7 +95,6 @@ export default HomePage;
 
 Use the `dynamic` utility to lazy-load components or render them only on the client.
 
-<CodeBlock>
 ```tsx
 import { dynamic } from '@ecopages/react/utils/dynamic';
 
@@ -113,13 +103,11 @@ const HeavyComponent = dynamic(() => import('@/components/heavy-chart'), {
     loading: () => <p>Loading chart...</p>
 });
 ```
-</CodeBlock>
 
 ### `ClientOnly`
 
 The `ClientOnly` component is useful for parts of the UI that should strictly render in the browser (e.g., accessing `window` or `localStorage`).
 
-<CodeBlock>
 ```tsx
 import { ClientOnly } from '@ecopages/react/utils/client-only';
 
@@ -127,7 +115,6 @@ import { ClientOnly } from '@ecopages/react/utils/client-only';
     <BrowserSpecificFeature />
 </ClientOnly>
 ```
-</CodeBlock>
 
 ## Key Features
 

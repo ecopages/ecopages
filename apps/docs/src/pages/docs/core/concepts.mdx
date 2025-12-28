@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -22,7 +21,6 @@ Ecopages uses a flexible integration system to extend its functionality. Each in
 
 For example, the KitaJS integration might set up template extensions like this:
 
-<CodeBlock>
 ```typescript
 .setIncludesTemplates({
 	head: 'head.kita.tsx',
@@ -30,7 +28,6 @@ For example, the KitaJS integration might set up template extensions like this:
 	seo: 'seo.kita.tsx',
 })
 ```
-</CodeBlock>
 
 This configuration tells Ecopages which files to use for specific parts of the page structure.
 
@@ -40,14 +37,12 @@ By default, Ecopages uses plain css for styling.
 We currently provide a simple Postcss and Tailwind (v3) plugin that provides a powerful and flexible system for managing your styles.
 You can customize this in your `eco.config.ts` file:
 
-<CodeBlock>
 ```typescript 
 const config = await new ConfigBuilder() 
 	// ... other configurations
 	.setProcessors([postcssProcessorPlugin()])
 	.build(); 
 ```
-</CodeBlock>
 
 ## Script and CSS Loading
 
@@ -61,7 +56,6 @@ To ensure that your components have the necessary scripts and styles, you must e
 2.  **Order**: Dependencies are loaded in the correct order based on the component tree.
 3.  **Optimize**: Only the code used on a specific page is sent to the browser.
 
-<CodeBlock>
 ```typescript
 import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, html } from '@ecopages/core';
@@ -83,7 +77,6 @@ HomePage.config = {
   },
 };
 ```
-</CodeBlock>
 
 > [!NOTE]
 > Ecopages does **not** automatically detect script files by name pattern. You must always include them in the `dependencies.scripts` array if you want them to be processed and included in the build.
@@ -100,11 +93,9 @@ In bun loaders are used to process your files. You can find more information abo
 
 You can add it to your bunfig.toml file:
 
-<CodeBlock>
 ```toml
 preload = ["@ecopages/bun-postcss-loader"]
 ```
-</CodeBlock>
 
 ## Import CSS as String in JS Files
 
@@ -116,14 +107,12 @@ Ecopages allows you to import MDX files as components. This is useful for creati
 
 This capability is provided by the [MDX Integration](/docs/integrations/mdx), which automatically handles MDX transformations using `@mdx-js/esbuild` internally.
 
-<CodeBlock>
 ```typescript
 import Component from '@/components/mdx-component';
 
 const MyPage = () => html`${Component()}`;
 
 ```
-</CodeBlock>
 
 ## Project Structure
 
@@ -158,7 +147,6 @@ When fetching data in `getStaticPaths` or `getStaticProps`, Ecopages provides di
 
 For the best performance during static generation, call your data layer functions directly:
 
-<CodeBlock>
 ```typescript
 import { getAllBlogPosts, getBlogPost } from '@/data/blog';
 
@@ -183,13 +171,11 @@ export const getStaticProps: GetStaticProps = async ({ pathname }) => {
 	return { props: { post } };
 };
 ```
-</CodeBlock>
 
 ### HTTP Requests to External APIs
 
 For external data sources, HTTP requests are necessary:
 
-<CodeBlock>
 ```typescript
 export const getStaticPaths: GetStaticPaths = async () => {
 	const response = await fetch('https://external-api.com/posts');
@@ -202,7 +188,6 @@ export const getStaticPaths: GetStaticPaths = async () => {
 	};
 };
 ```
-</CodeBlock>
 
 ## Runtime Support
 
@@ -218,7 +203,6 @@ This means you'll need to:
 
 Ecopages provides a simple and intuitive way to create API endpoints and handle server-side logic. You can find more details in the [Server API](/docs/core/server-api) documentation.
 
-<CodeBlock>
 ```typescript
 import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
 import appConfig from './eco.config';
@@ -230,9 +214,7 @@ app.get('/api/hello', async () => {
 });
 
 await app.start();
-
 ```
-</CodeBlock>
 
 ## Additional Features
 

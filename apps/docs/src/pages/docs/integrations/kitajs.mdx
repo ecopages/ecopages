@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
@@ -19,11 +18,9 @@ The `@ecopages/kitajs` package provides seamless integration with [Kita](https:/
 
 To install the KitaJS integration plugin, run the following command in your project directory:
 
-<CodeBlock>
 ```bash
 bunx jsr add @ecopages/kitajs
 ```
-</CodeBlock>
 
 ## Usage
 
@@ -31,16 +28,13 @@ To incorporate the KitaJS integration into your Ecopages project, follow these s
 
 1. Import the `kitajsPlugin` in your Ecopages configuration file:
 
-<CodeBlock>
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 ```
-</CodeBlock>
 
 2. Add the `kitajsPlugin` to your configuration:
 
-<CodeBlock>
 ```typescript
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
@@ -53,13 +47,11 @@ const config = await new ConfigBuilder()
 	})
 	.build();
 ```
-</CodeBlock>
 
 ## Creating Pages with KitaJS
 
 Once the KitaJS integration is set up, you can create pages using JSX syntax. Here's an example of a basic page:
 
-<CodeBlock>
 ```tsx
 import { BaseLayout } from '@/layouts/base-layout';
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
@@ -80,7 +72,6 @@ HomePage.config = {
 
 export default HomePage;
 ```
-</CodeBlock>
 
 ## Key Features
 
@@ -100,14 +91,14 @@ export default HomePage;
 The KitaJS integration works well with other Ecopages plugins. For example, you can use it alongside the MDX plugin for markdown support:
 
 
-<Banner type="info">
+<Banner type="info" class='my-8'>
 	<Banner.Title>MDX Support</Banner.Title>
 	<p>
 		For using JSX within Markdown/MDX, please see the <a href="/docs/integrations/mdx">MDX Integration</a>. The KitaJS plugin works seamlessly with MDX!
 	</p>
 </Banner>
 
-<CodeBlock>
+
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
@@ -128,6 +119,5 @@ const config = await new ConfigBuilder()
 
 export default config;
 ```
-</CodeBlock>
 
 This setup allows you to use both KitaJS and MDX in your project, giving you flexibility in how you create your pages and components. Remember to set the `jsxImportSource` to `@kitajs/html` in the MDX plugin options to ensure compatibility.

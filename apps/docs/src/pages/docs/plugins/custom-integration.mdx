@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -16,7 +15,6 @@ Integrations in Ecopages add support for new templating engines or frameworks. T
 
 An integration extends the `IntegrationPlugin` abstract class and must provide a renderer class:
 
-<CodeBlock>
 ```typescript
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { CustomRenderer } from './custom-renderer';
@@ -33,13 +31,11 @@ class CustomIntegration extends IntegrationPlugin {
 	}
 }
 ```
-</CodeBlock>
 
 ## Creating a Custom Renderer
 
 The renderer handles the actual transformation of your templates. It extends the `IntegrationRenderer` class:
 
-<CodeBlock>
 ```typescript
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
 import type { IntegrationRendererRenderOptions, RouteRendererBody, EcoComponent } from '@ecopages/core/public-types';
@@ -67,13 +63,11 @@ class CustomRenderer extends IntegrationRenderer {
 	}
 }
 ```
-</CodeBlock>
 
 ## Handling Dependencies
 
 Manage assets and dependencies for your integration using the `integrationDependencies` array in the constructor:
 
-<CodeBlock>
 ```typescript
 import { AssetFactory } from '@ecopages/core/services/asset-processing-service';
 
@@ -97,7 +91,6 @@ class CustomIntegration extends IntegrationPlugin {
 	}
 }
 ```
-</CodeBlock>
 
 ## Hot Module Replacement (HMR)
 
@@ -107,7 +100,6 @@ To support HMR in your custom integration, you need to implement an `HmrStrategy
 
 The strategy determines how file changes are handled. It should identify matches and process the updates:
 
-<CodeBlock>
 ```typescript
 import {
 	HmrStrategy,
@@ -150,13 +142,11 @@ class CustomHmrStrategy extends HmrStrategy {
 	}
 }
 ```
-</CodeBlock>
 
 ### Registering the Strategy
 
 Override `getHmrStrategy` in your `IntegrationPlugin` to return your custom strategy:
 
-<CodeBlock>
 ```typescript
 class CustomIntegration extends IntegrationPlugin {
 	renderer = CustomRenderer;
@@ -176,13 +166,11 @@ class CustomIntegration extends IntegrationPlugin {
 	}
 }
 ```
-</CodeBlock>
 
 ## Setup and Teardown
 
 Handle initialization and cleanup of resources needed by your integration:
 
-<CodeBlock>
 ```typescript
 class CustomIntegration extends IntegrationPlugin {
 	renderer = CustomRenderer;
@@ -198,13 +186,11 @@ class CustomIntegration extends IntegrationPlugin {
 	}
 }
 ```
-</CodeBlock>
 
 ## Using the Integration
 
 Register your integration in the Ecopages configuration:
 
-<CodeBlock>
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
 import { CustomIntegration } from './custom-integration';
@@ -213,7 +199,6 @@ const customIntegration = new CustomIntegration();
 
 const config = await new ConfigBuilder().setIntegrations([customIntegration]).build();
 ```
-</CodeBlock>
 
 ## Best Practices
 
@@ -228,7 +213,6 @@ const config = await new ConfigBuilder().setIntegrations([customIntegration]).bu
 
 Here's a complete example including the plugin, renderer, and HMR strategy:
 
-<CodeBlock>
 ```typescript
 import { IntegrationPlugin, IntegrationRenderer, HmrStrategy, HmrStrategyType } from '@ecopages/core';
 import type {
@@ -288,4 +272,3 @@ export class CustomIntegration extends IntegrationPlugin {
 	}
 }
 ```
-</CodeBlock>

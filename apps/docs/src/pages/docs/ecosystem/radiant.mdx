@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -18,7 +17,6 @@ Radiant uses standard CUSTOM Elements with a thin layer of decorators to handle 
 
 ## Component Example
 
-<CodeBlock>
 ```typescript
 import { customElement, reactiveProp, onEvent, query } from '@ecopages/radiant';
 
@@ -40,7 +38,6 @@ export class RadiantCounter extends HTMLElement {
     }
 }
 ```
-</CodeBlock>
 
 ## Decorators
 
@@ -63,7 +60,6 @@ To use a Radiant component in your Ecopages project:
 1. Create a `*.script.ts` file for the component logic.
 2. Define the component in your page or layout config:
 
-<CodeBlock>
 ```typescript
 MyPage.config = {
     dependencies: {
@@ -71,4 +67,3 @@ MyPage.config = {
     }
 };
 ```
-</CodeBlock>

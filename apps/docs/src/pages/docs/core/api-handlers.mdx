@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -16,7 +15,6 @@ Ecopages provides a straightforward way to define API endpoints within your appl
 
 You define API handlers using methods on your `EcopagesApp` instance, typically in your `app.ts` file. Each method corresponds to an HTTP verb (GET, POST, etc.).
 
-<CodeBlock>
 ```typescript
 // filepath: app.ts
 import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
@@ -38,13 +36,11 @@ app.post('/api/submit', async ({ request, response }) => {
 
 await app.start();
 ```
-</CodeBlock>
 
 ## Handler Context
 
 Every API handler function receives a `HandlerContext` object as its argument. This object provides access to essential information and utilities for handling the request and constructing the response.
 
-<CodeBlock>
 ```typescript
 // Example handler signature
 // Example handler signature
@@ -61,7 +57,6 @@ app.get('/api/example/:id', async (context) => {
 	return response.status(200).json({ userId: id, agent: userAgent, query: queryParam });
 });
 ```
-</CodeBlock>
 
 The `HandlerContext` contains:
 
@@ -76,7 +71,6 @@ The `HandlerContext` contains:
 
 You can use the `server` property in the handler context for advanced use cases. For example, to get the request IP address:
 
-<CodeBlock>
 ```typescript
 app.get('/api/hello', async ({ response, request, server }) => {
 	return response.json({
@@ -85,7 +79,6 @@ app.get('/api/hello', async ({ response, request, server }) => {
 	});
 });
 ```
-</CodeBlock>
 
 ## The `ApiResponseBuilder`
 
@@ -93,7 +86,6 @@ Instead of manually creating `new Response(...)` objects, Ecopages provides the 
 
 ### Basic Usage
 
-<CodeBlock>
 ```typescript
 app.get('/api/data', async ({ response }) => {
 	const data = { message: 'Here is your data' };
@@ -111,13 +103,11 @@ app.get('/api/html-page', async ({ response }) => {
 	return response.html('<h1>Hello HTML</h1>');
 });
 ```
-</CodeBlock>
 
 ### Chaining Methods
 
 You can chain methods to customize the response status and headers before sending the body.
 
-<CodeBlock>
 ```typescript
 app.post('/api/create', async ({ response }) => {
 	// ... creation logic ...
@@ -129,7 +119,6 @@ app.post('/api/create', async ({ response }) => {
 		.json(newItem); // Send JSON body
 });
 ```
-</CodeBlock>
 
 ### Available Methods
 
@@ -141,7 +130,6 @@ app.post('/api/create', async ({ response }) => {
 - `.redirect(url: string, explicitStatus?: number)`: Sends a redirect response. Sets the `Location` header. Defaults to status 302 if not set via `.status()` or `explicitStatus`.
 - `.error(data: string | object, explicitStatus?: number)`: Sends an error response. Defaults to status 500. If `data` is an object, sends JSON; otherwise, sends text.
 
-<CodeBlock>
 ```typescript
 app.get('/api/old-path', async ({ response }) => {
 	// Permanent redirect (301)
@@ -161,7 +149,6 @@ const item = // ... find item logic ...
 
 });
 ```
-</CodeBlock>
 
 Using the `ApiResponseBuilder` makes your API handler code cleaner, more readable, and less prone to errors compared to manually constructing `Response` objects.
 
@@ -169,7 +156,6 @@ Using the `ApiResponseBuilder` makes your API handler code cleaner, more readabl
 
 If your application requires real-time bidirectional communication, you can define WebSocket handlers when starting your application. Ecopages inherits Bun's powerful WebSocket implementation.
 
-<CodeBlock>
 ```typescript
 await app.start({
     websocket: {
@@ -183,7 +169,6 @@ await app.start({
     },
 });
 ```
-</CodeBlock>
 
 ## Type Safety with `defineApiHandler`
 

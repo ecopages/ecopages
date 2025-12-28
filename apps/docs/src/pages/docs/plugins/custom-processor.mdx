@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -16,7 +15,6 @@ Processors in Ecopages are plugins that handle file transformations during the b
 
 A processor extends the `Processor` abstract class from `@ecopages/core`:
 
-<CodeBlock>
 ```typescript
 import { Processor } from '@ecopages/core/plugins/processor';
 import type { BunPlugin } from 'bun';
@@ -53,7 +51,6 @@ class CustomProcessor extends Processor {
 	}
 }
 ```
-</CodeBlock>
 
 ## Processor Lifecycle
 
@@ -65,7 +62,6 @@ class CustomProcessor extends Processor {
 
 Processors have built-in caching capabilities:
 
-<CodeBlock>
 ```typescript
 class CustomProcessor extends Processor {
 	async process(input: string): Promise<string> {
@@ -83,13 +79,11 @@ class CustomProcessor extends Processor {
 	}
 }
 ```
-</CodeBlock>
 
 ## Adding Bun Plugins
 
 You can add Bun plugins for both build time and runtime:
 
-<CodeBlock>
 ```typescript
 import { plugin } from 'bun';
 
@@ -113,13 +107,11 @@ class CustomProcessor extends Processor {
 	];
 }
 ```
-</CodeBlock>
 
 ## File Watching
 
 Configure file watching for development mode:
 
-<CodeBlock>
 ```typescript
 class CustomProcessor extends Processor {
 	constructor() {
@@ -140,13 +132,11 @@ class CustomProcessor extends Processor {
 	}
 }
 ```
-</CodeBlock>
 
 ## Using the Processor
 
 Register your processor in the Ecopages configuration:
 
-<CodeBlock>
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
 
@@ -156,13 +146,11 @@ const customProcessor = new CustomProcessor({
 
 const config = await new ConfigBuilder().addProcessor(customProcessor).build();
 ```
-</CodeBlock>
 
 ## Communicating with the Browser (ClientBridge)
 
 Processors can broadcast events to connected browser clients for live updates (e.g., CSS hot reload) using the `bridge` provided in the `onChange` callback:
 
-<CodeBlock>
 ```typescript
 class StyleProcessor extends Processor {
 	constructor() {
@@ -197,7 +185,6 @@ class StyleProcessor extends Processor {
 	}
 }
 ```
-</CodeBlock>
 
 The `ClientBridge` provides several utility methods:
 - `reload()`: Triggers a full page reload.

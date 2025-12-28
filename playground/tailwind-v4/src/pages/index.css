@@ -1,0 +1,32 @@
+/* 
+ * Demo section styles using @apply
+ * The @reference directive is auto-injected by the postcss-processor
+ */
+
+.demo-section {
+	@apply rounded-xl bg-surface-800/50 backdrop-blur border border-surface-700 p-8;
+}
+
+.demo-title {
+	@apply text-2xl font-bold text-surface-100 mb-4;
+}
+
+.demo-description {
+	@apply text-surface-300 mb-6;
+}
+
+.demo-description code {
+	@apply bg-surface-700 text-accent-400 px-2 py-0.5 rounded text-sm;
+}
+
+.demo-card {
+	@apply rounded-lg bg-surface-900 border border-surface-700 p-6;
+}
+
+.demo-badge {
+	@apply inline-block mb-3 px-3 py-1 text-sm font-medium rounded-full bg-gradient-to-r from-primary-500 to-accent-500 text-white;
+}
+
+.demo-card p {
+	@apply text-surface-300;
+}

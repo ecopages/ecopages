@@ -1,0 +1,21 @@
+{
+	"compilerOptions": {
+		"allowSyntheticDefaultImports": true,
+		"jsx": "react-jsx",
+		"baseUrl": ".",
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"noImplicitOverride": true,
+		"paths": {
+			"@/*": ["./src/*"]
+		},
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "ES2021",
+		"useDefineForClassFields": true,
+		"verbatimModuleSyntax": true
+	}
+}

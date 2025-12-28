@@ -1,0 +1,12 @@
+/* 
+ * Base layout styles using @apply
+ * The @reference directive is auto-injected by the postcss-processor
+ */
+
+.base-layout {
+	@apply min-h-screen bg-surface-950 text-surface-100 antialiased;
+}
+
+.base-layout main {
+	@apply max-w-5xl mx-auto px-6 py-16;
+}

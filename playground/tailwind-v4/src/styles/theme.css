@@ -1,0 +1,39 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+	/* Primary: Cyan/Sky inspired by Tailwind website */
+	--color-primary-50: oklch(0.97 0.02 200);
+	--color-primary-100: oklch(0.93 0.04 200);
+	--color-primary-200: oklch(0.87 0.08 200);
+	--color-primary-300: oklch(0.78 0.12 200);
+	--color-primary-400: oklch(0.68 0.16 200);
+	--color-primary-500: oklch(0.6 0.18 200);
+	--color-primary-600: oklch(0.52 0.18 200);
+	--color-primary-700: oklch(0.44 0.16 200);
+	--color-primary-800: oklch(0.36 0.12 200);
+	--color-primary-900: oklch(0.28 0.08 200);
+
+	/* Accent: Violet/Purple */
+	--color-accent-50: oklch(0.97 0.02 280);
+	--color-accent-100: oklch(0.93 0.04 280);
+	--color-accent-200: oklch(0.87 0.08 280);
+	--color-accent-300: oklch(0.78 0.14 280);
+	--color-accent-400: oklch(0.68 0.2 280);
+	--color-accent-500: oklch(0.58 0.24 280);
+	--color-accent-600: oklch(0.5 0.24 280);
+	--color-accent-700: oklch(0.42 0.2 280);
+	--color-accent-800: oklch(0.34 0.14 280);
+	--color-accent-900: oklch(0.26 0.08 280);
+
+	/* Surface colors for dark theme */
+	--color-surface-50: oklch(0.98 0 0);
+	--color-surface-100: oklch(0.92 0 0);
+	--color-surface-200: oklch(0.85 0 0);
+	--color-surface-300: oklch(0.75 0 0);
+	--color-surface-700: oklch(0.25 0.01 270);
+	--color-surface-800: oklch(0.18 0.01 270);
+	--color-surface-900: oklch(0.12 0.01 270);
+	--color-surface-950: oklch(0.08 0.01 270);
+}

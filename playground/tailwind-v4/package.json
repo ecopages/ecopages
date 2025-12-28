@@ -1,0 +1,22 @@
+{
+	"name": "@ecopages/playground-tailwind-v4",
+	"private": true,
+	"scripts": {
+		"start": "NODE_ENV=production bun run app.ts",
+		"dev": "bun run app.ts --dev --react-fast-refresh",
+		"build": "NODE_ENV=production bun run app.ts --build",
+		"preview": "NODE_ENV=production bun run app.ts --preview"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/react": "workspace:*",
+		"@tailwindcss/postcss": "^4.0.0",
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0",
+		"tailwindcss": "^4.0.0"
+	},
+	"dependencies": {
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0"
+	}
+}

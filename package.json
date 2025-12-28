@@ -30,7 +30,7 @@
 		"bump:minor": "bun run scripts/bump-version.ts minor && bun run jsr:sync-version",
 		"bump:major": "bun run scripts/bump-version.ts major && bun run jsr:sync-version",
 		"commit": "better-commits",
-		"prepare": "husky",
+		"prepare:husky": "husky",
 		"test:browser": "vitest run"
 	},
 	"devDependencies": {

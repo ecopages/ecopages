@@ -1,1 +1,1 @@
-bun test && bun run lint-staged
+bun test && bun test:browser && bun run lint-staged

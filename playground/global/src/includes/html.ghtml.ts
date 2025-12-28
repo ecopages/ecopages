@@ -13,6 +13,7 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({ children, metadata, hea
 
 HtmlTemplate.config = {
 	dependencies: {
+		scripts: ['./html.script.ts'],
 		components: [Head],
 	},
 };

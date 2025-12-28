@@ -1,5 +1,5 @@
 import type { EcoComponent } from '@ecopages/core';
-import { RadiantSwitch } from '../switch/switch.kita';
+import { ThemeToggle } from '../theme-toggle/theme-toggle.kita';
 
 export type NavigationProps = {
 	items: {
@@ -14,7 +14,7 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
 		<nav class="navigation">
 			<ul>
 				<li>
-					<RadiantSwitch id="toggle-dark-mode" checked={true} label="Theme" hiddenLabel />
+					<ThemeToggle id="toggle-dark-mode" label="Theme" hiddenLabel data-eco-persist="theme-toggle" />
 				</li>
 				{items.map(({ label, href, target = '_self' }) => (
 					<li>
@@ -31,6 +31,6 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
 Navigation.config = {
 	dependencies: {
 		stylesheets: ['./navigation.css'],
-		components: [RadiantSwitch],
+		components: [ThemeToggle],
 	},
 };

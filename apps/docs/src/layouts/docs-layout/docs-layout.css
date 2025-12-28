@@ -4,7 +4,7 @@
 	.docs-layout__aside {
 		@apply fixed inset-0 z-40 md:z-0 md:relative md:block;
 		@apply h-svh md:h-[calc(100svh_-_4rem)] md:sticky md:top-16 overflow-y-auto;
-		@apply bg-background-accent border-r border-border;
+		@apply bg-background border-r border-border;
 
 		nav {
 			@apply p-4 pt-20 md:pt-8;

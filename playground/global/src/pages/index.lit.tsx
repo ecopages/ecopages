@@ -46,7 +46,7 @@ HomePage.config = {
 
 export default HomePage;
 
-const EndpointsTesting: EcoComponent = () => {
+const EndpointsTesting: EcoComponent<unknown> = () => {
 	return (
 		<div class="prose">
 			<h2>Endpoints Testing</h2>

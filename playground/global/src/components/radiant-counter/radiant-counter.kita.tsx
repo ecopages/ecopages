@@ -1,9 +1,9 @@
 import type { EcoComponent } from '@ecopages/core';
 import type { RadiantCounterProps } from './radiant-counter.script';
 
-export const RadiantCounter: EcoComponent<RadiantCounterProps> = ({ count }) => {
+export const RadiantCounter: EcoComponent<RadiantCounterProps> = ({ count, ...props }) => {
 	return (
-		<radiant-counter count={count}>
+		<radiant-counter count={count} {...props}>
 			<button type="button" data-ref="decrement" aria-label="Decrement">
 				-
 			</button>

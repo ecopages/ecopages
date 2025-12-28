@@ -9,7 +9,7 @@ export const Head: EcoComponent<PageHeadProps> = ({ metadata, children }) => {
 			<link rel="preconnect" href="https://fonts.googleapis.com" />
 			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 			<link
-				href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&family=Geist:wght@100..900&family=Spline+Sans:wght@300..700&display=swap"
+				href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inconsolata:wght@200..900&family=Karla:ital,wght@0,200..800;1,200..800&display=swap"
 				rel="stylesheet"
 			/>
 			<Seo {...metadata} />

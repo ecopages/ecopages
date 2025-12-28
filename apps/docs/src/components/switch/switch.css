@@ -4,39 +4,41 @@
 	--thumb-size: 1rem;
 }
 
-.switch-wrapper {
-	@apply inline-flex items-center gap-2;
-}
+.radiant-switch {
+	.thumb {
+		@apply block absolute top-1/2 w-[var(--thumb-size)] h-[var(--thumb-size)];
+		@apply bg-on-background rounded-full transform -translate-y-1/2 transition-transform ease-in-out duration-200 pointer-events-none;
+	}
 
-.switch {
-	@apply relative w-[--switch-width] h-[--switch-height] bg-on-background/20;
-	@apply rounded-full p-1 cursor-pointer transition-colors;
-	&:hover {
-		@apply bg-on-background/30;
+	.switch-wrapper {
+		@apply inline-flex items-center gap-2;
+	}
+
+	.switch {
+		@apply relative w-[--switch-width] h-[--switch-height] bg-on-background/20;
+		@apply rounded-full p-1 cursor-pointer transition-colors;
+		&:hover {
+			@apply bg-on-background/30;
+		}
 	}
 }
 
-radiant-switch {
+.radiant-switch {
 	@apply contents;
 }
 
-radiant-switch[checked='true'] .switch {
+.radiant-switch[checked='true'] .switch {
 	@apply bg-primary;
 	&:hover {
 		@apply bg-primary/80;
 	}
 }
 
-radiant-switch[disabled='true'] .switch {
+.radiant-switch[disabled='true'] .switch {
 	@apply opacity-50 cursor-not-allowed;
 }
 
-.thumb {
-	@apply block absolute top-1/2 w-[var(--thumb-size)] h-[var(--thumb-size)];
-	@apply bg-on-background rounded-full transform -translate-y-1/2 transition-transform ease-in-out duration-200 pointer-events-none;
-}
-
-radiant-switch[checked='true'] .thumb {
+.radiant-switch[checked='true'] .thumb {
 	@apply bg-on-primary;
 	transform: translate(calc(var(--switch-width) - var(--thumb-size) - 0.5rem), -50%);
 }

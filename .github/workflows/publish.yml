@@ -58,3 +58,6 @@ jobs:
 
             - name: Publish package @ecopages/react
               run: bun run --filter @ecopages/react release:jsr
+
+            - name: Publish package @ecopages/browser-router
+              run: bun run --filter @ecopages/browser-router release:jsr

@@ -27,22 +27,25 @@ export class EcoRouter {
 		this.domSwapper = new DomSwapper(this.options.persistAttribute);
 		this.scrollManager = new ScrollManager(this.options.scrollBehavior, this.options.smoothScroll);
 		this.viewTransitionManager = new ViewTransitionManager(this.options.viewTransitions);
+
+		this.handleClick = this.handleClick.bind(this);
+		this.handlePopState = this.handlePopState.bind(this);
 	}
 
 	/**
 	 * Initialize the router and start intercepting navigation
 	 */
 	start(): void {
-		document.addEventListener('click', this.handleClick.bind(this));
-		window.addEventListener('popstate', this.handlePopState.bind(this));
+		document.addEventListener('click', this.handleClick);
+		window.addEventListener('popstate', this.handlePopState);
 	}
 
 	/**
 	 * Stop the router and remove event listeners
 	 */
 	stop(): void {
-		document.removeEventListener('click', this.handleClick.bind(this));
-		window.removeEventListener('popstate', this.handlePopState.bind(this));
+		document.removeEventListener('click', this.handleClick);
+		window.removeEventListener('popstate', this.handlePopState);
 	}
 
 	/**

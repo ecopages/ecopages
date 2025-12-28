@@ -25,7 +25,7 @@ export interface EcoRouterOptions {
 	/**
 	 * Whether to use the View Transition API for animations.
 	 * Falls back to instant swap if not supported.
-	 * @default true
+	 * @default false
 	 */
 	viewTransitions?: boolean;
 	/**

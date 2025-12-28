@@ -16,13 +16,11 @@ export class RadiantCounter extends RadiantElement {
 	@onEvent({ ref: 'decrement', type: 'click' })
 	decrement() {
 		if (this.count > 0) this.count--;
-		console.log(this.testPersist);
 	}
 
 	@onEvent({ ref: 'increment', type: 'click' })
 	increment() {
 		this.count++;
-		console.log(this.testPersist);
 	}
 
 	@onUpdated('count')

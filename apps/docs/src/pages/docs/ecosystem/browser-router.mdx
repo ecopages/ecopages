@@ -29,22 +29,40 @@ bunx jsr add @ecopages/browser-router
 
 ## Setup
 
-To enable client-side routing, initialize the `EcoRouter` in your global script (e.g., `src/includes/html.script.ts`).
+To enable client-side routing, initialize the router in your global script (e.g., `src/includes/html.script.ts`).
+
+The simplest approach is to use `createRouter`, which creates and starts the router in one call:
+
+<CodeBlock>
+```typescript
+import { createRouter } from '@ecopages/browser-router/client';
+
+const router = createRouter({
+  viewTransitions: true,
+});
+```
+</CodeBlock>
+
+For manual control over when the router starts and stops, use the `EcoRouter` class directly:
 
 <CodeBlock>
 ```typescript
 import { EcoRouter } from '@ecopages/browser-router/client';
 
-// Initialize with default options
-new EcoRouter({
-  viewTransitions: true, // Enable View Transitions API
+const router = new EcoRouter({
+  viewTransitions: true,
 });
+
+router.start();
+
+// Later, if needed:
+// router.stop();
 ```
 </CodeBlock>
 
 ## Configuration
 
-You can customize the router behavior by passing an options object to the constructor:
+You can customize the router behavior by passing an options object:
 
 | Option | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -53,12 +71,14 @@ You can customize the router behavior by passing an options object to the constr
 | `reloadAttribute` | `string` | `'data-eco-reload'` | Attribute (on link or element) to force a full hard reload. |
 | `scrollBehavior` | `'top' \| 'preserve' \| 'auto'` | `'top'` | Controls scroll behavior after navigation. |
 | `viewTransitions` | `boolean` | `false` | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) support. |
+| `updateHistory` | `boolean` | `true` | Whether to push a new entry to the browser history for each client-side navigation. |
+| `smoothScroll` | `boolean` | `true` | Whether to use smooth scrolling when adjusting scroll position after navigation. |
 
 ### Example with Options
 
 <CodeBlock>
 ```typescript
-new EcoRouter({
+const router = createRouter({
   viewTransitions: true,
   scrollBehavior: 'preserve',
   linkSelector: 'a:not([data-no-route])',

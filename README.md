@@ -1,16 +1,27 @@
 # Ecopages
 
-Ecopages is a static site generator designed with the goal of simplifying the process of creating websites. It is suitable for a range of projects, from blogs to portfolios, emphasizing ease of use and flexibility.
+A **modern, basic** web framework.
 
-This project is built on a commitment to clarity and simplicity in web development, utilizing modern web technologies without obscuring the process with unnecessary complexity.
+No virtual DOM. No complex state management. Just TypeScript and HTML.
 
-Ecopages relies on a minimal set of dependencies, carefully chosen to support its core functionality.
+## Philosophy
 
-Ecopages is built on the Bun runtime and primarily uses [Ghtml](https://github.com/gurgunday/ghtml) for rendering. It offers easy customization through integrations such as [Kita](https://kita.js.org/), [Mdx](https://mdxjs.com/), and [Lit Elements](https://lit.dev/). Additionally, it provides experimental support for [React](https://react.dev/). You can also extend the platform with custom rendering functions by adding your own plugins, ensuring flexibility to meet the specific needs of each project. The integrations are designed to be highly extensible, allowing limitless customization and expansion possibilities.
+Most frameworks require you to learn complex abstractions—hooks, signals, reactivity systems—before you can build anything. Ecopages takes the opposite approach: you write functions that return HTML. That's it.
 
-For styling, [Tailwind CSS](https://tailwindcss.com/) and [PostCSS](https://postcss.org/) have been integrated. Notably, we recommend using `css` stylesheets and `@apply` directives with Tailwind CSS, diverging from its usual inline styling approach to better suit the structure of Ecopages.
+The result is fast static pages, minimal dependencies, and code you can actually understand. When you need a server, add one. But you'll find static is often exactly what you need.
 
-As a project in its early stages, Ecopages is continuously evolving. Users may encounter limitations or areas in need of refinement. We welcome feedback and issue reports via our [GitHub repository](https://github.com/ecopages/ecopages).
+## Built With
+
+Ecopages runs on [Bun](https://bun.sh/) and uses [Ghtml](https://github.com/gurgunday/ghtml) for rendering. Extend it with templating integrations:
+
+- **[KitaJS](https://kita.js.org/)** – Fast JSX templates
+- **[MDX](https://mdxjs.com/)** – Markdown with components
+- **[Lit](https://lit.dev/)** – Web Components with SSR
+- **[React](https://react.dev/)** – Full React support when you need it
+
+For styling, use [Tailwind CSS](https://tailwindcss.com/) with `@apply` directives or plain CSS.
+
+As an early-stage project, Ecopages is evolving. Feedback welcome via [GitHub](https://github.com/ecopages/ecopages).
 
 ## Current Features
 

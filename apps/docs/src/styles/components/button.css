@@ -1,0 +1,70 @@
+@layer utilities {
+	.button-shape-base {
+		@apply px-4 py-2 leading-6;
+
+		&:has(> svg:first-child) {
+			@apply pl-2;
+		}
+		&:has(> svg:last-child) {
+			@apply pr-2;
+		}
+	}
+}
+
+.button,
+a.button {
+	@apply inline-flex items-center justify-center gap-2;
+	@apply no-underline font-semibold text-sm cursor-pointer transition-all duration-200 active:scale-[0.98];
+
+	&--default {
+		@apply button-shape-base rounded-md;
+		@apply bg-on-background text-background border-2 border-on-background;
+		@apply hover:bg-on-background/90 hover:shadow-sm;
+	}
+
+	&--primary {
+		@apply button-shape-base rounded-md;
+		@apply bg-primary text-on-primary border-2 border-primary;
+		@apply hover:bg-primary/90 hover:shadow-sm;
+	}
+
+	&--secondary {
+		@apply button-shape-base rounded-md;
+		@apply bg-secondary text-on-secondary border-2 border-secondary;
+		@apply hover:bg-secondary/90 hover:shadow-sm;
+	}
+
+	&--outline {
+		@apply button-shape-base rounded-md border-2 border-on-background;
+		@apply bg-transparent text-on-background;
+		@apply hover:bg-on-background/5;
+	}
+
+	&--ghost {
+		@apply button-shape-base rounded-md;
+		@apply bg-transparent text-on-background;
+		@apply hover:bg-on-background/5;
+	}
+
+	&--text {
+		@apply px-0 py-0 leading-6 rounded-sm;
+		@apply bg-transparent text-on-background;
+		@apply hover:underline hover:underline-offset-4;
+		&:hover {
+			svg {
+				@apply text-primary;
+			}
+		}
+	}
+
+	&--icon {
+		@apply p-2 rounded-md;
+		@apply bg-transparent text-on-background;
+		@apply hover:bg-on-background/5;
+	}
+}
+
+.button-group {
+	@apply flex gap-4;
+	@apply items-center;
+}

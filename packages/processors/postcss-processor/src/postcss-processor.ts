@@ -6,7 +6,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
-import { defaultPlugins, type PluginsRecord } from './default-plugins';
 
 /**
  * PostCSS Processor Options
@@ -56,7 +55,7 @@ export function getFileAsBuffer(path: string): Buffer {
 }
 
 const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[] => {
-	if (!options || !options.plugins) return Object.values(defaultPlugins);
+	if (!options || !options.plugins) return [];
 	return Array.isArray(options.plugins) ? options.plugins : Object.values(options.plugins);
 };
 
@@ -70,8 +69,7 @@ const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[]
  * ```ts
  * PostCssProcessor.processPath('path/to/file.css').then((processedCss) => {
  *  console.log(processedCss);
- * });
- */
+ * });\n */
 const processPath: ProcessPath = async (path, options) => {
 	const contents = getFileAsBuffer(path);
 
@@ -121,14 +119,11 @@ const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) =
  * PostCSS Processor
  * - {@link processPath} : It processes the given path using PostCSS
  * - {@link processStringOrBuffer}: It processes the given string or buffer using PostCSS
- * - {@link PluginsRecord}: Default plugins used by the PostCSS Processor
  */
 export const PostCssProcessor: {
 	processPath: ProcessPath;
 	processStringOrBuffer: ProcessStringOrBuffer;
-	defaultPlugins: PluginsRecord;
 } = {
 	processPath,
 	processStringOrBuffer,
-	defaultPlugins,
 };

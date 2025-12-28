@@ -4,7 +4,7 @@ import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { postcssProcessorPlugin, tailwindV3Preset } from '@ecopages/postcss-processor';
 
 export default await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
@@ -36,6 +36,6 @@ export default await new ConfigBuilder()
 				],
 			},
 		}),
-		postcssProcessorPlugin(),
+		postcssProcessorPlugin(tailwindV3Preset()),
 	])
 	.build();

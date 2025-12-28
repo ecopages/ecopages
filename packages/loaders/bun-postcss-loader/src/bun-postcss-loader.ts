@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { PostCssProcessor } from '@ecopages/postcss-processor';
+import { tailwindV3Preset } from '@ecopages/postcss-processor/presets';
 
 function getFileAsBuffer(path: string): Buffer {
 	try {
@@ -28,7 +29,11 @@ Bun.plugin({
 
 		build.onLoad({ filter: postcssFilter }, async (args) => {
 			const text = getFileAsBuffer(args.path);
-			const contents = await PostCssProcessor.processStringOrBuffer(text, { filePath: args.path });
+			const { plugins } = tailwindV3Preset();
+			const contents = await PostCssProcessor.processStringOrBuffer(text, {
+				filePath: args.path,
+				plugins: plugins ? Object.values(plugins) : [],
+			});
 			return {
 				contents,
 				exports: { default: contents },

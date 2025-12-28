@@ -4,7 +4,7 @@ import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { postcssProcessorPlugin, tailwindV3Preset } from '@ecopages/postcss-processor';
 import remarkGfm from 'remark-gfm';
 import rehypePrettyCode from 'rehype-pretty-code';
 import { rehypeSimpleTableWrapper } from './src/plugins/rehype-simple-table-wrapper';
@@ -50,7 +50,7 @@ const config = await new ConfigBuilder()
 	.setError404Template('404.kita.tsx')
 	.setAdditionalWatchPaths(['src/data'])
 	.setProcessors([
-		postcssProcessorPlugin(),
+		postcssProcessorPlugin(tailwindV3Preset()),
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(import.meta.dir, 'src/images'),

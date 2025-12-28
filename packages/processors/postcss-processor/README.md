@@ -23,6 +23,7 @@ Integrate the processor into your Ecopages configuration:
 
 ```typescript
 // ecopages.config.ts
+import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
@@ -32,8 +33,17 @@ const config = await new ConfigBuilder()
 		postcssProcessorPlugin({
 			// Optional: Define a filter for files to process (defaults to /\.css$/)
 			filter: /\.css$/,
-			// Optional: Provide a function to transform input before PostCSS processing
-			transformInput: async (contents) => `/* My Custom Header */\n${contents}`,
+			// Optional: Transform input with access to file path (useful for Tailwind v4 @reference)
+			transformInput: async (contents, filePath) => {
+				const css = contents.toString();
+				// Example: Inject @reference for Tailwind v4 @apply support
+				if (css.includes('@apply') && !css.includes('@reference')) {
+					const tailwindCssPath = path.resolve(import.meta.dir, 'src/styles/tailwind.css');
+					const relativePath = path.relative(path.dirname(filePath), tailwindCssPath);
+					return `@reference "${relativePath}";\n\n${css}`;
+				}
+				return css;
+			},
 			// Optional: Explicitly provide PostCSS plugins (overrides postcss.config.js and defaults)
 			// plugins: { /* custom plugins */ }
 		}),

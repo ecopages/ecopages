@@ -49,8 +49,8 @@ const config: Config = {
 			},
 			fontFamily: {
 				sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-				heading: ['Spline Sans', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-				mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+				heading: ['Karla', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+				mono: ['Inconsolata', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
 			},
 		},
 	},

@@ -1,0 +1,172 @@
+import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | Transitions',
+  description: 'Add SPA-like client-side navigation and view transitions to your Ecopages application',
+});
+
+# Client-Side Navigation
+
+The `@ecopages/browser-router` package enables Single Page Application (SPA) navigation behavior in your Ecopages application. It intercepts link clicks, fetches the next page via fetch, and uses [morphdom](https://github.com/patrick-steele-idem/morphdom) to efficiently diff and update only the parts of the DOM that changed.
+
+This preserves element state (like audio players, web component internals, or form values) and enables native View Transitions.
+
+<div class="banner banner--alert" role="alert">
+  <p class="banner__title">Framework Compatibility</p>
+  <p>This package works with MPA-style rendering (KitaJS, Lit, vanilla JS). <strong>Not compatible with React/Preact</strong> — these frameworks manage their own virtual DOM. For React apps, use a framework-specific routing solution.</p>
+</div>
+
+## Installation
+
+<CodeBlock>
+```bash
+bunx jsr add @ecopages/browser-router
+```
+</CodeBlock>
+
+## Setup
+
+To enable client-side routing, initialize the router in your global script (e.g., `src/includes/html.script.ts`).
+
+The simplest approach is to use `createRouter`, which creates and starts the router in one call:
+
+<CodeBlock>
+```typescript
+import { createRouter } from '@ecopages/browser-router/client';
+
+const router = createRouter({
+  viewTransitions: true,
+});
+```
+</CodeBlock>
+
+For manual control over when the router starts and stops, use the `EcoRouter` class directly:
+
+<CodeBlock>
+```typescript
+import { EcoRouter } from '@ecopages/browser-router/client';
+
+const router = new EcoRouter({
+  viewTransitions: true,
+});
+
+router.start();
+
+// Later, if needed:
+// router.stop();
+```
+</CodeBlock>
+
+## Configuration
+
+You can customize the router behavior by passing an options object:
+
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `linkSelector` | `string` | `'a[href]'` | Selector for links to intercept. |
+| `persistAttribute` | `string` | `'data-eco-persist'` | Attribute to mark elements that should persist across navigations. |
+| `reloadAttribute` | `string` | `'data-eco-reload'` | Attribute (on link or element) to force a full hard reload. |
+| `scrollBehavior` | `'top' \| 'preserve' \| 'auto'` | `'top'` | Controls scroll behavior after navigation. |
+| `viewTransitions` | `boolean` | `false` | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) support. |
+| `updateHistory` | `boolean` | `true` | Whether to push a new entry to the browser history for each client-side navigation. |
+| `smoothScroll` | `boolean` | `true` | Whether to use smooth scrolling when adjusting scroll position after navigation. |
+
+### Example with Options
+
+<CodeBlock>
+```typescript
+const router = createRouter({
+  viewTransitions: true,
+  scrollBehavior: 'preserve',
+  linkSelector: 'a:not([data-no-route])',
+});
+```
+</CodeBlock>
+
+## Features
+
+### Persistence
+
+Elements marked with `data-eco-persist` are **never recreated** during navigation. morphdom recognizes these elements by their persist ID and skips updating them entirely, preserving their internal state (event listeners, web component state, form values, audio playback, etc.).
+
+Add the `data-eco-persist` attribute with a unique ID:
+
+<CodeBlock>
+```tsx
+<audio 
+  controls 
+  src="/music.mp3" 
+  data-eco-persist="global-player" 
+/>
+```
+</CodeBlock>
+
+<div class="banner banner--note" role="note">
+  <p class="banner__title">How It Works</p>
+  <p>Unlike traditional DOM swapping which destroys and recreates elements, morphdom diffs the current DOM against the new HTML. Persisted elements are matched by their ID and left untouched, keeping their internal state intact.</p>
+</div>
+
+### View Transitions
+
+If `viewTransitions: true` is enabled, Ecopages will trigger a View Transition on navigation. You can customize the animation using standard CSS or the provided optional styles.
+
+#### Using Included Styles
+
+The package includes default fade and slide animations. Import them in your CSS:
+
+<CodeBlock>
+```css
+@import '@ecopages/browser-router/styles.css';
+```
+</CodeBlock>
+
+Then use the `data-eco-transition` attribute on elements to apply specific animations:
+
+| Value | Description |
+| :--- | :--- |
+| `slide` | Slides the element horizontally during transition. |
+
+<CodeBlock>
+```html
+<main data-eco-transition="slide">
+  <!-- Content slides in -->
+</main>
+```
+</CodeBlock>
+
+## Lifecycle Events
+
+The router emits lifecycle custom events on the `document` object, allowing you to hook into the navigation process.
+
+| Event | Detail | Description |
+| :--- | :--- | :--- |
+| `eco:before-swap` | `{ url, direction, newDocument, reload }` | Fired after fetching new content but **before** updating the DOM. Use `newDocument` to inspect upcoming content. Call `reload()` to force a hard reload. |
+| `eco:after-swap` | `{ url, direction }` | Fired **after** the DOM has been updated. Useful for re-initializing scripts or analytics. |
+| `eco:page-load` | `{ url, direction }` | Fired on both initial load and subsequent navigations. |
+
+### Example: Re-initializing Scripts
+
+<CodeBlock>
+```typescript
+document.addEventListener('eco:after-swap', () => {
+  console.log('Page updated!');
+  // Re-run any page-specific logic here
+});
+```
+</CodeBlock>
+
+### Example: Navigation-Aware Components
+
+For components that need to react to URL changes (like updating active states), listen for `eco:page-load`:
+
+<CodeBlock>
+```typescript
+document.addEventListener('eco:page-load', () => {
+  // Update active states, re-highlight nav links, etc.
+  highlightActiveLink();
+});
+```
+</CodeBlock>

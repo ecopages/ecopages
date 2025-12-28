@@ -1,12 +1,11 @@
 import type { EcoComponent } from '@ecopages/core';
-import { type BundledLanguage, type BundledTheme, codeToHtml } from 'shiki';
+import { type BundledLanguage, codeToHtml } from 'shiki';
 
 export const CodeBlock: EcoComponent<{
 	children?: string;
 	code?: string;
 	lang?: BundledLanguage;
-	theme?: BundledTheme;
-}> = async ({ children, code, lang, theme = 'dark-plus' }) => {
+}> = async ({ children, code, lang }) => {
 	const childrenOrCode = children || code;
 	if (!childrenOrCode) throw new Error('No code provided');
 
@@ -26,7 +25,10 @@ export const CodeBlock: EcoComponent<{
 
 	const safeHtml = await codeToHtml(unformattedCode, {
 		lang: language,
-		theme,
+		themes: {
+			light: 'light-plus',
+			dark: 'dark-plus',
+		},
 	});
 
 	return <div class="code-block">{safeHtml as 'safe'}</div>;

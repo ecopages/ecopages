@@ -1,6 +1,6 @@
 .header {
 	@apply sticky top-0 z-50 w-full;
-	@apply bg-background border-b border-border;
+	@apply bg-background-accent border-b border-border;
 
 	&__inner {
 		@apply h-16 px-4 py-3 container mx-auto flex items-center justify-between;
@@ -9,7 +9,7 @@
 			@apply flex items-center gap-4;
 
 			.version {
-				@apply text-[10px] font-heading font-medium tracking-tight bg-background-accent text-on-background/90 px-2 py-0.5 rounded border border-border;
+				@apply text-[10px] font-heading font-medium tracking-tight bg-background text-on-background/90 px-2 py-0.5 rounded border border-border;
 			}
 		}
 	}

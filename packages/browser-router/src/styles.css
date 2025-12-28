@@ -1,0 +1,93 @@
+/**
+ * Default View Transition CSS for EcoPages transitions
+ * 
+ * Import this file in your CSS:
+ * ```css
+ * @import '@ecopages/browser-router/styles.css';
+ * ```
+ */
+
+/* Default cross-fade transition */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 200ms;
+	animation-timing-function: ease-out;
+}
+
+::view-transition-old(root) {
+	animation-name: eco-fade-out;
+}
+
+::view-transition-new(root) {
+	animation-name: eco-fade-in;
+}
+
+@keyframes eco-fade-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes eco-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+/* Slide transition for elements with view-transition-name: eco-slide */
+::view-transition-image-pair(eco-slide) {
+	isolation: isolate;
+}
+
+::view-transition-old(eco-slide),
+::view-transition-new(eco-slide) {
+	animation-duration: 200ms;
+	animation-timing-function: ease-out;
+	mix-blend-mode: normal;
+}
+
+::view-transition-old(eco-slide) {
+	animation-name: eco-slide-out;
+}
+
+::view-transition-new(eco-slide) {
+	animation-name: eco-slide-in;
+}
+
+@keyframes eco-slide-out {
+	from {
+		opacity: 1;
+		transform: translateX(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateX(-30px);
+	}
+}
+
+@keyframes eco-slide-in {
+	from {
+		opacity: 0;
+		transform: translateX(30px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+/* Persistent elements should not animate */
+[data-eco-persist] {
+	view-transition-name: none;
+}
+
+/* Declarative transition attributes */
+[data-eco-transition='slide'] {
+	view-transition-name: eco-slide;
+}

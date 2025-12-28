@@ -60,6 +60,7 @@ export const docsConfig: DocsConfig = {
 			subdirectory: 'ecosystem',
 			pages: [
 				{ title: 'Packages', slug: 'packages' },
+				{ title: 'Browser Router', slug: 'browser-router' },
 				{ title: 'PostCSS Processor', slug: 'postcss-processor' },
 				{ title: 'Image Processor', slug: 'image-processor' },
 			],

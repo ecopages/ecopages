@@ -78,6 +78,10 @@
 				"label": "examples"
 			},
 			{
+				"value": "browser-router",
+				"label": "browser-router"
+			},
+			{
 				"value": "integration/kitajs",
 				"label": "integration/kitajs"
 			},

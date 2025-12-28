@@ -1,0 +1,38 @@
+{
+	"name": "@ecopages/browser-router",
+	"version": "0.1.48",
+	"description": "Client-side router for Ecopages with view transitions support",
+	"keywords": [
+		"ecopages",
+		"router",
+		"browser-router",
+		"navigation",
+		"spa",
+		"view-transitions"
+	],
+	"license": "MIT",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./client": "./src/client/eco-router.ts",
+		"./src/styles.css": {
+			"import": "./src/styles.css",
+			"require": "./src/styles.css"
+		}
+	},
+	"files": [
+		"src"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/browser-router"
+	},
+	"scripts": {
+		"release:jsr": "bunx jsr publish"
+	},
+	"dependencies": {
+		"@ecopages/core": "workspace:*",
+		"morphdom": "^2.7.4"
+	}
+}

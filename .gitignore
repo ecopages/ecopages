@@ -24,4 +24,4 @@ public/js
 **/*.tgz
 **/*.log
 **/*.bun
-
+**/__screenshots__

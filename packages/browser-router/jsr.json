@@ -1,0 +1,13 @@
+{
+	"name": "@ecopages/browser-router",
+	"version": "0.1.48",
+	"exports": {
+		".": "./src/index.ts",
+		"./client": "./src/client/eco-router.ts"
+	},
+	"exclude": ["src/test", "**/*.test.ts"],
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],
+		"exclude": ["src/test"]
+	}
+}

@@ -1,0 +1,86 @@
+.prose {
+	h1 {
+		@apply text-4xl font-bold text-on-background-accent my-6 font-heading;
+	}
+
+	h2 {
+		@apply text-3xl font-bold text-on-background-accent my-6 font-heading;
+	}
+
+	h3 {
+		@apply text-2xl font-bold text-on-background-accent my-5 font-heading;
+	}
+
+	h4 {
+		@apply text-xl font-bold text-on-background-accent my-5 font-heading;
+	}
+
+	h5 {
+		@apply text-lg font-bold text-on-background-accent my-4 font-heading;
+	}
+
+	h6 {
+		@apply text-base font-bold text-on-background-accent my-4 font-heading;
+	}
+
+	p {
+		@apply text-base text-on-background my-4;
+	}
+
+	a {
+		@apply text-link underline;
+	}
+
+	ul,
+	ol {
+		@apply list-disc pl-8 my-4;
+	}
+
+	code {
+		@apply bg-background-code text-on-background-code rounded-md font-mono;
+	}
+
+	pre {
+		code {
+			@apply bg-transparent text-inherit rounded-md;
+		}
+	}
+
+	table {
+		@apply w-full text-left border-collapse my-8 text-sm;
+
+		thead {
+			@apply border-b border-border bg-background-accent/50;
+
+			th {
+				@apply py-3 px-4 font-semibold text-on-background-accent whitespace-nowrap md:whitespace-normal;
+			}
+		}
+
+		tbody {
+			tr {
+				@apply border-b border-border/50 transition-colors hover:bg-background-accent/30;
+
+				td {
+					@apply py-3 px-4 text-on-background align-top;
+
+					code {
+						@apply whitespace-nowrap;
+					}
+				}
+
+				&:last-child {
+					@apply border-0;
+				}
+			}
+		}
+	}
+
+	.table-wrapper {
+		@apply w-full overflow-x-auto my-8 lg:overflow-x-visible;
+
+		table {
+			@apply my-0;
+		}
+	}
+}

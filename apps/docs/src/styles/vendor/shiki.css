@@ -1,0 +1,28 @@
+figure[data-rehype-pretty-code-figure] {
+	@apply border border-border rounded-md overflow-hidden;
+}
+
+figure[data-rehype-pretty-code-figure] pre {
+	@apply p-4 overflow-x-auto m-0;
+	background-color: var(--shiki-light-bg);
+}
+
+figure[data-rehype-pretty-code-figure] pre > code {
+	display: grid;
+}
+
+figure[data-rehype-pretty-code-figure] pre > code,
+figure[data-rehype-pretty-code-figure] pre > code span {
+	color: var(--shiki-light);
+	background-color: var(--shiki-light-bg);
+}
+
+html[data-theme='dark'] figure[data-rehype-pretty-code-figure] pre {
+	background-color: var(--shiki-dark-bg);
+}
+
+html[data-theme='dark'] figure[data-rehype-pretty-code-figure] pre > code,
+html[data-theme='dark'] figure[data-rehype-pretty-code-figure] pre > code span {
+	color: var(--shiki-dark);
+	background-color: var(--shiki-dark-bg);
+}

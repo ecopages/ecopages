@@ -13,8 +13,6 @@ export interface EcoRouterOptions {
 	persistAttribute?: string;
 	/** Attribute to force full page reload. @default 'data-eco-reload' */
 	reloadAttribute?: string;
-	/** Attribute to mark elements for scroll position persistence. @default 'data-eco-scroll-persist' */
-	scrollPersistAttribute?: string;
 	/** Whether to update browser history. @default true */
 	updateHistory?: boolean;
 	/**
@@ -51,16 +49,13 @@ export interface EcoBeforeSwapEvent extends EcoNavigationEvent {
 }
 
 /** Event fired after the DOM swap completes */
-export interface EcoAfterSwapEvent extends EcoNavigationEvent {
-	persistedElements: Map<string, Element>;
-}
+export interface EcoAfterSwapEvent extends EcoNavigationEvent {}
 
 /** Default configuration options */
 export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	linkSelector: 'a[href]',
 	persistAttribute: 'data-eco-persist',
 	reloadAttribute: 'data-eco-reload',
-	scrollPersistAttribute: 'data-eco-scroll-persist',
 	updateHistory: true,
 	scrollBehavior: 'top',
 	viewTransitions: false,

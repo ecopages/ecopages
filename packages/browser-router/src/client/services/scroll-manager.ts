@@ -6,52 +6,16 @@
 import type { EcoRouterOptions } from '../types';
 
 /**
- * Service for handling scroll position during page transitions
+ * Service for handling scroll position during page transitions.
+ * Handles window scroll behavior and hash navigation.
  */
 export class ScrollManager {
-	private scrollPersistAttribute: string;
 	private scrollBehavior: Required<EcoRouterOptions>['scrollBehavior'];
 	private smoothScroll: boolean;
 
-	constructor(
-		scrollPersistAttribute: string,
-		scrollBehavior: Required<EcoRouterOptions>['scrollBehavior'],
-		smoothScroll: boolean,
-	) {
-		this.scrollPersistAttribute = scrollPersistAttribute;
+	constructor(scrollBehavior: Required<EcoRouterOptions>['scrollBehavior'], smoothScroll: boolean) {
 		this.scrollBehavior = scrollBehavior;
 		this.smoothScroll = smoothScroll;
-	}
-
-	/**
-	 * Save scroll positions of elements marked with scrollPersistAttribute
-	 * @returns Map of element IDs to their scrollTop values
-	 */
-	saveScrollPositions(): Map<string, number> {
-		const positions = new Map<string, number>();
-		const selector = `[${this.scrollPersistAttribute}]`;
-
-		for (const element of document.querySelectorAll(selector)) {
-			const id = element.getAttribute(this.scrollPersistAttribute);
-			if (id) {
-				positions.set(id, element.scrollTop);
-			}
-		}
-
-		return positions;
-	}
-
-	/**
-	 * Restore scroll positions to elements marked with scrollPersistAttribute
-	 * @param positions - Map of element IDs to scrollTop values
-	 */
-	restoreScrollPositions(positions: Map<string, number>): void {
-		for (const [id, scrollTop] of positions) {
-			const element = document.querySelector(`[${this.scrollPersistAttribute}="${id}"]`);
-			if (element) {
-				element.scrollTop = scrollTop;
-			}
-		}
 	}
 
 	/**

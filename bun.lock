@@ -37,6 +37,7 @@
       "version": "0.1.48",
       "dependencies": {
         "@ecopages/core": "workspace:*",
+        "morphdom": "^2.7.4",
       },
     },
     "packages/core": {
@@ -183,6 +184,9 @@
     },
     "playground/global": {
       "name": "@ecopages/playground-global",
+      "dependencies": {
+        "morphdom": "^2.7.7",
+      },
       "devDependencies": {
         "@ecopages/browser-router": "workspace:*",
         "@ecopages/bun-postcss-loader": "workspace:*",
@@ -1225,6 +1229,8 @@
     "minimatch": ["minimatch@9.0.5", "", { "dependencies": { "brace-expansion": "^2.0.1" } }, "sha512-G6T0ZX48xgozx7587koeX9Ys2NYy6Gmv//P89sEte9V9whIapMNF4idKxnW2QtCcLiTWlb/wfCabAtAFWhhBow=="],
 
     "minipass": ["minipass@7.1.2", "", {}, "sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw=="],
+
+    "morphdom": ["morphdom@2.7.7", "", {}, "sha512-04GmsiBcalrSCNmzfo+UjU8tt3PhZJKzcOy+r1FlGA7/zri8wre3I1WkYN9PT3sIeIKfW9bpyElA+VzOg2E24g=="],
 
     "mrmime": ["mrmime@2.0.1", "", {}, "sha512-Y3wQdFg2Va6etvQ5I82yUhGdsKrcYox6p7FfL1LbK2J4V01F9TGlepTIhnK24t7koZibmg82KGglhA1XK5IsLQ=="],
 

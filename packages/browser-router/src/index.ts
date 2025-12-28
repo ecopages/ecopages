@@ -16,4 +16,4 @@ export { DEFAULT_OPTIONS } from './types';
 
 export { EcoRouter, createRouter } from './client/eco-router';
 
-export { DomSwapper, PersistenceManager, ScrollManager, ViewTransitionManager } from './client/services';
+export { DomSwapper, ScrollManager, ViewTransitionManager } from './client/services';

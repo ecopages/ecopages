@@ -6,31 +6,26 @@
 
 import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types';
 import { DEFAULT_OPTIONS } from './types';
-import { DomSwapper, PersistenceManager, ScrollManager, ViewTransitionManager } from './services';
+import { DomSwapper, ScrollManager, ViewTransitionManager } from './services';
 
 /**
  * EcoRouter provides client-side navigation for Ecopages.
  * Intercepts same-origin link clicks and swaps page content without full reloads.
+ * Uses morphdom by default for efficient DOM diffing.
  */
 export class EcoRouter {
 	private options: Required<EcoRouterOptions>;
 	private abortController: AbortController | null = null;
 
 	private domSwapper: DomSwapper;
-	private persistenceManager: PersistenceManager;
 	private scrollManager: ScrollManager;
 	private viewTransitionManager: ViewTransitionManager;
 
 	constructor(options: EcoRouterOptions = {}) {
 		this.options = { ...DEFAULT_OPTIONS, ...options };
 
-		this.domSwapper = new DomSwapper();
-		this.persistenceManager = new PersistenceManager(this.options.persistAttribute);
-		this.scrollManager = new ScrollManager(
-			this.options.scrollPersistAttribute,
-			this.options.scrollBehavior,
-			this.options.smoothScroll,
-		);
+		this.domSwapper = new DomSwapper(this.options.persistAttribute);
+		this.scrollManager = new ScrollManager(this.options.scrollBehavior, this.options.smoothScroll);
 		this.viewTransitionManager = new ViewTransitionManager(this.options.viewTransitions);
 	}
 
@@ -140,9 +135,6 @@ export class EcoRouter {
 				return;
 			}
 
-			const persistedElements = this.persistenceManager.collectPersistedElements();
-			const savedScrollPositions = this.scrollManager.saveScrollPositions();
-
 			/**
 			 * Update history BEFORE swapping DOM.
 			 * This ensures web components can read the correct URL in connectedCallback.
@@ -155,17 +147,14 @@ export class EcoRouter {
 
 			/** Perform the DOM swap with optional view transition */
 			await this.viewTransitionManager.transition(() => {
-				this.domSwapper.mergeHead(newDocument.head);
-				this.domSwapper.swapBody(newDocument);
-				this.persistenceManager.restorePersistedElements(persistedElements);
-				this.scrollManager.restoreScrollPositions(savedScrollPositions);
+				this.domSwapper.morphHead(newDocument);
+				this.domSwapper.morphBody(newDocument);
 				this.scrollManager.handleScroll(url, previousUrl);
 			});
 
 			const afterSwapEvent: EcoAfterSwapEvent = {
 				url,
 				direction,
-				persistedElements,
 			};
 
 			document.dispatchEvent(new CustomEvent('eco:after-swap', { detail: afterSwapEvent }));

@@ -72,5 +72,9 @@ export function parseCliArgs(): ReturnParseCliArgs {
 		reactFastRefresh: values['react-fast-refresh'],
 	};
 
+	if (!process.env.NODE_ENV) {
+		process.env.NODE_ENV = isDevCommand ? 'development' : 'production';
+	}
+
 	return parsedCommandOptions;
 }

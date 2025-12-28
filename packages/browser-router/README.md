@@ -5,10 +5,9 @@ Client-side navigation and view transitions for Ecopages. Intercepts same-origin
 ## Features
 
 - **Client-side navigation** — Intercepts `<a>` clicks for fast navigation
-- **Smart DOM swapping** — Preserves stylesheets/scripts, replaces content
+- **Efficient DOM diffing** — Uses [morphdom](https://github.com/patrick-steele-idem/morphdom) to update only what changed, preserving scroll positions and internal state
+- **State persistence** — Elements with `data-eco-persist` are never recreated, preserving internal state
 - **View Transitions** — Optional integration with the View Transition API
-- **State persistence** — Keep elements across navigations with `data-eco-persist`
-- **Scroll persistence** — Restore scroll positions for specific elements
 - **Lifecycle events** — Hook into navigation with `eco:before-swap`, `eco:after-swap`, `eco:page-load`
 
 ## Compatibility
@@ -47,23 +46,23 @@ const router = createRouter({
 
 ## Configuration
 
-| Option                   |              Type               |           Default           | Description                                    |
-| :----------------------- | :-----------------------------: | :-------------------------: | :--------------------------------------------- |
-| `linkSelector`           |            `string`             |         `'a[href]'`         | Selector for links to intercept                |
-| `persistAttribute`       |            `string`             |    `'data-eco-persist'`     | Attribute to mark elements for DOM persistence |
-| `reloadAttribute`        |            `string`             |     `'data-eco-reload'`     | Attribute to force full page reload            |
-| `scrollPersistAttribute` |            `string`             | `'data-eco-scroll-persist'` | Attribute for scroll position persistence      |
-| `updateHistory`          |            `boolean`            |           `true`            | Whether to update browser history              |
-| `scrollBehavior`         | `'top' \| 'preserve' \| 'auto'` |           `'top'`           | Scroll behavior after navigation               |
-| `viewTransitions`        |            `boolean`            |           `false`           | Use View Transition API for animations         |
-| `smoothScroll`           |            `boolean`            |           `false`           | Use smooth scrolling during navigation         |
+| Option             |              Type               |       Default        | Description                                    |
+| :----------------- | :-----------------------------: | :------------------: | :--------------------------------------------- |
+| `linkSelector`     |            `string`             |     `'a[href]'`      | Selector for links to intercept                |
+| `persistAttribute` |            `string`             | `'data-eco-persist'` | Attribute to mark elements for DOM persistence |
+| `reloadAttribute`  |            `string`             | `'data-eco-reload'`  | Attribute to force full page reload            |
+| `updateHistory`    |            `boolean`            |        `true`        | Whether to update browser history              |
+| `scrollBehavior`   | `'top' \| 'preserve' \| 'auto'` |       `'top'`        | Scroll behavior after navigation               |
+| `viewTransitions`  |            `boolean`            |       `false`        | Use View Transition API for animations         |
+| `smoothScroll`     |            `boolean`            |       `false`        | Use smooth scrolling during navigation         |
 
 ## Persistence
 
-Mark elements to preserve across navigations:
+Mark elements to preserve across navigations. These elements are never recreated during navigation — morphdom skips them entirely, preserving their internal state (event listeners, web component state, form values, etc.):
 
 ```html
-<nav data-eco-persist="main-nav">Navigation stays intact</nav>
+<!-- This counter keeps its state across all navigations -->
+<radiant-counter data-eco-persist="counter"></radiant-counter>
 ```
 
 ## Force Full Reload

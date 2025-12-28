@@ -10,9 +10,9 @@ export const getMetadata = () => ({
 
 # Client-Side Navigation
 
-The `@ecopages/browser-router` package enables Single Page Application (SPA) navigation behavior in your Ecopages application. It intercepts link clicks, fetches the next page via fetch, and swaps the DOM content seamlessly, updating the browser history and merging `<head>` elements.
+The `@ecopages/browser-router` package enables Single Page Application (SPA) navigation behavior in your Ecopages application. It intercepts link clicks, fetches the next page via fetch, and uses [morphdom](https://github.com/patrick-steele-idem/morphdom) to efficiently diff and update only the parts of the DOM that changed.
 
-This enables persistent state (like audio players or scroll positions) and native View Transitions.
+This preserves element state (like audio players, web component internals, or form values) and enables native View Transitions.
 
 <div class="banner banner--alert" role="alert">
   <p class="banner__title">Framework Compatibility</p>
@@ -50,7 +50,6 @@ You can customize the router behavior by passing an options object to the constr
 | :--- | :--- | :--- | :--- |
 | `linkSelector` | `string` | `'a[href]'` | Selector for links to intercept. |
 | `persistAttribute` | `string` | `'data-eco-persist'` | Attribute to mark elements that should persist across navigations. |
-| `scrollPersistAttribute` | `string` | `'data-eco-scroll-persist'` | Attribute to mark elements that should retain their scroll position. |
 | `reloadAttribute` | `string` | `'data-eco-reload'` | Attribute (on link or element) to force a full hard reload. |
 | `scrollBehavior` | `'top' \| 'preserve' \| 'auto'` | `'top'` | Controls scroll behavior after navigation. |
 | `viewTransitions` | `boolean` | `false` | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) support. |
@@ -71,9 +70,9 @@ new EcoRouter({
 
 ### Persistence
 
-You can stick elements to the DOM so they are not destroyed/re-created during navigation. This preserves their internal state (like audio playback, input values, or complex component state).
+Elements marked with `data-eco-persist` are **never recreated** during navigation. morphdom recognizes these elements by their persist ID and skips updating them entirely, preserving their internal state (event listeners, web component state, form values, audio playback, etc.).
 
-Add the `data-eco-persist` attribute with a unique ID to the element you want to persist.
+Add the `data-eco-persist` attribute with a unique ID:
 
 <CodeBlock>
 ```tsx
@@ -85,22 +84,10 @@ Add the `data-eco-persist` attribute with a unique ID to the element you want to
 ```
 </CodeBlock>
 
-<div class="banner banner--alert" role="alert">
-  <p class="banner__title">Important</p>
-  <p>The persisted element must exist on <strong>both</strong> the current page and the next page (the placeholder). The placeholder will be replaced by the live element.</p>
+<div class="banner banner--note" role="note">
+  <p class="banner__title">How It Works</p>
+  <p>Unlike traditional DOM swapping which destroys and recreates elements, morphdom diffs the current DOM against the new HTML. Persisted elements are matched by their ID and left untouched, keeping their internal state intact.</p>
 </div>
-
-### Scroll Persistence
-
-To preserve the scroll position of a specific container (like a sidebar) across navigations, use `data-eco-scroll-persist`.
-
-<CodeBlock>
-```tsx
-<aside class="sidebar" data-eco-scroll-persist="main-sidebar">
-  {/* Content */}
-</aside>
-```
-</CodeBlock>
 
 ### View Transitions
 
@@ -132,21 +119,34 @@ Then use the `data-eco-transition` attribute on elements to apply specific anima
 
 ## Lifecycle Events
 
-The router emits lifecycle custom events on the `window` object, allowing you to hook into the navigation process.
+The router emits lifecycle custom events on the `document` object, allowing you to hook into the navigation process.
 
 | Event | Detail | Description |
 | :--- | :--- | :--- |
 | `eco:before-swap` | `{ url, direction, newDocument, reload }` | Fired after fetching new content but **before** updating the DOM. Use `newDocument` to inspect upcoming content. Call `reload()` to force a hard reload. |
-| `eco:after-swap` | `{ url, direction, persistedElements }` | Fired **after** the DOM has been updated. Useful for re-initializing scripts or analytics. |
+| `eco:after-swap` | `{ url, direction }` | Fired **after** the DOM has been updated. Useful for re-initializing scripts or analytics. |
 | `eco:page-load` | `{ url, direction }` | Fired on both initial load and subsequent navigations. |
 
 ### Example: Re-initializing Scripts
 
 <CodeBlock>
 ```typescript
-window.addEventListener('eco:after-swap', () => {
+document.addEventListener('eco:after-swap', () => {
   console.log('Page updated!');
   // Re-run any page-specific logic here
+});
+```
+</CodeBlock>
+
+### Example: Navigation-Aware Components
+
+For components that need to react to URL changes (like updating active states), listen for `eco:page-load`:
+
+<CodeBlock>
+```typescript
+document.addEventListener('eco:page-load', () => {
+  // Update active states, re-highlight nav links, etc.
+  highlightActiveLink();
 });
 ```
 </CodeBlock>

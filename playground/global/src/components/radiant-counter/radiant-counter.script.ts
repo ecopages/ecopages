@@ -8,15 +8,21 @@ export type RadiantCounterProps = {
 export class RadiantCounter extends RadiantElement {
 	@reactiveProp({ type: Number, reflect: true }) declare count: number;
 	@query({ ref: 'count' }) countText!: HTMLElement;
+	/**
+	 * This field is used to test the persistence of the element using the EcoRouter.
+	 */
+	testPersist = new Date();
 
 	@onEvent({ ref: 'decrement', type: 'click' })
 	decrement() {
 		if (this.count > 0) this.count--;
+		console.log(this.testPersist);
 	}
 
 	@onEvent({ ref: 'increment', type: 'click' })
 	increment() {
 		this.count++;
+		console.log(this.testPersist);
 	}
 
 	@onUpdated('count')

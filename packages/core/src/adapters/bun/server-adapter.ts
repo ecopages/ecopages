@@ -469,7 +469,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 		) {
 			const html = await response.text();
 
-			const hmrScript = `<script type="module">import '/_hmr_runtime.js';</script>`;
+			const hmrScript = `<script type="module" data-eco-persist="hmr-runtime">import '/_hmr_runtime.js';</script>`;
 
 			const updatedHtml = html.replace(/<\/html>/i, `${hmrScript}</html>`);
 

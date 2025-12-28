@@ -32,6 +32,7 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
-		"@ecopages/core": "workspace:*"
+		"@ecopages/core": "workspace:*",
+		"morphdom": "^2.7.4"
 	}
 }

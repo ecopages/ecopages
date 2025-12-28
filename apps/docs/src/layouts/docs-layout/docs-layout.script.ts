@@ -11,6 +11,11 @@ export class RadiantCounter extends RadiantElement {
 		this.highlightActiveLink();
 	}
 
+	@onEvent({ document: true, type: 'eco:page-load' })
+	onPageLoad(): void {
+		this.highlightActiveLink();
+	}
+
 	highlightActiveLink(): void {
 		const links = this.querySelectorAll<HTMLAnchorElement>('[data-nav-link]');
 		const currentPath = window.location.pathname;

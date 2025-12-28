@@ -3,6 +3,7 @@ import { ApiField } from '@/components/api-field/api-field.kita';
 import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { docsConfig } from '@/data/docs-config';
 import { BaseLayout } from '@/layouts/base-layout';
+import { Banner } from '@/components/banner/banner.kita';
 
 export type DocsLayoutProps = {
 	children: JSX.Element;
@@ -155,9 +156,9 @@ const DocsNavigation = () => {
 	);
 };
 
-export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
+export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children, class: className }) => {
 	return (
-		<BaseLayout class="docs-layout prose">
+		<BaseLayout class={`docs-layout prose ${className ?? ''}`.trim()}>
 			<>
 				<radiant-navigation class="docs-layout__aside hidden md:block">
 					<DocsNavigation />
@@ -172,6 +173,6 @@ DocsLayout.config = {
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
 		scripts: ['./docs-layout.script.ts'],
-		components: [BaseLayout, CodeBlock, ApiField],
+		components: [BaseLayout, CodeBlock, ApiField, Banner],
 	},
 };

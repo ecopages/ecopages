@@ -1,5 +1,6 @@
 import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
 
 export const layout = DocsLayout;
 
@@ -123,12 +124,13 @@ mdxPlugin({
 
 While React is the default, MDX can be used with other frameworks like Lit, though it may require specific configuration or client-side rendering considerations.
 
-<div class="banner banner--alert mt-4" role="alert">
-	<p class="banner__title">Non-React Frameworks</p>
+
+<Banner type="alert">
+	<Banner.Title>Non-React Frameworks</Banner.Title>
 	<p>
 		When using non-React frameworks inside MDX (e.g., Lit components), they might not be server-side rendered by the MDX renderer and will likely relying on client-side hydration.
 	</p>
-</div>
+</Banner>
 
 For example, using Lit components:
 

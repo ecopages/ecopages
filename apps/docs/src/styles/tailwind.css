@@ -190,68 +190,6 @@ body {
 	}
 }
 
-.banner {
-	@apply relative pl-6 pr-4 py-4 rounded-md flex flex-col mt-4 shadow-sm;
-
-	&::before {
-		content: '';
-		@apply absolute left-2 top-3 bottom-3 w-1 rounded-full bg-current opacity-50;
-	}
-
-	p {
-		@apply my-1;
-	}
-
-	code {
-		@apply p-2 my-1.5;
-
-		p {
-			@apply text-sm;
-		}
-	}
-
-	&--alert {
-		@apply bg-yellow-100 border border-yellow-300;
-
-		&::before {
-			@apply bg-yellow-500 opacity-100;
-		}
-
-		p,
-		span,
-		a {
-			@apply text-yellow-700;
-		}
-	}
-
-	&--info {
-		@apply bg-blue-100 border border-blue-300;
-
-		&::before {
-			@apply bg-blue-500 opacity-100;
-		}
-
-		p,
-		span,
-		a {
-			@apply text-blue-700;
-		}
-
-		.banner__link {
-			@apply hover:text-blue-900 hover:bg-blue-50;
-		}
-	}
-
-	&__title {
-		@apply font-bold mb-0;
-	}
-
-	&__link {
-		@apply underline self-end inline-flex items-center gap-2 rounded-md p-2;
-		@apply hover:text-yellow-900 hover:bg-yellow-50;
-	}
-}
-
 @layer utilities {
 	.button-shape-base {
 		@apply px-4 py-2 leading-6;

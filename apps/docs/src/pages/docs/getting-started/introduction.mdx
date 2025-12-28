@@ -1,5 +1,6 @@
-import { DocsLayout } from '@/layouts/docs-layout';
 import { CodeBlock } from '@/components/code-block/code-block.kita';
+import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
 
 export const layout = DocsLayout;
 
@@ -8,17 +9,18 @@ export const getMetadata = () => ({
 	description: 'Discover Ecopages: A modern web framework built on Bun',
 });
 
-<div class="banner banner--alert mt-4" role="alert">
-	<p class="banner__title">Beta Notice</p>
+
+# Welcome to Ecopages
+
+<Banner type="alert">
+	<Banner.Title>Beta Notice</Banner.Title>
 	<p>
 		Ecopages is currently in beta. The API may change before the stable release. <a href="https://github.com/ecopages/ecopages/tree/main/examples" target="_blank">Check out the examples.</a>
 	</p>
 	<code>
 		<span class="select-none">$ </span>bunx degit ecopages/ecopages/examples/starter-jsx my-ecopages
 	</code>
-</div>
-
-# Welcome to Ecopages
+</Banner>
 
 Ecopages is a modern web framework built on [Bun](https://bun.sh/) that lets you build fast, static-first websites. The core philosophy is simple: **you don't always need a server** but, when you do, Ecopages has you covered.
 

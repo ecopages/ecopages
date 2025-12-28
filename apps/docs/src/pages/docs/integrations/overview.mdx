@@ -1,10 +1,11 @@
 import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
 
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-    title: 'Docs | Integrations Overview',
-    description: 'Choosing the right rendering integration for your Ecopages project',
+	title: 'Docs | Integrations Overview',
+	description: 'Choosing the right rendering integration for your Ecopages project',
 });
 
 # Integrations Overview
@@ -49,9 +50,10 @@ Ecopages is framework-agnostic. You can use one or multiple rendering integratio
 
 You can combine multiple integrations in your `eco.config.ts`. This allows you to use MDX for your blog, KitaJS for your landing page, and React for a specific interactive checkout component.
 
-<div class="banner banner--info mt-4" role="alert">
-	<p class="banner__title">Pro Tip</p>
+
+<Banner type="info">
+	<Banner.Title>Pro Tip</Banner.Title>
 	<p>
 		When mixing integrations, make sure to set the correct `jsxImportSource` in your MDX configuration if you want it to align with either React or KitaJS.
 	</p>
-</div>
+</Banner>

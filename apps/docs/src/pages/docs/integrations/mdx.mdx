@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
@@ -15,17 +14,14 @@ The `@ecopages/mdx` package brings the power of [MDX](https://mdxjs.com/) (Markd
 
 ## Installation
 
-<CodeBlock>
 ```bash
 bunx jsr add @ecopages/mdx
 ```
-</CodeBlock>
 
 ## Usage
 
 To start using MDX, add the `mdxPlugin` to your Ecopages configuration.
 
-<CodeBlock>
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
 import { mdxPlugin } from '@ecopages/mdx';
@@ -38,7 +34,6 @@ const config = await new ConfigBuilder()
 
 export default config;
 ```
-</CodeBlock>
 
 ### Implicit React Support
 
@@ -50,8 +45,7 @@ By default, the MDX plugin is configured to use **React** as the JSX runtime. Th
 
 You can define a wrapper layout for your MDX content by exporting a `layout` component from your MDX file. This is useful for wrapping your content in a consistent page structure.
 
-<CodeBlock>
-```mdx
+```markdown
 import { BaseLayout } from '@/layouts/base-layout';
 
 export const layout = BaseLayout;
@@ -60,14 +54,12 @@ export const layout = BaseLayout;
 
 This content will be wrapped by the BaseLayout component.
 ```
-</CodeBlock>
 
 ### Metadata
 
 Page metadata (like title and description) can be defined by exporting a `getMetadata` function, similar to standard TypeScript pages.
 
-<CodeBlock>
-```mdx
+```markdown
 export const getMetadata = () => ({
   title: 'My MDX Page',
   description: 'This is a description for the MDX page.'
@@ -77,14 +69,12 @@ export const getMetadata = () => ({
 
 Page content goes here...
 ```
-</CodeBlock>
 
 ### Using Components
 
 You can import and use components directly in your MDX files. Remember to export a `config` object if your components have dependencies that need to be resolved.
 
-<CodeBlock>
-```mdx
+```markdown
 import { Card } from '@/components/card';
 import { BaseLayout } from '@/layouts/base-layout';
 
@@ -101,13 +91,11 @@ export const config = {
 <Card title="Analytics" value="100%" />
 <Card title="Users" value="500" />
 ```
-</CodeBlock>
 
 ## Configuration
 
 The `mdxPlugin` accepts standard MDX compile options.
 
-<CodeBlock>
 ```typescript
 mdxPlugin({
   compilerOptions: {
@@ -118,7 +106,6 @@ mdxPlugin({
   }
 })
 ```
-</CodeBlock>
 
 ## Integration with Other Frameworks
 
@@ -134,13 +121,11 @@ While React is the default, MDX can be used with other frameworks like Lit, thou
 
 For example, using Lit components:
 
-<CodeBlock>
 ```typescript
 import { litPlugin } from '@ecopages/lit';
 
 // ... inside config
 .setIntegrations([mdxPlugin(), litPlugin()])
 ```
-</CodeBlock>
 
 In your MDX file, standard Lit components will work as custom elements (once registered via their import).

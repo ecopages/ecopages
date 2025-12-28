@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -26,7 +25,6 @@ The extension depends on your chosen integration (e.g., `.kita.tsx`, `.lit.ts`, 
 
 You can configure includes in your `eco.config.ts`:
 
-<CodeBlock>
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
 
@@ -37,9 +35,7 @@ const config = await new ConfigBuilder()
 		seo: 'seo.kita.tsx',
 	})
 	.build();
-
 ```
-</CodeBlock>
 
 ## Include Templates
 
@@ -47,12 +43,10 @@ const config = await new ConfigBuilder()
 
 The HTML template defines the overall structure of your pages:
 
-<CodeBlock>
 ```typescript
 import { type EcoComponent, html } from '@ecopages/core';
 
 const Html: EcoComponent<HtmlProps> = ({ head, body, lang = 'en' }) => html`
-	<!DOCTYPE html>
 	<html lang="${lang}">
 		${head}
 		${body}
@@ -67,13 +61,10 @@ Html.config = {
 export default Html;
 ```
 
-</CodeBlock>
-
 ### Head Template
 
 The head template manages your document's head section:
 
-<CodeBlock>
 ```typescript
 import { type EcoComponent, html } from '@ecopages/core';
 
@@ -84,18 +75,13 @@ const Head: EcoComponent<HeadProps> = ({ title, meta, links, scripts }) => html`
 		<title>${title}</title>${links}${scripts}
 	</head>`;
 
-Head.config = {
-};
-
 export default Head;
 ```
-</CodeBlock>
 
 ### SEO Template
 
 The SEO template handles meta tags for search engines and social sharing:
 
-<CodeBlock>
 ```typescript
 import { type EcoComponent, html } from '@ecopages/core';
 
@@ -108,7 +94,6 @@ const Seo: EcoComponent<SeoProps> = ({ title, description, image, keywords }) =>
 
 export default Seo;
 ```
-</CodeBlock>
 
 ## Best Practices
 

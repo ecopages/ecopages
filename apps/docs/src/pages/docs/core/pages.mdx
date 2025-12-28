@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -16,7 +15,6 @@ Pages are the core of your Ecopages project. They represent the different routes
 
 A typical page in Ecopages using the ghtml integration consists of a single TypeScript file. Here's a basic example:
 
-<CodeBlock>
 ```typescript
 import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
@@ -41,7 +39,6 @@ HomePage.config = {
 
 export default HomePage;
 ```
-</CodeBlock>
 
 Let's break down the key elements of a page:
 
@@ -61,7 +58,6 @@ Let's break down the key elements of a page:
 
 To use components in your pages, import them and include them in your HTML template:
 
-<CodeBlock>
 ```typescript
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
@@ -85,9 +81,7 @@ HomePage.config = {
 		components: [BaseLayout, ...flagComponentsAsDynamic([RadiantCounter])],
 	},
 };
-
 ```
-</CodeBlock>
 
 ## Working with Data
 

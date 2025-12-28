@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -16,7 +15,6 @@ Ecopages provides a powerful server API that allows you to create endpoints and 
 
 Create an `app.ts` file in your project root:
 
-<CodeBlock>
 ```typescript
 import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
 import appConfig from './eco.config';
@@ -28,15 +26,12 @@ app.get('/api/hello', async () => {
 });
 
 await app.start();
-
 ```
-</CodeBlock>
 
 ## HTTP Methods
 
 The server supports all standard HTTP methods:
 
-<CodeBlock>
 ```typescript
 app.get('/api/resource', handler);
 app.post('/api/resource', handler);
@@ -47,20 +42,17 @@ app.options('/api/resource', handler);
 app.head('/api/resource', handler);
 ```
 
-</CodeBlock>
 
 ## Route Parameters
 
 You can define dynamic route parameters using the `:param` syntax:
 
-<CodeBlock>
 ```typescript
 app.get('/api/users/:id/posts/:postId', async ({ request }) => {
 	const { id, postId } = request.params;
 	return new Response(JSON.stringify({ userId: id, postId }));
 });
 ```
-</CodeBlock>
 
 ## Type Safety
 
@@ -72,7 +64,6 @@ While you can define handlers directly, ensuring the `request.params` type match
 
 When using the Bun adapter, you can use the `defineBunApiHandler` helper function. This function automatically infers the parameter types from the `path` string literal, ensuring your `request.params` object is correctly typed without explicit annotations.
 
-<CodeBlock>
 ```typescript
 // Import the adapter-specific helper
 import { defineBunApiHandler } from '@ecopages/core/adapters/bun/define-handler'; // Adjust path if needed
@@ -111,7 +102,6 @@ const updateUserHandler = defineBunApiHandler({
 app.put(updateUserHandler.path, updateUserHandler.handler);
 
 ```
-</CodeBlock>
 
 ### Benefits of Using `defineBunApiHandler`
 
@@ -126,7 +116,6 @@ Using defineBunApiHandler offers several advantages:
 
 The handler context now includes a `server` property, which exposes the underlying server instance (such as Bun's server object). This allows you to access advanced utilities, such as retrieving the request IP address or triggering a server reload.
 
-<CodeBlock>
 ```typescript
 app.get('/api/hello', async ({ response, request, server }) => {
 	return response.json({
@@ -136,7 +125,6 @@ app.get('/api/hello', async ({ response, request, server }) => {
 });
 ```
 
-</CodeBlock>
 
 You can use `server` for advanced debugging, runtime methods, or accessing server-specific utilities.
 
@@ -144,7 +132,6 @@ You can use `server` for advanced debugging, runtime methods, or accessing serve
 
 During static site generation, the server can still handle API requests, making it possible to generate static content from API responses:
 
-<CodeBlock>
 ```typescript
 export const getStaticProps: GetStaticProps = async ({ appConfig }) => {
 	const response = await fetch(`${appConfig.baseUrl}/api/data`);
@@ -155,7 +142,6 @@ export const getStaticProps: GetStaticProps = async ({ appConfig }) => {
 	};
 };
 ```
-</CodeBlock>
 
 ## Development Server
 
@@ -180,7 +166,6 @@ When building for production:
 
 The server includes built-in error handling:
 
-<CodeBlock>
 ```typescript
 app.get('/api/error', async () => {
 	throw new Error('Something went wrong');
@@ -188,13 +173,11 @@ app.get('/api/error', async () => {
 	// and a safe error message in production
 });
 ```
-</CodeBlock>
 
 ## WebSocket Support
 
 Ecopages supports WebSockets through Bun's native implementation. You can define WebSocket handlers when creating your app:
 
-<CodeBlock>
 ```typescript
 interface WebSocketData { sessionId: string }
 
@@ -208,13 +191,11 @@ await app.start({
     }
 });
 ```
-</CodeBlock>
 
 ## Testing API Endpoints
 
 Ecopages provides a convenient `request()` method on the app instance that allows you to trigger internal HTTP requests for testing without needing to manage actual network connections.
 
-<CodeBlock>
 ```typescript
 const app = new EcopagesApp({ appConfig });
 await app.start();
@@ -224,17 +205,14 @@ const data = await response.json();
 
 console.log(data); // { message: 'Hello World' }
 ```
-</CodeBlock>
 
 ## Configuration
 
 Server configuration can be customized in your `eco.config.ts`:
 
-<CodeBlock>
 ```typescript 
 const config = await new ConfigBuilder() 
 	.setBaseUrl('http://localhost:3000') 
 	// ... other config
 	.build(); 
 ```
-</CodeBlock>

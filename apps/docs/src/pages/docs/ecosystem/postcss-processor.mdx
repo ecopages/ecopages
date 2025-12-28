@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -16,11 +15,9 @@ The `@ecopages/postcss-processor` package provides a PostCSS processor plugin fo
 
 Install the package from JSR:
 
-<CodeBlock>
 ```bash
 bunx jsr add @ecopages/postcss-processor
 ```
-</CodeBlock>
 
 ## Built-in Plugins
 
@@ -36,7 +33,6 @@ The PostCSS processor comes with several built-in plugins:
 
 Integrate the processor into your Ecopages configuration:
 
-<CodeBlock>
 ```typescript
 // ecopages.config.ts
 import { ConfigBuilder } from '@ecopages/core';
@@ -62,7 +58,6 @@ const config = await new ConfigBuilder()
 
 export default config;
 ```
-</CodeBlock>
 
 ### Configuration Options
 
@@ -75,7 +70,6 @@ export default config;
 
 The plugin automatically detects and uses `postcss.config.{js,cjs,mjs,ts}` from your project root if present. This is the recommended way to customize your PostCSS pipeline.
 
-<CodeBlock>
 ```javascript
 // postcss.config.js
 module.exports = {
@@ -90,31 +84,25 @@ module.exports = {
 	},
 };
 ```
-</CodeBlock>
 
 ## Using with Bun
 
 To enable CSS imports in your TypeScript/JavaScript files, add the PostCSS loader to your `bunfig.toml`:
 
-<CodeBlock>
 ```toml
 preload = ["@ecopages/bun-postcss-loader"]
 ```
-</CodeBlock>
 
 Now you can import CSS files directly in your code:
 
-<CodeBlock>
 ```typescript
 import styles from './styles.css';
 ```
-</CodeBlock>
 
 ## Custom Plugin Usage
 
 You can also use the underlying processor functions directly and providing your own plugins:
 
-<CodeBlock>
 ```typescript
 import { PostCssProcessor, defaultPlugins } from '@ecopages/postcss-processor';
 import customPlugin from 'postcss-custom-plugin';
@@ -130,7 +118,6 @@ const result = await PostCssProcessor.processPath('path/to/file.css', {
 	],
 });
 ```
-</CodeBlock>
 
 ## Processing Methods
 
@@ -138,24 +125,20 @@ The processor provides two main methods for processing CSS standalone:
 
 ### Process File by Path
 
-<CodeBlock>
 ```typescript
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 
 const css = await PostCssProcessor.processPath('path/to/file.css');
 ```
-</CodeBlock>
 
 ### Process String or Buffer
 
-<CodeBlock>
 ```typescript
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 
 const css = `body { @apply bg-blue-500; }`;
 const processed = await PostCssProcessor.processStringOrBuffer(css, { filePath: 'style.css' });
 ```
-</CodeBlock>
 
 ## Error Handling
 

@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -25,12 +24,10 @@ These files are typically located in the `src/includes` directory.
 
 This file defines the overall HTML structure of your pages. Here's an example of what it might look like:
 
-<CodeBlock>
 ```typescript
 import { type EcoComponent, html } from '@ecopages/core';
 
 export const Html: EcoComponent<{ children: string }> = ({ children }) => html`
-	<!DOCTYPE html>
 	<html lang="en">
 		!${children}
 	</html>
@@ -41,15 +38,12 @@ Html.config = {
 		stylesheets: ['./html.css'],
 	},
 };
-
 ```
-</CodeBlock>
 
 ### head.ts
 
 This file defines the content of the `<head>` tag, including meta tags, title, and other important elements. Here's an example:
 
-<CodeBlock>
 ```typescript
 import { type EcoComponent, html } from '@ecopages/core';
 
@@ -64,8 +58,6 @@ export const Head: EcoComponent<{ title: string; description: string }> = ({ tit
 `;
 ```
 
-</CodeBlock>
-
 These includes files are automatically used by Ecopages to structure your HTML. You don't need to explicitly import or use them in your pages or layouts.
 
 ## Creating a Base Layout
@@ -76,7 +68,6 @@ A base layout is a reusable component that defines the common structure for your
 
 2. Define your layout component. Here's an example:
 
-<CodeBlock>
 ```typescript
 import { type EcoComponent, html } from '@ecopages/core';
 
@@ -98,13 +89,11 @@ BaseLayout.config = {
 };
 
 ```
-</CodeBlock>
 
 3. Create associated files for styles (`base-layout.css`) and scripts (`base-layout.script.ts`) if needed.
 
 4. Use your base layout in your pages:
 
-<CodeBlock>
 ```typescript
 import { BaseLayout } from '@/layouts/base-layout';
 import { type EcoComponent, html } from '@ecopages/core';
@@ -126,7 +115,6 @@ HomePage.config = {
 export default HomePage;
 ```
 
-</CodeBlock>
 
 By using layouts and includes files effectively, you can create a consistent structure for your Ecopages project while keeping your code modular and maintainable.
 

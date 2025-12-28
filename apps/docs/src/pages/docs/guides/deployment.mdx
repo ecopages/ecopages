@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -55,7 +54,6 @@ bun run start
 ### 2. Docker Deployment
 You can easily containerize your Ecopages app using the official Bun image.
 
-<CodeBlock>
 ```dockerfile
 FROM oven/bun:latest
 
@@ -70,7 +68,6 @@ RUN bun run build
 EXPOSE 3000
 CMD ["bun", "run", "start"]
 ```
-</CodeBlock>
 
 ### 3. VPS / PaaS (Railway, Fly.io)
 Deploy the server by pointing the platform to your `app.ts` as the entry point and ensuring it runs with the `start` command in production.

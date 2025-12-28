@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
@@ -6,8 +5,8 @@ import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-  title: 'Docs | Image Processor',
-  description: 'Transform and optimize images for web with Ecopages Image Processor',
+	title: 'Docs | Image Processor',
+	description: 'Transform and optimize images for web with Ecopages Image Processor',
 });
 
 # Image Processor
@@ -18,17 +17,14 @@ The `@ecopages/image-processor` package provides powerful image processing capab
 
 Install the package from JSR:
 
-<CodeBlock>
 ```bash
 bunx jsr add @ecopages/image-processor
 ```
-</CodeBlock>
 
 ## Configuration
 
 Add the image processor to your Ecopages configuration:
 
-<CodeBlock>
 ```typescript
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
@@ -59,7 +55,6 @@ export default await new ConfigBuilder()
 	.setProcessors([imageProcessor])
 	.build();
 ```
-</CodeBlock>
 
 ### Configuration Options
 
@@ -84,7 +79,6 @@ The image processor provides several entry points:
 
 ### HTML Component
 
-<CodeBlock>
 ```typescript
 import { Image } from '@ecopages/image-processor/component/html';
 
@@ -96,11 +90,9 @@ const imageHtml = Image({
 	loading: 'lazy',
 });
 ```
-</CodeBlock>
 
 ### React Component
 
-<CodeBlock>
 ```typescript
 import { Image } from '@ecopages/image-processor/component/react';
 
@@ -110,11 +102,9 @@ function MyComponent() {
 	);
 }
 ```
-</CodeBlock>
 
 The `ecopages:images` virtual module provides a unified, type-safe way to handle images across your project:
 
-<CodeBlock>
 ```typescript
 // All images from your source directory are available as named exports
 import { heroImage, profilePicture, blogThumbnail } from "ecopages:images";
@@ -125,7 +115,6 @@ import { heroImage, profilePicture, blogThumbnail } from "ecopages:images";
 // src/images/profile_picture.png -> profilePicture
 
 ```
-</CodeBlock>
 
 #### Benefits:
 
@@ -145,7 +134,6 @@ The image processor uses:
 
 ## Examples
 
-<CodeBlock>
 ```tsx
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
@@ -173,7 +161,6 @@ import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 	/>
 </div>
 ```
-</CodeBlock>
 
 <div class="grid gap-8 resize-x overflow-auto border border-on-background max-w-full place-items-center">
 	<EcoImage
@@ -198,7 +185,6 @@ import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 	/>
 </div>
 
-<CodeBlock>
 ```tsx
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
@@ -220,7 +206,6 @@ import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 	/>
 </div>
 ```
-</CodeBlock>
 
 <div class="grid gap-8 resize-x overflow-auto border border-on-background max-w-full place-items-center">
 	<EcoImage

@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -38,7 +37,6 @@ For HMR to work on your custom scripts, make sure they are:
 
 If you are building a [Custom Integration](/docs/plugins/custom-integration), you can define your own HMR strategy by extending the `HmrStrategy` class.
 
-<CodeBlock>
 ```typescript
 class MyCustomStrategy extends HmrStrategy {
     matches(filePath: string) {
@@ -54,7 +52,6 @@ class MyCustomStrategy extends HmrStrategy {
     }
 }
 ```
-</CodeBlock>
 
 ---
 

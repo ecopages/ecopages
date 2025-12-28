@@ -1,4 +1,3 @@
-import { CodeBlock } from '@/components/code-block/code-block.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const layout = DocsLayout;
@@ -24,7 +23,6 @@ Let's create a simple counter component to demonstrate this structure, we will u
 
 ### RadiantCounter.ts
 
-<CodeBlock>
 ```typescript
 import { type EcoComponent, html } from '@ecopages/core';
 import type { RadiantCounterProps } from './radiant-counter.script';
@@ -44,11 +42,9 @@ RadiantCounter.config = {
 };
 
 ```
-</CodeBlock>
 
 ### radiant-counter.script.ts
 
-<CodeBlock>
 ```typescript
 import { RadiantElement } from '@ecopages/radiant/core';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
@@ -94,7 +90,6 @@ declare global {
 
 ```
 
-</CodeBlock>
 
 ## Key Points:
 
@@ -107,7 +102,6 @@ declare global {
 
 The EcoComponent config is an essential part of creating components in Ecopages. It provides necessary information for the framework to properly handle and render the component. Here's a brief overview of the config object and its mandatory fields:
 
-<CodeBlock>
 ```typescript
 RadiantCounter.config = {
 	dependencies: {
@@ -116,7 +110,6 @@ RadiantCounter.config = {
 	},
 };
 ```
-</CodeBlock>
 
 Mandatory fields:
 
@@ -144,7 +137,6 @@ Here's how it works:
 
 To use your components in pages, import them and include them in your HTML template:
 
-<CodeBlock>
 ```typescript
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
@@ -162,13 +154,12 @@ const HomePage: EcoComponent = () => html`${BaseLayout({
 
 HomePage.config = {
 	dependencies: {
-	components: [BaseLayout, RadiantCounter],
-},
+		components: [BaseLayout, RadiantCounter],
+	},
 };
 
 export default HomePage;
 ```
-</CodeBlock>
 
 ## Best Practices for Component Creation
 

@@ -21,27 +21,31 @@ export const getMetadata = () => ({
 	```
 </Banner>
 
-Ecopages is a modern web framework built on [Bun](https://bun.sh/) that lets you build fast, static-first websites. The core philosophy is simple: **you don't always need a server** but, when you do, Ecopages has you covered.
+Ecopages is a **modern, basic** web framework built on [Bun](https://bun.sh/).
+
+No virtual DOM. No complex state management. No framework-specific mental models. Just TypeScript and HTML.
 
 ## What Makes Ecopages Different?
 
-Most web frameworks force you to choose: either a static site generator or a full server framework. Ecopages gives you both. Start with lightning fast static pages, then add API routes and server-side logic only where you need them.
+Most frameworks require you to adopt an entirely new way of thinking: hooks, signals, reactivity systems, and layers of abstraction. Ecopages takes the opposite approach. You write functions that return HTML. That's it.
+
+The result? Fast static pages, minimal dependencies, and code you can actually understand. When you need server-side logic, add it, but you'll find that static is often exactly what you need.
 
 ### Key Features
 
-1. **Static-First Architecture**: Generate static HTML at build time for maximum performance and minimal hosting costs. No server required for most sites.
+1. **Plain TypeScript**: No framework DSL, no compiler magic. Write standard TypeScript functions that return HTML strings. Your IDE's autocomplete just works.
 
-2. **Server When You Need It**: Full HTTP API with Express-like routing (`app.get()`, `app.post()`, etc.) for dynamic features, webhooks, or data endpoints.
+2. **Web Fundamentals**: Embrace HTML, CSS, and browser APIs directly. No virtual DOM abstraction layer between you and the web.
 
-3. **Multi-Framework Support**: Use the templating engine that fits your project:
-   - **[KitaJS](/docs/integrations/kitajs)** – Fast JSX templates, great for static content
-   - **[React 19](/docs/integrations/react)** – Full React with hydration and Server Components
-   - **[Lit](/docs/integrations/lit)** – Web Components with SSR support
+3. **Static by Default**: Generate HTML at build time. Host anywhere. No server costs for most sites.
+
+4. **Server When You Need It**: Full HTTP API with Express-like routing (`app.get()`, `app.post()`, etc.) for dynamic features—added incrementally, not as the default.
+
+5. **Choose Your Templating**:
+   - **[KitaJS](/docs/integrations/kitajs)** – Fast JSX templates, compiles to string concatenation
+   - **[React 19](/docs/integrations/react)** – Full React with hydration when you need it
+   - **[Lit](/docs/integrations/lit)** – Web Components with SSR
    - **[MDX](/docs/integrations/mdx)** – Markdown with embedded components
-
-4. **Image Processing Pipeline**: Automatic responsive images with the `ecopages:images` virtual module. Generate optimized WebP at multiple sizes with zero configuration.
-
-5. **Hot Module Replacement**: Fast refresh during development with framework-aware HMR strategies.
 
 6. **TypeScript-First**: Full type inference for routes, props, and API handlers. No runtime overhead.
 

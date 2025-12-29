@@ -1,7 +1,7 @@
 {
 	"name": "@ecopages/bun-postcss-loader",
 	"version": "0.1.49",
-	"description": "Bun loader to load postcss file",
+	"description": "Bun loader to process css files with PostCSS",
 	"keywords": [
 		"bun",
 		"loader",

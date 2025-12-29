@@ -9,7 +9,6 @@
 		"watch:dev": "bun --watch run app.ts --dev"
 	},
 	"devDependencies": {
-		"@ecopages/bun-postcss-loader": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/mdx": "workspace:*",

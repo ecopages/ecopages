@@ -1,6 +1,11 @@
 # Bun Postcss Loader
 
-A Bun plugin that processes PostCSS files
+## Deprecated
+
+This loader is deprecated in favor of the [`@ecopages/postcss-processor`](https://jsr.io/@ecopages/postcss-processor) package.
+Please use the processor directly in your `eco.config.ts`.
+
+A Bun plugin that processes `.css` files
 
 ## Install
 

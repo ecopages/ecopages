@@ -47,7 +47,6 @@
 		"husky": "^9.0.10",
 		"lint-staged": "^15.2.2",
 		"oxlint": "^1.32.0",
-		"@ecopages/bun-postcss-loader": "workspace:*",
 		"playwright": "^1.57.0",
 		"prettier": "^3.7.4",
 		"vitest": "^4.0.16"

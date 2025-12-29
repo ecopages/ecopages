@@ -10,7 +10,6 @@
 		"watch:dev": "bun --watch run app.ts --dev"
 	},
 	"devDependencies": {
-		"@ecopages/bun-postcss-loader": "npm:@jsr/ecopages__bun-postcss-loader@latest",
 		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
 		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
 		"@ecopages/radiant": "latest",

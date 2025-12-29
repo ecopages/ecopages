@@ -22,7 +22,8 @@
 		"@faker-js/faker": "9.7.0",
 		"@types/alpinejs": "^3.13.6",
 		"alpinejs": "^3.13.10",
-		"shiki": "^1.1.2"
+		"shiki": "^1.1.2",
+		"tailwindcss": "^3.4.19"
 	},
 	"repository": "https://github.com/ecopages/ecopages.git"
 }

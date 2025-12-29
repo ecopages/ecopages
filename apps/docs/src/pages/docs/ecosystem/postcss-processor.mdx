@@ -27,13 +27,9 @@ The processor comes with presets to get you started quickly with popular setups.
 
 This preset includes the standard Tailwind CSS v3 stack: `tailwindcss`, `tailwindcss/nesting`, `autoprefixer`, `postcss-import`, and `cssnano`.
 
-1. Install the required peer dependencies:
-
 ```bash
-bun add -D tailwindcss postcss-import autoprefixer cssnano
+bun add -D tailwindcss@3.4.19
 ```
-
-2. Configure in `eco.config.ts`:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
@@ -48,17 +44,13 @@ const config = await new ConfigBuilder()
 export default config;
 ```
 
-### Tailwind v4 Preset
+### Tailwind v4 Preset (Recommended)
 
-This preset supports the newer Tailwind CSS v4, utilizing `@tailwindcss/postcss`. It also automatically handles `@reference` injection for `@apply` directives, making usage simpler in isolated component styles.
-
-1. Install the required peer dependencies:
+This preset supports Tailwind CSS v4, utilizing `@tailwindcss/postcss`. It also automatically handles `@reference` injection for `@apply` directives, making usage simpler in isolated component styles.
 
 ```bash
-bun add -D @tailwindcss/postcss cssnano
+bun add -D @tailwindcss/postcss
 ```
-
-2. Configure in `eco.config.ts`:
 
 ```typescript
 import path from 'node:path';

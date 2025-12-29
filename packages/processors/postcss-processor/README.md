@@ -20,9 +20,13 @@ bunx jsr add @ecopages/postcss-processor
 
 Integrate the processor into your `eco.config.ts` using one of the available presets.
 
-### Tailwind v3 Preset (Recommended)
+### Tailwind v3 Preset
 
 Includes `tailwindcss`, `autoprefixer`, `postcss-import`, `cssnano`.
+
+```bash
+bun add -D tailwindcss@3.4.19
+```
 
 ```typescript
 // eco.config.ts
@@ -34,15 +38,13 @@ const config = await new ConfigBuilder().setProcessors([postcssProcessorPlugin(t
 export default config;
 ```
 
-**Requirements:**
-
-```bash
-bun add -D tailwindcss postcss-import autoprefixer cssnano
-```
-
-### Tailwind v4 Preset
+### Tailwind v4 Preset (Recommended)
 
 Includes `@tailwindcss/postcss`, `cssnano`, and handles `@reference` injection for `@apply`.
+
+```bash
+bun add -D @tailwindcss/postcss
+```
 
 ```typescript
 // eco.config.ts
@@ -61,12 +63,6 @@ const config = await new ConfigBuilder()
 	.build();
 
 export default config;
-```
-
-**Requirements:**
-
-```bash
-bun add -D @tailwindcss/postcss cssnano
 ```
 
 ### Custom Configuration

@@ -13,6 +13,7 @@
 		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
 		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
 		"@ecopages/radiant": "latest",
-		"@ecopages/scripts-injector": "latest"
+		"@ecopages/scripts-injector": "latest",
+		"tailwindcss": "^3.4.19"
 	}
 }

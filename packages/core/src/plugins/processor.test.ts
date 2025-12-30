@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { BunPlugin } from 'bun';
@@ -46,6 +46,10 @@ describe('Processor', () => {
 
 		processor = new TestProcessor(config);
 		processor.setContext(appConfig);
+	});
+
+	afterAll(() => {
+		fs.rmSync(path.join(process.cwd(), '.test-tmp'), { recursive: true, force: true });
 	});
 
 	test('should initialize with correct name', () => {

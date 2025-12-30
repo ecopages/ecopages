@@ -17,7 +17,7 @@ This preserves element state (like audio players, web component internals, or fo
 
 <Banner type="alert">
   <Banner.Title>Framework Compatibility</Banner.Title>
-  <p>This package works with MPA-style rendering (KitaJS, Lit, vanilla JS). <strong>Not compatible with React/Preact</strong> — these frameworks manage their own virtual DOM. For React apps, use a framework-specific routing solution.</p>
+  <p>This package works with MPA-style rendering (KitaJS, Lit, vanilla JS). <strong>Not compatible with React/Preact</strong>, these frameworks manage their own virtual DOM. For React apps, use a framework-specific routing solution.</p>
 </Banner>
 
 ## Installation
@@ -28,7 +28,13 @@ bunx jsr add @ecopages/browser-router
 
 ## Setup
 
-To enable client-side routing, initialize the router in your global script (e.g., `src/includes/html.script.ts`).
+To enable client-side routing, initialize the router in your global script (e.g., `src/layouts/base-layout.script.ts`).
+
+<Banner type="info">
+  <Banner.Title>Consistent Head Ordering Required</Banner.Title>
+  <p>To prevent "Flash of Unstyled Content" (FOUC), ensure the router script is injected in a <strong>consistent order</strong> within the <code>&lt;head&gt;</code> across all pages.</p>
+  <p>Inconsistent ordering (e.g., script loaded between stylesheets on one page but after them on another) causes <code>morphdom</code> to detach and re-add stylesheets during navigation. Using a global layout script (like <code>base-layout.script.ts</code>) helps ensure this consistency.</p>
+</Banner>
 
 The simplest approach is to use `createRouter`, which creates and starts the router in one call:
 
@@ -99,6 +105,30 @@ Add the `data-eco-persist` attribute with a unique ID:
   <Banner.Title>How It Works</Banner.Title>
   <p>Unlike traditional DOM swapping which destroys and recreates elements, morphdom diffs the current DOM against the new HTML. Persisted elements are matched by their ID and left untouched, keeping their internal state intact.</p>
 </Banner>
+
+### Script Re-execution
+
+By default, scripts in the `<head>` are not re-executed during navigation if they already exist. However, some scripts (like hydration logic or analytics) need to run on every page load.
+
+To force a script to re-execute on navigation:
+
+1. Add `data-eco-rerun="true"` to force execution.
+2. Add `data-eco-script-id="unique-id"` to identify the script (preventing duplicate downloads).
+
+```html
+<script 
+  type="module" 
+  data-eco-rerun="true" 
+  data-eco-script-id="analytics-tracker"
+>
+  // This runs on initial load AND every navigation
+  initAnalytics(window.location.pathname);
+</script>
+```
+
+**How it works:**
+- If the script with `data-eco-script-id` already exists, it is **not** re-downloaded.
+- If it has `data-eco-rerun`, the router takes care of re-executing it.
 
 ### View Transitions
 

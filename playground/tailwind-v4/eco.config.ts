@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
-import { postcssProcessorPlugin, tailwindV4Preset } from '@ecopages/postcss-processor';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { reactPlugin } from '@ecopages/react';
 
 export default await new ConfigBuilder()

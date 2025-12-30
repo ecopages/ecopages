@@ -31,7 +31,8 @@ bun add -D tailwindcss@3.4.19
 ```typescript
 // eco.config.ts
 import { ConfigBuilder } from '@ecopages/core';
-import { postcssProcessorPlugin, tailwindV3Preset } from '@ecopages/postcss-processor';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
 const config = await new ConfigBuilder().setProcessors([postcssProcessorPlugin(tailwindV3Preset())]).build();
 
@@ -50,7 +51,8 @@ bun add -D @tailwindcss/postcss
 // eco.config.ts
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
-import { postcssProcessorPlugin, tailwindV4Preset } from '@ecopages/postcss-processor';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
 const config = await new ConfigBuilder()
 	.setProcessors([

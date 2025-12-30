@@ -1,7 +1,8 @@
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
-import { postcssProcessorPlugin, tailwindV3Preset } from '@ecopages/postcss-processor';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 import { reactPlugin } from '@ecopages/react';
 import { mdxPlugin } from '@ecopages/mdx';
 

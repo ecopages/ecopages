@@ -11,15 +11,8 @@ import cssnano from 'cssnano';
 import type postcss from 'postcss';
 import postcssImport from 'postcss-import';
 import tailwindcss from 'tailwindcss';
+import tailwindcssNesting from 'tailwindcss/nesting/index.js';
 import type { PostCssProcessorPluginConfig } from '../plugin';
-
-// Optional nesting - try to import but don't fail if not available
-let tailwindcssNesting: postcss.AcceptedPlugin | undefined;
-try {
-	tailwindcssNesting = require('tailwindcss/nesting/index.js');
-} catch {
-	// nesting is optional
-}
 
 type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
 
@@ -49,15 +42,11 @@ type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
 export function tailwindV3Preset(): PostCssProcessorPluginConfig {
 	const plugins: PluginsRecord = {
 		'postcss-import': postcssImport(),
+		'tailwindcss/nesting': tailwindcssNesting,
+		tailwindcss: tailwindcss,
+		autoprefixer: autoprefixer,
+		cssnano: cssnano(),
 	};
-
-	if (tailwindcssNesting) {
-		plugins['tailwindcss/nesting'] = tailwindcssNesting;
-	}
-
-	plugins.tailwindcss = tailwindcss;
-	plugins.autoprefixer = autoprefixer;
-	plugins.cssnano = cssnano;
 
 	return { plugins };
 }

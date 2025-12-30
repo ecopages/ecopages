@@ -85,6 +85,34 @@ postcssProcessorPlugin({
 });
 ```
 
+**Advanced Configuration:**
+
+For advanced use cases, use transformation hooks to modify CSS before or after processing:
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+
+const config = await new ConfigBuilder()
+	.setProcessors([
+		postcssProcessorPlugin({
+			// Define a filter for files to process (defaults to /\.css$/)
+			filter: /\.css$/,
+			// Provide a function to transform input before processing
+			transformInput: async (css) => `/* My Custom Header */\n${css}`,
+			// Provide a function to transform output after processing
+			transformOutput: async (css) => css.replace('blue', 'red'),
+			// Explicitly provide plugins (overrides defaults)
+			plugins: {
+				/* custom plugins */
+			},
+		}),
+	])
+	.build();
+
+export default config;
+```
+
 ## Standalone Usage
 
 You can use the underlying processor functions directly:

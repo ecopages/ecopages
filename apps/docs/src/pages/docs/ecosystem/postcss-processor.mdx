@@ -3,8 +3,8 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-    title: 'Docs | PostCSS Processor',
-    description: 'Learn how to use the PostCSS processor in Ecopages',
+  title: 'Docs | PostCSS Processor',
+  description: 'Learn how to use the PostCSS processor in Ecopages',
 });
 
 # PostCSS Processor
@@ -116,15 +116,35 @@ postcssProcessorPlugin({
   plugins: {
     'my-plugin': myPlugin(),
   },
-  transformInput: async (css, filePath) => {
-    // Modify CSS before processing
-    return css;
-  },
-  transformOutput: async (css) => {
-    // Modify CSS after processing
-    return css;
-  }
 })
+```
+
+### Advanced Configuration
+
+For advanced use cases, you can customize the processor with transformation hooks to modify CSS before or after PostCSS processing:
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+
+const config = await new ConfigBuilder()
+  .setProcessors([
+    postcssProcessorPlugin({
+      // Define a filter for files to process (defaults to /\.css$/)
+      filter: /\.css$/,
+      // Provide a function to transform input before processing
+      transformInput: async (css) => `/* My Custom Header */\n${css}`,
+      // Provide a function to transform output after processing
+      transformOutput: async (css) => css.replace('blue', 'red'),
+      // Explicitly provide plugins (overrides defaults)
+      plugins: {
+        /* custom plugins */
+      },
+    }),
+  ])
+  .build();
+
+export default config;
 ```
 
 ## Using with Bun

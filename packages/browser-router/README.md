@@ -4,17 +4,17 @@ Client-side navigation and view transitions for Ecopages. Intercepts same-origin
 
 ## Features
 
-- **Client-side navigation** — Intercepts `<a>` clicks for fast navigation
-- **Efficient DOM diffing** — Uses [morphdom](https://github.com/patrick-steele-idem/morphdom) to update only what changed, preserving scroll positions and internal state
-- **State persistence** — Elements with `data-eco-persist` are never recreated, preserving internal state
-- **View Transitions** — Optional integration with the View Transition API
-- **Lifecycle events** — Hook into navigation with `eco:before-swap`, `eco:after-swap`, `eco:page-load`
+- **Client-side navigation** - Intercepts `<a>` clicks for fast navigation
+- **Efficient DOM diffing** - Uses [morphdom](https://github.com/patrick-steele-idem/morphdom) to update only what changed, preserving scroll positions and internal state
+- **State persistence** - Elements with `data-eco-persist` are never recreated, preserving internal state
+- **View Transitions** - Optional integration with the View Transition API
+- **Lifecycle events** - Hook into navigation with `eco:before-swap`, `eco:after-swap`, `eco:page-load`
 
 ## Compatibility
 
 This package works with MPA-style rendering (KitaJS, Lit, vanilla JS) where the server returns full HTML pages.
 
-**Not compatible with React/Preact** — These frameworks manage their own virtual DOM and component trees. Replacing the DOM breaks hydration, state, and event handlers. For React apps, use a framework-specific routing solution.
+**Not compatible with React/Preact** - These frameworks manage their own virtual DOM and component trees. Replacing the DOM breaks hydration, state, and event handlers. For React apps, use a framework-specific routing solution.
 
 ## Installation
 
@@ -60,7 +60,7 @@ const router = createRouter({
 
 ## Persistence
 
-Mark elements to preserve across navigations. These elements are never recreated during navigation — morphdom skips them entirely, preserving their internal state (event listeners, web component state, form values, etc.):
+Mark elements to preserve across navigations. These elements are never recreated during navigation, morphdom skips them entirely, preserving their internal state (event listeners, web component state, form values, etc.):
 
 ```html
 <!-- This counter keeps its state across all navigations -->

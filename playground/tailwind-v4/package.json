@@ -5,7 +5,9 @@
 		"start": "NODE_ENV=production bun run app.ts",
 		"dev": "bun run app.ts --dev --react-fast-refresh",
 		"build": "NODE_ENV=production bun run app.ts --build",
-		"preview": "NODE_ENV=production bun run app.ts --preview"
+		"preview": "NODE_ENV=production bun run app.ts --preview",
+		"watch:dev": "bun --watch run app.ts --dev",
+		"hot:dev": "bun --hot run app.ts --dev"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

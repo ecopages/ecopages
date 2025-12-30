@@ -28,7 +28,13 @@ bunx jsr add @ecopages/browser-router
 
 ## Setup
 
-To enable client-side routing, initialize the router in your global script (e.g., `src/includes/html.script.ts`).
+To enable client-side routing, initialize the router in your global script (e.g., `src/layouts/base-layout.script.ts`).
+
+<Banner type="info">
+  <Banner.Title>Consistent Head Ordering Required</Banner.Title>
+  <p>To prevent "Flash of Unstyled Content" (FOUC), ensure the router script is injected in a <strong>consistent order</strong> within the <code>&lt;head&gt;</code> across all pages.</p>
+  <p>Inconsistent ordering (e.g., script loaded between stylesheets on one page but after them on another) causes <code>morphdom</code> to detach and re-add stylesheets during navigation. Using a global layout script (like <code>base-layout.script.ts</code>) helps ensure this consistency.</p>
+</Banner>
 
 The simplest approach is to use `createRouter`, which creates and starts the router in one call:
 

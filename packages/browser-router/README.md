@@ -24,7 +24,9 @@ bunx jsr add @ecopages/browser-router
 
 ## Usage
 
-Create and start the router in a client-side script:
+Create and start the router in a **global** client-side script (e.g., `src/layouts/base-layout.script.ts`).
+
+> **Important**: Ensure the router script is injected in a **consistent order** within the `<head>` across all pages. Inconsistent ordering (e.g. script between styles on one page but after on another) causes `morphdom` to reload styles, leading to a "Flash of Unstyled Content" (FOUC).
 
 ```ts
 import { createRouter } from '@ecopages/browser-router/client';

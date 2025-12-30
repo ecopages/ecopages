@@ -6,7 +6,7 @@ No virtual DOM. No complex state management. Just TypeScript and HTML.
 
 ## Philosophy
 
-Most frameworks require you to learn complex abstractions—hooks, signals, reactivity systems—before you can build anything. Ecopages takes the opposite approach: you write functions that return HTML. That's it.
+Most frameworks require you to learn complex abstractions like hooks, signals, or reactivity systems before you can build anything. Ecopages takes the opposite approach: you write functions that return HTML. That's it.
 
 The result is fast static pages, minimal dependencies, and code you can actually understand. When you need a server, add one. But you'll find static is often exactly what you need.
 

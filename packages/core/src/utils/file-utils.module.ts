@@ -98,20 +98,12 @@ export class FileUtils {
 	 */
 	static write(filepath: string, contents: string | Buffer): void {
 		try {
-			const dirs = filepath.split('/');
-			let currentPath = '';
-			for (let i = 0; i < dirs.length - 1; i++) {
-				currentPath += `${dirs[i]}/`;
-				if (!existsSync(currentPath)) {
-					mkdirSync(currentPath);
-				}
-			}
 			FileUtils.ensureDirectoryExists(path.dirname(filepath));
 			writeFileSync(filepath, contents);
 		} catch (error) {
 			appLogger.error(error instanceof Error ? error.message : String(error));
 			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`[ecopages] Error writing file: ${path}. Cause: ${message}`);
+			throw new Error(`[ecopages] Error writing file: ${filepath}. Cause: ${message}`);
 		}
 	}
 

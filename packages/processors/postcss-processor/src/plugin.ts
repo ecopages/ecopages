@@ -93,7 +93,12 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			const relativePath = path.relative(this.context.srcDir, filePath);
 			const outputPath = path.join(this.context.distDir, 'assets', relativePath);
 
-			const content = await FileUtils.getFileAsString(filePath);
+			let content = await FileUtils.getFileAsString(filePath);
+
+			if (this.options?.transformInput) {
+				content = await this.options.transformInput(content, filePath);
+			}
+
 			const processed = await this.process(content, filePath);
 
 			FileUtils.ensureDirectoryExists(path.dirname(outputPath));

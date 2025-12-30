@@ -2,9 +2,8 @@ import { BaseLayout } from '@/layouts/base-layout';
 
 export default function HomePage() {
 	return (
-		<BaseLayout className="p-6 md:p-12">
+		<BaseLayout>
 			<div className="max-w-7xl mx-auto space-y-12">
-				{/* Header Section */}
 				<section className="space-y-4 text-center md:text-left">
 					<h1 className="text-4xl md:text-5xl font-bold tracking-tight text-surface-900 dark:text-white">
 						Tailwind v4 Integration Demo
@@ -19,9 +18,7 @@ export default function HomePage() {
 					</p>
 				</section>
 
-				{/* Bento Grid Layout */}
 				<div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-					{/* Theme Configuration Demo */}
 					<div className="md:col-span-2 p-6 rounded-md border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900/50">
 						<h3 className="text-lg font-bold mb-4 text-surface-900 dark:text-white flex items-center gap-2">
 							<span className="w-2 h-2 rounded-full bg-primary-500"></span>
@@ -74,7 +71,6 @@ export default function HomePage() {
 						</div>
 					</div>
 
-					{/* @apply Demo */}
 					<div className="md:col-span-2 p-6 rounded-md border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900/50 relative overflow-hidden group">
 						<div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
 							<svg
@@ -114,7 +110,6 @@ export default function HomePage() {
 						</div>
 					</div>
 
-					{/* Typography & Surface */}
 					<div className="md:col-span-1 p-6 rounded-md border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900/50">
 						<h3 className="text-lg font-bold mb-4 text-surface-900 dark:text-white">Typography</h3>
 						<div className="space-y-4">
@@ -133,7 +128,6 @@ export default function HomePage() {
 						</div>
 					</div>
 
-					{/* Interactive States */}
 					<div className="md:col-span-3 p-6 rounded-md border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900/50 flex flex-col justify-center">
 						<h3 className="text-lg font-bold mb-4 text-surface-900 dark:text-white">
 							Interactive States & Dark Mode
@@ -159,6 +153,7 @@ export default function HomePage() {
 
 HomePage.config = {
 	dependencies: {
+		components: [BaseLayout],
 		stylesheets: ['./index.css'],
 	},
 };

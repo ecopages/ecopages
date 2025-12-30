@@ -10,7 +10,7 @@ export type BaseLayoutProps = {
 export const BaseLayout: EcoComponent<BaseLayoutProps, JSX.Element> = ({ children, className }) => {
 	return (
 		<body className="base-layout bg-surface-50 dark:bg-surface-950 text-surface-900 dark:text-surface-50 transition-colors duration-200">
-			<header className="sticky top-0 left-0 right-0 z-50 border-b border-surface-200 dark:border-surface-800 bg-surface-50/80 dark:bg-surface-950/80 backdrop-blur-md">
+			<header className="fixed top-0 left-0 right-0 z-50 border-b border-surface-200 dark:border-surface-800 bg-surface-50/80 dark:bg-surface-950/80 backdrop-blur-md">
 				<div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
 					<div className="font-bold text-xl tracking-tight">
 						<span className="text-primary-600 dark:text-primary-400">Tailwind</span>

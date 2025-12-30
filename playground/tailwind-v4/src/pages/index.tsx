@@ -2,7 +2,7 @@ import { BaseLayout } from '@/layouts/base-layout';
 
 export default function HomePage() {
 	return (
-		<BaseLayout className="min-h-screen p-6 md:p-12">
+		<BaseLayout className="p-6 md:p-12">
 			<div className="max-w-7xl mx-auto space-y-12">
 				{/* Header Section */}
 				<section className="space-y-4 text-center md:text-left">

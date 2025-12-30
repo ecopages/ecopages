@@ -65,6 +65,17 @@ Mark elements to preserve across navigations. These elements are never recreated
 <radiant-counter data-eco-persist="counter"></radiant-counter>
 ```
 
+## Script Re-execution
+
+To force a script to re-execute on every navigation (e.g. analytics, hydration), add `data-eco-rerun` and `data-eco-script-id`:
+
+```html
+<script data-eco-rerun="true" data-eco-script-id="analytics">
+	// This runs on every navigation
+	trackPageview();
+</script>
+```
+
 ## Force Full Reload
 
 Use `data-eco-reload` to force a full page reload:

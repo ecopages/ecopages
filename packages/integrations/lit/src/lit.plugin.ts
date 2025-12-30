@@ -3,13 +3,7 @@
  * @module
  */
 
-/**
- * Shim HTMLElement for server-side rendering - must be before any Lit imports
- */
-if (typeof HTMLElement === 'undefined') {
-	(globalThis as Record<string, unknown>).HTMLElement = class {};
-}
-
+import '@lit-labs/ssr/lib/install-global-dom-shim.js';
 import './console';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';

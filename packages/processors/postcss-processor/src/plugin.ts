@@ -131,7 +131,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		];
 	}
 
-	get plugins(): BunPlugin[] {
+	get plugins(): Bun.BunPlugin[] {
 		const bindedInputProcessing = this.process.bind(this);
 		const options = this.options;
 		return [

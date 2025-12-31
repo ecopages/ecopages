@@ -7,6 +7,7 @@
  */
 
 import autoprefixer from 'autoprefixer';
+import browserslist from 'browserslist';
 import cssnano from 'cssnano';
 import type postcss from 'postcss';
 import postcssImport from 'postcss-import';
@@ -40,11 +41,19 @@ type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
  * ```
  */
 export function tailwindV3Preset(): PostCssProcessorPluginConfig {
+	// Check if browserslist config exists
+	const browserslistConfig = browserslist.loadConfig({ path: process.cwd() });
+	const autoprefixerOptions = browserslistConfig
+		? {}
+		: {
+				overrideBrowserslist: ['>0.3%', 'not ie 11', 'not dead', 'not op_mini all'],
+			};
+
 	const plugins: PluginsRecord = {
 		'postcss-import': postcssImport(),
-		'tailwindcss/nesting': tailwindcssNesting,
-		tailwindcss: tailwindcss,
-		autoprefixer: autoprefixer,
+		'tailwindcss/nesting': tailwindcssNesting(),
+		tailwindcss: tailwindcss(),
+		autoprefixer: autoprefixer(autoprefixerOptions),
 		cssnano: cssnano(),
 	};
 

@@ -3,17 +3,17 @@
 	"description": "Starter template for Ecopages projects, minimal setup",
 	"private": true,
 	"scripts": {
-		"start": "NODE_ENV=production bun run app.ts",
+		"start": "bun run app.ts",
 		"dev": "bun run app.ts --dev",
-		"build": "NODE_ENV=production bun run app.ts --build",
-		"preview": "NODE_ENV=production bun run app.ts --preview",
+		"build": "bun run app.ts --build",
+		"preview": "bun run app.ts --preview",
 		"watch:dev": "bun --watch run app.ts --dev"
 	},
 	"devDependencies": {
-		"@ecopages/bun-postcss-loader": "npm:@jsr/ecopages__bun-postcss-loader@latest",
 		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
 		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
 		"@ecopages/radiant": "latest",
-		"@ecopages/scripts-injector": "latest"
+		"@ecopages/scripts-injector": "latest",
+		"tailwindcss": "^3.4.19"
 	}
 }

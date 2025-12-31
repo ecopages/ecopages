@@ -3,13 +3,13 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-	title: 'Docs | PostCSS Processor',
-	description: 'Learn how to use the PostCSS processor in Ecopages',
+  title: 'Docs | PostCSS Processor',
+  description: 'Learn how to use the PostCSS processor in Ecopages',
 });
 
 # PostCSS Processor
 
-The `@ecopages/postcss-processor` package provides a PostCSS processor plugin for Ecopages and utility functions for processing CSS files and strings using PostCSS. It comes bundled with essential plugins like Tailwind CSS, Autoprefixer, and cssnano.
+The `@ecopages/postcss-processor` package provides a PostCSS processor plugin for Ecopages that handles CSS processing and transformation. It includes built-in presets for Tailwind CSS (v3 and v4) and supports custom configurations.
 
 ## Installation
 
@@ -19,132 +19,170 @@ Install the package from JSR:
 bunx jsr add @ecopages/postcss-processor
 ```
 
-## Built-in Plugins
+## Presets
 
-The PostCSS processor comes with several built-in plugins:
+The processor comes with presets to get you started quickly with popular setups.
 
-- `postcss-import`: To transform `@import` rules by inlining content.
-- `tailwindcss/nesting`: To enable Tailwind CSS nesting features.
-- `tailwindcss`: The Tailwind CSS framework.
-- `autoprefixer`: To add vendor prefixes to CSS rules.
-- `cssnano`: For CSS optimization.
+### Tailwind v3 Preset
 
-## Configuration
+This preset includes the standard Tailwind CSS v3 stack: `tailwindcss`, `tailwindcss/nesting`, `autoprefixer`, `postcss-import`, and `cssnano`.
 
-Integrate the processor into your Ecopages configuration:
+```bash
+bun add -D tailwindcss@3.4.19
+```
 
 ```typescript
-// ecopages.config.ts
 import { ConfigBuilder } from '@ecopages/core';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
 const config = await new ConfigBuilder()
-	.setProcessors([
-		// Add the PostCSS processor plugin
-		postcssProcessorPlugin({
-			// Define a filter for files to process (defaults to /\.css$/)
-			filter: /\.css$/,
-			// Provide a function to transform input before processing
-			transformInput: async (c) => `/* My Custom Header */\n${c}`,
-			// Provide a function to transform output after processing
-			transformOutput: async (css) => css.replace('blue', 'red'),
-			// Explicitly provide plugins (overrides defaults)
-			plugins: {
-				/* custom plugins */
-			},
-		}),
-	])
-	.build();
+  .setProcessors([
+    postcssProcessorPlugin(tailwindV3Preset())
+  ])
+  .build();
 
 export default config;
 ```
 
-### Configuration Options
+### Tailwind v4 Preset (Recommended)
 
-- `filter`: A Regex filter to match files to process (default: `/\.css$/`).
-- `transformInput`: An optional function to transform the contents of the file before PostCSS processing.
-- `transformOutput`: An optional function to transform the output CSS after PostCSS processing.
-- `plugins`: An optional object containing custom PostCSS plugins to use instead of the default ones.
+This preset supports Tailwind CSS v4, utilizing `@tailwindcss/postcss`. It also automatically handles `@reference` injection for `@apply` directives, making usage simpler in isolated component styles.
 
-## PostCSS Config Support
+```bash
+bun add -D @tailwindcss/postcss tailwindcss
+```
 
-The plugin automatically detects and uses `postcss.config.{js,cjs,mjs,ts}` from your project root if present. This is the recommended way to customize your PostCSS pipeline.
+```typescript
+import path from 'node:path';
+import { ConfigBuilder } from '@ecopages/core';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+
+const config = await new ConfigBuilder()
+  .setProcessors([
+    postcssProcessorPlugin(tailwindV4Preset({
+      // Path to your main CSS file containing `@import "tailwindcss";`
+      referencePath: path.resolve(import.meta.dir, 'src/styles/app.css'),
+    }))
+  ])
+  .build();
+
+export default config;
+```
+
+## Custom Configuration
+
+If you prefer full control or need different plugins, you can configure the processor manually.
+
+### Using `postcss.config.js`
+
+The plugin automatically detects and uses standard `postcss.config.{js,cjs,mjs,ts}` files from your project root. This is the most compatible way to configure PostCSS.
 
 ```javascript
 // postcss.config.js
 module.exports = {
-	plugins: {
-		'postcss-import': {},
-		'tailwindcss/nesting': {},
-		tailwindcss: {},
-		autoprefixer: {},
-		// Add or override plugins here
-		'postcss-simple-vars': {},
-		cssnano: {},
-	},
+  plugins: {
+    'postcss-import': {},
+    'tailwindcss/nesting': {},
+    tailwindcss: {},
+    autoprefixer: {},
+    cssnano: {},
+  },
 };
+```
+
+Then simply add the plugin without arguments:
+
+```typescript
+// eco.config.ts
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+
+const config = await new ConfigBuilder()
+  .setProcessors([
+    postcssProcessorPlugin()
+  ])
+  .build();
+```
+
+### Manual Plugin Configuration
+
+You can also pass options directly to the plugin factory:
+
+```typescript
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import myPlugin from 'postcss-my-plugin';
+
+postcssProcessorPlugin({
+  filter: /\.css$/,
+  plugins: {
+    'my-plugin': myPlugin(),
+  },
+})
+```
+
+### Advanced Configuration
+
+For advanced use cases, you can customize the processor with transformation hooks to modify CSS before or after PostCSS processing:
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+
+const config = await new ConfigBuilder()
+  .setProcessors([
+    postcssProcessorPlugin({
+      // Define a filter for files to process (defaults to /\.css$/)
+      filter: /\.css$/,
+      // Provide a function to transform input before processing
+      transformInput: async (css) => `/* My Custom Header */\n${css}`,
+      // Provide a function to transform output after processing
+      transformOutput: async (css) => css.replace('blue', 'red'),
+      // Explicitly provide plugins (overrides defaults)
+      plugins: {
+        /* custom plugins */
+      },
+    }),
+  ])
+  .build();
+
+export default config;
 ```
 
 ## Using with Bun
 
-To enable CSS imports in your TypeScript/JavaScript files, add the PostCSS loader to your `bunfig.toml`:
+To enable CSS imports in your TypeScript/JavaScript files (e.g., `import styles from './styles.css'`), you **must** add the `postcssProcessorPlugin` to your `eco.config.ts` as shown above.
 
-```toml
-preload = ["@ecopages/bun-postcss-loader"]
-```
-
-Now you can import CSS files directly in your code:
+This plugin automatically registers a Bun loader that processes your CSS files on import, rendering the deprecated `@ecopages/bun-postcss-loader` unnecessary.
 
 ```typescript
+// Component.ts
 import styles from './styles.css';
-```
 
-## Custom Plugin Usage
-
-You can also use the underlying processor functions directly and providing your own plugins:
-
-```typescript
-import { PostCssProcessor, defaultPlugins } from '@ecopages/postcss-processor';
-import customPlugin from 'postcss-custom-plugin';
-
-const result = await PostCssProcessor.processPath('path/to/file.css', {
-	plugins: [
-		defaultPlugins['postcss-import'],
-		defaultPlugins.tailwindcss,
-		defaultPlugins['tailwindcss-nesting'],
-		defaultPlugins.autoprefixer,
-		customPlugin(),
-		defaultPlugins.cssnano,
-	],
-});
+// styles is the processed CSS string
+console.log(styles);
 ```
 
 ## Processing Methods
 
-The processor provides two main methods for processing CSS standalone:
-
-### Process File by Path
+The processor also exports standalone methods if you need to process CSS programmatically:
 
 ```typescript
 import { PostCssProcessor } from '@ecopages/postcss-processor';
 
-const css = await PostCssProcessor.processPath('path/to/file.css');
-```
+// Process a file
+const cssFromFile = await PostCssProcessor.processPath('path/to/file.css');
 
-### Process String or Buffer
-
-```typescript
-import { PostCssProcessor } from '@ecopages/postcss-processor';
-
-const css = `body { @apply bg-blue-500; }`;
-const processed = await PostCssProcessor.processStringOrBuffer(css, { filePath: 'style.css' });
+// Process a string
+const cssString = await PostCssProcessor.processStringOrBuffer(
+  '.foo { @apply bg-red-500; }', 
+  { filePath: 'mock.css' }
+);
 ```
 
 ## Error Handling
 
 The processor includes built-in error handling:
-
 - File not found errors are thrown with clear messages.
 - Processing errors are caught and logged.
-- On error, processing methods return an empty string instead of failing.
-```
+- On error (e.g., syntax error in CSS), processing methods return an empty string to prevent build crashes, while logging the error details.

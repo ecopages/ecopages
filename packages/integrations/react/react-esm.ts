@@ -5,6 +5,7 @@
 
 import * as React from 'react';
 import {
+	Activity,
 	Children,
 	Component,
 	cache,
@@ -29,6 +30,7 @@ import {
 	useDebugValue,
 	useDeferredValue,
 	useEffect,
+	useEffectEvent,
 	useId,
 	useImperativeHandle,
 	useInsertionEffect,
@@ -47,6 +49,7 @@ import { jsx, jsxs } from 'react/jsx-runtime';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 
 export {
+	Activity,
 	Children,
 	Component,
 	Fragment,
@@ -71,6 +74,7 @@ export {
 	useDebugValue,
 	useDeferredValue,
 	useEffect,
+	useEffectEvent,
 	useId,
 	useImperativeHandle,
 	useInsertionEffect,

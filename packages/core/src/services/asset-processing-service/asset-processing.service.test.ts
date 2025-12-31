@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
-import { appLogger } from '../../global/app-logger'; // Import appLogger
 import { FileUtils } from '../../utils/file-utils.module';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
@@ -18,8 +17,12 @@ const mockProcessor = {
 	}),
 };
 
-const originalFileUtils = { ...FileUtils };
-const _originalLogger = { ...appLogger };
+const originalEnsureDirectoryExists = FileUtils.ensureDirectoryExists;
+const originalGzipDirSync = FileUtils.gzipDirSync;
+const originalWrite = FileUtils.write;
+const originalReadFileSync = FileUtils.readFileSync;
+const originalRmdirSync = FileUtils.rmdirSync;
+const originalExistsSync = FileUtils.existsSync;
 
 beforeEach(() => {
 	FileUtils.ensureDirectoryExists = mock(() => {});
@@ -31,7 +34,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	Object.assign(FileUtils, originalFileUtils);
+	FileUtils.ensureDirectoryExists = originalEnsureDirectoryExists;
+	FileUtils.gzipDirSync = originalGzipDirSync;
+	FileUtils.write = originalWrite;
+	FileUtils.readFileSync = originalReadFileSync;
+	FileUtils.rmdirSync = originalRmdirSync;
+	FileUtils.existsSync = originalExistsSync;
 	mock.restore();
 });
 
@@ -64,18 +72,9 @@ test('AssetProcessingService - createWithDefaultProcessors', () => {
 	expect([...service.getRegistry().getAllProcessors().values()].length).toBeGreaterThan(0);
 });
 
-mock.module('../../global/app-logger', () => ({
-	appLogger: {
-		error: mock(),
-		info: mock(),
-		warn: mock(),
-		debug: mock(),
-	},
-}));
-
 test('AssetProcessingService - processDependencies - success', async () => {
-	const ensureDirMock = mock();
-	const gzipDirMock = mock();
+	const ensureDirMock = mock(() => {});
+	const gzipDirMock = mock(() => {});
 	FileUtils.ensureDirectoryExists = ensureDirMock;
 	FileUtils.gzipDirSync = gzipDirMock;
 
@@ -131,8 +130,8 @@ test('AssetProcessingService - processDependencies - success', async () => {
 });
 
 test('AssetProcessingService - processDependencies - processor not found', async () => {
-	const ensureDirMock = mock();
-	const gzipDirMock = mock();
+	const ensureDirMock = mock(() => {});
+	const gzipDirMock = mock(() => {});
 
 	FileUtils.ensureDirectoryExists = ensureDirMock;
 	FileUtils.gzipDirSync = gzipDirMock;
@@ -150,8 +149,8 @@ test('AssetProcessingService - processDependencies - processor not found', async
 });
 
 test('AssetProcessingService - processDependencies - error during processing', async () => {
-	const ensureDirMock = mock();
-	const gzipDirMock = mock();
+	const ensureDirMock = mock(() => {});
+	const gzipDirMock = mock(() => {});
 	FileUtils.ensureDirectoryExists = ensureDirMock;
 	FileUtils.gzipDirSync = gzipDirMock;
 
@@ -179,8 +178,8 @@ test('AssetProcessingService - processDependencies - error during processing', a
 });
 
 test('AssetProcessingService - processDependencies - handles undefined filepath for srcUrl', async () => {
-	const ensureDirMock = mock();
-	const gzipDirMock = mock();
+	const ensureDirMock = mock(() => {});
+	const gzipDirMock = mock(() => {});
 	FileUtils.ensureDirectoryExists = ensureDirMock;
 	FileUtils.gzipDirSync = gzipDirMock;
 

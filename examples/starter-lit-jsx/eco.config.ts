@@ -3,6 +3,7 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
@@ -16,7 +17,7 @@ const config = await new ConfigBuilder()
 			},
 		}),
 	])
-	.setProcessors([postcssProcessorPlugin()])
+	.setProcessors([postcssProcessorPlugin(tailwindV3Preset())])
 	.setIncludesTemplates({
 		head: 'head.kita.tsx',
 		html: 'html.kita.tsx',

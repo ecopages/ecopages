@@ -2,14 +2,13 @@
 	"name": "@ecopages/docs",
 	"private": true,
 	"scripts": {
-		"start": "NODE_ENV=production bun run app.ts",
+		"start": "bun run app.ts",
 		"dev": "bun run app.ts --dev",
-		"build": "NODE_ENV=production bun run app.ts --build",
-		"preview": "NODE_ENV=production bun run app.ts --preview",
+		"build": "bun run app.ts --build",
+		"preview": "bun run app.ts --preview",
 		"watch:dev": "bun --watch run app.ts --dev"
 	},
 	"devDependencies": {
-		"@ecopages/bun-postcss-loader": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
@@ -19,7 +18,8 @@
 		"remark-gfm": "^4.0.1",
 		"rehype-pretty-code": "^0.14.1",
 		"@rehype-pretty/transformers": "^0.13.2",
-		"shiki": "^3.20.0"
+		"shiki": "^3.20.0",
+		"tailwindcss": "^3.4.19"
 	},
 	"dependencies": {
 		"rehype-raw": "^7.0.0"

@@ -1,10 +1,5 @@
-preload = ["@ecopages/bun-postcss-loader"]
-
 [test]
-preload = [
-  "./scripts/setup-test.ts",
-  "@ecopages/bun-postcss-loader",
-]
+preload = ["./scripts/setup-test.ts"]
 exclude = ["**/*.test.browser.ts"]
 
 [install.scopes]

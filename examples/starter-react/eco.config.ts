@@ -1,12 +1,13 @@
 import { ConfigBuilder } from '@ecopages/core';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 import { reactPlugin } from '@ecopages/react';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
 	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
 	.setIntegrations([reactPlugin()])
-	.setProcessors([postcssProcessorPlugin()])
+	.setProcessors([postcssProcessorPlugin(tailwindV3Preset())])
 	.setError404Template('404.tsx')
 	.setIncludesTemplates({
 		head: 'head.tsx',

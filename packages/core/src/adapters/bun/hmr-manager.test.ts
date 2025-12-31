@@ -1,10 +1,12 @@
-import { describe, expect, it, mock, spyOn, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, it, mock, beforeEach, afterAll, beforeAll } from 'bun:test';
 import { HmrManager } from './hmr-manager';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { ClientBridge } from './client-bridge';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../hmr/hmr-strategy';
 import type { ClientBridgeEvent } from '../../public-types';
-import { FileUtils } from '../../utils/file-utils.module';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 
 type MockConfig = Partial<EcoPagesAppConfig>;
 type MockClientBridge = Partial<ClientBridge> & {
@@ -13,10 +15,12 @@ type MockClientBridge = Partial<ClientBridge> & {
 	broadcast: ReturnType<typeof mock>;
 };
 
+const TMP_DIR = path.join(os.tmpdir(), 'hmr-manager-test');
+
 const mockConfig: MockConfig = {
 	absolutePaths: {
-		distDir: '/tmp/dist',
-		srcDir: '/tmp/src',
+		distDir: TMP_DIR,
+		srcDir: TMP_DIR,
 	} as any,
 };
 
@@ -43,17 +47,17 @@ class MockStrategy extends HmrStrategy {
 describe('HmrManager', () => {
 	let manager: HmrManager;
 
-	beforeEach(() => {
-		spyOn(FileUtils, 'ensureDirectoryExists').mockImplementation(() => {});
-		spyOn(FileUtils, 'write').mockImplementation(() => {});
-		spyOn(FileUtils, 'getFileAsString').mockResolvedValue('');
-
-		mockBridge.broadcast = mock();
-		manager = new HmrManager(mockConfig as EcoPagesAppConfig, mockBridge as unknown as ClientBridge);
+	beforeAll(() => {
+		fs.mkdirSync(TMP_DIR, { recursive: true });
 	});
 
-	afterEach(() => {
-		mock.restore();
+	afterAll(() => {
+		fs.rmSync(TMP_DIR, { recursive: true, force: true });
+	});
+
+	beforeEach(() => {
+		mockBridge.broadcast = mock();
+		manager = new HmrManager(mockConfig as EcoPagesAppConfig, mockBridge as unknown as ClientBridge);
 	});
 
 	it('should initialize with default strategies', async () => {

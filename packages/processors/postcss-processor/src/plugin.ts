@@ -8,7 +8,6 @@ import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
 import { ClientBridge, FileUtils } from '@ecopages/core';
 import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
-import type { BunPlugin } from 'bun';
 import type postcss from 'postcss';
 import { getFileAsBuffer, PostCssProcessor } from './postcss-processor';
 
@@ -114,7 +113,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		}
 	}
 
-	get buildPlugins(): BunPlugin[] {
+	get buildPlugins(): Bun.BunPlugin[] {
 		const options = this.options;
 		return [
 			bunInlineCssPlugin({

@@ -27,9 +27,11 @@
 		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "latest",
 		"autoprefixer": "^10.4.0",
+		"browserslist": "^4.28.1",
 		"cssnano": "^6.0.0",
 		"postcss": "^8.4.32",
-		"postcss-import": "^15.0.0"
+		"postcss-import": "^15.0.0",
+		"postcss-nested": "^7.0.2"
 	},
 	"peerDependencies": {
 		"@tailwindcss/postcss": ">=4",

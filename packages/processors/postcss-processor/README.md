@@ -41,7 +41,7 @@ export default config;
 
 ### Tailwind v4 Preset (Recommended)
 
-Includes `@tailwindcss/postcss`, `cssnano`, and handles `@reference` injection for `@apply`.
+Includes `@tailwindcss/postcss`, `autoprefixer`, `postcss-nested`, `cssnano`, and handles `@reference` injection for `@apply`.
 
 ```bash
 bun add -D @tailwindcss/postcss tailwindcss
@@ -66,6 +66,12 @@ const config = await new ConfigBuilder()
 
 export default config;
 ```
+
+### Browser Support
+
+By default, the presets target a broad range of modern browsers (`>0.3%, not ie 11, not dead, not op_mini all`).
+
+To override this, add a `browserslist` configuration to your `package.json` or create a `.browserslistrc` file in your project root. The processor will automatically detect and use your custom configuration.
 
 ### Custom Configuration
 

@@ -7,9 +7,12 @@
  */
 
 import tailwindcss from '@tailwindcss/postcss';
+import autoprefixer from 'autoprefixer';
+import browserslist from 'browserslist';
 import cssnano from 'cssnano';
 import path from 'node:path';
 import postcssImport from 'postcss-import';
+import postcssNested from 'postcss-nested';
 import type { PostCssProcessorPluginConfig } from '../plugin';
 
 /**
@@ -52,10 +55,20 @@ export interface TailwindV4PresetOptions {
 export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProcessorPluginConfig {
 	const { referencePath } = options;
 
+	// Check if browserslist config exists
+	const browserslistConfig = browserslist.loadConfig({ path: process.cwd() });
+	const autoprefixerOptions = browserslistConfig
+		? {}
+		: {
+				overrideBrowserslist: ['>0.3%', 'not ie 11', 'not dead', 'not op_mini all'],
+			};
+
 	return {
 		plugins: {
 			'postcss-import': postcssImport(),
+			'postcss-nested': postcssNested(),
 			'@tailwindcss/postcss': tailwindcss(),
+			autoprefixer: autoprefixer(autoprefixerOptions),
 			cssnano: cssnano(),
 		},
 		transformInput: async (contents: string | Buffer, filePath: string): Promise<string> => {

@@ -11,7 +11,7 @@
 	},
 	"exclude": ["src/test"],
 	"publish": {
-		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json"],
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json", "package.json"],
 		"exclude": ["src/test"]
 	}
 }

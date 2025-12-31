@@ -10,12 +10,16 @@ import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processo
 import { Logger } from '@ecopages/logger';
 import type { BunPlugin } from 'bun';
 import type postcss from 'postcss';
-import { defaultPlugins, type PluginsRecord } from './default-plugins';
 import { getFileAsBuffer, PostCssProcessor } from './postcss-processor';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
 	debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
 });
+
+/**
+ * Record of PostCSS plugins keyed by name
+ */
+export type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
 
 /**
  * Configuration for the PostCSS processor
@@ -28,10 +32,12 @@ export interface PostCssProcessorPluginConfig {
 	/**
 	 * Function to transform the contents of the file.
 	 * It can be handy to add a custom header or footer to the file.
+	 * Useful for injecting Tailwind v4 `@reference` directives.
 	 * @param contents The contents of the file
+	 * @param filePath The absolute path to the CSS file being processed
 	 * @returns The transformed contents
 	 */
-	transformInput?: (contents: string | Buffer) => Promise<string>;
+	transformInput?: (contents: string | Buffer, filePath: string) => Promise<string>;
 	/**
 	 * Function to transform the output CSS after PostCSS processing.
 	 * It can be handy to add a custom header or footer to the processed CSS.
@@ -55,7 +61,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		filter: /\.css$/,
 	};
 
-	private postcssPlugins: postcss.AcceptedPlugin[] = Object.values(defaultPlugins);
+	private postcssPlugins: postcss.AcceptedPlugin[] = [];
 
 	constructor(
 		config: Omit<ProcessorConfig<PostCssProcessorPluginConfig>, 'name' | 'description'> = {
@@ -87,7 +93,12 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			const relativePath = path.relative(this.context.srcDir, filePath);
 			const outputPath = path.join(this.context.distDir, 'assets', relativePath);
 
-			const content = await FileUtils.getFileAsString(filePath);
+			let content = await FileUtils.getFileAsString(filePath);
+
+			if (this.options?.transformInput) {
+				content = await this.options.transformInput(content, filePath);
+			}
+
 			const processed = await this.process(content, filePath);
 
 			FileUtils.ensureDirectoryExists(path.dirname(outputPath));
@@ -110,10 +121,12 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 				filter: this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter,
 				namespace: 'bun-postcss-processor-build-plugin',
 				transform: async (contents: string | Buffer, args: { path: string }) => {
-					const transformedContents = options?.transformInput
-						? await options.transformInput(contents)
-						: contents;
-					return await this.process(transformedContents as string, args.path);
+					let transformed: string =
+						contents instanceof Buffer ? contents.toString('utf-8') : (contents as string);
+					if (options?.transformInput) {
+						transformed = await options.transformInput(contents, args.path);
+					}
+					return await this.process(transformed, args.path);
 				},
 			}),
 		];
@@ -129,13 +142,13 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 					const postcssFilter = options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
 
 					build.onLoad({ filter: postcssFilter }, async (args) => {
-						let text: Buffer<ArrayBufferLike> | string = getFileAsBuffer(args.path);
+						let text: string = getFileAsBuffer(args.path).toString('utf-8');
 
 						if (options?.transformInput) {
-							text = await options.transformInput(text);
+							text = await options.transformInput(text, args.path);
 						}
 
-						const contents = await bindedInputProcessing(text as string, args.path);
+						const contents = await bindedInputProcessing(text, args.path);
 
 						return {
 							contents,
@@ -209,8 +222,11 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			logger.debug('Using PostCSS plugins provided in processor options.');
 			this.postcssPlugins = Object.values(this.options.plugins);
 		} else {
-			logger.debug('Using default PostCSS plugins.');
-			this.postcssPlugins = Object.values(defaultPlugins);
+			logger.warn(
+				'No PostCSS plugins configured. Use a preset like tailwindV3Preset() or tailwindV4Preset(), ' +
+					'provide plugins via options, or create a postcss.config file.',
+			);
+			this.postcssPlugins = [];
 		}
 
 		if (!this.postcssPlugins || this.postcssPlugins.length === 0) {

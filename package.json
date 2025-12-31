@@ -1,7 +1,7 @@
 {
 	"name": "@ecopages/ecopages",
 	"private": true,
-	"version": "0.1.50",
+	"version": "0.1.51",
 	"scripts": {
 		"watch:dev:playground-global": "bun run --elide-lines 0 --filter @ecopages/playground-global watch:dev",
 		"hot:dev:playground-global": "bun run --elide-lines 0 --filter @ecopages/playground-global hot:dev",
@@ -15,6 +15,12 @@
 		"build:playground-react": "bun run --filter @ecopages/playground-react build",
 		"start:playground-react": "bun run --filter @ecopages/playground-react start",
 		"preview:playground-react": "bun run --elide-lines 0 --filter @ecopages/playground-react preview",
+		"watch:dev:playground-tailwind-v4": "bun run --elide-lines 0 --filter @ecopages/playground-tailwind-v4 watch:dev",
+		"hot:dev:playground-tailwind-v4": "bun run --elide-lines 0 --filter @ecopages/playground-tailwind-v4 hot:dev",
+		"dev:playground-tailwind-v4": "bun run --elide-lines 0 --filter @ecopages/playground-tailwind-v4 dev",
+		"build:playground-tailwind-v4": "bun run --filter @ecopages/playground-tailwind-v4 build",
+		"start:playground-tailwind-v4": "bun run --filter @ecopages/playground-tailwind-v4 start",
+		"preview:playground-tailwind-v4": "bun run --elide-lines 0 --filter @ecopages/playground-tailwind-v4 preview",
 		"dev:docs": "bun run --elide-lines 0 --filter @ecopages/docs dev",
 		"build:docs": "bun run --filter @ecopages/docs build",
 		"start:docs": "bun run --filter @ecopages/docs start",
@@ -41,7 +47,6 @@
 		"husky": "^9.0.10",
 		"lint-staged": "^15.2.2",
 		"oxlint": "^1.32.0",
-		"@ecopages/bun-postcss-loader": "workspace:*",
 		"playwright": "^1.57.0",
 		"prettier": "^3.7.4",
 		"vitest": "^4.0.16"

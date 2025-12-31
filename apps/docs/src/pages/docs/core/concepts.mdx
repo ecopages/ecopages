@@ -83,23 +83,11 @@ HomePage.config = {
 
 ## Robots.txt Generation
 
-Ecopages automatically generates a robots.txt file based on your configuration. You can customize this in your `eco.config.ts` file:
-
-## Loaders
-
-Ecopages uses loaders to process your files. Each loader is responsible for processing a specific type of file.
-
-In bun loaders are used to process your files. You can find more information about loaders in the [bun documentation](https://bun.sh/docs/runtime/loaders).
-
-You can add it to your bunfig.toml file:
-
-```toml
-preload = ["@ecopages/bun-postcss-loader"]
-```
+Ecopages automatically generates a robots.txt file based on your configuration. You can customize this in your `eco.config.ts` file.
 
 ## Import CSS as String in JS Files
 
-Ecopages provides a way to load CSS directly into your JavaScript files as strings using Bun's preload tools. This feature is available through the `@ecopages/bun-postcss-loader` package.
+Ecopages provides a way to load CSS directly into your JavaScript files as strings using Bun's plugins. This feature is enabled when you use the `@ecopages/postcss-processor` plugin in your `eco.config.ts`.
 
 ## Import MDX as a Component
 

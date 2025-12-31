@@ -14,7 +14,8 @@
 		"@ecopages/radiant": "^0.2.0",
 		"@ecopages/react": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
-		"@ecopages/bun-postcss-loader": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
+		"tailwindcss": "^3.4.19",
 		"@types/react": "^19.0.0",
 		"@types/react-dom": "^19.0.0"
 	},

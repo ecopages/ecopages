@@ -1,10 +1,13 @@
 {
 	"name": "@ecopages/postcss-processor",
-	"version": "0.1.50",
+	"version": "0.1.51",
 	"exports": {
 		".": "./src/index.ts",
 		"./postcss-processor": "./src/postcss-processor.ts",
-		"./default-plugins": "./src/default-plugins.ts"
+		"./plugin": "./src/plugin.ts",
+		"./presets": "./src/presets/index.ts",
+		"./presets/tailwind-v3": "./src/presets/tailwind-v3.ts",
+		"./presets/tailwind-v4": "./src/presets/tailwind-v4.ts"
 	},
 	"exclude": ["src/test"],
 	"publish": {

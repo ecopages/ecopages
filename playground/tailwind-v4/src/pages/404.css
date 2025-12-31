@@ -1,0 +1,20 @@
+/* 
+ * 404 page styles using @apply
+ * The @reference directive is auto-injected by the postcss-processor
+ */
+
+.error404 {
+	@apply flex flex-col items-center justify-center min-h-[60vh] text-center;
+}
+
+.error404 h1 {
+	@apply text-8xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary-400 via-accent-500 to-primary-500 mb-4;
+}
+
+.error404 p {
+	@apply text-xl text-surface-300 mb-8;
+}
+
+.error404 a {
+	@apply px-6 py-3 rounded-lg bg-surface-800 border border-surface-700 text-surface-200 hover:border-primary-500 hover:text-primary-400 transition-colors;
+}

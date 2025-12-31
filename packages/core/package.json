@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.1.50",
+	"version": "0.1.51",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -27,7 +27,6 @@
 		"ghtml": "^3.1.2"
 	},
 	"devDependencies": {
-		"@ecopages/bun-postcss-loader": "workspace:*",
 		"@types/bun": "latest"
 	},
 	"exports": {

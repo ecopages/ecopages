@@ -44,6 +44,7 @@
 		}
 	},
 	"devDependencies": {
+		"@tailwindcss/postcss": "^4.1.18",
 		"@types/bun": "latest",
 		"@types/postcss-import": "^14",
 		"postcss-simple-vars": "^7.0.1",

@@ -31,11 +31,17 @@ export default function HomePage() {
 										Primary Palette
 									</p>
 									<div className="flex gap-1">
-										{[500, 600, 700, 800, 900].map((step) => (
+										{[
+											'bg-primary-500',
+											'bg-primary-600',
+											'bg-primary-700',
+											'bg-primary-800',
+											'bg-primary-900',
+										].map((className) => (
 											<div
-												key={step}
-												className={`h-8 w-full rounded-sm bg-primary-${step}`}
-												title={`primary-${step}`}
+												key={className}
+												className={`h-8 w-full rounded-sm ${className}`}
+												title={className.replace('bg-', '')}
 											/>
 										))}
 									</div>
@@ -45,11 +51,17 @@ export default function HomePage() {
 										Accent Palette
 									</p>
 									<div className="flex gap-1">
-										{[500, 600, 700, 800, 900].map((step) => (
+										{[
+											'bg-accent-500',
+											'bg-accent-600',
+											'bg-accent-700',
+											'bg-accent-800',
+											'bg-accent-900',
+										].map((className) => (
 											<div
-												key={step}
-												className={`h-8 w-full rounded-sm bg-accent-${step}`}
-												title={`accent-${step}`}
+												key={className}
+												className={`h-8 w-full rounded-sm ${className}`}
+												title={className.replace('bg-', '')}
 											/>
 										))}
 									</div>

@@ -44,7 +44,7 @@ export default config;
 Includes `@tailwindcss/postcss`, `cssnano`, and handles `@reference` injection for `@apply`.
 
 ```bash
-bun add -D @tailwindcss/postcss
+bun add -D @tailwindcss/postcss tailwindcss
 ```
 
 ```typescript

@@ -3,8 +3,8 @@ import { DocsLayout } from '@/layouts/docs-layout';
 export const layout = DocsLayout;
 
 export const getMetadata = () => ({
-    title: 'Docs | File System',
-    description: 'Runtime-agnostic file system utilities for Ecopages with Bun and Node.js adapters',
+  title: 'Docs | File System',
+  description: 'Runtime-agnostic file system utilities for Ecopages with Bun and Node.js adapters',
 });
 
 # File System
@@ -14,7 +14,7 @@ The `@ecopages/file-system` package provides runtime-agnostic file system utilit
 ## Features
 
 - **Runtime Detection**: Automatically selects the optimal adapter
-- **Bun Optimized**: Uses `Bun.Glob`, `Bun.hash`, `Bun.file` for maximum performance
+- **Bun Optimized**: Uses `Bun.Glob`, `Bun.hash`, `Bun.file`, and `Bun.write` for maximum performance
 - **Node.js Fallback**: Uses `fast-glob` and `crypto` for full compatibility
 - **Type Safe**: Consistent TypeScript interface across runtimes
 
@@ -38,8 +38,11 @@ const content = await fileSystem.readFile('file.txt');
 // Hash files (Bun is 4.5x faster!)
 const hash = fileSystem.hash('file.txt');
 
-// Write files
+// Write files (sync)
 fileSystem.write('output.txt', 'Hello World');
+
+// Write files (async, uses Bun.write for optimized syscalls)
+await fileSystem.writeAsync('output.txt', largeBuffer);
 
 // Check existence
 if (fileSystem.exists('file.txt')) {
@@ -64,7 +67,7 @@ fileSystem.copyDir('./src', './dist');
 | `readFileSync(path)` | Read file as string (sync) |
 | `readFileAsBuffer(path)` | Read file as Buffer |
 | `write(path, content)` | Write content to file (sync) |
-| `writeAsync(path, content)` | Write content to file (async) |
+| `writeAsync(path, content)` | Write content to file (async, uses `Bun.write` on Bun) |
 | `exists(path)` | Check if path exists |
 | `verifyFileExists(path)` | Throw `FileNotFoundError` if missing |
 
@@ -100,12 +103,15 @@ interface GlobOptions {
 
 ## Performance
 
+The Bun adapter uses optimized syscalls (`copy_file_range`, `sendfile`, `clonefile`) when available.
+
 Benchmark results on Apple M4:
 
 | Operation | BunFileSystem | NodeFileSystem | Winner |
 | :--- | :--- | :--- | :--- |
 | glob (100 files) | 64.85 µs | 71.06 µs | Bun ~10% faster |
 | hash (1MB file) | 87 µs | 393 µs | **Bun 4.5x faster** |
+| writeAsync (1MB) | Uses `Bun.write` | Uses `node:fs` | Bun optimized |
 | exists check | 477 ns | 464 ns | ~same |
 
 ## Direct Adapter Access

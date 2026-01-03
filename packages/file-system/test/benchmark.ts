@@ -97,6 +97,30 @@ group('exists check', () => {
 	});
 });
 
+const WRITE_FILE = path.join(BENCH_DIR, 'write-test.txt');
+const WRITE_CONTENT_SMALL = 'Hello World';
+const WRITE_CONTENT_LARGE = 'x'.repeat(1024 * 1024);
+
+group('writeAsync (small - 11 bytes)', () => {
+	bench('BunFileSystem (Bun.write)', async () => {
+		await bunFs.writeAsync(WRITE_FILE, WRITE_CONTENT_SMALL);
+	});
+
+	bench('NodeFileSystem (node:fs)', async () => {
+		await nodeFs.writeAsync(WRITE_FILE, WRITE_CONTENT_SMALL);
+	});
+});
+
+group('writeAsync (large - 1MB)', () => {
+	bench('BunFileSystem (Bun.write)', async () => {
+		await bunFs.writeAsync(WRITE_FILE, WRITE_CONTENT_LARGE);
+	});
+
+	bench('NodeFileSystem (node:fs)', async () => {
+		await nodeFs.writeAsync(WRITE_FILE, WRITE_CONTENT_LARGE);
+	});
+});
+
 await run({ colors: true });
 
 rmSync(BENCH_DIR, { recursive: true, force: true });

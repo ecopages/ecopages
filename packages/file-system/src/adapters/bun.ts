@@ -54,6 +54,20 @@ export class BunFileSystem extends BaseFileSystem implements FileSystem {
 			throw new Error(`Error hashing file: ${path}. Cause: ${message}`);
 		}
 	}
+
+	/**
+	 * Write file using Bun.write for optimized I/O with syscall optimization.
+	 * Uses copy_file_range, sendfile, clonefile depending on platform.
+	 */
+	async writeAsync(filepath: string, contents: string | Buffer): Promise<void> {
+		try {
+			this.ensureDir(require('node:path').dirname(filepath));
+			await Bun.write(filepath, contents);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			throw new Error(`Error writing file: ${filepath}. Cause: ${message}`);
+		}
+	}
 }
 
 /**

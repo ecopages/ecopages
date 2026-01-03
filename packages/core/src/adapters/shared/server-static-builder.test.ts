@@ -53,6 +53,7 @@ describe('ServerStaticBuilder', () => {
 
 	afterAll(() => {
 		fs.rmSync(TMP_DIR, { recursive: true, force: true });
+		mock.restore();
 	});
 
 	describe('constructor', () => {

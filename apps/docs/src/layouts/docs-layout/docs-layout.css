@@ -1,5 +1,5 @@
 .docs-layout {
-	@apply md:grid md:grid-cols-[250px,1fr] min-h-screen relative;
+	@apply md:grid md:grid-cols-[250px_1fr] min-h-screen relative;
 
 	.docs-layout__aside {
 		@apply fixed inset-0 z-40 md:z-0 md:relative md:block;

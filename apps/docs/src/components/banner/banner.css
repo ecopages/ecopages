@@ -1,5 +1,5 @@
 .eco-banner {
-	@apply relative pl-6 pr-4 py-4 rounded-md flex flex-col mt-4 shadow-sm;
+	@apply relative pl-6 pr-4 py-4 rounded-md flex flex-col mt-4 shadow-xs;
 
 	&::before {
 		content: '';

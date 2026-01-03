@@ -1,13 +1,11 @@
-@layer utilities {
-	.button-shape-base {
-		@apply px-4 py-2 leading-6;
+@utility button-shape-base {
+	@apply px-4 py-2 leading-6;
 
-		&:has(> svg:first-child) {
-			@apply pl-2;
-		}
-		&:has(> svg:last-child) {
-			@apply pr-2;
-		}
+	&:has(> svg:first-child) {
+		@apply pl-2;
+	}
+	&:has(> svg:last-child) {
+		@apply pr-2;
 	}
 }
 
@@ -19,19 +17,19 @@ a.button {
 	&--default {
 		@apply button-shape-base rounded-md;
 		@apply bg-on-background text-background border-2 border-on-background;
-		@apply hover:bg-on-background/90 hover:shadow-sm;
+		@apply hover:bg-on-background/90 hover:shadow-xs;
 	}
 
 	&--primary {
 		@apply button-shape-base rounded-md;
 		@apply bg-primary text-on-primary border-2 border-primary;
-		@apply hover:bg-primary/90 hover:shadow-sm;
+		@apply hover:bg-primary/90 hover:shadow-xs;
 	}
 
 	&--secondary {
 		@apply button-shape-base rounded-md;
 		@apply bg-secondary text-on-secondary border-2 border-secondary;
-		@apply hover:bg-secondary/90 hover:shadow-sm;
+		@apply hover:bg-secondary/90 hover:shadow-xs;
 	}
 
 	&--outline {
@@ -47,7 +45,7 @@ a.button {
 	}
 
 	&--text {
-		@apply px-0 py-0 leading-6 rounded-sm;
+		@apply px-0 py-0 leading-6 rounded-xs;
 		@apply bg-transparent text-on-background;
 		@apply hover:underline hover:underline-offset-4;
 		&:hover {

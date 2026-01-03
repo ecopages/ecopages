@@ -1,0 +1,98 @@
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme {
+	--font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+	--font-heading: 'Karla', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+	--color-night-sky-50: hsl(225 100% 98%);
+	--color-night-sky-100: hsl(225 100% 95%);
+	--color-night-sky-200: hsl(225 100% 90%);
+	--color-night-sky-300: hsl(225 90% 80%);
+	--color-night-sky-400: hsl(225 90% 70%);
+	--color-night-sky-500: hsl(225 85% 55%);
+	--color-night-sky-600: hsl(225 85% 45%);
+	--color-night-sky-700: hsl(225 90% 35%);
+	--color-night-sky-800: hsl(225 90% 25%);
+	--color-night-sky-900: hsl(225 80% 15%);
+	--color-night-sky-950: hsl(225 80% 10%);
+
+	--color-scarlet-100: hsl(353 100% 89%);
+	--color-scarlet-200: hsl(351 100% 81%);
+	--color-scarlet-300: hsl(350 100% 72%);
+	--color-scarlet-400: hsl(350 100% 63%);
+	--color-scarlet-500: hsl(350 100% 54%);
+	--color-scarlet-600: hsl(350 84% 44%);
+	--color-scarlet-700: hsl(351 83% 35%);
+	--color-scarlet-800: hsl(351 81% 25%);
+	--color-scarlet-900: hsl(353 76% 15%);
+	--color-scarlet-950: hsl(8 60% 5%);
+
+	--color-glacier-white-50: hsl(220 20% 99%);
+	--color-glacier-white-100: hsl(220 20% 97%);
+	--color-glacier-white-200: hsl(220 20% 94%);
+	--color-glacier-white-300: hsl(220 15% 90%);
+	--color-glacier-white-400: hsl(220 12% 80%);
+	--color-glacier-white-500: hsl(220 10% 72%);
+	--color-glacier-white-600: hsl(220 8% 58%);
+	--color-glacier-white-700: hsl(220 10% 35%);
+	--color-glacier-white-800: hsl(220 12% 25%);
+	--color-glacier-white-900: hsl(225 15% 5%);
+	--color-glacier-white-950: hsl(225 20% 2%);
+
+	--color-laser-lemon-50: hsl(60 100% 98%);
+	--color-laser-lemon-100: hsl(60 100% 88%);
+	--color-laser-lemon-200: hsl(60 100% 79%);
+	--color-laser-lemon-300: hsl(60 100% 69%);
+	--color-laser-lemon-400: hsl(60 100% 60%);
+	--color-laser-lemon-500: hsl(60 100% 50%);
+	--color-laser-lemon-600: hsl(60 99% 41%);
+	--color-laser-lemon-700: hsl(60 98% 32%);
+	--color-laser-lemon-800: hsl(59 93% 23%);
+	--color-laser-lemon-900: hsl(58 86% 14%);
+	--color-laser-lemon-950: hsl(55 50% 5%);
+
+	--color-navy-blue-50: hsl(223 64% 98%);
+	--color-navy-blue-100: hsl(214 65% 88%);
+	--color-navy-blue-200: hsl(212 67% 78%);
+	--color-navy-blue-300: hsl(212 66% 68%);
+	--color-navy-blue-400: hsl(212 67% 58%);
+	--color-navy-blue-500: hsl(211 74% 47%);
+	--color-navy-blue-600: hsl(212 73% 39%);
+	--color-navy-blue-700: hsl(212 71% 30%);
+	--color-navy-blue-800: hsl(212 69% 22%);
+	--color-navy-blue-900: hsl(214 64% 13%);
+	--color-navy-blue-950: hsl(225 36% 4%);
+
+	--color-background: var(--color-glacier-white-50);
+	--color-on-background: var(--color-glacier-white-900);
+	--color-background-accent: var(--color-glacier-white-100);
+	--color-on-background-accent: var(--color-glacier-white-950);
+	--color-primary-container: var(--color-night-sky-100);
+	--color-on-primary-container: var(--color-night-sky-900);
+	--color-primary: var(--color-night-sky-500);
+	--color-on-primary: var(--color-glacier-white-50);
+	--color-secondary: var(--color-scarlet-500);
+	--color-on-secondary: var(--color-glacier-white-50);
+	--color-border: var(--color-glacier-white-200);
+	--color-link: var(--color-navy-blue-700);
+	--color-background-code: var(--color-glacier-white-100);
+	--color-on-background-code: var(--color-laser-lemon-800);
+}
+
+[data-theme='dark'] {
+	--color-background: var(--color-glacier-white-950);
+	--color-on-background: var(--color-glacier-white-50);
+	--color-background-accent: var(--color-glacier-white-900);
+	--color-on-background-accent: var(--color-glacier-white-50);
+	--color-primary-container: var(--color-night-sky-800);
+	--color-on-primary-container: var(--color-night-sky-50);
+	--color-primary: var(--color-night-sky-500);
+	--color-on-primary: var(--color-glacier-white-950);
+	--color-secondary: var(--color-scarlet-500);
+	--color-on-secondary: var(--color-glacier-white-950);
+	--color-border: var(--color-glacier-white-900);
+	--color-link: var(--color-navy-blue-400);
+	--color-background-code: var(--color-glacier-white-900);
+	--color-on-background-code: var(--color-laser-lemon-300);
+}

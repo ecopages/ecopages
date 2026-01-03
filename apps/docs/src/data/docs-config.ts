@@ -61,6 +61,7 @@ export const docsConfig: DocsConfig = {
 			pages: [
 				{ title: 'Packages', slug: 'packages' },
 				{ title: 'Browser Router', slug: 'browser-router' },
+				{ title: 'File System', slug: 'file-system' },
 				{ title: 'PostCSS Processor', slug: 'postcss-processor' },
 				{ title: 'Image Processor', slug: 'image-processor' },
 			],

@@ -1,0 +1,139 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+    title: 'Docs | File System',
+    description: 'Runtime-agnostic file system utilities for Ecopages with Bun and Node.js adapters',
+});
+
+# File System
+
+The `@ecopages/file-system` package provides runtime-agnostic file system utilities with optimized implementations for both Bun and Node.js.
+
+## Features
+
+- **Runtime Detection**: Automatically selects the optimal adapter
+- **Bun Optimized**: Uses `Bun.Glob`, `Bun.hash`, `Bun.file` for maximum performance
+- **Node.js Fallback**: Uses `fast-glob` and `crypto` for full compatibility
+- **Type Safe**: Consistent TypeScript interface across runtimes
+
+## Installation
+
+```bash
+bunx jsr add @ecopages/file-system
+```
+
+## Usage
+
+```typescript
+import { fileSystem } from '@ecopages/file-system';
+
+// Glob files
+const files = await fileSystem.glob(['**/*.ts'], { cwd: './src' });
+
+// Read files
+const content = await fileSystem.readFile('file.txt');
+
+// Hash files (Bun is 4.5x faster!)
+const hash = fileSystem.hash('file.txt');
+
+// Write files
+fileSystem.write('output.txt', 'Hello World');
+
+// Check existence
+if (fileSystem.exists('file.txt')) {
+  // ...
+}
+
+// Ensure directory exists
+fileSystem.ensureDir('./dist/assets');
+
+// Copy files and directories
+fileSystem.copyFile('src.txt', 'dest.txt');
+fileSystem.copyDir('./src', './dist');
+```
+
+## API Reference
+
+### File Operations
+
+| Method | Description |
+| :--- | :--- |
+| `readFile(path)` | Read file as string (async) |
+| `readFileSync(path)` | Read file as string (sync) |
+| `readFileAsBuffer(path)` | Read file as Buffer |
+| `write(path, content)` | Write content to file (sync) |
+| `writeAsync(path, content)` | Write content to file (async) |
+| `exists(path)` | Check if path exists |
+| `verifyFileExists(path)` | Throw `FileNotFoundError` if missing |
+
+### Directory Operations
+
+| Method | Description |
+| :--- | :--- |
+| `glob(patterns, options)` | Find files matching glob patterns |
+| `ensureDir(path, forceCleanup?)` | Ensure directory exists |
+| `copyDir(src, dest)` | Copy directory recursively |
+| `emptyDir(path)` | Remove all contents of directory |
+| `isDirectory(path)` | Check if path is directory |
+
+### File Management
+
+| Method | Description |
+| :--- | :--- |
+| `copyFile(src, dest)` | Copy single file |
+| `remove(path)` | Remove file or directory (sync) |
+| `removeAsync(path)` | Remove file or directory (async) |
+| `hash(path)` | Get hash of file contents |
+| `gzipFile(path)` | Gzip a single file |
+| `gzipDir(path, extensions)` | Gzip all matching files in directory |
+
+## Glob Options
+
+```typescript
+interface GlobOptions {
+  cwd?: string;      // Working directory (default: process.cwd())
+  ignore?: string[]; // Patterns to ignore
+}
+```
+
+## Performance
+
+Benchmark results on Apple M4:
+
+| Operation | BunFileSystem | NodeFileSystem | Winner |
+| :--- | :--- | :--- | :--- |
+| glob (100 files) | 64.85 µs | 71.06 µs | Bun ~10% faster |
+| hash (1MB file) | 87 µs | 393 µs | **Bun 4.5x faster** |
+| exists check | 477 ns | 464 ns | ~same |
+
+## Direct Adapter Access
+
+For advanced use cases, you can import adapters directly:
+
+```typescript
+// Force Bun adapter
+import { BunFileSystem } from '@ecopages/file-system/bun';
+const bunFs = new BunFileSystem();
+
+// Force Node adapter
+import { NodeFileSystem } from '@ecopages/file-system/node';
+const nodeFs = new NodeFileSystem();
+```
+
+## Error Handling
+
+The package exports a custom error class for file not found scenarios:
+
+```typescript
+import { fileSystem, FileNotFoundError } from '@ecopages/file-system';
+
+try {
+  fileSystem.verifyFileExists('/path/to/file');
+} catch (error) {
+  if (error instanceof FileNotFoundError) {
+    console.log('File not found:', error.message);
+  }
+}
+```

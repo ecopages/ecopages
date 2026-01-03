@@ -26,5 +26,9 @@ public/js
 **/*.bun
 **/__screenshots__
 
+# Playwright
+test-results/
+playwright-report/
+
 # local improvement tracking (details in ~/.gemini artifacts)
 **/.improvements/

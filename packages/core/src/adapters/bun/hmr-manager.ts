@@ -169,8 +169,6 @@ export class HmrManager implements IHmrManager {
 				for (const event of action.events) {
 					this.broadcast(event);
 				}
-			} else if (action.event) {
-				this.broadcast(action.event);
 			}
 		}
 	}

@@ -54,4 +54,4 @@ export class NodeFileSystem extends BaseFileSystem implements FileSystem {
 /**
  * Singleton instance for Node.js runtime.
  */
-export const nodeFs = new NodeFileSystem();
+export const nodeFs: NodeFileSystem = new NodeFileSystem();

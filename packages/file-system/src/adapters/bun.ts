@@ -73,4 +73,4 @@ export class BunFileSystem extends BaseFileSystem implements FileSystem {
 /**
  * Singleton instance for Bun runtime.
  */
-export const bunFs = new BunFileSystem();
+export const bunFs: BunFileSystem = new BunFileSystem();

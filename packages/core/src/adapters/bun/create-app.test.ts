@@ -64,5 +64,25 @@ describe('EcopagesApp', () => {
 			expect(apiHandlers).toHaveLength(1);
 			expect(apiHandlers[0].method).toBe('HEAD');
 		});
+
+		test('route() adds route with specified method', () => {
+			app.route('/custom', 'GET', testHandler);
+			const apiHandlers = app.getApiHandlers();
+			expect(apiHandlers).toHaveLength(1);
+			expect(apiHandlers[0].path).toBe('/custom');
+			expect(apiHandlers[0].method).toBe('GET');
+		});
+	});
+
+	describe('request()', () => {
+		test('should throw error when server not started', async () => {
+			expect(app.request('/test')).rejects.toThrow('Server not started');
+		});
+	});
+
+	describe('completeInitialization()', () => {
+		test('should throw error when server adapter not initialized', async () => {
+			expect(app.completeInitialization({} as any)).rejects.toThrow('Server adapter not initialized');
+		});
 	});
 });

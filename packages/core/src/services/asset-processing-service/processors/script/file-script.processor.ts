@@ -51,7 +51,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 			if (!dep.inline) {
 				filepath = path.join(this.getAssetsDir(), outFilepath);
-				fileSystem.copyFileSync(dep.filepath, filepath);
+				fileSystem.copyFile(dep.filepath, filepath);
 			}
 
 			const unbundledProcessedAsset: ProcessedAsset = {

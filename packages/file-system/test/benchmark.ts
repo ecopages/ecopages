@@ -24,7 +24,7 @@ writeFileSync(LARGE_FILE, 'x'.repeat(1024 * 1024));
 const bunFs = new BunFileSystem();
 const nodeFs = new NodeFileSystem();
 
-console.log('\n📊 @ecopages/file-utils Benchmark\n');
+console.log('\n@ecopages/file-system Benchmark\n');
 console.log('Comparing BunFileSystem vs NodeFileSystem\n');
 
 group('glob(**/*.ts) - 100 files', () => {
@@ -124,4 +124,4 @@ group('writeAsync (large - 1MB)', () => {
 await run({ colors: true });
 
 rmSync(BENCH_DIR, { recursive: true, force: true });
-console.log('\n✅ Benchmark complete\n');
+console.log('\n√ Benchmark complete\n');

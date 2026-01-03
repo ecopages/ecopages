@@ -93,6 +93,17 @@ for (const [name, fs] of adapters) {
 				const files = await fs.glob(['**/*.xyz'], { cwd: TEST_DIR });
 				expect(files).toHaveLength(0);
 			});
+
+			test('respects ignore patterns', async () => {
+				const files = await fs.glob(['**/*.ts'], { cwd: TEST_DIR, ignore: ['**/nested.ts'] });
+				expect(files).toContain('test.ts');
+				expect(files.some((f) => f.includes('nested.ts'))).toBe(false);
+			});
+
+			test('respects multiple ignore patterns', async () => {
+				const files = await fs.glob(['**/*.ts'], { cwd: TEST_DIR, ignore: ['test.ts', '**/nested.ts'] });
+				expect(files).toHaveLength(0);
+			});
 		});
 
 		describe('hash', () => {

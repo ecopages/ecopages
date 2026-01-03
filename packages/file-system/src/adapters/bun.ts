@@ -14,6 +14,7 @@ import { BaseFileSystem } from '../utils/common';
 export class BunFileSystem extends BaseFileSystem implements FileSystem {
 	/**
 	 * Glob patterns using Bun.Glob for fast matching.
+	 * Supports ignore patterns via post-filtering (Bun.Glob doesn't have native ignore support).
 	 */
 	async glob(patterns: string[], options: GlobOptions = {}): Promise<string[]> {
 		const scanOptions: GlobScanOptions = {
@@ -26,7 +27,15 @@ export class BunFileSystem extends BaseFileSystem implements FileSystem {
 		});
 
 		const results = await Promise.all(promises);
-		return results.flat();
+		let files = results.flat();
+
+		// Filter out ignored patterns if provided
+		if (options.ignore?.length) {
+			const ignoreGlobs = options.ignore.map((pattern) => new Bun.Glob(pattern));
+			files = files.filter((file) => !ignoreGlobs.some((glob) => glob.match(file)));
+		}
+
+		return files;
 	}
 
 	/**

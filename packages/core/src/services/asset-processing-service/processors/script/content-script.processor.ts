@@ -51,7 +51,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				excludeFromHtml: dep.excludeFromHtml,
 			};
 
-			fileSystem.rmSync(tempFileName);
+			fileSystem.remove(tempFileName);
 
 			this.writeCacheFile(filename, processedAsset);
 

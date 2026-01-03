@@ -29,6 +29,11 @@ export interface DefaultHmrContext {
 	 * Bun plugins to use during bundling.
 	 */
 	getPlugins(): BunPlugin[];
+
+	/**
+	 * Absolute path to the source directory.
+	 */
+	getSrcDir(): string;
 }
 
 /**

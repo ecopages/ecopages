@@ -11,7 +11,7 @@ export interface StaticBuildOptions {
 
 export interface ServeOptions {
 	hostname?: string;
-	port?: number;
+	port?: number | string;
 }
 
 export interface ServerStaticBuilderParams {
@@ -66,6 +66,10 @@ export class ServerStaticBuilder {
 			appConfig: this.appConfig,
 		});
 
-		appLogger.info(`Preview running at http://localhost:${server.port}`);
+		if (server) {
+			appLogger.info(`Preview running at http://localhost:${server.port}`);
+		} else {
+			appLogger.error('Failed to start preview server');
+		}
 	}
 }

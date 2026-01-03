@@ -27,7 +27,7 @@ export class ServerRouteHandler {
 	}
 
 	/**
-	 * Inject HMR script in dev move
+	 * Inject HMR script in dev mode
 	 */
 	shouldInjectHmrScript(): boolean {
 		return this.watch && this.hmrManager?.isEnabled() === true;

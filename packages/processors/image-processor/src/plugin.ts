@@ -4,7 +4,8 @@
  */
 
 import path from 'node:path';
-import { deepMerge, FileUtils } from '@ecopages/core';
+import { deepMerge } from '@ecopages/core';
+import { fileSystem } from '@ecopages/file-system';
 import { resolveGeneratedPath } from '@ecopages/core/constants';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
@@ -194,12 +195,12 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
 			const outputDir = this.options.outputDir;
 
-			const files = await FileUtils.glob([`${outputDir}/${baseNameWithoutExt}-*`]);
+			const files = await fileSystem.glob([`${outputDir}/${baseNameWithoutExt}-*`]);
 
 			await Promise.all(
 				files.map(async (file) => {
 					try {
-						await FileUtils.rmAsync(file);
+						await fileSystem.removeAsync(file);
 						logger.debug('Deleted processed image', { file });
 					} catch (error) {
 						logger.error('Failed to delete processed image', { file, error });
@@ -210,7 +211,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 			try {
 				const cacheKey = this.processedImages[path.basename(imagePath)].cacheKey;
 				const cachePath = this.getCachePath(cacheKey);
-				await FileUtils.rmAsync(cachePath);
+				await fileSystem.removeAsync(cachePath);
 				logger.debug('Deleted cache file for image', { cachePath });
 			} catch (error) {
 				logger.error('Failed to delete cache file for image', { imagePath, error });
@@ -232,7 +233,8 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 			throw new Error('Output directory not set');
 		}
 
-		const requiredTypes = FileUtils.readFileSync(path.join(__dirname, 'types.ts'))
+		const requiredTypes = fileSystem
+			.readFileSync(path.join(__dirname, 'types.ts'))
 			.toString()
 			.replaceAll('export ', '');
 
@@ -259,7 +261,7 @@ declare module "ecopages:images" {
 			ensureDirExists: true,
 		});
 
-		FileUtils.writeFileSync(typesDir, content);
+		fileSystem.write(typesDir, content);
 		logger.debug('Generated types for virtual module', { typesDir });
 
 		const indexTypesDir = resolveGeneratedPath('types', {
@@ -271,7 +273,7 @@ declare module "ecopages:images" {
 
 		const indexContent = 'import "./virtual-module.d.ts";';
 
-		FileUtils.writeFileSync(indexTypesDir, indexContent);
+		fileSystem.write(indexTypesDir, indexContent);
 		logger.debug('Generated index types for virtual module', { indexTypesDir });
 	}
 

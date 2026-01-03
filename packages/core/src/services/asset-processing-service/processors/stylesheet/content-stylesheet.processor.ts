@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { FileUtils } from '../../../../utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 import type { ContentStylesheetAsset, ProcessedAsset } from '../../assets.types';
 import { BaseProcessor } from '../base/base-processor';
 
@@ -13,7 +13,7 @@ export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetA
 
 		const filepath = path.join(this.getAssetsDir(), 'styles', filename);
 
-		if (!dep.inline) FileUtils.write(filepath, dep.content);
+		if (!dep.inline) fileSystem.write(filepath, dep.content);
 
 		const processedAsset: ProcessedAsset = {
 			filepath: dep.inline ? undefined : filepath,

@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { ConfigBuilder, type EcoComponent, FileUtils, type HtmlTemplateProps } from '@ecopages/core';
+import { ConfigBuilder, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
+import { fileSystem } from '@ecopages/file-system';
 import type { JSX } from 'react';
 import { ReactRenderer } from '../react-renderer';
 import { ErrorPage } from './fixture/error-page';
@@ -49,8 +50,8 @@ const renderer = new ReactRenderer({
 
 describe('ReactRenderer', () => {
 	afterAll(() => {
-		if (FileUtils.existsSync(testDir)) {
-			FileUtils.rmdirSync(testDir, { recursive: true });
+		if (fileSystem.exists(testDir)) {
+			fileSystem.remove(testDir);
 		}
 	});
 

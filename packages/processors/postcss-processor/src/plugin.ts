@@ -5,7 +5,8 @@
 
 import path from 'node:path';
 import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
-import { ClientBridge, FileUtils } from '@ecopages/core';
+import { ClientBridge } from '@ecopages/core';
+import { fileSystem } from '@ecopages/file-system';
 import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
@@ -92,7 +93,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			const relativePath = path.relative(this.context.srcDir, filePath);
 			const outputPath = path.join(this.context.distDir, 'assets', relativePath);
 
-			let content = await FileUtils.getFileAsString(filePath);
+			let content = await fileSystem.readFile(filePath);
 
 			if (this.options?.transformInput) {
 				content = await this.options.transformInput(content, filePath);
@@ -100,8 +101,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const processed = await this.process(content, filePath);
 
-			FileUtils.ensureDirectoryExists(path.dirname(outputPath));
-			FileUtils.write(outputPath, processed);
+			fileSystem.ensureDir(path.dirname(outputPath));
+			fileSystem.write(outputPath, processed);
 
 			bridge.cssUpdate(filePath);
 
@@ -182,7 +183,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 		for (const ext of configExtensions) {
 			const configPath = path.join(this.context.rootDir, `postcss.config.${ext}`);
-			if (FileUtils.existsSync(configPath)) {
+			if (fileSystem.exists(configPath)) {
 				foundConfigPath = configPath;
 				break;
 			}

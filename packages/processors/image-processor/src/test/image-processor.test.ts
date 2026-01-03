@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { FileUtils } from '@ecopages/core';
+import { fileSystem } from '@ecopages/file-system';
 import sharp from 'sharp';
 import { ImageProcessor } from '../image-processor';
 import type { ImageProcessorConfig } from '../plugin';
@@ -146,7 +146,7 @@ describe('ImageProcessor', () => {
 
 	test('handles invalid image gracefully', async () => {
 		const invalidImage = path.join(testDir, 'invalid.jpg');
-		FileUtils.write(invalidImage, 'invalid content');
+		fileSystem.write(invalidImage, 'invalid content');
 
 		const processor = createProcessor();
 		const result = await processor.processImage(invalidImage);

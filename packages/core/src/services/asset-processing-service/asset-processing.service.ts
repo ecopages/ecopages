@@ -2,7 +2,7 @@ import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig, IHmrManager } from '../../internal-types';
-import { FileUtils } from '../../utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types';
 import { ProcessorRegistry } from './processor.registry';
 import {
@@ -53,7 +53,7 @@ export class AssetProcessingService {
 
 	async processDependencies(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
 		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
-		FileUtils.ensureDirectoryExists(depsDir);
+		fileSystem.ensureDir(depsDir);
 
 		const results = await this.processDependenciesParallel(deps, key);
 
@@ -126,7 +126,7 @@ export class AssetProcessingService {
 
 	private async optimizeDependencies(depsDir: string): Promise<void> {
 		if (process.env.NODE_ENV === 'production') {
-			FileUtils.gzipDirSync(depsDir, ['css', 'js']);
+			fileSystem.gzipDir(depsDir, ['css', 'js']);
 		}
 	}
 

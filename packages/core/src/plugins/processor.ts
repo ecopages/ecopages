@@ -1,5 +1,5 @@
 import { resolveGeneratedPath } from '../constants';
-import { FileUtils } from '../utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types';
 import type { ClientBridge } from '../adapters/bun/client-bridge';
@@ -83,7 +83,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	protected async readCache<T>(key: string): Promise<T | null> {
 		const cachePath = this.getCachePath(key);
 		try {
-			const data = await FileUtils.getFileAsString(cachePath);
+			const data = await fileSystem.readFile(cachePath);
 			return JSON.parse(data) as T;
 		} catch {
 			return null;
@@ -96,7 +96,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 		}
 
 		const cachePath = this.getCachePath(key);
-		FileUtils.write(cachePath, JSON.stringify(data, null, 2));
+		fileSystem.write(cachePath, JSON.stringify(data, null, 2));
 	}
 
 	getWatchConfig(): ProcessorWatchConfig | undefined {

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/postcss-processor",
-	"version": "0.1.54",
+	"version": "0.1.55",
 	"description": "Postcss processor, transform string or postcss file to css",
 	"keywords": [
 		"postcss",
@@ -25,6 +25,7 @@
 	"dependencies": {
 		"@ecopages/bun-inline-css-plugin": "workspace:*",
 		"@ecopages/core": "workspace:*",
+		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "latest",
 		"autoprefixer": "^10.4.0",
 		"browserslist": "^4.28.1",

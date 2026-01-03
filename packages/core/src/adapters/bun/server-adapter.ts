@@ -10,7 +10,7 @@ import { FSRouter } from '../../router/fs-router.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { deepMerge } from '../../utils/deep-merge.ts';
-import { FileUtils } from '../../utils/file-utils.module.ts';
+import { fileSystem } from '@ecopages/file-system';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import {
 	AbstractServerAdapter,
@@ -130,11 +130,11 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	}
 
 	private copyPublicDir(): void {
-		FileUtils.copyDirSync(
+		fileSystem.copyDir(
 			path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir),
 			path.join(this.appConfig.rootDir, this.appConfig.distDir, this.appConfig.publicDir),
 		);
-		FileUtils.ensureDirectoryExists(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
+		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 	}
 
 	/**

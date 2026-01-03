@@ -1,7 +1,7 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 import { createEcoComponentDirPlugin } from './eco-component-dir-plugin';
 import type { EcoPagesAppConfig } from '../internal-types';
-import { FileUtils } from '../utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 
 describe('eco-component-dir-plugin', () => {
 	const mockConfig = {
@@ -42,7 +42,7 @@ describe('eco-component-dir-plugin', () => {
 			throw new Error(`File path ${filePath} does not match plugin filter ${regexFilter}`);
 		}
 
-		const fileSpy = spyOn(FileUtils, 'getFileAsString').mockImplementation(async () => content);
+		const fileSpy = spyOn(fileSystem, 'readFile').mockImplementation(async () => content);
 
 		try {
 			return await onLoadCallback({ path: filePath });

@@ -4,7 +4,7 @@
  **/
 
 import path from 'node:path';
-import { FileUtils } from './utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 
 /**
  * Collection of status messages used in the application.
@@ -56,7 +56,7 @@ export function resolveGeneratedPath(type: keyof typeof GENERATED_BASE_PATHS, op
 	const fullPath = path.join(...(parts as string[]));
 
 	if (ensureDirExists) {
-		FileUtils.ensureDirectoryExists(path.dirname(fullPath));
+		fileSystem.ensureDir(path.dirname(fullPath));
 	}
 
 	return fullPath;

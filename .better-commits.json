@@ -70,6 +70,10 @@
 				"label": "docs"
 			},
 			{
+				"value": "file-system",
+				"label": "file-system"
+			},
+			{
 				"value": "global",
 				"label": "global"
 			},

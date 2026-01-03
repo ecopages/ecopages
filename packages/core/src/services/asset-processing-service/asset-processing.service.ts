@@ -4,6 +4,7 @@ import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig, IHmrManager } from '../../internal-types';
 import { fileSystem } from '@ecopages/file-system';
 import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types';
+import { isHmrAware } from './processor.interface';
 import { ProcessorRegistry } from './processor.registry';
 import {
 	ContentScriptProcessor,
@@ -28,8 +29,8 @@ export class AssetProcessingService {
 		this.hmrManager = hmrManager;
 
 		for (const processor of this.registry.getAllProcessors().values()) {
-			if ('setHmrManager' in processor && typeof (processor as any).setHmrManager === 'function') {
-				(processor as any).setHmrManager(hmrManager);
+			if (isHmrAware(processor)) {
+				processor.setHmrManager(hmrManager);
 			}
 		}
 	}
@@ -45,7 +46,7 @@ export class AssetProcessingService {
 	 * @param processor The processor to register.
 	 */
 	registerProcessor(kind: AssetKind, variant: AssetSource, processor: any): void {
-		if (this.hmrManager && 'setHmrManager' in processor && typeof processor.setHmrManager === 'function') {
+		if (this.hmrManager && isHmrAware(processor)) {
 			processor.setHmrManager(this.hmrManager);
 		}
 		this.registry.register(kind, variant, processor);

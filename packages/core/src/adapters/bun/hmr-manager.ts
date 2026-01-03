@@ -11,7 +11,13 @@ import { appLogger } from '../../global/app-logger';
 import type { ClientBridge } from './client-bridge';
 import type { ClientBridgeEvent } from '../../public-types';
 
+export interface HmrManagerParams {
+	appConfig: EcoPagesAppConfig;
+	bridge: ClientBridge;
+}
+
 export class HmrManager implements IHmrManager {
+	public readonly appConfig: EcoPagesAppConfig;
 	private readonly bridge: ClientBridge;
 	/** Keep track of watchers */
 	private watchers = new Map<string, fs.FSWatcher>();
@@ -28,10 +34,8 @@ export class HmrManager implements IHmrManager {
 		close: (ws: ServerWebSocket<unknown>) => void;
 	};
 
-	constructor(
-		public readonly appConfig: EcoPagesAppConfig,
-		bridge: ClientBridge,
-	) {
+	constructor({ appConfig, bridge }: HmrManagerParams) {
+		this.appConfig = appConfig;
 		this.bridge = bridge;
 		this.distDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, '_hmr');
 		fileSystem.ensureDir(this.distDir);
@@ -169,8 +173,6 @@ export class HmrManager implements IHmrManager {
 				for (const event of action.events) {
 					this.broadcast(event);
 				}
-			} else if (action.event) {
-				this.broadcast(action.event);
 			}
 		}
 	}

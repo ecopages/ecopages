@@ -1,7 +1,5 @@
 import path from 'node:path';
-import type { BunPlugin, BunRequest, Server, WebSocketHandler } from 'bun';
-import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import { StaticContentServer } from '../../dev/sc-server.ts';
+import type { BunRequest, Server, WebSocketHandler } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { ApiHandler } from '../../public-types.ts';
@@ -10,19 +8,16 @@ import { FSRouter } from '../../router/fs-router.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { deepMerge } from '../../utils/deep-merge.ts';
-import { fileSystem } from '@ecopages/file-system';
-import { ProjectWatcher } from '../../watchers/project-watcher.ts';
-import {
-	AbstractServerAdapter,
-	type ServerAdapterOptions,
-	type ServerAdapterResult,
-} from '../abstract/server-adapter.ts';
+import { AbstractServerAdapter, type ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ApiResponseBuilder } from '../shared/api-response.js';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
+import { ServerRouteHandler, type ServerRouteHandlerParams } from '../shared/server-route-handler';
+import { ServerStaticBuilder, type ServerStaticBuilderParams } from '../shared/server-static-builder';
 import { ClientBridge } from './client-bridge';
 import { HmrManager } from './hmr-manager';
 import { BunRouterAdapter } from './router-adapter.ts';
+import { ServerLifecycle } from './server-lifecycle';
 
 export type BunServerRoutes = Bun.Serve.Routes<unknown, string>;
 
@@ -39,10 +34,19 @@ export type BunServeOptions = Omit<Bun.Serve.Options<unknown>, 'fetch'> & {
 	websocket?: WebSocketHandler<unknown>;
 };
 
-export interface BunServerAdapterOptions extends ServerAdapterOptions {
-	serveOptions: BunServeAdapterServerOptions;
+export interface BunServerAdapterParams {
 	appConfig: EcoPagesAppConfig;
+	runtimeOrigin: string;
+	serveOptions: BunServeAdapterServerOptions;
 	apiHandlers?: ApiHandler<any, BunRequest, Server<unknown>>[];
+	options?: {
+		watch?: boolean;
+	};
+	lifecycle?: ServerLifecycle;
+	staticBuilderFactory?: (params: ServerStaticBuilderParams) => ServerStaticBuilder;
+	routeHandlerFactory?: (params: ServerRouteHandlerParams) => ServerRouteHandler;
+	hmrManager?: HmrManager;
+	bridge?: ClientBridge;
 }
 
 export interface BunServerAdapterResult extends ServerAdapterResult {
@@ -51,10 +55,10 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
 	completeInitialization: (server: Server<unknown>) => Promise<void>;
 }
 
-export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOptions, BunServerAdapterResult> {
+export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterParams, BunServerAdapterResult> {
 	declare appConfig: EcoPagesAppConfig;
-	declare options: BunServerAdapterOptions['options'];
-	declare serveOptions: BunServerAdapterOptions['serveOptions'];
+	declare options: BunServerAdapterParams['options'];
+	declare serveOptions: BunServerAdapterParams['serveOptions'];
 	protected apiHandlers: ApiHandler<any, BunRequest>[];
 
 	private router!: FSRouter;
@@ -63,36 +67,70 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	private routes: BunServerRoutes = {};
 	private staticSiteGenerator!: StaticSiteGenerator;
 	private bridge!: ClientBridge;
+	private lifecycle!: ServerLifecycle;
+	private staticBuilder!: ServerStaticBuilder;
+	private routeHandler!: ServerRouteHandler;
 	public hmrManager!: HmrManager;
 	private initializationPromise: Promise<void> | null = null;
 	private fullyInitialized = false;
 	declare serverInstance: Server<unknown> | null;
 
-	constructor(options: BunServerAdapterOptions) {
-		super(options);
-		this.apiHandlers = options.apiHandlers || [];
+	private readonly lifecycleFactory?: ServerLifecycle;
+	private readonly staticBuilderFactory?: (params: ServerStaticBuilderParams) => ServerStaticBuilder;
+	private readonly routeHandlerFactory?: (params: ServerRouteHandlerParams) => ServerRouteHandler;
+	private readonly hmrManagerFactory?: HmrManager;
+	private readonly bridgeFactory?: ClientBridge;
+
+	constructor({
+		appConfig,
+		runtimeOrigin,
+		serveOptions,
+		apiHandlers,
+		options,
+		lifecycle,
+		staticBuilderFactory,
+		routeHandlerFactory,
+		hmrManager,
+		bridge,
+	}: BunServerAdapterParams) {
+		super({ appConfig, runtimeOrigin, serveOptions, options });
+		this.apiHandlers = apiHandlers || [];
+		this.lifecycleFactory = lifecycle;
+		this.staticBuilderFactory = staticBuilderFactory;
+		this.routeHandlerFactory = routeHandlerFactory;
+		this.hmrManagerFactory = hmrManager;
+		this.bridgeFactory = bridge;
 	}
 
 	/**
 	 * Initializes the server adapter's core components.
-	 * Sets up static site generator, HMR manager, loaders, and plugins.
+	 * Delegates to ServerLifecycle for setup.
 	 */
 	public async initialize(): Promise<void> {
-		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
-		this.bridge = new ClientBridge();
-		this.hmrManager = new HmrManager(this.appConfig, this.bridge);
-		await this.hmrManager.buildRuntime();
+		this.bridge = this.bridgeFactory ?? new ClientBridge();
+		this.hmrManager = this.hmrManagerFactory ?? new HmrManager({ appConfig: this.appConfig, bridge: this.bridge });
+		this.lifecycle =
+			this.lifecycleFactory ??
+			new ServerLifecycle({
+				appConfig: this.appConfig,
+				runtimeOrigin: this.runtimeOrigin,
+				hmrManager: this.hmrManager,
+				bridge: this.bridge,
+			});
 
-		this.setupLoaders();
-		this.copyPublicDir();
-		await this.initializePlugins();
-	}
+		this.staticSiteGenerator = await this.lifecycle.initialize();
 
-	private setupLoaders(): void {
-		const loaders = this.appConfig.loaders;
-		for (const loader of loaders.values()) {
-			Bun.plugin(loader);
-		}
+		const staticBuilderOptions = {
+			appConfig: this.appConfig,
+			staticSiteGenerator: this.staticSiteGenerator,
+			serveOptions: this.serveOptions,
+		};
+
+		this.staticBuilder = this.staticBuilderFactory
+			? this.staticBuilderFactory(staticBuilderOptions)
+			: new ServerStaticBuilder(staticBuilderOptions);
+
+		await this.lifecycle.initializePlugins({ watch: this.options?.watch });
 	}
 
 	/**
@@ -118,23 +156,9 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	}
 
 	private async watch(): Promise<void> {
-		const refreshRouterRoutesCallback = this.refreshRouterRoutes.bind(this);
-		const watcherInstance = new ProjectWatcher({
-			config: this.appConfig,
-			refreshRouterRoutesCallback,
-			hmrManager: this.hmrManager,
-			bridge: this.bridge,
+		await this.lifecycle.startWatching({
+			refreshRouterRoutesCallback: this.refreshRouterRoutes.bind(this),
 		});
-
-		await watcherInstance.createWatcherSubscription();
-	}
-
-	private copyPublicDir(): void {
-		fileSystem.copyDir(
-			path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir),
-			path.join(this.appConfig.rootDir, this.appConfig.distDir, this.appConfig.publicDir),
-		);
-		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 	}
 
 	/**
@@ -160,41 +184,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 		await this.router.init();
 	}
 
-	private async initializePlugins(): Promise<void> {
-		try {
-			const hmrEnabled = !!this.options?.watch;
-			this.hmrManager.setEnabled(hmrEnabled);
-
-			const processorBuildPlugins: BunPlugin[] = [];
-
-			const processorPromises = Array.from(this.appConfig.processors.values()).map(async (processor) => {
-				await processor.setup();
-				if (processor.plugins) {
-					for (const plugin of processor.plugins) {
-						Bun.plugin(plugin);
-					}
-				}
-				if (processor.buildPlugins) {
-					processorBuildPlugins.push(...processor.buildPlugins);
-				}
-			});
-
-			const integrationPromises = this.appConfig.integrations.map(async (integration) => {
-				integration.setConfig(this.appConfig);
-				integration.setRuntimeOrigin(this.runtimeOrigin);
-				integration.setHmrManager(this.hmrManager);
-				await integration.setup();
-			});
-
-			await Promise.all([...processorPromises, ...integrationPromises]);
-
-			this.hmrManager.setPlugins(processorBuildPlugins);
-		} catch (error) {
-			appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);
-			throw error;
-		}
-	}
-
 	private configureResponseHandlers(): void {
 		this.routeRendererFactory = new RouteRendererFactory({
 			appConfig: this.appConfig,
@@ -214,10 +203,21 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 			routeRendererFactory: this.routeRendererFactory,
 			fileSystemResponseFactory,
 		});
+
+		const routeHandlerParams: ServerRouteHandlerParams = {
+			router: this.router,
+			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
+			watch: !!this.options?.watch,
+			hmrManager: this.hmrManager,
+		};
+
+		this.routeHandler = this.routeHandlerFactory
+			? this.routeHandlerFactory(routeHandlerParams)
+			: new ServerRouteHandler(routeHandlerParams);
 	}
 
 	private adaptRouterRoutes(): void {
-		const routerAdapter = new BunRouterAdapter(this);
+		const routerAdapter = new BunRouterAdapter({ serverAdapter: this });
 		this.routes = routerAdapter.adaptRoutes(this.router.routes);
 	}
 
@@ -345,32 +345,16 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	 * @param options.preview - If true, starts a preview server after build
 	 */
 	public async buildStatic(options?: { preview?: boolean }): Promise<void> {
-		const { preview = false } = options ?? {};
-
 		if (!this.fullyInitialized) {
 			await this.initRouter();
 			this.configureResponseHandlers();
 			this.adaptRouterRoutes();
 		}
 
-		const baseUrl = `http://${this.serveOptions.hostname || 'localhost'}:${this.serveOptions.port || 3000}`;
-
-		await this.staticSiteGenerator.run({
+		await this.staticBuilder.build(options, {
 			router: this.router,
-			baseUrl,
 			routeRendererFactory: this.routeRendererFactory,
 		});
-
-		if (!preview) {
-			appLogger.info('Build completed');
-			return;
-		}
-
-		const { server } = StaticContentServer.createServer({
-			appConfig: this.appConfig,
-		});
-
-		appLogger.info(`Preview running at http://localhost:${(server as Server<unknown>).port}`);
 	}
 
 	/**
@@ -428,7 +412,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	 * Handles HTTP requests from the router adapter.
 	 */
 	public async handleRequest(request: Request): Promise<Response> {
-		return this.handleResponse(request);
+		return this.routeHandler.handleResponse(request);
 	}
 
 	/**
@@ -452,38 +436,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	 */
 	public async handleResponse(request: Request): Promise<Response> {
 		await this.waitForInitialization();
-
-		const pathname = new URL(request.url).pathname;
-		const match = !pathname.includes('.') && this.router.match(request.url);
-
-		const response = await (match
-			? this.fileSystemResponseMatcher.handleMatch(match)
-			: this.handleNoMatch(request));
-
-		/** Inject HMR client script into HTML responses in watch mode */
-		if (
-			this.options?.watch &&
-			this.hmrManager?.isEnabled() &&
-			response &&
-			response.headers.get('Content-Type')?.startsWith('text/html')
-		) {
-			const html = await response.text();
-
-			const hmrScript = `<script type="module">import '/_hmr_runtime.js';</script>`;
-
-			const updatedHtml = html.replace(/<\/html>/i, `${hmrScript}</html>`);
-
-			const headers = new Headers(response.headers);
-			headers.delete('Content-Length');
-
-			return new Response(updatedHtml, {
-				status: response.status,
-				statusText: response.statusText,
-				headers,
-			});
-		}
-
-		return response;
+		return this.routeHandler.handleResponse(request);
 	}
 
 	/**
@@ -491,24 +444,38 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterOpti
 	 */
 	private async handleNoMatch(request: Request): Promise<Response> {
 		await this.waitForInitialization();
-
-		try {
-			const pathname = new URL(request.url).pathname;
-			return await this.fileSystemResponseMatcher.handleNoMatch(pathname);
-		} catch (error) {
-			if (error instanceof Error) {
-				this.hmrManager.broadcast({ type: 'error', message: error.message });
-				appLogger.error('Error handling no match:', error);
-			}
-			return new Response('Internal Server Error', { status: 500 });
-		}
+		return this.routeHandler.handleNoMatch(request);
 	}
 }
 
 /**
  * Factory function to create a Bun server adapter
  */
-export async function createBunServerAdapter(options: BunServerAdapterOptions): Promise<BunServerAdapterResult> {
-	const adapter = new BunServerAdapter(options);
+export async function createBunServerAdapter(params: BunServerAdapterParams): Promise<BunServerAdapterResult> {
+	const runtimeOrigin =
+		params.runtimeOrigin ??
+		`http://${params.serveOptions.hostname || 'localhost'}:${params.serveOptions.port || 3000}`;
+
+	const bridge = params.bridge ?? new ClientBridge();
+	const hmrManager = params.hmrManager ?? new HmrManager({ appConfig: params.appConfig, bridge });
+	const lifecycle =
+		params.lifecycle ??
+		new ServerLifecycle({
+			appConfig: params.appConfig,
+			runtimeOrigin,
+			hmrManager,
+			bridge,
+		});
+
+	const adapter = new BunServerAdapter({
+		...params,
+		runtimeOrigin,
+		bridge,
+		hmrManager,
+		lifecycle,
+		staticBuilderFactory: params.staticBuilderFactory ?? ((opts) => new ServerStaticBuilder(opts)),
+		routeHandlerFactory: params.routeHandlerFactory ?? ((p) => new ServerRouteHandler(p)),
+	});
+
 	return adapter.createAdapter();
 }

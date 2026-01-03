@@ -22,7 +22,7 @@ describe('BunRouterAdapter', () => {
 		}
 	}
 
-	const testAdapter = new TestBunRouterAdapter(mockServerAdapter);
+	const testAdapter = new TestBunRouterAdapter({ serverAdapter: mockServerAdapter });
 
 	describe('convertPath', () => {
 		it('should convert dynamic route parameters', () => {

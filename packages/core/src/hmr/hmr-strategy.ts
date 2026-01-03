@@ -19,7 +19,7 @@ import type { ClientBridgeEvent } from '../public-types';
  *   async process(filePath: string): Promise<HmrAction> {
  *     return {
  *       type: 'broadcast',
- *       event: { type: 'update', path: filePath, timestamp: Date.now() }
+ *       events: [{ type: 'update', path: filePath, timestamp: Date.now() }]
  *     };
  *   }
  * }
@@ -67,12 +67,6 @@ export interface HmrAction {
 	type: 'broadcast' | 'none';
 
 	/**
-	 * The HMR event to broadcast, if type is 'broadcast'.
-	 * @deprecated Use events for multiple updates
-	 */
-	event?: ClientBridgeEvent;
-
-	/**
 	 * The HMR events to broadcast, if type is 'broadcast'.
 	 * capable of broadcasting multiple events at once.
 	 */
@@ -104,7 +98,7 @@ export interface HmrAction {
  *     await this.optimizeImage(filePath);
  *     return {
  *       type: 'broadcast',
- *       event: { type: 'update', path: filePath, timestamp: Date.now() }
+ *       events: [{ type: 'update', path: filePath, timestamp: Date.now() }]
  *     };
  *   }
  * }
@@ -169,7 +163,7 @@ export abstract class HmrStrategy {
 	 *
 	 *   return {
 	 *     type: 'broadcast',
-	 *     event: { type: 'update', path: outputPath, timestamp: Date.now() }
+	 *     events: [{ type: 'update', path: outputPath, timestamp: Date.now() }]
 	 *   };
 	 * }
 	 * ```

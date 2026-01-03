@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { FileUtils } from '../../../../utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 import type { FileStylesheetAsset, ProcessedAsset } from '../../assets.types';
 import { BaseProcessor } from '../base/base-processor';
 
@@ -9,11 +9,11 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 			if (import.meta.env.NODE_ENV === 'development') delete require.cache[srcUrl];
 			const imported = await import(srcUrl).then((module) => module.default);
 			if (typeof imported === 'string' && imported.endsWith('.css')) {
-				return FileUtils.readFileSync(srcUrl);
+				return fileSystem.readFileSync(srcUrl);
 			}
 			return imported;
 		} catch {
-			return FileUtils.readFileSync(srcUrl);
+			return fileSystem.readFileSync(srcUrl);
 		}
 	};
 
@@ -30,8 +30,8 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 		const filepath = path.join(this.getAssetsDir(), path.relative(this.appConfig.srcDir, dep.filepath));
 
 		if (!dep.inline) {
-			FileUtils.ensureDirectoryExists(path.dirname(filepath));
-			FileUtils.writeFileSync(filepath, buffer);
+			fileSystem.ensureDir(path.dirname(filepath));
+			fileSystem.write(filepath, buffer);
 		}
 
 		const processedAsset: ProcessedAsset = {

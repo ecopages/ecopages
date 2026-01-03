@@ -11,7 +11,7 @@
 import path from 'node:path';
 import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import { FileUtils } from '../utils/file-utils.module.ts';
+import { fileSystem } from '@ecopages/file-system';
 
 /**
  * Regex pattern to match `.config = {` assignments in component files (EcoComponent).
@@ -91,7 +91,7 @@ export function createEcoComponentDirPlugin(options: EcoComponentDirPluginOption
 		setup(build) {
 			build.onLoad({ filter: extensionPattern }, async (args) => {
 				const filePath = args.path.split('?')[0];
-				const contents = await FileUtils.getFileAsString(filePath);
+				const contents = await fileSystem.readFile(filePath);
 				const transformedContents = injectComponentDir(contents, filePath);
 
 				const ext = path.extname(filePath).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';

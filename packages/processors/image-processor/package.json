@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/image-processor",
-	"version": "0.1.54",
+	"version": "0.1.55",
 	"description": "Image processor, transform and optimize images for web",
 	"keywords": [
 		"image",
@@ -24,6 +24,7 @@
 		"@ecopages/core": "workspace:*"
 	},
 	"dependencies": {
+		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "latest",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",

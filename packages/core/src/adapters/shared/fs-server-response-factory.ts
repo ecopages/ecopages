@@ -3,7 +3,7 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, FileSystemServerOptions } from '../../internal-types.ts';
 import type { RouteRendererBody } from '../../public-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
-import { FileUtils } from '../../utils/file-utils.module.ts';
+import { fileSystem } from '@ecopages/file-system';
 
 export class FileSystemServerResponseFactory {
 	private appConfig: EcoPagesAppConfig;
@@ -55,7 +55,7 @@ export class FileSystemServerResponseFactory {
 		const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
 
 		try {
-			FileUtils.verifyFileExists(error404TemplatePath);
+			fileSystem.verifyFileExists(error404TemplatePath);
 		} catch (error) {
 			appLogger.error(
 				'Error 404 template not found, looks like it has not being configured correctly',
@@ -81,10 +81,10 @@ export class FileSystemServerResponseFactory {
 
 			if (this.shouldEnableGzip(contentType)) {
 				const gzipPath = `${filePath}.gz`;
-				file = FileUtils.getFileAsBuffer(gzipPath);
+				file = fileSystem.readFileAsBuffer(gzipPath);
 				contentEncodingHeader['Content-Encoding'] = 'gzip';
 			} else {
-				file = FileUtils.getFileAsBuffer(filePath);
+				file = fileSystem.readFileAsBuffer(filePath);
 			}
 
 			return await this.createResponseWithBody(file as unknown as BodyInit, {

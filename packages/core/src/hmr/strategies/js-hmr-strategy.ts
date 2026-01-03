@@ -167,14 +167,15 @@ export class JsHmrStrategy extends HmrStrategy {
 		outputUrl: string,
 	): Promise<{ success: boolean; requiresReload: boolean }> {
 		try {
-			const fileName = path.basename(entrypointPath);
-			const outputFilename = fileName.replace(/\.tsx?$/, '.js');
-			const outputPath = path.join(this.context.getDistDir(), outputFilename);
+			const srcDir = this.context.getSrcDir();
+			const relativePath = path.relative(srcDir, entrypointPath);
+			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?)$/, '.js');
+			const outputPath = path.join(this.context.getDistDir(), relativePathJs);
 
 			const result = await Bun.build({
 				entrypoints: [entrypointPath],
 				outdir: this.context.getDistDir(),
-				naming: path.basename(outputPath),
+				naming: relativePathJs,
 				target: 'browser',
 				format: 'esm',
 				plugins: this.context.getPlugins(),

@@ -1,3 +1,5 @@
+import type { ClientBridgeEvent } from '../public-types';
+
 /**
  * HMR Strategy Pattern
  *
@@ -21,12 +23,7 @@
  *     };
  *   }
  * }
- * ```
- */
 
-import type { ClientBridgeEvent } from '../internal-types';
-
-/**
  * Defines the category of an HMR strategy, which determines its execution priority.
  * Strategies are evaluated in descending order: INTEGRATION → ASSET → SCRIPT → FALLBACK.
  *

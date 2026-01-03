@@ -204,6 +204,7 @@ export class HmrManager implements IHmrManager {
 			getSpecifierMap: () => this.specifierMap,
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
+			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 		};
 	}
 
@@ -212,9 +213,12 @@ export class HmrManager implements IHmrManager {
 			return this.watchedFiles.get(entrypointPath)!;
 		}
 
-		const fileName = path.basename(entrypointPath);
-		const outputFilename = fileName.replace(/\.(tsx?|mdx)$/, '.js');
-		const outputUrl = `/${path.join(RESOLVED_ASSETS_DIR, '_hmr', outputFilename)}`;
+		const srcDir = this.appConfig.absolutePaths.srcDir;
+		const relativePath = path.relative(srcDir, entrypointPath);
+		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
+
+		const urlPath = relativePathJs.split(path.sep).join('/');
+		const outputUrl = `/${path.join(RESOLVED_ASSETS_DIR, '_hmr', urlPath)}`;
 
 		this.watchedFiles.set(entrypointPath, outputUrl);
 

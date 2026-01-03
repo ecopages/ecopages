@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/bun-postcss-loader",
-	"version": "0.1.54",
+	"version": "0.1.55",
 	"exports": {
 		".": "./src/bun-postcss-loader.ts"
 	},

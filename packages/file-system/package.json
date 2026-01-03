@@ -22,7 +22,8 @@
 	},
 	"scripts": {
 		"test": "bun test",
-		"benchmark": "bun run test/benchmark.ts"
+		"benchmark": "bun run test/benchmark.ts",
+		"release:jsr": "bunx jsr publish"
 	},
 	"exports": {
 		".": {

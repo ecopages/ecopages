@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { FileUtils } from '../../../../utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 import type { NodeModuleScriptAsset, ProcessedAsset } from '../../assets.types';
 import { BaseScriptProcessor } from '../base/base-script-processor';
 
@@ -16,7 +16,7 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 		}
 
 		if (dep.inline) {
-			const content = FileUtils.getFileAsBuffer(modulePath).toString();
+			const content = fileSystem.readFileAsBuffer(modulePath).toString();
 			const inlineProcessedAsset: ProcessedAsset = {
 				content,
 				kind: dep.kind,
@@ -54,7 +54,7 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 	private resolveModulePath(importPath: string, rootDir: string, maxDepth = 5): string {
 		const tryPath = (dir: string): string => {
 			const modulePath = path.join(dir, 'node_modules', importPath);
-			if (FileUtils.existsSync(modulePath)) {
+			if (fileSystem.exists(modulePath)) {
 				return modulePath;
 			}
 			throw new Error(`Could not find module: ${importPath}`);

@@ -3,7 +3,7 @@ import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../router/fs-router.ts';
-import { FileUtils } from '../utils/file-utils.module.ts';
+import { fileSystem } from '@ecopages/file-system';
 import { PathUtils } from '../utils/path-utils.module.ts';
 
 export class StaticSiteGenerator {
@@ -25,8 +25,8 @@ export class StaticSiteGenerator {
 			data += '\n';
 		}
 
-		FileUtils.ensureDirectoryExists(this.appConfig.distDir);
-		FileUtils.writeFileSync(`${this.appConfig.distDir}/robots.txt`, data);
+		fileSystem.ensureDir(this.appConfig.distDir);
+		fileSystem.write(`${this.appConfig.distDir}/robots.txt`, data);
 	}
 
 	isRootDir(path: string) {
@@ -58,7 +58,7 @@ export class StaticSiteGenerator {
 		const directories = this.getDirectories(routes);
 
 		for (const directory of directories) {
-			FileUtils.ensureDirectoryExists(path.join(this.appConfig.rootDir, this.appConfig.distDir, directory));
+			fileSystem.ensureDir(path.join(this.appConfig.rootDir, this.appConfig.distDir, directory));
 		}
 
 		for (const route of routes) {
@@ -111,7 +111,7 @@ export class StaticSiteGenerator {
 				}
 
 				const outputPath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname);
-				FileUtils.write(outputPath, contents);
+				fileSystem.write(outputPath, contents);
 			} catch (error) {
 				appLogger.error(
 					`Error generating static page for ${route}:`,

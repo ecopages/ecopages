@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { EXCLUDE_FROM_HTML_FLAG, RESOLVED_ASSETS_DIR } from '../../../../constants';
-import { FileUtils } from '../../../../utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 import type { IHmrManager } from '../../../../internal-types';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types';
 import { BaseScriptProcessor } from '../base/base-script-processor';
@@ -35,7 +35,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 			};
 		}
 
-		const content = FileUtils.readFileSync(dep.filepath, 'utf-8');
+		const content = fileSystem.readFileSync(dep.filepath, 'utf-8');
 		const hash = this.generateHash(content);
 		const cachekey = `${dep.filepath}:${hash}`;
 
@@ -51,7 +51,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 			if (!dep.inline) {
 				filepath = path.join(this.getAssetsDir(), outFilepath);
-				FileUtils.copyFileSync(dep.filepath, filepath);
+				fileSystem.copyFileSync(dep.filepath, filepath);
 			}
 
 			const unbundledProcessedAsset: ProcessedAsset = {
@@ -82,7 +82,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 		const processedAsset: ProcessedAsset = {
 			filepath: bundledFilePath,
-			content: dep.inline ? FileUtils.readFileSync(bundledFilePath).toString() : undefined,
+			content: dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
 			kind: 'script',
 			position: dep.position,
 			attributes: dep.attributes,

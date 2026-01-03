@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'bun:test';
-import { FileUtils } from './file-utils.module.ts';
+import { fileSystem } from '@ecopages/file-system';
 
-describe('FileUtils', () => {
+describe('fileSystem', () => {
 	it('should be defined', () => {
-		expect(FileUtils).toBeDefined();
+		expect(fileSystem).toBeDefined();
 	});
 
 	describe('glob', () => {
 		it('should be defined', () => {
-			expect(FileUtils.glob).toBeDefined();
+			expect(fileSystem.glob).toBeDefined();
 		});
 	});
 
 	describe('Should return a list of files', () => {
 		it('should return a list of files', async () => {
-			const files = await FileUtils.glob(['.'], {
+			const files = await fileSystem.glob(['.'], {
 				cwd: __dirname,
 			});
 			expect(files).toBeDefined();

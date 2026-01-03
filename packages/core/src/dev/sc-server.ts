@@ -1,6 +1,6 @@
 import { extname, join } from 'node:path';
 import { STATUS_MESSAGE } from '../constants.ts';
-import { FileUtils } from '../utils/file-utils.module.ts';
+import { fileSystem } from '@ecopages/file-system';
 import { ServerUtils } from '../utils/server-utils.module.ts';
 import type { Server } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
@@ -32,7 +32,7 @@ export class StaticContentServer {
 		const error404TemplatePath = `${this.appConfig.absolutePaths.distDir}/404.html`;
 
 		try {
-			FileUtils.existsSync(error404TemplatePath);
+			fileSystem.exists(error404TemplatePath);
 		} catch {
 			return new Response(STATUS_MESSAGE[404], {
 				status: 404,
@@ -54,7 +54,7 @@ export class StaticContentServer {
 		try {
 			if (this.shouldServeGzip(contentType)) {
 				const gzipPath = `${basePath}.gz`;
-				const file = FileUtils.getFileAsBuffer(gzipPath) as BodyInit;
+				const file = fileSystem.readFileAsBuffer(gzipPath) as BodyInit;
 				return new Response(file, {
 					headers: {
 						'Content-Type': contentType,
@@ -64,7 +64,7 @@ export class StaticContentServer {
 			}
 
 			if (path.includes('.')) {
-				const file = FileUtils.getFileAsBuffer(basePath) as BodyInit;
+				const file = fileSystem.readFileAsBuffer(basePath) as BodyInit;
 				return new Response(file, {
 					headers: { 'Content-Type': contentType },
 				});
@@ -72,11 +72,11 @@ export class StaticContentServer {
 
 			let pathWithSuffix = `${basePath}.html`;
 
-			const fileExists = FileUtils.existsSync(pathWithSuffix);
+			const fileExists = fileSystem.exists(pathWithSuffix);
 
 			if (!fileExists) pathWithSuffix = `${basePath}/index.html`;
 
-			const file = FileUtils.getFileAsBuffer(pathWithSuffix) as BodyInit;
+			const file = fileSystem.readFileAsBuffer(pathWithSuffix) as BodyInit;
 
 			return new Response(file, {
 				headers: {

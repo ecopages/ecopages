@@ -10,7 +10,7 @@
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { ApiHandler, ApiHandlerContext } from '../../public-types.ts';
-import { FileUtils } from '../../utils/file-utils.module.ts';
+import { fileSystem } from '@ecopages/file-system';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 
 /**
@@ -60,12 +60,12 @@ export abstract class AbstractApplicationAdapter<
 
 	private async clearDistFolder(_filter: string[] = []): Promise<void> {
 		const distPath = this.appConfig.absolutePaths.distDir;
-		const distExists = FileUtils.existsSync(distPath);
+		const distExists = fileSystem.exists(distPath);
 
 		if (!distExists) return;
 
 		try {
-			await FileUtils.rmAsync(distPath, { recursive: true });
+			await fileSystem.removeAsync(distPath, { recursive: true });
 			appLogger.debug(`Cleared dist folder: ${distPath}`);
 		} catch (error) {
 			appLogger.error(`Error clearing dist folder: ${distPath}`, error as Error);

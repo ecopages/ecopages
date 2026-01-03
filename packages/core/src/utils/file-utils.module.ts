@@ -98,7 +98,7 @@ export class FileUtils {
 	 */
 	static write(filepath: string, contents: string | Buffer): void {
 		try {
-			FileUtils.ensureDirectoryExists(path.dirname(filepath));
+			fileSystem.ensureDirectoryExists(path.dirname(filepath));
 			writeFileSync(filepath, contents);
 		} catch (error) {
 			appLogger.error(error instanceof Error ? error.message : String(error));
@@ -148,7 +148,7 @@ export class FileUtils {
 		const files = readdirSync(path, { recursive: true });
 		for (const file of files) {
 			const ext = extname(file as string).slice(1);
-			if (extensionsToGzip.includes(ext)) FileUtils.gzipFileSync(`${path}/${file}`);
+			if (extensionsToGzip.includes(ext)) fileSystem.gzipFileSync(`${path}/${file}`);
 		}
 	}
 
@@ -157,7 +157,7 @@ export class FileUtils {
 	 * @param path
 	 */
 	static gzipFileSync(path: string) {
-		const data = FileUtils.getFileAsBuffer(path);
+		const data = fileSystem.getFileAsBuffer(path);
 		const compressedData = zlib.gzipSync(Buffer.from(data));
 		const gzipFile = `${path}.gz`;
 		writeFileSync(gzipFile, compressedData);
@@ -185,7 +185,7 @@ export class FileUtils {
 	 */
 	static getFileHash(path: string): string {
 		try {
-			const buffer = FileUtils.getFileAsBuffer(path);
+			const buffer = fileSystem.getFileAsBuffer(path);
 			return Bun.hash(buffer).toString();
 		} catch (error) {
 			appLogger.error(error instanceof Error ? error.message : String(error));
@@ -207,7 +207,7 @@ export class FileUtils {
 
 	static async getFileAsString(path: string): Promise<string> {
 		try {
-			FileUtils.verifyFileExists(path);
+			fileSystem.verifyFileExists(path);
 			return Bun.file(path).text();
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);

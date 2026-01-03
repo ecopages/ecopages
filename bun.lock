@@ -48,6 +48,7 @@
       "name": "@ecopages/core",
       "version": "0.1.54",
       "dependencies": {
+        "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
         "chokidar": "^4.0.3",
         "ghtml": "^3.1.2",
@@ -63,6 +64,23 @@
         "@ecopages/core": "workspace:*",
         "@ecopages/mdx": "workspace:*",
       },
+    },
+    "packages/file-system": {
+      "name": "@ecopages/file-system",
+      "version": "0.1.0",
+      "dependencies": {
+        "fast-glob": "^3.3.2",
+      },
+      "devDependencies": {
+        "@types/node": "^24",
+        "mitata": "^1.0.34",
+      },
+      "peerDependencies": {
+        "bun": ">=1.0.0",
+      },
+      "optionalPeers": [
+        "bun",
+      ],
     },
     "packages/integrations/kitajs": {
       "name": "@ecopages/kitajs",
@@ -155,6 +173,7 @@
       "name": "@ecopages/image-processor",
       "version": "0.1.54",
       "dependencies": {
+        "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
@@ -174,6 +193,7 @@
       "dependencies": {
         "@ecopages/bun-inline-css-plugin": "workspace:*",
         "@ecopages/core": "workspace:*",
+        "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
         "autoprefixer": "^10.4.0",
         "browserslist": "^4.28.1",
@@ -288,6 +308,8 @@
     "@ecopages/core": ["@ecopages/core@workspace:packages/core"],
 
     "@ecopages/docs": ["@ecopages/docs@workspace:apps/docs"],
+
+    "@ecopages/file-system": ["@ecopages/file-system@workspace:packages/file-system"],
 
     "@ecopages/fixture": ["@ecopages/fixture@workspace:packages/core/fixtures/app"],
 
@@ -821,7 +843,7 @@
 
     "@types/ms": ["@types/ms@2.1.0", "", {}, "sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA=="],
 
-    "@types/node": ["@types/node@16.18.126", "", {}, "sha512-OTcgaiwfGFBKacvfwuHzzn1KLxH/er8mluiy8/uM3sGXHaRe73RrSIj01jow9t4kJEW633Ov+cOexXeiApTyAw=="],
+    "@types/node": ["@types/node@24.10.4", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-vnDVpYPMzs4wunl27jHrfmwojOGKya0xyM3sH+UE5iv5uPS6vX7UIoh6m+vQc5LGBq52HBKPIn/zcSZVzeDEZg=="],
 
     "@types/postcss-import": ["@types/postcss-import@14.0.3", "", { "dependencies": { "postcss": "^8.0.0" } }, "sha512-raZhRVTf6Vw5+QbmQ7LOHSDML71A5rj4+EqDzAbrZPfxfoGzFxMHRCq16VlddGIZpHELw0BG4G0YE2ANkdZiIQ=="],
 
@@ -1333,6 +1355,8 @@
 
     "minipass": ["minipass@7.1.2", "", {}, "sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw=="],
 
+    "mitata": ["mitata@1.0.34", "", {}, "sha512-Mc3zrtNBKIMeHSCQ0XqRLo1vbdIx1wvFV9c8NJAiyho6AjNfMY8bVhbS12bwciUdd1t4rj8099CH3N3NFahaUA=="],
+
     "morphdom": ["morphdom@2.7.7", "", {}, "sha512-04GmsiBcalrSCNmzfo+UjU8tt3PhZJKzcOy+r1FlGA7/zri8wre3I1WkYN9PT3sIeIKfW9bpyElA+VzOg2E24g=="],
 
     "mrmime": ["mrmime@2.0.1", "", {}, "sha512-Y3wQdFg2Va6etvQ5I82yUhGdsKrcYox6p7FfL1LbK2J4V01F9TGlepTIhnK24t7koZibmg82KGglhA1XK5IsLQ=="],
@@ -1704,6 +1728,8 @@
     "@isaacs/cliui/string-width": ["string-width@5.1.2", "", { "dependencies": { "eastasianwidth": "^0.2.0", "emoji-regex": "^9.2.2", "strip-ansi": "^7.0.1" } }, "sha512-HnLOCR3vjcY8beoNLtcjZ5/nxn2afmME6lhrDrebokqMap+XbeW8n9TXpPDOqdGK5qcI3oT0GKTW6wC7EMiVqA=="],
 
     "@isaacs/cliui/wrap-ansi": ["wrap-ansi@8.1.0", "", { "dependencies": { "ansi-styles": "^6.1.0", "string-width": "^5.0.1", "strip-ansi": "^7.0.1" } }, "sha512-si7QWI6zUMq56bESFvagtmzMdGOtoxfR+Sez11Mobfc7tm+VkUckk9bW2UeffTGVUbOksxmSw0AA2gs8g71NCQ=="],
+
+    "@lit-labs/ssr/@types/node": ["@types/node@16.18.126", "", {}, "sha512-OTcgaiwfGFBKacvfwuHzzn1KLxH/er8mluiy8/uM3sGXHaRe73RrSIj01jow9t4kJEW633Ov+cOexXeiApTyAw=="],
 
     "@tailwindcss/node/jiti": ["jiti@2.6.1", "", { "bin": { "jiti": "lib/jiti-cli.mjs" } }, "sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ=="],
 

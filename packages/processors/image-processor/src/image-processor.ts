@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { deepMerge, FileUtils } from '@ecopages/core';
+import { deepMerge } from '@ecopages/core';
+import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
 import { ImageUtils } from './image-utils';
@@ -31,7 +32,7 @@ export class ImageProcessor {
 	) {
 		this.config = deepMerge({ cacheEnabled: true }, config);
 		this.cacheManager = cacheManager;
-		FileUtils.ensureDirectoryExists(this.config.outputDir);
+		fileSystem.ensureDir(this.config.outputDir);
 	}
 
 	private async calculateDimensions(metadata: sharp.Metadata, targetWidth: number) {
@@ -44,7 +45,7 @@ export class ImageProcessor {
 	}
 
 	private getOutputPath(imagePath: string, width: number) {
-		const hash = FileUtils.getFileHash(imagePath);
+		const hash = fileSystem.hash(imagePath);
 		const ext = path.extname(imagePath);
 		const base = path.basename(imagePath, ext);
 		const filename = `${base}-${hash}-${width}.${this.config.format}`;
@@ -53,7 +54,7 @@ export class ImageProcessor {
 
 	async processImage(imagePath: string): Promise<ImageSpecifications | null> {
 		try {
-			const fileHash = FileUtils.getFileHash(imagePath);
+			const fileHash = fileSystem.hash(imagePath);
 			const cacheKey = `${path.basename(imagePath)}:${fileHash}`;
 
 			if (this.config.cacheEnabled) {
@@ -65,9 +66,9 @@ export class ImageProcessor {
 					 * since the src in attributes is relative from the root
 					 */
 					const mainFilePath = path.join(process.cwd(), cached.attributes.src);
-					const mainFileExists = FileUtils.existsSync(mainFilePath);
+					const mainFileExists = fileSystem.exists(mainFilePath);
 					const variantsExist = cached.variants.every((v) =>
-						FileUtils.existsSync(path.join(process.cwd(), v.src)),
+						fileSystem.exists(path.join(process.cwd(), v.src)),
 					);
 
 					if (mainFileExists && variantsExist) {
@@ -79,7 +80,7 @@ export class ImageProcessor {
 				}
 			}
 
-			FileUtils.ensureDirectoryExists(this.config.outputDir);
+			fileSystem.ensureDir(this.config.outputDir);
 
 			const metadata = await sharp(imagePath).metadata();
 			const originalWidth = metadata.width || 0;
@@ -88,7 +89,7 @@ export class ImageProcessor {
 			if (this.config.sizes.length === 0) {
 				const outputPath = this.getOutputPath(imagePath, originalWidth);
 
-				if (FileUtils.existsSync(outputPath)) {
+				if (fileSystem.exists(outputPath)) {
 					appLogger.debug(`Using existing file for ${imagePath}`);
 				} else {
 					await sharp(imagePath)
@@ -129,7 +130,7 @@ export class ImageProcessor {
 					const { width, height } = await this.calculateDimensions(metadata, targetWidth);
 					const outputPath = this.getOutputPath(imagePath, width);
 
-					if (FileUtils.existsSync(outputPath)) {
+					if (fileSystem.exists(outputPath)) {
 						appLogger.debug(`Variant ${width}px already exists for ${imagePath}`);
 					} else {
 						await sharp(imagePath)
@@ -178,7 +179,7 @@ export class ImageProcessor {
 	async processDirectory(): Promise<ImageMap> {
 		const acceptedFormats = this.config.acceptedFormats || ['jpg', 'jpeg', 'png', 'webp'];
 
-		const images = await FileUtils.glob([`${this.config.sourceDir}/**/*.{${acceptedFormats.join(',')}}`]);
+		const images = await fileSystem.glob([`${this.config.sourceDir}/**/*.{${acceptedFormats.join(',')}}`]);
 
 		appLogger.debugTime('Processing images');
 

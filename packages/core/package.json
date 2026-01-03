@@ -22,6 +22,7 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
+		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "latest",
 		"chokidar": "^4.0.3",
 		"ghtml": "^3.1.2"

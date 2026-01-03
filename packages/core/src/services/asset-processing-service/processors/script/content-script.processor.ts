@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { FileUtils } from '../../../../utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types';
 import { BaseScriptProcessor } from '../base/base-script-processor';
 
@@ -12,7 +12,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		const filepath = path.join(this.getAssetsDir(), 'scripts', filename);
 
 		if (!shouldBundle) {
-			if (!dep.inline) FileUtils.write(filepath, dep.content);
+			if (!dep.inline) fileSystem.write(filepath, dep.content);
 			const unbundledProcessedAsset: ProcessedAsset = {
 				filepath,
 				content: dep.inline ? dep.content : undefined,
@@ -29,9 +29,9 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 
 		if (dep.content) {
 			const tempDir = this.appConfig.absolutePaths.distDir;
-			FileUtils.ensureDirectoryExists(tempDir);
+			fileSystem.ensureDir(tempDir);
 			const tempFileName = path.join(tempDir, filename);
-			FileUtils.write(tempFileName, dep.content);
+			fileSystem.write(tempFileName, dep.content);
 
 			const bundledFilePath = await this.bundleScript({
 				entrypoint: tempFileName,
@@ -42,7 +42,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 
 			const processedAsset: ProcessedAsset = {
 				filepath,
-				content: dep.inline ? FileUtils.readFileSync(bundledFilePath).toString() : undefined,
+				content: dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
 				srcUrl: bundledFilePath,
 				kind: 'script',
 				position: dep.position,
@@ -51,7 +51,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				excludeFromHtml: dep.excludeFromHtml,
 			};
 
-			FileUtils.rmSync(tempFileName);
+			fileSystem.rmSync(tempFileName);
 
 			this.writeCacheFile(filename, processedAsset);
 

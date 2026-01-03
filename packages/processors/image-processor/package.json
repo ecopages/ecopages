@@ -24,6 +24,7 @@
 		"@ecopages/core": "workspace:*"
 	},
 	"dependencies": {
+		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "latest",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../internal-types';
-import { FileUtils } from '../../utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 import type { HmrStrategy } from '../../hmr/hmr-strategy';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy';
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy';
@@ -34,7 +34,7 @@ export class HmrManager implements IHmrManager {
 	) {
 		this.bridge = bridge;
 		this.distDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, '_hmr');
-		FileUtils.ensureDirectoryExists(this.distDir);
+		fileSystem.ensureDir(this.distDir);
 		this.initializeStrategies();
 	}
 

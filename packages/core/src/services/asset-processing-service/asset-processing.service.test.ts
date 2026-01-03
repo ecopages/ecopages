@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
-import { FileUtils } from '../../utils/file-utils.module';
+import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
 
@@ -17,29 +17,29 @@ const mockProcessor = {
 	}),
 };
 
-const originalEnsureDirectoryExists = FileUtils.ensureDirectoryExists;
-const originalGzipDirSync = FileUtils.gzipDirSync;
-const originalWrite = FileUtils.write;
-const originalReadFileSync = FileUtils.readFileSync;
-const originalRmdirSync = FileUtils.rmdirSync;
-const originalExistsSync = FileUtils.existsSync;
+const originalEnsureDirectoryExists = fileSystem.ensureDir;
+const originalGzipDir = fileSystem.gzipDir;
+const originalWrite = fileSystem.write;
+const originalReadFileSync = fileSystem.readFileSync;
+const originalRemove = fileSystem.remove;
+const originalExists = fileSystem.exists;
 
 beforeEach(() => {
-	FileUtils.ensureDirectoryExists = mock(() => {});
-	FileUtils.gzipDirSync = mock(() => {});
-	FileUtils.write = mock(() => {});
-	FileUtils.readFileSync = mock(() => Buffer.from('') as any);
-	FileUtils.rmdirSync = mock(() => {});
-	FileUtils.existsSync = mock(() => false);
+	fileSystem.ensureDir = mock(() => {});
+	fileSystem.gzipDir = mock(() => {});
+	fileSystem.write = mock(() => {});
+	fileSystem.readFileSync = mock(() => Buffer.from('') as any);
+	fileSystem.remove = mock(() => {});
+	fileSystem.exists = mock(() => false);
 });
 
 afterEach(() => {
-	FileUtils.ensureDirectoryExists = originalEnsureDirectoryExists;
-	FileUtils.gzipDirSync = originalGzipDirSync;
-	FileUtils.write = originalWrite;
-	FileUtils.readFileSync = originalReadFileSync;
-	FileUtils.rmdirSync = originalRmdirSync;
-	FileUtils.existsSync = originalExistsSync;
+	fileSystem.ensureDir = originalEnsureDirectoryExists;
+	fileSystem.gzipDir = originalGzipDir;
+	fileSystem.write = originalWrite;
+	fileSystem.readFileSync = originalReadFileSync;
+	fileSystem.remove = originalRemove;
+	fileSystem.exists = originalExists;
 	mock.restore();
 });
 
@@ -75,8 +75,8 @@ test('AssetProcessingService - createWithDefaultProcessors', () => {
 test('AssetProcessingService - processDependencies - success', async () => {
 	const ensureDirMock = mock(() => {});
 	const gzipDirMock = mock(() => {});
-	FileUtils.ensureDirectoryExists = ensureDirMock;
-	FileUtils.gzipDirSync = gzipDirMock;
+	fileSystem.ensureDir = ensureDirMock;
+	fileSystem.gzipDir = gzipDirMock;
 
 	const service = new AssetProcessingService(mockConfig);
 	const mockProcessor1 = {
@@ -133,8 +133,8 @@ test('AssetProcessingService - processDependencies - processor not found', async
 	const ensureDirMock = mock(() => {});
 	const gzipDirMock = mock(() => {});
 
-	FileUtils.ensureDirectoryExists = ensureDirMock;
-	FileUtils.gzipDirSync = gzipDirMock;
+	fileSystem.ensureDir = ensureDirMock;
+	fileSystem.gzipDir = gzipDirMock;
 
 	const service = new AssetProcessingService(mockConfig);
 
@@ -151,8 +151,8 @@ test('AssetProcessingService - processDependencies - processor not found', async
 test('AssetProcessingService - processDependencies - error during processing', async () => {
 	const ensureDirMock = mock(() => {});
 	const gzipDirMock = mock(() => {});
-	FileUtils.ensureDirectoryExists = ensureDirMock;
-	FileUtils.gzipDirSync = gzipDirMock;
+	fileSystem.ensureDir = ensureDirMock;
+	fileSystem.gzipDir = gzipDirMock;
 
 	const service = new AssetProcessingService(mockConfig);
 	const erroringProcessor = {
@@ -180,8 +180,8 @@ test('AssetProcessingService - processDependencies - error during processing', a
 test('AssetProcessingService - processDependencies - handles undefined filepath for srcUrl', async () => {
 	const ensureDirMock = mock(() => {});
 	const gzipDirMock = mock(() => {});
-	FileUtils.ensureDirectoryExists = ensureDirMock;
-	FileUtils.gzipDirSync = gzipDirMock;
+	fileSystem.ensureDir = ensureDirMock;
+	fileSystem.gzipDir = gzipDirMock;
 
 	const service = new AssetProcessingService(mockConfig);
 	const mockProcessorInline = {

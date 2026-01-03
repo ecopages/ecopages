@@ -44,9 +44,12 @@ export class MdxHmrStrategy extends HmrStrategy {
 		let outputUrl = watchedFiles.get(filePath);
 
 		if (!outputUrl) {
-			const fileName = path.basename(filePath);
-			const outputFilename = fileName.replace(/\.mdx$/, '.js');
-			outputUrl = `/assets/_hmr/${outputFilename}`;
+			const srcDir = this.context.getSrcDir();
+			const relativePath = path.relative(srcDir, filePath);
+			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
+
+			const urlPath = relativePathJs.split(path.sep).join('/');
+			outputUrl = `/assets/_hmr/${urlPath}`;
 			watchedFiles.set(filePath, outputUrl);
 		}
 
@@ -77,14 +80,15 @@ export class MdxHmrStrategy extends HmrStrategy {
 	 */
 	private async bundleMdxEntrypoint(entrypointPath: string, outputUrl: string): Promise<boolean> {
 		try {
-			const fileName = path.basename(entrypointPath);
-			const outputFilename = fileName.replace(/\.mdx$/, '.js');
-			const outputPath = path.join(this.context.getDistDir(), outputFilename);
+			const srcDir = this.context.getSrcDir();
+			const relativePath = path.relative(srcDir, entrypointPath);
+			const relativePathJs = relativePath.replace(/\.mdx$/, '.js');
+			const outputPath = path.join(this.context.getDistDir(), relativePathJs);
 
 			const result = await Bun.build({
 				entrypoints: [entrypointPath],
 				outdir: this.context.getDistDir(),
-				naming: path.basename(outputPath),
+				naming: relativePathJs,
 				target: 'browser',
 				format: 'esm',
 				// @ts-expect-error: esbuild plugin type vs bun plugin type

@@ -6,7 +6,7 @@ import { query } from '@ecopages/radiant/decorators/query';
 import { BurgerEvents } from '@/components/burger/burger.events';
 
 @customElement('radiant-burger')
-export class RadiantCounter extends RadiantElement {
+export class RadiantBurger extends RadiantElement {
 	@query({ selector: 'button' }) burger!: HTMLButtonElement;
 
 	@onEvent({ selector: 'button', type: 'click' })

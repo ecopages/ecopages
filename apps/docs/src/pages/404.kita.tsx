@@ -1,9 +1,9 @@
-import { BaseLayout } from '@/layouts/base-layout';
+import { DocsLayout } from '@/layouts/docs-layout';
 import type { EcoComponent, Error404TemplateProps } from '@ecopages/core';
 
 const Error404: EcoComponent<Error404TemplateProps> = () => {
 	return (
-		<BaseLayout>
+		<DocsLayout>
 			<div class="error404">
 				<div class="error404__content">
 					<div class="error404__code" aria-hidden="true">
@@ -20,14 +20,14 @@ const Error404: EcoComponent<Error404TemplateProps> = () => {
 					</div>
 				</div>
 			</div>
-		</BaseLayout>
+		</DocsLayout>
 	);
 };
 
 Error404.config = {
 	dependencies: {
 		stylesheets: ['./404.css'],
-		components: [BaseLayout],
+		components: [DocsLayout],
 	},
 };
 

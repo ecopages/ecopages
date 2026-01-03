@@ -1,23 +1,16 @@
 import { describe, expect, it, mock, beforeAll, afterAll } from 'bun:test';
-import { ServerStaticBuilder, type ServeOptions } from './server-static-builder';
+import { ServerStaticBuilder } from '../shared/server-static-builder';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
+import type { BunServeAdapterServerOptions } from './server-adapter';
 import type { FSRouter } from '../../router/fs-router';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer';
+import type { ServeOptions } from '../shared/server-static-builder';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { StaticContentServer } from '../../dev/sc-server';
 
 const TMP_DIR = path.join(os.tmpdir(), 'server-static-builder-test');
-
-mock.module('../../dev/sc-server', () => ({
-	StaticContentServer: {
-		createServer: mock(() => ({
-			server: { port: 3000 },
-		})),
-	},
-}));
 
 function createMockDependencies() {
 	const mockStaticSiteGenerator = {
@@ -29,10 +22,10 @@ function createMockDependencies() {
 		distDir: 'dist',
 	} as unknown as EcoPagesAppConfig;
 
-	const mockServeOptions: ServeOptions = {
+	const mockServeOptions = {
 		hostname: 'localhost',
 		port: 3000,
-	};
+	} as unknown as BunServeAdapterServerOptions;
 
 	const mockRouter = {} as FSRouter;
 	const mockRouteRendererFactory = {} as RouteRendererFactory;
@@ -115,29 +108,6 @@ describe('ServerStaticBuilder', () => {
 					baseUrl: 'http://0.0.0.0:8080',
 				}),
 			);
-		});
-
-		it('should start preview server when preview option is true', async () => {
-			const { mockAppConfig, mockStaticSiteGenerator, mockServeOptions, mockRouter, mockRouteRendererFactory } =
-				createMockDependencies();
-
-			const builder = new ServerStaticBuilder({
-				appConfig: mockAppConfig,
-				staticSiteGenerator: mockStaticSiteGenerator,
-				serveOptions: mockServeOptions,
-			});
-
-			await builder.build(
-				{ preview: true },
-				{
-					router: mockRouter,
-					routeRendererFactory: mockRouteRendererFactory,
-				},
-			);
-
-			expect(StaticContentServer.createServer).toHaveBeenCalledWith({
-				appConfig: mockAppConfig,
-			});
 		});
 	});
 });

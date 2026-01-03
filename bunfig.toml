@@ -1,6 +1,6 @@
 [test]
 preload = ["./scripts/setup-test.ts"]
-exclude = ["**/*.test.browser.ts"]
+exclude = ["**/*.test.browser.ts", "**/*.test.e2e.ts"]
 
 [install.scopes]
 "@jsr" = "https://npm.jsr.io"

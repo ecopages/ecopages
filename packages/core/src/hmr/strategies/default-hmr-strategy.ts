@@ -48,11 +48,13 @@ export class DefaultHmrStrategy extends HmrStrategy {
 	async process(filePath: string): Promise<HmrAction> {
 		return {
 			type: 'broadcast',
-			event: {
-				type: 'reload',
-				path: filePath,
-				message: 'fallback-strategy',
-			},
+			events: [
+				{
+					type: 'reload',
+					path: filePath,
+					message: 'fallback-strategy',
+				},
+			],
 		};
 	}
 }

@@ -136,9 +136,11 @@ export class JsHmrStrategy extends HmrStrategy {
 				appLogger.debug(`[JsHmrStrategy] Full reload required (no HMR accept found)`);
 				return {
 					type: 'broadcast',
-					event: {
-						type: 'reload',
-					},
+					events: [
+						{
+							type: 'reload',
+						},
+					],
 				};
 			}
 

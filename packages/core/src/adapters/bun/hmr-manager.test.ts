@@ -39,7 +39,7 @@ class MockStrategy extends HmrStrategy {
 	async process(path: string): Promise<HmrAction> {
 		return {
 			type: 'broadcast',
-			event: { type: 'update', path, timestamp: 123 },
+			events: [{ type: 'update', path, timestamp: 123 }],
 		};
 	}
 }

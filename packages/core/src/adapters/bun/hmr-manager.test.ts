@@ -57,7 +57,10 @@ describe('HmrManager', () => {
 
 	beforeEach(() => {
 		mockBridge.broadcast = mock();
-		manager = new HmrManager(mockConfig as EcoPagesAppConfig, mockBridge as unknown as ClientBridge);
+		manager = new HmrManager({
+			appConfig: mockConfig as EcoPagesAppConfig,
+			bridge: mockBridge as unknown as ClientBridge,
+		});
 	});
 
 	it('should initialize with default strategies', async () => {

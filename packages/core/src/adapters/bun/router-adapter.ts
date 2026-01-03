@@ -3,15 +3,19 @@ import type { Route, Routes } from '../../internal-types.ts';
 import { AbstractRouterAdapter } from '../abstract/router-adapter.ts';
 import type { BunServerAdapter, BunServerRoutes } from './server-adapter.ts';
 
+export interface BunRouterAdapterParams {
+	serverAdapter: BunServerAdapter;
+}
+
 /**
  * Bun-specific router adapter
  */
 export class BunRouterAdapter extends AbstractRouterAdapter<BunServerRoutes> {
-	private bunServerAdapter: BunServerAdapter;
+	private serverAdapter: BunServerAdapter;
 
-	constructor(bunServerAdapter: BunServerAdapter) {
+	constructor({ serverAdapter }: BunRouterAdapterParams) {
 		super();
-		this.bunServerAdapter = bunServerAdapter;
+		this.serverAdapter = serverAdapter;
 	}
 
 	/**
@@ -39,7 +43,7 @@ export class BunRouterAdapter extends AbstractRouterAdapter<BunServerRoutes> {
 			});
 
 			try {
-				return await this.bunServerAdapter.handleRequest(req);
+				return await this.serverAdapter.handleRequest(req);
 			} catch (error) {
 				if (error instanceof Error) {
 					appLogger.error('[BunRouterAdapter] Error handling route:', {

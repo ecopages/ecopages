@@ -157,7 +157,6 @@ describe('StaticSiteGenerator', () => {
 
 			await ssg.generateStaticPages(mockRouter, 'http://localhost:3000', mockRendererFactory);
 
-			// Should only process static route, not dynamic
 			expect(writeMock).toHaveBeenCalledTimes(1);
 		});
 
@@ -184,7 +183,6 @@ describe('StaticSiteGenerator', () => {
 				'/page': { filePath: '/src/pages/page.ghtml.ts', pathname: '/page' },
 			});
 
-			// This should log an error but not throw (error is caught)
 			await ssg.generateStaticPages(mockRouter, 'http://localhost:3000', undefined);
 		});
 

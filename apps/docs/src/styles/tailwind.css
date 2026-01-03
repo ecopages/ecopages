@@ -1,108 +1,11 @@
+@import 'tailwindcss';
+@import './theme.css';
+@import './fonts.css';
 @import './components/prose.css';
 @import './components/button.css';
 @import './vendor/shiki.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
-	--color-night-sky-50-hsla: 225 100% 98%;
-	--color-night-sky-100-hsla: 225 100% 95%;
-	--color-night-sky-200-hsla: 225 100% 90%;
-	--color-night-sky-300-hsla: 225 90% 80%;
-	--color-night-sky-400-hsla: 225 90% 70%;
-	--color-night-sky-500-hsla: 225 85% 55%;
-	--color-night-sky-600-hsla: 225 85% 45%;
-	--color-night-sky-700-hsla: 225 90% 35%;
-	--color-night-sky-800-hsla: 225 90% 25%;
-	--color-night-sky-900-hsla: 225 80% 15%;
-	--color-night-sky-950-hsla: 225 80% 10%;
-
-	--color-scarlet-100-hsla: 353 100% 89%;
-	--color-scarlet-200-hsla: 351 100% 81%;
-	--color-scarlet-300-hsla: 350 100% 72%;
-	--color-scarlet-400-hsla: 350 100% 63%;
-	--color-scarlet-500-hsla: 350 100% 54%;
-	--color-scarlet-600-hsla: 350 84% 44%;
-	--color-scarlet-700-hsla: 351 83% 35%;
-	--color-scarlet-800-hsla: 351 81% 25%;
-	--color-scarlet-900-hsla: 353 76% 15%;
-	--color-scarlet-950-hsla: 8 60% 5%;
-
-	--color-glacier-white-50-hsla: 220 20% 99%;
-	--color-glacier-white-100-hsla: 220 20% 97%;
-	--color-glacier-white-200-hsla: 220 20% 94%;
-	--color-glacier-white-300-hsla: 220 15% 90%;
-	--color-glacier-white-400-hsla: 220 12% 80%;
-	--color-glacier-white-500-hsla: 220 10% 72%;
-	--color-glacier-white-600-hsla: 220 8% 58%;
-	--color-glacier-white-700-hsla: 220 10% 35%;
-	--color-glacier-white-800-hsla: 220 12% 25%;
-	--color-glacier-white-900-hsla: 225 15% 5%;
-	--color-glacier-white-950-hsla: 225 20% 2%;
-
-	--color-laser-lemon-50-hsla: 60 100% 98%;
-	--color-laser-lemon-100-hsla: 60 100% 88%;
-	--color-laser-lemon-200-hsla: 60 100% 79%;
-	--color-laser-lemon-300-hsla: 60 100% 69%;
-	--color-laser-lemon-400-hsla: 60 100% 60%;
-	--color-laser-lemon-500-hsla: 60 100% 50%;
-	--color-laser-lemon-600-hsla: 60 99% 41%;
-	--color-laser-lemon-700-hsla: 60 98% 32%;
-	--color-laser-lemon-800-hsla: 59 93% 23%;
-	--color-laser-lemon-900-hsla: 58 86% 14%;
-	--color-laser-lemon-950-hsla: 55 50% 5%;
-
-	--color-navy-blue-50-hsla: 223 64% 98%;
-	--color-navy-blue-100-hsla: 214 65% 88%;
-	--color-navy-blue-200-hsla: 212 67% 78%;
-	--color-navy-blue-300-hsla: 212 66% 68%;
-	--color-navy-blue-400-hsla: 212 67% 58%;
-	--color-navy-blue-500-hsla: 211 74% 47%;
-	--color-navy-blue-600-hsla: 212 73% 39%;
-	--color-navy-blue-700-hsla: 212 71% 30%;
-	--color-navy-blue-800-hsla: 212 69% 22%;
-	--color-navy-blue-900-hsla: 214 64% 13%;
-	--color-navy-blue-950-hsla: 225 36% 4%;
-
-	--background: var(--color-glacier-white-50-hsla);
-	--on-background: var(--color-glacier-white-900-hsla);
-	--background-accent: var(--color-glacier-white-100-hsla);
-	--on-background-accent: var(--color-glacier-white-950-hsla);
-	--primary-container: var(--color-night-sky-100-hsla);
-	--on-primary-container: var(--color-night-sky-900-hsla);
-	--primary: var(--color-night-sky-500-hsla);
-	--on-primary: var(--color-glacier-white-50-hsla);
-	--secondary: var(--color-scarlet-500-hsla);
-	--on-secondary: var(--color-glacier-white-50-hsla);
-
-	--border: var(--color-glacier-white-200-hsla);
-	--link: var(--color-navy-blue-700-hsla);
-
-	--background-code: var(--color-glacier-white-100-hsla);
-	--on-background-code: var(--color-laser-lemon-800-hsla);
-}
-
-html[data-theme='dark'] {
-	--background: var(--color-glacier-white-950-hsla);
-	--on-background: var(--color-glacier-white-50-hsla);
-	--background-accent: var(--color-glacier-white-900-hsla);
-	--on-background-accent: var(--color-glacier-white-50-hsla);
-	--primary-container: var(--color-night-sky-800-hsla);
-	--on-primary-container: var(--color-night-sky-50-hsla);
-	--primary: var(--color-night-sky-500-hsla);
-	--on-primary: var(--color-glacier-white-950-hsla);
-	--secondary: var(--color-scarlet-500-hsla);
-	--on-secondary: var(--color-glacier-white-950-hsla);
-
-	--border: var(--color-glacier-white-900-hsla);
-	--link: var(--color-navy-blue-400-hsla);
-
-	--background-code: var(--color-glacier-white-900-hsla);
-	--on-background-code: var(--color-laser-lemon-300-hsla);
-}
-
 body {
 	@apply bg-background text-on-background min-h-[100svh] w-screen overflow-x-hidden font-sans;
 }
+

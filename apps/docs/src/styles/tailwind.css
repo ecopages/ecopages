@@ -8,4 +8,3 @@
 body {
 	@apply bg-background text-on-background min-h-[100svh] w-screen overflow-x-hidden font-sans;
 }
-

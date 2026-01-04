@@ -7,7 +7,7 @@ import { createBunServerAdapter } from './server-adapter.ts';
 
 const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
 
-let server: Server;
+let server: Server<unknown>;
 
 describe('BunServerAdapter', () => {
 	beforeAll(async () => {
@@ -25,11 +25,11 @@ describe('BunServerAdapter', () => {
 					method: 'GET',
 					handler: async () => new Response('Hello World'),
 				}),
-				defineApiHandler<'/api/:id'>({
+				defineApiHandler({
 					path: '/api/:id',
 					method: 'GET',
 					handler: async ({ request }) => {
-						const { id } = request.params;
+						const { id } = request.params as { id: string };
 						return new Response(id);
 					},
 				}),
@@ -53,10 +53,25 @@ describe('BunServerAdapter', () => {
 					method: 'GET',
 					handler: async () => new Response('Catch all'),
 				}),
+				defineApiHandler({
+					path: '/api/multi-method',
+					method: 'GET',
+					handler: async () => new Response(JSON.stringify({ method: 'GET' })),
+				}),
+				defineApiHandler({
+					path: '/api/multi-method',
+					method: 'PUT',
+					handler: async () => new Response(JSON.stringify({ method: 'PUT' })),
+				}),
+				defineApiHandler({
+					path: '/api/multi-method',
+					method: 'POST',
+					handler: async () => new Response(JSON.stringify({ method: 'POST' })),
+				}),
 			],
 		});
 
-		server = Bun.serve(adapter.getServerOptions());
+		server = Bun.serve(adapter.getServerOptions() as Bun.Serve.Options<unknown>);
 		await adapter.completeInitialization(server);
 	});
 
@@ -126,5 +141,19 @@ describe('BunServerAdapter', () => {
 			expect(res.status).toBe(200);
 			expect(await res.text()).toBe('Hello World');
 		}
+	});
+
+	test('should handle multiple HTTP methods on the same path', async () => {
+		const getRes = await fetch('http://localhost:3001/api/multi-method', { method: 'GET' });
+		expect(getRes.status).toBe(200);
+		expect(await getRes.json()).toEqual({ method: 'GET' });
+
+		const putRes = await fetch('http://localhost:3001/api/multi-method', { method: 'PUT' });
+		expect(putRes.status).toBe(200);
+		expect(await putRes.json()).toEqual({ method: 'PUT' });
+
+		const postRes = await fetch('http://localhost:3001/api/multi-method', { method: 'POST' });
+		expect(postRes.status).toBe(200);
+		expect(await postRes.json()).toEqual({ method: 'POST' });
 	});
 });

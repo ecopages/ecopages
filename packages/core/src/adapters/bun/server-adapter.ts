@@ -312,6 +312,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 			};
 
 			mergedRoutes[path] = {
+				...mergedRoutes[path],
 				[method.toUpperCase()]: wrappedHandler,
 			};
 		}

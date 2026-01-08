@@ -125,12 +125,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const srcDir = this.context.getSrcDir();
 			const relativePath = path.relative(srcDir, entrypointPath);
 			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?)$/, '.js');
-			const outputPath = path.join(this.context.getDistDir(), relativePathJs);
+			const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
+			const outputPath = path.join(this.context.getDistDir(), encodedPathJs);
 
 			const result = await Bun.build({
 				entrypoints: [entrypointPath],
 				outdir: this.context.getDistDir(),
-				naming: relativePathJs,
+				naming: encodedPathJs,
 				target: 'browser',
 				format: 'esm',
 				plugins: this.context.getPlugins(),
@@ -149,6 +150,14 @@ export class ReactHmrStrategy extends HmrStrategy {
 			appLogger.error(`Error bundling ${entrypointPath}:`, error as Error);
 			return false;
 		}
+	}
+
+	/**
+	 * Encodes dynamic route segments (brackets) in file paths.
+	 * Converts `[slug]` to `_slug_` to avoid filesystem issues.
+	 */
+	private encodeDynamicSegments(filepath: string): string {
+		return filepath.replace(/\[([^\]]+)\]/g, '_$1_');
 	}
 
 	/**

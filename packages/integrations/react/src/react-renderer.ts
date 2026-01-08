@@ -68,12 +68,21 @@ import Component from "${importPath}";
 window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
 let root = null;
 
+const getPageProps = () => {
+  const el = document.getElementById("__ECO_PROPS__");
+  if (el?.textContent) {
+    try { return JSON.parse(el.textContent); } catch {}
+  }
+  return {};
+};
+
 const mount = () => {
-  root = hydrateRoot(document, createElement(Component));
+  const props = getPageProps();
+  root = hydrateRoot(document, createElement(Component, props));
   window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
     try {
       const newModule = await import(newUrl);
-      root.render(createElement(newModule.default));
+      root.render(createElement(newModule.default, props));
       console.log("[ecopages] React component updated");
     } catch (e) {
       console.error("[ecopages] Failed to hot-reload React component:", e);
@@ -89,7 +98,7 @@ if (document.readyState === "complete") {
 `.trim();
 		}
 
-		return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}"; const mount=()=>hr(document,ce(c)); if(document.readyState === 'complete'){mount()}else{window.onload=mount}`;
+		return `import {hydrateRoot as hr, createElement as ce} from "react-dom/client";import c from "${importPath}"; const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}}; const mount=()=>hr(document,ce(c,gp())); if(document.readyState === 'complete'){mount()}else{window.onload=mount}`;
 	}
 
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {

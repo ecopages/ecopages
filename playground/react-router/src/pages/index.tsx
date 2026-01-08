@@ -1,7 +1,6 @@
-import type { EcoComponent, GetMetadata } from '@ecopages/core';
-import type { JSX } from 'react';
+import type { GetMetadata } from '@ecopages/core';
+import { createPage } from '@ecopages/react-router';
 import { BaseLayout } from '@/layouts/base-layout';
-import { EcoReactRouter } from '@ecopages/react-router';
 
 export const getMetadata: GetMetadata = () => ({
 	title: 'Blog | EcoPages',
@@ -16,7 +15,7 @@ const posts = [
 
 const HomeContent = () => {
 	return (
-		<BaseLayout>
+		<>
 			<h1>Welcome</h1>
 			<p>A minimal blog exploring EcoPages with SPA navigation.</p>
 
@@ -34,26 +33,18 @@ const HomeContent = () => {
 				</h2>
 				<p>Learn about the EcoPages React Router.</p>
 			</article>
+			<article>
+				<h2>
+					<a href="/mdx-example">MDX Example</a>
+				</h2>
+				<p>See how MDX pages work with SPA navigation.</p>
+			</article>
 
 			<div style={{ marginTop: '3rem' }}></div>
-		</BaseLayout>
+		</>
 	);
 };
 
-const HomePage: EcoComponent<unknown, JSX.Element> = (props) => {
-	return (
-		<EcoReactRouter initialComponent={HomeContent} initialProps={props as Record<string, any>}>
-			{({ Component, props }) => <Component {...props} />}
-		</EcoReactRouter>
-	);
-};
-
-HomePage.config = {
-	dependencies: {
-		components: [BaseLayout],
-	},
-};
-
-export const Content = HomeContent;
-
-export default HomePage;
+export default createPage(HomeContent, (children) => <BaseLayout>{children}</BaseLayout>, {
+	dependencies: { components: [BaseLayout] },
+});

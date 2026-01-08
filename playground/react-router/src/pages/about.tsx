@@ -1,7 +1,6 @@
-import type { EcoComponent, GetMetadata } from '@ecopages/core';
-import type { JSX } from 'react';
+import type { GetMetadata } from '@ecopages/core';
+import { createPage } from '@ecopages/react-router';
 import { BaseLayout } from '@/layouts/base-layout';
-import { EcoReactRouter } from '@ecopages/react-router';
 
 export const getMetadata: GetMetadata = () => ({
 	title: 'About | Blog',
@@ -10,7 +9,7 @@ export const getMetadata: GetMetadata = () => ({
 
 const AboutContent = () => {
 	return (
-		<BaseLayout>
+		<>
 			<a href="/" className="back-link">
 				← Back to Blog
 			</a>
@@ -24,24 +23,10 @@ const AboutContent = () => {
 			</article>
 
 			<div style={{ marginTop: '3rem' }}></div>
-		</BaseLayout>
+		</>
 	);
 };
 
-const AboutPage: EcoComponent<unknown, JSX.Element> = (props) => {
-	return (
-		<EcoReactRouter initialComponent={AboutContent} initialProps={props as Record<string, any>}>
-			{({ Component, props }) => <Component {...props} />}
-		</EcoReactRouter>
-	);
-};
-
-AboutPage.config = {
-	dependencies: {
-		components: [BaseLayout],
-	},
-};
-
-export const Content = AboutContent;
-
-export default AboutPage;
+export default createPage(AboutContent, (children) => <BaseLayout>{children}</BaseLayout>, {
+	dependencies: { components: [BaseLayout] },
+});

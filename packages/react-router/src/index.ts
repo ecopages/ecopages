@@ -17,3 +17,6 @@ export type { EcoReactRouterOptions } from './types';
 export { morphHead } from './head-morpher';
 
 export type { PageState } from './navigation';
+
+export { createPage } from './create-page';
+export type { PageConfig, WrapperFn } from './create-page';

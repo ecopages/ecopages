@@ -1,7 +1,6 @@
-import type { EcoComponent, GetMetadata } from '@ecopages/core';
-import type { JSX } from 'react';
+import type { GetMetadata } from '@ecopages/core';
+import { createPage } from '@ecopages/react-router';
 import { BaseLayout } from '@/layouts/base-layout';
-import { EcoReactRouter } from '@ecopages/react-router';
 import { EcoImage } from '@ecopages/image-processor/component/react';
 import {
 	ezi76Gu53NklsuUnsplashJpg,
@@ -47,18 +46,18 @@ const PostContent = ({ params }: PostPageProps) => {
 
 	if (!post) {
 		return (
-			<BaseLayout>
+			<>
 				<h1>Post Not Found</h1>
 				<p>Slug: {slug || 'none'}</p>
 				<a href="/" className="back-link">
 					← Back to Blog
 				</a>
-			</BaseLayout>
+			</>
 		);
 	}
 
 	return (
-		<BaseLayout>
+		<>
 			<a href="/" className="back-link">
 				← Back to Blog
 			</a>
@@ -71,24 +70,10 @@ const PostContent = ({ params }: PostPageProps) => {
 			</article>
 
 			<div style={{ marginTop: '3rem' }}></div>
-		</BaseLayout>
+		</>
 	);
 };
 
-const PostPage: EcoComponent<PostPageProps, JSX.Element> = (props) => {
-	return (
-		<EcoReactRouter initialComponent={PostContent} initialProps={props}>
-			{({ Component, props }) => <Component {...props} />}
-		</EcoReactRouter>
-	);
-};
-
-PostPage.config = {
-	dependencies: {
-		components: [BaseLayout],
-	},
-};
-
-export const Content = PostContent;
-
-export default PostPage;
+export default createPage(PostContent, (children) => <BaseLayout>{children}</BaseLayout>, {
+	dependencies: { components: [BaseLayout] },
+});

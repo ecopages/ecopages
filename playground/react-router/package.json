@@ -16,7 +16,8 @@
 		"@ecopages/react-router": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"tailwindcss": "^3.4.19",
+		"@tailwindcss/postcss": "^4.1.18",
+		"tailwindcss": "^4.1.18",
 		"@types/react": "^19.0.0",
 		"@types/react-dom": "^19.0.0"
 	},

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
+import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { reactPlugin } from '@ecopages/react';
 import { mdxPlugin } from '@ecopages/mdx';
 
@@ -32,7 +32,11 @@ const config = await new ConfigBuilder()
 				],
 			},
 		}),
-		postcssProcessorPlugin(tailwindV3Preset()),
+		postcssProcessorPlugin(
+			tailwindV4Preset({
+				referencePath: path.resolve(import.meta.dir, 'src/styles/tailwind.css'),
+			}),
+		),
 	])
 	.setError404Template('404.tsx')
 	.setIncludesTemplates({

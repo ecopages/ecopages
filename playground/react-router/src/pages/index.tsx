@@ -1,6 +1,5 @@
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import type { JSX } from 'react';
-import { Counter } from '@/components/counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import { EcoReactRouter } from '@ecopages/react-router';
 
@@ -9,27 +8,34 @@ export const getMetadata: GetMetadata = () => ({
 	description: 'A simple blog built with EcoPages React Router',
 });
 
+const posts = [
+	{ slug: 'hello-world', title: 'Hello World', excerpt: 'Welcome to EcoPages!' },
+	{ slug: 'react-router', title: 'Building a React Router', excerpt: 'How we built SPA navigation.' },
+	{ slug: 'ssr-benefits', title: 'SSR Benefits', excerpt: 'Why server-side rendering matters.' },
+];
+
 const HomeContent = () => {
 	return (
 		<BaseLayout>
-			<h1>Blog</h1>
-			<p>Welcome to the EcoPages blog. Click a post to navigate via SPA.</p>
+			<h1>Welcome</h1>
+			<p>A minimal blog exploring EcoPages with SPA navigation.</p>
 
-			<div style={{ marginTop: '2rem' }}>
-				<article
-					style={{ marginBottom: '1.5rem', padding: '1rem', border: '1px solid #ddd', borderRadius: '8px' }}
-				>
+			{posts.map((post) => (
+				<article key={post.slug}>
 					<h2>
-						<a href="/about">About This Project</a>
+						<a href={`/posts/${post.slug}`}>{post.title}</a>
 					</h2>
-					<p style={{ color: '#666' }}>Learn about the EcoPages React Router.</p>
+					<p>{post.excerpt}</p>
 				</article>
-			</div>
+			))}
+			<article>
+				<h2>
+					<a href="/about">About This Project</a>
+				</h2>
+				<p>Learn about the EcoPages React Router.</p>
+			</article>
 
-			<hr style={{ margin: '2rem 0' }} />
-
-			<h3>Interactive Counter (proves React is hydrated)</h3>
-			<Counter defaultValue={0} />
+			<div style={{ marginTop: '3rem' }}></div>
 		</BaseLayout>
 	);
 };
@@ -44,7 +50,7 @@ const HomePage: EcoComponent<unknown, JSX.Element> = (props) => {
 
 HomePage.config = {
 	dependencies: {
-		components: [Counter, BaseLayout],
+		components: [BaseLayout],
 	},
 };
 

@@ -249,10 +249,10 @@ export interface PageMetadataProps {
 /**
  * Represents the props for the head of a page.
  */
-export interface PageHeadProps {
+export interface PageHeadProps<T = EcoPagesElement> {
 	metadata: PageMetadataProps;
 	dependencies?: EcoComponentDependencies;
-	children?: EcoPagesElement;
+	children?: T;
 }
 
 /**

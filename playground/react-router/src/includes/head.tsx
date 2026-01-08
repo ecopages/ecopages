@@ -1,11 +1,11 @@
 import type { EcoComponent, PageHeadProps } from '@ecopages/core';
-import type { JSX } from 'react';
+import type { ReactNode } from 'react';
 import { Seo } from '@/includes/seo';
 
 /**
  * @todo https://react.dev/blog/2024/04/25/react-19#support-for-preloading-resources
  */
-export const Head: EcoComponent<PageHeadProps, JSX.Element> = ({ metadata, children }) => {
+export const Head: EcoComponent<PageHeadProps<ReactNode>, ReactNode> = ({ metadata, children }) => {
 	return (
 		<head>
 			<meta charSet="UTF-8" />

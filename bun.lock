@@ -220,6 +220,17 @@
         "tailwindcss",
       ],
     },
+    "packages/react-router": {
+      "name": "@ecopages/react-router",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/react": "^19.0.0",
+        "react": "^19.0.0",
+      },
+      "peerDependencies": {
+        "react": "^18.0.0 || ^19.0.0",
+      },
+    },
     "playground/global": {
       "name": "@ecopages/playground-global",
       "devDependencies": {
@@ -261,9 +272,7 @@
     "playground/react-router": {
       "name": "@ecopages/playground-react-router",
       "dependencies": {
-        "@tanstack/react-table": "^8.20.6",
         "react": "^19.0.0",
-        "react-aria-components": "^1.6.0",
         "react-dom": "^19.0.0",
       },
       "devDependencies": {
@@ -272,6 +281,7 @@
         "@ecopages/postcss-processor": "workspace:*",
         "@ecopages/radiant": "^0.2.0",
         "@ecopages/react": "workspace:*",
+        "@ecopages/react-router": "workspace:*",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "tailwindcss": "^3.4.19",
@@ -357,6 +367,8 @@
     "@ecopages/radiant": ["@ecopages/radiant@0.2.0", "", { "dependencies": { "@kitajs/html": "^4.1.0" } }, "sha512-8S/eR/zhH4QF5ix8ZjDzaCM4/2IlhCopg/XFt3nei1yq+H4zXpC/6SR2Iz3bxj7pVeimsf96lJtnkP4FWyGC1w=="],
 
     "@ecopages/react": ["@ecopages/react@workspace:packages/integrations/react"],
+
+    "@ecopages/react-router": ["@ecopages/react-router@workspace:packages/react-router"],
 
     "@ecopages/scripts-injector": ["@ecopages/scripts-injector@0.1.2", "", { "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-ocdUcI5ZCYqvsfSKuqLMkr8uvdK3nwOGeTlf9nCb+ei0QuC4KU7cl3GliSYfdjgKxBeEadFkB4dfE6Juvj4MXQ=="],
 

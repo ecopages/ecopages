@@ -1,7 +1,7 @@
 import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
 import type { JSX } from 'react';
 import { Head } from '@/includes/head';
-import { EcoPropsScript } from '@/lib/react-router';
+import { EcoPropsScript } from '@ecopages/react-router';
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps, JSX.Element> = ({
 	children,

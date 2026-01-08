@@ -2,7 +2,7 @@ import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import type { JSX } from 'react';
 import { Counter } from '@/components/counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { EcoReactRouter } from '@/lib/react-router';
+import { EcoReactRouter } from '@ecopages/react-router';
 
 export const getMetadata: GetMetadata = () => ({
 	title: 'About | Blog',

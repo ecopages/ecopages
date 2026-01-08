@@ -167,6 +167,7 @@ if (document.readyState === "complete") {
 		metadata,
 		Page,
 		HtmlTemplate,
+		pageProps,
 	}: IntegrationRendererRenderOptions<JSX.Element>): Promise<RouteRendererBody> {
 		try {
 			return await renderToReadableStream(
@@ -174,6 +175,7 @@ if (document.readyState === "complete") {
 					HtmlTemplate,
 					{
 						metadata,
+						pageProps: pageProps || {},
 					} as HtmlTemplateProps,
 					createElement(Page, { params, query, ...props }),
 				),

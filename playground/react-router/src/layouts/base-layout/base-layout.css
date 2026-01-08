@@ -1,0 +1,27 @@
+body {
+	@apply bg-gray-50 min-h-screen;
+	font-family:
+		system-ui,
+		-apple-system,
+		sans-serif;
+}
+
+main {
+	@apply p-8 max-w-2xl mx-auto;
+}
+
+h1 {
+	@apply text-3xl font-bold mb-4;
+}
+
+h2 {
+	@apply text-xl font-semibold mb-2;
+}
+
+h3 {
+	@apply text-lg font-medium mb-2;
+}
+
+a {
+	@apply text-blue-600 hover:underline;
+}

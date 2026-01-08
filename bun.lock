@@ -40,7 +40,7 @@
     },
     "packages/browser-router": {
       "name": "@ecopages/browser-router",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "@ecopages/core": "workspace:*",
         "morphdom": "^2.7.4",
@@ -48,7 +48,7 @@
     },
     "packages/core": {
       "name": "@ecopages/core",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
@@ -69,7 +69,7 @@
     },
     "packages/file-system": {
       "name": "@ecopages/file-system",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "fast-glob": "^3.3.2",
       },
@@ -86,7 +86,7 @@
     },
     "packages/integrations/kitajs": {
       "name": "@ecopages/kitajs",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "@ecopages/core": "workspace:*",
         "@kitajs/html": "^4.1.0",
@@ -95,7 +95,7 @@
     },
     "packages/integrations/lit": {
       "name": "@ecopages/lit",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "@lit-labs/ssr": "^3.3.0",
         "@lit-labs/ssr-client": "^1.1.7",
@@ -107,7 +107,7 @@
     },
     "packages/integrations/mdx": {
       "name": "@ecopages/mdx",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "@mdx-js/esbuild": "^3.0.1",
         "@mdx-js/mdx": "^3.1.0",
@@ -127,7 +127,7 @@
     },
     "packages/integrations/react": {
       "name": "@ecopages/react",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "@ecopages/logger": "latest",
         "react": "^19.0.0",
@@ -143,7 +143,7 @@
     },
     "packages/loaders/bun-mdx-kitajs-loader": {
       "name": "@ecopages/bun-mdx-kitajs-loader",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "@mdx-js/esbuild": "^3.0.1",
       },
@@ -154,7 +154,7 @@
     },
     "packages/loaders/bun-postcss-loader": {
       "name": "@ecopages/bun-postcss-loader",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "@ecopages/postcss-processor": "workspace:*",
       },
@@ -164,7 +164,7 @@
     },
     "packages/plugins/bun-inline-css-plugin": {
       "name": "@ecopages/bun-inline-css-plugin",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "devDependencies": {
         "@ecopages/logger": "latest",
         "@ecopages/postcss-processor": "workspace:*",
@@ -173,7 +173,7 @@
     },
     "packages/processors/image-processor": {
       "name": "@ecopages/image-processor",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
@@ -191,7 +191,7 @@
     },
     "packages/processors/postcss-processor": {
       "name": "@ecopages/postcss-processor",
-      "version": "0.1.56",
+      "version": "0.1.57",
       "dependencies": {
         "@ecopages/bun-inline-css-plugin": "workspace:*",
         "@ecopages/core": "workspace:*",
@@ -241,6 +241,25 @@
     },
     "playground/react": {
       "name": "@ecopages/playground-react",
+      "dependencies": {
+        "@tanstack/react-table": "^8.20.6",
+        "react": "^19.0.0",
+        "react-aria-components": "^1.6.0",
+        "react-dom": "^19.0.0",
+      },
+      "devDependencies": {
+        "@ecopages/core": "workspace:*",
+        "@ecopages/image-processor": "workspace:*",
+        "@ecopages/postcss-processor": "workspace:*",
+        "@ecopages/radiant": "^0.2.0",
+        "@ecopages/react": "workspace:*",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "tailwindcss": "^3.4.19",
+      },
+    },
+    "playground/react-router": {
+      "name": "@ecopages/playground-react-router",
       "dependencies": {
         "@tanstack/react-table": "^8.20.6",
         "react": "^19.0.0",
@@ -328,6 +347,8 @@
     "@ecopages/playground-global": ["@ecopages/playground-global@workspace:playground/global"],
 
     "@ecopages/playground-react": ["@ecopages/playground-react@workspace:playground/react"],
+
+    "@ecopages/playground-react-router": ["@ecopages/playground-react-router@workspace:playground/react-router"],
 
     "@ecopages/playground-tailwind-v4": ["@ecopages/playground-tailwind-v4@workspace:playground/tailwind-v4"],
 

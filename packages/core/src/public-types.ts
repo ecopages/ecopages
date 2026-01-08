@@ -262,6 +262,7 @@ export interface HtmlTemplateProps extends PageHeadProps {
 	children: EcoPagesElement;
 	language?: string;
 	headContent?: EcoPagesElement;
+	pageProps: Record<string, unknown>;
 }
 
 /**
@@ -446,6 +447,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	Page: EcoComponent<PageProps, C>;
 	dependencies?: EcoComponentDependencies;
 	resolvedDependencies: ProcessedAsset[];
+	pageProps?: Record<string, unknown>;
 };
 
 /**

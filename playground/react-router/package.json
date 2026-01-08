@@ -1,0 +1,32 @@
+{
+	"name": "@ecopages/playground-react-router",
+	"private": true,
+	"scripts": {
+		"start": "NODE_ENV=production bun run app.ts",
+		"dev": "bun run app.ts --dev --react-fast-refresh",
+		"build": "NODE_ENV=production bun run app.ts --build",
+		"preview": "NODE_ENV=production bun run app.ts --preview",
+		"watch:dev": "bun --watch run app.ts --dev",
+		"hot:dev": "bun --hot run app.ts --dev"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/radiant": "^0.2.0",
+		"@ecopages/react": "workspace:*",
+		"@ecopages/image-processor": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
+		"tailwindcss": "^3.4.19",
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0"
+	},
+	"dependencies": {
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"react-aria-components": "^1.6.0",
+		"@tanstack/react-table": "^8.20.6"
+	},
+	"overrides": {
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0"
+	}
+}

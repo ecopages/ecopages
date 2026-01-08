@@ -343,6 +343,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		this.htmlTransformer.setProcessedDependencies(allDependencies);
 
+		const pageProps = {
+			...props,
+			params: options.params || {},
+			query: options.query || {},
+		};
+
 		return {
 			...options,
 			...integrationSpecificProps,
@@ -353,6 +359,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			metadata,
 			params: options.params || {},
 			query: options.query || {},
+			pageProps,
 		};
 	}
 

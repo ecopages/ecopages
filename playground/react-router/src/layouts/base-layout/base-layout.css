@@ -1,4 +1,3 @@
-/* Base styles - Modern, Slick, Minimal */
 :root {
 	--text-lg: 1.75rem;
 	--text-base: 1rem;
@@ -29,8 +28,6 @@ main {
 	padding: var(--space-lg) var(--space);
 }
 
-/* Images - Editorial Float */
-/* Images - Clean Block */
 .post-image-container {
 	margin: 0 0 var(--space) 0;
 	width: 100%;
@@ -53,7 +50,6 @@ main {
 	}
 }
 
-/* Typography - Modern & Editorial */
 h1 {
 	font-family: var(--font-serif);
 	font-size: 2.5rem;
@@ -97,7 +93,6 @@ hr {
 	margin: var(--space-lg) 0;
 }
 
-/* Modern Card / Content styling - Clean, no borders */
 article {
 	margin-bottom: var(--space_lg);
 	transition: transform 0.2s ease;
@@ -129,7 +124,6 @@ article p {
 	line-height: 1.6;
 }
 
-/* Images */
 img {
 	border-radius: var(--radius);
 	width: 100%;
@@ -138,7 +132,6 @@ img {
 	margin-bottom: var(--space);
 }
 
-/* Back link styling */
 .back-link {
 	display: inline-flex;
 	align-items: center;
@@ -154,7 +147,6 @@ img {
 	transform: translateX(-4px);
 }
 
-/* Header with theme toggle */
 .site-header {
 	display: flex;
 	justify-content: space-between;
@@ -177,7 +169,6 @@ img {
 	color: var(--color-text);
 }
 
-/* Post Content Layout */
 .post-content {
 	margin-top: var(--space);
 }
@@ -187,7 +178,6 @@ img {
 	margin-bottom: var(--space);
 }
 
-/* Selection */
 ::selection {
 	background: var(--color-accent-subtle);
 	color: var(--color-accent);

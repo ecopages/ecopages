@@ -67,14 +67,15 @@ const PostPage: EcoComponent<PostPageProps> = ({ params }) => {
 				</div>
 				<p>{post.content}</p>
 			</article>
-
-			<div style={{ marginTop: '3rem' }}></div>
 		</>
 	);
 };
 
 PostPage.config = {
 	layout: BaseLayout,
+	dependencies: {
+		stylesheets: ['./post.css'],
+	},
 };
 
 export default PostPage;

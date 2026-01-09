@@ -1,0 +1,30 @@
+.post-image-container {
+	margin: 0 0 var(--space) 0;
+	width: 100%;
+	display: flex;
+	justify-content: flex-start;
+}
+
+.post-image-container img {
+	border-radius: var(--radius);
+	width: 100%;
+	max-width: 100%;
+	height: auto;
+	display: block;
+	box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+}
+
+@media (min-width: 640px) {
+	.post-image-container {
+		max-width: 32rem;
+	}
+}
+
+.post-content {
+	margin-top: var(--space);
+}
+
+.post-content p {
+	font-size: 1.125rem;
+	margin-bottom: var(--space);
+}

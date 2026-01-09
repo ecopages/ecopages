@@ -18,6 +18,12 @@ export const BaseLayout: EcoComponent<BaseLayoutProps, ReactNode> = ({ children,
 				<ThemeToggle />
 			</header>
 			{children}
+			<footer className="site-footer">
+				<p>{'© ' + new Date().getFullYear()} EcoBlog. Built with EcoPages.</p>
+				<a href="https://github.com/AmbientEarth/ecopages" target="_blank" rel="noopener noreferrer">
+					GitHub
+				</a>
+			</footer>
 		</main>
 	);
 };

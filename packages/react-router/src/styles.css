@@ -1,0 +1,28 @@
+/**
+ * Default View Transition CSS for EcoPages React Router
+ * 
+ * Import this file in your CSS:
+ * @import '@ecopages/react-router/styles.css';
+ */
+
+/* Simple crossfade for root (background) */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 250ms;
+	animation-timing-function: ease-out;
+}
+
+/* Shared element transitions animate position/size smoothly */
+::view-transition-group(*) {
+	animation-duration: 300ms;
+	animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+	::view-transition-group(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none !important;
+	}
+}

@@ -1,5 +1,11 @@
 import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
+import { EcoImage } from '@ecopages/image-processor/component/react';
+import {
+	ezi76Gu53NklsuUnsplashJpg,
+	theodorePoncetQzephogqd7WUnsplashJpg,
+	urbanVintage78A265Wpio4UnsplashJpg,
+} from 'ecopages:images';
 
 export const getMetadata: GetMetadata = () => ({
 	title: 'Blog | EcoPages',
@@ -7,9 +13,24 @@ export const getMetadata: GetMetadata = () => ({
 });
 
 const posts = [
-	{ slug: 'hello-world', title: 'Hello World', excerpt: 'Welcome to EcoPages!' },
-	{ slug: 'react-router', title: 'Building a React Router', excerpt: 'How we built SPA navigation.' },
-	{ slug: 'ssr-benefits', title: 'SSR Benefits', excerpt: 'Why server-side rendering matters.' },
+	{
+		slug: 'hello-world',
+		title: 'Hello World',
+		excerpt: 'Welcome to EcoPages!',
+		image: ezi76Gu53NklsuUnsplashJpg,
+	},
+	{
+		slug: 'react-router',
+		title: 'Building a React Router',
+		excerpt: 'How we built SPA navigation.',
+		image: theodorePoncetQzephogqd7WUnsplashJpg,
+	},
+	{
+		slug: 'ssr-benefits',
+		title: 'SSR Benefits',
+		excerpt: 'Why server-side rendering matters.',
+		image: urbanVintage78A265Wpio4UnsplashJpg,
+	},
 ];
 
 const HomePage: EcoComponent = () => {
@@ -19,11 +40,16 @@ const HomePage: EcoComponent = () => {
 			<p>A minimal blog exploring EcoPages with SPA navigation.</p>
 
 			{posts.map((post) => (
-				<article key={post.slug}>
-					<h2>
-						<a href={`/posts/${post.slug}`}>{post.title}</a>
-					</h2>
-					<p>{post.excerpt}</p>
+				<article key={post.slug} className="post-card">
+					<a href={`/posts/${post.slug}`} className="post-card-link">
+						<div className="post-card-image" data-slug={post.slug}>
+							<EcoImage {...post.image} alt={post.title} />
+						</div>
+						<div className="post-card-content">
+							<h2>{post.title}</h2>
+							<p>{post.excerpt}</p>
+						</div>
+					</a>
 				</article>
 			))}
 			<article>
@@ -46,6 +72,9 @@ const HomePage: EcoComponent = () => {
 
 HomePage.config = {
 	layout: BaseLayout,
+	dependencies: {
+		stylesheets: ['./index.css'],
+	},
 };
 
 export default HomePage;

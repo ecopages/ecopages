@@ -4,15 +4,12 @@
  */
 
 import type { ComponentType } from 'react';
-import type { EcoReactRouterOptions } from './types';
-import { morphHead } from './head-morpher';
+import type { EcoRouterOptions } from './types';
 
 export type PageState = {
 	Component: ComponentType<any>;
 	props: Record<string, any>;
 };
-
-export const componentCache = new Map<string, PageState>();
 
 /**
  * Extracts serialized page props from the target document.
@@ -24,7 +21,7 @@ export function extractProps(doc: Document): Record<string, any> {
 	try {
 		return JSON.parse(propsScript.textContent);
 	} catch {
-		console.error('[EcoReactRouter] Failed to parse props');
+		console.error('[EcoRouter] Failed to parse props');
 		return {};
 	}
 }
@@ -48,38 +45,42 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 
 		return (defaultImport || namespaceImport)?.[2] ?? null;
 	} catch {
-		console.error('[EcoReactRouter] Failed to fetch hydration script');
+		console.error('[EcoRouter] Failed to fetch hydration script');
 		return null;
 	}
 }
 
 /**
- * Fetches and parses a page, returning its component and props.
+ * Fetches and parses a page, returning its component, props, and parsed document.
+ * Does NOT apply side effects (like updating <head>).
+ * @returns Object containing the Component, props, and parsed Document.
  */
-export async function loadPageModule(url: string): Promise<PageState | null> {
+export async function loadPageModule(
+	url: string,
+): Promise<{ Component: ComponentType<any>; props: Record<string, any>; doc: Document } | null> {
 	try {
 		const res = await fetch(url);
 		const html = await res.text();
 
-		const parser = new DOMParser();
-		const doc = parser.parseFromString(html, 'text/html');
+		const doc = new DOMParser().parseFromString(html, 'text/html');
 
-		morphHead(doc);
+		// Note: We don't call morphHead(doc) here anymore.
+		// It must be called by the router inside the view transition callback.
 
 		const props = extractProps(doc);
 		const componentUrl = await extractComponentUrl(doc);
 
 		if (!componentUrl) {
-			console.error('[EcoReactRouter] Could not find component URL');
+			console.error('[EcoRouter] Could not find component URL');
 			return null;
 		}
 
 		const module = await import(componentUrl);
 		const Component = module.Content || module.default?.Content || module.default;
 
-		return { Component, props };
+		return { Component, props, doc };
 	} catch (e) {
-		console.error('[EcoReactRouter] Navigation failed:', e);
+		console.error('[EcoRouter] Navigation failed:', e);
 		return null;
 	}
 }
@@ -90,7 +91,7 @@ export async function loadPageModule(url: string): Promise<PageState | null> {
 export function shouldInterceptClick(
 	event: MouseEvent,
 	link: HTMLAnchorElement,
-	options: Required<EcoReactRouterOptions>,
+	options: Required<EcoRouterOptions>,
 ): boolean {
 	if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
 	if (event.button !== 0) return false;

@@ -1,0 +1,51 @@
+.post-card {
+	margin-bottom: var(--space);
+}
+
+.post-card-link {
+	display: flex;
+	gap: var(--space);
+	text-decoration: none;
+	color: inherit;
+	align-items: flex-start;
+}
+
+.post-card-link:hover h2 {
+	text-decoration: underline;
+}
+
+.post-card-image {
+	flex-shrink: 0;
+	width: 120px;
+	height: 80px;
+	overflow: hidden;
+	border-radius: var(--radius);
+}
+
+/* View transition names for shared element animation */
+.post-card-image[data-slug="hello-world"] { view-transition-name: hero-image-hello-world; }
+.post-card-image[data-slug="react-router"] { view-transition-name: hero-image-react-router; }
+.post-card-image[data-slug="ssr-benefits"] { view-transition-name: hero-image-ssr-benefits; }
+
+.post-card-image img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.post-card-content h2 {
+	margin: 0 0 var(--space-sm) 0;
+	font-size: 1.25rem;
+}
+
+.post-card-content p {
+	margin: 0;
+	color: var(--color-text-muted, #666);
+}
+
+@media (min-width: 640px) {
+	.post-card-image {
+		width: 160px;
+		height: 100px;
+	}
+}

@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './theme.css';
+@import '../../../../packages/react-router/src/styles.css';
 
 :root {
 	--text-lg: 1.75rem;
@@ -9,10 +10,6 @@
 	--space-sm: 0.75rem;
 	--space-lg: 3rem;
 	--radius: 0;
-}
-
-html {
-	transition: opacity 0.1s ease;
 }
 
 body {

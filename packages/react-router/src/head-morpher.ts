@@ -37,9 +37,26 @@ function getHeadElementKey(el: Element): string | null {
 			return src ? `script:${src}` : null;
 		}
 
+		case 'style': {
+			const dataId = el.getAttribute('data-eco-style');
+			if (dataId) return `style:${dataId}`;
+			const content = el.textContent || '';
+			return `style:${hashString(content)}`;
+		}
+
 		default:
 			return null;
 	}
+}
+
+function hashString(str: string): string {
+	let hash = 0;
+	for (let i = 0; i < str.length; i++) {
+		const char = str.charCodeAt(i);
+		hash = (hash << 5) - hash + char;
+		hash = hash & hash;
+	}
+	return hash.toString(36);
 }
 
 /**
@@ -48,13 +65,15 @@ function getHeadElementKey(el: Element): string | null {
  * and re-execution of scripts.
  *
  * @param newDocument - The parsed document from the navigation target
+ * @returns Promise that resolves when all new stylesheets have loaded
  */
-export function morphHead(newDocument: Document): void {
+export async function morphHead(newDocument: Document): Promise<void> {
 	const currentHead = document.head;
 	const newHead = newDocument.head;
 
 	const currentElements = new Map<string, Element>();
 	const newElements = new Map<string, Element>();
+	const stylesheetPromises: Promise<void>[] = [];
 
 	for (const el of Array.from(currentHead.children)) {
 		const key = getHeadElementKey(el);
@@ -79,8 +98,20 @@ export function morphHead(newDocument: Document): void {
 		const currentEl = currentElements.get(key);
 
 		if (!currentEl) {
-			currentHead.appendChild(newEl.cloneNode(true));
+			const cloned = newEl.cloneNode(true) as Element;
+
+			if (cloned.tagName === 'LINK' && (cloned as HTMLLinkElement).rel === 'stylesheet') {
+				const loadPromise = new Promise<void>((resolve) => {
+					(cloned as HTMLLinkElement).onload = () => resolve();
+					(cloned as HTMLLinkElement).onerror = () => resolve();
+				});
+				stylesheetPromises.push(loadPromise);
+			}
+
+			currentHead.appendChild(cloned);
 		} else if (key === 'title' && currentEl.textContent !== newEl.textContent) {
+			currentEl.textContent = newEl.textContent;
+		} else if (key.startsWith('style:') && currentEl.textContent !== newEl.textContent) {
 			currentEl.textContent = newEl.textContent;
 		}
 	}
@@ -90,5 +121,9 @@ export function morphHead(newDocument: Document): void {
 		if (!key) {
 			currentHead.appendChild(newEl.cloneNode(true));
 		}
+	}
+
+	if (stylesheetPromises.length > 0) {
+		await Promise.all(stylesheetPromises);
 	}
 }

@@ -62,7 +62,7 @@ const PostPage: EcoComponent<PostPageProps> = ({ params }) => {
 			</a>
 			<article className="post-content">
 				<h1>{post.title}</h1>
-				<div className="post-image-container">
+				<div className="post-image-container" data-slug={slug}>
 					<EcoImage {...post.image} alt={post.title} />
 				</div>
 				<p>{post.content}</p>

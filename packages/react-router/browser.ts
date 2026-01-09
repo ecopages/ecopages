@@ -4,8 +4,8 @@
  * @module
  */
 
-export { EcoRouter, PageContent, EcoReactRouter } from './src/router';
-export type { EcoRouterProps, EcoReactRouterProps } from './src/router';
+export { EcoRouter, PageContent } from './src/router';
+export type { EcoRouterProps } from './src/router';
 
 export { useRouter } from './src/context';
 export type { RouterContextValue } from './src/context';

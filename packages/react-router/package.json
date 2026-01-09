@@ -14,7 +14,8 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./browser": "./browser.ts"
+		"./browser": "./browser.ts",
+		"./styles.css": "./src/styles.css"
 	},
 	"files": [
 		"src",

@@ -7,19 +7,19 @@ import { createContext, useContext } from 'react';
 
 export type RouterContextValue = {
 	navigate: (url: string) => void;
-	isPending: boolean;
+	isNavigating: boolean;
 };
 
 export const RouterContext = createContext<RouterContextValue | null>(null);
 
 /**
- * Hook to access the router's navigate function and pending state.
- * Must be used within an EcoReactRouter.
+ * Hook to access the router's navigate function and navigation state.
+ * Must be used within an EcoRouter.
  *
- * @throws Error if used outside of EcoReactRouter
+ * @throws Error if used outside of EcoRouter
  */
 export const useRouter = (): RouterContextValue => {
 	const context = useContext(RouterContext);
-	if (!context) throw new Error('useRouter must be used within EcoReactRouter');
+	if (!context) throw new Error('useRouter must be used within EcoRouter');
 	return context;
 };

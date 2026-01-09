@@ -1,7 +1,7 @@
 /**
- * Configuration options for the EcoReactRouter
+ * Configuration options for the EcoRouter
  */
-export interface EcoReactRouterOptions {
+export interface EcoRouterOptions {
 	/**
 	 * CSS selector for links to intercept
 	 * @default 'a[href]'
@@ -21,7 +21,7 @@ export interface EcoReactRouterOptions {
 	debug?: boolean;
 }
 
-export const DEFAULT_OPTIONS: Required<EcoReactRouterOptions> = {
+export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	linkSelector: 'a[href]',
 	reloadAttribute: 'data-eco-reload',
 	debug: false,

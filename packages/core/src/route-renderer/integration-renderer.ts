@@ -335,7 +335,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			query: options.query ?? {},
 		} as GetMetadataContext);
 
-		const resolvedDependencies = await this.resolveDependencies([HtmlTemplate, Page]);
+		const Layout = Page.config?.layout;
+
+		const componentsToResolve = Layout ? [HtmlTemplate, Layout, Page] : [HtmlTemplate, Page];
+		const resolvedDependencies = await this.resolveDependencies(componentsToResolve);
 
 		const pageDeps = (await this.buildRouteRenderAssets(options.file)) || [];
 
@@ -354,6 +357,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			...integrationSpecificProps,
 			resolvedDependencies,
 			HtmlTemplate,
+			Layout,
 			props,
 			Page: Page as EcoFunctionComponent<StaticPageContext, EcoPagesElement>,
 			metadata,

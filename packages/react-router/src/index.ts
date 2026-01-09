@@ -3,8 +3,8 @@
  * @module
  */
 
-export { EcoReactRouter } from './router';
-export type { EcoReactRouterProps } from './router';
+export { EcoRouter, PageContent, EcoReactRouter } from './router';
+export type { EcoRouterProps, EcoReactRouterProps } from './router';
 
 export { EcoPropsScript } from './props-script';
 export type { EcoPropsScriptProps } from './props-script';
@@ -18,5 +18,4 @@ export { morphHead } from './head-morpher';
 
 export type { PageState } from './navigation';
 
-export { createPage } from './create-page';
-export type { PageConfig, WrapperFn } from './create-page';
+export { ecoRouter } from './adapter';

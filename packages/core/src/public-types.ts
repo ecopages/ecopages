@@ -163,6 +163,35 @@ export type EcoComponentConfig = {
 	 * This is auto-injected by the eco-component-dir-plugin at load time.
 	 */
 	componentDir?: string;
+	/**
+	 * The layout component to wrap this page during rendering.
+	 *
+	 * The layout receives the page content as `children` and is responsible for
+	 * providing the page structure (header, footer, navigation, etc.).
+	 *
+	 * For React pages with client-side routing, the layout also handles the router context.
+	 * Use `EcoRouter` and `PageContent` from `@ecopages/react-router` in layouts that
+	 * need SPA navigation support.
+	 *
+	 * @example
+	 * ```tsx
+	 * // Simple layout (no routing)
+	 * const Layout = ({ children }) => <main>{children}</main>;
+	 *
+	 * // Layout with SPA routing
+	 * const Layout = ({ children }) => (
+	 *   <EcoRouter page={...} pageProps={...}>
+	 *     <Header />
+	 *     <PageContent />
+	 *   </EcoRouter>
+	 * );
+	 *
+	 * // Page using the layout
+	 * const MyPage = () => <h1>Hello</h1>;
+	 * MyPage.config = { layout: Layout };
+	 * ```
+	 */
+	layout?: EcoComponent;
 	dependencies?: EcoComponentDependencies;
 };
 
@@ -445,6 +474,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	metadata: PageMetadataProps;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps, C>;
 	Page: EcoComponent<PageProps, C>;
+	Layout?: EcoComponent;
 	dependencies?: EcoComponentDependencies;
 	resolvedDependencies: ProcessedAsset[];
 	pageProps?: Record<string, unknown>;

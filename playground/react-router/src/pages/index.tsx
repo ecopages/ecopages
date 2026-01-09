@@ -1,5 +1,4 @@
-import type { GetMetadata } from '@ecopages/core';
-import { createPage } from '@ecopages/react-router';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 
 export const getMetadata: GetMetadata = () => ({
@@ -13,7 +12,7 @@ const posts = [
 	{ slug: 'ssr-benefits', title: 'SSR Benefits', excerpt: 'Why server-side rendering matters.' },
 ];
 
-const HomeContent = () => {
+const HomePage: EcoComponent = () => {
 	return (
 		<>
 			<h1>Welcome</h1>
@@ -45,6 +44,8 @@ const HomeContent = () => {
 	);
 };
 
-export default createPage(HomeContent, (children) => <BaseLayout>{children}</BaseLayout>, {
-	dependencies: { components: [BaseLayout] },
-});
+HomePage.config = {
+	layout: BaseLayout,
+};
+
+export default HomePage;

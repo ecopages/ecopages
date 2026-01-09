@@ -1,5 +1,4 @@
-import type { GetMetadata } from '@ecopages/core';
-import { createPage } from '@ecopages/react-router';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { EcoImage } from '@ecopages/image-processor/component/react';
 import {
@@ -40,7 +39,7 @@ type PostPageProps = {
 	query: Record<string, string>;
 };
 
-const PostContent = ({ params }: PostPageProps) => {
+const PostPage: EcoComponent<PostPageProps> = ({ params }) => {
 	const slug = params?.slug;
 	const post = slug ? postsData[slug] : null;
 
@@ -74,6 +73,8 @@ const PostContent = ({ params }: PostPageProps) => {
 	);
 };
 
-export default createPage(PostContent, (children) => <BaseLayout>{children}</BaseLayout>, {
-	dependencies: { components: [BaseLayout] },
-});
+PostPage.config = {
+	layout: BaseLayout,
+};
+
+export default PostPage;

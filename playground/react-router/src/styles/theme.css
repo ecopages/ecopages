@@ -5,23 +5,30 @@
 
 /* Fonts */
 @font-face {
-	font-family: 'Nunito Sans';
-	src: url('/fonts/NunitoSans-Variable.woff2') format('woff2-variations');
-	font-weight: 200 900;
-	font-display: swap;
-}
-
-@font-face {
-	font-family: 'Zilla Slab';
-	src: url('/fonts/ZillaSlab-Regular.woff2') format('woff2');
+	font-family: 'Alegreya Sans';
+	src: url('/public/assets/fonts/alegreya-sans-latin-400-normal.woff2') format('woff2');
 	font-weight: 400;
 	font-display: swap;
 }
 
 @font-face {
-	font-family: 'Zilla Slab';
-	src: url('/fonts/ZillaSlab-SemiBold.woff2') format('woff2');
-	font-weight: 600;
+	font-family: 'Alegreya Sans';
+	src: url('/public/assets/fonts/alegreya-sans-latin-500-normal.woff2') format('woff2');
+	font-weight: 500;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Alegreya Sans';
+	src: url('/public/assets/fonts/alegreya-sans-latin-700-normal.woff2') format('woff2');
+	font-weight: 700;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Cambo';
+	src: url('/public/assets/fonts/cambo-latin-400-normal.woff2') format('woff2');
+	font-weight: 400;
 	font-display: swap;
 }
 
@@ -50,8 +57,8 @@
 	--color-border: oklch(0.92 0 0);
 
 	/* Typography System */
-	--font-sans: 'Nunito Sans', system-ui, -apple-system, sans-serif;
-	--font-serif: 'Zilla Slab', Georgia, serif;
+	--font-sans: 'Alegreya Sans', system-ui, -apple-system, sans-serif;
+	--font-serif: 'Cambo', Georgia, serif;
 }
 
 /* Dark Mode Overrides - Deep, rich, slick dark theme */

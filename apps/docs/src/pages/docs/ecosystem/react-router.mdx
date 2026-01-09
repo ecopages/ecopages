@@ -1,0 +1,219 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
+
+export const layout = DocsLayout;
+
+export const getMetadata = () => ({
+  title: 'Docs | React Router',
+  description: 'Add SPA navigation to your EcoPages React applications',
+});
+
+
+# React Router
+
+The `@ecopages/react-router` package enables Single Page Application (SPA) navigation for EcoPages React applications. It provides seamless client-side navigation while preserving full SSR benefits.
+
+<Banner type="info">
+  <Banner.Title>React Only</Banner.Title>
+  <p>This package is specifically designed for React applications. For MPA-style rendering (KitaJS, Lit, vanilla JS), use <a href="/docs/ecosystem/browser-router">@ecopages/browser-router</a> instead.</p>
+</Banner>
+
+## Features
+
+- **Opt-in SPA navigation** - Configure once, works on all pages
+- **SSR preserved** - Full server-side rendering on initial load
+- **Layout persistence** - Layouts stay mounted during navigation
+- **Standard links** - Works with regular `<a>` tags, no special components needed
+- **Head synchronization** - Automatically updates title, meta, and stylesheets
+- **Pluggable architecture** - Extensible adapter pattern for custom routers
+
+## Installation
+
+```bash
+bun add @ecopages/react-router
+```
+
+## Setup
+
+### 1. Configure the React Plugin
+
+Add the router adapter to your `eco.config.ts`:
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { reactPlugin } from '@ecopages/react';
+import { ecoRouter } from '@ecopages/react-router';
+
+const config = await new ConfigBuilder()
+  .setRootDir(import.meta.dir)
+  .setIntegrations([
+    reactPlugin({ router: ecoRouter() }),
+  ])
+  .build();
+
+export default config;
+```
+
+That's it! All pages now have SPA navigation enabled.
+
+### 2. Use Layouts (Optional)
+
+For persistent UI across navigations (headers, sidebars), use `config.layout`:
+
+```tsx
+// src/layouts/base-layout.tsx
+export const BaseLayout = ({ children }) => (
+  <html>
+    <head>...</head>
+    <body>
+      <header>My Site</header>
+      <main>{children}</main>
+      <footer>...</footer>
+    </body>
+  </html>
+);
+
+// src/pages/index.tsx
+import { BaseLayout } from '../layouts/base-layout';
+
+const HomePage = () => <h1>Welcome</h1>;
+
+HomePage.config = {
+  layout: BaseLayout,
+};
+
+export default HomePage;
+```
+
+When navigating between pages with the same layout, only the page content updates - the layout stays mounted.
+
+### 3. Use Standard Links
+
+```tsx
+// These links are automatically intercepted for SPA navigation
+<a href="/about">About</a>
+<a href="/blog">Blog</a>
+
+// Force full page reload with data-eco-reload
+<a href="/external" data-eco-reload>External Link</a>
+```
+
+## How It Works
+
+1. **Initial Load**: Server renders the full page with SSR
+2. **Hydration**: React hydrates the page, router starts listening for clicks
+3. **Navigation**: When a link is clicked:
+   - Router intercepts the click
+   - Fetches the target page HTML
+   - Extracts the component module URL and props
+   - Dynamically imports the new page component
+   - Updates the head (title, meta, styles)
+   - Renders the new page within the existing layout
+
+```
+┌─────────────────────────────────────────────────────┐
+│  SSR (Server)                                       │
+│  ┌───────────────────────────────────────────────┐  │
+│  │ HTML Template                                 │  │
+│  │  ┌─────────────────────────────────────────┐  │  │
+│  │  │ Layout                                  │  │  │
+│  │  │  ┌───────────────────────────────────┐  │  │  │
+│  │  │  │ Page Content                      │  │  │  │
+│  │  │  └───────────────────────────────────┘  │  │  │
+│  │  └─────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  Hydration (Client)                                 │
+│  ┌───────────────────────────────────────────────┐  │
+│  │ EcoRouter                                     │  │
+│  │  ┌─────────────────────────────────────────┐  │  │
+│  │  │ Layout (persisted)                      │  │  │
+│  │  │  ┌───────────────────────────────────┐  │  │  │
+│  │  │  │ PageContent (swappable)           │  │  │  │
+│  │  │  └───────────────────────────────────┘  │  │  │
+│  │  └─────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
+
+## API
+
+### `ecoRouter()`
+
+Factory function that creates a router adapter for the React plugin.
+
+```typescript
+import { ecoRouter } from '@ecopages/react-router';
+
+reactPlugin({ router: ecoRouter() })
+```
+
+### `useRouter()`
+
+Hook for programmatic navigation.
+
+```tsx
+import { useRouter } from '@ecopages/react-router';
+
+const MyComponent = () => {
+  const { navigate, isPending } = useRouter();
+
+  const handleClick = () => {
+    navigate('/about');
+  };
+
+  return (
+    <button onClick={handleClick} disabled={isPending}>
+      {isPending ? 'Loading...' : 'Go to About'}
+    </button>
+  );
+};
+```
+
+### Router Options
+
+The router respects these HTML attributes:
+
+| Attribute | Description |
+| :--- | :--- |
+| `data-eco-reload` | Force a full page reload instead of SPA navigation |
+| `target="_blank"` | Opens in new tab (not intercepted) |
+
+Links are automatically skipped when:
+- Modifier keys are held (Ctrl, Cmd, Shift, Alt)
+- Link has `download` attribute
+- Link points to a different origin
+- Link starts with `#` or `javascript:`
+
+## Architecture
+
+The router uses a **pluggable adapter pattern** that separates concerns:
+
+**ReactRouterAdapter Interface:**
+```typescript
+interface ReactRouterAdapter {
+  name: string;
+  bundle: { importPath, outputName, externals };
+  importMapKey: string;
+  components: { router, pageContent };
+  getRouterProps(page, props): string;
+}
+```
+
+This allows for alternative router implementations while keeping the core integration simple.
+
+## Comparison with Browser Router
+
+| Feature | @ecopages/react-router | @ecopages/browser-router |
+| :--- | :--- | :--- |
+| Framework | React only | MPA (KitaJS, Lit, vanilla) |
+| DOM Strategy | React reconciliation | morphdom diffing |
+| Layout Persistence | Via React component tree | Via `data-eco-persist` |
+| View Transitions | Not yet supported | Supported |
+| State Preservation | React state in layout | DOM element state |
+
+## License
+
+MIT

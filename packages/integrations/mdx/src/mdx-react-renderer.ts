@@ -79,7 +79,10 @@ export class BundleError extends Error {
 export type MDXReactFile = {
 	/** The default export which is the converted MDX content as a React component. */
 	default: ReactNode;
-	/** Optional layout component to wrap the content. */
+	/**
+	 * Optional layout component to wrap the content.
+	 * @deprecated Use `config.layout` instead. This will be removed in v1.0.
+	 */
 	layout?: React.ComponentType<{ children: ReactNode }>;
 	/** Optional page-specific configuration. */
 	config?: EcoComponentConfig;
@@ -147,15 +150,20 @@ import * as MDXComponent from "${importPath}";
 window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
 let root = null;
 
-const { default: Page, layout } = MDXComponent;
+const { default: Page, layout, config } = MDXComponent;
+const resolvedLayout = config?.layout ?? layout;
+
+if (layout && !config?.layout) {
+    console.warn('[ecopages] Deprecation: "export const layout" is deprecated. Use "export const config = { layout }" instead.');
+}
 
 async function mount() {
     try {
         const container = document.querySelector('[data-react-root]');
         if (!container) return;
         
-        const element = layout 
-            ? createElement(layout, null, createElement(Page))
+        const element = resolvedLayout 
+            ? createElement(resolvedLayout, null, createElement(Page))
             : createElement(Page);
             
         root = hydrateRoot(container, element);
@@ -164,9 +172,10 @@ async function mount() {
         window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
             try {
                 const newModule = await import(newUrl);
-                const { default: NewPage, layout: newLayout } = newModule;
-                const newElement = newLayout 
-                    ? createElement(newLayout, null, createElement(NewPage))
+                const { default: NewPage, layout: newLayout, config: newConfig } = newModule;
+                const newResolvedLayout = newConfig?.layout ?? newLayout;
+                const newElement = newResolvedLayout 
+                    ? createElement(newResolvedLayout, null, createElement(NewPage))
                     : createElement(NewPage);
                 root.render(newElement);
                 console.log("[ecopages] MDX component updated");
@@ -192,15 +201,16 @@ import { createElement } from "react";
 import { hydrateRoot } from "react-dom/client";
 import * as MDXComponent from "${importPath}";
 
-const { default: Page, layout } = MDXComponent;
+const { default: Page, layout, config } = MDXComponent;
+const resolvedLayout = config?.layout ?? layout;
 
 async function hydrate() {
     try {
         const root = document.querySelector('[data-react-root]');
         if (!root) return;
         
-        const element = layout 
-            ? createElement(layout, null, createElement(Page))
+        const element = resolvedLayout 
+            ? createElement(resolvedLayout, null, createElement(Page))
             : createElement(Page);
             
         hydrateRoot(root, element);
@@ -299,10 +309,11 @@ if (document.readyState === 'loading') {
 			const reactAssets = [processedFileScript, processedHydrationScript];
 
 			const { config, layout } = await this.importPageFile(pagePath);
+			const resolvedLayout = config?.layout ?? layout;
 			const components: Partial<EcoComponent>[] = [];
 
-			if (layout?.config?.dependencies) {
-				components.push({ config: layout.config });
+			if (resolvedLayout?.config?.dependencies) {
+				components.push({ config: resolvedLayout.config });
 			}
 
 			if (config?.dependencies) {
@@ -340,9 +351,18 @@ if (document.readyState === 'loading') {
 				throw new Error(`MDX file must export a default function, got ${typeof Page}: ${String(Page)}`);
 			}
 
+			if (layout && !config?.layout) {
+				console.warn(
+					`[ecopages] Deprecation warning: "export const layout" is deprecated in ${file}. ` +
+						'Use "export const config = { layout: YourLayout }" instead.',
+				);
+			}
+
+			const resolvedLayout = config?.layout ?? layout;
+
 			return {
 				default: Page,
-				layout,
+				layout: resolvedLayout,
 				getMetadata,
 				config,
 			};

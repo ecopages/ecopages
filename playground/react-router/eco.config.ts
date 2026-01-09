@@ -5,6 +5,7 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { reactPlugin } from '@ecopages/react';
 import { mdxPlugin } from '@ecopages/mdx';
+import { ecoRouter } from '@ecopages/react-router';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
@@ -13,7 +14,7 @@ const config = await new ConfigBuilder()
 		mdxPlugin({
 			compilerOptions: {},
 		}),
-		reactPlugin(),
+		reactPlugin({ router: ecoRouter() }),
 	])
 	.setProcessors([
 		imageProcessorPlugin({

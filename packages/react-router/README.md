@@ -1,135 +1,155 @@
 # @ecopages/react-router
 
-Client-side SPA router for EcoPages React applications. Enables single-page application navigation while maintaining SSR benefits.
+Client-side SPA router for EcoPages React applications. Enables single-page application navigation while preserving full SSR benefits.
 
 ## Installation
 
 ```bash
-npm install @ecopages/react-router
-# or
 bun add @ecopages/react-router
 ```
 
-## Overview
+## Quick Start
 
-This router fetches full HTML pages, parses them for components and props, and dynamically renders them client-side without full page reloads. This approach:
+Add the router adapter to your `eco.config.ts`:
 
-- Preserves full SSR benefits (SEO, initial paint)
-- Enables SPA-like navigation (no page flicker)
-- Works with standard `<a>` tags (no special components needed)
-- Automatically syncs `<head>` elements (stylesheets, meta, title)
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { reactPlugin } from '@ecopages/react';
+import { ecoRouter } from '@ecopages/react-router';
+
+const config = await new ConfigBuilder()
+  .setRootDir(import.meta.dir)
+  .setIntegrations([
+    reactPlugin({ router: ecoRouter() }),
+  ])
+  .build();
+
+export default config;
+```
+
+That's it! All pages now have SPA navigation enabled.
+
+## Features
+
+- **Opt-in via config** - Single line enables SPA for all pages
+- **SSR preserved** - Full server-side rendering on initial load
+- **Layout persistence** - Layouts stay mounted, only page content swaps
+- **Standard links** - Works with regular `<a>` tags
+- **Head sync** - Automatically updates title, meta, and stylesheets
+- **Pluggable** - Extensible adapter pattern
 
 ## Usage
 
-### 1. Add Props Script to Your HTML Template
+### Layouts (Optional)
+
+Use `config.layout` for persistent UI across navigations:
 
 ```tsx
-import { EcoPropsScript } from '@ecopages/react-router';
-
-const HtmlTemplate = ({ children, pageProps }) => (
-	<html>
-		<head>...</head>
-		<EcoPropsScript data={pageProps} />
-		{children}
-	</html>
+// src/layouts/base-layout.tsx
+export const BaseLayout = ({ children }) => (
+  <html>
+    <body>
+      <header>My Site</header>
+      <main>{children}</main>
+    </body>
+  </html>
 );
+
+// src/pages/index.tsx
+import { BaseLayout } from '../layouts/base-layout';
+
+const HomePage = () => <h1>Welcome</h1>;
+
+HomePage.config = { layout: BaseLayout };
+
+export default HomePage;
 ```
 
-### 2. Wrap Your Pages with EcoReactRouter
+### Links
 
 ```tsx
-import { EcoReactRouter } from '@ecopages/react-router';
-
-const PageContent = (props) => (
-	<main>
-		<h1>Hello World</h1>
-		<a href="/about">About</a>
-	</main>
-);
-
-const Page = (props) => (
-	<EcoReactRouter initialComponent={PageContent} initialProps={props}>
-		{({ Component, props }) => <Component {...props} />}
-	</EcoReactRouter>
-);
-
-// Export Content for the router to use during navigation
-export const Content = PageContent;
-export default Page;
-```
-
-### 3. Use Standard Anchor Tags
-
-```tsx
-// These links will be intercepted automatically
+// SPA navigation (intercepted)
 <a href="/about">About</a>
-<a href="/blog">Blog</a>
 
-// Opt out with data-eco-reload
-<a href="/external" data-eco-reload>External Link</a>
+// Force full reload
+<a href="/external" data-eco-reload>External</a>
 ```
 
-## API
-
-### `EcoReactRouter`
-
-Root component that enables SPA navigation.
+### Programmatic Navigation
 
 ```tsx
-interface EcoReactRouterProps {
-	initialComponent: ComponentType<any>;
-	initialProps: Record<string, any>;
-	children: (current: { Component; props }) => ReactNode;
-	options?: EcoReactRouterOptions;
-}
-```
+import { useRouter } from '@ecopages/react-router';
 
-### `EcoPropsScript`
-
-Serializes page props for client-side extraction.
-
-```tsx
-interface EcoPropsScriptProps {
-	data: Record<string, any>;
-}
-```
-
-### `useRouter`
-
-Hook to access navigation programmatically.
-
-```tsx
-const { navigate, isPending } = useRouter();
-
-// Navigate programmatically
-navigate('/about');
-```
-
-### Options
-
-```tsx
-interface EcoReactRouterOptions {
-	linkSelector?: string; // Default: 'a[href]'
-	reloadAttribute?: string; // Default: 'data-eco-reload'
-	debug?: boolean; // Default: false
-}
+const MyComponent = () => {
+  const { navigate, isPending } = useRouter();
+  
+  return (
+    <button onClick={() => navigate('/about')} disabled={isPending}>
+      Go to About
+    </button>
+  );
+};
 ```
 
 ## How It Works
 
-1. User clicks a link
-2. Router intercepts the click (unless modifier keys or opt-out attribute)
-3. Fetches the target page's full HTML
-4. Parses for `__ECO_PROPS__` and hydration script
-5. Dynamically imports the component module
-6. Morphs `<head>` elements (stylesheets, meta, title)
-7. Renders the new component without page reload
+1. **SSR**: Server renders full HTML
+2. **Hydration**: Client hydrates, router wraps the tree
+3. **Navigation**: On link click:
+   - Fetch target page HTML
+   - Extract component URL and props
+   - Dynamic import the page module
+   - Update head elements
+   - Render new page (layout stays mounted)
+
+## API
+
+### `ecoRouter()`
+
+Creates a router adapter for the React plugin.
+
+```typescript
+reactPlugin({ router: ecoRouter() })
+```
+
+### `useRouter()`
+
+Hook for programmatic navigation.
+
+```typescript
+const { navigate, isPending } = useRouter();
+```
+
+### Link Behavior
+
+Links are **not** intercepted when:
+- Modifier keys held (Ctrl, Cmd, Shift, Alt)
+- Has `target="_blank"` or `download` attribute
+- Has `data-eco-reload` attribute
+- Points to different origin
+- Starts with `#` or `javascript:`
+
+## Architecture
+
+The router uses a pluggable adapter pattern:
+
+```typescript
+interface ReactRouterAdapter {
+  name: string;
+  bundle: { importPath, outputName, externals };
+  importMapKey: string;
+  components: { router, pageContent };
+  getRouterProps(page, props): string;
+}
+```
+
+This allows custom router implementations while keeping integration simple.
 
 ## Compatibility
 
 - React 18.x or 19.x
-- Modern browsers with ES modules support
-- EcoPages SSR
+- Modern browsers with ES modules
+- EcoPages with React integration
 
 ## License
 

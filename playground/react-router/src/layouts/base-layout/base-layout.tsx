@@ -1,5 +1,5 @@
 import type { EcoComponent } from '@ecopages/core';
-import type { JSX, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export type BaseLayoutProps = {
@@ -8,7 +8,7 @@ export type BaseLayoutProps = {
 	id?: string;
 };
 
-export const BaseLayout: EcoComponent<BaseLayoutProps, JSX.Element> = ({ children, className }) => {
+export const BaseLayout: EcoComponent<BaseLayoutProps, ReactNode> = ({ children, className }) => {
 	return (
 		<main className={className}>
 			<header className="site-header">

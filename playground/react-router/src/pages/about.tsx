@@ -1,5 +1,4 @@
-import type { GetMetadata } from '@ecopages/core';
-import { createPage } from '@ecopages/react-router';
+import type { EcoComponent, GetMetadata } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 
 export const getMetadata: GetMetadata = () => ({
@@ -7,7 +6,7 @@ export const getMetadata: GetMetadata = () => ({
 	description: 'About the EcoPages React Router project',
 });
 
-const AboutContent = () => {
+const AboutPage: EcoComponent = () => {
 	return (
 		<>
 			<a href="/" className="back-link">
@@ -27,6 +26,8 @@ const AboutContent = () => {
 	);
 };
 
-export default createPage(AboutContent, (children) => <BaseLayout>{children}</BaseLayout>, {
-	dependencies: { components: [BaseLayout] },
-});
+AboutPage.config = {
+	layout: BaseLayout,
+};
+
+export default AboutPage;

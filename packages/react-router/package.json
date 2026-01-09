@@ -13,10 +13,12 @@
 	"license": "MIT",
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./browser": "./browser.ts"
 	},
 	"files": [
-		"src"
+		"src",
+		"browser.ts"
 	],
 	"repository": {
 		"type": "git",

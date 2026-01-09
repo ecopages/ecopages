@@ -24,6 +24,9 @@ import { PLUGIN_NAME } from './mdx.plugin.ts';
  */
 export type MDXFile = {
 	default: EcoComponent;
+	/**
+	 * @deprecated Use `config.layout` instead. This will be removed in v1.0.
+	 */
 	layout?: EcoComponent;
 	config?: EcoComponentConfig;
 	getMetadata: GetMetadata;
@@ -61,8 +64,17 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		const { config, layout } = await import(pagePath);
 		const components: Partial<EcoComponent>[] = [];
 
-		if (layout?.config?.dependencies) {
-			components.push({ config: layout.config });
+		if (layout && !config?.layout) {
+			console.warn(
+				`[ecopages] Deprecation warning: "export const layout" is deprecated in ${pagePath}. ` +
+					'Use "export const config = { layout: YourLayout }" instead.',
+			);
+		}
+
+		const resolvedLayout = config?.layout ?? layout;
+
+		if (resolvedLayout?.config?.dependencies) {
+			components.push({ config: resolvedLayout.config });
 		}
 
 		if (config?.dependencies) {
@@ -87,15 +99,24 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		}>
 	> {
 		try {
-			const { default: Page, layout, getMetadata } = await import(file);
+			const { default: Page, layout, config, getMetadata } = await import(file);
 
 			if (typeof Page !== 'function') {
 				throw new Error('MDX file must export a default function');
 			}
 
+			if (layout && !config?.layout) {
+				console.warn(
+					`[ecopages] Deprecation warning: "export const layout" is deprecated in ${file}. ` +
+						'Use "export const config = { layout: YourLayout }" instead.',
+				);
+			}
+
+			const resolvedLayout = config?.layout ?? layout;
+
 			return {
 				default: Page,
-				layout,
+				layout: resolvedLayout,
 				getMetadata,
 			};
 		} catch (error) {
@@ -103,13 +124,20 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		}
 	}
 
-	async render({ metadata, Page, HtmlTemplate, layout }: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
+	async render({
+		metadata,
+		Page,
+		HtmlTemplate,
+		layout,
+		pageProps,
+	}: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
 		try {
 			const children = typeof layout === 'function' ? layout({ children: Page({}) }) : Page({});
 
 			const body = await HtmlTemplate({
 				metadata,
 				children,
+				pageProps: pageProps || {},
 			});
 
 			return this.DOC_TYPE + body;

@@ -18,11 +18,9 @@ import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
 const config = await new ConfigBuilder()
-  .setRootDir(import.meta.dir)
-  .setIntegrations([
-    reactPlugin({ router: ecoRouter() }),
-  ])
-  .build();
+	.setRootDir(import.meta.dir)
+	.setIntegrations([reactPlugin({ router: ecoRouter() })])
+	.build();
 
 export default config;
 ```
@@ -47,12 +45,12 @@ Use `config.layout` for persistent UI across navigations:
 ```tsx
 // src/layouts/base-layout.tsx
 export const BaseLayout = ({ children }) => (
-  <html>
-    <body>
-      <header>My Site</header>
-      <main>{children}</main>
-    </body>
-  </html>
+	<html>
+		<body>
+			<header>My Site</header>
+			<main>{children}</main>
+		</body>
+	</html>
 );
 
 // src/pages/index.tsx
@@ -81,13 +79,13 @@ export default HomePage;
 import { useRouter } from '@ecopages/react-router';
 
 const MyComponent = () => {
-  const { navigate, isPending } = useRouter();
-  
-  return (
-    <button onClick={() => navigate('/about')} disabled={isPending}>
-      Go to About
-    </button>
-  );
+	const { navigate, isPending } = useRouter();
+
+	return (
+		<button onClick={() => navigate('/about')} disabled={isPending}>
+			Go to About
+		</button>
+	);
 };
 ```
 
@@ -96,11 +94,11 @@ const MyComponent = () => {
 1. **SSR**: Server renders full HTML
 2. **Hydration**: Client hydrates, router wraps the tree
 3. **Navigation**: On link click:
-   - Fetch target page HTML
-   - Extract component URL and props
-   - Dynamic import the page module
-   - Update head elements
-   - Render new page (layout stays mounted)
+    - Fetch target page HTML
+    - Extract component URL and props
+    - Dynamic import the page module
+    - Update head elements
+    - Render new page (layout stays mounted)
 
 ## API
 
@@ -109,7 +107,7 @@ const MyComponent = () => {
 Creates a router adapter for the React plugin.
 
 ```typescript
-reactPlugin({ router: ecoRouter() })
+reactPlugin({ router: ecoRouter() });
 ```
 
 ### `useRouter()`
@@ -123,6 +121,7 @@ const { navigate, isPending } = useRouter();
 ### Link Behavior
 
 Links are **not** intercepted when:
+
 - Modifier keys held (Ctrl, Cmd, Shift, Alt)
 - Has `target="_blank"` or `download` attribute
 - Has `data-eco-reload` attribute
@@ -135,11 +134,11 @@ The router uses a pluggable adapter pattern:
 
 ```typescript
 interface ReactRouterAdapter {
-  name: string;
-  bundle: { importPath, outputName, externals };
-  importMapKey: string;
-  components: { router, pageContent };
-  getRouterProps(page, props): string;
+	name: string;
+	bundle: { importPath; outputName; externals };
+	importMapKey: string;
+	components: { router; pageContent };
+	getRouterProps(page, props): string;
 }
 ```
 

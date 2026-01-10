@@ -31,9 +31,7 @@ export type MDXFile = {
 /**
  * Options for the MDX renderer
  */
-interface MDXIntegrationRendererOpions<C = EcoPagesElement> extends IntegrationRendererRenderOptions<C> {
-	layout?: EcoComponent;
-}
+interface MDXIntegrationRendererOpions<C = EcoPagesElement> extends IntegrationRendererRenderOptions<C> {}
 
 /**
  * A renderer for the MDX integration.
@@ -110,11 +108,11 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		metadata,
 		Page,
 		HtmlTemplate,
-		layout,
+		Layout,
 		pageProps,
 	}: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
 		try {
-			const children = typeof layout === 'function' ? layout({ children: Page({}) }) : Page({});
+			const children = typeof Layout === 'function' ? Layout({ children: Page({}) }) : Page({});
 
 			const body = await HtmlTemplate({
 				metadata,

@@ -40,8 +40,17 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 		const res = await fetch(hydrationScript.src);
 		const text = await res.text();
 
-		const defaultImport = text.match(/import\s+(\w+)\s+from\s+['"]([^'"]+)['"]/);
-		const namespaceImport = text.match(/import\s+\*\s+as\s+(\w+)\s+from\s+['"]([^'"]+)['"]/);
+		/**
+		 * Matches:
+		 * import Content from './Content';
+		 */
+		const defaultImport = text.match(/import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/);
+
+		/**
+		 * Matches:
+		 * import * as Content from './Content';
+		 */
+		const namespaceImport = text.match(/import\s+\*\s+as\s+(\w+)\s+from\s*['"]([^'"]+)['"]/);
 
 		return (defaultImport || namespaceImport)?.[2] ?? null;
 	} catch {

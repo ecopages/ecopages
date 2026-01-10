@@ -89,8 +89,6 @@ export type MDXReactFile = {
  * Options for the MDX integration renderer.
  */
 interface MDXReactIntegrationRendererOptions<C = ReactNode> extends IntegrationRendererRenderOptions<C> {
-	/** Optional layout component to wrap the content. */
-	layout?: React.ComponentType<{ children: ReactNode }>;
 	/** Optional page-specific configuration. */
 	config?: EcoComponentConfig;
 }
@@ -145,12 +143,8 @@ import * as MDXComponent from "${importPath}";
 window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
 let root = null;
 
-const { default: Page, layout, config } = MDXComponent;
-const resolvedLayout = config?.layout ?? layout;
-
-if (layout && !config?.layout) {
-    console.warn('[ecopages] Deprecation: "export const layout" is deprecated. Use "export const config = { layout }" instead.');
-}
+const { default: Page, config } = MDXComponent;
+const resolvedLayout = config?.layout;
 
 async function mount() {
     try {
@@ -167,8 +161,8 @@ async function mount() {
         window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
             try {
                 const newModule = await import(newUrl);
-                const { default: NewPage, layout: newLayout, config: newConfig } = newModule;
-                const newResolvedLayout = newConfig?.layout ?? newLayout;
+                const { default: NewPage, config: newConfig } = newModule;
+                const newResolvedLayout = newConfig?.layout;
                 const newElement = newResolvedLayout 
                     ? createElement(newResolvedLayout, null, createElement(NewPage))
                     : createElement(NewPage);
@@ -196,8 +190,8 @@ import { createElement } from "react";
 import { hydrateRoot } from "react-dom/client";
 import * as MDXComponent from "${importPath}";
 
-const { default: Page, layout, config } = MDXComponent;
-const resolvedLayout = config?.layout ?? layout;
+const { default: Page, config } = MDXComponent;
+const resolvedLayout = config?.layout;
 
 async function hydrate() {
     try {
@@ -303,8 +297,8 @@ if (document.readyState === 'loading') {
 			);
 			const reactAssets = [processedFileScript, processedHydrationScript];
 
-			const { config, layout } = await this.importPageFile(pagePath);
-			const resolvedLayout = config?.layout ?? layout;
+			const { config } = await this.importPageFile(pagePath);
+			const resolvedLayout = config?.layout;
 			const components: Partial<EcoComponent>[] = [];
 
 			if (resolvedLayout?.config?.dependencies) {
@@ -333,31 +327,20 @@ if (document.readyState === 'loading') {
 
 	protected override async importPageFile(file: string): Promise<
 		EcoPageFile<{
-			layout?: EcoComponent<React.ComponentType<{ children: ReactNode }>>;
 			config?: EcoComponentConfig;
 		}>
 	> {
 		try {
 			const mdxModule = await import(file);
 
-			const { default: Page, layout, getMetadata, config } = mdxModule;
+			const { default: Page, getMetadata, config } = mdxModule;
 
 			if (typeof Page !== 'function') {
 				throw new Error(`MDX file must export a default function, got ${typeof Page}: ${String(Page)}`);
 			}
 
-			if (layout && !config?.layout) {
-				console.warn(
-					`[ecopages] Deprecation warning: "export const layout" is deprecated in ${file}. ` +
-						'Use "export const config = { layout: YourLayout }" instead.',
-				);
-			}
-
-			const resolvedLayout = config?.layout ?? layout;
-
 			return {
 				default: Page,
-				layout: resolvedLayout,
 				getMetadata,
 				config,
 			};
@@ -371,15 +354,19 @@ if (document.readyState === 'loading') {
 		metadata,
 		Page,
 		HtmlTemplate,
-		layout,
+		Layout,
 	}: MDXReactIntegrationRendererOptions): Promise<RouteRendererBody> {
 		try {
 			if (typeof Page !== 'function') {
 				throw new Error(`Page must be a React component function, got ${typeof Page}: ${String(Page)}`);
 			}
 
-			const pageElement = layout
-				? React.createElement(layout, undefined, React.createElement(Page as React.ComponentType))
+			const pageElement = Layout
+				? React.createElement(
+						Layout as React.ComponentType,
+						undefined,
+						React.createElement(Page as React.ComponentType),
+					)
 				: React.createElement(Page as React.ComponentType);
 
 			const children = React.createElement(

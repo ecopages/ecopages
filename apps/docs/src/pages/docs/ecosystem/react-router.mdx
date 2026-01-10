@@ -1,7 +1,9 @@
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
-export const layout = DocsLayout;
+export const config = {
+  layout: DocsLayout,
+};
 
 export const getMetadata = () => ({
   title: 'Docs | React Router',
@@ -23,7 +25,7 @@ The `@ecopages/react-router` package enables Single Page Application (SPA) navig
 - **Opt-in SPA navigation** - Configure once, works on all pages
 - **SSR preserved** - Full server-side rendering on initial load
 - **Layout persistence** - Layouts stay mounted during navigation
-- **Standard links** - Works with regular `<a>` tags, no special components needed
+- **Standard links** - Works with regular anchor tags, no special components needed
 - **Head synchronization** - Automatically updates title, meta, and stylesheets
 - **Pluggable architecture** - Extensible adapter pattern for custom routers
 
@@ -54,7 +56,7 @@ const config = await new ConfigBuilder()
 export default config;
 ```
 
-That's it! All pages now have SPA navigation enabled.
+That's it, all pages now have SPA navigation enabled.
 
 ### 2. Use Layouts (Optional)
 

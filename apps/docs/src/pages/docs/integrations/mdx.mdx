@@ -1,7 +1,9 @@
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
-export const layout = DocsLayout;
+export const config = {
+  layout: DocsLayout,
+};
 
 export const getMetadata = () => ({
   title: 'Docs | MDX Integration',

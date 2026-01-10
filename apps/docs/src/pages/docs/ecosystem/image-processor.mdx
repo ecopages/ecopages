@@ -2,7 +2,9 @@ import { DocsLayout } from '@/layouts/docs-layout';
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 
-export const layout = DocsLayout;
+export const config = {
+	layout: DocsLayout,
+};
 
 export const getMetadata = () => ({
 	title: 'Docs | Image Processor',

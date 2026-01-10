@@ -24,10 +24,6 @@ import { PLUGIN_NAME } from './mdx.plugin.ts';
  */
 export type MDXFile = {
 	default: EcoComponent;
-	/**
-	 * @deprecated Use `config.layout` instead. This will be removed in v1.0.
-	 */
-	layout?: EcoComponent;
 	config?: EcoComponentConfig;
 	getMetadata: GetMetadata;
 };
@@ -61,17 +57,10 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
-		const { config, layout } = await import(pagePath);
+		const { config } = await import(pagePath);
 		const components: Partial<EcoComponent>[] = [];
 
-		if (layout && !config?.layout) {
-			console.warn(
-				`[ecopages] Deprecation warning: "export const layout" is deprecated in ${pagePath}. ` +
-					'Use "export const config = { layout: YourLayout }" instead.',
-			);
-		}
-
-		const resolvedLayout = config?.layout ?? layout;
+		const resolvedLayout = config?.layout;
 
 		if (resolvedLayout?.config?.dependencies) {
 			components.push({ config: resolvedLayout.config });
@@ -99,20 +88,13 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		}>
 	> {
 		try {
-			const { default: Page, layout, config, getMetadata } = await import(file);
+			const { default: Page, config, getMetadata } = await import(file);
 
 			if (typeof Page !== 'function') {
 				throw new Error('MDX file must export a default function');
 			}
 
-			if (layout && !config?.layout) {
-				console.warn(
-					`[ecopages] Deprecation warning: "export const layout" is deprecated in ${file}. ` +
-						'Use "export const config = { layout: YourLayout }" instead.',
-				);
-			}
-
-			const resolvedLayout = config?.layout ?? layout;
+			const resolvedLayout = config?.layout;
 
 			return {
 				default: Page,

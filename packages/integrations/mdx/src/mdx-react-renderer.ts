@@ -79,11 +79,6 @@ export class BundleError extends Error {
 export type MDXReactFile = {
 	/** The default export which is the converted MDX content as a React component. */
 	default: ReactNode;
-	/**
-	 * Optional layout component to wrap the content.
-	 * @deprecated Use `config.layout` instead. This will be removed in v1.0.
-	 */
-	layout?: React.ComponentType<{ children: ReactNode }>;
 	/** Optional page-specific configuration. */
 	config?: EcoComponentConfig;
 	/** Function to retrieve page metadata. */

@@ -50,6 +50,13 @@ export class StaticSiteGenerator {
 		return Array.from(directories);
 	}
 
+	/**
+	 * Extracts dynamic parameters from the actual path based on the template path.
+	 *
+	 * @param templatePath - The template path (e.g., "/blog/[slug]")
+	 * @param actualPath - The actual path (e.g., "/blog/my-post")
+	 * @returns A record of extracted parameters (e.g., { slug: "my-post" })
+	 */
 	private extractParams(templatePath: string, actualPath: string): Record<string, string> {
 		const templateSegments = templateSegmentsFromPath(templatePath);
 		const actualSegments = templateSegmentsFromPath(actualPath);
@@ -168,6 +175,9 @@ export class StaticSiteGenerator {
 	}
 }
 
+/**
+ * Splits a path into segments, filtering out empty strings.
+ */
 function templateSegmentsFromPath(path: string) {
 	return path.split('/').filter(Boolean);
 }

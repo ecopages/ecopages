@@ -138,6 +138,7 @@ describe('ServerStaticBuilder', () => {
 
 			expect(StaticContentServer.createServer).toHaveBeenCalledWith({
 				appConfig: mockAppConfig,
+				options: { port: 3000 },
 			});
 		});
 	});

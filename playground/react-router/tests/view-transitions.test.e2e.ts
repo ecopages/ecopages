@@ -111,4 +111,21 @@ test.describe('View Transitions', () => {
 		expect(url).toMatch(/.*\/$/);
 		expect(url).not.toContain('/posts/');
 	});
+
+	test('navigation is client-side (SPA)', async ({ page }) => {
+		// Set a global variable
+		await page.evaluate(() => {
+			(window as any).__spa_persistence_check = true;
+		});
+
+		await page.click('.post-card-link');
+		await page.waitForURL('**/posts/**');
+
+		// Check if it persists
+		const persisted = await page.evaluate(() => {
+			return (window as any).__spa_persistence_check;
+		});
+
+		expect(persisted).toBe(true);
+	});
 });

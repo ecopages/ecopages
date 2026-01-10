@@ -2,7 +2,6 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
 	testDir: '.',
-	// Remove global testMatch to let projects define it, or keep generic if patterns match
 	testMatch: '**/*.test.e2e.ts',
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
@@ -22,11 +21,11 @@ export default defineConfig({
 			},
 		},
 		{
-			name: 'react-router-e2e',
+			name: 'react-router-preview',
 			testMatch: 'playground/react-router/**/*.test.e2e.ts',
 			use: {
 				...devices['Desktop Chrome'],
-				baseURL: 'http://localhost:3003',
+				baseURL: 'http://localhost:3004',
 			},
 		},
 	],
@@ -39,8 +38,8 @@ export default defineConfig({
 			stderr: 'pipe',
 		},
 		{
-			command: 'ECOPAGES_PORT=3003 bun run dev:playground-react-router',
-			port: 3003,
+			command: 'ECOPAGES_PORT=3004 bun run preview:playground-react-router',
+			port: 3004,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',
 			stderr: 'pipe',

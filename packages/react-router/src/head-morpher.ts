@@ -4,7 +4,7 @@
  * @module
  */
 
-const PRESERVE_SELECTORS = ['script[type="importmap"]', 'meta[charset]'];
+const PRESERVE_SELECTORS = ['script[type="importmap"]', 'meta[charset]', '[data-eco-persist]'];
 
 /**
  * Computes a unique key for a head element to enable diffing.
@@ -61,19 +61,21 @@ function hashString(str: string): string {
 
 /**
  * Morphs the current document head to match the new document's head.
- * Uses key-based matching to avoid unnecessary re-downloads of stylesheets
- * and re-execution of scripts.
+ * Now splits the process into adding new elements and returning a cleanup function
+ * to remove old ones. This is crucial for View Transitions to ensure styles
+ * don't disappear before the "old" snapshot is taken.
  *
  * @param newDocument - The parsed document from the navigation target
- * @returns Promise that resolves when all new stylesheets have loaded
+ * @returns Promise that resolves to a cleanup function when new stylesheets have loaded
  */
-export async function morphHead(newDocument: Document): Promise<void> {
+export async function morphHead(newDocument: Document): Promise<() => void> {
 	const currentHead = document.head;
 	const newHead = newDocument.head;
 
 	const currentElements = new Map<string, Element>();
 	const newElements = new Map<string, Element>();
 	const stylesheetPromises: Promise<void>[] = [];
+	const elementsToRemove: Element[] = [];
 
 	for (const el of Array.from(currentHead.children)) {
 		const key = getHeadElementKey(el);
@@ -83,15 +85,6 @@ export async function morphHead(newDocument: Document): Promise<void> {
 	for (const el of Array.from(newHead.children)) {
 		const key = getHeadElementKey(el);
 		if (key) newElements.set(key, el);
-	}
-
-	for (const [key, el] of currentElements) {
-		if (!newElements.has(key)) {
-			const shouldPreserve = PRESERVE_SELECTORS.some((sel) => el.matches(sel));
-			if (!shouldPreserve) {
-				el.remove();
-			}
-		}
 	}
 
 	for (const [key, newEl] of newElements) {
@@ -126,4 +119,19 @@ export async function morphHead(newDocument: Document): Promise<void> {
 	if (stylesheetPromises.length > 0) {
 		await Promise.all(stylesheetPromises);
 	}
+
+	for (const [key, el] of currentElements) {
+		if (!newElements.has(key)) {
+			const shouldPreserve = PRESERVE_SELECTORS.some((sel) => el.matches(sel));
+			if (!shouldPreserve) {
+				elementsToRemove.push(el);
+			}
+		}
+	}
+
+	return () => {
+		for (const el of elementsToRemove) {
+			el.remove();
+		}
+	};
 }

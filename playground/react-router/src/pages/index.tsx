@@ -33,6 +33,17 @@ const posts = [
 	},
 ];
 
+// Shared element - uses data-view-transition for native View Transitions API
+const PostCardImage = ({ slug, image, title }: { slug: string; image: any; title: string }) => (
+	<div className="post-card-image" data-view-transition={`hero-image-${slug}`}>
+		<EcoImage {...image} alt={title} />
+	</div>
+);
+
+const PostCardTitle = ({ slug, title }: { slug: string; title: string }) => (
+	<h2 data-view-transition={`hero-title-${slug}`}>{title}</h2>
+);
+
 const HomePage: EcoComponent = () => {
 	return (
 		<>
@@ -42,11 +53,9 @@ const HomePage: EcoComponent = () => {
 			{posts.map((post) => (
 				<article key={post.slug} className="post-card">
 					<a href={`/posts/${post.slug}`} className="post-card-link">
-						<div className="post-card-image" data-slug={post.slug}>
-							<EcoImage {...post.image} alt={post.title} />
-						</div>
+						<PostCardImage slug={post.slug} image={post.image} title={post.title} />
 						<div className="post-card-content">
-							<h2>{post.title}</h2>
+							<PostCardTitle slug={post.slug} title={post.title} />
 							<p>{post.excerpt}</p>
 						</div>
 					</a>

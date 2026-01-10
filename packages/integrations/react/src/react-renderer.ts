@@ -208,6 +208,7 @@ if (document.readyState === "complete") {
 					attributes: {
 						type: 'module',
 						defer: '',
+						'data-eco-persist': 'true',
 					},
 				}),
 				AssetFactory.createContentScript({
@@ -218,6 +219,7 @@ if (document.readyState === "complete") {
 					attributes: {
 						type: 'module',
 						defer: '',
+						'data-eco-persist': 'true',
 					},
 				}),
 			];

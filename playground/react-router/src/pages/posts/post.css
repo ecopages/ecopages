@@ -3,11 +3,6 @@
 	max-width: 32rem;
 }
 
-/* View transition names for shared element animation */
-.post-image-container[data-slug="hello-world"] { view-transition-name: hero-image-hello-world; }
-.post-image-container[data-slug="react-router"] { view-transition-name: hero-image-react-router; }
-.post-image-container[data-slug="ssr-benefits"] { view-transition-name: hero-image-ssr-benefits; }
-
 .post-image-container img {
 	border-radius: var(--radius);
 	width: 100%;

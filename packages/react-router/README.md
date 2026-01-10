@@ -89,16 +89,67 @@ const MyComponent = () => {
 };
 ```
 
+### View Transitions
+
+The router automatically supports the [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) for smooth page transitions.
+
+#### Lifecycle
+
+When a navigation occurs with View Transitions enabled:
+
+1.  **Snapshot**: The browser captures the current state (screenshot) of the page.
+2.  **Update**: React processes the state change and renders the new page.
+3.  **Animate**: The browser animates from the old snapshot to the new live state.
+
+The router uses a deferred promise mechanism to ensure React has fully finished rendering the new content before telling the browser to start the animation phase.
+
+#### Shared Element Transitions
+
+To animate elements between pages (e.g., a thumbnail becoming a hero image), use the `data-view-transition` attribute. Ensure the value is unique to the specific element being transitioned and matches on both pages.
+
+```tsx
+// List Page (Source)
+<img
+  src={post.image}
+  data-view-transition={`hero-${post.id}`}
+/>
+
+// Detail Page (Destination)
+<img
+  src={post.image}
+  data-view-transition={`hero-${post.id}`}
+/>
+```
+
+The router will automatically apply valid `view-transition-name` styles to these elements during the transition lifecycle.
+
+#### Cross-Fade
+
+By default, the router provides a smooth cross-fade for the root content. You can customize this by overriding the default view transition CSS:
+
+```css
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 0.5s;
+}
+```
+
 ## How It Works
 
-1. **SSR**: Server renders full HTML
-2. **Hydration**: Client hydrates, router wraps the tree
-3. **Navigation**: On link click:
-    - Fetch target page HTML
-    - Extract component URL and props
-    - Dynamic import the page module
-    - Update head elements
-    - Render new page (layout stays mounted)
+The router uses an **HTML-First** navigation strategy to ensure consistency with Server-Side Rendering (SSR).
+
+1.  **SSR**: Server renders full HTML for the initial page load.
+2.  **Hydration**: Client hydrates, router attaches to the document.
+3.  **Navigation**: On link click:
+    - **Fetch**: Requests the full HTML of the target page (just like a standard browser navigation).
+    - **Parse**: Extracts the page component URL and serialized props from the HTML.
+    - **Preload**: Dynamically imports the new page component.
+    - **Transition**:
+        - Calls `document.startViewTransition()`.
+        - Updates the document head (title, meta, styles).
+        - Updates the React state to render the new page component.
+        - Waits for React commit (useEffect).
+    - **Resolve**: View Transition finishes, browser plays the animation.
 
 ## API
 

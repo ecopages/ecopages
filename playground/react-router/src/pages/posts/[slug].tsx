@@ -39,6 +39,17 @@ type PostPageProps = {
 	query: Record<string, string>;
 };
 
+// Shared element - uses data-view-transition for native View Transitions API
+const PostImage = ({ slug, image, title }: { slug: string; image: any; title: string }) => (
+	<div className="post-image-container" data-view-transition={`hero-image-${slug}`}>
+		<EcoImage {...image} alt={title} />
+	</div>
+);
+
+const PostTitle = ({ slug, title }: { slug: string; title: string }) => (
+	<h1 data-view-transition={`hero-title-${slug}`}>{title}</h1>
+);
+
 const PostPage: EcoComponent<PostPageProps> = ({ params }) => {
 	const slug = params?.slug;
 	const post = slug ? postsData[slug] : null;
@@ -61,10 +72,8 @@ const PostPage: EcoComponent<PostPageProps> = ({ params }) => {
 				← Back to Blog
 			</a>
 			<article className="post-content">
-				<h1>{post.title}</h1>
-				<div className="post-image-container" data-slug={slug}>
-					<EcoImage {...post.image} alt={post.title} />
-				</div>
+				<PostTitle slug={slug} title={post.title} />
+				<PostImage slug={slug} image={post.image} title={post.title} />
 				<p>{post.content}</p>
 			</article>
 		</>

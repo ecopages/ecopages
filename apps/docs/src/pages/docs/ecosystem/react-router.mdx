@@ -100,41 +100,30 @@ When navigating between pages with the same layout, only the page content update
 
 ## How It Works
 
-1. **Initial Load**: Server renders the full page with SSR
-2. **Hydration**: React hydrates the page, router starts listening for clicks
+The router uses an **HTML-First** navigation strategy. This simplifies the architecture by treating the server-rendered HTML as the source of truth for both code splitting and data.
+
+1. **Initial Load**: Server renders the full page with SSR.
+2. **Hydration**: React hydrates the page, router starts listening for clicks.
 3. **Navigation**: When a link is clicked:
-   - Router intercepts the click
-   - Fetches the target page HTML
-   - Extracts the component module URL and props
-   - Dynamically imports the new page component
-   - Updates the head (title, meta, styles)
-   - Renders the new page within the existing layout
+   - **Fetch**: Router fetches the target page HTML.
+   - **Prep**: Extracts component URL and props; imports the new component.
+   - **Transition**:
+     - Captures "Old" state (Screenshot).
+     - React renders "New" state (DOM update).
+     - Browser animates from Old to New.
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  SSR (Server)                                       │
-│  ┌───────────────────────────────────────────────┐  │
-│  │ HTML Template                                 │  │
-│  │  ┌─────────────────────────────────────────┐  │  │
-│  │  │ Layout                                  │  │  │
-│  │  │  ┌───────────────────────────────────┐  │  │  │
-│  │  │  │ Page Content                      │  │  │  │
-│  │  │  └───────────────────────────────────┘  │  │  │
-│  │  └─────────────────────────────────────────┘  │  │
-│  └───────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────┘
-                        ↓
-┌─────────────────────────────────────────────────────┐
-│  Hydration (Client)                                 │
-│  ┌───────────────────────────────────────────────┐  │
-│  │ EcoRouter                                     │  │
-│  │  ┌─────────────────────────────────────────┐  │  │
-│  │  │ Layout (persisted)                      │  │  │
-│  │  │  ┌───────────────────────────────────┐  │  │  │
-│  │  │  │ PageContent (swappable)           │  │  │  │
-│  │  │  └───────────────────────────────────┘  │  │  │
-│  │  └─────────────────────────────────────────┘  │  │
-│  └───────────────────────────────────────────────┘  │
+│  Browser View Transition                            │
+│                                                     │
+│  1. Capture Old State (Screenshot)                  │
+│          ↓                                          │
+│  2. React State Update                              │
+│     (Mount New Page Component)                      │
+│          ↓                                          │
+│  3. Wait for Render                                 │
+│          ↓                                          │
+│  4. Animate (Old → New)                             │
 └─────────────────────────────────────────────────────┘
 ```
 

@@ -18,6 +18,6 @@ export const Head: EcoComponent<PageHeadProps<ReactNode>, ReactNode> = ({ metada
 
 Head.config = {
 	dependencies: {
-		stylesheets: ['../styles/tailwind.css'],
+		stylesheets: ['../styles/router.css', '../styles/tailwind.css'],
 	},
 };

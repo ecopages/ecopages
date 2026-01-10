@@ -23,9 +23,7 @@
 }
 
 /* View transition names for shared element animation */
-.post-card-image[data-slug="hello-world"] { view-transition-name: hero-image-hello-world; }
-.post-card-image[data-slug="react-router"] { view-transition-name: hero-image-react-router; }
-.post-card-image[data-slug="ssr-benefits"] { view-transition-name: hero-image-ssr-benefits; }
+/* Names are now applied inline in the component for better timing stability */
 
 .post-card-image img {
 	width: 100%;

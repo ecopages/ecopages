@@ -1,5 +1,10 @@
 /**
- * Root router component that enables SPA navigation.
+ * Root router component that enables SPA navigation with View Transitions API support.
+ *
+ * The router intercepts link clicks and performs client-side navigation using the
+ * browser's History API. When the View Transitions API is available, page transitions
+ * are animated using CSS view-transition pseudo-elements.
+ *
  * @module
  */
 
@@ -8,51 +13,50 @@ import {
 	useState,
 	useCallback,
 	useMemo,
+	useRef,
 	createContext,
 	useContext,
+	startTransition,
 	type ReactNode,
 	type ComponentType,
 } from 'react';
-import { flushSync } from 'react-dom';
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types';
 import { RouterContext } from './context';
 import { type PageState, loadPageModule, shouldInterceptClick } from './navigation';
-import { withViewTransition } from './view-transition-manager';
 import { morphHead } from './head-morpher';
+import { applyViewTransitionNames } from './view-transition-utils';
 
 type PageContextValue = PageState | null;
 
 const PageContext = createContext<PageContextValue>(null);
 
+/**
+ * Props for the EcoRouter component.
+ */
 export interface EcoRouterProps {
-	/** The page component to render on initial load (from SSR) */
+	/** The page component to render */
 	page: ComponentType<any>;
-
-	/** The props to pass to the page (from SSR) */
+	/** Props to pass to the page component */
 	pageProps: Record<string, any>;
-
 	/** Router configuration options */
 	options?: EcoRouterOptions;
-
-	/** Children - typically the Layout wrapping <PageContent /> */
+	/** Children containing the layout (should include PageContent) */
 	children: ReactNode;
 }
 
 /**
- * Renders the current page content with view transitions.
- * Use this inside your layout to render the page.
+ * Renders the current page content.
+ *
+ * Must be used inside an EcoRouter component. This is where the actual page
+ * component gets rendered based on the current navigation state.
  *
  * @example
  * ```tsx
- * const Layout = ({ children }) => (
- *   <main>
- *     <Header />
- *     {children}
- *   </main>
- * );
- *
- * // In the page with config.layout = Layout
- * // The page content will be passed as children to the Layout
+ * <EcoRouter page={Page} pageProps={props}>
+ *   <Layout>
+ *     <PageContent />
+ *   </Layout>
+ * </EcoRouter>
  * ```
  */
 export const PageContent = () => {
@@ -66,16 +70,64 @@ export const PageContent = () => {
 };
 
 /**
- * Root router component that enables SPA navigation.
- * Wraps your layout and manages page state.
+ * Creates a deferred promise that can be resolved externally.
+ *
+ * Used to synchronize the View Transition callback with React's render cycle.
+ * The promise is awaited inside startViewTransition's callback and resolved
+ * by a useEffect once React has committed the new page to the DOM.
+ *
+ * @returns Object with a promise and its resolve function
+ */
+function createDeferred<T>() {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((res) => {
+		resolve = res;
+	});
+	return { promise, resolve };
+}
+
+/**
+ * Root router component that provides SPA navigation with View Transitions.
+ *
+ * Implements the View Transitions API integration using a deferred promise pattern
+ * inspired by React Router. This ensures the browser captures the correct DOM
+ * snapshot after React has rendered the new page.
+ *
+ * ## How View Transitions Work
+ *
+ * 1. When navigation occurs, a deferred promise is created
+ * 2. `document.startViewTransition()` is called with an async callback
+ * 3. Inside the callback, `React.startTransition()` schedules the state update
+ * 4. The callback awaits the deferred promise
+ * 5. A `useEffect` resolves the promise once React renders the new page
+ * 6. The browser then animates between the old and new DOM snapshots
+ *
+ * ## Shared Element Transitions
+ *
+ * Elements with matching `data-view-transition` attributes on both the source
+ * and destination pages will animate their position and size between states.
  *
  * @example
  * ```tsx
- * <EcoRouter page={Page} pageProps={props}>
- *   <Layout>
+ * // In your app entry or layout
+ * import { EcoRouter, PageContent } from '@ecopages/react-router';
+ *
+ * <EcoRouter page={CurrentPage} pageProps={pageProps}>
+ *   <header>...</header>
+ *   <main>
  *     <PageContent />
- *   </Layout>
+ *   </main>
  * </EcoRouter>
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // Shared element transitions
+ * // Source page (list)
+ * <img data-view-transition={`hero-${item.id}`} src={item.image} />
+ *
+ * // Destination page (detail)
+ * <img data-view-transition={`hero-${id}`} src={image} />
  * ```
  */
 export const EcoRouter = ({ page, pageProps, options: userOptions, children }: EcoRouterProps) => {
@@ -88,33 +140,94 @@ export const EcoRouter = ({ page, pageProps, options: userOptions, children }: E
 
 	const [isNavigating, setIsNavigating] = useState(false);
 
+	/**
+	 * Tracks the pending page during a view transition.
+	 * Used to detect when React has finished rendering the new page.
+	 */
+	const [pendingPage, setPendingPage] = useState<PageState | null>(null);
+
+	/**
+	 * Deferred promise that gets resolved when React renders the pending page.
+	 * This is the key mechanism that makes View Transitions work with React -
+	 * we await this promise inside startViewTransition's callback to ensure
+	 * the DOM is updated before the browser captures the "new" snapshot.
+	 */
+	const renderDfd = useRef<{ promise: Promise<void>; resolve: () => void } | null>(null);
+
+	/**
+	 * Synchronizes the current page state with the router prop updates.
+	 * This ensures that HMR updates to the page component are reflected immediately.
+	 */
+	useEffect(() => {
+		setCurrentPage({ Component: page, props: pageProps });
+	}, [page, pageProps]);
+
+	/**
+	 * Applies view transition names to DOM elements on every page render.
+	 * This is necessary because React re-creation of DOM nodes removes custom properties.
+	 */
+	useEffect(() => {
+		applyViewTransitionNames();
+	}, [currentPage]);
+
+	/**
+	 * Monitors the pending page navigation and resolves the deferred promise
+	 * once the new component is mounted. This specific effect is the signal
+	 * to the View Transitions API that the DOM update is complete and
+	 * the "new" snapshot can be taken.
+	 */
+	useEffect(() => {
+		if (pendingPage && currentPage.Component === pendingPage.Component && renderDfd.current) {
+			renderDfd.current.resolve();
+			renderDfd.current = null;
+			setPendingPage(null);
+		}
+	}, [currentPage, pendingPage]);
+
+	/**
+	 * Navigates to the specified URL using client-side navigation.
+	 *
+	 * Loads the page module, updates the document head, and transitions
+	 * to the new page using the View Transitions API if available.
+	 */
 	const navigate = useCallback(async (url: string) => {
 		setIsNavigating(true);
 		const result = await loadPageModule(url);
+
 		if (result) {
 			const { Component, props, doc } = result;
-			/**
-			 * View Transition Flow:
-			 * 1. loadPageModule fetches the new page (pure, no side effects yet).
-			 * 2. withViewTransition starts. Use pure CSS or UA snapshots for "Old State".
-			 * 3. Inside the callback:
-			 *    - morphHead(doc): Updates <head> (CSS/Scripts). Critical to do this HERE so "New State" includes new styles.
-			 *    - flushSync: Renders the new React component synchronously.
-			 * 4. Transition animates from Old State -> New State.
-			 *
-			 * It is important to apply new styles *after* the snapshot is taken but *before* the new content renders
-			 * Then we flushSync to render the new page content to ensure the DOM is ready for the "New State" snapshot
-			 */
-			await withViewTransition(async () => {
-				await morphHead(doc);
-				flushSync(() => setCurrentPage({ Component, props }));
-			});
+			const nextPage = { Component, props };
+
+			const cleanupHead = await morphHead(doc);
+			applyViewTransitionNames();
+
+			if (document.startViewTransition) {
+				renderDfd.current = createDeferred<void>();
+				setPendingPage(nextPage);
+
+				document.startViewTransition(async () => {
+					startTransition(() => {
+						setCurrentPage(nextPage);
+					});
+					await renderDfd.current?.promise;
+					cleanupHead();
+					applyViewTransitionNames();
+				});
+			} else {
+				setCurrentPage(nextPage);
+				cleanupHead();
+				applyViewTransitionNames();
+			}
 		} else {
 			window.location.href = url;
 		}
 		setIsNavigating(false);
 	}, []);
 
+	/**
+	 * Sets up global event listeners for client-side navigation.
+	 * Intercepts clicks on <a> tags and handles popstate events for back/forward navigation.
+	 */
 	useEffect(() => {
 		const handleClick = (event: MouseEvent) => {
 			const link = (event.target as Element).closest(options.linkSelector) as HTMLAnchorElement | null;

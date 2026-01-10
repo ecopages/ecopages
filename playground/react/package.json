@@ -16,17 +16,17 @@
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
 		"tailwindcss": "^3.4.19",
-		"@types/react": "^19.0.0",
-		"@types/react-dom": "^19.0.0"
+		"@types/react": "^19",
+		"@types/react-dom": "^19"
 	},
 	"dependencies": {
-		"react": "^19.0.0",
-		"react-dom": "^19.0.0",
+		"react": "^19",
+		"react-dom": "^19",
 		"react-aria-components": "^1.6.0",
 		"@tanstack/react-table": "^8.20.6"
 	},
 	"overrides": {
-		"@types/react": "^19.0.0",
-		"@types/react-dom": "^19.0.0"
+		"@types/react": "^19",
+		"@types/react-dom": "^19"
 	}
 }

@@ -18,15 +18,15 @@
 		"@ecopages/postcss-processor": "workspace:*",
 		"@tailwindcss/postcss": "^4.1.18",
 		"tailwindcss": "^4.1.18",
-		"@types/react": "^19.0.0",
-		"@types/react-dom": "^19.0.0"
+		"@types/react": "^19",
+		"@types/react-dom": "^19"
 	},
 	"dependencies": {
-		"react": "^19.0.0",
-		"react-dom": "^19.0.0"
+		"react": "^19",
+		"react-dom": "canary"
 	},
 	"overrides": {
-		"@types/react": "^19.0.0",
-		"@types/react-dom": "^19.0.0"
+		"react": "^19",
+		"react-dom": "canary"
 	}
 }

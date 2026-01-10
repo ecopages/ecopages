@@ -91,3 +91,116 @@
 [data-eco-transition='slide'] {
 	view-transition-name: eco-slide;
 }
+[data-eco-transition='fade'] {
+	view-transition-name: eco-fade;
+}
+[data-eco-transition='zoom'] {
+	view-transition-name: eco-zoom;
+}
+[data-eco-transition='slide-up'] {
+	view-transition-name: eco-slide-up;
+}
+[data-eco-transition='slide-down'] {
+	view-transition-name: eco-slide-down;
+}
+
+/* FADE */
+::view-transition-old(eco-fade) {
+	animation: eco-fade-out 200ms ease-out both;
+}
+::view-transition-new(eco-fade) {
+	animation: eco-fade-in 200ms ease-out both;
+}
+
+/* ZOOM */
+::view-transition-image-pair(eco-zoom) {
+	isolation: isolate;
+}
+::view-transition-old(eco-zoom) {
+	animation: eco-zoom-out 200ms ease-in both;
+}
+::view-transition-new(eco-zoom) {
+	animation: eco-zoom-in 200ms ease-out both;
+}
+@keyframes eco-zoom-out {
+	from {
+		opacity: 1;
+		transform: scale(1);
+	}
+	to {
+		opacity: 0;
+		transform: scale(0.9);
+	}
+}
+@keyframes eco-zoom-in {
+	from {
+		opacity: 0;
+		transform: scale(0.9);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+/* SLIDE UP */
+::view-transition-image-pair(eco-slide-up) {
+	isolation: isolate;
+}
+::view-transition-old(eco-slide-up) {
+	animation: eco-slide-up-out 200ms ease-in both;
+}
+::view-transition-new(eco-slide-up) {
+	animation: eco-slide-up-in 200ms ease-out both;
+}
+@keyframes eco-slide-up-out {
+	from {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateY(-30px);
+	}
+}
+@keyframes eco-slide-up-in {
+	from {
+		opacity: 0;
+		transform: translateY(30px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* SLIDE DOWN */
+::view-transition-image-pair(eco-slide-down) {
+	isolation: isolate;
+}
+::view-transition-old(eco-slide-down) {
+	animation: eco-slide-down-out 200ms ease-in both;
+}
+::view-transition-new(eco-slide-down) {
+	animation: eco-slide-down-in 200ms ease-out both;
+}
+@keyframes eco-slide-down-out {
+	from {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateY(30px);
+	}
+}
+@keyframes eco-slide-down-in {
+	from {
+		opacity: 0;
+		transform: translateY(-30px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}

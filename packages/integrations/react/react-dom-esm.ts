@@ -1,3 +1,4 @@
+/// <reference types="react/canary" />
 import * as ReactDOM from 'react-dom';
 import {
 	createPortal,

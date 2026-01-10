@@ -43,7 +43,7 @@
 		"bump:major": "bun run scripts/bump-version.ts major && bun run jsr:sync-version",
 		"commit": "better-commits",
 		"prepare:husky": "husky",
-		"test:browser": "bun run scripts/test-browser.ts"
+		"test:browser": "bunx vitest run && bunx playwright test"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.0.6",

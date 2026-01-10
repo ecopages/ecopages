@@ -6,11 +6,9 @@ import { test, expect } from '@playwright/test';
  * Run with: bunx playwright test playground/react-router/tests/view-transitions.test.e2e.ts
  */
 
-const BASE_URL = 'http://localhost:3000';
-
 test.describe('View Transitions', () => {
 	test.beforeEach(async ({ page }) => {
-		await page.goto(BASE_URL);
+		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 	});
 
@@ -37,6 +35,7 @@ test.describe('View Transitions', () => {
 	test('elements have view-transition-name on post page', async ({ page }) => {
 		await page.click('.post-card-link');
 		await page.waitForURL('**/posts/**');
+		await page.waitForSelector('.post-image-container');
 
 		const vtElements = await page.evaluate(() => {
 			const all = Array.from(document.querySelectorAll('[data-view-transition]'));
@@ -104,9 +103,12 @@ test.describe('View Transitions', () => {
 		await page.waitForURL('**/posts/**');
 
 		await page.goBack();
-		await page.waitForURL(BASE_URL);
+		// Wait for the URL to match the base path (ending in /)
+		await page.waitForURL(/.*\/$/);
 
 		const url = page.url();
-		expect(url).toBe(BASE_URL + '/');
+		// Ensure we are back at root
+		expect(url).toMatch(/.*\/$/);
+		expect(url).not.toContain('/posts/');
 	});
 });

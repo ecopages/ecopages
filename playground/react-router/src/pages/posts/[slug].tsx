@@ -1,4 +1,4 @@
-import type { EcoComponent, GetMetadata } from '@ecopages/core';
+import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { EcoImage } from '@ecopages/image-processor/component/react';
 import {
@@ -25,34 +25,63 @@ const postsData: Record<string, { title: string; content: string; image: ImageSp
 	},
 };
 
-export const getMetadata: GetMetadata = ({ params }) => {
-	const slug = params.slug as string;
-	const post = postsData[slug] || { title: 'Not Found', content: '' };
+type PostProps = { title: string; content: string; image: object };
+
+type PostPageProps = {
+	post: PostProps | null;
+};
+
+export const getStaticPaths: GetStaticPaths = async () => {
+	return {
+		paths: Object.keys(postsData).map((slug) => ({ params: { slug } })),
+	};
+};
+
+export const getStaticProps: GetStaticProps<PostPageProps> = async ({ pathname }) => {
+	const slug = pathname.params.slug as string;
+	const post = postsData[slug] || null;
+	return {
+		props: {
+			post,
+		},
+	};
+};
+
+export const getMetadata: GetMetadata<PostPageProps> = ({ props }) => {
+	const { post } = props;
+	if (!post) {
+		return {
+			title: 'Post Not Found | Blog',
+			description: 'The requested post could not be found.',
+		};
+	}
 	return {
 		title: `${post.title} | Blog`,
 		description: post.content?.slice(0, 160),
 	};
 };
 
-type PostPageProps = {
-	params: { slug: string };
-	query: Record<string, string>;
-};
-
-// Shared element - uses data-view-transition for native View Transitions API
 const PostImage = ({ slug, image, title }: { slug: string; image: any; title: string }) => (
-	<div className="post-image-container" data-view-transition={`hero-image-${slug}`}>
+	<div
+		className="post-image-container"
+		style={{ viewTransitionName: `hero-image-${slug}` } as React.CSSProperties}
+		data-view-transition={`hero-image-${slug}`}
+	>
 		<EcoImage {...image} alt={title} />
 	</div>
 );
 
 const PostTitle = ({ slug, title }: { slug: string; title: string }) => (
-	<h1 data-view-transition={`hero-title-${slug}`}>{title}</h1>
+	<h1
+		style={{ viewTransitionName: `hero-title-${slug}` } as React.CSSProperties}
+		data-view-transition={`hero-title-${slug}`}
+	>
+		{title}
+	</h1>
 );
 
-const PostPage: EcoComponent<PostPageProps> = ({ params }) => {
-	const slug = params?.slug;
-	const post = slug ? postsData[slug] : null;
+const PostPage: EcoComponent<PageProps<PostPageProps>> = ({ post, params }) => {
+	const slug = params?.slug as string;
 
 	if (!post) {
 		return (

@@ -43,17 +43,21 @@
 	--color-accent-hover: oklch(0.5 0.18 270);
 	--color-accent-subtle: oklch(0.96 0.02 270);
 
-	/* Surface & UI Colors - Very clean, slightly cool versions of gray */
-	--color-surface: oklch(0.99 0 0); /* Pure white / Paper */
-	--color-surface-elevated: oklch(1 0 0); /* Pure white */
-	--color-surface-muted: oklch(0.97 0 0); /* Very light gray */
+	/* Surface & UI Colors */
+	--color-surface: oklch(0.99 0 0);
+	--color-surface-elevated: oklch(1 0 0);
+	--color-surface-muted: oklch(0.97 0 0);
 
-	/* Typography Colors - High contrast for readability */
-	--color-text: oklch(0.12 0 0); /* Almost black */
-	--color-text-muted: oklch(0.45 0.01 270); /* Medium gray */
-	--color-text-subtle: oklch(0.65 0.01 270); /* Light gray */
+	/* Typography Colors */
+	--color-text: oklch(0.12 0 0);
+	--color-text-muted: oklch(0.4 0 0);
+	--color-text-subtle: oklch(0.46 0 0);
 
-	/* Borders - Subtle */
+	/* Link Colors - Modern Teal with good contrast */
+	--color-link: oklch(0.45 0.12 190);
+	--color-link-hover: oklch(0.35 0.12 190);
+
+	/* Borders */
 	--color-border: oklch(0.92 0 0);
 
 	/* Typography System */
@@ -75,8 +79,12 @@
 
 	/* Text */
 	--color-text: oklch(0.98 0 0);
-	--color-text-muted: oklch(0.7 0.01 270);
-	--color-text-subtle: oklch(0.5 0.01 270);
+	--color-text-muted: oklch(0.75 0 0);
+	--color-text-subtle: oklch(0.65 0 0);
+
+	/* Link Colors - Lighter teal for dark mode */
+	--color-link: oklch(0.7 0.12 190);
+	--color-link-hover: oklch(0.8 0.12 190);
 
 	/* Borders */
 	--color-border: oklch(0.22 0.01 270);

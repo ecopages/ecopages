@@ -8,23 +8,30 @@ export type BaseLayoutProps = {
 	id?: string;
 };
 
-export const BaseLayout: EcoComponent<BaseLayoutProps, ReactNode> = ({ children, className }) => {
+export const BaseLayout: EcoComponent<BaseLayoutProps, ReactNode> = ({ children }) => {
 	return (
-		<main className={className}>
+		<div className="layout-container">
 			<header className="site-header">
-				<a href="/" className="site-title">
-					EcoBlog
-				</a>
-				<ThemeToggle />
+				<div className="header-content">
+					<a href="/" className="logo">
+						EcoBlog
+					</a>
+					<ThemeToggle />
+				</div>
 			</header>
-			{children}
+			<main className="main-content">{children}</main>
 			<footer className="site-footer">
 				<p>{'© ' + new Date().getFullYear()} EcoBlog. Built with EcoPages.</p>
-				<a href="https://github.com/AmbientEarth/ecopages" target="_blank" rel="noopener noreferrer">
+				<a
+					href="https://github.com/AmbientEarth/ecopages"
+					target="_blank"
+					rel="noopener noreferrer"
+					className="footer-link"
+				>
 					GitHub
 				</a>
 			</footer>
-		</main>
+		</div>
 	);
 };
 

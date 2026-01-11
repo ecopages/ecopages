@@ -25,7 +25,7 @@ const postsData: Record<string, { title: string; content: string; image: ImageSp
 	},
 };
 
-type PostProps = { title: string; content: string; image: object };
+type PostProps = { title: string; content: string; image: ImageSpecifications };
 
 type PostPageProps = {
 	post: PostProps | null;
@@ -61,25 +61,6 @@ export const getMetadata: GetMetadata<PostPageProps> = ({ props }) => {
 	};
 };
 
-const PostImage = ({ slug, image, title }: { slug: string; image: any; title: string }) => (
-	<div
-		className="post-image-container"
-		style={{ viewTransitionName: `hero-image-${slug}` } as React.CSSProperties}
-		data-view-transition={`hero-image-${slug}`}
-	>
-		<EcoImage {...image} alt={title} />
-	</div>
-);
-
-const PostTitle = ({ slug, title }: { slug: string; title: string }) => (
-	<h1
-		style={{ viewTransitionName: `hero-title-${slug}` } as React.CSSProperties}
-		data-view-transition={`hero-title-${slug}`}
-	>
-		{title}
-	</h1>
-);
-
 const PostPage: EcoComponent<PageProps<PostPageProps>> = ({ post, params }) => {
 	const slug = params?.slug as string;
 
@@ -101,8 +82,10 @@ const PostPage: EcoComponent<PageProps<PostPageProps>> = ({ post, params }) => {
 				← Back to Blog
 			</a>
 			<article className="post-content">
-				<PostTitle slug={slug} title={post.title} />
-				<PostImage slug={slug} image={post.image} title={post.title} />
+				<h1>{post.title}</h1>
+				<div className="post-image-container" data-view-transition={`hero-image-${slug}`}>
+					<EcoImage {...post.image} alt={post.title} />
+				</div>
 				<p>{post.content}</p>
 			</article>
 		</>

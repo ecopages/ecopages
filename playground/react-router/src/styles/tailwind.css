@@ -6,10 +6,6 @@
 	--text-lg: 1.75rem;
 	--text-base: 1rem;
 	--text-sm: 0.875rem;
-	--space: 1.5rem;
-	--space-sm: 0.75rem;
-	--space-lg: 3rem;
-	--radius: 0;
 }
 
 body {
@@ -27,7 +23,7 @@ h1 {
 	font-size: 2.5rem;
 	font-weight: 700;
 	line-height: 1.1;
-	margin-bottom: var(--space);
+	margin-bottom: 1.5rem;
 	letter-spacing: -0.03em;
 	color: var(--color-text);
 }
@@ -36,37 +32,37 @@ h2 {
 	font-family: var(--font-serif);
 	font-size: 1.5rem;
 	font-weight: 600;
-	margin-top: var(--space);
-	margin-bottom: var(--space-sm);
+	margin-top: 1.5rem;
+	margin-bottom: 0.75rem;
 	letter-spacing: -0.02em;
 	color: var(--color-text);
 }
 
 p {
 	color: var(--color-text-muted);
-	margin-bottom: var(--space-sm);
+	margin-bottom: 0.75rem;
 }
 
 a {
-	color: var(--color-accent);
+	color: var(--color-link);
 	text-decoration: none;
 	transition: all 0.2s ease;
 	font-weight: 500;
 }
 
 a:hover {
-	color: var(--color-accent-hover);
+	color: var(--color-link-hover);
 }
 
 hr {
 	border: none;
 	height: 1px;
 	background: var(--color-border);
-	margin: var(--space-lg) 0;
+	margin: 3rem 0;
 }
 
 article {
-	margin-bottom: var(--space_lg);
+	margin-bottom: 3rem;
 	transition: transform 0.2s ease;
 }
 
@@ -97,11 +93,11 @@ article p {
 }
 
 img {
-	border-radius: var(--radius);
+	border-radius: 0;
 	width: 100%;
 	height: auto;
 	display: block;
-	margin-bottom: var(--space);
+	margin-bottom: 1.5rem;
 }
 
 .back-link {
@@ -110,12 +106,12 @@ img {
 	gap: 0.5rem;
 	font-size: var(--text-sm);
 	color: var(--color-text-subtle);
-	margin-bottom: var(--space);
+	margin-bottom: 1.5rem;
 	font-weight: 500;
 }
 
 .back-link:hover {
-	color: var(--color-accent);
+	color: var(--color-link);
 	transform: translateX(-4px);
 }
 

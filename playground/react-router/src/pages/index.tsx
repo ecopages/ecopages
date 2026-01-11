@@ -61,17 +61,21 @@ const HomePage: EcoComponent = () => {
 					</a>
 				</article>
 			))}
-			<article>
-				<h2>
-					<a href="/about">About This Project</a>
-				</h2>
-				<p>Learn about the EcoPages React Router.</p>
+			<article className="post-card">
+				<a href="/about" className="post-card-link">
+					<div className="post-card-content">
+						<h2>About This Project</h2>
+						<p>Learn about the EcoPages React Router.</p>
+					</div>
+				</a>
 			</article>
-			<article>
-				<h2>
-					<a href="/mdx-example">MDX Example</a>
-				</h2>
-				<p>See how MDX pages work with SPA navigation.</p>
+			<article className="post-card">
+				<a href="/mdx-example" className="post-card-link">
+					<div className="post-card-content">
+						<h2>MDX Example</h2>
+						<p>See how MDX pages work with SPA navigation.</p>
+					</div>
+				</a>
 			</article>
 
 			<div style={{ marginTop: '3rem' }}></div>

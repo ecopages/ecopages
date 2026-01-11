@@ -1,21 +1,22 @@
+.post-content h1 {
+	@apply text-3xl font-bold tracking-tight text-text mb-6;
+}
+
 .post-image-container {
-	margin: 0 0 var(--space) 0;
-	max-width: 32rem;
+	@apply mb-6 max-w-2xl overflow-hidden rounded-lg shadow-sm max-h-[50svh];
+	img {
+		@apply mb-0;
+	}
 }
 
 .post-image-container img {
-	border-radius: var(--radius);
-	width: 100%;
-	height: auto;
-	display: block;
-	box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+	@apply w-full h-auto block object-cover;
 }
 
 .post-content {
-	margin-top: var(--space);
+	@apply mt-6;
 }
 
 .post-content p {
-	font-size: 1.125rem;
-	margin-bottom: var(--space);
+	@apply text-text-muted leading-relaxed mb-6;
 }

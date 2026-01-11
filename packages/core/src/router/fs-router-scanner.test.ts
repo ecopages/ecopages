@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
+import { FIXTURE_APP_PROJECT_DIR } from '../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { FSRouterScanner } from './fs-router-scanner.ts';
 

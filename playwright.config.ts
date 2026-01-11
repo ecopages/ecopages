@@ -40,7 +40,7 @@ export default defineConfig({
 	webServer: [
 		{
 			command: 'NODE_ENV=development ECOPAGES_PORT=3002 bun run app.ts --dev',
-			cwd: 'packages/core/fixtures/app',
+			cwd: 'packages/core/__fixtures__/app',
 			port: 3002,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',

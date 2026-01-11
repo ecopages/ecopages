@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
  * Run with: bunx playwright test packages/core/src/hmr/hmr.e2e.test.ts
  */
 
-const FIXTURE_DIR = resolve(process.cwd(), 'packages/core/fixtures/app');
+const FIXTURE_DIR = resolve(process.cwd(), 'packages/core/__fixtures__/app');
 const TEST_CSS_FILE = resolve(FIXTURE_DIR, 'src/pages/index.css');
 const BUILT_CSS_FILE = resolve(FIXTURE_DIR, '.eco/assets/pages/index.css');
 const TEST_URL = 'http://localhost:3002';

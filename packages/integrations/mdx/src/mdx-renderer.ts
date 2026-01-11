@@ -94,6 +94,8 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 
 			const resolvedLayout = config?.layout;
 
+			if (config) Page.config = config;
+
 			return {
 				default: Page,
 				layout: resolvedLayout,
@@ -105,6 +107,9 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	async render({
+		params,
+		query,
+		props,
 		metadata,
 		Page,
 		HtmlTemplate,
@@ -112,7 +117,8 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		pageProps,
 	}: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
 		try {
-			const children = typeof Layout === 'function' ? Layout({ children: Page({}) }) : Page({});
+			const pageContent = await Page({ params, query, ...props });
+			const children = typeof Layout === 'function' ? await Layout({ children: pageContent }) : pageContent;
 
 			const body = await HtmlTemplate({
 				metadata,

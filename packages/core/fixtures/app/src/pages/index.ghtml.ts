@@ -12,6 +12,8 @@ const HomePage: EcoComponent<PageProps> = ({ params, query }) =>
 	html`!${BaseLayout({
 		class: 'main-content',
 		children: html`<h1 class="main-title">Home Page</h1>
+			<a href="/dynamic/a">Dynamic</a>
+			<a href="/dynamic/b?q=query">With Query</a>
 			<p>!${JSON.stringify(query || [])}</p>
 			<p>!${JSON.stringify(params || [])}</p>`,
 	})}`;

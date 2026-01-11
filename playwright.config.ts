@@ -6,7 +6,7 @@ export default defineConfig({
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
-	workers: 1,
+	// workers: 1,
 	reporter: 'list',
 	use: {
 		trace: 'on-first-retry',
@@ -21,25 +21,43 @@ export default defineConfig({
 			},
 		},
 		{
-			name: 'react-router-preview',
-			testMatch: 'playground/react-router/**/*.test.e2e.ts',
+			name: 'browser-router-e2e',
+			testMatch: 'e2e/tests/browser-router/**/*.test.e2e.ts',
 			use: {
 				...devices['Desktop Chrome'],
-				baseURL: 'http://localhost:3004',
+				baseURL: 'http://localhost:4002',
+			},
+		},
+		{
+			name: 'react-router-e2e',
+			testMatch: 'e2e/tests/react-router/**/*.test.e2e.ts',
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:4003',
 			},
 		},
 	],
 	webServer: [
 		{
-			command: 'bun run packages/core/fixtures/test-server.ts',
+			command: 'NODE_ENV=development ECOPAGES_PORT=3002 bun run app.ts --dev',
+			cwd: 'packages/core/fixtures/app',
 			port: 3002,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},
 		{
-			command: 'ECOPAGES_PORT=3004 bun run preview:playground-react-router',
-			port: 3004,
+			command: 'ECOPAGES_PORT=4002 bun run app.ts --preview',
+			cwd: 'e2e/fixtures/browser-router-app',
+			port: 4002,
+			reuseExistingServer: !process.env.CI,
+			stdout: 'pipe',
+			stderr: 'pipe',
+		},
+		{
+			command: 'ECOPAGES_PORT=4003 bun run app.ts --preview',
+			cwd: 'e2e/fixtures/react-router-app',
+			port: 4003,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',
 			stderr: 'pipe',

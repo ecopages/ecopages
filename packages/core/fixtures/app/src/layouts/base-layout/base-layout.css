@@ -1,7 +1,8 @@
 body {
-	@apply bg-gray-50 h-screen;
+	background-color: #f9fafb;
+	height: 100vh;
 }
 
 main {
-	@apply p-8;
+	padding: 2rem;
 }

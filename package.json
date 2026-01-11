@@ -48,7 +48,9 @@
 		"bump:major": "bun run scripts/bump-version.ts major && bun run jsr:sync-version",
 		"commit": "better-commits",
 		"prepare:husky": "husky",
-		"test:browser": "bunx vitest run && bunx playwright test"
+		"test:browser": "bunx vitest run && bunx playwright test",
+		"test:e2e": "bunx playwright test",
+		"test:e2e:ui": "bunx playwright test --ui"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.0.6",
@@ -73,6 +75,7 @@
 		"packages/plugins/*",
 		"packages/processors/*",
 		"playground/*",
+		"e2e/fixtures/*",
 		"apps/*"
 	],
 	"type": "module"

@@ -35,6 +35,7 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 			entrypoint: modulePath,
 			outdir: outdir,
 			minify: this.isProduction,
+			naming: dep.name ? `${dep.name}.[ext]` : '[name].[ext]',
 			...this.getBundlerOptions(dep),
 		});
 

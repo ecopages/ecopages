@@ -86,18 +86,15 @@ export class ProjectWatcher {
 				this.refreshRouterRoutesCallback();
 			}
 
-			// Rule 1: additionalWatchPaths → reload
 			if (this.matchesAdditionalWatchPaths(filePath)) {
 				this.bridge.reload();
 				return;
 			}
 
-			// Rule 2: Processor extension → processor handles (skip HMR)
 			if (this.isHandledByProcessor(filePath)) {
 				return;
 			}
 
-			// Rule 3: Otherwise → HMR strategies
 			await this.hmrManager.handleFileChange(filePath);
 		} catch (error) {
 			if (error instanceof Error) {
@@ -114,14 +111,11 @@ export class ProjectWatcher {
 		const patterns = this.appConfig.additionalWatchPaths;
 		if (!patterns.length) return false;
 
-		// Simple glob matching - check if file matches any pattern
 		for (const pattern of patterns) {
 			if (pattern.includes('*')) {
-				// Basic glob: check if extension matches
 				const ext = pattern.replace(/\*\*?\/\*/, '');
 				if (filePath.endsWith(ext)) return true;
 			} else {
-				// Exact match
 				if (filePath.endsWith(pattern) || filePath === path.resolve(pattern)) return true;
 			}
 		}

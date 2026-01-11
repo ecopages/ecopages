@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import HtmlTemplate from '../../../fixtures/app/src/includes/html.ghtml.ts';
-import { FIXTURE_APP_PROJECT_DIR } from '../../../fixtures/constants.ts';
+import HtmlTemplate from '../../../__fixtures__/app/src/includes/html.ghtml.js';
+import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
 

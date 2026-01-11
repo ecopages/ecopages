@@ -62,8 +62,11 @@ export class ServerStaticBuilder {
 			return;
 		}
 
+		const previewPort = this.serveOptions.port || 3000;
+
 		const { server } = StaticContentServer.createServer({
 			appConfig: this.appConfig,
+			options: { port: Number(previewPort) },
 		});
 
 		if (server) {

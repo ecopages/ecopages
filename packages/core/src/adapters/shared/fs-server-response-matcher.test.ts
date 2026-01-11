@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../fixtures/constants.ts';
+import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { STATUS_MESSAGE } from '../../constants.ts';
 import type { MatchResult } from '../../internal-types.ts';

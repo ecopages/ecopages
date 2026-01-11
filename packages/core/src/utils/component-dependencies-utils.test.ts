@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { FIXTURE_APP_PROJECT_DIR } from '../../fixtures/constants.ts';
+import { FIXTURE_APP_PROJECT_DIR } from '../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import type { EcoComponentDependencies } from '../public-types.ts';
 import { AssetFactory } from '../services/asset-processing-service/asset.factory.ts';

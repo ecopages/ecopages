@@ -1,0 +1,10 @@
+{
+	"name": "@ecopages/react-router",
+	"version": "0.1.57",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"publish": {
+		"include": ["src/**/*.ts", "src/**/*.tsx", "README.md", "LICENSE", "jsr.json", "package.json"]
+	}
+}

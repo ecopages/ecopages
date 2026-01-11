@@ -79,8 +79,6 @@ export class BundleError extends Error {
 export type MDXReactFile = {
 	/** The default export which is the converted MDX content as a React component. */
 	default: ReactNode;
-	/** Optional layout component to wrap the content. */
-	layout?: React.ComponentType<{ children: ReactNode }>;
 	/** Optional page-specific configuration. */
 	config?: EcoComponentConfig;
 	/** Function to retrieve page metadata. */
@@ -91,8 +89,6 @@ export type MDXReactFile = {
  * Options for the MDX integration renderer.
  */
 interface MDXReactIntegrationRendererOptions<C = ReactNode> extends IntegrationRendererRenderOptions<C> {
-	/** Optional layout component to wrap the content. */
-	layout?: React.ComponentType<{ children: ReactNode }>;
 	/** Optional page-specific configuration. */
 	config?: EcoComponentConfig;
 }
@@ -147,15 +143,16 @@ import * as MDXComponent from "${importPath}";
 window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
 let root = null;
 
-const { default: Page, layout } = MDXComponent;
+const { default: Page, config } = MDXComponent;
+const resolvedLayout = config?.layout;
 
 async function mount() {
     try {
         const container = document.querySelector('[data-react-root]');
         if (!container) return;
         
-        const element = layout 
-            ? createElement(layout, null, createElement(Page))
+        const element = resolvedLayout 
+            ? createElement(resolvedLayout, null, createElement(Page))
             : createElement(Page);
             
         root = hydrateRoot(container, element);
@@ -164,9 +161,10 @@ async function mount() {
         window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
             try {
                 const newModule = await import(newUrl);
-                const { default: NewPage, layout: newLayout } = newModule;
-                const newElement = newLayout 
-                    ? createElement(newLayout, null, createElement(NewPage))
+                const { default: NewPage, config: newConfig } = newModule;
+                const newResolvedLayout = newConfig?.layout;
+                const newElement = newResolvedLayout 
+                    ? createElement(newResolvedLayout, null, createElement(NewPage))
                     : createElement(NewPage);
                 root.render(newElement);
                 console.log("[ecopages] MDX component updated");
@@ -192,15 +190,16 @@ import { createElement } from "react";
 import { hydrateRoot } from "react-dom/client";
 import * as MDXComponent from "${importPath}";
 
-const { default: Page, layout } = MDXComponent;
+const { default: Page, config } = MDXComponent;
+const resolvedLayout = config?.layout;
 
 async function hydrate() {
     try {
         const root = document.querySelector('[data-react-root]');
         if (!root) return;
         
-        const element = layout 
-            ? createElement(layout, null, createElement(Page))
+        const element = resolvedLayout 
+            ? createElement(resolvedLayout, null, createElement(Page))
             : createElement(Page);
             
         hydrateRoot(root, element);
@@ -298,11 +297,12 @@ if (document.readyState === 'loading') {
 			);
 			const reactAssets = [processedFileScript, processedHydrationScript];
 
-			const { config, layout } = await this.importPageFile(pagePath);
+			const { config } = await this.importPageFile(pagePath);
+			const resolvedLayout = config?.layout;
 			const components: Partial<EcoComponent>[] = [];
 
-			if (layout?.config?.dependencies) {
-				components.push({ config: layout.config });
+			if (resolvedLayout?.config?.dependencies) {
+				components.push({ config: resolvedLayout.config });
 			}
 
 			if (config?.dependencies) {
@@ -327,14 +327,13 @@ if (document.readyState === 'loading') {
 
 	protected override async importPageFile(file: string): Promise<
 		EcoPageFile<{
-			layout?: EcoComponent<React.ComponentType<{ children: ReactNode }>>;
 			config?: EcoComponentConfig;
 		}>
 	> {
 		try {
 			const mdxModule = await import(file);
 
-			const { default: Page, layout, getMetadata, config } = mdxModule;
+			const { default: Page, getMetadata, config } = mdxModule;
 
 			if (typeof Page !== 'function') {
 				throw new Error(`MDX file must export a default function, got ${typeof Page}: ${String(Page)}`);
@@ -342,7 +341,6 @@ if (document.readyState === 'loading') {
 
 			return {
 				default: Page,
-				layout,
 				getMetadata,
 				config,
 			};
@@ -356,15 +354,19 @@ if (document.readyState === 'loading') {
 		metadata,
 		Page,
 		HtmlTemplate,
-		layout,
+		Layout,
 	}: MDXReactIntegrationRendererOptions): Promise<RouteRendererBody> {
 		try {
 			if (typeof Page !== 'function') {
 				throw new Error(`Page must be a React component function, got ${typeof Page}: ${String(Page)}`);
 			}
 
-			const pageElement = layout
-				? React.createElement(layout, undefined, React.createElement(Page as React.ComponentType))
+			const pageElement = Layout
+				? React.createElement(
+						Layout as React.ComponentType,
+						undefined,
+						React.createElement(Page as React.ComponentType),
+					)
 				: React.createElement(Page as React.ComponentType);
 
 			const children = React.createElement(

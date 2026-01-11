@@ -98,7 +98,6 @@ describe('HmrStrategy', () => {
 				matchPattern: '.test',
 			});
 
-			// Asset (50 + 60 = 110) > Integration (100 + 0 = 100)
 			expect(assetWithHighOffset.priority).toBeGreaterThan(integration.priority);
 		});
 	});

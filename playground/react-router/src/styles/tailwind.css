@@ -1,0 +1,121 @@
+@import 'tailwindcss';
+@import './theme.css';
+@import '../../../../packages/react-router/src/styles.css';
+
+:root {
+	--text-lg: 1.75rem;
+	--text-base: 1rem;
+	--text-sm: 0.875rem;
+}
+
+body {
+	font-family: var(--font-sans);
+	font-size: var(--text-base);
+	line-height: 1.6;
+	color: var(--color-text);
+	background-color: var(--color-surface);
+	min-height: 100vh;
+	-webkit-font-smoothing: antialiased;
+}
+
+h1 {
+	font-family: var(--font-serif);
+	font-size: 2.5rem;
+	font-weight: 700;
+	line-height: 1.1;
+	margin-bottom: 1.5rem;
+	letter-spacing: -0.03em;
+	color: var(--color-text);
+}
+
+h2 {
+	font-family: var(--font-serif);
+	font-size: 1.5rem;
+	font-weight: 600;
+	margin-top: 1.5rem;
+	margin-bottom: 0.75rem;
+	letter-spacing: -0.02em;
+	color: var(--color-text);
+}
+
+p {
+	color: var(--color-text-muted);
+	margin-bottom: 0.75rem;
+}
+
+a {
+	color: var(--color-link);
+	text-decoration: none;
+	transition: all 0.2s ease;
+	font-weight: 500;
+}
+
+a:hover {
+	color: var(--color-link-hover);
+}
+
+hr {
+	border: none;
+	height: 1px;
+	background: var(--color-border);
+	margin: 3rem 0;
+}
+
+article {
+	margin-bottom: 3rem;
+	transition: transform 0.2s ease;
+}
+
+article h2 {
+	margin-top: 0;
+	margin-bottom: 0.5rem;
+}
+
+article h2 a {
+	color: var(--color-text);
+	background-image: linear-gradient(var(--color-text), var(--color-text));
+	background-size: 0% 1px;
+	background-repeat: no-repeat;
+	background-position: left bottom;
+	transition:
+		background-size 0.3s ease,
+		color 0.2s ease;
+}
+
+article h2 a:hover {
+	background-size: 100% 1px;
+}
+
+article p {
+	font-size: var(--text-base);
+	color: var(--color-text-muted);
+	line-height: 1.6;
+}
+
+img {
+	border-radius: 0;
+	width: 100%;
+	height: auto;
+	display: block;
+	margin-bottom: 1.5rem;
+}
+
+.back-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: var(--text-sm);
+	color: var(--color-text-subtle);
+	margin-bottom: 1.5rem;
+	font-weight: 500;
+}
+
+.back-link:hover {
+	color: var(--color-link);
+	transform: translateX(-4px);
+}
+
+::selection {
+	background: var(--color-accent-subtle);
+	color: var(--color-accent);
+}

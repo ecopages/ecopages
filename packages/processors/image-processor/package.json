@@ -26,13 +26,13 @@
 	"dependencies": {
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "latest",
-		"react": "^19.0.0",
-		"react-dom": "^19.0.0",
+		"react": "^19",
+		"react-dom": "^19",
 		"sharp": "^0.33.5"
 	},
 	"devDependencies": {
-		"@types/react": "^19.0.0",
-		"@types/react-dom": "^19.0.0"
+		"@types/react": "^19",
+		"@types/react-dom": "^19"
 	},
 	"exports": {
 		".": {

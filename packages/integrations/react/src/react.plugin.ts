@@ -3,12 +3,13 @@
  * @module
  */
 
-import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
+import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import type { IHmrManager, HmrStrategy } from '@ecopages/core';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import type React from 'react';
 import { ReactRenderer } from './react-renderer';
 import { ReactHmrStrategy } from './react-hmr-strategy';
+import type { ReactRouterAdapter } from './router-adapter';
 
 /**
  * Options for the React plugin
@@ -16,6 +17,16 @@ import { ReactHmrStrategy } from './react-hmr-strategy';
 export type ReactPluginOptions = {
 	extensions?: string[];
 	dependencies?: AssetDefinition[];
+	/**
+	 * Router adapter for SPA navigation.
+	 * When provided, pages with layouts will be wrapped in the router for client-side navigation.
+	 * @example
+	 * ```ts
+	 * import { ecoRouter } from '@ecopages/react-router';
+	 * reactPlugin({ router: ecoRouter() })
+	 * ```
+	 */
+	router?: ReactRouterAdapter;
 };
 
 /**
@@ -29,6 +40,7 @@ export const PLUGIN_NAME = 'react';
  */
 export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	renderer = ReactRenderer;
+	routerAdapter: ReactRouterAdapter | undefined;
 
 	constructor(options?: Omit<ReactPluginOptions, 'name'>) {
 		super({
@@ -37,6 +49,8 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 			...options,
 		});
 
+		this.routerAdapter = options?.router;
+		ReactRenderer.routerAdapter = this.routerAdapter;
 		this.integrationDependencies.unshift(...this.getDependencies());
 	}
 
@@ -74,17 +88,25 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	 * Used for both the import map and HMR specifier replacement.
 	 */
 	private getSpecifierMap(): Record<string, string> {
-		return {
+		const map: Record<string, string> = {
 			react: this.buildImportMapSourceUrl('react-esm.js'),
 			'react/jsx-runtime': this.buildImportMapSourceUrl('react-esm.js'),
 			'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-esm.js'),
 			'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
 			'react-dom/client': this.buildImportMapSourceUrl('react-esm.js'),
 		};
+
+		if (this.routerAdapter) {
+			map[this.routerAdapter.importMapKey] = this.buildImportMapSourceUrl(
+				`${this.routerAdapter.bundle.outputName}.js`,
+			);
+		}
+
+		return map;
 	}
 
 	private getDependencies(): AssetDefinition[] {
-		return [
+		const deps: AssetDefinition[] = [
 			AssetFactory.createInlineContentScript({
 				position: 'head',
 				bundle: false,
@@ -118,6 +140,25 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 				},
 			}),
 		];
+
+		if (this.routerAdapter) {
+			deps.push(
+				AssetFactory.createNodeModuleScript({
+					position: 'head',
+					importPath: this.routerAdapter.bundle.importPath,
+					name: this.routerAdapter.bundle.outputName,
+					bundleOptions: {
+						external: this.routerAdapter.bundle.externals,
+					},
+					attributes: {
+						type: 'module',
+						defer: '',
+					},
+				}),
+			);
+		}
+
+		return deps;
 	}
 }
 
@@ -126,6 +167,6 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
  * @param options Configuration options for the React plugin
  * @returns A new ReactPlugin instance
  */
-export function reactPlugin(options?: Omit<IntegrationPluginConfig, 'name'>): ReactPlugin {
+export function reactPlugin(options?: ReactPluginOptions): ReactPlugin {
 	return new ReactPlugin(options);
 }

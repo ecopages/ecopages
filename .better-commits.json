@@ -86,6 +86,10 @@
 				"label": "browser-router"
 			},
 			{
+				"value": "react-router",
+				"label": "react-router"
+			},
+			{
 				"value": "integration/kitajs",
 				"label": "integration/kitajs"
 			},

@@ -1,0 +1,21 @@
+{
+	"name": "@ecopages/playground-browser-router",
+	"private": true,
+	"scripts": {
+		"start": "NODE_ENV=production bun run app.ts",
+		"dev": "bun run app.ts --dev",
+		"build": "NODE_ENV=production bun run app.ts --build",
+		"preview": "NODE_ENV=production bun run app.ts --preview",
+		"watch:dev": "bun --watch run app.ts --dev"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/kitajs": "workspace:*",
+		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/image-processor": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
+		"@tailwindcss/postcss": "^4.1.18",
+		"tailwindcss": "^4.1.18",
+		"@ecopages/radiant": "^0.2.0"
+	}
+}

@@ -1,0 +1,91 @@
+/* Global Theme Variables - Modern & Slick */
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Fonts */
+@font-face {
+	font-family: 'Alegreya Sans';
+	src: url('/public/assets/fonts/alegreya-sans-latin-400-normal.woff2') format('woff2');
+	font-weight: 400;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Alegreya Sans';
+	src: url('/public/assets/fonts/alegreya-sans-latin-500-normal.woff2') format('woff2');
+	font-weight: 500;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Alegreya Sans';
+	src: url('/public/assets/fonts/alegreya-sans-latin-700-normal.woff2') format('woff2');
+	font-weight: 700;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Cambo';
+	src: url('/public/assets/fonts/cambo-latin-400-normal.woff2') format('woff2');
+	font-weight: 400;
+	font-display: swap;
+}
+
+@theme {
+	/* 
+    Modern Palette - Slick High Contrast 
+    Using OKLCH for vibrancy and perceptual uniformity
+  */
+
+	/* Core Brand Color - Vibrant Indigo/Violet */
+	--color-accent: oklch(0.6 0.18 270);
+	--color-accent-hover: oklch(0.5 0.18 270);
+	--color-accent-subtle: oklch(0.96 0.02 270);
+
+	/* Surface & UI Colors */
+	--color-surface: oklch(0.99 0 0);
+	--color-surface-elevated: oklch(1 0 0);
+	--color-surface-muted: oklch(0.97 0 0);
+
+	/* Typography Colors */
+	--color-text: oklch(0.12 0 0);
+	--color-text-muted: oklch(0.4 0 0);
+	--color-text-subtle: oklch(0.46 0 0);
+
+	/* Link Colors - Modern Teal with good contrast */
+	--color-link: oklch(0.45 0.12 190);
+	--color-link-hover: oklch(0.35 0.12 190);
+
+	/* Borders */
+	--color-border: oklch(0.92 0 0);
+
+	/* Typography System */
+	--font-sans: 'Alegreya Sans', system-ui, -apple-system, sans-serif;
+	--font-serif: 'Cambo', Georgia, serif;
+}
+
+/* Dark Mode Overrides - Deep, rich, slick dark theme */
+.dark {
+	/* Accent pops more in dark mode */
+	--color-accent: oklch(0.7 0.16 270);
+	--color-accent-hover: oklch(0.8 0.16 270);
+	--color-accent-subtle: oklch(0.25 0.05 270);
+
+	/* Backgrounds - Dark mostly neutral with tiny hint of violet */
+	--color-surface: oklch(0.12 0.01 270);
+	--color-surface-elevated: oklch(0.16 0.01 270);
+	--color-surface-muted: oklch(0.18 0.01 270);
+
+	/* Text */
+	--color-text: oklch(0.98 0 0);
+	--color-text-muted: oklch(0.75 0 0);
+	--color-text-subtle: oklch(0.65 0 0);
+
+	/* Link Colors - Lighter teal for dark mode */
+	--color-link: oklch(0.7 0.12 190);
+	--color-link-hover: oklch(0.8 0.12 190);
+
+	/* Borders */
+	--color-border: oklch(0.22 0.01 270);
+}

@@ -60,7 +60,7 @@ export interface EcoRouterProps {
  * </EcoRouter>
  * ```
  */
-export const PageContent = () => {
+export const PageContent: FC = () => {
 	const pageContext = useContext(PageContext);
 	if (!pageContext) {
 		console.warn('[EcoRouter] PageContent used outside of EcoRouter');

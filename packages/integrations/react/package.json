@@ -49,6 +49,6 @@
 	},
 	"overrides": {
 		"react": "^19",
-		"react-dom": "canary"
+		"react-dom": "^19"
 	}
 }

@@ -51,7 +51,7 @@
       "name": "@ecopages/e2e-react-router-app",
       "dependencies": {
         "react": "^19",
-        "react-dom": "canary",
+        "react-dom": "^19",
       },
       "devDependencies": {
         "@ecopages/core": "workspace:*",
@@ -310,7 +310,7 @@
       "name": "@ecopages/playground-react-router",
       "dependencies": {
         "react": "^19",
-        "react-dom": "canary",
+        "react-dom": "^19",
       },
       "devDependencies": {
         "@ecopages/core": "workspace:*",
@@ -329,7 +329,7 @@
       "name": "@ecopages/playground-tailwind-v4",
       "dependencies": {
         "react": "^19",
-        "react-dom": "canary",
+        "react-dom": "^19",
       },
       "devDependencies": {
         "@ecopages/core": "workspace:*",

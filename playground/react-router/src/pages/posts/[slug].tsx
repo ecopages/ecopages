@@ -6,6 +6,7 @@ import {
 	theodorePoncetQzephogqd7WUnsplashJpg,
 	urbanVintage78A265Wpio4UnsplashJpg,
 } from 'ecopages:images';
+import type { ImageSpecifications } from '@ecopages/image-processor';
 
 const postsData: Record<string, { title: string; content: string; image: ImageSpecifications }> = {
 	'hello-world': {

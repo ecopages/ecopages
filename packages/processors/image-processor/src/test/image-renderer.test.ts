@@ -23,6 +23,7 @@ const mockImageProps = {
 			label: 'sm',
 		},
 	],
+	cacheKey: 'test-123',
 	alt: 'Test image',
 };
 
@@ -159,7 +160,7 @@ describe('ImageRenderer', () => {
 				className: 'test-class',
 			});
 
-			expect(attributes?.className).toBe('test-class');
+			expect((attributes as unknown as Record<string, unknown>)?.className).toBe('test-class');
 		});
 
 		it('should handle multiple HTML attributes', () => {
@@ -236,7 +237,7 @@ describe('ImageRenderer', () => {
 				layout: 'fixed',
 				staticVariant: 'sm',
 				priority: true,
-			});
+			}) as unknown as Record<string, unknown>;
 
 			expect(attributes?.layout).toBeUndefined();
 			expect(attributes?.staticVariant).toBeUndefined();
@@ -263,14 +264,14 @@ describe('ImageRenderer', () => {
 				layout: 'fixed',
 				style: { color: 'red' },
 				data: 'test',
-			});
+			}) as unknown as Record<string, unknown>;
 
 			expect(attributes).toMatchObject({
 				className: 'test-class',
 				data: 'test',
 			});
-			expect(attributes.layout).toBeUndefined();
-			expect(attributes.style).toBeDefined();
+			expect(attributes?.layout).toBeUndefined();
+			expect(attributes?.style).toBeDefined();
 		});
 
 		it('should merge user styles with generated styles in JSX', () => {

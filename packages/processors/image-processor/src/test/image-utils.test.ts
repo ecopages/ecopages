@@ -41,6 +41,7 @@ describe('ImageUtils', () => {
 				layout: 'fixed',
 				width: 800,
 				height: 600,
+				attributes: { src: '/test.webp', width: 800, height: 600, sizes: '100vw' },
 			});
 
 			const styleMap = new Map(styles);
@@ -55,6 +56,7 @@ describe('ImageUtils', () => {
 				layout: 'constrained',
 				width: 800,
 				height: 600,
+				attributes: { src: '/test.webp', width: 800, height: 600, sizes: '100vw' },
 			});
 
 			const styleMap = new Map(styles);
@@ -67,6 +69,7 @@ describe('ImageUtils', () => {
 			const styles = ImageUtils.generateLayoutStyles({
 				layout: 'full-width',
 				height: 600,
+				attributes: { src: '/test.webp', width: 800, height: 600, sizes: '100vw' },
 			});
 
 			const styleMap = new Map(styles);
@@ -80,6 +83,7 @@ describe('ImageUtils', () => {
 				width: 800,
 				height: 600,
 				aspectRatio: '4/3',
+				attributes: { src: '/test.webp', width: 800, height: 600, sizes: '100vw' },
 			});
 
 			const styleMap = new Map(styles);

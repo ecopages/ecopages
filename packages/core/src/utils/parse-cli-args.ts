@@ -67,7 +67,7 @@ export function parseCliArgs(): ReturnParseCliArgs {
 		build: isBuildCommand,
 		start: isStartCommand,
 		dev: isDevCommand,
-		port: values.port,
+		port: values.port ? Number(values.port) : undefined,
 		hostname: values.hostname,
 		reactFastRefresh: values['react-fast-refresh'],
 	};

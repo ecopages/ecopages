@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/kitajs",
-	"version": "0.1.58",
+	"version": "0.1.59",
 	"description": "Kitajs plugin for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -20,6 +20,7 @@
 		"directory": "packages/integrations/kitajs"
 	},
 	"scripts": {
+		"typecheck": "tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

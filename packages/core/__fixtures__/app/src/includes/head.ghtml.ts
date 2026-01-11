@@ -1,5 +1,5 @@
 import { type EcoComponent, html, type PageHeadProps } from '@ecopages/core';
-import { Seo } from '@/includes/seo.ghtml';
+import { Seo } from './seo.ghtml';
 
 export const Head: EcoComponent<PageHeadProps> = ({ metadata, children }) => {
 	return html`<head>

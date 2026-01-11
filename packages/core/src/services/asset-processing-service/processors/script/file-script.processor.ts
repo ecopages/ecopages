@@ -35,7 +35,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 			};
 		}
 
-		const content = fileSystem.readFileSync(dep.filepath, 'utf-8');
+		const content = fileSystem.readFileSync(dep.filepath);
 		const hash = this.generateHash(content);
 		const cachekey = `${dep.filepath}:${hash}`;
 

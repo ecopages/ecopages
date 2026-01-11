@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/postcss-processor",
-	"version": "0.1.58",
+	"version": "0.1.59",
 	"description": "Postcss processor, transform string or postcss file to css",
 	"keywords": [
 		"postcss",
@@ -20,6 +20,7 @@
 		"directory": "packages/processors/postcss-processor"
 	},
 	"scripts": {
+		"typecheck": "tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

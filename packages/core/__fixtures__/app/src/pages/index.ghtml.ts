@@ -1,5 +1,5 @@
 import { type EcoComponent, type GetMetadata, html, type PageProps } from '@ecopages/core';
-import { BaseLayout } from '@/layouts/base-layout';
+import { BaseLayout } from '../layouts/base-layout';
 
 export const getMetadata: GetMetadata = () => ({
 	title: 'Home page',

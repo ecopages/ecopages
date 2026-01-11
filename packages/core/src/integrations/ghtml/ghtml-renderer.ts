@@ -26,6 +26,7 @@ export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 			const body = await HtmlTemplate({
 				metadata,
 				children: await Page({ params, query, ...props }),
+				pageProps: props || {},
 			});
 
 			return this.DOC_TYPE + body;

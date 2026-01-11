@@ -6,7 +6,7 @@ import {
 	html,
 	type PageProps,
 } from '@ecopages/core';
-import { BaseLayout } from '@/layouts/base-layout';
+import { BaseLayout } from '../../layouts/base-layout';
 
 export type BlogPostProps = {
 	slug: string;

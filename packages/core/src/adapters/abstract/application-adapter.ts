@@ -65,7 +65,7 @@ export abstract class AbstractApplicationAdapter<
 		if (!distExists) return;
 
 		try {
-			await fileSystem.removeAsync(distPath, { recursive: true });
+			await fileSystem.removeAsync(distPath);
 			appLogger.debug(`Cleared dist folder: ${distPath}`);
 		} catch (error) {
 			appLogger.error(`Error clearing dist folder: ${distPath}`, error as Error);

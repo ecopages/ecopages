@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/bun-inline-css-plugin",
-	"version": "0.1.58",
+	"version": "0.1.59",
 	"license": "MIT",
 	"description": "Bun plugin to inline css",
 	"keywords": [
@@ -19,6 +19,7 @@
 		"directory": "packages/plugins/bun-inline-css-plugin"
 	},
 	"scripts": {
+		"typecheck": "tsc --noEmit",
 		"test": "bun test",
 		"release:jsr": "bunx jsr publish"
 	},

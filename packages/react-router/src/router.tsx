@@ -19,6 +19,7 @@ import {
 	startTransition,
 	type ReactNode,
 	type ComponentType,
+	FC,
 } from 'react';
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types';
 import { RouterContext } from './context';
@@ -130,7 +131,7 @@ function createDeferred<T>() {
  * <img data-view-transition={`hero-${id}`} src={image} />
  * ```
  */
-export const EcoRouter = ({ page, pageProps, options: userOptions, children }: EcoRouterProps) => {
+export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOptions, children }: EcoRouterProps) => {
 	const options = useMemo(() => ({ ...DEFAULT_OPTIONS, ...userOptions }), [userOptions]);
 
 	const [currentPage, setCurrentPage] = useState<PageState>({

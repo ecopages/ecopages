@@ -1,0 +1,22 @@
+.post-content h1 {
+	@apply text-3xl font-bold tracking-tight text-text mb-6;
+}
+
+.post-image-container {
+	@apply mb-6 max-w-2xl overflow-hidden rounded-lg shadow-sm max-h-[50svh];
+	img {
+		@apply mb-0;
+	}
+}
+
+.post-image-container img {
+	@apply w-full h-auto block object-cover;
+}
+
+.post-content {
+	@apply mt-6;
+}
+
+.post-content p {
+	@apply text-text-muted leading-relaxed mb-6;
+}

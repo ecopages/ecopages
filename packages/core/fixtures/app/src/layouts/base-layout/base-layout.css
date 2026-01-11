@@ -1,7 +1,0 @@
-body {
-	@apply bg-gray-50 h-screen;
-}
-
-main {
-	@apply p-8;
-}

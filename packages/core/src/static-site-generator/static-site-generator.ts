@@ -50,6 +50,29 @@ export class StaticSiteGenerator {
 		return Array.from(directories);
 	}
 
+	/**
+	 * Extracts dynamic parameters from the actual path based on the template path.
+	 *
+	 * @param templatePath - The template path (e.g., "/blog/[slug]")
+	 * @param actualPath - The actual path (e.g., "/blog/my-post")
+	 * @returns A record of extracted parameters (e.g., { slug: "my-post" })
+	 */
+	private extractParams(templatePath: string, actualPath: string): Record<string, string> {
+		const templateSegments = templateSegmentsFromPath(templatePath);
+		const actualSegments = templateSegmentsFromPath(actualPath);
+		const params: Record<string, string> = {};
+
+		for (let i = 0; i < templateSegments.length; i++) {
+			const segment = templateSegments[i];
+			if (segment.startsWith('[') && segment.endsWith(']')) {
+				const paramName = segment.slice(1, -1).replace('...', '');
+				params[paramName] = actualSegments[i];
+			}
+		}
+
+		return params;
+	}
+
 	async generateStaticPages(router: FSRouter, baseUrl: string, routeRendererFactory?: RouteRendererFactory) {
 		const routes = Object.keys(router.routes).filter((route) => !route.includes('['));
 
@@ -83,9 +106,26 @@ export class StaticSiteGenerator {
 					if (!routeRendererFactory) {
 						throw new Error('RouteRendererFactory is required for render strategy');
 					}
+
+					let pathname = routePathname;
+					const pathnameSegments = pathname.split('/').filter(Boolean);
+
+					if (pathname === '/') {
+						pathname = '/index.html';
+					} else if (pathnameSegments.join('/').includes('[')) {
+						pathname = `${route.replace(router.origin, '')}.html`;
+					} else if (pathnameSegments.length >= 1 && directories.includes(`/${pathnameSegments.join('/')}`)) {
+						pathname = `${pathname.endsWith('/') ? pathname : `${pathname}/`}index.html`;
+					} else {
+						pathname += '.html';
+					}
+
 					const renderer = routeRendererFactory.createRenderer(filePath);
+					const params = this.extractParams(routePathname, pathname.replace('.html', ''));
+
 					const body = await renderer.createRoute({
 						file: filePath,
+						params,
 					});
 
 					if (typeof body === 'string' || Buffer.isBuffer(body)) {
@@ -133,4 +173,11 @@ export class StaticSiteGenerator {
 		this.generateRobotsTxt();
 		await this.generateStaticPages(router, baseUrl, routeRendererFactory);
 	}
+}
+
+/**
+ * Splits a path into segments, filtering out empty strings.
+ */
+function templateSegmentsFromPath(path: string) {
+	return path.split('/').filter(Boolean);
 }

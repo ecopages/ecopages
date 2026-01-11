@@ -218,8 +218,9 @@ export class HmrManager implements IHmrManager {
 		const srcDir = this.appConfig.absolutePaths.srcDir;
 		const relativePath = path.relative(srcDir, entrypointPath);
 		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
+		const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
 
-		const urlPath = relativePathJs.split(path.sep).join('/');
+		const urlPath = encodedPathJs.split(path.sep).join('/');
 		const outputUrl = `/${path.join(RESOLVED_ASSETS_DIR, '_hmr', urlPath)}`;
 
 		this.watchedFiles.set(entrypointPath, outputUrl);
@@ -227,6 +228,14 @@ export class HmrManager implements IHmrManager {
 		await this.handleFileChange(entrypointPath);
 
 		return outputUrl;
+	}
+
+	/**
+	 * Encodes dynamic route segments (brackets) in file paths.
+	 * Converts `[slug]` to `_slug_` to avoid filesystem/URL issues.
+	 */
+	private encodeDynamicSegments(filepath: string): string {
+		return filepath.replace(/\[([^\]]+)\]/g, '_$1_');
 	}
 
 	public stop() {

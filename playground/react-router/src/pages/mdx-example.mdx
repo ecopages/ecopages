@@ -1,0 +1,48 @@
+import { BaseLayout } from '@/layouts/base-layout';
+
+export const config = {
+  layout: BaseLayout,
+};
+
+export const getMetadata = () => ({
+  title: 'MDX Example | Blog',
+  description: 'An example MDX page with the EcoPages React Router',
+});
+
+<a href="/" className="back-link">← Back to Blog</a>
+
+# Writing with MDX
+
+This page is written in **MDX** - a powerful combination of Markdown and JSX.
+
+## Why MDX?
+
+MDX lets you:
+
+- Write content in familiar Markdown syntax
+- Embed React components directly in your content
+- Use JavaScript expressions inline
+
+## Code Example
+
+Here's some code with syntax highlighting:
+
+```tsx
+const greeting = "Hello from MDX!";
+
+export const MyComponent = () => (
+  <div>{greeting}</div>
+);
+```
+
+## Navigation
+
+Check out the other pages:
+
+- [Home](/)
+- [About](/about)
+- [Hello World Post](/posts/hello-world)
+
+---
+
+*This page demonstrates that MDX works seamlessly with the React Router SPA navigation.*

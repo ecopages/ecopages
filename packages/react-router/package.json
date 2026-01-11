@@ -1,0 +1,39 @@
+{
+	"name": "@ecopages/react-router",
+	"version": "0.1.57",
+	"description": "Client-side SPA router for EcoPages React applications",
+	"keywords": [
+		"ecopages",
+		"react",
+		"router",
+		"spa",
+		"navigation",
+		"ssr"
+	],
+	"license": "MIT",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./browser": "./browser.ts",
+		"./styles.css": "./src/styles.css"
+	},
+	"files": [
+		"src",
+		"browser.ts"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/react-router"
+	},
+	"scripts": {
+		"release:jsr": "bunx jsr publish"
+	},
+	"peerDependencies": {
+		"react": "^19"
+	},
+	"devDependencies": {
+		"@types/react": "^19",
+		"react": "^19"
+	}
+}

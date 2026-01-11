@@ -1,7 +1,9 @@
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
-export const layout = DocsLayout;
+export const config = {
+  layout: DocsLayout,
+};
 
 export const getMetadata = () => ({
   title: 'Docs | MDX Integration',
@@ -48,7 +50,9 @@ You can define a wrapper layout for your MDX content by exporting a `layout` com
 ```markdown
 import { BaseLayout } from '@/layouts/base-layout';
 
-export const layout = BaseLayout;
+export const config = {
+  layout: BaseLayout,
+};
 
 # Hello World
 
@@ -78,9 +82,8 @@ You can import and use components directly in your MDX files. Remember to export
 import { Card } from '@/components/card';
 import { BaseLayout } from '@/layouts/base-layout';
 
-export const layout = BaseLayout;
-
 export const config = {
+  layout: BaseLayout,
   dependencies: {
     components: [Card, BaseLayout],
   },

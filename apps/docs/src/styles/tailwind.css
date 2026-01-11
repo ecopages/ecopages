@@ -6,5 +6,5 @@
 @import './vendor/shiki.css';
 
 body {
-	@apply bg-background text-on-background min-h-[100svh] w-screen overflow-x-hidden font-sans;
+	@apply bg-background text-on-background min-h-svh w-screen overflow-x-hidden font-sans;
 }

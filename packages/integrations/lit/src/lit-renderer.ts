@@ -26,10 +26,14 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		props,
 		metadata,
 		Page,
+		Layout,
 		HtmlTemplate,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
-			const children = await Page({ params, query, ...props });
+			const pageContent = await Page({ params, query, ...props });
+			const children = Layout
+				? await (Layout as (props: { children: EcoPagesElement }) => EcoPagesElement)({ children: pageContent })
+				: pageContent;
 
 			const template = (await HtmlTemplate({
 				metadata,

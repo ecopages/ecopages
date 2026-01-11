@@ -15,6 +15,17 @@
 		"build:playground-react": "bun run --filter @ecopages/playground-react build",
 		"start:playground-react": "bun run --filter @ecopages/playground-react start",
 		"preview:playground-react": "bun run --elide-lines 0 --filter @ecopages/playground-react preview",
+		"watch:dev:playground-react-router": "bun run --elide-lines 0 --filter @ecopages/playground-react-router watch:dev",
+		"hot:dev:playground-react-router": "bun run --elide-lines 0 --filter @ecopages/playground-react-router hot:dev",
+		"dev:playground-react-router": "bun run --elide-lines 0 --filter @ecopages/playground-react-router dev",
+		"build:playground-react-router": "bun run --filter @ecopages/playground-react-router build",
+		"start:playground-react-router": "bun run --filter @ecopages/playground-react-router start",
+		"preview:playground-react-router": "bun run --elide-lines 0 --filter @ecopages/playground-react-router preview",
+		"watch:dev:playground-browser-router": "bun run --elide-lines 0 --filter @ecopages/playground-browser-router watch:dev",
+		"dev:playground-browser-router": "bun run --elide-lines 0 --filter @ecopages/playground-browser-router dev",
+		"build:playground-browser-router": "bun run --filter @ecopages/playground-browser-router build",
+		"start:playground-browser-router": "bun run --filter @ecopages/playground-browser-router start",
+		"preview:playground-browser-router": "bun run --elide-lines 0 --filter @ecopages/playground-browser-router preview",
 		"watch:dev:playground-tailwind-v4": "bun run --elide-lines 0 --filter @ecopages/playground-tailwind-v4 watch:dev",
 		"hot:dev:playground-tailwind-v4": "bun run --elide-lines 0 --filter @ecopages/playground-tailwind-v4 hot:dev",
 		"dev:playground-tailwind-v4": "bun run --elide-lines 0 --filter @ecopages/playground-tailwind-v4 dev",
@@ -37,7 +48,9 @@
 		"bump:major": "bun run scripts/bump-version.ts major && bun run jsr:sync-version",
 		"commit": "better-commits",
 		"prepare:husky": "husky",
-		"test:browser": "bun run scripts/test-browser.ts"
+		"test:browser": "bunx vitest run && bunx playwright test",
+		"test:e2e": "bunx playwright test",
+		"test:e2e:ui": "bunx playwright test --ui"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.0.6",
@@ -56,12 +69,13 @@
 	"repository": "https://github.com/ecopages/ecopages.git",
 	"workspaces": [
 		"packages/*",
-		"packages/core/fixtures/app",
+		"packages/core/__fixtures__/app",
 		"packages/integrations/*",
 		"packages/loaders/*",
 		"packages/plugins/*",
 		"packages/processors/*",
 		"playground/*",
+		"e2e/fixtures/*",
 		"apps/*"
 	],
 	"type": "module"

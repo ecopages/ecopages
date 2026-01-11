@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.1.58",
+	"version": "0.1.59",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -19,6 +19,7 @@
 		"directory": "packages/core"
 	},
 	"scripts": {
+		"typecheck": "tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

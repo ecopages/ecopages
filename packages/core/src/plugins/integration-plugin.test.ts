@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { IntegrationPlugin, type IntegrationPluginConfig } from './integration-plugin';
+import type { AssetDefinition } from '../services/asset-processing-service';
 
 class TestIntegrationPlugin extends IntegrationPlugin {
 	renderer = mock() as any;

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/bun-postcss-loader",
-	"version": "0.1.58",
+	"version": "0.1.59",
 	"description": "Bun loader to process css files with PostCSS",
 	"keywords": [
 		"bun",
@@ -19,6 +19,7 @@
 		"directory": "packages/loaders/bun-postcss-loader"
 	},
 	"scripts": {
+		"typecheck": "tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

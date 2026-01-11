@@ -62,9 +62,9 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		const defaultWatchConfig: ProcessorWatchConfig = {
 			paths: [],
 			extensions: config.options?.acceptedFormats ?? ['jpg', 'jpeg', 'png', 'webp'],
-			onCreate: async (filePath: string) => this.process([filePath]),
-			onChange: async (filePath) => this.process([filePath]),
-			onDelete: async (filePath) => this.deleteProcessedImagesbyPath(filePath),
+			onCreate: async (ctx) => this.process([ctx.path]),
+			onChange: async (ctx) => this.process([ctx.path]),
+			onDelete: async (ctx) => this.deleteProcessedImagesbyPath(ctx.path),
 			onError: (error) => logger.error('Watcher error', { error }),
 		};
 

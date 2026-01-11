@@ -33,6 +33,7 @@
 		"directory": "packages/integrations/react"
 	},
 	"scripts": {
+		"typecheck": "tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
 	"peerDependencies": {

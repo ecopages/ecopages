@@ -21,6 +21,7 @@
 		"directory": "packages/file-system"
 	},
 	"scripts": {
+		"typecheck": "tsc --noEmit",
 		"test": "bun test",
 		"benchmark": "bun run test/benchmark.ts",
 		"release:jsr": "bunx jsr publish"

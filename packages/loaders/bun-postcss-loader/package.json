@@ -19,6 +19,7 @@
 		"directory": "packages/loaders/bun-postcss-loader"
 	},
 	"scripts": {
+		"typecheck": "tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

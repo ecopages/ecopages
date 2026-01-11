@@ -20,6 +20,7 @@
 		"directory": "packages/integrations/mdx"
 	},
 	"scripts": {
+		"typecheck": "tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
 	"peerDependencies": {

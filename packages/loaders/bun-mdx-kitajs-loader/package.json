@@ -20,6 +20,7 @@
 		"directory": "packages/loaders/bun-mdx-kitajs-loader"
 	},
 	"scripts": {
+		"typecheck": "tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

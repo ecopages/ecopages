@@ -28,7 +28,7 @@ export class RouteRendererFactory {
 
 	createRenderer(filePath: string): RouteRenderer {
 		const integrationRenderer = this.getRouteRendererEngine(filePath);
-		invariant(integrationRenderer, `No integration renderer found for file: ${filePath}`);
+		invariant(!!integrationRenderer, `No integration renderer found for file: ${filePath}`);
 		return new RouteRenderer(integrationRenderer);
 	}
 
@@ -39,10 +39,10 @@ export class RouteRendererFactory {
 		};
 		const integrationPlugin = this.appConfig.integrations.find(isIntegrationPlugin);
 		invariant(
-			integrationPlugin,
+			!!integrationPlugin,
 			`No integration plugin found for template extension: ${templateExtension}, file: ${filePath}`,
 		);
-		return integrationPlugin;
+		return integrationPlugin as IntegrationPlugin;
 	}
 
 	private getRouteRendererEngine(filePath: string): IntegrationRenderer {

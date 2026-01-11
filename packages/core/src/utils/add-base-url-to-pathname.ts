@@ -4,6 +4,11 @@
  */
 
 import path from 'node:path';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
+
+declare global {
+	var ecoConfig: EcoPagesAppConfig;
+}
 
 /**
  * It adds the base url configured in ecoConfig to the given relative url

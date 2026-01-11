@@ -14,6 +14,10 @@ import type { Processor } from '../plugins/processor.ts';
 import type { PageMetadataProps } from '../public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 
+declare global {
+	var ecoConfig: EcoPagesAppConfig;
+}
+
 /**
  * A builder class for creating and configuring EcoPages application configuration.
  * Provides a fluent interface for setting various configuration options and managing

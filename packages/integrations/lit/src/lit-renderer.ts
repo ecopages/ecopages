@@ -38,6 +38,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			const template = (await HtmlTemplate({
 				metadata,
 				children: '<--content-->',
+				pageProps: props || {},
 			})) as string;
 
 			const [templateStart, templateEnd] = template.split('<--content-->');

@@ -5,6 +5,11 @@
 
 import { EXCLUDE_FROM_HTML_FLAG, RESOLVED_ASSETS_DIR } from '../constants.ts';
 import type { EcoComponent, EcoComponentDependencies } from '../public-types.ts';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
+
+declare global {
+	var ecoConfig: EcoPagesAppConfig;
+}
 
 function getSafeFileName(path: string): string {
 	const EXTENSIONS_TO_JS = ['ts', 'tsx'];

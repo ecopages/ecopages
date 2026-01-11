@@ -190,39 +190,44 @@ export const EcoRouter = ({ page, pageProps, options: userOptions, children }: E
 	 * Loads the page module, updates the document head, and transitions
 	 * to the new page using the View Transitions API if available.
 	 */
-	const navigate = useCallback(async (url: string) => {
-		setIsNavigating(true);
-		const result = await loadPageModule(url);
+	const navigate = useCallback(
+		async (url: string) => {
+			setIsNavigating(true);
+			const result = await loadPageModule(url);
 
-		if (result) {
-			const { Component, props, doc } = result;
-			const nextPage = { Component, props };
+			if (result) {
+				const { Component, props, doc } = result;
+				const nextPage = { Component, props };
 
-			const cleanupHead = await morphHead(doc);
-			applyViewTransitionNames();
+				const cleanupHead = await morphHead(doc);
+				applyViewTransitionNames();
 
-			if (document.startViewTransition) {
-				renderDfd.current = createDeferred<void>();
-				setPendingPage(nextPage);
+				const useViewTransition = options.viewTransitions && document.startViewTransition;
 
-				document.startViewTransition(async () => {
-					startTransition(() => {
-						setCurrentPage(nextPage);
+				if (useViewTransition) {
+					renderDfd.current = createDeferred<void>();
+					setPendingPage(nextPage);
+
+					document.startViewTransition(async () => {
+						startTransition(() => {
+							setCurrentPage(nextPage);
+						});
+						await renderDfd.current?.promise;
+						cleanupHead();
+						applyViewTransitionNames();
 					});
-					await renderDfd.current?.promise;
+				} else {
+					setCurrentPage(nextPage);
 					cleanupHead();
 					applyViewTransitionNames();
-				});
+				}
 			} else {
-				setCurrentPage(nextPage);
-				cleanupHead();
-				applyViewTransitionNames();
+				window.location.href = url;
 			}
-		} else {
-			window.location.href = url;
-		}
-		setIsNavigating(false);
-	}, []);
+			setIsNavigating(false);
+		},
+		[options.viewTransitions],
+	);
 
 	/**
 	 * Sets up global event listeners for client-side navigation.

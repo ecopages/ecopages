@@ -4,11 +4,13 @@
  */
 
 import type { ReactRouterAdapter } from '@ecopages/react/router-adapter';
+import type { EcoRouterOptions } from './types';
 
 /**
  * Creates a ReactRouterAdapter for EcoPages React Router.
  * Use this with the React plugin to enable SPA navigation.
  *
+ * @param options - Router configuration options
  * @example
  * ```ts
  * import { reactPlugin } from '@ecopages/react';
@@ -18,8 +20,14 @@ import type { ReactRouterAdapter } from '@ecopages/react/router-adapter';
  *   integrations: [reactPlugin({ router: ecoRouter() })],
  * };
  * ```
+ *
+ * @example
+ * ```ts
+ * // Disable view transitions
+ * reactPlugin({ router: ecoRouter({ viewTransitions: false }) })
+ * ```
  */
-export function ecoRouter(): ReactRouterAdapter {
+export function ecoRouter(options?: EcoRouterOptions): ReactRouterAdapter {
 	return {
 		name: 'eco-router',
 		bundle: {
@@ -33,7 +41,8 @@ export function ecoRouter(): ReactRouterAdapter {
 			pageContent: 'PageContent',
 		},
 		getRouterProps(page: string, props: string): string {
-			return `{ page: ${page}, pageProps: ${props} }`;
+			const optionsStr = options ? `, options: ${JSON.stringify(options)}` : '';
+			return `{ page: ${page}, pageProps: ${props}${optionsStr} }`;
 		},
 	};
 }

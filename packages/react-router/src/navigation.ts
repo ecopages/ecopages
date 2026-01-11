@@ -41,14 +41,12 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 		const text = await res.text();
 
 		/**
-		 * Matches:
-		 * import Content from './Content';
+		 * Matches: `import Content from './Content'`;
 		 */
 		const defaultImport = text.match(/import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/);
 
 		/**
-		 * Matches:
-		 * import * as Content from './Content';
+		 * Matches: `import * as Content from './Content'`;
 		 */
 		const namespaceImport = text.match(/import\s+\*\s+as\s+(\w+)\s+from\s*['"]([^'"]+)['"]/);
 
@@ -72,9 +70,6 @@ export async function loadPageModule(
 		const html = await res.text();
 
 		const doc = new DOMParser().parseFromString(html, 'text/html');
-
-		// Note: We don't call morphHead(doc) here anymore.
-		// It must be called by the router inside the view transition callback.
 
 		const props = extractProps(doc);
 		const componentUrl = await extractComponentUrl(doc);

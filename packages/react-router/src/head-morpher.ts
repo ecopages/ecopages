@@ -77,22 +77,37 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 	const stylesheetPromises: Promise<void>[] = [];
 	const elementsToRemove: Element[] = [];
 
+	/**
+	 * First, map existing head elements by their keys
+	 * to enable efficient diffing.
+	 */
 	for (const el of Array.from(currentHead.children)) {
 		const key = getHeadElementKey(el);
 		if (key) currentElements.set(key, el);
 	}
 
+	/**
+	 * Next, map new head elements by their keys.
+	 * This allows us to see which elements are new, updated, or removed.
+	 */
 	for (const el of Array.from(newHead.children)) {
 		const key = getHeadElementKey(el);
 		if (key) newElements.set(key, el);
 	}
 
+	/**
+	 * Now, iterate over new elements to add or update them in the current head.
+	 */
 	for (const [key, newEl] of newElements) {
 		const currentEl = currentElements.get(key);
 
 		if (!currentEl) {
 			const cloned = newEl.cloneNode(true) as Element;
 
+			/**
+			 * If the new element is a stylesheet, we need to wait for it to load
+			 * before considering the head morph complete. This prevents FOUC.
+			 */
 			if (cloned.tagName === 'LINK' && (cloned as HTMLLinkElement).rel === 'stylesheet') {
 				const loadPromise = new Promise<void>((resolve) => {
 					(cloned as HTMLLinkElement).onload = () => resolve();
@@ -109,6 +124,9 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 		}
 	}
 
+	/**
+	 * Finally, handle any new elements without keys (e.g., inline scripts/styles)
+	 */
 	for (const newEl of Array.from(newHead.children)) {
 		const key = getHeadElementKey(newEl);
 		if (!key) {
@@ -116,10 +134,17 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 		}
 	}
 
+	/**
+	 * Wait for all new stylesheets to load before proceeding.
+	 */
 	if (stylesheetPromises.length > 0) {
 		await Promise.all(stylesheetPromises);
 	}
 
+	/**
+	 * Identify and prepare to remove any old elements
+	 * that are no longer present in the new head.
+	 */
 	for (const [key, el] of currentElements) {
 		if (!newElements.has(key)) {
 			const shouldPreserve = PRESERVE_SELECTORS.some((sel) => el.matches(sel));
@@ -129,6 +154,11 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 		}
 	}
 
+	/**
+	 * Return a cleanup function to remove old elements.
+	 * This allows the caller to control when the removal happens,
+	 * which is important for View Transitions.
+	 */
 	return () => {
 		for (const el of elementsToRemove) {
 			el.remove();

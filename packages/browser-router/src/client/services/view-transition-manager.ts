@@ -3,6 +3,8 @@
  * @module
  */
 
+import { applyViewTransitionNames, clearViewTransitionNames } from '../view-transition-utils';
+
 /**
  * Service for handling View Transition API during page transitions.
  * Falls back to direct execution if the API is not supported.
@@ -33,13 +35,32 @@ export class ViewTransitionManager {
 			return;
 		}
 
+		/**
+		 * Apply view transition names to current elements before starting the transition.
+		 * This ensures the "old" state is captured correctly.
+		 */
+		applyViewTransitionNames();
+
 		const transition = (
 			document as Document & { startViewTransition: (cb: () => void) => ViewTransition }
 		).startViewTransition(async () => {
 			await callback();
+			/**
+			 * Apply names to the NEW elements after DOM swap and hydration.
+			 * This ensures the "new" state is captured correctly.
+			 */
+			applyViewTransitionNames();
 		});
 
-		await transition.finished;
+		try {
+			await transition.finished;
+		} finally {
+			/**
+			 * Cleanup view transition names and dynamic styles after transition completes.
+			 * This prevents style pollution.
+			 */
+			clearViewTransitionNames();
+		}
 	}
 }
 

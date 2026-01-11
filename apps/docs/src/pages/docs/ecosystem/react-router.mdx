@@ -89,6 +89,31 @@ export default HomePage;
 
 When navigating between pages with the same layout, only the page content updates - the layout stays mounted.
 
+### View Transitions
+
+**Default Behavior**: The router automatically optimizes shared element transitions to "morph" the geometry without ghosting (no cross-fade).
+
+#### Directives
+
+Control the animation style with `data-view-transition-animate`:
+
+| Value | Description |
+| :--- | :--- |
+| **`morph`** | (Default) a clean geometric morph. Prevents ghosting on shared elements. |
+| **`fade`** | Standard cross-fade animation. Use this to opt-out of the automatic fix. |
+
+Example:
+```tsx
+<div data-view-transition="hero" data-view-transition-animate="fade">
+```
+
+#### Duration
+
+Control the speed of a specific transition:
+```tsx
+<div data-view-transition="hero" data-view-transition-duration="500ms">
+```
+
 ### 3. Use Standard Links
 
 ```tsx

@@ -9,7 +9,8 @@ const VIEW_TRANSITION_DURATION_ATTR = 'data-view-transition-duration';
 
 /**
  * Applies view-transition-name CSS property to elements with data-view-transition attribute.
- * Also handles data-view-transition-animate="morph" (default) logic and custom duration.
+ * By default, it also injects styles to prevent "ghosting" (sets animation: none) for clean morphing,
+ * unless data-view-transition-animate="fade" is present.
  */
 export function applyViewTransitionNames(): void {
 	const elements = document.querySelectorAll(`[${VIEW_TRANSITION_ATTR}]`);
@@ -20,6 +21,7 @@ export function applyViewTransitionNames(): void {
 		const name = el.getAttribute(VIEW_TRANSITION_ATTR);
 		if (name) {
 			(el as HTMLElement).style.viewTransitionName = name;
+
 			/**
 			 * By default, we apply a clean geometric morph (no cross-fade/ghosting).
 			 * The 'fade' value is reserved for opting out of this behavior.
@@ -51,6 +53,7 @@ function injectDynamicStyles(morphNames: string[], customDurations: { name: stri
 		styleEl.id = 'eco-vt-dynamic-styles';
 		/**
 		 * Persistence is required to prevent the head-morpher from removing this style tag during navigation.
+		 * @see {@link DomSwapper}
 		 */
 		styleEl.setAttribute('data-eco-persist', '');
 		document.head.appendChild(styleEl);

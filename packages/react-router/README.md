@@ -121,7 +121,13 @@ To animate elements between pages (e.g., a thumbnail becoming a hero image), use
 />
 ```
 
-The router will automatically apply valid `view-transition-name` styles to these elements during the transition lifecycle.
+By default, the router applies a **clean morph** animation (disabling the default cross-fade ghosting). If you prefer the standard browser cross-fade, you can opt-out:
+
+```tsx
+<div data-view-transition="my-hero" data-view-transition-animate="fade">
+	...
+</div>
+```
 
 #### Cross-Fade
 

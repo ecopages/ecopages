@@ -74,6 +74,44 @@ You can customize the router behavior by passing an options object:
 | `reloadAttribute` | `string` | `'data-eco-reload'` | Attribute (on link or element) to force a full hard reload. |
 | `scrollBehavior` | `'top' \| 'preserve' \| 'auto'` | `'top'` | Controls scroll behavior after navigation. |
 | `viewTransitions` | `boolean` | `false` | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) support. |
+
+### View Transitions
+
+The browser router supports the native View Transitions API. 
+
+To create a shared element transition, simply add the `data-view-transition` attribute to matching elements on different pages:
+
+```html
+<!-- Page 1 -->
+<div data-view-transition="hero-1">...</div>
+
+<!-- Page 2 -->
+<div data-view-transition="hero-1">...</div>
+```
+
+The router automatically handles the transition names and ensures a clean "morph" animation (hiding the old snapshot to prevent ghosting) by default.
+
+#### Directives
+
+You can control the transition behavior using `data-view-transition-animate`:
+
+| Value | Description |
+| :--- | :--- |
+| **`morph`** | (Default) Disables the cross-fade animation, resulting in a clean geometric morph. Ideal for shared element transitions to prevent "ghosting". |
+| **`fade`** | Uses the standard browser cross-fade animation. Useful if you specifically want the old and new elements to fade into each other. |
+
+```html
+<!-- Example: Opt-out of the default morph -->
+<div data-view-transition="hero-1" data-view-transition-animate="fade">...</div>
+
+#### Duration
+
+You can also control the speed of a specific transition using `data-view-transition-duration`:
+
+```html
+<div data-view-transition="hero-1" data-view-transition-duration="500ms">...</div>
+```
+```
 | `updateHistory` | `boolean` | `true` | Whether to push a new entry to the browser history for each client-side navigation. |
 | `smoothScroll` | `boolean` | `true` | Whether to use smooth scrolling when adjusting scroll position after navigation. |
 

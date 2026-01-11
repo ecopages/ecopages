@@ -7,11 +7,11 @@
 
 /* Crossfade with slide for root (main page content) */
 ::view-transition-old(root) {
-	animation: 300ms ease-out both vt-fade-out;
+	animation: 180ms ease-out both vt-fade-out;
 }
 
 ::view-transition-new(root) {
-	animation: 300ms ease-out both vt-fade-in;
+	animation: 180ms ease-out both vt-fade-in;
 }
 
 @keyframes vt-fade-out {
@@ -34,7 +34,7 @@
 
 /* Shared element transitions animate position/size smoothly */
 ::view-transition-group(*) {
-	animation-duration: 400ms;
+	animation-duration: 180ms;
 	animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -59,7 +59,7 @@
 
 ::view-transition-old(eco-slide),
 ::view-transition-new(eco-slide) {
-	animation-duration: 200ms;
+	animation-duration: 180ms;
 	animation-timing-function: ease-out;
 	mix-blend-mode: normal;
 }
@@ -118,10 +118,10 @@
 
 /* FADE */
 ::view-transition-old(eco-fade) {
-	animation: eco-fade-out 200ms ease-out both;
+	animation: eco-fade-out 180ms ease-out both;
 }
 ::view-transition-new(eco-fade) {
-	animation: eco-fade-in 200ms ease-out both;
+	animation: eco-fade-in 180ms ease-out both;
 }
 
 /* ZOOM */
@@ -129,10 +129,10 @@
 	isolation: isolate;
 }
 ::view-transition-old(eco-zoom) {
-	animation: eco-zoom-out 200ms ease-in both;
+	animation: eco-zoom-out 180ms ease-in both;
 }
 ::view-transition-new(eco-zoom) {
-	animation: eco-zoom-in 200ms ease-out both;
+	animation: eco-zoom-in 180ms ease-out both;
 }
 @keyframes eco-zoom-out {
 	from {
@@ -160,10 +160,10 @@
 	isolation: isolate;
 }
 ::view-transition-old(eco-slide-up) {
-	animation: eco-slide-up-out 200ms ease-in both;
+	animation: eco-slide-up-out 180ms ease-in both;
 }
 ::view-transition-new(eco-slide-up) {
-	animation: eco-slide-up-in 200ms ease-out both;
+	animation: eco-slide-up-in 180ms ease-out both;
 }
 @keyframes eco-slide-up-out {
 	from {
@@ -191,10 +191,10 @@
 	isolation: isolate;
 }
 ::view-transition-old(eco-slide-down) {
-	animation: eco-slide-down-out 200ms ease-in both;
+	animation: eco-slide-down-out 180ms ease-in both;
 }
 ::view-transition-new(eco-slide-down) {
-	animation: eco-slide-down-in 200ms ease-out both;
+	animation: eco-slide-down-in 180ms ease-out both;
 }
 @keyframes eco-slide-down-out {
 	from {

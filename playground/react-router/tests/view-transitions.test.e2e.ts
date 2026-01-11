@@ -49,6 +49,30 @@ test.describe('View Transitions', () => {
 		expect(vtElements.every((el) => el.name && el.name !== 'none')).toBe(true);
 	});
 
+	/**
+	 * Test default behavior (no attribute = morph)
+	 * Verifies that elements without explicit animation preferences default to the "morph" behavior.
+	 */
+	test('elements without animate attribute get morph behavior', async ({ page }) => {
+		/**
+		 * Ensure elements exist without the attribute
+		 */
+		const noAttribute = await page.evaluate(() => {
+			const el = document.querySelector('[data-view-transition]:not([data-view-transition-animate])');
+			return !!el;
+		});
+		expect(noAttribute).toBe(true);
+
+		/**
+		 * Check if the style tag contains rules for these elements
+		 */
+		const hasInjectedStyles = await page.evaluate(() => {
+			const style = document.getElementById('eco-vt-dynamic-styles');
+			return style && style.textContent && style.textContent.length > 0;
+		});
+		expect(hasInjectedStyles).toBeTruthy();
+	});
+
 	test('matching view-transition-names exist between pages', async ({ page }) => {
 		const indexNames = await page.evaluate(() => {
 			const all = Array.from(document.querySelectorAll('[data-view-transition]'));
@@ -113,7 +137,9 @@ test.describe('View Transitions', () => {
 	});
 
 	test('navigation is client-side (SPA)', async ({ page }) => {
-		// Set a global variable
+		/**
+		 * Set a global variable to verify persistence across navigation
+		 */
 		await page.evaluate(() => {
 			(window as any).__spa_persistence_check = true;
 		});
@@ -121,7 +147,9 @@ test.describe('View Transitions', () => {
 		await page.click('.post-card-link');
 		await page.waitForURL('**/posts/**');
 
-		// Check if it persists
+		/**
+		 * Check if the variable persists, confirming it was a client-side navigation
+		 */
 		const persisted = await page.evaluate(() => {
 			return (window as any).__spa_persistence_check;
 		});

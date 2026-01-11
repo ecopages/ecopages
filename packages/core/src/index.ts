@@ -11,3 +11,5 @@ export * from './utils/html.ts';
 export * from './utils/invariant.ts';
 export * from './hmr/hmr-strategy.ts';
 export { ClientBridge } from './adapters/bun/client-bridge.ts';
+export { eco } from './eco/eco.ts';
+export type * from './eco/eco.types.ts';

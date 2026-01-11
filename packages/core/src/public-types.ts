@@ -141,6 +141,14 @@ export type EcoComponentDependencies = {
 	stylesheets?: string[];
 	scripts?: string[];
 	components?: EcoComponent[];
+	/**
+	 * Lazy dependencies - scripts/stylesheets loaded on user interaction or visibility.
+	 * Supports three trigger modes: on:idle, on:interaction, and on:visible.
+	 */
+	lazy?:
+		| ({ 'on:idle': true } & { scripts?: string[]; stylesheets?: string[] })
+		| ({ 'on:interaction': string } & { scripts?: string[]; stylesheets?: string[] })
+		| ({ 'on:visible': true | string } & { scripts?: string[]; stylesheets?: string[] });
 };
 
 export type EcoPagesElement = string | Promise<string>;
@@ -193,6 +201,12 @@ export type EcoComponentConfig = {
 	 */
 	layout?: EcoComponent;
 	dependencies?: EcoComponentDependencies;
+	/**
+	 * Internal: Comma-separated resolved script paths for lazy dependencies.
+	 * Set by the renderer, used by eco.component() for auto-wrapping.
+	 * @internal
+	 */
+	_resolvedScripts?: string;
 };
 
 /**

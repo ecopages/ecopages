@@ -68,7 +68,7 @@ export class BunFileSystem extends BaseFileSystem implements FileSystem {
 	 * Write file using Bun.write for optimized I/O with syscall optimization.
 	 * Uses copy_file_range, sendfile, clonefile depending on platform.
 	 */
-	async writeAsync(filepath: string, contents: string | Buffer): Promise<void> {
+	override async writeAsync(filepath: string, contents: string | Buffer): Promise<void> {
 		try {
 			this.ensureDir(require('node:path').dirname(filepath));
 			await Bun.write(filepath, contents);

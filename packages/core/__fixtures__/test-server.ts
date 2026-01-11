@@ -2,7 +2,7 @@
 /**
  * Test Fixture Server
  * Starts the fixture app with HMR enabled on port 3002 for browser integration tests.
- * Usage: bun packages/core/fixtures/test-server.ts
+ * Usage: bun packages/core/__fixtures__/test-server.ts
  */
 
 import { ConfigBuilder } from '../src/config/config-builder';

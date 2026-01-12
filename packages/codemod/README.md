@@ -15,7 +15,7 @@ bun install
 Transforms pages from legacy separate exports pattern to consolidated API:
 
 ```bash
-npx jscodeshift -t packages/codemod/src/transforms/migrate-to-eco-page.ts \
+npx jscodeshift -t codemod/src/transforms/migrate-to-eco-page.ts \
   --parser tsx \
   --dry \
   path/to/pages/
@@ -26,10 +26,30 @@ npx jscodeshift -t packages/codemod/src/transforms/migrate-to-eco-page.ts \
 Transforms components from legacy `.config` assignment to consolidated API:
 
 ```bash
-npx jscodeshift -t packages/codemod/src/transforms/migrate-to-eco-component.ts \
+npx jscodeshift -t codemod/src/transforms/migrate-to-eco-component.ts \
   --parser tsx \
   --dry \
   path/to/components/
+```
+
+## Complete Migration Script
+
+Run this to migrate your entire project structure (components, layouts, includes, and pages) at once:
+
+```bash
+# Migrate components, layouts, and includes
+npx jscodeshift \
+  -t ../../codemod/src/transforms/migrate-to-eco-component.ts \
+  --parser tsx \
+  ./src/components \
+  ./src/layouts \
+  ./src/includes
+
+# Migrate pages
+npx jscodeshift \
+  -t ../../codemod/src/transforms/migrate-to-eco-page.ts \
+  --parser tsx \
+  ./src/pages
 ```
 
 ## Options

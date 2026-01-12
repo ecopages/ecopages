@@ -14,7 +14,9 @@ const config = await new ConfigBuilder()
 		mdxPlugin({
 			compilerOptions: {},
 		}),
-		reactPlugin({ router: ecoRouter() }),
+		reactPlugin({
+			router: ecoRouter(),
+		}),
 	])
 	.setProcessors([
 		imageProcessorPlugin({

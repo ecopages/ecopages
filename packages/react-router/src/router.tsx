@@ -26,6 +26,7 @@ import { RouterContext } from './context';
 import { type PageState, loadPageModule, shouldInterceptClick } from './navigation';
 import { morphHead } from './head-morpher';
 import { applyViewTransitionNames } from './view-transition-utils';
+import { manageScroll } from './manage-scroll';
 
 type PageContextValue = PageState | null;
 
@@ -184,6 +185,29 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			setPendingPage(null);
 		}
 	}, [currentPage, pendingPage]);
+
+	/**
+	 * Tracks the previous URL for scroll behavior management.
+	 */
+	const previousUrlRef = useRef<string>(typeof window !== 'undefined' ? window.location.href : '');
+
+	/**
+	 * Manages scroll position after navigation.
+	 */
+	useEffect(() => {
+		if (typeof window === 'undefined') return;
+
+		const url = new URL(window.location.href);
+		const previousUrl = new URL(previousUrlRef.current);
+
+		if (url.href !== previousUrl.href) {
+			manageScroll(url, previousUrl, {
+				scrollBehavior: options.scrollBehavior,
+				smoothScroll: options.smoothScroll,
+			});
+			previousUrlRef.current = url.href;
+		}
+	}, [currentPage, options.scrollBehavior, options.smoothScroll]);
 
 	/**
 	 * Navigates to the specified URL using client-side navigation.

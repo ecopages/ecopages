@@ -45,23 +45,57 @@ export interface ComponentOptions<P> {
 
 /**
  * Options for creating a page with eco.page()
+ *
+ * Supports two patterns:
+ * 1. **Consolidated API** (recommended): Define staticPaths, staticProps, and metadata inline
+ * 2. **Separate exports** (legacy): Export getStaticPaths, getStaticProps, getMetadata separately
  */
 export interface PageOptions<T> {
 	/** Component directory for resolving relative dependencies. Auto-injected by plugin, or use `import.meta.dir` */
 	componentDir?: string;
 	dependencies?: EcoComponentDependenciesWithLazy;
 	layout?: EcoComponent<{ children: EcoPagesElement }>;
+
+	/**
+	 * Define static paths for dynamic routes (e.g., [slug].tsx).
+	 * Returns all possible paths that should be pre-rendered at build time.
+	 */
+	staticPaths?: GetStaticPaths;
+
+	/**
+	 * Fetch data for the page at build time.
+	 * Props returned here are passed to both render() and metadata().
+	 */
+	staticProps?: GetStaticProps<T>;
+
+	/**
+	 * Generate page metadata (title, description, etc.).
+	 * Receives props from staticProps if defined.
+	 */
+	metadata?: GetMetadata<T>;
+
 	render: (props: PagePropsFor<T>) => EcoPagesElement;
 }
 
 /**
- * Extracts props type from getStaticProps return type.
- * Falls back to empty params/query if no staticProps provided.
+ * Extracts props type from getStaticProps return type, or uses T directly if it's a props object.
+ * Always includes params and query for page context.
  */
 export type PagePropsFor<T> =
 	T extends GetStaticProps<infer P>
 		? P & { params?: Record<string, string>; query?: Record<string, string> }
-		: { params?: Record<string, string>; query?: Record<string, string> };
+		: T & { params?: Record<string, string>; query?: Record<string, string> };
+
+/**
+ * A page component with optional attached static functions.
+ * Used by the consolidated eco.page() API where staticPaths, staticProps,
+ * and metadata are defined inline and attached to the component.
+ */
+export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T>> & {
+	staticPaths?: GetStaticPaths;
+	staticProps?: GetStaticProps<T>;
+	metadata?: GetMetadata<T>;
+};
 
 /**
  * The eco namespace interface
@@ -73,9 +107,10 @@ export interface Eco {
 	component: <P = {}>(options: ComponentOptions<P>) => EcoComponent<P>;
 
 	/**
-	 * Create a page component with type-safe props from getStaticProps
+	 * Create a page component with type-safe props from getStaticProps.
+	 * Returns an EcoPageComponent with attached staticPaths, staticProps, and metadata.
 	 */
-	page: <T = {}>(options: PageOptions<T>) => EcoComponent<PagePropsFor<T>>;
+	page: <T = {}>(options: PageOptions<T>) => EcoPageComponent<T>;
 
 	/**
 	 * Type-safe wrapper for page metadata (identity function)

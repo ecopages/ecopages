@@ -3,10 +3,11 @@
  */
 import { eco } from '@ecopages/core';
 import type { GetMetadata } from '@ecopages/core';
-import { BaseLayout } from '../layouts/base-layout.kita';
-import { RadiantCounter } from '../components/radiant-counter/radiant-counter.kita';
-import { AlpineCounter } from '../components/alpine-counter/alpine-counter.kita';
-import { LitCounter } from '../components/lit-counter/lit-counter.kita';
+import { BaseLayout } from '@/layouts/base-layout.kita';
+import { RadiantCounter } from '@/components/radiant-counter/radiant-counter.kita';
+import { AlpineCounter } from '@/components/alpine-counter/alpine-counter.kita';
+import { LitCounter } from '@/components/lit-counter/lit-counter.kita';
+import { Card } from '@/components/card.kita';
 
 export const getMetadata: GetMetadata = () => ({
 	title: 'Eco Namespace Playground',
@@ -93,6 +94,58 @@ export default eco.page({
 					</div>
 				</div>
 			</div>
+
+			<section class="space-y-6">
+				<h3 class="text-2xl font-bold text-white">Dynamic Routes</h3>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+					<Card>
+						<h4 class="text-lg font-semibold text-white mb-3">Blog Posts</h4>
+						<ul class="space-y-2 text-sm">
+							<li>
+								<a href="/blog/post-1" class="text-gray-400 hover:text-white transition-colors">
+									→ /blog/post-1
+								</a>
+							</li>
+							<li>
+								<a href="/blog/post-2" class="text-gray-400 hover:text-white transition-colors">
+									→ /blog/post-2
+								</a>
+							</li>
+							<li>
+								<a
+									href="/blog/author/author-1"
+									class="text-gray-400 hover:text-white transition-colors"
+								>
+									→ /blog/author/author-1
+								</a>
+							</li>
+						</ul>
+					</Card>
+					<Card>
+						<h4 class="text-lg font-semibold text-white mb-3">Catch-All Route</h4>
+						<ul class="space-y-2 text-sm">
+							<li>
+								<a href="/catch/hello" class="text-gray-400 hover:text-white transition-colors">
+									→ /catch/hello
+								</a>
+							</li>
+							<li>
+								<a href="/catch/foo/bar/baz" class="text-gray-400 hover:text-white transition-colors">
+									→ /catch/foo/bar/baz
+								</a>
+							</li>
+							<li>
+								<a
+									href="/catch/test?query=value"
+									class="text-gray-400 hover:text-white transition-colors"
+								>
+									→ /catch/test?query=value
+								</a>
+							</li>
+						</ul>
+					</Card>
+				</div>
+			</section>
 		</div>
 	),
 });

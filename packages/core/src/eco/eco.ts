@@ -4,7 +4,7 @@
  */
 
 import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps } from '../public-types.ts';
-import type { ComponentOptions, Eco, LazyTrigger, PageOptions, PagePropsFor } from './eco.types.ts';
+import type { ComponentOptions, Eco, EcoPageComponent, LazyTrigger, PageOptions, PagePropsFor } from './eco.types.ts';
 
 /**
  * Builds scripts-injector HTML attributes from lazy config
@@ -32,85 +32,98 @@ function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
 function createComponentFactory<P>(options: ComponentOptions<P>): EcoComponent<P> {
 	const lazy = options.dependencies?.lazy;
 
-	const component: EcoComponent<P> = ((props: P) => {
+	const comp: EcoComponent<P> = ((props: P) => {
 		const content = options.render(props);
 
 		/**
 		 * Auto-wrap with scripts-injector if lazy dependencies exist
 		 */
-		if (lazy && component.config?._resolvedScripts) {
-			const attrs = buildInjectorAttrs(lazy, component.config._resolvedScripts);
+		if (lazy && comp.config?._resolvedScripts) {
+			const attrs = buildInjectorAttrs(lazy, comp.config._resolvedScripts);
 			return `<scripts-injector ${attrs}>${content}</scripts-injector>`;
 		}
 
 		return content;
 	}) as EcoComponent<P>;
 
-	component.config = {
+	comp.config = {
 		componentDir: options.componentDir,
 		dependencies: options.dependencies,
 	};
 
-	return component;
+	return comp;
+}
+
+/**
+ * Create a reusable component with dependencies and optional lazy-loading
+ */
+function component<P = {}>(options: ComponentOptions<P>): EcoComponent<P> {
+	return createComponentFactory(options);
+}
+
+/**
+ * Create a page component with type-safe props from getStaticProps
+ */
+function page<T = {}>(options: PageOptions<T>): EcoPageComponent<T> {
+	const { layout, dependencies, render, staticPaths, staticProps, metadata } = options;
+
+	let pageComponent: EcoPageComponent<T>;
+
+	if (layout) {
+		const wrappedRender = (props: PagePropsFor<T>) => {
+			const content = render(props);
+			return layout({ children: content });
+		};
+
+		const wrappedOptions: ComponentOptions<PagePropsFor<T>> = {
+			componentDir: options.componentDir,
+			dependencies: {
+				...dependencies,
+				components: [...(dependencies?.components || []), layout],
+			},
+			render: wrappedRender,
+		};
+
+		pageComponent = createComponentFactory(wrappedOptions) as EcoPageComponent<T>;
+	} else {
+		pageComponent = createComponentFactory(options) as EcoPageComponent<T>;
+	}
+
+	if (staticPaths) pageComponent.staticPaths = staticPaths;
+	if (staticProps) pageComponent.staticProps = staticProps;
+	if (metadata) pageComponent.metadata = metadata;
+
+	return pageComponent;
+}
+
+/**
+ * Type-safe wrapper for page metadata (identity function)
+ */
+function metadata<P = {}>(fn: GetMetadata<P>): GetMetadata<P> {
+	return fn;
+}
+
+/**
+ * Type-safe wrapper for static paths (identity function)
+ */
+function staticPaths(fn: GetStaticPaths): GetStaticPaths {
+	return fn;
+}
+
+/**
+ * Type-safe wrapper for static props (identity function)
+ */
+function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
+	return fn;
 }
 
 /**
  * The eco namespace - provides factories for components and pages
  */
 export const eco: Eco = {
-	/**
-	 * Create a reusable component with dependencies and optional lazy-loading
-	 */
-	component<P = {}>(options: ComponentOptions<P>): EcoComponent<P> {
-		return createComponentFactory(options);
-	},
-
-	/**
-	 * Create a page component with type-safe props from getStaticProps
-	 */
-	page<T = {}>(options: PageOptions<T>): EcoComponent<PagePropsFor<T>> {
-		const { layout, dependencies, render } = options;
-
-		// If layout is specified, wrap content and add layout to components
-		if (layout) {
-			const wrappedRender = (props: PagePropsFor<T>) => {
-				const content = render(props);
-				return layout({ children: content });
-			};
-
-			const wrappedOptions: ComponentOptions<PagePropsFor<T>> = {
-				componentDir: options.componentDir,
-				dependencies: {
-					...dependencies,
-					components: [...(dependencies?.components || []), layout],
-				},
-				render: wrappedRender,
-			};
-
-			return createComponentFactory(wrappedOptions);
-		}
-
-		return createComponentFactory(options) as EcoComponent<PagePropsFor<T>>;
-	},
-
-	/**
-	 * Type-safe wrapper for page metadata (identity function)
-	 */
-	metadata<P = {}>(fn: GetMetadata<P>): GetMetadata<P> {
-		return fn;
-	},
-
-	/**
-	 * Type-safe wrapper for static paths (identity function)
-	 */
-	staticPaths(fn: GetStaticPaths): GetStaticPaths {
-		return fn;
-	},
-
-	/**
-	 * Type-safe wrapper for static props (identity function)
-	 */
-	staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
-		return fn;
-	},
+	component,
+	page,
+	metadata,
+	staticPaths,
+	staticProps,
 };

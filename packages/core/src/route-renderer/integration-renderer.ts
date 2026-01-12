@@ -356,12 +356,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The prepared render options.
 	 */
 	protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
+		const module = await this.importPageFile(options.file);
 		const {
 			default: Page,
-			getStaticProps,
-			getMetadata,
+			getStaticProps: moduleGetStaticProps,
+			getMetadata: moduleGetMetadata,
 			...integrationSpecificProps
-		} = await this.importPageFile(options.file);
+		} = module;
+
+		/**
+		 * Check for attached static functions (consolidated API) or named exports (legacy)
+		 */
+		const getStaticProps = Page.staticProps ?? moduleGetStaticProps;
+		const getMetadata = Page.metadata ?? moduleGetMetadata;
 
 		const HtmlTemplate = await this.getHtmlTemplate();
 

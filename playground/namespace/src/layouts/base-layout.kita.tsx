@@ -14,7 +14,12 @@ export const BaseLayout = eco.component<LayoutProps>({
 			<header class="fixed top-0 w-full z-10 border-b border-white/10 bg-black/50 backdrop-blur-md supports-backdrop-filter:bg-black/20">
 				<div class="container mx-auto px-6 h-16 flex items-center justify-between">
 					<div class="flex items-center gap-2">
-						<h1 class="text-sm font-semibold tracking-tight text-gray-100">Eco Namespace</h1>
+						<a
+							href="/"
+							class="text-sm font-semibold tracking-tight text-gray-100 hover:text-white transition-colors"
+						>
+							Eco Namespace
+						</a>
 					</div>
 				</div>
 			</header>

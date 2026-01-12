@@ -217,6 +217,24 @@ export type EcoComponentBase = {
 	 * The configuration options for the EcoComponent.
 	 */
 	config?: EcoComponentConfig;
+
+	/**
+	 * Static paths for dynamic routes (consolidated eco.page API).
+	 * @internal Used by the renderer to retrieve static paths from the page component.
+	 */
+	staticPaths?: GetStaticPaths;
+
+	/**
+	 * Static props fetcher (consolidated eco.page API).
+	 * @internal Used by the renderer to retrieve static props from the page component.
+	 */
+	staticProps?: GetStaticProps<any>;
+
+	/**
+	 * Metadata generator (consolidated eco.page API).
+	 * @internal Used by the renderer to retrieve metadata from the page component.
+	 */
+	metadata?: GetMetadata<any>;
 };
 
 /**

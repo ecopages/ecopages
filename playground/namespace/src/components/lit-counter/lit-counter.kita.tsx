@@ -1,6 +1,3 @@
-/**
- * Lit Counter - using eco.component() with on:idle lazy loading
- */
 import { eco } from '@ecopages/core';
 import type { LitCounterProps } from './lit-counter.script';
 import './lit-counter.script';

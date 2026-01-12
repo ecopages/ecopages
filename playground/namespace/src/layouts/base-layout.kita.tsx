@@ -1,7 +1,3 @@
-/**
- * Base layout component using eco.component()
- * This is a body-only layout - the html/head is handled by includes templates
- */
 import { eco } from '@ecopages/core';
 import type { EcoPagesElement } from '@ecopages/core';
 

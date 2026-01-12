@@ -1,6 +1,3 @@
-/**
- * Radiant Counter - using eco.component() with lazy loading
- */
 import { eco } from '@ecopages/core';
 import type { RadiantCounterProps } from './radiant-counter.script.ts';
 

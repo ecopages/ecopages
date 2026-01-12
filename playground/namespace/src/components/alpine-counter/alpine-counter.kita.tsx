@@ -1,6 +1,3 @@
-/**
- * Alpine Counter - using eco.component() with lazy loading
- */
 import { eco } from '@ecopages/core';
 
 export type AlpineCounterProps = {

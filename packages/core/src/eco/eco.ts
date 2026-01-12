@@ -3,7 +3,7 @@
  * @module
  */
 
-import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps } from '../public-types.ts';
+import type { EcoComponent, EcoPagesElement, GetMetadata, GetStaticPaths, GetStaticProps } from '../public-types.ts';
 import type { ComponentOptions, Eco, EcoPageComponent, LazyTrigger, PageOptions, PagePropsFor } from './eco.types.ts';
 
 /**
@@ -29,10 +29,10 @@ function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
 /**
  * Creates a component factory that auto-wraps lazy dependencies
  */
-function createComponentFactory<P>(options: ComponentOptions<P>): EcoComponent<P> {
+function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	const lazy = options.dependencies?.lazy;
 
-	const comp: EcoComponent<P> = ((props: P) => {
+	const comp: EcoComponent<P, E> = ((props: P) => {
 		const content = options.render(props);
 
 		/**
@@ -44,7 +44,7 @@ function createComponentFactory<P>(options: ComponentOptions<P>): EcoComponent<P
 		}
 
 		return content;
-	}) as EcoComponent<P>;
+	}) as EcoComponent<P, E>;
 
 	comp.config = {
 		componentDir: options.componentDir,
@@ -57,14 +57,14 @@ function createComponentFactory<P>(options: ComponentOptions<P>): EcoComponent<P
 /**
  * Create a reusable component with dependencies and optional lazy-loading
  */
-function component<P = {}>(options: ComponentOptions<P>): EcoComponent<P> {
+function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	return createComponentFactory(options);
 }
 
 /**
  * Create a page component with type-safe props from getStaticProps
  */
-function page<T = {}>(options: PageOptions<T>): EcoPageComponent<T> {
+function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E>): EcoPageComponent<T> {
 	const { layout, dependencies, render, staticPaths, staticProps, metadata } = options;
 
 	let pageComponent: EcoPageComponent<T>;
@@ -75,7 +75,7 @@ function page<T = {}>(options: PageOptions<T>): EcoPageComponent<T> {
 			return layout({ children: content });
 		};
 
-		const wrappedOptions: ComponentOptions<PagePropsFor<T>> = {
+		const wrappedOptions: ComponentOptions<PagePropsFor<T>, E> = {
 			componentDir: options.componentDir,
 			dependencies: {
 				...dependencies,
@@ -86,7 +86,7 @@ function page<T = {}>(options: PageOptions<T>): EcoPageComponent<T> {
 
 		pageComponent = createComponentFactory(wrappedOptions) as EcoPageComponent<T>;
 	} else {
-		pageComponent = createComponentFactory(options) as EcoPageComponent<T>;
+		pageComponent = createComponentFactory(options as ComponentOptions<PagePropsFor<T>, E>) as EcoPageComponent<T>;
 	}
 
 	if (staticPaths) pageComponent.staticPaths = staticPaths;

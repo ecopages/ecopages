@@ -80,6 +80,46 @@ export const Counter = eco.component({
 
 Both patterns can coexist in the same project. Use the right tool for the job.
 
+## React Support
+
+EcoPages fully supports React components. You can use `eco.component()` with React to managing dependencies and hydration while maintaining type safety.
+
+Since React components return `ReactNode` or `JSX.Element` (not `EcoPagesElement`), you need to specify the return type generic:
+
+```tsx
+import { eco } from '@ecopages/core';
+import type { ReactNode } from 'react';
+
+type ButtonProps = {
+	label: string;
+	onClick?: () => void;
+};
+
+// Specify ReactNode as the second generic argument
+export const Button = eco.component<ButtonProps, ReactNode>({
+	dependencies: {
+		stylesheets: ['./button.css'],
+	},
+	render: ({ label, onClick }) => (
+		<button className="eco-button" onClick={onClick}>
+			{label}
+		</button>
+	),
+});
+```
+
+You can also use it for pages:
+
+```tsx
+import { eco } from '@ecopages/core';
+import type { JSX } from 'react';
+
+export default eco.page<Props, JSX.Element>({
+	layout: BaseLayout,
+	render: () => <h1>Hello React</h1>,
+});
+```
+
 ## Two Patterns for Pages
 
 ### Consolidated API (Recommended)
@@ -417,20 +457,20 @@ interface EcoComponentDependencies {
 	lazy?: LazyDependencies;
 }
 
-interface ComponentOptions<P> {
+interface ComponentOptions<P, E = EcoPagesElement> {
 	componentDir?: string;
 	dependencies?: EcoComponentDependencies;
-	render: (props: P) => EcoPagesElement;
+	render: (props: P) => E;
 }
 
-interface PageOptions<T> {
+interface PageOptions<T, E = EcoPagesElement> {
 	componentDir?: string;
 	dependencies?: EcoComponentDependencies;
-	layout?: EcoComponent<{ children: EcoPagesElement }>;
+	layout?: EcoComponent<{ children: E }>;
 	staticPaths?: GetStaticPaths;
 	staticProps?: GetStaticProps<T>;
 	metadata?: GetMetadata<T>;
-	render: (props: PagePropsFor<T>) => EcoPagesElement;
+	render: (props: PagePropsFor<T>) => E;
 }
 
 type EcoPageComponent<T> = EcoComponent<PagePropsFor<T>> & {

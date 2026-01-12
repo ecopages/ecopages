@@ -13,6 +13,7 @@
 	"files": [
 		"src"
 	],
+	"sideEffects": false,
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
@@ -37,6 +38,10 @@
 			"import": "./src/index.ts",
 			"require": "./src/index.ts",
 			"types": "./src/public-types.ts"
+		},
+		"./eco": {
+			"types": "./src/eco/eco.ts",
+			"default": "./src/eco/eco.ts"
 		},
 		"./declarations": {
 			"types": "./src/declarations.d.ts"

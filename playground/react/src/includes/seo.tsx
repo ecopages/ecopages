@@ -1,4 +1,5 @@
-import { addBaseUrlToPathname, type PageMetadataProps } from '@ecopages/core';
+import { type PageMetadataProps } from '@ecopages/core';
+import { addBaseUrlToPathname } from '@ecopages/core/utils/add-base-url-to-pathname';
 
 export function Seo({
 	title,

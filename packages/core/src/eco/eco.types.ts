@@ -35,12 +35,14 @@ export type EcoComponentDependenciesWithLazy = EcoComponentDependencies & {
 
 /**
  * Options for creating a component with eco.component()
+ * @template P - The props type for the component
+ * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
  */
-export interface ComponentOptions<P> {
+export interface ComponentOptions<P, E = EcoPagesElement> {
 	/** Component directory for resolving relative dependencies. Auto-injected by plugin, or use `import.meta.dir` */
 	componentDir?: string;
 	dependencies?: EcoComponentDependenciesWithLazy;
-	render: (props: P) => EcoPagesElement;
+	render: (props: P) => E;
 }
 
 /**
@@ -49,12 +51,15 @@ export interface ComponentOptions<P> {
  * Supports two patterns:
  * 1. **Consolidated API** (recommended): Define staticPaths, staticProps, and metadata inline
  * 2. **Separate exports** (legacy): Export getStaticPaths, getStaticProps, getMetadata separately
+ *
+ * @template T - The props type for the page
+ * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
  */
-export interface PageOptions<T> {
+export interface PageOptions<T, E = EcoPagesElement> {
 	/** Component directory for resolving relative dependencies. Auto-injected by plugin, or use `import.meta.dir` */
 	componentDir?: string;
 	dependencies?: EcoComponentDependenciesWithLazy;
-	layout?: EcoComponent<{ children: EcoPagesElement }>;
+	layout?: EcoComponent<{ children: E }>;
 
 	/**
 	 * Define static paths for dynamic routes (e.g., [slug].tsx).
@@ -74,7 +79,7 @@ export interface PageOptions<T> {
 	 */
 	metadata?: GetMetadata<T>;
 
-	render: (props: PagePropsFor<T>) => EcoPagesElement;
+	render: (props: PagePropsFor<T>) => E;
 }
 
 /**
@@ -102,15 +107,19 @@ export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T>> & {
  */
 export interface Eco {
 	/**
-	 * Create a reusable component with dependencies and optional lazy-loading
+	 * Create a reusable component with dependencies and optional lazy-loading.
+	 * @template P - Props type
+	 * @template E - Element/return type (EcoPagesElement for Kita, ReactNode for React)
 	 */
-	component: <P = {}>(options: ComponentOptions<P>) => EcoComponent<P>;
+	component: <P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>) => EcoComponent<P, E>;
 
 	/**
 	 * Create a page component with type-safe props from getStaticProps.
 	 * Returns an EcoPageComponent with attached staticPaths, staticProps, and metadata.
+	 * @template T - Props type
+	 * @template E - Element/return type (EcoPagesElement for Kita, ReactNode for React)
 	 */
-	page: <T = {}>(options: PageOptions<T>) => EcoPageComponent<T>;
+	page: <T = {}, E = EcoPagesElement>(options: PageOptions<T, E>) => EcoPageComponent<T>;
 
 	/**
 	 * Type-safe wrapper for page metadata (identity function)

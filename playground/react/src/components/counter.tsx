@@ -1,30 +1,36 @@
-import type { EcoComponent } from '@ecopages/core';
-import { type JSX, useState } from 'react';
+import { eco } from '@ecopages/core';
+import { type ReactNode, useState } from 'react';
 
 type CounterProps = {
 	defaultValue: number;
 };
 
-export const Counter: EcoComponent<CounterProps, JSX.Element> = ({ defaultValue = 5 }) => {
-	const [count, setCount] = useState<number>(defaultValue);
-	const handleIncrement = () => setCount(count + 1);
-	const handleDecrement = () => setCount(count - 1);
-
-	return (
-		<div className="counter">
-			<button onClick={handleDecrement} aria-label="Decrement" type="button" className="decrement">
-				-
-			</button>
-			<span>{count}</span>
-			<button data-increment onClick={handleIncrement} aria-label="Increment" type="button" className="increment">
-				+
-			</button>
-		</div>
-	);
-};
-
-Counter.config = {
+export const Counter = eco.component<CounterProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./counter.css'],
 	},
-};
+
+	render: ({ defaultValue = 5 }) => {
+		const [count, setCount] = useState<number>(defaultValue);
+		const handleIncrement = () => setCount(count + 1);
+		const handleDecrement = () => setCount(count - 1);
+
+		return (
+			<div className="counter">
+				<button onClick={handleDecrement} aria-label="Decrement" type="button" className="decrement">
+					-
+				</button>
+				<span>{count}</span>
+				<button
+					data-increment
+					onClick={handleIncrement}
+					aria-label="Increment"
+					type="button"
+					className="increment"
+				>
+					+
+				</button>
+			</div>
+		);
+	},
+});

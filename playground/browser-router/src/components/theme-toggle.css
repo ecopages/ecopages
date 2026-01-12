@@ -18,7 +18,6 @@
 	border-color: var(--color-accent);
 }
 
-/* Show sun in dark mode, moon in light mode */
 .dark .theme-toggle-sun {
 	display: inline-flex;
 }

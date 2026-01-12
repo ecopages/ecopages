@@ -99,7 +99,7 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 						declarator.init?.type === 'ArrowFunctionExpression' ||
 						declarator.init?.type === 'FunctionExpression'
 					) {
-						// Extract props type
+						// Extract props type from EcoComponent<PropsType> or EcoComponent<PageProps<PropsType>>
 						let propsType: string | null = null;
 						if (declarator.id.typeAnnotation?.typeAnnotation?.type === 'TSTypeReference') {
 							const typeRef = declarator.id.typeAnnotation.typeAnnotation;
@@ -107,9 +107,23 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 								const firstParam = typeRef.typeParameters.params[0];
 								if (
 									firstParam.type === 'TSTypeReference' &&
-									firstParam.typeName.type === 'Identifier'
+									firstParam.typeName?.type === 'Identifier'
 								) {
-									propsType = firstParam.typeName.name;
+									// Could be direct type ref like EcoComponent<MyProps>
+									// or nested like EcoComponent<PageProps<MyProps>>
+									if (firstParam.typeParameters?.params?.length) {
+										// Nested: extract inner type
+										const innerParam = firstParam.typeParameters.params[0];
+										if (
+											innerParam.type === 'TSTypeReference' &&
+											innerParam.typeName?.type === 'Identifier'
+										) {
+											propsType = innerParam.typeName.name;
+										}
+									} else {
+										// Direct: use firstParam directly
+										propsType = firstParam.typeName.name;
+									}
 								}
 							}
 						}

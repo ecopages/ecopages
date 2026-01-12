@@ -3,7 +3,7 @@
  * @module
  */
 
-import type { ComponentType } from 'react';
+import { type ComponentType, createElement } from 'react';
 import type { EcoRouterOptions } from './types';
 
 export type PageState = {
@@ -80,7 +80,14 @@ export async function loadPageModule(
 		}
 
 		const module = await import(componentUrl);
-		const Component = module.Content || module.default?.Content || module.default;
+		const rawComponent = module.Content || module.default?.Content || module.default;
+		const config = module.config || rawComponent?.config;
+
+		let Component = rawComponent;
+
+		if (config?.layout) {
+			Component = (props: any) => createElement(config.layout, null, createElement(rawComponent, props));
+		}
 
 		return { Component, props, doc };
 	} catch (e) {

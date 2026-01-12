@@ -64,7 +64,7 @@
     },
     "packages/browser-router": {
       "name": "@ecopages/browser-router",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "@ecopages/core": "workspace:*",
         "morphdom": "^2.7.4",
@@ -72,10 +72,11 @@
     },
     "packages/core": {
       "name": "@ecopages/core",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
+        "@ecopages/scripts-injector": "^0.1.1",
         "chokidar": "^4.0.3",
         "ghtml": "^3.1.2",
       },
@@ -93,7 +94,7 @@
     },
     "packages/file-system": {
       "name": "@ecopages/file-system",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "fast-glob": "^3.3.2",
       },
@@ -110,7 +111,7 @@
     },
     "packages/integrations/kitajs": {
       "name": "@ecopages/kitajs",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "@ecopages/core": "workspace:*",
         "@kitajs/html": "^4.1.0",
@@ -119,7 +120,7 @@
     },
     "packages/integrations/lit": {
       "name": "@ecopages/lit",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "@lit-labs/ssr": "^3.3.0",
         "@lit-labs/ssr-client": "^1.1.7",
@@ -131,7 +132,7 @@
     },
     "packages/integrations/mdx": {
       "name": "@ecopages/mdx",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "@mdx-js/esbuild": "^3.0.1",
         "@mdx-js/mdx": "^3.1.0",
@@ -151,7 +152,7 @@
     },
     "packages/integrations/react": {
       "name": "@ecopages/react",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "@ecopages/logger": "latest",
         "react": "^19",
@@ -167,7 +168,7 @@
     },
     "packages/loaders/bun-mdx-kitajs-loader": {
       "name": "@ecopages/bun-mdx-kitajs-loader",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "@mdx-js/esbuild": "^3.0.1",
       },
@@ -178,7 +179,7 @@
     },
     "packages/loaders/bun-postcss-loader": {
       "name": "@ecopages/bun-postcss-loader",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "@ecopages/postcss-processor": "workspace:*",
       },
@@ -188,7 +189,7 @@
     },
     "packages/plugins/bun-inline-css-plugin": {
       "name": "@ecopages/bun-inline-css-plugin",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "devDependencies": {
         "@ecopages/logger": "latest",
         "@ecopages/postcss-processor": "workspace:*",
@@ -197,7 +198,7 @@
     },
     "packages/processors/image-processor": {
       "name": "@ecopages/image-processor",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
@@ -215,7 +216,7 @@
     },
     "packages/processors/postcss-processor": {
       "name": "@ecopages/postcss-processor",
-      "version": "0.1.57",
+      "version": "0.1.59",
       "dependencies": {
         "@ecopages/bun-inline-css-plugin": "workspace:*",
         "@ecopages/core": "workspace:*",
@@ -246,7 +247,7 @@
     },
     "packages/react-router": {
       "name": "@ecopages/react-router",
-      "version": "0.1.0",
+      "version": "0.1.59",
       "devDependencies": {
         "@types/react": "^19",
         "react": "^19",
@@ -285,6 +286,21 @@
         "alpinejs": "^3.13.10",
         "shiki": "^1.1.2",
         "tailwindcss": "^3.4.19",
+      },
+    },
+    "playground/namespace": {
+      "name": "@ecopages/playground-namespace",
+      "devDependencies": {
+        "@ecopages/core": "workspace:*",
+        "@ecopages/kitajs": "workspace:*",
+        "@ecopages/lit": "workspace:*",
+        "@ecopages/postcss-processor": "workspace:*",
+        "@ecopages/radiant": "^0.1.7",
+        "@tailwindcss/postcss": "^4.0.0",
+        "@types/alpinejs": "^3.13.6",
+        "alpinejs": "^3.13.10",
+        "lit": "^3.2.0",
+        "tailwindcss": "^4.0.0",
       },
     },
     "playground/react": {
@@ -399,6 +415,8 @@
     "@ecopages/playground-browser-router": ["@ecopages/playground-browser-router@workspace:playground/browser-router"],
 
     "@ecopages/playground-global": ["@ecopages/playground-global@workspace:playground/global"],
+
+    "@ecopages/playground-namespace": ["@ecopages/playground-namespace@workspace:playground/namespace"],
 
     "@ecopages/playground-react": ["@ecopages/playground-react@workspace:playground/react"],
 
@@ -1817,6 +1835,10 @@
     "@ecopages/playground-global/@ecopages/radiant": ["@ecopages/radiant@0.1.8", "", { "dependencies": { "@kitajs/html": "^4.1.0" } }, "sha512-blXhVkFFZVB2LVZmn1hzT7B46JsHDkPW1rT4l73gpcpyERX27N4MLCrH9nq39Vn8+SdZVtSXnvdy/2Lhcjz3LQ=="],
 
     "@ecopages/playground-global/shiki": ["shiki@1.29.2", "", { "dependencies": { "@shikijs/core": "1.29.2", "@shikijs/engine-javascript": "1.29.2", "@shikijs/engine-oniguruma": "1.29.2", "@shikijs/langs": "1.29.2", "@shikijs/themes": "1.29.2", "@shikijs/types": "1.29.2", "@shikijs/vscode-textmate": "^10.0.1", "@types/hast": "^3.0.4" } }, "sha512-njXuliz/cP+67jU2hukkxCNuH1yUi4QfdZZY+sMr5PPrIyXSu5iTb/qYC4BiWWB0vZ+7TbdvYUCeL23zpwCfbg=="],
+
+    "@ecopages/playground-namespace/@ecopages/radiant": ["@ecopages/radiant@0.1.8", "", { "dependencies": { "@kitajs/html": "^4.1.0" } }, "sha512-blXhVkFFZVB2LVZmn1hzT7B46JsHDkPW1rT4l73gpcpyERX27N4MLCrH9nq39Vn8+SdZVtSXnvdy/2Lhcjz3LQ=="],
+
+    "@ecopages/playground-namespace/tailwindcss": ["tailwindcss@4.1.18", "", {}, "sha512-4+Z+0yiYyEtUVCScyfHCxOYP06L5Ne+JiHhY2IjR2KWMIWhJOYZKLSGZaP5HkZ8+bY0cxfzwDE5uOmzFXyIwxw=="],
 
     "@ecopages/playground-react/react-dom": ["react-dom@19.2.3", "", { "dependencies": { "scheduler": "^0.27.0" }, "peerDependencies": { "react": "^19.2.3" } }, "sha512-yELu4WmLPw5Mr/lmeEpox5rw3RETacE++JgHqQzd2dg+YbJuat3jH4ingc+WPZhxaoFzdv9y33G+F7Nl5O0GBg=="],
 

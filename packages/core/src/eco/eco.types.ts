@@ -37,6 +37,8 @@ export type EcoComponentDependenciesWithLazy = EcoComponentDependencies & {
  * Options for creating a component with eco.component()
  */
 export interface ComponentOptions<P> {
+	/** Component directory for resolving relative dependencies. Auto-injected by plugin, or use `import.meta.dir` */
+	componentDir?: string;
 	dependencies?: EcoComponentDependenciesWithLazy;
 	render: (props: P) => EcoPagesElement;
 }
@@ -45,7 +47,10 @@ export interface ComponentOptions<P> {
  * Options for creating a page with eco.page()
  */
 export interface PageOptions<T> {
+	/** Component directory for resolving relative dependencies. Auto-injected by plugin, or use `import.meta.dir` */
+	componentDir?: string;
 	dependencies?: EcoComponentDependenciesWithLazy;
+	layout?: EcoComponent<{ children: EcoPagesElement }>;
 	render: (props: PagePropsFor<T>) => EcoPagesElement;
 }
 

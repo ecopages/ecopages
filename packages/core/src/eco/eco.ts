@@ -35,7 +35,9 @@ function createComponentFactory<P>(options: ComponentOptions<P>): EcoComponent<P
 	const component: EcoComponent<P> = ((props: P) => {
 		const content = options.render(props);
 
-		// Auto-wrap with scripts-injector if lazy dependencies exist
+		/**
+		 * Auto-wrap with scripts-injector if lazy dependencies exist
+		 */
 		if (lazy && component.config?._resolvedScripts) {
 			const attrs = buildInjectorAttrs(lazy, component.config._resolvedScripts);
 			return `<scripts-injector ${attrs}>${content}</scripts-injector>`;
@@ -45,6 +47,7 @@ function createComponentFactory<P>(options: ComponentOptions<P>): EcoComponent<P
 	}) as EcoComponent<P>;
 
 	component.config = {
+		componentDir: options.componentDir,
 		dependencies: options.dependencies,
 	};
 
@@ -66,6 +69,27 @@ export const eco: Eco = {
 	 * Create a page component with type-safe props from getStaticProps
 	 */
 	page<T = {}>(options: PageOptions<T>): EcoComponent<PagePropsFor<T>> {
+		const { layout, dependencies, render } = options;
+
+		// If layout is specified, wrap content and add layout to components
+		if (layout) {
+			const wrappedRender = (props: PagePropsFor<T>) => {
+				const content = render(props);
+				return layout({ children: content });
+			};
+
+			const wrappedOptions: ComponentOptions<PagePropsFor<T>> = {
+				componentDir: options.componentDir,
+				dependencies: {
+					...dependencies,
+					components: [...(dependencies?.components || []), layout],
+				},
+				render: wrappedRender,
+			};
+
+			return createComponentFactory(wrappedOptions);
+		}
+
 		return createComponentFactory(options) as EcoComponent<PagePropsFor<T>>;
 	},
 

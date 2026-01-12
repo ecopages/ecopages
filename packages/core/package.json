@@ -25,6 +25,7 @@
 	"dependencies": {
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "latest",
+		"@ecopages/scripts-injector": "^0.1.1",
 		"chokidar": "^4.0.3",
 		"ghtml": "^3.1.2"
 	},

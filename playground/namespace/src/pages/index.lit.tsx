@@ -20,7 +20,6 @@ export default eco.page({
 	},
 	render: () => (
 		<div class="max-w-5xl mx-auto space-y-12">
-			{/* Hero Section */}
 			<section class="text-center space-y-6 pt-12 pb-8">
 				<h2 class="text-5xl md:text-7xl font-bold tracking-tight bg-clip-text text-transparent bg-linear-to-br from-white via-gray-200 to-gray-500">
 					Eco Namespace
@@ -32,7 +31,6 @@ export default eco.page({
 				</p>
 			</section>
 
-			{/* Features Grid */}
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 				<div class="p-6 rounded-2xl border border-white/10 bg-zinc-900/30 backdrop-blur-sm hover:border-white/20 transition-colors">
 					<div class="h-10 w-10 rounded-lg bg-indigo-500/20 flex items-center justify-center mb-4 text-indigo-400 border border-indigo-500/30">

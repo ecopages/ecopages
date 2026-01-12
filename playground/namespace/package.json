@@ -17,7 +17,6 @@
 		"@types/alpinejs": "^3.13.6",
 		"alpinejs": "^3.13.10",
 		"lit": "^3.2.0",
-		"postcss-host-to-classname": "^0.1.0",
 		"tailwindcss": "^4.0.0"
 	}
 }

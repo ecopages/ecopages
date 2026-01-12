@@ -22,20 +22,19 @@ For purely presentational components without client-side interactivity, use plai
 
 ```tsx
 import type { PropsWithChildren } from '@kitajs/html';
+import { cn } from 'your-library';
 
 type CardProps = PropsWithChildren<{
 	class?: string;
 }>;
 
 export function Card({ children, class: className }: CardProps) {
-	const baseClasses = 'p-6 rounded-2xl border border-white/10 bg-zinc-900/30';
-	const classes = className ? `${baseClasses} ${className}` : baseClasses;
-
-	return <div class={classes}>{children}</div>;
+	return <div class={cn('p-6 rounded-2xl border border-white/10 bg-zinc-900/30', className)}>{children}</div>;
 }
 ```
 
 **When to use:**
+
 - Static/presentational UI (cards, alerts, badges, layout primitives)
 - Projects using utility-first CSS (Tailwind, UnoCSS, etc.)
 - Components that only render HTML without scripts or dedicated stylesheets
@@ -63,6 +62,7 @@ export const Counter = eco.component({
 ```
 
 **When to use:**
+
 - Components with client-side interactivity
 - Components requiring scripts or stylesheets
 - Lazy-loaded components with hydration strategies
@@ -70,13 +70,13 @@ export const Counter = eco.component({
 
 ### Comparison
 
-| Aspect | Simple JSX | `eco.component()` |
-|--------|-----------|-------------------|
-| Scripts/Stylesheets | No | Yes |
-| Lazy loading | No | Yes |
-| Hydration strategies | No | Yes |
-| Runtime cost | Zero | Minimal |
-| Use case | Static UI | Interactive UI |
+| Aspect               | Simple JSX | `eco.component()` |
+| -------------------- | ---------- | ----------------- |
+| Scripts/Stylesheets  | No         | Yes               |
+| Lazy loading         | No         | Yes               |
+| Hydration strategies | No         | Yes               |
+| Runtime cost         | Zero       | Minimal           |
+| Use case             | Static UI  | Interactive UI    |
 
 Both patterns can coexist in the same project. Use the right tool for the job.
 
@@ -163,7 +163,7 @@ export const Counter = eco.component({
 			scripts: ['./counter.script.ts'], // loaded on trigger
 		},
 	},
-	render: ({ count }) => <my-counter count={count} />,
+	render: ({ count }) => <my-counter count={count}></my-counter>,
 });
 ```
 

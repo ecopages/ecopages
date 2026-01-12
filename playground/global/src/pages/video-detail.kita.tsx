@@ -1,15 +1,21 @@
+import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
-export const getMetadata: GetMetadata = () => ({
-	title: 'Video Detail',
-	description: 'This is a detail page of a video',
-	image: 'public/assets/images/default-og.png',
-	keywords: ['typescript', 'framework', 'static'],
-});
+export default eco.page({
+	dependencies: {
+		components: [BaseLayout],
+	},
 
-const VideoDetailPage: EcoComponent = () => (
-	<BaseLayout>
+	metadata: () => ({
+		title: 'Video Detail',
+		description: 'This is a detail page of a video',
+		image: 'public/assets/images/default-og.png',
+		keywords: ['typescript', 'framework', 'static'],
+	}),
+
+	layout: BaseLayout,
+
+	render: () => (
 		<div class="max-w-4xl mx-auto py-12">
 			<a href="/video" class="inline-flex items-center text-blue-600 hover:underline mb-8">
 				&larr; Back to Gallery
@@ -39,13 +45,5 @@ const VideoDetailPage: EcoComponent = () => (
 				</div>
 			</div>
 		</div>
-	</BaseLayout>
-);
-
-VideoDetailPage.config = {
-	dependencies: {
-		components: [BaseLayout],
-	},
-};
-
-export default VideoDetailPage;
+	),
+});

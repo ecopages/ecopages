@@ -1,15 +1,21 @@
+import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoComponent, GetMetadata } from '@ecopages/core';
 
-export const getMetadata: GetMetadata = () => ({
-	title: 'Home page',
-	description: 'This is the homepage of the website',
-	image: 'public/assets/images/default-og.png',
-	keywords: ['typescript', 'framework', 'static'],
-});
+export default eco.page({
+	dependencies: {
+		components: [BaseLayout],
+	},
 
-const VideoPage: EcoComponent = () => (
-	<BaseLayout>
+	metadata: () => ({
+		title: 'Home page',
+		description: 'This is the homepage of the website',
+		image: 'public/assets/images/default-og.png',
+		keywords: ['typescript', 'framework', 'static'],
+	}),
+
+	layout: BaseLayout,
+
+	render: () => (
 		<div class="max-w-4xl mx-auto py-12">
 			<h1 class="text-4xl font-bold mb-8">Video Persistence Demo</h1>
 			<p class="mb-8 text-lg">
@@ -39,13 +45,5 @@ const VideoPage: EcoComponent = () => (
 				</a>
 			</div>
 		</div>
-	</BaseLayout>
-);
-
-VideoPage.config = {
-	dependencies: {
-		components: [BaseLayout],
-	},
-};
-
-export default VideoPage;
+	),
+});

@@ -42,6 +42,67 @@ export function Card({ children, class: className }: CardProps) {
 
 > **Note:** If your component requires a dedicated CSS file, use `eco.component()` instead to manage the stylesheet dependency.
 
+### Plain React Components (With Bun)
+
+When using Bun, React components with hooks and Tailwind CSS work out of the box without `eco.component()`. Bun auto-imports dependencies, so you can write standard React components:
+
+```tsx
+import { useEffect, useState } from 'react';
+
+export function ThemeToggle() {
+	const [mounted, setMounted] = useState(false);
+	const [isDark, setIsDark] = useState(false);
+
+	useEffect(() => {
+		setMounted(true);
+		const theme = localStorage.getItem('theme');
+		const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+		if (theme === 'dark' || (!theme && prefersDark)) {
+			setIsDark(true);
+			document.documentElement.classList.add('dark');
+		} else {
+			setIsDark(false);
+			document.documentElement.classList.remove('dark');
+		}
+	}, []);
+
+	const toggleTheme = () => {
+		const newTheme = !isDark;
+		setIsDark(newTheme);
+
+		if (newTheme) {
+			document.documentElement.classList.add('dark');
+			localStorage.setItem('theme', 'dark');
+		} else {
+			document.documentElement.classList.remove('dark');
+			localStorage.setItem('theme', 'light');
+		}
+	};
+
+	if (!mounted) return null;
+
+	return (
+		<button
+			onClick={toggleTheme}
+			className="p-2 rounded-md hover:bg-surface-200 dark:hover:bg-surface-800 transition-colors"
+			aria-label="Toggle theme"
+		>
+			{isDark ? <SunIcon /> : <MoonIcon />}
+		</button>
+	);
+}
+```
+
+**When to use:**
+
+- React components with hooks (`useState`, `useEffect`, etc.)
+- Components styled with Tailwind CSS classes
+- Interactive UI that doesn't require external scripts or dedicated stylesheets
+- Bun handles all imports automatically
+
+> **Note:** Use `eco.component()` only when you need to manage external stylesheets, scripts, or lazy loading. For React components relying solely on hooks and Tailwind, plain functions are simpler and sufficient.
+
 ### `eco.component()` (Interactive Components)
 
 For components that need dependencies, scripts, or lazy loading:
@@ -70,15 +131,16 @@ export const Counter = eco.component({
 
 ### Comparison
 
-| Aspect               | Simple JSX | `eco.component()` |
-| -------------------- | ---------- | ----------------- |
-| Scripts/Stylesheets  | No         | Yes               |
-| Lazy loading         | No         | Yes               |
-| Hydration strategies | No         | Yes               |
-| Runtime cost         | Zero       | Minimal           |
-| Use case             | Static UI  | Interactive UI    |
+| Aspect               | Simple JSX | Plain React (Bun) | `eco.component()` |
+| -------------------- | ---------- | ----------------- | ----------------- |
+| React hooks          | No         | Yes               | Yes               |
+| Scripts/Stylesheets  | No         | No                | Yes               |
+| Lazy loading         | No         | No                | Yes               |
+| Hydration strategies | No         | No                | Yes               |
+| Runtime cost         | Zero       | Minimal           | Minimal           |
+| Use case             | Static UI  | Interactive UI    | Advanced UI       |
 
-Both patterns can coexist in the same project. Use the right tool for the job.
+All patterns can coexist in the same project. Use the right tool for the job.
 
 ## React Support
 

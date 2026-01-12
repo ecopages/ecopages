@@ -35,9 +35,10 @@ const CONFIG_EXPORT_PATTERN = /export\s+const\s+config\s*=\s*\{/g;
 /**
  * Regex pattern to match eco.component() and eco.page() declarations.
  * Matches: eco.component({ or eco.component<Type>({
+ * Uses [^(]+ to handle nested generics like <PageHeadProps<string>>
  * i.e. `eco.component({ dependencies: ... })` or `eco.page<Props>({ ... })`
  */
-const ECO_COMPONENT_PATTERN = /eco\.(component|page)(?:<[^>]+>)?\s*\(\s*\{/g;
+const ECO_COMPONENT_PATTERN = /eco\.(component|page)(?:<[^(]+>)?\s*\(\s*\{/g;
 
 /**
  * Creates a RegExp pattern from integration extensions.

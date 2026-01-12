@@ -155,4 +155,29 @@ describe('eco-component-dir-plugin', () => {
 		expect(result).toBeDefined();
 		expect(result.contents).toContain('componentDir: "/path/to",');
 	});
+
+	it('should inject componentDir into eco.component() with nested generics like Head', async () => {
+		const content = `import { eco } from '@ecopages/core';
+import type { PageHeadProps } from '@ecopages/core';
+import { Seo } from '@/includes/seo.kita';
+
+export const Head = eco.component<PageHeadProps<string>>({
+	dependencies: {
+		stylesheets: ['../styles/global.css'],
+	},
+	render: ({ metadata, children }) => (
+		<head>
+			<meta charset="UTF-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1" />
+			<Seo {...metadata} />
+			{children}
+		</head>
+	),
+});`;
+
+		const result = await runPluginOnContent(content, '/path/to/includes/head.kita.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain('componentDir: "/path/to/includes",');
+	});
 });

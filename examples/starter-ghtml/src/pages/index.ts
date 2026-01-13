@@ -1,4 +1,4 @@
-import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts } from '@ecopages/core';
+import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 
@@ -25,14 +25,7 @@ const HomePage: EcoComponent = () =>
 				Scripts are loaded on demand using the
 				<a href="https://github.com/ecopages/scripts-injector" target="_blank">scripts-injector</a> component.
 			</p>
-			<scripts-injector
-				on:interaction="mouseenter,focusin"
-				scripts="${resolveComponentsScripts([RadiantCounter])}"
-			>
-				!${RadiantCounter({
-					count: 5,
-				})}
-			</scripts-injector>`,
+			!${RadiantCounter({ count: 5 })}`,
 	})}`;
 
 HomePage.config = {

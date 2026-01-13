@@ -102,7 +102,7 @@ export default config;
 
 <ApiField
 	name="robotsTxt"
-	type="RobotsPreferences"
+	type="{ preferences: RobotsPreference }"
 	defaultValue={`{ preferences: { "*": [], Googlebot: ["/public/"] } }`}
 	setter="setRobotsTxt"
 >
@@ -128,6 +128,7 @@ Ecopages supports various integrations to extend its capabilities. Here are some
 - **KitaJS**: For JSX templating
 - **Lit**: For web components
 - **MDX**: For Markdown with JSX
+- **React**: For React components
 
 To use an integration, install it and add it to your configuration. For example:
 

@@ -1,12 +1,13 @@
 import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
 
 export const config = {
-    layout: DocsLayout,
+  layout: DocsLayout,
 };
 
 export const getMetadata = () => ({
-    title: 'Docs | Architecture',
-    description: 'A high-level overview of the Ecopages architecture and request lifecycle',
+  title: 'Docs | Architecture',
+  description: 'A high-level overview of the Ecopages architecture and request lifecycle',
 });
 
 # Architecture Overview
@@ -35,9 +36,12 @@ For those wishing to dive deeper, we recommend exploring the source code:
 
 ## Design Philosophy
 
-- **Zero-Config by Default**: Sensible defaults for structure and asset loading.
+- **Minimal Configuration**: Sensible defaults for structure and asset loading, with a simple config file to override them.
 - **Explicit Dependencies**: Components declare their own scripts and styles, preventing global bloat.
 - **Hybrid by Choice**: Optimization for static builds while maintaining full server capabilities.
 
-> [!TIP]
-> Ecopages' strength lies in its **Integration System**. You can add support for any view library by extending the `IntegrationPlugin` class. Check out the [Custom Integration](/docs/plugins/custom-integration) guide to learn how.
+<Banner type="info">
+  **Extensibility**
+
+  Ecopages' strength lies in its **Integration System**. You can add support for any view library by extending the `IntegrationPlugin` class. Check out the [Custom Integration](/docs/plugins/custom-integration) guide to learn how.
+</Banner>

@@ -19,42 +19,38 @@ A typical page in Ecopages using the ghtml integration consists of a single Type
 
 ```typescript
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, type GetMetadata, html } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
-export const getMetadata: GetMetadata = () => ({
-	title: 'Home page',
-	description: 'This is the homepage of the website',
-	image: 'public/assets/images/default-og.png',
-	keywords: ['typescript', 'framework', 'static'],
-});
-
-const HomePage: EcoComponent = () => html`${BaseLayout({
-	class: 'main-content',
-	children: html`<h1>Ecopages</h1><p>Welcome to my Ecopages website!</p>`,
-})}`;
-
-HomePage.config = {
+export default eco.page({
+	metadata: () => ({
+		title: 'Home page',
+		description: 'This is the homepage of the website',
+		image: 'public/assets/images/default-og.png',
+		keywords: ['typescript', 'framework', 'static'],
+	}),
 	dependencies: {
 		components: [BaseLayout],
 	},
-};
-
-export default HomePage;
+	render: () => html`${BaseLayout({
+		class: 'main-content',
+		children: html`<h1>Ecopages</h1><p>Welcome to my Ecopages website!</p>`,
+	})}`,
+});
 ```
 
 Let's break down the key elements of a page:
 
 1. **Imports**: Import necessary components and types from `@ecopages/core` and your project files.
 
-2. **Metadata**: Use the `getMetadata` function to define page-specific metadata.
+2. **`eco.page`**: Use the `eco.page` factory to create your page component.
 
-3. **Page Component**: Create your main page component as an `EcoComponent`.
+3. **Metadata**: Define page-specific metadata in the `metadata` property.
 
-4. **HTML Template**: Use the `html` template literal to define your page's structure.
+4. **Dependencies**: Declare components, scripts, and stylesheets in the `dependencies` object.
 
-5. **Config**: Always include the `config` object with any necessary dependencies.
+5. **Render**: Implement the `render` function to define your page's structure using the `html` template literal.
 
-6. **Export**: Export your page component as the default export.
+6. **Export**: Export the result of `eco.page` as the default export.
 
 ## Using Components in Pages
 
@@ -63,26 +59,20 @@ To use components in your pages, import them and include them in your HTML templ
 ```typescript
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts, flagComponentsAsDynamic } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
-const HomePage: EcoComponent = () => html`${BaseLayout({
-	class: 'main-content',
-	children: html`
-	<h1>Ecopages</h1>
-	<scripts-injector
-		on:interaction="mouseenter,focusin"
-		scripts="${resolveComponentsScripts([RadiantCounter])}"
-	>
-			!${RadiantCounter({ count: 5 })}
-	</scripts-injector>
-`,
-})}`;
-
-HomePage.config = {
+export default eco.page({
 	dependencies: {
-		components: [BaseLayout, ...flagComponentsAsDynamic([RadiantCounter])],
+		components: [BaseLayout, RadiantCounter],
 	},
-};
+	render: () => html`${BaseLayout({
+		class: 'main-content',
+		children: html`
+			<h1>Ecopages</h1>
+			${RadiantCounter({ count: 5 })}
+		`,
+	})}`,
+});
 ```
 
 ## Working with Data
@@ -93,14 +83,22 @@ Ecopages provides built-in support for data fetching and metadata management. Fo
 
 Ecopages provides powerful tools for lazy loading components, which can significantly improve your site's performance.
 
-The main tool for this is the custom component `scripts-injector`, which allows you to load scripts only when needed. Two key functions for this are `resolveComponentsScripts` and `flagComponentsAsDynamic`.
+Ecopages provides powerful tools for lazy loading components, which can significantly improve your site's performance.
 
-### `resolveComponentsScripts`
+Lazy loading is handled directly within the `eco.component` or `eco.page` options using the `dependencies.lazy` property.
 
-This function is used to resolve the scripts associated with components for lazy loading. It's typically used with the `scripts-injector` component to ensure scripts are only loaded when a user interacts with a specific part of the page.
+```typescript
+import { eco } from '@ecopages/core';
 
-### `flagComponentsAsDynamic`
+export const MyComponent = eco.component({
+	dependencies: {
+		lazy: {
+			'on:interaction': 'mouseenter,focusin', // Load on interaction
+			scripts: ['./my-component.script.ts'],
+		},
+	},
+	render: (props) => <my-component {...props} />,
+});
+```
 
-To prevent scripts from being included in the initial page load, you can use `flagComponentsAsDynamic`. This marks the components as "dynamic," allowing their assets to be deferred and loaded later via a `scripts-injector`.
-
-By using these functions, you can create pages that are lightweight on initial load but still provide rich interactivity when needed. This approach is particularly useful for components that are not immediately visible or not used by all users.
+When you define a lazy dependency, Ecopages automatically handles the injection of the required scripts only when the specified interaction occurs or when the component enters the viewport (using `on:visible`). This eliminates the need for manual script injection and keeps your initial bundle size small.

@@ -41,27 +41,52 @@ export default config;
 
 ## Creating Components
 
-You can standard React functional components. Ecopages uses the `EcoComponent` type to ensure compatibility.
+### Standard (eco.component)
+
+The standard way to create components in Ecopages is via the `eco.component` factory. This is ideal for managing dependencies (scripts, stylesheets) and enabling advanced features like lazy loading.
 
 ```tsx
 import { useState } from 'react';
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 
-export const Counter: EcoComponent = () => {
-	const [count, setCount] = useState(0);
+export const Counter = eco.component({
+	dependencies: {
+		stylesheets: ['./counter.css'],
+	},
+	render: () => {
+		const [count, setCount] = useState(0);
 
-	return (
-		<div className="flex gap-4 items-center">
-			<p>Count: {count}</p>
-			<button onClick={() => setCount(prev => prev - 1)}>-</button>
-			<button onClick={() => setCount(prev => prev + 1)}>+</button>
-		</div>
-	);
-};
+		return (
+			<div className="counter">
+				<p>Count: {count}</p>
+				<button onClick={() => setCount(prev => prev - 1)}>-</button>
+				<button onClick={() => setCount(prev => prev + 1)}>+</button>
+			</div>
+		);
+	}
+});
+```
 
-Counter.config = {
-	// Define any client-side dependencies here if needed
-};
+### Plain React Components
+
+Thanks to Bun's automatic bundling, you can also write standard React components just like in any other React framework.
+
+**This is especially useful if you are using Tailwind CSS**, as you do not need to attach specific stylesheets or declare dependencies.
+
+```tsx
+import { useState } from 'react';
+
+export function SimpleCounter() {
+    const [count, setCount] = useState(0);
+    return (
+        <button 
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            onClick={() => setCount(count + 1)}
+        >
+            Count: {count}
+        </button>
+    );
+}
 ```
 
 ### Using in Pages
@@ -71,24 +96,21 @@ Import your component and include it in your page. Don't forget to register it i
 ```tsx
 import { Counter } from '@/components/counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 
-const HomePage: EcoComponent = () => {
-	return (
-		<BaseLayout>
-			<h1>Welcome to React on Ecopages</h1>
-			<Counter />
-		</BaseLayout>
-	);
-};
-
-HomePage.config = {
+export default eco.page({
 	dependencies: {
 		components: [BaseLayout, Counter],
 	},
-};
-
-export default HomePage;
+	render: () => {
+		return (
+			<BaseLayout>
+				<h1>Welcome to React on Ecopages</h1>
+				<Counter />
+			</BaseLayout>
+		);
+	}
+});
 ```
 
 ## Utilities

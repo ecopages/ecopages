@@ -15,46 +15,50 @@ Ecopages provides built-in functions for fetching data at build time (for static
 
 ## Build-Time Data Fetching
 
-When generating static pages, use these two exported functions to provide data to your components.
+When generating static pages, use the `eco.page` factory to provide data to your components.
 
-### `getStaticProps`
+### `staticProps`
 Injects custom props into your page component at build time.
 
 ```typescript
-import { type GetStaticProps } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 
 export type PageProps = { title: string; content: string };
 
-export const getStaticProps: GetStaticProps<PageProps> = async ({ pathname }) => {
-    // Fetch data from a database, file, or external API
-    const data = await fetch('https://api.example.com/page-data').then(res => res.json());
+export default eco.page<PageProps>({
+    staticProps: async ({ pathname }) => {
+        // Fetch data from a database, file, or external API
+        const data = await fetch('https://api.example.com/page-data').then(res => res.json());
 
-    return {
-        props: {
-            title: data.title,
-            content: data.content,
-        },
-    };
-};
-
-const MyPage: EcoComponent<PageProps> = ({ title, content }) => html`
-    <h1>${title}</h1>
-    <div>${content}</div>
-`;
+        return {
+            props: {
+                title: data.title,
+                content: data.content,
+            },
+        };
+    },
+    render: ({ title, content }) => html`
+        <h1>${title}</h1>
+        <div>${content}</div>
+    `,
+});
 ```
 
-### `getStaticPaths`
+### `staticPaths`
 Required for dynamic routes (`[param]`). It tells Ecopages which paths should be pre-rendered.
 
 ```typescript
-import { type GetStaticPaths } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 
-export const getStaticPaths: GetStaticPaths = async () => {
-    const posts = await getAllPosts();
-    return {
-        paths: posts.map((post) => ({ slug: post.slug })),
-    };
-};
+export default eco.page({
+    staticPaths: async () => {
+        const posts = await getAllPosts();
+        return {
+            paths: posts.map((post) => ({ slug: post.slug })),
+        };
+    },
+    // ... rest of page config
+});
 ```
 
 ---
@@ -81,6 +85,6 @@ Standard browser `fetch` works as expected inside your `*.script.ts` files or hy
 
 ## Best Practices
 
-1. **Direct Calls in Static Functions**: Inside `getStaticProps`, prefer direct function calls (e.g., `db.query()`) rather than calling your own API routes via HTTP to improve build performance.
-2. **Type Safety**: Always use the provided TypeScript generics (`GetStaticProps<T>`, `GetStaticPaths<T>`) to ensure your component props are correctly typed throughout the application.
+1. **Direct Calls**: Inside `staticProps`, prefer direct function calls (e.g., `db.query()`) rather than calling your own API routes via HTTP to improve build performance.
+2. **Type Safety**: The `eco.page` factory provides automatic type inference for your component props based on the return type of `staticProps`.
 3. **Environment Variables**: Use `import.meta.env` to access API keys and configuration secrets safely.

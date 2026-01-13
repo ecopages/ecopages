@@ -1,0 +1,579 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const config = {
+	layout: DocsLayout,
+};
+
+export const getMetadata = () => ({
+	title: 'Docs | Eco Namespace',
+	description: 'API Reference for the eco namespace in Ecopages',
+});
+
+# `eco` Namespace
+
+A unified API for defining components, pages, and page data in EcoPages.
+
+## Overview
+
+The `eco` namespace provides a consistent, type-safe interface for:
+
+1. **`eco.component()`** - Factory for defining reusable components with dependencies and optional lazy-loading
+2. **`eco.page()`** - Factory for defining page components with optional inline `staticPaths`, `staticProps`, and `metadata`
+
+
+## Component Patterns
+
+EcoPages supports two approaches for creating components, each suited for different use cases:
+
+### Simple JSX Functions (Static Components)
+
+For purely presentational components without client-side interactivity, use plain JSX functions. This pattern works best with utility-first CSS frameworks like Tailwind, where styles are applied via class names:
+
+```tsx
+import type { PropsWithChildren } from '@kitajs/html';
+import { cn } from 'your-library';
+
+type CardProps = PropsWithChildren<{
+	class?: string;
+}>;
+
+export function Card({ children, class: className }: CardProps) {
+	return <div class={cn('p-6 rounded-2xl border border-white/10 bg-zinc-900/30', className)}>{children}</div>;
+}
+```
+
+**When to use:**
+
+- Static/presentational UI (cards, alerts, badges, layout primitives)
+- Projects using utility-first CSS (Tailwind, UnoCSS, etc.)
+- Components that only render HTML without scripts or dedicated stylesheets
+- Zero runtime cost - just functions returning markup
+
+> **Note:** If your component requires a dedicated CSS file, use `eco.component()` instead to manage the stylesheet dependency.
+
+### Plain React Components (With Bun)
+
+When using Bun, React components with hooks and Tailwind CSS work out of the box without `eco.component()`. Bun auto-imports dependencies, so you can write standard React components:
+
+```tsx
+import { useEffect, useState } from 'react';
+
+export function ThemeToggle() {
+	const [mounted, setMounted] = useState(false);
+	const [isDark, setIsDark] = useState(false);
+
+	useEffect(() => {
+		setMounted(true);
+		const theme = localStorage.getItem('theme');
+		const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+		if (theme === 'dark' || (!theme && prefersDark)) {
+			setIsDark(true);
+			document.documentElement.classList.add('dark');
+		} else {
+			setIsDark(false);
+			document.documentElement.classList.remove('dark');
+		}
+	}, []);
+
+	const toggleTheme = () => {
+		const newTheme = !isDark;
+		setIsDark(newTheme);
+
+		if (newTheme) {
+			document.documentElement.classList.add('dark');
+			localStorage.setItem('theme', 'dark');
+		} else {
+			document.documentElement.classList.remove('dark');
+			localStorage.setItem('theme', 'light');
+		}
+	};
+
+	if (!mounted) return null;
+
+	return (
+		<button
+			onClick={toggleTheme}
+			className="p-2 rounded-md hover:bg-surface-200 dark:hover:bg-surface-800 transition-colors"
+			aria-label="Toggle theme"
+		>
+			{isDark ? <SunIcon /> : <MoonIcon />}
+		</button>
+	);
+}
+```
+
+**When to use:**
+
+- React components with hooks (`useState`, `useEffect`, etc.)
+- Components styled with Tailwind CSS classes
+- Interactive UI that doesn't require external scripts or dedicated stylesheets
+- Bun handles all imports automatically
+
+> **Note:** Use `eco.component()` only when you need to manage external stylesheets, scripts, or lazy loading. For React components relying solely on hooks and Tailwind, plain functions are simpler and sufficient.
+
+### `eco.component()` (Interactive Components)
+
+For components that need dependencies, scripts, or lazy loading:
+
+```tsx
+import { eco } from '@ecopages/core';
+
+export const Counter = eco.component({
+	dependencies: {
+		stylesheets: ['./counter.css'],
+		lazy: {
+			'on:interaction': 'mouseenter,focusin',
+			scripts: ['./counter.script.ts'],
+		},
+	},
+	render: ({ count }) => <my-counter count={count} />,
+});
+```
+
+**When to use:**
+
+- Components with client-side interactivity
+- Components requiring scripts or stylesheets
+- Lazy-loaded components with hydration strategies
+- Web components or custom elements
+
+### Comparison
+
+| Aspect | Simple JSX | Plain React (Bun) | `eco.component()` |
+| :--- | :--- | :--- | :--- |
+| React hooks | No | Yes | Yes |
+| Scripts/Stylesheets | No | No | Yes |
+| Lazy loading | No | No | Yes |
+| Hydration strategies | No | No | Yes |
+| Runtime cost | Zero | Minimal | Minimal |
+| Use case | Static UI | Interactive UI | Advanced UI |
+
+All patterns can coexist in the same project. Use the right tool for the job.
+
+## React Support
+
+EcoPages fully supports React components. You can use `eco.component()` with React to managing dependencies and hydration while maintaining type safety.
+
+Since React components return `ReactNode` or `JSX.Element` (not `EcoPagesElement`), you need to specify the return type generic:
+
+```tsx
+import { eco } from '@ecopages/core';
+import type { ReactNode } from 'react';
+
+type ButtonProps = {
+	label: string;
+	onClick?: () => void;
+};
+
+// Specify ReactNode as the second generic argument
+export const Button = eco.component<ButtonProps, ReactNode>({
+	dependencies: {
+		stylesheets: ['./button.css'],
+	},
+	render: ({ label, onClick }) => (
+		<button className="eco-button" onClick={onClick}>
+			{label}
+		</button>
+	),
+});
+```
+
+You can also use it for pages:
+
+```tsx
+import { eco } from '@ecopages/core';
+import type { JSX } from 'react';
+
+export default eco.page<Props, JSX.Element>({
+	layout: BaseLayout,
+	render: () => <h1>Hello React</h1>,
+});
+```
+
+## Two Patterns for Pages
+
+### Consolidated API (Recommended)
+
+Define everything in one place:
+
+```tsx
+import { eco } from '@ecopages/core';
+
+export default eco.page<BlogPostProps>({
+	layout: BaseLayout,
+	staticPaths: async () => ({ paths: getAllSlugs() }),
+	staticProps: async ({ pathname }) => ({
+		props: { post: await getPost(pathname.params.slug) },
+	}),
+	metadata: ({ props: { post } }) => ({
+		title: post.title,
+		description: post.excerpt,
+	}),
+	render: ({ post }) => <article>{post.content}</article>,
+});
+```
+
+### Separate Exports (Legacy)
+
+The traditional pattern with named exports:
+
+```tsx
+import { eco } from '@ecopages/core';
+
+export const getStaticPaths = eco.staticPaths(async () => ({
+	paths: getAllSlugs(),
+}));
+
+export const getStaticProps = eco.staticProps(async ({ pathname }) => ({
+	props: { post: await getPost(pathname.params.slug) },
+}));
+
+export const getMetadata = eco.metadata<typeof getStaticProps>(({ props: { post } }) => ({
+	title: post.title,
+	description: post.excerpt,
+}));
+
+export default eco.page<typeof getStaticProps>({
+	render: ({ post }) => <article>{post.content}</article>,
+});
+```
+
+Both patterns work and can be mixed - the renderer checks for attached properties first, then falls back to named exports.
+
+## API Reference
+
+### `eco.component()`
+
+Define a reusable component with dependencies.
+
+```tsx
+import { eco } from '@ecopages/core';
+
+export const BaseLayout = eco.component({
+	dependencies: {
+		stylesheets: ['./base-layout.css'],
+		scripts: ['./base-layout.script.ts'],
+	},
+	render: ({ children, class: className }) => (
+		<html>
+			<body class={className}>{children}</body>
+		</html>
+	),
+});
+```
+
+**With lazy-loaded scripts:**
+
+```tsx
+export const Counter = eco.component({
+	dependencies: {
+		stylesheets: ['./counter.css'], // loaded immediately
+		lazy: {
+			'on:interaction': 'mouseenter,focusin',
+			scripts: ['./counter.script.ts'], // loaded on trigger
+		},
+	},
+	render: ({ count }) => <my-counter count={count}></my-counter>,
+});
+```
+
+#### Lazy Loading Options
+
+The `lazy` property accepts one trigger type:
+
+```tsx
+// Load on idle
+lazy: {
+  'on:idle': true,
+  scripts: ['./component.script.ts'],
+}
+
+// Load on interaction
+lazy: {
+  'on:interaction': 'mouseenter,focusin',
+  scripts: ['./component.script.ts'],
+}
+
+// Load on visibility
+lazy: {
+  'on:visible': true, // or viewport margin like '100px'
+  scripts: ['./component.script.ts'],
+}
+```
+
+These map directly to [`scripts-injector`](https://github.com/ecopages/scripts-injector) attributes.
+
+### `eco.page()`
+
+Define a page component with optional inline static functions.
+
+**Consolidated API (everything in one place):**
+
+```tsx
+type BlogPostProps = { slug: string; title: string; text: string };
+
+export default eco.page<BlogPostProps>({
+	layout: BaseLayout,
+
+	// Generate paths for dynamic routes
+	staticPaths: async () => ({
+		paths: posts.map((p) => ({ params: { slug: p.slug } })),
+	}),
+
+	// Fetch data at build time
+	staticProps: async ({ pathname }) => ({
+		props: {
+			slug: pathname.params.slug as string,
+			title: post.title,
+			text: post.text,
+		},
+	}),
+
+	// Generate page metadata
+	metadata: ({ props: { title, slug } }) => ({
+		title: `${title} | My Blog`,
+		description: `Read about ${slug}`,
+	}),
+
+	// Render the page
+	render: ({ title, text }) => (
+		<article>
+			<h1>{title}</h1>
+			<p>{text}</p>
+		</article>
+	),
+});
+```
+
+**Simple page without data fetching:**
+
+```tsx
+export default eco.page({
+	layout: BaseLayout,
+	metadata: () => ({
+		title: 'Home',
+		description: 'Welcome to EcoPages',
+	}),
+	render: () => <h1>Welcome</h1>,
+});
+```
+
+**With layout:**
+
+```tsx
+export default eco.page({
+	layout: BaseLayout, // Wraps render output automatically
+	render: () => <h1>Content</h1>,
+});
+```
+
+
+
+## Complete Examples
+
+### Dynamic Blog Post (Consolidated API)
+
+```tsx
+// pages/blog/[slug].tsx
+import { eco } from '@ecopages/core';
+import { BaseLayout } from '@/layouts/base-layout';
+import { getBlogPost, getAllBlogPostSlugs, getAuthor } from '@/mocks/data';
+
+type BlogPostProps = {
+	slug: string;
+	title: string;
+	text: string;
+	authorId: string;
+	authorName: string;
+};
+
+export default eco.page<BlogPostProps>({
+	layout: BaseLayout,
+
+	staticPaths: async () => {
+		return { paths: getAllBlogPostSlugs() };
+	},
+
+	staticProps: async ({ pathname }) => {
+		const slug = pathname.params.slug as string;
+		const post = getBlogPost(slug);
+		if (!post) throw new Error(`Post not found: ${slug}`);
+		const author = getAuthor(post.authorId);
+		return {
+			props: {
+				slug,
+				title: post.title,
+				text: post.text,
+				authorId: post.authorId,
+				authorName: author?.name ?? 'Unknown',
+			},
+		};
+	},
+
+	metadata: ({ props: { title, slug } }) => ({
+		title: `${title} | My Blog`,
+		description: `Read the blog post: ${slug}`,
+	}),
+
+	render: ({ title, text, authorId, authorName }) => (
+		<article>
+			<h1>{title}</h1>
+			<p>
+				By <a href={`/blog/author/${authorId}`}>{authorName}</a>
+			</p>
+			<div>{text}</div>
+		</article>
+	),
+});
+```
+
+### Lazy-Loaded Component
+
+```tsx
+// components/counter/counter.tsx
+import { eco } from '@ecopages/core';
+
+export const Counter = eco.component({
+	dependencies: {
+		stylesheets: ['./counter.css'],
+		lazy: {
+			'on:interaction': 'mouseenter,focusin',
+			scripts: ['./counter.script.ts'],
+		},
+	},
+	render: ({ count }) => <my-counter count={count} />,
+});
+```
+
+**HTML Output:**
+
+```html
+<scripts-injector on:interaction="mouseenter,focusin" scripts="/_assets/components/counter/counter.script.js">
+	<my-counter count="5">
+		<!-- SSR content -->
+	</my-counter>
+</scripts-injector>
+```
+
+### Page with Lazy Component
+
+```tsx
+// pages/index.tsx
+import { eco } from '@ecopages/core';
+import { BaseLayout } from '@/layouts/base-layout';
+import { Counter } from '@/components/counter';
+
+export default eco.page({
+	layout: BaseLayout,
+	dependencies: {
+		components: [Counter],
+	},
+	metadata: () => ({
+		title: 'Home',
+		description: 'Welcome to EcoPages',
+	}),
+	render: () => (
+		<>
+			<h1>Welcome</h1>
+			<Counter count={5} /> {/* Automatically wrapped in scripts-injector */}
+		</>
+	),
+});
+```
+
+## Type Definitions
+
+```typescript
+type LazyTrigger = { 'on:idle': true } | { 'on:interaction': string } | { 'on:visible': true | string };
+
+type LazyDependencies = LazyTrigger & {
+	scripts?: string[];
+	stylesheets?: string[];
+};
+
+interface EcoComponentDependencies {
+	scripts?: string[];
+	stylesheets?: string[];
+	components?: EcoComponent[];
+	lazy?: LazyDependencies;
+}
+
+interface ComponentOptions<P, E = EcoPagesElement> {
+	componentDir?: string;
+	dependencies?: EcoComponentDependencies;
+	render: (props: P) => E;
+}
+
+interface PageOptions<T, E = EcoPagesElement> {
+	componentDir?: string;
+	dependencies?: EcoComponentDependencies;
+	layout?: EcoComponent<{ children: E }>;
+	staticPaths?: GetStaticPaths;
+	staticProps?: GetStaticProps<T>;
+	metadata?: GetMetadata<T>;
+	render: (props: PagePropsFor<T>) => E;
+}
+
+type EcoPageComponent<T> = EcoComponent<PagePropsFor<T>> & {
+	staticPaths?: GetStaticPaths;
+	staticProps?: GetStaticProps<T>;
+	metadata?: GetMetadata<T>;
+};
+
+type PagePropsFor<T> =
+	T extends GetStaticProps<infer P>
+		? P & { params?: Record<string, string>; query?: Record<string, string> }
+		: T & { params?: Record<string, string>; query?: Record<string, string> };
+```
+
+## Benefits
+
+### 1. Discoverability
+
+```tsx
+import { eco } from '@ecopages/core';
+
+eco. // IDE shows: component, page, metadata, staticPaths, staticProps
+```
+
+### 2. Type Safety
+
+Props flow through the system automatically:
+
+```tsx
+export default eco.page<{ title: string }>({
+	staticProps: async () => ({ props: { title: 'Hello' } }),
+	render: ({ title }) => <h1>{title}</h1>, // ✓ TypeScript knows `title` is a string
+});
+```
+
+### 3. Single Source of Truth (Consolidated API)
+
+All page configuration in one place - no hunting for separate exports:
+
+```tsx
+export default eco.page<Props>({
+  layout: BaseLayout,
+  staticPaths: async () => ...,
+  staticProps: async () => ...,
+  metadata: () => ...,
+  render: () => ...,
+});
+```
+
+### 4. Backwards Compatible
+
+Both patterns work side by side - choose what works best for your use case.
+
+## Implementation Notes
+
+The renderer checks for attached properties first:
+
+```typescript
+// Check for attached static functions (consolidated API) or named exports (legacy)
+const getStaticProps = Page.staticProps ?? module.getStaticProps;
+const getMetadata = Page.metadata ?? module.getMetadata;
+```
+
+This ensures both patterns work seamlessly.

@@ -46,107 +46,85 @@ export default config;
 
 ## Creating Components with Lit
 
-Once the Lit integration is set up, you can create components. Here's an example of a Lit component using ghtml:
-
+## Creating Components with Lit
+ 
+Once the Lit integration is set up, you can create components. Ecopages provides a `StyledMixin` to easily apply styles to your Lit components.
+ 
+Thanks to the Ecopages PostCSS processor, you can import CSS files directly as strings, which is perfect for Lit's shadow DOM styles.
+ 
 ```typescript
-import { html } from 'lit';
+import { StyledMixin } from '@ecopages/lit/styled-mixin';
+import { html, LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-
+// Styles are imported as a string thanks to the PostCSS processor
+import styles from './lit-counter.css';
+ 
 @customElement('lit-counter')
-export class LitCounter {
-	@property({ type: Number })
-	count = 0;
-
-	render() {
-		return html`
-			<div>
-				<p>Count: ${this.count}</p>
-				<button @click=${this._decrement}>-</button>
-				<button @click=${this._increment}>+</button>
-			</div>
-		`;
+export class LitCounter extends StyledMixin(LitElement, [styles]) {
+	@property({ type: Number }) count = 0;
+ 
+	decrement() {
+		if (this.count > 0) this.count--;
 	}
-
-	private _decrement() {
-		this.count--;
-	}
-
-	private _increment() {
+ 
+	increment() {
 		this.count++;
 	}
+ 
+	override render() {
+		return html`
+			<button @click=${this.decrement}>-</button>
+			<span>${this.count}</span>
+			<button @click=${this.increment}>+</button>
+		`;
+	}
 }
 ```
 
-Note that styles are defined in a separate CSS file, promoting separation of concerns:
+## Create the Component Wrapper
 
-```css
-lit-counter {
-	display: block;
-	padding: 16px;
-	max-width: 800px;
-}
-
-p {
-	font-size: 18px;
-}
-
-button {
-	font-size: 16px;
-	padding: 5px 10px;
-	margin: 0 5px;
-}
-```
-
-## Define the config
-
-To properly define the config for the component and avoid issues related to multiple definitions, you should use the `EcoComponent` type.
+To properly integrate the Lit component into Ecopages (handling dependencies and lazy loading), create a wrapper using `eco.component`.
 
 ```typescript
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import './lit-counter.script';
 
-export const LitCounter: EcoComponent = {
-	config: {
-		dependencies: {
-			scripts: ['lit-counter.script.ts'],
-		},
+export const LitCounter = eco.component({
+	dependencies: {
+		scripts: ['lit-counter.script.ts'],
 	},
-};
+	render: (props: { count: number }) => <lit-counter count={props.count}></lit-counter>,
+});
 ```
 
-As you can see we don't need to define it on the function that creates the component, due the fact we do not need it.
-Also remember to do not include the stylesheet in the config, because it will be included automatically by the component itself.
+This wrapper ensures that the script is loaded when needed and provides a typed interface for using the component in pages.
 
 ## Using Lit Components in Pages
 
-To use Lit components in your pages, import them and include them in your HTML template, please remember to use the .lit.ts extension.
+To use Lit components in your pages, import the wrapper and include it in your page using `eco.page`.
 
 ```typescript
 import { LitCounter } from '@/components/lit-counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, type GetMetadata, html, resolveComponentsScripts } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
-export const getMetadata: GetMetadata = () => ({
-	title: 'Home page',
-	description: 'This is the homepage of the website',
-});
-
-const HomePage: EcoComponent = () =>
-	html`${BaseLayout({
-		class: 'main-content',
-		children: html`
-			<h1>Home</h1>
-			<lit-counter count="8"></lit-counter>
-		`,
-	})}`;
-
-HomePage.config = {
+export default eco.page({
+	metadata: () => ({
+		title: 'Home page',
+		description: 'This is the homepage of the website',
+	}),
 	dependencies: {
 		components: [BaseLayout, LitCounter],
 	},
-};
-
-export default HomePage;
+	render: () =>
+		html`${BaseLayout({
+			class: 'main-content',
+			children: html`
+				<h1>Home</h1>
+				${LitCounter({ count: 8 })}
+			`,
+		})}`,
+});
 ```
 
 ## Key Features

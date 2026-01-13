@@ -46,19 +46,18 @@ const config = await new ConfigBuilder()
 The HTML template defines the overall structure of your pages:
 
 ```typescript
-import { type EcoComponent, html } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
-const Html: EcoComponent<HtmlProps> = ({ head, body, lang = 'en' }) => html`
-	<html lang="${lang}">
-		${head}
-		${body}
-	</html>`;
-
-Html.config = {
+const Html = eco.component<HtmlProps>({
 	dependencies: {
 		stylesheets: ['./html.css'],
 	},
-};
+	render: ({ head, body, lang = 'en' }) => html`
+	<html lang="${lang}">
+		${head}
+		${body}
+	</html>`
+});
 
 export default Html;
 ```
@@ -68,14 +67,16 @@ export default Html;
 The head template manages your document's head section:
 
 ```typescript
-import { type EcoComponent, html } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
-const Head: EcoComponent<HeadProps> = ({ title, meta, links, scripts }) => html`	
+const Head = eco.component<HeadProps>({
+	render: ({ title, meta, links, scripts }) => html`	
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />${meta}
 		<title>${title}</title>${links}${scripts}
-	</head>`;
+	</head>`
+});
 
 export default Head;
 ```
@@ -85,14 +86,16 @@ export default Head;
 The SEO template handles meta tags for search engines and social sharing:
 
 ```typescript
-import { type EcoComponent, html } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
-const Seo: EcoComponent<SeoProps> = ({ title, description, image, keywords }) => html`
+const Seo = eco.component<SeoProps>({
+	render: ({ title, description, image, keywords }) => html`
 	<meta name="description" content="${description}" />
 	<meta name="keywords" content="${keywords?.join(',')}" />
 	<meta property="og:title" content="${title}" />
 	<meta property="og:description" content="${description}" />
-	${image ? html`<meta property="og:image" content="${image}" />` : ''}`;
+	${image ? html`<meta property="og:image" content="${image}" />` : ''}`
+});
 
 export default Seo;
 ```

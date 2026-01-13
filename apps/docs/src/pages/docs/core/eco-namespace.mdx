@@ -30,14 +30,11 @@ EcoPages supports two approaches for creating components, each suited for differ
 For purely presentational components without client-side interactivity, use plain JSX functions. This pattern works best with utility-first CSS frameworks like Tailwind, where styles are applied via class names:
 
 ```tsx
-import type { PropsWithChildren } from '@kitajs/html';
+import type { PropsWithChildren } from '@/types';
 import { cn } from 'your-library';
 
-type CardProps = PropsWithChildren<{
-	class?: string;
-}>;
 
-export function Card({ children, class: className }: CardProps) {
+export function Card({ children, className }: PropsWithChildren<{ className?: string }>) {
 	return <div class={cn('p-6 rounded-2xl border border-white/10 bg-zinc-900/30', className)}>{children}</div>;
 }
 ```

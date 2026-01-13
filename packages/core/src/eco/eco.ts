@@ -70,12 +70,12 @@ function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E>): EcoPageC
 	let pageComponent: EcoPageComponent<T>;
 
 	if (layout) {
-		const wrappedRender = (props: PagePropsFor<T>) => {
-			const content = render(props);
-			return layout({ children: content });
+		const wrappedRender = async (props: PagePropsFor<T>): Promise<E> => {
+			const content = await render(props);
+			return layout({ children: content }) as E;
 		};
 
-		const wrappedOptions: ComponentOptions<PagePropsFor<T>, E> = {
+		const wrappedOptions: ComponentOptions<PagePropsFor<T>, E | Promise<E>> = {
 			componentDir: options.componentDir,
 			dependencies: {
 				...dependencies,

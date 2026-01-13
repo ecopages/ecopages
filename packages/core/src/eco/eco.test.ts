@@ -208,6 +208,57 @@ describe('eco namespace', () => {
 			expect(result).toContain('<scripts-injector');
 			expect(result).toContain('on:interaction="click"');
 		});
+
+		test('should wrap content with layout when provided', async () => {
+			const Layout = eco.component<{ children: string }>({
+				render: ({ children }) => `<main class="layout">${children}</main>`,
+			});
+
+			const Page = eco.page({
+				layout: Layout,
+				render: () => '<h1>Page Content</h1>',
+			});
+
+			const result = await Page({});
+			expect(result).toBe('<main class="layout"><h1>Page Content</h1></main>');
+		});
+
+		test('should handle async render function with layout', async () => {
+			const Layout = eco.component<{ children: string }>({
+				render: ({ children }) => `<main class="layout">${children}</main>`,
+			});
+
+			const Page = eco.page({
+				layout: Layout,
+				render: async () => {
+					await Promise.resolve();
+					return '<h1>Async Content</h1>';
+				},
+			});
+
+			const result = await Page({});
+			expect(result).toBe('<main class="layout"><h1>Async Content</h1></main>');
+		});
+
+		test('should include layout in dependencies when provided', () => {
+			const Layout = eco.component<{ children: string }>({
+				dependencies: {
+					stylesheets: ['./layout.css'],
+				},
+				render: ({ children }) => `<main>${children}</main>`,
+			});
+
+			const Page = eco.page({
+				layout: Layout,
+				dependencies: {
+					stylesheets: ['./page.css'],
+				},
+				render: () => '<h1>Content</h1>',
+			});
+
+			expect(Page.config?.dependencies?.components).toContain(Layout);
+			expect(Page.config?.dependencies?.stylesheets).toEqual(['./page.css']);
+		});
 	});
 
 	describe('eco.metadata()', () => {

@@ -20,7 +20,9 @@ function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
 		const value = lazy['on:visible'];
 		triggerAttr = value === true ? 'on:visible' : `on:visible="${value}"`;
 	} else {
-		throw new Error('Invalid lazy options: must specify on:idle, on:interaction, or on:visible');
+		throw new Error(
+			`Invalid lazy options: must specify on:idle, on:interaction, or on:visible. Received: ${JSON.stringify(lazy)}`,
+		);
 	}
 
 	return `${triggerAttr} scripts="${scripts}"`;

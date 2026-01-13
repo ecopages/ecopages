@@ -1,26 +1,24 @@
-import type { EcoComponent, GetMetadata } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { DocsLayout } from '@/layouts/docs-layout';
 import Introduction from '@/pages/docs/getting-started/introduction.mdx';
 
-export const getMetadata: GetMetadata = () => ({
-	title: 'Ecopages - Docs',
-	description: 'Simple and fast static site generator.',
-	image: 'public/assets/images/default-og.png',
-	keywords: ['typescript', 'framework', 'static', 'site', 'generator', 'lit', 'kita'],
-});
-
-const HomePage: EcoComponent = () => {
-	return (
-		<DocsLayout class="main-content">
-			<Introduction />
-		</DocsLayout>
-	);
-};
-
-HomePage.config = {
+export default eco.page({
 	dependencies: {
 		components: [DocsLayout],
 	},
-};
 
-export default HomePage;
+	metadata: () => ({
+		title: 'Ecopages - Docs',
+		description: 'Simple and fast static site generator.',
+		image: 'public/assets/images/default-og.png',
+		keywords: ['typescript', 'framework', 'static', 'site', 'generator', 'lit', 'kita'],
+	}),
+
+	render: () => {
+		return (
+			<DocsLayout class="main-content">
+				<Introduction />
+			</DocsLayout>
+		);
+	},
+});

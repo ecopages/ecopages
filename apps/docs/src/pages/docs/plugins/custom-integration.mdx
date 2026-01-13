@@ -25,11 +25,11 @@ class CustomIntegration extends IntegrationPlugin {
 	renderer = CustomRenderer;
 	staticBuildStep = 'render'; // 'render' (default) or 'fetch'
 
-	constructor() {
-		super({
-			name: 'custom-integration',
-			extensions: ['.custom'], // File extensions to handle
-		});
+constructor() { 
+	super({
+		name: 'custom-integration',
+		extensions: ['.custom'], 
+	});
 	}
 }
 ```

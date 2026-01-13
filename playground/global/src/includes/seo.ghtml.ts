@@ -1,4 +1,6 @@
-import { addBaseUrlToPathname, html, type PageMetadataProps } from '@ecopages/core';
+import { html, type PageMetadataProps } from '@ecopages/core';
+
+const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
 
 export function Seo({
 	title,
@@ -14,8 +16,8 @@ export function Seo({
 		!${keywords?.length ? html`<meta name="keywords" content="!${keywords.join(',')}" />` : null}
 		<meta property="og:title" content="${title}" />
 		<meta property="og:description" content="${description}" />
-		<meta property="og:image" content="${addBaseUrlToPathname(image)}" />
+		<meta property="og:image" content="${withBaseUrl(image)}" />
 		<meta name="twitter:title" content="${title}" />
 		<meta name="twitter:description" content="${description}" />
-		${url ? html`<link rel="canonical" href=${addBaseUrlToPathname(url)} />` : null} `;
+		${url ? html`<link rel="canonical" href=${withBaseUrl(url)} />` : null} `;
 }

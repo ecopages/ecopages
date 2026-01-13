@@ -277,6 +277,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			const stylesheetsSet = new Set<string>();
 			const scriptsSet = new Set<string>();
 
+			/**
+			 * Recursively collects dependencies from component config.
+			 * Mutates config._resolvedScripts when lazy scripts are present.
+			 */
 			const collect = (config: EcoComponent['config']) => {
 				if (!config?.dependencies) return;
 

@@ -86,7 +86,8 @@ export async function loadPageModule(
 		let Component = rawComponent;
 
 		if (config?.layout) {
-			Component = (props: any) => createElement(config.layout, null, createElement(rawComponent, props));
+			Component = (props: Record<string, unknown>) =>
+				createElement(config.layout, null, createElement(rawComponent, props));
 		}
 
 		return { Component, props, doc };

@@ -24,7 +24,7 @@ export function manageScroll(
 	const { scrollBehavior, smoothScroll } = options;
 
 	if (newUrl.hash) {
-		const target = document.querySelector(newUrl.hash);
+		const target = document.getElementById(newUrl.hash.slice(1));
 		target?.scrollIntoView({ behavior: smoothScroll ? 'smooth' : 'instant' });
 		return;
 	}

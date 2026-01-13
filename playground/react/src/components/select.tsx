@@ -1,5 +1,5 @@
-import type { EcoComponent } from '@ecopages/core';
-import type { JSX, ReactNode } from 'react';
+import { eco } from '@ecopages/core';
+import type { ReactNode } from 'react';
 import {
 	Select as AriaSelect,
 	Button,
@@ -23,34 +23,29 @@ interface MySelectProps<T extends object> extends Omit<SelectProps<T>, 'children
 	children: ReactNode | ((item: T) => ReactNode);
 }
 
-export const Select: EcoComponent<MySelectProps<object>, JSX.Element> = ({
-	label,
-	description,
-	errorMessage,
-	children,
-	items,
-	...props
-}) => {
-	return (
-		<AriaSelect className="grid gap-2 items-start justify-start w-fit cursor-pointer" {...props}>
-			<Label>{label}</Label>
-			<Button className="flex gap-2 w-full justify-between border border-gray-300 rounded px-3 py-2 min-w-40 focus-visible:outline-4 focus-visible:outline-blue-500">
-				<SelectValue />
-				<span aria-hidden="true">▼</span>
-			</Button>
-			{description && <Text slot="description">{description}</Text>}
-			<FieldError>{errorMessage}</FieldError>
-			<Popover className="max-h-60 w-[--trigger-width] overflow-auto">
-				<ListBox
-					className="bg-white grid rounded border border-gray-300 shadow-sm p-1 focus-visible:outline-4 focus-visible:outline-blue-500"
-					items={items}
-				>
-					{children}
-				</ListBox>
-			</Popover>
-		</AriaSelect>
-	);
-};
+export const Select = eco.component<MySelectProps<object>, ReactNode>({
+	render: ({ label, description, errorMessage, children, items, ...props }) => {
+		return (
+			<AriaSelect className="grid gap-2 items-start justify-start w-fit cursor-pointer" {...props}>
+				<Label>{label}</Label>
+				<Button className="flex gap-2 w-full justify-between border border-gray-300 rounded px-3 py-2 min-w-40 focus-visible:outline-4 focus-visible:outline-blue-500">
+					<SelectValue />
+					<span aria-hidden="true">▼</span>
+				</Button>
+				{description && <Text slot="description">{description}</Text>}
+				<FieldError>{errorMessage}</FieldError>
+				<Popover className="max-h-60 w-[--trigger-width] overflow-auto">
+					<ListBox
+						className="bg-white grid rounded border border-gray-300 shadow-sm p-1 focus-visible:outline-4 focus-visible:outline-blue-500"
+						items={items}
+					>
+						{children}
+					</ListBox>
+				</Popover>
+			</AriaSelect>
+		);
+	},
+});
 
 export function Item(props: ListBoxItemProps) {
 	return (
@@ -62,5 +57,3 @@ export function Item(props: ListBoxItemProps) {
 		/>
 	);
 }
-
-Select.config = {};

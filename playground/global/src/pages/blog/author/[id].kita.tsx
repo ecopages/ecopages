@@ -1,4 +1,4 @@
-import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { getAllAuthorIds, getAuthor } from '@/mocks/data';
 
@@ -8,9 +8,39 @@ type AuthorProps = {
 	bio: string;
 };
 
-export const Author: EcoComponent<PageProps<AuthorProps>> = ({ params, query, name, bio, slug }) => {
-	return (
-		<BaseLayout>
+export default eco.page<AuthorProps>({
+	dependencies: {
+		components: [BaseLayout],
+	},
+
+	staticPaths: async () => {
+		return { paths: getAllAuthorIds() };
+	},
+
+	staticProps: async ({ pathname }) => {
+		const id = pathname.params.id as string;
+		const author = getAuthor(id);
+		if (!author) throw new Error(`Author with id "${id}" not found`);
+		return {
+			props: {
+				slug: author.slug,
+				name: author.name,
+				bio: author.bio,
+			},
+		};
+	},
+
+	metadata: async ({ props: { name, slug } }) => {
+		return {
+			title: `Author | ${slug}`,
+			description: `This is the bio of ${name}`,
+		};
+	},
+
+	layout: BaseLayout,
+
+	render: ({ params, query, name, bio, slug }) => {
+		return (
 			<div>
 				<h1 safe>
 					Author {params?.id} {JSON.stringify(query || [])}
@@ -19,38 +49,6 @@ export const Author: EcoComponent<PageProps<AuthorProps>> = ({ params, query, na
 				<p safe>{bio}</p>
 				<p safe>{slug}</p>
 			</div>
-		</BaseLayout>
-	);
-};
-
-Author.config = {
-	dependencies: {
-		components: [BaseLayout],
+		);
 	},
-};
-
-export default Author;
-
-export const getMetadata: GetMetadata<AuthorProps> = async ({ props: { name, slug } }) => {
-	return {
-		title: `Author | ${slug}`,
-		description: `This is the bio of ${name}`,
-	};
-};
-
-export const getStaticPaths: GetStaticPaths = async () => {
-	return { paths: getAllAuthorIds() };
-};
-
-export const getStaticProps: GetStaticProps<AuthorProps> = async ({ pathname }) => {
-	const id = pathname.params.id as string;
-	const author = getAuthor(id);
-	if (!author) throw new Error(`Author with id "${id}" not found`);
-	return {
-		props: {
-			slug: author.slug,
-			name: author.name,
-			bio: author.bio,
-		},
-	};
-};
+});

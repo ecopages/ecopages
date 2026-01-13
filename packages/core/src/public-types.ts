@@ -141,6 +141,14 @@ export type EcoComponentDependencies = {
 	stylesheets?: string[];
 	scripts?: string[];
 	components?: EcoComponent[];
+	/**
+	 * Lazy dependencies - scripts/stylesheets loaded on user interaction or visibility.
+	 * Supports three trigger modes: on:idle, on:interaction, and on:visible.
+	 */
+	lazy?:
+		| ({ 'on:idle': true } & { scripts?: string[]; stylesheets?: string[] })
+		| ({ 'on:interaction': string } & { scripts?: string[]; stylesheets?: string[] })
+		| ({ 'on:visible': true | string } & { scripts?: string[]; stylesheets?: string[] });
 };
 
 export type EcoPagesElement = string | Promise<string>;
@@ -193,6 +201,12 @@ export type EcoComponentConfig = {
 	 */
 	layout?: EcoComponent;
 	dependencies?: EcoComponentDependencies;
+	/**
+	 * Internal: Comma-separated resolved script paths for lazy dependencies.
+	 * Set by the renderer, used by eco.component() for auto-wrapping.
+	 * @internal
+	 */
+	_resolvedScripts?: string;
 };
 
 /**
@@ -203,6 +217,24 @@ export type EcoComponentBase = {
 	 * The configuration options for the EcoComponent.
 	 */
 	config?: EcoComponentConfig;
+
+	/**
+	 * Static paths for dynamic routes (consolidated eco.page API).
+	 * @internal Used by the renderer to retrieve static paths from the page component.
+	 */
+	staticPaths?: GetStaticPaths;
+
+	/**
+	 * Static props fetcher (consolidated eco.page API).
+	 * @internal Used by the renderer to retrieve static props from the page component.
+	 */
+	staticProps?: GetStaticProps<any>;
+
+	/**
+	 * Metadata generator (consolidated eco.page API).
+	 * @internal Used by the renderer to retrieve metadata from the page component.
+	 */
+	metadata?: GetMetadata<any>;
 };
 
 /**

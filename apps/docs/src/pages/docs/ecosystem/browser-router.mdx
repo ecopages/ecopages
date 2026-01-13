@@ -24,6 +24,8 @@ This preserves element state (like audio players, web component internals, or fo
 
 ## Installation
 
+Please run the following command to install the package:
+
 ```bash
 bunx jsr add @ecopages/browser-router
 ```
@@ -100,6 +102,7 @@ You can control the transition behavior using `data-view-transition-animate`:
 ```html
 <!-- Example: Opt-out of the default morph -->
 <div data-view-transition="hero-1" data-view-transition-animate="fade">...</div>
+````
 
 #### Duration
 
@@ -108,7 +111,9 @@ You can also control the speed of a specific transition using `data-view-transit
 ```html
 <div data-view-transition="hero-1" data-view-transition-duration="500ms">...</div>
 ```
-```
+
+#### Update History
+
 | `updateHistory` | `boolean` | `true` | Whether to push a new entry to the browser history for each client-side navigation. |
 | `smoothScroll` | `boolean` | `true` | Whether to use smooth scrolling when adjusting scroll position after navigation. |
 

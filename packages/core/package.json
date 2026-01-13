@@ -13,6 +13,7 @@
 	"files": [
 		"src"
 	],
+	"sideEffects": false,
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",
@@ -25,6 +26,7 @@
 	"dependencies": {
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "latest",
+		"@ecopages/scripts-injector": "^0.1.1",
 		"chokidar": "^4.0.3",
 		"ghtml": "^3.1.2"
 	},
@@ -36,6 +38,10 @@
 			"import": "./src/index.ts",
 			"require": "./src/index.ts",
 			"types": "./src/public-types.ts"
+		},
+		"./eco": {
+			"types": "./src/eco/eco.ts",
+			"default": "./src/eco/eco.ts"
 		},
 		"./declarations": {
 			"types": "./src/declarations.d.ts"
@@ -67,10 +73,6 @@
 			"types": "./src/services/asset-processing-service/index.ts",
 			"default": "./src/services/asset-processing-service/index.ts"
 		},
-		"./utils/add-base-url-to-pathname": {
-			"types": "./src/utils/add-base-url-to-pathname.ts",
-			"default": "./src/utils/add-base-url-to-pathname.ts"
-		},
 		"./utils/deep-merge": {
 			"types": "./src/utils/deep-merge.ts",
 			"default": "./src/utils/deep-merge.ts"
@@ -86,10 +88,6 @@
 		"./utils/parse-cli-args": {
 			"types": "./src/utils/parse-cli-args.ts",
 			"default": "./src/utils/parse-cli-args.ts"
-		},
-		"./utils/component-dependencies-utils": {
-			"types": "./src/utils/component-dependencies-utils.ts",
-			"default": "./src/utils/component-dependencies-utils.ts"
 		},
 		"./plugins/processor": {
 			"types": "./src/plugins/processor.ts",

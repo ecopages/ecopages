@@ -1,0 +1,13 @@
+:host,
+lit-counter {
+	@apply flex gap-4 items-center bg-zinc-800/50 backdrop-blur-sm border border-white/10 rounded-full max-w-fit p-1.5 pl-3;
+
+	.increment,
+	.decrement {
+		@apply flex items-center justify-center bg-zinc-700 hover:bg-zinc-600 text-white rounded-full w-8 h-8 appearance-none border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+	}
+
+	span {
+		@apply text-white font-mono font-bold px-4 py-1 bg-transparent min-w-[50px] flex items-center justify-center box-border;
+	}
+}

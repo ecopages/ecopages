@@ -63,9 +63,11 @@ To use a Radiant component in your Ecopages project:
 2. Define the component in your page or layout config:
 
 ```typescript
-MyPage.config = {
-    dependencies: {
-        scripts: ['./counter.script.ts'],
-    }
-};
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+  dependencies: {
+    scripts: ['./counter.script.ts'],
+  }
+});
 ```

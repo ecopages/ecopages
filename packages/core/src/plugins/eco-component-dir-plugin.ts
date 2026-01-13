@@ -33,6 +33,14 @@ const CONFIG_PROPERTY_PATTERN = /\bconfig\s*:\s*\{/g;
 const CONFIG_EXPORT_PATTERN = /export\s+const\s+config\s*=\s*\{/g;
 
 /**
+ * Regex pattern to match eco.component() and eco.page() declarations.
+ * Matches: eco.component({ or eco.component<Type>({
+ * Uses non-greedy .*? to handle nested generics and function types
+ * i.e. `eco.component({ dependencies: ... })` or `eco.page<Props<(arg: string) => void>>({ ... })`
+ */
+const ECO_COMPONENT_PATTERN = /eco\.(component|page)(?:<.*?>)?\s*\(\s*\{/g;
+
+/**
  * Creates a RegExp pattern from integration extensions.
  *
  * The pattern matches files ending with any of the provided extensions,
@@ -132,6 +140,11 @@ export function injectComponentDir(contents: string, filePath: string): string {
 	});
 
 	result = result.replace(CONFIG_EXPORT_PATTERN, (match) => {
+		return `${match}\n\tcomponentDir: "${componentDir}",`;
+	});
+
+	// Handle eco.component() and eco.page() patterns
+	result = result.replace(ECO_COMPONENT_PATTERN, (match) => {
 		return `${match}\n\tcomponentDir: "${componentDir}",`;
 	});
 

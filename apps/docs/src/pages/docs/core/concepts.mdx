@@ -25,11 +25,11 @@ Ecopages uses a flexible integration system to extend its functionality. Each in
 For example, the KitaJS integration might set up template extensions like this:
 
 ```typescript
-.setIncludesTemplates({
-	head: 'head.kita.tsx',
-	html: 'html.kita.tsx',
-	seo: 'seo.kita.tsx',
-})
+  .setIncludesTemplates({
+    head: 'head.kita.tsx',
+    html: 'html.kita.tsx',
+    seo: 'seo.kita.tsx',
+  })
 ```
 
 This configuration tells Ecopages which files to use for specific parts of the page structure.
@@ -113,7 +113,9 @@ const MyComponent = eco.component({
       scripts: ['./heavy-script.ts'],
     }
   },
-  render: () => html`<div>Heavy Content</div>`
+  render: () => html`
+  <div>Heavy Content</div>
+  `
 });
 ```
 

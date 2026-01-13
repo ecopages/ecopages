@@ -26,6 +26,10 @@ function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
 	return `${triggerAttr} scripts="${scripts}"`;
 }
 
+function isPromise<T>(value: unknown): value is Promise<T> {
+	return value != null && typeof (value as Promise<T>).then === 'function';
+}
+
 /**
  * Creates a component factory that auto-wraps lazy dependencies
  */
@@ -70,9 +74,13 @@ function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E>): EcoPageC
 	let pageComponent: EcoPageComponent<T>;
 
 	if (layout) {
-		const wrappedRender = async (props: PagePropsFor<T>): Promise<E> => {
-			const content = await render(props);
-			return layout({ children: content }) as E;
+		const wrappedRender = (props: PagePropsFor<T>): E | Promise<E> => {
+			const content = render(props);
+			if (isPromise<E>(content)) {
+				return content.then((c) => layout({ children: c })) as Promise<E>;
+			}
+			const result = layout({ children: content });
+			return result as E | Promise<E>;
 		};
 
 		const wrappedOptions: ComponentOptions<PagePropsFor<T>, E | Promise<E>> = {

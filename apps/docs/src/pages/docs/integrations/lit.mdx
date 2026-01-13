@@ -93,7 +93,9 @@ export const LitCounter = eco.component({
 	dependencies: {
 		scripts: ['lit-counter.script.ts'],
 	},
-	render: (props: { count: number }) => <lit-counter count={props.count}></lit-counter>,
+	render: (props: { count: number }) => html`
+		<lit-counter count=${props.count}></lit-counter>
+	`,
 });
 ```
 

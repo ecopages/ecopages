@@ -27,19 +27,17 @@ These files are typically located in the `src/includes` directory.
 This file defines the overall HTML structure of your pages. Here's an example of what it might look like:
 
 ```typescript
-import { type EcoComponent, html } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
-export const Html: EcoComponent<{ children: string }> = ({ children }) => html`
-	<html lang="en">
-		!${children}
-	</html>
-`;
-
-Html.config = {
+export const Html = eco.component<{ children: string }>({
 	dependencies: {
 		stylesheets: ['./html.css'],
 	},
-};
+	render: ({ children }) => html`
+	<html lang="en">
+		!${children}
+	</html>
+`});
 ```
 
 ### head.ts
@@ -47,9 +45,10 @@ Html.config = {
 This file defines the content of the `<head>` tag, including meta tags, title, and other important elements. Here's an example:
 
 ```typescript
-import { type EcoComponent, html } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
-export const Head: EcoComponent<{ title: string; description: string }> = ({ title, description }) => html`
+export const Head = eco.component<{ title: string; description: string }>({
+	render: ({ title, description }) => html`
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -57,7 +56,7 @@ export const Head: EcoComponent<{ title: string; description: string }> = ({ tit
 		<meta name="description" content="${description}" />
 		<link rel="icon" href="/favicon.ico" />
 	</head>
-`;
+`});
 ```
 
 These includes files are automatically used by Ecopages to structure your HTML. You don't need to explicitly import or use them in your pages or layouts.
@@ -71,25 +70,23 @@ A base layout is a reusable component that defines the common structure for your
 2. Define your layout component. Here's an example:
 
 ```typescript
-import { type EcoComponent, html } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
 export type BaseLayoutProps = {
   children: string;
   class?: string;
 };
 
-export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children, class: className }) => html`
-	<body>
-		<main class=${className}>!${children}</main>
-	</body>`;
-
-BaseLayout.config = {
+export const BaseLayout = eco.component<BaseLayoutProps>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
-};
-
+	render: ({ children, class: className }) => html`
+	<body>
+		<main class=${className}>!${children}</main>
+	</body>
+`});
 ```
 
 3. Create associated files for styles (`base-layout.css`) and scripts (`base-layout.script.ts`) if needed.
@@ -98,21 +95,15 @@ BaseLayout.config = {
 
 ```typescript
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, html } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
-const HomePage: EcoComponent = () => html`${BaseLayout({
-	class: 'main-content',
-	children: html`
+const HomePage = eco.page({
+	layout: BaseLayout,
+	render: () => html`
 		<h1>Welcome to Ecopages</h1>
 		<p>This is the homepage of your website.</p>
-	`,
-})}`;
-
-HomePage.config = {
-	dependencies: {
-		components: [BaseLayout],
-	},
-};
+	`
+});
 
 export default HomePage;
 ```

@@ -56,23 +56,20 @@ Once the KitaJS integration is set up, you can create pages using JSX syntax. He
 
 ```tsx
 import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoComponent, GetMetadata } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 
-const HomePage: EcoComponent = () => {
-	return (
-		<BaseLayout>
-			<h1>Welcome to Ecopages</h1>
-		</BaseLayout>
-	);
-};
-
-HomePage.config = {
+export default eco.page({
 	dependencies: {
 		components: [BaseLayout],
 	},
-};
-
-export default HomePage;
+	render: () => {
+		return (
+			<BaseLayout>
+				<h1>Welcome to Ecopages</h1>
+			</BaseLayout>
+		);
+	}
+});
 ```
 
 ## Key Features

@@ -1,5 +1,5 @@
+import { eco } from '@ecopages/core';
 import { ezi76Gu53NklsuUnsplashJpg } from 'ecopages:images';
-import { type EcoComponent, flagComponentsAsDynamic, type GetMetadata, resolveComponentsScripts } from '@ecopages/core';
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import { AlpineCounter } from '@/components/alpine-counter';
 import Introduction from '@/components/introduction.mdx';
@@ -7,46 +7,40 @@ import { LitCounter } from '@/components/lit-counter';
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 
-export const getMetadata: GetMetadata = () => ({
-	title: 'Home page',
-	description: 'This is the homepage of the website',
-	image: 'public/assets/images/default-og.png',
-	keywords: ['typescript', 'framework', 'static'],
-});
-
-const HomePage: EcoComponent = () => {
-	return (
-		<BaseLayout class="main-content">
-			<h1 class="main-title text-4xl">Home</h1>
-			<EcoImage {...ezi76Gu53NklsuUnsplashJpg} alt="A computer" width={500} height={500} />
-			<Introduction />
-			<span class="font-bold text-xl">Alpine Counter</span>
-			<scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([AlpineCounter])}>
-				<AlpineCounter />
-			</scripts-injector>
-			<span class="font-bold text-xl">Radiant Counter</span>
-			<scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([RadiantCounter])}>
-				<RadiantCounter count={5} />
-			</scripts-injector>
-			<span class="font-bold text-xl">Lit Counter</span>
-			<scripts-injector on:interaction="mouseenter,focusin" scripts={resolveComponentsScripts([LitCounter])}>
-				<lit-counter class="lit-counter" count={8}></lit-counter>
-			</scripts-injector>
-			<EndpointsTesting />
-		</BaseLayout>
-	);
-};
-
-HomePage.config = {
+export default eco.page({
 	dependencies: {
 		stylesheets: ['./index.css'],
-		components: [BaseLayout, ...flagComponentsAsDynamic([AlpineCounter, RadiantCounter, LitCounter])],
+		components: [BaseLayout, AlpineCounter, RadiantCounter, LitCounter],
 	},
-};
 
-export default HomePage;
+	metadata: () => ({
+		title: 'Home page',
+		description: 'This is the homepage of the website',
+		image: 'public/assets/images/default-og.png',
+		keywords: ['typescript', 'framework', 'static'],
+	}),
 
-const EndpointsTesting: EcoComponent<unknown> = () => {
+	render: () => {
+		return (
+			<BaseLayout class="main-content">
+				<h1 class="main-title text-4xl">Home</h1>
+				<EcoImage {...ezi76Gu53NklsuUnsplashJpg} alt="A computer" width={500} height={500} />
+				<div class="prose">
+					<Introduction className="prose" />
+				</div>
+				<span class="font-bold text-xl">Alpine Counter</span>
+				<AlpineCounter />
+				<span class="font-bold text-xl">Radiant Counter</span>
+				<RadiantCounter count={5} />
+				<span class="font-bold text-xl">Lit Counter</span>
+				<LitCounter count={8} />
+				<EndpointsTesting />
+			</BaseLayout>
+		);
+	},
+});
+
+const EndpointsTesting = () => {
 	return (
 		<div class="prose">
 			<h2>Endpoints Testing</h2>

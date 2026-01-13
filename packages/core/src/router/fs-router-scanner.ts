@@ -113,7 +113,14 @@ export class FSRouterScanner {
 	}
 
 	private async handleDynamicRouteCreation({ filePath, route, routePath }: CreateRouteArgs): Promise<void> {
-		const { getStaticPaths, getStaticProps }: EcoPageFile = await import(filePath);
+		const module: EcoPageFile = await import(filePath);
+		const Page = module.default;
+
+		/**
+		 * Check for attached static functions (consolidated API) or named exports (legacy)
+		 */
+		const getStaticPaths = Page?.staticPaths ?? module.getStaticPaths;
+		const getStaticProps = Page?.staticProps ?? module.getStaticProps;
 
 		if (this.options.buildMode) {
 			invariant(getStaticProps !== undefined, `[ecopages] Missing getStaticProps in ${filePath}`);

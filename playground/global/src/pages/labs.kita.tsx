@@ -1,19 +1,17 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 
-const LabsRoot: EcoComponent = () => {
-	return (
-		<BaseLayout>
-			<div>LABS ROOT TEST</div>
-		</BaseLayout>
-	);
-};
-
-LabsRoot.config = {
+export default eco.page({
 	dependencies: {
 		stylesheets: ['./404.css'],
 		components: [BaseLayout],
 	},
-};
 
-export default LabsRoot;
+	render: () => {
+		return (
+			<BaseLayout>
+				<div>LABS ROOT TEST</div>
+			</BaseLayout>
+		);
+	},
+});

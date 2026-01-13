@@ -1,12 +1,13 @@
 import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
 
 export const config = {
-	layout: DocsLayout,
+  layout: DocsLayout,
 };
 
 export const getMetadata = () => ({
-	title: 'Docs | Core Concepts',
-	description: 'How Ecopages works',
+  title: 'Docs | Core Concepts',
+  description: 'How Ecopages works',
 });
 
 # Understanding Ecopages Core
@@ -24,11 +25,11 @@ Ecopages uses a flexible integration system to extend its functionality. Each in
 For example, the KitaJS integration might set up template extensions like this:
 
 ```typescript
-.setIncludesTemplates({
-	head: 'head.kita.tsx',
-	html: 'html.kita.tsx',
-	seo: 'seo.kita.tsx',
-})
+  .setIncludesTemplates({
+    head: 'head.kita.tsx',
+    html: 'html.kita.tsx',
+    seo: 'seo.kita.tsx',
+  })
 ```
 
 This configuration tells Ecopages which files to use for specific parts of the page structure.
@@ -36,14 +37,24 @@ This configuration tells Ecopages which files to use for specific parts of the p
 ## CSS Processing
 
 By default, Ecopages uses plain css for styling.
-We currently provide a simple Postcss and Tailwind (v3) plugin that provides a powerful and flexible system for managing your styles.
+We currently provide a simple **Postcss** and **Tailwind (v4 and v3)** plugin that provides a powerful and flexible system for managing your styles via a preset system.
 You can customize this in your `eco.config.ts` file:
 
-```typescript 
-const config = await new ConfigBuilder() 
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+
+const config = await new ConfigBuilder()
 	// ... other configurations
-	.setProcessors([postcssProcessorPlugin()])
-	.build(); 
+	.setProcessors([
+		postcssProcessorPlugin(
+			tailwindV4Preset({
+				referencePath: path.resolve(import.meta.dir, 'src/styles/tailwind.css'),
+			}),
+		),
+	])
+	.build();
 ```
 
 ## Script and CSS Loading
@@ -60,15 +71,9 @@ To ensure that your components have the necessary scripts and styles, you must e
 
 ```typescript
 import { BaseLayout } from '@/layouts/base-layout';
-import { type EcoComponent, html } from '@ecopages/core';
+import { eco, html } from '@ecopages/core';
 
-const HomePage: EcoComponent = () => html`
-  <div class="main-content">
-    <h1>Welcome to Ecopages</h1>
-  </div>
-`;
-
-HomePage.config = {
+const HomePage = eco.component({
   dependencies: {
     // Scripts must be explicitly declared
     scripts: ['./home-page.script.ts'],
@@ -77,11 +82,42 @@ HomePage.config = {
     // Child components to crawl for their own dependencies
     components: [BaseLayout],
   },
-};
+  render: () => html`
+    <div class="main-content">
+      <h1>Welcome to Ecopages</h1>
+    </div>
+  `
+});
 ```
 
-> [!NOTE]
-> Ecopages does **not** automatically detect script files by name pattern. You must always include them in the `dependencies.scripts` array if you want them to be processed and included in the build.
+<Banner type="info">
+  **Explicit Dependencies**
+
+  <p>Ecopages does **not** automatically detect script files by name pattern. You must always include them in the `dependencies.scripts` array if you want them to be processed and included in the build.</p>
+</Banner>
+
+### Lazy Dependencies
+
+You can also defer loading of scripts and stylesheets until they are needed using the `lazy` options. This is useful for improving initial page load performance.
+
+The supported triggers are:
+- `on:idle`: Loads when the browser is idle.
+- `on:visible`: Loads when the element enters the viewport.
+- `on:interaction`: Loads when the user interacts with the element (e.g. mouseover, click, focus).
+
+```typescript
+const MyComponent = eco.component({
+  dependencies: {
+    lazy: {
+      'on:visible': true, // or provide a specific selector string
+      scripts: ['./heavy-script.ts'],
+    }
+  },
+  render: () => html`
+  <div>Heavy Content</div>
+  `
+});
+```
 
 ## Robots.txt Generation
 
@@ -120,64 +156,53 @@ my-project/
 └── package.json
 
 ```
-- `src/components/`: Stores reusable components
-- `src/pages/`: Contains your page files (e.g., `.mdx`, `.kita.tsx`, `.lit.tsx`)
-- `src/layouts/`: Holds layout components
-- `src/includes/`: Contains include templates (e.g., `head.kita.tsx`, `html.kita.tsx`)
-- `public/`: Static assets that will be copied to the build directory
-- `eco.config.ts`: Ecopages configuration file
+- `src/components/`: Stores reusable components (Recommended)
+- `src/pages/`: Contains your page files (e.g., `.mdx`, `.kita.tsx`, `.lit.tsx`) (**Default**)
+- `src/layouts/`: Holds layout components (Recommended)
+- `src/includes/`: Contains include templates (e.g., `head.kita.tsx`, `html.kita.tsx`) (**Default**)
+- `public/`: Static assets that will be copied to the build directory (Default)
+- `eco.config.ts`: Ecopages configuration file (**Mandatory**)
 
-This structure helps Ecopages efficiently process and build your site.
+This structure helps Ecopages efficiently process and build your site. While Ecopages provides these sensible defaults, every directory path is fully customizable via your `eco.config.ts`.
 
 ## Runtime Origin and API Requests
 
-When fetching data in `getStaticPaths` or `getStaticProps`, Ecopages provides different approaches. **For most cases, calling your data functions directly is recommended** for better performance and reliability.
+When fetching data in `staticPaths` or `staticProps`, Ecopages provides different approaches. **For most cases, calling your data functions directly is recommended** for better performance and reliability.
 
 ### Direct Function Calls (Recommended)
 
 For the best performance during static generation, call your data layer functions directly:
 
 ```typescript
+import { eco } from '@ecopages/core';
 import { getAllBlogPosts, getBlogPost } from '@/data/blog';
 
-export const getStaticPaths: GetStaticPaths = async () => {
-	const posts = getAllBlogPosts();
+export default eco.page({
+  staticPaths: async () => {
+    const posts = getAllBlogPosts();
 
-	return {
-		paths: posts.map(post => ({
-			params: { slug: post.slug }
-		}))
-	};
-};
+    return {
+      paths: posts.map(post => ({
+        params: { slug: post.slug }
+      }))
+    };
+  },
 
-export const getStaticProps: GetStaticProps = async ({ pathname }) => {
-	const slug = pathname.params.slug as string;
-	const post = getBlogPost(slug);
+  staticProps: async ({ pathname }) => {
+    const slug = pathname.params.slug;
+    const post = getBlogPost(slug);
 
-	if (!post) {
-		throw new Error(`Post not found: ${slug}`);
-	}
+    if (!post) {
+      throw new Error(`Post not found: ${slug}`);
+    }
 
-	return { props: { post } };
-};
+    return { props: { post } };
+  },
+
+  render: ({ post }) => html`...`
+});
 ```
 
-### HTTP Requests to External APIs
-
-For external data sources, HTTP requests are necessary:
-
-```typescript
-export const getStaticPaths: GetStaticPaths = async () => {
-	const response = await fetch('https://external-api.com/posts');
-	const posts = await response.json();
-	
-	return {
-		paths: posts.map(post => ({
-			params: { slug: post.slug }
-		}))
-	};
-};
-```
 
 ## Runtime Support
 

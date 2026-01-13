@@ -77,12 +77,12 @@ export const BaseLayout = ({ children }) => (
 
 // src/pages/index.tsx
 import { BaseLayout } from '../layouts/base-layout';
+import { eco } from '@ecopages/core';
 
-const HomePage = () => <h1>Welcome</h1>;
-
-HomePage.config = {
+const HomePage = eco.page({
   layout: BaseLayout,
-};
+  render: () => <h1>Welcome</h1>
+});
 
 export default HomePage;
 ```

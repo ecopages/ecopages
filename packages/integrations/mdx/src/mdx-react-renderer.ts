@@ -328,6 +328,7 @@ if (document.readyState === 'loading') {
 	protected override async importPageFile(file: string): Promise<
 		EcoPageFile<{
 			config?: EcoComponentConfig;
+			layout?: EcoComponent<any> | React.ComponentType<any>;
 		}>
 	> {
 		try {
@@ -339,10 +340,13 @@ if (document.readyState === 'loading') {
 				throw new Error(`MDX file must export a default function, got ${typeof Page}: ${String(Page)}`);
 			}
 
+			if (config) Page.config = config;
+
 			return {
 				default: Page,
 				getMetadata,
 				config,
+				layout: config?.layout,
 			};
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);

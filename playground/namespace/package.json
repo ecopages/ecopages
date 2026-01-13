@@ -1,0 +1,22 @@
+{
+	"name": "@ecopages/playground-namespace",
+	"private": true,
+	"scripts": {
+		"start": "bun run app.ts",
+		"dev": "bun run app.ts --dev",
+		"build": "bun run app.ts --build",
+		"preview": "bun run app.ts --preview"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/kitajs": "workspace:*",
+		"@ecopages/lit": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
+		"@ecopages/radiant": "^0.1.7",
+		"@tailwindcss/postcss": "^4.0.0",
+		"@types/alpinejs": "^3.13.6",
+		"alpinejs": "^3.13.10",
+		"lit": "^3.2.0",
+		"tailwindcss": "^4.0.0"
+	}
+}

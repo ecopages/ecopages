@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@theme {
+	--font-sans: 'Inter', sans-serif;
+	--color-background: #000;
+	--color-foreground: #fff;
+}
+
+body {
+	background-color: var(--color-background);
+	color: var(--color-foreground);
+	font-family: var(--font-sans);
+}
+
+@utility text-gradient {
+	@apply bg-clip-text text-transparent bg-linear-to-r from-blue-400 via-purple-500 to-pink-500;
+}

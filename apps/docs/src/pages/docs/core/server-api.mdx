@@ -135,14 +135,19 @@ You can use `server` for advanced debugging, runtime methods, or accessing serve
 During static site generation, the server can still handle API requests, making it possible to generate static content from API responses:
 
 ```typescript
-export const getStaticProps: GetStaticProps = async ({ appConfig }) => {
-	const response = await fetch(`${appConfig.baseUrl}/api/data`);
-	const data = await response.json();
-	
-	return {
-		props: { data },
-	};
-};
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	staticProps: async ({ appConfig }) => {
+		const response = await fetch(`${appConfig.baseUrl}/api/data`);
+		const data = await response.json();
+		
+		return {
+			props: { data },
+		};
+	},
+	render: ({ data }) => html`...`
+});
 ```
 
 ## Development Server

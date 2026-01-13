@@ -1,7 +1,7 @@
 import type { EcoComponent, PageMetadataProps } from '@ecopages/core';
-import type { JSX } from 'react';
+import type { ReactNode } from 'react';
 
-export const Seo: EcoComponent<PageMetadataProps, JSX.Element> = ({ title, description, keywords }) => {
+export const Seo: EcoComponent<PageMetadataProps, ReactNode> = ({ title, description, keywords }) => {
 	return (
 		<>
 			<title>{title}</title>

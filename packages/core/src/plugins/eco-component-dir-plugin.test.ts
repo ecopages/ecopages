@@ -3,6 +3,11 @@ import { createEcoComponentDirPlugin } from './eco-component-dir-plugin';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { fileSystem } from '@ecopages/file-system';
 
+/**
+ * @todo some tests are causing issues with how Bun parse the file, i.e. template literals with ${'<div>'} syntax
+ * These tests need to be revisited once Bun's parser is more stable
+ */
+
 describe('eco-component-dir-plugin', () => {
 	const mockConfig = {
 		integrations: [
@@ -93,5 +98,86 @@ describe('eco-component-dir-plugin', () => {
 
 		expect(result).toBeDefined();
 		expect(result.contents).toContain('componentDir: "/path/to",');
+	});
+
+	it('should inject componentDir into eco.component() call', async () => {
+		const content = `
+            import { eco } from '@ecopages/core';
+            export const Counter = eco.component${'<CounterProps>'}({
+                dependencies: {
+                    scripts: ['./counter.ts'],
+                },
+                render: () => '${'<div>'}Counter${'</div>'}',
+            });
+        `;
+
+		const result = await runPluginOnContent(content, '/path/to/counter.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain('componentDir: "/path/to",');
+		expect(result.contents).toContain('eco.component' + '<CounterProps>({');
+		expect(result.contents).toContain('componentDir:');
+	});
+
+	it('should inject componentDir into eco.page call', async () => {
+		const content = `
+            import { eco } from '@ecopages/core';
+            export default eco.page({
+                dependencies: {
+                    components: [],
+                },
+                render: () => '${'<main>'}Page${'</main>'}',
+            });
+        `;
+
+		const result = await runPluginOnContent(content, '/path/to/pages/index.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain('componentDir: "/path/to/pages",');
+		expect(result.contents).toContain('eco.page' + '({');
+	});
+
+	it('should inject componentDir into eco.component() with lazy dependencies', async () => {
+		const content = `
+            export const LazyCounter = eco.component({
+                dependencies: {
+                    lazy: {
+                        'on:interaction': 'click',
+                        scripts: ['./counter.ts'],
+                    },
+                },
+                render: () => '${'<div>'}Lazy${'</div>'}',
+            });
+        `;
+
+		const result = await runPluginOnContent(content, '/path/to/lazy-counter.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain('componentDir: "/path/to",');
+	});
+
+	it('should inject componentDir into eco.component() with nested generics like Head', async () => {
+		const content = `import { eco } from '@ecopages/core';
+import type { PageHeadProps } from '@ecopages/core';
+import { Seo } from '@/includes/seo.kita';
+
+export const Head = eco.component<PageHeadProps<string>>({
+	dependencies: {
+		stylesheets: ['../styles/global.css'],
+	},
+	render: ({ metadata, children }) => (
+		<head>
+			<meta charset="UTF-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1" />
+			<Seo {...metadata} />
+			{children}
+		</head>
+	),
+});`;
+
+		const result = await runPluginOnContent(content, '/path/to/includes/head.kita.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain('componentDir: "/path/to/includes",');
 	});
 });

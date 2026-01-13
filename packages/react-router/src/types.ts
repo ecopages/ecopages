@@ -27,6 +27,21 @@ export interface EcoRouterOptions {
 	 * @default false
 	 */
 	debug?: boolean;
+
+	/**
+	 * Scroll behavior after navigation:
+	 * - 'top': Always scroll to top (default)
+	 * - 'preserve': Keep current scroll position
+	 * - 'auto': Scroll to top only when pathname changes
+	 */
+	scrollBehavior?: 'top' | 'preserve' | 'auto';
+
+	/**
+	 * Whether to use smooth scrolling during navigation.
+	 * If true, uses 'smooth' behavior. If false, uses 'instant' behavior.
+	 * @default false
+	 */
+	smoothScroll?: boolean;
 }
 
 export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
@@ -34,4 +49,6 @@ export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	reloadAttribute: 'data-eco-reload',
 	viewTransitions: true,
 	debug: false,
+	scrollBehavior: 'top',
+	smoothScroll: false,
 };

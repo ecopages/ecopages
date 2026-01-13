@@ -220,6 +220,32 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
+	 * Resolves lazy script paths to public asset URLs.
+	 * Converts source paths to their final bundled output paths.
+	 *
+	 * @param componentDir - The component directory path.
+	 * @param scripts - The lazy script paths to resolve.
+	 * @returns Comma-separated string of resolved public script paths.
+	 */
+	protected resolveLazyScripts(componentDir: string, scripts: string[]): string {
+		const getSafeFileName = (filepath: string): string => {
+			const EXTENSIONS_TO_JS = ['ts', 'tsx'];
+			const safe = filepath.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
+			return safe.startsWith('./') ? safe.slice(2) : safe;
+		};
+
+		const baseDir = componentDir.split(this.appConfig.srcDir)[1] ?? '';
+		const resolvedPaths = scripts.map((script) => {
+			return [AssetFactory.RESOLVED_ASSETS_DIR, baseDir, getSafeFileName(script)]
+				.filter(Boolean)
+				.join('/')
+				.replace(/\/+/g, '/');
+		});
+
+		return resolvedPaths.join(',');
+	}
+
+	/**
 	 * Collects the dependencies for the provided components.
 	 * Combines component-specific dependencies with global integration dependencies.
 	 *
@@ -251,23 +277,39 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			const stylesheetsSet = new Set<string>();
 			const scriptsSet = new Set<string>();
 
+			/**
+			 * Recursively collects dependencies from component config.
+			 * Mutates config._resolvedScripts when lazy scripts are present.
+			 */
 			const collect = (config: EcoComponent['config']) => {
 				if (!config?.dependencies) return;
 
 				const dir = config.componentDir;
 				if (!dir) return;
 
-				const collectedDependencies = this.extractDependencies({
-					...config.dependencies,
-					componentDir: dir,
-				});
-
-				for (const stylesheet of collectedDependencies.stylesheets || []) {
-					stylesheetsSet.add(stylesheet);
+				if (config.dependencies.stylesheets) {
+					for (const style of config.dependencies.stylesheets) {
+						stylesheetsSet.add(this.resolveDependencyPath(dir, style));
+					}
 				}
 
-				for (const script of collectedDependencies.scripts || []) {
-					scriptsSet.add(script);
+				if (config.dependencies.scripts) {
+					for (const script of config.dependencies.scripts) {
+						scriptsSet.add(this.resolveDependencyPath(dir, script));
+					}
+				}
+
+				/**
+				 * Process lazy dependencies - resolve paths and store for auto-wrapping
+				 * It adds lazy scripts with exclude flag so they don't appear in main HTML
+				 */
+				if (config.dependencies.lazy?.scripts) {
+					const lazyScriptPaths = this.resolveLazyScripts(dir, config.dependencies.lazy.scripts);
+					config._resolvedScripts = lazyScriptPaths;
+
+					for (const script of config.dependencies.lazy.scripts) {
+						scriptsSet.add(this.resolveDependencyPath(dir, script) + '?exclude-from-html=true');
+					}
 				}
 
 				if (config.dependencies.components) {
@@ -318,12 +360,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The prepared render options.
 	 */
 	protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
+		const module = await this.importPageFile(options.file);
 		const {
 			default: Page,
-			getStaticProps,
-			getMetadata,
+			getStaticProps: moduleGetStaticProps,
+			getMetadata: moduleGetMetadata,
 			...integrationSpecificProps
-		} = await this.importPageFile(options.file);
+		} = module;
+
+		/**
+		 * Check for attached static functions (consolidated API) or named exports (legacy)
+		 */
+		const getStaticProps = Page.staticProps ?? moduleGetStaticProps;
+		const getMetadata = Page.metadata ?? moduleGetMetadata;
 
 		const HtmlTemplate = await this.getHtmlTemplate();
 

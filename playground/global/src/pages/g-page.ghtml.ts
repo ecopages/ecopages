@@ -1,6 +1,7 @@
-import { css, type EcoComponent, html, resolveComponentsScripts } from '@ecopages/core';
-import type { ScriptInjectorProps } from '@ecopages/scripts-injector';
+import { eco } from '@ecopages/core';
+import { css, html } from '@ecopages/core';
 import { RadiantCounter } from '@/components/radiant-counter';
+import { BaseLayout } from '@/layouts/base-layout';
 
 function getAsyncData(): Promise<{
 	username: string;
@@ -30,61 +31,41 @@ const AsyncComponent = async () => {
 	</p>`;
 };
 
-const RadiantCounterGhtml = () => {
-	return html`<radiant-counter count="0">
-		<button type="button" data-ref="decrement" aria-label="Decrement">-</button>
-		<span data-ref="count">0</span>
-		<button type="button" data-ref="increment" aria-label="Increment">+</button>
-	</radiant-counter>`;
-};
-
-const Island = ({ children, ...props }: ScriptInjectorProps & { children: () => string }) => {
-	return html`<scripts-injector on:interaction=${props['on:interaction']} scripts="${props.scripts}">
-		!${children()}
-	</scripts-injector>`;
-};
-
 const BLUE = '#2563EB';
 const property = 'border-color';
 
-const GhtmlPage: EcoComponent = async () => {
-	const data = await getAsyncData();
-
-	return html`
-		<body>
-			<style>
-				${await css`
-					.gradient-text {
-						@apply inline-block bg-gradient-to-b from-blue-600 via-green-500 to-indigo-400 bg-clip-text text-7xl text-transparent;
-						@apply border-4 rounded-xl p-4;
-						${property}: ${BLUE};
-					}`}
-			</style>
-			<main class="container p-4">
-				<div class="flex flex-col gap-4">
-					<p class="gradient-text">Data</p>
-					<ul>
-						!${Object.entries(data).map(([key, val]) => html`<li>${key}: ${val}</li>`)}
-					</ul>
-					!${Island({
-						'on:interaction': 'mouseenter,focusin',
-						scripts: resolveComponentsScripts([RadiantCounter]),
-						children: RadiantCounterGhtml,
-					})}
-					!${await AsyncComponent()}
-				</div>
-			</main>
-			<script>
-				console.log('GhtmlPage script');
-			</script>
-		</body>
-	`;
-};
-
-GhtmlPage.config = {
+export default eco.page({
 	dependencies: {
 		components: [RadiantCounter],
 	},
-};
+	layout: BaseLayout,
+	render: async () => {
+		const data = await getAsyncData();
 
-export default GhtmlPage;
+		return html`
+			<body>
+				<style>
+					<!-- @todo?: This is not working now due the fact we removed PostCssProcessor as a dependency -->
+						${await css`
+						.gradient-text {
+							@apply inline-block bg-gradient-to-b from-blue-600 via-green-500 to-indigo-400 bg-clip-text text-7xl text-transparent;
+							@apply border-4 rounded-xl p-4;
+							${property}: ${BLUE};
+						}`}
+				</style>
+				<main class="container p-4">
+					<div class="flex flex-col gap-4">
+						<p class="gradient-text">Data</p>
+						<ul>
+							!${Object.entries(data).map(([key, val]) => html`<li>${key}: ${val}</li>`)}
+						</ul>
+						!${RadiantCounter({ count: 0 })} !${await AsyncComponent()}
+					</div>
+				</main>
+				<script>
+					console.log('GhtmlPage script');
+				</script>
+			</body>
+		`;
+	},
+});

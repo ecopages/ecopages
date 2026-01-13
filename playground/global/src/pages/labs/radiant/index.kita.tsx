@@ -1,19 +1,17 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { RadiantTodoApp } from '@/components/radiant-todo-app';
 import { BaseLayout } from '@/layouts/base-layout';
 
-const RadiantPage: EcoComponent = async () => {
-	return (
-		<BaseLayout>
-			<RadiantTodoApp />
-		</BaseLayout>
-	);
-};
-
-RadiantPage.config = {
+export default eco.page({
 	dependencies: {
 		components: [BaseLayout, RadiantTodoApp],
 	},
-};
 
-export default RadiantPage;
+	render: async () => {
+		return (
+			<BaseLayout>
+				<RadiantTodoApp />
+			</BaseLayout>
+		);
+	},
+});

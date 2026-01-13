@@ -1,0 +1,10 @@
+radiant-counter {
+	@apply flex gap-4 items-center bg-zinc-800/50 backdrop-blur-sm border border-white/10 rounded-full max-w-fit p-1.5 pl-3;
+	[data-ref='increment'],
+	[data-ref='decrement'] {
+		@apply flex items-center justify-center bg-zinc-700 hover:bg-zinc-600 text-white rounded-full w-8 h-8 cursor-pointer transition-colors;
+	}
+	span {
+		@apply text-white font-mono font-bold px-4 py-1 bg-transparent min-w-[50px] flex items-center justify-center;
+	}
+}

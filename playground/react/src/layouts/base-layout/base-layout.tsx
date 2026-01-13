@@ -1,5 +1,5 @@
-import type { EcoComponent } from '@ecopages/core';
-import type { JSX, ReactNode } from 'react';
+import { eco } from '@ecopages/core';
+import type { ReactNode } from 'react';
 
 export type BaseLayoutProps = {
 	children: ReactNode;
@@ -7,17 +7,17 @@ export type BaseLayoutProps = {
 	id?: string;
 };
 
-export const BaseLayout: EcoComponent<BaseLayoutProps, JSX.Element> = ({ children, className }) => {
-	return (
-		<body>
-			<main className={className}>{children}</main>
-		</body>
-	);
-};
-
-BaseLayout.config = {
+export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
-};
+
+	render: ({ children, className }) => {
+		return (
+			<body>
+				<main className={className}>{children}</main>
+			</body>
+		);
+	},
+});

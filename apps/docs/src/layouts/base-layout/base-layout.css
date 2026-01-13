@@ -7,5 +7,5 @@ html {
 }
 
 main {
-	@apply container mx-auto w-screen;
+	@apply container mx-auto;
 }

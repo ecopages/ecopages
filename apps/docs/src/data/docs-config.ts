@@ -37,10 +37,18 @@ export const docsConfig: DocsConfig = {
 			subdirectory: 'core',
 			pages: [
 				{ title: 'Concepts', slug: 'concepts' },
+				{ title: 'Architecture', slug: 'architecture' },
 				{ title: 'Components', slug: 'components' },
 				{ title: 'Layouts', slug: 'layouts' },
 				{ title: 'Pages', slug: 'pages' },
 				{ title: 'Includes', slug: 'includes' },
+				{ title: 'Eco Namespace', slug: 'eco-namespace' },
+			],
+		},
+		{
+			name: 'Server',
+			subdirectory: 'core',
+			pages: [
 				{ title: 'Server API', slug: 'server-api' },
 				{ title: 'API Handlers', slug: 'api-handlers' },
 			],

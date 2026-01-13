@@ -19,10 +19,8 @@
 		"remark-gfm": "^4.0.1",
 		"rehype-pretty-code": "^0.14.1",
 		"@rehype-pretty/transformers": "^0.13.2",
+		"rehype-raw": "^7.0.0",
 		"shiki": "^3.20.0",
 		"tailwindcss": "^4.0.0"
-	},
-	"dependencies": {
-		"rehype-raw": "^7.0.0"
 	}
 }

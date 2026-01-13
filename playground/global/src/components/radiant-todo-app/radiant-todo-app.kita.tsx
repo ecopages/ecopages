@@ -1,4 +1,4 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { stringifyTyped } from '@ecopages/radiant';
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './radiant-todo.templates';
 import type { TodoContext } from './radiant-todo-app.script';
@@ -54,31 +54,31 @@ const TodoForm = () => {
 	);
 };
 
-export const RadiantTodoApp: EcoComponent = async () => {
-	const data = await getData();
-	const incompleteTodos = data.todos.filter((todo) => !todo.complete);
-	const completedTodos = data.todos.filter((todo) => todo.complete);
-	return (
-		<radiant-todo-app class="todo">
-			<section class="todo__board">
-				<TodoPanel title="Incomplete Todos" count={incompleteTodos.length} dataRef="incomplete">
-					{incompleteTodos.length > 0 ? <TodoList todos={incompleteTodos} /> : <NoTodosMessage />}
-				</TodoPanel>
-				<TodoPanel title="Completed Todos" count={completedTodos.length} dataRef="complete">
-					{completedTodos.length > 0 ? <TodoList todos={completedTodos} /> : <NoCompletedTodosMessage />}
-				</TodoPanel>
-			</section>
-			<TodoForm />
-			<script type="application/json" data-hydration>
-				{stringifyTyped<Partial<TodoContext>, string>(data)}
-			</script>
-		</radiant-todo-app>
-	);
-};
-
-RadiantTodoApp.config = {
+export const RadiantTodoApp = eco.component({
 	dependencies: {
 		scripts: ['./radiant-todo-app.script.tsx'],
 		stylesheets: ['./radiant-todo-app.css'],
 	},
-};
+
+	render: async () => {
+		const data = await getData();
+		const incompleteTodos = data.todos.filter((todo) => !todo.complete);
+		const completedTodos = data.todos.filter((todo) => todo.complete);
+		return (
+			<radiant-todo-app class="todo">
+				<section class="todo__board">
+					<TodoPanel title="Incomplete Todos" count={incompleteTodos.length} dataRef="incomplete">
+						{incompleteTodos.length > 0 ? <TodoList todos={incompleteTodos} /> : <NoTodosMessage />}
+					</TodoPanel>
+					<TodoPanel title="Completed Todos" count={completedTodos.length} dataRef="complete">
+						{completedTodos.length > 0 ? <TodoList todos={completedTodos} /> : <NoCompletedTodosMessage />}
+					</TodoPanel>
+				</section>
+				<TodoForm />
+				<script type="application/json" data-hydration>
+					{stringifyTyped<Partial<TodoContext>, string>(data)}
+				</script>
+			</radiant-todo-app>
+		);
+	},
+});

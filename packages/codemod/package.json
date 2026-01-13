@@ -1,0 +1,20 @@
+{
+	"name": "@ecopages/codemod",
+	"version": "0.0.1",
+	"description": "Codemods for migrating ecopages to latest patterns",
+	"type": "module",
+	"main": "src/transforms/index.ts",
+	"scripts": {
+		"transform:pages": "jscodeshift -t src/transforms/migrate-to-eco-page.ts --parser tsx",
+		"transform:components": "jscodeshift -t src/transforms/migrate-to-eco-component.ts --parser tsx",
+		"test": "vitest run"
+	},
+	"devDependencies": {
+		"jscodeshift": "^17.3.0",
+		"@types/jscodeshift": "^17.3.0",
+		"vitest": "^3.0.0"
+	},
+	"peerDependencies": {
+		"typescript": "^5.0.0"
+	}
+}

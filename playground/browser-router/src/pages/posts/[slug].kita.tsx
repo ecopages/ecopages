@@ -1,4 +1,4 @@
-import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout/base-layout.kita';
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import {
@@ -31,72 +31,71 @@ type PostPageProps = {
 	post: PostProps | null;
 };
 
-export const getStaticPaths: GetStaticPaths = async () => {
-	return {
-		paths: Object.keys(postsData).map((slug) => ({ params: { slug } })),
-	};
-};
-
-export const getStaticProps: GetStaticProps<PostPageProps> = async ({ pathname }) => {
-	const slug = pathname.params.slug as string;
-	const post = postsData[slug] || null;
-	return {
-		props: {
-			post,
-		},
-	};
-};
-
-export const getMetadata: GetMetadata<PostPageProps> = ({ props }) => {
-	const { post } = props;
-	if (!post) {
-		return {
-			title: 'Post Not Found | Blog',
-			description: 'The requested post could not be found.',
-		};
-	}
-	return {
-		title: `${post.title} | Blog`,
-		description: post.content?.slice(0, 160),
-	};
-};
-
-const PostPage: EcoComponent<PageProps<PostPageProps>> = ({ post, params }) => {
-	const slug = params?.slug as string;
-
-	if (!post) {
-		return (
-			<>
-				<h1>Post Not Found</h1>
-				<p>Slug: {slug || 'none'}</p>
-				<a href="/" class="back-link">
-					← Back to Blog
-				</a>
-			</>
-		);
-	}
-
-	return (
-		<>
-			<a href="/" class="back-link">
-				← Back to Blog
-			</a>
-			<article class="post-content">
-				<h1>{post.title}</h1>
-				<div class="post-image-container" data-view-transition={`hero-image-${slug}`}>
-					<EcoImage {...post.image} alt={post.title} />
-				</div>
-				<p>{post.content}</p>
-			</article>
-		</>
-	);
-};
-
-PostPage.config = {
+export default eco.page<PostPageProps>({
 	layout: BaseLayout,
+
 	dependencies: {
 		stylesheets: ['./post.css'],
 	},
-};
 
-export default PostPage;
+	staticPaths: async () => {
+		return {
+			paths: Object.keys(postsData).map((slug) => ({ params: { slug } })),
+		};
+	},
+
+	staticProps: async ({ pathname }) => {
+		const slug = pathname.params.slug as string;
+		const post = postsData[slug] || null;
+		return {
+			props: {
+				post,
+			},
+		};
+	},
+
+	metadata: ({ props }) => {
+		const { post } = props;
+		if (!post) {
+			return {
+				title: 'Post Not Found | Blog',
+				description: 'The requested post could not be found.',
+			};
+		}
+		return {
+			title: `${post.title} | Blog`,
+			description: post.content?.slice(0, 160),
+		};
+	},
+
+	render: ({ post, params }) => {
+		const slug = params?.slug as string;
+
+		if (!post) {
+			return (
+				<>
+					<h1>Post Not Found</h1>
+					<p>Slug: {slug || 'none'}</p>
+					<a href="/" class="back-link">
+						← Back to Blog
+					</a>
+				</>
+			);
+		}
+
+		return (
+			<>
+				<a href="/" class="back-link">
+					← Back to Blog
+				</a>
+				<article class="post-content">
+					<h1>{post.title}</h1>
+					<div class="post-image-container" data-view-transition={`hero-image-${slug}`}>
+						<EcoImage {...post.image} alt={post.title} />
+					</div>
+					<p>{post.content}</p>
+				</article>
+			</>
+		);
+	},
+});

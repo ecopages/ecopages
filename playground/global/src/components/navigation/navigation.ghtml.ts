@@ -1,4 +1,5 @@
-import { type EcoComponent, html } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import { html } from '@ecopages/core';
 
 export type NavigationProps = {
 	items: {
@@ -7,23 +8,23 @@ export type NavigationProps = {
 	}[];
 };
 
-export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
-	return html`
-		<nav class="navigation">
-			<ul>
-				!${items.map(
-					({ label, url }) =>
-						html`<li>
-							<a href="${url}">${label}</a>
-						</li>`,
-				)}
-			</ul>
-		</nav>
-	`;
-};
-
-Navigation.config = {
+export const Navigation = eco.component<NavigationProps>({
 	dependencies: {
 		stylesheets: ['./navigation.css'],
 	},
-};
+
+	render: ({ items }) => {
+		return html`
+			<nav class="navigation">
+				<ul>
+					!${items.map(
+						({ label, url }) =>
+							html`<li>
+								<a href="${url}">${label}</a>
+							</li>`,
+					)}
+				</ul>
+			</nav>
+		`;
+	},
+});

@@ -207,5 +207,4 @@ export function createRouter(options?: EcoRouterOptions): EcoRouter {
 	return router;
 }
 
-// Re-export types for convenience
 export type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types';

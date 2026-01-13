@@ -1,12 +1,13 @@
 import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
 
 export const config = {
-    layout: DocsLayout,
+  layout: DocsLayout,
 };
 
 export const getMetadata = () => ({
-    title: 'Docs | Deployment',
-    description: 'Learn how to build and deploy your Ecopages application',
+  title: 'Docs | Deployment',
+  description: 'Learn how to build and deploy your Ecopages application',
 });
 
 # Deployment
@@ -37,8 +38,11 @@ If your site **does not** use API routes or programmatic server logic, you can h
 - **Vercel / Netlify**: Connect your repository and set the build command to `bun run build`. Set the output directory to `.eco`.
 - **GitHub Pages**: Use a GitHub Action to run `bun run build` and deploy the output directory.
 
-> [!NOTE]
-> Even for static sites, ensure your `ECOPAGES_BASE_URL` is set correctly during the build so that metadata and links are absolute.
+<Banner type="info">
+  **Base URL Configuration**
+
+  Even for static sites, ensure your `ECOPAGES_BASE_URL` is set correctly during the build so that metadata and links are absolute.
+</Banner>
 
 ---
 

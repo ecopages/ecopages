@@ -44,19 +44,17 @@ await app.start();
 Every API handler function receives a `HandlerContext` object as its argument. This object provides access to essential information and utilities for handling the request and constructing the response.
 
 ```typescript
-// Example handler signature
-// Example handler signature
-app.get('/api/example/:id', async (context) => {
-	// context is the HandlerContext object
-	const { request, response } = context;
-
-	// Access request details
-	const { id } = request.params; // Route parameters
+app.get('/api/example/:id', async ({ request, response }) => {
+	const { id } = request.params;
 	const userAgent = request.headers.get('user-agent');
-	const queryParam = request.query.get('search'); // Query parameters
+	const queryParam = request.query.get('search');
+	const body = {
+		userId: id,
+		agent: userAgent,
+		query: queryParam,
+	};
 
-	// Use the response builder
-	return response.status(200).json({ userId: id, agent: userAgent, query: queryParam });
+	return response.status(200).json(body);
 });
 ```
 

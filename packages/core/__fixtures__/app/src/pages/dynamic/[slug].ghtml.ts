@@ -1,11 +1,5 @@
-import {
-	type EcoComponent,
-	type GetMetadata,
-	type GetStaticPaths,
-	type GetStaticProps,
-	html,
-	type PageProps,
-} from '@ecopages/core';
+import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 import { BaseLayout } from '../../layouts/base-layout';
 
 export type BlogPostProps = {

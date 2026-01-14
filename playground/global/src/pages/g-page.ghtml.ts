@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
-import { css, html } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
+import { css } from '@ecopages/core/css';
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 

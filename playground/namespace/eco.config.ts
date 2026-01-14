@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';

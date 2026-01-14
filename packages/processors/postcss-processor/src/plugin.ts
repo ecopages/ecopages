@@ -5,7 +5,7 @@
 
 import path from 'node:path';
 import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
-import { ClientBridge } from '@ecopages/core';
+import { ClientBridge } from '@ecopages/core/adapters/bun/client-bridge';
 import { fileSystem } from '@ecopages/file-system';
 import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';

@@ -4,19 +4,11 @@
  */
 
 import path from 'node:path';
-import {
-	type HtmlTemplateProps,
-	IntegrationRenderer,
-	type IntegrationRendererRenderOptions,
-	type RouteRendererBody,
-} from '@ecopages/core';
+import type { HtmlTemplateProps, IntegrationRendererRenderOptions, RouteRendererBody } from '@ecopages/core';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
-import {
-	AssetFactory,
-	AssetProcessingService,
-	type ProcessedAsset,
-} from '@ecopages/core/services/asset-processing-service';
+import { AssetFactory, type ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { createElement, type JSX } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { PLUGIN_NAME } from './react.plugin';
@@ -51,7 +43,7 @@ export class BundleError extends Error {
  */
 export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 	name = PLUGIN_NAME;
-	componentDirectory = AssetProcessingService.RESOLVED_ASSETS_DIR;
+	componentDirectory = RESOLVED_ASSETS_DIR;
 	static routerAdapter: ReactRouterAdapter | undefined;
 
 	/**

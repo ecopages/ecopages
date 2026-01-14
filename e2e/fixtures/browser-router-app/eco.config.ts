@@ -1,4 +1,4 @@
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 

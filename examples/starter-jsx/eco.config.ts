@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';

@@ -39,6 +39,10 @@
 			"require": "./src/index.ts",
 			"types": "./src/public-types.ts"
 		},
+		"./route-renderer/integration-renderer": {
+			"types": "./src/route-renderer/integration-renderer.ts",
+			"default": "./src/route-renderer/integration-renderer.ts"
+		},
 		"./eco": {
 			"types": "./src/eco/eco.ts",
 			"default": "./src/eco/eco.ts"
@@ -69,6 +73,9 @@
 			"types": "./src/hmr/hmr-strategy.ts",
 			"default": "./src/hmr/hmr-strategy.ts"
 		},
+		"./internal-types": {
+			"types": "./src/internal-types.ts"
+		},
 		"./services/asset-processing-service": {
 			"types": "./src/services/asset-processing-service/index.ts",
 			"default": "./src/services/asset-processing-service/index.ts"
@@ -96,6 +103,10 @@
 		"./plugins/integration-plugin": {
 			"types": "./src/plugins/integration-plugin.ts",
 			"default": "./src/plugins/integration-plugin.ts"
+		},
+		"./adapters/bun/client-bridge": {
+			"types": "./src/adapters/bun/client-bridge.ts",
+			"default": "./src/adapters/bun/client-bridge.ts"
 		},
 		"./html": {
 			"import": "./src/utils/html.ts",

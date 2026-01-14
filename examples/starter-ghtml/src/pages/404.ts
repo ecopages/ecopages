@@ -1,5 +1,5 @@
-import { eco } from '@ecopages/core';
-import { type Error404TemplateProps, html } from '@ecopages/core';
+import { eco, type Error404TemplateProps } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 import { BaseLayout } from '@/layouts/base-layout';
 
 export default eco.page<Error404TemplateProps>({

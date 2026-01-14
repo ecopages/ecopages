@@ -1,5 +1,5 @@
-import { eco } from '@ecopages/core';
-import { html, type PageHeadProps } from '@ecopages/core';
+import { eco, type PageHeadProps } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 import { Seo } from '@/includes/seo.ghtml';
 
 export const Head = eco.component<PageHeadProps>({

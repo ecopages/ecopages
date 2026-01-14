@@ -1,19 +1,18 @@
-import { type EcoComponent, type Error404TemplateProps, html } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import { type Error404TemplateProps, html } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 
-const Error404: EcoComponent<Error404TemplateProps> = () =>
-	html`!${BaseLayout({
-		children: html`<div class="error404">
-			<h1>404 - Page Not Found</h1>
-			<p>The page you are looking for does not exist.</p>
-		</div>`,
-	})}`;
-
-Error404.config = {
+export default eco.page<Error404TemplateProps>({
 	dependencies: {
 		stylesheets: ['./404.css'],
 		components: [BaseLayout],
 	},
-};
 
-export default Error404;
+	render: () =>
+		html`!${BaseLayout({
+			children: html`<div class="error404">
+				<h1>404 - Page Not Found</h1>
+				<p>The page you are looking for does not exist.</p>
+			</div>`,
+		})}`,
+});

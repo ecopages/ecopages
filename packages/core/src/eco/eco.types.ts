@@ -79,7 +79,7 @@ export interface PageOptions<T, E = EcoPagesElement> {
 	 */
 	metadata?: GetMetadata<T>;
 
-	render: (props: PagePropsFor<T>) => E;
+	render: (props: PagePropsFor<T>) => E | Promise<E>;
 }
 
 /**

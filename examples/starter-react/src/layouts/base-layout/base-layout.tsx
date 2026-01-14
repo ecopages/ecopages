@@ -7,7 +7,7 @@ export type BaseLayoutProps = {
 	id?: string;
 };
 
-export const BaseLayout = eco.component<BaseLayoutProps>({
+export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],

@@ -1,11 +1,11 @@
 import { eco } from '@ecopages/core';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 type CounterProps = {
 	defaultValue: number;
 };
 
-export const Counter = eco.component<CounterProps>({
+export const Counter = eco.component<CounterProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./counter.css'],
 	},

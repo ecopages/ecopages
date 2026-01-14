@@ -14,6 +14,7 @@
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@ecopages/radiant": "latest",
+		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/browser-router": "workspace:*",
 		"@tailwindcss/postcss": "^4.0.0",
 		"remark-gfm": "^4.0.1",

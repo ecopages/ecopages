@@ -1,5 +1,5 @@
 {
-	"name": "@ecopages/starter-lit-jsx",
+	"name": "@ecopages/starter-jsx",
 	"private": true,
 	"scripts": {
 		"start": "bun run app.ts",
@@ -16,6 +16,7 @@
 		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
 		"@ecopages/radiant": "latest",
 		"@ecopages/scripts-injector": "latest",
-		"tailwindcss": "^3.4.19"
+		"@tailwindcss/postcss": "^4.0.0",
+		"tailwindcss": "^4.0.0"
 	}
 }

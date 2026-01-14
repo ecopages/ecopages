@@ -1,9 +1,19 @@
-import { resolveGeneratedPath } from '../constants';
+import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { BunPlugin } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types';
 import type { ClientBridge } from '../adapters/bun/client-bridge';
 import type { AssetDefinition } from '../services/asset-processing-service';
+import { GENERATED_BASE_PATHS } from '../constants';
+
+function resolveGeneratedPath(
+	type: keyof typeof GENERATED_BASE_PATHS,
+	options: { root: string; module: string; subPath?: string },
+): string {
+	const { root, module, subPath } = options;
+	const parts = [root, GENERATED_BASE_PATHS[type], module, subPath].filter(Boolean);
+	return path.join(...(parts as string[]));
+}
 
 export interface ProcessorWatchContext {
 	path: string;
@@ -59,16 +69,19 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	}
 
 	setContext(appConfig: EcoPagesAppConfig): void {
+		const cachePath = resolveGeneratedPath('cache', {
+			root: appConfig.absolutePaths.distDir,
+			module: this.name,
+		});
+
+		fileSystem.ensureDir(cachePath);
+
 		this.context = {
 			config: appConfig,
 			rootDir: appConfig.rootDir,
 			srcDir: appConfig.absolutePaths.srcDir,
 			distDir: appConfig.absolutePaths.distDir,
-			cache: resolveGeneratedPath('cache', {
-				root: appConfig.absolutePaths.distDir,
-				module: this.name,
-				ensureDirExists: true,
-			}),
+			cache: cachePath,
 		};
 	}
 

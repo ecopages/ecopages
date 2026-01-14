@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { deepMerge } from '@ecopages/core';
+import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';

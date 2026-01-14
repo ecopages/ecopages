@@ -26,17 +26,17 @@
  */
 
 import path from 'node:path';
-import {
-	type EcoComponent,
-	type EcoComponentConfig,
-	type EcoPageFile,
-	type GetMetadata,
-	IntegrationRenderer,
-	type IntegrationRendererRenderOptions,
-	invariant,
-	type PageMetadataProps,
-	type RouteRendererBody,
+import type {
+	EcoComponent,
+	EcoComponentConfig,
+	EcoPageFile,
+	GetMetadata,
+	IntegrationRendererRenderOptions,
+	PageMetadataProps,
+	RouteRendererBody,
 } from '@ecopages/core';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+import { invariant } from '@ecopages/core/utils/invariant';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
 import React, { type ReactNode } from 'react';

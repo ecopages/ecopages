@@ -3,12 +3,8 @@
  * @module
  */
 
-import {
-	type EcoPagesElement,
-	IntegrationRenderer,
-	type IntegrationRendererRenderOptions,
-	type RouteRendererBody,
-} from '@ecopages/core';
+import type { EcoPagesElement, IntegrationRendererRenderOptions, RouteRendererBody } from '@ecopages/core';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
 import { PLUGIN_NAME } from './kitajs.plugin.ts';
 
 /**

@@ -3,12 +3,8 @@
  * @module
  */
 
-import {
-	type EcoPagesElement,
-	IntegrationRenderer,
-	type IntegrationRendererRenderOptions,
-	type RouteRendererBody,
-} from '@ecopages/core';
+import type { EcoPagesElement, IntegrationRendererRenderOptions, RouteRendererBody } from '@ecopages/core';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';

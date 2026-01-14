@@ -1,5 +1,5 @@
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 import type { RadiantCounterProps } from './radiant-counter.script';
 
 export const RadiantCounter = eco.component<RadiantCounterProps>({

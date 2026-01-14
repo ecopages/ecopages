@@ -1,4 +1,5 @@
-import { type EcoComponent, html } from '@ecopages/core';
+import type { EcoComponent } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 
 export type BaseLayoutProps = {
 	children: string;

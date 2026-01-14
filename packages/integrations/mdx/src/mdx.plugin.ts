@@ -1,7 +1,8 @@
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { AssetFactory, type AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { deepMerge } from '@ecopages/core/utils/deep-merge';
-import type { EcoPagesElement, IHmrManager } from '@ecopages/core';
+import type { EcoPagesElement } from '@ecopages/core';
+import type { IHmrManager } from '@ecopages/core/internal-types';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { createMDXRenderer, MDXRenderer } from './mdx-renderer';

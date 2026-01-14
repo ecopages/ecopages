@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { ConfigBuilder, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
 import { fileSystem } from '@ecopages/file-system';
 import type { JSX } from 'react';
 import { ReactRenderer } from '../react-renderer';

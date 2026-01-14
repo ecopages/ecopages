@@ -2,8 +2,8 @@ import { describe, expect, test, afterAll, beforeAll, spyOn } from 'bun:test';
 import path from 'node:path';
 import fs from 'node:fs';
 import { PostCssProcessorPlugin } from '../plugin';
-import type { ClientBridge } from '@ecopages/core';
-import { ConfigBuilder } from '@ecopages/core';
+import type { ClientBridge } from '@ecopages/core/adapters/bun/client-bridge';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 
 const TMP_DIR = path.join(import.meta.dir, 'tmp_test_hmr');
 const SRC_DIR = path.join(TMP_DIR, 'src');

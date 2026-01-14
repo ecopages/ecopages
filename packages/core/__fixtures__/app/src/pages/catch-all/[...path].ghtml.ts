@@ -1,4 +1,5 @@
-import { html, type PageProps } from '@ecopages/core';
+import type { PageProps } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 
 export default function BlogPost({ params, query }: PageProps) {
 	return html`<div>

@@ -4,7 +4,8 @@
  */
 
 import path from 'node:path';
-import { deepMerge, GENERATED_BASE_PATHS } from '@ecopages/core';
+import { deepMerge } from '@ecopages/core/utils/deep-merge';
+import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { fileSystem } from '@ecopages/file-system';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';

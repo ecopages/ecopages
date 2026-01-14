@@ -1,4 +1,5 @@
-import { type EcoComponent, type GetMetadata, html, type PageProps } from '@ecopages/core';
+import type { EcoComponent, GetMetadata, PageProps } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 import { BaseLayout } from '../layouts/base-layout';
 
 export const getMetadata: GetMetadata = () => ({

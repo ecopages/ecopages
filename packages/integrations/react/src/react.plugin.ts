@@ -5,7 +5,7 @@
 
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
-import type { IHmrManager } from '@ecopages/core';
+import type { IHmrManager } from '@ecopages/core/internal-types';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import type React from 'react';
 import { ReactRenderer } from './react-renderer';

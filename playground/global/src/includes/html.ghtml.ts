@@ -1,5 +1,5 @@
-import { eco } from '@ecopages/core';
-import { type HtmlTemplateProps, html } from '@ecopages/core';
+import { eco, type HtmlTemplateProps } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 import { Head } from '@/includes/head.ghtml';
 
 const HtmlTemplate = eco.component<HtmlTemplateProps>({

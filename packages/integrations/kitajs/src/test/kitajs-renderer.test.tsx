@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
 const mockConfig = await new ConfigBuilder()

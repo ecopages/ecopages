@@ -435,8 +435,6 @@ export class ConfigBuilder {
 		await this.initializeDefaultLoaders();
 		this.initializeProcessors();
 
-		globalThis.ecoConfig = this.config;
-
 		return this.config;
 	}
 }

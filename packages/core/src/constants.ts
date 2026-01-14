@@ -3,9 +3,6 @@
  * @module constants
  **/
 
-import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
-
 /**
  * Collection of status messages used in the application.
  */
@@ -29,13 +26,6 @@ export const RESOLVED_ASSETS_DIR = 'assets';
  */
 export const RESOLVED_ASSETS_VENDORS_DIR: string = `${RESOLVED_ASSETS_DIR}/vendors`;
 
-interface GeneratedPathOptions {
-	root: string;
-	module: string;
-	subPath?: string;
-	ensureDirExists?: boolean;
-}
-
 /**
  * Base paths for generated project files.
  */
@@ -43,24 +33,6 @@ export const GENERATED_BASE_PATHS = {
 	types: 'node_modules/@types',
 	cache: 'cache',
 } as const;
-
-/**
- * Resolves a path for generated project files based on the type and options.
- * Used for managing generated files like types, cache, and assets.
- */
-export function resolveGeneratedPath(type: keyof typeof GENERATED_BASE_PATHS, options: GeneratedPathOptions): string {
-	const { root, module, subPath, ensureDirExists } = options;
-
-	const parts = [root, GENERATED_BASE_PATHS[type], module, subPath].filter(Boolean);
-
-	const fullPath = path.join(...(parts as string[]));
-
-	if (ensureDirExists) {
-		fileSystem.ensureDir(path.dirname(fullPath));
-	}
-
-	return fullPath;
-}
 
 export const EXCLUDE_FROM_HTML_FLAG = '?exclude-from-html=true';
 

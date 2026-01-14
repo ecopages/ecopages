@@ -4,9 +4,8 @@
  */
 
 import path from 'node:path';
-import { deepMerge } from '@ecopages/core';
+import { deepMerge, GENERATED_BASE_PATHS } from '@ecopages/core';
 import { fileSystem } from '@ecopages/file-system';
-import { resolveGeneratedPath } from '@ecopages/core/constants';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { Logger } from '@ecopages/logger';
@@ -15,6 +14,15 @@ import { createImagePlugin, createImagePluginBundler } from './bun-plugins';
 import { ImageProcessor } from './image-processor';
 import type { ImageSize, ImageSpecifications } from './types';
 import { anyCaseToCamelCase } from './utils';
+
+function resolveGeneratedPath(
+	type: keyof typeof GENERATED_BASE_PATHS,
+	options: { root: string; module: string; subPath?: string },
+): string {
+	const { root, module, subPath } = options;
+	const parts = [root, GENERATED_BASE_PATHS[type], module, subPath].filter(Boolean);
+	return path.join(...(parts as string[]));
+}
 
 const logger = new Logger('[@ecopages/image-processor]', {
 	debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
@@ -258,9 +266,9 @@ declare module "ecopages:images" {
 			root: this.context.rootDir,
 			module: this.name,
 			subPath: 'virtual-module.d.ts',
-			ensureDirExists: true,
 		});
 
+		fileSystem.ensureDir(path.dirname(typesDir));
 		fileSystem.write(typesDir, content);
 		logger.debug('Generated types for virtual module', { typesDir });
 
@@ -268,7 +276,6 @@ declare module "ecopages:images" {
 			root: this.context.rootDir,
 			module: this.name,
 			subPath: 'index.d.ts',
-			ensureDirExists: true,
 		});
 
 		const indexContent = 'import "./virtual-module.d.ts";';

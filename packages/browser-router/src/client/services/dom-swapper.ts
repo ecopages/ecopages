@@ -4,7 +4,7 @@
  * @module dom-swapper
  */
 
-import { Idiomorph } from 'idiomorph';
+import morphdom from 'morphdom';
 
 const DEFAULT_PERSIST_ATTR = 'data-eco-persist';
 
@@ -162,30 +162,26 @@ export class DomSwapper {
 	}
 
 	/**
-	 * Morphs document body using Idiomorph.
+	 * Morphs document body using morphdom.
 	 * Preserves persisted elements and hydrated custom elements.
 	 */
 	morphBody(newDocument: Document): void {
 		const persistAttr = this.persistAttribute;
 
-		Idiomorph.morph(document.body, newDocument.body, {
-			morphStyle: 'innerHTML',
-			callbacks: {
-				beforeNodeMorphed: (oldNode: Node, newNode: Node) => {
-					if (oldNode instanceof Element) {
-						if (isPersisted(oldNode, persistAttr)) return false;
-						if (isHydratedCustomElement(oldNode)) return false;
-						if (newNode instanceof Element && oldNode.isEqualNode(newNode)) return false;
-					}
-					return true;
-				},
-				beforeNodeRemoved: (node: Node) => {
-					if (node instanceof Element) {
-						if (isPersisted(node, persistAttr)) return false;
-						if (isHydratedCustomElement(node)) return false;
-					}
-					return true;
-				},
+		morphdom(document.body, newDocument.body, {
+			onBeforeElUpdated: (fromEl, toEl) => {
+				if (isPersisted(fromEl, persistAttr)) {
+					return false;
+				}
+				if (isHydratedCustomElement(fromEl)) {
+					return false;
+				}
+
+				if (fromEl.isEqualNode(toEl)) {
+					return false;
+				}
+
+				return true;
 			},
 		});
 

@@ -33,7 +33,6 @@ For purely presentational components without client-side interactivity, use plai
 import type { PropsWithChildren } from '@/types';
 import { cn } from 'your-library';
 
-
 export function Card({ children, className }: PropsWithChildren<{ className?: string }>) {
 	return <div class={cn('p-6 rounded-2xl border border-white/10 bg-zinc-900/30', className)}>{children}</div>;
 }

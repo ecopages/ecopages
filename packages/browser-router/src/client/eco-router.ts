@@ -48,6 +48,10 @@ export class EcoRouter {
 		document.addEventListener('click', this.handleClick);
 		window.addEventListener('popstate', this.handlePopState);
 		this.prefetchManager?.start();
+
+		// Cache the initial page for instant back-navigation
+		const initialHtml = document.documentElement.outerHTML;
+		this.prefetchManager?.cacheVisitedPage(window.location.href, initialHtml);
 	}
 
 	/**
@@ -222,6 +226,9 @@ export class EcoRouter {
 			document.dispatchEvent(new CustomEvent('eco:after-swap', { detail: afterSwapEvent }));
 
 			this.prefetchManager?.observeNewLinks();
+
+			// Cache the visited page for instant revisits (stale-while-revalidate)
+			this.prefetchManager?.cacheVisitedPage(url.href, html);
 
 			requestAnimationFrame(() => {
 				document.dispatchEvent(

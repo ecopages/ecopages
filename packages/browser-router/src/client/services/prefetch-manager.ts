@@ -104,21 +104,55 @@ export class PrefetchManager {
 	}
 
 	/**
-	 * Retrieves and removes cached HTML for a URL.
+	 * Retrieves cached HTML for a URL.
 	 *
-	 * Uses consume-on-read pattern to prevent stale cache entries.
+	 * Returns cached content without consuming it, enabling stale-while-revalidate:
+	 * - Returns cached HTML immediately for instant navigation
+	 * - Use cacheVisitedPage() after navigation to update cache in background
 	 *
 	 * @param href - The URL to look up
 	 * @returns The cached HTML string, or null if not cached
 	 */
 	getCachedHtml(href: string): string | null {
 		const url = new URL(href, window.location.origin);
-		const html = this.htmlCache.get(url.href);
-		if (html) {
-			this.htmlCache.delete(url.href);
-			return html;
-		}
-		return null;
+		return this.htmlCache.get(url.href) ?? null;
+	}
+
+	/**
+	 * Caches HTML content for a visited page and triggers background revalidation.
+	 *
+	 * Implements stale-while-revalidate pattern:
+	 * - Immediately caches the provided HTML for instant revisits
+	 * - Fetches fresh content in background for next visit
+	 *
+	 * @param href - The URL of the visited page
+	 * @param html - The HTML content to cache initially
+	 */
+	cacheVisitedPage(href: string, html: string): void {
+		const url = new URL(href, window.location.origin);
+		if (url.origin !== window.location.origin) return;
+
+		// Cache current content immediately
+		this.htmlCache.set(url.href, html);
+		this.prefetched.add(url.href);
+
+		// Background revalidation - fetch fresh content for next visit
+		setTimeout(() => {
+			fetch(url.href, {
+				headers: { Accept: 'text/html' },
+				priority: 'low',
+			} as RequestInit)
+				.then((response) => {
+					if (response.ok) return response.text();
+					return null;
+				})
+				.then((freshHtml) => {
+					if (freshHtml) {
+						this.htmlCache.set(url.href, freshHtml);
+					}
+				})
+				.catch(() => {});
+		}, 100);
 	}
 
 	/**

@@ -1,9 +1,10 @@
 /**
  * DOM morphing service for client-side navigation.
+ * Uses Idiomorph for body morphing and Turbo-style surgical updates for head.
  * @module dom-swapper
  */
 
-import morphdom from 'morphdom';
+import { Idiomorph } from 'idiomorph';
 
 const DEFAULT_PERSIST_ATTR = 'data-eco-persist';
 
@@ -12,13 +13,6 @@ const DEFAULT_PERSIST_ATTR = 'data-eco-persist';
  */
 function isPersisted(element: Element, persistAttribute: string): boolean {
 	return element.hasAttribute(persistAttribute) || element.hasAttribute(DEFAULT_PERSIST_ATTR);
-}
-
-/**
- * Extracts persist key from element for morphdom matching.
- */
-function getPersistKey(element: Element, persistAttribute: string): string | undefined {
-	return element.getAttribute(persistAttribute) || element.getAttribute(DEFAULT_PERSIST_ATTR) || undefined;
 }
 
 /**
@@ -31,8 +25,9 @@ function isHydratedCustomElement(element: Element): boolean {
 /**
  * Handles DOM manipulation during client-side page transitions.
  *
- * Preserves persisted elements, hydrated custom elements, and declarative shadow DOM.
- * Uses morphdom for efficient diffing with stylesheet preloading to prevent FOUC.
+ * Uses a hybrid approach inspired by Turbo:
+ * - Surgical head updates (no morphing) to prevent FOUC
+ * - Idiomorph for efficient body diffing
  */
 export class DomSwapper {
 	private persistAttribute: string;
@@ -55,12 +50,8 @@ export class DomSwapper {
 	 *
 	 * Discovers stylesheet links in the target document that aren't present in the
 	 * current document, creates corresponding link elements, and waits for all to
-	 * load before resolving. Includes a 5-second timeout per stylesheet.
-	 *
-	 * Listeners are attached before setting `href` to ensure load events are captured
-	 * even when the resource is already cached.
-	 *
-	 * @param newDocument - The parsed document containing stylesheets to preload
+	 * load before resolving. This follows Turbo's approach of waiting for stylesheets
+	 * before any DOM updates.
 	 */
 	async preloadStylesheets(newDocument: Document): Promise<void> {
 		const existingHrefs = new Set(
@@ -112,99 +103,89 @@ export class DomSwapper {
 	}
 
 	/**
-	 * Morphs document head using key-based element matching.
+	 * Updates document head using Turbo-style surgical updates.
 	 *
-	 * Keys: scripts by `data-eco-script-id`/`src`, links by `href`, meta by `name`/`property`.
-	 * Re-executes scripts marked with `data-eco-rerun`. Filters injected base tag.
+	 * This approach avoids morphing the head element entirely, which prevents
+	 * browser repaints that cause FOUC. Instead, it:
+	 * - Updates the document title
+	 * - Merges meta tags (adds new, updates changed)
+	 * - Leaves stylesheets untouched (they're preloaded separately)
+	 * - Handles script re-execution for marked scripts
 	 */
 	morphHead(newDocument: Document): void {
-		const persistAttr = this.persistAttribute;
+		// Update title
+		const newTitle = newDocument.head.querySelector('title');
+		if (newTitle && document.title !== newTitle.textContent) {
+			document.title = newTitle.textContent || '';
+		}
 
+		// Merge meta tags
+		const newMetas = newDocument.head.querySelectorAll('meta[name], meta[property]');
+		for (const newMeta of newMetas) {
+			const name = newMeta.getAttribute('name');
+			const property = newMeta.getAttribute('property');
+			const content = newMeta.getAttribute('content');
+
+			const selector = name ? `meta[name="${name}"]` : `meta[property="${property}"]`;
+			const existingMeta = document.head.querySelector(selector);
+
+			if (existingMeta) {
+				if (existingMeta.getAttribute('content') !== content) {
+					existingMeta.setAttribute('content', content || '');
+				}
+			} else {
+				document.head.appendChild(newMeta.cloneNode(true));
+			}
+		}
+
+		// Handle scripts marked for re-run
 		const existingScriptIds = new Set(
 			Array.from(document.head.querySelectorAll('script[data-eco-script-id]')).map((s) =>
 				s.getAttribute('data-eco-script-id'),
 			),
 		);
 
-		morphdom(document.head, newDocument.head, {
-			getNodeKey: (node) => {
-				if (node instanceof Element) {
-					const persistId = getPersistKey(node, persistAttr);
-					if (persistId) return `persist:${persistId}`;
-
-					const tagName = node.tagName.toLowerCase();
-					if (tagName === 'link') return (node as HTMLLinkElement).href;
-					if (tagName === 'script') {
-						const scriptId = node.getAttribute('data-eco-script-id');
-						if (scriptId) return `script:${scriptId}`;
-						return (node as HTMLScriptElement).src || undefined;
-					}
-					if (tagName === 'meta') {
-						const name = node.getAttribute('name') || node.getAttribute('property');
-						return name ? `meta:${name}` : undefined;
-					}
-					if (tagName === 'title') return 'title';
-				}
-			},
-
-			onBeforeNodeDiscarded: (node) => {
-				if (node instanceof Element && isPersisted(node, persistAttr)) {
-					return false;
-				}
-				return true;
-			},
-
-			onNodeAdded: (node) => {
-				if (node instanceof Element && node.tagName === 'BASE' && node.hasAttribute('data-eco-injected')) {
-					return document.createTextNode('');
-				}
-
-				if (node.nodeName === 'SCRIPT') {
-					const script = node as HTMLScriptElement;
-					const scriptId = script.getAttribute('data-eco-script-id');
-
-					if (script.hasAttribute('data-eco-rerun') && scriptId && !existingScriptIds.has(scriptId)) {
-						const newScript = document.createElement('script');
-						for (const attr of script.attributes) {
-							if (attr.name !== 'data-eco-rerun') {
-								newScript.setAttribute(attr.name, attr.value);
-							}
-						}
-						newScript.textContent = script.textContent;
-						script.replaceWith(newScript);
-						return newScript;
+		const newScripts = newDocument.head.querySelectorAll('script[data-eco-rerun]');
+		for (const script of newScripts) {
+			const scriptId = script.getAttribute('data-eco-script-id');
+			if (scriptId && !existingScriptIds.has(scriptId)) {
+				const newScript = document.createElement('script');
+				for (const attr of script.attributes) {
+					if (attr.name !== 'data-eco-rerun') {
+						newScript.setAttribute(attr.name, attr.value);
 					}
 				}
-				return node;
-			},
-		});
+				newScript.textContent = script.textContent;
+				document.head.appendChild(newScript);
+			}
+		}
 	}
 
 	/**
-	 * Morphs document body, preserving persisted elements and hydrated custom elements.
-	 * Processes declarative shadow DOM templates after morphing.
+	 * Morphs document body using Idiomorph.
+	 * Preserves persisted elements and hydrated custom elements.
 	 */
 	morphBody(newDocument: Document): void {
 		const persistAttr = this.persistAttribute;
 
-		morphdom(document.body, newDocument.body, {
-			getNodeKey: (node) => {
-				if (node instanceof Element) {
-					return getPersistKey(node, persistAttr) || node.id || undefined;
-				}
-			},
-
-			onBeforeElUpdated: (fromEl, toEl) => {
-				if (isPersisted(fromEl, persistAttr)) return false;
-				if (isHydratedCustomElement(fromEl)) return false;
-				if (fromEl.isEqualNode(toEl)) return false;
-				return true;
-			},
-
-			onBeforeElChildrenUpdated: (fromEl, _toEl) => {
-				if (isPersisted(fromEl, persistAttr)) return false;
-				if (isHydratedCustomElement(fromEl)) return false;
-				return true;
+		Idiomorph.morph(document.body, newDocument.body, {
+			morphStyle: 'innerHTML',
+			callbacks: {
+				beforeNodeMorphed: (oldNode: Node, newNode: Node) => {
+					if (oldNode instanceof Element) {
+						if (isPersisted(oldNode, persistAttr)) return false;
+						if (isHydratedCustomElement(oldNode)) return false;
+						if (newNode instanceof Element && oldNode.isEqualNode(newNode)) return false;
+					}
+					return true;
+				},
+				beforeNodeRemoved: (node: Node) => {
+					if (node instanceof Element) {
+						if (isPersisted(node, persistAttr)) return false;
+						if (isHydratedCustomElement(node)) return false;
+					}
+					return true;
+				},
 			},
 		});
 
@@ -212,9 +193,9 @@ export class DomSwapper {
 	}
 
 	/**
-	 * Replaces body content in a single operation to prevent intermediate paints.
+	 * Replaces body content in a single operation.
 	 * Preserves persisted elements by moving them to the new body.
-	 * Use when View Transitions are disabled for flash-free swaps.
+	 * Use when View Transitions are disabled.
 	 */
 	replaceBody(newDocument: Document): void {
 		const persistAttr = this.persistAttribute;
@@ -223,7 +204,7 @@ export class DomSwapper {
 		const persistedMap = new Map<string, Element>();
 
 		for (const el of persistedElements) {
-			const key = getPersistKey(el, persistAttr);
+			const key = el.getAttribute(persistAttr) || el.getAttribute(DEFAULT_PERSIST_ATTR);
 			if (key) {
 				persistedMap.set(key, el);
 			}
@@ -243,9 +224,8 @@ export class DomSwapper {
 	}
 
 	/**
-	 * Manually attaches declarative shadow DOM templates inserted by morphdom.
+	 * Manually attaches declarative shadow DOM templates.
 	 * Browsers only process `<template shadowrootmode>` during initial parse.
-	 * @see https://github.com/patrick-steele-idem/morphdom/issues/127
 	 */
 	private processDeclarativeShadowDOM(root: Element | Document | ShadowRoot): void {
 		const templates = root.querySelectorAll<HTMLTemplateElement>('template[shadowrootmode], template[shadowroot]');

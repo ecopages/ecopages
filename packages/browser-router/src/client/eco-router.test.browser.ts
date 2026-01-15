@@ -614,6 +614,8 @@ describe('EcoRouter', () => {
 				});
 			});
 
+			window.history.pushState({}, '', '/popstate-test');
+
 			window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
 			await fetchCalled;
 			await waitForNavigation();
@@ -643,9 +645,9 @@ describe('EcoRouter', () => {
 
 			let abortSignal: AbortSignal | undefined;
 
-			fetchSpy?.mockImplementation((url, init) => {
+			fetchSpy?.mockImplementation((url: string | URL | Request, init?: RequestInit) => {
 				if (url.toString().includes('/first-page')) {
-					abortSignal = init?.signal;
+					abortSignal = init?.signal ?? undefined;
 					return new Promise(() => {});
 				}
 				return Promise.resolve({

@@ -63,10 +63,10 @@
     },
     "packages/browser-router": {
       "name": "@ecopages/browser-router",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "@ecopages/core": "workspace:*",
-        "morphdom": "^2.7.4",
+        "idiomorph": "^0.7.3",
       },
     },
     "packages/codemod": {
@@ -83,7 +83,7 @@
     },
     "packages/core": {
       "name": "@ecopages/core",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
@@ -105,7 +105,7 @@
     },
     "packages/file-system": {
       "name": "@ecopages/file-system",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "fast-glob": "^3.3.2",
       },
@@ -122,7 +122,7 @@
     },
     "packages/integrations/kitajs": {
       "name": "@ecopages/kitajs",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "@ecopages/core": "workspace:*",
         "@kitajs/html": "^4.1.0",
@@ -131,7 +131,7 @@
     },
     "packages/integrations/lit": {
       "name": "@ecopages/lit",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "@lit-labs/ssr": "^3.3.0",
         "@lit-labs/ssr-client": "^1.1.7",
@@ -143,7 +143,7 @@
     },
     "packages/integrations/mdx": {
       "name": "@ecopages/mdx",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "@mdx-js/esbuild": "^3.0.1",
         "@mdx-js/mdx": "^3.1.0",
@@ -163,7 +163,7 @@
     },
     "packages/integrations/react": {
       "name": "@ecopages/react",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "@ecopages/logger": "latest",
         "react": "^19",
@@ -179,7 +179,7 @@
     },
     "packages/loaders/bun-mdx-kitajs-loader": {
       "name": "@ecopages/bun-mdx-kitajs-loader",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "@mdx-js/esbuild": "^3.0.1",
       },
@@ -190,7 +190,7 @@
     },
     "packages/loaders/bun-postcss-loader": {
       "name": "@ecopages/bun-postcss-loader",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "@ecopages/postcss-processor": "workspace:*",
       },
@@ -200,7 +200,7 @@
     },
     "packages/plugins/bun-inline-css-plugin": {
       "name": "@ecopages/bun-inline-css-plugin",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "devDependencies": {
         "@ecopages/logger": "latest",
         "@ecopages/postcss-processor": "workspace:*",
@@ -209,7 +209,7 @@
     },
     "packages/processors/image-processor": {
       "name": "@ecopages/image-processor",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
@@ -227,7 +227,7 @@
     },
     "packages/processors/postcss-processor": {
       "name": "@ecopages/postcss-processor",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "dependencies": {
         "@ecopages/bun-inline-css-plugin": "workspace:*",
         "@ecopages/core": "workspace:*",
@@ -258,7 +258,7 @@
     },
     "packages/react-router": {
       "name": "@ecopages/react-router",
-      "version": "0.1.62",
+      "version": "0.1.63",
       "devDependencies": {
         "@types/react": "^19",
         "react": "^19",
@@ -1357,6 +1357,8 @@
 
     "husky": ["husky@9.1.7", "", { "bin": { "husky": "bin.js" } }, "sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA=="],
 
+    "idiomorph": ["idiomorph@0.7.4", "", {}, "sha512-uCdSpLo3uMfqOmrwXTpR1k/sq4sSmKC7l4o/LdJOEU+MMMq+wkevRqOQYn3lP7vfz9Mv+USBEqPvi0XhdL9ENw=="],
+
     "imurmurhash": ["imurmurhash@0.1.4", "", {}, "sha512-JmXMZ6wuvDmLiHEml9ykzqO6lwFbof0GG4IkcGaENdCRDDmMVnny7s5HsIgHCbaq0w2MyPhDqkhTUgS2LU2PHA=="],
 
     "inline-style-parser": ["inline-style-parser@0.2.7", "", {}, "sha512-Nb2ctOyNR8DqQoR0OwRG95uNWIC0C1lCgf5Naz5H6Ji72KZ8OcFZLz2P5sNgwlyoJ8Yif11oMuYs5pBQa86csA=="],
@@ -1592,8 +1594,6 @@
     "minipass": ["minipass@7.1.2", "", {}, "sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw=="],
 
     "mitata": ["mitata@1.0.34", "", {}, "sha512-Mc3zrtNBKIMeHSCQ0XqRLo1vbdIx1wvFV9c8NJAiyho6AjNfMY8bVhbS12bwciUdd1t4rj8099CH3N3NFahaUA=="],
-
-    "morphdom": ["morphdom@2.7.7", "", {}, "sha512-04GmsiBcalrSCNmzfo+UjU8tt3PhZJKzcOy+r1FlGA7/zri8wre3I1WkYN9PT3sIeIKfW9bpyElA+VzOg2E24g=="],
 
     "mrmime": ["mrmime@2.0.1", "", {}, "sha512-Y3wQdFg2Va6etvQ5I82yUhGdsKrcYox6p7FfL1LbK2J4V01F9TGlepTIhnK24t7koZibmg82KGglhA1XK5IsLQ=="],
 

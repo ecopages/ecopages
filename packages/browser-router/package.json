@@ -34,6 +34,6 @@
 	},
 	"dependencies": {
 		"@ecopages/core": "workspace:*",
-		"morphdom": "^2.7.4"
+		"idiomorph": "^0.7.3"
 	}
 }

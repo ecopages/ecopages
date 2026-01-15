@@ -25,7 +25,7 @@ export interface EcoRouterOptions {
 	/**
 	 * Whether to use the View Transition API for animations.
 	 * Falls back to instant swap if not supported.
-	 * @default false
+	 * @default true
 	 */
 	viewTransitions?: boolean;
 	/**
@@ -58,6 +58,6 @@ export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	reloadAttribute: 'data-eco-reload',
 	updateHistory: true,
 	scrollBehavior: 'top',
-	viewTransitions: false,
+	viewTransitions: true,
 	smoothScroll: false,
 };

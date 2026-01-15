@@ -89,7 +89,7 @@ export default eco.page<PostPageProps>({
 					← Back to Blog
 				</a>
 				<article class="post-content">
-					<h1>{post.title}</h1>
+					<h1 data-view-transition={`hero-title-${slug}`}>{post.title}</h1>
 					<div class="post-image-container" data-view-transition={`hero-image-${slug}`}>
 						<EcoImage {...post.image} alt={post.title} />
 					</div>

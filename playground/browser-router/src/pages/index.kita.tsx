@@ -28,16 +28,6 @@ const posts = [
 	},
 ];
 
-const PostCardImage = ({ slug, image, title }: { slug: string; image: any; title: string }) => (
-	<div class="post-card-image" data-view-transition={`hero-image-${slug}`}>
-		<EcoImage {...image} alt={title} />
-	</div>
-);
-
-const PostCardTitle = ({ slug, title }: { slug: string; title: string }) => (
-	<h2 data-view-transition={`hero-title-${slug}`}>{title}</h2>
-);
-
 export default eco.page({
 	layout: BaseLayout,
 
@@ -59,9 +49,11 @@ export default eco.page({
 				{posts.map((post) => (
 					<article class="post-card">
 						<a href={`/posts/${post.slug}`} class="post-card-link">
-							<PostCardImage slug={post.slug} image={post.image} title={post.title} />
+							<div class="post-card-image" data-view-transition={`hero-image-${post.slug}`}>
+								<EcoImage {...post.image} alt={post.title} />
+							</div>
 							<div class="post-card-content">
-								<PostCardTitle slug={post.slug} title={post.title} />
+								<h2 data-view-transition={`hero-title-${post.slug}`}>{post.title}</h2>
 								<p>{post.excerpt}</p>
 							</div>
 						</a>

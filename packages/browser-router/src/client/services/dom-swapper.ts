@@ -1,55 +1,118 @@
 /**
- * DOM morphing service for client-side navigation
- * @module
+ * DOM morphing service for client-side navigation.
+ * @module dom-swapper
  */
 
 import morphdom from 'morphdom';
 
 const DEFAULT_PERSIST_ATTR = 'data-eco-persist';
+const DEFAULT_STYLESHEET_TIMEOUT = 5000;
 
 /**
- * Checks if an element should be persisted across navigations.
- * @param element - The element to check
- * @param persistAttribute - User-configured persist attribute name
- * @returns True if element has either the configured or default persist attribute
+ * Checks if element has a persist attribute (custom or default).
  */
 function isPersisted(element: Element, persistAttribute: string): boolean {
 	return element.hasAttribute(persistAttribute) || element.hasAttribute(DEFAULT_PERSIST_ATTR);
 }
 
 /**
- * Gets the persist key for element matching.
- * @param element - The element to get key from
- * @param persistAttribute - User-configured persist attribute name
- * @returns The persist key value or undefined
+ * Extracts persist key from element for morphdom matching.
  */
 function getPersistKey(element: Element, persistAttribute: string): string | undefined {
 	return element.getAttribute(persistAttribute) || element.getAttribute(DEFAULT_PERSIST_ATTR) || undefined;
 }
 
 /**
- * Checks if an element is a hydrated custom element with shadow DOM.
- *
- * Custom elements (identified by hyphen in tag name) that have an attached
- * shadow root have been hydrated and should not be modified by morphdom
- * to preserve their internal state (e.g., Lit components).
- *
- * @param element - The element to check
- * @returns True if element is a hydrated custom element
+ * Detects hydrated custom elements (with shadow DOM) that should skip morphing.
  */
 function isHydratedCustomElement(element: Element): boolean {
 	return element.localName.includes('-') && element.shadowRoot !== null;
 }
 
 /**
- * Service for handling DOM manipulation during page transitions.
+ * Collects hrefs of active stylesheets, excluding preloaded ones.
+ */
+function getExistingStylesheetHrefs(): Set<string> {
+	return new Set(
+		Array.from(
+			document.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]:not([data-eco-preload])'),
+		).map((link) => link.href),
+	);
+}
+
+/**
+ * Finds stylesheets in new document not present in current document.
+ */
+function getNewStylesheets(newDocument: Document, existingHrefs: Set<string>): HTMLLinkElement[] {
+	return Array.from(newDocument.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).filter(
+		(link) => !existingHrefs.has(link.href),
+	);
+}
+
+/**
+ * Downloads a stylesheet without applying it using `media="not all"`.
+ * Stores original media in dataset for later activation.
+ */
+function preloadStylesheet(link: HTMLLinkElement, timeout = DEFAULT_STYLESHEET_TIMEOUT): Promise<void> {
+	return new Promise<void>((resolve) => {
+		const newLink = document.createElement('link');
+		newLink.rel = 'stylesheet';
+		newLink.href = link.href;
+		newLink.media = 'not all';
+		newLink.dataset.ecoPreload = '';
+		if (link.media && link.media !== 'all') {
+			newLink.dataset.ecoTargetMedia = link.media;
+		}
+
+		const timeoutId = setTimeout(resolve, timeout);
+
+		newLink.onload = () => {
+			clearTimeout(timeoutId);
+			resolve();
+		};
+		newLink.onerror = () => {
+			clearTimeout(timeoutId);
+			resolve();
+		};
+
+		document.head.appendChild(newLink);
+	});
+}
+
+/**
+ * Activates preloaded stylesheets by restoring their media attribute.
+ * Used when View Transitions are disabled to apply styles before DOM swap.
+ */
+function activatePreloadedStylesheets(): void {
+	for (const link of document.head.querySelectorAll<HTMLLinkElement>('link[data-eco-preload]')) {
+		const targetMedia = link.dataset.ecoTargetMedia;
+		link.media = targetMedia || 'all';
+		delete link.dataset.ecoPreload;
+		delete link.dataset.ecoTargetMedia;
+	}
+}
+
+/**
+ * Removes preloaded stylesheets after morphdom has inserted the real ones.
+ */
+function removePreloadedStylesheets(): void {
+	for (const link of document.head.querySelectorAll('link[data-eco-preload]')) {
+		link.remove();
+	}
+}
+
+/**
+ * Preloads multiple stylesheets in parallel.
+ */
+function preloadStylesheets(links: HTMLLinkElement[]): Promise<void[]> {
+	return Promise.all(links.map((link) => preloadStylesheet(link)));
+}
+
+/**
+ * Handles DOM manipulation during client-side page transitions.
  *
- * Uses morphdom for efficient DOM diffing while preserving:
- * - Persisted elements (marked with persist attribute)
- * - Hydrated custom elements with shadow DOM
- * - Declarative shadow DOM templates
- *
- * Also handles re-execution of scripts marked for re-run after navigation.
+ * Preserves persisted elements, hydrated custom elements, and declarative shadow DOM.
+ * Uses morphdom for efficient diffing with stylesheet preloading to prevent FOUC.
  */
 export class DomSwapper {
 	private persistAttribute: string;
@@ -59,27 +122,38 @@ export class DomSwapper {
 	}
 
 	/**
-	 * Parses an HTML string into a Document.
-	 * @param html - Raw HTML string to parse
-	 * @returns Parsed Document object
+	 * Parses HTML string into a Document, injecting a temporary base tag for URL resolution.
 	 */
-	parseHTML(html: string): Document {
+	parseHTML(html: string, url?: URL): Document {
 		const parser = new DOMParser();
-		return parser.parseFromString(html, 'text/html');
+		const htmlToParse = url ? `<base href="${url.href}" data-eco-injected>${html}` : html;
+		return parser.parseFromString(htmlToParse, 'text/html');
 	}
 
 	/**
-	 * Morphs the current document head to match the new document.
+	 * Preloads new stylesheets from target document to prevent FOUC.
 	 *
-	 * Uses key-based matching for proper element diffing:
-	 * - Scripts matched by `data-eco-script-id` or `src`
-	 * - Links matched by `href`
-	 * - Meta tags matched by `name` or `property`
+	 * Downloads with `media="not all"` (cached but not applied).
+	 * When `activate=true`, immediately applies styles (for non-View-Transition mode).
+	 * When `activate=false`, styles remain hidden until morphdom inserts real links.
+	 */
+	async preloadStylesheets(newDocument: Document, activate = false): Promise<void> {
+		const existingStylesheetHrefs = getExistingStylesheetHrefs();
+		const newStylesheetLinks = getNewStylesheets(newDocument, existingStylesheetHrefs);
+
+		if (newStylesheetLinks.length > 0) {
+			await preloadStylesheets(newStylesheetLinks);
+			if (activate) {
+				activatePreloadedStylesheets();
+			}
+		}
+	}
+
+	/**
+	 * Morphs document head using key-based element matching.
 	 *
-	 * Scripts marked with `data-eco-rerun` that are new to the page are
-	 * replaced with fresh clones to force execution.
-	 *
-	 * @param newDocument - The new document to morph towards
+	 * Keys: scripts by `data-eco-script-id`/`src`, links by `href`, meta by `name`/`property`.
+	 * Re-executes scripts marked with `data-eco-rerun`. Filters injected base tag.
 	 */
 	morphHead(newDocument: Document): void {
 		const persistAttr = this.persistAttribute;
@@ -119,6 +193,10 @@ export class DomSwapper {
 			},
 
 			onNodeAdded: (node) => {
+				if (node instanceof Element && node.tagName === 'BASE' && node.hasAttribute('data-eco-injected')) {
+					return document.createTextNode('');
+				}
+
 				if (node.nodeName === 'SCRIPT') {
 					const script = node as HTMLScriptElement;
 					const scriptId = script.getAttribute('data-eco-script-id');
@@ -138,19 +216,13 @@ export class DomSwapper {
 				return node;
 			},
 		});
+
+		removePreloadedStylesheets();
 	}
 
 	/**
-	 * Morphs the current document body to match the new document.
-	 *
-	 * Efficiently diffs the DOM and only updates what changed, preserving:
-	 * - Persisted elements (entire subtree preserved)
-	 * - Hydrated custom elements with shadow DOM
-	 *
-	 * After morphing, processes declarative shadow DOM templates and
-	 * triggers Lit hydration for newly inserted elements.
-	 *
-	 * @param newDocument - The new document to morph towards
+	 * Morphs document body, preserving persisted elements and hydrated custom elements.
+	 * Processes declarative shadow DOM templates after morphing.
 	 */
 	morphBody(newDocument: Document): void {
 		const persistAttr = this.persistAttribute;
@@ -180,15 +252,40 @@ export class DomSwapper {
 	}
 
 	/**
-	 * Processes declarative shadow DOM templates that were dynamically inserted.
-	 *
-	 * Browsers only process `<template shadowrootmode>` during initial HTML parsing.
-	 * When morphdom inserts new elements with DSD templates, they remain as
-	 * regular template elements. This method manually attaches them as shadow roots.
-	 *
+	 * Replaces body content in a single operation to prevent intermediate paints.
+	 * Preserves persisted elements by moving them to the new body.
+	 * Use when View Transitions are disabled for flash-free swaps.
+	 */
+	replaceBody(newDocument: Document): void {
+		const persistAttr = this.persistAttribute;
+
+		const persistedElements = document.body.querySelectorAll(`[${persistAttr}], [${DEFAULT_PERSIST_ATTR}]`);
+		const persistedMap = new Map<string, Element>();
+
+		for (const el of persistedElements) {
+			const key = getPersistKey(el, persistAttr);
+			if (key) {
+				persistedMap.set(key, el);
+			}
+		}
+
+		for (const [key, oldEl] of persistedMap) {
+			const placeholder = newDocument.body.querySelector(
+				`[${persistAttr}="${key}"], [${DEFAULT_PERSIST_ATTR}="${key}"]`,
+			);
+			if (placeholder) {
+				placeholder.replaceWith(oldEl);
+			}
+		}
+
+		document.body.replaceChildren(...newDocument.body.childNodes);
+		this.processDeclarativeShadowDOM(document.body);
+	}
+
+	/**
+	 * Manually attaches declarative shadow DOM templates inserted by morphdom.
+	 * Browsers only process `<template shadowrootmode>` during initial parse.
 	 * @see https://github.com/patrick-steele-idem/morphdom/issues/127
-	 *
-	 * @param root - Root element to search for unprocessed templates
 	 */
 	private processDeclarativeShadowDOM(root: Element | Document | ShadowRoot): void {
 		const templates = root.querySelectorAll<HTMLTemplateElement>('template[shadowrootmode], template[shadowroot]');

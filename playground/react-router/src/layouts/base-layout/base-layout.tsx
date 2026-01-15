@@ -29,7 +29,7 @@ export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 				<footer className="site-footer">
 					<p>{'© ' + new Date().getFullYear()} EcoBlog. Built with EcoPages.</p>
 					<a
-						href="https://github.com/AmbientEarth/ecopages"
+						href="https://github.com/ecopages/ecopages"
 						target="_blank"
 						rel="noopener noreferrer"
 						className="footer-link"

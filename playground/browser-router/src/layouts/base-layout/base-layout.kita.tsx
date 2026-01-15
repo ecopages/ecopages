@@ -28,7 +28,7 @@ export const BaseLayout = eco.component<BaseLayoutProps>({
 				<footer class="site-footer">
 					<p>{'© ' + new Date().getFullYear()} EcoBlog. Built with EcoPages.</p>
 					<a
-						href="https://github.com/AmbientEarth/ecopages"
+						href="https://github.com/ecopages/ecopages"
 						target="_blank"
 						rel="noopener noreferrer"
 						class="footer-link"

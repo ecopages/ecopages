@@ -34,6 +34,9 @@
 	},
 	"dependencies": {
 		"@ecopages/core": "workspace:*",
-		"morphdom": "^2.7.4"
+		"morphdom": "^2.7.8"
+	},
+	"devDependencies": {
+		"@types/morphdom": "^2.4.2"
 	}
 }

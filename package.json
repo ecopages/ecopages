@@ -54,6 +54,7 @@
 		"bump:major": "bun run scripts/bump-version.ts major && bun run jsr:sync-version",
 		"commit": "better-commits",
 		"prepare:husky": "husky",
+		"test:all": "bun test && bun test:browser",
 		"test:browser": "bunx vitest run && bunx playwright test",
 		"test:e2e": "bunx playwright test",
 		"test:e2e:ui": "bunx playwright test --ui",

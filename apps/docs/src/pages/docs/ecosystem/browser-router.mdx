@@ -72,7 +72,9 @@ You can customize the router behavior by passing an options object:
 | `persistAttribute` | `string` | `'data-eco-persist'` | Attribute to mark elements that should persist across navigations. |
 | `reloadAttribute` | `string` | `'data-eco-reload'` | Attribute (on link or element) to force a full hard reload. |
 | `scrollBehavior` | `'top' \| 'preserve' \| 'auto'` | `'top'` | Controls scroll behavior after navigation. |
-| `viewTransitions` | `boolean` | `false` | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) support. |
+| `smoothScroll` | `boolean` | `false` | Enables smooth scrolling. |
+| `viewTransitions` | `boolean` | `true` | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) support. |
+| `prefetch` | `PrefetchConfig \| false` | `Object` | Configuration for prefetching behavior. |
 
 ### View Transitions
 
@@ -171,6 +173,54 @@ To force a script to re-execute on navigation:
 **How it works:**
 - If the script with `data-eco-script-id` already exists, it is **not** re-downloaded.
 - If it has `data-eco-rerun`, the router takes care of re-executing it.
+
+### Prefetching
+
+The router includes a smart prefetching system to speed up navigation. By default, it uses the `intent` strategy, which prefetches pages when the user hovers over a link or when a link enters the viewport.
+
+#### Configuration
+
+You can configure prefetching in the `createRouter` options:
+
+```typescript
+const router = createRouter({
+  prefetch: {
+    // 'intent' (default) | 'hover' | 'viewport'
+    strategy: 'intent',
+    // Delay in ms before prefetching on hover (default: 65)
+    delay: 65,
+    // Attribute to disable prefetching on specific links
+    noPrefetchAttribute: 'data-eco-no-prefetch',
+    // Whether to respect data-saver mode (default: true)
+    respectDataSaver: true
+  }
+});
+```
+
+To disable prefetching entirely, set `prefetch: false`.
+
+#### Strategies
+
+| Strategy | Description |
+| :--- | :--- |
+| `intent` | (Recommended) Prefetches on hover (with delay) and acts as a fallback for `viewport`. Balances speed and bandwidth. |
+| `hover` | Prefetches only when the user hovers over a link. |
+| `viewport` | Prefetches links as soon as they enter the viewport using IntersectionObserver. |
+
+#### Per-Link Control
+
+You can override prefetching behavior on individual links:
+
+```html
+<!-- Disable prefetching for this link -->
+<a href="/heavy-page" data-eco-no-prefetch>Heavy Page</a>
+
+<!-- Force eager prefetching (immediately on load) -->
+<a href="/next-page" data-eco-prefetch="eager">Next Page</a>
+
+<!-- Use a specific strategy for this link -->
+<a href="/about" data-eco-prefetch="hover" data-eco-prefetch-delay="200">About</a>
+```
 
 ### View Transitions
 

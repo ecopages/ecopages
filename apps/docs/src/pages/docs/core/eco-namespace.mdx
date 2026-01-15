@@ -23,16 +23,55 @@ The `eco` namespace provides a consistent, type-safe interface for:
 
 ## Component Patterns
 
-EcoPages supports two approaches for creating components, each suited for different use cases:
+EcoPages provides a unified API for creating components and pages. While there are a few ways to define components, **`eco.component()` is the standard and recommended approach** for most use cases, as it ensures proper dependency management, lazy loading, and type safety.
 
-### Simple JSX Functions (Static Components)
+## Component Creation
 
-For purely presentational components without client-side interactivity, use plain JSX functions. This pattern works best with utility-first CSS frameworks like Tailwind, where styles are applied via class names:
+### `eco.component()` (Standard)
+
+This is the primary way to create components in EcoPages. It handles:
+- **Dependency Management:** Automatically injects stylesheets and scripts.
+- **Lazy Loading:** Supports interaction, visibility, and idle triggers.
+- **Type Safety:** Infers props for both internal usage and custom elements.
+
+
+For components that need dependencies, scripts, or lazy loading:
+
+```tsx
+import { eco } from '@ecopages/core';
+
+export const Counter = eco.component({
+	dependencies: {
+		stylesheets: ['./counter.css'],
+		lazy: {
+			'on:interaction': 'mouseenter,focusin',
+			scripts: ['./counter.script.ts'],
+		},
+	},
+	render: ({ count }) => html`<my-counter count=${count}></my-counter>`,
+});
+```
+
+**When to use:**
+
+- Components with client-side interactivity
+- Components requiring scripts or stylesheets
+- Lazy-loaded components with hydration strategies
+- Web components or custom elements
+
+## Optimizations & Specific Integrations
+
+While `eco.component()` is the default, there are specific scenarios where lighter-weight alternatives are preferred for optimization or specific framework integrations.
+
+### Simple JSX Functions (Optimization)
+
+For purely presentational components (static UI) that **do not require** client-side interactivity, scripts, or dedicated stylesheets, you can use plain JSX functions. This is a performance optimization that avoids the overhead of a custom element wrapper.
+
+Powered by [`@ecopages/kitajs`](https://github.com/ecopages/kitajs). Best used with utility-first CSS (Tailwind, UnoCSS) where styles are inline.
 
 ```tsx
 import type { PropsWithChildren } from '@/types';
 import { cn } from 'your-library';
-
 
 export function Card({ children, className }: PropsWithChildren<{ className?: string }>) {
 	return <div class={cn('p-6 rounded-2xl border border-white/10 bg-zinc-900/30', className)}>{children}</div>;
@@ -48,53 +87,28 @@ export function Card({ children, className }: PropsWithChildren<{ className?: st
 
 > **Note:** If your component requires a dedicated CSS file, use `eco.component()` instead to manage the stylesheet dependency.
 
-### Plain React Components (With Bun)
+### Plain React Components (Integration)
 
-When using Bun, React components with hooks and Tailwind CSS work out of the box without `eco.component()`. Bun auto-imports dependencies, so you can write standard React components:
+When using Bun, you can use standard React components directly if they only rely on hooks (`useState`, `useEffect`) and Tailwind CSS. This is useful for migrating existing React code or when you need complex state management that doesn't require the full `eco` lifecycle.
+
+Powered by [`@ecopages/react`](https://github.com/ecopages/react).
+
+> **Warning:** These components **cannot** declare external dependencies (scripts/stylesheets) or use EcoPages' lazy loading strategies directly. For those features, wrap them in `eco.component()`.
+>
+> If you prefer this approach, you can still attach a config object to the component (e.g., `Counter.config`) to define dependencies, though `eco.component()` is the recommended type-safe way to do this.
 
 ```tsx
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-export function ThemeToggle() {
-	const [mounted, setMounted] = useState(false);
-	const [isDark, setIsDark] = useState(false);
-
-	useEffect(() => {
-		setMounted(true);
-		const theme = localStorage.getItem('theme');
-		const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-		if (theme === 'dark' || (!theme && prefersDark)) {
-			setIsDark(true);
-			document.documentElement.classList.add('dark');
-		} else {
-			setIsDark(false);
-			document.documentElement.classList.remove('dark');
-		}
-	}, []);
-
-	const toggleTheme = () => {
-		const newTheme = !isDark;
-		setIsDark(newTheme);
-
-		if (newTheme) {
-			document.documentElement.classList.add('dark');
-			localStorage.setItem('theme', 'dark');
-		} else {
-			document.documentElement.classList.remove('dark');
-			localStorage.setItem('theme', 'light');
-		}
-	};
-
-	if (!mounted) return null;
+export function Counter() {
+	const [count, setCount] = useState(0);
 
 	return (
 		<button
-			onClick={toggleTheme}
-			className="p-2 rounded-md hover:bg-surface-200 dark:hover:bg-surface-800 transition-colors"
-			aria-label="Toggle theme"
+			onClick={() => setCount(count + 1)}
+			className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
 		>
-			{isDark ? <SunIcon /> : <MoonIcon />}
+			Count: {count}
 		</button>
 	);
 }
@@ -102,38 +116,11 @@ export function ThemeToggle() {
 
 **When to use:**
 
-- React components with hooks (`useState`, `useEffect`, etc.)
-- Components styled with Tailwind CSS classes
-- Interactive UI that doesn't require external scripts or dedicated stylesheets
-- Bun handles all imports automatically
+- Migrating existing React codebases
+- Complex state logic within a single component
+- When you are already using the React integration
 
-> **Note:** Use `eco.component()` only when you need to manage external stylesheets, scripts, or lazy loading. For React components relying solely on hooks and Tailwind, plain functions are simpler and sufficient.
-
-### `eco.component()` (Interactive Components)
-
-For components that need dependencies, scripts, or lazy loading:
-
-```tsx
-import { eco } from '@ecopages/core';
-
-export const Counter = eco.component({
-	dependencies: {
-		stylesheets: ['./counter.css'],
-		lazy: {
-			'on:interaction': 'mouseenter,focusin',
-			scripts: ['./counter.script.ts'],
-		},
-	},
-	render: ({ count }) => <my-counter count={count} />,
-});
-```
-
-**When to use:**
-
-- Components with client-side interactivity
-- Components requiring scripts or stylesheets
-- Lazy-loaded components with hydration strategies
-- Web components or custom elements
+> **Note:** If you need to attach external assets or lazy-load the component, switch to `eco.component()`.
 
 ### Comparison
 
@@ -439,7 +426,7 @@ export const Counter = eco.component({
 			scripts: ['./counter.script.ts'],
 		},
 	},
-	render: ({ count }) => <my-counter count={count} />,
+	render: ({ count }) => <my-counter count={count}></my-counter>,
 });
 ```
 

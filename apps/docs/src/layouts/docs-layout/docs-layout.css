@@ -43,6 +43,6 @@
 	}
 
 	.docs-layout__content {
-		@apply px-6 py-4 md:px-8 md:py-8 max-w-[800px] mx-auto w-full min-w-0;
+		@apply px-6 py-4 md:px-8 md:py-8 max-w-[800px] mx-auto w-full min-w-0 bg-background;
 	}
 }

@@ -1,9 +1,10 @@
 html {
 	scroll-behavior: smooth;
+	@apply bg-background;
 }
 
 ::selection {
-	@apply bg-primary/30 text-on-background;
+	@apply bg-primary/30;
 }
 
 main {

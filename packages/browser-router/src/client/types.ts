@@ -4,6 +4,38 @@
  */
 
 /**
+ * Prefetch configuration options.
+ */
+export interface PrefetchConfig {
+	/**
+	 * Prefetching strategy:
+	 * - 'viewport': Prefetch when links enter viewport
+	 * - 'hover': Prefetch on hover/focus intent
+	 * - 'intent': Viewport + prioritize hover (recommended)
+	 * @default 'intent'
+	 */
+	strategy?: 'viewport' | 'hover' | 'intent';
+
+	/**
+	 * Hover intent delay in ms before triggering prefetch.
+	 * @default 65
+	 */
+	delay?: number;
+
+	/**
+	 * Attribute to disable prefetch on specific links.
+	 * @default 'data-eco-no-prefetch'
+	 */
+	noPrefetchAttribute?: string;
+
+	/**
+	 * Respect navigator.connection.saveData and slow connections.
+	 * @default true
+	 */
+	respectDataSaver?: boolean;
+}
+
+/**
  * Configuration options for the EcoRouter
  */
 export interface EcoRouterOptions {
@@ -34,6 +66,11 @@ export interface EcoRouterOptions {
 	 * @default false
 	 */
 	smoothScroll?: boolean;
+	/**
+	 * Prefetch configuration. Set to false to disable prefetching entirely.
+	 * @default { strategy: 'intent', delay: 65, noPrefetchAttribute: 'data-eco-no-prefetch', respectDataSaver: true }
+	 */
+	prefetch?: PrefetchConfig | false;
 }
 
 /** Events emitted during the navigation lifecycle */
@@ -51,6 +88,14 @@ export interface EcoBeforeSwapEvent extends EcoNavigationEvent {
 /** Event fired after the DOM swap completes */
 export interface EcoAfterSwapEvent extends EcoNavigationEvent {}
 
+/** Default prefetch configuration */
+const DEFAULT_PREFETCH_CONFIG: Required<PrefetchConfig> = {
+	strategy: 'intent',
+	delay: 65,
+	noPrefetchAttribute: 'data-eco-no-prefetch',
+	respectDataSaver: true,
+};
+
 /** Default configuration options */
 export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	linkSelector: 'a[href]',
@@ -60,4 +105,5 @@ export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	scrollBehavior: 'top',
 	viewTransitions: true,
 	smoothScroll: false,
+	prefetch: DEFAULT_PREFETCH_CONFIG,
 };

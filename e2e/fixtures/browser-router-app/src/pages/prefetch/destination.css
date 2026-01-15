@@ -1,0 +1,23 @@
+.destination-page {
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	padding: 2rem;
+	border-radius: 8px;
+	color: white;
+}
+
+.destination-page h1 {
+	font-size: 2rem;
+	margin-bottom: 1rem;
+}
+
+.destination-page p {
+	font-size: 1.2rem;
+	opacity: 0.9;
+}
+
+.destination-page a {
+	color: #fff;
+	text-decoration: underline;
+	margin-top: 1rem;
+	display: inline-block;
+}

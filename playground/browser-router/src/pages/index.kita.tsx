@@ -53,7 +53,7 @@ export default eco.page({
 								<EcoImage {...post.image} alt={post.title} />
 							</div>
 							<div class="post-card-content">
-								<h2 data-view-transition={`hero-title-${post.slug}`}>{post.title}</h2>
+								<h2>{post.title}</h2>
 								<p>{post.excerpt}</p>
 							</div>
 						</a>

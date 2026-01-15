@@ -6,7 +6,6 @@
 import morphdom from 'morphdom';
 
 const DEFAULT_PERSIST_ATTR = 'data-eco-persist';
-const DEFAULT_STYLESHEET_TIMEOUT = 5000;
 
 /**
  * Checks if element has a persist attribute (custom or default).
@@ -27,85 +26,6 @@ function getPersistKey(element: Element, persistAttribute: string): string | und
  */
 function isHydratedCustomElement(element: Element): boolean {
 	return element.localName.includes('-') && element.shadowRoot !== null;
-}
-
-/**
- * Collects hrefs of active stylesheets, excluding preloaded ones.
- */
-function getExistingStylesheetHrefs(): Set<string> {
-	return new Set(
-		Array.from(
-			document.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]:not([data-eco-preload])'),
-		).map((link) => link.href),
-	);
-}
-
-/**
- * Finds stylesheets in new document not present in current document.
- */
-function getNewStylesheets(newDocument: Document, existingHrefs: Set<string>): HTMLLinkElement[] {
-	return Array.from(newDocument.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).filter(
-		(link) => !existingHrefs.has(link.href),
-	);
-}
-
-/**
- * Downloads a stylesheet without applying it using `media="not all"`.
- * Stores original media in dataset for later activation.
- */
-function preloadStylesheet(link: HTMLLinkElement, timeout = DEFAULT_STYLESHEET_TIMEOUT): Promise<void> {
-	return new Promise<void>((resolve) => {
-		const newLink = document.createElement('link');
-		newLink.rel = 'stylesheet';
-		newLink.href = link.href;
-		newLink.media = 'not all';
-		newLink.dataset.ecoPreload = '';
-		if (link.media && link.media !== 'all') {
-			newLink.dataset.ecoTargetMedia = link.media;
-		}
-
-		const timeoutId = setTimeout(resolve, timeout);
-
-		newLink.onload = () => {
-			clearTimeout(timeoutId);
-			resolve();
-		};
-		newLink.onerror = () => {
-			clearTimeout(timeoutId);
-			resolve();
-		};
-
-		document.head.appendChild(newLink);
-	});
-}
-
-/**
- * Activates preloaded stylesheets by restoring their media attribute.
- * Used when View Transitions are disabled to apply styles before DOM swap.
- */
-function activatePreloadedStylesheets(): void {
-	for (const link of document.head.querySelectorAll<HTMLLinkElement>('link[data-eco-preload]')) {
-		const targetMedia = link.dataset.ecoTargetMedia;
-		link.media = targetMedia || 'all';
-		delete link.dataset.ecoPreload;
-		delete link.dataset.ecoTargetMedia;
-	}
-}
-
-/**
- * Removes preloaded stylesheets after morphdom has inserted the real ones.
- */
-function removePreloadedStylesheets(): void {
-	for (const link of document.head.querySelectorAll('link[data-eco-preload]')) {
-		link.remove();
-	}
-}
-
-/**
- * Preloads multiple stylesheets in parallel.
- */
-function preloadStylesheets(links: HTMLLinkElement[]): Promise<void[]> {
-	return Promise.all(links.map((link) => preloadStylesheet(link)));
 }
 
 /**
@@ -133,20 +53,62 @@ export class DomSwapper {
 	/**
 	 * Preloads new stylesheets from target document to prevent FOUC.
 	 *
-	 * Downloads with `media="not all"` (cached but not applied).
-	 * When `activate=true`, immediately applies styles (for non-View-Transition mode).
-	 * When `activate=false`, styles remain hidden until morphdom inserts real links.
+	 * Discovers stylesheet links in the target document that aren't present in the
+	 * current document, creates corresponding link elements, and waits for all to
+	 * load before resolving. Includes a 5-second timeout per stylesheet.
+	 *
+	 * Listeners are attached before setting `href` to ensure load events are captured
+	 * even when the resource is already cached.
+	 *
+	 * @param newDocument - The parsed document containing stylesheets to preload
 	 */
-	async preloadStylesheets(newDocument: Document, activate = false): Promise<void> {
-		const existingStylesheetHrefs = getExistingStylesheetHrefs();
-		const newStylesheetLinks = getNewStylesheets(newDocument, existingStylesheetHrefs);
+	async preloadStylesheets(newDocument: Document): Promise<void> {
+		const existingHrefs = new Set(
+			Array.from(document.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).map((l) => l.href),
+		);
 
-		if (newStylesheetLinks.length > 0) {
-			await preloadStylesheets(newStylesheetLinks);
-			if (activate) {
-				activatePreloadedStylesheets();
-			}
+		const newStylesheetLinks = Array.from(
+			newDocument.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
+		).filter((link) => !existingHrefs.has(link.href));
+
+		if (newStylesheetLinks.length === 0) {
+			return;
 		}
+
+		const TIMEOUT = 5000;
+		const loadPromises = newStylesheetLinks.map((link) => {
+			return new Promise<void>((resolve) => {
+				const newLink = document.createElement('link');
+				newLink.rel = 'stylesheet';
+				newLink.media = link.media || 'all';
+
+				const timeoutId = setTimeout(() => {
+					cleanup();
+					resolve();
+				}, TIMEOUT);
+
+				const cleanup = () => {
+					clearTimeout(timeoutId);
+					newLink.onload = null;
+					newLink.onerror = null;
+				};
+
+				newLink.onload = () => {
+					cleanup();
+					resolve();
+				};
+
+				newLink.onerror = () => {
+					cleanup();
+					resolve();
+				};
+
+				newLink.href = link.href;
+				document.head.appendChild(newLink);
+			});
+		});
+
+		await Promise.all(loadPromises);
 	}
 
 	/**
@@ -216,8 +178,6 @@ export class DomSwapper {
 				return node;
 			},
 		});
-
-		removePreloadedStylesheets();
 	}
 
 	/**

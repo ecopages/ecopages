@@ -5,7 +5,7 @@
 
 import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types';
 import { DEFAULT_OPTIONS } from './types';
-import { DomSwapper, ScrollManager, ViewTransitionManager } from './services';
+import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services';
 
 /**
  * Intercepts same-origin link clicks and performs client-side navigation
@@ -18,6 +18,7 @@ export class EcoRouter {
 	private domSwapper: DomSwapper;
 	private scrollManager: ScrollManager;
 	private viewTransitionManager: ViewTransitionManager;
+	private prefetchManager: PrefetchManager | null = null;
 
 	constructor(options: EcoRouterOptions = {}) {
 		this.options = { ...DEFAULT_OPTIONS, ...options };
@@ -26,20 +27,37 @@ export class EcoRouter {
 		this.scrollManager = new ScrollManager(this.options.scrollBehavior, this.options.smoothScroll);
 		this.viewTransitionManager = new ViewTransitionManager(this.options.viewTransitions);
 
+		if (this.options.prefetch !== false) {
+			this.prefetchManager = new PrefetchManager({
+				...this.options.prefetch,
+				linkSelector: this.options.linkSelector,
+			});
+		}
+
 		this.handleClick = this.handleClick.bind(this);
 		this.handlePopState = this.handlePopState.bind(this);
 	}
 
-	/** Starts intercepting link clicks and popstate events. */
+	/**
+	 * Starts the router and begins intercepting navigation.
+	 *
+	 * Attaches click handlers for links and popstate handlers for browser
+	 * back/forward buttons. Also starts the prefetch manager if configured.
+	 */
 	public start(): void {
 		document.addEventListener('click', this.handleClick);
 		window.addEventListener('popstate', this.handlePopState);
+		this.prefetchManager?.start();
 	}
 
-	/** Stops the router and removes all event listeners. */
+	/**
+	 * Stops the router and cleans up all event listeners.
+	 * After calling this, navigation will fall back to full page reloads.
+	 */
 	public stop(): void {
 		document.removeEventListener('click', this.handleClick);
 		window.removeEventListener('popstate', this.handlePopState);
+		this.prefetchManager?.stop();
 	}
 
 	/**
@@ -61,10 +79,25 @@ export class EcoRouter {
 	}
 
 	/**
-	 * Intercepts link clicks, filtering out modifier keys, external links, and opt-outs.
+	 * Manually prefetch a URL.
+	 * @param href - The URL to prefetch
+	 */
+	public async prefetch(href: string): Promise<void> {
+		if (!this.prefetchManager) {
+			console.warn('[ecopages] Prefetching is disabled. Enable it in router options.');
+			return;
+		}
+		return this.prefetchManager.prefetch(href);
+	}
+
+	/**
+	 * Intercepts link clicks for client-side navigation.
 	 *
-	 * Uses `event.composedPath()` instead of `event.target.closest()` to correctly
-	 * handle clicks on anchor elements inside Shadow DOM boundaries (Web Components).
+	 * Filters out clicks with modifier keys (opens new tab), non-left clicks,
+	 * external links, download links, and links with the reload attribute.
+	 *
+	 * Uses `event.composedPath()` to correctly detect clicks on anchors inside
+	 * Shadow DOM boundaries (Web Components).
 	 */
 	private handleClick(event: MouseEvent): void {
 		const link = event
@@ -98,29 +131,40 @@ export class EcoRouter {
 		this.performNavigation(url, 'forward');
 	}
 
-	/** Handles browser back/forward navigation via the History API. */
+	/**
+	 * Handles browser back/forward navigation.
+	 * Triggered by the History API's popstate event.
+	 */
 	private handlePopState(_event: PopStateEvent): void {
 		const url = new URL(window.location.href);
 		this.performNavigation(url, 'back');
 	}
 
-	/** Checks if the given URL shares the same origin as the current page. */
+	/**
+	 * Checks if a URL shares the same origin as the current page.
+	 * Cross-origin navigation always falls back to full page reload.
+	 */
 	private isSameOrigin(url: URL): boolean {
 		return url.origin === window.location.origin;
 	}
 
 	/**
-	 * Core navigation flow:
+	 * Executes the core navigation flow.
 	 *
-	 * 1. Fetch and parse new page
-	 * 2. Dispatch `eco:before-swap` (allows reload override)
-	 * 3. Update history (before DOM swap for correct URL in connectedCallback)
-	 * 4. Preload stylesheets (activate immediately if no View Transitions)
-	 * 5. Morph head/body with optional View Transition
-	 * 6. Dispatch `eco:after-swap` and `eco:page-load`
+	 * Orchestrates fetching, DOM swapping, and lifecycle events:
+	 *
+	 * 1. **Fetch** - Retrieves HTML (from cache or network)
+	 * 2. **eco:before-swap** - Allows listeners to force a full reload
+	 * 3. **History update** - Updates URL before DOM swap so Web Components
+	 *    see the correct URL in their `connectedCallback`
+	 * 4. **Stylesheet preload** - Prevents FOUC by loading styles first
+	 * 5. **DOM swap** - Morphs head/body, optionally with View Transition
+	 * 6. **Lifecycle events** - Dispatches `eco:after-swap` and `eco:page-load`
+	 *
+	 * Falls back to full page reload on network errors.
 	 *
 	 * @param url - The target URL to navigate to
-	 * @param direction - The navigation direction for event payloads
+	 * @param direction - Navigation direction ('forward', 'back', or 'replace')
 	 */
 	private async performNavigation(url: URL, direction: EcoNavigationEvent['direction']): Promise<void> {
 		const previousUrl = new URL(window.location.href);
@@ -156,7 +200,7 @@ export class EcoRouter {
 			}
 
 			const useViewTransitions = this.options.viewTransitions;
-			await this.domSwapper.preloadStylesheets(newDocument, !useViewTransitions);
+			await this.domSwapper.preloadStylesheets(newDocument);
 
 			if (useViewTransitions) {
 				await this.viewTransitionManager.transition(() => {
@@ -176,6 +220,8 @@ export class EcoRouter {
 			};
 
 			document.dispatchEvent(new CustomEvent('eco:after-swap', { detail: afterSwapEvent }));
+
+			this.prefetchManager?.observeNewLinks();
 
 			requestAnimationFrame(() => {
 				document.dispatchEvent(
@@ -201,6 +247,13 @@ export class EcoRouter {
 	 * @throws Error if the response is not ok
 	 */
 	private async fetchPage(url: URL, signal: AbortSignal): Promise<string> {
+		if (this.prefetchManager) {
+			const cachedHtml = this.prefetchManager.getCachedHtml(url.href);
+			if (cachedHtml) {
+				return cachedHtml;
+			}
+		}
+
 		const response = await fetch(url.href, {
 			signal,
 			headers: {

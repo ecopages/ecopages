@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/react",
-	"version": "0.1.66",
+	"version": "0.1.67",
 	"exports": {
 		".": "./src/react.plugin.ts",
 		"./react-esm": "./react-esm.ts",
@@ -16,6 +16,7 @@
 			"LICENSE",
 			"README.md",
 			"jsr.json",
+			"package.json",
 			"react-esm.ts",
 			"react-dom-esm.ts",
 			"react-dev-esm.ts"

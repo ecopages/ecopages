@@ -1,9 +1,12 @@
 {
 	"name": "@ecopages/react-router",
-	"version": "0.1.71",
+	"version": "0.1.72",
 	"exports": {
 		".": "./src/index.ts",
 		"./browser": "./browser.ts"
+	},
+	"imports": {
+		"react": "npm:react@^19"
 	},
 	"publish": {
 		"include": ["src/**/*.ts", "src/**/*.tsx", "browser.ts", "README.md", "LICENSE", "jsr.json", "package.json"]

@@ -1,21 +1,16 @@
 {
 	"compilerOptions": {
-		"allowSyntheticDefaultImports": true,
-		"allowImportingTsExtensions": true,
-		"noEmit": true,
-		"baseUrl": ".",
-		"outDir": "./dist",
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
-		"lib": ["ES2021", "DOM", "DOM.Iterable"],
-		"module": "ESNext",
+		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"target": "ESNext",
+		"module": "Preserve",
 		"moduleResolution": "bundler",
-		"resolveJsonModule": true,
-		"skipLibCheck": true,
 		"strict": true,
-		"target": "ES2021",
-		"useDefineForClassFields": true,
-		"verbatimModuleSyntax": true,
-		"downlevelIteration": true
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"declaration": true,
+		"declarationMap": true,
+		"outDir": "./dist",
+		"allowImportingTsExtensions": true,
+		"noEmit": true
 	}
 }

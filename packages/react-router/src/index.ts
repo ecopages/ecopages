@@ -3,19 +3,19 @@
  * @module
  */
 
-export { EcoRouter, PageContent } from './router';
-export type { EcoRouterProps } from './router';
+export { EcoRouter, PageContent } from './router.tsx';
+export type { EcoRouterProps } from './router.tsx';
 
-export { EcoPropsScript } from './props-script';
-export type { EcoPropsScriptProps } from './props-script';
+export { EcoPropsScript } from './props-script.tsx';
+export type { EcoPropsScriptProps } from './props-script.tsx';
 
-export { useRouter } from './context';
-export type { RouterContextValue } from './context';
+export { useRouter } from './context.ts';
+export type { RouterContextValue } from './context.ts';
 
-export type { EcoRouterOptions } from './types';
+export type { EcoRouterOptions } from './types.ts';
 
-export { morphHead } from './head-morpher';
+export { morphHead } from './head-morpher.ts';
 
-export type { PageState } from './navigation';
+export type { PageState } from './navigation.ts';
 
-export { ecoRouter } from './adapter';
+export { ecoRouter } from './adapter.ts';

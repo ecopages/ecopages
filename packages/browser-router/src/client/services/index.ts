@@ -3,7 +3,7 @@
  * @module
  */
 
-export { DomSwapper } from './dom-swapper';
-export { ScrollManager } from './scroll-manager';
-export { ViewTransitionManager } from './view-transition-manager';
-export { PrefetchManager } from './prefetch-manager';
+export { DomSwapper } from './dom-swapper.ts';
+export { ScrollManager } from './scroll-manager.ts';
+export { ViewTransitionManager } from './view-transition-manager.ts';
+export { PrefetchManager } from './prefetch-manager.ts';

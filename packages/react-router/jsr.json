@@ -5,9 +5,6 @@
 		".": "./src/index.ts",
 		"./browser": "./browser.ts"
 	},
-	"imports": {
-		"react": "npm:react@^19"
-	},
 	"publish": {
 		"include": ["src/**/*.ts", "src/**/*.tsx", "browser.ts", "README.md", "LICENSE", "jsr.json", "package.json"]
 	}

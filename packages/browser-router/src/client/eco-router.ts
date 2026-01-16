@@ -3,9 +3,9 @@
  * @module eco-router
  */
 
-import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types';
-import { DEFAULT_OPTIONS } from './types';
-import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services';
+import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types.ts';
+import { DEFAULT_OPTIONS } from './types.ts';
+import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services/index.ts';
 
 /**
  * Intercepts same-origin link clicks and performs client-side navigation

@@ -10,7 +10,9 @@
 		"declaration": true,
 		"declarationMap": true,
 		"outDir": "./dist",
-		"jsx": "react-jsx"
+		"jsx": "react-jsx",
+		"allowImportingTsExtensions": true,
+		"noEmit": true
 	},
 	"include": ["src/**/*", "browser.ts"],
 	"exclude": ["node_modules", "dist"]

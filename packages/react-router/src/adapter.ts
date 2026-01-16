@@ -4,7 +4,7 @@
  */
 
 import type { ReactRouterAdapter } from '@ecopages/react/router-adapter';
-import type { EcoRouterOptions } from './types';
+import type { EcoRouterOptions } from './types.ts';
 
 /**
  * Creates a ReactRouterAdapter for EcoPages React Router.

@@ -3,7 +3,7 @@
  * @module
  */
 
-import { applyViewTransitionNames, clearViewTransitionNames } from '../view-transition-utils';
+import { applyViewTransitionNames, clearViewTransitionNames } from '../view-transition-utils.ts';
 
 /**
  * Service for handling View Transition API during page transitions.

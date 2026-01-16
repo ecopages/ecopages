@@ -22,12 +22,12 @@ import {
 	type ComponentType,
 	type FC,
 } from 'react';
-import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types';
-import { RouterContext } from './context';
-import { type PageState, loadPageModule, shouldInterceptClick } from './navigation';
-import { morphHead } from './head-morpher';
-import { applyViewTransitionNames } from './view-transition-utils';
-import { manageScroll } from './manage-scroll';
+import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
+import { RouterContext } from './context.ts';
+import { type PageState, loadPageModule, shouldInterceptClick } from './navigation.ts';
+import { morphHead } from './head-morpher.ts';
+import { applyViewTransitionNames } from './view-transition-utils.ts';
+import { manageScroll } from './manage-scroll.ts';
 
 type PageContextValue = PageState | null;
 

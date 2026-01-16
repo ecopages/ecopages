@@ -10,10 +10,10 @@ export type {
 	EcoBeforeSwapEvent,
 	EcoAfterSwapEvent,
 	EcoRouterEventMap,
-} from './types';
+} from './types.ts';
 
-export { DEFAULT_OPTIONS } from './types';
+export { DEFAULT_OPTIONS } from './types.ts';
 
-export { EcoRouter, createRouter } from './client/eco-router';
+export { EcoRouter, createRouter } from './client/eco-router.ts';
 
-export { DomSwapper, ScrollManager, ViewTransitionManager } from './client/services';
+export { DomSwapper, ScrollManager, ViewTransitionManager } from './client/services/index.ts';

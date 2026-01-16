@@ -4,7 +4,7 @@
  */
 
 import { type ComponentType, createElement } from 'react';
-import type { EcoRouterOptions } from './types';
+import type { EcoRouterOptions } from './types.ts';
 
 export type PageState = {
 	Component: ComponentType<any>;

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/react-router",
-	"version": "0.1.70",
+	"version": "0.1.71",
 	"description": "Client-side SPA router for EcoPages React applications",
 	"keywords": [
 		"ecopages",
@@ -31,11 +31,12 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"peerDependencies": {
-		"@ecopages/react": "workspace:*",
+		"@ecopages/react": "workspace:*"
+	},
+	"dependencies": {
 		"react": "^19"
 	},
 	"devDependencies": {
-		"react": "^19",
 		"@types/react": "^19"
 	}
 }

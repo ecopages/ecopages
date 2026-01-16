@@ -4,7 +4,7 @@
  * @module
  */
 
-import { FC } from 'react';
+import type { FC } from 'react';
 
 export interface EcoPropsScriptProps {
 	/** The page props to serialize for client-side hydration */

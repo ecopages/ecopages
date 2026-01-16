@@ -19,7 +19,7 @@ import {
 	startTransition,
 	type ReactNode,
 	type ComponentType,
-	FC,
+	type FC,
 } from 'react';
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types';
 import { RouterContext } from './context';

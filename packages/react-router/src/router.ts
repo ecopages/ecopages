@@ -8,7 +8,6 @@
  * @module
  */
 
-import * as React from 'react';
 import {
 	useEffect,
 	useState,
@@ -18,6 +17,7 @@ import {
 	createContext,
 	useContext,
 	startTransition,
+	createElement,
 	type ReactNode,
 	type ComponentType,
 	type FC,
@@ -69,7 +69,7 @@ export const PageContent: FC = () => {
 		return null;
 	}
 	const { Component, props } = pageContext;
-	return <Component {...props} />;
+	return createElement(Component, props);
 };
 
 /**
@@ -285,9 +285,9 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		};
 	}, [navigate, options]);
 
-	return (
-		<RouterContext.Provider value={{ navigate, isNavigating }}>
-			<PageContext.Provider value={currentPage}>{children}</PageContext.Provider>
-		</RouterContext.Provider>
+	return createElement(
+		RouterContext.Provider,
+		{ value: { navigate, isNavigating } },
+		createElement(PageContext.Provider, { value: currentPage }, children),
 	);
 };

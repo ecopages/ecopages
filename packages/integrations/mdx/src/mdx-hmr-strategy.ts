@@ -8,9 +8,10 @@
  */
 
 import path from 'node:path';
-import { HmrStrategy, HmrStrategyType, type HmrAction, type DefaultHmrContext } from '@ecopages/core/hmr/hmr-strategy';
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import mdx from '@mdx-js/esbuild';
 import type { CompileOptions } from '@mdx-js/mdx';
+import type { DefaultHmrContext } from '@ecopages/core';
 
 export class MdxHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;

@@ -41,7 +41,7 @@ import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
 import React, { type ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
-import { PLUGIN_NAME } from './mdx.plugin';
+import { PLUGIN_NAME } from './mdx.plugin.ts';
 import {
 	AssetFactory,
 	type AssetProcessingService,

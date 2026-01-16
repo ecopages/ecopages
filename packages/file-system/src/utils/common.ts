@@ -8,7 +8,7 @@ import zlib from 'node:zlib';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { rm as rmAsync, writeFile as writeFileAsync } from 'node:fs/promises';
 import { extname } from 'node:path';
-import { FileNotFoundError } from '../types';
+import { FileNotFoundError } from '../types.ts';
 
 /**
  * Base implementation for file system operations.

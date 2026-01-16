@@ -5,9 +5,9 @@ import type { EcoPagesElement } from '@ecopages/core';
 import type { IHmrManager } from '@ecopages/core/internal-types';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import type { CompileOptions } from '@mdx-js/mdx';
-import { createMDXRenderer, MDXRenderer } from './mdx-renderer';
-import { createMDXReactRenderer, MDXReactRenderer } from './mdx-react-renderer';
-import { MdxHmrStrategy } from './mdx-hmr-strategy';
+import { createMDXRenderer, MDXRenderer } from './mdx-renderer.ts';
+import { createMDXReactRenderer, MDXReactRenderer } from './mdx-react-renderer.ts';
+import { MdxHmrStrategy } from './mdx-hmr-strategy.ts';
 
 /**
  * The name of the MDX plugin

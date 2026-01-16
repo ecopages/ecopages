@@ -3,7 +3,7 @@
  * @module
  */
 
-import type { EcoRouterOptions } from './types';
+import type { EcoRouterOptions } from './types.ts';
 
 /**
  * Service for handling scroll position during page transitions.

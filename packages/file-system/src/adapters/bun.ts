@@ -4,8 +4,8 @@
  */
 
 import type { GlobScanOptions } from 'bun';
-import type { FileSystem, GlobOptions } from '../types';
-import { BaseFileSystem } from '../utils/common';
+import type { FileSystem, GlobOptions } from '../types.ts';
+import { BaseFileSystem } from '../utils/common.ts';
 
 /**
  * Bun-optimized implementation of the FileSystem interface.

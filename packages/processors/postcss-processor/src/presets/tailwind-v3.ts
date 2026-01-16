@@ -12,8 +12,8 @@ import cssnano from 'cssnano';
 import type postcss from 'postcss';
 import postcssImport from 'postcss-import';
 import tailwindcss from 'tailwindcss';
-import tailwindcssNesting from 'tailwindcss/nesting/index.js';
-import type { PostCssProcessorPluginConfig } from '../plugin';
+import tailwindcssNesting from 'tailwindcss/nesting';
+import type { PostCssProcessorPluginConfig } from '../plugin.ts';
 
 type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
 

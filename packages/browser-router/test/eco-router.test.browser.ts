@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { createRouter, EcoRouter } from './eco-router';
+import { createRouter, EcoRouter } from '../src/client/eco-router';
 
 function mockFetch(htmlContent: string) {
 	return vi.spyOn(globalThis, 'fetch').mockResolvedValue({

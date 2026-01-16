@@ -30,11 +30,10 @@
 		"typecheck": "tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
-	"peerDependencies": {
+	"dependencies": {
 		"react": "^19"
 	},
 	"devDependencies": {
-		"@types/react": "^19",
-		"react": "^19"
+		"@types/react": "^19"
 	}
 }

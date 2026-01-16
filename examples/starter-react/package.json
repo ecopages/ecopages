@@ -11,6 +11,7 @@
 	"devDependencies": {
 		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
 		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
+		"@ecopages/react-router": "npm:@jsr/ecopages__react-router@latest",
 		"@ecopages/radiant": "latest",
 		"@ecopages/react": "npm:@jsr/ecopages__react@latest",
 		"@tailwindcss/postcss": "^4.0.0",

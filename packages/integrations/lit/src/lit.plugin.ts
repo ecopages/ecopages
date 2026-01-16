@@ -7,8 +7,8 @@ import '@lit-labs/ssr/lib/install-global-dom-shim.js';
 import './console';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
-import { litElementHydrateScript } from './lit-element-hydrate';
-import { LitRenderer } from './lit-renderer';
+import { litElementHydrateScript } from './lit-element-hydrate.ts';
+import { LitRenderer } from './lit-renderer.ts';
 
 /**
  * The name of the Lit plugin

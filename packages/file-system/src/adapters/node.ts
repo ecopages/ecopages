@@ -6,7 +6,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import fg from 'fast-glob';
-import type { FileSystem, GlobOptions } from '../types';
+import type { FileSystem, GlobOptions } from '../types.ts';
 import { BaseFileSystem } from '../utils/common';
 
 /**

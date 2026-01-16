@@ -13,7 +13,7 @@ import cssnano from 'cssnano';
 import path from 'node:path';
 import postcssImport from 'postcss-import';
 import postcssNested from 'postcss-nested';
-import type { PostCssProcessorPluginConfig } from '../plugin';
+import type { PostCssProcessorPluginConfig } from '../plugin.ts';
 
 /**
  * Options for Tailwind v4 preset

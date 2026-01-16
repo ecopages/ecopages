@@ -9,8 +9,9 @@
 
 import path from 'node:path';
 
-import { HmrStrategy, HmrStrategyType, type HmrAction, type DefaultHmrContext } from '@ecopages/core/hmr/hmr-strategy';
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { Logger } from '@ecopages/logger';
+import type { DefaultHmrContext } from '@ecopages/core';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
 

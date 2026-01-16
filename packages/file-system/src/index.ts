@@ -12,16 +12,14 @@
  *
  * const files = await fileSystem.glob(['**\/*.ts']);
  * const content = await fileSystem.readFile('file.txt');
- * const hash = fileSystem.hash('file.txt');
- * ```
  */
 
-export * from './types';
-export { BaseFileSystem } from './utils/common';
-export { BunFileSystem, bunFs } from './adapters/bun';
-export { NodeFileSystem, nodeFs } from './adapters/node';
+export * from './types.ts';
+export { BaseFileSystem } from './utils/common.ts';
+export { BunFileSystem, bunFs } from './adapters/bun.ts';
+export { NodeFileSystem, nodeFs } from './adapters/node.ts';
 
-import type { FileSystem } from './types';
+import type { FileSystem } from './types.ts';
 
 /**
  * Creates a FileSystem instance based on the current runtime.

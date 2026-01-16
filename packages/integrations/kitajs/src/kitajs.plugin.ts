@@ -1,5 +1,5 @@
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import { KitaRenderer } from './kitajs-renderer';
+import { KitaRenderer } from './kitajs-renderer.ts';
 
 /**
  * The name of the Kita.js plugin

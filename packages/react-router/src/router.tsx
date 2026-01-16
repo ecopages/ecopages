@@ -8,6 +8,7 @@
  * @module
  */
 
+import * as React from 'react';
 import {
 	useEffect,
 	useState,

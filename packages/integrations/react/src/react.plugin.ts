@@ -7,10 +7,22 @@ import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import type { IHmrManager } from '@ecopages/core/internal-types';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
+import { Logger } from '@ecopages/logger';
+import type { CompileOptions } from '@mdx-js/mdx';
 import type React from 'react';
 import { ReactRenderer } from './react-renderer.ts';
 import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
+
+const appLogger = new Logger('[ReactPlugin]');
+
+/**
+ * MDX configuration options for the React plugin
+ */
+export type ReactMdxOptions = {
+	enabled: boolean;
+	compilerOptions?: Omit<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
+};
 
 /**
  * Options for the React plugin
@@ -28,6 +40,24 @@ export type ReactPluginOptions = {
 	 * ```
 	 */
 	router?: ReactRouterAdapter;
+	/**
+	 * MDX configuration for handling .mdx files within the React plugin.
+	 * When enabled, MDX files are treated as React pages with full router support.
+	 * @example
+	 * ```ts
+	 * reactPlugin({
+	 *   router: ecoRouter(),
+	 *   mdx: {
+	 *     enabled: true,
+	 *     compilerOptions: {
+	 *       remarkPlugins: [remarkGfm],
+	 *       rehypePlugins: [[rehypePrettyCode, { theme: '...' }]],
+	 *     }
+	 *   }
+	 * })
+	 * ```
+	 */
+	mdx?: ReactMdxOptions;
 };
 
 /**
@@ -42,17 +72,54 @@ export const PLUGIN_NAME = 'react';
 export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	renderer = ReactRenderer;
 	routerAdapter: ReactRouterAdapter | undefined;
+	private mdxEnabled: boolean;
+	private mdxCompilerOptions?: CompileOptions;
 
 	constructor(options?: Omit<ReactPluginOptions, 'name'>) {
+		const extensions = ['.tsx'];
+		if (options?.mdx?.enabled) {
+			extensions.push('.mdx');
+		}
+
 		super({
 			name: PLUGIN_NAME,
-			extensions: ['.tsx'],
+			extensions,
 			...options,
 		});
 
+		this.mdxEnabled = options?.mdx?.enabled ?? false;
+		if (this.mdxEnabled) {
+			this.mdxCompilerOptions = {
+				...options?.mdx?.compilerOptions,
+				jsxImportSource: 'react',
+				jsxRuntime: 'automatic',
+				development: process.env.NODE_ENV === 'development',
+			};
+			appLogger.debug('MDX mode enabled with React jsx runtime');
+		}
+
 		this.routerAdapter = options?.router;
 		ReactRenderer.routerAdapter = this.routerAdapter;
+		ReactRenderer.mdxCompilerOptions = this.mdxCompilerOptions;
 		this.integrationDependencies.unshift(...this.getDependencies());
+	}
+
+	override async setup(): Promise<void> {
+		if (this.mdxEnabled && this.mdxCompilerOptions) {
+			await this.setupMdxBunPlugin();
+		}
+		await super.setup();
+	}
+
+	/**
+	 * Registers the MDX esbuild plugin with Bun for MDX file compilation.
+	 * @remarks Uses esbuild plugin API which is compatible with Bun's plugin system.
+	 */
+	private async setupMdxBunPlugin(): Promise<void> {
+		const mdx = (await import('@mdx-js/esbuild')).default;
+		// @ts-expect-error esbuild plugin type is compatible with Bun plugin
+		await Bun.plugin(mdx(this.mdxCompilerOptions));
+		appLogger.debug('MDX Bun plugin registered');
 	}
 
 	/**
@@ -69,7 +136,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 
 		const context = hmrManager.getDefaultContext();
 
-		return new ReactHmrStrategy(context);
+		return new ReactHmrStrategy(context, this.mdxCompilerOptions);
 	}
 
 	/**
@@ -80,6 +147,11 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		hmrManager.registerSpecifierMap(this.getSpecifierMap());
 	}
 
+	/**
+	 * Constructs the URL path for vendor assets in the import map.
+	 * @param fileName - The vendor file name
+	 * @returns The resolved URL path for the vendor asset
+	 */
 	private buildImportMapSourceUrl(fileName: string): string {
 		return `/${AssetFactory.RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
 	}
@@ -106,6 +178,11 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		return map;
 	}
 
+	/**
+	 * Builds the list of asset dependencies required for React integration.
+	 * Includes import map, React ESM bundles, and router bundle if configured.
+	 * @returns Array of asset definitions for the integration
+	 */
 	private getDependencies(): AssetDefinition[] {
 		const deps: AssetDefinition[] = [
 			AssetFactory.createInlineContentScript({

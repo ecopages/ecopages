@@ -68,8 +68,12 @@ export const PageContent: FC = () => {
 		console.warn('[EcoRouter] PageContent used outside of EcoRouter');
 		return null;
 	}
-	const { Component, props } = pageContext;
-	return createElement(Component, props);
+	const { Component: Page, props } = pageContext;
+	const config = (Page as ComponentType & { config?: { layout?: ComponentType } }).config;
+	const Layout = config?.layout;
+	const pageElement = createElement(Page, props);
+
+	return Layout ? createElement(Layout, null, pageElement) : pageElement;
 };
 
 /**

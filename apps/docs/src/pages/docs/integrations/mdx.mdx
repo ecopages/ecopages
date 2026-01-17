@@ -110,6 +110,22 @@ mdxPlugin({
 })
 ```
 
+## Using MDX with React Router
+
+If you are using `@ecopages/react` with a client-side router (e.g., `@ecopages/react-router`), enable MDX directly within the React plugin instead of using this standalone plugin:
+
+```typescript
+import { reactPlugin } from '@ecopages/react';
+import { ecoRouter } from '@ecopages/react-router';
+
+reactPlugin({
+  router: ecoRouter(),
+  mdx: { enabled: true },
+})
+```
+
+This ensures unified routing, hydration, and HMR for both `.tsx` and `.mdx` pages. See the [React Integration](/docs/integrations/react) for details.
+
 ## Integration with Other Frameworks
 
 While React is the default, MDX can be used with other frameworks like Lit, though it may require specific configuration or client-side rendering considerations.

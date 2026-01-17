@@ -4,15 +4,24 @@
  */
 
 import path from 'node:path';
-import type { HtmlTemplateProps, IntegrationRendererRenderOptions, RouteRendererBody } from '@ecopages/core';
+import type {
+	EcoComponent,
+	EcoComponentConfig,
+	EcoPageFile,
+	HtmlTemplateProps,
+	IntegrationRendererRenderOptions,
+	RouteRendererBody,
+} from '@ecopages/core';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
 import { AssetFactory, type ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { createElement, type JSX } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
+import type { CompileOptions } from '@mdx-js/mdx';
 import { PLUGIN_NAME } from './react.plugin.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
+import { createHydrationScript } from './utils/hydration-scripts.ts';
 
 /**
  * Error thrown when an error occurs while rendering a React component.
@@ -45,187 +54,184 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 	name = PLUGIN_NAME;
 	componentDirectory = RESOLVED_ASSETS_DIR;
 	static routerAdapter: ReactRouterAdapter | undefined;
+	static mdxCompilerOptions: CompileOptions | undefined;
 
 	/**
-	 * Creates a hydration script for the React page component.
-	 * In development mode, registers a global HMR handler that re-renders the component on updates.
-	 * If the page has a layout configured via `Page.config.layout`, it will wrap the page in the layout.
-	 * When a router adapter is configured, it enables SPA navigation.
-	 * @param importPath - The import path for the page component module
-	 * @param isDevelopment - Whether to generate development mode script with HMR support
+	 * Resolves the import path for the bundled page component.
+	 * Uses HMR manager for development or constructs static path for production.
+	 * @param pagePath - Absolute path to the page source file
+	 * @param componentName - Generated unique component name
+	 * @returns The resolved import path for the bundled component
 	 */
-	private createHydrationScript(importPath: string, isDevelopment = false): string {
-		const router = ReactRenderer.routerAdapter;
+	private async resolveAssetImportPath(pagePath: string, componentName: string): Promise<string> {
+		const hmrManager = this.assetProcessingService?.getHmrManager();
 
-		if (isDevelopment) {
-			if (router) {
-				const { importMapKey, components, getRouterProps } = router;
-				return `
-import { hydrateRoot } from "react-dom/client";
-import { createElement } from "react";
-import { ${components.router}, ${components.pageContent} } from "${importMapKey}";
-import Page from "${importPath}";
-
-window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
-let root = null;
-
-const getPageProps = () => {
-  const el = document.getElementById("__ECO_PROPS__");
-  if (el?.textContent) {
-    try { return JSON.parse(el.textContent); } catch {}
-  }
-  return {};
-};
-
-const createTree = (Component, props) => {
-  const Layout = Component.config?.layout;
-  const pageContent = createElement(${components.pageContent});
-  const layoutElement = Layout ? createElement(Layout, null, pageContent) : pageContent;
-  return createElement(${components.router}, ${getRouterProps('Component', 'props')}, layoutElement);
-};
-
-const mount = () => {
-  const props = getPageProps();
-  root = hydrateRoot(document, createTree(Page, props));
-  window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
-    try {
-      const newModule = await import(newUrl);
-      root.render(createTree(newModule.default, props));
-      console.log("[ecopages] React component updated");
-    } catch (e) {
-      console.error("[ecopages] Failed to hot-reload React component:", e);
-    }
-  };
-};
-
-if (document.readyState === "complete") {
-  mount();
-} else {
-  window.onload = mount;
-}
-`.trim();
-			}
-
-			return `
-import { hydrateRoot } from "react-dom/client";
-import { createElement } from "react";
-import Page from "${importPath}";
-
-window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
-let root = null;
-
-const getPageProps = () => {
-  const el = document.getElementById("__ECO_PROPS__");
-  if (el?.textContent) {
-    try { return JSON.parse(el.textContent); } catch {}
-  }
-  return {};
-};
-
-const createTree = (Component, props) => {
-  const Layout = Component.config?.layout;
-  const pageElement = createElement(Component, props);
-  return Layout ? createElement(Layout, null, pageElement) : pageElement;
-};
-
-const mount = () => {
-  const props = getPageProps();
-  root = hydrateRoot(document, createTree(Page, props));
-  window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
-    try {
-      const newModule = await import(newUrl);
-      root.render(createTree(newModule.default, props));
-      console.log("[ecopages] React component updated");
-    } catch (e) {
-      console.error("[ecopages] Failed to hot-reload React component:", e);
-    }
-  };
-};
-
-if (document.readyState === "complete") {
-  mount();
-} else {
-  window.onload = mount;
-}
-`.trim();
+		if (hmrManager?.isEnabled()) {
+			return hmrManager.registerEntrypoint(pagePath);
 		}
 
-		if (router) {
-			const { importMapKey, components, getRouterProps } = router;
-			return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import{${components.router} as R,${components.pageContent} as PC}from"${importMapKey}";import P from"${importPath}";const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>{const L=C.config?.layout;const pc=ce(PC);const le=L?ce(L,null,pc):pc;return ce(R,${getRouterProps('C', 'p')},le)};const m=()=>hr(document,ct(P,gp()));document.readyState==="complete"?m():window.onload=m`;
+		return `/${path
+			.join(RESOLVED_ASSETS_DIR, path.relative(this.appConfig.srcDir, pagePath))
+			.replace(path.basename(pagePath), `${componentName}.js`)
+			.replace(/\\/g, '/')}`;
+	}
+
+	/**
+	 * Creates bundle configuration options for the page component.
+	 * Configures externals, naming, and MDX plugin when applicable.
+	 * @param componentName - Generated unique component name for output naming
+	 * @param isMdx - Whether the source file is an MDX file
+	 * @returns Bundle options object for Bun.build
+	 */
+	private async createBundleOptions(componentName: string, isMdx: boolean): Promise<Record<string, unknown>> {
+		const options: Record<string, unknown> = {
+			external: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
+			naming: `${componentName}.[ext]`,
+			...(import.meta.env.NODE_ENV === 'production' && {
+				minify: true,
+				splitting: false,
+				treeshaking: true,
+			}),
+		};
+
+		if (isMdx && ReactRenderer.mdxCompilerOptions) {
+			const mdx = (await import('@mdx-js/esbuild')).default;
+			options.plugins = [mdx(ReactRenderer.mdxCompilerOptions)];
 		}
 
-		return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import P from"${importPath}";const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,gp()));document.readyState==="complete"?m():window.onload=m`;
+		return options;
+	}
+
+	/**
+	 * Creates the asset dependencies for a page: the bundled component and hydration script.
+	 * @param pagePath - Absolute path to the page source file
+	 * @param componentName - Generated unique component name
+	 * @param importPath - Resolved import path for the bundled component
+	 * @param bundleOptions - Bundle configuration options
+	 * @param isDevelopment - Whether running in development mode with HMR
+	 * @param isMdx - Whether the source file is an MDX file
+	 * @returns Array of asset definitions for processing
+	 */
+	private createPageDependencies(
+		pagePath: string,
+		componentName: string,
+		importPath: string,
+		bundleOptions: Record<string, unknown>,
+		isDevelopment: boolean,
+		isMdx: boolean,
+	) {
+		return [
+			AssetFactory.createFileScript({
+				position: 'head',
+				filepath: pagePath,
+				name: componentName,
+				excludeFromHtml: true,
+				bundle: true,
+				bundleOptions,
+				attributes: {
+					type: 'module',
+					defer: '',
+					'data-eco-persist': 'true',
+				},
+			}),
+			AssetFactory.createContentScript({
+				position: 'head',
+				content: createHydrationScript({
+					importPath,
+					isDevelopment,
+					isMdx,
+					router: ReactRenderer.routerAdapter,
+				}),
+				name: `${componentName}-hydration`,
+				bundle: false,
+				attributes: {
+					type: 'module',
+					defer: '',
+					'data-eco-persist': 'true',
+				},
+			}),
+		];
+	}
+
+	/**
+	 * Processes MDX-specific configuration dependencies including layout dependencies.
+	 * @param pagePath - Absolute path to the MDX page file
+	 * @returns Processed assets for MDX configuration dependencies
+	 */
+	private async processMdxConfigDependencies(pagePath: string): Promise<ProcessedAsset[]> {
+		const { config } = await this.importPageFile(pagePath);
+		const resolvedLayout = config?.layout;
+		const components: Partial<EcoComponent>[] = [];
+
+		if (resolvedLayout?.config?.dependencies) {
+			components.push({ config: resolvedLayout.config });
+		}
+
+		if (config?.dependencies) {
+			const configWithMeta = {
+				...config,
+				componentDir: path.dirname(pagePath),
+			};
+			components.push({ config: configWithMeta });
+		}
+
+		return this.processComponentDependencies(components);
 	}
 
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
 		try {
-			const pathHash = rapidhash(pagePath);
-			const componentName = `ecopages-react-${pathHash}`;
-
+			const isMdx = pagePath.endsWith('.mdx');
+			const componentName = `ecopages-react-${rapidhash(pagePath)}`;
 			const hmrManager = this.assetProcessingService?.getHmrManager();
-			let resolvedAssetImportFilename: string;
+			const isDevelopment = hmrManager?.isEnabled() ?? false;
 
-			if (hmrManager?.isEnabled()) {
-				resolvedAssetImportFilename = await hmrManager.registerEntrypoint(pagePath);
-			} else {
-				resolvedAssetImportFilename = `/${path
-					.join(RESOLVED_ASSETS_DIR, path.relative(this.appConfig.srcDir, pagePath))
-					.replace(path.basename(pagePath), `${componentName}.js`)
-					.replace(/\\/g, '/')}`;
+			const importPath = await this.resolveAssetImportPath(pagePath, componentName);
+			const bundleOptions = await this.createBundleOptions(componentName, isMdx);
+			const dependencies = this.createPageDependencies(
+				pagePath,
+				componentName,
+				importPath,
+				bundleOptions,
+				isDevelopment,
+				isMdx,
+			);
+
+			if (!this.assetProcessingService) {
+				throw new Error('AssetProcessingService is not set');
 			}
 
-			const dependencies = [
-				AssetFactory.createFileScript({
-					position: 'head',
-					filepath: pagePath,
-					name: componentName,
-					excludeFromHtml: true,
-					bundle: true,
-					bundleOptions: {
-						external: [
-							'react',
-							'react-dom',
-							'react/jsx-runtime',
-							'react/jsx-dev-runtime',
-							'react-dom/client',
-						],
-						naming: `${componentName}.[ext]`,
-						...(import.meta.env.NODE_ENV === 'production' && {
-							minify: true,
-							splitting: false,
-							treeshaking: true,
-						}),
-					},
-					attributes: {
-						type: 'module',
-						defer: '',
-						'data-eco-persist': 'true',
-					},
-				}),
-				AssetFactory.createContentScript({
-					position: 'head',
-					content: this.createHydrationScript(resolvedAssetImportFilename, hmrManager?.isEnabled() ?? false),
-					name: `${componentName}-hydration`,
-					bundle: false,
-					attributes: {
-						type: 'module',
-						defer: '',
-						'data-eco-persist': 'true',
-					},
-				}),
-			];
+			const processedAssets = await this.assetProcessingService.processDependencies(dependencies, componentName);
 
-			if (!this.assetProcessingService) throw new Error('AssetProcessingService is not set');
+			if (isMdx) {
+				const mdxConfigAssets = await this.processMdxConfigDependencies(pagePath);
+				return [...processedAssets, ...mdxConfigAssets];
+			}
 
-			return await this.assetProcessingService.processDependencies(dependencies, componentName);
+			return processedAssets;
 		} catch (error) {
-			if (error instanceof BundleError) console.error('[ecopages] Bundle errors:', error.logs);
+			if (error instanceof BundleError) {
+				console.error('[ecopages] Bundle errors:', error.logs);
+			}
 
 			throw new ReactRenderError(
 				`Failed to generate hydration script: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
+	}
+
+	protected override async importPageFile(file: string): Promise<EcoPageFile<{ config?: EcoComponentConfig }>> {
+		const module = await import(file);
+		const { default: Page, getMetadata, config } = module;
+
+		if (file.endsWith('.mdx') && config) {
+			Page.config = config;
+		}
+
+		return {
+			default: Page,
+			getMetadata,
+			config,
+		};
 	}
 
 	async render({

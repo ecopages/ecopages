@@ -4,12 +4,14 @@
  * @module
  */
 
-export { EcoRouter, PageContent } from './src/router';
-export type { EcoRouterProps } from './src/router';
+export { EcoRouter, PageContent } from './src/router.ts';
+export type { EcoRouterProps } from './src/router.ts';
 
-export { useRouter } from './src/context';
-export type { RouterContextValue } from './src/context';
+export { useRouter } from './src/context.ts';
+export type { RouterContextValue } from './src/context.ts';
+export { EcoPropsScript } from './src/props-script.ts';
+export type { EcoPropsScriptProps } from './src/props-script.ts';
 
-export { morphHead } from './src/head-morpher';
+export { morphHead } from './src/head-morpher.ts';
 
-export type { PageState } from './src/navigation';
+export type { PageState } from './src/navigation.ts';

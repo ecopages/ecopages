@@ -5,9 +5,12 @@ import type { EcoPagesElement } from '@ecopages/core';
 import type { IHmrManager } from '@ecopages/core/internal-types';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import type { CompileOptions } from '@mdx-js/mdx';
+import { Logger } from '@ecopages/logger';
 import { createMDXRenderer, MDXRenderer } from './mdx-renderer.ts';
 import { createMDXReactRenderer, MDXReactRenderer } from './mdx-react-renderer.ts';
 import { MdxHmrStrategy } from './mdx-hmr-strategy.ts';
+
+const appLogger = new Logger('[MDXPlugin]');
 
 /**
  * The name of the MDX plugin
@@ -29,6 +32,9 @@ const defaultOptions: CompileOptions = {
 /**
  * The MDX plugin class
  * This plugin provides support for MDX components in Ecopages
+ *
+ * @deprecated When using React jsxImportSource, consider using `reactPlugin({ mdx: { enabled: true, compilerOptions: {...} } })`
+ * instead for full SPA routing and router integration support.
  */
 export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 	renderer: typeof MDXRenderer | typeof MDXReactRenderer;
@@ -50,6 +56,10 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 			(finalCompilerOptions.jsxImportSource?.startsWith('react/') ?? false);
 
 		if (this.isReact) {
+			appLogger.warn(
+				'Using MDX with React jsxImportSource. For full SPA routing support, consider using ' +
+					'`reactPlugin({ mdx: { enabled: true, compilerOptions: {...} } })` instead.',
+			);
 			this.renderer = createMDXReactRenderer(finalCompilerOptions);
 			this.integrationDependencies.unshift(...this.getReactDependencies());
 		} else {

@@ -20,8 +20,21 @@ const appLogger = new Logger('[ReactPlugin]');
  * MDX configuration options for the React plugin
  */
 export type ReactMdxOptions = {
+	/**
+	 * Whether to enable MDX support.
+	 * @default false
+	 */
 	enabled: boolean;
+	/**
+	 * Compiler options for MDX.
+	 * @default undefined
+	 */
 	compilerOptions?: Omit<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
+	/**
+	 * Custom extensions to be treated as MDX files.
+	 * @default ['.mdx']
+	 */
+	extensions?: string[];
 };
 
 /**
@@ -49,6 +62,7 @@ export type ReactPluginOptions = {
 	 *   router: ecoRouter(),
 	 *   mdx: {
 	 *     enabled: true,
+	 *     extensions: ['.mdx', '.md'],
 	 *     compilerOptions: {
 	 *       remarkPlugins: [remarkGfm],
 	 *       rehypePlugins: [[rehypePrettyCode, { theme: '...' }]],
@@ -74,11 +88,18 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	routerAdapter: ReactRouterAdapter | undefined;
 	private mdxEnabled: boolean;
 	private mdxCompilerOptions?: CompileOptions;
+	private mdxExtensions: string[];
 
 	constructor(options?: Omit<ReactPluginOptions, 'name'>) {
 		const extensions = ['.tsx'];
+		const mdxExtensions = options?.mdx?.extensions ?? ['.mdx'];
+
 		if (options?.mdx?.enabled) {
-			extensions.push('.mdx');
+			extensions.push(...mdxExtensions);
+		} else if (options?.mdx?.extensions?.length) {
+			appLogger.warn(
+				'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
+			);
 		}
 
 		super({
@@ -88,6 +109,8 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		});
 
 		this.mdxEnabled = options?.mdx?.enabled ?? false;
+		this.mdxExtensions = mdxExtensions;
+
 		if (this.mdxEnabled) {
 			this.mdxCompilerOptions = {
 				...options?.mdx?.compilerOptions,
@@ -101,6 +124,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		this.routerAdapter = options?.router;
 		ReactRenderer.routerAdapter = this.routerAdapter;
 		ReactRenderer.mdxCompilerOptions = this.mdxCompilerOptions;
+		ReactRenderer.mdxExtensions = this.mdxExtensions;
 		this.integrationDependencies.unshift(...this.getDependencies());
 	}
 

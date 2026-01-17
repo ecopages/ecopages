@@ -55,6 +55,16 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 	componentDirectory = RESOLVED_ASSETS_DIR;
 	static routerAdapter: ReactRouterAdapter | undefined;
 	static mdxCompilerOptions: CompileOptions | undefined;
+	static mdxExtensions: string[] = ['.mdx'];
+
+	/**
+	 * Checks if the given file path corresponds to an MDX file based on configured extensions.
+	 * @param filePath - The file path to check
+	 * @returns True if the file is an MDX file
+	 */
+	public isMdxFile(filePath: string): boolean {
+		return ReactRenderer.mdxExtensions.some((ext) => filePath.endsWith(ext));
+	}
 
 	/**
 	 * Resolves the import path for the bundled page component.
@@ -180,7 +190,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
 		try {
-			const isMdx = pagePath.endsWith('.mdx');
+			const isMdx = this.isMdxFile(pagePath);
 			const componentName = `ecopages-react-${rapidhash(pagePath)}`;
 			const hmrManager = this.assetProcessingService?.getHmrManager();
 			const isDevelopment = hmrManager?.isEnabled() ?? false;
@@ -223,7 +233,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 		const module = await import(file);
 		const { default: Page, getMetadata, config } = module;
 
-		if (file.endsWith('.mdx') && config) {
+		if (this.isMdxFile(file) && config) {
 			Page.config = config;
 		}
 

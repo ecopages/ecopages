@@ -10,10 +10,11 @@
 import path from 'node:path';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
+import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
-import { hasHmrMarker, injectHmrHandler } from './utils/hmr-scripts.ts';
+import { injectHmrHandler } from './utils/hmr-scripts.ts';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
 
@@ -123,7 +124,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Bundles a single React/MDX entrypoint with Fast Refresh support.
+	 * Bundles a single React/MDX entrypoint with HMR support.
 	 *
 	 * @param entrypointPath - Absolute path to the source file
 	 * @param outputUrl - URL path for the bundled file
@@ -137,6 +138,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx)$/, '.js');
 			const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
 			const outputPath = path.join(this.context.getDistDir(), encodedPathJs);
+			const tempPath = `${outputPath}.${Date.now()}.tmp`;
 
 			const plugins = [...this.context.getPlugins()];
 
@@ -146,10 +148,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 				plugins.unshift(mdx(this.mdxCompilerOptions));
 			}
 
+			const tempDir = path.dirname(tempPath);
+			const tempName = path.basename(tempPath);
+
 			const result = await Bun.build({
 				entrypoints: [entrypointPath],
-				outdir: this.context.getDistDir(),
-				naming: encodedPathJs,
+				outdir: tempDir,
+				naming: tempName,
 				target: 'browser',
 				format: 'esm',
 				plugins,
@@ -162,7 +167,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 				return false;
 			}
 
-			const processed = await this.processOutput(outputPath, outputUrl);
+			const processed = await this.processOutput(tempPath, outputPath, outputUrl);
 			return processed;
 		} catch (error) {
 			appLogger.error(`Error bundling ${entrypointPath}:`, error as Error);
@@ -179,28 +184,29 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Processes bundled output by replacing specifiers and injecting React Fast Refresh.
+	 * Processes bundled output by replacing specifiers and injecting HMR handler.
+	 * Writes to temp file first, then renames atomically to avoid conflicts.
 	 *
-	 * @param filepath - Path to the bundled output file
-	 * @param url - URL path for the bundled file
+	 * @param tempPath - Path to the temporary bundled file
+	 * @param finalPath - Final destination path
+	 * @param url - URL path for logging
 	 * @returns True if processing was successful
 	 */
-	private async processOutput(filepath: string, url: string): Promise<boolean> {
+	private async processOutput(tempPath: string, finalPath: string, url: string): Promise<boolean> {
 		try {
-			let code = await Bun.file(filepath).text();
-
-			if (hasHmrMarker(code)) {
-				return false;
-			}
+			let code = await fileSystem.readFile(tempPath);
 
 			code = this.replaceBareSpecifiers(code);
 			code = injectHmrHandler(code);
-			await Bun.write(filepath, code);
+
+			await fileSystem.writeAsync(finalPath, code);
+			await fileSystem.removeAsync(tempPath).catch(() => {});
 
 			appLogger.debug(`Processed ${url} with HMR handler`);
 			return true;
 		} catch (error) {
 			appLogger.error(`Error processing output for ${url}:`, error as Error);
+			await fileSystem.removeAsync(tempPath).catch(() => {});
 			return false;
 		}
 	}

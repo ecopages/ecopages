@@ -19,9 +19,9 @@ const DEFAULT_IMPORT_REGEX = /import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/;
 
 /**
  * Matches a namespace import statement and captures the module path.
- * Example: `import * as Content from './Content'`
+ * Example: `import * as Content from './Content'` or `import*as Content from'./Content'` (minified)
  */
-const NAMESPACE_IMPORT_REGEX = /import\s+\*\s+as\s+(\w+)\s+from\s*['"]([^'"]+)['"]/;
+const NAMESPACE_IMPORT_REGEX = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['"]/;
 
 /**
  * Extracts the first module path from a default or namespace import in the given code.

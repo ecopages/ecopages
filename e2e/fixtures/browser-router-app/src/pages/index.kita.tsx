@@ -1,10 +1,16 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout.kita';
 
 import './index.css';
 
-const IndexPage: EcoComponent = () => {
-	return (
+export default eco.page({
+	layout: BaseLayout,
+
+	dependencies: {
+		stylesheets: ['./index.css'],
+	},
+
+	render: () => (
 		<main data-testid="index-page">
 			<h1>Home</h1>
 			<nav>
@@ -27,14 +33,5 @@ const IndexPage: EcoComponent = () => {
 				</ul>
 			</nav>
 		</main>
-	);
-};
-
-IndexPage.config = {
-	layout: BaseLayout,
-	dependencies: {
-		stylesheets: ['./index.css'],
-	},
-};
-
-export default IndexPage;
+	),
+});

@@ -6,7 +6,6 @@ export default defineConfig({
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
-	// workers: 1,
 	reporter: 'list',
 	use: {
 		trace: 'on-first-retry',
@@ -47,7 +46,7 @@ export default defineConfig({
 			stderr: 'pipe',
 		},
 		{
-			command: 'ECOPAGES_PORT=4002 bun run app.ts --preview',
+			command: 'NODE_ENV=production ECOPAGES_PORT=4002 bun run app.ts --preview',
 			cwd: 'e2e/fixtures/browser-router-app',
 			port: 4002,
 			reuseExistingServer: !process.env.CI,
@@ -55,7 +54,7 @@ export default defineConfig({
 			stderr: 'pipe',
 		},
 		{
-			command: 'ECOPAGES_PORT=4003 bun run app.ts --preview',
+			command: 'NODE_ENV=production ECOPAGES_PORT=4003 bun run app.ts --preview',
 			cwd: 'e2e/fixtures/react-router-app',
 			port: 4003,
 			reuseExistingServer: !process.env.CI,

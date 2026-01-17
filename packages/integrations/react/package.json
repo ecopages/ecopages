@@ -44,9 +44,11 @@
 		"@types/react-dom": "^19"
 	},
 	"dependencies": {
+		"@ecopages/logger": "latest",
+		"@mdx-js/esbuild": "^3.0.1",
+		"@mdx-js/mdx": "^3.1.0",
 		"react": "^19",
-		"react-dom": "^19",
-		"@ecopages/logger": "latest"
+		"react-dom": "^19"
 	},
 	"overrides": {
 		"react": "^19",

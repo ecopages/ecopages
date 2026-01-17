@@ -1,10 +1,17 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
+import type { ReactNode } from 'react';
 
 import './index.css';
 
-const IndexPage: EcoComponent = () => {
-	return (
+export default eco.page<{}, ReactNode>({
+	layout: BaseLayout,
+
+	dependencies: {
+		stylesheets: ['./index.css'],
+	},
+
+	render: () => (
 		<div data-testid="index-page">
 			<h1 data-view-transition="page-title">Home</h1>
 			<nav>
@@ -27,14 +34,5 @@ const IndexPage: EcoComponent = () => {
 				</ul>
 			</nav>
 		</div>
-	);
-};
-
-IndexPage.config = {
-	layout: BaseLayout,
-	dependencies: {
-		stylesheets: ['./index.css'],
-	},
-};
-
-export default IndexPage;
+	),
+});

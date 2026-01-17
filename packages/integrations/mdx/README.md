@@ -23,3 +23,19 @@ const config = await new ConfigBuilder()
 
 export default config;
 ```
+
+## Using MDX with React Router
+
+If you are using `@ecopages/react` with a client-side router, enable MDX directly within the React plugin instead of using this standalone plugin. This ensures unified routing, hydration, and HMR for both `.tsx` and `.mdx` pages:
+
+```ts
+import { reactPlugin } from '@ecopages/react';
+import { ecoRouter } from '@ecopages/react-router';
+
+reactPlugin({
+	router: ecoRouter(),
+	mdx: { enabled: true },
+});
+```
+
+See the `@ecopages/react` documentation for details.

@@ -26,7 +26,10 @@ export const SELECTORS = {
 	LINK_HOME: '[data-testid="link-home"]',
 	LINK_ABOUT: '[data-testid="link-about"]',
 	LINK_POST: '[data-testid="link-post"]',
+	LINK_MDX: '[data-testid="link-mdx"]',
+	LINK_DOCS: '[data-testid="link-docs"]',
 	MDX_CONTENT: '[data-testid="mdx-content"]',
+	DOCS_PAGE: '[data-testid="docs-page"]',
 } as const;
 
 /**

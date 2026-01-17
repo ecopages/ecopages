@@ -1,8 +1,8 @@
 /**
  * React HMR Strategy
  *
- * Handles hot module replacement for React components with Fast Refresh support.
- * Provides stateful component updates without losing component state.
+ * Handles hot module replacement for React components.
+ * Triggers module invalidation on changes to ensure fresh component re-renders.
  *
  * @module
  */
@@ -10,23 +10,25 @@
 import path from 'node:path';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
+import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core';
+import type { CompileOptions } from '@mdx-js/mdx';
+import { injectHmrHandler } from './utils/hmr-scripts.ts';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
 
 /**
- * Strategy for handling React component changes with Fast Refresh.
+ * Strategy for handling React component HMR updates.
  *
- * This strategy provides React-specific HMR handling that preserves component
- * state during hot updates. It uses React Fast Refresh to update components
- * in place without losing their state.
+ * This strategy provides React-specific HMR handling by rebuilding entrypoints
+ * and injecting HMR acceptance handlers that trigger module invalidation.
  *
  * The processing steps are:
  * 1. Check if any React entrypoints are registered
  * 2. Rebuild all React entrypoints (the changed file could be a dependency)
  * 3. Replace bare specifiers with vendor URLs
- * 4. Inject React Fast Refresh boilerplate
+ * 4. Inject HMR acceptance handler
  * 5. Broadcast update events for each rebuilt entrypoint
  *
  * @remarks
@@ -37,7 +39,6 @@ const appLogger = new Logger('[ReactHmrStrategy]');
  * Future enhancement: Track dependencies using Bun's transpiler API to only
  * rebuild affected entrypoints instead of all of them.
  *
- * @see https://github.com/facebook/react/tree/main/packages/react-refresh
  * @see https://bun.sh/docs/runtime/transpiler
  *
  * @example
@@ -53,16 +54,21 @@ const appLogger = new Logger('[ReactHmrStrategy]');
  */
 export class ReactHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
+	private mdxCompilerOptions?: CompileOptions;
 
-	constructor(private context: DefaultHmrContext) {
+	constructor(
+		private context: DefaultHmrContext,
+		mdxCompilerOptions?: CompileOptions,
+	) {
 		super();
+		this.mdxCompilerOptions = mdxCompilerOptions;
 	}
 
 	/**
-	 * Determines if the file is a React entrypoint (.tsx) that's registered for HMR.
+	 * Determines if the file is a React/MDX entrypoint that's registered for HMR.
 	 *
 	 * @param filePath - Absolute path to the changed file
-	 * @returns True if this is a registered React entrypoint
+	 * @returns True if this is a registered React or MDX entrypoint
 	 */
 	matches(filePath: string): boolean {
 		const watchedFiles = this.context.getWatchedFiles();
@@ -71,7 +77,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
-		return filePath.endsWith('.tsx');
+		const isTsx = filePath.endsWith('.tsx');
+		const isMdx = filePath.endsWith('.mdx') && this.mdxCompilerOptions !== undefined;
+
+		return isTsx || isMdx;
 	}
 
 	/**
@@ -115,7 +124,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Bundles a single React entrypoint with Fast Refresh support.
+	 * Bundles a single React/MDX entrypoint with HMR support.
 	 *
 	 * @param entrypointPath - Absolute path to the source file
 	 * @param outputUrl - URL path for the bundled file
@@ -123,19 +132,32 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 */
 	private async bundleReactEntrypoint(entrypointPath: string, outputUrl: string): Promise<boolean> {
 		try {
+			const isMdx = entrypointPath.endsWith('.mdx');
 			const srcDir = this.context.getSrcDir();
 			const relativePath = path.relative(srcDir, entrypointPath);
-			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?)$/, '.js');
+			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx)$/, '.js');
 			const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
 			const outputPath = path.join(this.context.getDistDir(), encodedPathJs);
+			const tempPath = `${outputPath}.${Date.now()}.tmp`;
+
+			const plugins = [...this.context.getPlugins()];
+
+			if (isMdx && this.mdxCompilerOptions) {
+				const mdx = (await import('@mdx-js/esbuild')).default;
+				// @ts-expect-error: esbuild plugin vs bun plugin
+				plugins.unshift(mdx(this.mdxCompilerOptions));
+			}
+
+			const tempDir = path.dirname(tempPath);
+			const tempName = path.basename(tempPath);
 
 			const result = await Bun.build({
 				entrypoints: [entrypointPath],
-				outdir: this.context.getDistDir(),
-				naming: encodedPathJs,
+				outdir: tempDir,
+				naming: tempName,
 				target: 'browser',
 				format: 'esm',
-				plugins: this.context.getPlugins(),
+				plugins,
 				minify: false,
 				external: ['react', 'react-dom'],
 			});
@@ -145,7 +167,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 				return false;
 			}
 
-			const processed = await this.processOutput(outputPath, outputUrl);
+			const processed = await this.processOutput(tempPath, outputPath, outputUrl);
 			return processed;
 		} catch (error) {
 			appLogger.error(`Error bundling ${entrypointPath}:`, error as Error);
@@ -162,28 +184,29 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Processes bundled output by replacing specifiers and injecting React Fast Refresh.
+	 * Processes bundled output by replacing specifiers and injecting HMR handler.
+	 * Writes to temp file first, then renames atomically to avoid conflicts.
 	 *
-	 * @param filepath - Path to the bundled output file
-	 * @param url - URL path for the bundled file
+	 * @param tempPath - Path to the temporary bundled file
+	 * @param finalPath - Final destination path
+	 * @param url - URL path for logging
 	 * @returns True if processing was successful
 	 */
-	private async processOutput(filepath: string, url: string): Promise<boolean> {
+	private async processOutput(tempPath: string, finalPath: string, url: string): Promise<boolean> {
 		try {
-			let code = await Bun.file(filepath).text();
-
-			if (code.includes('/* [ecopages] react-hmr */')) {
-				return false;
-			}
+			let code = await fileSystem.readFile(tempPath);
 
 			code = this.replaceBareSpecifiers(code);
-			code = this.injectReactFastRefresh(code);
-			await Bun.write(filepath, code);
+			code = injectHmrHandler(code);
 
-			appLogger.debug(`Processed ${url} with Fast Refresh`);
+			await fileSystem.writeAsync(finalPath, code);
+			await fileSystem.removeAsync(tempPath).catch(() => {});
+
+			appLogger.debug(`Processed ${url} with HMR handler`);
 			return true;
 		} catch (error) {
 			appLogger.error(`Error processing output for ${url}:`, error as Error);
+			await fileSystem.removeAsync(tempPath).catch(() => {});
 			return false;
 		}
 	}
@@ -211,40 +234,5 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 
 		return result;
-	}
-
-	/**
-	 * Injects React Fast Refresh boilerplate code.
-	 *
-	 * This enables stateful hot reloading for React components.
-	 * The Fast Refresh runtime preserves component state during updates.
-	 *
-	 * @param code - The processed code
-	 * @returns Code with React Fast Refresh boilerplate injected
-	 *
-	 * @see https://github.com/facebook/react/tree/main/packages/react-refresh
-	 */
-	private injectReactFastRefresh(code: string): string {
-		return `/* [ecopages] react-hmr */
-${code}
-if (import.meta.hot) {
-  import.meta.hot.accept((newModule) => {
-    if (newModule) {
-      const exports = Object.keys(newModule);
-      const hasReactExport = exports.some(key => {
-        const value = newModule[key];
-        return value && (
-          typeof value === 'function' ||
-          (typeof value === 'object' && value.$$typeof)
-        );
-      });
-      
-      if (hasReactExport) {
-        import.meta.hot.invalidate();
-      }
-    }
-  });
-}
-`;
 	}
 }

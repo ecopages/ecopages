@@ -3,13 +3,34 @@
  * @module
  */
 
-import { type ComponentType, createElement } from 'react';
+import { type ComponentType } from 'react';
 import type { EcoRouterOptions } from './types.ts';
 
 export type PageState = {
 	Component: ComponentType<any>;
 	props: Record<string, any>;
 };
+
+/**
+ * Matches a default import statement and captures the module path.
+ * Example: `import Content from './Content'`
+ */
+const DEFAULT_IMPORT_REGEX = /import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/;
+
+/**
+ * Matches a namespace import statement and captures the module path.
+ * Example: `import * as Content from './Content'` or `import*as Content from'./Content'` (minified)
+ */
+const NAMESPACE_IMPORT_REGEX = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['"]/;
+
+/**
+ * Extracts the first module path from a default or namespace import in the given code.
+ */
+function extractModulePathFromCode(code: string): string | null {
+	const defaultMatch = code.match(DEFAULT_IMPORT_REGEX);
+	const namespaceMatch = code.match(NAMESPACE_IMPORT_REGEX);
+	return (defaultMatch || namespaceMatch)?.[2] ?? null;
+}
 
 /**
  * Extracts serialized page props from the target document.
@@ -21,7 +42,6 @@ export function extractProps(doc: Document): Record<string, any> {
 	try {
 		return JSON.parse(propsScript.textContent);
 	} catch {
-		console.error('[EcoRouter] Failed to parse props');
 		return {};
 	}
 }
@@ -38,21 +58,9 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 
 	try {
 		const res = await fetch(hydrationScript.src);
-		const text = await res.text();
-
-		/**
-		 * Matches: `import Content from './Content'`;
-		 */
-		const defaultImport = text.match(/import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/);
-
-		/**
-		 * Matches: `import * as Content from './Content'`;
-		 */
-		const namespaceImport = text.match(/import\s+\*\s+as\s+(\w+)\s+from\s*['"]([^'"]+)['"]/);
-
-		return (defaultImport || namespaceImport)?.[2] ?? null;
+		const code = await res.text();
+		return extractModulePathFromCode(code);
 	} catch {
-		console.error('[EcoRouter] Failed to fetch hydration script');
 		return null;
 	}
 }
@@ -81,16 +89,19 @@ export async function loadPageModule(
 
 		const module = await import(componentUrl);
 		const rawComponent = module.Content || module.default?.Content || module.default;
+
 		const config = module.config || rawComponent?.config;
 
-		let Component = rawComponent;
-
-		if (config?.layout) {
-			Component = (props: Record<string, unknown>) =>
-				createElement(config.layout, null, createElement(rawComponent, props));
+		if (!rawComponent) {
+			console.error('[EcoRouter] No component found in module');
+			return null;
 		}
 
-		return { Component, props, doc };
+		if (config && !rawComponent.config) {
+			rawComponent.config = config;
+		}
+
+		return { Component: rawComponent, props, doc };
 	} catch (e) {
 		console.error('[EcoRouter] Navigation failed:', e);
 		return null;

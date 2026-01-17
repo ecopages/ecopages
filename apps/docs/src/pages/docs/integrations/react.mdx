@@ -149,9 +149,37 @@ import { ClientOnly } from '@ecopages/react/utils/client-only';
 
 ## MDX Support
 
+The React plugin includes optional MDX support. When enabled, you can author `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core';
+import { reactPlugin } from '@ecopages/react';
+import { ecoRouter } from '@ecopages/react-router';
+
+const config = await new ConfigBuilder()
+	.setRootDir(import.meta.dir)
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([
+		reactPlugin({
+			router: ecoRouter(),
+			mdx: {
+				enabled: true,
+				compilerOptions: {
+					// Optional: remark/rehype plugins
+				},
+			},
+		}),
+	])
+	.build();
+
+export default config;
+```
+
+This is the recommended approach when using a client-side router, as it ensures seamless navigation between TSX and MDX pages.
+
 <Banner type="info">
-	<Banner.Title>MDX Support</Banner.Title>
+	<Banner.Title>Standalone MDX</Banner.Title>
 	<p>
-		This integration focuses on rendering React components in your pages. For using React within Markdown/MDX, please see the <a href="/docs/integrations/mdx">MDX Integration</a>.
+		If you are not using a client-side router, you can use the standalone <a href="/docs/integrations/mdx">MDX Integration</a> instead.
 	</p>
 </Banner>

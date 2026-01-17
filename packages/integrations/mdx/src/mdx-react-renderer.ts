@@ -157,7 +157,6 @@ async function mount() {
             
         root = hydrateRoot(container, element);
         
-        // Register HMR handler
         window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
             try {
                 const newModule = await import(newUrl);
@@ -388,9 +387,8 @@ if (document.readyState === 'loading') {
 				}>,
 				{
 					metadata,
-					// oxlint-disable-next-line no-children-prop
-					children,
 				},
+				children,
 			);
 
 			const body = renderToString(htmlElement);

@@ -209,7 +209,7 @@ describe('eco namespace', () => {
 			expect(result).toContain('on:interaction="click"');
 		});
 
-		test('should wrap content with layout when provided', async () => {
+		test('should store layout in config and include in dependencies', async () => {
 			const Layout = eco.component<{ children: string }>({
 				render: ({ children }) => `<main class="layout">${children}</main>`,
 			});
@@ -219,11 +219,13 @@ describe('eco namespace', () => {
 				render: () => '<h1>Page Content</h1>',
 			});
 
+			expect(Page.config?.layout).toBe(Layout);
+			expect(Page.config?.dependencies?.components).toContain(Layout);
 			const result = await Page({});
-			expect(result).toBe('<main class="layout"><h1>Page Content</h1></main>');
+			expect(result).toBe('<h1>Page Content</h1>');
 		});
 
-		test('should handle async render function with layout', async () => {
+		test('should render raw content (layout wrapping happens at render time)', async () => {
 			const Layout = eco.component<{ children: string }>({
 				render: ({ children }) => `<main class="layout">${children}</main>`,
 			});
@@ -236,8 +238,9 @@ describe('eco namespace', () => {
 				},
 			});
 
+			expect(Page.config?.layout).toBe(Layout);
 			const result = await Page({});
-			expect(result).toBe('<main class="layout"><h1>Async Content</h1></main>');
+			expect(result).toBe('<h1>Async Content</h1>');
 		});
 
 		test('should include layout in dependencies when provided', () => {

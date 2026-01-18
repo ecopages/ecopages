@@ -14,17 +14,8 @@
 	@apply font-serif text-xl font-bold tracking-tight text-text no-underline;
 }
 
-@keyframes fade-in {
-	from {
-		opacity: 0;
-	}
-	to {
-		opacity: 1;
-	}
-}
-
 .main-content {
-	@apply max-w-3xl mx-auto px-6 py-12 w-full grow animate-[fade-in_500ms_ease-out];
+	@apply max-w-3xl mx-auto px-6 py-12 w-full grow;
 }
 
 .site-footer {

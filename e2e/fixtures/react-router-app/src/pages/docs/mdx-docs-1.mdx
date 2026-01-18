@@ -1,0 +1,22 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const config = {
+    layout: DocsLayout,
+};
+
+export const getMetadata = () => ({
+    title: 'MDX Docs Page 1',
+    description: 'First MDX page for layout caching tests',
+});
+
+# MDX Docs Page 1
+
+This is the first MDX page using DocsLayout.
+
+<div data-testid="mdx-docs-1">
+  <p>Content from MDX Docs 1</p>
+  <nav>
+    <a href="/docs" data-testid="link-docs-index">Back to Docs</a>
+    <a href="/docs/mdx-docs-2" data-testid="link-mdx-docs-2">Go to MDX Docs 2</a>
+  </nav>
+</div>

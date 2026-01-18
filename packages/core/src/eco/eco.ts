@@ -28,10 +28,6 @@ function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
 	return `${triggerAttr} scripts="${scripts}"`;
 }
 
-function isPromise<T>(value: unknown): value is Promise<T> {
-	return value != null && typeof (value as Promise<T>).then === 'function';
-}
-
 /**
  * Creates a component factory that auto-wraps lazy dependencies
  */
@@ -73,30 +69,21 @@ function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>)
 function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E>): EcoPageComponent<T> {
 	const { layout, dependencies, render, staticPaths, staticProps, metadata } = options;
 
-	let pageComponent: EcoPageComponent<T>;
+	const componentOptions: ComponentOptions<PagePropsFor<T>, E> = {
+		componentDir: options.componentDir,
+		dependencies: layout
+			? {
+					...dependencies,
+					components: [...(dependencies?.components || []), layout],
+				}
+			: dependencies,
+		render,
+	};
 
-	if (layout) {
-		const wrappedRender = (props: PagePropsFor<T>): E | Promise<E> => {
-			const content = render(props);
-			if (isPromise<E>(content)) {
-				return content.then((c) => layout({ children: c })) as Promise<E>;
-			}
-			const result = layout({ children: content });
-			return result as E | Promise<E>;
-		};
+	const pageComponent = createComponentFactory(componentOptions) as EcoPageComponent<T>;
 
-		const wrappedOptions: ComponentOptions<PagePropsFor<T>, E | Promise<E>> = {
-			componentDir: options.componentDir,
-			dependencies: {
-				...dependencies,
-				components: [...(dependencies?.components || []), layout],
-			},
-			render: wrappedRender,
-		};
-
-		pageComponent = createComponentFactory(wrappedOptions) as EcoPageComponent<T>;
-	} else {
-		pageComponent = createComponentFactory(options as ComponentOptions<PagePropsFor<T>, E>) as EcoPageComponent<T>;
+	if (layout && pageComponent.config) {
+		pageComponent.config.layout = layout;
 	}
 
 	if (staticPaths) pageComponent.staticPaths = staticPaths;

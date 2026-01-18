@@ -102,6 +102,21 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 		const currentEl = currentElements.get(key);
 
 		if (!currentEl) {
+			const src = newEl.getAttribute('src');
+			/**
+			 * Skip hydration scripts during SPA navigation to prevent re-mounting
+			 *
+			 * In an SPA transition, the EcoRouter is already running and handling the page update.
+			 * The new page's HTML includes a hydration script (for initial load support), but
+			 * if we let it execute now, it would re-bootstrap the React app from scratch,
+			 * causing a full re-mount, state loss, and a visual flash.
+			 *
+			 * By blocking this script, we ensure the router maintains control and state.
+			 */
+			if (newEl.tagName === 'SCRIPT' && src && src.includes('hydration.js') && src.includes('ecopages-react')) {
+				continue;
+			}
+
 			const cloned = newEl.cloneNode(true) as Element;
 
 			/**

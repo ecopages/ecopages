@@ -6,7 +6,6 @@ import './index.css';
 
 export default eco.page<{}, ReactNode>({
 	layout: BaseLayout,
-
 	dependencies: {
 		stylesheets: ['./index.css'],
 	},

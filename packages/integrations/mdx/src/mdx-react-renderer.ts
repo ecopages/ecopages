@@ -31,6 +31,7 @@ import type {
 	EcoComponentConfig,
 	EcoPageFile,
 	GetMetadata,
+	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
 	PageMetadataProps,
 	RouteRendererBody,
@@ -358,6 +359,7 @@ if (document.readyState === 'loading') {
 		Page,
 		HtmlTemplate,
 		Layout,
+		pageProps,
 	}: MDXReactIntegrationRendererOptions): Promise<RouteRendererBody> {
 		try {
 			if (typeof Page !== 'function') {
@@ -381,13 +383,11 @@ if (document.readyState === 'loading') {
 			);
 
 			const htmlElement = React.createElement(
-				HtmlTemplate as React.ComponentType<{
-					children: ReactNode;
-					metadata: PageMetadataProps;
-				}>,
+				HtmlTemplate,
 				{
 					metadata,
-				},
+					pageProps: pageProps || {},
+				} as HtmlTemplateProps,
 				children,
 			);
 

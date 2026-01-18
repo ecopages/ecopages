@@ -33,7 +33,6 @@ import type {
 	GetMetadata,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
-	PageMetadataProps,
 	RouteRendererBody,
 } from '@ecopages/core';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';

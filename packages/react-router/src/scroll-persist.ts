@@ -40,7 +40,7 @@ function captureScrollPositions(): ScrollMap {
  * - Current snapshot (for forward navigation preservation)
  */
 export function saveScrollPositions(): void {
-	const url = window.location.pathname;
+	const url = `${window.location.pathname}${window.location.search}`;
 	const positions = captureScrollPositions();
 
 	if (positions.size > 0) {

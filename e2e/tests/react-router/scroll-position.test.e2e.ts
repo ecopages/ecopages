@@ -9,31 +9,24 @@ test.describe('React Router Scroll Position', () => {
 		await page.goto('/docs');
 		await page.waitForLoadState('networkidle');
 
-		// Verify we're on the docs page
 		await expect(page.locator('[data-testid="docs-page"]')).toBeVisible();
 
-		// Get the sidebar element
 		const sidebar = page.locator('[data-testid="docs-sidebar"]');
 		await expect(sidebar).toBeVisible();
 
-		// Scroll the sidebar down
 		await sidebar.evaluate((el) => {
 			el.scrollTop = 100;
 		});
 
-		// Verify scroll position was set
 		const scrollTopBefore = await sidebar.evaluate((el) => el.scrollTop);
 		expect(scrollTopBefore).toBe(100);
 
-		// Navigate to another docs page
 		await page.click('[data-testid="link-getting-started"]');
 		await page.waitForURL('**/docs/getting-started');
 		await expect(page.locator('[data-testid="docs-getting-started"]')).toBeVisible();
 
-		// Wait for scroll restoration
 		await page.waitForTimeout(500);
 
-		// Verify sidebar scroll position is preserved via data-eco-persist="scroll"
 		const scrollTopAfter = await sidebar.evaluate((el) => el.scrollTop);
 		expect(scrollTopAfter).toBe(100);
 	});
@@ -44,23 +37,18 @@ test.describe('React Router Scroll Position', () => {
 
 		const sidebar = page.locator('[data-testid="docs-sidebar"]');
 
-		// Scroll the sidebar
 		await sidebar.evaluate((el) => {
 			el.scrollTop = 75;
 		});
 
-		// Navigate forward
 		await page.click('[data-testid="link-getting-started"]');
 		await page.waitForURL('**/docs/getting-started');
 
-		// Navigate back
 		await page.goBack();
 		await page.waitForURL('**/docs');
 
-		// Wait for scroll restoration
 		await page.waitForTimeout(500);
 
-		// Verify scroll position
 		const scrollTop = await sidebar.evaluate((el) => el.scrollTop);
 		expect(scrollTop).toBe(75);
 	});
@@ -69,16 +57,13 @@ test.describe('React Router Scroll Position', () => {
 		await page.goto('/docs');
 		await page.waitForLoadState('networkidle');
 
-		// Set a marker on window to verify SPA navigation
 		await page.evaluate(() => {
 			(window as any).__spa_persistence_check = true;
 		});
 
-		// Navigate
 		await page.click('[data-testid="link-getting-started"]');
 		await page.waitForURL('**/docs/getting-started');
 
-		// Verify the marker persists (proves SPA navigation)
 		const persisted = await page.evaluate(() => {
 			return (window as any).__spa_persistence_check;
 		});

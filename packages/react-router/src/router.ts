@@ -78,6 +78,9 @@ export const PageContent: FC = () => {
 	const persistLayouts = useContext(PersistLayoutsContext);
 
 	if (!pageContext) {
+		if (import.meta.env.NODE_ENV !== 'production') {
+			console.warn('[EcoRouter] PageContent used outside of EcoRouter');
+		}
 		return null;
 	}
 

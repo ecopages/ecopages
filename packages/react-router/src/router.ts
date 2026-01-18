@@ -115,6 +115,26 @@ function createDeferred<T>() {
 	return { promise, resolve };
 }
 
+function useHmrReload(navigate: (url: string) => Promise<void>) {
+	useEffect(() => {
+		if (typeof window === 'undefined') return;
+		if (import.meta.env?.MODE === 'production' || import.meta.env?.PROD) return;
+
+		const windowWithHmr = window as typeof window & {
+			__ecopages_reload_current_page__?: () => Promise<void>;
+		};
+
+		windowWithHmr.__ecopages_reload_current_page__ = async () => {
+			const currentUrl = window.location.pathname + window.location.search;
+			await navigate(currentUrl);
+		};
+
+		return () => {
+			windowWithHmr.__ecopages_reload_current_page__ = undefined;
+		};
+	}, [navigate]);
+}
+
 /**
  * Root router providing SPA navigation with View Transitions.
  *
@@ -256,6 +276,8 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			window.removeEventListener('popstate', handlePopState);
 		};
 	}, [navigate, options]);
+
+	useHmrReload(navigate);
 
 	return createElement(
 		RouterContext.Provider,

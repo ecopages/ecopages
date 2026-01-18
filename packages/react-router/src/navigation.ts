@@ -47,6 +47,18 @@ export function extractProps(doc: Document): Record<string, any> {
 }
 
 /**
+ * Adds cache-busting timestamp for HMR development reloads.
+ * Only applies in development to force fresh module imports.
+ */
+function addCacheBuster(url: string): string {
+	if (import.meta.env?.MODE === 'production' || import.meta.env?.PROD) {
+		return url;
+	}
+	const separator = url.includes('?') ? '&' : '?';
+	return `${url}${separator}t=${Date.now()}`;
+}
+
+/**
  * Extracts the component module URL from the hydration script.
  * Supports both default imports and namespace imports (MDX).
  */
@@ -57,7 +69,8 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 	if (!hydrationScript?.src) return null;
 
 	try {
-		const res = await fetch(hydrationScript.src);
+		const scriptUrl = addCacheBuster(hydrationScript.src);
+		const res = await fetch(scriptUrl);
 		const code = await res.text();
 		return extractModulePathFromCode(code);
 	} catch {
@@ -87,7 +100,8 @@ export async function loadPageModule(
 			return null;
 		}
 
-		const module = await import(componentUrl);
+		const moduleUrl = addCacheBuster(componentUrl);
+		const module = await import(moduleUrl);
 		const rawComponent = module.Content || module.default?.Content || module.default;
 
 		const config = module.config || rawComponent?.config;

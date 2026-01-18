@@ -1,7 +1,7 @@
-import type { EcoComponent } from '@ecopages/core';
+import type { EcoComponent, EcoPagesElement } from '@ecopages/core';
 
 export type BaseLayoutProps = {
-	children: string;
+	children: EcoPagesElement;
 };
 
 export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children }) => {

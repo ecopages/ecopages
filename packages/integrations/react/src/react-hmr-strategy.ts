@@ -138,7 +138,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx)$/, '.js');
 			const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
 			const outputPath = path.join(this.context.getDistDir(), encodedPathJs);
-			const tempPath = `${outputPath}.${Date.now()}.tmp`;
+			const tempDir = path.dirname(outputPath);
 
 			const plugins = [...this.context.getPlugins()];
 
@@ -148,13 +148,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 				plugins.unshift(mdx(this.mdxCompilerOptions));
 			}
 
-			const tempDir = path.dirname(tempPath);
-			const tempName = path.basename(tempPath);
-
 			const result = await Bun.build({
 				entrypoints: [entrypointPath],
 				outdir: tempDir,
-				naming: tempName,
+				naming: `[name].[hash].tmp.js`,
 				target: 'browser',
 				format: 'esm',
 				plugins,
@@ -167,7 +164,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 				return false;
 			}
 
-			const processed = await this.processOutput(tempPath, outputPath, outputUrl);
+			const tempFile = result.outputs[0]?.path;
+			if (!tempFile) {
+				appLogger.error(`No output file generated for ${entrypointPath}`);
+				return false;
+			}
+
+			const processed = await this.processOutput(tempFile, outputPath, outputUrl);
 			return processed;
 		} catch (error) {
 			appLogger.error(`Error bundling ${entrypointPath}:`, error as Error);

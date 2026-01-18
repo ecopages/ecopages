@@ -42,7 +42,7 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
 	/** Component directory for resolving relative dependencies. Auto-injected by plugin, or use `import.meta.dir` */
 	componentDir?: string;
 	dependencies?: EcoComponentDependenciesWithLazy;
-	render: (props: P) => E;
+	render: (props: P) => E | Promise<E>;
 }
 
 /**

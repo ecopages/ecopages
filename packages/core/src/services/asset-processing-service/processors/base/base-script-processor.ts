@@ -38,12 +38,14 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 	protected async bundleScript({
 		entrypoint,
 		outdir,
+		plugins: additionalPlugins,
 		...rest
 	}: {
 		entrypoint: string;
 		outdir: string;
 	} & ScriptAsset['bundleOptions']): Promise<string> {
 		const buildPlugins = this.collectBuildPlugins();
+		const allPlugins = additionalPlugins ? [...buildPlugins, ...additionalPlugins] : buildPlugins;
 
 		const build = await Bun.build({
 			entrypoints: [entrypoint],
@@ -53,7 +55,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			format: 'esm',
 			splitting: true,
 			naming: '[name].[ext]',
-			plugins: buildPlugins,
+			plugins: allPlugins,
 			...rest,
 		});
 

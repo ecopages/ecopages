@@ -63,6 +63,8 @@ import { ${components.router}, ${components.pageContent} } from "${importMapKey}
 ${getImportStatement(importPath, isMdx)}
 
 window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
+window.__ecopages_router_active__ = false;
+window.__ecopages_reload_current_page__ = null;
 let root = null;
 
 const getPageProps = () => {
@@ -81,7 +83,13 @@ const createTree = (Component, props) => {
 const mount = () => {
   const props = getPageProps();
   root = hydrateRoot(document, createTree(Page, props));
+  window.__ecopages_router_active__ = true;
   window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
+    if (window.__ecopages_router_active__ && window.__ecopages_reload_current_page__) {
+      await window.__ecopages_reload_current_page__();
+      console.log("[ecopages] ${getComponentType(isMdx)} component updated via router");
+      return;
+    }
     try {
       const newModule = await import(newUrl);
       ${getHmrImportStatement(isMdx)}

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/bun-inline-css-plugin",
-	"version": "0.1.77",
+	"version": "0.1.78",
 	"exports": {
 		".": "./src/bun-inline-css-plugin.ts"
 	},

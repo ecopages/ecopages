@@ -44,11 +44,11 @@ export interface EcoRouterOptions {
 	smoothScroll?: boolean;
 
 	/**
-	 * @experimental Keep layouts mounted between navigations.
+	 * Keep layouts mounted between navigations.
 	 * When enabled, if consecutive pages share the same layout component,
 	 * the layout stays mounted and only the page content re-renders.
 	 * This preserves layout state including scroll positions.
-	 * @default false
+	 * @default true
 	 */
 	persistLayouts?: boolean;
 }
@@ -60,5 +60,5 @@ export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	debug: false,
 	scrollBehavior: 'top',
 	smoothScroll: false,
-	persistLayouts: false,
+	persistLayouts: true,
 };

@@ -151,7 +151,7 @@ describe('StaticSiteGenerator', () => {
 
 			const mockRendererFactory = {
 				createRenderer: mock(() => ({
-					createRoute: mock(async () => '<html>Static</html>'),
+					createRoute: mock(async () => ({ body: '<html>Static</html>' })),
 				})),
 			} as unknown as RouteRendererFactory;
 
@@ -168,7 +168,7 @@ describe('StaticSiteGenerator', () => {
 
 			const mockRendererFactory = {
 				createRenderer: mock(() => ({
-					createRoute: mock(async () => '<html>Blog Post</html>'),
+					createRoute: mock(async () => ({ body: '<html>Blog Post</html>' })),
 				})),
 			} as unknown as RouteRendererFactory;
 
@@ -194,7 +194,7 @@ describe('StaticSiteGenerator', () => {
 
 			const mockRendererFactory = {
 				createRenderer: mock(() => ({
-					createRoute: mock(async () => '<html>Home</html>'),
+					createRoute: mock(async () => ({ body: '<html>Home</html>' })),
 				})),
 			} as unknown as RouteRendererFactory;
 
@@ -212,7 +212,7 @@ describe('StaticSiteGenerator', () => {
 			const bufferContent = Buffer.from('<html>Buffer Content</html>');
 			const mockRendererFactory = {
 				createRenderer: mock(() => ({
-					createRoute: mock(async () => bufferContent),
+					createRoute: mock(async () => ({ body: bufferContent })),
 				})),
 			} as unknown as RouteRendererFactory;
 

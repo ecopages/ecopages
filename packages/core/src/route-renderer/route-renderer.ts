@@ -1,6 +1,6 @@
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
-import type { RouteRendererBody, RouteRendererOptions } from '../public-types.ts';
+import type { RouteRenderResult, RouteRendererOptions } from '../public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 import { PathUtils } from '../utils/path-utils.module.ts';
 import type { IntegrationRenderer } from './integration-renderer.ts';
@@ -12,7 +12,7 @@ export class RouteRenderer {
 		this.renderer = renderer;
 	}
 
-	async createRoute(options: RouteRendererOptions): Promise<RouteRendererBody> {
+	async createRoute(options: RouteRendererOptions): Promise<RouteRenderResult> {
 		return this.renderer.execute(options);
 	}
 }

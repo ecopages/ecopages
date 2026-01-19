@@ -20,6 +20,7 @@ import type {
 	PageMetadataProps,
 	RouteRendererBody,
 	RouteRendererOptions,
+	RouteRenderResult,
 	StaticPageContext,
 } from '../public-types.ts';
 import {
@@ -360,29 +361,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The prepared render options.
 	 */
 	protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
-		const module = await this.importPageFile(options.file);
-		const {
-			default: Page,
-			getStaticProps: moduleGetStaticProps,
-			getMetadata: moduleGetMetadata,
-			...integrationSpecificProps
-		} = module;
-
-		/**
-		 * Check for attached static functions (consolidated API) or named exports (legacy)
-		 */
-		const getStaticProps = Page.staticProps ?? moduleGetStaticProps;
-		const getMetadata = Page.metadata ?? moduleGetMetadata;
+		const pageModule = await this.resolvePageModule(options.file);
+		const { Page, integrationSpecificProps } = pageModule;
 
 		const HtmlTemplate = await this.getHtmlTemplate();
 
-		const { props } = await this.getStaticProps(getStaticProps, options);
-
-		const metadata = await this.getMetadataProps(getMetadata, {
-			props,
-			params: options.params ?? {},
-			query: options.query ?? {},
-		} as GetMetadataContext);
+		const { props, metadata } = await this.resolvePageData(pageModule, options);
 
 		const Layout = Page.config?.layout;
 
@@ -413,21 +397,72 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			params: options.params || {},
 			query: options.query || {},
 			pageProps,
+			cacheStrategy: (Page as any).cache,
 		};
+	}
+
+	/**
+	 * Resolves the page module and normalizes exports.
+	 */
+	protected async resolvePageModule(file: string): Promise<{
+		Page: EcoPageFile['default'];
+		getStaticProps?: GetStaticProps<Record<string, unknown>>;
+		getMetadata?: GetMetadata;
+		integrationSpecificProps: Record<string, unknown>;
+	}> {
+		const module = await this.importPageFile(file);
+		const {
+			default: Page,
+			getStaticProps: moduleGetStaticProps,
+			getMetadata: moduleGetMetadata,
+			...integrationSpecificProps
+		} = module;
+
+		return {
+			Page,
+			/* Prefer attached static methods (new API) over exports (legacy) */
+			getStaticProps: Page.staticProps ?? moduleGetStaticProps,
+			getMetadata: Page.metadata ?? moduleGetMetadata,
+			integrationSpecificProps,
+		};
+	}
+
+	/**
+	 * Resolves static props and metadata for the page.
+	 */
+	protected async resolvePageData(
+		pageModule: {
+			getStaticProps?: GetStaticProps<Record<string, unknown>>;
+			getMetadata?: GetMetadata;
+		},
+		options: RouteRendererOptions,
+	): Promise<{
+		props: Record<string, unknown>;
+		metadata: PageMetadataProps;
+	}> {
+		const { props } = await this.getStaticProps(pageModule.getStaticProps, options);
+
+		const metadata = await this.getMetadataProps(pageModule.getMetadata, {
+			props,
+			params: options.params ?? {},
+			query: options.query ?? {},
+		} as GetMetadataContext);
+
+		return { props, metadata };
 	}
 
 	/**
 	 * Executes the integration renderer with the provided options.
 	 *
 	 * @param options - The route renderer options.
-	 * @returns The rendered body.
+	 * @returns The rendered body with cache strategy.
 	 */
-	public async execute(options: RouteRendererOptions): Promise<RouteRendererBody> {
-		const renderOptions = await this.prepareRenderOptions(options);
+	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
+		const renderOptions = (await this.prepareRenderOptions(options)) as IntegrationRendererRenderOptions<C>;
 
-		return await this.htmlTransformer
+		const body = await this.htmlTransformer
 			.transform(
-				new Response((await this.render(renderOptions as IntegrationRendererRenderOptions<C>)) as BodyInit, {
+				new Response((await this.render(renderOptions)) as BodyInit, {
 					headers: {
 						'Content-Type': 'text/html',
 					},
@@ -436,6 +471,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			.then((res: Response) => {
 				return res.body as RouteRendererBody;
 			});
+
+		return {
+			body,
+			cacheStrategy: renderOptions.cacheStrategy,
+		};
 	}
 
 	/**

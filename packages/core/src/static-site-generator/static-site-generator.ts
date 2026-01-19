@@ -123,10 +123,12 @@ export class StaticSiteGenerator {
 					const renderer = routeRendererFactory.createRenderer(filePath);
 					const params = this.extractParams(routePathname, pathname.replace('.html', ''));
 
-					const body = await renderer.createRoute({
+					const result = await renderer.createRoute({
 						file: filePath,
 						params,
 					});
+
+					const body = result.body;
 
 					if (typeof body === 'string' || Buffer.isBuffer(body)) {
 						contents = body;

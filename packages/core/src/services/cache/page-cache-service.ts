@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { CacheEntry, CacheResult, CacheStore, CacheStrategy } from './cache.types.ts';
+import type { CacheEntry, CacheResult, CacheStore, CacheStrategy, RenderResult } from './cache.types.ts';
 import { MemoryCacheStore } from './memory-cache-store.ts';
 
 export interface PageCacheServiceOptions {
@@ -42,19 +42,6 @@ export class PageCacheService {
 	}
 
 	/**
-	 * Generate an ETag from HTML content.
-	 */
-	private generateEtag(html: string): string {
-		let hash = 0;
-		for (let i = 0; i < html.length; i++) {
-			const char = html.charCodeAt(i);
-			hash = (hash << 5) - hash + char;
-			hash |= 0;
-		}
-		return `"${Math.abs(hash).toString(16)}"`;
-	}
-
-	/**
 	 * Create a cache entry from rendered HTML.
 	 */
 	private createEntry(html: string, strategy: CacheStrategy): CacheEntry {
@@ -77,49 +64,67 @@ export class PageCacheService {
 			createdAt: now,
 			revalidateAfter,
 			tags,
-			etag: this.generateEtag(html),
+			strategy,
 		};
 	}
 
 	/**
 	 * Get cached content or create new content with stale-while-revalidate semantics.
+	 * @param key - Cache key (URL path + query)
+	 * @param defaultStrategy - Default strategy if page doesn't specify one
+	 * @param renderFn - Function that renders the page and returns HTML + strategy
 	 */
-	async getOrCreate(key: string, strategy: CacheStrategy, renderFn: () => Promise<string>): Promise<CacheResult> {
-		if (strategy === 'dynamic' || !this.enabled) {
-			const html = await renderFn();
-			return { html, status: 'miss' };
+	async getOrCreate(
+		key: string,
+		defaultStrategy: CacheStrategy,
+		renderFn: () => Promise<RenderResult>,
+	): Promise<CacheResult> {
+		if (!this.enabled) {
+			const { html, strategy } = await renderFn();
+			return { html, status: 'miss', strategy };
 		}
 
 		const entry = await this.store.get(key);
 
 		if (!entry) {
-			const html = await renderFn();
-			const newEntry = this.createEntry(html, strategy);
+			const { html, strategy } = await renderFn();
+			const effectiveStrategy = strategy ?? defaultStrategy;
+
+			if (effectiveStrategy === 'dynamic') {
+				return { html, status: 'miss', strategy: effectiveStrategy };
+			}
+
+			const newEntry = this.createEntry(html, effectiveStrategy);
 			await this.store.set(key, newEntry);
-			return { html, status: 'miss' };
+			return { html, status: 'miss', strategy: effectiveStrategy };
 		}
 
 		if (!this.isStale(entry)) {
-			return { html: entry.html, status: 'hit' };
+			return { html: entry.html, status: 'hit', strategy: entry.strategy };
 		}
 
-		this.regenerateInBackground(key, strategy, renderFn);
-		return { html: entry.html, status: 'stale' };
+		this.regenerateInBackground(key, entry.strategy, renderFn);
+		return { html: entry.html, status: 'stale', strategy: entry.strategy };
 	}
 
 	/**
 	 * Regenerate content in the background without blocking the response.
 	 * Uses promise deduplication to prevent multiple concurrent regenerations.
 	 */
-	private regenerateInBackground(key: string, strategy: CacheStrategy, renderFn: () => Promise<string>): void {
+	private regenerateInBackground(
+		key: string,
+		fallbackStrategy: CacheStrategy,
+		renderFn: () => Promise<{ html: string; strategy: CacheStrategy }>,
+	): void {
 		if (this.regenerationPromises.has(key)) {
 			return;
 		}
 
 		const regeneratePromise = (async () => {
 			try {
-				const html = await renderFn();
-				const newEntry = this.createEntry(html, strategy);
+				const { html, strategy } = await renderFn();
+				const effectiveStrategy = strategy ?? fallbackStrategy;
+				const newEntry = this.createEntry(html, effectiveStrategy);
 				await this.store.set(key, newEntry);
 				return html;
 			} finally {
@@ -155,6 +160,13 @@ export class PageCacheService {
 	 */
 	async clear(): Promise<void> {
 		return this.store.clear();
+	}
+
+	/**
+	 * Get cache statistics.
+	 */
+	async stats() {
+		return this.store.stats?.() ?? { entries: 0 };
 	}
 
 	/**

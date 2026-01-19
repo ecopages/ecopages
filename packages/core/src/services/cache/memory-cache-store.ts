@@ -43,9 +43,20 @@ export class MemoryCacheStore implements CacheStore {
 	 * Store an entry, evicting the oldest if at capacity.
 	 * When maxEntries is reached and a new key is added, the first key in
 	 * the Map (oldest/least-recently-used) is evicted to make room.
+	 * Updating an existing key refreshes its LRU position.
 	 */
 	async set(key: string, entry: CacheEntry): Promise<void> {
-		if (this.cache.size >= this.maxEntries && !this.cache.has(key)) {
+		const existingEntry = this.cache.get(key);
+
+		if (existingEntry) {
+			for (const tag of existingEntry.tags) {
+				this.tagIndex.get(tag)?.delete(key);
+				if (this.tagIndex.get(tag)?.size === 0) {
+					this.tagIndex.delete(tag);
+				}
+			}
+			this.cache.delete(key);
+		} else if (this.cache.size >= this.maxEntries) {
 			const oldestKey = this.cache.keys().next().value;
 			if (oldestKey) await this.delete(oldestKey);
 		}
@@ -80,15 +91,21 @@ export class MemoryCacheStore implements CacheStore {
 
 	async invalidateByTags(tags: string[]): Promise<number> {
 		let count = 0;
+		const keysToDelete = new Set<string>();
+
 		for (const tag of tags) {
 			const keys = this.tagIndex.get(tag);
 			if (keys) {
 				for (const key of keys) {
-					if (this.cache.delete(key)) count++;
+					keysToDelete.add(key);
 				}
-				this.tagIndex.delete(tag);
 			}
 		}
+
+		for (const key of keysToDelete) {
+			if (await this.delete(key)) count++;
+		}
+
 		return count;
 	}
 

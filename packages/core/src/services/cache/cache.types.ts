@@ -4,6 +4,14 @@
  */
 
 /**
+ * Result from rendering a page, including HTML and cache strategy.
+ */
+export interface RenderResult {
+	html: string;
+	strategy: CacheStrategy;
+}
+
+/**
  * Render strategy configuration for pages.
  * - `'static'`: Render once, cache indefinitely
  * - `'dynamic'`: No caching, render on every request
@@ -31,8 +39,8 @@ export interface CacheEntry {
 	revalidateAfter: number | null;
 	/** Tags associated with this entry for invalidation */
 	tags: string[];
-	/** ETag for conditional requests */
-	etag: string;
+	/** The cache strategy used (for generating headers on HIT) */
+	strategy: CacheStrategy;
 }
 
 /**
@@ -96,6 +104,13 @@ export interface CacheConfig {
 	 * @default true (production), false (development)
 	 */
 	enabled?: boolean;
+
+	/**
+	 * Maximum number of entries in the memory cache before LRU eviction.
+	 * Only applies when using the built-in memory store.
+	 * @default 1000
+	 */
+	maxEntries?: number;
 }
 
 /**
@@ -106,4 +121,6 @@ export interface CacheResult {
 	html: string;
 	/** Cache status for X-Cache header */
 	status: 'hit' | 'miss' | 'stale' | 'expired';
+	/** The cache strategy (for generating Cache-Control headers) */
+	strategy: CacheStrategy;
 }

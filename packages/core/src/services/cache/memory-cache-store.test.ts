@@ -12,7 +12,7 @@ function createEntry(overrides: Partial<CacheEntry> = {}): CacheEntry {
 		createdAt: Date.now(),
 		revalidateAfter: null,
 		tags: [],
-		etag: 'test-etag',
+		strategy: 'static',
 		...overrides,
 	};
 }
@@ -95,6 +95,23 @@ describe('MemoryCacheStore', () => {
 			expect(stats.entries).toBe(3);
 			expect((await smallStore.get('/page1'))?.html).toBe('<html>updated</html>');
 		});
+
+		test('should refresh entry position on update (move to most recent)', async () => {
+			const smallStore = new MemoryCacheStore({ maxEntries: 3 });
+
+			await smallStore.set('/page1', createEntry({ html: '<html>v1</html>' }));
+			await smallStore.set('/page2', createEntry());
+			await smallStore.set('/page3', createEntry());
+
+			await smallStore.set('/page1', createEntry({ html: '<html>v2</html>' }));
+
+			await smallStore.set('/page4', createEntry());
+
+			expect(await smallStore.get('/page1')).not.toBeNull();
+			expect(await smallStore.get('/page2')).toBeNull();
+			expect(await smallStore.get('/page3')).not.toBeNull();
+			expect(await smallStore.get('/page4')).not.toBeNull();
+		});
 	});
 
 	describe('delete', () => {
@@ -136,6 +153,35 @@ describe('MemoryCacheStore', () => {
 			await store.set('/page', createEntry({ tags: ['blog'] }));
 			const count = await store.invalidateByTags(['nonexistent']);
 			expect(count).toBe(0);
+		});
+
+		test('should clean up all tag references when entry has multiple tags', async () => {
+			await store.set('/blog/featured', createEntry({ tags: ['blog', 'featured', 'homepage'] }));
+			await store.set('/blog/regular', createEntry({ tags: ['blog'] }));
+			await store.set('/featured-product', createEntry({ tags: ['featured', 'product'] }));
+
+			const count = await store.invalidateByTags(['blog']);
+			expect(count).toBe(2);
+
+			expect(await store.get('/blog/featured')).toBeNull();
+			expect(await store.get('/blog/regular')).toBeNull();
+			expect(await store.get('/featured-product')).not.toBeNull();
+
+			const countFeatured = await store.invalidateByTags(['featured']);
+			expect(countFeatured).toBe(1);
+			expect(await store.get('/featured-product')).toBeNull();
+		});
+
+		test('should not leave orphaned tag references after invalidation', async () => {
+			await store.set('/page1', createEntry({ tags: ['tagA', 'tagB'] }));
+
+			await store.invalidateByTags(['tagA']);
+
+			expect(await store.get('/page1')).toBeNull();
+
+			await store.set('/page2', createEntry({ tags: ['tagB'] }));
+			const count = await store.invalidateByTags(['tagB']);
+			expect(count).toBe(1);
 		});
 	});
 

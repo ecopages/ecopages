@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { BunRequest, Server, WebSocketHandler } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler } from '../../public-types.ts';
+import type { ApiHandler, CacheInvalidator } from '../../public-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouter } from '../../router/fs-router.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
@@ -206,7 +206,9 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 
 		if (isCacheEnabled) {
 			const store =
-				cacheConfig?.store === 'memory' || !cacheConfig?.store ? new MemoryCacheStore() : cacheConfig.store;
+				cacheConfig?.store === 'memory' || !cacheConfig?.store
+					? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
+					: cacheConfig.store;
 			cacheService = new PageCacheService({ store, enabled: true });
 		}
 
@@ -301,6 +303,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		const handleNoMatch = this.handleNoMatch.bind(this);
 		const waitForInit = this.waitForInitialization.bind(this);
 		const handleReq = this.handleRequest.bind(this);
+		const getCacheService = (): CacheInvalidator | null =>
+			this.fileSystemResponseMatcher?.getCacheService() ?? null;
 
 		const mergedRoutes = deepMerge(routes || {}, this.routes);
 		appLogger.debug(`[BunServerAdapter] Building server settings with ${this.apiHandlers.length} API handlers`);
@@ -318,6 +322,9 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 						request,
 						response: new ApiResponseBuilder(),
 						server: this.serverInstance,
+						services: {
+							cache: getCacheService(),
+						},
 					});
 				} catch (error) {
 					appLogger.error(`[ecopages] Error handling API request: ${error}`);

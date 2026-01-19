@@ -3,7 +3,15 @@
  * @module
  */
 
-export type { CacheConfig, CacheEntry, CacheResult, CacheStats, CacheStore, CacheStrategy } from './cache.types.ts';
+export type {
+	CacheConfig,
+	CacheEntry,
+	CacheResult,
+	CacheStats,
+	CacheStore,
+	CacheStrategy,
+	RenderResult,
+} from './cache.types.ts';
 
 export { MemoryCacheStore, type MemoryCacheStoreOptions } from './memory-cache-store.ts';
 

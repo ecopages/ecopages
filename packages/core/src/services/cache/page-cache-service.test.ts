@@ -24,17 +24,18 @@ describe('PageCacheService', () => {
 
 	describe('getOrCreate', () => {
 		test('should return miss and render on cache miss', async () => {
-			const renderFn = mock().mockResolvedValue('<html>hello</html>');
+			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
 			const result = await service.getOrCreate('/page', 'static', renderFn);
 
 			expect(result.status).toBe('miss');
 			expect(result.html).toBe('<html>hello</html>');
+			expect(result.strategy).toBe('static');
 			expect(renderFn).toHaveBeenCalledTimes(1);
 		});
 
 		test('should return hit on cache hit', async () => {
-			const renderFn = mock().mockResolvedValue('<html>hello</html>');
+			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
 			// First call - cache miss
 			await service.getOrCreate('/page', 'static', renderFn);
@@ -45,11 +46,12 @@ describe('PageCacheService', () => {
 
 			expect(result.status).toBe('hit');
 			expect(result.html).toBe('<html>hello</html>');
+			expect(result.strategy).toBe('static');
 			expect(renderFn).not.toHaveBeenCalled();
 		});
 
 		test('should bypass cache for dynamic strategy', async () => {
-			const renderFn = mock().mockResolvedValue('<html>hello</html>');
+			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'dynamic' as const });
 
 			const result1 = await service.getOrCreate('/page', 'dynamic', renderFn);
 			const result2 = await service.getOrCreate('/page', 'dynamic', renderFn);
@@ -60,15 +62,16 @@ describe('PageCacheService', () => {
 		});
 
 		test('should return stale when entry is past revalidation time', async () => {
-			const renderFn = mock().mockResolvedValue('<html>v1</html>');
+			const revalidateStrategy = { revalidate: 60 };
+			const renderFn = mock().mockResolvedValue({ html: '<html>v1</html>', strategy: revalidateStrategy });
 
 			// Manually create a stale entry in the store
 			const staleEntry = {
 				html: '<html>stale</html>',
 				createdAt: Date.now() - 120000,
-				revalidateAfter: Date.now() - 60000, // Already past revalidation
+				revalidateAfter: Date.now() - 60000,
 				tags: [],
-				etag: '"stale"',
+				strategy: revalidateStrategy,
 			};
 			await store.set('/stale-page', staleEntry);
 
@@ -83,7 +86,7 @@ describe('PageCacheService', () => {
 			const renderFn = mock().mockImplementation(async () => {
 				callCount++;
 				await new Promise((resolve) => setTimeout(resolve, 10));
-				return `<html>v${callCount}</html>`;
+				return { html: `<html>v${callCount}</html>`, strategy: { revalidate: 60 } };
 			});
 
 			// Create a stale entry
@@ -92,7 +95,7 @@ describe('PageCacheService', () => {
 				createdAt: Date.now() - 120000,
 				revalidateAfter: Date.now() - 60000,
 				tags: [],
-				etag: '"stale"',
+				strategy: { revalidate: 60 },
 			};
 			await store.set('/dedup-page', staleEntry);
 
@@ -119,10 +122,11 @@ describe('PageCacheService', () => {
 
 	describe('invalidation', () => {
 		test('should invalidate by tags', async () => {
-			const renderFn = mock().mockResolvedValue('<html>hello</html>');
+			const strategy = { revalidate: 3600, tags: ['blog'] };
+			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy });
 
-			await service.getOrCreate('/blog/1', { revalidate: 3600, tags: ['blog'] }, renderFn);
-			await service.getOrCreate('/blog/2', { revalidate: 3600, tags: ['blog'] }, renderFn);
+			await service.getOrCreate('/blog/1', strategy, renderFn);
+			await service.getOrCreate('/blog/2', strategy, renderFn);
 
 			const count = await service.invalidateByTags(['blog']);
 			expect(count).toBe(2);
@@ -133,7 +137,7 @@ describe('PageCacheService', () => {
 		});
 
 		test('should invalidate by paths', async () => {
-			const renderFn = mock().mockResolvedValue('<html>hello</html>');
+			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
 			await service.getOrCreate('/blog/1', 'static', renderFn);
 
@@ -149,7 +153,7 @@ describe('PageCacheService', () => {
 	describe('disabled cache', () => {
 		test('should bypass cache when disabled', async () => {
 			const disabledService = new PageCacheService({ store, enabled: false });
-			const renderFn = mock().mockResolvedValue('<html>hello</html>');
+			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
 			const result1 = await disabledService.getOrCreate('/page', 'static', renderFn);
 			const result2 = await disabledService.getOrCreate('/page', 'static', renderFn);

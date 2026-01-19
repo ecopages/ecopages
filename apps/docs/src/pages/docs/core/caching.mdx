@@ -1,0 +1,123 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
+
+export const config = {
+	layout: DocsLayout,
+};
+
+export const getMetadata = () => ({
+	title: 'Docs | Caching',
+	description: 'Learn how to configure Static, Dynamic, and ISR caching strategies for your pages.',
+});
+
+
+# Page Caching
+
+EcoPages includes a built-in caching system that supports **Static**, **Dynamic**, and **Incremental Static Regeneration (ISR)** strategies. This allows you to serve fresh content with the performance of static pages.
+
+## Caching Strategies
+
+You can define the caching behavior for any page using the `cache` property in the `eco.page` configuration.
+
+### Static (Default)
+
+By default, pages are cached indefinitely. This is perfect for content that rarely changes.
+
+```typescript
+export default eco.page({
+	cache: 'static',
+	render: () => html`<h1>Hello World</h1>`,
+});
+```
+
+These pages are generated once and served from the cache until the server restarts or the cache is manually invalidated.
+
+### Dynamic
+
+Dynamic pages are never cached. They are rendered fresh for every request. Use this for personalized content or real-time data.
+
+```typescript
+export default eco.page({
+	cache: 'dynamic',
+	render: () => html`<h1>Current Time: ${new Date().toISOString()}</h1>`,
+});
+```
+
+<Banner type="info" title="Note">
+  Dynamic pages set `Cache-Control: no-store` headers to prevent browser and CDN caching.
+</Banner>
+
+### Incremental Static Regeneration (ISR)
+
+ISR allows you to cache pages for a specific duration ("revalidate" time).
+
+1.  **First Request**: The page is rendered and cached.
+2.  **Subsequent Requests**: The cached page is served immediately.
+3.  **After Revalidation Time**: The _next_ request still gets the cached (stale) version, but it triggers a background regeneration. Future requests will see the updated content.
+
+```typescript
+export default eco.page({
+	cache: {
+		revalidate: 60, // Seconds
+		tags: ['blog', 'posts'],
+	},
+	render: () => html`<h1>Latest Updates</h1>`,
+});
+```
+
+This strategy uses the **Stale-While-Revalidate** pattern, ensuring visitors always get instant responses.
+
+## Global Configuration
+
+You can configure global cache settings in your `eco.config.ts` file provided by the Config Builder.
+
+```typescript
+// eco.config.ts
+const config = await new ConfigBuilder()
+	.setCache({
+		enabled: true,
+		defaultStrategy: 'static',
+		maxEntries: 1000,
+	})
+	.build();
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `enabled` | `boolean` | `true` (prod)<br/>`false` (dev) | Set to `false` to completely disable the cache service. Useful for debugging or when using an external CDN exclusively. |
+| `defaultStrategy` | `CacheStrategy` | `'static'` | The default caching strategy for pages that do not specify one. |
+| `maxEntries` | `number` | `1000` | maximum number of items to keep in the default memory store. Oldest items are removed when this limit is reached. |
+| `store` | `CacheStore` | `'memory'` | The storage backend to use. You can pass a custom class implementing the `CacheStore` interface (e.g., for Redis). |
+
+## On-Demand Invalidation
+
+You can manually invalidate cached pages locally or via an API handler using tags or specific paths. This is useful for "purging" content when data updates (e.g., from a CMS webhook).
+
+### API Handler Example
+
+```typescript
+// src/api/revalidate.ts
+app.post('/api/revalidate', async ({ request, services }) => {
+	const { tags, paths } = await request.json();
+
+	// Invalidate by tags
+	if (tags) await services.cache.invalidateByTags(tags);
+
+	// Invalidate by path
+	if (paths) await services.cache.invalidateByPaths(paths);
+
+	return Response.json({ revalidated: true });
+});
+```
+
+## Headers
+
+EcoPages automatically sets appropriate headers based on the chosen strategy.
+
+| Strategy    | `Cache-Control`                                  | `X-Cache`                |
+| :---------- | :----------------------------------------------- | :----------------------- |
+| **Static**  | `public, max-age=31536000, immutable`            | `HIT` / `MISS`           |
+| **Dynamic** | `no-store, must-revalidate`                      | `MISS`                   |
+| **ISR**     | `public, max-age=60, stale-while-revalidate=120` | `HIT` / `MISS` / `STALE` |

@@ -74,6 +74,7 @@ describe('FileSystemResponseMatcher', () => {
 			const response = await matcherWithoutCache.handleMatch(match);
 			expect(response.headers.get('Content-Type')).toBe('text/html');
 			expect(response.headers.get('X-Cache')).toBe('DISABLED');
+			expect(response.headers.get('Cache-Control')).toBe('no-store, must-revalidate');
 		});
 
 		it('should return null for getCacheService when not configured', () => {

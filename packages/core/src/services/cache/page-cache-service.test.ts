@@ -177,4 +177,9 @@ describe('getCacheControlHeader', () => {
 	test('should return max-age and stale-while-revalidate for object strategy', () => {
 		expect(getCacheControlHeader({ revalidate: 3600 })).toBe('public, max-age=3600, stale-while-revalidate=7200');
 	});
+
+	test('should return no-store when disabled', () => {
+		expect(getCacheControlHeader('disabled')).toBe('no-store, must-revalidate');
+		expect(getCacheControlHeader('disabled')).toBe('no-store, must-revalidate');
+	});
 });

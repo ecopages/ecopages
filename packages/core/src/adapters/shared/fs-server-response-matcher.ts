@@ -131,7 +131,7 @@ export class FileSystemResponseMatcher {
 	): Response {
 		const headers: HeadersInit = {
 			'Content-Type': 'text/html',
-			'Cache-Control': getCacheControlHeader(strategy),
+			'Cache-Control': getCacheControlHeader(cacheStatus === 'disabled' ? 'disabled' : strategy),
 			'X-Cache': cacheStatus.toUpperCase(),
 		};
 

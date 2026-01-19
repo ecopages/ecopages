@@ -180,7 +180,10 @@ export class PageCacheService {
 /**
  * Generate Cache-Control header value from cache strategy.
  */
-export function getCacheControlHeader(strategy: CacheStrategy): string {
+export function getCacheControlHeader(strategy: CacheStrategy | 'disabled'): string {
+	if (strategy === 'disabled') {
+		return 'no-store, must-revalidate';
+	}
 	if (strategy === 'static') {
 		return 'public, max-age=31536000, immutable';
 	}

@@ -37,10 +37,8 @@ describe('PageCacheService', () => {
 		test('should return hit on cache hit', async () => {
 			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
-			// First call - cache miss
 			await service.getOrCreate('/page', 'static', renderFn);
 
-			// Second call - cache hit
 			renderFn.mockClear();
 			const result = await service.getOrCreate('/page', 'static', renderFn);
 
@@ -65,7 +63,6 @@ describe('PageCacheService', () => {
 			const revalidateStrategy = { revalidate: 60 };
 			const renderFn = mock().mockResolvedValue({ html: '<html>v1</html>', strategy: revalidateStrategy });
 
-			// Manually create a stale entry in the store
 			const staleEntry = {
 				html: '<html>stale</html>',
 				createdAt: Date.now() - 120000,
@@ -75,7 +72,6 @@ describe('PageCacheService', () => {
 			};
 			await store.set('/stale-page', staleEntry);
 
-			// Request should return stale immediately
 			const result = await service.getOrCreate('/stale-page', { revalidate: 60 }, renderFn);
 			expect(result.status).toBe('stale');
 			expect(result.html).toBe('<html>stale</html>');
@@ -89,7 +85,6 @@ describe('PageCacheService', () => {
 				return { html: `<html>v${callCount}</html>`, strategy: { revalidate: 60 } };
 			});
 
-			// Create a stale entry
 			const staleEntry = {
 				html: '<html>stale</html>',
 				createdAt: Date.now() - 120000,
@@ -99,23 +94,19 @@ describe('PageCacheService', () => {
 			};
 			await store.set('/dedup-page', staleEntry);
 
-			// Multiple concurrent calls - all should get stale immediately
 			const results = await Promise.all([
 				service.getOrCreate('/dedup-page', { revalidate: 60 }, renderFn),
 				service.getOrCreate('/dedup-page', { revalidate: 60 }, renderFn),
 				service.getOrCreate('/dedup-page', { revalidate: 60 }, renderFn),
 			]);
 
-			// All should return stale content immediately
 			for (const result of results) {
 				expect(result.status).toBe('stale');
 				expect(result.html).toBe('<html>stale</html>');
 			}
 
-			// Wait for background regeneration
 			await new Promise((resolve) => setTimeout(resolve, 50));
 
-			// Background render should only be called once
 			expect(renderFn).toHaveBeenCalledTimes(1);
 		});
 	});
@@ -179,7 +170,6 @@ describe('getCacheControlHeader', () => {
 	});
 
 	test('should return no-store when disabled', () => {
-		expect(getCacheControlHeader('disabled')).toBe('no-store, must-revalidate');
 		expect(getCacheControlHeader('disabled')).toBe('no-store, must-revalidate');
 	});
 });

@@ -53,7 +53,6 @@ describe('MemoryCacheStore', () => {
 			await smallStore.set('/page2', createEntry());
 			await smallStore.set('/page3', createEntry());
 
-			// This should evict /page1
 			await smallStore.set('/page4', createEntry());
 
 			expect(await smallStore.get('/page1')).toBeNull();
@@ -69,10 +68,8 @@ describe('MemoryCacheStore', () => {
 			await smallStore.set('/page2', createEntry());
 			await smallStore.set('/page3', createEntry());
 
-			// Access /page1 to refresh its position (makes it most recent)
 			await smallStore.get('/page1');
 
-			// This should evict /page2 (oldest after /page1 was refreshed)
 			await smallStore.set('/page4', createEntry());
 
 			expect(await smallStore.get('/page1')).not.toBeNull();
@@ -88,7 +85,6 @@ describe('MemoryCacheStore', () => {
 			await smallStore.set('/page2', createEntry());
 			await smallStore.set('/page3', createEntry());
 
-			// Update existing key - should not trigger eviction
 			await smallStore.set('/page1', createEntry({ html: '<html>updated</html>' }));
 
 			const stats = await smallStore.stats();

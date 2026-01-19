@@ -3,6 +3,7 @@ import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
 import type { Processor } from './plugins/processor.ts';
 import type { PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from './router/fs-router.ts';
+import type { CacheConfig } from './services/cache/cache.types.ts';
 
 /**
  * The templates used to build the pages and loaded via the includes directory.
@@ -125,6 +126,11 @@ export type EcoPagesAppConfig = {
 	 * Loaders to be used in the app, these are used to process the files when importing them
 	 */
 	loaders: Map<string, BunPlugin>;
+	/**
+	 * Cache configuration for ISR and page caching.
+	 * @default { store: 'memory', defaultStrategy: 'static', enabled: true }
+	 */
+	cache?: CacheConfig;
 };
 
 export type IntegrationDependencyConfig = {

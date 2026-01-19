@@ -11,6 +11,7 @@ import type {
 	GetStaticPaths,
 	GetStaticProps,
 } from '../public-types.ts';
+import type { CacheStrategy } from '../services/cache/cache.types.ts';
 
 /**
  * Lazy trigger options map directly to scripts-injector attributes.
@@ -79,6 +80,14 @@ export interface PageOptions<T, E = EcoPagesElement> {
 	 */
 	metadata?: GetMetadata<T>;
 
+	/**
+	 * Cache configuration for ISR (Incremental Static Regeneration).
+	 * - `'static'`: Cache indefinitely (default)
+	 * - `'dynamic'`: No caching, render on every request
+	 * - `{ revalidate: number, tags?: string[] }`: Cache with time-based revalidation
+	 */
+	cache?: CacheStrategy;
+
 	render: (props: PagePropsFor<T>) => E | Promise<E>;
 }
 
@@ -100,6 +109,7 @@ export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T>> & {
 	staticPaths?: GetStaticPaths;
 	staticProps?: GetStaticProps<T>;
 	metadata?: GetMetadata<T>;
+	cache?: CacheStrategy;
 };
 
 /**

@@ -453,4 +453,39 @@ describe('eco namespace', () => {
 		expect(Page.staticProps).toBeUndefined();
 		expect(Page.metadata).toBeUndefined();
 	});
+
+	test('should attach cache strategy "static" when provided', () => {
+		const Page = eco.page({
+			cache: 'static',
+			render: () => '<h1>Static Page</h1>',
+		});
+
+		expect(Page.cache).toBe('static');
+	});
+
+	test('should attach cache strategy "dynamic" when provided', () => {
+		const Page = eco.page({
+			cache: 'dynamic',
+			render: () => '<h1>Dynamic Page</h1>',
+		});
+
+		expect(Page.cache).toBe('dynamic');
+	});
+
+	test('should attach cache strategy with revalidation when provided', () => {
+		const Page = eco.page({
+			cache: { revalidate: 3600, tags: ['blog'] },
+			render: () => '<h1>Blog Page</h1>',
+		});
+
+		expect(Page.cache).toEqual({ revalidate: 3600, tags: ['blog'] });
+	});
+
+	test('should not have cache when not provided', () => {
+		const Page = eco.page({
+			render: () => '<h1>Page Without Cache</h1>',
+		});
+
+		expect(Page.cache).toBeUndefined();
+	});
 });

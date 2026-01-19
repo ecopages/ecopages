@@ -67,7 +67,7 @@ function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>)
  * Create a page component with type-safe props from getStaticProps
  */
 function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E>): EcoPageComponent<T> {
-	const { layout, dependencies, render, staticPaths, staticProps, metadata } = options;
+	const { layout, dependencies, render, staticPaths, staticProps, metadata, cache } = options;
 
 	const componentOptions: ComponentOptions<PagePropsFor<T>, E> = {
 		componentDir: options.componentDir,
@@ -89,6 +89,7 @@ function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E>): EcoPageC
 	if (staticPaths) pageComponent.staticPaths = staticPaths;
 	if (staticProps) pageComponent.staticProps = staticProps;
 	if (metadata) pageComponent.metadata = metadata;
+	if (cache) pageComponent.cache = cache;
 
 	return pageComponent;
 }

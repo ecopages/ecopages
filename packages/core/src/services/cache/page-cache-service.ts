@@ -4,6 +4,7 @@
  * @module
  */
 
+import { appLogger } from '../../global/app-logger.ts';
 import type { CacheEntry, CacheResult, CacheStore, CacheStrategy, RenderResult } from './cache.types.ts';
 import { MemoryCacheStore } from './memory-cache-store.ts';
 
@@ -136,7 +137,7 @@ export class PageCacheService {
 
 		queueMicrotask(() => {
 			regeneratePromise.catch((error) => {
-				console.error(`[PageCacheService] Failed to regenerate: ${key}`, error);
+				appLogger.error(`[PageCacheService] Failed to regenerate: ${key}`, error);
 			});
 		});
 	}

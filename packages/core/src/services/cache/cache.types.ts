@@ -120,7 +120,7 @@ export interface CacheResult {
 	/** The cached HTML content */
 	html: string;
 	/** Cache status for X-Cache header */
-	status: 'hit' | 'miss' | 'stale' | 'expired';
+	status: 'hit' | 'miss' | 'stale';
 	/** The cache strategy (for generating Cache-Control headers) */
 	strategy: CacheStrategy;
 }

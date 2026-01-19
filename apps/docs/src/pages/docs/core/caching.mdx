@@ -74,7 +74,7 @@ You can configure global cache settings in your `eco.config.ts` file provided by
 ```typescript
 // eco.config.ts
 const config = await new ConfigBuilder()
-	.setCache({
+	.setCacheConfig({
 		enabled: true,
 		defaultStrategy: 'static',
 		maxEntries: 1000,
@@ -86,9 +86,9 @@ const config = await new ConfigBuilder()
 
 | Option | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `enabled` | `boolean` | `true` (prod)<br/>`false` (dev) | Set to `false` to completely disable the cache service. Useful for debugging or when using an external CDN exclusively. |
+| `enabled` | `boolean` | `true` (prod)<br/>`false` (dev) | Controls whether the cache service is active. In production it is enabled by default; in development (watch mode) it is disabled by default unless explicitly set to `true`. Set to `false` to explicitly disable the cache service in any environment (useful for debugging or when using an external CDN exclusively). |
 | `defaultStrategy` | `CacheStrategy` | `'static'` | The default caching strategy for pages that do not specify one. |
-| `maxEntries` | `number` | `1000` | maximum number of items to keep in the default memory store. Oldest items are removed when this limit is reached. |
+| `maxEntries` | `number` | `1000` | Maximum number of items to keep in the default memory store. Oldest items are removed when this limit is reached. |
 | `store` | `CacheStore` | `'memory'` | The storage backend to use. You can pass a custom class implementing the `CacheStore` interface (e.g., for Redis). |
 
 ## On-Demand Invalidation

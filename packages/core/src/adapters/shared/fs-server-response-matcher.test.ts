@@ -7,6 +7,8 @@ import type { MatchResult } from '../../internal-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouter } from '../../router/fs-router.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
+import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
+import { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 
@@ -46,29 +48,166 @@ const fileSystemResponseFactory = new FileSystemServerResponseFactory({
 	},
 });
 
-const fileSystemResponseMatcher = new FileSystemResponseMatcher({
-	router,
-	routeRendererFactory,
-	fileSystemResponseFactory,
-});
-
 describe('FileSystemResponseMatcher', () => {
-	it('should handle no match for request URL', async () => {
-		const requestUrl = APP_TEST_ROUTES.nonExistentFile;
-		const response = await fileSystemResponseMatcher.handleNoMatch(requestUrl);
-		expect(response.status).toBe(404);
-		expect(await response.text()).toBe(STATUS_MESSAGE[404]);
+	describe('without cache service', () => {
+		const matcherWithoutCache = new FileSystemResponseMatcher({
+			router,
+			routeRendererFactory,
+			fileSystemResponseFactory,
+		});
+
+		it('should handle no match for request URL', async () => {
+			const requestUrl = APP_TEST_ROUTES.nonExistentFile;
+			const response = await matcherWithoutCache.handleNoMatch(requestUrl);
+			expect(response.status).toBe(404);
+			expect(await response.text()).toBe(STATUS_MESSAGE[404]);
+		});
+
+		it('should handle match with disabled cache headers', async () => {
+			const match: MatchResult = {
+				kind: 'exact',
+				pathname: APP_TEST_ROUTES.index,
+				filePath: INDEX_TEMPLATE_FILE,
+				params: {},
+				query: {},
+			};
+			const response = await matcherWithoutCache.handleMatch(match);
+			expect(response.headers.get('Content-Type')).toBe('text/html');
+			expect(response.headers.get('X-Cache')).toBe('DISABLED');
+		});
+
+		it('should return null for getCacheService when not configured', () => {
+			expect(matcherWithoutCache.getCacheService()).toBeNull();
+		});
 	});
 
-	it('should handle match', async () => {
-		const match: MatchResult = {
-			kind: 'exact',
-			pathname: APP_TEST_ROUTES.index,
-			filePath: INDEX_TEMPLATE_FILE,
-			params: {},
-			query: {},
-		};
-		const response = await fileSystemResponseMatcher.handleMatch(match);
-		expect(response.headers.get('Content-Type')).toBe('text/html');
+	describe('with cache service', () => {
+		const cacheService = new PageCacheService({
+			store: new MemoryCacheStore(),
+			enabled: true,
+		});
+
+		const matcherWithCache = new FileSystemResponseMatcher({
+			router,
+			routeRendererFactory,
+			fileSystemResponseFactory,
+			cacheService,
+			defaultCacheStrategy: 'static',
+		});
+
+		it('should return cache service via getCacheService', () => {
+			expect(matcherWithCache.getCacheService()).toBe(cacheService);
+		});
+
+		it('should return X-Cache header on first request (MISS)', async () => {
+			const match: MatchResult = {
+				kind: 'exact',
+				pathname: '/cache-test-miss',
+				filePath: INDEX_TEMPLATE_FILE,
+				params: {},
+				query: {},
+			};
+			const response = await matcherWithCache.handleMatch(match);
+			expect(response.headers.get('X-Cache')).toBe('MISS');
+			expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+		});
+
+		it('should return X-Cache HIT on second request to same path', async () => {
+			const uniquePath = `/cache-test-hit-${Date.now()}`;
+			const match: MatchResult = {
+				kind: 'exact',
+				pathname: uniquePath,
+				filePath: INDEX_TEMPLATE_FILE,
+				params: {},
+				query: {},
+			};
+
+			const response1 = await matcherWithCache.handleMatch(match);
+			const response2 = await matcherWithCache.handleMatch(match);
+
+			expect(response1.headers.get('X-Cache')).toBe('MISS');
+			expect(response2.headers.get('X-Cache')).toBe('HIT');
+		});
+
+		it('should cache different paths separately', async () => {
+			const match1: MatchResult = {
+				kind: 'exact',
+				pathname: '/path-a',
+				filePath: INDEX_TEMPLATE_FILE,
+				params: {},
+				query: {},
+			};
+			const match2: MatchResult = {
+				kind: 'exact',
+				pathname: '/path-b',
+				filePath: INDEX_TEMPLATE_FILE,
+				params: {},
+				query: {},
+			};
+
+			const response1 = await matcherWithCache.handleMatch(match1);
+			const response2 = await matcherWithCache.handleMatch(match2);
+
+			expect(response1.headers.get('X-Cache')).toBe('MISS');
+			expect(response2.headers.get('X-Cache')).toBe('MISS');
+		});
+
+		it('should include query params in cache key', async () => {
+			const basePath = `/search-${Date.now()}`;
+			const matchWithQuery: MatchResult = {
+				kind: 'exact',
+				pathname: basePath,
+				filePath: INDEX_TEMPLATE_FILE,
+				params: {},
+				query: { q: 'test' },
+			};
+			const matchWithDifferentQuery: MatchResult = {
+				kind: 'exact',
+				pathname: basePath,
+				filePath: INDEX_TEMPLATE_FILE,
+				params: {},
+				query: { q: 'other' },
+			};
+
+			const firstCall = await matcherWithCache.handleMatch(matchWithQuery);
+			const response1 = await matcherWithCache.handleMatch(matchWithQuery);
+			const response2 = await matcherWithCache.handleMatch(matchWithDifferentQuery);
+
+			expect(firstCall.headers.get('X-Cache')).toBe('MISS');
+			expect(response1.headers.get('X-Cache')).toBe('HIT');
+			expect(response2.headers.get('X-Cache')).toBe('MISS');
+		});
+	});
+
+	describe('with dynamic cache strategy', () => {
+		const cacheService = new PageCacheService({
+			store: new MemoryCacheStore(),
+			enabled: true,
+		});
+
+		const dynamicMatcher = new FileSystemResponseMatcher({
+			router,
+			routeRendererFactory,
+			fileSystemResponseFactory,
+			cacheService,
+			defaultCacheStrategy: 'dynamic',
+		});
+
+		it('should always return MISS for dynamic strategy', async () => {
+			const match: MatchResult = {
+				kind: 'exact',
+				pathname: '/dynamic-page',
+				filePath: INDEX_TEMPLATE_FILE,
+				params: {},
+				query: {},
+			};
+
+			const response1 = await dynamicMatcher.handleMatch(match);
+			const response2 = await dynamicMatcher.handleMatch(match);
+
+			expect(response1.headers.get('X-Cache')).toBe('MISS');
+			expect(response2.headers.get('X-Cache')).toBe('MISS');
+			expect(response1.headers.get('Cache-Control')).toBe('no-store, must-revalidate');
+		});
 	});
 });

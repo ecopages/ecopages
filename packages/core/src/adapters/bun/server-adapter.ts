@@ -6,6 +6,8 @@ import type { ApiHandler } from '../../public-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouter } from '../../router/fs-router.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
+import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
+import { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { deepMerge } from '../../utils/deep-merge.ts';
 import { AbstractServerAdapter, type ServerAdapterResult } from '../abstract/server-adapter.ts';
@@ -198,10 +200,22 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 			},
 		});
 
+		const cacheConfig = this.appConfig.cache;
+		const isCacheEnabled = cacheConfig?.enabled ?? !this.options?.watch;
+		let cacheService: PageCacheService | null = null;
+
+		if (isCacheEnabled) {
+			const store =
+				cacheConfig?.store === 'memory' || !cacheConfig?.store ? new MemoryCacheStore() : cacheConfig.store;
+			cacheService = new PageCacheService({ store, enabled: true });
+		}
+
 		this.fileSystemResponseMatcher = new FileSystemResponseMatcher({
 			router: this.router,
 			routeRendererFactory: this.routeRendererFactory,
 			fileSystemResponseFactory,
+			cacheService,
+			defaultCacheStrategy: cacheConfig?.defaultStrategy ?? 'static',
 		});
 
 		const routeHandlerParams: ServerRouteHandlerParams = {

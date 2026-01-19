@@ -67,11 +67,11 @@ export class FileSystemServerResponseFactory {
 
 		const routeRenderer = this.routeRendererFactory.createRenderer(error404TemplatePath);
 
-		const routeRendererBody = await routeRenderer.createRoute({
+		const result = await routeRenderer.createRoute({
 			file: error404TemplatePath,
 		});
 
-		return await this.createResponseWithBody(routeRendererBody);
+		return await this.createResponseWithBody(result.body);
 	}
 
 	async createFileResponse(filePath: string, contentType: string) {

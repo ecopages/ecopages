@@ -12,6 +12,7 @@ import { createEcoComponentDirPlugin } from '../plugins/eco-component-dir-plugin
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { PageMetadataProps } from '../public-types.ts';
+import type { CacheConfig } from '../services/cache/cache.types.ts';
 import { invariant } from '../utils/invariant.ts';
 
 /**
@@ -330,6 +331,17 @@ export class ConfigBuilder {
 			throw new Error(`Loader with name "${name}" already exists`);
 		}
 		this.config.loaders.set(name, loader);
+		return this;
+	}
+
+	/**
+	 * Sets the cache configuration for ISR and page caching.
+	 *
+	 * @param cacheConfig - The cache configuration object
+	 * @returns The ConfigBuilder instance for method chaining
+	 */
+	setCacheConfig(cacheConfig: CacheConfig): this {
+		this.config.cache = cacheConfig;
 		return this;
 	}
 

@@ -101,7 +101,7 @@ export async function loadPageModule(
 		}
 
 		const moduleUrl = addCacheBuster(componentUrl);
-		const module = await import(moduleUrl);
+		const module = await import(/* @vite-ignore */ moduleUrl);
 		const rawComponent = module.Content || module.default?.Content || module.default;
 
 		const config = module.config || rawComponent?.config;

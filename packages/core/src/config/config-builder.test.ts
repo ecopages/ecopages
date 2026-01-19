@@ -182,4 +182,34 @@ describe('EcoConfigBuilder', () => {
 
 		expect(config.additionalWatchPaths).toEqual(['/additional-path']);
 	});
+
+	test('should set cache config', async () => {
+		const config = await builder
+			.setBaseUrl('https://example.com')
+			.setRootDir('/project')
+			.setCacheConfig({
+				store: 'memory',
+				defaultStrategy: 'static',
+				enabled: true,
+			})
+			.build();
+
+		expect(config.cache).toEqual({
+			store: 'memory',
+			defaultStrategy: 'static',
+			enabled: true,
+		});
+	});
+
+	test('should set cache config with revalidation default', async () => {
+		const config = await builder
+			.setBaseUrl('https://example.com')
+			.setRootDir('/project')
+			.setCacheConfig({
+				defaultStrategy: { revalidate: 3600, tags: ['default'] },
+			})
+			.build();
+
+		expect(config.cache?.defaultStrategy).toEqual({ revalidate: 3600, tags: ['default'] });
+	});
 });

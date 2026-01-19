@@ -4,6 +4,37 @@ import type { ApiResponseBuilder } from './adapters/shared/api-response.js';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from './hmr/hmr-strategy.ts';
 import type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
+import type { CacheStats, CacheStrategy } from './services/cache/cache.types.ts';
+
+/**
+ * Narrow interface for cache invalidation in API handlers.
+ * Exposes only the methods needed for programmatic cache control.
+ */
+export interface CacheInvalidator {
+	/**
+	 * Invalidate all cached entries matching any of the provided tags.
+	 * @param tags - Array of tags to invalidate
+	 * @returns Number of entries invalidated
+	 */
+	invalidateByTags(tags: string[]): Promise<number>;
+
+	/**
+	 * Invalidate cached entries by exact path.
+	 * @param paths - Array of URL paths to invalidate
+	 * @returns Number of entries invalidated
+	 */
+	invalidateByPaths(paths: string[]): Promise<number>;
+
+	/**
+	 * Clear all cached entries.
+	 */
+	clear(): Promise<void>;
+
+	/**
+	 * Get cache statistics for debugging.
+	 */
+	stats(): Promise<CacheStats>;
+}
 
 /**
  * Context interface for HMR strategies.
@@ -397,10 +428,11 @@ export type GetStaticProps<T> = (context: {
  * @template T - The type of the page props.
  */
 export type EcoPageFile<T = unknown> = T & {
-	default: EcoComponent;
+	default: EcoComponent<any, any>;
 	getStaticPaths?: GetStaticPaths;
 	getStaticProps?: GetStaticProps<Record<string, unknown>>;
 	getMetadata?: GetMetadata;
+	cache?: CacheStrategy;
 };
 
 /**
@@ -435,6 +467,15 @@ export type RouteRendererOptions = {
  * The body of the route renderer.
  */
 export type RouteRendererBody = BodyInit | Readable;
+
+/**
+ * Result of rendering a route, including body and optional cache configuration.
+ */
+export type RouteRenderResult = {
+	body: RouteRendererBody;
+	/** Cache strategy from page component's eco.page({ cache }) option */
+	cacheStrategy?: CacheStrategy;
+};
 
 /**
  * Represents the dependencies required for an integration plugin.
@@ -510,6 +551,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	dependencies?: EcoComponentDependencies;
 	resolvedDependencies: ProcessedAsset[];
 	pageProps?: Record<string, unknown>;
+	cacheStrategy?: CacheStrategy;
 };
 
 /**
@@ -527,12 +569,27 @@ export type Prettify<T> = {
 } & {};
 
 /**
+ * Services available to API handlers.
+ */
+export interface ApiHandlerServices {
+	/**
+	 * Cache invalidation service.
+	 * Null when caching is disabled.
+	 */
+	cache: CacheInvalidator | null;
+}
+
+/**
  * Context provided to the API handler.
  */
 export interface ApiHandlerContext<TRequest extends Request = Request, TServer = any> {
 	request: TRequest;
 	response: ApiResponseBuilder;
 	server: TServer;
+	/**
+	 * Services available to the API handler.
+	 */
+	services: ApiHandlerServices;
 }
 
 /**

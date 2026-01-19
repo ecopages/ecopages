@@ -83,7 +83,7 @@ export class FSRouter {
 					return {
 						filePath: route.filePath,
 						kind: 'dynamic',
-						pathname: route.pathname,
+						pathname: pathname,
 						query: this.getSearchParams(url),
 						params: this.getDynamicParams(route, pathname),
 					};
@@ -99,7 +99,7 @@ export class FSRouter {
 				return {
 					filePath: route.filePath,
 					kind: 'catch-all',
-					pathname: route.pathname,
+					pathname: pathname,
 					query: this.getSearchParams(url),
 					params: this.getDynamicParams(route, pathname),
 				};

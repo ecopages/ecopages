@@ -46,12 +46,28 @@ export default defineConfig({
 				baseURL: 'http://localhost:4004',
 			},
 		},
+		{
+			name: 'cache-e2e',
+			testMatch: 'e2e/tests/cache/**/*.test.e2e.ts',
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:4005',
+			},
+		},
 	],
 	webServer: [
 		{
 			command: 'NODE_ENV=development ECOPAGES_PORT=3002 bun run app.ts --dev',
 			cwd: 'packages/core/__fixtures__/app',
 			port: 3002,
+			reuseExistingServer: !process.env.CI,
+			stdout: 'pipe',
+			stderr: 'pipe',
+		},
+		{
+			command: 'NODE_ENV=production ECOPAGES_PORT=4005 bun run app.ts',
+			cwd: 'e2e/fixtures/cache-app',
+			port: 4005,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',
 			stderr: 'pipe',

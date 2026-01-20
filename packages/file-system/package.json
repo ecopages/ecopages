@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/file-system",
-	"version": "0.1.79",
+	"version": "0.1.80",
 	"description": "Runtime-agnostic file system utilities for Ecopages with Bun and Node adapters",
 	"keywords": [
 		"ecopages",

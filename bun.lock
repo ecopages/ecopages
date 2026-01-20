@@ -71,7 +71,7 @@
     },
     "packages/browser-router": {
       "name": "@ecopages/browser-router",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "@ecopages/core": "workspace:*",
         "morphdom": "^2.7.8",
@@ -94,7 +94,7 @@
     },
     "packages/core": {
       "name": "@ecopages/core",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
@@ -116,7 +116,7 @@
     },
     "packages/file-system": {
       "name": "@ecopages/file-system",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "fast-glob": "^3.3.2",
       },
@@ -133,7 +133,7 @@
     },
     "packages/integrations/kitajs": {
       "name": "@ecopages/kitajs",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "@ecopages/core": "workspace:*",
         "@kitajs/html": "^4.1.0",
@@ -142,7 +142,7 @@
     },
     "packages/integrations/lit": {
       "name": "@ecopages/lit",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "@lit-labs/ssr": "^3.3.0",
         "@lit-labs/ssr-client": "^1.1.7",
@@ -154,7 +154,7 @@
     },
     "packages/integrations/mdx": {
       "name": "@ecopages/mdx",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "@ecopages/logger": "^0.2.2",
         "@mdx-js/esbuild": "^3.0.1",
@@ -175,7 +175,7 @@
     },
     "packages/integrations/react": {
       "name": "@ecopages/react",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "@ecopages/logger": "latest",
         "@mdx-js/esbuild": "^3.0.1",
@@ -193,7 +193,7 @@
     },
     "packages/loaders/bun-mdx-kitajs-loader": {
       "name": "@ecopages/bun-mdx-kitajs-loader",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "@mdx-js/esbuild": "^3.0.1",
       },
@@ -204,7 +204,7 @@
     },
     "packages/loaders/bun-postcss-loader": {
       "name": "@ecopages/bun-postcss-loader",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "@ecopages/postcss-processor": "workspace:*",
       },
@@ -214,7 +214,7 @@
     },
     "packages/plugins/bun-inline-css-plugin": {
       "name": "@ecopages/bun-inline-css-plugin",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "devDependencies": {
         "@ecopages/logger": "latest",
         "@ecopages/postcss-processor": "workspace:*",
@@ -223,7 +223,7 @@
     },
     "packages/processors/image-processor": {
       "name": "@ecopages/image-processor",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "@ecopages/file-system": "workspace:*",
         "@ecopages/logger": "latest",
@@ -241,7 +241,7 @@
     },
     "packages/processors/postcss-processor": {
       "name": "@ecopages/postcss-processor",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "@ecopages/bun-inline-css-plugin": "workspace:*",
         "@ecopages/core": "workspace:*",
@@ -272,7 +272,7 @@
     },
     "packages/react-router": {
       "name": "@ecopages/react-router",
-      "version": "0.1.78",
+      "version": "0.1.79",
       "dependencies": {
         "react": "^19",
       },
@@ -1059,7 +1059,7 @@
 
     "@types/postcss-import": ["@types/postcss-import@14.0.3", "", { "dependencies": { "postcss": "^8.0.0" } }, "sha512-raZhRVTf6Vw5+QbmQ7LOHSDML71A5rj4+EqDzAbrZPfxfoGzFxMHRCq16VlddGIZpHELw0BG4G0YE2ANkdZiIQ=="],
 
-    "@types/react": ["@types/react@19.2.8", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-3MbSL37jEchWZz2p2mjntRZtPt837ij10ApxKfgmXCTuHWagYg7iA5bqPw6C8BMPfwidlvfPI/fxOc42HLhcyg=="],
+    "@types/react": ["@types/react@19.2.9", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-Lpo8kgb/igvMIPeNV2rsYKTgaORYdO1XGVZ4Qz3akwOj0ySGYMPlQWa8BaLn0G63D1aSaAQ5ldR06wCpChQCjA=="],
 
     "@types/react-dom": ["@types/react-dom@19.2.3", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
 
@@ -1121,7 +1121,7 @@
 
     "balanced-match": ["balanced-match@1.0.2", "", {}, "sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw=="],
 
-    "baseline-browser-mapping": ["baseline-browser-mapping@2.9.15", "", { "bin": { "baseline-browser-mapping": "dist/cli.js" } }, "sha512-kX8h7K2srmDyYnXRIppo4AH/wYgzWVCs+eKr3RusRSQ5PvRYoEFmR/I0PbdTjKFAoKqp5+kbxnNTFO9jOfSVJg=="],
+    "baseline-browser-mapping": ["baseline-browser-mapping@2.9.16", "", { "bin": { "baseline-browser-mapping": "dist/cli.js" } }, "sha512-KeUZdBuxngy825i8xvzaK1Ncnkx0tBmb3k8DkEuqjKRkmtvNTjey2ZsNeh8Dw4lfKvbCOu9oeNx2TKm2vHqcRw=="],
 
     "better-commits": ["better-commits@1.18.3", "", { "dependencies": { "@clack/core": "^0.3.1", "@clack/prompts": "^0.7.0", "configstore": "^5.0.1", "picocolors": "^1.0.0", "valibot": "^0.30.0" }, "bin": { "better-commits-init": "dist/init.js", "better-commits": "dist/index.js", "better-branch": "dist/branch.js", "bcommits": "dist/index.js", "git-bc": "dist/index.js" } }, "sha512-INC+c7v86Bgz/EcnJBtgiT0YFwSAxcMGlew1/Xktf/Em0ga5yMp2/n5hqo0KgXMDyxjhv705GjKE000PDrXfgw=="],
 

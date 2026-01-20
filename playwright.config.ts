@@ -29,10 +29,8 @@ export default defineConfig({
 		},
 		{
 			name: 'react-router-e2e',
-			testMatch: [
-				'e2e/tests/react-router/**/*.test.e2e.ts',
-				'!e2e/tests/react-router/persist-layouts.test.e2e.ts',
-			],
+			testMatch: 'e2e/tests/react-router/**/*.test.e2e.ts',
+			testIgnore: ['**/persist-layouts.test.e2e.ts', '**/*hmr*.test.e2e.ts'],
 			use: {
 				...devices['Desktop Chrome'],
 				baseURL: 'http://localhost:4003',
@@ -44,6 +42,14 @@ export default defineConfig({
 			use: {
 				...devices['Desktop Chrome'],
 				baseURL: 'http://localhost:4004',
+			},
+		},
+		{
+			name: 'react-router-persist-layouts-dev-e2e',
+			testMatch: 'e2e/tests/react-router/persist-layouts-hmr.test.e2e.ts',
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:4006',
 			},
 		},
 		{
@@ -92,6 +98,14 @@ export default defineConfig({
 			command: 'NODE_ENV=production ECOPAGES_PORT=4004 ECOPAGES_PERSIST_LAYOUTS=true bun run app.ts --preview',
 			cwd: 'e2e/fixtures/react-router-app',
 			port: 4004,
+			reuseExistingServer: !process.env.CI,
+			stdout: 'pipe',
+			stderr: 'pipe',
+		},
+		{
+			command: 'NODE_ENV=development ECOPAGES_PORT=4006 ECOPAGES_PERSIST_LAYOUTS=true bun run app.ts --dev',
+			cwd: 'e2e/fixtures/react-router-app',
+			port: 4006,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',
 			stderr: 'pipe',

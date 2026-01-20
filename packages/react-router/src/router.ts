@@ -61,6 +61,13 @@ export interface EcoRouterProps {
 const layoutCache = new Map<string, ComponentType>();
 
 /**
+ * Clears the layout cache. Called during HMR to ensure fresh layouts are used.
+ */
+export function clearLayoutCache(): void {
+	layoutCache.clear();
+}
+
+/**
  * Renders the current page with its layout.
  *
  * Must be a child of {@link EcoRouter}. When `persistLayouts` is enabled,
@@ -125,6 +132,7 @@ function useHmrReload(navigate: (url: string) => Promise<void>) {
 		};
 
 		windowWithHmr.__ecopages_reload_current_page__ = async () => {
+			clearLayoutCache();
 			const currentUrl = window.location.pathname + window.location.search;
 			await navigate(currentUrl);
 		};

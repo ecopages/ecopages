@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/postcss-processor",
-	"version": "0.1.79",
+	"version": "0.1.80",
 	"description": "Postcss processor, transform string or postcss file to css",
 	"keywords": [
 		"postcss",

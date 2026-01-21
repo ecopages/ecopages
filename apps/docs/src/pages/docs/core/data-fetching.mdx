@@ -54,7 +54,7 @@ export default eco.page({
     staticPaths: async () => {
         const posts = await getAllPosts();
         return {
-            paths: posts.map((post) => ({ slug: post.slug })),
+            paths: posts.map((post) => ({ params: { slug: post.slug } })),
         };
     },
     // ... rest of page config

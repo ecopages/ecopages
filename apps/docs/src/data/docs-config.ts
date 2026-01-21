@@ -33,25 +33,26 @@ export const docsConfig: DocsConfig = {
 			],
 		},
 		{
-			name: 'Core',
+			name: 'Core Concepts',
 			subdirectory: 'core',
 			pages: [
 				{ title: 'Concepts', slug: 'concepts' },
 				{ title: 'Architecture', slug: 'architecture' },
+				{ title: 'Pages', slug: 'pages' },
+				{ title: 'Routing', slug: 'routing' },
+				{ title: 'Data Fetching', slug: 'data-fetching' },
+				{ title: 'Layouts', slug: 'layouts' },
 				{ title: 'Components', slug: 'components' },
 				{ title: 'Includes', slug: 'includes' },
-				{ title: 'Layouts', slug: 'layouts' },
-				{ title: 'Pages', slug: 'pages' },
-				{ title: 'Caching', slug: 'caching' },
-				{ title: 'Eco Namespace', slug: 'eco-namespace' },
 			],
 		},
 		{
 			name: 'Server',
-			subdirectory: 'core',
+			subdirectory: 'server',
 			pages: [
 				{ title: 'Server API', slug: 'server-api' },
 				{ title: 'API Handlers', slug: 'api-handlers' },
+				{ title: 'Caching', slug: 'caching' },
 			],
 		},
 		{
@@ -77,12 +78,21 @@ export const docsConfig: DocsConfig = {
 			],
 		},
 		{
-			name: 'Plugins',
+			name: 'Extending',
 			subdirectory: 'plugins',
 			pages: [
 				{ title: 'Overview', slug: 'overview' },
 				{ title: 'Custom Processor', slug: 'custom-processor' },
 				{ title: 'Custom Integration', slug: 'custom-integration' },
+			],
+		},
+		{
+			name: 'Reference',
+			subdirectory: 'reference',
+			pages: [
+				{ title: 'Eco Namespace', slug: 'eco-namespace' },
+				{ title: 'CLI Reference', slug: 'cli-reference' },
+				{ title: 'Deployment', slug: 'deployment' },
 			],
 		},
 	],

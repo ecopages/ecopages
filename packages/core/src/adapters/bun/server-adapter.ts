@@ -2,7 +2,8 @@ import path from 'node:path';
 import type { BunRequest, Server, WebSocketHandler } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, CacheInvalidator } from '../../public-types.ts';
+import type { ApiHandler, CacheInvalidator, RenderContext } from '../../public-types.ts';
+import { HttpError } from '../../errors/http-error.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouter } from '../../router/fs-router.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
@@ -14,6 +15,7 @@ import { AbstractServerAdapter, type ServerAdapterResult } from '../abstract/ser
 import { ApiResponseBuilder } from '../shared/api-response.js';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
+import { createRenderContext } from '../shared/render-context.ts';
 import { ServerRouteHandler, type ServerRouteHandlerParams } from '../shared/server-route-handler';
 import { ServerStaticBuilder, type ServerStaticBuilderParams } from '../shared/server-static-builder';
 import { ClientBridge } from './client-bridge';
@@ -305,6 +307,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		const handleReq = this.handleRequest.bind(this);
 		const getCacheService = (): CacheInvalidator | null =>
 			this.fileSystemResponseMatcher?.getCacheService() ?? null;
+		const getRenderContext = (): RenderContext =>
+			createRenderContext({ integrations: this.appConfig.integrations });
 
 		const mergedRoutes = deepMerge(routes || {}, this.routes);
 		appLogger.debug(`[BunServerAdapter] Building server settings with ${this.apiHandlers.length} API handlers`);
@@ -318,6 +322,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 			const wrappedHandler = async (request: BunRequest<string>): Promise<Response> => {
 				try {
 					await waitForInit();
+					const renderContext = getRenderContext();
 					return await routeConfig.handler({
 						request,
 						response: new ApiResponseBuilder(),
@@ -325,8 +330,12 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 						services: {
 							cache: getCacheService(),
 						},
+						...renderContext,
 					});
 				} catch (error) {
+					if (error instanceof HttpError) {
+						return error.toResponse();
+					}
 					appLogger.error(`[ecopages] Error handling API request: ${error}`);
 					return new Response('Internal Server Error', { status: 500 });
 				}
@@ -349,6 +358,9 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 					const response = await handleReq(request);
 					return response;
 				} catch (error) {
+					if (error instanceof HttpError) {
+						return error.toResponse();
+					}
 					appLogger.error(`[ecopages] Error handling request: ${error}`);
 					return new Response('Internal Server Error', { status: 500 });
 				}

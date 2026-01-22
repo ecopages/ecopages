@@ -2,6 +2,7 @@ import type { IHmrManager } from '../../public-types';
 import type { FSRouter } from '../../router/fs-router';
 import type { FileSystemResponseMatcher } from './fs-server-response-matcher';
 import { appLogger } from '../../global/app-logger';
+import { HttpError } from '../../errors/http-error';
 
 export interface ServerRouteHandlerParams {
 	router: FSRouter;
@@ -77,6 +78,9 @@ export class ServerRouteHandler {
 			const pathname = new URL(request.url).pathname;
 			return await this.fileSystemResponseMatcher.handleNoMatch(pathname);
 		} catch (error) {
+			if (error instanceof HttpError) {
+				return error.toResponse();
+			}
 			if (error instanceof Error) {
 				this.hmrManager?.broadcast({ type: 'error', message: error.message });
 				appLogger.error('Error handling no match:', error);

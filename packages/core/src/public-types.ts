@@ -586,9 +586,65 @@ export interface ApiHandlerServices {
 }
 
 /**
+ * Options for rendering a view.
+ */
+export interface RenderOptions {
+	status?: number;
+	headers?: HeadersInit;
+}
+
+/**
+ * Options for JSON/HTML response helpers.
+ */
+export interface ResponseOptions {
+	status?: number;
+	headers?: HeadersInit;
+}
+
+/**
+ * Context for rendering views in route handlers.
+ * Provides methods to render eco.page views and return formatted responses.
+ */
+export interface RenderContext {
+	/**
+	 * Render an eco.page view with full layout and includes.
+	 * @param view - The eco.page component to render
+	 * @param props - Props to pass to the view
+	 * @param options - Optional status code and headers
+	 */
+	render<P = Record<string, unknown>>(view: EcoComponent<P>, props: P, options?: RenderOptions): Promise<Response>;
+
+	/**
+	 * Render an eco.page view without layout (for partials/fragments).
+	 * @param view - The eco.page component to render
+	 * @param props - Props to pass to the view
+	 * @param options - Optional status code and headers
+	 */
+	renderPartial<P = Record<string, unknown>>(
+		view: EcoComponent<P>,
+		props: P,
+		options?: RenderOptions,
+	): Promise<Response>;
+
+	/**
+	 * Return a JSON response.
+	 * @param data - Data to serialize as JSON
+	 * @param options - Optional status code and headers
+	 */
+	json(data: unknown, options?: ResponseOptions): Response;
+
+	/**
+	 * Return an HTML response.
+	 * @param content - HTML string content
+	 * @param options - Optional status code and headers
+	 */
+	html(content: string, options?: ResponseOptions): Response;
+}
+
+/**
  * Context provided to the API handler.
  */
-export interface ApiHandlerContext<TRequest extends Request = Request, TServer = any> {
+export interface ApiHandlerContext<TRequest extends Request = Request, TServer = any> extends RenderContext {
 	request: TRequest;
 	response: ApiResponseBuilder;
 	server: TServer;

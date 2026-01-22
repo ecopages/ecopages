@@ -10,9 +10,10 @@ import type {
 	EcoPageFile,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
+	PageMetadataProps,
 	RouteRendererBody,
 } from '@ecopages/core';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
 import { AssetFactory, type ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
@@ -271,9 +272,53 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 				),
 			);
 		} catch (error) {
-			throw new ReactRenderError(
-				`Failed to render component: ${error instanceof Error ? error.message : String(error)}`,
-			);
+			throw this.createRenderError('Failed to render component', error);
+		}
+	}
+
+	async renderToResponse<P = Record<string, unknown>>(
+		view: EcoComponent<P>,
+		props: P,
+		ctx: RenderToResponseContext,
+	): Promise<Response> {
+		try {
+			const viewConfig = view.config;
+			const Layout = viewConfig?.layout as React.FunctionComponent<{ children: JSX.Element }> | undefined;
+
+			const ViewComponent = view as unknown as React.FunctionComponent;
+			const pageElement = createElement(ViewComponent, props || {});
+
+			let stream: ReadableStream;
+			if (ctx.partial) {
+				stream = await renderToReadableStream(pageElement);
+			} else {
+				const contentElement = Layout ? createElement(Layout, undefined, pageElement) : pageElement;
+
+				const HtmlTemplate = await this.getHtmlTemplate();
+				const metadata: PageMetadataProps = view.metadata
+					? await view.metadata({
+							params: {},
+							query: {},
+							props,
+							appConfig: this.appConfig,
+						})
+					: this.appConfig.defaultMetadata;
+
+				stream = await renderToReadableStream(
+					createElement(
+						HtmlTemplate,
+						{
+							metadata,
+							pageProps: props,
+						} as HtmlTemplateProps,
+						contentElement,
+					),
+				);
+			}
+
+			return this.createHtmlResponse(stream, ctx);
+		} catch (error) {
+			throw this.createRenderError('Failed to render view', error);
 		}
 	}
 }

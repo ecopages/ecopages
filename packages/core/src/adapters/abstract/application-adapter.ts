@@ -9,7 +9,14 @@
 
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, ApiHandlerContext, EcoPageComponent, StaticRoute } from '../../public-types.ts';
+import type {
+	ApiHandler,
+	ApiHandlerContext,
+	EcoPageComponent,
+	Middleware,
+	RouteGroupBuilder,
+	StaticRoute,
+} from '../../public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 
@@ -146,12 +153,68 @@ export abstract class AbstractApplicationAdapter<
 		path: P,
 		method: ApiHandler['method'],
 		handler: (context: ApiHandlerContext<any>) => Promise<Response> | Response,
+		middleware?: Middleware<any, any>[],
 	): this {
 		this.apiHandlers.push({
 			path,
 			method,
 			handler: handler as unknown as (context: any) => Promise<Response> | Response,
+			middleware,
 		});
+		return this;
+	}
+
+	/**
+	 * Create a route group with shared prefix and middleware.
+	 * Routes defined within the group inherit the prefix and middleware.
+	 * @param prefix - URL prefix for all routes in the group (e.g., '/api/v1')
+	 * @param middleware - Array of middleware functions to run before handlers
+	 * @param callback - Function that receives a builder to define routes
+	 * @example
+	 * app.group('/api', [authMiddleware], (r) => {
+	 *   r.get('/users', listUsers);
+	 *   r.post('/users', createUser);
+	 * });
+	 */
+	group(
+		prefix: string,
+		middleware: Middleware<TRequest, TServer>[],
+		callback: (builder: RouteGroupBuilder<TRequest, TServer>) => void,
+	): this {
+		const normalizedPrefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+
+		const builder: RouteGroupBuilder<TRequest, TServer> = {
+			get: (path, handler) => {
+				this.addRouteHandler(`${normalizedPrefix}${path}`, 'GET', handler as any, middleware as any);
+				return builder;
+			},
+			post: (path, handler) => {
+				this.addRouteHandler(`${normalizedPrefix}${path}`, 'POST', handler as any, middleware as any);
+				return builder;
+			},
+			put: (path, handler) => {
+				this.addRouteHandler(`${normalizedPrefix}${path}`, 'PUT', handler as any, middleware as any);
+				return builder;
+			},
+			delete: (path, handler) => {
+				this.addRouteHandler(`${normalizedPrefix}${path}`, 'DELETE', handler as any, middleware as any);
+				return builder;
+			},
+			patch: (path, handler) => {
+				this.addRouteHandler(`${normalizedPrefix}${path}`, 'PATCH', handler as any, middleware as any);
+				return builder;
+			},
+			options: (path, handler) => {
+				this.addRouteHandler(`${normalizedPrefix}${path}`, 'OPTIONS', handler as any, middleware as any);
+				return builder;
+			},
+			head: (path, handler) => {
+				this.addRouteHandler(`${normalizedPrefix}${path}`, 'HEAD', handler as any, middleware as any);
+				return builder;
+			},
+		};
+
+		callback(builder);
 		return this;
 	}
 

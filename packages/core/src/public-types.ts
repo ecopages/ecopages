@@ -658,6 +658,22 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 }
 
 /**
+ * Next function for middleware chain.
+ * Call to continue to the next middleware or final handler.
+ */
+export type MiddlewareNext = () => Promise<Response>;
+
+/**
+ * Middleware function signature.
+ * Receives the request context and a next function to continue the chain.
+ * Can short-circuit by returning a Response directly without calling next().
+ */
+export type Middleware<TRequest extends Request = Request, TServer = any> = (
+	context: ApiHandlerContext<TRequest, TServer>,
+	next: MiddlewareNext,
+) => Promise<Response> | Response;
+
+/**
  * Represents an API handler in EcoPages.
  * It defines the path, method, and handler function for the API endpoint.
  */
@@ -665,6 +681,48 @@ export interface ApiHandler<TPath extends string = string, TRequest extends Requ
 	path: TPath;
 	method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
 	handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
+	middleware?: Middleware<TRequest, TServer>[];
+}
+
+/**
+ * Builder interface for defining routes within a group.
+ * Provides chainable methods for registering routes with shared prefix and middleware.
+ */
+export interface RouteGroupBuilder<TRequest extends Request = Request, TServer = any> {
+	get<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	post<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	put<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	delete<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	patch<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	options<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	head<P extends string>(
+		path: P,
+		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+	): RouteGroupBuilder<TRequest, TServer>;
 }
 
 /**

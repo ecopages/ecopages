@@ -331,6 +331,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		for (const routeConfig of this.apiHandlers) {
 			const method = routeConfig.method || 'GET';
 			const path = routeConfig.path;
+			const middleware = routeConfig.middleware || [];
 
 			appLogger.debug(`[BunServerAdapter] Registering API route: ${method} ${path}`);
 
@@ -338,7 +339,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 				try {
 					await waitForInit();
 					const renderContext = getRenderContext();
-					return await routeConfig.handler({
+					const context = {
 						request,
 						response: new ApiResponseBuilder(),
 						server: this.serverInstance,
@@ -346,7 +347,22 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 							cache: getCacheService(),
 						},
 						...renderContext,
-					});
+					};
+
+					if (middleware.length === 0) {
+						return await routeConfig.handler(context);
+					}
+
+					let index = 0;
+					const executeNext = async (): Promise<Response> => {
+						if (index < middleware.length) {
+							const currentMiddleware = middleware[index++];
+							return await currentMiddleware(context, executeNext);
+						}
+						return await routeConfig.handler(context);
+					};
+
+					return await executeNext();
 				} catch (error) {
 					if (error instanceof HttpError) {
 						return error.toResponse();

@@ -152,6 +152,7 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes,
+			errorHandler: this.errorHandler,
 			options: { watch: dev },
 			serveOptions: {
 				port: preferredPort,

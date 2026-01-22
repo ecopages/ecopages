@@ -13,6 +13,7 @@ import type {
 	ApiHandler,
 	ApiHandlerContext,
 	EcoPageComponent,
+	ErrorHandler,
 	Middleware,
 	RouteGroupBuilder,
 	StaticRoute,
@@ -53,6 +54,7 @@ export abstract class AbstractApplicationAdapter<
 	protected cliArgs: ReturnParseCliArgs;
 	protected apiHandlers: ApiHandler[] = [];
 	protected staticRoutes: StaticRoute[] = [];
+	protected errorHandler?: ErrorHandler;
 
 	constructor(options: TOptions) {
 		this.appConfig = options.appConfig;
@@ -241,6 +243,30 @@ export abstract class AbstractApplicationAdapter<
 	 */
 	getStaticRoutes(): StaticRoute[] {
 		return this.staticRoutes;
+	}
+
+	/**
+	 * Register a global error handler for all routes.
+	 * Useful for logging, monitoring integration, and custom error formatting.
+	 *
+	 * @example
+	 * ```typescript
+	 * app.onError(async (error, ctx) => {
+	 *   logger.error(error);
+	 *   return ctx.response.status(500).json({ error: 'Something went wrong' });
+	 * });
+	 * ```
+	 */
+	onError(handler: ErrorHandler<TRequest, TServer>): this {
+		this.errorHandler = handler as unknown as ErrorHandler;
+		return this;
+	}
+
+	/**
+	 * Get the registered error handler
+	 */
+	getErrorHandler(): ErrorHandler | undefined {
+		return this.errorHandler;
 	}
 
 	/**

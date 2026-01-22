@@ -685,6 +685,16 @@ export interface ApiHandler<TPath extends string = string, TRequest extends Requ
 }
 
 /**
+ * Global error handler for centralized error handling across all routes.
+ * Receives the error and full request context, returns a Response.
+ * Falls back to default handling if the handler itself throws.
+ */
+export type ErrorHandler<TRequest extends Request = Request, TServer = any> = (
+	error: unknown,
+	context: ApiHandlerContext<TRequest, TServer>,
+) => Promise<Response> | Response;
+
+/**
  * Builder interface for defining routes within a group.
  * Provides chainable methods for registering routes with shared prefix and middleware.
  */

@@ -8,7 +8,7 @@ import type { BunPlugin } from 'bun';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
 import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
-import { createEcoComponentDirPlugin } from '../plugins/eco-component-dir-plugin.ts';
+import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { PageMetadataProps } from '../public-types.ts';
@@ -402,13 +402,13 @@ export class ConfigBuilder {
 
 	/**
 	 * Initializes default loaders that are required for EcoPages to function.
-	 * This includes the eco-component-dir-plugin which auto-injects componentDir into component configs.
+	 * This includes the eco-component-meta-plugin which auto-injects __eco metadata into component configs.
 	 */
 	private async initializeDefaultLoaders(): Promise<void> {
-		const componentDirPlugin = createEcoComponentDirPlugin({ config: this.config });
-		if (!this.config.loaders.has(componentDirPlugin.name)) {
-			this.config.loaders.set(componentDirPlugin.name, componentDirPlugin);
-			await Bun.plugin(componentDirPlugin);
+		const componentMetaPlugin = createEcoComponentMetaPlugin({ config: this.config });
+		if (!this.config.loaders.has(componentMetaPlugin.name)) {
+			this.config.loaders.set(componentMetaPlugin.name, componentMetaPlugin);
+			await Bun.plugin(componentMetaPlugin);
 		}
 	}
 

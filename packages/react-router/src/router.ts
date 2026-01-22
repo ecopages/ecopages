@@ -28,6 +28,7 @@ import { morphHead } from './head-morpher.ts';
 import { applyViewTransitionNames } from './view-transition-utils.ts';
 import { manageScroll } from './manage-scroll.ts';
 import { saveScrollPositions, restoreScrollPositions } from './scroll-persist.ts';
+import { EcoInjectedMeta } from '../../core/src/public-types.ts';
 
 type PageContextValue = PageState | null;
 
@@ -100,8 +101,8 @@ export const PageContent: FC = () => {
 	}
 
 	if (persistLayouts) {
-		const layoutConfig = (Layout as ComponentType & { config?: { componentDir?: string } }).config;
-		const layoutKey = layoutConfig?.componentDir || Layout.displayName || Layout.name || 'layout';
+		const layoutConfig = (Layout as ComponentType & { config?: { __eco?: EcoInjectedMeta } }).config;
+		const layoutKey = layoutConfig?.__eco?.dir || Layout.displayName || Layout.name || 'layout';
 
 		if (!layoutCache.has(layoutKey)) {
 			layoutCache.set(layoutKey, Layout);

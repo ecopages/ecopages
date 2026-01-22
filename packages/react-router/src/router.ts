@@ -28,7 +28,7 @@ import { morphHead } from './head-morpher.ts';
 import { applyViewTransitionNames } from './view-transition-utils.ts';
 import { manageScroll } from './manage-scroll.ts';
 import { saveScrollPositions, restoreScrollPositions } from './scroll-persist.ts';
-import { EcoInjectedMeta } from '../../core/src/public-types.ts';
+import type { EcoInjectedMeta } from '@ecopages/core';
 
 type PageContextValue = PageState | null;
 

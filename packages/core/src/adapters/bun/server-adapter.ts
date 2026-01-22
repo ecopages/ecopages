@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { BunRequest, Server, WebSocketHandler } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, CacheInvalidator, RenderContext } from '../../public-types.ts';
+import type { ApiHandler, CacheInvalidator, RenderContext, StaticRoute } from '../../public-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouter } from '../../router/fs-router.ts';
@@ -13,6 +13,7 @@ import { StaticSiteGenerator } from '../../static-site-generator/static-site-gen
 import { deepMerge } from '../../utils/deep-merge.ts';
 import { AbstractServerAdapter, type ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ApiResponseBuilder } from '../shared/api-response.js';
+import { ExplicitStaticRouteMatcher } from '../shared/explicit-static-route-matcher.ts';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
 import { createRenderContext } from '../shared/render-context.ts';
@@ -43,6 +44,7 @@ export interface BunServerAdapterParams {
 	runtimeOrigin: string;
 	serveOptions: BunServeAdapterServerOptions;
 	apiHandlers?: ApiHandler<any, BunRequest, Server<unknown>>[];
+	staticRoutes?: StaticRoute[];
 	options?: {
 		watch?: boolean;
 	};
@@ -64,6 +66,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	declare options: BunServerAdapterParams['options'];
 	declare serveOptions: BunServerAdapterParams['serveOptions'];
 	protected apiHandlers: ApiHandler<any, BunRequest>[];
+	protected staticRoutes: StaticRoute[];
 
 	private router!: FSRouter;
 	private fileSystemResponseMatcher!: FileSystemResponseMatcher;
@@ -90,6 +93,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		runtimeOrigin,
 		serveOptions,
 		apiHandlers,
+		staticRoutes,
 		options,
 		lifecycle,
 		staticBuilderFactory,
@@ -99,6 +103,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	}: BunServerAdapterParams) {
 		super({ appConfig, runtimeOrigin, serveOptions, options });
 		this.apiHandlers = apiHandlers || [];
+		this.staticRoutes = staticRoutes || [];
 		this.lifecycleFactory = lifecycle;
 		this.staticBuilderFactory = staticBuilderFactory;
 		this.routeHandlerFactory = routeHandlerFactory;
@@ -222,9 +227,19 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 			defaultCacheStrategy: cacheConfig?.defaultStrategy ?? 'static',
 		});
 
+		const explicitStaticRouteMatcher =
+			this.staticRoutes.length > 0
+				? new ExplicitStaticRouteMatcher({
+						appConfig: this.appConfig,
+						routeRendererFactory: this.routeRendererFactory,
+						staticRoutes: this.staticRoutes,
+					})
+				: undefined;
+
 		const routeHandlerParams: ServerRouteHandlerParams = {
 			router: this.router,
 			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
+			explicitStaticRouteMatcher,
 			watch: !!this.options?.watch,
 			hmrManager: this.hmrManager,
 		};
@@ -388,6 +403,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		await this.staticBuilder.build(options, {
 			router: this.router,
 			routeRendererFactory: this.routeRendererFactory,
+			staticRoutes: this.staticRoutes,
 		});
 	}
 

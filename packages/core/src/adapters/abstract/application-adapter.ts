@@ -9,7 +9,7 @@
 
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, ApiHandlerContext } from '../../public-types.ts';
+import type { ApiHandler, ApiHandlerContext, EcoPageComponent, StaticRoute } from '../../public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 
@@ -45,6 +45,7 @@ export abstract class AbstractApplicationAdapter<
 	protected serverOptions: Record<string, any>;
 	protected cliArgs: ReturnParseCliArgs;
 	protected apiHandlers: ApiHandler[] = [];
+	protected staticRoutes: StaticRoute[] = [];
 
 	constructor(options: TOptions) {
 		this.appConfig = options.appConfig;
@@ -159,6 +160,24 @@ export abstract class AbstractApplicationAdapter<
 	 */
 	getApiHandlers(): ApiHandler[] {
 		return this.apiHandlers;
+	}
+
+	/**
+	 * Register a view for static generation at build time.
+	 * The view must have staticPaths defined for dynamic routes.
+	 * @param path - URL path pattern (e.g., '/posts/:slug')
+	 * @param view - The eco.page view component to render
+	 */
+	static<P>(path: string, view: EcoPageComponent<P>): this {
+		this.staticRoutes.push({ path, view });
+		return this;
+	}
+
+	/**
+	 * Get all registered static routes
+	 */
+	getStaticRoutes(): StaticRoute[] {
+		return this.staticRoutes;
 	}
 
 	/**

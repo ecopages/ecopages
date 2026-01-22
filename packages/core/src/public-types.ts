@@ -1,10 +1,13 @@
 import type { Readable } from 'node:stream';
 import type { BunPlugin } from 'bun';
 import type { ApiResponseBuilder } from './adapters/shared/api-response.js';
+import type { EcoPageComponent } from './eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from './hmr/hmr-strategy.ts';
 import type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from './services/cache/cache.types.ts';
+
+export type { EcoPageComponent } from './eco/eco.types.ts';
 
 /**
  * Narrow interface for cache invalidation in API handlers.
@@ -662,4 +665,13 @@ export interface ApiHandler<TPath extends string = string, TRequest extends Requ
 	path: TPath;
 	method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
 	handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
+}
+
+/**
+ * Represents a static route registered via app.static().
+ * Used for explicit routing where views are rendered at build time.
+ */
+export interface StaticRoute {
+	path: string;
+	view: EcoPageComponent<any>;
 }

@@ -1,6 +1,7 @@
 import { StaticContentServer } from '../../dev/sc-server';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
+import type { StaticRoute } from '../../public-types';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer';
 import type { FSRouter } from '../../router/fs-router';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
@@ -39,12 +40,14 @@ export class ServerStaticBuilder {
 	 * @param options.preview - If true, starts a preview server after build
 	 * @param dependencies.router - The initialized router
 	 * @param dependencies.routeRendererFactory - The route renderer factory
+	 * @param dependencies.staticRoutes - Explicit static routes registered via app.static()
 	 */
 	async build(
 		options: StaticBuildOptions | undefined,
 		dependencies: {
 			router: FSRouter;
 			routeRendererFactory: RouteRendererFactory;
+			staticRoutes?: StaticRoute[];
 		},
 	): Promise<void> {
 		const { preview = false } = options ?? {};
@@ -55,6 +58,7 @@ export class ServerStaticBuilder {
 			router: dependencies.router,
 			baseUrl,
 			routeRendererFactory: dependencies.routeRendererFactory,
+			staticRoutes: dependencies.staticRoutes,
 		});
 
 		if (!preview) {

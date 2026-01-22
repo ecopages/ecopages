@@ -151,6 +151,7 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			runtimeOrigin: `http://${preferredHostname}:${preferredPort}`,
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
+			staticRoutes: this.staticRoutes,
 			options: { watch: dev },
 			serveOptions: {
 				port: preferredPort,

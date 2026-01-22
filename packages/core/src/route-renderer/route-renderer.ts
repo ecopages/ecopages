@@ -32,6 +32,18 @@ export class RouteRendererFactory {
 		return new RouteRenderer(integrationRenderer);
 	}
 
+	/**
+	 * Get an integration renderer by its name.
+	 * Used for explicit routing where views specify their integration via __eco.integration.
+	 */
+	getRendererByIntegration(integrationName: string): IntegrationRenderer | null {
+		const integrationPlugin = this.appConfig.integrations.find((plugin) => plugin.name === integrationName);
+		if (!integrationPlugin) {
+			return null;
+		}
+		return integrationPlugin.initializeRenderer();
+	}
+
 	getIntegrationPlugin(filePath: string): IntegrationPlugin {
 		const templateExtension = PathUtils.getEcoTemplateExtension(filePath);
 		const isIntegrationPlugin = (plugin: IntegrationPlugin): boolean => {

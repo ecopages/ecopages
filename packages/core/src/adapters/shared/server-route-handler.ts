@@ -1,5 +1,6 @@
 import type { IHmrManager } from '../../public-types';
 import type { FSRouter } from '../../router/fs-router';
+import type { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher';
 import type { FileSystemResponseMatcher } from './fs-server-response-matcher';
 import { appLogger } from '../../global/app-logger';
 import { HttpError } from '../../errors/http-error';
@@ -7,6 +8,7 @@ import { HttpError } from '../../errors/http-error';
 export interface ServerRouteHandlerParams {
 	router: FSRouter;
 	fileSystemResponseMatcher: FileSystemResponseMatcher;
+	explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
 	watch?: boolean;
 	hmrManager?: IHmrManager;
 }
@@ -17,12 +19,20 @@ export interface ServerRouteHandlerParams {
 export class ServerRouteHandler {
 	private readonly router: FSRouter;
 	private readonly fileSystemResponseMatcher: FileSystemResponseMatcher;
+	private readonly explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
 	private readonly watch: boolean;
 	private readonly hmrManager?: IHmrManager;
 
-	constructor({ router, fileSystemResponseMatcher, watch = false, hmrManager }: ServerRouteHandlerParams) {
+	constructor({
+		router,
+		fileSystemResponseMatcher,
+		explicitStaticRouteMatcher,
+		watch = false,
+		hmrManager,
+	}: ServerRouteHandlerParams) {
 		this.router = router;
 		this.fileSystemResponseMatcher = fileSystemResponseMatcher;
+		this.explicitStaticRouteMatcher = explicitStaticRouteMatcher;
 		this.watch = watch;
 		this.hmrManager = hmrManager;
 	}
@@ -44,12 +54,27 @@ export class ServerRouteHandler {
 	 */
 	async handleResponse(request: Request): Promise<Response> {
 		const pathname = new URL(request.url).pathname;
-		const match = !pathname.includes('.') && this.router.match(request.url);
 
-		const response = await (match
-			? this.fileSystemResponseMatcher.handleMatch(match)
+		const explicitMatch = !pathname.includes('.') && this.explicitStaticRouteMatcher?.match(request.url);
+
+		if (explicitMatch) {
+			const response = await this.explicitStaticRouteMatcher!.handleMatch(explicitMatch);
+			return this.maybeInjectHmrScript(response);
+		}
+
+		const fsMatch = !pathname.includes('.') && this.router.match(request.url);
+
+		const response = await (fsMatch
+			? this.fileSystemResponseMatcher.handleMatch(fsMatch)
 			: this.handleNoMatch(request));
 
+		return this.maybeInjectHmrScript(response);
+	}
+
+	/**
+	 * Inject HMR script if in dev mode and response is HTML.
+	 */
+	private async maybeInjectHmrScript(response: Response): Promise<Response> {
 		if (this.shouldInjectHmrScript() && this.isHtmlResponse(response)) {
 			const html = await response.text();
 

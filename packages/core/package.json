@@ -119,6 +119,10 @@
 		"./hash": {
 			"import": "./src/utils/hash.ts",
 			"require": "./src/utils/hash.ts"
+		},
+		"./errors": {
+			"types": "./src/errors/index.ts",
+			"default": "./src/errors/index.ts"
 		}
 	}
 }

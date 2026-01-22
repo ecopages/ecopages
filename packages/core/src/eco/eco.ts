@@ -49,7 +49,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 	}) as EcoComponent<P, E>;
 
 	comp.config = {
-		componentDir: options.componentDir,
+		__eco: options.__eco,
 		dependencies: options.dependencies,
 	};
 
@@ -70,7 +70,7 @@ function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E>): EcoPageC
 	const { layout, dependencies, render, staticPaths, staticProps, metadata, cache } = options;
 
 	const componentOptions: ComponentOptions<PagePropsFor<T>, E> = {
-		componentDir: options.componentDir,
+		__eco: options.__eco,
 		dependencies: layout
 			? {
 					...dependencies,

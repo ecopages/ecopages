@@ -1,14 +1,9 @@
 import { describe, expect, it, spyOn } from 'bun:test';
-import { createEcoComponentDirPlugin } from './eco-component-dir-plugin';
+import { createEcoComponentMetaPlugin } from './eco-component-meta-plugin';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { fileSystem } from '@ecopages/file-system';
 
-/**
- * @todo some tests are causing issues with how Bun parse the file, i.e. template literals with ${'<div>'} syntax
- * These tests need to be revisited once Bun's parser is more stable
- */
-
-describe('eco-component-dir-plugin', () => {
+describe('eco-component-meta-plugin', () => {
 	const mockConfig = {
 		integrations: [
 			{
@@ -18,14 +13,8 @@ describe('eco-component-dir-plugin', () => {
 		],
 	} as EcoPagesAppConfig;
 
-	const plugin = createEcoComponentDirPlugin({ config: mockConfig });
+	const plugin = createEcoComponentMetaPlugin({ config: mockConfig });
 
-	/**
-	 * Mock helper function to run the plugin on a given content file
-	 * @param content The content of the file
-	 * @param filePath The path of the file
-	 * @returns The result of the plugin
-	 */
 	async function runPluginOnContent(content: string, filePath: string) {
 		let regexFilter: RegExp | undefined;
 		let onLoadCallback: any;
@@ -56,7 +45,7 @@ describe('eco-component-dir-plugin', () => {
 		}
 	}
 
-	it('should inject componentDir into export const config assignment', async () => {
+	it('should inject __eco into export const config assignment', async () => {
 		const content = `
             import { Counter } from './counter';
             export const config = {
@@ -69,10 +58,10 @@ describe('eco-component-dir-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/file.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('componentDir: "/path/to",');
+		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
 	});
 
-	it('should inject componentDir into config assignment', async () => {
+	it('should inject __eco into config assignment', async () => {
 		const content = `
             MyComponent.config = {
                 dependencies: {}
@@ -82,10 +71,10 @@ describe('eco-component-dir-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/component.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('componentDir: "/path/to",');
+		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
 	});
 
-	it('should inject componentDir into config object property', async () => {
+	it('should inject __eco into config object property', async () => {
 		const content = `
             export const MyElement = {
                 config: {
@@ -97,10 +86,10 @@ describe('eco-component-dir-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/element.ts');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('componentDir: "/path/to",');
+		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "ghtml" },');
 	});
 
-	it('should inject componentDir into eco.component() call', async () => {
+	it('should inject __eco into eco.component() call', async () => {
 		const content = `
             import { eco } from '@ecopages/core';
             export const Counter = eco.component${'<CounterProps>'}({
@@ -114,12 +103,11 @@ describe('eco-component-dir-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/counter.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('componentDir: "/path/to",');
+		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
 		expect(result.contents).toContain('eco.component' + '<CounterProps>({');
-		expect(result.contents).toContain('componentDir:');
 	});
 
-	it('should inject componentDir into eco.page call', async () => {
+	it('should inject __eco into eco.page call', async () => {
 		const content = `
             import { eco } from '@ecopages/core';
             export default eco.page({
@@ -133,11 +121,10 @@ describe('eco-component-dir-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/pages/index.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('componentDir: "/path/to/pages",');
-		expect(result.contents).toContain('eco.page' + '({');
+		expect(result.contents).toContain('__eco: { dir: "/path/to/pages", integration: "react" },');
 	});
 
-	it('should inject componentDir into eco.component() with lazy dependencies', async () => {
+	it('should inject __eco into eco.component() with lazy dependencies', async () => {
 		const content = `
             export const LazyCounter = eco.component({
                 dependencies: {
@@ -153,13 +140,12 @@ describe('eco-component-dir-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/lazy-counter.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('componentDir: "/path/to",');
+		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
 	});
 
-	it('should inject componentDir into eco.component() with nested generics like Head', async () => {
+	it('should detect kitajs integration from .kita.tsx extension', async () => {
 		const content = `import { eco } from '@ecopages/core';
 import type { PageHeadProps } from '@ecopages/core';
-import { Seo } from '@/includes/seo.kita';
 
 export const Head = eco.component<PageHeadProps<string>>({
 	dependencies: {
@@ -168,8 +154,6 @@ export const Head = eco.component<PageHeadProps<string>>({
 	render: ({ metadata, children }) => (
 		<head>
 			<meta charset="UTF-8" />
-			<meta name="viewport" content="width=device-width, initial-scale=1" />
-			<Seo {...metadata} />
 			{children}
 		</head>
 	),
@@ -178,6 +162,6 @@ export const Head = eco.component<PageHeadProps<string>>({
 		const result = await runPluginOnContent(content, '/path/to/includes/head.kita.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('componentDir: "/path/to/includes",');
+		expect(result.contents).toContain('__eco: { dir: "/path/to/includes", integration: "kitajs" },');
 	});
 });

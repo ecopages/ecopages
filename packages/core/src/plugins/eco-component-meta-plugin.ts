@@ -1,9 +1,9 @@
 /**
- * Bun plugin that auto-injects `componentDir` into EcoComponent config objects.
+ * Bun plugin that auto-injects `__eco` metadata into EcoComponent config objects.
  *
- * This plugin injects the `componentDir` property into EcoComponent config objects
- * automatically. It intercepts file loading and transforms component config objects
- * to include the `componentDir` property based on the file's absolute path.
+ * This plugin injects the `__eco` property (containing `import.meta` and integration info)
+ * into EcoComponent config objects automatically. It intercepts file loading and transforms
+ * component config objects based on the file's extension and path.
  *
  * @module
  */
@@ -41,6 +41,34 @@ const CONFIG_EXPORT_PATTERN = /export\s+const\s+config\s*=\s*\{/g;
 const ECO_COMPONENT_PATTERN = /eco\.(component|page)(?:<.*?>)?\s*\(\s*\{/g;
 
 /**
+ * Extension to integration mapping.
+ * More specific extensions should come first (e.g., .kita.tsx before .tsx).
+ */
+const EXTENSION_TO_INTEGRATION: [string, string][] = [
+	['.kita.tsx', 'kitajs'],
+	['.lit.tsx', 'lit'],
+	['.ghtml.ts', 'ghtml'],
+	['.ghtml.tsx', 'ghtml'],
+	['.tsx', 'react'],
+	['.ts', 'ghtml'],
+];
+
+/**
+ * Detects the integration type from a file path based on its extension.
+ *
+ * @param filePath - The file path to analyze
+ * @returns The integration identifier (e.g., 'react', 'kitajs', 'lit', 'ghtml')
+ */
+function detectIntegration(filePath: string): string {
+	for (const [ext, integration] of EXTENSION_TO_INTEGRATION) {
+		if (filePath.endsWith(ext)) {
+			return integration;
+		}
+	}
+	return 'ghtml';
+}
+
+/**
  * Creates a RegExp pattern from integration extensions.
  *
  * The pattern matches files ending with any of the provided extensions,
@@ -69,38 +97,40 @@ export interface EcoComponentDirPluginOptions {
 }
 
 /**
- * Creates a Bun plugin that auto-injects `componentDir` into EcoComponent config objects.
+ * Creates a Bun plugin that auto-injects `__eco` metadata into EcoComponent config objects.
  *
  * This plugin intercepts file loading for all integration-compatible files and:
  * 1. Strips any query string from the file path (for dev mode cache-busting)
  * 2. Reads the file contents
- * 3. Finds all `.config = {` assignments (EcoComponent) and `config: {` properties
- * 4. Injects `componentDir: "/path/to/component/dir"` as the first property
+ * 3. Finds all `.config = {` assignments (EcoComponent), `config: {` properties, and `eco.component/page()` calls
+ * 4. Injects `__eco: { meta: import.meta, integration: "..." }` as the first property
  * 5. Returns the transformed content with the appropriate loader
  *
- * The injected `componentDir` is used by the dependency resolution system to locate
- * relative script and stylesheet dependencies defined in component configs.
+ * The injected `__eco` provides:
+ * - `meta.dir`: Used for dependency resolution (replaces the old `componentDir`)
+ * - `integration`: Used for selecting the correct renderer
  *
  * @param options - Plugin options containing the EcoPages config
  * @returns A Bun plugin instance ready for registration with `Bun.plugin()`
  *
  * @example
  * ```typescript
- * const plugin = createEcoComponentDirPlugin({ config: appConfig });
+ * const plugin = createEcoComponentMetaPlugin({ config: appConfig });
  * await Bun.plugin(plugin);
  * ```
  */
-export function createEcoComponentDirPlugin(options: EcoComponentDirPluginOptions): BunPlugin {
+export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): BunPlugin {
 	const allExtensions = options.config.integrations.flatMap((integration) => integration.extensions);
 	const extensionPattern = createExtensionPattern(allExtensions);
 
 	return {
-		name: 'eco-component-dir-plugin',
+		name: 'eco-component-meta-plugin',
 		setup(build) {
 			build.onLoad({ filter: extensionPattern }, async (args) => {
 				const filePath = args.path.split('?')[0];
 				const contents = await fileSystem.readFile(filePath);
-				const transformedContents = injectComponentDir(contents, filePath);
+				const integration = detectIntegration(filePath);
+				const transformedContents = injectEcoMeta(contents, filePath, integration);
 
 				const ext = path.extname(filePath).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';
 
@@ -114,41 +144,34 @@ export function createEcoComponentDirPlugin(options: EcoComponentDirPluginOption
 }
 
 /**
- * Injects `componentDir` into EcoComponent config objects in file content.
- * This utility can be used by integrations that handle their own file loading
- * (like MDX) but still need componentDir injection for dependency resolution.
+ * Injects `__eco` metadata into EcoComponent config objects in file content.
  *
  * @param contents - The file content to transform
- * @param filePath - Absolute path to the file (used to derive componentDir)
- * @returns Transformed content with componentDir injected
- *
- * @example
- * ```typescript
- * const contents = await Bun.file(filePath).text();
- * const transformed = injectComponentDir(contents, filePath);
- * ```
+ * @param filePath - Absolute path to the file
+ * @param integration - The integration identifier for this file
+ * @returns Transformed content with __eco injected
  */
-export function injectComponentDir(contents: string, filePath: string): string {
+export function injectEcoMeta(contents: string, filePath: string, integration: string): string {
 	const componentDir = path.dirname(filePath);
+	const injection = `__eco: { dir: "${componentDir}", integration: "${integration}" },`;
 
 	let result = contents.replace(CONFIG_ASSIGNMENT_PATTERN, (match) => {
-		return `${match}\n\tcomponentDir: "${componentDir}",`;
+		return `${match}\n\t${injection}`;
 	});
 
 	result = result.replace(CONFIG_PROPERTY_PATTERN, () => {
-		return `config: {\n\t\tcomponentDir: "${componentDir}",`;
+		return `config: {\n\t\t${injection}`;
 	});
 
 	result = result.replace(CONFIG_EXPORT_PATTERN, (match) => {
-		return `${match}\n\tcomponentDir: "${componentDir}",`;
+		return `${match}\n\t${injection}`;
 	});
 
-	// Handle eco.component() and eco.page() patterns
 	result = result.replace(ECO_COMPONENT_PATTERN, (match) => {
-		return `${match}\n\tcomponentDir: "${componentDir}",`;
+		return `${match}\n\t${injection}`;
 	});
 
 	return result;
 }
 
-export default createEcoComponentDirPlugin;
+export default createEcoComponentMetaPlugin;

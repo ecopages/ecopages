@@ -272,7 +272,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const dependencies: AssetDefinition[] = [];
 
 		for (const component of components) {
-			const componentDir = component.config?.componentDir;
+			const componentDir = component.config?.__eco?.dir;
 			if (!componentDir) continue;
 
 			const stylesheetsSet = new Set<string>();
@@ -285,7 +285,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			const collect = (config: EcoComponent['config']) => {
 				if (!config?.dependencies) return;
 
-				const dir = config.componentDir;
+				const dir = config.__eco?.dir;
 				if (!dir) return;
 
 				if (config.dependencies.stylesheets) {

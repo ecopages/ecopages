@@ -6,6 +6,7 @@
 import type {
 	EcoComponent,
 	EcoComponentDependencies,
+	EcoInjectedMeta,
 	EcoPagesElement,
 	GetMetadata,
 	GetStaticPaths,
@@ -40,8 +41,8 @@ export type EcoComponentDependenciesWithLazy = EcoComponentDependencies & {
  * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
  */
 export interface ComponentOptions<P, E = EcoPagesElement> {
-	/** Component directory for resolving relative dependencies. Auto-injected by plugin, or use `import.meta.dir` */
-	componentDir?: string;
+	/** @internal Injected by eco-component-meta-plugin */
+	__eco?: EcoInjectedMeta;
 	dependencies?: EcoComponentDependenciesWithLazy;
 	render: (props: P) => E | Promise<E>;
 }
@@ -57,8 +58,8 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
  * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
  */
 export interface PageOptions<T, E = EcoPagesElement> {
-	/** Component directory for resolving relative dependencies. Auto-injected by plugin, or use `import.meta.dir` */
-	componentDir?: string;
+	/** @internal Injected by eco-component-meta-plugin */
+	__eco?: EcoInjectedMeta;
 	dependencies?: EcoComponentDependenciesWithLazy;
 	layout?: EcoComponent<{ children: E }>;
 

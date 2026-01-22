@@ -180,7 +180,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 		if (config?.dependencies) {
 			const configWithMeta = {
 				...config,
-				componentDir: path.dirname(pagePath),
+				__eco: { dir: path.dirname(pagePath), integration: 'react' },
 			};
 			components.push({ config: configWithMeta });
 		}

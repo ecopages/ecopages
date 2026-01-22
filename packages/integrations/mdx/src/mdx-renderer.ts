@@ -68,7 +68,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 			components.push({
 				config: {
 					...config,
-					componentDir: path.dirname(pagePath),
+					__eco: { dir: path.dirname(pagePath), integration: 'mdx' },
 				},
 			});
 		}

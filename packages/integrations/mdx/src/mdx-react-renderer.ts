@@ -307,7 +307,7 @@ if (document.readyState === 'loading') {
 			if (config?.dependencies) {
 				const configWithMeta = {
 					...config,
-					componentDir: path.dirname(pagePath),
+					__eco: { dir: path.dirname(pagePath), integration: 'mdx' },
 				};
 				components.push({ config: configWithMeta });
 			}

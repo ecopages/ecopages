@@ -194,14 +194,20 @@ export type EcoPagesConfig = Omit<
 	Pick<EcoPagesAppConfig, 'baseUrl' | 'rootDir'>;
 
 /**
- * Configuration object for an EcoComponent.
+ * Internal metadata injected by eco-component-meta-plugin.
+ * Contains component directory and integration info for dependency resolution.
+ * @internal
  */
+export interface EcoInjectedMeta {
+	/** Directory path of the component */
+	dir: string;
+	/** The integration identifier (e.g., 'react', 'kitajs', 'lit', 'ghtml', 'mdx') */
+	integration: string;
+}
+
 export type EcoComponentConfig = {
-	/**
-	 * The directory path of the component file.
-	 * This is auto-injected by the eco-component-dir-plugin at load time.
-	 */
-	componentDir?: string;
+	/** @internal Injected by eco-component-meta-plugin */
+	__eco?: EcoInjectedMeta;
 	/**
 	 * The layout component to wrap this page during rendering.
 	 *

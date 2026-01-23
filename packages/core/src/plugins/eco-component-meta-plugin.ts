@@ -41,26 +41,59 @@ const CONFIG_EXPORT_PATTERN = /export\s+const\s+config\s*=\s*\{/g;
 const ECO_COMPONENT_PATTERN = /eco\.(component|page)(?:<.*?>)?\s*\(\s*\{/g;
 
 /**
- * Extension to integration mapping.
- * More specific extensions should come first (e.g., .kita.tsx before .tsx).
+ * Regex special characters for escaping in patterns
  */
-const EXTENSION_TO_INTEGRATION: [string, string][] = [
-	['.kita.tsx', 'kitajs'],
-	['.lit.tsx', 'lit'],
-	['.ghtml.ts', 'ghtml'],
-	['.ghtml.tsx', 'ghtml'],
-	['.tsx', 'react'],
-	['.ts', 'ghtml'],
-];
+const REGEX_SPECIAL_CHARS = /[.*+?^${}()|[\]\\]/g;
+
+/**
+ * Valid Bun loader extensions that this plugin can handle
+ */
+const VALID_LOADER_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
+
+/**
+ * Checks if an extension can be handled by a valid Bun loader.
+ * Compound extensions like `.kita.tsx` are valid because the final extension is `.tsx`.
+ */
+function hasValidLoaderExtension(ext: string): boolean {
+	for (const validExt of VALID_LOADER_EXTENSIONS) {
+		if (ext.endsWith(validExt)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Builds an extension-to-integration mapping from the config's integrations.
+ * Extensions are sorted by specificity (longer extensions first) to ensure
+ * more specific extensions like `.kita.tsx` are matched before `.tsx`.
+ *
+ * @param integrations - The integration plugins from the app config
+ * @returns Array of [extension, integration name] tuples sorted by specificity
+ */
+function buildExtensionToIntegrationMap(integrations: EcoPagesAppConfig['integrations']): [string, string][] {
+	const mapping: [string, string][] = [];
+
+	for (const integration of integrations) {
+		for (const ext of integration.extensions) {
+			mapping.push([ext, integration.name]);
+		}
+	}
+
+	mapping.sort((a, b) => b[0].length - a[0].length);
+
+	return mapping;
+}
 
 /**
  * Detects the integration type from a file path based on its extension.
  *
  * @param filePath - The file path to analyze
+ * @param extensionToIntegration - The extension-to-integration mapping
  * @returns The integration identifier (e.g., 'react', 'kitajs', 'lit', 'ghtml')
  */
-function detectIntegration(filePath: string): string {
-	for (const [ext, integration] of EXTENSION_TO_INTEGRATION) {
+function detectIntegration(filePath: string, extensionToIntegration: [string, string][]): string {
+	for (const [ext, integration] of extensionToIntegration) {
 		if (filePath.endsWith(ext)) {
 			return integration;
 		}
@@ -75,19 +108,15 @@ function detectIntegration(filePath: string): string {
  * optionally followed by a query string (e.g., `file.tsx?update=123`).
  * Query strings are used for cache-busting in development mode.
  *
- * Always includes `.ts` to support definitions in plain
- * TypeScript files (commonly used for Lit elements and web components).
- *
  * @param extensions - Array of file extensions (e.g., ['.kita.tsx', '.ghtml.ts', '.tsx'])
  * @returns RegExp pattern that matches any of the extensions with optional query strings
  */
 function createExtensionPattern(extensions: string[]): RegExp {
 	if (extensions.length === 0) {
-		return /\.(kita\.tsx|ghtml\.ts|ghtml\.tsx|lit\.tsx|ts)(\?.*)?$/;
+		throw new Error('[eco-component-meta-plugin] No extensions configured. At least one integration is required.');
 	}
-
-	const allExtensions = [...new Set([...extensions, '.ts'])].filter((ext) => ext !== '.mdx');
-	const escaped = allExtensions.map((ext) => ext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+	const uniqueExtensions = [...new Set(extensions)];
+	const escaped = uniqueExtensions.map((ext) => ext.replace(REGEX_SPECIAL_CHARS, '\\$&'));
 	return new RegExp(`(${escaped.join('|')})(\\?.*)?$`);
 }
 
@@ -120,8 +149,11 @@ export interface EcoComponentDirPluginOptions {
  * ```
  */
 export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): BunPlugin {
-	const allExtensions = options.config.integrations.flatMap((integration) => integration.extensions);
+	const allExtensions = options.config.integrations
+		.flatMap((integration) => integration.extensions)
+		.filter(hasValidLoaderExtension);
 	const extensionPattern = createExtensionPattern(allExtensions);
+	const extensionToIntegration = buildExtensionToIntegrationMap(options.config.integrations);
 
 	return {
 		name: 'eco-component-meta-plugin',
@@ -129,7 +161,7 @@ export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptio
 			build.onLoad({ filter: extensionPattern }, async (args) => {
 				const filePath = args.path.split('?')[0];
 				const contents = await fileSystem.readFile(filePath);
-				const integration = detectIntegration(filePath);
+				const integration = detectIntegration(filePath, extensionToIntegration);
 				const transformedContents = injectEcoMeta(contents, filePath, integration);
 
 				const ext = path.extname(filePath).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';
@@ -146,6 +178,9 @@ export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptio
 /**
  * Injects `__eco` metadata into EcoComponent config objects in file content.
  *
+ * For TSX/TS files: Injects into `.config = {`, `config: {`, and `eco.component/page()` patterns.
+ * For MDX files: Appends a separate `export const __eco = {...}` to avoid collision with user's config.
+ *
  * @param contents - The file content to transform
  * @param filePath - Absolute path to the file
  * @param integration - The integration identifier for this file
@@ -153,6 +188,7 @@ export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptio
  */
 export function injectEcoMeta(contents: string, filePath: string, integration: string): string {
 	const componentDir = path.dirname(filePath);
+
 	const injection = `__eco: { dir: "${componentDir}", integration: "${integration}" },`;
 
 	let result = contents.replace(CONFIG_ASSIGNMENT_PATTERN, (match) => {

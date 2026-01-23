@@ -7,8 +7,16 @@ describe('eco-component-meta-plugin', () => {
 	const mockConfig = {
 		integrations: [
 			{
+				name: 'kitajs',
+				extensions: ['.kita.tsx'],
+			},
+			{
 				name: 'react',
 				extensions: ['.tsx', '.mdx'],
+			},
+			{
+				name: 'ghtml',
+				extensions: ['.ts', '.ghtml.ts'],
 			},
 		],
 	} as EcoPagesAppConfig;

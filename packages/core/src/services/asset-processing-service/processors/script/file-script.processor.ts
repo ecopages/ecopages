@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { EXCLUDE_FROM_HTML_FLAG, RESOLVED_ASSETS_DIR } from '../../../../constants';
+import { RESOLVED_ASSETS_DIR } from '../../../../constants';
 import { fileSystem } from '@ecopages/file-system';
 import type { IHmrManager } from '../../../../internal-types';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types';
@@ -13,12 +13,6 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	}
 
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
-		if (dep.filepath.endsWith(EXCLUDE_FROM_HTML_FLAG)) {
-			dep.filepath = dep.filepath.replace(EXCLUDE_FROM_HTML_FLAG, '');
-			dep.inline = true;
-			dep.excludeFromHtml = true;
-		}
-
 		/**
 		 * If HMR Manager is active, delegate build/watch to it.
 		 */

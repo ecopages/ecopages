@@ -350,15 +350,26 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				}
 
 				/**
-				 * Process lazy dependencies - resolve paths and store for auto-wrapping
-				 * It adds lazy scripts with exclude flag so they don't appear in main HTML
+				 * Process lazy dependencies - resolve paths and store for auto-wrapping.
+				 * Lazy scripts are bundled but excluded from HTML output.
 				 */
 				if (config.dependencies.lazy?.scripts) {
 					const lazyScriptPaths = this.resolveLazyScripts(dir, config.dependencies.lazy.scripts);
 					config._resolvedScripts = lazyScriptPaths;
 
 					for (const script of config.dependencies.lazy.scripts) {
-						scriptsSet.add(this.resolveDependencyPath(dir, script) + '?exclude-from-html=true');
+						const resolvedPath = this.resolveDependencyPath(dir, script);
+						dependencies.push(
+							AssetFactory.createFileScript({
+								filepath: resolvedPath,
+								position: 'head',
+								excludeFromHtml: true,
+								attributes: {
+									type: 'module',
+									defer: '',
+								},
+							}),
+						);
 					}
 				}
 
@@ -396,6 +407,22 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						},
 					}),
 				),
+			);
+		}
+
+		const hasLazyDependencies = dependencies.some((dep) => dep.kind === 'script' && dep.excludeFromHtml === true);
+
+		if (hasLazyDependencies) {
+			dependencies.unshift(
+				AssetFactory.createNodeModuleScript({
+					position: 'head',
+					importPath: '@ecopages/scripts-injector',
+					name: 'scripts-injector',
+					attributes: {
+						type: 'module',
+						defer: '',
+					},
+				}),
 			);
 		}
 

@@ -56,11 +56,10 @@ export class FileSystemServerResponseFactory {
 
 		try {
 			fileSystem.verifyFileExists(error404TemplatePath);
-		} catch (error) {
-			appLogger.error(
-				'Error 404 template not found, looks like it has not being configured correctly',
+		} catch {
+			appLogger.debug(
+				'Custom 404 template not found, falling back to default 404 response',
 				error404TemplatePath,
-				error as Error,
 			);
 			return this.createDefaultNotFoundResponse();
 		}

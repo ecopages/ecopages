@@ -1,5 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test, jest } from 'bun:test';
-import type { Server } from 'bun';
+import { describe, expect, test } from 'bun:test';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { HttpError } from '../../errors/http-error.ts';
@@ -8,7 +7,6 @@ import { createBunServerAdapter } from './server-adapter.ts';
 
 const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
 
-let server: Server<unknown>;
 const TEST_PORT_BASE = 3100;
 
 describe('Global Error Handler', () => {
@@ -142,7 +140,7 @@ describe('Global Error Handler', () => {
 					},
 				}),
 			],
-			errorHandler: async (error, context) => {
+			errorHandler: async () => {
 				throw new Error('Handler failed');
 			},
 		});

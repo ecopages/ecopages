@@ -91,7 +91,7 @@ describe('ServerLifecycle', () => {
 			const lifecycle = new ServerLifecycle(params);
 			lifecycle.copyPublicDir();
 
-			const destPath = path.join(DIST_DIR, PUBLIC_DIR, 'test.txt');
+			const destPath = path.join(DIST_DIR, 'test.txt');
 			expect(fs.existsSync(destPath)).toBe(true);
 		});
 	});

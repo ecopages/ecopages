@@ -6,28 +6,28 @@
 /* Fonts */
 @font-face {
 	font-family: 'Alegreya Sans';
-	src: url('/public/assets/fonts/alegreya-sans-latin-400-normal.woff2') format('woff2');
+	src: url('/assets/fonts/alegreya-sans-latin-400-normal.woff2') format('woff2');
 	font-weight: 400;
 	font-display: swap;
 }
 
 @font-face {
 	font-family: 'Alegreya Sans';
-	src: url('/public/assets/fonts/alegreya-sans-latin-500-normal.woff2') format('woff2');
+	src: url('/assets/fonts/alegreya-sans-latin-500-normal.woff2') format('woff2');
 	font-weight: 500;
 	font-display: swap;
 }
 
 @font-face {
 	font-family: 'Alegreya Sans';
-	src: url('/public/assets/fonts/alegreya-sans-latin-700-normal.woff2') format('woff2');
+	src: url('/assets/fonts/alegreya-sans-latin-700-normal.woff2') format('woff2');
 	font-weight: 700;
 	font-display: swap;
 }
 
 @font-face {
 	font-family: 'Cambo';
-	src: url('/public/assets/fonts/cambo-latin-400-normal.woff2') format('woff2');
+	src: url('/assets/fonts/cambo-latin-400-normal.woff2') format('woff2');
 	font-weight: 400;
 	font-display: swap;
 }

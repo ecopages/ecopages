@@ -90,7 +90,7 @@ export type EcoPagesAppConfig = {
 	robotsTxt: {
 		/**
 		 * The robots preferences. The key is the user agent and the value is the disallowed paths.
-		 * @default { "*": [], Googlebot: ["/public/assets/images/"] }
+		 * @default { "*": [] }
 		 */
 		preferences: RobotsPreference;
 	};

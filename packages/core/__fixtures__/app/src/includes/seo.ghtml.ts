@@ -1,17 +1,17 @@
 import type { PageMetadataProps } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
+import { html } from '../../../../src/utils/html';
 
 const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
 
 export function Seo({
 	title,
 	description,
-	image = '/public/assets/images/default-og.webp',
+	image = '/assets/images/default-og.webp',
 	url,
 	keywords,
 }: PageMetadataProps) {
 	return html`<title>${title}</title>
-		<link rel="icon" type="image/x-icon" href="/public/assets/favicon.svg" />
+		<link rel="icon" type="image/x-icon" href="/assets/favicon.svg" />
 		<link rel="robots" href="/robots.txt" />
 		<meta name="description" content="${description}" />
 		!${keywords?.length ? html`<meta name="keywords" content="!${keywords.join(',')}" />` : null}

@@ -2,11 +2,11 @@ import { type PageMetadataProps } from '@ecopages/core';
 
 const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
 
-export function Seo({ title, description, image = '/public/assets/favicon.svg', url, keywords }: PageMetadataProps) {
+export function Seo({ title, description, image = '/assets/favicon.svg', url, keywords }: PageMetadataProps) {
 	return (
 		<>
 			<title>{title}</title>
-			<link rel="icon" type="image/svg+xml" href="/public/assets/favicon.svg" />
+			<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
 			<meta name="description" content={description} />
 			{keywords?.length ? <meta name="keywords" content={keywords.join(',')} /> : null}
 			<meta property="og:title" content={title} />

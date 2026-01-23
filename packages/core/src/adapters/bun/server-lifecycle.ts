@@ -63,13 +63,16 @@ export class ServerLifecycle {
 	}
 
 	/**
-	 * Copies public directory to dist.
+	 * Copies public directory contents to dist root.
+	 * Static files are served from root (e.g., /favicon.ico, /robots.txt).
 	 */
 	copyPublicDir(): void {
-		fileSystem.copyDir(
-			path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir),
-			path.join(this.appConfig.rootDir, this.appConfig.distDir, this.appConfig.publicDir),
-		);
+		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
+
+		if (fileSystem.exists(srcPublicDir)) {
+			fileSystem.copyDir(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
+		}
+
 		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 	}
 

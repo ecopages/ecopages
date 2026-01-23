@@ -175,26 +175,6 @@ app.post('/api/posts', async (ctx) => {
 | `query` | Query string parameters | `ctx.validated.query` |
 | `headers` | Request headers | `ctx.validated.headers` |
 
-### Mixing Validators
-
-This example shows how Standard Schema allows using different libraries together. In practice, you would pick one library for your project:
-
-```typescript
-import { z } from 'zod';
-import * as v from 'valibot';
-
-app.post('/api/search', async (ctx) => {
-	const { q } = ctx.validated.query;
-	const filters = ctx.validated.body;
-	return ctx.json({ query: q, filters });
-}, {
-	schema: {
-		query: z.object({ q: z.string() }),
-		body: v.object({ category: v.optional(v.string()) })
-	}
-});
-```
-
 ### Validation in Route Groups
 
 ```typescript

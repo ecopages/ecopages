@@ -87,8 +87,7 @@ export interface InlineNodeModuleScriptAsset extends NodeModuleScriptAsset {
 	inline: true;
 }
 
-export interface JsonScriptAsset extends BaseAsset {
-	kind: 'script';
+export interface JsonScriptAsset extends ScriptAsset {
 	source: 'content';
 	content: string;
 }

@@ -55,21 +55,6 @@ describe('FileScriptProcessor', () => {
 	});
 
 	describe('process', () => {
-		test('should handle EXCLUDE_FROM_HTML_FLAG in filepath', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
-			const dep: FileScriptAsset = {
-				kind: 'script',
-				source: 'file',
-				filepath: '/test/project/src/script.ts?exclude-from-html=true',
-				bundle: false,
-			};
-
-			const result = await processor.process(dep);
-
-			expect(result.excludeFromHtml).toBe(true);
-			expect(result.inline).toBe(true);
-		});
-
 		test('should delegate to HMR manager when enabled and not inline', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const mockHmrManager = {

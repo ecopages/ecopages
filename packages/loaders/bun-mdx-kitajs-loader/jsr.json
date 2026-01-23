@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/bun-mdx-kitajs-loader",
-	"version": "0.1.80",
+	"version": "0.1.81",
 	"exports": {
 		".": "./src/bun-mdx-kitajs-loader.ts"
 	},

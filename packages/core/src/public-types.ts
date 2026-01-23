@@ -854,6 +854,17 @@ export type ErrorHandler<TRequest extends Request = Request, TServer = any> = (
 ) => Promise<Response> | Response;
 
 /**
+ * Options for routes within a group.
+ */
+export interface RouteGroupOptions {
+	schema?: {
+		body?: StandardSchema;
+		query?: StandardSchema;
+		headers?: StandardSchema;
+	};
+}
+
+/**
  * Builder interface for defining routes within a group.
  * Provides chainable methods for registering routes with shared prefix and middleware.
  */
@@ -861,36 +872,43 @@ export interface RouteGroupBuilder<TRequest extends Request = Request, TServer =
 	get<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteGroupOptions,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	post<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteGroupOptions,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	put<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteGroupOptions,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	delete<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteGroupOptions,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	patch<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteGroupOptions,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	options<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteGroupOptions,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	head<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteGroupOptions,
 	): RouteGroupBuilder<TRequest, TServer>;
 }
 

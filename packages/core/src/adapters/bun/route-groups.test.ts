@@ -7,7 +7,7 @@ import { EcopagesApp } from './create-app.ts';
 
 const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
 
-let server: Server<unknown> | null = null;
+let server: Server<undefined> | undefined;
 const TEST_PORT = 3006;
 
 const apiKeyMiddleware: Middleware = async (context, next) => {
@@ -56,7 +56,8 @@ describe('Route Groups', () => {
 			r.get('/secure', async () => new Response(JSON.stringify({ secure: true })));
 		});
 
-		server = await app.start();
+		const result = await app.start();
+		if (result) server = result;
 	});
 
 	afterAll(() => {
@@ -172,6 +173,77 @@ describe('Route Groups', () => {
 		expect(res2.status).toBe(200);
 		expect(await res2.text()).toBe('second');
 
-		testServer.stop(true);
+		testServer?.stop(true);
+	});
+
+	test('should support schema validation in route groups', async () => {
+		const createSchema = <T>(
+			validator: (value: unknown) => { valid: boolean; data?: T; errors?: string[] },
+		): StandardSchema<unknown, T> => ({
+			'~standard': {
+				version: 1,
+				vendor: 'test',
+				validate: (value: unknown) => {
+					const result = validator(value);
+					if (result.valid) {
+						return { value: result.data };
+					}
+					return {
+						issues: result.errors?.map((message) => ({ message })) || [{ message: 'Validation failed' }],
+					};
+				},
+			},
+		});
+
+		const bodySchema = createSchema<{ name: string }>((value) => {
+			if (typeof value !== 'object' || value === null) {
+				return { valid: false, errors: ['Expected object'] };
+			}
+			const obj = value as Record<string, unknown>;
+			if (typeof obj.name !== 'string' || obj.name.length < 2) {
+				return { valid: false, errors: ['name must be at least 2 characters'] };
+			}
+			return { valid: true, data: { name: obj.name } };
+		});
+
+		const app = new EcopagesApp({
+			appConfig,
+			serverOptions: {
+				port: 3008,
+				hostname: 'localhost',
+			},
+		});
+
+		app.group('/api/validated', [], (r) => {
+			r.post(
+				'/user',
+				async (ctx) => {
+					const { name } = ctx.validated!.body as { name: string };
+					return new Response(JSON.stringify({ created: name }));
+				},
+				{
+					schema: { body: bodySchema },
+				},
+			);
+		});
+
+		const testServer = await app.start();
+
+		const validRes = await fetch('http://localhost:3008/api/validated/user', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ name: 'John' }),
+		});
+		expect(validRes.status).toBe(200);
+		expect(await validRes.json()).toEqual({ created: 'John' });
+
+		const invalidRes = await fetch('http://localhost:3008/api/validated/user', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ name: 'J' }),
+		});
+		expect(invalidRes.status).toBe(400);
+
+		testServer?.stop(true);
 	});
 });

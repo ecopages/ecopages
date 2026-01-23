@@ -16,6 +16,7 @@ import type {
 	ErrorHandler,
 	Middleware,
 	RouteGroupBuilder,
+	RouteGroupOptions,
 	StaticRoute,
 } from '../../public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -156,12 +157,14 @@ export abstract class AbstractApplicationAdapter<
 		method: ApiHandler['method'],
 		handler: (context: ApiHandlerContext<any>) => Promise<Response> | Response,
 		middleware?: Middleware<any, any>[],
+		schema?: ApiHandler['schema'],
 	): this {
 		this.apiHandlers.push({
 			path,
 			method,
 			handler: handler as unknown as (context: any) => Promise<Response> | Response,
 			middleware,
+			schema,
 		});
 		return this;
 	}
@@ -186,32 +189,74 @@ export abstract class AbstractApplicationAdapter<
 		const normalizedPrefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
 
 		const builder: RouteGroupBuilder<TRequest, TServer> = {
-			get: (path, handler) => {
-				this.addRouteHandler(`${normalizedPrefix}${path}`, 'GET', handler as any, middleware as any);
+			get: (path, handler, options?: RouteGroupOptions) => {
+				this.addRouteHandler(
+					`${normalizedPrefix}${path}`,
+					'GET',
+					handler as any,
+					middleware as any,
+					options?.schema,
+				);
 				return builder;
 			},
-			post: (path, handler) => {
-				this.addRouteHandler(`${normalizedPrefix}${path}`, 'POST', handler as any, middleware as any);
+			post: (path, handler, options?: RouteGroupOptions) => {
+				this.addRouteHandler(
+					`${normalizedPrefix}${path}`,
+					'POST',
+					handler as any,
+					middleware as any,
+					options?.schema,
+				);
 				return builder;
 			},
-			put: (path, handler) => {
-				this.addRouteHandler(`${normalizedPrefix}${path}`, 'PUT', handler as any, middleware as any);
+			put: (path, handler, options?: RouteGroupOptions) => {
+				this.addRouteHandler(
+					`${normalizedPrefix}${path}`,
+					'PUT',
+					handler as any,
+					middleware as any,
+					options?.schema,
+				);
 				return builder;
 			},
-			delete: (path, handler) => {
-				this.addRouteHandler(`${normalizedPrefix}${path}`, 'DELETE', handler as any, middleware as any);
+			delete: (path, handler, options?: RouteGroupOptions) => {
+				this.addRouteHandler(
+					`${normalizedPrefix}${path}`,
+					'DELETE',
+					handler as any,
+					middleware as any,
+					options?.schema,
+				);
 				return builder;
 			},
-			patch: (path, handler) => {
-				this.addRouteHandler(`${normalizedPrefix}${path}`, 'PATCH', handler as any, middleware as any);
+			patch: (path, handler, options?: RouteGroupOptions) => {
+				this.addRouteHandler(
+					`${normalizedPrefix}${path}`,
+					'PATCH',
+					handler as any,
+					middleware as any,
+					options?.schema,
+				);
 				return builder;
 			},
-			options: (path, handler) => {
-				this.addRouteHandler(`${normalizedPrefix}${path}`, 'OPTIONS', handler as any, middleware as any);
+			options: (path, handler, options?: RouteGroupOptions) => {
+				this.addRouteHandler(
+					`${normalizedPrefix}${path}`,
+					'OPTIONS',
+					handler as any,
+					middleware as any,
+					options?.schema,
+				);
 				return builder;
 			},
-			head: (path, handler) => {
-				this.addRouteHandler(`${normalizedPrefix}${path}`, 'HEAD', handler as any, middleware as any);
+			head: (path, handler, options?: RouteGroupOptions) => {
+				this.addRouteHandler(
+					`${normalizedPrefix}${path}`,
+					'HEAD',
+					handler as any,
+					middleware as any,
+					options?.schema,
+				);
 				return builder;
 			},
 		};

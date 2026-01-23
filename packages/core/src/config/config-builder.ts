@@ -64,7 +64,6 @@ export class ConfigBuilder {
 		robotsTxt: {
 			preferences: {
 				'*': [],
-				Googlebot: ['/public/'],
 			},
 		},
 		integrations: [],

@@ -4,6 +4,7 @@ import type { EcoPagesAppConfig, RouteKind, Routes } from '../internal-types.ts'
 import type { EcoPageFile, GetStaticPaths } from '../public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { invariant } from '../utils/invariant.ts';
+import { existsSync } from 'node:fs';
 
 type CreateRouteArgs = {
 	routePath: string;
@@ -162,6 +163,11 @@ export class FSRouterScanner {
 
 	async scan(): Promise<Routes> {
 		this.routes = {};
+
+		if (!existsSync(this.dir)) {
+			return this.routes;
+		}
+
 		const scannedFiles = await fileSystem.glob(
 			this.templatesExt.map((ext) => `**/*${ext}`),
 			{ cwd: this.dir },

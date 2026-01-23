@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
@@ -199,7 +200,9 @@ export class ProjectWatcher {
 				processorPaths.push(...watchConfig.paths);
 			}
 
-			processorPaths.push(this.appConfig.absolutePaths.pagesDir);
+			if (existsSync(this.appConfig.absolutePaths.pagesDir)) {
+				processorPaths.push(this.appConfig.absolutePaths.pagesDir);
+			}
 
 			// Add additionalWatchPaths for config files etc.
 			if (this.appConfig.additionalWatchPaths.length) {

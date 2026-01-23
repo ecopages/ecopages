@@ -134,8 +134,8 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
 		const defaultConfig = {
 			sourceDir: `${this.context.srcDir}/public/assets/images`,
-			outputDir: `${this.context.distDir}/public/assets/optimized`,
-			publicPath: '/public/assets/optimized',
+			outputDir: `${this.context.distDir}/assets/optimized`,
+			publicPath: '/assets/optimized',
 			sizes: [],
 			quality: 80,
 			format: 'webp' as const,

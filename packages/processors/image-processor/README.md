@@ -29,8 +29,8 @@ const imageProcessor = new ImageProcessorPlugin({
 	type: 'image',
 	options: {
 		sourceDir: path.resolve(import.meta.dir, 'src/images'),
-		outputDir: path.resolve(import.meta.dir, '.eco/public/images'),
-		publicPath: '/public/images',
+		outputDir: path.resolve(import.meta.dir, '.eco/images'),
+		publicPath: '/images',
 		acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 		quality: 80,
 		format: 'webp',
@@ -54,15 +54,15 @@ export default await new ConfigBuilder()
 
 #### ImageProcessorConfig
 
-| Option            | Type                                    | Default                           | Description                           |
-| ----------------- | --------------------------------------- | --------------------------------- | ------------------------------------- |
-| `sourceDir`       | `string`                                | `'/src/public/assets/images'`     | Source directory for images           |
-| `outputDir`       | `string`                                | `'/dist/public/assets/optimized'` | Output directory for processed images |
-| `publicPath`      | `string`                                | `'/public/assets/optimized'`      | Public URL path for images            |
-| `sizes`           | `Array<{width: number, label: string}>` | `[]`                              | Image variants configuration          |
-| `quality`         | `number`                                | `80`                              | Output image quality (0-100)          |
-| `format`          | `'webp' \| 'jpeg' \| 'png' \| 'avif'`   | `'webp'`                          | Output image format                   |
-| `acceptedFormats` | `string[]`                              | `['jpg','jpeg','png','webp']`     | Accepted input formats                |
+| Option            | Type                                    | Default                       | Description                           |
+| ----------------- | --------------------------------------- | ----------------------------- | ------------------------------------- |
+| `sourceDir`       | `string`                                | `'/src/public/assets/images'` | Source directory for images           |
+| `outputDir`       | `string`                                | `'/dist/assets/optimized'`    | Output directory for processed images |
+| `publicPath`      | `string`                                | `'/assets/optimized'`         | Public URL path for images            |
+| `sizes`           | `Array<{width: number, label: string}>` | `[]`                          | Image variants configuration          |
+| `quality`         | `number`                                | `80`                          | Output image quality (0-100)          |
+| `format`          | `'webp' \| 'jpeg' \| 'png' \| 'avif'`   | `'webp'`                      | Output image format                   |
+| `acceptedFormats` | `string[]`                              | `['jpg','jpeg','png','webp']` | Accepted input formats                |
 
 ## Usage
 

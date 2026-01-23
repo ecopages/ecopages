@@ -11,7 +11,7 @@ const originalWrite = fileSystem.write;
 const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesAppConfig =>
 	({
 		rootDir: '/test/project',
-		distDir: '.eco/public',
+		distDir: '.eco',
 		srcDir: 'src',
 		robotsTxt: {
 			preferences: {
@@ -110,8 +110,8 @@ describe('StaticSiteGenerator', () => {
 
 			ssg.generateRobotsTxt();
 
-			expect(ensureDirMock).toHaveBeenCalledWith('.eco/public');
-			expect(writeMock).toHaveBeenCalledWith('.eco/public/robots.txt', expect.any(String));
+			expect(ensureDirMock).toHaveBeenCalledWith('.eco');
+			expect(writeMock).toHaveBeenCalledWith('.eco/robots.txt', expect.any(String));
 
 			const writtenContent = writeMock.mock.calls[0][1] as string;
 			expect(writtenContent).toContain('user-agent: *');
@@ -129,7 +129,7 @@ describe('StaticSiteGenerator', () => {
 
 			ssg.generateRobotsTxt();
 
-			expect(writeMock).toHaveBeenCalledWith('.eco/public/robots.txt', '');
+			expect(writeMock).toHaveBeenCalledWith('.eco/robots.txt', '');
 		});
 	});
 
@@ -236,7 +236,7 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			expect(ensureDirMock).toHaveBeenCalled();
-			expect(writeMock).toHaveBeenCalledWith('.eco/public/robots.txt', expect.any(String));
+			expect(writeMock).toHaveBeenCalledWith('.eco/robots.txt', expect.any(String));
 		});
 	});
 });

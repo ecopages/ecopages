@@ -13,7 +13,6 @@ const mockConfig = await new ConfigBuilder()
 	.setRobotsTxt({
 		preferences: {
 			'*': [],
-			Googlebot: ['/public/'],
 		},
 	})
 	.setIntegrations([])

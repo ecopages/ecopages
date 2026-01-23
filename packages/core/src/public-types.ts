@@ -10,6 +10,77 @@ import type { CacheStats, CacheStrategy } from './services/cache/cache.types.ts'
 export type { EcoPageComponent } from './eco/eco.types.ts';
 
 /**
+ * Standard Schema interface for universal validation.
+ * Compatible with Zod, Valibot, ArkType, Effect Schema, and other validation libraries.
+ *
+ * @example Using with Zod
+ * ```typescript
+ * import { z } from 'zod';
+ *
+ * const bodySchema = z.object({
+ *   title: z.string().min(1),
+ *   content: z.string()
+ * });
+ *
+ * app.post('/posts', async (ctx) => {
+ *   const { title, content } = ctx.validated.body;
+ *   return ctx.json({ id: 1, title, content });
+ * }, {
+ *   schema: { body: bodySchema }
+ * });
+ * ```
+ *
+ * @example Using with Valibot
+ * ```typescript
+ * import * as v from 'valibot';
+ *
+ * app.get('/search', async (ctx) => {
+ *   const { q, limit } = ctx.validated.query;
+ *   return ctx.json({ results: [] });
+ * }, {
+ *   schema: {
+ *     query: v.object({
+ *       q: v.string(),
+ *       limit: v.optional(v.pipe(v.string(), v.transform(Number)))
+ *     })
+ *   }
+ * });
+ * ```
+ *
+ * @example Using with ArkType
+ * ```typescript
+ * import { type } from 'arktype';
+ *
+ * app.post('/api/data', async (ctx) => {
+ *   const data = ctx.validated.body;
+ *   return ctx.json(data);
+ * }, {
+ *   schema: {
+ *     body: type({ name: 'string', age: 'number' })
+ *   }
+ * });
+ * ```
+ */
+export interface StandardSchema<Input = unknown, Output = Input> {
+	'~standard': {
+		version: 1;
+		vendor: string;
+		validate: (value: unknown) => StandardSchemaResult<Output>;
+	};
+}
+
+/**
+ * Result of Standard Schema validation.
+ */
+export interface StandardSchemaResult<Output> {
+	value?: Output;
+	issues?: Array<{
+		message: string;
+		path?: Array<string | number>;
+	}>;
+}
+
+/**
  * Narrow interface for cache invalidation in API handlers.
  * Exposes only the methods needed for programmatic cache control.
  */
@@ -655,6 +726,31 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 	 * Services available to the API handler.
 	 */
 	services: ApiHandlerServices;
+	/**
+	 * Validated request data when schemas are provided in the handler configuration.
+	 * Contains type-safe validated data for body, query, and/or headers.
+	 *
+	 * @example Accessing validated data
+	 * ```typescript
+	 * import { z } from 'zod';
+	 *
+	 * app.post('/posts', async (ctx) => {
+	 *   const { title, author } = ctx.validated.body;
+	 *   return ctx.json({ title, author });
+	 * }, {
+	 *   schema: {
+	 *     body: z.object({ title: z.string(), author: z.string() })
+	 *   }
+	 * });
+	 * ```
+	 *
+	 * Validation runs before the handler executes. Invalid requests receive a 400 response.
+	 */
+	validated?: {
+		body?: unknown;
+		query?: unknown;
+		headers?: unknown;
+	};
 }
 
 /**
@@ -675,13 +771,76 @@ export type Middleware<TRequest extends Request = Request, TServer = any> = (
 
 /**
  * Represents an API handler in EcoPages.
- * It defines the path, method, and handler function for the API endpoint.
+ * Defines the path, method, handler function, optional middleware, and validation schemas.
+ *
+ * @example Basic handler
+ * ```typescript
+ * app.get('/users/:id', async (ctx) => {
+ *   return ctx.json({ id: ctx.request.params.id });
+ * });
+ * ```
+ *
+ * @example With validation
+ * ```typescript
+ * import { z } from 'zod';
+ *
+ * app.post('/posts', async (ctx) => {
+ *   const validated = ctx.validated.body;
+ *   return ctx.json({ success: true, data: validated });
+ * }, {
+ *   schema: {
+ *     body: z.object({
+ *       title: z.string().min(3),
+ *       content: z.string()
+ *     })
+ *   }
+ * });
+ * ```
+ *
+ * @example With middleware
+ * ```typescript
+ * const authMiddleware = async (ctx, next) => {
+ *   if (!ctx.request.headers.get('authorization')) {
+ *     return ctx.response.status(401).json({ error: 'Unauthorized' });
+ *   }
+ *   return next();
+ * };
+ *
+ * app.get('/protected', async (ctx) => {
+ *   return ctx.json({ message: 'Secret data' });
+ * }, {
+ *   middleware: [authMiddleware]
+ * });
+ * ```
+ *
+ * @example Multiple validations
+ * ```typescript
+ * import { z } from 'zod';
+ *
+ * app.post('/api/search', async (ctx) => {
+ *   const { q, page } = ctx.validated.query;
+ *   const filters = ctx.validated.body;
+ *   return ctx.json({ query: q, page, filters });
+ * }, {
+ *   schema: {
+ *     query: z.object({ q: z.string(), page: z.string() }),
+ *     body: z.object({ category: z.string().optional() })
+ *   }
+ * });
+ * ```
  */
 export interface ApiHandler<TPath extends string = string, TRequest extends Request = Request, TServer = any> {
 	path: TPath;
 	method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
 	handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
+	/** Optional middleware chain executed before the handler */
 	middleware?: Middleware<TRequest, TServer>[];
+	/** Optional validation schemas for request body, query parameters, and headers */
+	schema?: {
+		body?: StandardSchema;
+		query?: StandardSchema;
+		headers?: StandardSchema;
+	};
 }
 
 /**

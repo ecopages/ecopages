@@ -16,6 +16,7 @@ import { FSRouter } from '../../router/fs-router.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
+import { SchemaValidationService } from '../../services/schema-validation-service.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { deepMerge } from '../../utils/deep-merge.ts';
 import { AbstractServerAdapter, type ServerAdapterResult } from '../abstract/server-adapter.ts';
@@ -90,6 +91,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	private initializationPromise: Promise<void> | null = null;
 	private fullyInitialized = false;
 	declare serverInstance: Server<unknown> | null;
+	private readonly schemaValidator = new SchemaValidationService();
 
 	private readonly lifecycleFactory?: ServerLifecycle;
 	private readonly staticBuilderFactory?: (params: ServerStaticBuilderParams) => ServerStaticBuilder;
@@ -344,6 +346,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 			const method = routeConfig.method || 'GET';
 			const path = routeConfig.path;
 			const middleware = routeConfig.middleware || [];
+			const schema = routeConfig.schema;
 
 			appLogger.debug(`[BunServerAdapter] Registering API route: ${method} ${path}`);
 
@@ -362,6 +365,37 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 						},
 						...renderContext,
 					};
+
+					if (schema) {
+						const url = new URL(request.url);
+						const queryParams = Object.fromEntries(url.searchParams);
+						const headers = Object.fromEntries(request.headers);
+
+						let body: unknown;
+						if (schema.body) {
+							try {
+								body = await request.json();
+							} catch (error) {
+								return context.response.status(400).json({
+									error: 'Invalid JSON body',
+								});
+							}
+						}
+
+						const validationResult = await this.schemaValidator.validateRequest(
+							{ body, query: queryParams, headers },
+							schema,
+						);
+
+						if (!validationResult.success) {
+							return context.response.status(400).json({
+								error: 'Validation failed',
+								issues: validationResult.errors,
+							});
+						}
+
+						context.validated = validationResult.data;
+					}
 
 					if (middleware.length === 0) {
 						return await routeConfig.handler(context);

@@ -14,7 +14,7 @@
  * });
  *
  * app.post('/posts', async (ctx) => {
- *   const { title, content } = ctx.validated.body;
+ *   const { title, content } = ctx.body;
  *   return ctx.json({ id: 1, title, content });
  * }, {
  *   schema: { body: bodySchema }

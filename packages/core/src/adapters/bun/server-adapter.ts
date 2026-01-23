@@ -375,7 +375,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 						if (schema.body) {
 							try {
 								body = await request.json();
-							} catch (error) {
+							} catch {
 								return context.response.status(400).json({
 									error: 'Invalid JSON body',
 								});
@@ -394,7 +394,16 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 							});
 						}
 
-						context.validated = validationResult.data;
+						const validated = validationResult.data!;
+						if (validated.body !== undefined) {
+							context.body = validated.body;
+						}
+						if (validated.query !== undefined) {
+							context.query = validated.query;
+						}
+						if (validated.headers !== undefined) {
+							context.headers = validated.headers;
+						}
 					}
 
 					if (middleware.length === 0) {

@@ -155,7 +155,7 @@ EcoPages supports [Standard Schema](https://github.com/standard-schema/standard-
 import { z } from 'zod';
 
 app.post('/api/posts', async (ctx) => {
-	const { title, content } = ctx.validated.body;
+	const { title, content } = ctx.body;
 	return ctx.json({ id: 1, title, content });
 }, {
 	schema: {
@@ -171,9 +171,11 @@ app.post('/api/posts', async (ctx) => {
 
 | Target | Description | Access |
 |--------|-------------|--------|
-| `body` | Request body (JSON) | `ctx.validated.body` |
-| `query` | Query string parameters | `ctx.validated.query` |
-| `headers` | Request headers | `ctx.validated.headers` |
+| `body` | Request body (JSON) | `ctx.body` |
+| `query` | Query string parameters | `ctx.query` |
+| `headers` | Request headers | `ctx.headers` |
+
+These properties contain parsed data. When schemas are provided, they contain validated and type-safe data. For raw access, use `ctx.request.body`, `ctx.request.url`, and `ctx.request.headers`.
 
 ### Validation in Route Groups
 
@@ -188,6 +190,60 @@ app.group('/api', (r) => {
 		}
 	});
 }, { middleware: [authMiddleware] });
+```
+
+### Query Validation
+
+Query parameters are strings by default, but schemas can coerce and validate them:
+
+```typescript
+app.get('/api/posts', async (ctx) => {
+	const { page, limit, sortBy } = ctx.query;
+	// page: number, limit: number, sortBy: 'date' | 'title' | 'views'
+	const posts = await getPosts({ page, limit, sortBy });
+	return ctx.json(posts);
+}, {
+	schema: {
+		query: z.object({
+			page: z.coerce.number().min(1).default(1),
+			limit: z.coerce.number().min(1).max(100).default(20),
+			sortBy: z.enum(['date', 'title', 'views']).default('date')
+		})
+	}
+});
+```
+
+### Header Validation
+
+Validate required headers like API keys or webhook signatures:
+
+```typescript
+// API key authentication
+app.post('/api/webhooks', async (ctx) => {
+	const apiKey = ctx.headers['x-api-key'];
+	// apiKey is guaranteed to be a valid UUID
+	return ctx.json({ received: true });
+}, {
+	schema: {
+		headers: z.object({
+			'x-api-key': z.string().uuid()
+		})
+	}
+});
+
+// Webhook signature validation
+app.post('/webhooks/stripe', async (ctx) => {
+	const signature = ctx.headers['stripe-signature'];
+	const isValid = verifyStripeSignature(ctx.body, signature);
+	return ctx.json({ verified: isValid });
+}, {
+	schema: {
+		body: z.any(),
+		headers: z.object({
+			'stripe-signature': z.string().min(1)
+		})
+	}
+});
 ```
 
 ### Validation Errors
@@ -356,7 +412,7 @@ app.group('/api/v1', (r) => {
 // Protected API with validation
 app.group('/api/v1/admin', (r) => {
 	r.post('/posts', async (ctx) => {
-		const { title, content } = ctx.validated.body;
+		const { title, content } = ctx.body;
 		const post = await createPost({ title, content });
 		return ctx.json(post, { status: 201 });
 	}, {

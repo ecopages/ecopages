@@ -18,7 +18,7 @@ const createSimpleSchema = <T>(
 		vendor: 'test',
 		validate: (value: unknown) => {
 			const result = validator(value);
-			if (result.valid) {
+			if (result.valid && result.data !== undefined) {
 				return { value: result.data };
 			}
 			return {
@@ -78,8 +78,8 @@ describe('Schema Validation', () => {
 					path: '/api/validate-body',
 					method: 'POST',
 					schema: { body: bodySchema },
-					handler: async ({ validated }) => {
-						return new Response(JSON.stringify({ validated: validated?.body }), {
+					handler: async ({ body }) => {
+						return new Response(JSON.stringify({ validated: body }), {
 							headers: { 'Content-Type': 'application/json' },
 						});
 					},
@@ -88,8 +88,8 @@ describe('Schema Validation', () => {
 					path: '/api/validate-query',
 					method: 'GET',
 					schema: { query: querySchema },
-					handler: async ({ validated }) => {
-						return new Response(JSON.stringify({ validated: validated?.query }), {
+					handler: async ({ query }) => {
+						return new Response(JSON.stringify({ validated: query }), {
 							headers: { 'Content-Type': 'application/json' },
 						});
 					},
@@ -98,8 +98,8 @@ describe('Schema Validation', () => {
 					path: '/api/validate-headers',
 					method: 'GET',
 					schema: { headers: headerSchema },
-					handler: async ({ validated }) => {
-						return new Response(JSON.stringify({ validated: validated?.headers }), {
+					handler: async ({ headers }) => {
+						return new Response(JSON.stringify({ validated: headers }), {
 							headers: { 'Content-Type': 'application/json' },
 						});
 					},
@@ -112,8 +112,8 @@ describe('Schema Validation', () => {
 						query: querySchema,
 						headers: headerSchema,
 					},
-					handler: async ({ validated }) => {
-						return new Response(JSON.stringify({ validated }), {
+					handler: async ({ body, query, headers }) => {
+						return new Response(JSON.stringify({ validated: { body, query, headers } }), {
 							headers: { 'Content-Type': 'application/json' },
 						});
 					},

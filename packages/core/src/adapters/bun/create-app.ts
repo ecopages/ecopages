@@ -19,7 +19,7 @@ import type {
 	GroupOptions,
 	RouteSchema,
 	ApiHandlerContext,
-	InferValidatedData,
+	TypedApiHandlerContext,
 } from '../../public-types.ts';
 import {
 	AbstractApplicationAdapter,
@@ -49,9 +49,7 @@ export interface BunRouteGroupBuilder<WebSocketData = undefined> {
 	get<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
 		handler: (
-			context: ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> & {
-				validated: InferValidatedData<TSchema>;
-			},
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
 		) => Promise<Response> | Response,
 		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
 	): BunRouteGroupBuilder<WebSocketData>;
@@ -59,9 +57,7 @@ export interface BunRouteGroupBuilder<WebSocketData = undefined> {
 	post<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
 		handler: (
-			context: ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> & {
-				validated: InferValidatedData<TSchema>;
-			},
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
 		) => Promise<Response> | Response,
 		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
 	): BunRouteGroupBuilder<WebSocketData>;
@@ -69,9 +65,7 @@ export interface BunRouteGroupBuilder<WebSocketData = undefined> {
 	put<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
 		handler: (
-			context: ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> & {
-				validated: InferValidatedData<TSchema>;
-			},
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
 		) => Promise<Response> | Response,
 		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
 	): BunRouteGroupBuilder<WebSocketData>;
@@ -79,9 +73,7 @@ export interface BunRouteGroupBuilder<WebSocketData = undefined> {
 	delete<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
 		handler: (
-			context: ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> & {
-				validated: InferValidatedData<TSchema>;
-			},
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
 		) => Promise<Response> | Response,
 		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
 	): BunRouteGroupBuilder<WebSocketData>;
@@ -89,9 +81,7 @@ export interface BunRouteGroupBuilder<WebSocketData = undefined> {
 	patch<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
 		handler: (
-			context: ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> & {
-				validated: InferValidatedData<TSchema>;
-			},
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
 		) => Promise<Response> | Response,
 		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
 	): BunRouteGroupBuilder<WebSocketData>;
@@ -99,9 +89,7 @@ export interface BunRouteGroupBuilder<WebSocketData = undefined> {
 	options<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
 		handler: (
-			context: ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> & {
-				validated: InferValidatedData<TSchema>;
-			},
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
 		) => Promise<Response> | Response,
 		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
 	): BunRouteGroupBuilder<WebSocketData>;
@@ -109,9 +97,7 @@ export interface BunRouteGroupBuilder<WebSocketData = undefined> {
 	head<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
 		handler: (
-			context: ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> & {
-				validated: InferValidatedData<TSchema>;
-			},
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
 		) => Promise<Response> | Response,
 		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
 	): BunRouteGroupBuilder<WebSocketData>;

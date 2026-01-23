@@ -197,7 +197,7 @@ describe('Route Groups', () => {
 				vendor: 'test',
 				validate: (value: unknown) => {
 					const result = validator(value);
-					if (result.valid) {
+					if (result.valid && result.data !== undefined) {
 						return { value: result.data };
 					}
 					return {
@@ -230,7 +230,7 @@ describe('Route Groups', () => {
 			r.post(
 				'/user',
 				async (ctx) => {
-					const { name } = ctx.validated!.body as { name: string };
+					const { name } = ctx.body;
 					return new Response(JSON.stringify({ created: name }));
 				},
 				{

@@ -674,15 +674,27 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 	 */
 	services: ApiHandlerServices;
 	/**
-	 * Validated request data when schemas are provided in the handler configuration.
-	 * Contains type-safe validated data for body, query, and/or headers.
+	 * Parsed and optionally validated request body.
 	 *
-	 * @example Accessing validated data
+	 * - Without schema: Contains the parsed JSON body as `unknown`
+	 * - With schema: Contains the validated and type-safe body data
+	 *
+	 * For raw access to the request body stream, use `ctx.request.body`.
+	 *
+	 * @example Without validation
+	 * ```typescript
+	 * app.post('/posts', async (ctx) => {
+	 *   const data = ctx.body; // [unknown] - parsed JSON
+	 *   return ctx.json({ received: data });
+	 * });
+	 * ```
+	 *
+	 * @example With validation
 	 * ```typescript
 	 * import { z } from 'zod';
 	 *
 	 * app.post('/posts', async (ctx) => {
-	 *   const { title, author } = ctx.validated.body;
+	 *   const { title, author } = ctx.body; // [type-safe]
 	 *   return ctx.json({ title, author });
 	 * }, {
 	 *   schema: {
@@ -693,11 +705,110 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 	 *
 	 * Validation runs before the handler executes. Invalid requests receive a 400 response.
 	 */
-	validated?: {
-		body?: unknown;
-		query?: unknown;
-		headers?: unknown;
-	};
+	body?: unknown;
+	/**
+	 * Parsed and optionally validated query parameters.
+	 *
+	 * - Without schema: Contains the parsed query params as a string record
+	 * - With schema: Contains the validated and type-safe query data
+	 *
+	 * For raw access to query parameters, use `ctx.request.url` and parse manually.
+	 *
+	 * @example Pagination with type coercion
+	 * ```typescript
+	 * import { z } from 'zod';
+	 *
+	 * app.get('/posts', async (ctx) => {
+	 *   const { page, limit, sortBy } = ctx.query;
+	 *   // page: number, limit: number, sortBy: 'date' | 'title' | 'views'
+	 *   return ctx.json({ page, limit, sortBy });
+	 * }, {
+	 *   schema: {
+	 *     query: z.object({
+	 *       page: z.coerce.number().min(1).default(1),
+	 *       limit: z.coerce.number().min(1).max(100).default(20),
+	 *       sortBy: z.enum(['date', 'title', 'views']).default('date')
+	 *     })
+	 *   }
+	 * });
+	 * ```
+	 *
+	 * @example Search with filters
+	 * ```typescript
+	 * app.get('/search', async (ctx) => {
+	 *   const { q, category } = ctx.query;
+	 *   return ctx.json({ results: await search(q, category) });
+	 * }, {
+	 *   schema: {
+	 *     query: z.object({
+	 *       q: z.string().min(2).max(100),
+	 *       category: z.enum(['posts', 'users', 'comments']).optional()
+	 *     })
+	 *   }
+	 * });
+	 * ```
+	 */
+	query?: unknown;
+	/**
+	 * Parsed and optionally validated request headers.
+	 *
+	 * - Without schema: Contains the parsed headers as a string record
+	 * - With schema: Contains the validated and type-safe header data
+	 *
+	 * For raw access to headers, use `ctx.request.headers`.
+	 *
+	 * @example API key authentication
+	 * ```typescript
+	 * import { z } from 'zod';
+	 *
+	 * app.post('/api/webhooks', async (ctx) => {
+	 *   const apiKey = ctx.headers['x-api-key'];
+	 *   // apiKey is guaranteed to be a valid UUID
+	 *   return ctx.json({ received: true });
+	 * }, {
+	 *   schema: {
+	 *     headers: z.object({
+	 *       'x-api-key': z.string().uuid()
+	 *     })
+	 *   }
+	 * });
+	 * ```
+	 *
+	 * @example Webhook signature validation
+	 * ```typescript
+	 * app.post('/webhooks/stripe', async (ctx) => {
+	 *   const signature = ctx.headers['stripe-signature'];
+	 *   // signature is guaranteed to exist
+	 *   const isValid = verifyStripeSignature(ctx.body, signature);
+	 *   return ctx.json({ verified: isValid });
+	 * }, {
+	 *   schema: {
+	 *     headers: z.object({
+	 *       'stripe-signature': z.string().min(1)
+	 *     })
+	 *   }
+	 * });
+	 * ```
+	 *
+	 * @example Content negotiation
+	 * ```typescript
+	 * app.post('/api/data', async (ctx) => {
+	 *   const { accept } = ctx.headers;
+	 *   if (accept === 'application/xml') {
+	 *     return ctx.html(toXml(data), { headers: { 'Content-Type': 'application/xml' } });
+	 *   }
+	 *   return ctx.json(data);
+	 * }, {
+	 *   schema: {
+	 *     headers: z.object({
+	 *       'content-type': z.literal('application/json'),
+	 *       accept: z.enum(['application/json', 'application/xml']).optional()
+	 *     })
+	 *   }
+	 * });
+	 * ```
+	 */
+	headers?: unknown;
 }
 
 /**
@@ -732,8 +843,8 @@ export type Middleware<TRequest extends Request = Request, TServer = any> = (
  * import { z } from 'zod';
  *
  * app.post('/posts', async (ctx) => {
- *   const validated = ctx.validated.body;
- *   return ctx.json({ success: true, data: validated });
+ *   const { title, content } = ctx.body;
+ *   return ctx.json({ success: true, title, content });
  * }, {
  *   schema: {
  *     body: z.object({
@@ -765,8 +876,8 @@ export type Middleware<TRequest extends Request = Request, TServer = any> = (
  * import { z } from 'zod';
  *
  * app.post('/api/search', async (ctx) => {
- *   const { q, page } = ctx.validated.query;
- *   const filters = ctx.validated.body;
+ *   const { q, page } = ctx.query;
+ *   const filters = ctx.body;
  *   return ctx.json({ query: q, page, filters });
  * }, {
  *   schema: {
@@ -815,12 +926,21 @@ export interface RouteSchema {
 }
 
 /**
- * Helper to infer the validated data type from a RouteSchema.
+ * Helper type to extract inferred types from a schema, with fallback to unknown.
  */
-export type InferValidatedData<T extends RouteSchema> = {
-	body: T['body'] extends StandardSchema ? InferOutput<T['body']> : unknown;
-	query: T['query'] extends StandardSchema ? InferOutput<T['query']> : unknown;
-	headers: T['headers'] extends StandardSchema ? InferOutput<T['headers']> : unknown;
+export type InferSchemaOutput<T> = T extends StandardSchema ? InferOutput<T> : unknown;
+
+/**
+ * Context with typed body/query/headers based on the provided schema.
+ */
+export type TypedApiHandlerContext<
+	TSchema extends RouteSchema,
+	TRequest extends Request = Request,
+	TServer = any,
+> = Omit<ApiHandlerContext<TRequest, TServer>, 'body' | 'query' | 'headers'> & {
+	body: InferSchemaOutput<TSchema['body']>;
+	query: InferSchemaOutput<TSchema['query']>;
+	headers: InferSchemaOutput<TSchema['headers']>;
 };
 
 /**
@@ -835,59 +955,45 @@ export interface GroupOptions<TRequest extends Request = Request, TServer = any>
  * Provides chainable methods for registering routes with shared prefix and middleware.
  */
 export interface RouteGroupBuilder<TRequest extends Request = Request, TServer = any> {
-	get<P extends string, TSchema extends RouteSchema>(
+	get<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (
-			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
-		) => Promise<Response> | Response,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	post<P extends string, TSchema extends RouteSchema>(
+	post<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (
-			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
-		) => Promise<Response> | Response,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	put<P extends string, TSchema extends RouteSchema>(
+	put<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (
-			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
-		) => Promise<Response> | Response,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	delete<P extends string, TSchema extends RouteSchema>(
+	delete<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (
-			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
-		) => Promise<Response> | Response,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	patch<P extends string, TSchema extends RouteSchema>(
+	patch<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (
-			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
-		) => Promise<Response> | Response,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	options<P extends string, TSchema extends RouteSchema>(
+	options<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (
-			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
-		) => Promise<Response> | Response,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	head<P extends string, TSchema extends RouteSchema>(
+	head<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (
-			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
-		) => Promise<Response> | Response,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 }

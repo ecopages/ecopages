@@ -1,0 +1,401 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const config = {
+	layout: DocsLayout,
+};
+
+export const getMetadata = () => ({
+	title: 'Docs | Explicit Routing',
+	description: 'Define routes programmatically with full control over handlers, middleware, validation, and view rendering',
+});
+
+# Explicit Routing
+
+Explicit routing gives you full control over your application routes. Define handlers, middleware, validation, and render views programmatically in your `app.ts` file.
+
+## Overview
+
+While file-system routing via the `pages/` directory works well for many use cases, explicit routing offers:
+
+- **Flexibility**: Structure your code however you prefer
+- **Control**: Clear overview of all routes in one place
+- **Freedom**: Choose your own architecture (MVC, handlers, services)
+
+## Basic Routes
+
+Define routes using HTTP method functions on your `EcopagesApp` instance:
+
+```typescript
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import appConfig from './eco.config';
+
+const app = new EcopagesApp({ appConfig });
+
+app.get('/api/users', async (ctx) => {
+	const users = await getUsers();
+	return ctx.json(users);
+});
+
+app.post('/api/users', async (ctx) => {
+	const body = await ctx.request.json();
+	const user = await createUser(body);
+	return ctx.json(user, { status: 201 });
+});
+
+await app.start();
+```
+
+## Rendering Views
+
+The `ctx.render()` method renders `eco.page` views from any route handler. The integration (React, Lit, KitaJS) is automatically detected based on the view's file extension at build time—no manual configuration required.
+
+```typescript
+import { PostView } from './src/views/post-view';
+
+app.get('/posts/:slug', async (ctx) => {
+	const post = await getPost(ctx.request.params.slug);
+	if (!post) {
+		throw HttpError.NotFound('Post not found');
+	}
+	return ctx.render(PostView, post);
+});
+```
+
+### Partial Rendering
+
+Use `ctx.renderPartial()` to render without layout (useful for dynamic fragments):
+
+```typescript
+app.get('/comments', async (ctx) => {
+	const comments = await getComments();
+	return ctx.renderPartial(CommentList, { comments });
+});
+```
+
+### Response Helpers
+
+```typescript
+// JSON response
+ctx.json(data, { status: 200, headers: {...} })
+
+// HTML response
+ctx.html('<h1>Hello</h1>', { status: 200 })
+
+// Full view with layout
+ctx.render(View, props, { status: 200 })
+
+// View without layout
+ctx.renderPartial(View, props)
+```
+
+## Route Groups
+
+Group routes with shared prefix and optional middleware:
+
+```typescript
+app.group('/api/v1', (r) => {
+	r.get('/users', listUsers);
+	r.post('/users', createUser);
+	r.get('/users/:id', getUser);
+});
+
+app.group('/api/admin', (r) => {
+	r.get('/stats', getStats);
+	r.post('/config', updateConfig);
+}, { middleware: [authMiddleware] });
+```
+
+Routes within a group inherit the prefix and middleware. You can also add per-route middleware:
+
+```typescript
+app.group('/api', (r) => {
+	r.get('/public', publicHandler);
+	r.get('/protected', protectedHandler, { middleware: [authMiddleware] });
+}, { middleware: [loggingMiddleware] });
+```
+
+## Middleware
+
+Middleware functions intercept requests before they reach the handler.
+
+### Defining Middleware
+
+```typescript
+import type { Middleware } from '@ecopages/core';
+
+const authMiddleware: Middleware = async (ctx, next) => {
+	const token = ctx.request.headers.get('Authorization');
+	if (!token) {
+		return ctx.response.status(401).json({ error: 'Unauthorized' });
+	}
+	return next();
+};
+
+const logMiddleware: Middleware = async (ctx, next) => {
+	console.log(`${ctx.request.method} ${ctx.request.url}`);
+	return next();
+};
+```
+
+### Per-Route Middleware
+
+```typescript
+app.post('/api/posts', createPost, {
+	middleware: [authMiddleware, logMiddleware]
+});
+```
+
+## Request Validation
+
+EcoPages supports [Standard Schema](https://github.com/standard-schema/standard-schema) for type-safe request validation. Use any compatible library: Zod, Valibot, ArkType, or Effect Schema.
+
+### Basic Validation
+
+```typescript
+import { z } from 'zod';
+
+app.post('/api/posts', async (ctx) => {
+	const { title, content } = ctx.validated.body;
+	return ctx.json({ id: 1, title, content });
+}, {
+	schema: {
+		body: z.object({
+			title: z.string().min(1),
+			content: z.string()
+		})
+	}
+});
+```
+
+### Validation Targets
+
+| Target | Description | Access |
+|--------|-------------|--------|
+| `body` | Request body (JSON) | `ctx.validated.body` |
+| `query` | Query string parameters | `ctx.validated.query` |
+| `headers` | Request headers | `ctx.validated.headers` |
+
+### Mixing Validators
+
+This example shows how Standard Schema allows using different libraries together. In practice, you would pick one library for your project:
+
+```typescript
+import { z } from 'zod';
+import * as v from 'valibot';
+
+app.post('/api/search', async (ctx) => {
+	const { q } = ctx.validated.query;
+	const filters = ctx.validated.body;
+	return ctx.json({ query: q, filters });
+}, {
+	schema: {
+		query: z.object({ q: z.string() }),
+		body: v.object({ category: v.optional(v.string()) })
+	}
+});
+```
+
+### Validation in Route Groups
+
+```typescript
+app.group('/api', (r) => {
+	r.post('/users', createUser, {
+		schema: {
+			body: z.object({
+				name: z.string(),
+				email: z.string().email()
+			})
+		}
+	});
+}, { middleware: [authMiddleware] });
+```
+
+### Validation Errors
+
+Invalid requests automatically receive a 400 response:
+
+```json
+{
+	"error": "Validation failed",
+	"issues": [
+		{ "path": ["title"], "message": "String must contain at least 1 character(s)" }
+	]
+}
+```
+
+## Error Handling
+
+### HttpError
+
+Throw `HttpError` for standard HTTP errors:
+
+```typescript
+import { HttpError } from '@ecopages/core/errors';
+
+app.get('/posts/:slug', async (ctx) => {
+	const post = await getPost(ctx.request.params.slug);
+	if (!post) {
+		throw HttpError.NotFound('Post not found');
+	}
+	return ctx.render(PostView, post);
+});
+```
+
+Available factory methods:
+
+```typescript
+HttpError.BadRequest(message?, details?)
+HttpError.Unauthorized(message?)
+HttpError.Forbidden(message?)
+HttpError.NotFound(message?)
+HttpError.Conflict(message?, details?)
+HttpError.InternalServerError(message?)
+```
+
+### Global Error Handler
+
+Use `app.onError()` to centralize error handling across all routes. This is useful for logging, transforming errors into consistent API responses, or handling unexpected exceptions:
+
+```typescript
+app.onError((error, ctx) => {
+	if (error instanceof HttpError) {
+		return ctx.json(error.toJSON(), { status: error.status });
+	}
+	console.error('Unhandled error:', error);
+	return ctx.json({ error: 'Internal Server Error' }, { status: 500 });
+});
+```
+
+## Static Generation
+
+Register views for build-time static generation:
+
+```typescript
+import { PostView, PostListView } from './src/views';
+
+app.static('/posts', PostListView);
+app.static('/posts/:slug', PostView);
+```
+
+Views must define `staticPaths` and `staticProps`:
+
+```typescript
+export const PostView = eco.page<PostViewProps>({
+	staticPaths: async () => {
+		const posts = await getPosts();
+		return posts.map((post) => ({ slug: post.slug }));
+	},
+
+	staticProps: async ({ params }) => {
+		const post = await getPost(params.slug);
+		return { title: post.title, content: post.content };
+	},
+
+	render: (props) => <article>...</article>
+});
+```
+
+## Views Outside pages/
+
+Define `eco.page` views anywhere in your codebase:
+
+```typescript
+// src/views/post-view.tsx
+import { eco } from '@ecopages/core';
+import { MainLayout } from '@/layouts/main-layout';
+
+export const PostView = eco.page<PostViewProps>({
+	layout: MainLayout,
+
+	metadata: ({ title, authorName }) => ({
+		title: `${title} | My Blog`,
+		description: `By ${authorName}`
+	}),
+
+	dependencies: {
+		stylesheets: ['/styles/post.css']
+	},
+
+	render: ({ title, content }) => (
+		<article>
+			<h1>{title}</h1>
+			<div>{content}</div>
+		</article>
+	)
+});
+```
+
+## Coexistence with File-System Routing
+
+Explicit routes take precedence over file-system routes:
+
+```typescript
+const app = new EcopagesApp({ appConfig });
+
+// Explicit routes (higher priority)
+app.get('/posts', posts.index);
+app.get('/posts/:slug', posts.show);
+
+// File-system routes still work
+// /about -> pages/about.tsx
+// /contact -> pages/contact.tsx
+
+await app.start();
+```
+
+## Complete Example
+
+```typescript
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { HttpError } from '@ecopages/core/errors';
+import { z } from 'zod';
+import appConfig from './eco.config';
+import { PostView, PostListView } from './src/views';
+
+const app = new EcopagesApp({ appConfig });
+
+// Middleware
+const authMiddleware = async (ctx, next) => {
+	const token = ctx.request.headers.get('Authorization');
+	if (!token) throw HttpError.Unauthorized();
+	return next();
+};
+
+// Static routes
+app.static('/posts', PostListView);
+app.static('/posts/:slug', PostView);
+
+// Public API
+app.group('/api/v1', (r) => {
+	r.get('/posts', async (ctx) => {
+		const posts = await getPosts();
+		return ctx.json(posts);
+	});
+});
+
+// Protected API with validation
+app.group('/api/v1/admin', (r) => {
+	r.post('/posts', async (ctx) => {
+		const { title, content } = ctx.validated.body;
+		const post = await createPost({ title, content });
+		return ctx.json(post, { status: 201 });
+	}, {
+		schema: {
+			body: z.object({
+				title: z.string().min(1),
+				content: z.string()
+			})
+		}
+	});
+}, { middleware: [authMiddleware] });
+
+// Global error handler
+app.onError((error, ctx) => {
+	if (error instanceof HttpError) {
+		return ctx.json(error.toJSON(), { status: error.status });
+	}
+	return ctx.json({ error: 'Internal Server Error' }, { status: 500 });
+});
+
+await app.start();
+```

@@ -854,14 +854,22 @@ export type ErrorHandler<TRequest extends Request = Request, TServer = any> = (
 ) => Promise<Response> | Response;
 
 /**
- * Options for routes within a group.
+ * Options for route handlers.
  */
-export interface RouteGroupOptions {
+export interface RouteOptions<TRequest extends Request = Request, TServer = any> {
+	middleware?: Middleware<TRequest, TServer>[];
 	schema?: {
 		body?: StandardSchema;
 		query?: StandardSchema;
 		headers?: StandardSchema;
 	};
+}
+
+/**
+ * Options for the group method.
+ */
+export interface GroupOptions<TRequest extends Request = Request, TServer = any> {
+	middleware?: Middleware<TRequest, TServer>[];
 }
 
 /**
@@ -872,43 +880,43 @@ export interface RouteGroupBuilder<TRequest extends Request = Request, TServer =
 	get<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteGroupOptions,
+		options?: RouteOptions<TRequest, TServer>,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	post<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteGroupOptions,
+		options?: RouteOptions<TRequest, TServer>,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	put<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteGroupOptions,
+		options?: RouteOptions<TRequest, TServer>,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	delete<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteGroupOptions,
+		options?: RouteOptions<TRequest, TServer>,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	patch<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteGroupOptions,
+		options?: RouteOptions<TRequest, TServer>,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	options<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteGroupOptions,
+		options?: RouteOptions<TRequest, TServer>,
 	): RouteGroupBuilder<TRequest, TServer>;
 
 	head<P extends string>(
 		path: P,
 		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteGroupOptions,
+		options?: RouteOptions<TRequest, TServer>,
 	): RouteGroupBuilder<TRequest, TServer>;
 }
 

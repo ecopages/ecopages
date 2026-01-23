@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { Server } from 'bun';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../../config/config-builder.ts';
-import type { Middleware } from '../../public-types.ts';
+import type { Middleware, StandardSchema } from '../../public-types.ts';
 import { EcopagesApp } from './create-app.ts';
 
 const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
@@ -34,7 +34,7 @@ describe('Route Groups', () => {
 			},
 		});
 
-		app.group('/api/v1', [], (r) => {
+		app.group('/api/v1', (r) => {
 			r.get('/public', async () => new Response(JSON.stringify({ data: 'v1 public' })));
 			r.post('/echo', async ({ request }) => {
 				const body = await request.json();
@@ -42,19 +42,31 @@ describe('Route Groups', () => {
 			});
 		});
 
-		app.group('/api/v2', [corsMiddleware], (r) => {
-			r.get('/data', async () => new Response(JSON.stringify({ version: 2 })));
-			r.put('/update', async () => new Response(JSON.stringify({ updated: true })));
-		});
+		app.group(
+			'/api/v2',
+			(r) => {
+				r.get('/data', async () => new Response(JSON.stringify({ version: 2 })));
+				r.put('/update', async () => new Response(JSON.stringify({ updated: true })));
+			},
+			{ middleware: [corsMiddleware] },
+		);
 
-		app.group('/api/protected', [apiKeyMiddleware], (r) => {
-			r.get('/secret', async () => new Response(JSON.stringify({ secret: 'data' })));
-			r.post('/admin', async () => new Response(JSON.stringify({ admin: true })));
-		});
+		app.group(
+			'/api/protected',
+			(r) => {
+				r.get('/secret', async () => new Response(JSON.stringify({ secret: 'data' })));
+				r.post('/admin', async () => new Response(JSON.stringify({ admin: true })));
+			},
+			{ middleware: [apiKeyMiddleware] },
+		);
 
-		app.group('/api/combined', [corsMiddleware, apiKeyMiddleware], (r) => {
-			r.get('/secure', async () => new Response(JSON.stringify({ secure: true })));
-		});
+		app.group(
+			'/api/combined',
+			(r) => {
+				r.get('/secure', async () => new Response(JSON.stringify({ secure: true })));
+			},
+			{ middleware: [corsMiddleware, apiKeyMiddleware] },
+		);
 
 		const result = await app.start();
 		if (result) server = result;
@@ -155,11 +167,11 @@ describe('Route Groups', () => {
 			},
 		});
 
-		app.group('/api', [], (r) => {
+		app.group('/api', (r) => {
 			r.get('/first', async () => new Response('first'));
 		});
 
-		app.group('/api', [], (r) => {
+		app.group('/api', (r) => {
 			r.get('/second', async () => new Response('second'));
 		});
 
@@ -214,7 +226,7 @@ describe('Route Groups', () => {
 			},
 		});
 
-		app.group('/api/validated', [], (r) => {
+		app.group('/api/validated', (r) => {
 			r.post(
 				'/user',
 				async (ctx) => {
@@ -243,6 +255,45 @@ describe('Route Groups', () => {
 			body: JSON.stringify({ name: 'J' }),
 		});
 		expect(invalidRes.status).toBe(400);
+
+		testServer?.stop(true);
+	});
+
+	test('should support per-route middleware within groups', async () => {
+		const extraMiddleware: Middleware = async (_, next) => {
+			const response = await next();
+			response.headers.set('X-Extra', 'applied');
+			return response;
+		};
+
+		const app = new EcopagesApp({
+			appConfig,
+			serverOptions: {
+				port: 3009,
+				hostname: 'localhost',
+			},
+		});
+
+		app.group(
+			'/api/mixed',
+			(r) => {
+				r.get('/base', async () => new Response('base'));
+				r.get('/extra', async () => new Response('extra'), { middleware: [extraMiddleware] });
+			},
+			{ middleware: [corsMiddleware] },
+		);
+
+		const testServer = await app.start();
+
+		const baseRes = await fetch('http://localhost:3009/api/mixed/base');
+		expect(baseRes.status).toBe(200);
+		expect(baseRes.headers.get('Access-Control-Allow-Origin')).toBe('*');
+		expect(baseRes.headers.get('X-Extra')).toBeNull();
+
+		const extraRes = await fetch('http://localhost:3009/api/mixed/extra');
+		expect(extraRes.status).toBe(200);
+		expect(extraRes.headers.get('Access-Control-Allow-Origin')).toBe('*');
+		expect(extraRes.headers.get('X-Extra')).toBe('applied');
 
 		testServer?.stop(true);
 	});

@@ -1,10 +1,31 @@
 import type { Readable } from 'node:stream';
 import type { BunPlugin } from 'bun';
 import type { ApiResponseBuilder } from './adapters/shared/api-response.js';
+import type { EcoPageComponent } from './eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from './hmr/hmr-strategy.ts';
 import type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from './services/cache/cache.types.ts';
+
+export type { EcoPageComponent } from './eco/eco.types.ts';
+
+import type {
+	StandardSchema,
+	StandardSchemaResult,
+	StandardSchemaSuccessResult,
+	StandardSchemaFailureResult,
+	StandardSchemaIssue,
+	InferOutput,
+} from './services/validation/standard-schema.types.ts';
+
+export type {
+	StandardSchema,
+	StandardSchemaResult,
+	StandardSchemaSuccessResult,
+	StandardSchemaFailureResult,
+	StandardSchemaIssue,
+	InferOutput,
+};
 
 /**
  * Narrow interface for cache invalidation in API handlers.
@@ -586,9 +607,65 @@ export interface ApiHandlerServices {
 }
 
 /**
+ * Options for rendering a view.
+ */
+export interface RenderOptions {
+	status?: number;
+	headers?: HeadersInit;
+}
+
+/**
+ * Options for JSON/HTML response helpers.
+ */
+export interface ResponseOptions {
+	status?: number;
+	headers?: HeadersInit;
+}
+
+/**
+ * Context for rendering views in route handlers.
+ * Provides methods to render eco.page views and return formatted responses.
+ */
+export interface RenderContext {
+	/**
+	 * Render an eco.page view with full layout and includes.
+	 * @param view - The eco.page component to render
+	 * @param props - Props to pass to the view
+	 * @param options - Optional status code and headers
+	 */
+	render<P = Record<string, unknown>>(view: EcoComponent<P>, props: P, options?: RenderOptions): Promise<Response>;
+
+	/**
+	 * Render an eco.page view without layout (for partials/fragments).
+	 * @param view - The eco.page component to render
+	 * @param props - Props to pass to the view
+	 * @param options - Optional status code and headers
+	 */
+	renderPartial<P = Record<string, unknown>>(
+		view: EcoComponent<P>,
+		props: P,
+		options?: RenderOptions,
+	): Promise<Response>;
+
+	/**
+	 * Return a JSON response.
+	 * @param data - Data to serialize as JSON
+	 * @param options - Optional status code and headers
+	 */
+	json(data: unknown, options?: ResponseOptions): Response;
+
+	/**
+	 * Return an HTML response.
+	 * @param content - HTML string content
+	 * @param options - Optional status code and headers
+	 */
+	html(content: string, options?: ResponseOptions): Response;
+}
+
+/**
  * Context provided to the API handler.
  */
-export interface ApiHandlerContext<TRequest extends Request = Request, TServer = any> {
+export interface ApiHandlerContext<TRequest extends Request = Request, TServer = any> extends RenderContext {
 	request: TRequest;
 	response: ApiResponseBuilder;
 	server: TServer;
@@ -596,14 +673,336 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 	 * Services available to the API handler.
 	 */
 	services: ApiHandlerServices;
+	/**
+	 * Parsed and optionally validated request body.
+	 *
+	 * - Without schema: Contains the parsed JSON body as `unknown`
+	 * - With schema: Contains the validated and type-safe body data
+	 *
+	 * For raw access to the request body stream, use `ctx.request.body`.
+	 *
+	 * @example Without validation
+	 * ```typescript
+	 * app.post('/posts', async (ctx) => {
+	 *   const data = ctx.body; // [unknown] - parsed JSON
+	 *   return ctx.json({ received: data });
+	 * });
+	 * ```
+	 *
+	 * @example With validation
+	 * ```typescript
+	 * import { z } from 'zod';
+	 *
+	 * app.post('/posts', async (ctx) => {
+	 *   const { title, author } = ctx.body; // [type-safe]
+	 *   return ctx.json({ title, author });
+	 * }, {
+	 *   schema: {
+	 *     body: z.object({ title: z.string(), author: z.string() })
+	 *   }
+	 * });
+	 * ```
+	 *
+	 * Validation runs before the handler executes. Invalid requests receive a 400 response.
+	 */
+	body?: unknown;
+	/**
+	 * Parsed and optionally validated query parameters.
+	 *
+	 * - Without schema: Contains the parsed query params as a string record
+	 * - With schema: Contains the validated and type-safe query data
+	 *
+	 * For raw access to query parameters, use `ctx.request.url` and parse manually.
+	 *
+	 * @example Pagination with type coercion
+	 * ```typescript
+	 * import { z } from 'zod';
+	 *
+	 * app.get('/posts', async (ctx) => {
+	 *   const { page, limit, sortBy } = ctx.query;
+	 *   // page: number, limit: number, sortBy: 'date' | 'title' | 'views'
+	 *   return ctx.json({ page, limit, sortBy });
+	 * }, {
+	 *   schema: {
+	 *     query: z.object({
+	 *       page: z.coerce.number().min(1).default(1),
+	 *       limit: z.coerce.number().min(1).max(100).default(20),
+	 *       sortBy: z.enum(['date', 'title', 'views']).default('date')
+	 *     })
+	 *   }
+	 * });
+	 * ```
+	 *
+	 * @example Search with filters
+	 * ```typescript
+	 * app.get('/search', async (ctx) => {
+	 *   const { q, category } = ctx.query;
+	 *   return ctx.json({ results: await search(q, category) });
+	 * }, {
+	 *   schema: {
+	 *     query: z.object({
+	 *       q: z.string().min(2).max(100),
+	 *       category: z.enum(['posts', 'users', 'comments']).optional()
+	 *     })
+	 *   }
+	 * });
+	 * ```
+	 */
+	query?: unknown;
+	/**
+	 * Parsed and optionally validated request headers.
+	 *
+	 * - Without schema: Contains the parsed headers as a string record
+	 * - With schema: Contains the validated and type-safe header data
+	 *
+	 * For raw access to headers, use `ctx.request.headers`.
+	 *
+	 * @example API key authentication
+	 * ```typescript
+	 * import { z } from 'zod';
+	 *
+	 * app.post('/api/webhooks', async (ctx) => {
+	 *   const apiKey = ctx.headers['x-api-key'];
+	 *   // apiKey is guaranteed to be a valid UUID
+	 *   return ctx.json({ received: true });
+	 * }, {
+	 *   schema: {
+	 *     headers: z.object({
+	 *       'x-api-key': z.string().uuid()
+	 *     })
+	 *   }
+	 * });
+	 * ```
+	 *
+	 * @example Webhook signature validation
+	 * ```typescript
+	 * app.post('/webhooks/stripe', async (ctx) => {
+	 *   const signature = ctx.headers['stripe-signature'];
+	 *   // signature is guaranteed to exist
+	 *   const isValid = verifyStripeSignature(ctx.body, signature);
+	 *   return ctx.json({ verified: isValid });
+	 * }, {
+	 *   schema: {
+	 *     headers: z.object({
+	 *       'stripe-signature': z.string().min(1)
+	 *     })
+	 *   }
+	 * });
+	 * ```
+	 *
+	 * @example Content negotiation
+	 * ```typescript
+	 * app.post('/api/data', async (ctx) => {
+	 *   const { accept } = ctx.headers;
+	 *   if (accept === 'application/xml') {
+	 *     return ctx.html(toXml(data), { headers: { 'Content-Type': 'application/xml' } });
+	 *   }
+	 *   return ctx.json(data);
+	 * }, {
+	 *   schema: {
+	 *     headers: z.object({
+	 *       'content-type': z.literal('application/json'),
+	 *       accept: z.enum(['application/json', 'application/xml']).optional()
+	 *     })
+	 *   }
+	 * });
+	 * ```
+	 */
+	headers?: unknown;
 }
 
 /**
+ * Next function for middleware chain.
+ * Call to continue to the next middleware or final handler.
+ */
+export type MiddlewareNext = () => Promise<Response>;
+
+/**
+ * Middleware function signature.
+ * Receives the request context and a next function to continue the chain.
+ * Can short-circuit by returning a Response directly without calling next().
+ */
+export type Middleware<TRequest extends Request = Request, TServer = any> = (
+	context: ApiHandlerContext<TRequest, TServer>,
+	next: MiddlewareNext,
+) => Promise<Response> | Response;
+
+/**
  * Represents an API handler in EcoPages.
- * It defines the path, method, and handler function for the API endpoint.
+ * Defines the path, method, handler function, optional middleware, and validation schemas.
+ *
+ * @example Basic handler
+ * ```typescript
+ * app.get('/users/:id', async (ctx) => {
+ *   return ctx.json({ id: ctx.request.params.id });
+ * });
+ * ```
+ *
+ * @example With validation
+ * ```typescript
+ * import { z } from 'zod';
+ *
+ * app.post('/posts', async (ctx) => {
+ *   const { title, content } = ctx.body;
+ *   return ctx.json({ success: true, title, content });
+ * }, {
+ *   schema: {
+ *     body: z.object({
+ *       title: z.string().min(3),
+ *       content: z.string()
+ *     })
+ *   }
+ * });
+ * ```
+ *
+ * @example With middleware
+ * ```typescript
+ * const authMiddleware = async (ctx, next) => {
+ *   if (!ctx.request.headers.get('authorization')) {
+ *     return ctx.response.status(401).json({ error: 'Unauthorized' });
+ *   }
+ *   return next();
+ * };
+ *
+ * app.get('/protected', async (ctx) => {
+ *   return ctx.json({ message: 'Secret data' });
+ * }, {
+ *   middleware: [authMiddleware]
+ * });
+ * ```
+ *
+ * @example Multiple validations
+ * ```typescript
+ * import { z } from 'zod';
+ *
+ * app.post('/api/search', async (ctx) => {
+ *   const { q, page } = ctx.query;
+ *   const filters = ctx.body;
+ *   return ctx.json({ query: q, page, filters });
+ * }, {
+ *   schema: {
+ *     query: z.object({ q: z.string(), page: z.string() }),
+ *     body: z.object({ category: z.string().optional() })
+ *   }
+ * });
+ * ```
  */
 export interface ApiHandler<TPath extends string = string, TRequest extends Request = Request, TServer = any> {
 	path: TPath;
 	method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
 	handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
+	/** Optional middleware chain executed before the handler */
+	middleware?: Middleware<TRequest, TServer>[];
+	/** Optional validation schemas for request body, query parameters, and headers */
+	schema?: {
+		body?: StandardSchema;
+		query?: StandardSchema;
+		headers?: StandardSchema;
+	};
+}
+
+/**
+ * Global error handler for centralized error handling across all routes.
+ * Receives the error and full request context, returns a Response.
+ * Falls back to default handling if the handler itself throws.
+ */
+export type ErrorHandler<TRequest extends Request = Request, TServer = any> = (
+	error: unknown,
+	context: ApiHandlerContext<TRequest, TServer>,
+) => Promise<Response> | Response;
+
+/**
+ * Options for route handlers.
+ */
+export interface RouteOptions<TRequest extends Request = Request, TServer = any> {
+	middleware?: Middleware<TRequest, TServer>[];
+	schema?: RouteSchema;
+}
+
+export interface RouteSchema {
+	body?: StandardSchema;
+	query?: StandardSchema;
+	headers?: StandardSchema;
+}
+
+/**
+ * Helper type to extract inferred types from a schema, with fallback to unknown.
+ */
+export type InferSchemaOutput<T> = T extends StandardSchema ? InferOutput<T> : unknown;
+
+/**
+ * Context with typed body/query/headers based on the provided schema.
+ */
+export type TypedApiHandlerContext<
+	TSchema extends RouteSchema,
+	TRequest extends Request = Request,
+	TServer = any,
+> = Omit<ApiHandlerContext<TRequest, TServer>, 'body' | 'query' | 'headers'> & {
+	body: InferSchemaOutput<TSchema['body']>;
+	query: InferSchemaOutput<TSchema['query']>;
+	headers: InferSchemaOutput<TSchema['headers']>;
+};
+
+/**
+ * Options for the group method.
+ */
+export interface GroupOptions<TRequest extends Request = Request, TServer = any> {
+	middleware?: Middleware<TRequest, TServer>[];
+}
+
+/**
+ * Builder interface for defining routes within a group.
+ * Provides chainable methods for registering routes with shared prefix and middleware.
+ */
+export interface RouteGroupBuilder<TRequest extends Request = Request, TServer = any> {
+	get<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	post<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	put<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	delete<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	patch<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	options<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer>;
+
+	head<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer>;
+}
+
+/**
+ * Represents a static route registered via app.static().
+ * Used for explicit routing where views are rendered at build time.
+ */
+export interface StaticRoute {
+	path: string;
+	view: EcoPageComponent<any>;
 }

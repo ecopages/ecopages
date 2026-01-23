@@ -33,14 +33,15 @@ import type {
 	GetMetadata,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
+	PageMetadataProps,
 	RouteRendererBody,
 } from '@ecopages/core';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { invariant } from '@ecopages/core/utils/invariant';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
 import React, { type ReactNode } from 'react';
-import { renderToString } from 'react-dom/server';
+import { renderToReadableStream, renderToString } from 'react-dom/server';
 import { PLUGIN_NAME } from './mdx.plugin.ts';
 import {
 	AssetFactory,
@@ -49,6 +50,7 @@ import {
 } from '@ecopages/core/services/asset-processing-service';
 import type { CompileOptions } from '@mdx-js/mdx';
 import mdx from '@mdx-js/esbuild';
+import { createMDXHydrationScript } from './utils/hydration-scripts.ts';
 
 /**
  * Error thrown when an error occurs while rendering a React component.
@@ -121,101 +123,6 @@ export class MDXReactRenderer extends IntegrationRenderer {
 	}
 
 	/**
-	 * Creates a client-side hydration script.
-	 *
-	 * This script is responsible for:
-	 * 1. Importing the bundled MDX component.
-	 * 2. Checking if a `layout` export exists.
-	 * 3. Composing the Page within the Layout if present.
-	 * 4. Hydrating the React root.
-	 * 5. In development mode, registering an HMR handler for hot updates.
-	 *
-	 * @param importPath - The public path to the bundled component file.
-	 * @param isDevelopment - Whether to generate development mode script with HMR support.
-	 */
-	private createHydrationScript(importPath: string, isDevelopment = false): string {
-		if (isDevelopment) {
-			return `
-import { createElement } from "react";
-import { hydrateRoot } from "react-dom/client";
-import * as MDXComponent from "${importPath}";
-
-window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
-let root = null;
-
-const { default: Page, config } = MDXComponent;
-const resolvedLayout = config?.layout;
-
-async function mount() {
-    try {
-        const container = document.querySelector('[data-react-root]');
-        if (!container) return;
-        
-        const element = resolvedLayout 
-            ? createElement(resolvedLayout, null, createElement(Page))
-            : createElement(Page);
-            
-        root = hydrateRoot(container, element);
-        
-        window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
-            try {
-                const newModule = await import(newUrl);
-                const { default: NewPage, config: newConfig } = newModule;
-                const newResolvedLayout = newConfig?.layout;
-                const newElement = newResolvedLayout 
-                    ? createElement(newResolvedLayout, null, createElement(NewPage))
-                    : createElement(NewPage);
-                root.render(newElement);
-                console.log("[ecopages] MDX component updated");
-            } catch (e) {
-                console.error("[ecopages] Failed to hot-reload MDX component:", e);
-            }
-        };
-    } catch (error) {
-        console.error('[MDX React] Hydration failed:', error);
-    }
-}
-
-if (document.readyState === 'complete') {
-    mount();
-} else {
-    window.onload = mount;
-}
-`.trim();
-		}
-
-		return `
-import { createElement } from "react";
-import { hydrateRoot } from "react-dom/client";
-import * as MDXComponent from "${importPath}";
-
-const { default: Page, config } = MDXComponent;
-const resolvedLayout = config?.layout;
-
-async function hydrate() {
-    try {
-        const root = document.querySelector('[data-react-root]');
-        if (!root) return;
-        
-        const element = resolvedLayout 
-            ? createElement(resolvedLayout, null, createElement(Page))
-            : createElement(Page);
-            
-        hydrateRoot(root, element);
-    } catch (error) {
-        console.error('[MDX React] Hydration failed:', error);
-    }
-}
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', hydrate);
-} else {
-    hydrate();
-}
-        `.trim();
-	}
-
-	/**
 	 * Builds values for the route.
 	 *
 	 * This method prepares the assets needed for the client-side hydration of the MDX page.
@@ -281,7 +188,7 @@ if (document.readyState === 'loading') {
 
 			const hydrationScript = AssetFactory.createContentScript({
 				position: 'head',
-				content: this.createHydrationScript(resolvedScriptUrl, isDevelopment),
+				content: createMDXHydrationScript({ importPath: resolvedScriptUrl, isDevelopment }),
 				name: `${componentName}-hydration`,
 				bundle: false,
 				attributes: {
@@ -394,8 +301,64 @@ if (document.readyState === 'loading') {
 
 			return this.DOC_TYPE + body;
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error);
-			throw new Error(`[ecopages] Error rendering page: ${errorMessage}`, { cause: error });
+			throw this.createRenderError('Error rendering page', error);
+		}
+	}
+
+	async renderToResponse<P = Record<string, unknown>>(
+		view: EcoComponent<P>,
+		props: P,
+		ctx: RenderToResponseContext,
+	): Promise<Response> {
+		try {
+			if (typeof view !== 'function') {
+				throw new Error(`Page must be a React component function, got ${typeof view}: ${String(view)}`);
+			}
+
+			const viewConfig = view.config;
+			const Layout = viewConfig?.layout as React.ComponentType | undefined;
+
+			const content = React.createElement(view as unknown as React.ComponentType, props as React.Attributes);
+
+			const pageElement = Layout ? React.createElement(Layout, undefined, content) : content;
+
+			const children = React.createElement(
+				'div',
+				{
+					'data-react-root': true,
+				},
+				pageElement,
+			);
+
+			let stream: ReadableStream;
+			if (ctx.partial) {
+				stream = await renderToReadableStream(children);
+			} else {
+				const HtmlTemplate = await this.getHtmlTemplate();
+				const metadata: PageMetadataProps = view.metadata
+					? await view.metadata({
+							params: {},
+							query: {},
+							props: props as Record<string, unknown>,
+							appConfig: this.appConfig,
+						})
+					: this.appConfig.defaultMetadata;
+
+				stream = await renderToReadableStream(
+					React.createElement(
+						HtmlTemplate,
+						{
+							metadata,
+							pageProps: props || {},
+						} as HtmlTemplateProps,
+						children,
+					),
+				);
+			}
+
+			return this.createHtmlResponse(stream, ctx);
+		} catch (error) {
+			throw this.createRenderError('Error rendering view', error);
 		}
 	}
 }

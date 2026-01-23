@@ -12,8 +12,20 @@ import type { BunRequest, Server } from 'bun';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, ApiHandlerContext } from '../../public-types.ts';
-import { AbstractApplicationAdapter, type ApplicationAdapterOptions } from '../abstract/application-adapter.ts';
+import type {
+	ApiHandler,
+	Middleware,
+	RouteOptions,
+	GroupOptions,
+	RouteSchema,
+	ApiHandlerContext,
+	TypedApiHandlerContext,
+} from '../../public-types.ts';
+import {
+	AbstractApplicationAdapter,
+	type ApplicationAdapterOptions,
+	type RouteHandler,
+} from '../abstract/application-adapter.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
 
 /**
@@ -22,6 +34,73 @@ import { type BunServerAdapterResult, createBunServerAdapter } from './server-ad
 export interface EcopagesAppOptions extends ApplicationAdapterOptions {
 	appConfig: EcoPagesAppConfig;
 	serverOptions?: Record<string, any>;
+}
+
+type BunMiddleware<WebSocketData> = Middleware<BunRequest<string>, Server<WebSocketData>>[];
+type BunHandler<WebSocketData, P extends string = string> = RouteHandler<BunRequest<P>, Server<WebSocketData>>;
+type BunRouteOptions<WebSocketData, P extends string = string> = RouteOptions<BunRequest<P>, Server<WebSocketData>>;
+
+/**
+ * Bun-specific route group builder that properly infers route params from path patterns.
+ * When you define a route like `/posts/:slug`, the handler context will have
+ * `ctx.request.params.slug` typed as `string`.
+ */
+export interface BunRouteGroupBuilder<WebSocketData = undefined> {
+	get<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
+		) => Promise<Response> | Response,
+		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
+	): BunRouteGroupBuilder<WebSocketData>;
+
+	post<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
+		) => Promise<Response> | Response,
+		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
+	): BunRouteGroupBuilder<WebSocketData>;
+
+	put<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
+		) => Promise<Response> | Response,
+		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
+	): BunRouteGroupBuilder<WebSocketData>;
+
+	delete<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
+		) => Promise<Response> | Response,
+		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
+	): BunRouteGroupBuilder<WebSocketData>;
+
+	patch<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
+		) => Promise<Response> | Response,
+		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
+	): BunRouteGroupBuilder<WebSocketData>;
+
+	options<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
+		) => Promise<Response> | Response,
+		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
+	): BunRouteGroupBuilder<WebSocketData>;
+
+	head<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (
+			context: TypedApiHandlerContext<TSchema, BunRequest<P>, Server<WebSocketData>>,
+		) => Promise<Response> | Response,
+		options?: BunRouteOptions<WebSocketData, P> & { schema?: TSchema },
+	): BunRouteGroupBuilder<WebSocketData>;
 }
 
 /**
@@ -33,66 +112,143 @@ export interface EcopagesAppOptions extends ApplicationAdapterOptions {
 export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationAdapter<
 	EcopagesAppOptions,
 	Server<WebSocketData>,
-	BunRequest<string>
+	any
 > {
 	serverAdapter: BunServerAdapterResult | undefined;
 	private server: Server<WebSocketData> | null = null;
 
-	get<P extends string, TSpecRequest extends Request = BunRequest<P>>(
-		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
-	): this {
-		return this.addRouteHandler(path, 'GET', handler);
-	}
-
-	post<P extends string, TSpecRequest extends Request = BunRequest<P>>(
-		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
-	): this {
-		return this.addRouteHandler(path, 'POST', handler);
-	}
-
-	put<P extends string, TSpecRequest extends Request = BunRequest<P>>(
-		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
-	): this {
-		return this.addRouteHandler(path, 'PUT', handler);
-	}
-
-	delete<P extends string, TSpecRequest extends Request = BunRequest<P>>(
-		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
-	): this {
-		return this.addRouteHandler(path, 'DELETE', handler);
-	}
-
-	patch<P extends string, TSpecRequest extends Request = BunRequest<P>>(
-		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
-	): this {
-		return this.addRouteHandler(path, 'PATCH', handler);
-	}
-
-	options<P extends string, TSpecRequest extends Request = BunRequest<P>>(
-		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
-	): this {
-		return this.addRouteHandler(path, 'OPTIONS', handler);
-	}
-
-	head<P extends string, TSpecRequest extends Request = BunRequest<P>>(
-		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
-	): this {
-		return this.addRouteHandler(path, 'HEAD', handler);
-	}
-
-	route<P extends string, TSpecRequest extends Request = BunRequest<P>>(
+	private register<P extends string>(
 		path: P,
 		method: ApiHandler['method'],
-		handler: (context: ApiHandlerContext<TSpecRequest, Server<WebSocketData>>) => Promise<Response> | Response,
+		handler: BunHandler<WebSocketData, P>,
+		options?: BunRouteOptions<WebSocketData, P>,
 	): this {
-		return this.addRouteHandler(path, method, handler);
+		return this.addRouteHandler(
+			path,
+			method,
+			handler as BunHandler<WebSocketData>,
+			options?.middleware as BunMiddleware<WebSocketData>,
+			options?.schema,
+		);
+	}
+
+	get<P extends string>(
+		path: P,
+		handler: BunHandler<WebSocketData, P>,
+		options?: BunRouteOptions<WebSocketData, P>,
+	): this {
+		return this.register(path, 'GET', handler, options);
+	}
+
+	post<P extends string>(
+		path: P,
+		handler: BunHandler<WebSocketData, P>,
+		options?: BunRouteOptions<WebSocketData, P>,
+	): this {
+		return this.register(path, 'POST', handler, options);
+	}
+
+	put<P extends string>(
+		path: P,
+		handler: BunHandler<WebSocketData, P>,
+		options?: BunRouteOptions<WebSocketData, P>,
+	): this {
+		return this.register(path, 'PUT', handler, options);
+	}
+
+	delete<P extends string>(
+		path: P,
+		handler: BunHandler<WebSocketData, P>,
+		options?: BunRouteOptions<WebSocketData, P>,
+	): this {
+		return this.register(path, 'DELETE', handler, options);
+	}
+
+	patch<P extends string>(
+		path: P,
+		handler: BunHandler<WebSocketData, P>,
+		options?: BunRouteOptions<WebSocketData, P>,
+	): this {
+		return this.register(path, 'PATCH', handler, options);
+	}
+
+	options<P extends string>(
+		path: P,
+		handler: BunHandler<WebSocketData, P>,
+		routeOptions?: BunRouteOptions<WebSocketData, P>,
+	): this {
+		return this.register(path, 'OPTIONS', handler, routeOptions);
+	}
+
+	head<P extends string>(
+		path: P,
+		handler: BunHandler<WebSocketData, P>,
+		options?: BunRouteOptions<WebSocketData, P>,
+	): this {
+		return this.register(path, 'HEAD', handler, options);
+	}
+
+	route<P extends string>(
+		path: P,
+		method: ApiHandler['method'],
+		handler: BunHandler<WebSocketData, P>,
+		options?: BunRouteOptions<WebSocketData, P>,
+	): this {
+		return this.register(path, method, handler, options);
+	}
+
+	/**
+	 * Create a route group with shared prefix and middleware.
+	 * Routes defined within the group inherit the prefix and middleware.
+	 * Path params are properly typed based on the route pattern.
+	 *
+	 * @example
+	 * ```typescript
+	 * app.group('/api', (r) => {
+	 *   r.get('/posts/:slug', async (ctx) => {
+	 *     // ctx.request.params.slug is typed as string
+	 *     const slug = ctx.request.params.slug;
+	 *     return ctx.json({ slug });
+	 *   });
+	 * });
+	 * ```
+	 */
+	override group(
+		prefix: string,
+		callback: (builder: BunRouteGroupBuilder<WebSocketData>) => void,
+		options?: GroupOptions<BunRequest<string>, Server<WebSocketData>>,
+	): this {
+		const normalizedPrefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+		const groupMiddleware = options?.middleware ?? [];
+
+		const createHandler = (
+			method: ApiHandler['method'],
+		): BunRouteGroupBuilder<WebSocketData>[Lowercase<typeof method>] => {
+			return ((path: string, handler: any, routeOptions?: any) => {
+				const combinedMiddleware = [...groupMiddleware, ...(routeOptions?.middleware ?? [])];
+				this.addRouteHandler(
+					`${normalizedPrefix}${path}`,
+					method,
+					handler,
+					combinedMiddleware.length > 0 ? combinedMiddleware : undefined,
+					routeOptions?.schema,
+				);
+				return builder;
+			}) as any;
+		};
+
+		const builder: BunRouteGroupBuilder<WebSocketData> = {
+			get: createHandler('GET'),
+			post: createHandler('POST'),
+			put: createHandler('PUT'),
+			delete: createHandler('DELETE'),
+			patch: createHandler('PATCH'),
+			options: createHandler('OPTIONS'),
+			head: createHandler('HEAD'),
+		};
+
+		callback(builder);
+		return this;
 	}
 
 	/**
@@ -151,6 +307,8 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			runtimeOrigin: `http://${preferredHostname}:${preferredPort}`,
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
+			staticRoutes: this.staticRoutes,
+			errorHandler: this.errorHandler,
 			options: { watch: dev },
 			serveOptions: {
 				port: preferredPort,
@@ -206,6 +364,6 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
  */
 export async function createApp<WebSocketData = undefined>(
 	options: EcopagesAppOptions,
-): Promise<AbstractApplicationAdapter<EcopagesAppOptions, Server<WebSocketData>>> {
+): Promise<EcopagesApp<WebSocketData>> {
 	return new EcopagesApp(options);
 }

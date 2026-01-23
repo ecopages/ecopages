@@ -2,18 +2,29 @@ import path from 'node:path';
 import type { BunRequest, Server, WebSocketHandler } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, CacheInvalidator } from '../../public-types.ts';
+import type {
+	ApiHandler,
+	ApiHandlerContext,
+	CacheInvalidator,
+	ErrorHandler,
+	RenderContext,
+	StaticRoute,
+} from '../../public-types.ts';
+import { HttpError } from '../../errors/http-error.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouter } from '../../router/fs-router.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
+import { SchemaValidationService } from '../../services/schema-validation-service.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { deepMerge } from '../../utils/deep-merge.ts';
 import { AbstractServerAdapter, type ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ApiResponseBuilder } from '../shared/api-response.js';
+import { ExplicitStaticRouteMatcher } from '../shared/explicit-static-route-matcher.ts';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
+import { createRenderContext } from '../shared/render-context.ts';
 import { ServerRouteHandler, type ServerRouteHandlerParams } from '../shared/server-route-handler';
 import { ServerStaticBuilder, type ServerStaticBuilderParams } from '../shared/server-static-builder';
 import { ClientBridge } from './client-bridge';
@@ -41,6 +52,8 @@ export interface BunServerAdapterParams {
 	runtimeOrigin: string;
 	serveOptions: BunServeAdapterServerOptions;
 	apiHandlers?: ApiHandler<any, BunRequest, Server<unknown>>[];
+	staticRoutes?: StaticRoute[];
+	errorHandler?: ErrorHandler;
 	options?: {
 		watch?: boolean;
 	};
@@ -62,6 +75,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	declare options: BunServerAdapterParams['options'];
 	declare serveOptions: BunServerAdapterParams['serveOptions'];
 	protected apiHandlers: ApiHandler<any, BunRequest>[];
+	protected staticRoutes: StaticRoute[];
+	protected errorHandler?: ErrorHandler;
 
 	private router!: FSRouter;
 	private fileSystemResponseMatcher!: FileSystemResponseMatcher;
@@ -76,6 +91,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	private initializationPromise: Promise<void> | null = null;
 	private fullyInitialized = false;
 	declare serverInstance: Server<unknown> | null;
+	private readonly schemaValidator = new SchemaValidationService();
 
 	private readonly lifecycleFactory?: ServerLifecycle;
 	private readonly staticBuilderFactory?: (params: ServerStaticBuilderParams) => ServerStaticBuilder;
@@ -88,6 +104,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		runtimeOrigin,
 		serveOptions,
 		apiHandlers,
+		staticRoutes,
+		errorHandler,
 		options,
 		lifecycle,
 		staticBuilderFactory,
@@ -97,6 +115,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	}: BunServerAdapterParams) {
 		super({ appConfig, runtimeOrigin, serveOptions, options });
 		this.apiHandlers = apiHandlers || [];
+		this.staticRoutes = staticRoutes || [];
+		this.errorHandler = errorHandler;
 		this.lifecycleFactory = lifecycle;
 		this.staticBuilderFactory = staticBuilderFactory;
 		this.routeHandlerFactory = routeHandlerFactory;
@@ -220,9 +240,19 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 			defaultCacheStrategy: cacheConfig?.defaultStrategy ?? 'static',
 		});
 
+		const explicitStaticRouteMatcher =
+			this.staticRoutes.length > 0
+				? new ExplicitStaticRouteMatcher({
+						appConfig: this.appConfig,
+						routeRendererFactory: this.routeRendererFactory,
+						staticRoutes: this.staticRoutes,
+					})
+				: undefined;
+
 		const routeHandlerParams: ServerRouteHandlerParams = {
 			router: this.router,
 			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
+			explicitStaticRouteMatcher,
 			watch: !!this.options?.watch,
 			hmrManager: this.hmrManager,
 		};
@@ -303,8 +333,11 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		const handleNoMatch = this.handleNoMatch.bind(this);
 		const waitForInit = this.waitForInitialization.bind(this);
 		const handleReq = this.handleRequest.bind(this);
+		const errorHandler = this.errorHandler;
 		const getCacheService = (): CacheInvalidator | null =>
 			this.fileSystemResponseMatcher?.getCacheService() ?? null;
+		const getRenderContext = (): RenderContext =>
+			createRenderContext({ integrations: this.appConfig.integrations });
 
 		const mergedRoutes = deepMerge(routes || {}, this.routes);
 		appLogger.debug(`[BunServerAdapter] Building server settings with ${this.apiHandlers.length} API handlers`);
@@ -312,21 +345,103 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		for (const routeConfig of this.apiHandlers) {
 			const method = routeConfig.method || 'GET';
 			const path = routeConfig.path;
+			const middleware = routeConfig.middleware || [];
+			const schema = routeConfig.schema;
 
 			appLogger.debug(`[BunServerAdapter] Registering API route: ${method} ${path}`);
 
 			const wrappedHandler = async (request: BunRequest<string>): Promise<Response> => {
+				let context: ApiHandlerContext<BunRequest<string>, Server<unknown> | null> | undefined;
+
 				try {
 					await waitForInit();
-					return await routeConfig.handler({
+					const renderContext = getRenderContext();
+					context = {
 						request,
 						response: new ApiResponseBuilder(),
 						server: this.serverInstance,
 						services: {
 							cache: getCacheService(),
 						},
-					});
+						...renderContext,
+					};
+
+					if (schema) {
+						const url = new URL(request.url);
+						const queryParams = Object.fromEntries(url.searchParams);
+						const headers = Object.fromEntries(request.headers);
+
+						let body: unknown;
+						if (schema.body) {
+							try {
+								body = await request.json();
+							} catch {
+								return context.response.status(400).json({
+									error: 'Invalid JSON body',
+								});
+							}
+						}
+
+						const validationResult = await this.schemaValidator.validateRequest(
+							{ body, query: queryParams, headers },
+							schema,
+						);
+
+						if (!validationResult.success) {
+							return context.response.status(400).json({
+								error: 'Validation failed',
+								issues: validationResult.errors,
+							});
+						}
+
+						const validated = validationResult.data!;
+						if (validated.body !== undefined) {
+							context.body = validated.body;
+						}
+						if (validated.query !== undefined) {
+							context.query = validated.query;
+						}
+						if (validated.headers !== undefined) {
+							context.headers = validated.headers;
+						}
+					}
+
+					if (middleware.length === 0) {
+						return await routeConfig.handler(context);
+					}
+
+					let index = 0;
+					const executeNext = async (): Promise<Response> => {
+						if (index < middleware.length) {
+							const currentMiddleware = middleware[index++];
+							return await currentMiddleware(context!, executeNext);
+						}
+						return await routeConfig.handler(context!);
+					};
+
+					return await executeNext();
 				} catch (error) {
+					if (this.errorHandler) {
+						try {
+							if (!context) {
+								const renderContext = getRenderContext();
+								context = {
+									request,
+									response: new ApiResponseBuilder(),
+									server: this.serverInstance,
+									services: { cache: getCacheService() },
+									...renderContext,
+								};
+							}
+							return await this.errorHandler(error, context);
+						} catch (handlerError) {
+							appLogger.error(`[ecopages] Error in custom error handler: ${handlerError}`);
+						}
+					}
+
+					if (error instanceof HttpError) {
+						return error.toResponse();
+					}
 					appLogger.error(`[ecopages] Error handling API request: ${error}`);
 					return new Response('Internal Server Error', { status: 500 });
 				}
@@ -346,9 +461,28 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 			async fetch(this: Server<unknown>, request: Request, _server: Server<unknown>) {
 				try {
 					await waitForInit();
-					const response = await handleReq(request);
-					return response;
+					return await handleReq(request);
 				} catch (error) {
+					if (errorHandler) {
+						try {
+							const renderContext = getRenderContext();
+							const context = {
+								request,
+								response: new ApiResponseBuilder(),
+								server: this,
+								services: { cache: getCacheService() },
+								...renderContext,
+							};
+							return await errorHandler(error, context);
+						} catch (handlerError) {
+							appLogger.error(`[ecopages] Error in custom error handler: ${handlerError}`);
+						}
+					}
+
+					if (error instanceof HttpError) {
+						return error.toResponse();
+					}
+
 					appLogger.error(`[ecopages] Error handling request: ${error}`);
 					return new Response('Internal Server Error', { status: 500 });
 				}
@@ -376,6 +510,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		await this.staticBuilder.build(options, {
 			router: this.router,
 			routeRendererFactory: this.routeRendererFactory,
+			staticRoutes: this.staticRoutes,
 		});
 	}
 

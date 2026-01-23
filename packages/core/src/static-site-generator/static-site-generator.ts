@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { StaticRoute } from '../public-types.ts';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../router/fs-router.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -167,13 +168,173 @@ export class StaticSiteGenerator {
 		router,
 		baseUrl,
 		routeRendererFactory,
+		staticRoutes,
 	}: {
 		router: FSRouter;
 		baseUrl: string;
 		routeRendererFactory?: RouteRendererFactory;
+		staticRoutes?: StaticRoute[];
 	}) {
 		this.generateRobotsTxt();
 		await this.generateStaticPages(router, baseUrl, routeRendererFactory);
+
+		if (staticRoutes && staticRoutes.length > 0 && routeRendererFactory) {
+			await this.generateExplicitStaticPages(staticRoutes, routeRendererFactory);
+		}
+	}
+
+	/**
+	 * Generates static pages from explicit static routes registered via app.static().
+	 * These routes use eco.page views directly instead of file-system routing.
+	 */
+	private async generateExplicitStaticPages(
+		staticRoutes: StaticRoute[],
+		routeRendererFactory: RouteRendererFactory,
+	): Promise<void> {
+		appLogger.debug(
+			'Generating explicit static routes',
+			staticRoutes.map((r) => r.path),
+		);
+
+		for (const { path: routePath, view } of staticRoutes) {
+			try {
+				const isDynamic = routePath.includes(':') || routePath.includes('[');
+
+				if (isDynamic) {
+					await this.generateDynamicStaticRoute(routePath, view, routeRendererFactory);
+				} else {
+					await this.generateSingleStaticRoute(routePath, view, routeRendererFactory);
+				}
+			} catch (error) {
+				appLogger.error(
+					`Error generating explicit static page for ${routePath}:`,
+					error instanceof Error ? error : String(error),
+				);
+			}
+		}
+	}
+
+	/**
+	 * Generate a single static page for a non-dynamic route.
+	 */
+	private async generateSingleStaticRoute(
+		routePath: string,
+		view: StaticRoute['view'],
+		routeRendererFactory: RouteRendererFactory,
+	): Promise<void> {
+		const integrationName = view.config?.__eco?.integration;
+		if (!integrationName) {
+			throw new Error(`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page().`);
+		}
+
+		const renderer = routeRendererFactory.getRendererByIntegration(integrationName);
+		if (!renderer) {
+			throw new Error(`No renderer found for integration: ${integrationName}`);
+		}
+
+		const props = view.staticProps
+			? (
+					await view.staticProps({
+						pathname: { params: {} },
+						appConfig: this.appConfig,
+						runtimeOrigin: this.appConfig.baseUrl,
+					})
+				).props
+			: {};
+
+		const response = await renderer.renderToResponse(view, props, {});
+		const contents = await response.text();
+
+		const outputPath = this.getOutputPath(routePath);
+		fileSystem.ensureDir(path.dirname(outputPath));
+		fileSystem.write(outputPath, contents);
+
+		appLogger.debug(`Generated static page: ${routePath} -> ${outputPath}`);
+	}
+
+	/**
+	 * Generate static pages for a dynamic route using staticPaths.
+	 */
+	private async generateDynamicStaticRoute(
+		routePath: string,
+		view: StaticRoute['view'],
+		routeRendererFactory: RouteRendererFactory,
+	): Promise<void> {
+		if (!view.staticPaths) {
+			throw new Error(`Dynamic route ${routePath} requires staticPaths to be defined on the view.`);
+		}
+
+		const integrationName = view.config?.__eco?.integration;
+		if (!integrationName) {
+			throw new Error(`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page().`);
+		}
+
+		const renderer = routeRendererFactory.getRendererByIntegration(integrationName);
+		if (!renderer) {
+			throw new Error(`No renderer found for integration: ${integrationName}`);
+		}
+
+		const { paths } = await view.staticPaths({
+			appConfig: this.appConfig,
+			runtimeOrigin: this.appConfig.baseUrl,
+		});
+
+		for (const { params } of paths) {
+			const resolvedPath = this.resolveRoutePath(routePath, params);
+
+			const props = view.staticProps
+				? (
+						await view.staticProps({
+							pathname: { params },
+							appConfig: this.appConfig,
+							runtimeOrigin: this.appConfig.baseUrl,
+						})
+					).props
+				: {};
+
+			const response = await renderer.renderToResponse(view, props, {});
+			const contents = await response.text();
+
+			const outputPath = this.getOutputPath(resolvedPath);
+			fileSystem.ensureDir(path.dirname(outputPath));
+			fileSystem.write(outputPath, contents);
+
+			appLogger.debug(`Generated static page: ${resolvedPath} -> ${outputPath}`);
+		}
+	}
+
+	/**
+	 * Resolve a route path template with actual params.
+	 * Supports both :param and [param] syntax.
+	 */
+	private resolveRoutePath(routePath: string, params: Record<string, string | string[]>): string {
+		let resolved = routePath;
+
+		for (const [key, value] of Object.entries(params)) {
+			const paramValue = Array.isArray(value) ? value.join('/') : value;
+			resolved = resolved.replace(`:${key}`, paramValue);
+			resolved = resolved.replace(`[${key}]`, paramValue);
+			resolved = resolved.replace(`[...${key}]`, paramValue);
+		}
+
+		return resolved;
+	}
+
+	/**
+	 * Get the output file path for a given route.
+	 */
+	private getOutputPath(routePath: string): string {
+		let outputName: string;
+
+		if (routePath === '/') {
+			outputName = 'index.html';
+		} else if (routePath.endsWith('/')) {
+			outputName = `${routePath}index.html`;
+		} else {
+			outputName = `${routePath}.html`;
+		}
+
+		return path.join(this.appConfig.rootDir, this.appConfig.distDir, outputName);
 	}
 }
 

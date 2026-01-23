@@ -1,4 +1,4 @@
-import type { StandardSchema } from '../public-types.ts';
+import type { StandardSchema, StandardSchemaIssue } from './validation/standard-schema.types.ts';
 
 export interface ValidationResult<T = unknown> {
 	success: boolean;
@@ -120,7 +120,7 @@ export class SchemaValidationService {
 		const allErrors: Array<{ message: string; path?: Array<string | number> }> = [];
 
 		if (schemas.body && source.body !== undefined) {
-			const result = this.validateWithSchema(schemas.body, source.body);
+			const result = await this.validateWithSchema(schemas.body, source.body);
 			if (!result.success) {
 				allErrors.push(...(result.errors || []));
 			} else {
@@ -129,7 +129,7 @@ export class SchemaValidationService {
 		}
 
 		if (schemas.query && source.query) {
-			const result = this.validateWithSchema(schemas.query, source.query);
+			const result = await this.validateWithSchema(schemas.query, source.query);
 			if (!result.success) {
 				allErrors.push(...(result.errors || []));
 			} else {
@@ -138,7 +138,7 @@ export class SchemaValidationService {
 		}
 
 		if (schemas.headers && source.headers) {
-			const result = this.validateWithSchema(schemas.headers, source.headers);
+			const result = await this.validateWithSchema(schemas.headers, source.headers);
 			if (!result.success) {
 				allErrors.push(...(result.errors || []));
 			} else {
@@ -160,16 +160,19 @@ export class SchemaValidationService {
 	 * @param data - The data to validate
 	 * @returns Validation result with validated data or errors
 	 */
-	private validateWithSchema<T>(schema: StandardSchema, data: unknown): ValidationResult<T> {
+	private async validateWithSchema<T>(schema: StandardSchema, data: unknown): Promise<ValidationResult<T>> {
 		try {
-			const result = schema['~standard'].validate(data);
+			const resultOrPromise = schema['~standard'].validate(data);
+			const result = resultOrPromise instanceof Promise ? await resultOrPromise : resultOrPromise;
 
-			if ('issues' in result && result.issues) {
+			if (result.issues) {
 				return {
 					success: false,
-					errors: result.issues.map((issue) => ({
+					errors: result.issues.map((issue: StandardSchemaIssue) => ({
 						message: issue.message,
-						path: issue.path as Array<string | number> | undefined,
+						path: issue.path?.map((p) => (typeof p === 'object' && 'key' in p ? p.key : p)) as
+							| Array<string | number>
+							| undefined,
 					})),
 				};
 			}

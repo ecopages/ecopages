@@ -1,0 +1,50 @@
+# Ecopages Documentation
+> Ecopages is a static site generator written in TypeScript.
+
+## Getting Started
+- [Introduction](https://ecopages.app/docs/getting-started/introduction)
+- [Installation](https://ecopages.app/docs/getting-started/installation)
+- [Configuration](https://ecopages.app/docs/getting-started/configuration)
+
+## Core
+- [Concepts](https://ecopages.app/docs/core/concepts)
+- [Architecture](https://ecopages.app/docs/core/architecture)
+- [Pages](https://ecopages.app/docs/core/pages)
+- [Layouts](https://ecopages.app/docs/core/layouts)
+- [Includes](https://ecopages.app/docs/core/includes)
+- [Components](https://ecopages.app/docs/core/components)
+- [Routing](https://ecopages.app/docs/core/routing)
+- [Data Fetching](https://ecopages.app/docs/core/data-fetching)
+- [HMR](https://ecopages.app/docs/core/hmr)
+
+## Server
+- [Server API](https://ecopages.app/docs/server/server-api)
+- [API Handlers](https://ecopages.app/docs/server/api-handlers)
+- [Explicit Routing](https://ecopages.app/docs/server/explicit-routing)
+- [Caching](https://ecopages.app/docs/server/caching)
+
+## Ecosystem
+- [Packages](https://ecopages.app/docs/ecosystem/packages)
+- [File System](https://ecopages.app/docs/ecosystem/file-system)
+- [Radiant](https://ecopages.app/docs/ecosystem/radiant)
+- [React Router](https://ecopages.app/docs/ecosystem/react-router)
+- [Browser Router](https://ecopages.app/docs/ecosystem/browser-router)
+- [Image Processor](https://ecopages.app/docs/ecosystem/image-processor)
+- [PostCSS Processor](https://ecopages.app/docs/ecosystem/postcss-processor)
+
+## Integrations
+- [Overview](https://ecopages.app/docs/integrations/overview)
+- [KitaJS](https://ecopages.app/docs/integrations/kitajs)
+- [Lit](https://ecopages.app/docs/integrations/lit)
+- [MDX](https://ecopages.app/docs/integrations/mdx)
+- [React](https://ecopages.app/docs/integrations/react)
+
+## Plugins
+- [Overview](https://ecopages.app/docs/plugins/overview)
+- [Custom Integration](https://ecopages.app/docs/plugins/custom-integration)
+- [Custom Processor](https://ecopages.app/docs/plugins/custom-processor)
+
+## Reference
+- [CLI Reference](https://ecopages.app/docs/reference/cli-reference)
+- [Deployment](https://ecopages.app/docs/reference/deployment)
+- [Eco Namespace](https://ecopages.app/docs/reference/eco-namespace)

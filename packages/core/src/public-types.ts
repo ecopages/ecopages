@@ -9,76 +9,23 @@ import type { CacheStats, CacheStrategy } from './services/cache/cache.types.ts'
 
 export type { EcoPageComponent } from './eco/eco.types.ts';
 
-/**
- * Standard Schema interface for universal validation.
- * Compatible with Zod, Valibot, ArkType, Effect Schema, and other validation libraries.
- *
- * @example Using with Zod
- * ```typescript
- * import { z } from 'zod';
- *
- * const bodySchema = z.object({
- *   title: z.string().min(1),
- *   content: z.string()
- * });
- *
- * app.post('/posts', async (ctx) => {
- *   const { title, content } = ctx.validated.body;
- *   return ctx.json({ id: 1, title, content });
- * }, {
- *   schema: { body: bodySchema }
- * });
- * ```
- *
- * @example Using with Valibot
- * ```typescript
- * import * as v from 'valibot';
- *
- * app.get('/search', async (ctx) => {
- *   const { q, limit } = ctx.validated.query;
- *   return ctx.json({ results: [] });
- * }, {
- *   schema: {
- *     query: v.object({
- *       q: v.string(),
- *       limit: v.optional(v.pipe(v.string(), v.transform(Number)))
- *     })
- *   }
- * });
- * ```
- *
- * @example Using with ArkType
- * ```typescript
- * import { type } from 'arktype';
- *
- * app.post('/api/data', async (ctx) => {
- *   const data = ctx.validated.body;
- *   return ctx.json(data);
- * }, {
- *   schema: {
- *     body: type({ name: 'string', age: 'number' })
- *   }
- * });
- * ```
- */
-export interface StandardSchema<Input = unknown, Output = Input> {
-	'~standard': {
-		version: 1;
-		vendor: string;
-		validate: (value: unknown) => StandardSchemaResult<Output>;
-	};
-}
+import type {
+	StandardSchema,
+	StandardSchemaResult,
+	StandardSchemaSuccessResult,
+	StandardSchemaFailureResult,
+	StandardSchemaIssue,
+	InferOutput,
+} from './services/validation/standard-schema.types.ts';
 
-/**
- * Result of Standard Schema validation.
- */
-export interface StandardSchemaResult<Output> {
-	value?: Output;
-	issues?: Array<{
-		message: string;
-		path?: Array<string | number>;
-	}>;
-}
+export type {
+	StandardSchema,
+	StandardSchemaResult,
+	StandardSchemaSuccessResult,
+	StandardSchemaFailureResult,
+	StandardSchemaIssue,
+	InferOutput,
+};
 
 /**
  * Narrow interface for cache invalidation in API handlers.
@@ -858,12 +805,23 @@ export type ErrorHandler<TRequest extends Request = Request, TServer = any> = (
  */
 export interface RouteOptions<TRequest extends Request = Request, TServer = any> {
 	middleware?: Middleware<TRequest, TServer>[];
-	schema?: {
-		body?: StandardSchema;
-		query?: StandardSchema;
-		headers?: StandardSchema;
-	};
+	schema?: RouteSchema;
 }
+
+export interface RouteSchema {
+	body?: StandardSchema;
+	query?: StandardSchema;
+	headers?: StandardSchema;
+}
+
+/**
+ * Helper to infer the validated data type from a RouteSchema.
+ */
+export type InferValidatedData<T extends RouteSchema> = {
+	body: T['body'] extends StandardSchema ? InferOutput<T['body']> : unknown;
+	query: T['query'] extends StandardSchema ? InferOutput<T['query']> : unknown;
+	headers: T['headers'] extends StandardSchema ? InferOutput<T['headers']> : unknown;
+};
 
 /**
  * Options for the group method.
@@ -877,46 +835,60 @@ export interface GroupOptions<TRequest extends Request = Request, TServer = any>
  * Provides chainable methods for registering routes with shared prefix and middleware.
  */
 export interface RouteGroupBuilder<TRequest extends Request = Request, TServer = any> {
-	get<P extends string>(
+	get<P extends string, TSchema extends RouteSchema>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: (
+			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
+		) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	post<P extends string>(
+	post<P extends string, TSchema extends RouteSchema>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: (
+			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
+		) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	put<P extends string>(
+	put<P extends string, TSchema extends RouteSchema>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: (
+			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
+		) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	delete<P extends string>(
+	delete<P extends string, TSchema extends RouteSchema>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: (
+			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
+		) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	patch<P extends string>(
+	patch<P extends string, TSchema extends RouteSchema>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: (
+			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
+		) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	options<P extends string>(
+	options<P extends string, TSchema extends RouteSchema>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: (
+			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
+		) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 
-	head<P extends string>(
+	head<P extends string, TSchema extends RouteSchema>(
 		path: P,
-		handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: (
+			context: ApiHandlerContext<TRequest, TServer> & { validated: InferValidatedData<TSchema> },
+		) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer>;
 }
 

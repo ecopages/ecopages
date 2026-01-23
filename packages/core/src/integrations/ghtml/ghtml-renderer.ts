@@ -3,8 +3,15 @@
  * @module
  */
 
-import type { EcoPagesElement, IntegrationRendererRenderOptions, RouteRendererBody } from '../../public-types.ts';
-import { IntegrationRenderer } from '../../route-renderer/integration-renderer.ts';
+import type {
+	EcoComponent,
+	EcoPagesElement,
+	GetMetadataContext,
+	IntegrationRendererRenderOptions,
+	PageMetadataProps,
+	RouteRendererBody,
+} from '../../public-types.ts';
+import { IntegrationRenderer, type RenderToResponseContext } from '../../route-renderer/integration-renderer.ts';
 import { GHTML_PLUGIN_NAME } from './ghtml.plugin.ts';
 
 /**
@@ -31,7 +38,51 @@ export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 
 			return this.DOC_TYPE + body;
 		} catch (error) {
-			throw new Error(`[ecopages] Error rendering page: ${error}`);
+			throw this.createRenderError('Error rendering page', error);
+		}
+	}
+
+	async renderToResponse<P = Record<string, unknown>>(
+		view: EcoComponent<P>,
+		props: P,
+		ctx: RenderToResponseContext,
+	): Promise<Response> {
+		try {
+			const Layout = view.config?.layout as
+				| ((props: { children: EcoPagesElement }) => Promise<EcoPagesElement>)
+				| undefined;
+
+			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
+			const pageContent = await viewFn(props);
+
+			let body: string;
+			if (ctx.partial) {
+				body = pageContent as string;
+			} else {
+				const children = Layout ? await Layout({ children: pageContent }) : pageContent;
+
+				const HtmlTemplate = await this.getHtmlTemplate();
+				const metadata: PageMetadataProps = view.metadata
+					? await view.metadata({
+							params: {},
+							query: {},
+							props: props as Record<string, unknown>,
+							appConfig: this.appConfig,
+						})
+					: this.appConfig.defaultMetadata;
+
+				body =
+					this.DOC_TYPE +
+					(await HtmlTemplate({
+						metadata,
+						children: children as EcoPagesElement,
+						pageProps: props as Record<string, unknown>,
+					}));
+			}
+
+			return this.createHtmlResponse(body, ctx);
+		} catch (error) {
+			throw this.createRenderError('Error rendering view', error);
 		}
 	}
 }

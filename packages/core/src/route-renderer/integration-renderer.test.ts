@@ -1,5 +1,5 @@
 import { describe, it, expect, mock } from 'bun:test';
-import { IntegrationRenderer } from './integration-renderer.ts';
+import { IntegrationRenderer, type RenderToResponseContext } from './integration-renderer.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../services/asset-processing-service/index.ts';
 import type {
@@ -26,6 +26,32 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 
 	async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
 		return '<html><body>Test Page</body></html>';
+	}
+
+	async renderToResponse<P>(view: EcoComponent<P>, props: P, ctx: RenderToResponseContext): Promise<Response> {
+		const viewFn = view as (props: P) => EcoPagesElement;
+		const content = viewFn(props);
+
+		let body: string;
+		if (ctx.partial) {
+			body = content as string;
+		} else {
+			const Layout = view.config?.layout as ((props: { children: string }) => string) | undefined;
+			const children = Layout ? Layout({ children: content as string }) : content;
+			body = `<!DOCTYPE html><html><body>${children}</body></html>`;
+		}
+
+		const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8' });
+		if (ctx.headers) {
+			for (const [key, value] of Object.entries(ctx.headers)) {
+				headers.set(key, value);
+			}
+		}
+
+		return new Response(body, {
+			status: ctx.status ?? 200,
+			headers,
+		});
 	}
 
 	/**
@@ -163,5 +189,104 @@ describe('IntegrationRenderer', () => {
 
 		expect(result.props).toEqual({ title: 'Dynamic Title' });
 		expect(result.metadata?.title).toBe('Dynamic Title');
+	});
+
+	describe('renderToResponse', () => {
+		it('should render a view with default status 200', async () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: mockAppConfig,
+				assetProcessingService: mockAssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			const mockView = ((props: { title: string }) => `<h1>${props.title}</h1>`) as EcoComponent<{
+				title: string;
+			}>;
+
+			const response = await renderer.renderToResponse(mockView, { title: 'Hello' }, {});
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
+			const body = await response.text();
+			expect(body).toContain('<h1>Hello</h1>');
+		});
+
+		it('should render a partial view without layout', async () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: mockAppConfig,
+				assetProcessingService: mockAssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			const mockView = ((props: { content: string }) => `<div>${props.content}</div>`) as EcoComponent<{
+				content: string;
+			}>;
+
+			const response = await renderer.renderToResponse(mockView, { content: 'Partial' }, { partial: true });
+
+			const body = await response.text();
+			expect(body).toBe('<div>Partial</div>');
+			expect(body).not.toContain('<!DOCTYPE html>');
+		});
+
+		it('should apply custom status code', async () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: mockAppConfig,
+				assetProcessingService: mockAssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			const mockView = (() => '<p>Not Found</p>') as EcoComponent<object>;
+
+			const response = await renderer.renderToResponse(mockView, {}, { status: 404 });
+
+			expect(response.status).toBe(404);
+		});
+
+		it('should apply custom headers', async () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: mockAppConfig,
+				assetProcessingService: mockAssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			const mockView = (() => '<p>Cached</p>') as EcoComponent<object>;
+
+			const response = await renderer.renderToResponse(
+				mockView,
+				{},
+				{
+					headers: {
+						'Cache-Control': 'max-age=3600',
+						'X-Custom-Header': 'test-value',
+					},
+				},
+			);
+
+			expect(response.headers.get('Cache-Control')).toBe('max-age=3600');
+			expect(response.headers.get('X-Custom-Header')).toBe('test-value');
+		});
+
+		it('should render with layout when not partial', async () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: mockAppConfig,
+				assetProcessingService: mockAssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			const mockLayout = ((props: { children: string }) =>
+				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: string }>;
+
+			const mockView = ((props: { message: string }) => `<p>${props.message}</p>`) as EcoComponent<{
+				message: string;
+			}>;
+			mockView.config = { layout: mockLayout };
+
+			const response = await renderer.renderToResponse(mockView, { message: 'With Layout' }, {});
+
+			const body = await response.text();
+			expect(body).toContain('<main class="layout">');
+			expect(body).toContain('<p>With Layout</p>');
+		});
 	});
 });

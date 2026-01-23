@@ -74,7 +74,7 @@ describe('KitaRenderer', () => {
 				HtmlTemplate,
 			})
 			.catch((error) => {
-				expect(error.message).toBe('[ecopages] Error rendering page: Error: Page failed to render');
+				expect(error.message).toBe('Error rendering page: Page failed to render');
 			});
 	});
 });

@@ -9,7 +9,17 @@
 
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, ApiHandlerContext } from '../../public-types.ts';
+import type {
+	ApiHandler,
+	ApiHandlerContext,
+	EcoPageComponent,
+	ErrorHandler,
+	GroupOptions,
+	Middleware,
+	RouteGroupBuilder,
+	RouteOptions,
+	StaticRoute,
+} from '../../public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 
@@ -34,6 +44,13 @@ export interface ApplicationAdapter<T = any> {
 }
 
 /**
+ * Handler function type for route handlers
+ */
+export type RouteHandler<TRequest extends Request = Request, TServer = any> = (
+	context: ApiHandlerContext<TRequest, TServer>,
+) => Promise<Response> | Response;
+
+/**
  * Abstract base class for application adapters across different runtimes
  */
 export abstract class AbstractApplicationAdapter<
@@ -45,6 +62,8 @@ export abstract class AbstractApplicationAdapter<
 	protected serverOptions: Record<string, any>;
 	protected cliArgs: ReturnParseCliArgs;
 	protected apiHandlers: ApiHandler[] = [];
+	protected staticRoutes: StaticRoute[] = [];
+	protected errorHandler?: ErrorHandler;
 
 	constructor(options: TOptions) {
 		this.appConfig = options.appConfig;
@@ -76,81 +95,143 @@ export abstract class AbstractApplicationAdapter<
 	 * Register a GET route handler
 	 * The handler expects a context where request.params exists.
 	 */
-	abstract get<P extends string, TSpecRequest extends TRequest = TRequest>(
+	abstract get<P extends string>(
 		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
+		handler: RouteHandler<TRequest, TServer>,
+		options?: RouteOptions<TRequest, TServer>,
 	): this;
 
 	/**
 	 * Register a POST route handler
 	 */
-	abstract post<P extends string, TSpecRequest extends TRequest = TRequest>(
+	abstract post<P extends string>(
 		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
+		handler: RouteHandler<TRequest, TServer>,
+		options?: RouteOptions<TRequest, TServer>,
 	): this;
 
 	/**
 	 * Register a PUT route handler
 	 */
-	abstract put<P extends string, TSpecRequest extends TRequest = TRequest>(
+	abstract put<P extends string>(
 		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
+		handler: RouteHandler<TRequest, TServer>,
+		options?: RouteOptions<TRequest, TServer>,
 	): this;
 
 	/**
 	 * Register a DELETE route handler
 	 */
-	abstract delete<P extends string, TSpecRequest extends TRequest = TRequest>(
+	abstract delete<P extends string>(
 		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
+		handler: RouteHandler<TRequest, TServer>,
+		options?: RouteOptions<TRequest, TServer>,
 	): this;
 
 	/**
 	 * Register a PATCH route handler
 	 */
-	abstract patch<P extends string, TSpecRequest extends TRequest = TRequest>(
+	abstract patch<P extends string>(
 		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
+		handler: RouteHandler<TRequest, TServer>,
+		options?: RouteOptions<TRequest, TServer>,
 	): this;
 
 	/**
 	 * Register an OPTIONS route handler
 	 */
-	abstract options<P extends string, TSpecRequest extends TRequest = TRequest>(
+	abstract options<P extends string>(
 		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
+		handler: RouteHandler<TRequest, TServer>,
+		options?: RouteOptions<TRequest, TServer>,
 	): this;
 
 	/**
 	 * Register a HEAD route handler
 	 */
-	abstract head<P extends string, TSpecRequest extends TRequest = TRequest>(
+	abstract head<P extends string>(
 		path: P,
-		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
+		handler: RouteHandler<TRequest, TServer>,
+		options?: RouteOptions<TRequest, TServer>,
 	): this;
 
 	/**
 	 * Register a route with any HTTP method
 	 */
-	abstract route<P extends string, TSpecRequest extends TRequest = TRequest>(
+	abstract route<P extends string>(
 		path: P,
 		method: ApiHandler['method'],
-		handler: (context: ApiHandlerContext<TSpecRequest, TServer>) => Promise<Response> | Response,
+		handler: RouteHandler<TRequest, TServer>,
+		options?: RouteOptions<TRequest, TServer>,
 	): this;
 
 	/**
 	 * Internal method to add route handlers to the API handlers array
 	 */
-	protected addRouteHandler<P extends string>(
+	protected addRouteHandler<P extends string, TSpecRequest extends TRequest, TSpecServer extends TServer>(
 		path: P,
 		method: ApiHandler['method'],
-		handler: (context: ApiHandlerContext<any>) => Promise<Response> | Response,
+		handler: RouteHandler<TSpecRequest, TSpecServer>,
+		middleware?: Middleware<TSpecRequest, TSpecServer>[],
+		schema?: ApiHandler['schema'],
 	): this {
 		this.apiHandlers.push({
 			path,
 			method,
-			handler: handler as unknown as (context: any) => Promise<Response> | Response,
+			handler: handler as ApiHandler['handler'],
+			middleware: middleware as ApiHandler['middleware'],
+			schema,
 		});
+		return this;
+	}
+
+	/**
+	 * Create a route group with shared prefix and middleware.
+	 * Routes defined within the group inherit the prefix and middleware.
+	 * @param prefix - URL prefix for all routes in the group (e.g., '/api/v1')
+	 * @param callback - Function that receives a builder to define routes
+	 * @param options - Optional group-level middleware that applies to all routes
+	 * @example
+	 * app.group('/api', (r) => {
+	 *   r.get('/users', listUsers);
+	 *   r.post('/users', createUser);
+	 * }, { middleware: [authMiddleware] });
+	 */
+	group(
+		prefix: string,
+		callback: (builder: RouteGroupBuilder<TRequest, TServer>) => void,
+		options?: GroupOptions<TRequest, TServer>,
+	): this {
+		const normalizedPrefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+		const groupMiddleware = options?.middleware ?? [];
+
+		const createHandler = (
+			method: ApiHandler['method'],
+		): RouteGroupBuilder<TRequest, TServer>[Lowercase<typeof method>] => {
+			return (path, handler, routeOptions) => {
+				const combinedMiddleware = [...groupMiddleware, ...(routeOptions?.middleware ?? [])];
+				this.addRouteHandler(
+					`${normalizedPrefix}${path}`,
+					method,
+					handler,
+					combinedMiddleware.length > 0 ? combinedMiddleware : undefined,
+					routeOptions?.schema,
+				);
+				return builder;
+			};
+		};
+
+		const builder: RouteGroupBuilder<TRequest, TServer> = {
+			get: createHandler('GET'),
+			post: createHandler('POST'),
+			put: createHandler('PUT'),
+			delete: createHandler('DELETE'),
+			patch: createHandler('PATCH'),
+			options: createHandler('OPTIONS'),
+			head: createHandler('HEAD'),
+		};
+
+		callback(builder);
 		return this;
 	}
 
@@ -159,6 +240,48 @@ export abstract class AbstractApplicationAdapter<
 	 */
 	getApiHandlers(): ApiHandler[] {
 		return this.apiHandlers;
+	}
+
+	/**
+	 * Register a view for static generation at build time.
+	 * The view must have staticPaths defined for dynamic routes.
+	 * @param path - URL path pattern (e.g., '/posts/:slug')
+	 * @param view - The eco.page view component to render
+	 */
+	static<P>(path: string, view: EcoPageComponent<P>): this {
+		this.staticRoutes.push({ path, view });
+		return this;
+	}
+
+	/**
+	 * Get all registered static routes
+	 */
+	getStaticRoutes(): StaticRoute[] {
+		return this.staticRoutes;
+	}
+
+	/**
+	 * Register a global error handler for all routes.
+	 * Useful for logging, monitoring integration, and custom error formatting.
+	 *
+	 * @example
+	 * ```typescript
+	 * app.onError(async (error, ctx) => {
+	 *   logger.error(error);
+	 *   return ctx.response.status(500).json({ error: 'Something went wrong' });
+	 * });
+	 * ```
+	 */
+	onError(handler: ErrorHandler<TRequest, TServer>): this {
+		this.errorHandler = handler as unknown as ErrorHandler;
+		return this;
+	}
+
+	/**
+	 * Get the registered error handler
+	 */
+	getErrorHandler(): ErrorHandler | undefined {
+		return this.errorHandler;
 	}
 
 	/**

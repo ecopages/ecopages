@@ -31,6 +31,16 @@ import {
 } from '../services/asset-processing-service/index.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
+import { HttpError } from '../errors/http-error.ts';
+
+/**
+ * Context for renderToResponse method.
+ */
+export interface RenderToResponseContext {
+	partial?: boolean;
+	status?: number;
+	headers?: HeadersInit;
+}
 
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
@@ -54,6 +64,45 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		if (this.assetProcessingService) {
 			this.assetProcessingService.setHmrManager(hmrManager);
 		}
+	}
+
+	/**
+	 * Build response headers with optional custom headers.
+	 * @param contentType - The Content-Type header value
+	 * @param customHeaders - Optional custom headers to merge
+	 * @returns Headers object
+	 */
+	protected buildHeaders(contentType: string, customHeaders?: HeadersInit): Headers {
+		const headers = new Headers({ 'Content-Type': contentType });
+		if (customHeaders) {
+			const incoming = new Headers(customHeaders);
+			incoming.forEach((value, key) => headers.set(key, value));
+		}
+		return headers;
+	}
+
+	/**
+	 * Create an HTML Response.
+	 * @param body - Response body (string or ReadableStream)
+	 * @param ctx - Render context with status and headers
+	 * @returns Response object
+	 */
+	protected createHtmlResponse(body: BodyInit, ctx: RenderToResponseContext): Response {
+		return new Response(body, {
+			status: ctx.status ?? 200,
+			headers: this.buildHeaders('text/html; charset=utf-8', ctx.headers),
+		});
+	}
+
+	/**
+	 * Create an HttpError for render failures.
+	 * @param message - Error message
+	 * @param cause - Original error if available
+	 * @returns HttpError with 500 status
+	 */
+	protected createRenderError(message: string, cause?: unknown): HttpError {
+		const errorMessage = cause instanceof Error ? `${message}: ${cause.message}` : message;
+		return HttpError.InternalServerError(errorMessage);
 	}
 
 	constructor({
@@ -486,6 +535,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The rendered body.
 	 */
 	abstract render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
+
+	/**
+	 * Render a view directly to a Response object.
+	 * Used for explicit routing where views are rendered from route handlers.
+	 *
+	 * @param view - The eco.page component to render
+	 * @param props - Props to pass to the view
+	 * @param ctx - Render context with partial flag and response options
+	 * @returns A Response object with the rendered content
+	 */
+	abstract renderToResponse<P = Record<string, unknown>>(
+		view: EcoComponent<P>,
+		props: P,
+		ctx: RenderToResponseContext,
+	): Promise<Response>;
 
 	/**
 	 * Method to build route render assets.

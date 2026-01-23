@@ -31,7 +31,10 @@
 		"ghtml": "^3.1.2"
 	},
 	"devDependencies": {
-		"@types/bun": "latest"
+		"@types/bun": "latest",
+		"arktype": "^2.1.29",
+		"valibot": "^1.2.0",
+		"zod": "^4.3.6"
 	},
 	"exports": {
 		".": {
@@ -119,6 +122,10 @@
 		"./hash": {
 			"import": "./src/utils/hash.ts",
 			"require": "./src/utils/hash.ts"
+		},
+		"./errors": {
+			"types": "./src/errors/index.ts",
+			"default": "./src/errors/index.ts"
 		}
 	}
 }

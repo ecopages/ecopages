@@ -46,9 +46,11 @@ export interface ApplicationAdapter<T = any> {
 /**
  * Handler function type for route handlers
  */
-export type RouteHandler<TRequest extends Request = Request, TServer = any> = (
-	context: ApiHandlerContext<TRequest, TServer>,
-) => Promise<Response> | Response;
+export type RouteHandler<
+	TRequest extends Request = Request,
+	TServer = any,
+	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+> = (context: TContext) => Promise<Response> | Response;
 
 /**
  * Abstract base class for application adapters across different runtimes
@@ -95,64 +97,85 @@ export abstract class AbstractApplicationAdapter<
 	 * Register a GET route handler
 	 * The handler expects a context where request.params exists.
 	 */
-	abstract get<P extends string>(
+	abstract get<
+		P extends string,
+		TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	>(
 		path: P,
-		handler: RouteHandler<TRequest, TServer>,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: RouteHandler<TRequest, TServer, TContext>,
+		options?: RouteOptions<TRequest, TServer, TContext>,
 	): this;
 
 	/**
 	 * Register a POST route handler
 	 */
-	abstract post<P extends string>(
+	abstract post<
+		P extends string,
+		TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	>(
 		path: P,
-		handler: RouteHandler<TRequest, TServer>,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: RouteHandler<TRequest, TServer, TContext>,
+		options?: RouteOptions<TRequest, TServer, TContext>,
 	): this;
 
 	/**
 	 * Register a PUT route handler
 	 */
-	abstract put<P extends string>(
+	abstract put<
+		P extends string,
+		TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	>(
 		path: P,
-		handler: RouteHandler<TRequest, TServer>,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: RouteHandler<TRequest, TServer, TContext>,
+		options?: RouteOptions<TRequest, TServer, TContext>,
 	): this;
 
 	/**
 	 * Register a DELETE route handler
 	 */
-	abstract delete<P extends string>(
+	abstract delete<
+		P extends string,
+		TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	>(
 		path: P,
-		handler: RouteHandler<TRequest, TServer>,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: RouteHandler<TRequest, TServer, TContext>,
+		options?: RouteOptions<TRequest, TServer, TContext>,
 	): this;
 
 	/**
 	 * Register a PATCH route handler
 	 */
-	abstract patch<P extends string>(
+	abstract patch<
+		P extends string,
+		TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	>(
 		path: P,
-		handler: RouteHandler<TRequest, TServer>,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: RouteHandler<TRequest, TServer, TContext>,
+		options?: RouteOptions<TRequest, TServer, TContext>,
 	): this;
 
 	/**
 	 * Register an OPTIONS route handler
 	 */
-	abstract options<P extends string>(
+	abstract options<
+		P extends string,
+		TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	>(
 		path: P,
-		handler: RouteHandler<TRequest, TServer>,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: RouteHandler<TRequest, TServer, TContext>,
+		options?: RouteOptions<TRequest, TServer, TContext>,
 	): this;
 
 	/**
 	 * Register a HEAD route handler
 	 */
-	abstract head<P extends string>(
+	abstract head<
+		P extends string,
+		TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	>(
 		path: P,
-		handler: RouteHandler<TRequest, TServer>,
-		options?: RouteOptions<TRequest, TServer>,
+		handler: RouteHandler<TRequest, TServer, TContext>,
+		options?: RouteOptions<TRequest, TServer, TContext>,
 	): this;
 
 	/**
@@ -168,11 +191,16 @@ export abstract class AbstractApplicationAdapter<
 	/**
 	 * Internal method to add route handlers to the API handlers array
 	 */
-	protected addRouteHandler<P extends string, TSpecRequest extends TRequest, TSpecServer extends TServer>(
+	protected addRouteHandler<
+		P extends string,
+		TSpecRequest extends TRequest = TRequest,
+		TSpecServer extends TServer = TServer,
+		TContext extends ApiHandlerContext<TSpecRequest, TSpecServer> = ApiHandlerContext<TSpecRequest, TSpecServer>,
+	>(
 		path: P,
 		method: ApiHandler['method'],
-		handler: RouteHandler<TSpecRequest, TSpecServer>,
-		middleware?: Middleware<TSpecRequest, TSpecServer>[],
+		handler: RouteHandler<TSpecRequest, TSpecServer, TContext>,
+		middleware?: Middleware<TSpecRequest, TSpecServer, TContext>[],
 		schema?: ApiHandler['schema'],
 	): this {
 		this.apiHandlers.push({
@@ -197,31 +225,39 @@ export abstract class AbstractApplicationAdapter<
 	 *   r.post('/users', createUser);
 	 * }, { middleware: [authMiddleware] });
 	 */
-	group(
+	group<TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>>(
 		prefix: string,
-		callback: (builder: RouteGroupBuilder<TRequest, TServer>) => void,
-		options?: GroupOptions<TRequest, TServer>,
+		callback: (builder: RouteGroupBuilder<TRequest, TServer, TContext>) => void,
+		options?: GroupOptions<TRequest, TServer, TContext>,
 	): this {
 		const normalizedPrefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
 		const groupMiddleware = options?.middleware ?? [];
 
 		const createHandler = (
 			method: ApiHandler['method'],
-		): RouteGroupBuilder<TRequest, TServer>[Lowercase<typeof method>] => {
-			return (path, handler, routeOptions) => {
-				const combinedMiddleware = [...groupMiddleware, ...(routeOptions?.middleware ?? [])];
+		): RouteGroupBuilder<TRequest, TServer, TContext>[Lowercase<typeof method>] => {
+			return ((
+				path: string,
+				handler: RouteHandler<TRequest, TServer, TContext>,
+				routeOptions?: RouteOptions<TRequest, TServer, TContext>,
+			) => {
+				const combinedMiddleware: Middleware<TRequest, TServer, TContext>[] = [
+					...groupMiddleware,
+					...(routeOptions?.middleware ?? []),
+				];
+				const fullPath = path === '/' ? normalizedPrefix : `${normalizedPrefix}${path}`;
 				this.addRouteHandler(
-					`${normalizedPrefix}${path}`,
+					fullPath,
 					method,
 					handler,
 					combinedMiddleware.length > 0 ? combinedMiddleware : undefined,
 					routeOptions?.schema,
 				);
 				return builder;
-			};
+			}) as RouteGroupBuilder<TRequest, TServer, TContext>[Lowercase<typeof method>];
 		};
 
-		const builder: RouteGroupBuilder<TRequest, TServer> = {
+		const builder: RouteGroupBuilder<TRequest, TServer, TContext> = {
 			get: createHandler('GET'),
 			post: createHandler('POST'),
 			put: createHandler('PUT'),

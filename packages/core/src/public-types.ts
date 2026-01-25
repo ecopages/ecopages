@@ -821,11 +821,59 @@ export type MiddlewareNext = () => Promise<Response>;
  * Middleware function signature.
  * Receives the request context and a next function to continue the chain.
  * Can short-circuit by returning a Response directly without calling next().
+ *
+ * @typeParam TRequest - Request type
+ * @typeParam TServer - Server type
+ * @typeParam TContext - Extended context type, defaults to base ApiHandlerContext
+ *
+ * @example Basic middleware (no context extension)
+ * ```typescript
+ * const loggingMiddleware: Middleware = async (ctx, next) => {
+ *   console.log(`${ctx.request.method} ${ctx.request.url}`);
+ *   return next();
+ * };
+ * ```
+ *
+ * @example Middleware with extended context (use EcoMiddleware helper)
+ * ```typescript
+ * type AuthContext = ApiHandlerContext<BunRequest<string>, Server> & { user: User };
+ *
+ * const authMiddleware: EcoMiddleware<AuthContext> = async (ctx, next) => {
+ *   const user = await authenticate(ctx.request);
+ *   if (!user) return ctx.response.status(401).json({ error: 'Unauthorized' });
+ *   ctx.user = user;
+ *   return next();
+ * };
+ * ```
  */
-export type Middleware<TRequest extends Request = Request, TServer = any> = (
-	context: ApiHandlerContext<TRequest, TServer>,
-	next: MiddlewareNext,
-) => Promise<Response> | Response;
+export type Middleware<
+	TRequest extends Request = Request,
+	TServer = any,
+	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+> = (context: TContext, next: MiddlewareNext) => Promise<Response> | Response;
+
+/**
+ * Helper type for defining middleware with extended context.
+ * Automatically infers TRequest and TServer from the provided context type.
+ *
+ * @typeParam TContext - The extended context type that includes TRequest and TServer
+ *
+ * @example
+ * ```typescript
+ * type AuthContext = ApiHandlerContext<BunRequest<string>, Server> & {
+ *   session: { user: User };
+ * };
+ *
+ * const authMiddleware: EcoMiddleware<AuthContext> = async (ctx, next) => {
+ *   const session = await authenticate(ctx.request);
+ *   if (!session) return Response.redirect('/login');
+ *   ctx.session = session;
+ *   return next();
+ * };
+ * ```
+ */
+export type EcoMiddleware<TContext extends ApiHandlerContext<any, any>> =
+	TContext extends ApiHandlerContext<infer TRequest, infer TServer> ? Middleware<TRequest, TServer, TContext> : never;
 
 /**
  * Represents an API handler in EcoPages.
@@ -892,7 +940,7 @@ export interface ApiHandler<TPath extends string = string, TRequest extends Requ
 	method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
 	handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
 	/** Optional middleware chain executed before the handler */
-	middleware?: Middleware<TRequest, TServer>[];
+	middleware?: Middleware<TRequest, TServer, any>[];
 	/** Optional validation schemas for request body, query parameters, and headers */
 	schema?: {
 		body?: StandardSchema;
@@ -914,8 +962,12 @@ export type ErrorHandler<TRequest extends Request = Request, TServer = any> = (
 /**
  * Options for route handlers.
  */
-export interface RouteOptions<TRequest extends Request = Request, TServer = any> {
-	middleware?: Middleware<TRequest, TServer>[];
+export interface RouteOptions<
+	TRequest extends Request = Request,
+	TServer = any,
+	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+> {
+	middleware?: Middleware<TRequest, TServer, TContext>[];
 	schema?: RouteSchema;
 }
 
@@ -945,57 +997,96 @@ export type TypedApiHandlerContext<
 
 /**
  * Options for the group method.
+ *
+ * @typeParam TContext - Extended context type that middleware provides to handlers
+ *
+ * @example Group with auth middleware extending context
+ * ```typescript
+ * type AuthContext = ApiHandlerContext<BunRequest<string>, Server> & { user: User };
+ *
+ * app.group<AuthContext>('/api', (r) => {
+ *   r.get('/profile', (ctx) => {
+ *     // ctx.user is properly typed!
+ *     return ctx.json({ name: ctx.user.name });
+ *   });
+ * }, { middleware: [authMiddleware] });
+ * ```
  */
-export interface GroupOptions<TRequest extends Request = Request, TServer = any> {
-	middleware?: Middleware<TRequest, TServer>[];
+export interface GroupOptions<
+	TRequest extends Request = Request,
+	TServer = any,
+	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+> {
+	middleware?: Middleware<TRequest, TServer, TContext>[];
 }
+
+/**
+ * Context type that combines schema-typed fields with an extended base context.
+ * Used by RouteGroupBuilder to merge schema validation types with middleware-extended context.
+ */
+export type TypedGroupHandlerContext<TSchema extends RouteSchema, TContext extends ApiHandlerContext<any, any>> = Omit<
+	TContext,
+	'body' | 'query' | 'headers'
+> & {
+	body: InferSchemaOutput<TSchema['body']>;
+	query: InferSchemaOutput<TSchema['query']>;
+	headers: InferSchemaOutput<TSchema['headers']>;
+};
 
 /**
  * Builder interface for defining routes within a group.
  * Provides chainable methods for registering routes with shared prefix and middleware.
+ *
+ * @typeParam TRequest - The request type
+ * @typeParam TServer - The server type
+ * @typeParam TContext - Extended context type from group middleware
  */
-export interface RouteGroupBuilder<TRequest extends Request = Request, TServer = any> {
+export interface RouteGroupBuilder<
+	TRequest extends Request = Request,
+	TServer = any,
+	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+> {
 	get<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer>;
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	post<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer>;
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	put<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer>;
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	delete<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer>;
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	patch<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer>;
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	options<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer>;
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	head<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedApiHandlerContext<TSchema, TRequest, TServer>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer>;
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer, TContext>;
 }
 
 /**

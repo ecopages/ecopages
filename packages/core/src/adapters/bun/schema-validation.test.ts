@@ -172,7 +172,7 @@ describe('Schema Validation', () => {
 
 		expect(res.status).toBe(400);
 		const data = await res.json();
-		expect(data.error).toBe('Invalid JSON body');
+		expect(data.error).toBe('Invalid request body');
 	});
 
 	test('should validate query parameters successfully', async () => {

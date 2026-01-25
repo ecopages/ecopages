@@ -332,7 +332,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async processComponentDependencies(
 		components: (EcoComponent | Partial<EcoComponent>)[],
 	): Promise<ProcessedAsset[]> {
-		if (!this.assetProcessingService) return [];
+		if (!this.assetProcessingService?.processDependencies) return [];
 		const dependencies: AssetDefinition[] = [];
 
 		for (const component of components) {

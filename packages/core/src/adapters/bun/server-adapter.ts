@@ -325,6 +325,26 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	}
 
 	/**
+	 * Helper method to retrieve and parse the request body.
+	 * Handles JSON and plain text content types.
+	 * For FormData (multipart/form-data, x-www-form-urlencoded), use ctx.request.formData() directly.
+	 * Returns undefined for unsupported content types.
+	 */
+	private async retrieveBodyFromRequest(request: Request): Promise<unknown> {
+		const contentType = request.headers.get('Content-Type') || '';
+
+		if (contentType.includes('application/json')) {
+			return await request.json();
+		}
+
+		if (contentType.includes('text/plain')) {
+			return await request.text();
+		}
+
+		return undefined;
+	}
+
+	/**
 	 * Creates complete server configuration with merged routes, API handlers, and request handling.
 	 * @returns Server options ready for Bun.serve()
 	 */
@@ -374,10 +394,10 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 						let body: unknown;
 						if (schema.body) {
 							try {
-								body = await request.json();
+								body = await this.retrieveBodyFromRequest(request);
 							} catch {
 								return context.response.status(400).json({
-									error: 'Invalid JSON body',
+									error: 'Invalid request body',
 								});
 							}
 						}

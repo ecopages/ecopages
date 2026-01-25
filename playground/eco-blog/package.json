@@ -18,7 +18,6 @@
 	},
 	"dependencies": {
 		"better-auth": "latest",
-		"better-sqlite3": "latest",
 		"@tiptap/core": "latest",
 		"@tiptap/pm": "latest",
 		"@tiptap/starter-kit": "latest",

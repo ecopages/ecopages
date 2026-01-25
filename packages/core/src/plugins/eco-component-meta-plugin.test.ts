@@ -12,7 +12,7 @@ describe('eco-component-meta-plugin', () => {
 			},
 			{
 				name: 'react',
-				extensions: ['.tsx', '.mdx'],
+				extensions: ['.tsx'],
 			},
 			{
 				name: 'ghtml',
@@ -53,23 +53,7 @@ describe('eco-component-meta-plugin', () => {
 		}
 	}
 
-	it('should inject __eco into export const config assignment', async () => {
-		const content = `
-            import { Counter } from './counter';
-            export const config = {
-                dependencies: {
-                    components: [Counter],
-                },
-            };
-        `;
-
-		const result = await runPluginOnContent(content, '/path/to/file.tsx');
-
-		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
-	});
-
-	it('should inject __eco into config assignment', async () => {
+	it('should inject __eco into X.config assignment in TSX files', async () => {
 		const content = `
             MyComponent.config = {
                 dependencies: {}
@@ -82,16 +66,34 @@ describe('eco-component-meta-plugin', () => {
 		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
 	});
 
-	it('should inject __eco into config object property', async () => {
+	it('should NOT inject __eco into config patterns in non-EcoComponent files', async () => {
 		const content = `
-            export const MyElement = {
-                config: {
-                    dependencies: {}
-                }
+            export const config = {
+                apiUrl: 'https://api.example.com',
+                theme: 'dark'
             };
         `;
 
-		const result = await runPluginOnContent(content, '/path/to/element.ts');
+		const result = await runPluginOnContent(content, '/path/to/settings.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).not.toContain('__eco:');
+	});
+
+	it('should inject __eco into EcoComponent-typed object with config property', async () => {
+		const content = `
+            import type { EcoComponent } from '@ecopages/core';
+
+            export const LitCounter: EcoComponent = {
+                config: {
+                    dependencies: {
+                        scripts: ['lit-counter.script.ts'],
+                    },
+                },
+            };
+        `;
+
+		const result = await runPluginOnContent(content, '/path/to/lit-counter.ts');
 
 		expect(result).toBeDefined();
 		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "ghtml" },');
@@ -171,5 +173,154 @@ export const Head = eco.component<PageHeadProps<string>>({
 
 		expect(result).toBeDefined();
 		expect(result.contents).toContain('__eco: { dir: "/path/to/includes", integration: "kitajs" },');
+	});
+
+	it('should handle eco.page with complex generic types', async () => {
+		const content = `
+import { eco } from '@ecopages/core';
+
+export default eco.page<{ title: string; callback: (arg: string) => void }>({
+	staticProps: async () => ({ props: { title: 'Hello', callback: () => {} } }),
+	render: (props) => '<div>' + props.title + '</div>',
+});
+`;
+
+		const result = await runPluginOnContent(content, '/path/to/pages/complex.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain('__eco: { dir: "/path/to/pages", integration: "react" },');
+	});
+
+	it('should handle multiple eco.component calls in same file', async () => {
+		const content = `
+import { eco } from '@ecopages/core';
+
+export const Button = eco.component({
+	render: () => '<button>Click</button>',
+});
+
+export const Input = eco.component({
+	render: () => '<input type="text" />',
+});
+`;
+
+		const result = await runPluginOnContent(content, '/path/to/components.tsx');
+
+		expect(result).toBeDefined();
+		const matches = result.contents.match(/__eco: \{ dir: "\/path\/to", integration: "react" \},/g);
+		expect(matches).toHaveLength(2);
+	});
+
+	it('should handle eco.component with empty config object', async () => {
+		const content = `
+import { eco } from '@ecopages/core';
+
+export const Simple = eco.component({});
+`;
+
+		const result = await runPluginOnContent(content, '/path/to/simple.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
+	});
+
+	it('should not inject into non-eco call expressions', async () => {
+		const content = `
+import { other } from 'some-lib';
+
+export const Thing = other.component({
+	render: () => '<div>Thing</div>',
+});
+`;
+
+		const result = await runPluginOnContent(content, '/path/to/thing.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).not.toContain('__eco:');
+	});
+
+	it('should not inject into non-config variable declarations', async () => {
+		const content = `
+const settings = {
+	theme: 'dark',
+	locale: 'en',
+};
+`;
+
+		const result = await runPluginOnContent(content, '/path/to/settings.ts');
+
+		expect(result).toBeDefined();
+		expect(result.contents).not.toContain('__eco:');
+	});
+
+	it('should handle file paths with special characters in directory', async () => {
+		const content = `
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	render: () => '<div>Page</div>',
+});
+`;
+
+		const result = await runPluginOnContent(content, '/path/to/my-app/pages/index.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain('__eco: { dir: "/path/to/my-app/pages", integration: "react" },');
+	});
+
+	it('should handle eco.component with nested object in dependencies', async () => {
+		const content = `
+import { eco } from '@ecopages/core';
+
+export const LazyComponent = eco.component({
+	dependencies: {
+		lazy: {
+			'on:interaction': 'click',
+			scripts: ['./script.ts'],
+			stylesheets: ['./style.css'],
+		},
+		components: [],
+	},
+	render: () => '<div>Lazy</div>',
+});
+`;
+
+		const result = await runPluginOnContent(content, '/path/to/lazy.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
+	});
+
+	it('should preserve original code structure after injection', async () => {
+		const content = `import { eco } from '@ecopages/core';
+
+export const Counter = eco.component({
+	dependencies: {
+		scripts: ['./counter.ts'],
+	},
+	render: () => '<button>0</button>',
+});`;
+
+		const result = await runPluginOnContent(content, '/path/to/counter.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain("import { eco } from '@ecopages/core';");
+		expect(result.contents).toContain("scripts: ['./counter.ts']");
+		expect(result.contents).toContain("render: () => '<button>0</button>'");
+	});
+
+	it('should handle query string in file path for cache busting', async () => {
+		const content = `
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	render: () => '<div>Page</div>',
+});
+`;
+
+		const result = await runPluginOnContent(content, '/path/to/pages/index.tsx?update=123456');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toContain('__eco: { dir: "/path/to/pages", integration: "react" },');
 	});
 });

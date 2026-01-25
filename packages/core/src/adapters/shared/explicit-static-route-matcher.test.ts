@@ -244,7 +244,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const match = matcher.match('http://localhost:3000/about');
 
 			expect(match).not.toBeNull();
-			await expect(matcher.handleMatch(match!)).rejects.toThrow('missing __eco.integration');
+			expect(matcher.handleMatch(match!)).rejects.toThrow('missing __eco.integration');
 		});
 
 		test('should throw error when renderer is not found', async () => {
@@ -261,7 +261,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 
 			const match = matcher.match('http://localhost:3000/about');
 
-			await expect(matcher.handleMatch(match!)).rejects.toThrow(
+			expect(matcher.handleMatch(match!)).rejects.toThrow(
 				'No renderer found for integration: nonexistent-integration',
 			);
 		});

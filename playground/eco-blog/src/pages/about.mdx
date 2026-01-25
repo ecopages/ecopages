@@ -1,0 +1,29 @@
+import { BaseLayout } from '@/layouts/base-layout';
+import { Card } from '@/components/card';
+import { RadiantCounter } from '@/components/radiant-counter';
+
+export const config = {
+	layout: BaseLayout,
+	dependencies: {
+		components: [BaseLayout, Card, RadiantCounter],
+	},
+};
+
+export const getMetadata = () => ({
+	title: 'Docs | Context Consumer',
+	description: 'The place to learn about @ecopages/radiant',
+});
+
+<div class="prose">
+
+# About Page
+
+## This is the about page
+
+You can edit this page by opening `src/pages/about.mdx`
+
+<RadiantCounter />
+
+<Card title="Card title" copy="<a href='/'>Go to homepage</a>" />
+
+</div>

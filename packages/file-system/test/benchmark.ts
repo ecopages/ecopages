@@ -28,72 +28,82 @@ console.log('\n@ecopages/file-system Benchmark\n');
 console.log('Comparing BunFileSystem vs NodeFileSystem\n');
 
 group('glob(**/*.ts) - 100 files', () => {
-	bench('BunFileSystem', async () => {
+	bench('BunFileSystem (Bun.Glob)', async () => {
 		await bunFs.glob(['**/*.ts'], { cwd: BENCH_DIR });
 	});
 
-	bench('NodeFileSystem', async () => {
+	bench('NodeFileSystem (fast-glob)', async () => {
 		await nodeFs.glob(['**/*.ts'], { cwd: BENCH_DIR });
 	});
 });
 
 group('readFile (small - 11 bytes)', () => {
-	bench('BunFileSystem', async () => {
+	bench('BunFileSystem (Bun.file)', async () => {
 		await bunFs.readFile(SMALL_FILE);
 	});
 
-	bench('NodeFileSystem', async () => {
+	bench('NodeFileSystem (node:fs/promises)', async () => {
 		await nodeFs.readFile(SMALL_FILE);
 	});
 });
 
 group('readFile (large - 1MB)', () => {
-	bench('BunFileSystem', async () => {
+	bench('BunFileSystem (Bun.file)', async () => {
 		await bunFs.readFile(LARGE_FILE);
 	});
 
-	bench('NodeFileSystem', async () => {
+	bench('NodeFileSystem (node:fs/promises)', async () => {
 		await nodeFs.readFile(LARGE_FILE);
 	});
 });
 
 group('readFileSync (small)', () => {
-	bench('BunFileSystem', () => {
+	bench('BunFileSystem (node:fs)', () => {
 		bunFs.readFileSync(SMALL_FILE);
 	});
 
-	bench('NodeFileSystem', () => {
+	bench('NodeFileSystem (node:fs)', () => {
 		nodeFs.readFileSync(SMALL_FILE);
 	});
 });
 
 group('hash (small file)', () => {
-	bench('BunFileSystem', () => {
+	bench('BunFileSystem (Bun.hash)', () => {
 		bunFs.hash(SMALL_FILE);
 	});
 
-	bench('NodeFileSystem', () => {
+	bench('NodeFileSystem (node:crypto)', () => {
 		nodeFs.hash(SMALL_FILE);
 	});
 });
 
 group('hash (large 1MB file)', () => {
-	bench('BunFileSystem', () => {
+	bench('BunFileSystem (Bun.hash)', () => {
 		bunFs.hash(LARGE_FILE);
 	});
 
-	bench('NodeFileSystem', () => {
+	bench('NodeFileSystem (node:crypto)', () => {
 		nodeFs.hash(LARGE_FILE);
 	});
 });
 
-group('exists check', () => {
-	bench('BunFileSystem', () => {
+group('exists check (sync)', () => {
+	bench('BunFileSystem (node:fs)', () => {
 		bunFs.exists(SMALL_FILE);
 	});
 
-	bench('NodeFileSystem', () => {
+	bench('NodeFileSystem (node:fs)', () => {
 		nodeFs.exists(SMALL_FILE);
+	});
+});
+
+group('exists check (async)', () => {
+	bench('BunFileSystem (Bun.file().exists())', async () => {
+		await bunFs.existsAsync(SMALL_FILE);
+	});
+
+	bench('NodeFileSystem (node:fs/promises access)', async () => {
+		await nodeFs.existsAsync(SMALL_FILE);
 	});
 });
 
@@ -106,7 +116,7 @@ group('writeAsync (small - 11 bytes)', () => {
 		await bunFs.writeAsync(WRITE_FILE, WRITE_CONTENT_SMALL);
 	});
 
-	bench('NodeFileSystem (node:fs)', async () => {
+	bench('NodeFileSystem (node:fs/promises)', async () => {
 		await nodeFs.writeAsync(WRITE_FILE, WRITE_CONTENT_SMALL);
 	});
 });
@@ -116,8 +126,19 @@ group('writeAsync (large - 1MB)', () => {
 		await bunFs.writeAsync(WRITE_FILE, WRITE_CONTENT_LARGE);
 	});
 
-	bench('NodeFileSystem (node:fs)', async () => {
+	bench('NodeFileSystem (node:fs/promises)', async () => {
 		await nodeFs.writeAsync(WRITE_FILE, WRITE_CONTENT_LARGE);
+	});
+});
+
+group('copyFileAsync (large - 1MB)', () => {
+	const DEST = path.join(BENCH_DIR, 'copy-dest.txt');
+	bench('BunFileSystem (Bun.write optimized)', async () => {
+		await bunFs.copyFileAsync(LARGE_FILE, DEST);
+	});
+
+	bench('NodeFileSystem (node:fs/promises cp)', async () => {
+		await nodeFs.copyFileAsync(LARGE_FILE, DEST);
 	});
 });
 

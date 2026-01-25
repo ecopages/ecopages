@@ -25,13 +25,13 @@ import type { FileSystem } from './types.ts';
  * Creates a FileSystem instance based on the current runtime.
  * Uses Bun adapter if Bun is available, otherwise Node adapter.
  */
-function createFileSystem(): FileSystem {
+async function createFileSystem(): Promise<FileSystem> {
 	if (typeof Bun !== 'undefined') {
-		const { bunFs } = require('./adapters/bun');
+		const { bunFs } = await import('./adapters/bun.ts');
 		return bunFs;
 	}
 
-	const { nodeFs } = require('./adapters/node');
+	const { nodeFs } = await import('./adapters/node.ts');
 	return nodeFs;
 }
 
@@ -39,4 +39,4 @@ function createFileSystem(): FileSystem {
  * Runtime-agnostic file system instance.
  * Automatically uses Bun or Node adapter based on environment.
  */
-export const fileSystem: FileSystem = createFileSystem();
+export const fileSystem: FileSystem = await createFileSystem();

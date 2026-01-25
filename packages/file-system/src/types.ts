@@ -66,11 +66,25 @@ export interface FileSystem {
 	ensureDir(dirPath: string, forceCleanup?: boolean): void;
 
 	/**
+	 * Ensure a directory exists asynchronously, optionally cleaning it first.
+	 * @param dirPath - Directory path
+	 * @param forceCleanup - If true, remove existing directory first
+	 */
+	ensureDirAsync(dirPath: string, forceCleanup?: boolean): Promise<void>;
+
+	/**
 	 * Copy a directory recursively.
 	 * @param source - Source directory
 	 * @param destination - Destination directory
 	 */
 	copyDir(source: string, destination: string): void;
+
+	/**
+	 * Copy a directory recursively asynchronously.
+	 * @param source - Source directory
+	 * @param destination - Destination directory
+	 */
+	copyDirAsync(source: string, destination: string): Promise<void>;
 
 	/**
 	 * Remove all contents of a directory.
@@ -79,10 +93,22 @@ export interface FileSystem {
 	emptyDir(path: string): void;
 
 	/**
+	 * Remove all contents of a directory asynchronously.
+	 * @param path - Directory path
+	 */
+	emptyDirAsync(path: string): Promise<void>;
+
+	/**
 	 * Check if a path is a directory.
 	 * @param path - Path to check
 	 */
 	isDirectory(path: string): boolean;
+
+	/**
+	 * Check if a path is a directory asynchronously.
+	 * @param path - Path to check
+	 */
+	isDirectoryAsync(path: string): Promise<boolean>;
 
 	/**
 	 * Check if a file or directory exists.
@@ -91,11 +117,24 @@ export interface FileSystem {
 	exists(path: string): boolean;
 
 	/**
+	 * Check if a file or directory exists asynchronously.
+	 * @param path - Path to check
+	 */
+	existsAsync(path: string): Promise<boolean>;
+
+	/**
 	 * Copy a file.
 	 * @param source - Source file path
 	 * @param destination - Destination file path
 	 */
 	copyFile(source: string, destination: string): void;
+
+	/**
+	 * Copy a file asynchronously.
+	 * @param source - Source file path
+	 * @param destination - Destination file path
+	 */
+	copyFileAsync(source: string, destination: string): Promise<void>;
 
 	/**
 	 * Remove a file or directory synchronously.

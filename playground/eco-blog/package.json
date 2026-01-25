@@ -1,5 +1,5 @@
 {
-	"name": "@ecopages/playground-explicit-routes",
+	"name": "@ecopages/eco-blog",
 	"private": true,
 	"scripts": {
 		"start": "bun run --preload ./eco.config.ts app.ts",
@@ -11,12 +11,18 @@
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/kitajs": "workspace:*",
-		"@ecopages/browser-router": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@tailwindcss/postcss": "^4.1.18",
-		"tailwindcss": "^4.1.18"
+		"@ecopages/radiant": "latest",
+		"@tailwindcss/postcss": "latest",
+		"tailwindcss": "latest"
 	},
 	"dependencies": {
-		"zod": "^4.3.6"
+		"better-auth": "latest",
+		"better-sqlite3": "latest",
+		"@tiptap/core": "latest",
+		"@tiptap/pm": "latest",
+		"@tiptap/starter-kit": "latest",
+		"tiptap-markdown": "latest",
+		"zod": "latest"
 	}
 }

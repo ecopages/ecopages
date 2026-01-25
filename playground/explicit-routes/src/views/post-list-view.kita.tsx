@@ -7,10 +7,6 @@ export type PostListViewProps = {
 };
 
 export const PostListView = eco.page<PostListViewProps>({
-	__eco: {
-		integration: 'kitajs',
-		dir: import.meta.dir,
-	},
 	layout: MainLayout,
 	metadata: () => ({
 		title: 'Posts | Explicit Routes',

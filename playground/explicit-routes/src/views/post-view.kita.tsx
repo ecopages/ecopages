@@ -5,10 +5,6 @@ import { type Post, posts } from '@/data';
 export type PostViewProps = Post;
 
 export const PostView = eco.page<PostViewProps>({
-	__eco: {
-		integration: 'kitajs',
-		dir: import.meta.dir,
-	},
 	layout: MainLayout,
 	metadata: ({ props }) => ({
 		title: `${props.title} | Explicit Routes`,

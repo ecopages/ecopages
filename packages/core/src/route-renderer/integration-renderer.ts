@@ -105,6 +105,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return HttpError.InternalServerError(errorMessage);
 	}
 
+	/**
+	 * Prepares dependencies for renderToResponse by resolving component dependencies
+	 * and configuring the HTML transformer.
+	 * @param view - The view component being rendered
+	 * @param layout - Optional layout component
+	 * @returns Resolved processed assets
+	 */
+	protected async prepareViewDependencies(view: EcoComponent, layout?: EcoComponent): Promise<ProcessedAsset[]> {
+		const HtmlTemplate = await this.getHtmlTemplate();
+		const componentsToResolve = layout ? [HtmlTemplate, layout, view] : [HtmlTemplate, view];
+		const resolvedDependencies = await this.resolveDependencies(componentsToResolve);
+		this.htmlTransformer.setProcessedDependencies(resolvedDependencies);
+		return resolvedDependencies;
+	}
+
 	constructor({
 		appConfig,
 		assetProcessingService,

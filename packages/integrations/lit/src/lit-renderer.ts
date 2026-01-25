@@ -74,45 +74,51 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
 			const pageContent = await viewFn(props);
 
-			const DOC_TYPE = this.DOC_TYPE;
-			let readable: RenderResultReadable;
-
 			if (ctx.partial) {
 				function* streamBody() {
 					yield* render(unsafeHTML(pageContent));
 				}
-				readable = new RenderResultReadable(streamBody());
-			} else {
-				const children = Layout ? await Layout({ children: pageContent }) : pageContent;
-
-				const HtmlTemplate = await this.getHtmlTemplate();
-				const metadata: PageMetadataProps = view.metadata
-					? await view.metadata({
-							params: {},
-							query: {},
-							props: props as Record<string, unknown>,
-							appConfig: this.appConfig,
-						})
-					: this.appConfig.defaultMetadata;
-
-				const template = (await HtmlTemplate({
-					metadata,
-					children: '<--content-->',
-					pageProps: props as Record<string, unknown>,
-				})) as string;
-
-				const [templateStart, templateEnd] = template.split('<--content-->');
-
-				function* streamBody() {
-					yield DOC_TYPE;
-					yield templateStart;
-					yield* render(unsafeHTML(children));
-					yield templateEnd;
-				}
-				readable = new RenderResultReadable(streamBody());
+				const readable = new RenderResultReadable(streamBody());
+				return this.createHtmlResponse(readable as unknown as BodyInit, ctx);
 			}
 
-			return this.createHtmlResponse(readable as unknown as BodyInit, ctx);
+			const DOC_TYPE = this.DOC_TYPE;
+			const children = Layout ? await Layout({ children: pageContent }) : pageContent;
+
+			const HtmlTemplate = await this.getHtmlTemplate();
+			const metadata: PageMetadataProps = view.metadata
+				? await view.metadata({
+						params: {},
+						query: {},
+						props: props as Record<string, unknown>,
+						appConfig: this.appConfig,
+					})
+				: this.appConfig.defaultMetadata;
+
+			await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
+
+			const template = (await HtmlTemplate({
+				metadata,
+				children: '<--content-->',
+				pageProps: props as Record<string, unknown>,
+			})) as string;
+
+			const [templateStart, templateEnd] = template.split('<--content-->');
+
+			function* streamBody() {
+				yield DOC_TYPE;
+				yield templateStart;
+				yield* render(unsafeHTML(children));
+				yield templateEnd;
+			}
+			const stream = new RenderResultReadable(streamBody());
+			const transformedResponse = await this.htmlTransformer.transform(
+				new Response(stream as any, {
+					headers: { 'Content-Type': 'text/html' },
+				}),
+			);
+
+			return this.createHtmlResponse(transformedResponse.body as BodyInit, ctx);
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
 		}

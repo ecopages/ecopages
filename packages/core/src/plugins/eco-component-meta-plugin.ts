@@ -178,15 +178,20 @@ export interface EcoComponentDirPluginOptions {
  * ```
  */
 export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): BunPlugin {
-	const allExtensions = options.config.integrations
-		.flatMap((integration) => integration.extensions)
-		.filter(hasValidLoaderExtension);
-	const extensionPattern = createExtensionPattern(allExtensions);
-	const extensionToIntegration = buildExtensionToIntegrationMap(options.config.integrations);
-
 	return {
 		name: 'eco-component-meta-plugin',
 		setup(build) {
+			const allExtensions = options.config.integrations
+				.flatMap((integration) => integration.extensions)
+				.filter(hasValidLoaderExtension);
+
+			if (allExtensions.length === 0) {
+				return;
+			}
+
+			const extensionPattern = createExtensionPattern(allExtensions);
+			const extensionToIntegration = buildExtensionToIntegrationMap(options.config.integrations);
+
 			build.onLoad({ filter: extensionPattern }, async (args) => {
 				const filePath = args.path.split('?')[0];
 				const contents = await fileSystem.readFile(filePath);

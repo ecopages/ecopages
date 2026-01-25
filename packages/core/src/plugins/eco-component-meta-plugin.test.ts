@@ -323,4 +323,51 @@ export default eco.page({
 		expect(result).toBeDefined();
 		expect(result.contents).toContain('__eco: { dir: "/path/to/pages", integration: "react" },');
 	});
+
+	describe('Regression: eco-blog views failure', () => {
+		it('should inject __eco into a kitajs page with complex props and no manual __eco', async () => {
+			const content = `import { eco } from '@ecopages/core';
+import { MainLayout } from '@/layouts/main-layout.kita';
+import type { Post } from '@/lib/db';
+
+export interface BlogListProps {
+	posts: Post[];
+}
+
+export const BlogList = eco.page<BlogListProps>({
+	layout: MainLayout,
+	metadata: () => ({
+		title: 'EcoBlog | Home',
+		description: 'A blog about sustainability and technology',
+	}),
+	render: ({ posts }) => {
+		return (
+			<div class="max-w-3xl mx-auto space-y-12">
+                {/* content */}
+			</div>
+		);
+	},
+});`;
+
+			const result = await runPluginOnContent(
+				content,
+				'/path/to/playground/eco-blog/src/views/blog-list.kita.tsx',
+			);
+
+			expect(result).toBeDefined();
+			expect(result.contents).toContain(
+				'__eco: { dir: "/path/to/playground/eco-blog/src/views", integration: "kitajs" },',
+			);
+		});
+
+		it('should inject __eco even if the eco call is not at the top level', async () => {
+			const content = `
+                import { eco } from '@ecopages/core';
+                const createPage = () => eco.page({ render: () => 'hi' });
+                export default createPage();
+            `;
+			const result = await runPluginOnContent(content, '/path/to/nested.tsx');
+			expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
+		});
+	});
 });

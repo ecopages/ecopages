@@ -57,32 +57,39 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
 			const pageContent = await viewFn(props);
 
-			let body: string;
 			if (ctx.partial) {
-				body = pageContent as string;
-			} else {
-				const children = Layout ? await Layout({ children: pageContent }) : pageContent;
-
-				const HtmlTemplate = await this.getHtmlTemplate();
-				const metadata = view.metadata
-					? await view.metadata({
-							params: {},
-							query: {},
-							props: props as Record<string, unknown>,
-							appConfig: this.appConfig,
-						})
-					: this.appConfig.defaultMetadata;
-
-				body =
-					this.DOC_TYPE +
-					(await HtmlTemplate({
-						metadata,
-						pageProps: props as Record<string, unknown>,
-						children: children as EcoPagesElement,
-					}));
+				return this.createHtmlResponse(pageContent, ctx);
 			}
 
-			return this.createHtmlResponse(body, ctx);
+			const children = Layout ? await Layout({ children: pageContent }) : pageContent;
+
+			const HtmlTemplate = await this.getHtmlTemplate();
+			const metadata = view.metadata
+				? await view.metadata({
+						params: {},
+						query: {},
+						props: props as Record<string, unknown>,
+						appConfig: this.appConfig,
+					})
+				: this.appConfig.defaultMetadata;
+
+			await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
+
+			const html =
+				this.DOC_TYPE +
+				(await HtmlTemplate({
+					metadata,
+					pageProps: props as Record<string, unknown>,
+					children: children as EcoPagesElement,
+				}));
+
+			const transformedResponse = await this.htmlTransformer.transform(
+				new Response(html, {
+					headers: { 'Content-Type': 'text/html' },
+				}),
+			);
+
+			return this.createHtmlResponse(transformedResponse.body as BodyInit, ctx);
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
 		}

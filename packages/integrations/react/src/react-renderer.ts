@@ -288,35 +288,43 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 			const ViewComponent = view as unknown as React.FunctionComponent;
 			const pageElement = createElement(ViewComponent, props || {});
 
-			let stream: ReadableStream;
 			if (ctx.partial) {
-				stream = await renderToReadableStream(pageElement);
-			} else {
-				const contentElement = Layout ? createElement(Layout, undefined, pageElement) : pageElement;
-
-				const HtmlTemplate = await this.getHtmlTemplate();
-				const metadata: PageMetadataProps = view.metadata
-					? await view.metadata({
-							params: {},
-							query: {},
-							props,
-							appConfig: this.appConfig,
-						})
-					: this.appConfig.defaultMetadata;
-
-				stream = await renderToReadableStream(
-					createElement(
-						HtmlTemplate,
-						{
-							metadata,
-							pageProps: props,
-						} as HtmlTemplateProps,
-						contentElement,
-					),
-				);
+				const stream = await renderToReadableStream(pageElement);
+				return this.createHtmlResponse(stream, ctx);
 			}
 
-			return this.createHtmlResponse(stream, ctx);
+			const contentElement = Layout ? createElement(Layout, undefined, pageElement) : pageElement;
+
+			const HtmlTemplate = await this.getHtmlTemplate();
+			const metadata: PageMetadataProps = view.metadata
+				? await view.metadata({
+						params: {},
+						query: {},
+						props,
+						appConfig: this.appConfig,
+					})
+				: this.appConfig.defaultMetadata;
+
+			await this.prepareViewDependencies(view, Layout as unknown as EcoComponent | undefined);
+
+			const streamBody = await renderToReadableStream(
+				createElement(
+					HtmlTemplate,
+					{
+						metadata,
+						pageProps: props,
+					} as HtmlTemplateProps,
+					contentElement,
+				),
+			);
+
+			const transformedResponse = await this.htmlTransformer.transform(
+				new Response(streamBody, {
+					headers: { 'Content-Type': 'text/html' },
+				}),
+			);
+
+			return this.createHtmlResponse(transformedResponse.body as BodyInit, ctx);
 		} catch (error) {
 			throw this.createRenderError('Failed to render view', error);
 		}

@@ -3,12 +3,11 @@
  * @description Shared utilities used by both Bun and Node adapters.
  */
 
-import path from 'node:path';
-import zlib from 'node:zlib';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { rm as rmAsync, writeFile as writeFileAsync } from 'node:fs/promises';
-import { extname } from 'node:path';
-import { FileNotFoundError } from '../types.ts';
+import { cp as cpAsync, mkdir as mkdirAsync, rm as rmAsync, stat as statAsync } from 'node:fs/promises';
+import { dirname, extname } from 'node:path';
+import zlib from 'node:zlib';
+import { FileNotFoundError, type GlobOptions } from '../types.ts';
 
 /**
  * Base implementation for file system operations.
@@ -26,7 +25,7 @@ export abstract class BaseFileSystem {
 	 * Verify that a file exists, throw FileNotFoundError if not.
 	 */
 	verifyFileExists(filePath: string): void {
-		if (!existsSync(filePath)) {
+		if (!this.exists(filePath)) {
 			throw new FileNotFoundError(filePath);
 		}
 	}
@@ -60,21 +59,8 @@ export abstract class BaseFileSystem {
 	 */
 	write(filepath: string, contents: string | Buffer): void {
 		try {
-			this.ensureDir(path.dirname(filepath));
+			this.ensureDir(dirname(filepath));
 			writeFileSync(filepath, contents);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`Error writing file: ${filepath}. Cause: ${message}`);
-		}
-	}
-
-	/**
-	 * Write contents to a file asynchronously.
-	 */
-	async writeAsync(filepath: string, contents: string | Buffer): Promise<void> {
-		try {
-			this.ensureDir(path.dirname(filepath));
-			await writeFileAsync(filepath, contents);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			throw new Error(`Error writing file: ${filepath}. Cause: ${message}`);
@@ -92,10 +78,27 @@ export abstract class BaseFileSystem {
 	}
 
 	/**
+	 * Ensure a directory exists asynchronously.
+	 */
+	async ensureDirAsync(dirPath: string, forceCleanup?: boolean): Promise<void> {
+		if (forceCleanup && (await this.existsAsync(dirPath))) {
+			await rmAsync(dirPath, { recursive: true, force: true });
+		}
+		await mkdirAsync(dirPath, { recursive: true });
+	}
+
+	/**
 	 * Copy a directory recursively.
 	 */
 	copyDir(source: string, destination: string): void {
 		cpSync(source, destination, { recursive: true });
+	}
+
+	/**
+	 * Copy a directory recursively asynchronously.
+	 */
+	async copyDirAsync(source: string, destination: string): Promise<void> {
+		await cpAsync(source, destination, { recursive: true });
 	}
 
 	/**
@@ -110,6 +113,13 @@ export abstract class BaseFileSystem {
 	 */
 	emptyDir(dirPath: string): void {
 		rmSync(dirPath, { recursive: true, force: true });
+	}
+
+	/**
+	 * Remove a directory's contents asynchronously.
+	 */
+	async emptyDirAsync(dirPath: string): Promise<void> {
+		await rmAsync(dirPath, { recursive: true, force: true });
 	}
 
 	/**
@@ -131,6 +141,18 @@ export abstract class BaseFileSystem {
 	 */
 	isDirectory(filePath: string): boolean {
 		return existsSync(filePath) && statSync(filePath).isDirectory();
+	}
+
+	/**
+	 * Check if a path is a directory asynchronously.
+	 */
+	async isDirectoryAsync(filePath: string): Promise<boolean> {
+		try {
+			const stats = await statAsync(filePath);
+			return stats.isDirectory();
+		} catch {
+			return false;
+		}
 	}
 
 	/**
@@ -159,12 +181,27 @@ export abstract class BaseFileSystem {
 	/**
 	 * Glob patterns - must be implemented by runtime-specific adapters.
 	 */
-	abstract glob(patterns: string[], options?: { cwd?: string; ignore?: string[] }): Promise<string[]>;
+	abstract glob(patterns: string[], options?: GlobOptions): Promise<string[]>;
 
 	/**
 	 * Read file async - must be implemented by runtime-specific adapters.
 	 */
 	abstract readFile(path: string): Promise<string>;
+
+	/**
+	 * Write file async - must be implemented by runtime-specific adapters.
+	 */
+	abstract writeAsync(filepath: string, contents: string | Buffer): Promise<void>;
+
+	/**
+	 * Check if a file exists asynchronously - must be implemented by runtime-specific adapters.
+	 */
+	abstract existsAsync(filePath: string): Promise<boolean>;
+
+	/**
+	 * Copy a file asynchronously - must be implemented by runtime-specific adapters.
+	 */
+	abstract copyFileAsync(source: string, destination: string): Promise<void>;
 
 	/**
 	 * Hash file - must be implemented by runtime-specific adapters.

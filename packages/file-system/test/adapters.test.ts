@@ -11,6 +11,7 @@ import { NodeFileSystem } from '../src/adapters/node';
 import type { FileSystem } from '../src/types';
 
 const TEST_DIR = path.join(import.meta.dir, '.test-fixtures');
+const TEST_DIR_COPY = path.join(import.meta.dir, '.test-fixtures-copy');
 
 const adapters: [string, FileSystem][] = [
 	['BunFileSystem', new BunFileSystem()],
@@ -27,6 +28,7 @@ beforeAll(() => {
 
 afterAll(() => {
 	rmSync(TEST_DIR, { recursive: true, force: true });
+	rmSync(TEST_DIR_COPY, { recursive: true, force: true });
 });
 
 for (const [name, fs] of adapters) {
@@ -202,26 +204,33 @@ for (const [name, fs] of adapters) {
 
 		describe('copyDirAsync', () => {
 			test('copies directory recursively', async () => {
-				const src = TEST_DIR;
-				const dest = path.join(import.meta.dir, '.test-fixtures-copy');
-				await fs.copyDirAsync(src, dest);
-				expect(await fs.existsAsync(path.join(dest, 'test.txt'))).toBe(true);
-				expect(await fs.existsAsync(path.join(dest, 'subdir', 'nested.ts'))).toBe(true);
-				rmSync(dest, { recursive: true, force: true });
+				await fs.copyDirAsync(TEST_DIR, TEST_DIR_COPY);
+				expect(await fs.existsAsync(path.join(TEST_DIR_COPY, 'test.txt'))).toBe(true);
+				expect(await fs.existsAsync(path.join(TEST_DIR_COPY, 'subdir', 'nested.ts'))).toBe(true);
+			});
+		});
+
+		describe('emptyDir', () => {
+			test('removes directory contents but keeps directory', () => {
+				const dir = path.join(TEST_DIR, 'empty-test-sync');
+				fs.ensureDir(dir);
+				fs.write(path.join(dir, 'temp.txt'), 'temp');
+				expect(fs.exists(path.join(dir, 'temp.txt'))).toBe(true);
+				fs.emptyDir(dir);
+				expect(fs.isDirectory(dir)).toBe(true);
+				expect(fs.exists(path.join(dir, 'temp.txt'))).toBe(false);
 			});
 		});
 
 		describe('emptyDirAsync', () => {
-			test('removes directory contents', async () => {
+			test('removes directory contents but keeps directory', async () => {
 				const dir = path.join(TEST_DIR, 'empty-test');
 				await fs.ensureDirAsync(dir);
 				await fs.writeAsync(path.join(dir, 'temp.txt'), 'temp');
 				expect(await fs.existsAsync(path.join(dir, 'temp.txt'))).toBe(true);
 				await fs.emptyDirAsync(dir);
-				// emptyDirAsync calls rmAsync(dirPath, { recursive: true, force: true }) in BaseFileSystem
-				// which actually removes the directory itself.
-				// Wait, let's check emptyDir implementation.
-				expect(await fs.existsAsync(dir)).toBe(false);
+				expect(await fs.isDirectoryAsync(dir)).toBe(true);
+				expect(await fs.existsAsync(path.join(dir, 'temp.txt'))).toBe(false);
 			});
 		});
 

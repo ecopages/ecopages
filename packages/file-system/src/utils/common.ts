@@ -4,8 +4,8 @@
  */
 
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { cp as cpAsync, mkdir as mkdirAsync, rm as rmAsync, stat as statAsync } from 'node:fs/promises';
-import { dirname, extname } from 'node:path';
+import { cp as cpAsync, mkdir as mkdirAsync, readdir, rm as rmAsync, stat as statAsync } from 'node:fs/promises';
+import { dirname, extname, join as pathJoin } from 'node:path';
 import zlib from 'node:zlib';
 import { FileNotFoundError, type GlobOptions } from '../types.ts';
 
@@ -112,14 +112,25 @@ export abstract class BaseFileSystem {
 	 * Remove all contents of a directory.
 	 */
 	emptyDir(dirPath: string): void {
-		rmSync(dirPath, { recursive: true, force: true });
+		if (!this.isDirectory(dirPath)) {
+			return;
+		}
+		const entries = readdirSync(dirPath);
+		for (const entry of entries) {
+			const fullPath = pathJoin(dirPath, entry);
+			rmSync(fullPath, { recursive: true, force: true });
+		}
 	}
 
 	/**
 	 * Remove a directory's contents asynchronously.
 	 */
 	async emptyDirAsync(dirPath: string): Promise<void> {
-		await rmAsync(dirPath, { recursive: true, force: true });
+		if (!(await this.isDirectoryAsync(dirPath))) {
+			return;
+		}
+		const entries = await readdir(dirPath);
+		await Promise.all(entries.map((entry) => rmAsync(pathJoin(dirPath, entry), { recursive: true, force: true })));
 	}
 
 	/**
@@ -169,11 +180,13 @@ export abstract class BaseFileSystem {
 	 * Gzip all files with specified extensions in a directory.
 	 */
 	gzipDir(dirPath: string, extensionsToGzip: string[]): void {
-		const files: string[] = readdirSync(dirPath, { recursive: true }) as string[];
-		for (const file of files) {
-			const ext = extname(file).slice(1);
-			if (extensionsToGzip.includes(ext)) {
-				this.gzipFile(`${dirPath}/${file}`);
+		const entries = readdirSync(dirPath, { recursive: true, withFileTypes: true });
+		for (const entry of entries) {
+			if (entry.isFile()) {
+				const ext = extname(entry.name).slice(1);
+				if (extensionsToGzip.includes(ext)) {
+					this.gzipFile(pathJoin(entry.parentPath, entry.name));
+				}
 			}
 		}
 	}

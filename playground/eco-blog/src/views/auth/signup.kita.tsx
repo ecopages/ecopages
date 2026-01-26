@@ -7,7 +7,7 @@ export const SignupView = eco.page<PropsWithChildren<{}>>({
 		description: 'Create an author account',
 	}),
 	dependencies: {
-		scripts: ['/src/views/auth/signup.script.ts'],
+		scripts: ['./signup.script.ts'],
 	},
 	render: () => {
 		return (
@@ -16,7 +16,7 @@ export const SignupView = eco.page<PropsWithChildren<{}>>({
 					<div class="text-center mb-8">
 						<a
 							href="/"
-							class="text-3xl font-black italic bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent mb-2 inline-block"
+							class="text-3xl font-black italic bg-linear-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent mb-2 inline-block"
 						>
 							EcoBlog
 						</a>

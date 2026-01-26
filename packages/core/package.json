@@ -65,6 +65,10 @@
 			"types": "./src/constants.ts",
 			"default": "./src/constants.ts"
 		},
+		"./adapters/bun": {
+			"types": "./src/adapters/bun/index.ts",
+			"default": "./src/adapters/bun/index.ts"
+		},
 		"./adapters/bun/create-app": {
 			"types": "./src/adapters/bun/create-app.ts",
 			"default": "./src/adapters/bun/create-app.ts"

@@ -137,6 +137,50 @@ const logMiddleware: Middleware = async (ctx, next) => {
 };
 ```
 
+### Extending Context with Middleware
+
+Middleware can extend the request context with additional properties (like session data, user info, etc.). Use the `BunMiddleware` helper type to define middleware that adds properties to the context:
+
+```typescript
+import type { BunMiddleware } from '@ecopages/core/adapters/bun/create-app';
+
+// Define middleware that extends context with session data
+const authMiddleware: BunMiddleware<{ session: Session }> = async (ctx, next) => {
+	const session = await getSession(ctx.request.headers);
+	if (!session) {
+		return Response.redirect('/login');
+	}
+	ctx.session = session; // Add session to context
+	return next();
+};
+```
+
+The context type is **automatically inferred** from the middleware you provide - no need to manually specify it:
+
+```typescript
+app.group(
+	'/admin',
+	(r) => {
+		r.get('/', async (ctx) => {
+			// ctx.session is fully typed automatically!
+			console.log(ctx.session.userId);
+			return ctx.render(AdminDashboard, { user: ctx.session.user });
+		});
+
+		r.post('/posts', async (ctx) => {
+			const post = await createPost({
+				...ctx.body,
+				authorId: ctx.session.userId
+			});
+			return ctx.json(post);
+		});
+	},
+	{ middleware: [authMiddleware] } // Type inferred from here!
+);
+```
+
+The extended context properties are fully type-safe across all handlers in the group.
+
 ### Per-Route Middleware
 
 ```typescript
@@ -387,13 +431,15 @@ import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
 import appConfig from './eco.config';
 import { PostView, PostListView } from './src/views';
+import type { BunMiddleware } from '@ecopages/core/adapters/bun/create-app';
 
 const app = new EcopagesApp({ appConfig });
 
-// Middleware
-const authMiddleware = async (ctx, next) => {
-	const token = ctx.request.headers.get('Authorization');
-	if (!token) throw HttpError.Unauthorized();
+// Middleware that extends context
+const authMiddleware: BunMiddleware<{ session: Session }> = async (ctx, next) => {
+	const session = await getSession(ctx.request.headers);
+	if (!session) throw HttpError.Unauthorized();
+	ctx.session = session;
 	return next();
 };
 
@@ -409,11 +455,15 @@ app.group('/api/v1', (r) => {
 	});
 });
 
-// Protected API with validation
+// Protected API with validation and typed context
 app.group('/api/v1/admin', (r) => {
 	r.post('/posts', async (ctx) => {
 		const { title, content } = ctx.body;
-		const post = await createPost({ title, content });
+		const post = await createPost({
+			title,
+			content,
+			authorId: ctx.session.userId // Fully typed from middleware!
+		});
 		return ctx.json(post, { status: 201 });
 	}, {
 		schema: {

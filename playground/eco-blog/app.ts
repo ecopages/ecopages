@@ -9,16 +9,12 @@ import { PostEditor } from './src/views/admin/post-editor.kita';
 import { AdminPostList } from './src/views/admin/post-list.kita';
 import { LoginView } from './src/views/auth/login.kita';
 import { SignupView } from './src/views/auth/signup.kita';
-import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
-import type { Server } from 'bun';
+import type { BunMiddleware } from '@ecopages/core/adapters/bun/create-app';
+import type { ApiHandlerContext } from '@ecopages/core';
 
 const app = new EcopagesApp({ appConfig: appConfig });
 
-type AuthContext = ApiHandlerContext<Bun.BunRequest<string>, Server<undefined>> & {
-	session: typeof auth.$Infer.Session;
-};
-
-const authMiddleware: EcoMiddleware<AuthContext> = async (ctx, next) => {
+const authMiddleware: BunMiddleware<{ session: typeof auth.$Infer.Session }> = async (ctx, next) => {
 	const session = await auth.api.getSession({
 		headers: ctx.request.headers,
 	});
@@ -55,7 +51,7 @@ app.get('/posts/:slug', async (ctx) => {
 	return ctx.render(BlogDetail, { post });
 });
 
-app.group<AuthContext>(
+app.group(
 	'/admin',
 	(r) => {
 		r.get('/', async (ctx) => {

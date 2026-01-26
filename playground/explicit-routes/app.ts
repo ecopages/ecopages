@@ -1,4 +1,4 @@
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp, type BunMiddleware } from '@ecopages/core/adapters/bun/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
 import appConfig from './eco.config';
@@ -26,6 +26,11 @@ app.group('/api/v1', (r) => {
 		return ctx.json(post);
 	});
 });
+
+const adminMiddleware: BunMiddleware = async (ctx, next) => {
+	console.log(`[Admin Access] ${ctx.request.method} ${ctx.request.url}`);
+	return next();
+};
 
 app.group(
 	'/api/v1/admin',
@@ -59,12 +64,7 @@ app.group(
 		);
 	},
 	{
-		middleware: [
-			async (ctx, next) => {
-				console.log(`[Admin Access] ${ctx.request.method} ${ctx.request.url}`);
-				return next();
-			},
-		],
+		middleware: [adminMiddleware],
 	},
 );
 

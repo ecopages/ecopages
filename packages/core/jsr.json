@@ -7,6 +7,7 @@
 		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",
 		"./constants": "./src/constants.ts",
 		"./config-builder": "./src/config/config-builder.ts",
+		"./adapters/bun": "./src/adapters/bun/index.ts",
 		"./adapters/bun/create-app": "./src/adapters/bun/create-app.ts",
 		"./adapters/bun/define-api-handler": "./src/adapters/bun/define-api-handler.ts",
 		"./services/asset-processing-service": "./src/services/asset-processing-service/index.ts",

@@ -1,0 +1,857 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const config = {
+	layout: DocsLayout,
+};
+
+export const getMetadata = () => ({
+	title: 'Docs | Routing Patterns',
+	description: 'Architectural patterns and best practices for organizing your application routes, handlers, and business logic',
+});
+
+# Routing Patterns
+
+Choose the right architectural pattern for your explicit routes. Use these patterns to organize handlers and business logic effectively as your application grows.
+
+## Pattern Overview
+
+| Pattern | Best For | Complexity | Testability |
+|---------|----------|------------|-------------|
+| [Inline Handlers](#pattern-a-inline-handlers) | Small projects, prototypes | Low | Basic |
+| [Grouped Handlers](#pattern-b-grouped-handlers) | Medium apps, clear separation | Medium | Good |
+| [Factory Functions](#pattern-c-factory-functions) | Testing, dependency injection | Medium | Excellent |
+| [MVC Classes](#pattern-d-mvc-classes) | OOP preference, large teams | High | Good |
+| [Service Layer](#pattern-e-service-layer) | Complex domains, reusability | High | Excellent |
+
+## Prerequisites
+
+The examples below assume the following shared setup. You can copy this into your project to run the examples:
+
+```typescript
+// eco.config.ts
+import { ConfigBuilder } from '@ecopages/core';
+
+export default await new ConfigBuilder()
+  .setBaseUrl('http://localhost:3000')
+  .build();
+
+// src/db.ts
+// Mock database client for demonstration
+export const db = {
+  posts: {
+    findMany: async (opts?: any) => [],
+    findUnique: async (opts?: any) => null,
+    create: async (opts?: any) => ({ ...opts.data }),
+    update: async (opts?: any) => ({ ...opts.data }),
+    delete: async (opts?: any) => true,
+  }
+};
+
+// src/views.ts
+// Simple EcoPages components
+export const PostListView = ({ posts }: { posts: any[] }) => {
+  return `<ul>${posts.map(p => `<li>${p.title}</li>`).join('')}</ul>`;
+};
+
+export const PostView = ({ title, content }: { title: string; content: string }) => {
+  return `
+    <article>
+      <h1>${title}</h1>
+      <p>${content}</p>
+    </article>
+  `;
+};
+```
+
+## Pattern A: Inline Handlers
+
+For small projects or rapid prototyping, define everything inline in `app.ts`.
+
+### When to Use
+
+- Small projects (< 10 routes)
+- Rapid prototyping
+- Simple CRUD operations
+- No shared business logic
+
+### Example
+
+```typescript
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { HttpError } from '@ecopages/core/errors';
+import { PostView, PostListView } from './src/views';
+import { db } from './src/db';
+import appConfig from './eco.config';
+
+const app = new EcopagesApp({ appConfig });
+
+app.get('/posts', async (ctx) => {
+	const posts = await db.posts.findMany({
+		where: { status: 'published' },
+		orderBy: { createdAt: 'desc' }
+	});
+	return ctx.render(PostListView, { posts });
+});
+
+app.get('/posts/:slug', async (ctx) => {
+	const post = await db.posts.findUnique({
+		where: { slug: ctx.request.params.slug }
+	});
+	if (!post) throw HttpError.NotFound('Post not found');
+	return ctx.render(PostView, post);
+});
+
+app.post('/api/posts', async (ctx) => {
+	const { title, content } = ctx.body;
+	const post = await db.posts.create({
+		data: { title, content, status: 'draft' }
+	});
+	return ctx.json(post, { status: 201 });
+});
+
+await app.start();
+```
+
+### Pros & Cons
+
+**Pros:**
+- Quick to write
+- Easy to understand
+- No file navigation needed
+
+**Cons:**
+- Hard to test without running the full app
+- Becomes unwieldy with many routes
+- No code reuse between routes
+
+## Pattern B: Grouped Handlers
+
+Extract handlers to separate files, organized by resource or feature.
+
+### When to Use
+
+- Medium-sized projects (10-50 routes)
+- Clear resource boundaries (posts, users, comments)
+- Multiple developers working on different features
+- Need better organization than inline
+
+### File Structure
+
+```
+src/
+├── handlers/
+│   ├── posts.ts
+│   ├── users.ts
+│   └── comments.ts
+├── views/
+└── db.ts
+app.ts
+```
+
+### Example
+
+```typescript
+// src/handlers/posts.ts
+import type { ApiHandlerContext } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
+import { db } from '../db';
+import { PostView, PostListView } from '../views';
+
+export async function index(ctx: ApiHandlerContext) {
+	const posts = await db.posts.findMany({
+		where: { status: 'published' },
+		orderBy: { createdAt: 'desc' }
+	});
+	return ctx.render(PostListView, { posts });
+}
+
+export async function show(ctx: ApiHandlerContext) {
+	const post = await db.posts.findUnique({
+		where: { slug: ctx.request.params.slug },
+		include: { author: true }
+	});
+	if (!post) throw HttpError.NotFound('Post not found');
+	return ctx.render(PostView, post);
+}
+
+export async function create(ctx: ApiHandlerContext) {
+	const { title, content } = ctx.body;
+	const post = await db.posts.create({
+		data: { title, content, status: 'draft' }
+	});
+	return ctx.json(post, { status: 201 });
+}
+
+export async function update(ctx: ApiHandlerContext) {
+	const { slug } = ctx.request.params;
+	const post = await db.posts.update({
+		where: { slug },
+		data: ctx.body
+	});
+	return ctx.json(post);
+}
+
+export async function destroy(ctx: ApiHandlerContext) {
+	const { slug } = ctx.request.params;
+	await db.posts.delete({ where: { slug } });
+	return ctx.json({ deleted: true });
+}
+```
+
+```typescript
+// app.ts
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import * as posts from './src/handlers/posts';
+import * as users from './src/handlers/users';
+import appConfig from './eco.config';
+
+const app = new EcopagesApp({ appConfig });
+
+// Posts routes
+app.get('/posts', posts.index);
+app.get('/posts/:slug', posts.show);
+app.post('/api/posts', posts.create);
+app.patch('/api/posts/:slug', posts.update);
+app.delete('/api/posts/:slug', posts.destroy);
+
+// Users routes
+app.get('/users/:username', users.show);
+app.post('/api/users', users.create);
+
+await app.start();
+```
+
+### Pros & Cons
+
+**Pros:**
+- Clear separation of concerns
+- Easy to locate handler code
+- Simple refactoring from inline
+- Multiple developers can work in parallel
+
+**Cons:**
+- Still couples handlers to database
+- Testing requires mocking database
+- No dependency injection
+
+## Pattern C: Factory Functions
+
+Use factory functions to inject dependencies, making handlers fully testable without mocks.
+
+### When to Use
+
+- Testing is a priority
+- Multiple environments (dev, staging, prod with different configs)
+- Want to swap implementations (real DB vs in-memory)
+- Building libraries or reusable modules
+
+### File Structure
+
+```
+src/
+├── handlers/
+│   └── posts.ts
+├── services/
+│   └── db.ts
+├── views/
+└── types.ts
+app.ts
+```
+
+### Example
+
+```typescript
+// src/handlers/posts.ts
+import type { ApiHandlerContext } from '@ecopages/core';
+import type { Database } from '../types';
+import { HttpError } from '@ecopages/core/errors';
+import { PostView, PostListView } from '../views';
+
+export function createPostsHandlers(db: Database) {
+	return {
+		index: async (ctx: ApiHandlerContext) => {
+			const posts = await db.posts.findMany({
+				where: { status: 'published' },
+				orderBy: { createdAt: 'desc' }
+			});
+			return ctx.render(PostListView, { posts });
+		},
+
+		show: async (ctx: ApiHandlerContext) => {
+			const post = await db.posts.findUnique({
+				where: { slug: ctx.request.params.slug },
+				include: { author: true }
+			});
+			if (!post) throw HttpError.NotFound('Post not found');
+			return ctx.render(PostView, post);
+		},
+
+		create: async (ctx: ApiHandlerContext) => {
+			const { title, content } = ctx.body;
+			const post = await db.posts.create({
+				data: { title, content, status: 'draft' }
+			});
+			return ctx.json(post, { status: 201 });
+		}
+	};
+}
+```
+
+```typescript
+// app.ts
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { createPostsHandlers } from './src/handlers/posts';
+import { db } from './src/db';
+import appConfig from './eco.config';
+
+const app = new EcopagesApp({ appConfig });
+const posts = createPostsHandlers(db);
+
+app.get('/posts', posts.index);
+app.get('/posts/:slug', posts.show);
+app.post('/api/posts', posts.create);
+
+await app.start();
+```
+
+### Testing
+
+```typescript
+// tests/handlers/posts.test.ts
+import { describe, test, expect } from 'bun:test';
+import { createPostsHandlers } from '../../src/handlers/posts';
+import type { Database } from '../../src/types';
+
+const mockDb: Database = {
+	posts: {
+		findMany: async () => [
+			{ id: '1', title: 'Test Post', slug: 'test-post', content: 'Content' }
+		],
+		findUnique: async ({ where }) => 
+			where.slug === 'test-post' 
+				? { id: '1', title: 'Test Post', slug: 'test-post', content: 'Content' }
+				: null,
+		create: async ({ data }) => ({ id: '2', ...data })
+	}
+};
+
+describe('Posts Handlers', () => {
+	const posts = createPostsHandlers(mockDb);
+
+	test('index returns all posts', async () => {
+		const ctx = {
+			render: (view: any, props: any) => props
+		};
+		const result = await posts.index(ctx as any);
+		expect(result.posts).toHaveLength(1);
+	});
+
+	test('show returns single post', async () => {
+		const ctx = {
+			request: { params: { slug: 'test-post' } },
+			render: (view: any, props: any) => props
+		};
+		const result = await posts.show(ctx as any);
+		expect(result.title).toBe('Test Post');
+	});
+});
+```
+
+### Pros & Cons
+
+**Pros:**
+- Excellent testability without mocks
+- Clear dependencies
+- Easy to swap implementations
+- No hidden global state
+
+**Cons:**
+- More boilerplate
+- Requires understanding of closures
+- Can feel over-engineered for simple apps
+
+## Pattern D: MVC Classes
+
+Use classes to organize handlers with methods, familiar to developers from traditional MVC frameworks.
+
+### When to Use
+
+- Team prefers object-oriented style
+- Coming from frameworks like NestJS, Laravel, ASP.NET
+- Want to use decorators (future)
+- Need instance state or lifecycle hooks
+
+### File Structure
+
+```
+src/
+├── controllers/
+│   └── posts.controller.ts
+├── services/
+│   └── posts.service.ts
+├── views/
+└── types.ts
+app.ts
+```
+
+### Example
+
+```typescript
+// src/services/posts.service.ts
+import type { Database } from '../types';
+
+export class PostsService {
+	constructor(private db: Database) {}
+
+	async findAll() {
+		return this.db.posts.findMany({
+			where: { status: 'published' },
+			orderBy: { createdAt: 'desc' }
+		});
+	}
+
+	async findBySlug(slug: string) {
+		return this.db.posts.findUnique({
+			where: { slug },
+			include: { author: true }
+		});
+	}
+
+	async create(data: { title: string; content: string }) {
+		return this.db.posts.create({
+			data: { ...data, status: 'draft' }
+		});
+	}
+
+	async update(slug: string, data: Partial<{ title: string; content: string }>) {
+		return this.db.posts.update({ where: { slug }, data });
+	}
+
+	async delete(slug: string) {
+		return this.db.posts.delete({ where: { slug } });
+	}
+}
+```
+
+```typescript
+// src/controllers/posts.controller.ts
+import type { ApiHandlerContext } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
+import { PostsService } from '../services/posts.service';
+import { PostView, PostListView } from '../views';
+
+export class PostsController {
+	constructor(private postsService: PostsService) {}
+
+	async index(ctx: ApiHandlerContext) {
+		const posts = await this.postsService.findAll();
+		return ctx.render(PostListView, { posts });
+	}
+
+	async show(ctx: ApiHandlerContext) {
+		const post = await this.postsService.findBySlug(ctx.request.params.slug);
+		if (!post) throw HttpError.NotFound('Post not found');
+		return ctx.render(PostView, post);
+	}
+
+	async create(ctx: ApiHandlerContext) {
+		const { title, content } = ctx.body;
+		const post = await this.postsService.create({ title, content });
+		return ctx.json(post, { status: 201 });
+	}
+
+	async update(ctx: ApiHandlerContext) {
+		const { slug } = ctx.request.params;
+		const post = await this.postsService.update(slug, ctx.body);
+		return ctx.json(post);
+	}
+
+	async destroy(ctx: ApiHandlerContext) {
+		const { slug } = ctx.request.params;
+		await this.postsService.delete(slug);
+		return ctx.json({ deleted: true });
+	}
+}
+```
+
+```typescript
+// app.ts
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { PostsController } from './src/controllers/posts.controller';
+import { PostsService } from './src/services/posts.service';
+import { db } from './src/db';
+import appConfig from './eco.config';
+
+const app = new EcopagesApp({ appConfig });
+
+const postsService = new PostsService(db);
+const postsController = new PostsController(postsService);
+
+app.get('/posts', (ctx) => postsController.index(ctx));
+app.get('/posts/:slug', (ctx) => postsController.show(ctx));
+app.post('/api/posts', (ctx) => postsController.create(ctx));
+app.patch('/api/posts/:slug', (ctx) => postsController.update(ctx));
+app.delete('/api/posts/:slug', (ctx) => postsController.destroy(ctx));
+
+await app.start();
+```
+
+### Pros & Cons
+
+**Pros:**
+- Familiar to MVC developers
+- Clear separation: controller → service → database
+- Easy to add lifecycle hooks
+- Good for large teams with OOP background
+
+**Cons:**
+- More boilerplate than functions
+- Requires wrapper lambdas in routes
+- `this` binding can be tricky
+- Heavier mental model
+
+## Pattern E: Service Layer
+
+Separate business logic (service) from data transformation (adapter) and HTTP handling (handler).
+
+### When to Use
+
+- Complex business domains
+- Multiple presentation formats (web, API, CLI)
+- Need to reuse business logic across handlers
+- Want domain-driven design (DDD)
+
+### File Structure
+
+```
+src/
+├── handlers/
+│   └── posts.ts
+├── services/
+│   └── blog.service.ts
+├── adapters/
+│   └── post.adapter.ts
+├── views/
+└── types.ts
+app.ts
+```
+
+### Example
+
+```typescript
+// src/services/blog.service.ts
+import type { Database } from '../types';
+
+export function createBlogService(db: Database) {
+	return {
+		async getAllPublishedPosts() {
+			return db.posts.findMany({
+				where: { status: 'published' },
+				orderBy: { createdAt: 'desc' },
+				include: { author: true, tags: true }
+			});
+		},
+
+		async getPostBySlug(slug: string) {
+			return db.posts.findUnique({
+				where: { slug },
+				include: { author: true, tags: true, comments: true }
+			});
+		},
+
+		async createDraftPost(data: { title: string; content: string; authorId: string }) {
+			return db.posts.create({
+				data: {
+					...data,
+					status: 'draft',
+					slug: this.generateSlug(data.title)
+				}
+			});
+		},
+
+		async publishPost(slug: string) {
+			const post = await db.posts.findUnique({ where: { slug } });
+			if (!post) return null;
+			
+			return db.posts.update({
+				where: { slug },
+				data: { status: 'published', publishedAt: new Date() }
+			});
+		},
+
+		generateSlug(title: string) {
+			return title
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, '-')
+				.replace(/^-|-$/g, '');
+		}
+	};
+}
+```
+
+```typescript
+// src/adapters/post.adapter.ts
+import type { Post, Author, Tag } from '../types';
+
+export const postAdapter = {
+	toListView(posts: (Post & { author: Author; tags: Tag[] })[]) {
+		return posts.map((post) => ({
+			slug: post.slug,
+			title: post.title,
+			excerpt: this.createExcerpt(post.content),
+			authorName: post.author.name,
+			authorAvatar: post.author.avatarUrl,
+			tags: post.tags.map((tag) => tag.name),
+			publishedDate: this.formatDate(post.publishedAt)
+		}));
+	},
+
+	toDetailView(post: Post & { author: Author; tags: Tag[]; comments: Comment[] }) {
+		return {
+			slug: post.slug,
+			title: post.title,
+			content: post.content,
+			authorName: post.author.name,
+			authorBio: post.author.bio,
+			authorAvatar: post.author.avatarUrl,
+			tags: post.tags.map((tag) => ({ name: tag.name, slug: tag.slug })),
+			publishedDate: this.formatDate(post.publishedAt),
+			readingTime: this.calculateReadingTime(post.content),
+			commentCount: post.comments.length
+		};
+	},
+
+	createExcerpt(content: string, maxLength = 150) {
+		return content.length > maxLength
+			? `${content.slice(0, maxLength)}...`
+			: content;
+	},
+
+	formatDate(date: Date | null) {
+		if (!date) return null;
+		return new Intl.DateTimeFormat('en-US', {
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric'
+		}).format(date);
+	},
+
+	calculateReadingTime(content: string) {
+		const wordsPerMinute = 200;
+		const words = content.trim().split(/\s+/).length;
+		const minutes = Math.ceil(words / wordsPerMinute);
+		return `${minutes} min read`;
+	}
+};
+```
+
+```typescript
+// src/handlers/posts.ts
+import type { ApiHandlerContext } from '@ecopages/core';
+import type { BlogService, PostAdapter } from '../types';
+import { HttpError } from '@ecopages/core/errors';
+import { PostView, PostListView } from '../views';
+
+export function createPostsHandlers(
+	service: BlogService,
+	adapter: PostAdapter
+) {
+	return {
+		async index(ctx: ApiHandlerContext) {
+			const posts = await service.getAllPublishedPosts();
+			const viewData = adapter.toListView(posts);
+			return ctx.render(PostListView, { posts: viewData });
+		},
+
+		async show(ctx: ApiHandlerContext) {
+			const post = await service.getPostBySlug(ctx.request.params.slug);
+			if (!post) throw HttpError.NotFound('Post not found');
+			const viewData = adapter.toDetailView(post);
+			return ctx.render(PostView, viewData);
+		},
+
+		async createDraft(ctx: ApiHandlerContext) {
+			const { title, content, authorId } = ctx.body;
+			const post = await service.createDraftPost({ title, content, authorId });
+			return ctx.json(post, { status: 201 });
+		},
+
+		async publish(ctx: ApiHandlerContext) {
+			const { slug } = ctx.request.params;
+			const post = await service.publishPost(slug);
+			if (!post) throw HttpError.NotFound('Post not found');
+			return ctx.json(post);
+		}
+	};
+}
+```
+
+```typescript
+// app.ts
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { createBlogService } from './src/services/blog.service';
+import { postAdapter } from './src/adapters/post.adapter';
+import { createPostsHandlers } from './src/handlers/posts';
+import { db } from './src/db';
+import appConfig from './eco.config';
+
+const app = new EcopagesApp({ appConfig });
+
+const blogService = createBlogService(db);
+const posts = createPostsHandlers(blogService, postAdapter);
+
+app.get('/posts', posts.index);
+app.get('/posts/:slug', posts.show);
+app.post('/api/posts', posts.createDraft);
+app.post('/api/posts/:slug/publish', posts.publish);
+
+await app.start();
+```
+
+### Pros & Cons
+
+**Pros:**
+- Maximum separation of concerns
+- Business logic is framework-agnostic
+- Easy to reuse across different interfaces
+- Excellent for complex domains
+- Adapters make views independent of database schema
+
+**Cons:**
+- Most boilerplate of all patterns
+- Can be over-engineering for simple apps
+- More files to navigate
+- Steeper learning curve
+
+## Mixing Patterns
+
+You don't need to pick one pattern for your entire app. Mix patterns based on complexity:
+
+```typescript
+const app = new EcopagesApp({ appConfig });
+
+// Simple inline handler for about page
+app.get('/about', async (ctx) => {
+	return ctx.render(AboutView);
+});
+
+// Grouped handlers for posts (medium complexity)
+import * as posts from './src/handlers/posts';
+app.get('/posts', posts.index);
+app.get('/posts/:slug', posts.show);
+
+// Service layer for complex e-commerce (high complexity)
+const orderService = createOrderService(db, paymentGateway, emailService);
+const orders = createOrderHandlers(orderService, orderAdapter);
+app.post('/api/orders', orders.create);
+app.get('/api/orders/:id', orders.show);
+```
+
+## Integration with File-System Routing
+
+Explicit routes take precedence over file-system routes. This allows you to:
+
+1. Start with file-system routing
+2. Extract complex routes to explicit handlers as needed
+3. Keep simple pages in `pages/` directory
+
+```typescript
+// app.ts
+const app = new EcopagesApp({ appConfig });
+
+// Explicit routes (higher priority)
+app.get('/posts', posts.index);
+app.get('/posts/:slug', posts.show);
+
+// File-system routes from pages/ still work
+// /about -> pages/about.tsx
+// /contact -> pages/contact.tsx
+// /blog/[slug] -> pages/blog/[slug].tsx (if not overridden)
+
+await app.start();
+```
+
+## Best Practices
+
+### Start Simple, Refactor Later
+
+Begin with [inline handlers](#pattern-a-inline-handlers) and refactor only when complexity demands it:
+
+```typescript
+// Start here
+app.get('/posts', async (ctx) => {
+	const posts = await db.posts.findMany();
+	return ctx.render(PostListView, { posts });
+});
+
+// Refactor when you need testing or reusability
+const posts = createPostsHandlers(db);
+app.get('/posts', posts.index);
+```
+
+### Keep Handlers Thin
+
+Handlers should orchestrate, not implement business logic:
+
+```typescript
+async show(ctx: ApiHandlerContext) {
+	const post = await service.getPostBySlug(ctx.request.params.slug);
+	if (!post) throw HttpError.NotFound();
+	return ctx.render(PostView, adapter.toView(post));
+}
+```
+
+### Use TypeScript Types
+
+Define clear interfaces for your dependencies:
+
+```typescript
+export type BlogService = {
+	getAllPublishedPosts: () => Promise<Post[]>;
+	getPostBySlug: (slug: string) => Promise<Post | null>;
+	createDraftPost: (data: CreatePostData) => Promise<Post>;
+};
+
+export function createBlogService(db: Database): BlogService {
+	return {
+		async getAllPublishedPosts() { },
+		async getPostBySlug(slug: string) { },
+		async createDraftPost(data) { }
+	};
+}
+```
+
+### Separate Read and Write Models
+
+For complex domains, consider CQRS-style separation:
+
+```typescript
+export function createBlogQueries(db: Database) {
+	return {
+		getAllPublishedPosts: () => db.posts.findMany({ }),
+		getPostBySlug: (slug: string) => db.posts.findUnique({ }),
+		searchPosts: (query: string) => db.posts.search(query)
+	};
+}
+
+export function createBlogCommands(db: Database, eventBus: EventBus) {
+	return {
+		createPost: async (data: CreatePostData) => {
+			const post = await db.posts.create({ data });
+			await eventBus.publish('post.created', post);
+			return post;
+		},
+		publishPost: async (slug: string) => {
+			const post = await db.posts.update({ where: { slug }, data: { status: 'published' } });
+			await eventBus.publish('post.published', post);
+			return post;
+		}
+	};
+}
+```
+
+## Related Documentation
+
+- [Explicit Routing](./explicit-routing) - API reference for route definitions
+- [API Handlers](./api-handlers) - Building API endpoints
+- [Server API](./server-api) - Core server concepts

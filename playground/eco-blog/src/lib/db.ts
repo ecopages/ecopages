@@ -1,58 +1,30 @@
+import { eq, desc } from 'drizzle-orm';
 import { db } from './shared-db';
+import { posts } from './schema';
 
-export interface Post {
-	id?: number;
-	title: string;
-	slug: string;
-	content: string;
-	excerpt?: string;
-	published_at?: string;
-}
+export type Post = typeof posts.$inferSelect;
+export type NewPost = typeof posts.$inferInsert;
 
 export const dbService = {
-	getAllPosts: (): Post[] => {
-		return db.query('SELECT * FROM posts ORDER BY published_at DESC').all() as Post[];
+	getAllPosts: async () => {
+		return db.select().from(posts).orderBy(desc(posts.published_at));
 	},
 
-	getPostBySlug: (slug: string): Post | undefined => {
-		return db.query('SELECT * FROM posts WHERE slug = ?').get(slug) as Post | undefined;
+	getPostBySlug: async (slug: string) => {
+		const result = await db.select().from(posts).where(eq(posts.slug, slug));
+		return result[0];
 	},
 
-	createPost: (post: Post) => {
-		return db.run('INSERT INTO posts (title, slug, content, excerpt) VALUES (?, ?, ?, ?)', [
-			post.title,
-			post.slug,
-			post.content,
-			post.excerpt || '',
-		]).lastInsertRowid;
+	createPost: async (post: NewPost) => {
+		const result = await db.insert(posts).values(post).returning();
+		return result[0];
 	},
 
-	updatePost: (id: number, post: Partial<Post>) => {
-		const sets: string[] = [];
-		const values: any[] = [];
-
-		if (post.title) {
-			sets.push('title = ?');
-			values.push(post.title);
-		}
-		if (post.slug) {
-			sets.push('slug = ?');
-			values.push(post.slug);
-		}
-		if (post.content) {
-			sets.push('content = ?');
-			values.push(post.content);
-		}
-		if (post.excerpt) {
-			sets.push('excerpt = ?');
-			values.push(post.excerpt);
-		}
-
-		values.push(id);
-		return db.run(`UPDATE posts SET ${sets.join(', ')} WHERE id = ?`, values);
+	updatePost: async (id: number, post: Partial<NewPost>) => {
+		return db.update(posts).set(post).where(eq(posts.id, id)).returning();
 	},
 
-	deletePost: (id: number) => {
-		return db.run('DELETE FROM posts WHERE id = ?', [id]);
+	deletePost: async (id: number) => {
+		return db.delete(posts).where(eq(posts.id, id));
 	},
 };

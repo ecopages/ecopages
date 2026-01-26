@@ -25,3 +25,7 @@ public/js
 **/*.log
 **/*.bun
 
+# db
+*.db
+*.sqlite
+*.sqlite-journal

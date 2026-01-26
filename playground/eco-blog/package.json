@@ -2,25 +2,34 @@
 	"name": "@ecopages/eco-blog",
 	"private": true,
 	"scripts": {
-		"start": "bun run --preload ./eco.config.ts app.ts",
-		"dev": "bun run --preload ./eco.config.ts app.ts --dev",
-		"build": "bun run --preload ./eco.config.ts app.ts --build",
-		"preview": "bun run --preload ./eco.config.ts app.ts --preview",
-		"watch:dev": "bun --watch run --preload ./eco.config.ts app.ts --dev"
+		"start": "bun run app.ts",
+		"dev": "bun run app.ts --dev",
+		"build": "bun run app.ts --build",
+		"preview": "bun run app.ts --preview",
+		"watch:dev": "bun --watch run app.ts --dev",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "bun run src/lib/migrate.ts",
+		"db:seed": "bun run src/lib/seed.ts",
+		"setup": "bun install && bun db:migrate && bun db:seed",
+		"reset": "bun run scripts/reset.ts"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@ecopages/radiant": "latest",
+		"@faker-js/faker": "^10.2.0",
 		"@tailwindcss/postcss": "latest",
+		"drizzle-kit": "^0.31.8",
 		"tailwindcss": "latest"
 	},
 	"dependencies": {
-		"better-auth": "latest",
 		"@tiptap/core": "latest",
+		"@tiptap/extension-image": "^3.17.1",
 		"@tiptap/pm": "latest",
 		"@tiptap/starter-kit": "latest",
+		"better-auth": "latest",
+		"drizzle-orm": "^0.45.1",
 		"tiptap-markdown": "latest",
 		"zod": "latest"
 	}

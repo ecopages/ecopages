@@ -1023,14 +1023,17 @@ export interface GroupOptions<
 /**
  * Context type that combines schema-typed fields with an extended base context.
  * Used by RouteGroupBuilder to merge schema validation types with middleware-extended context.
+ * Note: Path parameter typing (e.g., :id -> params.id) comes from the TContext.request type.
  */
-export type TypedGroupHandlerContext<TSchema extends RouteSchema, TContext extends ApiHandlerContext<any, any>> = Omit<
-	TContext,
-	'body' | 'query' | 'headers'
-> & {
+export type TypedGroupHandlerContext<
+	TSchema extends RouteSchema,
+	TContext extends ApiHandlerContext<any, any>,
+	TRequest extends Request = Request,
+> = Omit<TContext, 'body' | 'query' | 'headers' | 'request'> & {
 	body: InferSchemaOutput<TSchema['body']>;
 	query: InferSchemaOutput<TSchema['query']>;
 	headers: InferSchemaOutput<TSchema['headers']>;
+	request: TRequest;
 };
 
 /**
@@ -1048,43 +1051,43 @@ export interface RouteGroupBuilder<
 > {
 	get<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext, TRequest>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	post<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext, TRequest>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	put<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext, TRequest>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	delete<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext, TRequest>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	patch<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext, TRequest>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	options<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext, TRequest>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	head<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext, TRequest>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
 	): RouteGroupBuilder<TRequest, TServer, TContext>;
 }

@@ -14,9 +14,7 @@ import type {
 	ApiHandlerContext,
 	EcoPageComponent,
 	ErrorHandler,
-	GroupOptions,
 	Middleware,
-	RouteGroupBuilder,
 	RouteOptions,
 	StaticRoute,
 } from '../../public-types.ts';
@@ -216,60 +214,21 @@ export abstract class AbstractApplicationAdapter<
 	/**
 	 * Create a route group with shared prefix and middleware.
 	 * Routes defined within the group inherit the prefix and middleware.
+	 *
+	 * Each adapter implements this with its own builder type to support
+	 * runtime-specific features (e.g., Bun's path parameter inference).
+	 *
 	 * @param prefix - URL prefix for all routes in the group (e.g., '/api/v1')
 	 * @param callback - Function that receives a builder to define routes
-	 * @param options - Optional group-level middleware that applies to all routes
-	 * @example
-	 * app.group('/api', (r) => {
-	 *   r.get('/users', listUsers);
-	 *   r.post('/users', createUser);
-	 * }, { middleware: [authMiddleware] });
+	 * @param options - Optional group-level middleware
 	 */
-	group<TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>>(
+	abstract group(
 		prefix: string,
-		callback: (builder: RouteGroupBuilder<TRequest, TServer, TContext>) => void,
-		options?: GroupOptions<TRequest, TServer, TContext>,
-	): this {
-		const normalizedPrefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
-		const groupMiddleware = options?.middleware ?? [];
-
-		const createHandler = (
-			method: ApiHandler['method'],
-		): RouteGroupBuilder<TRequest, TServer, TContext>[Lowercase<typeof method>] => {
-			return ((
-				path: string,
-				handler: RouteHandler<TRequest, TServer, TContext>,
-				routeOptions?: RouteOptions<TRequest, TServer, TContext>,
-			) => {
-				const combinedMiddleware: Middleware<TRequest, TServer, TContext>[] = [
-					...groupMiddleware,
-					...(routeOptions?.middleware ?? []),
-				];
-				const fullPath = path === '/' ? normalizedPrefix : `${normalizedPrefix}${path}`;
-				this.addRouteHandler(
-					fullPath,
-					method,
-					handler,
-					combinedMiddleware.length > 0 ? combinedMiddleware : undefined,
-					routeOptions?.schema,
-				);
-				return builder;
-			}) as RouteGroupBuilder<TRequest, TServer, TContext>[Lowercase<typeof method>];
-		};
-
-		const builder: RouteGroupBuilder<TRequest, TServer, TContext> = {
-			get: createHandler('GET'),
-			post: createHandler('POST'),
-			put: createHandler('PUT'),
-			delete: createHandler('DELETE'),
-			patch: createHandler('PATCH'),
-			options: createHandler('OPTIONS'),
-			head: createHandler('HEAD'),
-		};
-
-		callback(builder);
-		return this;
-	}
+		callback: (builder: unknown) => void,
+		options?: {
+			middleware?: readonly Middleware<TRequest, TServer, any>[];
+		},
+	): this;
 
 	/**
 	 * Get all registered API handlers

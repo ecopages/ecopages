@@ -49,6 +49,30 @@ export type BunMiddleware<TExtension extends Record<string, any> = {}, WebSocket
 >;
 
 /**
+ * Helper type for Bun handler context that only requires extension properties.
+ * Automatically applies the BunRequest and Server types.
+ *
+ * @typeParam TExtension - Additional properties to add to the context
+ * @typeParam P - Path pattern for route params inference (defaults to string)
+ * @typeParam WebSocketData - WebSocket data type for the server (defaults to undefined)
+ *
+ * @example
+ * ```typescript
+ * type AuthenticatedContext = BunHandlerContext<{ session: Session }>;
+ *
+ * export async function createPost(ctx: AuthenticatedContext) {
+ *   const userId = ctx.session.user.id;
+ *   return ctx.json({ userId });
+ * }
+ * ```
+ */
+export type BunHandlerContext<
+	TExtension extends Record<string, any> = {},
+	P extends string = string,
+	WebSocketData = undefined,
+> = ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> & TExtension;
+
+/**
  * Configuration options for the Bun application adapter
  */
 export interface EcopagesAppOptions extends ApplicationAdapterOptions {

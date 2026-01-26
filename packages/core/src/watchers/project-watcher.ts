@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { existsSync } from 'node:fs';
 import chokidar, { type FSWatcher } from 'chokidar';
+import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
 import type { ClientBridge } from '../adapters/bun/client-bridge';
@@ -70,8 +70,31 @@ export class ProjectWatcher {
 	}
 
 	/**
+	 * Handles public directory file changes by copying only the changed file.
+	 * @param filePath - Absolute path of the changed file
+	 */
+	private async handlePublicDirFileChange(filePath: string): Promise<void> {
+		try {
+			const relativePath = path.relative(this.appConfig.absolutePaths.publicDir, filePath);
+			const destPath = path.join(this.appConfig.absolutePaths.distDir, relativePath);
+
+			if (fileSystem.exists(filePath)) {
+				const destDir = path.dirname(destPath);
+				fileSystem.ensureDir(destDir);
+				await Bun.write(destPath, Bun.file(filePath));
+			}
+
+			this.bridge.reload();
+		} catch (error) {
+			appLogger.error(`Failed to copy public file: ${error instanceof Error ? error.message : String(error)}`);
+			this.bridge.reload();
+		}
+	}
+
+	/**
 	 * Handles file changes by uncaching modules, refreshing routes, and delegating appropriately.
-	 * Follows 3-rule logic:
+	 * Follows 4-rule priority:
+	 * 0. Public directory match? → copy file and reload
 	 * 1. additionalWatchPaths match? → reload
 	 * 2. Processor extension match? → processor handles (skip HMR)
 	 * 3. Otherwise → HMR strategies
@@ -80,6 +103,11 @@ export class ProjectWatcher {
 	private async handleFileChange(rawPath: string): Promise<void> {
 		const filePath = path.resolve(rawPath);
 		try {
+			if (this.isPublicDirFile(filePath)) {
+				await this.handlePublicDirFileChange(filePath);
+				return;
+			}
+
 			this.uncacheModules();
 			const isPageFile = filePath.startsWith(this.appConfig.absolutePaths.pagesDir);
 
@@ -103,6 +131,13 @@ export class ProjectWatcher {
 				this.handleError(error);
 			}
 		}
+	}
+
+	/**
+	 * Checks if a file is in the public directory.
+	 */
+	private isPublicDirFile(filePath: string): boolean {
+		return filePath.startsWith(this.appConfig.absolutePaths.publicDir);
 	}
 
 	/**
@@ -200,11 +235,14 @@ export class ProjectWatcher {
 				processorPaths.push(...watchConfig.paths);
 			}
 
-			if (existsSync(this.appConfig.absolutePaths.pagesDir)) {
+			if (fileSystem.exists(this.appConfig.absolutePaths.pagesDir)) {
 				processorPaths.push(this.appConfig.absolutePaths.pagesDir);
 			}
 
-			// Add additionalWatchPaths for config files etc.
+			if (fileSystem.exists(this.appConfig.absolutePaths.publicDir)) {
+				processorPaths.push(this.appConfig.absolutePaths.publicDir);
+			}
+
 			if (this.appConfig.additionalWatchPaths.length) {
 				processorPaths.push(...this.appConfig.additionalWatchPaths);
 			}
@@ -234,7 +272,10 @@ export class ProjectWatcher {
 
 		this.watcher
 			.on('change', (path) => this.handleFileChange(path))
-			.on('add', (path) => this.triggerRouterRefresh(path))
+			.on('add', (path) => {
+				this.handleFileChange(path);
+				this.triggerRouterRefresh(path);
+			})
 			.on('addDir', (path) => this.triggerRouterRefresh(path))
 			.on('unlink', (path) => this.triggerRouterRefresh(path))
 			.on('unlinkDir', (path) => this.triggerRouterRefresh(path))

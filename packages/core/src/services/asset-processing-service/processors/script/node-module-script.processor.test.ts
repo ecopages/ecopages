@@ -121,7 +121,7 @@ describe('NodeModuleScriptProcessor', () => {
 				inline: true,
 			};
 
-			expect(processor.process(dep)).rejects.toThrow(/Could not find module/);
+			expect(processor.process(dep)).rejects.toThrow(/Could not resolve module/);
 		});
 
 		test('should find module in parent directories', async () => {
@@ -164,6 +164,33 @@ describe('NodeModuleScriptProcessor', () => {
 
 			expect(result).toBeDefined();
 			expect(result.inline).toBe(true);
+		});
+	});
+
+	describe('resolveModulePath with real dependencies', () => {
+		beforeEach(() => {
+			fileSystem.exists = originalExists;
+			fileSystem.readFileAsBuffer = originalReadFileAsBuffer;
+		});
+
+		test('should resolve @ecopages/radiant using Bun.resolveSync', async () => {
+			const config = createMockConfig();
+			config.rootDir = process.cwd();
+			const processor = new NodeModuleScriptProcessor({ appConfig: config });
+
+			const dep: NodeModuleScriptAsset = {
+				kind: 'script',
+				source: 'node-module',
+				importPath: '@ecopages/radiant',
+				inline: true,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(result).toBeDefined();
+			expect(result.inline).toBe(true);
+			expect(result.content).toBeDefined();
+			expect(result.content!.length).toBeGreaterThan(0);
 		});
 	});
 });

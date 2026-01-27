@@ -1,40 +1,24 @@
-import { EcopagesApp, type BunMiddleware } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import appConfig from './eco.config';
-import * as pages from './src/handlers/pages';
+import { PostView } from './src/views/post-view.kita';
+import { PostListView } from './src/views/post-list-view.kita';
 import * as api from './src/handlers/api';
-import * as admin from './src/handlers/admin';
+import { adminGroup } from './src/handlers/admin';
+import { posts } from './src/data';
 
-const app = new EcopagesApp({ appConfig: appConfig as any });
+const app = new EcopagesApp({ appConfig });
 
-app.static('/', pages.PostListPage);
-app.static('/posts', pages.PostListPage);
-app.static('/posts/:slug', pages.PostDetailPage);
-app.get('/latest', pages.latest);
-
-app.group('/api/v1', (r) => {
-	r.get('/posts', api.list);
-	r.get('/posts/:slug', api.detail);
-});
-
-const adminMiddleware: BunMiddleware = async (ctx, next) => {
-	console.log(`[Admin Access] ${ctx.request.method} ${ctx.request.url}`);
-	return next();
-};
-
-app.group(
-	'/api/v1/admin',
-	(r) => {
-		r.post('/posts', admin.createPost, {
-			schema: {
-				body: admin.createPostSchema,
-			},
-		});
-	},
-	{
-		middleware: [adminMiddleware],
-	},
-);
+app.static('/', PostListView)
+	.static('/posts', PostListView)
+	.static('/posts/:slug', PostView)
+	.get('/latest', async (ctx) => {
+		const latestPost = posts[posts.length - 1];
+		return ctx.render(PostView, latestPost);
+	})
+	.get(api.list)
+	.get(api.detail)
+	.group(adminGroup);
 
 app.onError((error, ctx) => {
 	if (error instanceof HttpError) {

@@ -1,7 +1,7 @@
+import { defineGroupHandler } from '@ecopages/core/adapters/bun';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
 import { type Post, posts } from '../data';
-import type { ApiHandlerContext } from '@ecopages/core';
 
 export const createPostSchema = z.object({
 	slug: z
@@ -12,15 +12,25 @@ export const createPostSchema = z.object({
 	content: z.string().min(10),
 });
 
-export async function createPost(ctx: ApiHandlerContext) {
-	const { title, content, slug } = ctx.body as z.infer<typeof createPostSchema>;
+export const adminGroup = defineGroupHandler({
+	prefix: '/api/v1/admin',
+	routes: (define) => [
+		define({
+			path: '/posts',
+			method: 'POST',
+			schema: { body: createPostSchema },
+			handler: async (ctx) => {
+				const { title, content, slug } = ctx.body;
 
-	if (posts.find((p) => p.slug === slug)) {
-		throw HttpError.Conflict('Post with this slug already exists');
-	}
+				if (posts.find((p) => p.slug === slug)) {
+					throw HttpError.Conflict('Post with this slug already exists');
+				}
 
-	const newPost: Post = { title, content, slug };
-	posts.push(newPost);
+				const newPost: Post = { title, content, slug };
+				posts.push(newPost);
 
-	return ctx.json(newPost, { status: 201 });
-}
+				return ctx.response.status(201).json(newPost);
+			},
+		}),
+	],
+});

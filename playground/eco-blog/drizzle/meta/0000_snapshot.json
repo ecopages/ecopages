@@ -1,7 +1,7 @@
 {
 	"version": "6",
 	"dialect": "sqlite",
-	"id": "a3fbfeb1-b659-45fa-a97d-822afe2768bb",
+	"id": "0db1c268-cab4-440d-96f6-08b66fa2e0ee",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"tables": {
 		"account": {
@@ -159,7 +159,7 @@
 					"primaryKey": false,
 					"notNull": false,
 					"autoincrement": false,
-					"default": "'\"2026-01-26T23:16:19.069Z\"'"
+					"default": "'\"2026-01-27T21:07:41.317Z\"'"
 				},
 				"authorId": {
 					"name": "authorId",

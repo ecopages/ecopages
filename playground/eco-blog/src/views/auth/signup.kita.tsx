@@ -1,7 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { PropsWithChildren } from '@kitajs/html';
 
-export const SignupView = eco.page<PropsWithChildren<{}>>({
+const SignUp = eco.page<PropsWithChildren<{}>>({
 	metadata: () => ({
 		title: 'Sign Up | EcoBlog',
 		description: 'Create an author account',
@@ -77,3 +77,5 @@ export const SignupView = eco.page<PropsWithChildren<{}>>({
 		);
 	},
 });
+
+export default SignUp;

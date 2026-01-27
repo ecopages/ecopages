@@ -1,7 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { PropsWithChildren } from '@kitajs/html';
 
-export const LoginView = eco.page<PropsWithChildren<{}>>({
+const Login = eco.page<PropsWithChildren<{}>>({
 	metadata: () => ({
 		title: 'Sign In | EcoBlog',
 		description: 'Author sign in',
@@ -70,3 +70,5 @@ export const LoginView = eco.page<PropsWithChildren<{}>>({
 		);
 	},
 });
+
+export default Login;

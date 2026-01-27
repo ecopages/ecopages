@@ -8,7 +8,7 @@ export interface PostEditorProps {
 	post?: Post;
 }
 
-export const PostEditor = eco.page<PostEditorProps>({
+const AdminPostEditor = eco.page<PostEditorProps>({
 	layout: AdminLayout,
 	metadata: ({ props }) => ({
 		title: props.post ? `Edit: ${props.post.title}` : 'New Post | Admin',
@@ -88,3 +88,5 @@ export const PostEditor = eco.page<PostEditorProps>({
 		);
 	},
 });
+
+export default AdminPostEditor;

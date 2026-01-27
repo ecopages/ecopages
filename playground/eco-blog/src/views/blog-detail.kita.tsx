@@ -9,7 +9,7 @@ export interface BlogDetailProps {
 	post: Post;
 }
 
-export const BlogDetail = eco.page<BlogDetailProps>({
+const BlogDetail = eco.page<BlogDetailProps>({
 	layout: MainLayout,
 	cache: 'dynamic',
 	metadata: ({ props }) => ({
@@ -41,3 +41,5 @@ export const BlogDetail = eco.page<BlogDetailProps>({
 		);
 	},
 });
+
+export default BlogDetail;

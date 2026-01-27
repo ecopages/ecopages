@@ -66,6 +66,10 @@ The `HandlerContext` contains:
     - Methods like `json()`, `text()`, `formData()` to parse the request body.
 - `response`: An instance of `ApiResponseBuilder`, a utility for constructing `Response` objects fluently.
 - `server`: The underlying server instance (e.g., Bun's server object), which exposes advanced utilities such as `requestIP`, `reload`, and other debugging or runtime methods.
+- `body`: The parsed and optionally validated request body. Automatically typed when using schemas.
+- `query`: Parsed and optionally validated query parameters. Automatically typed when using schemas.
+- `headers`: Parsed and optionally validated request headers. Automatically typed when using schemas.
+- `services`: An object containing framework services like `cache`.
 
 ### Accessing the Server Instance
 
@@ -137,16 +141,15 @@ app.get('/api/old-path', async ({ response }) => {
 });
 
 app.get('/api/find/:id', async ({ request, response }) => {
-const { id } = request.params;
-const item = // ... find item logic ...
+	const { id } = request.params;
+	const item = // ... find item logic ...
 
-    if (!item) {
-    	// Send a 404 error with a JSON body
-    	return response.error({ message: `Item ${id} not found` }, 404);
-    }
+	if (!item) {
+		// Send a 404 error with a JSON body
+		return response.error({ message: `Item ${id} not found` }, 404);
+	}
 
-    return response.json(item);
-
+	return response.json(item);
 });
 ```
 
@@ -170,7 +173,45 @@ await app.start({
 });
 ```
 
-## Type Safety with `defineApiHandler`
+## Route Groups
 
-For enhanced type safety, especially with route parameters, consider using the adapter-specific `defineApiHandler` helper. See the [Server API](/docs/core/server-api#type-safety) documentation for details.
+Use `app.group()` to organize related routes under a shared prefix with optional middleware. This is useful for sections like admin panels or authenticated APIs.
+
+```typescript
+import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import * as admin from './handlers/admin';
+import { authMiddleware } from './middleware/auth';
+
+const app = new EcopagesApp({ appConfig });
+
+app.group(
+	'/admin',
+	(r) => {
+		r.get('/', admin.list);
+		r.get('/new', admin.newPost);
+		r.post('/posts', admin.createPost);
+		r.get('/posts/:id', admin.editPost);
+		r.post('/posts/:id', admin.updatePost);
+		r.post('/posts/:id/delete', admin.deletePost);
+		r.post('/upload', admin.uploadImage);
+	},
+	{
+		middleware: [authMiddleware],
+	},
+);
+
+await app.start();
+```
+
+The group registration:
+
+- Prepends the prefix to each route (`/` becomes `/admin`, `/posts/:id` becomes `/admin/posts/:id`)
+- Applies middleware to all routes in the group
+- The middleware context is available in all handlers
+
+## Type Safety with Define Handlers
+
+For enhanced type safety with path parameters, middleware context, and request schemas, use the `defineApiHandler` and `defineGroupHandler` helpers.
+
+See the [Define Handlers](/docs/server/define-handlers) documentation for complete details.
 ```

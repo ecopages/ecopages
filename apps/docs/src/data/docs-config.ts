@@ -52,6 +52,7 @@ export const docsConfig: DocsConfig = {
 			pages: [
 				{ title: 'Server API', slug: 'server-api' },
 				{ title: 'API Handlers', slug: 'api-handlers' },
+				{ title: 'Define Handlers', slug: 'define-handlers' },
 				{ title: 'Explicit Routing', slug: 'explicit-routing' },
 				{ title: 'Routing Patterns', slug: 'routing-patterns' },
 				{ title: 'Caching', slug: 'caching' },

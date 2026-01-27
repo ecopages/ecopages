@@ -9,7 +9,7 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 		const moduleName = path.basename(modulePath);
 		const hash = this.generateHash(modulePath);
 		const filename = dep.name ? `${dep.name}` : `nm-${moduleName}-${hash}`;
-		const cachekey = `${filename}:${hash}`;
+		const cachekey = this.buildCacheKey(filename, hash, dep);
 
 		if (this.hasCacheFile(cachekey)) {
 			return this.getCacheFile(cachekey) as ProcessedAsset;

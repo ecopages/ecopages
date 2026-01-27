@@ -31,7 +31,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 		const content = fileSystem.readFileSync(dep.filepath);
 		const hash = this.generateHash(content);
-		const cachekey = `${dep.filepath}:${hash}`;
+		const cachekey = this.buildCacheKey(dep.filepath, hash, dep);
 
 		if (this.hasCacheFile(cachekey)) {
 			return this.getCacheFile(cachekey) as ProcessedAsset;

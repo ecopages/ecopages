@@ -162,5 +162,35 @@ describe('ContentStylesheetProcessor', () => {
 
 			expect(result.position).toBe('head');
 		});
+
+		test('should return updated attributes when cached asset is retrieved with different attributes', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+
+			const depWithMedia: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.cached-style { color: red; }',
+				inline: false,
+				attributes: { media: 'screen' },
+				position: 'head',
+			};
+
+			const depWithPrint: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.cached-style { color: red; }',
+				inline: false,
+				attributes: { media: 'print' },
+				position: 'body',
+			};
+
+			const result1 = await processor.process(depWithMedia);
+			const result2 = await processor.process(depWithPrint);
+
+			expect(result1.attributes).toEqual({ media: 'screen' });
+			expect(result1.position).toBe('head');
+			expect(result2.attributes).toEqual({ media: 'print' });
+			expect(result2.position).toBe('body');
+		});
 	});
 });

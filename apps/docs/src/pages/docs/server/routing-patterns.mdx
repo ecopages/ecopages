@@ -1,5 +1,4 @@
 import { DocsLayout } from '@/layouts/docs-layout';
-import { Banner } from '@/components/banner/banner.kita';
 
 export const config = {
 	layout: DocsLayout,
@@ -48,29 +47,28 @@ export const db = {
   }
 };
 
-// src/views.ts
-// Simple EcoPages components
-export const PostListView = ({ posts }: { posts: any[] }) => {
-  return `<ul>${posts.map(p => `<li>${p.title}</li>`).join('')}</ul>`;
-};
+// src/views/post-list.tsx
+import { eco } from '@ecopages/core';
 
-export const PostView = ({ title, content }: { title: string; content: string }) => {
-  return `
-    <article>
-      <h1>${title}</h1>
-      <p>${content}</p>
-    </article>
-  `;
-};
+const PostListView = eco.page({
+  render: ({ posts }: { posts: any[] }) => (
+    `<ul>${posts.map(p => `<li>${p.title}</li>`).join('')}</ul>`
+  )
+});
+
+export default PostListView;
+
+// src/views/post.tsx
+import { eco } from '@ecopages/core';
+
+const PostView = eco.page({
+  render: ({ title, content }: { title: string; content: string }) => (
+    `<article><h1>${title}</h1><p>${content}</p></article>`
+  )
+});
+
+export default PostView;
 ```
-
-<Banner type="info">
-  <Banner.Title>Preload Configuration Required</Banner.Title>
-  <p>Ensure your <code>eco.config.ts</code> is preloaded in <code>bunfig.toml</code> so integrations load correctly with explicit routes.</p>
-  ```toml
-  preload = ["./eco.config.ts"]
-  ```
-</Banner>
 
 ## Pattern A: Inline Handlers
 
@@ -88,13 +86,13 @@ For small projects or rapid prototyping, define everything inline in `app.ts`.
 ```typescript
 import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
 import { HttpError } from '@ecopages/core/errors';
-import { PostView, PostListView } from './src/views';
 import { db } from './src/db';
 import appConfig from './eco.config';
 
 const app = new EcopagesApp({ appConfig });
 
 app.get('/posts', async (ctx) => {
+	const { default: PostListView } = await import('./src/views/post-list');
 	const posts = await db.posts.findMany({
 		where: { status: 'published' },
 		orderBy: { createdAt: 'desc' }
@@ -103,6 +101,7 @@ app.get('/posts', async (ctx) => {
 });
 
 app.get('/posts/:slug', async (ctx) => {
+	const { default: PostView } = await import('./src/views/post');
 	const post = await db.posts.findUnique({
 		where: { slug: ctx.request.params.slug }
 	});
@@ -164,9 +163,9 @@ app.ts
 import type { ApiHandlerContext } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import { db } from '../db';
-import { PostView, PostListView } from '../views';
 
 export async function index(ctx: ApiHandlerContext) {
+	const { default: PostListView } = await import('../views/post-list');
 	const posts = await db.posts.findMany({
 		where: { status: 'published' },
 		orderBy: { createdAt: 'desc' }
@@ -175,6 +174,7 @@ export async function index(ctx: ApiHandlerContext) {
 }
 
 export async function show(ctx: ApiHandlerContext) {
+	const { default: PostView } = await import('../views/post');
 	const post = await db.posts.findUnique({
 		where: { slug: ctx.request.params.slug },
 		include: { author: true }
@@ -274,11 +274,11 @@ app.ts
 import type { ApiHandlerContext } from '@ecopages/core';
 import type { Database } from '../types';
 import { HttpError } from '@ecopages/core/errors';
-import { PostView, PostListView } from '../views';
 
 export function createPostsHandlers(db: Database) {
 	return {
 		index: async (ctx: ApiHandlerContext) => {
+			const { default: PostListView } = await import('../views/post-list');
 			const posts = await db.posts.findMany({
 				where: { status: 'published' },
 				orderBy: { createdAt: 'desc' }
@@ -287,6 +287,7 @@ export function createPostsHandlers(db: Database) {
 		},
 
 		show: async (ctx: ApiHandlerContext) => {
+			const { default: PostView } = await import('../views/post');
 			const post = await db.posts.findUnique({
 				where: { slug: ctx.request.params.slug },
 				include: { author: true }
@@ -447,17 +448,18 @@ export class PostsService {
 import type { ApiHandlerContext } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import { PostsService } from '../services/posts.service';
-import { PostView, PostListView } from '../views';
 
 export class PostsController {
 	constructor(private postsService: PostsService) {}
 
 	async index(ctx: ApiHandlerContext) {
+		const { default: PostListView } = await import('../views/post-list');
 		const posts = await this.postsService.findAll();
 		return ctx.render(PostListView, { posts });
 	}
 
 	async show(ctx: ApiHandlerContext) {
+		const { default: PostView } = await import('../views/post');
 		const post = await this.postsService.findBySlug(ctx.request.params.slug);
 		if (!post) throw HttpError.NotFound('Post not found');
 		return ctx.render(PostView, post);
@@ -659,7 +661,6 @@ export const postAdapter = {
 import type { ApiHandlerContext } from '@ecopages/core';
 import type { BlogService, PostAdapter } from '../types';
 import { HttpError } from '@ecopages/core/errors';
-import { PostView, PostListView } from '../views';
 
 export function createPostsHandlers(
 	service: BlogService,
@@ -667,12 +668,14 @@ export function createPostsHandlers(
 ) {
 	return {
 		async index(ctx: ApiHandlerContext) {
+			const { default: PostListView } = await import('../views/post-list');
 			const posts = await service.getAllPublishedPosts();
 			const viewData = adapter.toListView(posts);
 			return ctx.render(PostListView, { posts: viewData });
 		},
 
 		async show(ctx: ApiHandlerContext) {
+			const { default: PostView } = await import('../views/post');
 			const post = await service.getPostBySlug(ctx.request.params.slug);
 			if (!post) throw HttpError.NotFound('Post not found');
 			const viewData = adapter.toDetailView(post);
@@ -741,6 +744,7 @@ const app = new EcopagesApp({ appConfig });
 
 // Simple inline handler for about page
 app.get('/about', async (ctx) => {
+	const { default: AboutView } = await import('./src/views/about');
 	return ctx.render(AboutView);
 });
 
@@ -789,6 +793,7 @@ Begin with [inline handlers](#pattern-a-inline-handlers) and refactor only when 
 ```typescript
 // Start here
 app.get('/posts', async (ctx) => {
+	const { default: PostListView } = await import('./src/views/post-list');
 	const posts = await db.posts.findMany();
 	return ctx.render(PostListView, { posts });
 });
@@ -804,6 +809,7 @@ Handlers should orchestrate, not implement business logic:
 
 ```typescript
 async show(ctx: ApiHandlerContext) {
+	const { default: PostView } = await import('../views/post');
 	const post = await service.getPostBySlug(ctx.request.params.slug);
 	if (!post) throw HttpError.NotFound();
 	return ctx.render(PostView, adapter.toView(post));

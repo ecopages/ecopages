@@ -206,11 +206,21 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Server<WebSocketData>
 		>,
 	>(
-		path: P,
-		handler: BunHandler<WebSocketData, P, TContext>,
+		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
+		handler?: BunHandler<WebSocketData, P, TContext>,
 		options?: BunRouteOptions<WebSocketData, P, TContext>,
 	): this {
-		return this.register(path, 'GET', handler, options);
+		if (typeof pathOrHandler === 'object') {
+			this.addRouteHandler(
+				pathOrHandler.path,
+				pathOrHandler.method,
+				pathOrHandler.handler as BunHandler<WebSocketData>,
+				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
+				pathOrHandler.schema,
+			);
+			return this;
+		}
+		return this.register(pathOrHandler, 'GET', handler!, options);
 	}
 
 	post<
@@ -220,11 +230,21 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Server<WebSocketData>
 		>,
 	>(
-		path: P,
-		handler: BunHandler<WebSocketData, P, TContext>,
+		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
+		handler?: BunHandler<WebSocketData, P, TContext>,
 		options?: BunRouteOptions<WebSocketData, P, TContext>,
 	): this {
-		return this.register(path, 'POST', handler, options);
+		if (typeof pathOrHandler === 'object') {
+			this.addRouteHandler(
+				pathOrHandler.path,
+				pathOrHandler.method,
+				pathOrHandler.handler as BunHandler<WebSocketData>,
+				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
+				pathOrHandler.schema,
+			);
+			return this;
+		}
+		return this.register(pathOrHandler, 'POST', handler!, options);
 	}
 
 	put<
@@ -234,11 +254,21 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Server<WebSocketData>
 		>,
 	>(
-		path: P,
-		handler: BunHandler<WebSocketData, P, TContext>,
+		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
+		handler?: BunHandler<WebSocketData, P, TContext>,
 		options?: BunRouteOptions<WebSocketData, P, TContext>,
 	): this {
-		return this.register(path, 'PUT', handler, options);
+		if (typeof pathOrHandler === 'object') {
+			this.addRouteHandler(
+				pathOrHandler.path,
+				pathOrHandler.method,
+				pathOrHandler.handler as BunHandler<WebSocketData>,
+				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
+				pathOrHandler.schema,
+			);
+			return this;
+		}
+		return this.register(pathOrHandler, 'PUT', handler!, options);
 	}
 
 	delete<
@@ -248,11 +278,21 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Server<WebSocketData>
 		>,
 	>(
-		path: P,
-		handler: BunHandler<WebSocketData, P, TContext>,
+		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
+		handler?: BunHandler<WebSocketData, P, TContext>,
 		options?: BunRouteOptions<WebSocketData, P, TContext>,
 	): this {
-		return this.register(path, 'DELETE', handler, options);
+		if (typeof pathOrHandler === 'object') {
+			this.addRouteHandler(
+				pathOrHandler.path,
+				pathOrHandler.method,
+				pathOrHandler.handler as BunHandler<WebSocketData>,
+				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
+				pathOrHandler.schema,
+			);
+			return this;
+		}
+		return this.register(pathOrHandler, 'DELETE', handler!, options);
 	}
 
 	patch<
@@ -262,11 +302,21 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Server<WebSocketData>
 		>,
 	>(
-		path: P,
-		handler: BunHandler<WebSocketData, P, TContext>,
+		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
+		handler?: BunHandler<WebSocketData, P, TContext>,
 		options?: BunRouteOptions<WebSocketData, P, TContext>,
 	): this {
-		return this.register(path, 'PATCH', handler, options);
+		if (typeof pathOrHandler === 'object') {
+			this.addRouteHandler(
+				pathOrHandler.path,
+				pathOrHandler.method,
+				pathOrHandler.handler as BunHandler<WebSocketData>,
+				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
+				pathOrHandler.schema,
+			);
+			return this;
+		}
+		return this.register(pathOrHandler, 'PATCH', handler!, options);
 	}
 
 	options<
@@ -276,11 +326,21 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Server<WebSocketData>
 		>,
 	>(
-		path: P,
-		handler: BunHandler<WebSocketData, P, TContext>,
+		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
+		handler?: BunHandler<WebSocketData, P, TContext>,
 		routeOptions?: BunRouteOptions<WebSocketData, P, TContext>,
 	): this {
-		return this.register(path, 'OPTIONS', handler, routeOptions);
+		if (typeof pathOrHandler === 'object') {
+			this.addRouteHandler(
+				pathOrHandler.path,
+				pathOrHandler.method,
+				pathOrHandler.handler as BunHandler<WebSocketData>,
+				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
+				pathOrHandler.schema,
+			);
+			return this;
+		}
+		return this.register(pathOrHandler, 'OPTIONS', handler!, routeOptions);
 	}
 
 	head<
@@ -290,11 +350,21 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Server<WebSocketData>
 		>,
 	>(
-		path: P,
-		handler: BunHandler<WebSocketData, P, TContext>,
+		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
+		handler?: BunHandler<WebSocketData, P, TContext>,
 		options?: BunRouteOptions<WebSocketData, P, TContext>,
 	): this {
-		return this.register(path, 'HEAD', handler, options);
+		if (typeof pathOrHandler === 'object') {
+			this.addRouteHandler(
+				pathOrHandler.path,
+				pathOrHandler.method,
+				pathOrHandler.handler as BunHandler<WebSocketData>,
+				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
+				pathOrHandler.schema,
+			);
+			return this;
+		}
+		return this.register(pathOrHandler, 'HEAD', handler!, options);
 	}
 
 	route<P extends string>(
@@ -327,8 +397,14 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 	 * ```
 	 */
 	group<TMiddleware extends readonly Middleware<BunRequest<string>, Server<WebSocketData>, any>[] = []>(
-		prefix: string,
-		callback: (
+		prefixOrGroup:
+			| string
+			| {
+					prefix: string;
+					middleware?: readonly Middleware<BunRequest<string>, Server<WebSocketData>, any>[];
+					routes: readonly ApiHandler<any, any, Server<WebSocketData>>[];
+			  },
+		callback?: (
 			builder: BunRouteGroupBuilder<
 				WebSocketData,
 				TMiddleware extends readonly Middleware<BunRequest<string>, Server<WebSocketData>, infer TContext>[]
@@ -340,10 +416,14 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			middleware?: TMiddleware;
 		},
 	): this {
+		if (typeof prefixOrGroup === 'object') {
+			return this.registerGroup(prefixOrGroup);
+		}
+
 		type TContext = TMiddleware extends readonly Middleware<BunRequest<string>, Server<WebSocketData>, infer TCtx>[]
 			? TCtx
 			: ApiHandlerContext<BunRequest<string>, Server<WebSocketData>>;
-		const normalizedPrefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+		const normalizedPrefix = prefixOrGroup.endsWith('/') ? prefixOrGroup.slice(0, -1) : prefixOrGroup;
 		const groupMiddleware = (options?.middleware ?? []) as Middleware<
 			BunRequest<string>,
 			Server<WebSocketData>,
@@ -391,7 +471,32 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			head: createHandler('HEAD'),
 		};
 
-		callback(builder);
+		callback!(builder);
+		return this;
+	}
+
+	private registerGroup(group: {
+		prefix: string;
+		middleware?: readonly Middleware<BunRequest<string>, Server<WebSocketData>, any>[];
+		routes: readonly ApiHandler<string, BunRequest<string>, Server<WebSocketData>>[];
+	}): this {
+		const normalizedPrefix = group.prefix.endsWith('/') ? group.prefix.slice(0, -1) : group.prefix;
+		const groupMiddleware = group.middleware ?? [];
+
+		for (const route of group.routes) {
+			const normalizedPath = route.path.startsWith('/') ? route.path : `/${route.path}`;
+			const fullPath = route.path === '/' ? normalizedPrefix : `${normalizedPrefix}${normalizedPath}`;
+			const combinedMiddleware = [...groupMiddleware, ...(route.middleware ?? [])];
+
+			this.addRouteHandler(
+				fullPath,
+				route.method,
+				route.handler as BunHandler<WebSocketData>,
+				combinedMiddleware.length > 0 ? (combinedMiddleware as BunMiddlewareArray<WebSocketData>) : undefined,
+				route.schema,
+			);
+		}
+
 		return this;
 	}
 

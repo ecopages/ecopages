@@ -1,16 +1,23 @@
+import { defineApiHandler } from '@ecopages/core/adapters/bun';
 import { HttpError } from '@ecopages/core/errors';
 import { posts } from '../data';
-import type { ApiHandlerContext } from '@ecopages/core';
 
-export async function list(ctx: ApiHandlerContext) {
-	return ctx.json(posts);
-}
+export const list = defineApiHandler({
+	path: '/api/v1/posts',
+	method: 'GET',
+	handler: async ({ response }) => {
+		return response.json(posts);
+	},
+});
 
-export async function detail(ctx: ApiHandlerContext) {
-	const slug = (ctx.request as any).params.slug;
-	const post = posts.find((p) => p.slug === slug);
-	if (!post) {
-		throw HttpError.NotFound('Post not found');
-	}
-	return ctx.json(post);
-}
+export const detail = defineApiHandler({
+	path: '/api/v1/posts/:slug',
+	method: 'GET',
+	handler: async ({ request, response }) => {
+		const post = posts.find((p) => p.slug === request.params.slug);
+		if (!post) {
+			throw HttpError.NotFound('Post not found');
+		}
+		return response.json(post);
+	},
+});

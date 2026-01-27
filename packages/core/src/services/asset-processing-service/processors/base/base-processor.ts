@@ -52,4 +52,24 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 		const position = dep.position ?? '';
 		return `${identifier}:${contentHash}:${position}:${attrsHash}`;
 	}
+
+	protected getOrProcess(
+		cacheKey: string,
+		processFn: () => ProcessedAsset | Promise<ProcessedAsset>,
+	): Promise<ProcessedAsset> {
+		if (this.hasCacheFile(cacheKey)) {
+			return Promise.resolve(this.getCacheFile(cacheKey) as ProcessedAsset);
+		}
+
+		const result = processFn();
+		if (result instanceof Promise) {
+			return result.then((asset) => {
+				this.writeCacheFile(cacheKey, asset);
+				return asset;
+			});
+		}
+
+		this.writeCacheFile(cacheKey, result);
+		return Promise.resolve(result);
+	}
 }

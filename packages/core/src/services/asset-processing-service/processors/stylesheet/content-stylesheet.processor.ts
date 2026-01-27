@@ -9,25 +9,19 @@ export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetA
 		const filename = `style-${hash}.css`;
 		const cachekey = this.buildCacheKey(filename, hash, dep);
 
-		if (this.hasCacheFile(cachekey)) {
-			return this.getCacheFile(cachekey) as ProcessedAsset;
-		}
+		return this.getOrProcess(cachekey, () => {
+			const filepath = path.join(this.getAssetsDir(), 'styles', filename);
 
-		const filepath = path.join(this.getAssetsDir(), 'styles', filename);
+			if (!dep.inline) fileSystem.write(filepath, dep.content);
 
-		if (!dep.inline) fileSystem.write(filepath, dep.content);
-
-		const processedAsset: ProcessedAsset = {
-			filepath: dep.inline ? undefined : filepath,
-			content: dep.inline ? dep.content : undefined,
-			kind: 'stylesheet',
-			position: dep.position,
-			attributes: dep.attributes,
-			inline: dep.inline,
-		};
-
-		this.writeCacheFile(cachekey, processedAsset);
-
-		return processedAsset;
+			return {
+				filepath: dep.inline ? undefined : filepath,
+				content: dep.inline ? dep.content : undefined,
+				kind: 'stylesheet',
+				position: dep.position,
+				attributes: dep.attributes,
+				inline: dep.inline,
+			};
+		});
 	}
 }

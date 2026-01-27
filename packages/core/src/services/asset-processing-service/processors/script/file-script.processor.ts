@@ -40,57 +40,47 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		);
 		const cachekey = `${this.buildCacheKey(dep.filepath, this.generateHash(content), dep)}:${configHash}`;
 
-		if (this.hasCacheFile(cachekey)) {
-			return this.getCacheFile(cachekey) as ProcessedAsset;
-		}
+		return this.getOrProcess(cachekey, async () => {
+			if (!shouldBundle) {
+				const outFilepath = path.relative(this.appConfig.srcDir, dep.filepath);
+				let filepath: string | undefined;
 
-		if (!shouldBundle) {
-			const outFilepath = path.relative(this.appConfig.srcDir, dep.filepath);
-			let filepath: string | undefined;
+				if (!dep.inline) {
+					filepath = path.join(this.getAssetsDir(), outFilepath);
+					fileSystem.copyFile(dep.filepath, filepath);
+				}
 
-			if (!dep.inline) {
-				filepath = path.join(this.getAssetsDir(), outFilepath);
-				fileSystem.copyFile(dep.filepath, filepath);
+				return {
+					filepath,
+					content,
+					kind: 'script',
+					position: dep.position,
+					attributes: dep.attributes,
+					inline: dep.inline,
+					excludeFromHtml: dep.excludeFromHtml,
+				};
 			}
 
-			const unbundledProcessedAsset: ProcessedAsset = {
-				filepath,
-				content,
+			const relativeFilepath = path.relative(this.appConfig.srcDir, dep.filepath);
+			const outdirPath = path.join(this.appConfig.distDir, RESOLVED_ASSETS_DIR, relativeFilepath);
+			const outdirDirname = path.dirname(outdirPath);
+
+			const bundledFilePath = await this.bundleScript({
+				entrypoint: dep.filepath,
+				outdir: outdirDirname,
+				minify: this.isProduction,
+				...this.getBundlerOptions(dep),
+			});
+
+			return {
+				filepath: bundledFilePath,
+				content: dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
 				kind: 'script',
 				position: dep.position,
 				attributes: dep.attributes,
 				inline: dep.inline,
 				excludeFromHtml: dep.excludeFromHtml,
 			};
-
-			this.writeCacheFile(cachekey, unbundledProcessedAsset);
-
-			return unbundledProcessedAsset;
-		}
-
-		const relativeFilepath = path.relative(this.appConfig.srcDir, dep.filepath);
-		const outdirPath = path.join(this.appConfig.distDir, RESOLVED_ASSETS_DIR, relativeFilepath);
-		const outdirDirname = path.dirname(outdirPath);
-
-		const bundledFilePath = await this.bundleScript({
-			entrypoint: dep.filepath,
-			outdir: outdirDirname,
-			minify: this.isProduction,
-			...this.getBundlerOptions(dep),
 		});
-
-		const processedAsset: ProcessedAsset = {
-			filepath: bundledFilePath,
-			content: dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
-			kind: 'script',
-			position: dep.position,
-			attributes: dep.attributes,
-			inline: dep.inline,
-			excludeFromHtml: dep.excludeFromHtml,
-		};
-
-		this.writeCacheFile(cachekey, processedAsset);
-
-		return processedAsset;
 	}
 }

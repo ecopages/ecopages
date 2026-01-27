@@ -30,14 +30,19 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		}
 
 		const content = fileSystem.readFileSync(dep.filepath);
-		const hash = this.generateHash(content);
-		const cachekey = this.buildCacheKey(dep.filepath, hash, dep);
+		const shouldBundle = this.shouldBundle(dep);
+		const configHash = this.generateHash(
+			JSON.stringify({
+				bundle: shouldBundle,
+				minify: shouldBundle && this.isProduction,
+				opts: dep.bundleOptions,
+			}),
+		);
+		const cachekey = `${this.buildCacheKey(dep.filepath, this.generateHash(content), dep)}:${configHash}`;
 
 		if (this.hasCacheFile(cachekey)) {
 			return this.getCacheFile(cachekey) as ProcessedAsset;
 		}
-
-		const shouldBundle = this.shouldBundle(dep);
 
 		if (!shouldBundle) {
 			const outFilepath = path.relative(this.appConfig.srcDir, dep.filepath);

@@ -7,9 +7,11 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 	async process(dep: NodeModuleScriptAsset) {
 		const modulePath = this.resolveModulePath(dep.importPath, this.appConfig.rootDir);
 		const moduleName = path.basename(modulePath);
-		const hash = this.generateHash(modulePath);
-		const filename = dep.name ? `${dep.name}` : `nm-${moduleName}-${hash}`;
-		const cachekey = this.buildCacheKey(filename, hash, dep);
+		const filename = dep.name ?? `nm-${moduleName}`;
+		const configHash = this.generateHash(
+			JSON.stringify({ inline: dep.inline, minify: !dep.inline && this.isProduction, opts: dep.bundleOptions }),
+		);
+		const cachekey = `${this.buildCacheKey(filename, this.generateHash(modulePath), dep)}:${configHash}`;
 
 		if (this.hasCacheFile(cachekey)) {
 			return this.getCacheFile(cachekey) as ProcessedAsset;

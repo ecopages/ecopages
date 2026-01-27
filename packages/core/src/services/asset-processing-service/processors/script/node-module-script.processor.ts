@@ -13,45 +13,36 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 		);
 		const cachekey = `${this.buildCacheKey(filename, this.generateHash(modulePath), dep)}:${configHash}`;
 
-		if (this.hasCacheFile(cachekey)) {
-			return this.getCacheFile(cachekey) as ProcessedAsset;
-		}
+		return this.getOrProcess(cachekey, async () => {
+			if (dep.inline) {
+				const content = fileSystem.readFileAsBuffer(modulePath).toString();
+				return {
+					content,
+					kind: dep.kind,
+					position: dep.position,
+					attributes: dep.attributes,
+					inline: true,
+				};
+			}
 
-		if (dep.inline) {
-			const content = fileSystem.readFileAsBuffer(modulePath).toString();
-			const inlineProcessedAsset: ProcessedAsset = {
-				content,
+			const outdir = path.join(this.getAssetsDir(), 'vendors');
+
+			const filePath = await this.bundleScript({
+				entrypoint: modulePath,
+				outdir: outdir,
+				minify: this.isProduction,
+				naming: dep.name ? `${dep.name}.[ext]` : '[name].[ext]',
+				...this.getBundlerOptions(dep),
+			});
+
+			return {
+				filepath: filePath,
 				kind: dep.kind,
 				position: dep.position,
 				attributes: dep.attributes,
-				inline: true,
+				inline: dep.inline,
 			};
-
-			this.writeCacheFile(cachekey, inlineProcessedAsset);
-			return inlineProcessedAsset;
-		}
-
-		const outdir = path.join(this.getAssetsDir(), 'vendors');
-
-		const filePath = await this.bundleScript({
-			entrypoint: modulePath,
-			outdir: outdir,
-			minify: this.isProduction,
-			naming: dep.name ? `${dep.name}.[ext]` : '[name].[ext]',
-			...this.getBundlerOptions(dep),
 		});
-
-		const processedAsset: ProcessedAsset = {
-			filepath: filePath,
-			kind: dep.kind,
-			position: dep.position,
-			attributes: dep.attributes,
-			inline: dep.inline,
-		};
-
-		this.writeCacheFile(cachekey, processedAsset);
-
-		return processedAsset;
 	}
 
 	private resolveModulePath(importPath: string, rootDir: string, maxDepth = 5): string {

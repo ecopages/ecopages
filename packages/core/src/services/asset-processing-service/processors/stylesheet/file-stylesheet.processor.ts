@@ -23,28 +23,22 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 		const hash = this.generateHash(content);
 		const cachekey = this.buildCacheKey(dep.filepath, hash, dep);
 
-		if (this.hasCacheFile(cachekey)) {
-			return this.getCacheFile(cachekey) as ProcessedAsset;
-		}
+		return this.getOrProcess(cachekey, () => {
+			const filepath = path.join(this.getAssetsDir(), path.relative(this.appConfig.srcDir, dep.filepath));
 
-		const filepath = path.join(this.getAssetsDir(), path.relative(this.appConfig.srcDir, dep.filepath));
+			if (!dep.inline) {
+				fileSystem.ensureDir(path.dirname(filepath));
+				fileSystem.write(filepath, buffer);
+			}
 
-		if (!dep.inline) {
-			fileSystem.ensureDir(path.dirname(filepath));
-			fileSystem.write(filepath, buffer);
-		}
-
-		const processedAsset: ProcessedAsset = {
-			filepath: filepath,
-			content: dep.inline ? buffer.toString() : undefined,
-			kind: 'stylesheet',
-			position: dep.position,
-			attributes: dep.attributes,
-			inline: dep.inline,
-		};
-
-		this.writeCacheFile(cachekey, processedAsset);
-
-		return processedAsset;
+			return {
+				filepath: filepath,
+				content: dep.inline ? buffer.toString() : undefined,
+				kind: 'stylesheet',
+				position: dep.position,
+				attributes: dep.attributes,
+				inline: dep.inline,
+			};
+		});
 	}
 }

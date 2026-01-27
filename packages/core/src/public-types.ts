@@ -1093,10 +1093,16 @@ export interface RouteGroupBuilder<
 }
 
 /**
- * Represents a static route registered via app.static().
- * Used for explicit routing where views are rendered at build time.
+ * A function that dynamically imports a view module.
+ * Used by app.static() to enable HMR in development.
  */
-export interface StaticRoute {
+export type ViewLoader<P = any> = () => Promise<{ default: EcoPageComponent<P> }>;
+
+/**
+ * Represents a static route registered via app.static().
+ * Uses a loader function to enable HMR in development mode.
+ */
+export interface StaticRoute<P = any> {
 	path: string;
-	view: EcoPageComponent<any>;
+	loader: ViewLoader<P>;
 }

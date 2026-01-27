@@ -185,7 +185,7 @@ export class StaticSiteGenerator {
 
 	/**
 	 * Generates static pages from explicit static routes registered via app.static().
-	 * These routes use eco.page views directly instead of file-system routing.
+	 * These routes use eco.page views via loader functions for HMR support.
 	 */
 	private async generateExplicitStaticPages(
 		staticRoutes: StaticRoute[],
@@ -196,18 +196,21 @@ export class StaticSiteGenerator {
 			staticRoutes.map((r) => r.path),
 		);
 
-		for (const { path: routePath, view } of staticRoutes) {
+		for (const route of staticRoutes) {
 			try {
-				const isDynamic = routePath.includes(':') || routePath.includes('[');
+				const mod = await route.loader();
+				const view = mod.default;
+
+				const isDynamic = route.path.includes(':') || route.path.includes('[');
 
 				if (isDynamic) {
-					await this.generateDynamicStaticRoute(routePath, view, routeRendererFactory);
+					await this.generateDynamicStaticRoute(route.path, view, routeRendererFactory);
 				} else {
-					await this.generateSingleStaticRoute(routePath, view, routeRendererFactory);
+					await this.generateSingleStaticRoute(route.path, view, routeRendererFactory);
 				}
 			} catch (error) {
 				appLogger.error(
-					`Error generating explicit static page for ${routePath}:`,
+					`Error generating explicit static page for ${route.path}:`,
 					error instanceof Error ? error : String(error),
 				);
 			}

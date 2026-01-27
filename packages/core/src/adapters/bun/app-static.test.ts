@@ -88,9 +88,9 @@ describe('app.static() Integration Tests', () => {
 				}),
 			],
 			staticRoutes: [
-				{ path: '/explicit/about', view: AboutPage },
-				{ path: '/explicit/blog/:slug', view: BlogPostPage },
-				{ path: '/explicit/products/:category/:id', view: ProductPage },
+				{ path: '/explicit/about', loader: () => Promise.resolve({ default: AboutPage }) },
+				{ path: '/explicit/blog/:slug', loader: () => Promise.resolve({ default: BlogPostPage }) },
+				{ path: '/explicit/products/:category/:id', loader: () => Promise.resolve({ default: ProductPage }) },
 			],
 		});
 

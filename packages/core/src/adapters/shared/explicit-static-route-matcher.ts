@@ -87,17 +87,19 @@ export class ExplicitStaticRouteMatcher {
 
 	/**
 	 * Handle a matched explicit static route.
-	 * Renders the view using the appropriate integration renderer.
+	 * Resolves the loader and renders the view using the appropriate integration renderer.
 	 */
 	async handleMatch(match: ExplicitRouteMatch): Promise<Response> {
 		const { route, params } = match;
-		const { view } = route;
 
 		try {
+			const mod = await route.loader();
+			const view = mod.default;
+
 			const integrationName = view.config?.__eco?.integration;
 			if (!integrationName) {
 				throw new Error(
-					`View at ${route.path} is missing __eco.integration. Ensure it's defined with eco.page().`,
+					`View at ${route.path} is missing __eco.integration. Ensure it's defined with eco.page() and exported as default.`,
 				);
 			}
 

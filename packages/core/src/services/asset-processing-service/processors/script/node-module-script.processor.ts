@@ -45,7 +45,15 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 		});
 	}
 
-	private resolveModulePath(importPath: string, rootDir: string, maxDepth = 5): string {
+	private resolveModulePath(importPath: string, rootDir: string): string {
+		try {
+			return Bun.resolveSync(importPath, rootDir);
+		} catch {
+			return this.resolveModulePathFallback(importPath, rootDir);
+		}
+	}
+
+	private resolveModulePathFallback(importPath: string, rootDir: string, maxDepth = 5): string {
 		const tryPath = (dir: string): string => {
 			const modulePath = path.join(dir, 'node_modules', importPath);
 			if (fileSystem.exists(modulePath)) {
@@ -59,7 +67,7 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 				return tryPath(dir);
 			} catch {
 				if (depth === 0 || dir === path.parse(dir).root) {
-					throw new Error(`Could not find module '${importPath}' in '${rootDir}' or its parent directories`);
+					throw new Error(`Could not resolve module '${importPath}' from '${rootDir}'`);
 				}
 				return findInParentDirs(path.dirname(dir), depth - 1);
 			}

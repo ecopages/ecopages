@@ -157,3 +157,143 @@ describe('BunServerAdapter', () => {
 		expect(await postRes.json()).toEqual({ method: 'POST' });
 	});
 });
+
+describe('BunServerAdapter HMR Injection', () => {
+	let hmrServer: Server<unknown>;
+	const HMR_PORT = 3002;
+
+	beforeAll(async () => {
+		const adapter = await createBunServerAdapter({
+			appConfig,
+			runtimeOrigin: `http://localhost:${HMR_PORT}`,
+			options: { watch: true },
+			serveOptions: {
+				port: HMR_PORT,
+				hostname: 'localhost',
+			},
+			apiHandlers: [
+				defineApiHandler({
+					path: '/api/html-page',
+					method: 'GET',
+					handler: async ({ response }) => {
+						return response.html(`<!DOCTYPE html>
+<html>
+<head><title>Test</title></head>
+<body><h1>Hello</h1></body>
+</html>`);
+					},
+				}),
+				defineApiHandler({
+					path: '/api/json-data',
+					method: 'GET',
+					handler: async ({ response }) => {
+						return response.json({ data: 'test' });
+					},
+				}),
+				defineApiHandler({
+					path: '/api/text-content',
+					method: 'GET',
+					handler: async ({ response }) => {
+						return response.text('Plain text content');
+					},
+				}),
+				defineApiHandler({
+					path: '/api/html-no-closing-tag',
+					method: 'GET',
+					handler: async ({ response }) => {
+						return response.html('<div>Partial HTML without closing html tag</div>');
+					},
+				}),
+			],
+		});
+
+		const serverOptions = adapter.getServerOptions({ enableHmr: true });
+		hmrServer = Bun.serve(serverOptions as Bun.Serve.Options<unknown>);
+		await adapter.completeInitialization(hmrServer);
+	});
+
+	afterAll(() => {
+		hmrServer.stop(true);
+	});
+
+	test('should inject HMR script into HTML responses from API handlers', async () => {
+		const res = await fetch(`http://localhost:${HMR_PORT}/api/html-page`);
+
+		expect(res.status).toBe(200);
+		const html = await res.text();
+		expect(html).toContain(`<script type="module">import '/_hmr_runtime.js';</script></html>`);
+	});
+
+	test('should NOT inject HMR script into JSON responses', async () => {
+		const res = await fetch(`http://localhost:${HMR_PORT}/api/json-data`);
+
+		expect(res.status).toBe(200);
+		const body = await res.text();
+		expect(body).not.toContain('_hmr_runtime.js');
+		expect(JSON.parse(body)).toEqual({ data: 'test' });
+	});
+
+	test('should NOT inject HMR script into text responses', async () => {
+		const res = await fetch(`http://localhost:${HMR_PORT}/api/text-content`);
+
+		expect(res.status).toBe(200);
+		const body = await res.text();
+		expect(body).toBe('Plain text content');
+		expect(body).not.toContain('_hmr_runtime.js');
+	});
+
+	test('should NOT inject HMR script if HTML has no closing html tag', async () => {
+		const res = await fetch(`http://localhost:${HMR_PORT}/api/html-no-closing-tag`);
+
+		expect(res.status).toBe(200);
+		const body = await res.text();
+		expect(body).toBe('<div>Partial HTML without closing html tag</div>');
+		expect(body).not.toContain('_hmr_runtime.js');
+	});
+});
+
+describe('BunServerAdapter without watch mode', () => {
+	let noWatchServer: Server<unknown>;
+	const NO_WATCH_PORT = 3003;
+
+	beforeAll(async () => {
+		const adapter = await createBunServerAdapter({
+			appConfig,
+			runtimeOrigin: `http://localhost:${NO_WATCH_PORT}`,
+			options: { watch: false },
+			serveOptions: {
+				port: NO_WATCH_PORT,
+				hostname: 'localhost',
+			},
+			apiHandlers: [
+				defineApiHandler({
+					path: '/api/html-page',
+					method: 'GET',
+					handler: async ({ response }) => {
+						return response.html(`<!DOCTYPE html>
+<html>
+<head><title>Test</title></head>
+<body><h1>Hello</h1></body>
+</html>`);
+					},
+				}),
+			],
+		});
+
+		noWatchServer = Bun.serve(adapter.getServerOptions() as Bun.Serve.Options<unknown>);
+		await adapter.completeInitialization(noWatchServer);
+	});
+
+	afterAll(() => {
+		noWatchServer.stop(true);
+	});
+
+	test('should NOT inject HMR script when watch mode is disabled', async () => {
+		const res = await fetch(`http://localhost:${NO_WATCH_PORT}/api/html-page`);
+
+		expect(res.status).toBe(200);
+		const html = await res.text();
+		expect(html).not.toContain('_hmr_runtime.js');
+		expect(html).toContain('</html>');
+	});
+});

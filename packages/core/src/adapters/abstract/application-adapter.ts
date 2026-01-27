@@ -12,11 +12,11 @@ import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type {
 	ApiHandler,
 	ApiHandlerContext,
-	EcoPageComponent,
 	ErrorHandler,
 	Middleware,
 	RouteOptions,
 	StaticRoute,
+	ViewLoader,
 } from '../../public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
@@ -240,11 +240,19 @@ export abstract class AbstractApplicationAdapter<
 	/**
 	 * Register a view for static generation at build time.
 	 * The view must have staticPaths defined for dynamic routes.
+	 *
+	 * Uses a loader function to enable HMR in development.
+	 *
 	 * @param path - URL path pattern (e.g., '/posts/:slug')
-	 * @param view - The eco.page view component to render
+	 * @param loader - A function that dynamically imports the eco.page view module
+	 * @example
+	 * ```typescript
+	 * app.static('/login', () => import('./src/views/login.kita'))
+	 * app.static('/posts/:slug', () => import('./src/views/post-view.kita'))
+	 * ```
 	 */
-	static<P>(path: string, view: EcoPageComponent<P>): this {
-		this.staticRoutes.push({ path, view });
+	static<P>(path: string, loader: ViewLoader<P>): this {
+		this.staticRoutes.push({ path, loader });
 		return this;
 	}
 

@@ -125,6 +125,44 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	}
 
 	/**
+	 * Determines if HMR script should be injected.
+	 * Only injects in watch mode when HMR manager is enabled.
+	 */
+	private shouldInjectHmrScript(): boolean {
+		return this.options?.watch === true && this.hmrManager?.isEnabled() === true;
+	}
+
+	/**
+	 * Checks if a response contains HTML content.
+	 */
+	private isHtmlResponse(response: Response): boolean {
+		const contentType = response.headers.get('Content-Type');
+		return contentType !== null && contentType.startsWith('text/html');
+	}
+
+	/**
+	 * Injects HMR script into HTML responses in development mode.
+	 * Ensures explicit API handlers that return HTML get auto-reload capability.
+	 */
+	private async maybeInjectHmrScript(response: Response): Promise<Response> {
+		if (this.shouldInjectHmrScript() && this.isHtmlResponse(response)) {
+			const html = await response.text();
+			const hmrScript = `<script type="module">import '/_hmr_runtime.js';</script>`;
+			const updatedHtml = html.replace(/<\/html>/i, `${hmrScript}</html>`);
+
+			const headers = new Headers(response.headers);
+			headers.delete('Content-Length');
+
+			return new Response(updatedHtml, {
+				status: response.status,
+				statusText: response.statusText,
+				headers,
+			});
+		}
+		return response;
+	}
+
+	/**
 	 * Initializes the server adapter's core components.
 	 * Delegates to ServerLifecycle for setup.
 	 */
@@ -427,7 +465,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 					}
 
 					if (middleware.length === 0) {
-						return await routeConfig.handler(context);
+						const response = await routeConfig.handler(context);
+						return await this.maybeInjectHmrScript(response);
 					}
 
 					let index = 0;
@@ -439,7 +478,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 						return await routeConfig.handler(context!);
 					};
 
-					return await executeNext();
+					const response = await executeNext();
+					return await this.maybeInjectHmrScript(response);
 				} catch (error) {
 					if (this.errorHandler) {
 						try {

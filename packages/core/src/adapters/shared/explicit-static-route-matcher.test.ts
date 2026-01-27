@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test';
-import type { EcoPageComponent, StaticRoute } from '../../public-types.ts';
+import type { EcoPageComponent, StaticRoute, ViewLoader } from '../../public-types.ts';
 import { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
 
 function createMockView(integration = 'ghtml'): EcoPageComponent<any> {
@@ -10,10 +10,15 @@ function createMockView(integration = 'ghtml'): EcoPageComponent<any> {
 	return view;
 }
 
+function createMockLoader(view?: EcoPageComponent<any>): ViewLoader<any> {
+	const actualView = view ?? createMockView();
+	return () => Promise.resolve({ default: actualView });
+}
+
 function createMockRoute(path: string, view?: EcoPageComponent<any>): StaticRoute {
 	return {
 		path,
-		view: view ?? createMockView(),
+		loader: createMockLoader(view),
 	};
 }
 
@@ -171,7 +176,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const result = matcher.match('http://localhost:3000/about');
 
 			expect(result).not.toBeNull();
-			expect(result?.route.view).toBe(aboutView);
+			expect(result?.route.path).toBe('/about');
 		});
 
 		test('should match exact route before dynamic route', () => {
@@ -186,7 +191,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const result = matcher.match('http://localhost:3000/blog/featured');
 
 			expect(result).not.toBeNull();
-			expect(result?.route.view).toBe(exactView);
+			expect(result?.route.path).toBe('/blog/featured');
 		});
 	});
 

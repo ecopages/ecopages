@@ -25,6 +25,22 @@ As an early-stage project, Ecopages is evolving. Feedback welcome via [GitHub](h
 
 ## Current Features
 
+### Static Site Generation
+
+Build fast, SEO-friendly static sites with ease.
+
+### Lightweight Backend
+
+Ecopages includes a type-safe, lightweight backend. Define handlers with full type inference and use explicit routing when you need dynamic features.
+
+- **Typed Handlers**: Define API handlers with full type safety.
+- **Explicit Routing**: Use `app.get`, `app.post`, etc., for dynamic routes.
+
+### AI-Ready Documentation
+
+We provide an `llms.txt` file to help AI agents understand and assist with your Ecopages projects.
+[Read llms.txt](https://ecopages.app/llms.txt)
+
 ### Playground
 
 Explore Ecopages' capabilities:
@@ -46,10 +62,6 @@ Verify your site's functionality:
 ## Embracing Simplicity with a Side of Verbosity
 
 In our quest to simplify, we've made choices that sometimes lead to more verbose code. By being a bit more explicit in our code, we aim to peel back the layers of "magic" that often obscure what's happening in many modern technologies. We believe this clarity not only aids in learning but also in debugging and customizing your projects. It's all about striking the right balance between simplicity and control.
-
-## Future Directions
-
-While Ecopages is primarily focused on static site generation, we are exploring the addition of a server-side component. This feature is under development and aims to expand the project's versatility. We are dedicated to refining this aspect and encourage contributions and feedback from the community to help shape its progress.
 
 # Breaking changes
 

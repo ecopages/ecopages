@@ -2,12 +2,12 @@ import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
 export const config = {
-	layout: DocsLayout,
+  layout: DocsLayout,
 };
 
 export const getMetadata = () => ({
-	title: 'Docs | Introduction',
-	description: 'Discover Ecopages: A modern web framework built on Bun',
+  title: 'Docs | Introduction',
+  description: 'Discover Ecopages: A modern web framework built on Bun',
 });
 
 
@@ -41,17 +41,24 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
 
 3. **Static by Default**: Generate HTML at build time. Host anywhere. No server costs for most sites.
 
-4. **Server When You Need It**: Full HTTP API with Express-like routing (`app.get()`, `app.post()`, etc.) for dynamic features can be added incrementally, not as the default.
+4. **Lightweight, Safe Backend**:
+   - **Typed Handlers**: Define API handlers with full type inference using `defineHandlers`.
+   - **Explicit Routing**: Use `app.get()`, `app.post()`, etc. for granular control over your API endpoints.
+   - **Zero Overhead**: The server module is tree-shaken away when you only build static pages.
 
-5. **Choose Your Templating**:
+5. **AI-Ready Documentation**:
+   - Includes `llms.txt` to help AI agents understand your project structure and docs.
+   - Designed with clear patterns that are easy for LLMs to generate and debug.
+
+6. **Choose Your Templating**:
    - **[KitaJS](/docs/integrations/kitajs)** – Fast JSX templates, compiles to string concatenation
    - **[React 19](/docs/integrations/react)** – Full React with hydration when you need it
    - **[Lit](/docs/integrations/lit)** – Web Components with SSR
    - **[MDX](/docs/integrations/mdx)** – Markdown with embedded components
 
-6. **TypeScript-First**: Full type inference for routes, props, and API handlers. No runtime overhead.
+7. **TypeScript-First**: Full type inference for routes, props, and API handlers. No runtime overhead.
 
-7. **Built on Bun**: Leverages Bun's speed for fast builds, fast development, and fast production servers.
+8. **Built on Bun**: Leverages Bun's speed for fast builds, fast development, and fast production servers.
 
 ## What Can You Build?
 
@@ -59,13 +66,59 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
 - **Documentation** – MDX-powered docs like the one you're reading
 - **Blogs** – Dynamic routes with `getStaticPaths` for each post
 - **Portfolios** – Beautiful static sites with interactive components
+- **Full-Stack Apps** – Combine static pages with typed API handlers for dynamic features
 - **Dashboards** – React or Lit components with live API data
 - **APIs** – REST endpoints alongside your static pages
 - **Everything Else** – Ecopages is flexible enough to build whatever you can imagine
 
 ## Quick Example
 
-Here's a taste of what Ecopages looks like:
+Here's how you can combine static pages with a typed backend:
+
+### 1. Create a Component
+Use `eco.component` to create reusable components with isolated dependencies.
+
+```typescript
+// src/components/Greeting.tsx
+import { eco } from '@ecopages/core';
+
+export const Greeting = eco.component<{ name: string }>({
+  render: ({ name }) => {
+    return <div class="greeting">Hello, {name}!</div>;
+  },
+});
+```
+
+### 2. Create a Page
+Compose your page using components. Dependencies are automatically managed.
+
+```typescript
+// src/pages/index.tsx
+import { eco } from '@ecopages/core';
+import { Greeting } from '../components/Greeting';
+
+export default eco.page({
+  dependencies: {
+    stylesheets: ['../styles.css'],
+    components: [Greeting],
+  },
+  metadata: () => ({
+    title: 'Welcome to Ecopages',
+  }),
+  render: () => (
+    <main>
+      <h1>Welcome to Ecopages</h1>
+      <Greeting name="Developer" />
+    </main>
+  ),
+});
+```
+
+### 3. Add Typed API Handlers
+You can define handlers inline or use `defineApiHandler` for better organization and type safety.
+
+#### Inline Handler
+Good for simple, quick endpoints.
 
 ```typescript
 // app.ts
@@ -74,18 +127,50 @@ import config from './eco.config';
 
 const app = new EcopagesApp({ appConfig: config });
 
-// Static pages are automatically served from src/pages/
-// Add API routes when you need dynamic behavior
-app.get('/api/hello', async ({ response }) => {
-	return response.json({ message: 'Hello from the API!' });
+app.get('/api/hello', async (ctx) => {
+  return ctx.response.json({ message: 'Hello world!' });
 });
-
-await app.start();
 ```
 
-## Current Status
+#### Organized & Type-Safe Handlers
+For larger apps, define handlers in separate files using `defineApiHandler`. This gives you automatic type inference for body, query, and path parameters based on your schema.
 
-Ecopages is in active development. The core features are stable and used in production, but APIs may evolve before the 1.0 release. We welcome feedback and contributions via our [GitHub repository](https://github.com/ecopages/ecopages).
+```typescript
+// handlers/greet.ts
+import { defineApiHandler } from '@ecopages/core/adapters/bun';
+import { z } from 'zod';
+
+export const greetHandler = defineApiHandler({
+  path: '/api/greet',
+  method: 'POST',
+  schema: {
+    body: z.object({ name: z.string() }),
+  },
+  handler: async (ctx) => {
+    // ctx.body is automatically typed as { name: string }
+    const { name } = ctx.body;
+    return ctx.response.json({ message: `Hello, ${name}!` });
+  },
+});
+```
+
+```typescript
+// app.ts
+import { greetHandler } from './handlers/greet';
+
+// ... app initialization
+
+app.post(greetHandler);
+```
+
+## AI Agents & Ecopages
+
+Ecopages is built to be friendly to AI coding assistants.
+- **Explicit APIs**: Less "magic", making it easier for AI to infer logic.
+- **Standard Types**: Uses standard TypeScript and Web APIs.
+- **Structure**: Clear file-system routing and component organization.
+
+Refer your AI agent to our [`llms.txt`](/llms.txt) file (found at the root of our docs site) for context.
 
 ## Getting Started
 

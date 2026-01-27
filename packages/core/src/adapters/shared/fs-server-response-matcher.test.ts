@@ -56,11 +56,11 @@ describe('FileSystemResponseMatcher', () => {
 			fileSystemResponseFactory,
 		});
 
-		it('should handle no match for request URL', async () => {
+		it('should return custom 404 page for unmatched request URL', async () => {
 			const requestUrl = APP_TEST_ROUTES.nonExistentFile;
 			const response = await matcherWithoutCache.handleNoMatch(requestUrl);
-			expect(response.status).toBe(404);
-			expect(await response.text()).toBe(STATUS_MESSAGE[404]);
+			const body = await response.text();
+			expect(body).toContain('<h1>404 - Page Not Found</h1>');
 		});
 
 		it('should handle match with disabled cache headers', async () => {
@@ -209,6 +209,49 @@ describe('FileSystemResponseMatcher', () => {
 			expect(response1.headers.get('X-Cache')).toBe('MISS');
 			expect(response2.headers.get('X-Cache')).toBe('MISS');
 			expect(response1.headers.get('Cache-Control')).toBe('no-store, must-revalidate');
+		});
+	});
+
+	describe('handleNoMatch content type behavior', () => {
+		const matcher = new FileSystemResponseMatcher({
+			router,
+			routeRendererFactory,
+			fileSystemResponseFactory,
+		});
+
+		it('should return custom 404 page for known extension like .html', async () => {
+			const response = await matcher.handleNoMatch('/non-existent-page.html');
+			const body = await response.text();
+			expect(body).toContain('<h1>404 - Page Not Found</h1>');
+		});
+
+		it('should return custom 404 page for page requests without extension', async () => {
+			const response = await matcher.handleNoMatch('/non-existent-page');
+			const body = await response.text();
+			expect(body).toContain('<h1>404 - Page Not Found</h1>');
+		});
+
+		it('should return custom 404 page for unknown extensions', async () => {
+			const response = await matcher.handleNoMatch('/page.xyz');
+			const body = await response.text();
+			expect(body).toContain('<h1>404 - Page Not Found</h1>');
+		});
+
+		it('should return custom 404 page for trailing dot', async () => {
+			const response = await matcher.handleNoMatch('/page.');
+			const body = await response.text();
+			expect(body).toContain('<h1>404 - Page Not Found</h1>');
+		});
+
+		it('should serve text/plain files from disk', async () => {
+			const response = await matcher.handleNoMatch('/robots.txt');
+			expect(response.headers.get('Content-Type')).toBe('text/plain');
+		});
+
+		it('should return custom 404 page for non-existent static files', async () => {
+			const response = await matcher.handleNoMatch('/non-existent.txt');
+			const body = await response.text();
+			expect(body).toContain('<h1>404 - Page Not Found</h1>');
 		});
 	});
 });

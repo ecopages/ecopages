@@ -1,4 +1,5 @@
 import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
 
 export const config = {
 	layout: DocsLayout,
@@ -46,6 +47,15 @@ app.post('/api/users', async (ctx) => {
 
 await app.start();
 ```
+
+<Banner type="info">
+  <Banner.Title>Preload Configuration Required</Banner.Title>
+  <p>When using explicit routes, integrations are loaded after the app entry point. To ensure they initialize correctly, you <strong>must</strong> preload your configuration file.</p>
+  <p>Add your config file to the <code>preload</code> array in your <code>bunfig.toml</code>:</p>
+   ```toml
+  preload = ["./eco.config.ts"]
+  ```
+</Banner>
 
 ## Rendering Views
 

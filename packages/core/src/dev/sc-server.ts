@@ -24,8 +24,8 @@ export class StaticContentServer {
 		return ['text/javascript', 'text/css'].includes(contentType);
 	}
 
-	private isHtmlOrPlainText(contentType: string) {
-		return ['text/html', 'text/plain'].includes(contentType);
+	private isHtml(contentType: string) {
+		return contentType === 'text/html';
 	}
 
 	private async sendNotFoundPage() {
@@ -84,10 +84,7 @@ export class StaticContentServer {
 				},
 			});
 		} catch {
-			if (this.isHtmlOrPlainText(contentType)) return this.sendNotFoundPage();
-			return new Response(STATUS_MESSAGE[404], {
-				status: 404,
-			});
+			return this.sendNotFoundPage();
 		}
 	}
 

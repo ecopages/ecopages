@@ -38,14 +38,16 @@ describe('StaticContentServer', () => {
 		expect(res.headers.get('content-encoding')).toBe('gzip');
 	});
 
-	test('should return 404 for non-existent file', async () => {
+	test('should return custom 404 page for non-existent file', async () => {
 		const req = new Request(APP_TEST_ROUTES_URLS.nonExistentFile);
 		const res = await server.fetch(req);
 
-		expect(res.status).toBe(404);
+		expect(res.status).toBe(200);
+		expect(res.headers.get('content-type')).toBe('text/html');
+		expect(await res.text()).toContain('<h1>404 - Page Not Found</h1>');
 	});
 
-	test('should return error for non-existent page', async () => {
+	test('should return custom 404 page for non-existent page', async () => {
 		const req = new Request(APP_TEST_ROUTES_URLS.nonExistentPage);
 		const res = await server.fetch(req);
 

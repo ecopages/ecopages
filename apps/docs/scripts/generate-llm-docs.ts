@@ -49,8 +49,6 @@ async function findFile(navPath: string): Promise<string | null> {
  * 4. Generates a new `llms.txt` with updated links.
  */
 async function main() {
-	console.log('Generatig LLM-friendly documentation...');
-
 	if (!(await exists(INPUT_LLMS_FILE))) {
 		console.error(`Input file not found: ${INPUT_LLMS_FILE}`);
 		process.exit(1);
@@ -93,21 +91,19 @@ async function main() {
 				const fileContent = await Bun.file(sourceFile).text();
 				await Bun.write(destFile, fileContent);
 
-				const newUrl = `https://ecopages.app/llms-content/${relativePath}.txt`;
+				const baseUrl = process.env.ECOPAGES_BASE_URL || 'https://ecopages.app';
+				const newUrl = `${baseUrl}/llms-content/${relativePath}.txt`;
 				outputLines.push(`- [${title}](${newUrl})`);
-				console.log(`✓ Processed: ${title}`);
 			} else {
-				console.warn(`! Source file not found for: ${pathName} (${title})`);
 				outputLines.push(line);
 			}
-		} catch (e) {
-			console.warn(`! Error processing line: ${line}`, e);
+		} catch {
 			outputLines.push(line);
 		}
 	}
 
 	await Bun.write(OUTPUT_LLMS_FILE, outputLines.join('\n'));
-	console.log(`\nSuccessfully generated llms.txt at ${OUTPUT_LLMS_FILE}`);
+	console.log(`[llms.txt] Successfully generated llms.txt`);
 }
 
 main().catch(console.error);

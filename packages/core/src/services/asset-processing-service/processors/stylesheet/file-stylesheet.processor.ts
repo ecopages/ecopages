@@ -6,8 +6,8 @@ import { BaseProcessor } from '../base/base-processor';
 export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> {
 	getStyleContent = async (srcUrl: string): Promise<Buffer | string> => {
 		try {
-			if (import.meta.env.NODE_ENV === 'development') delete require.cache[srcUrl];
-			const imported = await import(srcUrl).then((module) => module.default);
+			const importUrl = this.isDevelopment ? `${srcUrl}?t=${Date.now()}` : srcUrl;
+			const imported = await import(importUrl).then((module) => module.default);
 			if (typeof imported === 'string' && imported.endsWith('.css')) {
 				return fileSystem.readFileSync(srcUrl);
 			}

@@ -41,8 +41,19 @@ export const getContentType = (file: string): string => {
 };
 
 /**
+ * Check if a file path has a known static file extension.
+ * @param file - The file name or path.
+ * @returns true if the extension is recognized.
+ */
+export const hasKnownExtension = (file: string): boolean => {
+	const extension = file.split('.').pop();
+	return extension !== undefined && ContentTypeMap.has(extension);
+};
+
+/**
  * A module for server utilities.
  */
 export const ServerUtils = {
 	getContentType,
+	hasKnownExtension,
 };

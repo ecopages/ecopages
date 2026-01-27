@@ -29,19 +29,19 @@ describe('FileSystemServerResponseFactory', () => {
 		});
 	});
 
-	describe('isHtmlOrPlainText', () => {
+	describe('isHtml', () => {
 		it('should return true for text/html content type', () => {
-			const result = responseFactory.isHtmlOrPlainText('text/html');
+			const result = responseFactory.isHtml('text/html');
 			expect(result).toBe(true);
 		});
 
-		it('should return true for text/plain content type', () => {
-			const result = responseFactory.isHtmlOrPlainText('text/plain');
-			expect(result).toBe(true);
+		it('should return false for text/plain content type', () => {
+			const result = responseFactory.isHtml('text/plain');
+			expect(result).toBe(false);
 		});
 
 		it('should return false for other content types', () => {
-			const result = responseFactory.isHtmlOrPlainText('application/json');
+			const result = responseFactory.isHtml('application/json');
 			expect(result).toBe(false);
 		});
 	});
@@ -141,10 +141,10 @@ describe('FileSystemServerResponseFactory', () => {
 			expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
 		});
 
-		it('should create a response with status 404 if the file does not exist', async () => {
+		it('should return custom 404 page if the file does not exist', async () => {
 			const response = await responseFactory.createFileResponse('/path/to/nonexistent.txt', 'text/plain');
-			expect(response.status).toBe(404);
-			expect(await response.text()).toBe(STATUS_MESSAGE[404]);
+			const body = await response.text();
+			expect(body).toContain('<h1>404 - Page Not Found</h1>');
 		});
 
 		it('should log debug for ENOENT errors', async () => {

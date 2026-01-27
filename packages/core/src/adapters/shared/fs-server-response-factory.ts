@@ -24,8 +24,8 @@ export class FileSystemServerResponseFactory {
 		this.options = options;
 	}
 
-	isHtmlOrPlainText(contentType: string) {
-		return ['text/html', 'text/plain'].includes(contentType);
+	isHtml(contentType: string) {
+		return contentType === 'text/html';
 	}
 
 	shouldEnableGzip(contentType: string) {
@@ -100,7 +100,7 @@ export class FileSystemServerResponseFactory {
 			} else {
 				appLogger.error('Error reading file', filePath, err);
 			}
-			return this.createDefaultNotFoundResponse();
+			return this.createCustomNotFoundResponse();
 		}
 	}
 }

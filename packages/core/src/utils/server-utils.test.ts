@@ -21,4 +21,18 @@ describe('ServerUtils', () => {
 	])('getContentType(%p) should return %p', (filePath, expected) => {
 		expect(ServerUtils.getContentType(filePath)).toBe(expected);
 	});
+
+	test.each([
+		['/file.css', true],
+		['/file.js', true],
+		['/file.html', true],
+		['/file.txt', true],
+		['/file.png', true],
+		['/page', false],
+		['/page.', false],
+		['/page.xyz', false],
+		['/page.dd', false],
+	])('hasKnownExtension(%p) should return %p', (filePath, expected) => {
+		expect(ServerUtils.hasKnownExtension(filePath)).toBe(expected);
+	});
 });

@@ -40,12 +40,14 @@ export class FileSystemResponseMatcher {
 	}
 
 	async handleNoMatch(requestUrl: string): Promise<Response> {
-		const filePath = path.join(this.router.assetPrefix, requestUrl);
-		const contentType = ServerUtils.getContentType(filePath);
+		const isStaticFileRequest = ServerUtils.hasKnownExtension(requestUrl);
 
-		if (this.fileSystemResponseFactory.isHtmlOrPlainText(contentType)) {
+		if (!isStaticFileRequest) {
 			return this.fileSystemResponseFactory.createCustomNotFoundResponse();
 		}
+
+		const filePath = path.join(this.router.assetPrefix, requestUrl);
+		const contentType = ServerUtils.getContentType(filePath);
 
 		return this.fileSystemResponseFactory.createFileResponse(filePath, contentType);
 	}

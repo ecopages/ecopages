@@ -6,7 +6,7 @@ export interface AdminPostListProps {
 	posts: Post[];
 }
 
-export const AdminPostList = eco.page<AdminPostListProps>({
+const AdminPostList = eco.page<AdminPostListProps>({
 	layout: AdminLayout,
 	metadata: () => ({
 		title: 'Posts | Admin',
@@ -88,3 +88,5 @@ export const AdminPostList = eco.page<AdminPostListProps>({
 		);
 	},
 });
+
+export default AdminPostList;

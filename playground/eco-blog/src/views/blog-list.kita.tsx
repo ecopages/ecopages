@@ -6,7 +6,7 @@ export interface BlogListProps {
 	posts: Post[];
 }
 
-export const BlogList = eco.page<BlogListProps>({
+const BlogList = eco.page<BlogListProps>({
 	layout: MainLayout,
 	metadata: () => ({
 		title: 'EcoBlog | Home',
@@ -40,7 +40,7 @@ export const BlogList = eco.page<BlogListProps>({
 								</h2>
 								<time
 									class="relative z-10 order-first mb-3 flex items-center text-sm text-slate-400 pl-3.5"
-									datetime={post.published_at}
+									datetime={post.published_at ?? undefined}
 								>
 									<span class="absolute inset-y-0 left-0 flex items-center" aria-hidden="true">
 										<span class="h-4 w-0.5 rounded-full bg-slate-200"></span>
@@ -84,3 +84,5 @@ export const BlogList = eco.page<BlogListProps>({
 		);
 	},
 });
+
+export default BlogList;

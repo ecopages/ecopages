@@ -38,3 +38,5 @@ export const PostListView = eco.page<PostListViewProps>({
 		);
 	},
 });
+
+export default PostListView;

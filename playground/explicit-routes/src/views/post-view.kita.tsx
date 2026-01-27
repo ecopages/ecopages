@@ -32,3 +32,5 @@ export const PostView = eco.page<PostViewProps>({
 		</article>
 	),
 });
+
+export default PostView;

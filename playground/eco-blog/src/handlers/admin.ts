@@ -1,8 +1,6 @@
 import { HttpError } from '@ecopages/core/errors';
 import { defineGroupHandler } from '@ecopages/core/adapters/bun';
 import { dbService } from '@/lib/db';
-import { AdminPostList } from '@/views/admin/post-list.kita';
-import { PostEditor } from '@/views/admin/post-editor.kita';
 import path from 'node:path';
 import { ImageProcessor } from '@ecopages/image-processor';
 import { imageProcessorConfig } from '../../eco.config';
@@ -21,6 +19,7 @@ export const adminGroup = defineGroupHandler({
 			path: '/',
 			method: 'GET',
 			handler: async (ctx) => {
+				const { default: AdminPostList } = await import('@/views/admin/post-list.kita');
 				const posts = await dbService.getAllPosts();
 				return ctx.render(AdminPostList, { posts });
 			},
@@ -30,6 +29,7 @@ export const adminGroup = defineGroupHandler({
 			path: '/new',
 			method: 'GET',
 			handler: async (ctx) => {
+				const { default: PostEditor } = await import('@/views/admin/post-editor.kita');
 				return ctx.render(PostEditor, {});
 			},
 		}),
@@ -54,6 +54,7 @@ export const adminGroup = defineGroupHandler({
 			path: '/posts/:id',
 			method: 'GET',
 			handler: async (ctx) => {
+				const { default: PostEditor } = await import('@/views/admin/post-editor.kita');
 				const id = Number.parseInt(ctx.request.params.id);
 				const posts = await dbService.getAllPosts();
 				const post = posts.find((p) => p.id === id);

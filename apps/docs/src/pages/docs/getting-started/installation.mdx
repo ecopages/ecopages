@@ -1,4 +1,5 @@
 import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
 
 export const config = {
 	layout: DocsLayout,
@@ -16,6 +17,16 @@ To create a new Ecopages project, you can install the core package and desired i
 ```bash
 bunx jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx
 ```
+
+<Banner type="info">
+  <Banner.Title>JSR Configuration</Banner.Title>
+  <p>
+    To install packages from the JSR registry, you'll need to configure your npmrc. Create an `.npmrc` file in your project root with the following content:
+  </p>
+  ```properties
+  @jsr:registry=https://npm.jsr.io
+  ```
+</Banner>
 
 This example installs the core package along with the KitaJS and MDX integrations. You can add or remove integrations based on your project needs.
 
@@ -133,4 +144,4 @@ Now you can use these commands:
 
 ## Next Steps
 
-With Ecopages installed and configured, you're ready to start building your site. Check out the [Creating Pages](/docs/guides/creating-pages) guide to learn how to create content using different integrations.
+With Ecopages installed and configured, you're ready to start building your site. Check out the [Pages](/docs/core/pages) guide to learn how to create content using different integrations.

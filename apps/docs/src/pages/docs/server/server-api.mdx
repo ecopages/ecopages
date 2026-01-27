@@ -62,16 +62,16 @@ Ecopages leverages TypeScript to provide strong type safety for your API handler
 
 While you can define handlers directly, ensuring the `request.params` type matches the `path` string requires careful manual typing. To simplify this and improve code organization, Ecopages provides adapter-specific helper functions.
 
-### Using `defineBunApiHandler`
+### Using `defineApiHandler`
 
-When using the Bun adapter, you can use the `defineBunApiHandler` helper function. This function automatically infers the parameter types from the `path` string literal, ensuring your `request.params` object is correctly typed without explicit annotations.
+When using the Bun adapter, you can use the `defineApiHandler` helper function. This function automatically infers the parameter types from the `path` string literal, ensuring your `request.params` object is correctly typed without explicit annotations.
 
 ```typescript
 // Import the adapter-specific helper
-import { defineBunApiHandler } from '@ecopages/core/adapters/bun/define-handler'; // Adjust path if needed
+import { defineApiHandler } from '@ecopages/core/adapters/bun/define-handler'; // Adjust path if needed
 
 // Define the handler using the helper
-const getUserHandler = defineBunApiHandler({
+const getUserHandler = defineApiHandler({
 	method: 'GET',
 	path: '/api/users/:id', // Type of 'id' is inferred from here
 	handler: async ({ request }) => {
@@ -91,7 +91,7 @@ const getUserHandler = defineBunApiHandler({
 app.get(getUserHandler.path, getUserHandler.handler);
 
 // You can define multiple handlers this way and keep them organized
-const updateUserHandler = defineBunApiHandler({
+const updateUserHandler = defineApiHandler({
 	method: 'PUT',
 	path: '/api/users/:id',
 	handler: async ({ request }) => {
@@ -105,9 +105,9 @@ app.put(updateUserHandler.path, updateUserHandler.handler);
 
 ```
 
-### Benefits of Using `defineBunApiHandler`
+### Benefits of Using `defineApiHandler`
 
-Using defineBunApiHandler offers several advantages:
+Using defineApiHandler offers several advantages:
 
 - Automatic Parameter Typing: Eliminates the need to manually type request.params.
 - Improved Readability: Keeps the handler definition concise.

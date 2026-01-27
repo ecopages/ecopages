@@ -1,5 +1,4 @@
 import { DocsLayout } from '@/layouts/docs-layout';
-import { Banner } from '@/components/banner/banner.kita';
 
 export const config = {
 	layout: DocsLayout,
@@ -48,23 +47,15 @@ app.post('/api/users', async (ctx) => {
 await app.start();
 ```
 
-<Banner type="info">
-  <Banner.Title>Preload Configuration Required</Banner.Title>
-  <p>When using explicit routes, integrations are loaded after the app entry point. To ensure they initialize correctly, you <strong>must</strong> preload your configuration file.</p>
-  <p>Add your config file to the <code>preload</code> array in your <code>bunfig.toml</code>:</p>
-   ```toml
-  preload = ["./eco.config.ts"]
-  ```
-</Banner>
-
 ## Rendering Views
 
 The `ctx.render()` method renders `eco.page` views from any route handler. The integration (React, Lit, KitaJS) is automatically detected based on the view's file extension at build time—no manual configuration required.
 
-```typescript
-import { PostView } from './src/views/post-view';
+Use dynamic imports for views to enable HMR (hot module replacement) during development:
 
+```typescript
 app.get('/posts/:slug', async (ctx) => {
+	const { default: PostView } = await import('./src/views/post-view');
 	const post = await getPost(ctx.request.params.slug);
 	if (!post) {
 		throw HttpError.NotFound('Post not found');
@@ -360,19 +351,20 @@ app.onError((error, ctx) => {
 
 ## Static Generation
 
-Register views for build-time static generation:
+Register views for build-time static generation using lazy loaders:
 
 ```typescript
-import { PostView, PostListView } from './src/views';
-
-app.static('/posts', PostListView);
-app.static('/posts/:slug', PostView);
+app.static('/posts', () => import('./src/views/post-list'));
+app.static('/posts/:slug', () => import('./src/views/post-view'));
 ```
 
-Views must define `staticPaths` and `staticProps`:
+The loader pattern `() => import('...')` enables HMR during development. Views must be the default export and define `staticPaths` and `staticProps`:
 
 ```typescript
-export const PostView = eco.page<PostViewProps>({
+// src/views/post-view.tsx
+import { eco } from '@ecopages/core';
+
+const PostView = eco.page<PostViewProps>({
 	staticPaths: async () => {
 		const posts = await getPosts();
 		return posts.map((post) => ({ slug: post.slug }));
@@ -385,18 +377,20 @@ export const PostView = eco.page<PostViewProps>({
 
 	render: (props) => <article>...</article>
 });
+
+export default PostView;
 ```
 
 ## Views Outside pages/
 
-Define `eco.page` views anywhere in your codebase:
+Define `eco.page` views anywhere in your codebase. Views used with `app.static()` or rendered via dynamic import must be the default export:
 
 ```typescript
 // src/views/post-view.tsx
 import { eco } from '@ecopages/core';
 import { MainLayout } from '@/layouts/main-layout';
 
-export const PostView = eco.page<PostViewProps>({
+const PostView = eco.page<PostViewProps>({
 	layout: MainLayout,
 
 	metadata: ({ title, authorName }) => ({
@@ -415,6 +409,8 @@ export const PostView = eco.page<PostViewProps>({
 		</article>
 	)
 });
+
+export default PostView;
 ```
 
 ## Coexistence with File-System Routing
@@ -455,9 +451,9 @@ const authMiddleware: BunMiddleware<{ session: Session }> = async (ctx, next) =>
 	return next();
 };
 
-// Static routes
-app.static('/posts', PostListView);
-app.static('/posts/:slug', PostView);
+// Static routes (use loader pattern for HMR support)
+app.static('/posts', () => import('./src/views/post-list'));
+app.static('/posts/:slug', () => import('./src/views/post-view'));
 
 // Public API
 app.group('/api/v1', (r) => {

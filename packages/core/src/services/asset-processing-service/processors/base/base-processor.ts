@@ -46,4 +46,10 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 	protected generateHash(content: string): string {
 		return rapidhash(content).toString();
 	}
+
+	protected buildCacheKey(identifier: string, contentHash: string, dep: T): string {
+		const attrsHash = dep.attributes ? this.generateHash(JSON.stringify(dep.attributes)) : '';
+		const position = dep.position ?? '';
+		return `${identifier}:${contentHash}:${position}:${attrsHash}`;
+	}
 }

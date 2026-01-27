@@ -184,5 +184,35 @@ describe('FileScriptProcessor', () => {
 
 			expect(result.position).toBe('head');
 		});
+
+		test('should return updated attributes when cached asset is retrieved with different attributes', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+
+			const depWithDefer: FileScriptAsset = {
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/cached-attrs.js',
+				bundle: false,
+				attributes: { defer: '' },
+				position: 'head',
+			};
+
+			const depWithAsync: FileScriptAsset = {
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/cached-attrs.js',
+				bundle: false,
+				attributes: { async: '' },
+				position: 'body',
+			};
+
+			const result1 = await processor.process(depWithDefer);
+			const result2 = await processor.process(depWithAsync);
+
+			expect(result1.attributes).toEqual({ defer: '' });
+			expect(result1.position).toBe('head');
+			expect(result2.attributes).toEqual({ async: '' });
+			expect(result2.position).toBe('body');
+		});
 	});
 });

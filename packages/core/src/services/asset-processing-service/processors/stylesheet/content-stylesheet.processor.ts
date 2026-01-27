@@ -7,9 +7,11 @@ export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetA
 	async process(dep: ContentStylesheetAsset): Promise<ProcessedAsset> {
 		const hash = this.generateHash(dep.content);
 		const filename = `style-${hash}.css`;
-		const cachekey = `${filename}-${hash}`;
+		const cachekey = this.buildCacheKey(filename, hash, dep);
 
-		if (this.hasCacheFile(cachekey)) return this.getCacheFile(cachekey) as ProcessedAsset;
+		if (this.hasCacheFile(cachekey)) {
+			return this.getCacheFile(cachekey) as ProcessedAsset;
+		}
 
 		const filepath = path.join(this.getAssetsDir(), 'styles', filename);
 

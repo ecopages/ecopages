@@ -21,7 +21,7 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 		const buffer = await this.getStyleContent(dep.filepath);
 		const content = buffer.toString();
 		const hash = this.generateHash(content);
-		const cachekey = `${dep.filepath}:${hash}`;
+		const cachekey = this.buildCacheKey(dep.filepath, hash, dep);
 
 		if (this.hasCacheFile(cachekey)) {
 			return this.getCacheFile(cachekey) as ProcessedAsset;

@@ -1,109 +1,118 @@
-import { join, dirname } from 'path';
-import { exists, mkdir } from 'node:fs/promises';
+import { join, dirname, basename } from 'path';
+import { exists, mkdir, readdir } from 'node:fs/promises';
 
 const ROOT_DIR = join(import.meta.dir, '..');
 const SRC_DOCS_DIR = join(ROOT_DIR, 'src/pages/docs');
-const PUBLIC_DIR = join(ROOT_DIR, 'src/public');
-const OUTPUT_CONTENT_DIR = join(PUBLIC_DIR, 'llms-content');
-const INPUT_LLMS_FILE = join(ROOT_DIR, './src/public/llms.txt');
-const OUTPUT_LLMS_FILE = join(PUBLIC_DIR, 'llms.txt');
+const ECO_DIR = join(ROOT_DIR, '.eco');
+const OUTPUT_CONTENT_DIR = join(ECO_DIR, 'llms-content');
+const OUTPUT_LLMS_FILE = join(ECO_DIR, 'llms.txt');
 
-/**
- * Ensures that a directory exists, creating it if necessary.
- * @param path - The absolute path to the directory.
- */
 async function ensureDir(path: string) {
 	if (!(await exists(path))) {
 		await mkdir(path, { recursive: true });
 	}
 }
 
-/**
- * Finds the corresponding source file for a given navigation path.
- *
- * @param navPath - The path from the navigation link (e.g., /docs/core/concepts).
- * @returns The absolute path to the source file (.mdx or .md), or null if not found.
- */
-async function findFile(navPath: string): Promise<string | null> {
-	/* Remove /docs prefix if present, as SRC_DOCS_DIR is already pointed to src/pages/docs */
-	const relativePath = navPath.replace(/^\/docs\//, '');
+async function scanDocs(
+	dir: string,
+	relativePath = '',
+): Promise<Array<{ filePath: string; relativePath: string; title: string }>> {
+	const results: Array<{ filePath: string; relativePath: string; title: string }> = [];
 
-	const extensions = ['.mdx', '.md'];
+	const entries = await readdir(dir, { withFileTypes: true });
 
-	for (const ext of extensions) {
-		const fullPath = join(SRC_DOCS_DIR, `${relativePath}${ext}`);
-		if (await exists(fullPath)) {
-			return fullPath;
+	for (const entry of entries) {
+		const fullPath = join(dir, entry.name);
+		const newRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+
+		if (entry.isDirectory()) {
+			const subResults = await scanDocs(fullPath, newRelativePath);
+			results.push(...subResults);
+		} else if (entry.isFile() && (entry.name.endsWith('.mdx') || entry.name.endsWith('.md'))) {
+			const baseName = basename(entry.name, entry.name.endsWith('.mdx') ? '.mdx' : '.md');
+			const pathWithoutExt = relativePath ? `${relativePath}/${baseName}` : baseName;
+
+			const title = baseName
+				.split('-')
+				.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+				.join(' ');
+
+			results.push({
+				filePath: fullPath,
+				relativePath: pathWithoutExt,
+				title,
+			});
 		}
 	}
 
-	return null;
+	return results;
 }
 
-/**
- * Main function to generate LLM-friendly documentation.
- *
- * 1. Reads `apps/docs/.eco/llms.txt`.
- * 2. Parses links to find source content.
- * 3. Copies content to text files in `apps/docs/src/public/llms-content`.
- * 4. Generates a new `llms.txt` with updated links.
- */
-async function main() {
-	if (!(await exists(INPUT_LLMS_FILE))) {
-		console.error(`Input file not found: ${INPUT_LLMS_FILE}`);
-		process.exit(1);
+function groupBySection(
+	files: Array<{ filePath: string; relativePath: string; title: string }>,
+): Map<string, Array<{ filePath: string; relativePath: string; title: string }>> {
+	const sections = new Map<string, Array<{ filePath: string; relativePath: string; title: string }>>();
+
+	for (const file of files) {
+		const parts = file.relativePath.split('/');
+		const section = parts[0] || 'other';
+
+		if (!sections.has(section)) {
+			sections.set(section, []);
+		}
+		sections.get(section)?.push(file);
 	}
 
+	return sections;
+}
+
+async function main() {
+	await ensureDir(ECO_DIR);
 	await ensureDir(OUTPUT_CONTENT_DIR);
 
-	const content = await Bun.file(INPUT_LLMS_FILE).text();
-	const lines = content.split('\n');
-	const outputLines: string[] = [];
+	const files = await scanDocs(SRC_DOCS_DIR);
+	const sections = groupBySection(files);
 
-	for (const line of lines) {
-		const trimmed = line.trim();
+	const sectionOrder = ['getting-started', 'core', 'server', 'ecosystem', 'integrations', 'plugins', 'reference'];
 
-		if (!trimmed.startsWith('- [')) {
-			outputLines.push(line);
-			continue;
+	const outputLines: string[] = [
+		'# Ecopages Documentation',
+		'> Ecopages is a static site generator written in TypeScript.',
+		'',
+	];
+
+	const baseUrl = process.env.ECOPAGES_BASE_URL || 'https://ecopages.app';
+
+	for (const section of sectionOrder) {
+		const sectionFiles = sections.get(section);
+		if (!sectionFiles || sectionFiles.length === 0) continue;
+
+		const sectionTitle = section
+			.split('-')
+			.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+			.join(' ');
+
+		outputLines.push(`## ${sectionTitle}`);
+
+		for (const file of sectionFiles.sort((a, b) => a.relativePath.localeCompare(b.relativePath))) {
+			const destFile = join(OUTPUT_CONTENT_DIR, `${file.relativePath}.txt`);
+			const destDir = dirname(destFile);
+
+			await ensureDir(destDir);
+
+			const fileContent = await Bun.file(file.filePath).text();
+			await Bun.write(destFile, fileContent);
+
+			const url = `${baseUrl}/llms-content/${file.relativePath}.txt`;
+			outputLines.push(`- [${file.title}](${url})`);
 		}
 
-		const match = trimmed.match(/^- \[(.*?)\]\((.*?)\)$/);
-		if (!match) {
-			outputLines.push(line);
-			continue;
-		}
-
-		const [_, title, url] = match;
-		try {
-			const urlObj = new URL(url);
-			const pathName = urlObj.pathname;
-
-			const sourceFile = await findFile(pathName);
-
-			if (sourceFile) {
-				const relativePath = pathName.replace(/^\/docs\//, '');
-				const destFile = join(OUTPUT_CONTENT_DIR, `${relativePath}.txt`);
-				const destDir = dirname(destFile);
-
-				await ensureDir(destDir);
-
-				const fileContent = await Bun.file(sourceFile).text();
-				await Bun.write(destFile, fileContent);
-
-				const baseUrl = process.env.ECOPAGES_BASE_URL || 'https://ecopages.app';
-				const newUrl = `${baseUrl}/llms-content/${relativePath}.txt`;
-				outputLines.push(`- [${title}](${newUrl})`);
-			} else {
-				outputLines.push(line);
-			}
-		} catch {
-			outputLines.push(line);
-		}
+		outputLines.push('');
 	}
 
 	await Bun.write(OUTPUT_LLMS_FILE, outputLines.join('\n'));
-	console.log(`[llms.txt] Successfully generated llms.txt`);
+	console.log(`[llms.txt] Successfully generated at ${OUTPUT_LLMS_FILE}`);
+	console.log(`[llms.txt] Generated ${files.length} documentation files`);
 }
 
 main().catch(console.error);

@@ -24,7 +24,3 @@ public/js
 **/*.tgz
 **/*.log
 **/*.bun
-
-# generated
-src/public/llms-content/*
-src/public/llms.txt

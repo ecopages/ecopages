@@ -5,7 +5,7 @@ const ROOT_DIR = join(import.meta.dir, '..');
 const SRC_DOCS_DIR = join(ROOT_DIR, 'src/pages/docs');
 const PUBLIC_DIR = join(ROOT_DIR, 'src/public');
 const OUTPUT_CONTENT_DIR = join(PUBLIC_DIR, 'llms-content');
-const INPUT_LLMS_FILE = join(ROOT_DIR, '.eco/llms.txt');
+const INPUT_LLMS_FILE = join(ROOT_DIR, './src/public/llms.txt');
 const OUTPUT_LLMS_FILE = join(PUBLIC_DIR, 'llms.txt');
 
 /**

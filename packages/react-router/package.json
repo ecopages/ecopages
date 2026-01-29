@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/react-router",
-	"version": "0.1.88",
+	"version": "0.1.89",
 	"description": "Client-side SPA router for EcoPages React applications",
 	"keywords": [
 		"ecopages",

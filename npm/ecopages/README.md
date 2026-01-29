@@ -24,14 +24,37 @@ The `ecopages` package includes a CLI to simplify common Bun commands. It automa
 
 ### Commands
 
-| Command              | Description                  | Bun Equivalent                 |
-| :------------------- | :--------------------------- | :----------------------------- |
-| `ecopages dev`       | Start the development server | `bun run app.ts --dev`         |
-| `ecopages dev:watch` | Start with watch mode        | `bun --watch run app.ts --dev` |
-| `ecopages dev:hot`   | Start with hot reload        | `bun --hot run app.ts --dev`   |
-| `ecopages build`     | Build for production         | `bun run app.ts --build`       |
-| `ecopages start`     | Start production server      | `bun run app.ts`               |
-| `ecopages preview`   | Preview production build     | `bun run app.ts --preview`     |
+| Command                      | Description                                      | Bun Equivalent                  |
+| :--------------------------- | :----------------------------------------------- | :------------------------------ |
+| `ecopages dev [entry]`       | Start the development server                     | `bun run [entry] --dev`         |
+| `ecopages dev:watch [entry]` | Start with watch mode (restarts on file changes) | `bun --watch run [entry] --dev` |
+| `ecopages dev:hot [entry]`   | Start with hot reload (HMR without restart)      | `bun --hot run [entry] --dev`   |
+| `ecopages build [entry]`     | Build for production                             | `bun run [entry] --build`       |
+| `ecopages start [entry]`     | Start production server                          | `bun run [entry]`               |
+| `ecopages preview [entry]`   | Preview production build                         | `bun run [entry] --preview`     |
+
+> **Note:** `[entry]` defaults to `app.ts` if not provided.
+
+### Environment Overrides
+
+All server commands (`dev`, `dev:watch`, `dev:hot`, `start`, `preview`) support the following options:
+
+| Option                  | Environment Variable    | Description                |
+| :---------------------- | :---------------------- | :------------------------- |
+| `-p, --port <port>`     | `ECOPAGES_PORT`         | Server port (default 3000) |
+| `-n, --hostname <host>` | `ECOPAGES_HOSTNAME`     | Server hostname            |
+| `-b, --base-url <url>`  | `ECOPAGES_BASE_URL`     | Base URL for the app       |
+| `-d, --debug`           | `ECOPAGES_LOGGER_DEBUG` | Enable debug logging       |
+
+**Example:**
+
+```bash
+# Start dev server on port 8080 with debug logging
+ecopages dev --port 8080 --debug
+
+# Start production server with custom hostname
+ecopages start --hostname 0.0.0.0 --port 3001
+```
 
 ## JSR Packages
 
@@ -60,6 +83,22 @@ Explore all packages at [jsr.io/@ecopages](https://jsr.io/@ecopages).
 ```bash
 bun add ecopages
 ```
+
+## Configuration
+
+To use Ecopages packages, which are published on JSR, you need to configure your package manager to resolve the `@jsr` scope.
+
+### npm / pnpm / Yarn
+
+Create a `.npmrc` file in the root of your project with the following content:
+
+```ini
+@jsr:registry=https://npm.jsr.io
+```
+
+### Bun
+
+Bun supports JSR natively, but if you are using the `npm:` aliasing strategy (as recommended for compatibility), having the `.npmrc` file ensures consistent behavior.
 
 ## License
 

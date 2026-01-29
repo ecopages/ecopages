@@ -78,4 +78,4 @@ jobs:
                   registry-url: 'https://registry.npmjs.org'
 
             - name: Publish ecopages to NPM
-              run: npm publish --access public --provenance --workspace packages/ecopages
+              run: npm publish --access public --provenance --workspace npm/ecopages

@@ -4,8 +4,7 @@ import { Logger } from '@ecopages/logger';
 
 const logger = new Logger('[ecopages:npm]');
 
-const PACKAGES_DIR = join(process.cwd(), 'packages');
-const META_PACKAGE_DIR = join(PACKAGES_DIR, 'ecopages');
+const META_PACKAGE_DIR = join(process.cwd(), 'npm/ecopages');
 
 /**
  * Minimal interface for a package.json file.
@@ -65,7 +64,7 @@ async function generate() {
 		repository: {
 			type: 'git',
 			url: 'git+https://github.com/ecopages/ecopages.git',
-			directory: 'packages/ecopages',
+			directory: 'npm/ecopages',
 		},
 		homepage: 'https://github.com/ecopages/ecopages#readme',
 		bugs: {
@@ -93,17 +92,23 @@ async function generate() {
 	};
 
 	/**
-	 * Clear previous auto-generated directories in ecopages package except for essential configuration files.
+	 * Prepare output directory: Clean up ONLY generated artifacts, preserving source files.
 	 */
-	const metaDirEntries = new Bun.Glob('*').scanSync({ cwd: META_PACKAGE_DIR, onlyFiles: false });
-	for (const entry of metaDirEntries) {
-		const fullPath = join(META_PACKAGE_DIR, entry);
-		if (['package.json', 'tsconfig.json', 'README.md', 'bin', '.gitignore'].includes(entry)) continue;
-		rmSync(fullPath, { recursive: true, force: true });
+	if (!existsSync(META_PACKAGE_DIR)) {
+		mkdirSync(META_PACKAGE_DIR, { recursive: true });
 	}
 
-	if (!existsSync(join(META_PACKAGE_DIR, 'bin'))) {
-		mkdirSync(join(META_PACKAGE_DIR, 'bin'), { recursive: true });
+	/**
+	 * List of files that are "source" and should NOT be deleted.
+	 */
+	const PRESERVED_FILES = new Set(['package.json', 'tsconfig.json', 'README.md', 'bin', '.gitignore']);
+
+	const metaDirEntries = new Bun.Glob('*').scanSync({ cwd: META_PACKAGE_DIR, onlyFiles: false });
+	for (const entry of metaDirEntries) {
+		if (PRESERVED_FILES.has(entry)) continue;
+
+		const fullPath = join(META_PACKAGE_DIR, entry);
+		rmSync(fullPath, { recursive: true, force: true });
 	}
 
 	for (const pkg of packages) {
@@ -122,13 +127,17 @@ async function generate() {
 			for (const [subPath] of Object.entries(pkg.exports)) {
 				const metaSubPath = subPath === '.' ? pkgExportBase : `${pkgExportBase}${subPath.slice(1)}`;
 
-				// Add to package.json exports
+				/**
+				 * Add to package.json exports.
+				 */
 				metaPkgJson.exports[metaSubPath] = {
 					import: `${metaSubPath}/index.js`,
 					types: `${metaSubPath}/index.d.ts`,
 				};
 
-				// Create directory and re-export file
+				/**
+				 * Create directory and re-export file.
+				 */
 				const subDir = join(META_PACKAGE_DIR, metaSubPath);
 				mkdirSync(subDir, { recursive: true });
 
@@ -183,6 +192,11 @@ async function generate() {
 	 */
 	const gitignorePath = join(META_PACKAGE_DIR, '.gitignore');
 	const gitignoreHeader = '# Auto-generated directories (do not edit below this line)\n';
+
+	if (!existsSync(gitignorePath)) {
+		writeFileSync(gitignorePath, '');
+	}
+
 	let gitignoreContent = readFileSync(gitignorePath, 'utf-8');
 
 	const headerIndex = gitignoreContent.indexOf(gitignoreHeader);

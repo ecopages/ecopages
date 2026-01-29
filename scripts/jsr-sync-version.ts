@@ -25,3 +25,18 @@ for await (const jsrJson of glob.scan()) {
 
 	appLogger.info(`${modifiedJsrConfig.name}: ${previousVersion} > ${rootPackage.version}`);
 }
+
+/**
+ * Regenerate the ecopages meta-package to ensure it has the updated version
+ * and points to the correct updated dependencies.
+ */
+import { spawnSync } from 'node:child_process';
+
+const generateProc = spawnSync('bun', ['scripts/generate-meta-package.ts'], {
+	stdio: 'inherit',
+	cwd: process.cwd(),
+});
+
+if (generateProc.error) {
+	appLogger.error('Failed to regenerate ecopages meta-package', generateProc.error);
+}

@@ -3,6 +3,7 @@
 	"version": "0.0.1",
 	"description": "Codemods for migrating ecopages to latest patterns",
 	"type": "module",
+	"private": true,
 	"main": "src/transforms/index.ts",
 	"scripts": {
 		"transform:pages": "jscodeshift -t src/transforms/migrate-to-eco-page.ts --parser tsx",

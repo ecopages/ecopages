@@ -6,9 +6,9 @@ if (!rootPackage.version) {
 	throw new Error('Root package.json does not have a version');
 }
 
-type BumbType = 'major' | 'minor' | 'patch';
+type BumpType = 'major' | 'minor' | 'patch';
 
-const bump: BumbType = (process.argv[2] as BumbType) || 'patch';
+const bump: BumpType = (process.argv[2] as BumpType) || 'patch';
 
 const appLogger = new Logger('[@ecopages/bump-version]');
 

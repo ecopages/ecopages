@@ -6,9 +6,6 @@ import { mdxPlugin } from '@ecopages/mdx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
-const referencePath = path.resolve(import.meta.dir, 'src/styles/tailwind.css');
-const preset = tailwindV4Preset({ referencePath });
-
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
 	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
@@ -22,22 +19,11 @@ const config = await new ConfigBuilder()
 		}),
 	])
 	.setProcessors([
-		postcssProcessorPlugin({
-			...preset,
-			transformInput: async (contents, filePath) => {
-				const css = contents instanceof Buffer ? contents.toString('utf-8') : (contents as string);
-
-				if (css.includes("@import 'tailwindcss/") || css.includes('@import "tailwindcss/')) {
-					return css;
-				}
-
-				if (preset.transformInput) {
-					return preset.transformInput(contents, filePath);
-				}
-
-				return css;
-			},
-		}),
+		postcssProcessorPlugin(
+			tailwindV4Preset({
+				referencePath: path.resolve(import.meta.dir, 'src/styles/tailwind.css'),
+			}),
+		),
 	])
 	.setIncludesTemplates({
 		head: 'head.kita.tsx',

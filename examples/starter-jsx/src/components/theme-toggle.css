@@ -1,0 +1,25 @@
+@import 'tailwindcss';
+
+@layer components {
+	theme-toggle {
+		@apply relative inline-flex items-center justify-center w-10 h-10 rounded-full cursor-pointer transition-colors duration-300;
+		@apply bg-background-accent text-on-background-accent;
+
+		&:hover {
+			@apply bg-background-accent/80;
+		}
+
+		.theme-toggle-sun,
+		.theme-toggle-moon {
+			@apply absolute inset-0 flex items-center justify-center transition-[transform,opacity,rotate] duration-180;
+		}
+
+		.theme-toggle-sun {
+			@apply opacity-0 rotate-0 scale-0 dark:opacity-100 dark:rotate-90 dark:scale-100;
+		}
+
+		.theme-toggle-moon {
+			@apply opacity-100 rotate-0 scale-100 dark:opacity-0 dark:rotate-90 dark:scale-0;
+		}
+	}
+}

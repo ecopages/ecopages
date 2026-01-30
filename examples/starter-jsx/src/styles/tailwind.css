@@ -1,50 +1,106 @@
 @import 'tailwindcss';
 
+@theme {
+	--color-surface-50: oklch(0.98 0 0);
+	--color-surface-100: oklch(0.95 0 0);
+	--color-surface-200: oklch(0.9 0 0);
+	--color-surface-300: oklch(0.8 0 0);
+	--color-surface-400: oklch(0.6 0 0);
+	--color-surface-500: oklch(0.5 0 0);
+	--color-surface-600: oklch(0.4 0 0);
+	--color-surface-700: oklch(0.3 0 0);
+	--color-surface-800: oklch(0.2 0 0);
+	--color-surface-900: oklch(0.12 0 0);
+	--color-surface-950: oklch(0.08 0 0);
+
+	--color-accent: oklch(0.7 0.15 220);
+
+	--color-white: oklch(1 0 0);
+	--color-black: oklch(0 0 0);
+
+	--color-background: var(--color-surface-950);
+	--color-on-background: var(--color-surface-100);
+	--color-muted: var(--color-surface-400);
+
+	--color-background-accent: var(--color-surface-900);
+	--color-on-background-accent: var(--color-surface-100);
+	--color-border: var(--color-surface-700);
+
+	--font-display: 'Inter', system-ui, sans-serif;
+	--font-body: 'Inter', system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+body {
+	@apply bg-background min-h-dvh flex flex-col antialiased transition-colors duration-200;
+}
+
+:root {
+	color-scheme: light;
+	--color-background: var(--color-white);
+	--color-on-background: var(--color-surface-900);
+	--color-muted: var(--color-surface-500);
+
+	--color-background-accent: var(--color-surface-50);
+	--color-on-background-accent: var(--color-surface-900);
+}
+
+[data-theme='dark'] {
+	color-scheme: dark;
+	--color-background: var(--color-surface-950);
+	--color-on-background: var(--color-surface-100);
+
+	--color-background-accent: var(--color-surface-900);
+	--color-on-background-accent: var(--color-surface-100);
+	--color-muted: var(--color-surface-400);
+}
+
 .prose {
-	h1 {
-		@apply text-4xl font-bold my-6;
-	}
+	@apply leading-relaxed text-zinc-900 dark:text-zinc-100;
 
-	h2 {
-		@apply text-3xl font-bold my-6;
-	}
-
+	h1,
+	h2,
 	h3 {
-		@apply text-2xl font-bold my-5;
+		@apply font-semibold mb-4 mt-0 font-display tracking-tight;
 	}
-
-	h4 {
-		@apply text-xl font-bold my-5;
+	h1 {
+		@apply text-3xl;
 	}
-
-	h5 {
-		@apply text-lg font-bold my-4;
+	h2 {
+		@apply text-2xl;
 	}
-
-	h6 {
-		@apply text-base font-bold my-4;
+	h3 {
+		@apply text-xl text-zinc-500 dark:text-zinc-400;
 	}
 
 	p {
-		@apply text-base my-4;
+		@apply text-sm my-4;
 	}
 
 	a {
-		@apply text-blue-600 underline;
+		@apply underline underline-offset-2 text-blue-600 dark:text-blue-400;
 	}
 
 	ul,
 	ol {
-		@apply list-disc pl-8 my-4;
+		@apply my-4 pl-6 list-disc;
+	}
+
+	li {
+		@apply my-1;
 	}
 
 	code {
-		@apply bg-gray-200 text-sm text-gray-800 rounded-md;
+		@apply text-sm py-0.5 px-1.5 rounded bg-background-accent font-mono;
 	}
 
 	pre {
+		@apply p-4 rounded-lg overflow-x-auto my-6 bg-background-accent text-on-background-accent;
+
 		code {
-			@apply bg-transparent text-inherit rounded-md my-8;
+			@apply bg-transparent p-0 text-inherit;
 		}
 	}
 }

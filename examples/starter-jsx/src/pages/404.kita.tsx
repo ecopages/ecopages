@@ -11,10 +11,8 @@ export default eco.page<Error404TemplateProps>({
 	render: () => {
 		return (
 			<BaseLayout>
-				<div class="error404">
-					<h1>404 - Page Not Found</h1>
-					<p>The page you are looking for does not exist.</p>
-				</div>
+				<h1>404 - Page Not Found</h1>
+				<p>The page you are looking for does not exist.</p>
 			</BaseLayout>
 		);
 	},

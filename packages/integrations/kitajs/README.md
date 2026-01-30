@@ -1,6 +1,6 @@
 # Ecopages KitaJs Integration Plugin
 
-The `@ecopages/kitajs` package provides seamless integration with [Kita](https://kita.js.org/), enabling effortless rendering of JSX templates. This integration represents a minimalistic layer within the broader Ecopages integration plugin system, designed to enhance the platform's flexibility and ease of use.
+The `@ecopages/kitajs` package provides seamless integration with [Kita](https://kitajs.org/html/), enabling effortless rendering of JSX templates. This integration represents a minimalistic layer within the broader Ecopages integration plugin system, designed to enhance the platform's flexibility and ease of use.
 
 ## Install
 

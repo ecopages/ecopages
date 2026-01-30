@@ -1,0 +1,36 @@
+@import 'tailwindcss';
+
+@layer components {
+	.demo-container {
+		@apply w-full flex flex-col items-center text-center;
+	}
+
+	/* ========================================
+	   HERO SECTION
+	   ======================================== */
+	.demo-hero {
+		@apply mb-12;
+	}
+
+	.demo-title {
+		@apply text-6xl md:text-7xl font-extrabold leading-tight tracking-tight m-0 mb-3;
+		font-family: var(--font-display);
+		color: var(--color-on-background);
+	}
+
+	.demo-subtitle {
+		@apply text-lg m-0;
+		color: var(--color-surface-400);
+	}
+
+	:root.light .demo-subtitle {
+		color: var(--color-surface-600);
+	}
+
+	/* ========================================
+	   SHOWCASE GRID (Bento)
+	   ======================================== */
+	.demo-grid {
+		@apply w-full grid gap-6 grid-cols-1 md:grid-cols-4;
+	}
+}

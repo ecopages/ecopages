@@ -1,7 +1,22 @@
-body {
-	@apply bg-gray-50 h-screen;
-}
+@import 'tailwindcss';
 
-main {
-	@apply p-8;
+@layer components {
+	.site-header {
+		@apply w-full max-w-3xl mx-auto py-8 px-6 flex items-center justify-between;
+	}
+
+	.site-logo {
+		@apply text-lg font-semibold no-underline hover:underline;
+		font-family: var(--font-display);
+		letter-spacing: -0.01em;
+		color: var(--color-on-background);
+
+		&__version {
+			@apply bg-on-background text-background rounded-md text-xs font-normal ml-2 p-1;
+		}
+	}
+
+	.layout-main {
+		@apply w-full max-w-3xl mx-auto mt-8 px-6 pb-16 flex-1;
+	}
 }

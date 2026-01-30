@@ -1,0 +1,46 @@
+radiant-counter {
+	display: inline-flex;
+	align-items: center;
+	gap: 1rem;
+}
+
+radiant-counter [data-ref='increment'],
+radiant-counter [data-ref='decrement'] {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.5rem;
+	height: 2.5rem;
+	border-radius: 0.5rem;
+	border: 1px solid var(--color-surface-700);
+	background: transparent;
+	color: var(--color-muted);
+	cursor: pointer;
+	transition: all 0.15s;
+}
+
+radiant-counter [data-ref='increment']:hover,
+radiant-counter [data-ref='decrement']:hover {
+	border-color: var(--color-surface-500);
+	color: var(--color-on-background);
+}
+
+radiant-counter span {
+	font-family: var(--font-mono);
+	font-size: 1.25rem;
+	font-weight: 500;
+	min-width: 3ch;
+	text-align: center;
+	color: var(--color-on-background);
+}
+
+/* Light mode */
+:root.light radiant-counter [data-ref='increment'],
+:root.light radiant-counter [data-ref='decrement'] {
+	border-color: var(--color-surface-200);
+}
+
+:root.light radiant-counter [data-ref='increment']:hover,
+:root.light radiant-counter [data-ref='decrement']:hover {
+	border-color: var(--color-surface-400);
+}

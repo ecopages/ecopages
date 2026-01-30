@@ -131,6 +131,10 @@
 		"./errors": {
 			"types": "./src/errors/index.ts",
 			"default": "./src/errors/index.ts"
+		},
+		"./integrations/ghtml": {
+			"types": "./src/integrations/ghtml/ghtml.plugin.ts",
+			"default": "./src/integrations/ghtml/ghtml.plugin.ts"
 		}
 	}
 }

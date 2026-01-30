@@ -73,21 +73,41 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 		},
 		transformInput: async (contents: string | Buffer, filePath: string): Promise<string> => {
 			const css = contents instanceof Buffer ? contents.toString('utf-8') : (contents as string);
+			const normalizedFilePath = path.resolve(filePath);
+			const normalizedReferencePath = path.resolve(referencePath);
 
-			if (css.includes('@import "tailwindcss"') || css.includes("@import 'tailwindcss'")) {
+			/** Skip transformation for the main tailwind entry file */
+			if (normalizedFilePath === normalizedReferencePath) {
 				return css;
 			}
 
+			/** Skip if file already has an @reference directive */
 			if (/^\s*@reference\s+/m.test(css)) {
 				return css;
 			}
 
-			if (!css.includes('@apply')) {
+			const relativePath = path.relative(path.dirname(filePath), referencePath);
+
+			/** Skip if file already imports the referencePath */
+			if (css.includes(`@import '${relativePath}'`) || css.includes(`@import "${relativePath}"`)) {
 				return css;
 			}
 
-			const relativePath = path.relative(path.dirname(filePath), referencePath);
-			return `@reference "${relativePath}";\n\n${css}`;
+			/**
+			 * Replace `@import 'tailwindcss'` with an import to the referencePath.
+			 * This ensures custom theme variables are available for @apply directives.
+			 */
+			const tailwindImportPattern = /^@import\s+['"]tailwindcss(?:\/[^'"]*)?['"];?\s*$/m;
+			if (tailwindImportPattern.test(css)) {
+				return css.replace(tailwindImportPattern, `@import '${relativePath}';`);
+			}
+
+			/** If file uses @apply but has no tailwind import, add @reference */
+			if (css.includes('@apply')) {
+				return `@reference "${relativePath}";\n\n${css}`;
+			}
+
+			return css;
 		},
 	};
 }

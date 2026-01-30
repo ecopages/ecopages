@@ -1,120 +1,48 @@
-# Ecopages React Starter
+# Ecopages Project
 
-This is a minimal starter template for building websites with Ecopages and React. It demonstrates the basic setup and common patterns for React-based Ecopages projects.
+This is a starter project built with [Ecopages](https://ecopages.app).
 
-## Quick Start
+## Getting Started
 
-1. Create a new project using this template:
+First, install the dependencies:
 
 ```bash
-bunx degit ecopages/ecopages/examples/starter-react my-react-site
-cd my-react-site
 bun install
+# or
+npm install
+# or
+yarn install
+# or
+pnpm install
 ```
 
-2. Start the development server:
+Then, run the development server:
 
 ```bash
 bun dev
+# or
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
 ```
 
-3. Build for production:
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+## Documentation
+
+To learn more about Ecopages, take a look at the following resources:
+
+- [Ecopages Documentation](https://ecopages.app) - learn about Ecopages features and API.
+- [Ecopages GitHub Repository](https://github.com/ecopages/ecopages) - contribute or file issues.
+
+## Build
+
+To build the application for production, run:
 
 ```bash
 bun run build
+# or
+npm run build
 ```
-
-## Project Structure
-
-```
-├── src/
-│   ├── components/     # React components
-│   ├── layouts/       # Layout components
-│   ├── pages/         # Page components
-│   └── ecopages.config.ts  # Ecopages configuration
-├── public/            # Static assets
-├── package.json
-└── tsconfig.json
-```
-
-## Key Features
-
-- React 19 support
-- TypeScript configuration
-- Component-based architecture
-- Fast development environment
-- Optimized production builds
-
-## Basic Usage
-
-### Creating a Page
-
-```tsx
-import { BaseLayout } from '@/layouts/base-layout';
-import type { EcoReactComponent } from '@ecopages/react';
-
-const HomePage: EcoReactComponent = () => {
-	return (
-		<BaseLayout>
-			<h1>Welcome</h1>
-			<p>This is my Ecopages React site!</p>
-		</BaseLayout>
-	);
-};
-
-HomePage.config = {
-	dependencies: {
-		components: [BaseLayout],
-	},
-};
-
-export default HomePage;
-```
-
-### Creating a Component
-
-```tsx
-import { useState } from 'react';
-import type { EcoReactComponent } from '@ecopages/react';
-
-export const Counter: EcoReactComponent = () => {
-	const [count, setCount] = useState(0);
-
-	return (
-		<div>
-			<p>Count: {count}</p>
-			<button onClick={() => setCount(count - 1)}>-</button>
-			<button onClick={() => setCount(count + 1)}>+</button>
-		</div>
-	);
-};
-
-Counter.config = {};
-```
-
-## Configuration
-
-The project uses a standard Ecopages configuration with React integration:
-
-```ts
-import { ConfigBuilder } from '@ecopages/core';
-import { reactPlugin } from '@ecopages/react';
-
-const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([reactPlugin()])
-	.build();
-
-export default config;
-```
-
-## Learn More
-
-For more detailed information about using React with Ecopages, check out:
-
-- [Ecopages React Integration Documentation](https://ecopages.app/docs/integrations/react)
-- [React Documentation](https://react.dev)
-
-## Postinstall Script
-
-This starter includes a `postinstall` script that creates a symlink to the Ecopages CLI in the project's `node_modules/.bin` directory. [Due to current limitations in JSR](https://github.com/ecopages/ecopages/issues/50), this is necessary to run the Ecopages CLI commands using `bun run ecopages`.

@@ -1,1 +1,30 @@
 @import 'tailwindcss';
+
+@layer components {
+	.showcase {
+		@apply grid grid-cols-1 gap-y-8;
+	}
+
+	.showcase-section {
+		@apply flex flex-col gap-8  border-solid border-l p-4 bg-background-accent;
+	}
+
+	.section-title {
+		@apply text-[0.625rem] font-medium tracking-widest m-0;
+		font-family: var(--font-display);
+	}
+
+	.section-desc {
+		@apply text-xs m-0 leading-snug;
+		color: var(--color-muted);
+	}
+
+	.section-content {
+		@apply my-4;
+	}
+
+	.section-link {
+		@apply text-xs no-underline hover:underline;
+		color: var(--color-accent);
+	}
+}

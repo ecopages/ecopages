@@ -18,5 +18,8 @@
 		"@ecopages/scripts-injector": "latest",
 		"@tailwindcss/postcss": "^4.0.0",
 		"tailwindcss": "^4.0.0"
+	},
+	"dependencies": {
+		"@ecopages/browser-router": "npm:@jsr/ecopages__browser-router"
 	}
 }

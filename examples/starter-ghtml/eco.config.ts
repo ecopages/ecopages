@@ -1,7 +1,8 @@
 import path from 'node:path';
-import { ConfigBuilder, ghtmlPlugin } from '@ecopages/core/config-builder';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { ghtmlPlugin } from '@ecopages/core/integrations/ghtml';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dir)

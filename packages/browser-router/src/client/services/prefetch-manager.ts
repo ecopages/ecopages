@@ -84,6 +84,10 @@ export class PrefetchManager {
 		if (url.origin !== window.location.origin) return;
 		if (this.prefetched.has(url.href)) return;
 
+		const currentPath = window.location.pathname + window.location.search;
+		const targetPath = url.pathname + url.search;
+		if (currentPath === targetPath) return;
+
 		this.prefetched.add(url.href);
 
 		try {
@@ -123,7 +127,7 @@ export class PrefetchManager {
 	 *
 	 * Implements stale-while-revalidate pattern:
 	 * - Immediately caches the provided HTML for instant revisits
-	 * - Fetches fresh content in background for next visit
+	 * - Fetches fresh content in background for next visit (unless it's the current page)
 	 *
 	 * @param href - The URL of the visited page
 	 * @param html - The HTML content to cache initially
@@ -132,11 +136,13 @@ export class PrefetchManager {
 		const url = new URL(href, window.location.origin);
 		if (url.origin !== window.location.origin) return;
 
-		// Cache current content immediately
 		this.htmlCache.set(url.href, html);
 		this.prefetched.add(url.href);
 
-		// Background revalidation - fetch fresh content for next visit
+		const currentPath = window.location.pathname + window.location.search;
+		const targetPath = url.pathname + url.search;
+		if (currentPath === targetPath) return;
+
 		setTimeout(() => {
 			fetch(url.href, {
 				headers: { Accept: 'text/html' },

@@ -39,13 +39,13 @@ bun dev
 
 All server commands (`dev`, `dev:watch`, `dev:hot`, `start`, `preview`) support the following options:
 
-| Option                       | Environment Variable    | Description                    |
-| :--------------------------- | :---------------------- | :----------------------------- |
-| `-p, --port <port>`          | `ECOPAGES_PORT`         | Server port (default 3000)     |
-| `-n, --hostname <host>`      | `ECOPAGES_HOSTNAME`     | Server hostname                |
-| `-b, --base-url <url>`       | `ECOPAGES_BASE_URL`     | Base URL for the app           |
-| `-d, --debug`                | `ECOPAGES_LOGGER_DEBUG` | Enable debug logging           |
-| `-r, --react-fast-refresh`   | -                       | Enable React Fast Refresh HMR  |
+| Option                     | Environment Variable    | Description                   |
+| :------------------------- | :---------------------- | :---------------------------- |
+| `-p, --port <port>`        | `ECOPAGES_PORT`         | Server port (default 3000)    |
+| `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname               |
+| `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL for the app          |
+| `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enable debug logging          |
+| `-r, --react-fast-refresh` | -                       | Enable React Fast Refresh HMR |
 
 **Example:**
 

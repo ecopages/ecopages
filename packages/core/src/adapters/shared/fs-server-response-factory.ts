@@ -70,7 +70,13 @@ export class FileSystemServerResponseFactory {
 			file: error404TemplatePath,
 		});
 
-		return await this.createResponseWithBody(result.body);
+		return await this.createResponseWithBody(result.body, {
+			status: 404,
+			statusText: STATUS_MESSAGE[404],
+			headers: {
+				'Content-Type': 'text/html',
+			},
+		});
 	}
 
 	async createFileResponse(filePath: string, contentType: string) {

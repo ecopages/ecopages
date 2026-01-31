@@ -155,4 +155,28 @@ test.describe('Browser Router Prefetch', () => {
 
 		expect(cssPrefetched).toBe(true);
 	});
+
+	test('should NOT prefetch the current page', async ({ page }) => {
+		const prefetchUrl = '/prefetch';
+		const requests: string[] = [];
+
+		page.on('request', (request) => {
+			const url = new URL(request.url());
+			if (url.pathname === prefetchUrl && request.resourceType() === 'document') {
+				requests.push(request.url());
+			}
+		});
+
+		await page.goto(prefetchUrl);
+		await page.waitForLoadState('networkidle');
+		await page.waitForTimeout(500);
+
+		const initialRequestCount = requests.length;
+		expect(initialRequestCount).toBe(1);
+
+		await page.hover('#link-self');
+		await page.waitForTimeout(200);
+
+		expect(requests.length).toBe(initialRequestCount);
+	});
 });

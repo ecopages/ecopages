@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/kitajs",
-	"version": "0.1.93",
+	"version": "0.1.94",
 	"exports": {
 		".": "./src/kitajs.plugin.ts"
 	},

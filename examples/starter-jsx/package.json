@@ -16,6 +16,7 @@
 		"@ecopages/mdx": "npm:@jsr/ecopages__mdx@latest",
 		"@ecopages/image-processor": "npm:@jsr/ecopages__image-processor@latest",
 		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
+		"@ecopages/browser-router": "npm:@jsr/ecopages__browser-router@latest",
 		"@ecopages/radiant": "latest",
 		"@ecopages/scripts-injector": "latest",
 		"@tailwindcss/postcss": "^4.0.0",

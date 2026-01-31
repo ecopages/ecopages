@@ -262,6 +262,7 @@
 	},
 	"dependencies": {
 		"commander": "^12.1.0",
+		"tiged": "^2.12.7",
 		"@ecopages/react-router": "npm:@jsr/ecopages__react-router@0.1.89",
 		"@ecopages/bun-mdx-kitajs-loader": "npm:@jsr/ecopages__bun-mdx-kitajs-loader@0.1.89",
 		"@ecopages/bun-postcss-loader": "npm:@jsr/ecopages__bun-postcss-loader@0.1.89",

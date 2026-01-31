@@ -68,8 +68,8 @@ jobs:
             - name: Publish package @ecopages/react-router
               run: bun run --filter @ecopages/react-router release:jsr
 
-            - name: Generate ecopages meta-package
-              run: bun scripts/generate-meta-package.ts
+            - name: Sync versions
+              run: bun scripts/jsr-sync-version.ts
 
             - name: Setup Node.js for NPM Publish
               uses: actions/setup-node@v4

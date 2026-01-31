@@ -81,6 +81,10 @@ function runBunCommand(args, options = {}, entryFile = 'app.ts') {
 	}
 	bunArgs.push(entryFile, ...args);
 
+	if (options.reactFastRefresh) {
+		bunArgs.push('--react-fast-refresh');
+	}
+
 	/** Merge CLI overrides with current environment */
 	const envOverrides = buildEnvOverrides(options);
 	const env = { ...process.env, ...envOverrides };
@@ -106,7 +110,8 @@ const serverOptions = (cmd) =>
 		.option('-p, --port <port>', 'Override ECOPAGES_PORT')
 		.option('-n, --hostname <hostname>', 'Override ECOPAGES_HOSTNAME')
 		.option('-b, --base-url <url>', 'Override ECOPAGES_BASE_URL')
-		.option('-d, --debug', 'Enable debug logging (ECOPAGES_LOGGER_DEBUG=true)');
+		.option('-d, --debug', 'Enable debug logging (ECOPAGES_LOGGER_DEBUG=true)')
+		.option('-r, --react-fast-refresh', 'Enable React Fast Refresh for HMR');
 
 serverOptions(
 	program.command('dev').description('Start the development server').argument('[entry]', 'Entry file', 'app.ts'),

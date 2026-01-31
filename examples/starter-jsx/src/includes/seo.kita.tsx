@@ -1,4 +1,4 @@
-import type { PageMetadataProps } from 'ecopages/core';
+import type { PageMetadataProps } from '@ecopages/core';
 
 const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
 

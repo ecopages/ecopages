@@ -1,4 +1,4 @@
-import { eco } from 'ecopages/core';
+import { eco } from '@ecopages/core';
 import { ThemeToggle } from '@/components/theme-toggle.kita';
 
 export type BaseLayoutProps = {

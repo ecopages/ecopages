@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
+
 import { Command } from 'commander';
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import tiged from 'tiged';
 import { Logger } from '@ecopages/logger';
 
 const logger = new Logger('[ecopages:cli]');
@@ -10,6 +12,37 @@ const program = new Command();
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 
 program.name('ecopages').description('Ecopages CLI utilities').version(pkg.version);
+
+program
+	.command('init <dir>')
+	.description('Initialize a new project from a template')
+	.option('--template <name>', 'Template name from ecopages/examples/', 'starter-jsx')
+	.option('--repo <repo>', 'GitHub repo (user/repo)', 'ecopages/ecopages')
+	.action(async (dir, opts) => {
+		const { template, repo } = opts;
+		const targetDir = dir;
+
+		if (existsSync(targetDir)) {
+			logger.error(`Target directory already exists: ${targetDir}`);
+			process.exit(1);
+		}
+
+		logger.info(`Creating target directory '${targetDir}'...`);
+
+		try {
+			const emitter = tiged(`${repo}/examples/${template}`, {
+				disableCache: true,
+				force: true,
+				verbose: false,
+			});
+
+			await emitter.clone(targetDir);
+			logger.info('Project initialized! Run `bun install && bun dev` to start.');
+		} catch (err) {
+			logger.error(`Failed to fetch template: ${err.message}`);
+			process.exit(1);
+		}
+	});
 
 /**
  * Build environment variables from CLI options
@@ -75,32 +108,29 @@ const serverOptions = (cmd) =>
 		.option('-b, --base-url <url>', 'Override ECOPAGES_BASE_URL')
 		.option('-d, --debug', 'Enable debug logging (ECOPAGES_LOGGER_DEBUG=true)');
 
-program
-	.command('dev')
-	.description('Start the development server')
-	.argument('[entry]', 'Entry file', 'app.ts')
-	.tap(serverOptions)
-	.action((entry, opts) => {
-		runBunCommand(['--dev'], opts, entry);
-	});
+serverOptions(
+	program.command('dev').description('Start the development server').argument('[entry]', 'Entry file', 'app.ts'),
+).action((entry, opts) => {
+	runBunCommand(['--dev'], opts, entry);
+});
 
-program
-	.command('dev:watch')
-	.description('Start the development server with watch mode (restarts on file changes)')
-	.argument('[entry]', 'Entry file', 'app.ts')
-	.tap(serverOptions)
-	.action((entry, opts) => {
-		runBunCommand(['--dev'], { ...opts, watch: true }, entry);
-	});
+serverOptions(
+	program
+		.command('dev:watch')
+		.description('Start the development server with watch mode (restarts on file changes)')
+		.argument('[entry]', 'Entry file', 'app.ts'),
+).action((entry, opts) => {
+	runBunCommand(['--dev'], { ...opts, watch: true }, entry);
+});
 
-program
-	.command('dev:hot')
-	.description('Start the development server with hot reload (HMR without restart)')
-	.argument('[entry]', 'Entry file', 'app.ts')
-	.tap(serverOptions)
-	.action((entry, opts) => {
-		runBunCommand(['--dev'], { ...opts, hot: true }, entry);
-	});
+serverOptions(
+	program
+		.command('dev:hot')
+		.description('Start the development server with hot reload (HMR without restart)')
+		.argument('[entry]', 'Entry file', 'app.ts'),
+).action((entry, opts) => {
+	runBunCommand(['--dev'], { ...opts, hot: true }, entry);
+});
 
 program
 	.command('build')
@@ -110,22 +140,16 @@ program
 		runBunCommand(['--build'], {}, entry);
 	});
 
-program
-	.command('start')
-	.description('Start the production server')
-	.argument('[entry]', 'Entry file', 'app.ts')
-	.tap(serverOptions)
-	.action((entry, opts) => {
-		runBunCommand([], opts, entry);
-	});
+serverOptions(
+	program.command('start').description('Start the production server').argument('[entry]', 'Entry file', 'app.ts'),
+).action((entry, opts) => {
+	runBunCommand([], opts, entry);
+});
 
-program
-	.command('preview')
-	.description('Preview the production build')
-	.argument('[entry]', 'Entry file', 'app.ts')
-	.tap(serverOptions)
-	.action((entry, opts) => {
-		runBunCommand(['--preview'], opts, entry);
-	});
+serverOptions(
+	program.command('preview').description('Preview the production build').argument('[entry]', 'Entry file', 'app.ts'),
+).action((entry, opts) => {
+	runBunCommand(['--preview'], opts, entry);
+});
 
 program.parse();

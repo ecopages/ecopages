@@ -1,6 +1,5 @@
 import { eco } from 'ecopages/core';
-import { ThemeToggle } from '../../components/theme-toggle.kita';
-import pkg from '../../../../../package.json';
+import { ThemeToggle } from '@/components/theme-toggle.kita';
 
 export type BaseLayoutProps = {
 	children: JSX.Element | JSX.Element[];
@@ -20,7 +19,7 @@ export const BaseLayout = eco.component<BaseLayoutProps>({
 				<header class="site-header">
 					<a href="/" class="site-logo">
 						<span>ecopages</span>
-						<span class="site-logo__version">{pkg.version}</span>
+						<span class="site-logo__version">beta</span>
 					</a>
 					<ThemeToggle />
 				</header>

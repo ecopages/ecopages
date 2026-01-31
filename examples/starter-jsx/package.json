@@ -10,7 +10,7 @@
 	},
 	"devDependencies": {
 		"ecopages": "latest",
-		"@ecopages/core": "workspace:*",
+		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
 		"@ecopages/kitajs": "npm:@jsr/ecopages__kitajs@latest",
 		"@ecopages/lit": "npm:@jsr/ecopages__lit@latest",
 		"@ecopages/mdx": "npm:@jsr/ecopages__mdx@latest",

@@ -46,7 +46,8 @@ export class FileSystemResponseMatcher {
 			return this.fileSystemResponseFactory.createCustomNotFoundResponse();
 		}
 
-		const filePath = path.join(this.router.assetPrefix, requestUrl);
+		const relativeUrl = requestUrl.startsWith('/') ? requestUrl.slice(1) : requestUrl;
+		const filePath = path.join(this.router.assetPrefix, relativeUrl);
 		const contentType = ServerUtils.getContentType(filePath);
 
 		return this.fileSystemResponseFactory.createFileResponse(filePath, contentType);

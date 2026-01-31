@@ -1,22 +1,27 @@
-import { beforeAll, describe, expect, it } from 'bun:test';
-import { FIXTURE_APP_PROJECT_DIR, FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH } from '../../../__fixtures__/constants.js';
+import { beforeAll, describe, expect, it, spyOn } from 'bun:test';
+import {
+	FIXTURE_APP_PROJECT_DIR,
+	FIXTURE_EXISTING_CSS_FILE_IN_DIST,
+	FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH,
+} from '../../../__fixtures__/constants.js';
 import { appLogger } from '../../global/app-logger.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { STATUS_MESSAGE } from '../../constants.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
-const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
-
-for (const integration of appConfig.integrations) {
-	integration.setConfig(appConfig);
-	integration.setRuntimeOrigin(appConfig.baseUrl);
-}
-
+let appConfig: Awaited<ReturnType<ConfigBuilder['build']>>;
 let responseFactory: FileSystemServerResponseFactory;
 
 describe('FileSystemServerResponseFactory', () => {
 	beforeAll(async () => {
+		appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+
+		for (const integration of appConfig.integrations) {
+			integration.setConfig(appConfig);
+			integration.setRuntimeOrigin(appConfig.baseUrl);
+		}
+
 		responseFactory = new FileSystemServerResponseFactory({
 			appConfig,
 			routeRendererFactory: new RouteRendererFactory({
@@ -79,7 +84,7 @@ describe('FileSystemServerResponseFactory', () => {
 		});
 	});
 
-	describe('createResponseWithBody', async () => {
+	describe('createResponseWithBody', () => {
 		it('should create a response with the given route renderer body', async () => {
 			const routeRendererBody = '<html><body>Test</body></html>';
 			const response = await responseFactory.createResponseWithBody(routeRendererBody);
@@ -129,6 +134,7 @@ describe('FileSystemServerResponseFactory', () => {
 			const body = await response.text();
 			expect(body).toInclude('<h1>404 - Page Not Found</h1>');
 			expect(response.headers.get('Content-Type')).toBe('text/html');
+			expect(response.status).toBe(404);
 		});
 	});
 
@@ -145,31 +151,38 @@ describe('FileSystemServerResponseFactory', () => {
 			const response = await responseFactory.createFileResponse('/path/to/nonexistent.txt', 'text/plain');
 			const body = await response.text();
 			expect(body).toContain('<h1>404 - Page Not Found</h1>');
+			expect(response.status).toBe(404);
 		});
 
 		it('should log debug for ENOENT errors', async () => {
-			const originalDebug = appLogger.debug;
-			const originalError = appLogger.error;
-			let debugCalled = false;
-			let errorCalled = false;
+			const debugSpy = spyOn(appLogger, 'debug');
+			const errorSpy = spyOn(appLogger, 'error');
 
-			appLogger.debug = (...args: Parameters<typeof originalDebug>) => {
-				debugCalled = true;
-				return originalDebug.apply(appLogger, args);
-			};
-			appLogger.error = (...args: Parameters<typeof originalError>) => {
-				errorCalled = true;
-				return originalError.apply(appLogger, args);
-			};
+			await responseFactory.createFileResponse('/path/to/nonexistent-debug.txt', 'text/plain');
 
-			try {
-				await responseFactory.createFileResponse('/path/to/nonexistent-debug.txt', 'text/plain');
-				expect(debugCalled).toBe(true);
-				expect(errorCalled).toBe(false);
-			} finally {
-				appLogger.debug = originalDebug;
-				appLogger.error = originalError;
-			}
+			expect(debugSpy).toHaveBeenCalled();
+			expect(errorSpy).not.toHaveBeenCalled();
+
+			debugSpy.mockRestore();
+			errorSpy.mockRestore();
+		});
+
+		it('should serve gzip file with Content-Encoding header when gzip is enabled', async () => {
+			const cssFilePath = `${appConfig.absolutePaths.distDir}/${FIXTURE_EXISTING_CSS_FILE_IN_DIST}`;
+			const response = await responseFactory.createFileResponse(cssFilePath, 'text/css');
+
+			expect(response.headers.get('Content-Type')).toBe('text/css');
+			expect(response.headers.get('Content-Encoding')).toBe('gzip');
+		});
+
+		it('should not set Content-Encoding header for non-gzip content types', async () => {
+			const response = await responseFactory.createFileResponse(
+				FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH,
+				'image/svg+xml',
+			);
+
+			expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
+			expect(response.headers.get('Content-Encoding')).toBeNull();
 		});
 	});
 });

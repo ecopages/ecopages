@@ -14,6 +14,7 @@
 		"@ecopages/kitajs": "npm:@jsr/ecopages__kitajs@latest",
 		"@ecopages/lit": "npm:@jsr/ecopages__lit@latest",
 		"@ecopages/mdx": "npm:@jsr/ecopages__mdx@latest",
+		"@ecopages/image-processor": "npm:@jsr/ecopages__image-processor@latest",
 		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
 		"@ecopages/radiant": "latest",
 		"@ecopages/scripts-injector": "latest",

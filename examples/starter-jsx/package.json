@@ -2,24 +2,15 @@
 	"name": "@ecopages/starter-jsx",
 	"private": true,
 	"scripts": {
-		"start": "bun run app.ts",
-		"dev": "bun run app.ts --dev",
-		"build": "bun run app.ts --build",
-		"preview": "bun run app.ts --preview",
-		"watch:dev": "bun --watch run app.ts --dev"
+		"start": "ecopages start",
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"preview": "ecopages preview",
+		"watch:dev": "ecopages watch:dev"
 	},
 	"devDependencies": {
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
-		"@ecopages/image-processor": "npm:@jsr/ecopages__image-processor@latest",
-		"@ecopages/kitajs": "npm:@jsr/ecopages__kitajs@latest",
-		"@ecopages/mdx": "npm:@jsr/ecopages__mdx@latest",
-		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
-		"@ecopages/radiant": "latest",
-		"@ecopages/scripts-injector": "latest",
+		"ecopages": "^0.1.90",
 		"@tailwindcss/postcss": "^4.0.0",
 		"tailwindcss": "^4.0.0"
-	},
-	"dependencies": {
-		"@ecopages/browser-router": "npm:@jsr/ecopages__browser-router"
 	}
 }

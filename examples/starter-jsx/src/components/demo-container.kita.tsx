@@ -1,4 +1,4 @@
-import { eco } from '@ecopages/core';
+import { eco } from 'ecopages/core';
 
 export type DemoContainerProps = {
 	children: JSX.Element | JSX.Element[];

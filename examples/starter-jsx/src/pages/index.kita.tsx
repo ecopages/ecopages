@@ -1,7 +1,7 @@
-import { eco } from '@ecopages/core';
+import { eco } from 'ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout/base-layout.kita';
 import { RadiantCounter } from '@/components/radiant-counter.kita';
-import { EcoImage } from '@ecopages/image-processor/component/html';
+import { EcoImage } from 'ecopages/image-processor/component/html';
 import { kitaKamakuraPng } from 'ecopages:images';
 import ShowcaseMdx from '@/components/showcase.mdx';
 

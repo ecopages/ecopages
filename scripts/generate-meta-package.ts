@@ -83,8 +83,10 @@ async function generate() {
 			},
 		},
 		dependencies: {
-			commander: '^12.1.0',
+			tiged: '^2.12.7',
+			'@ecopages/logger': '^0.2.2',
 		},
+		devDependencies: {},
 		peerDependencies: {
 			'bun-types': 'latest',
 			typescript: '^5',
@@ -119,7 +121,7 @@ async function generate() {
 		 * Map the dependency to the JSR-to-NPM compatibility layer versioned specifically.
 		 */
 		const jsrDependency = `npm:@jsr/ecopages__${shortName}@${version}`;
-		metaPkgJson.dependencies[pkg.name] = jsrDependency;
+		metaPkgJson.devDependencies[pkg.name] = jsrDependency;
 
 		const pkgExportBase = `./${shortName}`;
 

@@ -1,6 +1,6 @@
 {
 	"name": "ecopages",
-	"version": "0.1.89",
+	"version": "0.1.90",
 	"description": "Universal entry point for Ecopages",
 	"type": "module",
 	"license": "MIT",
@@ -269,19 +269,19 @@
 		"@ecopages/logger": "^0.2.2"
 	},
 	"devDependencies": {
-		"@ecopages/react-router": "npm:@jsr/ecopages__react-router@0.1.89",
-		"@ecopages/bun-mdx-kitajs-loader": "npm:@jsr/ecopages__bun-mdx-kitajs-loader@0.1.89",
-		"@ecopages/bun-postcss-loader": "npm:@jsr/ecopages__bun-postcss-loader@0.1.89",
-		"@ecopages/file-system": "npm:@jsr/ecopages__file-system@0.1.89",
-		"@ecopages/browser-router": "npm:@jsr/ecopages__browser-router@0.1.89",
-		"@ecopages/image-processor": "npm:@jsr/ecopages__image-processor@0.1.89",
-		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@0.1.89",
-		"@ecopages/react": "npm:@jsr/ecopages__react@0.1.89",
-		"@ecopages/lit": "npm:@jsr/ecopages__lit@0.1.89",
-		"@ecopages/kitajs": "npm:@jsr/ecopages__kitajs@0.1.89",
-		"@ecopages/mdx": "npm:@jsr/ecopages__mdx@0.1.89",
-		"@ecopages/bun-inline-css-plugin": "npm:@jsr/ecopages__bun-inline-css-plugin@0.1.89",
-		"@ecopages/core": "npm:@jsr/ecopages__core@0.1.89"
+		"@ecopages/react-router": "npm:@jsr/ecopages__react-router@0.1.90",
+		"@ecopages/bun-mdx-kitajs-loader": "npm:@jsr/ecopages__bun-mdx-kitajs-loader@0.1.90",
+		"@ecopages/bun-postcss-loader": "npm:@jsr/ecopages__bun-postcss-loader@0.1.90",
+		"@ecopages/file-system": "npm:@jsr/ecopages__file-system@0.1.90",
+		"@ecopages/browser-router": "npm:@jsr/ecopages__browser-router@0.1.90",
+		"@ecopages/image-processor": "npm:@jsr/ecopages__image-processor@0.1.90",
+		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@0.1.90",
+		"@ecopages/react": "npm:@jsr/ecopages__react@0.1.90",
+		"@ecopages/lit": "npm:@jsr/ecopages__lit@0.1.90",
+		"@ecopages/kitajs": "npm:@jsr/ecopages__kitajs@0.1.90",
+		"@ecopages/mdx": "npm:@jsr/ecopages__mdx@0.1.90",
+		"@ecopages/bun-inline-css-plugin": "npm:@jsr/ecopages__bun-inline-css-plugin@0.1.90",
+		"@ecopages/core": "npm:@jsr/ecopages__core@0.1.90"
 	},
 	"peerDependencies": {
 		"bun-types": "latest",

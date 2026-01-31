@@ -32,19 +32,3 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
-# Auto-generated directories (do not edit below this line)
-react-router/
-bun-mdx-kitajs-loader/
-bun-postcss-loader/
-file-system/
-browser-router/
-image-processor/
-postcss-processor/
-react/
-lit/
-kitajs/
-mdx/
-bun-inline-css-plugin/
-core/
-index.js
-index.d.ts

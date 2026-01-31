@@ -1,4 +1,4 @@
-import { eco } from 'ecopages/core';
+import { eco } from '@ecopages/core';
 import { Moon, Sun } from './icons.kita';
 
 export const ThemeToggle = eco.component({

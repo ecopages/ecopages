@@ -1,31 +1,31 @@
 # ecopages
 
 > **DRAFT / EXPERIMENTAL**
-> This package is currently in a draft state and is subject to significant changes. Use with caution in production environments.
+> This package is currently in a draft state and is subject to significant changes.
 
-`ecopages` is the centralized entry point for the Ecopages ecosystem. It provides a unified way to access all `@ecopages/*` library packages and includes powerful CLI utilities to streamline your development workflow with Bun.
+`ecopages` is a CLI tool for the Ecopages framework. It provides:
 
-## Overview
+- **Project scaffolding**: Quickly initialize new Ecopages projects from templates using `bunx ecopages init`
+- **Command utilities**: Namespaced commands that wrap common Bun operations, automatically detecting and applying your `eco.config.ts`
 
-Instead of managing multiple `@ecopages` dependencies, you can simply use the `ecopages` meta-package. It re-exports all essential library components while maintaining full tree-shakability.
+## Quick Start
 
-### Sub-path Exports
+Initialize a new project:
 
-You can import from specific Ecopages modules directly through the meta-package:
-
-```typescript
-import { eco } from 'ecopages/core';
-import { kitajsPlugin } from 'ecopages/kitajs';
+```bash
+bunx ecopages init my-app
+cd my-app
+bun install
+bun dev
 ```
 
 ## CLI Utilities
-
-The `ecopages` package includes a CLI to simplify common Bun commands. It automatically detects your `eco.config.ts` and applies the necessary preloads.
 
 ### Commands
 
 | Command                      | Description                                      | Bun Equivalent                  |
 | :--------------------------- | :----------------------------------------------- | :------------------------------ |
+| `ecopages init <dir>`        | Initialize a new Ecopages project                | scaffolding tool                |
 | `ecopages dev [entry]`       | Start the development server                     | `bun run [entry] --dev`         |
 | `ecopages dev:watch [entry]` | Start with watch mode (restarts on file changes) | `bun --watch run [entry] --dev` |
 | `ecopages dev:hot [entry]`   | Start with hot reload (HMR without restart)      | `bun --hot run [entry] --dev`   |
@@ -39,12 +39,13 @@ The `ecopages` package includes a CLI to simplify common Bun commands. It automa
 
 All server commands (`dev`, `dev:watch`, `dev:hot`, `start`, `preview`) support the following options:
 
-| Option                  | Environment Variable    | Description                |
-| :---------------------- | :---------------------- | :------------------------- |
-| `-p, --port <port>`     | `ECOPAGES_PORT`         | Server port (default 3000) |
-| `-n, --hostname <host>` | `ECOPAGES_HOSTNAME`     | Server hostname            |
-| `-b, --base-url <url>`  | `ECOPAGES_BASE_URL`     | Base URL for the app       |
-| `-d, --debug`           | `ECOPAGES_LOGGER_DEBUG` | Enable debug logging       |
+| Option                       | Environment Variable    | Description                    |
+| :--------------------------- | :---------------------- | :----------------------------- |
+| `-p, --port <port>`          | `ECOPAGES_PORT`         | Server port (default 3000)     |
+| `-n, --hostname <host>`      | `ECOPAGES_HOSTNAME`     | Server hostname                |
+| `-b, --base-url <url>`       | `ECOPAGES_BASE_URL`     | Base URL for the app           |
+| `-d, --debug`                | `ECOPAGES_LOGGER_DEBUG` | Enable debug logging           |
+| `-r, --react-fast-refresh`   | -                       | Enable React Fast Refresh HMR  |
 
 **Example:**
 
@@ -52,13 +53,23 @@ All server commands (`dev`, `dev:watch`, `dev:hot`, `start`, `preview`) support 
 # Start dev server on port 8080 with debug logging
 ecopages dev --port 8080 --debug
 
+# Start dev server with React Fast Refresh
+ecopages dev -r
+
 # Start production server with custom hostname
 ecopages start --hostname 0.0.0.0 --port 3001
 ```
 
-## JSR Packages
+## Ecopages Packages
 
-The individual Ecopages packages are published to [JSR](https://jsr.io/@ecopages). This meta-package re-exports them for easier consumption via NPM while leveraging Bun's performance.
+The Ecopages ecosystem consists of individual framework packages published to [JSR](https://jsr.io/@ecopages). Import them directly in your project:
+
+```typescript
+import { eco } from '@ecopages/core';
+import { kitajsPlugin } from '@ecopages/kitajs';
+```
+
+### Available Packages
 
 | Package                           | Description                                               | JSR Link                                              |
 | :-------------------------------- | :-------------------------------------------------------- | :---------------------------------------------------- |
@@ -84,21 +95,17 @@ Explore all packages at [jsr.io/@ecopages](https://jsr.io/@ecopages).
 bun add ecopages
 ```
 
-## Configuration
-
-To use Ecopages packages, which are published on JSR, you need to configure your package manager to resolve the `@jsr` scope.
-
-### npm / pnpm / Yarn
-
-Create a `.npmrc` file in the root of your project with the following content:
+To use Ecopages packages in your project, create a `.npmrc` file in the root of your project to configure JSR registry resolution:
 
 ```ini
 @jsr:registry=https://npm.jsr.io
 ```
 
-### Bun
+Then add the packages you need:
 
-Bun supports JSR natively, but if you are using the `npm:` aliasing strategy (as recommended for compatibility), having the `.npmrc` file ensures consistent behavior.
+```bash
+bun jsr add @ecopages/core @ecopages/kitajs
+```
 
 ## License
 

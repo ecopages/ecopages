@@ -60,6 +60,11 @@ export default eco.page({
 								No Prefetch
 							</a>
 						</li>
+						<li>
+							<a href="/prefetch" id="link-self">
+								Self Link (Current Page)
+							</a>
+						</li>
 					</ul>
 				</nav>
 

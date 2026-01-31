@@ -19,7 +19,7 @@ export const BaseLayout = eco.component<BaseLayoutProps>({
 			<body>
 				<header class="eco-header">
 					<div class="eco-header__content">
-						<Logo href="/" title="Ecopages" />
+						<Logo href="/" title="Ecopages" target="_self" />
 						<div class="eco-header__spacer" />
 						<ThemeToggle id="theme-toggle" label="Theme" hiddenLabel />
 					</div>

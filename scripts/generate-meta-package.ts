@@ -83,6 +83,7 @@ async function generate() {
 			},
 		},
 		dependencies: {
+			commander: '^12.1.0',
 			tiged: '^2.12.7',
 			'@ecopages/logger': '^0.2.2',
 		},

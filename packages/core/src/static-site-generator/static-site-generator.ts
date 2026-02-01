@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { StaticRoute } from '../public-types.ts';
+import type { EcoPageComponent, StaticRoute } from '../public-types.ts';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../router/fs-router.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -222,7 +222,7 @@ export class StaticSiteGenerator {
 	 */
 	private async generateSingleStaticRoute(
 		routePath: string,
-		view: StaticRoute['view'],
+		view: EcoPageComponent<any>,
 		routeRendererFactory: RouteRendererFactory,
 	): Promise<void> {
 		const integrationName = view.config?.__eco?.integration;
@@ -260,7 +260,7 @@ export class StaticSiteGenerator {
 	 */
 	private async generateDynamicStaticRoute(
 		routePath: string,
-		view: StaticRoute['view'],
+		view: EcoPageComponent<any>,
 		routeRendererFactory: RouteRendererFactory,
 	): Promise<void> {
 		if (!view.staticPaths) {

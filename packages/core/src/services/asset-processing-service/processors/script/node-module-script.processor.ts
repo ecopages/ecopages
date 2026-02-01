@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { NodeModuleScriptAsset, ProcessedAsset } from '../../assets.types';
+import type { NodeModuleScriptAsset } from '../../assets.types';
 import { BaseScriptProcessor } from '../base/base-script-processor';
 
 export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScriptAsset> {

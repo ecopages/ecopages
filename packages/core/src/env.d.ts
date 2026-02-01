@@ -1,28 +1,20 @@
-import type { EcoPagesAppConfig } from './internal-types.ts';
-
-declare module 'bun' {
-	interface Env {
-		ECOPAGES_BASE_URL: string;
-		ECOPAGES_HOSTNAME: string;
-		ECOPAGES_PORT: number;
-		ECOPAGES_LOGGER_DEBUG: 'true' | 'false';
-		REDIS_URL: string;
-	}
+interface EcopagesEnv {
+	ECOPAGES_BASE_URL: string;
+	ECOPAGES_HOSTNAME: string;
+	ECOPAGES_PORT: string;
+	ECOPAGES_LOGGER_DEBUG: 'true' | 'false';
 }
 
 declare global {
-	interface ImportMeta {
-		readonly env: ImportMetaEnv;
-	}
-
 	namespace NodeJS {
-		interface ProcessEnv {
-			ECOPAGES_BASE_URL: string;
-			ECOPAGES_HOSTNAME: string;
-			ECOPAGES_PORT: number;
-			ECOPAGES_LOGGER_DEBUG: 'true' | 'false';
-		}
+		interface ProcessEnv extends EcopagesEnv {}
 	}
 
-	var ecoConfig: EcoPagesAppConfig;
+	namespace Bun {
+		interface Env extends EcopagesEnv {}
+	}
+
+	interface ImportMetaEnv extends EcopagesEnv {}
 }
+
+export {};

@@ -10,6 +10,7 @@ import type {
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoFunctionComponent,
+	EcoPageComponent,
 	EcoPageFile,
 	EcoPagesElement,
 	GetMetadata,
@@ -488,7 +489,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			params: options.params || {},
 			query: options.query || {},
 			pageProps,
-			cacheStrategy: (Page as any).cache,
+			cacheStrategy: (Page as EcoPageComponent<any>).cache,
 		};
 	}
 
@@ -496,7 +497,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Resolves the page module and normalizes exports.
 	 */
 	protected async resolvePageModule(file: string): Promise<{
-		Page: EcoPageFile['default'];
+		Page: EcoPageFile['default'] | EcoPageComponent<any>;
 		getStaticProps?: GetStaticProps<Record<string, unknown>>;
 		getMetadata?: GetMetadata;
 		integrationSpecificProps: Record<string, unknown>;

@@ -9,6 +9,10 @@ type StaticContentServerOptions = {
 	port?: number;
 };
 
+/**
+ * Static content server for production builds.
+ * Serves pre-built static files from the dist directory with gzip compression support.
+ */
 export class StaticContentServer {
 	server: Server<unknown> | null = null;
 	private appConfig: EcoPagesAppConfig;
@@ -46,43 +50,48 @@ export class StaticContentServer {
 		return response;
 	}
 
-	private async serveFromDir({ path }: { path: string }): Promise<Response> {
+	private async serveFromDir({ path, request }: { path: string; request: Request }): Promise<Response> {
 		const { absolutePaths } = this.appConfig;
 		const basePath = join(absolutePaths.distDir, path);
 		const contentType = ServerUtils.getContentType(extname(basePath));
+		const acceptsGzip = request.headers.get('Accept-Encoding')?.includes('gzip');
 
 		try {
-			if (this.shouldServeGzip(contentType)) {
+			if (acceptsGzip && this.shouldServeGzip(contentType)) {
 				const gzipPath = `${basePath}.gz`;
-				const file = fileSystem.readFileAsBuffer(gzipPath) as BodyInit;
-				return new Response(file, {
-					headers: {
-						'Content-Type': contentType,
-						'Content-Encoding': 'gzip',
-					},
-				});
+				if (fileSystem.exists(gzipPath)) {
+					const file = fileSystem.readFileAsBuffer(gzipPath) as BodyInit;
+					return new Response(file, {
+						headers: {
+							'Content-Type': contentType,
+							'Content-Encoding': 'gzip',
+							Vary: 'Accept-Encoding',
+						},
+					});
+				}
 			}
 
-			if (path.includes('.')) {
+			if (path.includes('.') && fileSystem.exists(basePath)) {
 				const file = fileSystem.readFileAsBuffer(basePath) as BodyInit;
 				return new Response(file, {
 					headers: { 'Content-Type': contentType },
 				});
 			}
 
-			let pathWithSuffix = `${basePath}.html`;
+			const htmlCandidates = [`${basePath}.html`, `${basePath}/index.html`];
 
-			const fileExists = fileSystem.exists(pathWithSuffix);
+			for (const candidate of htmlCandidates) {
+				if (fileSystem.exists(candidate)) {
+					const file = fileSystem.readFileAsBuffer(candidate) as BodyInit;
+					return new Response(file, {
+						headers: {
+							'Content-Type': ServerUtils.getContentType(extname(candidate)),
+						},
+					});
+				}
+			}
 
-			if (!fileExists) pathWithSuffix = `${basePath}/index.html`;
-
-			const file = fileSystem.readFileAsBuffer(pathWithSuffix) as BodyInit;
-
-			return new Response(file, {
-				headers: {
-					'Content-Type': ServerUtils.getContentType(extname(pathWithSuffix)),
-				},
-			});
+			return this.sendNotFoundPage();
 		} catch {
 			return this.sendNotFoundPage();
 		}
@@ -95,6 +104,7 @@ export class StaticContentServer {
 
 		const response = this.serveFromDir({
 			path: reqPath,
+			request,
 		});
 
 		if (response) return response;

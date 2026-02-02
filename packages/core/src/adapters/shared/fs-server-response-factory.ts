@@ -86,8 +86,14 @@ export class FileSystemServerResponseFactory {
 
 			if (this.shouldEnableGzip(contentType)) {
 				const gzipPath = `${filePath}.gz`;
-				file = fileSystem.readFileAsBuffer(gzipPath);
-				contentEncodingHeader['Content-Encoding'] = 'gzip';
+				if (fileSystem.exists(gzipPath)) {
+					file = fileSystem.readFileAsBuffer(gzipPath);
+					contentEncodingHeader['Content-Encoding'] = 'gzip';
+					contentEncodingHeader['Vary'] = 'Accept-Encoding';
+				} else {
+					appLogger.debug('Gzip file not found, serving uncompressed', gzipPath);
+					file = fileSystem.readFileAsBuffer(filePath);
+				}
 			} else {
 				file = fileSystem.readFileAsBuffer(filePath);
 			}

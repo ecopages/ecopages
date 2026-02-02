@@ -53,6 +53,7 @@ function buildEnvOverrides(options) {
 	if (options.hostname) env.ECOPAGES_HOSTNAME = options.hostname;
 	if (options.baseUrl) env.ECOPAGES_BASE_URL = options.baseUrl;
 	if (options.debug) env.ECOPAGES_LOGGER_DEBUG = 'true';
+	if (options.nodeEnv) env.NODE_ENV = options.nodeEnv;
 	return env;
 }
 
@@ -116,7 +117,7 @@ const serverOptions = (cmd) =>
 serverOptions(
 	program.command('dev').description('Start the development server').argument('[entry]', 'Entry file', 'app.ts'),
 ).action((entry, opts) => {
-	runBunCommand(['--dev'], opts, entry);
+	runBunCommand(['--dev'], { ...opts, nodeEnv: 'development' }, entry);
 });
 
 serverOptions(
@@ -125,7 +126,7 @@ serverOptions(
 		.description('Start the development server with watch mode (restarts on file changes)')
 		.argument('[entry]', 'Entry file', 'app.ts'),
 ).action((entry, opts) => {
-	runBunCommand(['--dev'], { ...opts, watch: true }, entry);
+	runBunCommand(['--dev'], { ...opts, watch: true, nodeEnv: 'development' }, entry);
 });
 
 serverOptions(
@@ -134,7 +135,7 @@ serverOptions(
 		.description('Start the development server with hot reload (HMR without restart)')
 		.argument('[entry]', 'Entry file', 'app.ts'),
 ).action((entry, opts) => {
-	runBunCommand(['--dev'], { ...opts, hot: true }, entry);
+	runBunCommand(['--dev'], { ...opts, hot: true, nodeEnv: 'development' }, entry);
 });
 
 program
@@ -142,19 +143,19 @@ program
 	.description('Build the project for production')
 	.argument('[entry]', 'Entry file', 'app.ts')
 	.action((entry) => {
-		runBunCommand(['--build'], {}, entry);
+		runBunCommand(['--build'], { nodeEnv: 'production' }, entry);
 	});
 
 serverOptions(
 	program.command('start').description('Start the production server').argument('[entry]', 'Entry file', 'app.ts'),
 ).action((entry, opts) => {
-	runBunCommand([], opts, entry);
+	runBunCommand([], { ...opts, nodeEnv: 'production' }, entry);
 });
 
 serverOptions(
 	program.command('preview').description('Preview the production build').argument('[entry]', 'Entry file', 'app.ts'),
 ).action((entry, opts) => {
-	runBunCommand(['--preview'], opts, entry);
+	runBunCommand(['--preview'], { ...opts, nodeEnv: 'production' }, entry);
 });
 
 program.parse();

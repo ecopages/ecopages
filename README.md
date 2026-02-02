@@ -14,10 +14,10 @@ The result is fast static pages, minimal dependencies, and code you can actually
 
 Ecopages runs on [Bun](https://bun.sh/) and uses [Ghtml](https://github.com/gurgunday/ghtml) for rendering. Extend it with templating integrations:
 
-- **[KitaJS](https://kitajs.org/html/)** – Fast JSX templates
-- **[MDX](https://mdxjs.com/)** – Markdown with components
+- **[KitaJS](https://kitajs.org/html/)** – Fast JSX template (Recommended choice)
 - **[Lit](https://lit.dev/)** – Web Components with SSR
-- **[React](https://react.dev/)** – Full React support when you need it
+- **[MDX](https://mdxjs.com/)** – Markdown with components
+- **[React](https://react.dev/)** – Full React ecosystem support when you need it
 
 For styling, use [Tailwind CSS](https://tailwindcss.com/) with `@apply` directives or plain CSS.
 

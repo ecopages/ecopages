@@ -1,0 +1,44 @@
+.announcement-bar {
+	@apply relative flex items-center justify-center bg-gradient-to-r from-primary to-accent text-white px-4 py-3 text-sm font-medium shadow;
+}
+
+.announcement-bar--slide-down {
+	@apply animate-[slideDown_0.5s_ease-out];
+}
+
+@keyframes slideDown {
+	from {
+		transform: translateY(-100%);
+		opacity: 0;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+.announcement-bar__content {
+	@apply flex items-center gap-3;
+}
+
+.announcement-bar__badge {
+	@apply bg-white/20 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-[4px];
+}
+
+.announcement-bar__text {
+	@apply flex items-center gap-1;
+}
+
+.announcement-bar__link {
+	@apply text-white underline decoration-1 underline-offset-2 font-semibold transition-opacity duration-200 hover:opacity-90;
+}
+
+.announcement-bar__close {
+	@apply absolute right-4 bg-transparent border-none text-white/80 cursor-pointer p-1 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-white/10 hover:text-white;
+}
+
+@media (max-width: 640px) {
+	.announcement-bar {
+		@apply pr-12;
+	}
+}

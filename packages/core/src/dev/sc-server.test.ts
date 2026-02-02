@@ -30,12 +30,24 @@ describe('StaticContentServer', () => {
 	});
 
 	test('should serve gzip file', async () => {
-		const req = new Request(APP_TEST_ROUTES_URLS.existingCssFile);
+		const req = new Request(APP_TEST_ROUTES_URLS.existingCssFile, {
+			headers: { 'Accept-Encoding': 'gzip' },
+		});
 		const res = await server.fetch(req);
 
 		expect(res.status).toBe(200);
 		expect(res.headers.get('content-type')).toBe('text/css');
 		expect(res.headers.get('content-encoding')).toBe('gzip');
+		expect(res.headers.get('vary')).toBe('Accept-Encoding');
+	});
+
+	test('should serve uncompressed file when client does not accept gzip', async () => {
+		const req = new Request(APP_TEST_ROUTES_URLS.existingCssFile);
+		const res = await server.fetch(req);
+
+		expect(res.status).toBe(200);
+		expect(res.headers.get('content-type')).toBe('text/css');
+		expect(res.headers.get('content-encoding')).toBeNull();
 	});
 
 	test('should return custom 404 page for non-existent file', async () => {

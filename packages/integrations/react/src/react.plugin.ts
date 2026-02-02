@@ -31,6 +31,21 @@ export type ReactMdxOptions = {
 	 */
 	compilerOptions?: Omit<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
 	/**
+	 * Remark plugins.
+	 * @default undefined
+	 */
+	remarkPlugins?: CompileOptions['remarkPlugins'];
+	/**
+	 * Rehype plugins.
+	 * @default undefined
+	 */
+	rehypePlugins?: CompileOptions['rehypePlugins'];
+	/**
+	 * Recma plugins.
+	 * @default undefined
+	 */
+	recmaPlugins?: CompileOptions['recmaPlugins'];
+	/**
 	 * Custom extensions to be treated as MDX files.
 	 * @default ['.mdx']
 	 */
@@ -63,10 +78,8 @@ export type ReactPluginOptions = {
 	 *   mdx: {
 	 *     enabled: true,
 	 *     extensions: ['.mdx', '.md'],
-	 *     compilerOptions: {
-	 *       remarkPlugins: [remarkGfm],
-	 *       rehypePlugins: [[rehypePrettyCode, { theme: '...' }]],
-	 *     }
+	 *     remarkPlugins: [remarkGfm],
+	 *     rehypePlugins: [[rehypePrettyCode, { theme: '...' }]],
 	 *   }
 	 * })
 	 * ```
@@ -112,8 +125,12 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		this.mdxExtensions = mdxExtensions;
 
 		if (this.mdxEnabled) {
+			const { compilerOptions, remarkPlugins, rehypePlugins, recmaPlugins } = options?.mdx || {};
 			this.mdxCompilerOptions = {
-				...options?.mdx?.compilerOptions,
+				...compilerOptions,
+				remarkPlugins: [...(compilerOptions?.remarkPlugins || []), ...(remarkPlugins || [])],
+				rehypePlugins: [...(compilerOptions?.rehypePlugins || []), ...(rehypePlugins || [])],
+				recmaPlugins: [...(compilerOptions?.recmaPlugins || []), ...(recmaPlugins || [])],
 				jsxImportSource: 'react',
 				jsxRuntime: 'automatic',
 				development: process.env.NODE_ENV === 'development',

@@ -2,6 +2,7 @@ import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig, IHmrManager } from '../../internal-types';
+import { rapidhash } from '../../utils/hash';
 import { fileSystem } from '@ecopages/file-system';
 import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types';
 import { isHmrAware } from './processor.interface';
@@ -18,6 +19,7 @@ export class AssetProcessingService {
 	static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
 	private registry = new ProcessorRegistry();
 	private hmrManager?: IHmrManager;
+	private cache = new Map<string, { asset: ProcessedAsset }>();
 
 	constructor(private readonly config: EcoPagesAppConfig) {}
 
@@ -56,10 +58,46 @@ export class AssetProcessingService {
 		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
 		fileSystem.ensureDir(depsDir);
 
-		const results = await this.processDependenciesParallel(deps, key);
+		const dedupedDeps = this.deduplicateDependencies(deps);
+		const results = await this.processDependenciesParallel(dedupedDeps, key);
 
 		await this.optimizeDependencies(depsDir);
 		return results;
+	}
+
+	private deduplicateDependencies(deps: AssetDefinition[]): AssetDefinition[] {
+		const seen = new Map<string, AssetDefinition>();
+
+		for (const dep of deps) {
+			const key = this.getDependencyKey(dep);
+			if (!seen.has(key)) {
+				seen.set(key, dep);
+			}
+		}
+
+		return Array.from(seen.values());
+	}
+
+	private getDependencyKey(dep: AssetDefinition): string {
+		const parts: string[] = [dep.kind, dep.source];
+
+		if ('filepath' in dep) {
+			parts.push(dep.filepath);
+		} else if ('content' in dep) {
+			parts.push(`content:${this.generateHash(dep.content)}`);
+		} else if ('importPath' in dep) {
+			parts.push(dep.importPath);
+		}
+
+		if ('position' in dep && dep.position) {
+			parts.push(dep.position);
+		}
+
+		return parts.join(':');
+	}
+
+	private generateHash(content: string): string {
+		return rapidhash(content).toString();
 	}
 
 	private async processDependenciesParallel(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
@@ -67,10 +105,25 @@ export class AssetProcessingService {
 
 		const groupPromises = Object.entries(grouped).map(async ([, typeDeps]) => {
 			const typePromises = typeDeps.map(async (dep) => {
+				const depKey = this.getDependencyKey(dep);
+				const cached = this.getCachedAsset(dep, depKey);
+
+				if (cached) {
+					return { key, ...cached };
+				}
+
 				const processor = this.registry.getProcessor(dep.kind, dep.source);
 				if (!processor) {
 					appLogger.error(`No processor found for ${dep.kind}/${dep.source}`);
 					return null;
+				}
+
+				if (dep.source === 'file' && 'filepath' in dep) {
+					const fileExists = fileSystem.exists(dep.filepath);
+					if (!fileExists) {
+						appLogger.warn(`Skipping missing ${dep.kind} file: ${dep.filepath}`);
+						return null;
+					}
 				}
 
 				try {
@@ -87,6 +140,9 @@ export class AssetProcessingService {
 						...processed,
 						srcUrl,
 					};
+
+					this.setCachedAsset(dep, depKey, processedWithKey);
+
 					return processedWithKey as ProcessedAsset;
 				} catch (error) {
 					appLogger.error(
@@ -120,14 +176,38 @@ export class AssetProcessingService {
 	}
 
 	private getSrcUrl(filepath: string): string | undefined {
-		const relativePath = filepath.split(this.config.absolutePaths.distDir)[1];
-		if (!relativePath) return undefined;
-		return relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+		const distDir = this.config.absolutePaths.distDir;
+		if (!filepath.startsWith(distDir)) return undefined;
+
+		const relativePath = filepath.slice(distDir.length);
+		const urlPath = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+		return urlPath.replace(/\\/g, '/');
 	}
 
 	private async optimizeDependencies(depsDir: string): Promise<void> {
 		if (process.env.NODE_ENV === 'production') {
 			fileSystem.gzipDir(depsDir, ['css', 'js']);
+		}
+	}
+
+	private getCachedAsset(dep: AssetDefinition, depKey: string): ProcessedAsset | null {
+		const cached = this.cache.get(depKey);
+		return cached?.asset ?? null;
+	}
+
+	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
+		this.cache.set(depKey, { asset });
+	}
+
+	clearCache(): void {
+		this.cache.clear();
+	}
+
+	invalidateCacheForFile(filepath: string): void {
+		for (const [key, value] of this.cache.entries()) {
+			if (value.asset.filepath === filepath) {
+				this.cache.delete(key);
+			}
 		}
 	}
 

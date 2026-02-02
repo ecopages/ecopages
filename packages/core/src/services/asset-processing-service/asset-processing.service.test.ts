@@ -77,6 +77,7 @@ test('AssetProcessingService - processDependencies - success', async () => {
 	const gzipDirMock = mock(() => {});
 	fileSystem.ensureDir = ensureDirMock;
 	fileSystem.gzipDir = gzipDirMock;
+	fileSystem.exists = mock(() => true);
 
 	const service = new AssetProcessingService(mockConfig);
 	const mockProcessor1 = {
@@ -153,6 +154,7 @@ test('AssetProcessingService - processDependencies - error during processing', a
 	const gzipDirMock = mock(() => {});
 	fileSystem.ensureDir = ensureDirMock;
 	fileSystem.gzipDir = gzipDirMock;
+	fileSystem.exists = mock(() => true);
 
 	const service = new AssetProcessingService(mockConfig);
 	const erroringProcessor = {
@@ -214,4 +216,120 @@ test('AssetProcessingService - processDependencies - handles undefined filepath 
 	);
 
 	expect(gzipDirMock).not.toHaveBeenCalled();
+});
+
+test('AssetProcessingService - caching returns cached asset without reprocessing', async () => {
+	fileSystem.ensureDir = mock(() => {});
+	fileSystem.gzipDir = mock(() => {});
+	fileSystem.exists = mock(() => true);
+
+	const service = new AssetProcessingService(mockConfig);
+	const processMock = mock(async () => ({
+		filepath: '/test/dist/assets/cached.js',
+		kind: 'script',
+		inline: false,
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/cached.js' };
+
+	const results1 = await service.processDependencies([dependency], 'key1');
+	const results2 = await service.processDependencies([dependency], 'key2');
+
+	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(results1.length).toBe(1);
+	expect(results2.length).toBe(1);
+	expect(results1[0].srcUrl).toBe('/assets/cached.js');
+	expect(results2[0].srcUrl).toBe('/assets/cached.js');
+});
+
+test('AssetProcessingService - deduplication processes duplicate deps only once', async () => {
+	fileSystem.ensureDir = mock(() => {});
+	fileSystem.gzipDir = mock(() => {});
+	fileSystem.exists = mock(() => true);
+
+	const service = new AssetProcessingService(mockConfig);
+	const processMock = mock(async () => ({
+		filepath: '/test/dist/assets/dedup.js',
+		kind: 'script',
+		inline: false,
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/dedup.js' };
+	const duplicateDeps = [dependency, dependency, dependency];
+
+	const results = await service.processDependencies(duplicateDeps, 'dedup-key');
+
+	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(results.length).toBe(1);
+});
+
+test('AssetProcessingService - clearCache clears all cached assets', async () => {
+	fileSystem.ensureDir = mock(() => {});
+	fileSystem.gzipDir = mock(() => {});
+	fileSystem.exists = mock(() => true);
+
+	const service = new AssetProcessingService(mockConfig);
+	const processMock = mock(async () => ({
+		filepath: '/test/dist/assets/clear.js',
+		kind: 'script',
+		inline: false,
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/clear.js' };
+
+	await service.processDependencies([dependency], 'key1');
+	expect(processMock).toHaveBeenCalledTimes(1);
+
+	service.clearCache();
+
+	await service.processDependencies([dependency], 'key2');
+	expect(processMock).toHaveBeenCalledTimes(2);
+});
+
+test('AssetProcessingService - invalidateCacheForFile removes specific file from cache', async () => {
+	fileSystem.ensureDir = mock(() => {});
+	fileSystem.gzipDir = mock(() => {});
+	fileSystem.exists = mock(() => true);
+
+	const service = new AssetProcessingService(mockConfig);
+	const processMock = mock(async () => ({
+		filepath: '/test/dist/assets/invalidate.js',
+		kind: 'script',
+		inline: false,
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/invalidate.js' };
+
+	await service.processDependencies([dependency], 'key1');
+	expect(processMock).toHaveBeenCalledTimes(1);
+
+	service.invalidateCacheForFile('/test/dist/assets/invalidate.js');
+
+	await service.processDependencies([dependency], 'key2');
+	expect(processMock).toHaveBeenCalledTimes(2);
+});
+
+test('AssetProcessingService - skips missing file dependencies', async () => {
+	fileSystem.ensureDir = mock(() => {});
+	fileSystem.gzipDir = mock(() => {});
+	fileSystem.exists = mock(() => false);
+
+	const service = new AssetProcessingService(mockConfig);
+	const processMock = mock(async () => ({
+		filepath: '/test/dist/assets/missing.js',
+		kind: 'script',
+		inline: false,
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/missing.js' };
+
+	const results = await service.processDependencies([dependency], 'missing-key');
+
+	expect(processMock).not.toHaveBeenCalled();
+	expect(results.length).toBe(0);
 });

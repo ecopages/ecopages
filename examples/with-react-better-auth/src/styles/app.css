@@ -1,0 +1,170 @@
+@import 'tailwindcss';
+
+@theme {
+	--color-surface-50: oklch(0.98 0 0);
+	--color-surface-100: oklch(0.95 0 0);
+	--color-surface-200: oklch(0.9 0 0);
+	--color-surface-300: oklch(0.8 0 0);
+	--color-surface-400: oklch(0.6 0 0);
+	--color-surface-500: oklch(0.5 0 0);
+	--color-surface-600: oklch(0.4 0 0);
+	--color-surface-700: oklch(0.3 0 0);
+	--color-surface-800: oklch(0.2 0 0);
+	--color-surface-900: oklch(0.12 0 0);
+	--color-surface-950: oklch(0.08 0 0);
+
+	--color-primary: oklch(0.35 0.15 220);
+	--color-accent: oklch(0.55 0.15 220);
+	--color-danger: oklch(0.6 0.2 25);
+	--color-link: oklch(0.45 0.2 260);
+
+	--color-white: oklch(1 0 0);
+	--color-black: oklch(0 0 0);
+
+	--color-background: var(--color-surface-50);
+	--color-on-background: var(--color-surface-950);
+	--color-muted: var(--color-surface-600);
+
+	--color-background-accent: var(--color-surface-100);
+	--color-on-background-accent: var(--color-surface-950);
+	--color-border: var(--color-surface-200);
+	--color-button-muted: var(--color-surface-200);
+
+	--font-display: 'Inter', system-ui, sans-serif;
+	--font-body: 'Inter', system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.dark {
+	--color-primary: oklch(0.35 0.15 220);
+	--color-accent: oklch(0.7 0.15 220);
+	--color-danger: oklch(0.65 0.2 25);
+	--color-link: oklch(0.75 0.15 230);
+
+	--color-background: var(--color-surface-950);
+	--color-on-background: var(--color-surface-100);
+	--color-muted: var(--color-surface-300);
+
+	--color-background-accent: var(--color-surface-900);
+	--color-on-background-accent: var(--color-surface-100);
+	--color-border: var(--color-surface-700);
+	--color-button-muted: var(--color-surface-800);
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@layer base {
+	body {
+		@apply bg-background min-h-dvh flex flex-col antialiased transition-colors duration-200;
+		color: var(--color-on-background);
+	}
+}
+
+@layer components {
+	.btn {
+		@apply inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50 active:scale-95 cursor-pointer;
+		height: 2.5rem;
+		padding-left: 1rem;
+		padding-right: 1rem;
+	}
+
+	.btn-lg {
+		height: 3rem;
+		padding-left: 2rem;
+		padding-right: 2rem;
+	}
+
+	.btn-sm {
+		height: 2.25rem;
+		padding-left: 0.75rem;
+		padding-right: 0.75rem;
+	}
+
+	.btn-primary {
+		@apply bg-(--color-on-background) text-background hover:bg-(--color-on-background)/90;
+	}
+
+	.btn-outline {
+		@apply border-(--color-border) bg-transparent hover:bg-(--color-button-muted) hover:text-(--color-on-background);
+	}
+
+	.btn-ghost {
+		@apply bg-transparent hover:bg-(--color-button-muted) hover:text-(--color-on-background);
+	}
+
+	.input {
+		@apply flex w-full rounded-lg border-(--color-border) bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-(--color-muted) focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50;
+	}
+
+	.card {
+		@apply rounded-lg border-(--color-border) bg-(--color-background-accent) text-(--color-on-background);
+	}
+
+	.card-hover {
+		@apply transition-colors hover:border-accent/50;
+	}
+
+	.prose {
+		@apply leading-relaxed text-(--color-on-background);
+
+		h1,
+		h2,
+		h3 {
+			@apply font-semibold mb-4 mt-0 font-display tracking-tight text-(--color-on-background);
+		}
+		h1 {
+			@apply text-3xl;
+		}
+		h2 {
+			@apply text-2xl;
+		}
+		h3 {
+			@apply text-xl text-(--color-muted);
+		}
+
+		p {
+			@apply text-sm my-4 text-(--color-muted);
+		}
+
+		a {
+			@apply underline underline-offset-2 text-link;
+		}
+
+		ul,
+		ol {
+			@apply my-4 pl-6 list-disc;
+		}
+
+		li {
+			@apply my-1;
+		}
+
+		code {
+			@apply text-sm py-0.5 px-1.5 rounded bg-background-accent font-mono;
+		}
+
+		pre {
+			@apply p-4 rounded-lg overflow-x-auto my-6 bg-background-accent text-on-background-accent;
+
+			code {
+				@apply bg-transparent p-0 text-inherit;
+			}
+		}
+
+		table {
+			@apply w-full text-sm my-6 border-collapse border-(--color-border) rounded-lg overflow-hidden;
+		}
+
+		thead {
+			@apply bg-(--color-background-accent);
+		}
+
+		th {
+			@apply px-4 py-3 font-semibold text-left border-b border-(--color-border) text-(--color-on-background);
+		}
+
+		td {
+			@apply px-4 py-3 border-b border-(--color-border) text-(--color-muted);
+		}
+	}
+}

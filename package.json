@@ -90,8 +90,7 @@
 		"packages/processors/*",
 		"playground/*",
 		"e2e/fixtures/*",
-		"apps/*",
-		"examples/*"
+		"apps/*"
 	],
 	"type": "module"
 }

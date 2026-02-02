@@ -1,0 +1,1027 @@
+import { BaseLayout } from "@/layouts/base-layout";
+
+export const config = {
+  layout: BaseLayout,
+};
+
+export const getMetadata = () => ({
+  title: "Ecopages Skills Guide",
+  description: "A comprehensive guide for LLMs to create applications using Ecopages",
+});
+
+<div className="prose max-w-none">
+
+# Ecopages Skills Guide
+
+A comprehensive guide for LLMs to create modern web applications using Ecopages, a static site generator written in TypeScript.
+
+## Overview
+
+Ecopages is a TypeScript-first static site generator built on the Bun runtime. It is designed to be **simple, fast, and explicit**.
+
+**Key Features:**
+- **Bun Runtime**: Fast, native tooling.
+- **Templating Flexibility**: Choose the best tool for the job:
+  - **KitaJS**: Fast, string-based JSX (Default).
+  - **Lit**: Web Components with Server-Side Rendering (SSR).
+  - **React 19**: Full React ecosystem support when you need it.
+- **Type-Safe**: First-class TypeScript support throughout.
+- **Tailwind CSS v4**: Zero-configuration styling integration.
+- **Hybrid Rendering**: Static generation with optional islands of interactivity.
+
+### Choosing Your Stack (CRITICAL)
+
+Ecopages is not a "React Framework". It is a static site generator that *supports* React.
+
+| Feature | KitaJS | Lit | React |
+| :--- | :--- | :--- | :--- |
+| **Best For** | Static pages, layouts, simple components | Interactive components, Design Systems, SSR | Complex state, immense ecosystem access |
+| **Performance** | Fastest (String concat) | Fast (Native Web Components) | Heavier (Vdom overhead) |
+| **Hydration** | None (Static) | Partial / Islands | Full / Partial |
+| **Use Case** | Marketing sites, Docs, Blogs | UI Kits, Cross-framework components | Dashboards, complex SaaS apps |
+
+**Guidance for LLMs:**
+- Default to **KitaJS** for static content and layouts.
+- Use **Lit** for interactive UI elements that need to be lightweight and portable.
+- Use **React** ONLY when the user explicitly requests it or when integrating with libraries that require React (e.g., specific auth providers, complex data grids).
+
+## Core Concepts
+
+### Project Structure
+
+A typical Ecopages project structure:
+
+```
+project/
+├── src/
+│   ├── pages/          # Static page components (eco.page or .mdx)
+│   ├── views/          # Dynamic view components (rendered from handlers)
+│   ├── layouts/        # Layout components
+│   ├── components/     # Reusable React components
+│   ├── handlers/       # API handlers (defineApiHandler, defineGroupHandler)
+│   ├── includes/       # HTML templates (head, html, seo)
+│   ├── lib/           # Utilities and shared code
+│   └── styles/        # CSS files
+├── public/            # Static assets
+├── app.ts            # Application entry point
+├── eco.config.ts     # Ecopages configuration
+└── package.json
+```
+
+### The `eco` Namespace (CRITICAL)
+
+Ecopages uses the `eco` namespace to define all architectural blocks. This is **mandatory** for proper build-time optimization and dependency injection.
+
+- **`eco.component()`**: Factory for reusable components. **REQUIRED** if the component has dependencies (CSS, scripts).
+- **`eco.page()`**: Factory for page routes. Handles metadata, layouts, and static props.
+
+> **Note:** When using **KitaJS**, components are often just simple functions returning JSX strings. `eco.component` is primarily needed when you need to inject specific assets (CSS/JS) only when that component is used.
+
+## Getting Started
+
+### 1. Installation
+
+Install Ecopages and your chosen integration (e.g., KitaJS):
+
+```bash
+bunx jsr add @ecopages/core @ecopages/kitajs
+```
+
+Add PostCSS processor for Tailwind:
+
+```bash
+bunx jsr add @ecopages/postcss-processor
+bun add -D @tailwindcss/postcss tailwindcss
+```
+
+### 2. Configuration
+
+Create `eco.config.ts` in your project root:
+
+```typescript
+import path from "node:path";
+import { ConfigBuilder } from "@ecopages/core";
+import { reactPlugin } from "@ecopages/react";
+import { ecoRouter } from "@ecopages/react-router";
+import { postcssProcessorPlugin } from "@ecopages/postcss-processor";
+import { tailwindV4Preset } from "@ecopages/postcss-processor/presets/tailwind-v4";
+
+const baseUrl = import.meta.env?.ECOPAGES_BASE_URL ?? "http://localhost:3000";
+
+const config = await new ConfigBuilder()
+ .setRootDir(import.meta.dir)
+ .setBaseUrl(baseUrl)
+ .setDefaultMetadata({
+   title: "Your Site Title",
+   description: "Your site description",
+ })
+ .setIntegrations([
+   kitajsPlugin(), // Or litPlugin(), reactPlugin(), etc.
+   mdxPlugin({
+     // Configure MDX to use KitaJS for rendering
+     compilerOptions: { jsxImportSource: "@kitajs/html" },
+   }),
+ ])
+ .setProcessors([
+   postcssProcessorPlugin(
+     tailwindV4Preset({
+       referencePath: path.resolve(import.meta.dir, "src/styles/app.css"),
+     })
+   ),
+ ])
+ .setError404Template("404.tsx")
+ .setIncludesTemplates({
+   head: "head.tsx",
+   html: "html.tsx",
+   seo: "seo.tsx",
+ })
+ .build();
+
+export default config;
+```
+
+### 3. Application Entry Point
+
+Create `app.ts`:
+
+```typescript
+import { EcopagesApp } from "@ecopages/core/adapters/bun/create-app";
+import appConfig from "./eco.config";
+
+const app = new EcopagesApp({ appConfig });
+
+await app.start();
+```
+
+### 4. Package.json Scripts
+
+Add these scripts to `package.json`:
+
+```json
+{
+  "scripts": {
+    "dev": "bun run app.ts --dev",
+    "build": "NODE_ENV=production bun run app.ts --build",
+    "preview": "NODE_ENV=production bun run app.ts --preview",
+    "start": "NODE_ENV=production bun run app.ts"
+  }
+}
+```
+
+## Creating Pages
+
+### Using `eco.page()`
+
+The `eco.page()` factory is the standard way to define routes across **all** integrations (KitaJS, Lit, React). The `render` function returns the template appropriate for your chosen integration.
+
+**React Integration Example:**
+```tsx
+import { eco } from "@ecopages/core";
+import { BaseLayout } from "@/layouts/base-layout";
+
+export default eco.page({
+  layout: BaseLayout,
+  metadata: () => ({
+    title: "My Page",
+    description: "Page description",
+  }),
+  render: () => (
+    <div>
+      <h1>Hello World</h1>
+    </div>
+  ),
+});
+```
+
+### Using MDX
+
+MDX files are automatically supported when enabled in config. MDX allows you to write markdown with JSX components.
+
+**MDX File Structure:**
+
+```mdx
+import { BaseLayout } from "@/layouts/base-layout";
+import { MyComponent } from "@/components/my-component";
+
+export const config = {
+  layout: BaseLayout,
+  dependencies: {
+    components: [BaseLayout, MyComponent],
+  },
+};
+
+export const getMetadata = () => ({
+  title: "My MDX Page",
+  description: "A page written in MDX",
+});
+
+# Hello from MDX
+
+This is a markdown page with JSX support.
+
+<MyComponent prop="value" />
+
+You can use **markdown** syntax and JSX components together.
+```
+
+**Key Points:**
+- Import components and layouts at the top
+- Export `config` with `layout` and `dependencies`
+- Export `getMetadata` function for page metadata
+- Write markdown content below the exports
+- Use JSX components inline with markdown syntax
+- Components must be listed in `dependencies.components`
+
+**MDX Best Practices:**
+- Use MDX for content-heavy pages (documentation, blog posts, guides)
+- Use `eco.page()` with TSX for interactive pages with complex logic
+- Import components you use in the MDX content
+- Keep MDX files focused on content, not complex state management
+- Use markdown for text content, JSX for interactive elements
+
+### Pages vs Views
+
+**Pages (`src/pages/`):**
+- Static routes that are automatically discovered by Ecopages
+- Defined using `eco.page()` or MDX files
+- Accessible via file-based routing (e.g., `src/pages/about.tsx` → `/about`)
+- Can use `staticProps` for build-time data fetching
+- Best for: Homepage, blog posts, documentation, static content
+
+**Views (`src/views/`):**
+- Dynamic components rendered from API handlers using `ctx.render()`
+- Must be defined using `eco.page()` with props (e.g., `eco.page<Props>()`)
+- Imported dynamically in handlers: `await import("@/views/my-view")`
+- Receive data as props from the handler context
+- Best for: Protected routes, server-side rendered pages with dynamic data, admin panels
+
+**Example View:**
+
+```tsx
+// src/views/dashboard.tsx
+import { eco } from "@ecopages/core";
+import { BaseLayout } from "@/layouts/base-layout";
+
+type User = {
+  id: string;
+  name: string | null;
+  email: string;
+};
+
+export default eco.page<{ user: User }>({
+  layout: BaseLayout,
+  metadata: () => ({
+    title: "Dashboard",
+    description: "Your account dashboard.",
+  }),
+  render: ({ user }) => (
+    <div>
+      <h1>Welcome, {user.name ?? user.email}</h1>
+      {/* Dashboard content */}
+    </div>
+  ),
+});
+```
+
+**Rendering a View from Handler:**
+
+```typescript
+// src/handlers/dashboard.ts
+import { defineGroupHandler } from "@ecopages/core/adapters/bun";
+
+export const dashboardGroup = defineGroupHandler({
+  prefix: "/dashboard",
+  middleware: [authMiddleware],
+  routes: (define) => [
+    define({
+      path: "/",
+      method: "GET",
+      handler: async (ctx) => {
+        const { default: DashboardView } = await import("@/views/dashboard");
+        return ctx.render(DashboardView, { user: ctx.session.user });
+      },
+    }),
+  ],
+});
+```
+
+## Creating Components
+
+### Using `eco.component()`
+
+The `eco.component()` factory works similarly across integrations but is most critical in **React** (for dependency injection) and **Lit** (for SSR registration).
+
+**React Integration Example:**
+```tsx
+import { eco } from "@ecopages/core";
+
+export const MyComponent = eco.component({
+  dependencies: {
+    stylesheets: ["./my-component.css"], // Automatically injected when component is used
+  },
+  render: ({ title }) => (
+    <div className="my-component">
+      <h2>{title}</h2>
+    </div>
+  ),
+});
+```
+
+### Plain React Components
+
+For simple components without dependencies:
+
+```tsx
+export function SimpleButton({ label, onClick }) {
+  return (
+    <button onClick={onClick} className="px-4 py-2 bg-blue-500">
+      {label}
+    </button>
+  );
+}
+```
+
+## API Handlers
+
+### Using `defineApiHandler`
+
+For individual API routes:
+
+```typescript
+import { defineApiHandler } from "@ecopages/core/adapters/bun";
+import { z } from "zod";
+
+const createPostSchema = {
+  body: z.object({
+    title: z.string().min(1),
+    content: z.string(),
+  }),
+};
+
+export const createPost = defineApiHandler({
+  path: "/api/posts",
+  method: "POST",
+  schema: createPostSchema,
+  handler: async ({ body, response }) => {
+    const post = await createPostInDB(body);
+    return response.status(201).json(post);
+  },
+});
+```
+
+### Using `defineGroupHandler`
+
+For routes that share a prefix and middleware:
+
+```typescript
+import { defineGroupHandler } from "@ecopages/core/adapters/bun";
+import { authMiddleware } from "./auth";
+
+export const adminGroup = defineGroupHandler({
+  prefix: "/admin",
+  middleware: [authMiddleware],
+  routes: (define) => [
+    define({
+      path: "/",
+      method: "GET",
+      handler: async (ctx) => {
+        const { default: AdminView } = await import("@/views/admin");
+        return ctx.render(AdminView, { user: ctx.session.user });
+      },
+    }),
+  ],
+});
+```
+
+**Important:** When rendering pages from handlers using `ctx.render()`, the component must be:
+- Defined using `eco.page()` (not a plain React component)
+- Located in the `src/views/` directory (not `src/pages/`)
+- The `pages/` directory is for static routes, while `views/` is for dynamically rendered components from handlers
+
+Register handlers in `app.ts`:
+
+```typescript
+import * as posts from "./src/handlers/posts";
+import { adminGroup } from "./src/handlers/admin";
+
+const app = new EcopagesApp({ appConfig });
+
+app.post(posts.createPost);
+app.group(adminGroup);
+
+await app.start();
+```
+
+## Styling with Tailwind CSS v4
+
+### Setup
+
+Create `src/styles/app.css`:
+
+```css
+@import "tailwindcss";
+
+@theme inline {
+  --color-primary: oklch(0.55 0.18 35);
+  --font-sans: "Inter", sans-serif;
+}
+
+:root {
+  --color-background: oklch(0.98 0.004 85);
+  --color-on-background: oklch(0.18 0.02 265);
+}
+```
+
+### Using CSS Variables
+
+Reference theme variables in components:
+
+```tsx
+<div className="bg-background text-on-background">
+  Content
+</div>
+```
+
+## Layouts and Includes
+
+### Layout Component
+
+Create `src/layouts/base-layout.tsx`:
+
+```tsx
+import type { ReactNode } from "react";
+
+type BaseLayoutProps = {
+  children: ReactNode;
+};
+
+export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
+	dependencies: {
+		stylesheets: ['./base-layout.css'],
+	},
+	render: ({ children }) => {
+		return (
+			<div className="min-h-screen">
+				<header>Navigation</header>
+				<main>{children}</main>
+				<footer>Footer</footer>
+			</div>
+		);
+	},
+});
+```
+
+### Includes
+
+**`src/includes/html.tsx`** - HTML template wrapper:
+
+```tsx
+import { eco } from "@ecopages/core";
+import type { HtmlTemplateProps } from "@ecopages/core";
+import type { ReactNode } from "react";
+import { Head } from "@/includes/head";
+
+const HtmlTemplate = eco.component<HtmlTemplateProps, ReactNode>({
+  dependencies: {
+    components: [Head],
+  },
+  render: ({ children, metadata, headContent, language = "en" }) => (
+    <html lang={language}>
+      <Head metadata={metadata}>{headContent}</Head>
+      <body>{children}</body>
+    </html>
+  ),
+});
+
+export default HtmlTemplate;
+```
+
+**`src/includes/head.tsx`** - Head component:
+
+```tsx
+import { eco } from "@ecopages/core";
+import type { PageHeadProps } from "@ecopages/core";
+import type { ReactNode } from "react";
+import { Seo } from "@/includes/seo";
+
+export const Head = eco.component<PageHeadProps, ReactNode>({
+  dependencies: {
+    stylesheets: ["../styles/router.css", "../styles/app.css"],
+  },
+  render: ({ metadata, children }) => (
+    <head>
+      <meta charSet="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <Seo {...metadata} />
+      {children}
+    </head>
+  ),
+});
+```
+
+**`src/includes/seo.tsx`** - SEO component:
+
+```tsx
+import type { PageMetadataProps } from "@ecopages/core";
+
+const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
+
+export function Seo({
+  title,
+  description,
+  image = "/assets/images/default-og.webp",
+  url,
+  keywords,
+}: PageMetadataProps) {
+  return (
+    <>
+      <title>{title}</title>
+      <link rel="icon" type="image/x-icon" href="/assets/favicon.svg" />
+      <link rel="robots" href="/robots.txt" />
+      <meta name="description" content={description} />
+      {keywords?.length ? <meta name="keywords" content={keywords.join(",")} /> : null}
+      <meta property="og:title" content={title} />
+      <meta property="og:description" content={description} />
+      <meta property="og:image" content={withBaseUrl(image)} />
+      <meta name="twitter:title" content={title} />
+      <meta name="twitter:description" content={description} />
+      {url ? <link rel="canonical" href={withBaseUrl(url)} /> : null}
+    </>
+  );
+}
+```
+
+**Key Points:**
+- `html.tsx` receives `metadata` and `headContent` props, passes `metadata` to `Head` component
+- `head.tsx` spreads metadata to `Seo` component: `<Seo {...metadata} />`
+- `seo.tsx` uses `PageMetadataProps` type from `@ecopages/core`
+- Default metadata from `eco.config.ts` merges with page-specific metadata automatically
+- The `withBaseUrl` helper converts relative paths to absolute URLs using `import.meta.env.ECOPAGES_BASE_URL`
+
+## Metadata and SEO
+
+### Default Metadata
+
+Set default metadata in `eco.config.ts`:
+
+```typescript
+const config = await new ConfigBuilder()
+  .setDefaultMetadata({
+    title: "Your Site Title",
+    description: "Your site description",
+  })
+  .build();
+```
+
+### Page Metadata
+
+Define page-specific metadata using the `metadata` function:
+
+**In `eco.page()`:**
+
+```tsx
+export default eco.page({
+  metadata: () => ({
+    title: "My Page",
+    description: "Page-specific description",
+    image: "/custom-og-image.png",
+    keywords: ["keyword1", "keyword2"],
+  }),
+  render: () => <div>Content</div>,
+});
+```
+
+**In MDX:**
+
+```mdx
+export const getMetadata = () => ({
+  title: "My MDX Page",
+  description: "Page description",
+  keywords: ["mdx", "documentation"],
+});
+```
+
+### How Metadata Flows
+
+1. **Config defaults** → Set in `eco.config.ts` with `.setDefaultMetadata()`
+2. **Page metadata** → Defined in page's `metadata()` or `getMetadata()` function
+3. **Merged automatically** → Ecopages merges page metadata with defaults
+4. **Passed to includes** → `html.tsx` receives merged `metadata` prop
+5. **Head component** → Receives `metadata` and spreads to `Seo` component
+6. **SEO component** → Uses `PageMetadataProps` type, receives individual fields
+
+### Metadata Fields
+
+The `PageMetadataProps` type supports:
+- `title` - Page title (required, merged with defaults)
+- `description` - Meta description (required, merged with defaults)
+- `image` - Open Graph image path (optional, defaults to `/assets/images/default-og.webp`)
+- `url` - Canonical URL (optional)
+- `keywords` - Array of keywords (optional)
+
+## Client-Side Routing (React Only)
+
+When using the `@ecopages/react-router` plugin, all anchor tags automatically use SPA navigation. This is specific to the React integration.
+```tsx
+// This link uses SPA navigation automatically
+<a href="/about">About</a>
+
+// Force full page reload
+<a href="/external" data-eco-reload>External</a>
+```
+
+### Programmatic Navigation
+
+For client-side navigation in components:
+
+```tsx
+"use client";
+
+import { useEffect } from "react";
+
+export function MyComponent() {
+  const handleClick = () => {
+    // Use window.location for navigation
+    if (typeof window !== "undefined") {
+      window.location.href = "/dashboard";
+    }
+  };
+
+  return <button onClick={handleClick}>Navigate</button>;
+}
+```
+
+**Note:** Avoid using `useRouter` from `@ecopages/react-router` during SSR. Use `window.location.href` for client-side navigation instead.
+
+## Common Patterns
+
+### Dynamic Routes
+
+Ecopages automatically handles file-based routing. For dynamic routes:
+
+- `src/pages/blog/[slug].tsx` → `/blog/:slug`
+
+Access params in `staticProps`:
+
+```tsx
+export default eco.page({
+  staticProps: async ({ pathname }) => ({
+    props: {
+      slug: pathname.params.slug,
+      post: await getPost(pathname.params.slug),
+    },
+  }),
+  render: ({ slug, post }) => (
+    <article>
+      <h1>{post.title}</h1>
+      <div>{post.content}</div>
+    </article>
+  ),
+});
+```
+
+### Data Fetching
+
+Use `staticProps` for build-time data:
+
+```tsx
+export default eco.page({
+  staticProps: async () => {
+    const posts = await getAllPosts();
+    return {
+      props: { posts },
+    };
+  },
+  render: ({ posts }) => (
+    <div>
+      {posts.map((post) => (
+        <article key={post.id}>
+          <h2>{post.title}</h2>
+        </article>
+      ))}
+    </div>
+  ),
+});
+```
+
+### Environment Variables
+
+Access via `process.env` or `import.meta.env`:
+
+```typescript
+const baseUrl = process.env.ECOPAGES_BASE_URL ?? "http://localhost:3000";
+```
+
+## Best Practices
+
+1. **Use `eco.page()` for pages** - Provides type safety and metadata support across all integrations.
+2. **Use `eco.component()` sparingly in KitaJS** - Only when you need specific dependency injection.
+3. **Prioritize Native Web Standards** - Use standard anchor tags (`<a>`), forms, and semantic HTML.
+4. **Leverage TypeScript** - Full type inference throughout.
+5. **Organize by feature** - Group related components, handlers, and pages together.
+6. **Use CSS variables for theming** - Works seamlessly with Tailwind v4.
+7. **Avoid SSR-only hooks** - In React, use client-side checks for browser APIs.
+
+## Troubleshooting
+
+### Pages not rendering
+
+- Ensure pages are in `src/pages/` directory
+- Check that file exports default `eco.page()` or has proper frontmatter for MDX
+- Verify `eco.config.ts` includes React plugin
+
+### Styles not loading
+
+- Ensure CSS file is imported in `head.tsx` dependencies
+- Check Tailwind v4 preset configuration
+- Verify `referencePath` points to your main CSS file
+
+### Router not working
+
+- Ensure `ecoRouter()` is configured in `reactPlugin`
+- Use regular `<a>` tags (no `Link` component needed)
+- Check browser console for errors
+
+---
+
+## Optional: Better Auth Integration
+
+This section covers integrating Better Auth for authentication in Ecopages applications.
+
+### Installation
+
+```bash
+bun add better-auth drizzle-orm
+bun add -D drizzle-kit
+```
+
+### Database Setup
+
+Create `src/lib/schema.ts`:
+
+```typescript
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const user = sqliteTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: integer("emailVerified", { mode: "boolean" }).notNull(),
+  image: text("image"),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
+});
+
+export const session = sqliteTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: integer("expiresAt", { mode: "timestamp" }).notNull(),
+  token: text("token").notNull().unique(),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id),
+});
+
+export const account = sqliteTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("accountId").notNull(),
+  providerId: text("providerId").notNull(),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id),
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  idToken: text("idToken"),
+  accessTokenExpiresAt: integer("accessTokenExpiresAt", {
+    mode: "timestamp",
+  }),
+  refreshTokenExpiresAt: integer("refreshTokenExpiresAt", {
+    mode: "timestamp",
+  }),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
+});
+
+export const verification = sqliteTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: integer("expiresAt", { mode: "timestamp" }).notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
+});
+```
+
+Create `src/lib/db.ts`:
+
+```typescript
+import { Database } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import * as schema from "./schema";
+
+const sqlite = new Database("sqlite.db");
+export const db = drizzle(sqlite, { schema });
+```
+
+### Auth Configuration
+
+Create `src/lib/auth.ts`:
+
+```typescript
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { db } from "./db";
+
+const baseUrl = process.env.BETTER_AUTH_URL ?? process.env.ECOPAGES_BASE_URL ?? "http://localhost:3000";
+const secret = process.env.BETTER_AUTH_SECRET;
+
+if (!secret || secret.length < 32) {
+  console.warn("BETTER_AUTH_SECRET should be set to at least 32 characters for production.");
+}
+
+export const auth = betterAuth({
+  secret: secret ?? "dev-secret-min-32-chars-required!!",
+  baseURL: baseUrl,
+  database: drizzleAdapter(db, {
+    provider: "sqlite",
+  }),
+  emailAndPassword: {
+    enabled: true,
+  },
+});
+```
+
+### Auth Handler
+
+Create `src/handlers/auth.ts`:
+
+```typescript
+import type { ApiHandlerContext } from "@ecopages/core";
+import type { BunMiddleware } from "@ecopages/core/adapters/bun";
+import { auth } from "@/lib/auth";
+
+export type Session = (typeof auth)["$Infer"]["Session"];
+
+export const authMiddleware: BunMiddleware<{ session: Session }> = async (
+  ctx,
+  next
+) => {
+  const session = await auth.api.getSession({
+    headers: ctx.request.headers,
+  });
+  if (!session) {
+    return Response.redirect(new URL("/login", ctx.request.url));
+  }
+  ctx.session = session;
+  return next();
+};
+
+export const authHandler = async (ctx: ApiHandlerContext) => {
+  return auth.handler(ctx.request);
+};
+```
+
+### Register Auth Routes
+
+In `app.ts`:
+
+```typescript
+import { EcopagesApp } from "@ecopages/core/adapters/bun/create-app";
+import appConfig from "./eco.config";
+import * as auth from "./src/handlers/auth";
+
+new EcopagesApp({ appConfig })
+  .get("/api/auth/*", auth.authHandler)
+  .post("/api/auth/*", auth.authHandler)
+  .put("/api/auth/*", auth.authHandler)
+  .delete("/api/auth/*", auth.authHandler)
+  .options("/api/auth/*", auth.authHandler)
+  .start();
+```
+
+### Client-Side Auth
+
+Create `src/lib/auth-client.ts`:
+
+```typescript
+import { createAuthClient } from "better-auth/react";
+
+export const authClient = createAuthClient({
+  baseURL: typeof window !== "undefined" ? window.location.origin : "",
+});
+```
+
+### Using Auth in Components
+
+```tsx
+"use client";
+
+import { authClient } from "@/lib/auth-client";
+import { eco } from "@ecopages/core";
+
+export const AuthNav = eco.component({
+  dependencies: {
+    stylesheets: ["./auth-nav.css"],
+  },
+  render: () => {
+    const { data: session, isPending } = authClient.useSession();
+
+    if (isPending) return <span>Loading…</span>;
+    
+    if (session?.user) {
+      return (
+        <div className="auth-nav">
+          <a href="/dashboard">Dashboard</a>
+          <button onClick={() => authClient.signOut()}>Sign out</button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="auth-nav">
+        <a href="/login">Sign in</a>
+        <a href="/signup">Sign up</a>
+      </div>
+    );
+  },
+});
+```
+
+### Protected Routes
+
+Use `authMiddleware` with `defineGroupHandler`:
+
+```typescript
+import { defineGroupHandler } from "@ecopages/core/adapters/bun";
+import { authMiddleware } from "./auth";
+
+export const protectedGroup = defineGroupHandler({
+  prefix: "/dashboard",
+  middleware: [authMiddleware],
+  routes: (define) => [
+    define({
+      path: "/",
+      method: "GET",
+      handler: async (ctx) => {
+        const { default: DashboardView } = await import("@/views/dashboard");
+        return ctx.render(DashboardView, { user: ctx.session.user });
+      },
+    }),
+  ],
+});
+```
+
+**Key Points:**
+- Views rendered from handlers must be in `src/views/` directory
+- Use `eco.page()` to define the view component (accepts props via generic type)
+- Import views dynamically using `await import()` to avoid circular dependencies
+- Pass data from the handler context (e.g., `ctx.session.user`) as props to the view
+
+### Environment Variables
+
+Create `.env`:
+
+```bash
+ECOPAGES_BASE_URL=http://localhost:3000
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
+```
+
+### Database Migration
+
+Create `drizzle.config.ts`:
+
+```typescript
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  schema: "./src/lib/schema.ts",
+  out: "./drizzle",
+  dialect: "sqlite",
+  dbCredentials: {
+    url: "sqlite.db",
+  },
+});
+```
+
+Run migrations:
+
+```bash
+bun run db:push
+```
+
+---
+
+## Resources
+
+- [Ecopages Documentation](https://ecopages.app/llms.txt)
+- [Better Auth Documentation](https://www.better-auth.com/docs)
+- [Drizzle ORM Documentation](https://orm.drizzle.team/)
+- [Tailwind CSS v4 Documentation](https://tailwindcss.com/docs)
+
+</div>

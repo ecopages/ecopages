@@ -1,0 +1,31 @@
+.dashboard-content {
+	@apply mt-6 space-y-6;
+}
+
+.dashboard-content__card {
+	@apply rounded-lg border border-(--color-border) bg-(--color-background-accent) text-(--color-on-background) p-6;
+}
+
+.dashboard-content__heading {
+	@apply text-lg font-bold text-(--color-on-background);
+}
+
+.dashboard-content__list {
+	@apply mt-4 space-y-2 text-sm;
+}
+
+.dashboard-content__list-item-label {
+	@apply text-(--color-muted);
+}
+
+.dashboard-content__list-item-value {
+	@apply font-medium text-(--color-on-background);
+}
+
+.dashboard-content__footer {
+	@apply text-sm text-(--color-muted);
+}
+
+.dashboard-content__link {
+	@apply text-sm text-accent hover:underline;
+}

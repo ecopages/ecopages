@@ -535,6 +535,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			Layout,
 			props,
 			Page: Page as EcoFunctionComponent<StaticPageContext, EcoPagesElement>,
+			metadata,
+			params: options.params || {},
+			query: options.query || {},
+			pageProps,
+			locals,
 			cacheStrategy: (Page as EcoPageComponent<any>).cache,
 		};
 	}

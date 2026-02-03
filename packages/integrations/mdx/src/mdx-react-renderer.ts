@@ -214,7 +214,11 @@ export class MDXReactRenderer extends IntegrationRenderer {
 			if (config?.dependencies) {
 				const configWithMeta = {
 					...config,
-					__eco: { dir: path.dirname(pagePath), integration: 'mdx' },
+					__eco: {
+						id: Bun.hash(pagePath).toString(36),
+						file: pagePath,
+						integration: this.name,
+					},
 				};
 				components.push({ config: configWithMeta });
 			}
@@ -265,6 +269,7 @@ export class MDXReactRenderer extends IntegrationRenderer {
 		Page,
 		HtmlTemplate,
 		Layout,
+		locals,
 		pageProps,
 	}: MDXReactIntegrationRendererOptions): Promise<RouteRendererBody> {
 		try {
@@ -274,11 +279,11 @@ export class MDXReactRenderer extends IntegrationRenderer {
 
 			const pageElement = Layout
 				? React.createElement(
-						Layout as React.ComponentType,
-						undefined,
-						React.createElement(Page as React.ComponentType),
+						Layout as React.ComponentType<any>,
+						{ locals },
+						React.createElement(Page as React.ComponentType<any>, { locals }),
 					)
-				: React.createElement(Page as React.ComponentType);
+				: React.createElement(Page as React.ComponentType<any>, { locals });
 
 			const children = React.createElement(
 				'div',
@@ -320,7 +325,7 @@ export class MDXReactRenderer extends IntegrationRenderer {
 
 			const content = React.createElement(view as unknown as React.ComponentType, props as React.Attributes);
 
-			const pageElement = Layout ? React.createElement(Layout, undefined, content) : content;
+			const pageElement = Layout ? React.createElement(Layout, {}, content) : content;
 
 			const children = React.createElement(
 				'div',

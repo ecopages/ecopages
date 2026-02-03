@@ -1,11 +1,15 @@
 import path from 'node:path';
 import { appLogger } from '../../global/app-logger.ts';
+import { createRequire } from '../../utils/locals-utils.ts';
 import type { MatchResult } from '../../internal-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../../router/fs-router.ts';
 import { getCacheControlHeader, type PageCacheService } from '../../services/cache/page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from '../../services/cache/cache.types.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
+import type { ApiHandlerContext, Middleware, RequestLocals } from '../../public-types.ts';
+import { ApiResponseBuilder } from './api-response.js';
+import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
 export interface FileSystemResponseMatcherOptions {
@@ -66,7 +70,7 @@ export class FileSystemResponseMatcher {
 		return key;
 	}
 
-	async handleMatch(match: MatchResult): Promise<Response> {
+	async handleMatch(match: MatchResult, request?: Request): Promise<Response> {
 		const cacheKey = this.buildCacheKey(match);
 
 		/**
@@ -89,32 +93,108 @@ export class FileSystemResponseMatcher {
 		};
 
 		try {
+			const resolvedRequest =
+				request ??
+				new Request(new URL(cacheKey, this.router.origin).toString(), {
+					method: 'GET',
+				});
+
+			const localsStore: RequestLocals = {};
+			const pageModule = await import(match.filePath);
+			const Page = (pageModule as any)?.default;
+			const pageMiddleware = (Page?.middleware ?? []) as Middleware[];
+			const pageCacheStrategy = (Page?.cache as CacheStrategy | undefined) ?? this.defaultCacheStrategy;
+			const localsForRender: RequestLocals | undefined =
+				pageCacheStrategy === 'dynamic' ? localsStore : undefined;
+
+			if (pageMiddleware.length > 0 && pageCacheStrategy !== 'dynamic') {
+				throw new LocalsAccessError(
+					`[ecopages] Page middleware requires cache: 'dynamic'. Page: ${match.filePath}`,
+				);
+			}
+
 			const routeRenderer = this.routeRendererFactory.createRenderer(match.filePath);
+
+			const middlewareContext: ApiHandlerContext = {
+				request: resolvedRequest,
+				response: new ApiResponseBuilder(),
+				server: null,
+				services: {
+					cache: this.cacheService,
+				},
+				locals: localsStore,
+				require: createRequire(() => middlewareContext.locals as unknown as Record<string, unknown>),
+				render: async () => {
+					throw new Error('[ecopages] ctx.render is not available in file-route middleware');
+				},
+				renderPartial: async () => {
+					throw new Error('[ecopages] ctx.renderPartial is not available in file-route middleware');
+				},
+				json: (data, options) => {
+					const builder = new ApiResponseBuilder();
+					if (options?.status) builder.status(options.status);
+					if (options?.headers) builder.headers(options.headers);
+					return builder.json(data);
+				},
+				html: (content, options) => {
+					const builder = new ApiResponseBuilder();
+					if (options?.status) builder.status(options.status);
+					if (options?.headers) builder.headers(options.headers);
+					return builder.html(content);
+				},
+			};
 
 			const renderFn = async (): Promise<RenderResult> => {
 				const result = await routeRenderer.createRoute({
 					file: match.filePath,
 					params: match.params,
 					query: match.query,
+					locals: localsForRender,
 				});
 				const html = await bodyToString(result.body);
 				const strategy = result.cacheStrategy ?? this.defaultCacheStrategy;
 				return { html, strategy };
 			};
 
-			if (!this.cacheService) {
-				const { html, strategy } = await renderFn();
-				return this.createCachedResponse(html, strategy, 'disabled');
+			const renderResponse = async (): Promise<Response> => {
+				if (!this.cacheService) {
+					const { html, strategy } = await renderFn();
+					return this.createCachedResponse(html, strategy, 'disabled');
+				}
+
+				/**
+				 * Use page's cache strategy if defined, otherwise fall back to default.
+				 * The cache stores and returns the strategy for cache hits.
+				 */
+				const result = await this.cacheService.getOrCreate(cacheKey, this.defaultCacheStrategy, renderFn);
+
+				return this.createCachedResponse(result.html, result.strategy, result.status);
+			};
+
+			if (pageMiddleware.length === 0) {
+				return await renderResponse();
 			}
 
-			/**
-			 * Use page's cache strategy if defined, otherwise fall back to default.
-			 * The cache stores and returns the strategy for cache hits.
-			 */
-			const result = await this.cacheService.getOrCreate(cacheKey, this.defaultCacheStrategy, renderFn);
+			let index = 0;
+			const executeNext = async (): Promise<Response> => {
+				if (index < pageMiddleware.length) {
+					const current = pageMiddleware[index++];
+					return await current(middlewareContext, executeNext);
+				}
+				return await renderResponse();
+			};
 
-			return this.createCachedResponse(result.html, result.strategy, result.status);
+			return await executeNext();
 		} catch (error) {
+			if (error instanceof Response) {
+				return error;
+			}
+			if (error instanceof LocalsAccessError) {
+				return new Response(error.message, {
+					status: 500,
+					headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+				});
+			}
 			if (error instanceof Error) {
 				if (import.meta.env.NODE_ENV === 'development' || appLogger.isDebugEnabled()) {
 					appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.pathname}`);

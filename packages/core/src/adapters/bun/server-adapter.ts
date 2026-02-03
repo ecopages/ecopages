@@ -11,6 +11,7 @@ import type {
 	StaticRoute,
 } from '../../public-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
+import { createRequire } from '../../utils/locals-utils.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouter } from '../../router/fs-router.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
@@ -98,32 +99,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	private readonly routeHandlerFactory?: (params: ServerRouteHandlerParams) => ServerRouteHandler;
 	private readonly hmrManagerFactory?: HmrManager;
 	private readonly bridgeFactory?: ClientBridge;
-
-	/**
-	 * Creates a require function for API handler context that validates and retrieves locals.
-	 */
-	private createRequire(getLocals: () => Record<string, unknown>): ApiHandlerContext['require'] {
-		return ((keyOrKeys: string | readonly string[], onMissing: () => Response) => {
-			const locals = getLocals();
-			if (Array.isArray(keyOrKeys)) {
-				const result: Record<string, unknown> = {};
-				for (const key of keyOrKeys) {
-					const value = locals[key];
-					if (value === undefined || value === null) {
-						throw onMissing();
-					}
-					result[key] = value;
-				}
-				return result;
-			}
-
-			const value = locals[keyOrKeys as string];
-			if (value === undefined || value === null) {
-				throw onMissing();
-			}
-			return value;
-		}) as unknown as ApiHandlerContext['require'];
-	}
 
 	constructor({
 		appConfig,
@@ -420,7 +395,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		const waitForInit = this.waitForInitialization.bind(this);
 		const handleReq = this.handleRequest.bind(this);
 		const errorHandler = this.errorHandler;
-		const createRequire = this.createRequire.bind(this);
 		const getCacheService = (): CacheInvalidator | null =>
 			this.fileSystemResponseMatcher?.getCacheService() ?? null;
 		const getRenderContext = (): RenderContext =>
@@ -449,7 +423,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 						response: new ApiResponseBuilder(),
 						server: this.serverInstance,
 						locals,
-						require: this.createRequire((): Record<string, unknown> => locals),
+						require: createRequire((): Record<string, unknown> => locals),
 						services: {
 							cache: getCacheService(),
 						},
@@ -526,7 +500,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 									response: new ApiResponseBuilder(),
 									server: this.serverInstance,
 									locals,
-									require: this.createRequire((): Record<string, unknown> => locals),
+									require: createRequire((): Record<string, unknown> => locals),
 									services: { cache: getCacheService() },
 									...renderContext,
 								};

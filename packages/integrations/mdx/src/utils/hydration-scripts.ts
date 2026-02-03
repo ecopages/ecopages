@@ -64,10 +64,10 @@ async function mount() {
     }
 }
 
-if (document.readyState === 'complete') {
-    mount();
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", mount);
 } else {
-    window.onload = mount;
+    mount();
 }
 `.trim();
 }

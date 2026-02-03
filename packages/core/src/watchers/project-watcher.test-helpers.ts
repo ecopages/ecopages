@@ -17,7 +17,14 @@ export const createMockHmrManager = (): IHmrManager =>
 		getSpecifierMap: mock(() => new Map()),
 		getDistDir: mock(() => ''),
 		getPlugins: mock(() => []),
-		getDefaultContext: mock(() => ({}) as any),
+		getDefaultContext: mock(() => ({
+			getWatchedFiles: () => new Map(),
+			getSpecifierMap: () => new Map(),
+			getDistDir: () => '',
+			getPlugins: () => [],
+			getSrcDir: () => '',
+			getLayoutsDir: () => '',
+		})),
 	}) as unknown as IHmrManager;
 
 export const createMockBridge = (): ClientBridge =>

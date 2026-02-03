@@ -207,6 +207,7 @@ export class HmrManager implements IHmrManager {
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
+			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 		};
 	}
 

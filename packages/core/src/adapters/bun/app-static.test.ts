@@ -12,8 +12,14 @@ const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).
 let server: Server<unknown>;
 const TEST_PORT = 3004;
 
+const TEST_ECO_META = {
+	id: 'test',
+	file: `${FIXTURE_APP_PROJECT_DIR}/__tests__/app-static.test.ts`,
+	integration: 'ghtml',
+} as const;
+
 const AboutPage = eco.page({
-	__eco: { integration: 'ghtml', dir: '/test' },
+	__eco: TEST_ECO_META,
 	render: () => html`
 		<!doctype html>
 		<html>
@@ -29,7 +35,7 @@ const AboutPage = eco.page({
 });
 
 const BlogPostPage = eco.page<{ slug: string }>({
-	__eco: { integration: 'ghtml', dir: '/test' },
+	__eco: TEST_ECO_META,
 	render: ({ slug }) => html`
 		<!doctype html>
 		<html>
@@ -48,7 +54,7 @@ const BlogPostPage = eco.page<{ slug: string }>({
 });
 
 const ProductPage = eco.page<{ category: string; id: string }>({
-	__eco: { integration: 'ghtml', dir: '/test' },
+	__eco: TEST_ECO_META,
 	render: ({ category, id }) => html`
 		<!doctype html>
 		<html>

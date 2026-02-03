@@ -86,6 +86,12 @@ export interface DefaultHmrContext {
 	 * Absolute path to the source directory.
 	 */
 	getSrcDir(): string;
+
+	/**
+	 * Absolute path to the layouts directory.
+	 * Used to detect layout file changes that require full page reloads.
+	 */
+	getLayoutsDir(): string;
 }
 
 /**
@@ -93,9 +99,9 @@ export interface DefaultHmrContext {
  */
 export type ClientBridgeEvent = {
 	/**
-	 * Event type: 'reload' triggers full refresh, 'update' for JS modules, 'css-update' for stylesheets
+	 * Event type: 'reload' triggers full refresh, 'update' for JS modules, 'css-update' for stylesheets, 'layout-update' for layout changes
 	 */
-	type: 'reload' | 'error' | 'update' | 'css-update';
+	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update';
 	/**
 	 * Path to the changed file
 	 */
@@ -216,12 +222,14 @@ export type EcoPagesConfig = Omit<
 
 /**
  * Internal metadata injected by eco-component-meta-plugin.
- * Contains component directory and integration info for dependency resolution.
+ * Contains component file path and integration info for dependency resolution.
  * @internal
  */
 export interface EcoInjectedMeta {
-	/** Directory path of the component */
-	dir: string;
+	/** Hashed identifier for client-side use (doesn't expose file paths) */
+	id: string;
+	/** Full file path of the component (use path.dirname() to get directory) */
+	file: string;
 	/** The integration identifier (e.g., 'react', 'kitajs', 'lit', 'ghtml', 'mdx') */
 	integration: string;
 }
@@ -352,7 +360,7 @@ export type EcoComponent<P = any, R = any> =
 /**
  * Represents a page in EcoPages.
  */
-export type PageProps<T = unknown> = T & StaticPageContext;
+export type PageProps<T = unknown> = T & StaticPageContext & { locals?: RequestLocals };
 
 /**
  * Represents the metadata for a page.
@@ -405,11 +413,31 @@ export type PageParams = Record<string, string | string[]>;
 export type PageQuery = Record<string, string | string[]>;
 
 /**
+ * Request-scoped data that is only available during request-time rendering.
+ *
+ * Apps should augment this interface via module augmentation:
+ *
+ * declare module '@ecopages/core' {
+ *   interface RequestLocals { session?: Session | null }
+ * }
+ */
+export interface RequestLocals {}
+
+/**
  * Represents the context object for a static page.
  */
 export type StaticPageContext = {
 	params?: PageParams;
 	query?: PageQuery;
+};
+
+/**
+ * Request-time page context.
+ *
+ * This is only populated during SSR. Static generation must not access locals.
+ */
+export type RequestPageContext = {
+	locals: RequestLocals;
 };
 
 /**
@@ -488,6 +516,7 @@ export type RouteRendererOptions = {
 	file: string;
 	params?: PageParams;
 	query?: PageQuery;
+	locals?: RequestLocals;
 };
 
 /**
@@ -669,6 +698,21 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 	request: TRequest;
 	response: ApiResponseBuilder;
 	server: TServer;
+	/**
+	 * Request-scoped data store.
+	 * Only valid during request-time handling (SSR/API). Must not be used for static generation.
+	 */
+	locals: RequestLocals;
+	/**
+	 * Require one or more locals keys. If missing, executes `onMissing` to produce a terminating Response.
+	 */
+	require: {
+		<K extends keyof RequestLocals>(key: K, onMissing: () => Response): Exclude<RequestLocals[K], null | undefined>;
+		<K extends keyof RequestLocals>(
+			keys: readonly K[],
+			onMissing: () => Response,
+		): { [P in K]-?: Exclude<RequestLocals[P], null | undefined> };
+	};
 	/**
 	 * Services available to the API handler.
 	 */

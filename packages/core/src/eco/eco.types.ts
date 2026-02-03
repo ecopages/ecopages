@@ -11,8 +11,19 @@ import type {
 	GetMetadata,
 	GetStaticPaths,
 	GetStaticProps,
+	Middleware,
+	RequestLocals,
+	RequestPageContext,
 } from '../public-types.ts';
 import type { CacheStrategy } from '../services/cache/cache.types.ts';
+
+type WithRequiredLocals<K extends keyof RequestLocals> = Omit<RequestLocals, K> & {
+	[P in K]-?: Exclude<RequestLocals[P], null | undefined>;
+};
+
+type RequiresKeys = keyof RequestLocals;
+
+export type PageRequires<K extends RequiresKeys = RequiresKeys> = K | readonly K[];
 
 /**
  * Lazy trigger options map directly to scripts-injector attributes.
@@ -61,7 +72,7 @@ export interface PageOptions<T, E = EcoPagesElement> {
 	/** @internal Injected by eco-component-meta-plugin */
 	__eco?: EcoInjectedMeta;
 	dependencies?: EcoComponentDependenciesWithLazy;
-	layout?: EcoComponent<{ children: E }>;
+	layout?: EcoComponent<{ children: E } & Partial<RequestPageContext>>;
 
 	/**
 	 * Define static paths for dynamic routes (e.g., [slug].tsx).
@@ -89,8 +100,28 @@ export interface PageOptions<T, E = EcoPagesElement> {
 	 */
 	cache?: CacheStrategy;
 
-	render: (props: PagePropsFor<T>) => E | Promise<E>;
+	/**
+	 * Declares which `locals` keys must be present for this page.
+	 *
+	 * This is a typing and documentation feature; runtime enforcement must be done via handler/page middleware.
+	 */
+	requires?: PageRequires;
+
+	/**
+	 * Request-time middleware for file-based routes.
+	 * Runs before rendering and can short-circuit by returning a Response.
+	 */
+	middleware?: Middleware[];
+
+	render: (props: PagePropsFor<T> & Partial<RequestPageContext>) => E | Promise<E>;
 }
+
+export type PagePropsForWithLocals<T, K extends RequiresKeys | never = never> = PagePropsFor<T> &
+	(K extends never
+		? Partial<RequestPageContext>
+		: Omit<Partial<RequestPageContext>, 'locals'> & {
+				locals: WithRequiredLocals<Extract<K, keyof RequestLocals>>;
+			});
 
 /**
  * Extracts props type from getStaticProps return type, or uses T directly if it's a props object.
@@ -106,11 +137,13 @@ export type PagePropsFor<T> =
  * Used by the consolidated eco.page() API where staticPaths, staticProps,
  * and metadata are defined inline and attached to the component.
  */
-export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T>> & {
+export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<RequestPageContext>> & {
 	staticPaths?: GetStaticPaths;
 	staticProps?: GetStaticProps<T>;
 	metadata?: GetMetadata<T>;
 	cache?: CacheStrategy;
+	requires?: PageRequires;
+	middleware?: Middleware[];
 };
 
 /**
@@ -127,10 +160,18 @@ export interface Eco {
 	/**
 	 * Create a page component with type-safe props from getStaticProps.
 	 * Returns an EcoPageComponent with attached staticPaths, staticProps, and metadata.
-	 * @template T - Props type
-	 * @template E - Element/return type (EcoPagesElement for Kita, ReactNode for React)
+	 *
+	 * If `requires` is provided, the `render` callback receives `locals` as required and non-null for the required keys.
 	 */
-	page: <T = {}, E = EcoPagesElement>(options: PageOptions<T, E>) => EcoPageComponent<T>;
+	page: {
+		<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
+		<T = {}, E = EcoPagesElement, const K extends RequiresKeys = RequiresKeys>(
+			options: Omit<PageOptions<T, E>, 'render' | 'requires'> & {
+				requires: PageRequires<K>;
+				render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
+			},
+		): EcoPageComponent<T>;
+	};
 
 	/**
 	 * Type-safe wrapper for page metadata (identity function)

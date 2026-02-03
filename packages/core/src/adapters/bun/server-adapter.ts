@@ -99,6 +99,32 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	private readonly hmrManagerFactory?: HmrManager;
 	private readonly bridgeFactory?: ClientBridge;
 
+	/**
+	 * Creates a require function for API handler context that validates and retrieves locals.
+	 */
+	private createRequire(getLocals: () => Record<string, unknown>): ApiHandlerContext['require'] {
+		return ((keyOrKeys: string | readonly string[], onMissing: () => Response) => {
+			const locals = getLocals();
+			if (Array.isArray(keyOrKeys)) {
+				const result: Record<string, unknown> = {};
+				for (const key of keyOrKeys) {
+					const value = locals[key];
+					if (value === undefined || value === null) {
+						throw onMissing();
+					}
+					result[key] = value;
+				}
+				return result;
+			}
+
+			const value = locals[keyOrKeys as string];
+			if (value === undefined || value === null) {
+				throw onMissing();
+			}
+			return value;
+		}) as unknown as ApiHandlerContext['require'];
+	}
+
 	constructor({
 		appConfig,
 		runtimeOrigin,
@@ -307,6 +333,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 
 	/**
 	 * Retrieves the current server options, optionally enabling HMR.
+	 * If HMR is enabled, modifies fetch to handle WebSocket upgrades and serve HMR runtime.
+	 * Ensures original fetch logic is preserved and called for non-HMR requests.
 	 * @param options.enableHmr Whether to enable Hot Module Replacement
 	 */
 	public getServerOptions({ enableHmr = false } = {}): BunServeOptions {
@@ -392,6 +420,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		const waitForInit = this.waitForInitialization.bind(this);
 		const handleReq = this.handleRequest.bind(this);
 		const errorHandler = this.errorHandler;
+		const createRequire = this.createRequire.bind(this);
 		const getCacheService = (): CacheInvalidator | null =>
 			this.fileSystemResponseMatcher?.getCacheService() ?? null;
 		const getRenderContext = (): RenderContext =>
@@ -414,10 +443,13 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 				try {
 					await waitForInit();
 					const renderContext = getRenderContext();
+					const locals: Record<string, unknown> = {};
 					context = {
 						request,
 						response: new ApiResponseBuilder(),
 						server: this.serverInstance,
+						locals,
+						require: this.createRequire((): Record<string, unknown> => locals),
 						services: {
 							cache: getCacheService(),
 						},
@@ -481,14 +513,20 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 					const response = await executeNext();
 					return await this.maybeInjectHmrScript(response);
 				} catch (error) {
+					if (error instanceof Response) {
+						return error;
+					}
 					if (this.errorHandler) {
 						try {
 							if (!context) {
 								const renderContext = getRenderContext();
+								const locals: Record<string, unknown> = {};
 								context = {
 									request,
 									response: new ApiResponseBuilder(),
 									server: this.serverInstance,
+									locals,
+									require: this.createRequire((): Record<string, unknown> => locals),
 									services: { cache: getCacheService() },
 									...renderContext,
 								};
@@ -523,13 +561,19 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 					await waitForInit();
 					return await handleReq(request);
 				} catch (error) {
+					if (error instanceof Response) {
+						return error;
+					}
 					if (errorHandler) {
 						try {
 							const renderContext = getRenderContext();
+							const locals: Record<string, unknown> = {};
 							const context = {
 								request,
 								response: new ApiResponseBuilder(),
 								server: this,
+								locals,
+								require: createRequire((): Record<string, unknown> => locals),
 								services: { cache: getCacheService() },
 								...renderContext,
 							};

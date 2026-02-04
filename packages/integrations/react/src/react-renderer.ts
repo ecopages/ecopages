@@ -16,8 +16,12 @@ import type {
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
-import { AssetFactory, type ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
-import { createElement, type JSX } from 'react';
+import {
+	AssetFactory,
+	type AssetDefinition,
+	type ProcessedAsset,
+} from '@ecopages/core/services/asset-processing-service';
+import { createElement, type ReactNode } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { PLUGIN_NAME } from './react.plugin.ts';
@@ -51,7 +55,7 @@ export class BundleError extends Error {
  * Renderer for React components.
  * @extends IntegrationRenderer
  */
-export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
+export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	name = PLUGIN_NAME;
 	componentDirectory = RESOLVED_ASSETS_DIR;
 	static routerAdapter: ReactRouterAdapter | undefined;
@@ -117,11 +121,8 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 	 * Creates the asset dependencies for a page: the bundled component and hydration script.
 	 *
 	 * The dependencies include:
-	 * 1. __ECO_PAGE_MODULE__ marker: JSON script tag containing the component's import path.
-	 *    This enables the React router to efficiently discover component URLs during client-side
-	 *    navigation without parsing JavaScript code or making additional network requests.
-	 * 2. Bundled component: The actual React component module
-	 * 3. Hydration script: Initializes React on the client side
+	 * 1. Bundled component: The actual React component module
+	 * 2. Hydration script: Initializes React on the client side and sets window.__ECO_PAGE__
 	 *
 	 * @param pagePath - Absolute path to the page source file
 	 * @param componentName - Generated unique component name
@@ -138,19 +139,9 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 		bundleOptions: Record<string, unknown>,
 		isDevelopment: boolean,
 		isMdx: boolean,
-	) {
-		return [
-			AssetFactory.createContentScript({
-				position: 'head',
-				content: JSON.stringify(importPath),
-				name: `${componentName}-module`,
-				bundle: false,
-				attributes: {
-					type: 'application/json',
-					id: '__ECO_PAGE_MODULE__',
-					'data-eco-persist': 'true',
-				},
-			}),
+		props?: Record<string, unknown>,
+	): AssetDefinition[] {
+		const dependencies: AssetDefinition[] = [
 			AssetFactory.createFileScript({
 				position: 'head',
 				filepath: pagePath,
@@ -164,6 +155,23 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 					'data-eco-persist': 'true',
 				},
 			}),
+		];
+
+		if (props && Object.keys(props).length > 0) {
+			dependencies.push(
+				AssetFactory.createContentScript({
+					position: 'head',
+					content: `window.__ECO_PAGE__={module:"${importPath}",props:${JSON.stringify(props)}};`,
+					name: `${componentName}-props`,
+					bundle: false,
+					attributes: {
+						type: 'module',
+					},
+				}),
+			);
+		}
+
+		dependencies.push(
 			AssetFactory.createContentScript({
 				position: 'head',
 				content: createHydrationScript({
@@ -180,7 +188,9 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 					'data-eco-persist': 'true',
 				},
 			}),
-		];
+		);
+
+		return dependencies;
 	}
 
 	/**
@@ -274,19 +284,21 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 		Layout,
 		HtmlTemplate,
 		pageProps,
-	}: IntegrationRendererRenderOptions<JSX.Element>): Promise<RouteRendererBody> {
+	}: IntegrationRendererRenderOptions<ReactNode>): Promise<RouteRendererBody> {
 		try {
 			const pageElement = createElement(Page, { params, query, ...props, locals });
 			const contentElement = Layout
 				? createElement(Layout as React.FunctionComponent, { locals } as object, pageElement)
 				: pageElement;
 
+			const allPageProps: HtmlTemplateProps['pageProps'] = { ...pageProps, params, query };
+
 			return await renderToReadableStream(
 				createElement(
 					HtmlTemplate,
 					{
 						metadata,
-						pageProps: pageProps || {},
+						pageProps: allPageProps,
 					} as HtmlTemplateProps,
 					contentElement,
 				),

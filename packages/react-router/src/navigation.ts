@@ -3,6 +3,8 @@
  * @module
  */
 
+/// <reference types="@ecopages/core/declarations" />
+
 import { type ComponentType } from 'react';
 import type { EcoRouterOptions } from './types.ts';
 
@@ -63,28 +65,20 @@ export function getInterceptDecision(
 }
 
 /**
- * Extracts component module URL from __ECO_PAGE_MODULE__ JSON script tag.
- *
- * This is the primary method to discover the component's import path during
- * client-side navigation. Module paths vary between dev and prod environments.
- *
- * NOTE: Will be replaced with window.__ECO_PAGE__ pattern
+ * Extracts component module URL from window.__ECO_PAGE__.
+ * For current document, returns the module path set by hydration script.
+ * For fetched documents, parses the hydration script to extract the module path.
  */
 function extractComponentUrlFromMarker(doc: Document): string | null {
-	const marker = doc.getElementById('__ECO_PAGE_MODULE__');
-	if (!marker?.textContent) return null;
-
-	try {
-		const value = JSON.parse(marker.textContent);
-		return typeof value === 'string' && value ? value : null;
-	} catch {
-		return null;
+	if (doc === document && window.__ECO_PAGE__?.module) {
+		return window.__ECO_PAGE__.module;
 	}
+	return null;
 }
 
 /**
  * Matches default import: `import Content from './Content'`
- * Fallback for when __ECO_PAGE_MODULE__ marker is missing.
+ * Used to extract module path from hydration script for fetched documents.
  */
 const DEFAULT_IMPORT_REGEX = /import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/;
 
@@ -96,7 +90,7 @@ const NAMESPACE_IMPORT_REGEX = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['
 
 /**
  * Extracts import path from hydration script code using regex.
- * Fallback when marker is unavailable. Less reliable due to minification.
+ * Used for fetched documents. Less reliable due to minification.
  */
 function extractModulePathFromCode(code: string): string | null {
 	const defaultMatch = code.match(DEFAULT_IMPORT_REGEX);
@@ -105,22 +99,26 @@ function extractModulePathFromCode(code: string): string | null {
 }
 
 /**
- * Extracts serialized page props from __ECO_PROPS__ JSON script tag.
- *
- * Props from getStaticProps or runtime data are needed to hydrate the new
- * page component during client-side navigation.
- *
- * NOTE: Will be consolidated into window.__ECO_PAGE__
+ * Extracts serialized page props from window.__ECO_PAGE__ or fetched document.
+ * For current document, returns props set by hydration script.
+ * For fetched documents, parses the JSON script tag directly.
  */
 export function extractProps(doc: Document): Record<string, any> {
-	const propsScript = doc.getElementById('__ECO_PROPS__');
-	if (!propsScript?.textContent) return {};
-
-	try {
-		return JSON.parse(propsScript.textContent);
-	} catch {
-		return {};
+	if (doc === document && window.__ECO_PAGE__?.props) {
+		return window.__ECO_PAGE__.props;
 	}
+
+	const propsScript = doc.getElementById('__ECO_PAGE_DATA__');
+	if (propsScript?.textContent) {
+		try {
+			return JSON.parse(propsScript.textContent);
+		} catch (e) {
+			console.error('[EcoRouter] Failed to parse props:', e);
+			return {};
+		}
+	}
+
+	return {};
 }
 
 /**
@@ -138,14 +136,13 @@ function addCacheBuster(url: string): string {
 }
 
 /**
- * Extracts component module URL using multi-tier fallback strategy.
+ * Extracts component module URL using multi-tier strategy.
  *
- * 1. Read from __ECO_PAGE_MODULE__ marker (primary)
- * 2. Parse inline hydration script with regex (fallback)
+ * 1. Read from window.__ECO_PAGE__.module (for current document)
+ * 2. Parse inline hydration script with regex (for fetched documents)
  * 3. Fetch and parse external hydration script (final fallback)
  *
- * Fallbacks provide resilience and backward compatibility but are less reliable
- * due to minification. Will be simplified with window.__ECO_PAGE__ pattern.
+ * Regex parsing is less reliable due to minification.
  */
 export async function extractComponentUrl(doc: Document): Promise<string | null> {
 	const markerUrl = extractComponentUrlFromMarker(doc);
@@ -157,7 +154,7 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 		(s) =>
 			!s.src &&
 			!!s.textContent &&
-			s.textContent.includes('__ECO_PROPS__') &&
+			s.textContent.includes('__ECO_PAGE__') &&
 			s.textContent.includes('hydrateRoot') &&
 			s.textContent.includes('import'),
 	);
@@ -187,6 +184,7 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
  * Handles multiple export patterns (Content, default.Content, default) for different
  * integration setups. Does NOT update DOM - caller applies changes.
  *
+ * @param url - The URL to load
  * @returns Object with Component, props, doc, and finalPath, or null on error
  */
 export async function loadPageModule(
@@ -223,6 +221,11 @@ export async function loadPageModule(
 		if (config && !rawComponent.config) {
 			rawComponent.config = config;
 		}
+
+		window.__ECO_PAGE__ = {
+			module: componentUrl,
+			props,
+		};
 
 		return { Component: rawComponent, props, doc, finalPath };
 	} catch (e) {

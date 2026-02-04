@@ -20,11 +20,9 @@ const HtmlTemplate = eco.component<HtmlTemplateProps, ReactNode>({
 					<script dangerouslySetInnerHTML={{ __html: themeScript }} />
 					<script dangerouslySetInnerHTML={{ __html: announcementScript }} />
 					{headContent}
-				</Head>
-				<body>
-					{children}
 					<EcoPropsScript data={pageProps} />
-				</body>
+				</Head>
+				<body>{children}</body>
 			</html>
 		);
 	},

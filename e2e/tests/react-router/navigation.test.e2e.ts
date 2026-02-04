@@ -44,6 +44,9 @@ test.describe('React Router', () => {
 		});
 
 		test('navigates to dynamic post page', async ({ page }) => {
+			page.on('console', (msg) => console.log('PAGE CONSOLE:', msg.text()));
+			page.on('pageerror', (err) => console.log('PAGE ERROR:', err.message));
+
 			await page.click(SELECTORS.LINK_POST);
 			await page.waitForURL('**/posts/test-post');
 

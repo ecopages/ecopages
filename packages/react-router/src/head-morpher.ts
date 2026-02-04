@@ -39,24 +39,12 @@ function getHeadElementKey(el: Element): string | null {
 
 		case 'style': {
 			const dataId = el.getAttribute('data-eco-style');
-			if (dataId) return `style:${dataId}`;
-			const content = el.textContent || '';
-			return `style:${hashString(content)}`;
+			return dataId ? `style:${dataId}` : null;
 		}
 
 		default:
 			return null;
 	}
-}
-
-function hashString(str: string): string {
-	let hash = 0;
-	for (let i = 0; i < str.length; i++) {
-		const char = str.charCodeAt(i);
-		hash = (hash << 5) - hash + char;
-		hash = hash & hash;
-	}
-	return hash.toString(36);
 }
 
 /**

@@ -3,6 +3,15 @@ import { createEcoComponentMetaPlugin } from './eco-component-meta-plugin';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { fileSystem } from '@ecopages/file-system';
 
+/**
+ * Creates a regex pattern to match __eco injection with any id hash.
+ * The id is a base36 hash that varies, so we match it with a pattern.
+ */
+function ecoMetaPattern(file: string, integration: string): RegExp {
+	const escapedFile = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	return new RegExp(`__eco: \\{ id: "[a-z0-9]+", file: "${escapedFile}", integration: "${integration}" \\}`);
+}
+
 describe('eco-component-meta-plugin', () => {
 	const mockConfig = {
 		integrations: [
@@ -63,7 +72,7 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/component.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/component.tsx', 'react'));
 	});
 
 	it('should NOT inject __eco into config patterns in non-EcoComponent files', async () => {
@@ -96,7 +105,7 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/lit-counter.ts');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "ghtml" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/lit-counter.ts', 'ghtml'));
 	});
 
 	it('should inject __eco into eco.component() call', async () => {
@@ -113,7 +122,7 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/counter.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/counter.tsx', 'react'));
 		expect(result.contents).toContain('eco.component' + '<CounterProps>({');
 	});
 
@@ -131,7 +140,7 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/pages/index.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to/pages", integration: "react" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
 	});
 
 	it('should inject __eco into eco.component() with lazy dependencies', async () => {
@@ -150,7 +159,7 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/lazy-counter.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/lazy-counter.tsx', 'react'));
 	});
 
 	it('should detect kitajs integration from .kita.tsx extension', async () => {
@@ -172,7 +181,7 @@ export const Head = eco.component<PageHeadProps<string>>({
 		const result = await runPluginOnContent(content, '/path/to/includes/head.kita.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to/includes", integration: "kitajs" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/includes/head.kita.tsx', 'kitajs'));
 	});
 
 	it('should handle eco.page with complex generic types', async () => {
@@ -188,7 +197,7 @@ export default eco.page<{ title: string; callback: (arg: string) => void }>({
 		const result = await runPluginOnContent(content, '/path/to/pages/complex.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to/pages", integration: "react" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/pages/complex.tsx', 'react'));
 	});
 
 	it('should handle multiple eco.component calls in same file', async () => {
@@ -207,7 +216,9 @@ export const Input = eco.component({
 		const result = await runPluginOnContent(content, '/path/to/components.tsx');
 
 		expect(result).toBeDefined();
-		const matches = result.contents.match(/__eco: \{ dir: "\/path\/to", integration: "react" \},/g);
+		const matches = result.contents.match(
+			/__eco: \{ id: "[a-z0-9]+", file: "\/path\/to\/components\.tsx", integration: "react" \},/g,
+		);
 		expect(matches).toHaveLength(2);
 	});
 
@@ -221,7 +232,7 @@ export const Simple = eco.component({});
 		const result = await runPluginOnContent(content, '/path/to/simple.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/simple.tsx', 'react'));
 	});
 
 	it('should not inject into non-eco call expressions', async () => {
@@ -265,7 +276,7 @@ export default eco.page({
 		const result = await runPluginOnContent(content, '/path/to/my-app/pages/index.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to/my-app/pages", integration: "react" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/my-app/pages/index.tsx', 'react'));
 	});
 
 	it('should handle eco.component with nested object in dependencies', async () => {
@@ -288,7 +299,7 @@ export const LazyComponent = eco.component({
 		const result = await runPluginOnContent(content, '/path/to/lazy.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/lazy.tsx', 'react'));
 	});
 
 	it('should preserve original code structure after injection', async () => {
@@ -321,7 +332,7 @@ export default eco.page({
 		const result = await runPluginOnContent(content, '/path/to/pages/index.tsx?update=123456');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain('__eco: { dir: "/path/to/pages", integration: "react" },');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
 	});
 
 	describe('Regression: eco-blog views failure', () => {
@@ -355,8 +366,8 @@ export const BlogList = eco.page<BlogListProps>({
 			);
 
 			expect(result).toBeDefined();
-			expect(result.contents).toContain(
-				'__eco: { dir: "/path/to/playground/eco-blog/src/views", integration: "kitajs" },',
+			expect(result.contents).toMatch(
+				ecoMetaPattern('/path/to/playground/eco-blog/src/views/blog-list.kita.tsx', 'kitajs'),
 			);
 		});
 
@@ -367,7 +378,7 @@ export const BlogList = eco.page<BlogListProps>({
                 export default createPage();
             `;
 			const result = await runPluginOnContent(content, '/path/to/nested.tsx');
-			expect(result.contents).toContain('__eco: { dir: "/path/to", integration: "react" },');
+			expect(result.contents).toMatch(ecoMetaPattern('/path/to/nested.tsx', 'react'));
 		});
 	});
 });

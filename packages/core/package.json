@@ -20,7 +20,7 @@
 		"directory": "packages/core"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit",
+		"typecheck": "bunx tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {

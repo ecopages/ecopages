@@ -26,15 +26,21 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		params,
 		query,
 		props,
+		locals,
 		metadata,
 		Page,
 		Layout,
 		HtmlTemplate,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
-			const pageContent = await Page({ params, query, ...props });
+			const pageContent = await Page({ params, query, ...props, locals });
 			const children = Layout
-				? await (Layout as (props: { children: EcoPagesElement }) => EcoPagesElement)({ children: pageContent })
+				? await (Layout as (props: { children: EcoPagesElement } & Record<string, unknown>) => EcoPagesElement)(
+						{
+							children: pageContent,
+							locals,
+						},
+					)
 				: pageContent;
 
 			const template = (await HtmlTemplate({
@@ -68,7 +74,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		try {
 			const viewConfig = view.config;
 			const Layout = viewConfig?.layout as
-				| ((props: { children: EcoPagesElement }) => EcoPagesElement)
+				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => EcoPagesElement)
 				| undefined;
 
 			const viewFn = view as (props: P) => Promise<EcoPagesElement>;

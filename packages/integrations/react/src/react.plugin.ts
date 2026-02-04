@@ -169,13 +169,11 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	 * @returns ReactHmrStrategy instance for handling React component updates
 	 */
 	override getHmrStrategy(): HmrStrategy | undefined {
-		if (!this.hmrManager) {
+		if (!this.hmrManager || !this.appConfig) {
 			return undefined;
 		}
 
-		const hmrManager = this.hmrManager;
-
-		const context = hmrManager.getDefaultContext();
+		const context = this.hmrManager.getDefaultContext();
 
 		return new ReactHmrStrategy(context, this.mdxCompilerOptions);
 	}

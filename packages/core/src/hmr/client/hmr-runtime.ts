@@ -4,7 +4,7 @@
  */
 
 interface HMRPayload {
-	type: 'reload' | 'error' | 'update' | 'css-update';
+	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update';
 	path?: string;
 	message?: string;
 	timestamp?: number;
@@ -45,6 +45,15 @@ interface HMRPayload {
 			case 'reload':
 				location.reload();
 				break;
+			case 'layout-update': {
+				const reloadFn = window.__ecopages_reload_current_page__;
+				if (typeof reloadFn === 'function') {
+					await reloadFn({ clearCache: true });
+				} else {
+					location.reload();
+				}
+				break;
+			}
 			case 'error':
 				console.error('[ecopages] HMR Error:', payload.message);
 				break;
@@ -69,7 +78,7 @@ interface HMRPayload {
 	async function applyUpdate(path: string, timestamp?: number) {
 		try {
 			const url = path + '?t=' + (timestamp || Date.now());
-			const handlers = (window as any).__ecopages_hmr_handlers__;
+			const handlers = window.__ecopages_hmr_handlers__;
 
 			if (handlers?.[path]) {
 				await handlers[path](url);

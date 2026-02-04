@@ -33,6 +33,46 @@ import {
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
 import { HttpError } from '../errors/http-error.ts';
+import { LocalsAccessError } from '../errors/locals-access-error.ts';
+
+/**
+ * Creates a Proxy that throws LocalsAccessError on any property access.
+ * Used to protect static pages from accidentally accessing request locals.
+ *
+ * @param filePath - The file path of the page attempting to access locals (for error reporting)
+ * @returns A Proxy object that blocks all property access operations
+ * @throws {LocalsAccessError} When any property access operation is attempted
+ */
+function createLocalsProxy(filePath: string): Record<string, never> {
+	const errorMessage = `[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: ${filePath}. If you meant to use locals here, set cache: 'dynamic' and provide locals from route middleware/handlers.`;
+
+	return new Proxy(
+		{},
+		{
+			get: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			set: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			has: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			ownKeys: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			deleteProperty: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			defineProperty: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			getOwnPropertyDescriptor: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+		},
+	);
+}
 
 /**
  * Context for renderToResponse method.
@@ -337,8 +377,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const dependencies: AssetDefinition[] = [];
 
 		for (const component of components) {
-			const componentDir = component.config?.__eco?.dir;
-			if (!componentDir) continue;
+			const componentFile = component.config?.__eco?.file;
+			if (!componentFile) continue;
 
 			const stylesheetsSet = new Set<string>();
 			const scriptsSet = new Set<string>();
@@ -350,8 +390,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			const collect = (config: EcoComponent['config']) => {
 				if (!config?.dependencies) return;
 
-				const dir = config.__eco?.dir;
-				if (!dir) return;
+				const file = config.__eco?.file;
+				if (!file) return;
+				const dir = path.dirname(file);
 
 				if (config.dependencies.stylesheets) {
 					for (const style of config.dependencies.stylesheets) {
@@ -477,6 +518,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			query: options.query || {},
 		};
 
+		const cacheStrategy = (Page as EcoPageComponent<any>).cache;
+		const defaultCacheStrategy = this.appConfig.cache?.defaultStrategy ?? 'static';
+		const effectiveCacheStrategy = cacheStrategy ?? defaultCacheStrategy;
+		const localsAvailable = effectiveCacheStrategy === 'dynamic' && options.locals !== undefined;
+
+		const locals = localsAvailable
+			? (options.locals as NonNullable<RouteRendererOptions['locals']>)
+			: (createLocalsProxy(options.file) as unknown as NonNullable<RouteRendererOptions['locals']>);
+
 		return {
 			...options,
 			...integrationSpecificProps,
@@ -489,6 +539,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			params: options.params || {},
 			query: options.query || {},
 			pageProps,
+			locals,
 			cacheStrategy: (Page as EcoPageComponent<any>).cache,
 		};
 	}

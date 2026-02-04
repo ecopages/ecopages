@@ -37,6 +37,10 @@ export class HtmlTransformerService {
 		this.processedDependencies = processedDependencies;
 	}
 
+	getProcessedDependencies(): ProcessedAsset[] {
+		return this.processedDependencies;
+	}
+
 	async transform(res: Response): Promise<Response> {
 		const { head, body } = this.groupDependenciesByPosition();
 

@@ -23,7 +23,7 @@ import {
 } from 'react';
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
 import { RouterContext } from './context.ts';
-import { type PageState, loadPageModule, shouldInterceptClick } from './navigation.ts';
+import { type PageState, getInterceptDecision, loadPageModule, shouldInterceptClick } from './navigation.ts';
 import { morphHead } from './head-morpher.ts';
 import { applyViewTransitionNames } from './view-transition-utils.ts';
 import { manageScroll } from './manage-scroll.ts';
@@ -33,6 +33,7 @@ import type { EcoInjectedMeta } from '@ecopages/core';
 type PageContextValue = PageState | null;
 
 const PageContext = createContext<PageContextValue>(null);
+
 const PersistLayoutsContext = createContext<boolean>(false);
 
 function getLayoutFromPage(Page: ComponentType<unknown>): ComponentType | undefined {
@@ -58,14 +59,37 @@ export interface EcoRouterProps {
  * Cache for layout components to ensure same reference across navigations.
  * When different pages import the same layout, they get different function
  * references. This cache ensures we reuse the first one seen for each displayName.
+ *
+ * Stored on window to persist across module reloads during HMR/SPA navigation.
  */
-const layoutCache = new Map<string, ComponentType>();
+function getLayoutCache(): Map<string, ComponentType> {
+	if (typeof window === 'undefined') {
+		return new Map();
+	}
+	const win = window as typeof window & { __ecoLayoutCache?: Map<string, ComponentType> };
+	if (!win.__ecoLayoutCache) {
+		win.__ecoLayoutCache = new Map();
+	}
+	return win.__ecoLayoutCache;
+}
+
+function normalizeLayoutKey(value: string): string {
+	const trimmed = value.trim();
+	if (!trimmed) return 'layout';
+
+	try {
+		const asUrl = new URL(trimmed);
+		return asUrl.pathname.replace(/\/$/, '') || 'layout';
+	} catch {
+		return trimmed.split('#')[0]?.split('?')[0]?.replace(/\/$/, '') || 'layout';
+	}
+}
 
 /**
  * Clears the layout cache. Called during HMR to ensure fresh layouts are used.
  */
 export function clearLayoutCache(): void {
-	layoutCache.clear();
+	getLayoutCache().clear();
 }
 
 /**
@@ -101,8 +125,10 @@ export const PageContent: FC = () => {
 	}
 
 	if (persistLayouts) {
+		const layoutCache = getLayoutCache();
 		const layoutConfig = (Layout as ComponentType & { config?: { __eco?: EcoInjectedMeta } }).config;
-		const layoutKey = layoutConfig?.__eco?.dir || Layout.displayName || Layout.name || 'layout';
+		const layoutKeyRaw = layoutConfig?.__eco?.id || Layout.displayName || Layout.name || 'layout';
+		const layoutKey = normalizeLayoutKey(layoutKeyRaw);
 
 		if (!layoutCache.has(layoutKey)) {
 			layoutCache.set(layoutKey, Layout);
@@ -129,11 +155,13 @@ function useHmrReload(navigate: (url: string) => Promise<void>) {
 		if (import.meta.env?.MODE === 'production' || import.meta.env?.PROD) return;
 
 		const windowWithHmr = window as typeof window & {
-			__ecopages_reload_current_page__?: () => Promise<void>;
+			__ecopages_reload_current_page__?: (options?: { clearCache?: boolean }) => Promise<void>;
 		};
 
-		windowWithHmr.__ecopages_reload_current_page__ = async () => {
-			clearLayoutCache();
+		windowWithHmr.__ecopages_reload_current_page__ = async (options?: { clearCache?: boolean }) => {
+			if (options?.clearCache) {
+				clearLayoutCache();
+			}
 			const currentUrl = window.location.pathname + window.location.search;
 			await navigate(currentUrl);
 		};
@@ -227,10 +255,14 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			const result = await loadPageModule(url);
 
 			if (result) {
-				const { Component, props, doc } = result;
+				const { Component, props, doc, finalPath } = result;
 				const nextPage = { Component, props };
 				const cleanupHead = await morphHead(doc);
 				applyViewTransitionNames();
+
+				if (finalPath !== url) {
+					window.history.replaceState(null, '', finalPath);
+				}
 
 				saveScrollPositions();
 				pendingScrollRestoreRef.current = { url, isPopState };
@@ -253,21 +285,37 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 					applyViewTransitionNames();
 				}
 			} else {
+				if (options.debug) {
+					console.error('[EcoRouter] Falling back to full page navigation:', url);
+				}
 				window.location.href = url;
 			}
 			setIsNavigating(false);
 		},
-		[options.viewTransitions],
+		[options.viewTransitions, options.debug],
 	);
 
 	useEffect(() => {
 		const handleClick = (event: MouseEvent) => {
 			const link = (event.target as Element).closest(options.linkSelector) as HTMLAnchorElement | null;
-			if (!link || !shouldInterceptClick(event, link, options)) return;
+			if (!link) return;
+			if (!shouldInterceptClick(event, link, options)) {
+				if (options.debug) {
+					const decision = getInterceptDecision(event, link, options);
+					if (!decision.shouldIntercept) {
+						console.debug('[EcoRouter] Not intercepting link click:', decision.reason, link.href);
+					}
+				}
+				return;
+			}
 
 			event.preventDefault();
 			const href = link.getAttribute('href')!;
 			const url = new URL(href, window.location.origin);
+
+			if (options.debug) {
+				console.debug('[EcoRouter] Intercepting navigation:', url.pathname + url.search);
+			}
 
 			window.history.pushState(null, '', url.href);
 			navigate(url.pathname + url.search);

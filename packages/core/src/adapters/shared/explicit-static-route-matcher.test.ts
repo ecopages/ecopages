@@ -5,7 +5,7 @@ import { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
 function createMockView(integration = 'ghtml'): EcoPageComponent<any> {
 	const view = (() => '<div>Test</div>') as EcoPageComponent<any>;
 	view.config = {
-		__eco: { integration, dir: '/test' },
+		__eco: { id: 'test', file: '/test/mock-view.ts', integration },
 	};
 	return view;
 }

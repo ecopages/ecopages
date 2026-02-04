@@ -70,13 +70,13 @@ test.describe('Dynamic No-Cache Strategy', () => {
 	test('should return fresh content on every request', async ({ request }) => {
 		const response1 = await request.get(`${BASE_URL}/dynamic-nocache`);
 		const timestamp1 = extractTimestamp(await response1.text());
-		expect(response1.headers()['x-cache']).toBe('MISS');
+		expect(response1.headers()['x-cache']).toBe('DISABLED');
 
 		await new Promise((resolve) => setTimeout(resolve, 50));
 
 		const response2 = await request.get(`${BASE_URL}/dynamic-nocache`);
 		const timestamp2 = extractTimestamp(await response2.text());
-		expect(response2.headers()['x-cache']).toBe('MISS');
+		expect(response2.headers()['x-cache']).toBe('DISABLED');
 
 		expect(timestamp2).toBeGreaterThan(timestamp1);
 	});

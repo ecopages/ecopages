@@ -3,7 +3,6 @@
  * @module
  */
 
-import path from 'node:path';
 import type {
 	EcoComponent,
 	EcoComponentConfig,
@@ -19,6 +18,7 @@ import { invariant } from '@ecopages/core/utils/invariant';
 import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { PLUGIN_NAME } from './mdx.plugin.ts';
+import { rapidhash } from '@ecopages/core/hash';
 
 /**
  * A structure representing an MDX file
@@ -69,7 +69,11 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 			components.push({
 				config: {
 					...config,
-					__eco: { dir: path.dirname(pagePath), integration: 'mdx' },
+					__eco: {
+						id: rapidhash(pagePath).toString(36),
+						file: pagePath,
+						integration: this.name,
+					},
 				},
 			});
 		}
@@ -111,6 +115,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		params,
 		query,
 		props,
+		locals,
 		metadata,
 		Page,
 		HtmlTemplate,
@@ -118,8 +123,9 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		pageProps,
 	}: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
 		try {
-			const pageContent = await Page({ params, query, ...props });
-			const children = typeof Layout === 'function' ? await Layout({ children: pageContent }) : pageContent;
+			const pageContent = await Page({ params, query, ...props, locals });
+			const children =
+				typeof Layout === 'function' ? await Layout({ children: pageContent, locals }) : pageContent;
 
 			const body = await HtmlTemplate({
 				metadata,
@@ -140,7 +146,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 	): Promise<Response> {
 		try {
 			const Layout = view.config?.layout as
-				| ((props: { children: EcoPagesElement }) => Promise<EcoPagesElement>)
+				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => Promise<EcoPagesElement>)
 				| undefined;
 
 			const viewFn = view as (props: P) => Promise<EcoPagesElement>;

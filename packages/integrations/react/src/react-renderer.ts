@@ -278,7 +278,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 		try {
 			const pageElement = createElement(Page, { params, query, ...props, locals });
 			const contentElement = Layout
-				? createElement(Layout as React.FunctionComponent, { locals }, pageElement)
+				? createElement(Layout as React.FunctionComponent, { locals } as object, pageElement)
 				: pageElement;
 
 			return await renderToReadableStream(

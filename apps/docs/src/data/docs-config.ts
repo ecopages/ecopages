@@ -41,6 +41,7 @@ export const docsConfig: DocsConfig = {
 				{ title: 'Pages', slug: 'pages' },
 				{ title: 'Routing', slug: 'routing' },
 				{ title: 'Data Fetching', slug: 'data-fetching' },
+				{ title: 'Request Locals', slug: 'request-locals' },
 				{ title: 'Layouts', slug: 'layouts' },
 				{ title: 'Components', slug: 'components' },
 				{ title: 'Includes', slug: 'includes' },

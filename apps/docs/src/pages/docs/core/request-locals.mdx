@@ -77,7 +77,7 @@ export default eco.page({
 });
 ```
 
-**Note:** Using `middleware` automatically enforces `cache: 'dynamic'`. Request locals (and the middleware that sets them) are incompatible with static pages.
+**Important:** When using `middleware` on a page, `cache: 'dynamic'` is required. This is enforced at the TypeScript level - attempting to use `middleware` without `cache: 'dynamic'` will produce a type error. Request locals (and the middleware that sets them) are incompatible with static pages.
 
 ## 4. Accessing Locals in Pages
 

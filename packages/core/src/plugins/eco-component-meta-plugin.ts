@@ -31,6 +31,7 @@ import type { BunPlugin } from 'bun';
 import { parseSync } from 'oxc-parser';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
+import { rapidhash } from 'src/utils/hash.ts';
 
 /**
  * Pattern to match regex special characters that need escaping.
@@ -450,7 +451,7 @@ export function injectEcoMeta(contents: string, filePath: string, integration: s
 	}
 
 	const ast = result.program;
-	const id = Bun.hash(filePath).toString(36);
+	const id = rapidhash(filePath).toString(36);
 	const injection = ` __eco: { id: "${id}", file: "${filePath}", integration: "${integration}" },`;
 
 	const insertions: Insertion[] = [];

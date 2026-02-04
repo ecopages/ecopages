@@ -59,16 +59,9 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
 }
 
 /**
- * Options for creating a page with eco.page()
- *
- * Supports two patterns:
- * 1. **Consolidated API** (recommended): Define staticPaths, staticProps, and metadata inline
- * 2. **Separate exports** (legacy): Export getStaticPaths, getStaticProps, getMetadata separately
- *
- * @template T - The props type for the page
- * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
+ * Base options shared by all page variants
  */
-export interface PageOptions<T, E = EcoPagesElement> {
+export interface PageOptionsBase<T, E = EcoPagesElement> {
 	/** @internal Injected by eco-component-meta-plugin */
 	__eco?: EcoInjectedMeta;
 	dependencies?: EcoComponentDependenciesWithLazy;
@@ -93,28 +86,59 @@ export interface PageOptions<T, E = EcoPagesElement> {
 	metadata?: GetMetadata<T>;
 
 	/**
-	 * Cache configuration for ISR (Incremental Static Regeneration).
-	 * - `'static'`: Cache indefinitely (default)
-	 * - `'dynamic'`: No caching, render on every request
-	 * - `{ revalidate: number, tags?: string[] }`: Cache with time-based revalidation
-	 */
-	cache?: CacheStrategy;
-
-	/**
 	 * Declares which `locals` keys must be present for this page.
 	 *
 	 * This is a typing and documentation feature; runtime enforcement must be done via handler/page middleware.
 	 */
 	requires?: PageRequires;
 
+	render: (props: PagePropsFor<T> & Partial<RequestPageContext>) => E | Promise<E>;
+}
+
+/**
+ * Page options without middleware - allows any cache strategy
+ */
+interface PageOptionsWithoutMiddleware<T, E = EcoPagesElement> extends PageOptionsBase<T, E> {
+	/**
+	 * Cache configuration for ISR (Incremental Static Regeneration).
+	 * - `'static'`: Cache indefinitely (default)
+	 * - `'dynamic'`: No caching, render on every request
+	 * - `{ revalidate: number, tags?: string[] }`: Cache with time-based revalidation
+	 */
+	cache?: CacheStrategy;
+	middleware?: undefined;
+}
+
+/**
+ * Page options with middleware - requires cache: 'dynamic'
+ */
+interface PageOptionsWithMiddleware<T, E = EcoPagesElement> extends PageOptionsBase<T, E> {
+	/**
+	 * Cache must be 'dynamic' when using middleware.
+	 * Middleware runs on every request, so caching would bypass middleware effects.
+	 */
+	cache: 'dynamic';
 	/**
 	 * Request-time middleware for file-based routes.
 	 * Runs before rendering and can short-circuit by returning a Response.
 	 */
-	middleware?: Middleware[];
-
-	render: (props: PagePropsFor<T> & Partial<RequestPageContext>) => E | Promise<E>;
+	middleware: Middleware[];
 }
+
+/**
+ * Options for creating a page with eco.page()
+ *
+ * Supports two patterns:
+ * 1. **Consolidated API** (recommended): Define staticPaths, staticProps, and metadata inline
+ * 2. **Separate exports** (legacy): Export getStaticPaths, getStaticProps, getMetadata separately
+ *
+ * When using `middleware`, `cache` must be set to `'dynamic'` because middleware
+ * runs on every request and caching would bypass middleware effects.
+ *
+ * @template T - The props type for the page
+ * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
+ */
+export type PageOptions<T, E = EcoPagesElement> = PageOptionsWithoutMiddleware<T, E> | PageOptionsWithMiddleware<T, E>;
 
 export type PagePropsForWithLocals<T, K extends RequiresKeys | never = never> = PagePropsFor<T> &
 	(K extends never

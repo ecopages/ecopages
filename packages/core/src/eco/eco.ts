@@ -9,15 +9,18 @@ import type {
 	GetMetadata,
 	GetStaticPaths,
 	GetStaticProps,
+	Middleware,
 	RequestLocals,
 	RequestPageContext,
 } from '../public-types.ts';
+import type { CacheStrategy } from '../services/cache/cache.types.ts';
 import type {
 	ComponentOptions,
 	Eco,
 	EcoPageComponent,
 	LazyTrigger,
 	PageOptions,
+	PageOptionsBase,
 	PagePropsFor,
 	PagePropsForWithLocals,
 	PageRequires,
@@ -101,7 +104,9 @@ function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals =
 		render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
 	},
 ): EcoPageComponent<T>;
-function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E>): EcoPageComponent<T> {
+function page<T, E>(
+	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: Middleware[] },
+): EcoPageComponent<T> {
 	const { layout, dependencies, render, staticPaths, staticProps, metadata, cache, requires, middleware } = options;
 
 	const componentOptions: ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E> = {

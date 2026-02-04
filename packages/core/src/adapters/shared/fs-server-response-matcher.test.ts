@@ -193,7 +193,7 @@ describe('FileSystemResponseMatcher', () => {
 			defaultCacheStrategy: 'dynamic',
 		});
 
-		it('should always return MISS for dynamic strategy', async () => {
+		it('should bypass cache entirely for dynamic strategy', async () => {
 			const match: MatchResult = {
 				kind: 'exact',
 				pathname: '/dynamic-page',
@@ -205,8 +205,8 @@ describe('FileSystemResponseMatcher', () => {
 			const response1 = await dynamicMatcher.handleMatch(match);
 			const response2 = await dynamicMatcher.handleMatch(match);
 
-			expect(response1.headers.get('X-Cache')).toBe('MISS');
-			expect(response2.headers.get('X-Cache')).toBe('MISS');
+			expect(response1.headers.get('X-Cache')).toBe('DISABLED');
+			expect(response2.headers.get('X-Cache')).toBe('DISABLED');
 			expect(response1.headers.get('Cache-Control')).toBe('no-store, must-revalidate');
 		});
 	});

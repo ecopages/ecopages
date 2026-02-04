@@ -156,18 +156,23 @@ export class FileSystemResponseMatcher {
 				return { html, strategy };
 			};
 
+			/**
+			 * Handles the rendering response with appropriate caching behavior.
+			 *
+			 * Pages with `cache: 'dynamic'` bypass the cache entirely to ensure:
+			 * - Middleware runs on every request
+			 * - Locals modifications are always reflected in the response
+			 * - No stale cached responses with outdated request-specific data
+			 *
+			 * Pages with `cache: 'static'` use the cache service normally.
+			 */
 			const renderResponse = async (): Promise<Response> => {
-				if (!this.cacheService) {
+				if (!this.cacheService || pageCacheStrategy === 'dynamic') {
 					const { html, strategy } = await renderFn();
 					return this.createCachedResponse(html, strategy, 'disabled');
 				}
 
-				/**
-				 * Use page's cache strategy if defined, otherwise fall back to default.
-				 * The cache stores and returns the strategy for cache hits.
-				 */
-				const result = await this.cacheService.getOrCreate(cacheKey, this.defaultCacheStrategy, renderFn);
-
+				const result = await this.cacheService.getOrCreate(cacheKey, pageCacheStrategy, renderFn);
 				return this.createCachedResponse(result.html, result.strategy, result.status);
 			};
 

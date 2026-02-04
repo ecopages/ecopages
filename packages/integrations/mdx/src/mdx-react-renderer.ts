@@ -215,7 +215,7 @@ export class MDXReactRenderer extends IntegrationRenderer {
 				const configWithMeta = {
 					...config,
 					__eco: {
-						id: Bun.hash(pagePath).toString(36),
+						id: rapidhash(pagePath).toString(36),
 						file: pagePath,
 						integration: this.name,
 					},

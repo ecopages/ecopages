@@ -3,7 +3,6 @@
  * @module
  */
 
-import path from 'node:path';
 import type {
 	EcoComponent,
 	EcoComponentConfig,
@@ -19,6 +18,7 @@ import { invariant } from '@ecopages/core/utils/invariant';
 import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { PLUGIN_NAME } from './mdx.plugin.ts';
+import { rapidhash } from '@ecopages/core/hash';
 
 /**
  * A structure representing an MDX file
@@ -70,7 +70,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 				config: {
 					...config,
 					__eco: {
-						id: Bun.hash(pagePath).toString(36),
+						id: rapidhash(pagePath).toString(36),
 						file: pagePath,
 						integration: this.name,
 					},

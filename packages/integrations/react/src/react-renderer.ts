@@ -277,10 +277,8 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 	}: IntegrationRendererRenderOptions<JSX.Element>): Promise<RouteRendererBody> {
 		try {
 			const pageElement = createElement(Page, { params, query, ...props, locals });
-			const layoutPropsFromRender = (pageProps as Record<string, unknown> | undefined)?.layoutProps;
-			const layoutPropsWithLocals = { ...(layoutPropsFromRender as object | undefined), locals } as object;
 			const contentElement = Layout
-				? createElement(Layout as React.FunctionComponent, layoutPropsWithLocals, pageElement)
+				? createElement(Layout as React.FunctionComponent, { locals }, pageElement)
 				: pageElement;
 
 			return await renderToReadableStream(
@@ -315,9 +313,8 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 				return this.createHtmlResponse(stream, ctx);
 			}
 
-			const layoutPropsFromRender = (props as Record<string, unknown> | undefined)?.layoutProps;
 			const contentElement = Layout
-				? createElement(Layout as React.FunctionComponent, layoutPropsFromRender as object, pageElement)
+				? createElement(Layout as React.FunctionComponent, {}, pageElement)
 				: pageElement;
 
 			const HtmlTemplate = await this.getHtmlTemplate();

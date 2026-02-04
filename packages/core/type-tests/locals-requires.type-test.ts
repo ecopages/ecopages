@@ -1,4 +1,5 @@
 import { eco } from '@ecopages/core/eco';
+import type { ApiHandlerContext } from '@ecopages/core';
 
 declare module '@ecopages/core' {
 	interface RequestLocals {
@@ -48,8 +49,9 @@ eco.page({
 });
 
 eco.page({
+	cache: 'dynamic',
 	middleware: [
-		async (ctx, next) => {
+		async (ctx: ApiHandlerContext, next) => {
 			// Without requires, locals properties can be undefined
 			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 			ctx.locals?.session?.userId;
@@ -69,6 +71,7 @@ eco.page({
 });
 
 eco.page({
+	cache: 'dynamic',
 	requires: 'session',
 	middleware: [
 		async (ctx, next) => {
@@ -99,6 +102,7 @@ eco.page({
 });
 
 eco.page({
+	cache: 'dynamic',
 	requires: ['session'] as const,
 	middleware: [
 		async (ctx, next) => {
@@ -120,6 +124,7 @@ eco.page({
 });
 
 eco.page({
+	cache: 'dynamic',
 	requires: 'session',
 	middleware: [
 		async (ctx, next) => {
@@ -139,6 +144,7 @@ eco.page({
 });
 
 eco.page({
+	cache: 'dynamic',
 	middleware: [
 		async (ctx, next) => {
 			// Without requires, require() can be used to get non-null access
@@ -162,6 +168,28 @@ eco.page({
 			// @ts-expect-error featureFlag should be non-nullable from require()
 			const _featureFlagMustNotBeNull: null = featureFlag;
 
+			return next();
+		},
+	],
+	render: () => '',
+});
+
+// Type error test: middleware requires cache: 'dynamic'
+// @ts-expect-error middleware without cache: 'dynamic' should error
+eco.page({
+	middleware: [
+		async (ctx: ApiHandlerContext, next: () => Promise<Response>) => {
+			return next();
+		},
+	],
+	render: () => '',
+});
+
+// @ts-expect-error middleware with cache: 'static' should error
+eco.page({
+	cache: 'static',
+	middleware: [
+		async (ctx: ApiHandlerContext, next: () => Promise<Response>) => {
 			return next();
 		},
 	],

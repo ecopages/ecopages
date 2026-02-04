@@ -31,7 +31,7 @@ import type { BunPlugin } from 'bun';
 import { parseSync } from 'oxc-parser';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { rapidhash } from 'src/utils/hash.ts';
+import { rapidhash } from '../utils/hash.ts';
 
 /**
  * Pattern to match regex special characters that need escaping.

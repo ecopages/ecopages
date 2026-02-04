@@ -4,14 +4,14 @@ import { auth } from '@/lib/auth';
 
 export type Session = (typeof auth)['$Infer']['Session'];
 
-export const authMiddleware: BunMiddleware<{ session: Session }> = async (ctx, next) => {
+export const authMiddleware: BunMiddleware = async (ctx, next) => {
 	const session = await auth.api.getSession({
 		headers: ctx.request.headers,
 	});
 	if (!session) {
 		return Response.redirect(new URL('/login', ctx.request.url));
 	}
-	ctx.session = session;
+	ctx.locals.session = session;
 	return next();
 };
 

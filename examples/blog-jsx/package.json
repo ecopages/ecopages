@@ -1,0 +1,25 @@
+{
+	"name": "blog-jsx",
+	"private": true,
+	"scripts": {
+		"start": "ecopages start",
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"preview": "ecopages preview",
+		"dev:watch": "ecopages dev:watch"
+	},
+	"devDependencies": {
+		"ecopages": "latest",
+		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
+		"@ecopages/kitajs": "npm:@jsr/ecopages__kitajs@latest",
+		"@ecopages/lit": "npm:@jsr/ecopages__lit@latest",
+		"@ecopages/mdx": "npm:@jsr/ecopages__mdx@latest",
+		"@ecopages/image-processor": "npm:@jsr/ecopages__image-processor@latest",
+		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
+		"@ecopages/browser-router": "npm:@jsr/ecopages__browser-router@latest",
+		"@ecopages/scripts-injector": "latest",
+		"@tailwindcss/postcss": "^4.1.18",
+		"tailwindcss": "^4.1.18",
+		"@ecopages/radiant": "^0.2.0"
+	}
+}

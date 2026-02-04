@@ -28,9 +28,9 @@ export const ThemeToggle = eco.component<{}, ReactNode>({
 
 		if (!mounted) {
 			return (
-				<button type="button" aria-label="Toggle theme" className="btn btn-outline btn-sm w-9 p-0">
+				<div className="btn-skeleton btn-skeleton--icon" aria-hidden="true">
 					<span style={{ width: 18, height: 18 }} />
-				</button>
+				</div>
 			);
 		}
 

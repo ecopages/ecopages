@@ -2,6 +2,10 @@
 	@apply relative flex items-center justify-center bg-gradient-to-r from-primary to-accent text-white px-4 py-3 text-sm font-medium shadow;
 }
 
+html[data-announcement-dismissed='true'] .announcement-bar {
+	@apply hidden;
+}
+
 .announcement-bar--slide-down {
 	@apply animate-[slideDown_0.5s_ease-out];
 }

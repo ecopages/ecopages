@@ -18,23 +18,31 @@ export const LoginForm = eco.component({
 			e.preventDefault();
 			setError(null);
 			setIsLoading(true);
-			const { error: err } = await authClient.signIn.email({
-				email,
-				password,
-				callbackURL: '/dashboard',
-			});
-			setIsLoading(false);
-			if (err) {
-				setError(err.message ?? 'Sign in failed. Check your email and password.');
-				return;
-			}
-			if (typeof window !== 'undefined') {
-				window.location.href = '/dashboard';
+
+			try {
+				const { data, error: err } = await authClient.signIn.email({
+					email,
+					password,
+				});
+
+				if (err) {
+					setError(err.message ?? 'Sign in failed. Check your email and password.');
+					return;
+				}
+
+				if (data) {
+					await new Promise((resolve) => setTimeout(resolve, 100));
+					window.location.assign('/dashboard');
+				}
+			} catch (caught) {
+				setError(caught instanceof Error ? caught.message : 'Sign in failed.');
+			} finally {
+				setIsLoading(false);
 			}
 		}
 
 		return (
-			<form onSubmit={handleSubmit} className="login-form" noValidate aria-label="Sign in form">
+			<form className="login-form" onSubmit={handleSubmit}>
 				{error && (
 					<div className="login-form__alert" role="alert" aria-live="polite">
 						{error}

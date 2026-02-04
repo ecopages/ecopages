@@ -7,7 +7,8 @@
 		"dev": "ecopages dev -r",
 		"build": "ecopages build",
 		"preview": "ecopages preview",
-		"watch:dev": "ecopages watch:dev",
+		"dev:watch": "ecopages dev:watch -r",
+		"dev:hot": "ecopages dev:hot -r",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "bun run src/lib/migrate.ts",
 		"db:push": "drizzle-kit push"

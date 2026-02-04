@@ -1,5 +1,5 @@
 {
-	"name": "@ecopages/playground-react-router",
+	"name": "blog-react",
 	"private": true,
 	"scripts": {
 		"start": "ecopages start",
@@ -10,6 +10,7 @@
 		"dev:hot": "ecopages dev:hot -r"
 	},
 	"devDependencies": {
+		"ecopages": "latest",
 		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
 		"@ecopages/radiant": "^0.2.0",
 		"@ecopages/react": "npm:@jsr/ecopages__react@latest",

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../../config/config-builder.ts';
-import { STATUS_MESSAGE } from '../../constants.ts';
 import type { MatchResult } from '../../internal-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouter } from '../../router/fs-router.ts';
@@ -194,7 +193,7 @@ describe('FileSystemResponseMatcher', () => {
 			defaultCacheStrategy: 'dynamic',
 		});
 
-		it('should always return MISS for dynamic strategy', async () => {
+		it('should bypass cache entirely for dynamic strategy', async () => {
 			const match: MatchResult = {
 				kind: 'exact',
 				pathname: '/dynamic-page',
@@ -206,8 +205,8 @@ describe('FileSystemResponseMatcher', () => {
 			const response1 = await dynamicMatcher.handleMatch(match);
 			const response2 = await dynamicMatcher.handleMatch(match);
 
-			expect(response1.headers.get('X-Cache')).toBe('MISS');
-			expect(response2.headers.get('X-Cache')).toBe('MISS');
+			expect(response1.headers.get('X-Cache')).toBe('DISABLED');
+			expect(response2.headers.get('X-Cache')).toBe('DISABLED');
 			expect(response1.headers.get('Cache-Control')).toBe('no-store, must-revalidate');
 		});
 	});

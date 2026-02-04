@@ -1,0 +1,207 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const config = {
+    layout: DocsLayout,
+};
+
+export const getMetadata = () => ({
+    title: 'Docs | Request Locals',
+    description: 'Learn how to share request-scoped data between middleware and pages',
+});
+
+# Request Locals
+
+Request locals provide a type-safe mechanism to share data, such as authenticated user sessions, request IDs, or A/B test groups, between your server middleware and your pages/layouts during server-side rendering.
+
+In complex applications, middleware often needs to pass data downstream to the page being rendered. Request Locals provide a dedicated, request-scoped storage that flows seamlessly from **Middleware → Page → Layout**, eliminating the need for URL parameters or global state.
+
+## 1. Defining Your Locals
+
+First, you need to define the shape of your locals. This is done via **TypeScript module augmentation**. You can place this in a `modules.d.ts` file or any other type definition file in your project.
+
+```typescript
+// modules.d.ts or eco-env.d.ts
+declare module '@ecopages/core' {
+  interface RequestLocals {
+    session: { 
+      user: { id: string; email: string; role: 'admin' | 'user' };
+    } | null;
+    requestId: string;
+    theme: 'light' | 'dark';
+  }
+}
+```
+
+By augmenting `RequestLocals`, you ensure that `ctx.locals` is strongly typed throughout your application.
+
+## 2. Setting Locals in Middleware
+
+Middleware can write to `ctx.locals`. Since locals are specific to a single request, it's safe to store sensitive data like user sessions here.
+
+```typescript
+// middleware/auth.ts
+import type { Middleware } from '@ecopages/core';
+
+export const authMiddleware: Middleware = async (ctx, next) => {
+  // 1. Perform auth check
+  const session = await authService.validateRequest(ctx.request);
+
+  // 2. Write to locals
+  ctx.locals.session = session;
+  ctx.locals.requestId = crypto.randomUUID();
+
+  // 3. Continue request
+  return next();
+};
+```
+
+## 3. Applying Middleware to Pages
+
+Middleware is applied directly within your page configuration using the `middleware` property. This ensures that the middleware runs specifically for that route before rendering.
+
+```typescript
+// pages/dashboard.tsx
+import { eco } from '@ecopages/core';
+import { authMiddleware } from '@/middleware/auth';
+
+export default eco.page({
+  cache: 'dynamic',
+  // Middleware runs before render
+  middleware: [authMiddleware],
+  // Types match locals set by middleware
+  requires: ['session'],
+
+  render: ({ locals }) => {
+    return <Dashboard user={locals.session.user} />;
+  },
+});
+```
+
+**Important:** When using `middleware` on a page, `cache: 'dynamic'` is required. This is enforced at the TypeScript level - attempting to use `middleware` without `cache: 'dynamic'` will produce a type error. Request locals (and the middleware that sets them) are incompatible with static pages.
+
+## 4. Accessing Locals in Pages
+
+Pages can access locals in their `render` function. To ensure type safety and runtime guarantees, pages can declare their requirements using the `requires` property.
+
+### The `requires` Contract
+
+When a page declares `requires: ['session']`, two things happen:
+1. **TypeScript Narrowing**: Inside `render`, `locals.session` is typed as `NonNullable<Session>`.
+2. **Runtime Validation**: If the local is missing at runtime (e.g., middleware didn't run), the server throws an error before rendering.
+
+```typescript
+// pages/dashboard.tsx
+import { eco } from '@ecopages/core';
+import { Dashboard } from '@/components/dashboard';
+
+export default eco.page({
+  // Declare that this page NEEDS a session
+  requires: ['session'] as const,
+  
+  // Dynamic pages only - static pages cannot have request locals
+  cache: 'dynamic',
+
+  render: ({ locals }) => {
+    // TypeScript knows `locals.session` is defined here!
+    return <Dashboard user={locals.session.user} />;
+  },
+});
+```
+
+### Optional Access
+
+If a page doesn't strictly require a local, you can omit the `requires` array and handle the potential `undefined` value manually.
+
+```typescript
+export default eco.page({
+  cache: 'dynamic',
+  render: ({ locals }) => {
+    if (!locals.session) {
+      return <GuestView />;
+    }
+    return <UserView user={locals.session.user} />;
+  },
+});
+```
+
+## 5. Accessing Locals in Layouts
+
+Layouts often need access to locals for global elements like navigation bars (showing "Login" vs "Logout"). Layouts receive locals merged into their props.
+
+**Note:** Unlike pages, layouts cannot declare `requires`. They should handle optional locals gracefully using optional chaining (`?.`).
+
+```typescript
+// layouts/base-layout.tsx
+import { eco } from '@ecopages/core';
+
+export const BaseLayout = eco.component<{ children: React.ReactNode }>({
+  render: ({ children, locals }) => (
+    <html>
+      <body>
+        <Header user={locals?.session?.user} />
+        <main>{children}</main>
+        <footer>Request ID: {locals?.requestId}</footer>
+      </body>
+    </html>
+  ),
+});
+```
+
+## Static vs Dynamic Pages
+
+Request Locals are strictly a **runtime** feature. They are only available to pages with `cache: 'dynamic'` (or revalidated pages during regeneration).
+
+If you attempt to access `locals` in a purely `static` page, Ecopages will throw a `LocalsAccessError` at runtime to prevent accidental leakage of dynamic data into static builds.
+
+| Cache Mode | Locals Access | Use Case |
+|------------|---------------|----------|
+| `static` | **Forbidden** | Marketing pages, Docs, Blogs |
+| `dynamic` | **Allowed** | User Dashboards, Settings, Personalized Feeds |
+
+## API Reference
+
+### `RequestLocals`
+
+The interface you augment to define your app's locals.
+
+```typescript
+interface RequestLocals {} // augment me!
+```
+
+### `PageOptions`
+
+Updated to include the `requires` property.
+
+```typescript
+interface PageOptions {
+  requires?: readonly (keyof RequestLocals)[];
+  cache?: 'static' | 'dynamic';
+  // ...
+}
+```
+
+### `ApiHandlerContext`
+
+The context object in API handlers and middleware now includes:
+
+```typescript
+interface ApiHandlerContext {
+  locals: RequestLocals;
+  require<K extends keyof RequestLocals>(
+    key: K,
+    onMissing: () => Response
+  ): NonNullable<RequestLocals[K]>;
+}
+```
+
+## Example Application Flow
+
+Here is how the data flows in a typical authentication scenario:
+
+1. **Request**: User visits `/dashboard`.
+2. **Server**: Matches route, identifies `authMiddleware`.
+3. **Middleware**: Verifies cookie, sets `ctx.locals.session`.
+4. **Page Config**: Checks `requires: ['session']`. If missing, execution stops.
+5. **Page Render**: `DashboardPage` renders with `locals.session.user`.
+6. **Layout Render**: `BaseLayout` renders header with `locals?.session?.user`.
+7. **Response**: HTML sent to client.

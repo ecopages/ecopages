@@ -101,7 +101,7 @@ export class ServerRouteHandler {
 		const fsMatch = !pathname.includes('.') && this.router.match(request.url);
 
 		const response = await (fsMatch
-			? this.fileSystemResponseMatcher.handleMatch(fsMatch)
+			? this.fileSystemResponseMatcher.handleMatch(fsMatch, request)
 			: this.handleNoMatch(request));
 
 		return this.maybeInjectHmrScript(response);

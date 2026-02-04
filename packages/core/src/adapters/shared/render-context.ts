@@ -8,12 +8,36 @@ export interface CreateRenderContextOptions {
 }
 
 /**
+ * Merges request locals into component props as a dedicated 'locals' property.
+ * This prevents naming conflicts and maintains type safety by keeping locals
+ * separate from other props.
+ *
+ * @param props - The original component props
+ * @param locals - Optional request-scoped locals from middleware
+ * @returns Props with locals merged in, or original props if no locals provided
+ */
+function mergePropsWithLocals<P>(props: P, locals: Record<string, unknown> | undefined): P {
+	if (!locals || typeof props !== 'object' || props === null) {
+		return props;
+	}
+	return { ...(props as Record<string, unknown>), locals } as P;
+}
+
+/**
  * Creates a render context for route handlers.
- * Provides render(), renderPartial(), json(), and html() methods.
+ * Provides render(), renderPartial(), json(), and html() methods that can be used
+ * within route handlers to generate responses.
+ *
+ * @param options - Configuration options including available integrations
+ * @returns A RenderContext object with methods for rendering views and creating responses
  */
 export function createRenderContext(options: CreateRenderContextOptions): RenderContext {
 	const { integrations } = options;
 
+	/**
+	 * Resolves the appropriate renderer for a given view component based on its integration.
+	 * Throws an error if the integration cannot be determined or is not found.
+	 */
 	const getRendererForView = <P>(view: EcoComponent<P>): IntegrationRenderer => {
 		const integrationName = view.config?.__eco?.integration;
 		invariant(
@@ -29,23 +53,29 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 
 	return {
 		async render<P>(view: EcoComponent<P>, props: P, renderOptions?: RenderOptions): Promise<Response> {
+			const locals = (this as { locals?: Record<string, unknown> } | undefined)?.locals;
+			const mergedProps = mergePropsWithLocals(props, locals);
+
 			const renderer = getRendererForView(view);
 			const ctx: RenderToResponseContext = {
 				partial: false,
 				status: renderOptions?.status,
 				headers: renderOptions?.headers,
 			};
-			return renderer.renderToResponse(view, props, ctx);
+			return renderer.renderToResponse(view, mergedProps, ctx);
 		},
 
 		async renderPartial<P>(view: EcoComponent<P>, props: P, renderOptions?: RenderOptions): Promise<Response> {
+			const locals = (this as { locals?: Record<string, unknown> } | undefined)?.locals;
+			const mergedProps = mergePropsWithLocals(props, locals);
+
 			const renderer = getRendererForView(view);
 			const ctx: RenderToResponseContext = {
 				partial: true,
 				status: renderOptions?.status,
 				headers: renderOptions?.headers,
 			};
-			return renderer.renderToResponse(view, props, ctx);
+			return renderer.renderToResponse(view, mergedProps, ctx);
 		},
 
 		json(data: unknown, responseOptions?: ResponseOptions): Response {

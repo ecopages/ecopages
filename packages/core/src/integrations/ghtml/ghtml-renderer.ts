@@ -6,7 +6,6 @@
 import type {
 	EcoComponent,
 	EcoPagesElement,
-	GetMetadataContext,
 	IntegrationRendererRenderOptions,
 	PageMetadataProps,
 	RouteRendererBody,
@@ -49,7 +48,7 @@ export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 	): Promise<Response> {
 		try {
 			const Layout = view.config?.layout as
-				| ((props: { children: EcoPagesElement }) => Promise<EcoPagesElement>)
+				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => Promise<EcoPagesElement>)
 				| undefined;
 
 			const viewFn = view as (props: P) => Promise<EcoPagesElement>;

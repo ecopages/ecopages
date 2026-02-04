@@ -47,7 +47,9 @@ const appLogger = new Logger('[ReactHmrStrategy]');
  *   getWatchedFiles: () => watchedFilesMap,
  *   getSpecifierMap: () => specifierMap,
  *   getDistDir: () => '/path/to/dist/_hmr',
- *   getPlugins: () => []
+ *   getPlugins: () => [],
+ *   getSrcDir: () => '/path/to/src',
+ *   getLayoutsDir: () => '/path/to/src/layouts'
  * };
  * const strategy = new ReactHmrStrategy(context);
  * ```
@@ -56,6 +58,14 @@ export class ReactHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
 	private mdxCompilerOptions?: CompileOptions;
 
+	/**
+	 * Creates a new React HMR strategy instance.
+	 *
+	 * @param context - The HMR context providing access to watched files, plugins, build directories,
+	 *                  and the layouts directory for detecting layout file changes that require full
+	 *                  page reloads instead of module-level HMR updates.
+	 * @param mdxCompilerOptions - Optional MDX compiler options for processing .mdx files
+	 */
 	constructor(
 		private context: DefaultHmrContext,
 		mdxCompilerOptions?: CompileOptions,
@@ -84,10 +94,28 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
+	 * Checks if a file is a layout file.
+	 *
+	 * Layout files require special HMR handling because they wrap multiple pages and affect
+	 * the entire page structure. When a layout changes, we trigger a 'layout-update' event
+	 * instead of a regular 'update' event, which instructs the browser to perform a full
+	 * page reload (or clear cache and re-render) rather than attempting module-level HMR.
+	 *
+	 * @param filePath - Absolute path to the file
+	 * @returns True if the file is in the layouts directory
+	 */
+	private isLayoutFile(filePath: string): boolean {
+		return filePath.startsWith(this.context.getLayoutsDir());
+	}
+
+	/**
 	 * Processes a React file change by rebuilding all React entrypoints.
 	 *
+	 * For layout files, broadcasts a 'layout-update' event to trigger full page reload.
+	 * For regular components/pages, broadcasts 'update' events for module-level HMR.
+	 *
 	 * @param _filePath - Absolute path to the changed file
-	 * @returns Action to broadcast update events
+	 * @returns Action to broadcast update events (layout-update for layouts, update for components)
 	 */
 	async process(_filePath: string): Promise<HmrAction> {
 		appLogger.debug(`Processing ${_filePath}`);
@@ -96,6 +124,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 		if (watchedFiles.size === 0) {
 			appLogger.debug(`No watched files`);
 			return { type: 'none' };
+		}
+
+		const isLayout = this.isLayoutFile(_filePath);
+		if (isLayout) {
+			appLogger.debug(`Detected layout file change: ${_filePath}`);
 		}
 
 		const updates: string[] = [];
@@ -108,6 +141,18 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 
 		if (updates.length > 0) {
+			if (isLayout) {
+				appLogger.debug(`Layout update detected, sending layout-update event`);
+				return {
+					type: 'broadcast',
+					events: [
+						{
+							type: 'layout-update',
+						},
+					],
+				};
+			}
+
 			appLogger.debug(`Broadcasting ${updates.length} updates`);
 			return {
 				type: 'broadcast',

@@ -23,15 +23,16 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 		params,
 		query,
 		props,
+		locals,
 		metadata,
 		Page,
 		Layout,
 		HtmlTemplate,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
-			const pageContent = await Page({ params, query, ...props });
+			const pageContent = await Page({ params, query, ...props, locals });
 			const children =
-				Layout && typeof Layout === 'function' ? await Layout({ children: pageContent }) : pageContent;
+				Layout && typeof Layout === 'function' ? await Layout({ children: pageContent, locals }) : pageContent;
 			const body = await HtmlTemplate({
 				metadata,
 				pageProps: props ?? {},
@@ -51,7 +52,7 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 	): Promise<Response> {
 		try {
 			const Layout = view.config?.layout as
-				| ((props: { children: EcoPagesElement }) => Promise<EcoPagesElement>)
+				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => Promise<EcoPagesElement>)
 				| undefined;
 
 			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
@@ -72,7 +73,6 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 						appConfig: this.appConfig,
 					})
 				: this.appConfig.defaultMetadata;
-
 			await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
 
 			const html =

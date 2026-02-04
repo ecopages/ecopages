@@ -101,10 +101,10 @@ const mount = () => {
   };
 };
 
-if (document.readyState === "complete") {
-  mount();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", mount);
 } else {
-  window.onload = mount;
+  mount();
 }
 `.trim();
 }
@@ -153,10 +153,10 @@ const mount = () => {
   };
 };
 
-if (document.readyState === "complete") {
-  mount();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", mount);
 } else {
-  window.onload = mount;
+  mount();
 }
 `.trim();
 }
@@ -170,10 +170,10 @@ function createProdScriptWithRouter(options: HydrationScriptOptions): string {
 	const { importMapKey, components, getRouterProps } = router!;
 
 	if (isMdx) {
-		return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import{${components.router} as R,${components.pageContent} as PC}from"${importMapKey}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>hr(document,ct(P,gp()));document.readyState==="complete"?m():window.onload=m`;
+		return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import{${components.router} as R,${components.pageContent} as PC}from"${importMapKey}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>hr(document,ct(P,gp()));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 	}
 
-	return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import{${components.router} as R,${components.pageContent} as PC}from"${importMapKey}";import P from"${importPath}";const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>hr(document,ct(P,gp()));document.readyState==="complete"?m():window.onload=m`;
+	return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import{${components.router} as R,${components.pageContent} as PC}from"${importMapKey}";import P from"${importPath}";const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>hr(document,ct(P,gp()));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 }
 
 /**
@@ -183,10 +183,10 @@ function createProdScriptWithoutRouter(options: HydrationScriptOptions): string 
 	const { importPath, isMdx } = options;
 
 	if (isMdx) {
-		return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,gp()));document.readyState==="complete"?m():window.onload=m`;
+		return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,gp()));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 	}
 
-	return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import P from"${importPath}";const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,gp()));document.readyState==="complete"?m():window.onload=m`;
+	return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import P from"${importPath}";const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,gp()));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 }
 
 /**

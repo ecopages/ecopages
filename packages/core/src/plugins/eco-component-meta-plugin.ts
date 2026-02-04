@@ -18,7 +18,7 @@
  *
  * // After transformation:
  * export default eco.page({
- *   __eco: { dir: "/path/to/pages", integration: "react" },
+ *   __eco: { id: "<hash>", file: "/path/to/pages/index.tsx", integration: "react" },
  *   render: () => '<div>Hello</div>',
  * });
  * ```
@@ -31,6 +31,7 @@ import type { BunPlugin } from 'bun';
 import { parseSync } from 'oxc-parser';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
+import { rapidhash } from 'src/utils/hash.ts';
 
 /**
  * Pattern to match regex special characters that need escaping.
@@ -156,7 +157,7 @@ export interface EcoComponentDirPluginOptions {
  * 1. Strips any query string from the file path (for dev mode cache-busting)
  * 2. Reads the file contents
  * 3. Parses the AST using oxc-parser to find injection points
- * 4. Injects `__eco: { dir: "...", integration: "..." }` into config objects
+ * 4. Injects `__eco: { id: "...", file: "...", integration: "..." }` into config objects
  * 5. Returns the transformed content with the appropriate loader
  *
  * Supported patterns:
@@ -438,7 +439,7 @@ function findInjectionPoints(
  *   '/app/src/pages/index.tsx',
  *   'react'
  * );
- * // Result: 'export default eco.page({ __eco: { dir: "/app/src/pages", integration: "react" }, render: () => "<div>Hi</div>" });'
+ * // Result: 'export default eco.page({ __eco: { id: "<hash>", file: "/app/src/pages/index.tsx", integration: "react" }, render: () => "<div>Hi</div>" });'
  * ```
  */
 export function injectEcoMeta(contents: string, filePath: string, integration: string): string {
@@ -450,8 +451,8 @@ export function injectEcoMeta(contents: string, filePath: string, integration: s
 	}
 
 	const ast = result.program;
-	const componentDir = path.dirname(filePath);
-	const injection = ` __eco: { dir: "${componentDir}", integration: "${integration}" },`;
+	const id = rapidhash(filePath).toString(36);
+	const injection = ` __eco: { id: "${id}", file: "${filePath}", integration: "${integration}" },`;
 
 	const insertions: Insertion[] = [];
 	findInjectionPoints(ast, insertions, injection);

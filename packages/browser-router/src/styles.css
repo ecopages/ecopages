@@ -7,19 +7,30 @@
  * ```
  */
 
-/* Default cross-fade transition */
+/* Disable root animation to prevent full page flash during transitions */
 ::view-transition-old(root),
 ::view-transition-new(root) {
+	animation: none;
+}
+
+/* Shared element transitions animate position/size smoothly */
+::view-transition-group(*) {
 	animation-duration: 180ms;
-	animation-timing-function: ease-out;
+	animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-::view-transition-old(root) {
-	animation-name: eco-fade-out;
+/* Prevent transitioning elements from affecting layout of non-transitioning elements */
+::view-transition-image-pair(*) {
+	isolation: isolate;
 }
 
-::view-transition-new(root) {
-	animation-name: eco-fade-in;
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+	::view-transition-group(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none !important;
+	}
 }
 
 @keyframes eco-fade-out {

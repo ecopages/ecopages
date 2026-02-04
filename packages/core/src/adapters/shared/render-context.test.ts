@@ -25,8 +25,9 @@ describe('createRenderContext', () => {
 	>;
 	mockViewFn.config = {
 		__eco: {
+			id: 'test',
+			file: '/some/dir/mock-view.ts',
 			integration: 'mock-integration',
-			dir: '/some/dir',
 		},
 	};
 
@@ -60,7 +61,7 @@ describe('createRenderContext', () => {
 
 		it('should throw if view integration is unknown', async () => {
 			const badViewFn = (() => '<div></div>') as EcoFunctionComponent<{}, string>;
-			badViewFn.config = { __eco: { integration: 'unknown', dir: '' } };
+			badViewFn.config = { __eco: { id: 'test', file: '/bad-view.ts', integration: 'unknown' } };
 			await expect(renderContext.render(badViewFn, {})).rejects.toThrow('No integration found for: unknown');
 		});
 

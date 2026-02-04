@@ -115,6 +115,14 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 
 	/**
 	 * Creates the asset dependencies for a page: the bundled component and hydration script.
+	 *
+	 * The dependencies include:
+	 * 1. __ECO_PAGE_MODULE__ marker: JSON script tag containing the component's import path.
+	 *    This enables the React router to efficiently discover component URLs during client-side
+	 *    navigation without parsing JavaScript code or making additional network requests.
+	 * 2. Bundled component: The actual React component module
+	 * 3. Hydration script: Initializes React on the client side
+	 *
 	 * @param pagePath - Absolute path to the page source file
 	 * @param componentName - Generated unique component name
 	 * @param importPath - Resolved import path for the bundled component
@@ -132,6 +140,17 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 		isMdx: boolean,
 	) {
 		return [
+			AssetFactory.createContentScript({
+				position: 'head',
+				content: JSON.stringify(importPath),
+				name: `${componentName}-module`,
+				bundle: false,
+				attributes: {
+					type: 'application/json',
+					id: '__ECO_PAGE_MODULE__',
+					'data-eco-persist': 'true',
+				},
+			}),
 			AssetFactory.createFileScript({
 				position: 'head',
 				filepath: pagePath,
@@ -181,7 +200,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 		if (config?.dependencies) {
 			const configWithMeta = {
 				...config,
-				__eco: { dir: path.dirname(pagePath), integration: 'react' },
+				__eco: { id: rapidhash(pagePath).toString(36), file: pagePath, integration: 'react' },
 			};
 			components.push({ config: configWithMeta });
 		}
@@ -249,6 +268,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 		params,
 		query,
 		props,
+		locals,
 		metadata,
 		Page,
 		Layout,
@@ -256,9 +276,9 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 		pageProps,
 	}: IntegrationRendererRenderOptions<JSX.Element>): Promise<RouteRendererBody> {
 		try {
-			const pageElement = createElement(Page, { params, query, ...props });
+			const pageElement = createElement(Page, { params, query, ...props, locals });
 			const contentElement = Layout
-				? createElement(Layout as React.FunctionComponent<{ children: JSX.Element }>, null, pageElement)
+				? createElement(Layout as React.FunctionComponent, { locals }, pageElement)
 				: pageElement;
 
 			return await renderToReadableStream(
@@ -283,7 +303,7 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 	): Promise<Response> {
 		try {
 			const viewConfig = view.config;
-			const Layout = viewConfig?.layout as React.FunctionComponent<{ children: JSX.Element }> | undefined;
+			const Layout = viewConfig?.layout as React.FunctionComponent | undefined;
 
 			const ViewComponent = view as unknown as React.FunctionComponent;
 			const pageElement = createElement(ViewComponent, props || {});
@@ -293,7 +313,9 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 				return this.createHtmlResponse(stream, ctx);
 			}
 
-			const contentElement = Layout ? createElement(Layout, undefined, pageElement) : pageElement;
+			const contentElement = Layout
+				? createElement(Layout as React.FunctionComponent, {}, pageElement)
+				: pageElement;
 
 			const HtmlTemplate = await this.getHtmlTemplate();
 			const metadata: PageMetadataProps = view.metadata
@@ -306,6 +328,15 @@ export class ReactRenderer extends IntegrationRenderer<JSX.Element> {
 				: this.appConfig.defaultMetadata;
 
 			await this.prepareViewDependencies(view, Layout as unknown as EcoComponent | undefined);
+
+			const viewFilePath = viewConfig?.__eco?.file;
+			if (viewFilePath) {
+				const hydrationAssets = await this.buildRouteRenderAssets(viewFilePath);
+				this.htmlTransformer.setProcessedDependencies([
+					...this.htmlTransformer.getProcessedDependencies(),
+					...hydrationAssets,
+				]);
+			}
 
 			const streamBody = await renderToReadableStream(
 				createElement(

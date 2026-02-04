@@ -115,8 +115,10 @@ export class ServerLifecycle {
 
 			await Promise.all([...processorPromises, ...integrationPromises]);
 
-			this.hmrManager.setPlugins(processorBuildPlugins);
-			return processorBuildPlugins;
+			const loaderPlugins = Array.from(this.appConfig.loaders.values());
+			const allBuildPlugins = [...loaderPlugins, ...processorBuildPlugins];
+			this.hmrManager.setPlugins(allBuildPlugins);
+			return allBuildPlugins;
 		} catch (error) {
 			appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);
 			throw error;

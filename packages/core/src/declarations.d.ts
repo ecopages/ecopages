@@ -1,7 +1,18 @@
 import type { EcoPagesAppConfig } from './internal-types';
 
+type HMRHandler = (url: string) => Promise<void>;
+
+type ReloadPageFunction = (options: { clearCache: boolean }) => Promise<void>;
+
 declare global {
 	var ecoConfig: EcoPagesAppConfig;
+
+	interface Window {
+		/** Registered HMR handlers for specific module paths */
+		__ecopages_hmr_handlers__?: Record<string, HMRHandler>;
+		/** Function to reload the current page, used for layout updates */
+		__ecopages_reload_current_page__?: ReloadPageFunction;
+	}
 }
 
 declare module '*.css' {

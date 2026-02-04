@@ -2,13 +2,7 @@ import type { PageMetadataProps } from '@ecopages/core';
 
 const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
 
-export function Seo({
-	title,
-	description,
-	image = '/assets/images/default-og.webp',
-	url,
-	keywords,
-}: PageMetadataProps) {
+export function Seo({ title, description, url, keywords }: PageMetadataProps) {
 	return (
 		<>
 			<title>{title}</title>

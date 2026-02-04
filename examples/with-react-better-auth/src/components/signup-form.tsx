@@ -19,20 +19,20 @@ export const SignupForm = eco.component({
 			e.preventDefault();
 			setError(null);
 			setIsLoading(true);
+
 			const { error: err } = await authClient.signUp.email({
 				name,
 				email,
 				password,
-				callbackURL: '/dashboard',
 			});
-			setIsLoading(false);
+
 			if (err) {
 				setError(err.message ?? 'Sign up failed. Try again.');
+				setIsLoading(false);
 				return;
 			}
-			if (typeof window !== 'undefined') {
-				window.location.href = '/dashboard';
-			}
+
+			window.location.assign('/dashboard');
 		}
 
 		return (

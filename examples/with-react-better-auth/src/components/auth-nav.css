@@ -2,10 +2,6 @@
 	@apply flex items-center gap-4;
 }
 
-.auth-nav__loading {
-	@apply text-sm text-muted animate-pulse;
-}
-
 .auth-nav__link {
 	@apply text-sm font-medium text-muted hover:text-on-background transition-colors;
 }

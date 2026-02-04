@@ -1,0 +1,39 @@
+.layout-container {
+	@apply min-h-screen bg-surface text-text font-sans antialiased selection:bg-accent-subtle selection:text-accent flex flex-col;
+}
+
+.site-header {
+	@apply max-w-3xl mx-auto w-full border-border border-b bg-surface/80 backdrop-blur-sm sticky top-0 z-50 transition-all duration-300;
+}
+
+.header-content {
+	@apply max-w-3xl mx-auto px-6 h-16 flex items-center justify-between;
+}
+
+.header-actions {
+	@apply flex items-center gap-8;
+}
+
+.logo {
+	@apply font-serif text-xl font-bold tracking-tight text-text no-underline;
+}
+
+.nav {
+	@apply flex gap-6 text-sm font-medium text-text-muted;
+}
+
+.nav-link {
+	@apply hover:text-link transition-colors;
+}
+
+.main-content {
+	@apply max-w-3xl mx-auto px-6 py-12 w-full grow;
+}
+
+.site-footer {
+	@apply max-w-3xl mx-auto px-6 py-8 w-full border-t border-border mt-auto flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-text-muted;
+}
+
+.footer-link {
+	@apply hover:text-link transition-colors;
+}

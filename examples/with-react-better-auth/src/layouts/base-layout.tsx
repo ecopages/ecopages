@@ -4,9 +4,11 @@ import { AuthNav } from '@/components/auth-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { AnnouncementBar } from '@/components/announcement-bar';
 import { eco } from '@ecopages/core';
+import type { Session } from '@/handlers/auth';
 
 type BaseLayoutProps = {
 	children: ReactNode;
+	session?: Session | null;
 };
 
 export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
@@ -14,7 +16,7 @@ export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 		stylesheets: ['./base-layout.css'],
 		components: [AuthNav, ThemeToggle, AnnouncementBar],
 	},
-	render: ({ children }) => {
+	render: ({ children, session }) => {
 		const [showBanner, setShowBanner] = useState(true);
 
 		const closeBanner = () => {
@@ -23,17 +25,14 @@ export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 
 		return (
 			<div className="layout">
-				{showBanner && <AnnouncementBar onClose={closeBanner} slideDown />}
+				{showBanner && <AnnouncementBar slideDown />}
 				<header className="layout__header">
 					<nav className="layout__nav" aria-label="Main">
 						<a href="/" className="layout__logo">
 							Ecopages
 						</a>
 						<div className="layout__nav-items">
-							<a href="/" className="layout__nav-link">
-								Home
-							</a>
-							<AuthNav />
+							<AuthNav session={session} />
 							<ThemeToggle />
 						</div>
 					</nav>

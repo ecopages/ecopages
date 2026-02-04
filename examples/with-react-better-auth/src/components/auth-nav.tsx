@@ -2,19 +2,27 @@
 
 import { authClient } from '@/lib/auth-client';
 import { eco } from '@ecopages/core';
+import { ReactNode } from 'react';
+import type { Session } from '@/handlers/auth';
 
-export const AuthNav = eco.component({
+type AuthNavProps = {
+	session?: Session | null;
+};
+
+export const AuthNav = eco.component<AuthNavProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./auth-nav.css'],
 	},
-	render: () => {
-		const { data: session, isPending } = authClient.useSession();
+	render: ({ session: serverSession }) => {
+		const { data: clientSession, isPending } = authClient.useSession();
+		const session = serverSession ?? clientSession;
 
-		if (isPending) {
+		if (!session && isPending) {
 			return (
-				<span className="auth-nav__loading" aria-live="polite">
-					Loading…
-				</span>
+				<div className="auth-nav" aria-live="polite" aria-busy="true">
+					<div className="btn-skeleton btn-skeleton--primary text-transparent">Dashboard</div>
+					<div className="btn-skeleton btn-skeleton--primary text-transparent">Sign out</div>
+				</div>
 			);
 		}
 
@@ -26,9 +34,10 @@ export const AuthNav = eco.component({
 					</a>
 					<button
 						type="button"
-						onClick={() =>
-							authClient.signOut({ fetchOptions: { onSuccess: () => window.location.assign('/') } })
-						}
+						onClick={async () => {
+							await authClient.signOut();
+							window.location.assign('/');
+						}}
 						className="btn btn-outline h-9 px-3"
 						aria-label="Sign out"
 					>

@@ -92,6 +92,22 @@
 		@apply bg-transparent hover:bg-(--color-button-muted) hover:text-(--color-on-background);
 	}
 
+	.btn-skeleton {
+		@apply inline-flex items-center justify-center rounded-lg bg-muted/10 animate-pulse;
+	}
+
+	.btn-skeleton--icon {
+		@apply w-9 h-9 rounded-lg;
+	}
+
+	.btn-skeleton--ghost {
+		@apply h-10 w-24;
+	}
+
+	.btn-skeleton--primary {
+		@apply h-9 w-20 rounded-md;
+	}
+
 	.input {
 		@apply flex w-full rounded-lg border-(--color-border) bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-(--color-muted) focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50;
 	}

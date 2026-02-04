@@ -1,16 +1,11 @@
 import { eco } from '@ecopages/core';
-import { BaseLayout } from '@/layouts/base-layout';
+import { AuthedLayout } from '@/layouts/authed-layout';
 import { DashboardContent } from '@/components/dashboard-content';
 import { ReactNode } from 'react';
 
-type User = {
-	id: string;
-	name: string | null;
-	email: string;
-};
-
-export default eco.page<{ user: User }, ReactNode>({
-	layout: BaseLayout,
+export default eco.page<{}, ReactNode>({
+	layout: AuthedLayout,
+	cache: 'dynamic',
 	dependencies: {
 		components: [DashboardContent],
 	},
@@ -18,10 +13,23 @@ export default eco.page<{ user: User }, ReactNode>({
 		title: 'Dashboard',
 		description: 'Your account dashboard.',
 	}),
-	render: ({ user }) => (
-		<>
-			<h1 className="text-3xl font-bold tracking-tight text-[var(--color-on-background)]">Dashboard</h1>
-			<DashboardContent user={user} />
-		</>
-	),
+	render: ({ locals }) => {
+		const user = locals?.session?.user;
+		if (!user) {
+			return (
+				<>
+					<h1 className="text-3xl font-bold tracking-tight text-(--color-on-background)">Dashboard</h1>
+					<p className="mt-2 text-(--color-muted)">
+						No active session. <a href="/login">Sign in</a>
+					</p>
+				</>
+			);
+		}
+		return (
+			<>
+				<h1 className="text-3xl font-bold tracking-tight text-(--color-on-background)">Dashboard</h1>
+				<DashboardContent user={user} />
+			</>
+		);
+	},
 });

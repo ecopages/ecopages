@@ -10,7 +10,8 @@ export const dashboardGroup = defineGroupHandler({
 			method: 'GET',
 			handler: async (ctx) => {
 				const { default: DashboardPage } = await import('@/views/dashboard');
-				return ctx.render(DashboardPage, { user: ctx.session.user });
+				ctx.require('session', () => Response.redirect(new URL('/login', ctx.request.url)));
+				return ctx.render(DashboardPage, {});
 			},
 		}),
 	],

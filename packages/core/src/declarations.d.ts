@@ -12,6 +12,11 @@ declare global {
 		__ecopages_hmr_handlers__?: Record<string, HMRHandler>;
 		/** Function to reload the current page, used for layout updates */
 		__ecopages_reload_current_page__?: ReloadPageFunction;
+		/** Page data registry - contains module path and props for current page */
+		__ECO_PAGE__?: {
+			module: string;
+			props: Record<string, unknown>;
+		};
 	}
 }
 

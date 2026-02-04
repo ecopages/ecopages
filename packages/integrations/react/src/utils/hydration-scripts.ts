@@ -67,12 +67,19 @@ window.__ecopages_router_active__ = false;
 window.__ecopages_reload_current_page__ = null;
 let root = null;
 
-const getPageProps = () => {
-  const el = document.getElementById("__ECO_PROPS__");
+const getPageData = () => {
+  const el = document.getElementById("__ECO_PAGE_DATA__");
   if (el?.textContent) {
     try { return JSON.parse(el.textContent); } catch {}
   }
   return {};
+};
+
+const props = getPageData();
+
+window.__ECO_PAGE__ = {
+  module: "${importPath}",
+  props
 };
 
 const createTree = (Component, props) => {
@@ -81,7 +88,6 @@ const createTree = (Component, props) => {
 };
 
 const mount = () => {
-  const props = getPageProps();
   root = hydrateRoot(document, createTree(Page, props));
   window.__ecopages_router_active__ = true;
   window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
@@ -124,12 +130,19 @@ ${getImportStatement(importPath, isMdx)}
 window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
 let root = null;
 
-const getPageProps = () => {
-  const el = document.getElementById("__ECO_PROPS__");
+const getPageData = () => {
+  const el = document.getElementById("__ECO_PAGE_DATA__");
   if (el?.textContent) {
     try { return JSON.parse(el.textContent); } catch {}
   }
   return {};
+};
+
+const props = getPageData();
+
+window.__ECO_PAGE__ = {
+  module: "${importPath}",
+  props
 };
 
 const createTree = (Component, props) => {
@@ -139,7 +152,6 @@ const createTree = (Component, props) => {
 };
 
 const mount = () => {
-  const props = getPageProps();
   root = hydrateRoot(document, createTree(Page, props));
   window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
     try {
@@ -170,10 +182,10 @@ function createProdScriptWithRouter(options: HydrationScriptOptions): string {
 	const { importMapKey, components, getRouterProps } = router!;
 
 	if (isMdx) {
-		return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import{${components.router} as R,${components.pageContent} as PC}from"${importMapKey}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>hr(document,ct(P,gp()));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+		return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import{${components.router} as R,${components.pageContent} as PC}from"${importMapKey}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>hr(document,ct(P,pr));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 	}
 
-	return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import{${components.router} as R,${components.pageContent} as PC}from"${importMapKey}";import P from"${importPath}";const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>hr(document,ct(P,gp()));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+	return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import{${components.router} as R,${components.pageContent} as PC}from"${importMapKey}";import P from"${importPath}";const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>hr(document,ct(P,pr));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 }
 
 /**
@@ -183,10 +195,10 @@ function createProdScriptWithoutRouter(options: HydrationScriptOptions): string 
 	const { importPath, isMdx } = options;
 
 	if (isMdx) {
-		return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,gp()));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+		return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,pr));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 	}
 
-	return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import P from"${importPath}";const gp=()=>{const e=document.getElementById("__ECO_PROPS__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,gp()));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+	return `import{hydrateRoot as hr}from"react-dom/client";import{createElement as ce}from"react";import P from"${importPath}";const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,pr));document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 }
 
 /**

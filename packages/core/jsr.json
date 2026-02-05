@@ -5,6 +5,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./route-renderer/integration-renderer": "./src/route-renderer/integration-renderer.ts",
+		"./errors/locals-access-error": "./src/errors/locals-access-error.ts",
 		"./constants": "./src/constants.ts",
 		"./config-builder": "./src/config/config-builder.ts",
 		"./adapters/bun": "./src/adapters/bun/index.ts",

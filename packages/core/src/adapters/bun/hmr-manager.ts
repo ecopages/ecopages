@@ -10,6 +10,7 @@ import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy';
 import { appLogger } from '../../global/app-logger';
 import type { ClientBridge } from './client-bridge';
 import type { ClientBridgeEvent } from '../../public-types';
+import { stripServerOnlyPlugin } from '../../plugins/strip-server-only-plugin';
 
 export interface HmrManagerParams {
 	appConfig: EcoPagesAppConfig;
@@ -39,6 +40,7 @@ export class HmrManager implements IHmrManager {
 		this.bridge = bridge;
 		this.distDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, '_hmr');
 		fileSystem.ensureDir(this.distDir);
+		this.plugins = [stripServerOnlyPlugin({ pagesDir: this.appConfig.absolutePaths.pagesDir })];
 		this.initializeStrategies();
 	}
 
@@ -68,7 +70,8 @@ export class HmrManager implements IHmrManager {
 	}
 
 	public setPlugins(plugins: BunPlugin[]): void {
-		this.plugins = plugins;
+		const corePlugin = stripServerOnlyPlugin({ pagesDir: this.appConfig.absolutePaths.pagesDir });
+		this.plugins = [corePlugin, ...plugins];
 	}
 
 	public setEnabled(enabled: boolean): void {
@@ -208,6 +211,7 @@ export class HmrManager implements IHmrManager {
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
+			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
 		};
 	}
 

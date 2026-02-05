@@ -92,6 +92,12 @@ export interface DefaultHmrContext {
 	 * Used to detect layout file changes that require full page reloads.
 	 */
 	getLayoutsDir(): string;
+
+	/**
+	 * Absolute path to the pages directory.
+	 * Used by plugins to identify page files for transformation.
+	 */
+	getPagesDir(): string;
 }
 
 /**

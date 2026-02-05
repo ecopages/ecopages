@@ -47,6 +47,10 @@
 			"types": "./src/route-renderer/integration-renderer.ts",
 			"default": "./src/route-renderer/integration-renderer.ts"
 		},
+		"./errors/locals-access-error": {
+			"types": "./src/errors/locals-access-error.ts",
+			"default": "./src/errors/locals-access-error.ts"
+		},
 		"./eco": {
 			"types": "./src/eco/eco.ts",
 			"default": "./src/eco/eco.ts"
@@ -111,6 +115,10 @@
 		"./plugins/integration-plugin": {
 			"types": "./src/plugins/integration-plugin.ts",
 			"default": "./src/plugins/integration-plugin.ts"
+		},
+		"./plugins/strip-server-only-plugin": {
+			"types": "./src/plugins/strip-server-only-plugin.ts",
+			"default": "./src/plugins/strip-server-only-plugin.ts"
 		},
 		"./adapters/bun/client-bridge": {
 			"types": "./src/adapters/bun/client-bridge.ts",

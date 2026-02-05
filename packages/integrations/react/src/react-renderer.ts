@@ -11,9 +11,11 @@ import type {
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
 	PageMetadataProps,
+	RequestLocals,
 	RouteRendererBody,
 } from '@ecopages/core';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import { LocalsAccessError } from '@ecopages/core/errors/locals-access-error';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
 import {
@@ -291,7 +293,13 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				? createElement(Layout as React.FunctionComponent, { locals } as object, pageElement)
 				: pageElement;
 
-			const allPageProps: HtmlTemplateProps['pageProps'] = { ...pageProps, params, query };
+			const safeLocals = this.getSerializableLocals(locals as RequestLocals);
+			const allPageProps: HtmlTemplateProps['pageProps'] = {
+				...pageProps,
+				params,
+				query,
+				...(safeLocals && { locals: safeLocals }),
+			};
 
 			return await renderToReadableStream(
 				createElement(
@@ -305,6 +313,34 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			);
 		} catch (error) {
 			throw this.createRenderError('Failed to render component', error);
+		}
+	}
+
+	/**
+	 * Safely extracts locals for client-side hydration.
+	 *
+	 * On dynamic pages with `cache: 'dynamic'`, middleware populates `locals` with
+	 * request-scoped data (e.g., session). This data needs to be serialized to the
+	 * client for hydration to match the server-rendered output.
+	 *
+	 * On static pages, `locals` is a Proxy that throws `LocalsAccessError` on access
+	 * to prevent accidental use. This method safely detects that case and returns
+	 * `undefined` instead of throwing.
+	 *
+	 * @param locals - The locals object from the render context
+	 * @returns The locals object if serializable, undefined otherwise
+	 */
+	private getSerializableLocals(locals: RequestLocals): RequestLocals | undefined {
+		try {
+			if (locals && Object.keys(locals).length > 0) {
+				return locals;
+			}
+			return undefined;
+		} catch (e) {
+			if (e instanceof LocalsAccessError) {
+				return undefined;
+			}
+			throw e;
 		}
 	}
 

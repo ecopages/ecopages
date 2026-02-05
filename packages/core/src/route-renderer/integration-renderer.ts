@@ -524,8 +524,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const localsAvailable = effectiveCacheStrategy === 'dynamic' && options.locals !== undefined;
 
 		const locals = localsAvailable
-			? (options.locals as NonNullable<RouteRendererOptions['locals']>)
-			: (createLocalsProxy(options.file) as unknown as NonNullable<RouteRendererOptions['locals']>);
+			? options.locals!
+			: (createLocalsProxy(options.file) as unknown as RouteRendererOptions['locals']);
 
 		return {
 			...options,

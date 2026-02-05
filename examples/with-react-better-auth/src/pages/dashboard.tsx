@@ -1,14 +1,17 @@
 import { eco } from '@ecopages/core';
-import { AuthedLayout } from '@/layouts/authed-layout';
+import { BaseLayout } from '@/layouts/base-layout';
 import { DashboardContent } from '@/components/dashboard-content';
 import { ReactNode } from 'react';
+import { authMiddleware } from '@/handlers/auth.server';
 
 export default eco.page<{}, ReactNode>({
-	layout: AuthedLayout,
+	layout: BaseLayout,
 	cache: 'dynamic',
 	dependencies: {
 		components: [DashboardContent],
 	},
+	middleware: [authMiddleware],
+	requires: ['session'] as const,
 	metadata: () => ({
 		title: 'Dashboard',
 		description: 'Your account dashboard.',

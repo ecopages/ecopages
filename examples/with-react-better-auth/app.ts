@@ -1,7 +1,6 @@
 import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
 import appConfig from './eco.config';
-import * as auth from './src/handlers/auth';
-import { dashboardGroup } from './src/handlers/dashboard';
+import * as auth from './src/handlers/auth.server';
 
 new EcopagesApp({ appConfig })
 	.get('/api/auth/*', auth.authHandler)
@@ -9,5 +8,4 @@ new EcopagesApp({ appConfig })
 	.put('/api/auth/*', auth.authHandler)
 	.delete('/api/auth/*', auth.authHandler)
 	.options('/api/auth/*', auth.authHandler)
-	.group(dashboardGroup)
 	.start();

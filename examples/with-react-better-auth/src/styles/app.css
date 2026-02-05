@@ -93,7 +93,8 @@
 	}
 
 	.btn-skeleton {
-		@apply inline-flex items-center justify-center rounded-lg bg-muted/10 animate-pulse;
+		@apply inline-flex items-center justify-center rounded-lg;
+		/* @apply bg-muted/10 animate-pulse; */
 	}
 
 	.btn-skeleton--icon {

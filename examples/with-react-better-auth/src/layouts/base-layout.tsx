@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react';
-import { useState } from 'react';
 import { AuthNav } from '@/components/auth-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { AnnouncementBar } from '@/components/announcement-bar';
 import { eco } from '@ecopages/core';
-import type { Session } from '@/handlers/auth';
+import type { Session } from '@/handlers/auth.server';
 
 type BaseLayoutProps = {
 	children: ReactNode;
@@ -17,15 +16,9 @@ export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 		components: [AuthNav, ThemeToggle, AnnouncementBar],
 	},
 	render: ({ children, session }) => {
-		const [showBanner, setShowBanner] = useState(true);
-
-		const closeBanner = () => {
-			setShowBanner(false);
-		};
-
 		return (
 			<div className="layout">
-				{showBanner && <AnnouncementBar slideDown />}
+				<AnnouncementBar slideDown />
 				<header className="layout__header">
 					<nav className="layout__nav" aria-label="Main">
 						<a href="/" className="layout__logo">

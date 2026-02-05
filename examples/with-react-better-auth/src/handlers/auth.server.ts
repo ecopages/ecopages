@@ -1,10 +1,9 @@
-import type { ApiHandlerContext } from '@ecopages/core';
-import type { BunMiddleware } from '@ecopages/core/adapters/bun';
-import { auth } from '@/lib/auth';
+import type { ApiHandlerContext, Middleware } from '@ecopages/core';
+import { auth } from '@/lib/auth.server';
 
 export type Session = (typeof auth)['$Infer']['Session'];
 
-export const authMiddleware: BunMiddleware = async (ctx, next) => {
+export const authMiddleware: Middleware = async (ctx, next) => {
 	const session = await auth.api.getSession({
 		headers: ctx.request.headers,
 	});

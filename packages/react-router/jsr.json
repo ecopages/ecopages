@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/react-router",
-	"version": "0.1.102",
+	"version": "0.1.103",
 	"exports": {
 		".": "./src/index.ts",
 		"./browser": "./browser.ts"

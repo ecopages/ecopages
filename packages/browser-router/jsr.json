@@ -3,7 +3,8 @@
 	"version": "0.1.100",
 	"exports": {
 		".": "./src/index.ts",
-		"./client": "./src/client/eco-router.ts"
+		"./client": "./src/client/eco-router.ts",
+		"./styles.css": "./src/styles.css"
 	},
 	"exclude": ["src/test", "**/*.test.ts"],
 	"publish": {

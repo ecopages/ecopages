@@ -1,11 +1,10 @@
 /**
- * Default View Transition CSS for EcoPages React Router
+ * Default View Transition CSS for EcoPages
  *
- * NOTE: This file is not exported from the package.
- * JSR does not support CSS exports yet: https://github.com/jsr-io/jsr/issues/293
- *
- * Use the ecopages npm package instead:
+ * Import this file in your CSS:
  * @import 'ecopages/css/view-transitions.css';
+ *
+ * Works with both @ecopages/browser-router and @ecopages/react-router.
  */
 
 /* Disable root animation to prevent full page flash during transitions */
@@ -31,6 +30,24 @@
 	::view-transition-old(*),
 	::view-transition-new(*) {
 		animation: none !important;
+	}
+}
+
+@keyframes eco-fade-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes eco-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
 	}
 }
 

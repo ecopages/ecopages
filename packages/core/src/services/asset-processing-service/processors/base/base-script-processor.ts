@@ -17,7 +17,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		return dep.bundleOptions || {};
 	}
 
-	private collectBuildPlugins(): BunPlugin[] {
+	protected collectBuildPlugins(): BunPlugin[] {
 		const plugins: BunPlugin[] = [];
 
 		if (this.appConfig.processors?.size) {

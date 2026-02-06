@@ -8,7 +8,7 @@
 	},
 	"exclude": ["src/test", "**/*.test.ts"],
 	"publish": {
-		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json", "package.json"],
+		"include": ["src/**/*.ts", "src/**/*.css", "LICENSE", "README.md", "jsr.json", "package.json"],
 		"exclude": ["src/test"]
 	}
 }

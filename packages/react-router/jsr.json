@@ -3,10 +3,18 @@
 	"version": "0.1.101",
 	"exports": {
 		".": "./src/index.ts",
-		"./browser": "./browser.ts",
-		"./styles.css": "./src/styles.css"
+		"./browser": "./browser.ts"
 	},
 	"publish": {
-		"include": ["src/**/*.ts", "src/**/*.tsx", "browser.ts", "README.md", "LICENSE", "jsr.json", "package.json"]
+		"include": [
+			"src/**/*.ts",
+			"src/**/*.tsx",
+			"src/**/*.css",
+			"browser.ts",
+			"README.md",
+			"LICENSE",
+			"jsr.json",
+			"package.json"
+		]
 	}
 }

@@ -15,7 +15,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./client": "./src/client/eco-router.ts",
-		"./src/styles.css": "./src/styles.css"
+		"./styles.css": "./src/styles.css"
 	},
 	"files": [
 		"src"

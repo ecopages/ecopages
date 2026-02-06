@@ -6,8 +6,8 @@
 export { EcoRouter, PageContent } from './router.ts';
 export type { EcoRouterProps } from './router.ts';
 
-export { EcoPropsScript } from './props-script.tsx';
-export type { EcoPropsScriptProps } from './props-script.tsx';
+export { EcoPropsScript } from './props-script.ts';
+export type { EcoPropsScriptProps } from './props-script.ts';
 
 export { useRouter } from './context.ts';
 export type { RouterContextValue } from './context.ts';

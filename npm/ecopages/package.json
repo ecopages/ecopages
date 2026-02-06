@@ -1,6 +1,6 @@
 {
 	"name": "ecopages",
-	"version": "0.1.100",
+	"version": "0.1.101",
 	"description": "CLI utilities for Ecopages",
 	"type": "module",
 	"license": "MIT",

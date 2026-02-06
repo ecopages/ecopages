@@ -43,19 +43,19 @@ bunx ecopages init ecopages-app && cd blog-jsx && bun install && bun dev
 Blog template with kita html and routing
 
 ```sh
-bunx ecopages init blog-jsx —template blog-jsx && cd blog-jsx && bun install && bun dev
+bunx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install && bun dev
 ```
 
 Blog template with react and routing
 
 ```sh
-bunx ecopages init blog-react —template blog-react && cd blog-jsx && bun install && bun dev
+bunx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev
 ```
 
 App template with react, better auth, drizzle and routing
 
 ```sh
-bunx ecopages init with-react-better-auth —template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
+bunx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
 ```
 
 ## Core Concepts

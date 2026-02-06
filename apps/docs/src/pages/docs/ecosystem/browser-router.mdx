@@ -228,17 +228,26 @@ If `viewTransitions: true` is enabled, Ecopages will trigger a View Transition o
 
 #### Using Included Styles
 
-The package includes default fade and slide animations. Import them in your CSS:
+<Banner type="info">
+  <Banner.Title>CSS exported via ecopages npm package</Banner.Title>
+  <p>Due to a <a href="https://github.com/jsr-io/jsr/issues/293">JSR limitation</a>, CSS files cannot be exported from JSR packages. View transition styles are shipped via the <code>ecopages</code> npm package instead.</p>
+</Banner>
+
+The `ecopages` npm package includes default view transition animations. Import them in your CSS:
 
 ```css
-@import '@ecopages/browser-router/styles.css';
+@import 'ecopages/css/view-transitions.css';
 ```
 
 Then use the `data-eco-transition` attribute on elements to apply specific animations:
 
 | Value | Description |
 | :--- | :--- |
+| `fade` | Fades the element in and out during transition. |
 | `slide` | Slides the element horizontally during transition. |
+| `zoom` | Scales the element in and out during transition. |
+| `slide-up` | Slides the element vertically upward during transition. |
+| `slide-down` | Slides the element vertically downward during transition. |
 
 ```html
 <main data-eco-transition="slide">

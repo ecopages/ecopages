@@ -35,15 +35,15 @@ Ecopages is not a "React Framework". It is a static site generator that *support
 ## Quick starters
 
 ```sh
-buns ecopages init blog-jsx —template blog-jsx && cd blog-jsx && bun install && bun dev
+bunx ecopages init blog-jsx —template blog-jsx && cd blog-jsx && bun install && bun dev
 ```
 
 ```sh
-buns ecopages init blog-react —template blog-react && cd blog-jsx && bun install && bun dev
+bunx ecopages init blog-react —template blog-react && cd blog-jsx && bun install && bun dev
 ```
 
 ```sh
-buns ecopages init with-react-better-auth —template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
+bunx ecopages init with-react-better-auth —template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
 ```
 
 ## Core Concepts

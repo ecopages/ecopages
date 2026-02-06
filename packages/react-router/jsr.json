@@ -3,7 +3,8 @@
 	"version": "0.1.100",
 	"exports": {
 		".": "./src/index.ts",
-		"./browser": "./browser.ts"
+		"./browser": "./browser.ts",
+		"./styles.css": "./src/styles.css"
 	},
 	"publish": {
 		"include": ["src/**/*.ts", "src/**/*.tsx", "browser.ts", "README.md", "LICENSE", "jsr.json", "package.json"]

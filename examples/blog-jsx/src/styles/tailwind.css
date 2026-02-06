@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 @import './theme.css';
-@import '../../../../packages/browser-router/src/styles.css';
+@import '@ecopages/browser-router/styles.css';
 
 :root {
 	--text-lg: 1.75rem;

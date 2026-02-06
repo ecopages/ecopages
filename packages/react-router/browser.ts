@@ -9,8 +9,8 @@ export type { EcoRouterProps } from './src/router.ts';
 
 export { useRouter } from './src/context.ts';
 export type { RouterContextValue } from './src/context.ts';
-export { EcoPropsScript } from './src/props-script.tsx';
-export type { EcoPropsScriptProps } from './src/props-script.tsx';
+export { EcoPropsScript } from './src/props-script.ts';
+export type { EcoPropsScriptProps } from './src/props-script.ts';
 
 export { morphHead } from './src/head-morpher.ts';
 

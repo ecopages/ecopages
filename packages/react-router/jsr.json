@@ -6,15 +6,7 @@
 		"./browser": "./browser.ts"
 	},
 	"publish": {
-		"include": [
-			"src/**/*.ts",
-			"src/**/*.tsx",
-			"src/**/*.css",
-			"browser.ts",
-			"README.md",
-			"LICENSE",
-			"jsr.json",
-			"package.json"
-		]
+		"include": ["src/**/*.ts", "src/**/*.tsx", "browser.ts", "README.md", "LICENSE", "jsr.json", "package.json"],
+		"exclude": ["**/*.css"]
 	}
 }

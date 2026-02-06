@@ -3,12 +3,11 @@
 	"version": "0.1.101",
 	"exports": {
 		".": "./src/index.ts",
-		"./client": "./src/client/eco-router.ts",
-		"./styles.css": "./src/styles.css"
+		"./client": "./src/client/eco-router.ts"
 	},
-	"exclude": ["src/test", "**/*.test.ts"],
+	"exclude": ["src/test", "**/*.test.ts", "**/*.css"],
 	"publish": {
-		"include": ["src/**/*.ts", "src/**/*.css", "LICENSE", "README.md", "jsr.json", "package.json"],
-		"exclude": ["src/test"]
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json", "package.json"],
+		"exclude": ["src/test", "**/*.css"]
 	}
 }

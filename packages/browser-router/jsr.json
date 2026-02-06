@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/browser-router",
-	"version": "0.1.103",
+	"version": "0.1.104",
 	"exports": {
 		".": "./src/index.ts",
 		"./client": "./src/client/eco-router.ts"

@@ -32,15 +32,27 @@ Ecopages is not a "React Framework". It is a static site generator that *support
 - Use **Lit** for interactive UI elements that need to be lightweight and portable.
 - Use **React** ONLY when the user explicitly requests it or when integrating with libraries that require React (e.g., specific auth providers, complex data grids).
 
-## Quick starters
+## Quick starter
+
+Basic template with kita html and routing
+
+```sh
+bunx ecopages init ecopages-app && cd blog-jsx && bun install && bun dev
+```
+
+Blog template with kita html and routing
 
 ```sh
 bunx ecopages init blog-jsx —template blog-jsx && cd blog-jsx && bun install && bun dev
 ```
 
+Blog template with react and routing
+
 ```sh
 bunx ecopages init blog-react —template blog-react && cd blog-jsx && bun install && bun dev
 ```
+
+App template with react, better auth, drizzle and routing
 
 ```sh
 bunx ecopages init with-react-better-auth —template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev

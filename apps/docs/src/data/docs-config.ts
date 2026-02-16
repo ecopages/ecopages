@@ -73,6 +73,7 @@ export const docsConfig: DocsConfig = {
 			name: 'Ecosystem',
 			subdirectory: 'ecosystem',
 			pages: [
+				{ title: 'Ecopages CLI', slug: 'ecopages' },
 				{ title: 'Packages', slug: 'packages' },
 				{ title: 'Browser Router', slug: 'browser-router' },
 				{ title: 'React Router', slug: 'react-router' },

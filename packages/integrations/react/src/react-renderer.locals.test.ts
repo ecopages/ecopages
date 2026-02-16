@@ -44,20 +44,15 @@ describe('ReactRenderer locals split', () => {
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		const seen = {
-			pageLocals: undefined as unknown,
-			layoutLocals: undefined as unknown,
-		};
-
-		const Page = ((props: { locals?: unknown }) => {
-			seen.pageLocals = props.locals;
+		const pageRenderMock = mock((props: { locals?: unknown }) => {
 			return 'page' as unknown as ReactNode;
-		}) as IntegrationRendererRenderOptions<ReactNode>['Page'];
+		});
+		const Page = pageRenderMock as unknown as IntegrationRendererRenderOptions<ReactNode>['Page'];
 
-		const Layout = ((props: { children: ReactNode; locals?: unknown }) => {
-			seen.layoutLocals = props.locals;
+		const layoutRenderMock = mock((props: { children: ReactNode; locals?: unknown }) => {
 			return props.children as unknown as ReactNode;
-		}) as IntegrationRendererRenderOptions<ReactNode>['Layout'];
+		});
+		const Layout = layoutRenderMock as unknown as IntegrationRendererRenderOptions<ReactNode>['Layout'];
 
 		const guardedPageLocals = new Proxy(
 			{},
@@ -84,7 +79,7 @@ describe('ReactRenderer locals split', () => {
 			pageProps: {},
 		});
 
-		expect(seen.layoutLocals).toBeUndefined();
-		expect(seen.pageLocals).toBe(guardedPageLocals);
+		expect(pageRenderMock.mock.calls[0]?.[0]?.locals).toBe(guardedPageLocals);
+		expect(layoutRenderMock.mock.calls[0]?.[0]?.locals).toBeUndefined();
 	});
 });

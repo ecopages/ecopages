@@ -191,6 +191,57 @@ describe('IntegrationRenderer', () => {
 		expect(result.metadata?.title).toBe('Dynamic Title');
 	});
 
+	it('should keep layout locals safe and page locals guarded on static pages', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: mockAppConfig,
+			assetProcessingService: mockAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const mockPageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+
+		renderer.mockPageModule = {
+			default: mockPageIdx,
+		};
+		renderer.mockHtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+
+		const result = await renderer.testPrepareRenderOptions({
+			file: '/app/pages/static-page.ts',
+			params: {},
+			query: {},
+		});
+
+		expect(result.locals).toBeUndefined();
+		expect(() => (result.pageLocals as Record<string, unknown>).session).toThrow();
+	});
+
+	it('should provide both locals and pageLocals on dynamic pages', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: mockAppConfig,
+			assetProcessingService: mockAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const mockPageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		mockPageIdx.cache = 'dynamic';
+
+		renderer.mockPageModule = {
+			default: mockPageIdx,
+		};
+		renderer.mockHtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+
+		const incomingLocals = { session: { userId: 'u-1' } } as Record<string, unknown>;
+		const result = await renderer.testPrepareRenderOptions({
+			file: '/app/pages/dynamic-page.ts',
+			params: {},
+			query: {},
+			locals: incomingLocals,
+		});
+
+		expect(result.locals).toBe(incomingLocals);
+		expect(result.pageLocals).toBe(incomingLocals);
+	});
+
 	describe('renderToResponse', () => {
 		it('should render a view with default status 200', async () => {
 			const renderer = new TestIntegrationRenderer({

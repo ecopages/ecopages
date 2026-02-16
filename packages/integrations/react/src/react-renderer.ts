@@ -281,6 +281,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		query,
 		props,
 		locals,
+		pageLocals,
 		metadata,
 		Page,
 		Layout,
@@ -288,7 +289,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		pageProps,
 	}: IntegrationRendererRenderOptions<ReactNode>): Promise<RouteRendererBody> {
 		try {
-			const pageElement = createElement(Page, { params, query, ...props, locals });
+			const pageElement = createElement(Page, { params, query, ...props, locals: pageLocals });
 			const contentElement = Layout
 				? createElement(Layout as React.FunctionComponent, { locals } as object, pageElement)
 				: pageElement;

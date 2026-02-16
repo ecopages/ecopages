@@ -523,9 +523,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const effectiveCacheStrategy = cacheStrategy ?? defaultCacheStrategy;
 		const localsAvailable = effectiveCacheStrategy === 'dynamic' && options.locals !== undefined;
 
-		const locals = localsAvailable
+		const pageLocals = localsAvailable
 			? options.locals!
 			: (createLocalsProxy(options.file) as unknown as RouteRendererOptions['locals']);
+
+		const locals = localsAvailable ? options.locals : undefined;
 
 		return {
 			...options,
@@ -540,6 +542,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			query: options.query || {},
 			pageProps,
 			locals,
+			pageLocals,
 			cacheStrategy: (Page as EcoPageComponent<any>).cache,
 		};
 	}

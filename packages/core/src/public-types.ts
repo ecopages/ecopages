@@ -447,6 +447,20 @@ export type RequestPageContext = {
 };
 
 /**
+ * Adds optional `locals` to a props type.
+ * Primarily used for layouts that may receive request-scoped data from middleware.
+ *
+ * @template P - The base props type
+ *
+ * @example
+ * ```ts
+ * type MyLayoutProps = WithLocals<{ children: ReactNode }>;
+ * // { children: ReactNode; locals?: RequestLocals }
+ * ```
+ */
+export type WithLocals<P> = P & { locals?: RequestLocals };
+
+/**
  * Represents the params for a static path.
  */
 export type StaticPath = { params: PageParams };
@@ -614,6 +628,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	resolvedDependencies: ProcessedAsset[];
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
+	pageLocals?: RequestLocals;
 };
 
 /**

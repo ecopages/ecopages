@@ -24,14 +24,20 @@ export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 		params,
 		query,
 		props,
+		locals,
+		pageLocals,
 		metadata,
 		Page,
+		Layout,
 		HtmlTemplate,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
+			const pageContent = await Page({ params, query, ...props, locals: pageLocals });
+			const children =
+				Layout && typeof Layout === 'function' ? await Layout({ children: pageContent, locals }) : pageContent;
 			const body = await HtmlTemplate({
 				metadata,
-				children: await Page({ params, query, ...props }),
+				children,
 				pageProps: props || {},
 			});
 

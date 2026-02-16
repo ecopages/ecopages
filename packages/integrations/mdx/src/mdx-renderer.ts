@@ -116,6 +116,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		query,
 		props,
 		locals,
+		pageLocals,
 		metadata,
 		Page,
 		HtmlTemplate,
@@ -123,7 +124,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		pageProps,
 	}: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
 		try {
-			const pageContent = await Page({ params, query, ...props, locals });
+			const pageContent = await Page({ params, query, ...props, locals: pageLocals });
 			const children =
 				typeof Layout === 'function' ? await Layout({ children: pageContent, locals }) : pageContent;
 

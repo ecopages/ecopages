@@ -24,13 +24,14 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 		query,
 		props,
 		locals,
+		pageLocals,
 		metadata,
 		Page,
 		Layout,
 		HtmlTemplate,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
-			const pageContent = await Page({ params, query, ...props, locals });
+			const pageContent = await Page({ params, query, ...props, locals: pageLocals });
 			const children =
 				Layout && typeof Layout === 'function' ? await Layout({ children: pageContent, locals }) : pageContent;
 			const body = await HtmlTemplate({

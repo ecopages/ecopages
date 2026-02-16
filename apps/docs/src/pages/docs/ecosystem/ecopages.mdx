@@ -1,0 +1,153 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner.kita';
+
+export const config = {
+  layout: DocsLayout,
+};
+
+export const getMetadata = () => ({
+  title: 'Docs | ecopages CLI',
+  description: 'Use the official npm ecopages CLI to scaffold and run Ecopages projects with Bun',
+});
+
+# ecopages CLI
+
+The `ecopages` npm package is the official and preferred command-line tool for scaffolding and running Ecopages projects.
+
+It is best when you want:
+
+- **Fast project creation** from templates
+- **Consistent Bun commands** (`dev`, `build`, `preview`, `start`)
+- **A single entrypoint** for common local workflows
+
+<Banner type="warning">
+  <Banner.Title>Draft / Experimental</Banner.Title>
+  <p>The CLI is currently evolving. Keep versions pinned in team projects to ensure stable team workflows.</p>
+</Banner>
+
+## Install
+
+You can run the CLI directly with `bunx` (no global install required):
+
+```bash
+bunx ecopages --help
+```
+
+Or install it in a project:
+
+```bash
+bun add ecopages
+```
+
+## Initialize Projects
+
+### Interactive Init
+
+Use the base init command when you want to pick options interactively:
+
+```bash
+bunx ecopages init
+```
+
+### One-Shot Commands (Complete)
+
+Use these when you want a full bootstrap in one command chain.
+
+**Basic starter** - Creates a minimal Ecopages app with default setup. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/starter-jsx" target="_blank">starter-jsx</a>.
+
+```bash
+bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev
+```
+
+**Blog with KitaJS** - Creates a content-focused blog using the `blog-jsx` template. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/blog-jsx" target="_blank">blog-jsx</a>.
+
+```bash
+bunx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install && bun dev
+```
+
+**Blog with React** - Creates a React-powered blog with routing preconfigured. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/blog-react" target="_blank">blog-react</a>.
+
+```bash
+bunx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev
+```
+
+**React app with Better Auth + Drizzle** - Creates a full app starter with auth and database workflow included. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/with-react-better-auth" target="_blank">with-react-better-auth</a>.
+
+```bash
+bunx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
+```
+
+### Step-by-Step (Individual)
+
+#### 1) Basic starter
+
+```bash
+bunx ecopages init ecopages-app
+cd ecopages-app
+bun install
+bun dev
+```
+
+#### 2) Blog with KitaJS
+
+```bash
+bunx ecopages init blog-jsx --template blog-jsx
+cd blog-jsx
+bun install
+bun dev
+```
+
+#### 3) Blog with React
+
+```bash
+bunx ecopages init blog-react --template blog-react
+cd blog-react
+bun install
+bun dev
+```
+
+#### 4) React app with Better Auth + Drizzle
+
+```bash
+bunx ecopages init with-react-better-auth --template with-react-better-auth
+cd with-react-better-auth
+bun install
+bun db:generate
+bun db:migrate
+bun dev
+```
+
+## CLI Commands
+
+For Ecopages apps, prefer these commands over calling `bun run app.ts` flags directly.
+
+| Command | Purpose |
+| :--- | :--- |
+| `ecopages init <dir>` | Scaffold a new Ecopages app |
+| `ecopages dev [entry]` | Start dev server |
+| `ecopages dev:watch [entry]` | Start dev server with restart-on-change |
+| `ecopages dev:hot [entry]` | Start dev server with hot reload |
+| `ecopages build [entry]` | Build production output |
+| `ecopages preview [entry]` | Preview production build |
+| `ecopages start [entry]` | Start production server |
+
+> **Note:** `[entry]` defaults to `app.ts`.
+
+## Environment Overrides
+
+Server commands support flags that map to environment variables:
+
+| Option | Environment Variable | Description |
+| :--- | :--- | :--- |
+| `-p, --port <port>` | `ECOPAGES_PORT` | Server port (default `3000`) |
+| `-n, --hostname <host>` | `ECOPAGES_HOSTNAME` | Server hostname |
+| `-b, --base-url <url>` | `ECOPAGES_BASE_URL` | Public base URL |
+| `-d, --debug` | `ECOPAGES_LOGGER_DEBUG` | Enable debug logs |
+| `-r, --react-fast-refresh` | - | Enable React Fast Refresh |
+
+## When To Use `ecopages` vs JSR Packages
+
+- Use **`ecopages` CLI** for scaffolding and local app lifecycle commands.
+- Use **`@ecopages/*` packages** from JSR for framework APIs in app code.
+
+For the complete package map, see [Ecosystem Packages](/docs/ecosystem/packages).

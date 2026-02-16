@@ -11,17 +11,40 @@ export const getMetadata = () => ({
 
 # CLI Reference
 
-The Ecopages CLI is your main tool for developing, building, and serving your application. You typically run it via a script file (e.g., `app.ts`) using Bun.
+The Ecopages CLI is the canonical command-line interface for scaffolding, developing, building, and serving Ecopages apps.
+
+Run it with `bunx` (recommended for one-off usage):
+
+```bash
+bunx ecopages --help
+```
+
+Or install it in your app and run via scripts:
+
+```bash
+bun add ecopages
+```
 
 ## Commands
 
-Ecopages supports four main commands that determine the server's behavior.
+Ecopages supports app lifecycle and scaffolding commands.
+
+### `init <dir>`
+Scaffolds a new Ecopages project.
+- Supports interactive setup and templates.
+- Example: `ecopages init my-app --template starter-jsx`.
 
 ### `dev`
 Starts the development server.
 - Enables **Hot Module Replacement (HMR)**.
 - Enables file watching for automatic reloads.
 - Uses `http://localhost:3000` by default (unless overridden).
+
+### `dev:watch`
+Starts the development server with restart-on-change behavior.
+
+### `dev:hot`
+Starts the development server with hot reload behavior.
 
 ### `build`
 Generates a static production build of your project.
@@ -40,6 +63,8 @@ Starts the production server using the existing build in the `.eco` directory.
 - Does not watch files for changes.
 - optimized for performance.
 
+> **Note:** Commands that accept `[entry]` default to `app.ts` when omitted.
+
 ---
 
 ## Global Flags
@@ -52,6 +77,18 @@ These flags can be appended to any command to override default behavior.
 | `--build` | `boolean` | Forces build mode regardless of the command. |
 | `--preview` | `boolean` | Forces preview mode regardless of the command. |
 | `--react-fast-refresh` | `boolean` | Enables React Fast Refresh during development. |
+
+### Server Flags
+
+These flags are supported by server commands and map to environment variables.
+
+| Flag | Environment Variable | Description |
+| :--- | :--- | :--- |
+| `-p, --port <port>` | `ECOPAGES_PORT` | Server port (default `3000`) |
+| `-n, --hostname <host>` | `ECOPAGES_HOSTNAME` | Server hostname |
+| `-b, --base-url <url>` | `ECOPAGES_BASE_URL` | Public base URL |
+| `-d, --debug` | `ECOPAGES_LOGGER_DEBUG` | Enable debug logs |
+| `-r, --react-fast-refresh` | - | Enable React Fast Refresh |
 
 ---
 
@@ -84,17 +121,27 @@ Used to determine where the server listens.
 
 ## Example Usage
 
+### Show CLI help
+```bash
+bunx ecopages --help
+```
+
+### Initialize a starter app
+```bash
+bunx ecopages init ecopages-app
+```
+
 ### Run development server
 ```bash
-bun run app.ts dev
+bunx ecopages dev
 ```
 
 ### Build for production with a specific base URL
 ```bash
-ECOPAGES_BASE_URL=https://my-site.com bun run app.ts build
+ECOPAGES_BASE_URL=https://my-site.com bunx ecopages build
 ```
 
 ### Start the production server
 ```bash
-NODE_ENV=production bun run app.ts start
+NODE_ENV=production bunx ecopages start
 ```

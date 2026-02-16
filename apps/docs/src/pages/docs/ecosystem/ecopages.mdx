@@ -117,33 +117,11 @@ bun db:migrate
 bun dev
 ```
 
-## CLI Commands
+## Command Details
 
-For Ecopages apps, prefer these commands over calling `bun run app.ts` flags directly.
+This page focuses on setup and project bootstrapping.
 
-| Command | Purpose |
-| :--- | :--- |
-| `ecopages init <dir>` | Scaffold a new Ecopages app |
-| `ecopages dev [entry]` | Start dev server |
-| `ecopages dev:watch [entry]` | Start dev server with restart-on-change |
-| `ecopages dev:hot [entry]` | Start dev server with hot reload |
-| `ecopages build [entry]` | Build production output |
-| `ecopages preview [entry]` | Preview production build |
-| `ecopages start [entry]` | Start production server |
-
-> **Note:** `[entry]` defaults to `app.ts`.
-
-## Environment Overrides
-
-Server commands support flags that map to environment variables:
-
-| Option | Environment Variable | Description |
-| :--- | :--- | :--- |
-| `-p, --port <port>` | `ECOPAGES_PORT` | Server port (default `3000`) |
-| `-n, --hostname <host>` | `ECOPAGES_HOSTNAME` | Server hostname |
-| `-b, --base-url <url>` | `ECOPAGES_BASE_URL` | Public base URL |
-| `-d, --debug` | `ECOPAGES_LOGGER_DEBUG` | Enable debug logs |
-| `-r, --react-fast-refresh` | - | Enable React Fast Refresh |
+For the complete command, flag, and environment variable reference, see [CLI Reference](/docs/reference/cli-reference).
 
 ## When To Use `ecopages` vs JSR Packages
 

@@ -34,13 +34,25 @@ Ecopages is not a "React Framework". It is a static site generator that *support
 
 ## Quick starter
 
-Basic template with kita html and routing
+### Interactive init
 
 ```sh
-bunx ecopages init ecopages-app && cd blog-jsx && bun install && bun dev
+bunx ecopages init
+```
+
+### One-shot (complete)
+
+Basic template with kita html and routing
+
+Creates a minimal starter and immediately runs the dev server. Example: https://github.com/ecopages/ecopages/tree/main/examples/starter-jsx
+
+```sh
+bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev
 ```
 
 Blog template with kita html and routing
+
+Creates a content-focused blog using the KitaJS stack. Example: https://github.com/ecopages/ecopages/tree/main/examples/blog-jsx
 
 ```sh
 bunx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install && bun dev
@@ -48,14 +60,58 @@ bunx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install &&
 
 Blog template with react and routing
 
+Creates a React blog starter with routing preconfigured. Example: https://github.com/ecopages/ecopages/tree/main/examples/blog-react
+
 ```sh
 bunx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev
 ```
 
 App template with react, better auth, drizzle and routing
 
+Creates a full-stack starter with auth and database migration workflow. Example: https://github.com/ecopages/ecopages/tree/main/examples/with-react-better-auth
+
 ```sh
 bunx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
+```
+
+### Individual steps
+
+Basic template with kita html and routing
+
+```sh
+bunx ecopages init ecopages-app
+cd ecopages-app
+bun install
+bun dev
+```
+
+Blog template with kita html and routing
+
+```sh
+bunx ecopages init blog-jsx --template blog-jsx
+cd blog-jsx
+bun install
+bun dev
+```
+
+Blog template with react and routing
+
+```sh
+bunx ecopages init blog-react --template blog-react
+cd blog-react
+bun install
+bun dev
+```
+
+App template with react, better auth, drizzle and routing
+
+```sh
+bunx ecopages init with-react-better-auth --template with-react-better-auth
+cd with-react-better-auth
+bun install
+bun db:generate
+bun db:migrate
+bun dev
 ```
 
 ## Core Concepts
@@ -168,15 +224,15 @@ await app.start();
 
 ### 4. Package.json Scripts
 
-Add these scripts to `package.json`:
+Add these scripts to `package.json` (preferred: use `ecopages` CLI commands):
 
 ```json
 {
   "scripts": {
-    "dev": "bun run app.ts --dev",
-    "build": "NODE_ENV=production bun run app.ts --build",
-    "preview": "NODE_ENV=production bun run app.ts --preview",
-    "start": "NODE_ENV=production bun run app.ts"
+    "dev": "ecopages dev",
+    "build": "NODE_ENV=production ecopages build",
+    "preview": "NODE_ENV=production ecopages preview",
+    "start": "NODE_ENV=production ecopages start"
   }
 }
 ```

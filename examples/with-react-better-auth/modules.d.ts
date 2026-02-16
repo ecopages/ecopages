@@ -2,6 +2,7 @@
 /// <reference types="@ecopages/core/env" />
 /// <reference types="@ecopages/image-processor/types" />
 
+import type { RequestLocals } from '@ecopages/core';
 import type { Session } from './src/handlers/auth.server';
 
 declare module '@ecopages/core' {

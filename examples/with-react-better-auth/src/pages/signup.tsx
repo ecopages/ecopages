@@ -13,12 +13,12 @@ export default eco.page({
 	}),
 	render: () => (
 		<div className="mx-auto max-w-md">
-			<h1 className="text-3xl font-bold tracking-tight text-[var(--color-on-background)]">Create account</h1>
-			<p className="mt-2 text-[var(--color-muted)]">Enter your details to get started.</p>
+			<h1 className="text-3xl font-bold tracking-tight text-color-on-background">Create account</h1>
+			<p className="mt-2 text-color-muted">Enter your details to get started.</p>
 			<SignupForm />
-			<p className="mt-6 text-center text-sm text-[var(--color-muted)]">
+			<p className="mt-6 text-center text-sm text-color-muted">
 				Already have an account?{' '}
-				<a href="/login" className="font-medium text-[var(--color-link)] hover:underline">
+				<a href="/login" className="font-medium text-color-link hover:underline">
 					Sign in
 				</a>
 			</p>

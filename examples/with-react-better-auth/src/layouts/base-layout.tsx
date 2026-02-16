@@ -2,20 +2,16 @@ import type { ReactNode } from 'react';
 import { AuthNav } from '@/components/auth-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { AnnouncementBar } from '@/components/announcement-bar';
-import { eco } from '@ecopages/core';
-import type { Session } from '@/handlers/auth.server';
+import { eco, type WithLocals } from '@ecopages/core';
 
-type BaseLayoutProps = {
-	children: ReactNode;
-	session?: Session | null;
-};
+type BaseLayoutProps = WithLocals<{ children: ReactNode }>;
 
 export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		components: [AuthNav, ThemeToggle, AnnouncementBar],
 	},
-	render: ({ children, session }) => {
+	render: ({ children, locals }) => {
 		return (
 			<div className="layout">
 				<AnnouncementBar slideDown />
@@ -25,7 +21,7 @@ export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 							Ecopages
 						</a>
 						<div className="layout__nav-items">
-							<AuthNav session={session} />
+							<AuthNav initialSession={locals?.session} />
 							<ThemeToggle />
 						</div>
 					</nav>

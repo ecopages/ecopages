@@ -2,20 +2,25 @@
 
 import { authClient } from '@/lib/auth-client';
 import { eco } from '@ecopages/core';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { Session } from '@/handlers/auth.server';
 
 type AuthNavProps = {
-	session?: Session | null;
+	initialSession?: Session | null;
 };
 
 export const AuthNav = eco.component<AuthNavProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./auth-nav.css'],
 	},
-	render: ({ session: serverSession }) => {
-		const { data: clientSession } = authClient.useSession();
-		const session = clientSession ?? serverSession;
+	render: ({ initialSession }) => {
+		const { data: clientSession, isPending } = authClient.useSession();
+
+		if (isPending && !initialSession) {
+			return null;
+		}
+
+		const session = clientSession ?? initialSession;
 
 		if (session?.user) {
 			return (

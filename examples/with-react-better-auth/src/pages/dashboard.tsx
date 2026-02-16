@@ -1,10 +1,10 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { DashboardContent } from '@/components/dashboard-content';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { authMiddleware } from '@/handlers/auth.server';
 
-export default eco.page<{}, ReactNode>({
+export default eco.page<Record<string, never>, ReactNode>({
 	layout: BaseLayout,
 	cache: 'dynamic',
 	dependencies: {

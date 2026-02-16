@@ -108,6 +108,15 @@ The app uses Better Auth with email/password authentication:
 - **Sign in**: `/login` - Sign in to your account
 - **Dashboard**: `/dashboard` - Protected route (requires authentication)
 
+### Layout Strategy
+
+All pages share a single `BaseLayout` that uses `AuthNav` — a client-side session-aware navigation component.
+
+- Pages with auth middleware (e.g. `/dashboard`) pass `locals.session` for instant SSR rendering.
+- Pages without middleware (e.g. `/skills`) let `AuthNav` resolve the session client-side on hydration via `authClient.useSession()`.
+
+This ensures the nav always reflects the actual auth state, regardless of the page type.
+
 ## Database
 
 The app uses SQLite with Drizzle ORM. The database file (`sqlite.db`) is created automatically on first run.

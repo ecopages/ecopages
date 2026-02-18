@@ -16,8 +16,10 @@ import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../services/schema-validation-service.ts';
+import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { AbstractServerAdapter, type ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { HttpError } from '../../errors/http-error.ts';
+import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
 import { ExplicitStaticRouteMatcher } from '../shared/explicit-static-route-matcher.ts';
 import { ApiResponseBuilder } from '../shared/api-response.js';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
@@ -62,6 +64,8 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 	private fileSystemResponseMatcher!: FileSystemResponseMatcher;
 	private routeRendererFactory!: RouteRendererFactory;
 	private routeHandler!: ServerRouteHandler;
+	private staticSiteGenerator!: StaticSiteGenerator;
+	private staticBuilder!: ServerStaticBuilder;
 	private readonly schemaValidator = new SchemaValidationService();
 
 	constructor(options: NodeServerAdapterParams) {
@@ -74,6 +78,12 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 	public async initialize(): Promise<void> {
 		await this.initRouter();
 		this.configureResponseHandlers();
+		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
+		this.staticBuilder = new ServerStaticBuilder({
+			appConfig: this.appConfig,
+			staticSiteGenerator: this.staticSiteGenerator,
+			serveOptions: this.serveOptions,
+		});
 		this.initialized = true;
 	}
 
@@ -154,8 +164,20 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 		};
 	}
 
-	public async buildStatic(): Promise<void> {
-		throw new Error('NodeServerAdapter.buildStatic is not implemented yet');
+	public async buildStatic(options?: { preview?: boolean }): Promise<void> {
+		if (options?.preview) {
+			throw new Error('Node preview mode is not implemented yet');
+		}
+
+		if (!this.initialized) {
+			await this.initialize();
+		}
+
+		await this.staticBuilder.build(options, {
+			router: this.router,
+			routeRendererFactory: this.routeRendererFactory,
+			staticRoutes: this.staticRoutes,
+		});
 	}
 
 	public async createAdapter(): Promise<NodeServerAdapterResult> {

@@ -43,7 +43,7 @@ export class StaticContentServer {
 			});
 		}
 
-		const response = new Response(Bun.file(error404TemplatePath) as BodyInit, {
+		const response = new Response(fileSystem.readFileAsBuffer(error404TemplatePath) as BodyInit, {
 			headers: { 'Content-Type': 'text/html' },
 		});
 

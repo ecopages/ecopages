@@ -27,6 +27,7 @@ import { createRenderContext } from '../shared/render-context.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
 
 export type NodeServerInstance = NodeHttpServer;
+type NodeApiRequest = Request & { params?: Record<string, string | string[]> };
 
 export type NodeServeAdapterServerOptions = {
 	port?: number;
@@ -296,14 +297,13 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 		routeConfig: ApiHandler,
 		params: Record<string, string | string[]>,
 	): Promise<Response> {
-		let context: ApiHandlerContext<Request, NodeServerInstance | null> | undefined;
+		let context: ApiHandlerContext<NodeApiRequest, NodeServerInstance | null> | undefined;
 
 		try {
 			const middleware = routeConfig.middleware || [];
 			const schema = routeConfig.schema;
 			const locals: Record<string, unknown> = {};
-			const requestWithParams = request as Request & { params?: Record<string, string | string[]> };
-			requestWithParams.params = params;
+			const requestWithParams = this.attachRouteParams(request, params);
 
 			context = {
 				request: requestWithParams,
@@ -382,7 +382,7 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 					if (!context) {
 						const locals: Record<string, unknown> = {};
 						context = {
-							request,
+							request: this.attachRouteParams(request, params),
 							response: new ApiResponseBuilder(),
 							server: this.serverInstance,
 							locals,
@@ -405,6 +405,12 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 			appLogger.error(`[ecopages] Error handling API request: ${error}`);
 			return new Response('Internal Server Error', { status: 500 });
 		}
+	}
+
+	private attachRouteParams(request: Request, params: Record<string, string | string[]>): NodeApiRequest {
+		const requestWithParams = request as NodeApiRequest;
+		requestWithParams.params = params;
+		return requestWithParams;
 	}
 
 	public async handleRequest(_request: Request): Promise<Response> {

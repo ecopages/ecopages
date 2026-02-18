@@ -416,7 +416,7 @@ export class ConfigBuilder {
 			return;
 		}
 
-		const envBaseUrl = import.meta.env.ECOPAGES_BASE_URL;
+		const envBaseUrl = process.env.ECOPAGES_BASE_URL;
 
 		if (envBaseUrl) {
 			this.config.baseUrl = envBaseUrl;

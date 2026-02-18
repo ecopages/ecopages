@@ -12,6 +12,14 @@ export function getRuntimeArgv(): string[] {
 	return process.argv;
 }
 
+export function isDevelopmentRuntime(): boolean {
+	return process.env.NODE_ENV === 'development';
+}
+
+export function isProductionRuntime(): boolean {
+	return process.env.NODE_ENV === 'production';
+}
+
 export function runtimeHash(content: string | Buffer<ArrayBufferLike>): number | bigint {
 	const bun = getBunRuntime();
 

@@ -1,7 +1,7 @@
-import type { BunPlugin } from 'bun';
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../../../constants';
 import { fileSystem } from '@ecopages/file-system';
+import type { EcoBuildPlugin } from '../../../../build/build-types.ts';
 import type { IHmrManager } from '../../../../internal-types';
 import { stripServerOnlyPlugin } from '../../../../plugins/strip-server-only-plugin';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types';
@@ -10,7 +10,7 @@ import { BaseScriptProcessor } from '../base/base-script-processor';
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	private hmrManager?: IHmrManager;
 
-	protected override collectBuildPlugins(): BunPlugin[] {
+	protected override collectBuildPlugins(): EcoBuildPlugin[] {
 		return [
 			stripServerOnlyPlugin({ pagesDir: this.appConfig.absolutePaths.pagesDir }),
 			...super.collectBuildPlugins(),

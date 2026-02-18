@@ -1,8 +1,9 @@
-import type { BunPlugin, WebSocketHandler, ServerWebSocket } from 'bun';
+import type { WebSocketHandler, ServerWebSocket } from 'bun';
 import fs from 'node:fs';
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../internal-types';
+import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { HmrStrategy } from '../../hmr/hmr-strategy';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy';
@@ -27,7 +28,7 @@ export class HmrManager implements IHmrManager {
 	/** bare specifier -> vendor URL (e.g., 'react' -> '/assets/vendors/react-esm.js') */
 	private specifierMap = new Map<string, string>();
 	private distDir: string;
-	private plugins: BunPlugin[] = [];
+	private plugins: EcoBuildPlugin[] = [];
 	private enabled = true;
 	private strategies: HmrStrategy[] = [];
 	private wsHandler!: {
@@ -69,7 +70,7 @@ export class HmrManager implements IHmrManager {
 		this.strategies.push(strategy);
 	}
 
-	public setPlugins(plugins: BunPlugin[]): void {
+	public setPlugins(plugins: EcoBuildPlugin[]): void {
 		const corePlugin = stripServerOnlyPlugin({ pagesDir: this.appConfig.absolutePaths.pagesDir });
 		this.plugins = [corePlugin, ...plugins];
 	}
@@ -199,7 +200,7 @@ export class HmrManager implements IHmrManager {
 		return this.distDir;
 	}
 
-	public getPlugins(): BunPlugin[] {
+	public getPlugins(): EcoBuildPlugin[] {
 		return this.plugins;
 	}
 

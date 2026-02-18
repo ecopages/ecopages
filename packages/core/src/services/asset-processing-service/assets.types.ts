@@ -1,4 +1,4 @@
-import type { BunPlugin } from 'bun';
+import type { EcoBuildPlugin } from '../../build/build-types.ts';
 
 export type AssetSource = 'content' | 'file' | 'node-module';
 export type AssetKind = 'script' | 'stylesheet';
@@ -19,7 +19,7 @@ export interface ScriptAsset extends BaseAsset {
 		minify?: boolean;
 		external?: string[];
 		naming?: string;
-		plugins?: BunPlugin[];
+		plugins?: EcoBuildPlugin[];
 	};
 	/**
 	 * Whether to exclude this asset from the HTML output.

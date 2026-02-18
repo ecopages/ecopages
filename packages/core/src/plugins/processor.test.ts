@@ -1,13 +1,13 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import fs from 'node:fs';
-import type { BunPlugin } from 'bun';
+import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { Processor, type ProcessorConfig } from './processor';
 
 class TestProcessor extends Processor {
-	buildPlugins?: BunPlugin[] = [];
-	plugins?: BunPlugin[] = [];
+	buildPlugins?: EcoBuildPlugin[] = [];
+	plugins?: EcoBuildPlugin[] = [];
 
 	async setup(): Promise<void> {}
 	async process(input: unknown): Promise<unknown> {

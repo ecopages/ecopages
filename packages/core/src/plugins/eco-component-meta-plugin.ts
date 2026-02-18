@@ -27,8 +27,8 @@
  */
 
 import path from 'node:path';
-import type { BunPlugin } from 'bun';
 import { parseSync } from 'oxc-parser';
+import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { rapidhash } from '../utils/hash.ts';
@@ -178,7 +178,7 @@ export interface EcoComponentDirPluginOptions {
  * await Bun.plugin(plugin);
  * ```
  */
-export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): BunPlugin {
+export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {
 	return {
 		name: 'eco-component-meta-plugin',
 		setup(build) {

@@ -1,6 +1,6 @@
 import type { Readable } from 'node:stream';
-import type { BunPlugin } from 'bun';
 import type { ApiResponseBuilder } from './adapters/shared/api-response.js';
+import type { EcoBuildPlugin } from './build/build-types.ts';
 import type { EcoPageComponent } from './eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from './hmr/hmr-strategy.ts';
@@ -78,9 +78,9 @@ export interface DefaultHmrContext {
 	getDistDir(): string;
 
 	/**
-	 * Bun plugins to use during bundling.
+	 * Build plugins to use during bundling.
 	 */
-	getPlugins(): BunPlugin[];
+	getPlugins(): EcoBuildPlugin[];
 
 	/**
 	 * Absolute path to the source directory.
@@ -143,9 +143,9 @@ export interface IHmrManager {
 	registerStrategy(strategy: HmrStrategy): void;
 
 	/**
-	 * Sets the Bun plugins to use during bundling.
+	 * Sets the build plugins to use during bundling.
 	 */
-	setPlugins(plugins: BunPlugin[]): void;
+	setPlugins(plugins: EcoBuildPlugin[]): void;
 
 	/**
 	 * Enables or disables HMR.
@@ -183,9 +183,9 @@ export interface IHmrManager {
 	getDistDir(): string;
 
 	/**
-	 * Gets the Bun plugins.
+	 * Gets the build plugins.
 	 */
-	getPlugins(): BunPlugin[];
+	getPlugins(): EcoBuildPlugin[];
 
 	/**
 	 * Gets the default HMR context.

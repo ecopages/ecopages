@@ -71,6 +71,30 @@ export class NodeEcopagesApp extends AbstractApplicationAdapter<NodeEcopagesAppO
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
 
+	public async stop(force = true): Promise<void> {
+		if (!this.server) {
+			return;
+		}
+
+		const activeServer = this.server;
+		this.server = null;
+
+		await new Promise<void>((resolve, reject) => {
+			activeServer.close((error) => {
+				if (error) {
+					reject(error);
+					return;
+				}
+
+				resolve();
+			});
+
+			if (force) {
+				activeServer.closeAllConnections();
+			}
+		});
+	}
+
 	private register(
 		path: string,
 		method: ApiHandler['method'],
@@ -317,7 +341,14 @@ export class NodeEcopagesApp extends AbstractApplicationAdapter<NodeEcopagesAppO
 		const { build, preview } = this.cliArgs;
 
 		if (build || preview) {
+			appLogger.debugTime('Building static pages');
 			await this.serverAdapter.buildStatic({ preview });
+			await this.stop(true);
+			appLogger.debugTimeEnd('Building static pages');
+
+			if (build) {
+				process.exit(0);
+			}
 			return;
 		}
 

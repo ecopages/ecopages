@@ -1,11 +1,19 @@
 import { createHash } from 'node:crypto';
 
-type RuntimeBun = {
-	hash: (content: string | Buffer<ArrayBufferLike>) => number | bigint;
-};
+type RuntimeBun = typeof Bun;
 
-function getBunRuntime(): RuntimeBun | undefined {
+export function getBunRuntime(): RuntimeBun | undefined {
 	return (globalThis as { Bun?: RuntimeBun }).Bun;
+}
+
+export function getRequiredBunRuntime(): RuntimeBun {
+	const bun = getBunRuntime();
+
+	if (!bun) {
+		throw new Error('Bun runtime is required');
+	}
+
+	return bun;
 }
 
 export function getRuntimeArgv(): string[] {

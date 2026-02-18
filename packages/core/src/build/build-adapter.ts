@@ -1,5 +1,6 @@
 import type { BunPlugin } from 'bun';
 import type { EcoBuildPlugin } from './build-types.ts';
+import { getRequiredBunRuntime } from '../utils/runtime.ts';
 
 export interface BuildLog {
 	message: string;
@@ -47,7 +48,8 @@ export interface BuildAdapter {
 
 export class BunBuildAdapter implements BuildAdapter {
 	async build(options: BuildOptions): Promise<BuildResult> {
-		const result = await Bun.build({
+		const bun = getRequiredBunRuntime();
+		const result = await bun.build({
 			...options,
 			plugins: options.plugins as BunPlugin[] | undefined,
 		} as Bun.BuildConfig);
@@ -60,11 +62,11 @@ export class BunBuildAdapter implements BuildAdapter {
 	}
 
 	resolve(importPath: string, rootDir: string): string {
-		return Bun.resolveSync(importPath, rootDir);
+		return getRequiredBunRuntime().resolveSync(importPath, rootDir);
 	}
 
 	registerPlugin(plugin: EcoBuildPlugin): void {
-		Bun.plugin(plugin as BunPlugin);
+		getRequiredBunRuntime().plugin(plugin as BunPlugin);
 	}
 
 	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {

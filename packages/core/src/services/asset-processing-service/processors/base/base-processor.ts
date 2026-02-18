@@ -1,8 +1,9 @@
 import path from 'node:path';
-import { RESOLVED_ASSETS_DIR } from '../../../../constants';
-import type { EcoPagesAppConfig } from '../../../../internal-types';
-import { rapidhash } from '../../../../utils/hash';
-import type { BaseAsset, ProcessedAsset } from '../../assets.types';
+import { RESOLVED_ASSETS_DIR } from '../../../../constants.ts';
+import type { EcoPagesAppConfig } from '../../../../internal-types.ts';
+import { rapidhash } from '../../../../utils/hash.ts';
+import { isDevelopmentRuntime, isProductionRuntime } from '../../../../utils/runtime.ts';
+import type { BaseAsset, ProcessedAsset } from '../../assets.types.ts';
 
 export abstract class BaseProcessor<T extends BaseAsset> {
 	protected appConfig: EcoPagesAppConfig;
@@ -18,11 +19,11 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 	}
 
 	get isDevelopment(): boolean {
-		return import.meta.env.NODE_ENV === 'development';
+		return isDevelopmentRuntime();
 	}
 
 	get isProduction(): boolean {
-		return import.meta.env.NODE_ENV === 'production';
+		return isProductionRuntime();
 	}
 
 	abstract process(dep: T): Promise<ProcessedAsset>;

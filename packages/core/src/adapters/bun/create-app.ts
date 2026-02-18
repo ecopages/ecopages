@@ -535,8 +535,8 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 		const { dev } = this.cliArgs;
 		const { port: cliPort, hostname: cliHostname } = this.cliArgs;
 
-		const envPort = import.meta.env.ECOPAGES_PORT ? import.meta.env.ECOPAGES_PORT : undefined;
-		const envHostname = import.meta.env.ECOPAGES_HOSTNAME;
+		const envPort = process.env.ECOPAGES_PORT ? process.env.ECOPAGES_PORT : undefined;
+		const envHostname = process.env.ECOPAGES_HOSTNAME;
 
 		const preferredPort = cliPort ?? envPort ?? DEFAULT_ECOPAGES_PORT;
 		const preferredHostname = cliHostname ?? envHostname ?? DEFAULT_ECOPAGES_HOSTNAME;

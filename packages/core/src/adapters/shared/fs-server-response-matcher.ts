@@ -10,6 +10,7 @@ import { ServerUtils } from '../../utils/server-utils.module.ts';
 import type { ApiHandlerContext, Middleware, RequestLocals } from '../../public-types.ts';
 import { ApiResponseBuilder } from './api-response.js';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
+import { isDevelopmentRuntime } from '../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
 export interface FileSystemResponseMatcherOptions {
@@ -201,7 +202,7 @@ export class FileSystemResponseMatcher {
 				});
 			}
 			if (error instanceof Error) {
-				if (import.meta.env.NODE_ENV === 'development' || appLogger.isDebugEnabled()) {
+				if (isDevelopmentRuntime() || appLogger.isDebugEnabled()) {
 					appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.pathname}`);
 				}
 			}

@@ -81,7 +81,7 @@ export class ProjectWatcher {
 			if (fileSystem.exists(filePath)) {
 				const destDir = path.dirname(destPath);
 				fileSystem.ensureDir(destDir);
-				await Bun.write(destPath, Bun.file(filePath));
+				await fileSystem.copyFileAsync(filePath, destPath);
 			}
 
 			this.bridge.reload();

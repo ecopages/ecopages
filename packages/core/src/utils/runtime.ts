@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 
 type RuntimeBun = {
-	argv: string[];
 	hash: (content: string | Buffer<ArrayBufferLike>) => number | bigint;
 };
 
@@ -10,7 +9,7 @@ function getBunRuntime(): RuntimeBun | undefined {
 }
 
 export function getRuntimeArgv(): string[] {
-	return getBunRuntime()?.argv ?? process.argv;
+	return process.argv;
 }
 
 export function runtimeHash(content: string | Buffer<ArrayBufferLike>): number | bigint {

@@ -8,6 +8,7 @@
  */
 
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy';
 import { appLogger } from '../../global/app-logger';
 import { defaultBuildAdapter } from '../../build/build-adapter.ts';
@@ -206,7 +207,7 @@ export class JsHmrStrategy extends HmrStrategy {
 	 */
 	private async processOutput(filepath: string, url: string): Promise<{ success: boolean; requiresReload: boolean }> {
 		try {
-			let code = await Bun.file(filepath).text();
+			let code = await fileSystem.readFile(filepath);
 
 			if (code.includes('/* [ecopages] hmr */')) {
 				/**
@@ -217,7 +218,7 @@ export class JsHmrStrategy extends HmrStrategy {
 			}
 
 			code = this.replaceBareSpecifiers(code);
-			await Bun.write(filepath, code);
+			await fileSystem.writeAsync(filepath, code);
 
 			appLogger.debug(`[JsHmrStrategy] Processed ${url}`);
 

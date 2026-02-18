@@ -13,7 +13,7 @@ import type postcss from 'postcss';
 import { getFileAsBuffer, PostCssProcessor } from './postcss-processor';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
-	debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
 });
 
 /**

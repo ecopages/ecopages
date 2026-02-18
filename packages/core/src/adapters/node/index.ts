@@ -1,6 +1,6 @@
 export { NodeServerAdapter, createNodeServerAdapter } from './server-adapter.ts';
-export { NodeEcopagesApp, createNodeApp } from './create-app.ts';
-export type { NodeEcopagesAppOptions } from './create-app.ts';
+export { EcopagesApp, NodeEcopagesApp, createNodeApp } from './create-app.ts';
+export type { EcopagesAppOptions, NodeEcopagesAppOptions } from './create-app.ts';
 export type {
 	NodeServerAdapterParams,
 	NodeServerAdapterResult,

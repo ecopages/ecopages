@@ -124,6 +124,14 @@
 			"types": "./src/adapters/bun/client-bridge.ts",
 			"default": "./src/adapters/bun/client-bridge.ts"
 		},
+		"./adapters/node": {
+			"types": "./src/adapters/node/index.ts",
+			"default": "./src/adapters/node/index.ts"
+		},
+		"./adapters/node/server-adapter": {
+			"types": "./src/adapters/node/server-adapter.ts",
+			"default": "./src/adapters/node/server-adapter.ts"
+		},
 		"./html": {
 			"import": "./src/utils/html.ts",
 			"require": "./src/utils/html.ts"

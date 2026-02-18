@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 import { Command } from 'commander';
 import { existsSync, readFileSync } from 'node:fs';
@@ -57,21 +57,17 @@ function buildEnvOverrides(options) {
 	return env;
 }
 
-/**
- * Execute a bun command with the given arguments and options.
- * Automatically detects eco.config.ts and applies preloads.
- * @param {string[]} args - Arguments to pass to the entry file
- * @param {object} options - CLI options (watch, hot, port, hostname, etc.)
- * @param {string} entryFile - Entry file to run
- */
-function runBunCommand(args, options = {}, entryFile = 'app.ts') {
-	const hasConfig = existsSync('eco.config.ts');
-	if (!existsSync(entryFile)) {
-		logger.error(`Error: Entry file "${entryFile}" not found in the current directory.`);
-		process.exit(1);
+function detectRuntime() {
+	if (typeof Bun !== 'undefined') {
+		return 'bun';
 	}
 
+	return 'node';
+}
+
+function buildBunArgs(args, options, entryFile, hasConfig) {
 	const bunArgs = [];
+
 	if (options.watch) bunArgs.push('--watch');
 	if (options.hot) bunArgs.push('--hot');
 
@@ -80,25 +76,79 @@ function runBunCommand(args, options = {}, entryFile = 'app.ts') {
 	if (hasConfig) {
 		bunArgs.push('--preload', 'eco.config.ts');
 	}
+
 	bunArgs.push(entryFile, ...args);
 
 	if (options.reactFastRefresh) {
 		bunArgs.push('--react-fast-refresh');
 	}
 
-	/** Merge CLI overrides with current environment */
+	return bunArgs;
+}
+
+function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
+	const hasConfig = existsSync('eco.config.ts');
 	const envOverrides = buildEnvOverrides(options);
-	const env = { ...process.env, ...envOverrides };
+	const runtime = detectRuntime();
 
-	if (Object.keys(envOverrides).length > 0) {
-		logger.info(`Environment overrides: ${JSON.stringify(envOverrides)}`);
+	return {
+		runtime,
+		executionStrategy: 'direct-runtime',
+		command: 'bun',
+		commandArgs: buildBunArgs(args, options, entryFile, hasConfig),
+		envOverrides,
+		env: { ...process.env, ...envOverrides },
+	};
+}
+
+function runLaunchPlan(launchPlan) {
+	if (launchPlan.runtime === 'node' && launchPlan.command === 'bun') {
+		logger.warn(
+			'Node launcher compatibility is in progress. This command still requires Bun for execution in the current release.',
+		);
 	}
-	logger.info(`Running: bun ${bunArgs.join(' ')}`);
 
-	const child = spawn('bun', bunArgs, { stdio: 'inherit', env });
+	if (Object.keys(launchPlan.envOverrides).length > 0) {
+		logger.info(`Environment overrides: ${JSON.stringify(launchPlan.envOverrides)}`);
+	}
+
+	logger.info(`Running: ${launchPlan.command} ${launchPlan.commandArgs.join(' ')}`);
+
+	const child = spawn(launchPlan.command, launchPlan.commandArgs, {
+		stdio: 'inherit',
+		env: launchPlan.env,
+	});
+
+	child.on('error', (error) => {
+		if (error && error.code === 'ENOENT' && launchPlan.command === 'bun') {
+			logger.error('Bun is required for this command right now. Install Bun to continue.');
+			process.exit(1);
+		}
+
+		logger.error(`Failed to run command: ${error.message}`);
+		process.exit(1);
+	});
+
 	child.on('exit', (code) => {
 		process.exit(code || 0);
 	});
+}
+
+/**
+ * Execute a bun command with the given arguments and options.
+ * Automatically detects eco.config.ts and applies preloads.
+ * @param {string[]} args - Arguments to pass to the entry file
+ * @param {object} options - CLI options (watch, hot, port, hostname, etc.)
+ * @param {string} entryFile - Entry file to run
+ */
+function runBunCommand(args, options = {}, entryFile = 'app.ts') {
+	if (!existsSync(entryFile)) {
+		logger.error(`Error: Entry file "${entryFile}" not found in the current directory.`);
+		process.exit(1);
+	}
+
+	const launchPlan = createLaunchPlan(args, options, entryFile);
+	runLaunchPlan(launchPlan);
 }
 
 /**

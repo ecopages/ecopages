@@ -407,7 +407,6 @@ export class ConfigBuilder {
 		const componentMetaPlugin = createEcoComponentMetaPlugin({ config: this.config });
 		if (!this.config.loaders.has(componentMetaPlugin.name)) {
 			this.config.loaders.set(componentMetaPlugin.name, componentMetaPlugin);
-			await Bun.plugin(componentMetaPlugin);
 		}
 	}
 

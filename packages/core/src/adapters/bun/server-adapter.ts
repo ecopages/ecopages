@@ -34,18 +34,21 @@ import { HmrManager } from './hmr-manager';
 import { BunRouterAdapter } from './router-adapter.ts';
 import { ServerLifecycle } from './server-lifecycle';
 
+type BunServerInstance = Server<unknown>;
+type BunNativeServeOptions = Bun.Serve.Options<unknown>;
+
 export type BunServerRoutes = Bun.Serve.Routes<unknown, string>;
 
 export type BunServeAdapterServerOptions = Partial<
-	Omit<Bun.Serve.Options<unknown>, 'fetch'> & {
+	Omit<BunNativeServeOptions, 'fetch'> & {
 		routes: BunServerRoutes;
-		fetch(this: Server<unknown>, request: Request): Promise<void | Response>;
+		fetch(this: BunServerInstance, request: Request): Promise<void | Response>;
 	}
 >;
 
-export type BunServeOptions = Omit<Bun.Serve.Options<unknown>, 'fetch'> & {
+export type BunServeOptions = Omit<BunNativeServeOptions, 'fetch'> & {
 	routes: BunServerRoutes;
-	fetch?: (this: Server<unknown>, request: Request, server: Server<unknown>) => Promise<void | Response>;
+	fetch?: (this: BunServerInstance, request: Request, server: BunServerInstance) => Promise<void | Response>;
 	websocket?: WebSocketHandler<unknown>;
 };
 
@@ -53,7 +56,7 @@ export interface BunServerAdapterParams {
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
 	serveOptions: BunServeAdapterServerOptions;
-	apiHandlers?: ApiHandler<any, BunRequest, Server<unknown>>[];
+	apiHandlers?: ApiHandler<any, BunRequest, BunServerInstance>[];
 	staticRoutes?: StaticRoute[];
 	errorHandler?: ErrorHandler;
 	options?: {
@@ -69,7 +72,7 @@ export interface BunServerAdapterParams {
 export interface BunServerAdapterResult extends ServerAdapterResult {
 	getServerOptions: (options?: { enableHmr?: boolean }) => BunServeOptions;
 	buildStatic: (options?: { preview?: boolean }) => Promise<void>;
-	completeInitialization: (server: Server<unknown>) => Promise<void>;
+	completeInitialization: (server: BunServerInstance) => Promise<void>;
 }
 
 export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterParams, BunServerAdapterResult> {
@@ -92,7 +95,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	public hmrManager!: HmrManager;
 	private initializationPromise: Promise<void> | null = null;
 	private fullyInitialized = false;
-	declare serverInstance: Server<unknown> | null;
+	declare serverInstance: BunServerInstance | null;
 	private readonly schemaValidator = new SchemaValidationService();
 
 	private readonly lifecycleFactory?: ServerLifecycle;
@@ -204,7 +207,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 				await this.router.init();
 				this.configureResponseHandlers();
 				const options = this.getServerOptions({ enableHmr: true });
-				this.serverInstance.reload(options as Bun.Serve.Options<unknown>);
+				this.serverInstance.reload(options as BunNativeServeOptions);
 				appLogger.debug('Server routes updated with dynamic routes');
 			} catch (error) {
 				if (error instanceof Error) {
@@ -598,7 +601,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	 * Must be called before handling any requests.
 	 * @param server - The Bun server instance
 	 */
-	public async completeInitialization(server: Server<unknown>): Promise<void> {
+	public async completeInitialization(server: BunServerInstance): Promise<void> {
 		if (this.fullyInitialized) return;
 
 		if (!this.initializationPromise) {
@@ -611,7 +614,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	/**
 	 * Performs complete server setup including routing, watchers, and HMR.
 	 */
-	private async _performInitialization(server: Server<unknown>): Promise<void> {
+	private async _performInitialization(server: BunServerInstance): Promise<void> {
 		this.serverInstance = server;
 		appLogger.debug('Completing server initialization with dynamic routes');
 
@@ -625,7 +628,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 
 		if (server && typeof server.reload === 'function') {
 			const updatedOptions = this.getServerOptions(this.options?.watch ? { enableHmr: true } : undefined);
-			server.reload(updatedOptions as Bun.Serve.Options<unknown>);
+			server.reload(updatedOptions as BunNativeServeOptions);
 			appLogger.debug('Server routes updated with dynamic routes');
 		}
 	}

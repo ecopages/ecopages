@@ -151,7 +151,7 @@ export interface EcoComponentDirPluginOptions {
 }
 
 /**
- * Creates a Bun plugin that auto-injects `__eco` metadata into EcoComponent config objects.
+ * Creates a build plugin that auto-injects `__eco` metadata into EcoComponent config objects.
  *
  * This plugin intercepts file loading for all integration-compatible files and:
  * 1. Strips any query string from the file path (for dev mode cache-busting)
@@ -168,14 +168,14 @@ export interface EcoComponentDirPluginOptions {
  * - `export const config = { ... }` - Exported config declarations
  *
  * @param options - Plugin options containing the EcoPages config
- * @returns A Bun plugin instance ready for registration
+ * @returns A build plugin instance ready for registration
  *
  * @example
  * ```typescript
  * import { createEcoComponentMetaPlugin } from '@ecopages/core';
  *
  * const plugin = createEcoComponentMetaPlugin({ config: appConfig });
- * await Bun.plugin(plugin);
+ * appConfig.loaders.set(plugin.name, plugin);
  * ```
  */
 export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {

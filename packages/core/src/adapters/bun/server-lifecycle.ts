@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
+import { defaultBuildAdapter } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
@@ -58,7 +59,7 @@ export class ServerLifecycle {
 	setupLoaders(): void {
 		const loaders = this.appConfig.loaders;
 		for (const loader of loaders.values()) {
-			Bun.plugin(loader);
+			defaultBuildAdapter.registerPlugin(loader);
 		}
 	}
 
@@ -98,7 +99,7 @@ export class ServerLifecycle {
 				await processor.setup();
 				if (processor.plugins) {
 					for (const plugin of processor.plugins) {
-						Bun.plugin(plugin);
+						defaultBuildAdapter.registerPlugin(plugin);
 					}
 				}
 				if (processor.buildPlugins) {

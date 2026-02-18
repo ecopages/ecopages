@@ -41,6 +41,7 @@ export interface BuildTranspileOptions {
 export interface BuildAdapter {
 	build(options: BuildOptions): Promise<BuildResult>;
 	resolve(importPath: string, rootDir: string): string;
+	registerPlugin(plugin: EcoBuildPlugin): void;
 	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions;
 }
 
@@ -60,6 +61,10 @@ export class BunBuildAdapter implements BuildAdapter {
 
 	resolve(importPath: string, rootDir: string): string {
 		return Bun.resolveSync(importPath, rootDir);
+	}
+
+	registerPlugin(plugin: EcoBuildPlugin): void {
+		Bun.plugin(plugin as BunPlugin);
 	}
 
 	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {

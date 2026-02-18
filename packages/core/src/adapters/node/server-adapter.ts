@@ -26,6 +26,7 @@ export interface NodeServerAdapterParams {
 
 export interface NodeServerAdapterResult extends ServerAdapterResult {
 	completeInitialization: (server: NodeServerInstance) => Promise<void>;
+	handleRequest: (request: Request) => Promise<Response>;
 }
 
 export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterParams, NodeServerAdapterResult> {
@@ -56,6 +57,7 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 			getServerOptions: this.getServerOptions.bind(this),
 			buildStatic: this.buildStatic.bind(this),
 			completeInitialization: this.completeInitialization.bind(this),
+			handleRequest: this.handleRequest.bind(this),
 		};
 	}
 

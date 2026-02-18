@@ -1,4 +1,4 @@
-import type { Server as NodeServerInstance } from 'node:http';
+import { createServer, type IncomingMessage, type Server as NodeServerInstance, type ServerResponse } from 'node:http';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
@@ -309,6 +309,10 @@ export class NodeEcopagesApp extends AbstractApplicationAdapter<NodeEcopagesAppO
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
 
+		if (this.server) {
+			return this.server;
+		}
+
 		const { build, preview } = this.cliArgs;
 
 		if (build || preview) {
@@ -316,8 +320,70 @@ export class NodeEcopagesApp extends AbstractApplicationAdapter<NodeEcopagesAppO
 			return;
 		}
 
-		appLogger.warn('NodeEcopagesApp scaffold is initialized, but runtime server start is not implemented yet');
-		return this.server ?? undefined;
+		const serveOptions = this.serverAdapter.getServerOptions();
+		const hostname = String(serveOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
+		const port = Number(serveOptions.port ?? DEFAULT_ECOPAGES_PORT);
+		this.runtimeOrigin = `http://${hostname}:${port}`;
+
+		this.server = createServer(async (req, res) => {
+			try {
+				const webRequest = this.createWebRequest(req);
+				const response = await this.serverAdapter!.handleRequest(webRequest);
+				await this.sendNodeResponse(res, response);
+			} catch (error) {
+				appLogger.error('Node server adapter request failed', error as Error);
+				res.statusCode = 500;
+				res.end('Internal Server Error');
+			}
+		});
+
+		await new Promise<void>((resolve) => {
+			this.server!.listen(port, hostname, () => resolve());
+		});
+
+		await this.serverAdapter.completeInitialization(this.server);
+		appLogger.info(`Node server running at ${this.runtimeOrigin}`);
+
+		return this.server;
+	}
+
+	private createWebRequest(req: IncomingMessage): Request {
+		const url = new URL(req.url ?? '/', this.runtimeOrigin);
+		const headers = new Headers();
+
+		for (const [key, value] of Object.entries(req.headers)) {
+			if (Array.isArray(value)) {
+				for (const item of value) {
+					headers.append(key, item);
+				}
+				continue;
+			}
+
+			if (value !== undefined) {
+				headers.set(key, value);
+			}
+		}
+
+		return new Request(url, {
+			method: req.method ?? 'GET',
+			headers,
+		});
+	}
+
+	private async sendNodeResponse(res: ServerResponse, response: Response): Promise<void> {
+		res.statusCode = response.status;
+
+		response.headers.forEach((value, key) => {
+			res.setHeader(key, value);
+		});
+
+		if (!response.body) {
+			res.end();
+			return;
+		}
+
+		const body = Buffer.from(await response.arrayBuffer());
+		res.end(body);
 	}
 
 	public async request(request: string | Request): Promise<Response> {

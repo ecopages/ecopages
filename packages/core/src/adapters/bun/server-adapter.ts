@@ -20,6 +20,7 @@ import { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../services/schema-validation-service.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { deepMerge } from '../../utils/deep-merge.ts';
+import { fileSystem } from '@ecopages/file-system';
 import { AbstractServerAdapter, type ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ApiResponseBuilder } from '../shared/api-response.js';
 import { ExplicitStaticRouteMatcher } from '../shared/explicit-static-route-matcher.ts';
@@ -344,7 +345,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 				/** Serve HMR runtime script */
 				if (url.pathname === '/_hmr_runtime.js') {
 					appLogger.debug(`[HMR] Serving runtime from ${hmrManager.getRuntimePath()}`);
-					return new Response(Bun.file(hmrManager.getRuntimePath()), {
+					return new Response(fileSystem.readFileAsBuffer(hmrManager.getRuntimePath()) as BodyInit, {
 						headers: { 'Content-Type': 'application/javascript' },
 					});
 				}

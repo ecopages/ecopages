@@ -45,6 +45,7 @@
  */
 
 import { parseSync, type Program } from 'oxc-parser';
+import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 
 /**
@@ -429,7 +430,7 @@ export function stripServerOnlyPlugin(options: StripServerOnlyPluginOptions): Ec
 					return undefined;
 				}
 
-				const source = await Bun.file(args.path).text();
+				const source = await fileSystem.readFile(args.path);
 
 				try {
 					const transformed = transformSource(source, args.path);

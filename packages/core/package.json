@@ -132,6 +132,10 @@
 			"types": "./src/adapters/node/server-adapter.ts",
 			"default": "./src/adapters/node/server-adapter.ts"
 		},
+		"./adapters/node/create-app": {
+			"types": "./src/adapters/node/create-app.ts",
+			"default": "./src/adapters/node/create-app.ts"
+		},
 		"./html": {
 			"import": "./src/utils/html.ts",
 			"require": "./src/utils/html.ts"

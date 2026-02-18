@@ -44,8 +44,8 @@
  * @module strip-server-only-plugin
  */
 
-import type { BunPlugin } from 'bun';
 import { parseSync, type Program } from 'oxc-parser';
+import type { EcoBuildPlugin } from '../build/build-types.ts';
 
 /**
  * Pattern to match `.server.ts`, `.server.tsx`, `.server.js`, `.server.jsx` files
@@ -391,7 +391,7 @@ export function transformSource(source: string, filePath: string): string | null
  * });
  * ```
  */
-export function stripServerOnlyPlugin(options: StripServerOnlyPluginOptions): BunPlugin {
+export function stripServerOnlyPlugin(options: StripServerOnlyPluginOptions): EcoBuildPlugin {
 	const { pagesDir, extensions = ['.tsx', '.jsx', '.ts', '.js'], debug = false } = options;
 
 	const extensionPattern = extensions.map((ext) => ext.replace(/^\./, '')).join('|');

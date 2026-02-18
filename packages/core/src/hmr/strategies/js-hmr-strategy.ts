@@ -8,9 +8,9 @@
  */
 
 import path from 'node:path';
-import type { BunPlugin } from 'bun';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy';
 import { appLogger } from '../../global/app-logger';
+import type { EcoBuildPlugin } from '../../build/build-types.ts';
 
 /**
  * Context interface providing access to HmrManager state.
@@ -33,9 +33,9 @@ export interface JsHmrContext {
 	getDistDir(): string;
 
 	/**
-	 * Bun plugins to use during bundling.
+	 * Build plugins to use during bundling.
 	 */
-	getPlugins(): BunPlugin[];
+	getPlugins(): EcoBuildPlugin[];
 
 	/**
 	 * Absolute path to the source directory.

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { BunPlugin } from 'bun';
+import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../internal-types';
 import type { ClientBridge } from '../adapters/bun/client-bridge';
 import type { AssetDefinition } from '../services/asset-processing-service';
@@ -57,10 +57,10 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	protected watchConfig?: ProcessorWatchConfig;
 
 	/** Plugins that are only used during the build process */
-	abstract buildPlugins?: BunPlugin[];
+	abstract buildPlugins?: EcoBuildPlugin[];
 
 	/** Plugins that are used during runtime for file processing */
-	abstract plugins?: BunPlugin[];
+	abstract plugins?: EcoBuildPlugin[];
 
 	constructor(config: ProcessorConfig<TOptions>) {
 		this.name = config.name;

@@ -1,4 +1,4 @@
-import type { BunPlugin } from 'bun';
+import type { EcoBuildPlugin } from './build/build-types.ts';
 import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
 import type { Processor } from './plugins/processor.ts';
 import type { PageMetadataProps } from './public-types.ts';
@@ -125,7 +125,7 @@ export type EcoPagesAppConfig = {
 	/**
 	 * Loaders to be used in the app, these are used to process the files when importing them
 	 */
-	loaders: Map<string, BunPlugin>;
+	loaders: Map<string, EcoBuildPlugin>;
 	/**
 	 * Cache configuration for ISR and page caching.
 	 * @default { store: 'memory', defaultStrategy: 'static', enabled: true }

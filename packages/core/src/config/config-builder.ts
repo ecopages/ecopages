@@ -4,8 +4,8 @@
  */
 
 import path from 'node:path';
-import type { BunPlugin } from 'bun';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
+import type { EcoBuildPlugin } from '../build/build-types.ts';
 import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
 import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
@@ -306,10 +306,10 @@ export class ConfigBuilder {
 	 * Sets the loaders to use for the application.
 	 * This replaces any existing loaders.
 	 *
-	 * @param loaders - An array of Bun plugins to use as loaders
+	 * @param loaders - An array of build plugins to use as loaders
 	 * @returns The ConfigBuilder instance for method chaining
 	 */
-	setLoaders(loaders: BunPlugin[]): this {
+	setLoaders(loaders: EcoBuildPlugin[]): this {
 		this.config.loaders.clear();
 		for (const loader of loaders) {
 			this.addLoader(loader.name, loader);
@@ -321,11 +321,11 @@ export class ConfigBuilder {
 	 * Adds a loader to the application.
 	 *
 	 * @param name - The name of the loader
-	 * @param loader - The Bun plugin to use as a loader
+	 * @param loader - The build plugin to use as a loader
 	 * @returns The ConfigBuilder instance for method chaining
 	 * @throws Error if a loader with the same name already exists
 	 */
-	addLoader(name: string, loader: BunPlugin): this {
+	addLoader(name: string, loader: EcoBuildPlugin): this {
 		if (this.config.loaders.has(name)) {
 			throw new Error(`Loader with name "${name}" already exists`);
 		}

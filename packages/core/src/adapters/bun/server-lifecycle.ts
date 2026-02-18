@@ -1,8 +1,8 @@
 import path from 'node:path';
-import type { BunPlugin } from 'bun';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
+import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
 import { ProjectWatcher } from '../../watchers/project-watcher';
@@ -87,12 +87,12 @@ export class ServerLifecycle {
 	 * Initializes processors and integrations.
 	 * @param options.watch - Whether watch mode is enabled
 	 */
-	async initializePlugins(options?: { watch?: boolean }): Promise<BunPlugin[]> {
+	async initializePlugins(options?: { watch?: boolean }): Promise<EcoBuildPlugin[]> {
 		try {
 			const hmrEnabled = !!options?.watch;
 			this.hmrManager.setEnabled(hmrEnabled);
 
-			const processorBuildPlugins: BunPlugin[] = [];
+			const processorBuildPlugins: EcoBuildPlugin[] = [];
 
 			const processorPromises = Array.from(this.appConfig.processors.values()).map(async (processor) => {
 				await processor.setup();

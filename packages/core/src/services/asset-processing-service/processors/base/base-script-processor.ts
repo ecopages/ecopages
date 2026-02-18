@@ -1,6 +1,6 @@
-import type { BunPlugin } from 'bun';
 import { appLogger } from '../../../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
+import type { EcoBuildPlugin } from '../../../../build/build-types.ts';
 import type { ScriptAsset } from '../../assets.types';
 import { BaseProcessor } from './base-processor';
 
@@ -17,8 +17,8 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		return dep.bundleOptions || {};
 	}
 
-	protected collectBuildPlugins(): BunPlugin[] {
-		const plugins: BunPlugin[] = [];
+	protected collectBuildPlugins(): EcoBuildPlugin[] {
+		const plugins: EcoBuildPlugin[] = [];
 
 		if (this.appConfig.processors?.size) {
 			for (const processor of this.appConfig.processors.values()) {

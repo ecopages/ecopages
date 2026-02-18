@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { defaultBuildAdapter } from '../../../../build/build-adapter.ts';
 import type { NodeModuleScriptAsset } from '../../assets.types';
 import { BaseScriptProcessor } from '../base/base-script-processor';
 
@@ -47,7 +48,7 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 
 	private resolveModulePath(importPath: string, rootDir: string): string {
 		try {
-			return Bun.resolveSync(importPath, rootDir);
+			return defaultBuildAdapter.resolve(importPath, rootDir);
 		} catch {
 			return this.resolveModulePathFallback(importPath, rootDir);
 		}

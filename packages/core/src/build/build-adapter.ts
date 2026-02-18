@@ -31,6 +31,7 @@ export interface BuildOptions {
 
 export interface BuildAdapter {
 	build(options: BuildOptions): Promise<BuildResult>;
+	resolve(importPath: string, rootDir: string): string;
 }
 
 export class BunBuildAdapter implements BuildAdapter {
@@ -45,6 +46,10 @@ export class BunBuildAdapter implements BuildAdapter {
 			logs: result.logs.map((log) => ({ message: log.message })),
 			outputs: result.outputs.map((output) => ({ path: output.path })),
 		};
+	}
+
+	resolve(importPath: string, rootDir: string): string {
+		return Bun.resolveSync(importPath, rootDir);
 	}
 }
 

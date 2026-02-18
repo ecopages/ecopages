@@ -10,6 +10,7 @@
 import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy';
 import { appLogger } from '../../global/app-logger';
+import { defaultBuildAdapter } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 
 /**
@@ -174,7 +175,7 @@ export class JsHmrStrategy extends HmrStrategy {
 			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?)$/, '.js');
 			const outputPath = path.join(this.context.getDistDir(), relativePathJs);
 
-			const result = await Bun.build({
+			const result = await defaultBuildAdapter.build({
 				entrypoints: [entrypointPath],
 				outdir: this.context.getDistDir(),
 				naming: relativePathJs,

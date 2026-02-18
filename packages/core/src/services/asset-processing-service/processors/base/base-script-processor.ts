@@ -1,5 +1,6 @@
 import { appLogger } from '../../../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
+import { defaultBuildAdapter } from '../../../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../../../build/build-types.ts';
 import type { ScriptAsset } from '../../assets.types';
 import { BaseProcessor } from './base-processor';
@@ -47,7 +48,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		const buildPlugins = this.collectBuildPlugins();
 		const allPlugins = additionalPlugins ? [...buildPlugins, ...additionalPlugins] : buildPlugins;
 
-		const build = await Bun.build({
+		const build = await defaultBuildAdapter.build({
 			entrypoints: [entrypoint],
 			outdir,
 			root: this.appConfig.rootDir,

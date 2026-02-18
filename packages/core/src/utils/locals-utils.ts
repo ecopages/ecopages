@@ -33,5 +33,5 @@ export function createRequire(getLocals: () => Record<string, unknown>): ApiHand
 			throw onMissing();
 		}
 		return value;
-	}) as unknown as ApiHandlerContext['require'];
+	}) as ApiHandlerContext['require'];
 }

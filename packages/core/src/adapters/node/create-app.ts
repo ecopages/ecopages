@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server as NodeServerInstance, type ServerResponse } from 'node:http';
+import { Readable } from 'node:stream';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
@@ -364,10 +365,18 @@ export class NodeEcopagesApp extends AbstractApplicationAdapter<NodeEcopagesAppO
 			}
 		}
 
-		return new Request(url, {
-			method: req.method ?? 'GET',
+		const method = (req.method ?? 'GET').toUpperCase();
+		const requestInit: RequestInit & { duplex?: 'half' } = {
+			method,
 			headers,
-		});
+		};
+
+		if (method !== 'GET' && method !== 'HEAD') {
+			requestInit.body = Readable.toWeb(req) as unknown as BodyInit;
+			requestInit.duplex = 'half';
+		}
+
+		return new Request(url, requestInit);
 	}
 
 	private async sendNodeResponse(res: ServerResponse, response: Response): Promise<void> {

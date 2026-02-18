@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { ServerUtils } from '../utils/server-utils.module.ts';
 import type { Server } from 'bun';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
+import { getRequiredBunRuntime } from '../utils/runtime.ts';
 
 type StaticContentServerOptions = {
 	port?: number;
@@ -115,7 +116,7 @@ export class StaticContentServer {
 	}
 
 	private startServer() {
-		this.server = Bun.serve({
+		this.server = getRequiredBunRuntime().serve({
 			fetch: this.fetch.bind(this),
 			port: this.options.port,
 		});

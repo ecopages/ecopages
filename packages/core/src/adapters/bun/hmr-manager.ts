@@ -1,6 +1,6 @@
-import type { WebSocketHandler, ServerWebSocket } from 'bun';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { ServerWebSocket, WebSocketHandler } from 'bun';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
 import { defaultBuildAdapter } from '../../build/build-adapter.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../internal-types';
@@ -13,6 +13,9 @@ import { appLogger } from '../../global/app-logger';
 import type { ClientBridge } from './client-bridge';
 import type { ClientBridgeEvent } from '../../public-types';
 import { stripServerOnlyPlugin } from '../../plugins/strip-server-only-plugin';
+
+type BunSocket = ServerWebSocket<unknown>;
+type BunSocketHandler = WebSocketHandler<unknown>;
 
 export interface HmrManagerParams {
 	appConfig: EcoPagesAppConfig;
@@ -33,8 +36,8 @@ export class HmrManager implements IHmrManager {
 	private enabled = true;
 	private strategies: HmrStrategy[] = [];
 	private wsHandler!: {
-		open: (ws: ServerWebSocket<unknown>) => void;
-		close: (ws: ServerWebSocket<unknown>) => void;
+		open: (ws: BunSocket) => void;
+		close: (ws: BunSocket) => void;
 	};
 
 	constructor({ appConfig, bridge }: HmrManagerParams) {
@@ -95,13 +98,13 @@ export class HmrManager implements IHmrManager {
 		}
 	}
 
-	public getWebSocketHandler(): WebSocketHandler<unknown> {
-		const open = (ws: ServerWebSocket<unknown>) => {
+	public getWebSocketHandler(): BunSocketHandler {
+		const open = (ws: BunSocket) => {
 			this.bridge.subscribe(ws);
 			appLogger.debug(`[HmrManager] Connection opened. Subscribers: ${this.bridge.subscriberCount}`);
 		};
 
-		const close = (ws: ServerWebSocket<unknown>) => {
+		const close = (ws: BunSocket) => {
 			this.bridge.unsubscribe(ws);
 			appLogger.debug(`[HmrManager] Connection closed. Subscribers: ${this.bridge.subscriberCount}`);
 		};

@@ -1,18 +1,20 @@
 import type { ServerWebSocket } from 'bun';
 import type { ClientBridgeEvent } from '../../public-types';
 
+type BunSocket = ServerWebSocket<unknown>;
+
 /**
  * Manages WebSocket subscribers and broadcasts development events.
  * Bridges the gap between the server and the development client.
  */
 export class ClientBridge {
-	private subscribers = new Set<ServerWebSocket<unknown>>();
+	private subscribers = new Set<BunSocket>();
 
-	subscribe(ws: ServerWebSocket<unknown>): void {
+	subscribe(ws: BunSocket): void {
 		this.subscribers.add(ws);
 	}
 
-	unsubscribe(ws: ServerWebSocket<unknown>): void {
+	unsubscribe(ws: BunSocket): void {
 		this.subscribers.delete(ws);
 	}
 

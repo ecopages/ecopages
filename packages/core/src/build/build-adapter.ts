@@ -1,6 +1,9 @@
 import type { BunPlugin } from 'bun';
+import path from 'node:path';
+import { createRequire } from 'node:module';
 import type { EcoBuildPlugin } from './build-types.ts';
-import { getRequiredBunRuntime } from '../utils/runtime.ts';
+import { appLogger } from '../global/app-logger.ts';
+import { getBunRuntime, getRequiredBunRuntime } from '../utils/runtime.ts';
 
 export interface BuildLog {
 	message: string;
@@ -46,6 +49,45 @@ export interface BuildAdapter {
 	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions;
 }
 
+type RspackAssetInfo = { name?: string };
+type RspackErrorInfo = { message?: string };
+type RspackStatsJson = {
+	assets?: RspackAssetInfo[];
+	errors?: RspackErrorInfo[];
+};
+type RspackStats = {
+	hasErrors(): boolean;
+	toJson(options?: Record<string, unknown>): RspackStatsJson;
+};
+type RspackCompiler = {
+	run(callback: (error: Error | null, stats?: RspackStats) => void): void;
+	close(callback: (error?: Error | null) => void): void;
+};
+type RspackFactory = (config: Record<string, unknown>) => RspackCompiler;
+
+function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
+	switch (profile) {
+		case 'browser-script':
+			return {
+				target: 'browser',
+				format: 'esm',
+				sourcemap: 'none',
+			};
+		case 'hmr-runtime':
+			return {
+				target: 'browser',
+				format: 'esm',
+				sourcemap: 'none',
+			};
+		case 'hmr-entrypoint':
+			return {
+				target: 'browser',
+				format: 'esm',
+				sourcemap: 'none',
+			};
+	}
+}
+
 export class BunBuildAdapter implements BuildAdapter {
 	async build(options: BuildOptions): Promise<BuildResult> {
 		const bun = getRequiredBunRuntime();
@@ -70,27 +112,132 @@ export class BunBuildAdapter implements BuildAdapter {
 	}
 
 	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
-		switch (profile) {
-			case 'browser-script':
-				return {
-					target: 'browser',
-					format: 'esm',
-					sourcemap: 'none',
-				};
-			case 'hmr-runtime':
-				return {
-					target: 'browser',
-					format: 'esm',
-					sourcemap: 'none',
-				};
-			case 'hmr-entrypoint':
-				return {
-					target: 'browser',
-					format: 'esm',
-					sourcemap: 'none',
-				};
-		}
+		return transpileProfileToOptions(profile);
 	}
 }
 
-export const defaultBuildAdapter: BuildAdapter = new BunBuildAdapter();
+export class NodeRspackBuildAdapter implements BuildAdapter {
+	private async loadRspackFactory(): Promise<RspackFactory> {
+		const moduleName = '@rspack/core';
+		const rspackModule = (await import(moduleName)) as {
+			rspack?: unknown;
+			default?: unknown;
+		};
+
+		const rspackFactory = rspackModule.rspack ?? rspackModule.default;
+
+		if (typeof rspackFactory !== 'function') {
+			throw new Error('Rspack is not available. Install @rspack/core to use Node bundling.');
+		}
+
+		return rspackFactory as RspackFactory;
+	}
+
+	private async closeCompiler(compiler: RspackCompiler): Promise<void> {
+		await new Promise<void>((resolve, reject) => {
+			compiler.close((error) => {
+				if (error) {
+					reject(error);
+					return;
+				}
+
+				resolve();
+			});
+		});
+	}
+
+	async build(options: BuildOptions): Promise<BuildResult> {
+		const rspack = await this.loadRspackFactory();
+		const outdir = path.resolve(options.outdir ?? '.eco/assets');
+		const entry = Object.fromEntries(
+			options.entrypoints.map((entrypoint, index) => [`entry_${index}`, path.resolve(entrypoint)]),
+		);
+
+		const compiler = rspack({
+			mode: options.minify ? 'production' : 'development',
+			context: options.root ? path.resolve(options.root) : process.cwd(),
+			entry,
+			target: options.target === 'browser' ? 'web' : 'node',
+			devtool: options.sourcemap === 'none' ? false : 'source-map',
+			externals: options.external,
+			experiments: {
+				outputModule: options.format === 'esm',
+			},
+			optimization: {
+				minimize: !!options.minify,
+				splitChunks: options.splitting ? { chunks: 'all' } : false,
+			},
+			resolve: {
+				extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.json'],
+			},
+			module: {
+				rules: [
+					{
+						test: /\\.[cm]?[jt]sx?$/,
+						loader: 'builtin:swc-loader',
+						options: {
+							jsc: {
+								parser: { syntax: 'typescript', tsx: true },
+								transform: { react: { runtime: 'automatic' } },
+							},
+						},
+					},
+				],
+			},
+			output: {
+				path: outdir,
+				filename: '[name].js',
+				chunkFilename: '[name].js',
+				module: options.format === 'esm',
+			},
+		});
+
+		const stats = await new Promise<RspackStats>((resolve, reject) => {
+			compiler.run((error, currentStats) => {
+				if (error) {
+					reject(error);
+					return;
+				}
+
+				if (!currentStats) {
+					reject(new Error('Rspack completed without stats output'));
+					return;
+				}
+
+				resolve(currentStats);
+			});
+		});
+
+		await this.closeCompiler(compiler);
+
+		const statsJson = stats.toJson({ all: false, assets: true, errors: true });
+		const logs = (statsJson.errors ?? []).map((error) => ({
+			message: error.message ?? 'Unknown Rspack error',
+		}));
+		const outputs = (statsJson.assets ?? [])
+			.map((asset) => asset.name)
+			.filter((assetName): assetName is string => !!assetName)
+			.map((assetName) => ({ path: path.join(outdir, assetName) }));
+
+		return {
+			success: !stats.hasErrors(),
+			logs,
+			outputs,
+		};
+	}
+
+	resolve(importPath: string, rootDir: string): string {
+		const localRequire = createRequire(path.join(rootDir, 'package.json'));
+		return localRequire.resolve(importPath);
+	}
+
+	registerPlugin(plugin: EcoBuildPlugin): void {
+		appLogger.debug(`Node Rspack adapter does not auto-register plugin '${plugin.name}'.`);
+	}
+
+	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
+		return transpileProfileToOptions(profile);
+	}
+}
+
+export const defaultBuildAdapter: BuildAdapter = getBunRuntime() ? new BunBuildAdapter() : new NodeRspackBuildAdapter();

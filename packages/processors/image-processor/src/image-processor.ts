@@ -8,7 +8,7 @@ import type { ImageMap, ImageProcessorConfig } from './plugin';
 import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types';
 
 const appLogger = new Logger('[@ecopages/image-processor]', {
-	debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
 });
 
 /**

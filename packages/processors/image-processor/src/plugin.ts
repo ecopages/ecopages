@@ -4,6 +4,7 @@
  */
 
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { fileSystem } from '@ecopages/file-system';
@@ -26,8 +27,10 @@ function resolveGeneratedPath(
 }
 
 const logger = new Logger('[@ecopages/image-processor]', {
-	debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
 });
+
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Configuration for the image processor
@@ -101,7 +104,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	private generateDependencies(): AssetDefinition[] {
 		const deps: AssetDefinition[] = [];
 
-		if (import.meta.env.NODE_ENV === 'development') {
+		if (process.env.NODE_ENV === 'development') {
 			/**
 			 * Here we can define the dependencies for the development environment
 			 * @example
@@ -243,7 +246,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		}
 
 		const requiredTypes = fileSystem
-			.readFileSync(path.join(__dirname, 'types.ts'))
+			.readFileSync(path.join(currentDir, 'types.ts'))
 			.toString()
 			.replaceAll('export ', '');
 

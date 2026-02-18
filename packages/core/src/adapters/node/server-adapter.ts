@@ -1,5 +1,8 @@
 import type { Server as NodeHttpServer } from 'node:http';
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
+import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
+import { defaultBuildAdapter } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type {
@@ -21,7 +24,7 @@ import { AbstractServerAdapter, type ServerAdapterResult } from '../abstract/ser
 import { HttpError } from '../../errors/http-error.ts';
 import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
 import { ExplicitStaticRouteMatcher } from '../shared/explicit-static-route-matcher.ts';
-import { ApiResponseBuilder } from '../shared/api-response.js';
+import { ApiResponseBuilder } from '../shared/api-response.ts';
 import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
 import { ServerRouteHandler } from '../shared/server-route-handler.ts';
@@ -79,6 +82,9 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 
 	public async initialize(): Promise<void> {
 		await this.initRouter();
+		this.setupLoaders();
+		this.copyPublicDir();
+		await this.initializePlugins();
 		this.configureResponseHandlers();
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 		this.staticBuilder = new ServerStaticBuilder({
@@ -87,6 +93,40 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 			serveOptions: this.serveOptions,
 		});
 		this.initialized = true;
+	}
+
+	private setupLoaders(): void {
+		for (const loader of this.appConfig.loaders.values()) {
+			defaultBuildAdapter.registerPlugin(loader);
+		}
+	}
+
+	private copyPublicDir(): void {
+		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
+
+		if (fileSystem.exists(srcPublicDir)) {
+			fileSystem.copyDir(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
+		}
+
+		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
+	}
+
+	private async initializePlugins(): Promise<void> {
+		for (const processor of this.appConfig.processors.values()) {
+			await processor.setup();
+
+			if (processor.plugins) {
+				for (const plugin of processor.plugins) {
+					defaultBuildAdapter.registerPlugin(plugin);
+				}
+			}
+		}
+
+		for (const integration of this.appConfig.integrations) {
+			integration.setConfig(this.appConfig);
+			integration.setRuntimeOrigin(this.runtimeOrigin);
+			await integration.setup();
+		}
 	}
 
 	private async initRouter(): Promise<void> {

@@ -23,10 +23,12 @@ export type NodeHandlerContext<TExtension extends Record<string, any> = {}> = Ap
 > &
 	TExtension;
 
-export interface NodeEcopagesAppOptions extends ApplicationAdapterOptions {
+export interface EcopagesAppOptions extends ApplicationAdapterOptions {
 	appConfig: EcoPagesAppConfig;
 	serverOptions?: Record<string, any>;
 }
+
+export type NodeEcopagesAppOptions = EcopagesAppOptions;
 
 interface NodeRouteGroupBuilder {
 	get(
@@ -66,7 +68,7 @@ interface NodeRouteGroupBuilder {
 	): NodeRouteGroupBuilder;
 }
 
-export class NodeEcopagesApp extends AbstractApplicationAdapter<NodeEcopagesAppOptions, NodeServerInstance, Request> {
+export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, NodeServerInstance, Request> {
 	serverAdapter: NodeServerAdapterResult | undefined;
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
@@ -436,6 +438,8 @@ export class NodeEcopagesApp extends AbstractApplicationAdapter<NodeEcopagesAppO
 	}
 }
 
-export async function createNodeApp(options: NodeEcopagesAppOptions): Promise<NodeEcopagesApp> {
-	return new NodeEcopagesApp(options);
+export async function createNodeApp(options: EcopagesAppOptions): Promise<EcopagesApp> {
+	return new EcopagesApp(options);
 }
+
+export { EcopagesApp as NodeEcopagesApp };

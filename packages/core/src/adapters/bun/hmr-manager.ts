@@ -2,6 +2,7 @@ import type { WebSocketHandler, ServerWebSocket } from 'bun';
 import fs from 'node:fs';
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
+import { defaultBuildAdapter } from '../../build/build-adapter.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../internal-types';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -122,7 +123,7 @@ export class HmrManager implements IHmrManager {
 	public async buildRuntime(): Promise<void> {
 		const runtimeSource = path.resolve(import.meta.dir, '../../hmr/client/hmr-runtime.ts');
 
-		const result = await Bun.build({
+		const result = await defaultBuildAdapter.build({
 			entrypoints: [runtimeSource],
 			outdir: this.distDir,
 			naming: '_hmr_runtime.js',

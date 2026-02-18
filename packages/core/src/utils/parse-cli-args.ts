@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import { getRuntimeArgv } from './runtime.ts';
 
 /**
  * Parsed command line arguments for the Ecopages server.
@@ -20,7 +21,7 @@ export type ReturnParseCliArgs = {
 	reactFastRefresh?: boolean;
 };
 
-const ECOPAGES_BIN_FILE = 'ecopages.ts';
+const ECOPAGES_BIN_FILES = ['ecopages.ts', 'ecopages.js', 'cli.js'];
 
 const ECOPAGES_AVAILABLE_COMMANDS = ['dev', 'build', 'start', 'preview'];
 
@@ -29,8 +30,10 @@ const ECOPAGES_AVAILABLE_COMMANDS = ['dev', 'build', 'start', 'preview'];
  * It returns {@link ReturnParseCliArgs}
  */
 export function parseCliArgs(): ReturnParseCliArgs {
+	const runtimeArgv = getRuntimeArgv();
+
 	const { values } = parseArgs({
-		args: Bun.argv,
+		args: runtimeArgv,
 		options: {
 			dev: { type: 'boolean' },
 			preview: { type: 'boolean' },
@@ -43,17 +46,17 @@ export function parseCliArgs(): ReturnParseCliArgs {
 	});
 
 	let command = '';
-	const ecopagesIndex = Bun.argv.findIndex((arg) => arg.endsWith(ECOPAGES_BIN_FILE));
+	const ecopagesIndex = runtimeArgv.findIndex((arg) => ECOPAGES_BIN_FILES.some((filename) => arg.endsWith(filename)));
 
 	const isAvailableCommand = ecopagesIndex !== -1;
 
 	if (isAvailableCommand) {
 		command =
-			ecopagesIndex < Bun.argv.length - 1 &&
+			ecopagesIndex < runtimeArgv.length - 1 &&
 			ECOPAGES_AVAILABLE_COMMANDS.some((cmd) => {
-				return Bun.argv[ecopagesIndex + 1] === cmd;
+				return runtimeArgv[ecopagesIndex + 1] === cmd;
 			})
-				? Bun.argv[ecopagesIndex + 1]
+				? runtimeArgv[ecopagesIndex + 1]
 				: 'start';
 	}
 

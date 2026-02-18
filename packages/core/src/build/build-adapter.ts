@@ -22,6 +22,7 @@ export interface BuildOptions {
 	minify?: boolean;
 	target?: string;
 	format?: string;
+	sourcemap?: string;
 	splitting?: boolean;
 	root?: string;
 	external?: string[];
@@ -29,9 +30,18 @@ export interface BuildOptions {
 	[key: string]: unknown;
 }
 
+export type BuildTranspileProfile = 'browser-script' | 'hmr-runtime' | 'hmr-entrypoint';
+
+export interface BuildTranspileOptions {
+	target: string;
+	format: string;
+	sourcemap: string;
+}
+
 export interface BuildAdapter {
 	build(options: BuildOptions): Promise<BuildResult>;
 	resolve(importPath: string, rootDir: string): string;
+	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions;
 }
 
 export class BunBuildAdapter implements BuildAdapter {
@@ -50,6 +60,29 @@ export class BunBuildAdapter implements BuildAdapter {
 
 	resolve(importPath: string, rootDir: string): string {
 		return Bun.resolveSync(importPath, rootDir);
+	}
+
+	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
+		switch (profile) {
+			case 'browser-script':
+				return {
+					target: 'browser',
+					format: 'esm',
+					sourcemap: 'none',
+				};
+			case 'hmr-runtime':
+				return {
+					target: 'browser',
+					format: 'esm',
+					sourcemap: 'none',
+				};
+			case 'hmr-entrypoint':
+				return {
+					target: 'browser',
+					format: 'esm',
+					sourcemap: 'none',
+				};
+		}
 	}
 }
 

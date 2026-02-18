@@ -128,7 +128,7 @@ export class HmrManager implements IHmrManager {
 			outdir: this.distDir,
 			naming: '_hmr_runtime.js',
 			minify: false,
-			target: 'browser',
+			...defaultBuildAdapter.getTranspileOptions('hmr-runtime'),
 			plugins: this.plugins,
 		});
 

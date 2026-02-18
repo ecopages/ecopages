@@ -27,6 +27,7 @@ import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.
 import { ServerRouteHandler } from '../shared/server-route-handler.ts';
 import { createRenderContext } from '../shared/render-context.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
+import { NodeStaticContentServer } from './static-content-server.ts';
 
 export type NodeServerInstance = NodeHttpServer;
 type NodeApiRequest = Request & { params?: Record<string, string | string[]> };
@@ -66,6 +67,7 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 	private routeHandler!: ServerRouteHandler;
 	private staticSiteGenerator!: StaticSiteGenerator;
 	private staticBuilder!: ServerStaticBuilder;
+	private previewServer: NodeStaticContentServer | null = null;
 	private readonly schemaValidator = new SchemaValidationService();
 
 	constructor(options: NodeServerAdapterParams) {
@@ -165,19 +167,39 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 	}
 
 	public async buildStatic(options?: { preview?: boolean }): Promise<void> {
-		if (options?.preview) {
-			throw new Error('Node preview mode is not implemented yet');
-		}
-
 		if (!this.initialized) {
 			await this.initialize();
 		}
 
-		await this.staticBuilder.build(options, {
-			router: this.router,
-			routeRendererFactory: this.routeRendererFactory,
-			staticRoutes: this.staticRoutes,
+		await this.staticBuilder.build(
+			{ preview: false },
+			{
+				router: this.router,
+				routeRendererFactory: this.routeRendererFactory,
+				staticRoutes: this.staticRoutes,
+			},
+		);
+
+		if (!options?.preview) {
+			return;
+		}
+
+		if (this.previewServer) {
+			await this.previewServer.stop();
+		}
+
+		this.previewServer = new NodeStaticContentServer({
+			appConfig: this.appConfig,
+			options: {
+				hostname: this.serveOptions.hostname,
+				port: Number(this.serveOptions.port || 3000),
+			},
 		});
+
+		await this.previewServer.start();
+		const previewHostname = this.serveOptions.hostname || 'localhost';
+		const previewPort = this.serveOptions.port || 3000;
+		appLogger.info(`Preview running at http://${previewHostname}:${previewPort}`);
 	}
 
 	public async createAdapter(): Promise<NodeServerAdapterResult> {

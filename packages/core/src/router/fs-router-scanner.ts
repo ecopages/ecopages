@@ -174,6 +174,10 @@ export class FSRouterScanner {
 		);
 
 		for await (const file of scannedFiles) {
+			if (file.includes('.ecopages-node.')) {
+				continue;
+			}
+
 			const { kind, ...routeData } = this.getRouteData(file);
 
 			switch (kind) {

@@ -1,9 +1,27 @@
 import type { AssetPosition, ProcessedAsset, ScriptAsset } from './asset-processing-service/assets.types';
 
+type HtmlRewriterElement = {
+	append(content: string, options?: { html?: boolean }): void;
+};
+
+type HtmlRewriterRuntime = {
+	on(selector: 'head' | 'body', handler: { element: (element: HtmlRewriterElement) => void }): HtmlRewriterRuntime;
+	transform(response: Response): Response;
+};
+
 export class HtmlTransformerService {
-	htmlRewriter: HTMLRewriter;
+	htmlRewriter: HtmlRewriterRuntime | null;
 	constructor(private processedDependencies: ProcessedAsset[] = []) {
-		this.htmlRewriter = new HTMLRewriter();
+		this.htmlRewriter = this.createHtmlRewriter();
+	}
+
+	private createHtmlRewriter(): HtmlRewriterRuntime | null {
+		const RuntimeHtmlRewriter = (globalThis as { HTMLRewriter?: new () => HtmlRewriterRuntime }).HTMLRewriter;
+		if (!RuntimeHtmlRewriter) {
+			return null;
+		}
+
+		return new RuntimeHtmlRewriter();
 	}
 
 	private formatAttributes(attrs?: Record<string, string>): string {
@@ -25,12 +43,40 @@ export class HtmlTransformerService {
 			: `<link rel="stylesheet" href="${dep.srcUrl}"${this.formatAttributes(dep.attributes)}>`;
 	}
 
-	private appendDependencies(element: HTMLRewriterTypes.Element, dependencies: ProcessedAsset[]) {
+	private appendDependencies(element: HtmlRewriterElement, dependencies: ProcessedAsset[]) {
 		for (const dep of dependencies) {
 			const tag =
 				dep.kind === 'script' ? this.generateScriptTag(dep as ScriptAsset) : this.generateStylesheetTag(dep);
 			element.append(tag, { html: true });
 		}
+	}
+
+	private buildDependencyTags(dependencies: ProcessedAsset[]): string {
+		return dependencies
+			.map((dep) =>
+				dep.kind === 'script' ? this.generateScriptTag(dep as ScriptAsset) : this.generateStylesheetTag(dep),
+			)
+			.join('');
+	}
+
+	private injectBeforeClosingTag(html: string, tag: 'head' | 'body', content: string): string {
+		if (!content) {
+			return html;
+		}
+
+		const closingTag = `</${tag}>`;
+		const lowerHtml = html.toLowerCase();
+		const closingTagIndex = lowerHtml.lastIndexOf(closingTag);
+
+		if (closingTagIndex !== -1) {
+			return `${html.slice(0, closingTagIndex)}${content}${html.slice(closingTagIndex)}`;
+		}
+
+		if (tag === 'head') {
+			return `${content}${html}`;
+		}
+
+		return `${html}${content}`;
 	}
 
 	setProcessedDependencies(processedDependencies: ProcessedAsset[]) {
@@ -45,22 +91,38 @@ export class HtmlTransformerService {
 		const { head, body } = this.groupDependenciesByPosition();
 
 		const html = await res.text();
+		const headers = new Headers(res.headers);
 
-		this.htmlRewriter
-			.on('head', {
-				element: (element) => this.appendDependencies(element, head),
-			})
-			.on('body', {
-				element: (element) => this.appendDependencies(element, body),
-			});
+		if (this.htmlRewriter) {
+			this.htmlRewriter
+				.on('head', {
+					element: (element) => this.appendDependencies(element, head),
+				})
+				.on('body', {
+					element: (element) => this.appendDependencies(element, body),
+				});
 
-		return this.htmlRewriter.transform(
-			new Response(html, {
-				headers: res.headers,
-				status: res.status,
-				statusText: res.statusText,
-			}),
+			return this.htmlRewriter.transform(
+				new Response(html, {
+					headers,
+					status: res.status,
+					statusText: res.statusText,
+				}),
+			);
+		}
+
+		const withHeadDependencies = this.injectBeforeClosingTag(html, 'head', this.buildDependencyTags(head));
+		const transformedHtml = this.injectBeforeClosingTag(
+			withHeadDependencies,
+			'body',
+			this.buildDependencyTags(body),
 		);
+
+		return new Response(transformedHtml, {
+			headers,
+			status: res.status,
+			statusText: res.statusText,
+		});
 	}
 
 	private groupDependenciesByPosition() {

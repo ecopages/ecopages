@@ -89,6 +89,19 @@ function createEcoMetadata(optionsEco: EcoInjectedMeta | undefined, componentSou
  * Builds scripts-injector HTML attributes from lazy config
  */
 function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
+	const normalizedScripts = scripts
+		.split(',')
+		.map((scriptPath) => scriptPath.trim())
+		.filter(Boolean)
+		.map((scriptPath) => {
+			if (scriptPath.startsWith('/')) {
+				return scriptPath;
+			}
+
+			return `/${scriptPath.replace(/^\/+/, '')}`;
+		})
+		.join(',');
+
 	let triggerAttr: string;
 
 	if ('on:idle' in lazy) {
@@ -104,7 +117,7 @@ function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
 		);
 	}
 
-	return `${triggerAttr} scripts="${scripts}"`;
+	return `${triggerAttr} scripts="${normalizedScripts}"`;
 }
 
 /**

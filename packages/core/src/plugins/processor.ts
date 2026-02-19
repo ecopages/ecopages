@@ -1,8 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
-import type { EcoPagesAppConfig } from '../internal-types';
-import type { ClientBridge } from '../adapters/bun/client-bridge';
+import type { EcoPagesAppConfig, IClientBridge } from '../internal-types';
 import type { AssetDefinition } from '../services/asset-processing-service';
 import { GENERATED_BASE_PATHS } from '../constants';
 
@@ -17,7 +16,7 @@ function resolveGeneratedPath(
 
 export interface ProcessorWatchContext {
 	path: string;
-	bridge: ClientBridge;
+	bridge: IClientBridge;
 }
 
 export interface ProcessorWatchConfig {

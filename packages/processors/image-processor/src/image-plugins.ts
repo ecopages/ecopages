@@ -1,6 +1,6 @@
 /**
  * This file contains the plugins for bundling the image specifications.
- * @module @ecopages/image-processor/bun-plugins
+ * @module @ecopages/image-processor/image-plugins
  */
 
 import type { EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/build/build-types';

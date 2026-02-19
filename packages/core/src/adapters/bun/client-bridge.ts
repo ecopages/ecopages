@@ -1,5 +1,5 @@
 import type { ServerWebSocket } from 'bun';
-import type { ClientBridgeEvent } from '../../public-types';
+import type { ClientBridgeEvent, IClientBridge } from '../../public-types';
 
 type BunSocket = ServerWebSocket<unknown>;
 
@@ -7,7 +7,7 @@ type BunSocket = ServerWebSocket<unknown>;
  * Manages WebSocket subscribers and broadcasts development events.
  * Bridges the gap between the server and the development client.
  */
-export class ClientBridge {
+export class ClientBridge implements IClientBridge {
 	private subscribers = new Set<BunSocket>();
 
 	subscribe(ws: BunSocket): void {

@@ -1,4 +1,4 @@
-import type { BunPlugin } from 'bun';
+import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 
 import { getFileAsBuffer } from '../postcss-processor';
 import type { CssTransform } from './css-runtime-contract';
@@ -9,7 +9,7 @@ type BunCssLoaderOptions = {
 	transform: CssTransform;
 };
 
-export const createBunCssLoaderPlugin = ({ name, filter, transform }: BunCssLoaderOptions): BunPlugin => ({
+export const createBunCssLoaderPlugin = ({ name, filter, transform }: BunCssLoaderOptions): EcoBuildPlugin => ({
 	name,
 	setup(build) {
 		build.onLoad({ filter }, async (args) => {

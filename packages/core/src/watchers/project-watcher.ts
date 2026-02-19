@@ -2,8 +2,7 @@ import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
-import type { ClientBridge } from '../adapters/bun/client-bridge';
+import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../internal-types.ts';
 import type { ProcessorWatchContext } from '../plugins/processor.ts';
 
 /**
@@ -18,7 +17,7 @@ export interface ProjectWatcherConfig {
 	config: EcoPagesAppConfig;
 	refreshRouterRoutesCallback: () => void;
 	hmrManager: IHmrManager;
-	bridge: ClientBridge;
+	bridge: IClientBridge;
 }
 
 /**
@@ -40,7 +39,7 @@ export class ProjectWatcher {
 	private appConfig: EcoPagesAppConfig;
 	private refreshRouterRoutesCallback: () => void;
 	private hmrManager: IHmrManager;
-	private bridge: ClientBridge;
+	private bridge: IClientBridge;
 	private watcher: FSWatcher | null = null;
 
 	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge }: ProjectWatcherConfig) {
@@ -59,6 +58,8 @@ export class ProjectWatcher {
 	 * @private
 	 */
 	private uncacheModules(): void {
+		if (typeof require === 'undefined') return;
+
 		const { srcDir, rootDir } = this.appConfig;
 		const regex = new RegExp(`${rootDir}/${srcDir}/.*`);
 

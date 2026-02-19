@@ -5,6 +5,9 @@ import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { defaultBuildAdapter } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import { ProjectWatcher } from '../../watchers/project-watcher.ts';
+import { NodeClientBridge } from './node-client-bridge.ts';
+import { NodeHmrManager } from './node-hmr-manager.ts';
 import type {
 	ApiHandler,
 	ApiHandlerContext,
@@ -72,6 +75,8 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 	private staticBuilder!: ServerStaticBuilder;
 	private previewServer: NodeStaticContentServer | null = null;
 	private readonly schemaValidator = new SchemaValidationService();
+	private bridge: NodeClientBridge | null = null;
+	private hmrManager: NodeHmrManager | null = null;
 
 	constructor(options: NodeServerAdapterParams) {
 		super(options);
@@ -81,10 +86,10 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 	}
 
 	public async initialize(): Promise<void> {
-		await this.initRouter();
 		this.setupLoaders();
 		this.copyPublicDir();
 		await this.initializePlugins();
+		await this.initRouter();
 		this.configureResponseHandlers();
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 		this.staticBuilder = new ServerStaticBuilder({
@@ -112,6 +117,8 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 	}
 
 	private async initializePlugins(): Promise<void> {
+		const processorBuildPlugins: import('../../build/build-types.ts').EcoBuildPlugin[] = [];
+
 		for (const processor of this.appConfig.processors.values()) {
 			await processor.setup();
 
@@ -120,12 +127,22 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 					defaultBuildAdapter.registerPlugin(plugin);
 				}
 			}
+			if (processor.buildPlugins) {
+				processorBuildPlugins.push(...processor.buildPlugins);
+			}
 		}
 
 		for (const integration of this.appConfig.integrations) {
 			integration.setConfig(this.appConfig);
 			integration.setRuntimeOrigin(this.runtimeOrigin);
+			if (this.hmrManager) {
+				integration.setHmrManager(this.hmrManager);
+			}
 			await integration.setup();
+
+			for (const plugin of integration.plugins) {
+				defaultBuildAdapter.registerPlugin(plugin);
+			}
 		}
 	}
 
@@ -159,12 +176,12 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 			appConfig: this.appConfig,
 			routeRendererFactory: this.routeRendererFactory,
 			options: {
-				watchMode: false,
+				watchMode: !!this.options?.watch,
 			},
 		});
 
 		const cacheConfig = this.appConfig.cache;
-		const isCacheEnabled = cacheConfig?.enabled ?? true;
+		const isCacheEnabled = cacheConfig?.enabled ?? !this.options?.watch;
 		let cacheService: PageCacheService | null = null;
 
 		if (isCacheEnabled) {
@@ -196,7 +213,8 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 			router: this.router,
 			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
 			explicitStaticRouteMatcher,
-			watch: false,
+			watch: !!this.options?.watch,
+			hmrManager: this.hmrManager ?? undefined,
 		});
 	}
 
@@ -502,6 +520,17 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 			throw new Error('Node server adapter is not initialized. Call createAdapter() first.');
 		}
 
+		const url = new URL(_request.url);
+
+		if (url.pathname === '/_hmr_runtime.js' && this.hmrManager) {
+			const runtimePath = this.hmrManager.getRuntimePath();
+			if (fileSystem.exists(runtimePath)) {
+				return new Response(fileSystem.readFileAsBuffer(runtimePath) as BodyInit, {
+					headers: { 'Content-Type': 'application/javascript' },
+				});
+			}
+		}
+
 		const apiMatch = this.matchApiHandler(_request);
 		if (apiMatch) {
 			return this.handleApiRequest(_request, apiMatch.routeConfig, apiMatch.params);
@@ -512,10 +541,55 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 
 	public async completeInitialization(_server: NodeServerInstance): Promise<void> {
 		this.serverInstance = _server;
+
+		if (this.options?.watch) {
+			const { WebSocketServer } = await import('ws');
+			const wss = new WebSocketServer({ noServer: true });
+			this.bridge = new NodeClientBridge();
+			this.hmrManager = new NodeHmrManager({ appConfig: this.appConfig, bridge: this.bridge });
+			this.hmrManager.setEnabled(true);
+
+			await this.hmrManager.buildRuntime();
+
+			_server.on('upgrade', (req, socket, head) => {
+				const url = new URL(req.url ?? '/', this.runtimeOrigin);
+				if (url.pathname === '/_hmr') {
+					wss.handleUpgrade(req, socket, head, (ws) => {
+						this.bridge!.subscribe(ws);
+						ws.on('close', () => this.bridge!.unsubscribe(ws));
+						ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
+					});
+				} else {
+					socket.destroy();
+				}
+			});
+
+			const loaderPlugins = Array.from(this.appConfig.loaders.values());
+			this.hmrManager.setPlugins(loaderPlugins);
+
+			for (const integration of this.appConfig.integrations) {
+				integration.setHmrManager(this.hmrManager);
+			}
+
+			this.configureResponseHandlers();
+
+			const watcher = new ProjectWatcher({
+				config: this.appConfig,
+				refreshRouterRoutesCallback: async () => {
+					await this.router.init();
+					this.configureResponseHandlers();
+				},
+				hmrManager: this.hmrManager,
+				bridge: this.bridge,
+			});
+			await watcher.createWatcherSubscription();
+		}
+
 		appLogger.debug('Node server adapter initialization completed', {
 			apiHandlers: this.apiHandlers.length,
 			staticRoutes: this.staticRoutes.length,
 			hasErrorHandler: !!this.errorHandler,
+			hmrEnabled: !!this.hmrManager?.isEnabled(),
 		});
 	}
 }

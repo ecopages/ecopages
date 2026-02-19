@@ -1,3 +1,4 @@
+import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { AssetFactory, type AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { deepMerge } from '@ecopages/core/utils/deep-merge';
@@ -9,6 +10,7 @@ import { Logger } from '@ecopages/logger';
 import { createMDXRenderer, MDXRenderer } from './mdx-renderer.ts';
 import { createMDXReactRenderer, MDXReactRenderer } from './mdx-react-renderer.ts';
 import { MdxHmrStrategy } from './mdx-hmr-strategy.ts';
+import { createMdxLoaderPlugin } from './mdx-loader-plugin.ts';
 
 const appLogger = new Logger('[MDXPlugin]');
 
@@ -41,6 +43,7 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 	private dependencies: AssetDefinition[] | undefined;
 	private isReact = false;
 	private compilerOptions: CompileOptions;
+	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
 
 	constructor({ compilerOptions, ...options }: MDXPluginConfig = { extensions: ['.mdx'] }) {
 		super({
@@ -67,8 +70,15 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 		}
 	}
 
+	override get plugins(): EcoBuildPlugin[] {
+		if (this.mdxLoaderPlugin) {
+			return [this.mdxLoaderPlugin];
+		}
+		return [];
+	}
+
 	override async setup(): Promise<void> {
-		await this.setupBunPlugin(this.compilerOptions);
+		this.mdxLoaderPlugin = createMdxLoaderPlugin(this.compilerOptions);
 		await super.setup();
 	}
 
@@ -95,20 +105,6 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 		const context = hmrManager.getDefaultContext();
 
 		return new MdxHmrStrategy(context, this.compilerOptions);
-	}
-
-	/**
-	 * Registers the MDX plugin with Bun globally.
-	 */
-	async setupBunPlugin(options?: Readonly<CompileOptions>): Promise<void> {
-		const bunRuntime = (globalThis as { Bun?: { plugin: (plugin: unknown) => void | Promise<void> } }).Bun;
-		if (!bunRuntime) {
-			appLogger.debug('Skipping MDX Bun plugin registration in non-Bun runtime');
-			return;
-		}
-
-		const mdx = (await import('@mdx-js/esbuild')).default;
-		await bunRuntime.plugin(mdx(options));
 	}
 
 	/**

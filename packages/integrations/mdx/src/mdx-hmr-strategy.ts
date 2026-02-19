@@ -9,9 +9,11 @@
 
 import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
-import mdx from '@mdx-js/esbuild';
+import { defaultBuildAdapter } from '@ecopages/core/build/build-adapter';
+import { fileSystem } from '@ecopages/file-system';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { DefaultHmrContext } from '@ecopages/core';
+import { createMdxLoaderPlugin } from './mdx-loader-plugin.ts';
 
 export class MdxHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
@@ -86,14 +88,15 @@ export class MdxHmrStrategy extends HmrStrategy {
 			const relativePathJs = relativePath.replace(/\.mdx$/, '.js');
 			const outputPath = path.join(this.context.getDistDir(), relativePathJs);
 
-			const result = await Bun.build({
+			const mdxPlugin = await createMdxLoaderPlugin(this.compilerOptions);
+
+			const result = await defaultBuildAdapter.build({
 				entrypoints: [entrypointPath],
 				outdir: this.context.getDistDir(),
 				naming: relativePathJs,
 				target: 'browser',
 				format: 'esm',
-				// @ts-expect-error: esbuild plugin type vs bun plugin type
-				plugins: [mdx(this.compilerOptions), ...this.context.getPlugins()],
+				plugins: [mdxPlugin, ...this.context.getPlugins()],
 				minify: false,
 				external: ['react', 'react-dom'],
 			});
@@ -118,7 +121,7 @@ export class MdxHmrStrategy extends HmrStrategy {
 	 */
 	private async processOutput(filepath: string, _url: string): Promise<boolean> {
 		try {
-			let code = await Bun.file(filepath).text();
+			let code = await fileSystem.readFile(filepath);
 
 			if (code.includes('/* [ecopages] mdx-hmr */')) {
 				return false;
@@ -126,7 +129,7 @@ export class MdxHmrStrategy extends HmrStrategy {
 
 			code = this.replaceBareSpecifiers(code);
 			code = this.injectReactFastRefresh(code);
-			await Bun.write(filepath, code);
+			await fileSystem.writeAsync(filepath, code);
 
 			return true;
 		} catch {

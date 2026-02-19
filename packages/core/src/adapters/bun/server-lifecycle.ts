@@ -112,6 +112,10 @@ export class ServerLifecycle {
 				integration.setRuntimeOrigin(this.runtimeOrigin);
 				integration.setHmrManager(this.hmrManager);
 				await integration.setup();
+
+				for (const plugin of integration.plugins) {
+					defaultBuildAdapter.registerPlugin(plugin);
+				}
 			});
 
 			await Promise.all([...processorPromises, ...integrationPromises]);

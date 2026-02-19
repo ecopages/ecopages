@@ -1,3 +1,4 @@
+import type { EcoBuildPlugin } from '../build/build-types';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types';
 import type { HmrStrategy } from '../hmr/hmr-strategy';
 import type { EcoPagesElement } from '../public-types';
@@ -49,6 +50,10 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	protected assetProcessingService?: AssetProcessingService;
 	protected hmrManager?: IHmrManager;
 	declare runtimeOrigin: string;
+
+	get plugins(): EcoBuildPlugin[] {
+		return [];
+	}
 
 	constructor(config: IntegrationPluginConfig) {
 		this.name = config.name;

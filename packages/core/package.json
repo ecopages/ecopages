@@ -20,21 +20,25 @@
 		"directory": "packages/core"
 	},
 	"scripts": {
+		"test:node": "node --import tsx --test src/**/*.test.node.ts",
 		"typecheck": "bunx tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "latest",
-		"@rspack/core": "^1.5.3",
+		"esbuild": "^0.25.10",
 		"@ecopages/scripts-injector": "^0.1.3",
 		"chokidar": "^4.0.3",
 		"ghtml": "^4.0.2",
-		"oxc-parser": "^0.110.0"
+		"oxc-parser": "^0.110.0",
+		"ws": "^8.18.0"
 	},
 	"devDependencies": {
 		"@types/bun": "latest",
+		"@types/ws": "^8.5.14",
 		"arktype": "^2.1.29",
+		"tsx": "^4.20.5",
 		"valibot": "^1.2.0",
 		"zod": "^4.3.6"
 	},
@@ -120,6 +124,14 @@
 		"./plugins/strip-server-only-plugin": {
 			"types": "./src/plugins/strip-server-only-plugin.ts",
 			"default": "./src/plugins/strip-server-only-plugin.ts"
+		},
+		"./build/build-types": {
+			"types": "./src/build/build-types.ts",
+			"default": "./src/build/build-types.ts"
+		},
+		"./build/build-adapter": {
+			"types": "./src/build/build-adapter.ts",
+			"default": "./src/build/build-adapter.ts"
 		},
 		"./adapters/bun/client-bridge": {
 			"types": "./src/adapters/bun/client-bridge.ts",

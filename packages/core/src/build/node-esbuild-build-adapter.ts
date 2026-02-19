@@ -1,0 +1,468 @@
+import type {
+	Loader as EsbuildLoader,
+	OnLoadResult as EsbuildOnLoadResult,
+	OnResolveResult as EsbuildOnResolveResult,
+	Plugin as EsbuildPlugin,
+} from 'esbuild';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileSystem } from '@ecopages/file-system';
+import type {
+	EcoBuildOnLoadResult,
+	EcoBuildPlugin,
+	EcoBuildPluginBuilder,
+	EcoBuildOnResolveResult,
+} from './build-types.ts';
+import type {
+	BuildAdapter,
+	BuildLog,
+	BuildOptions,
+	BuildResult,
+	BuildTranspileOptions,
+	BuildTranspileProfile,
+} from './build-adapter.ts';
+
+/**
+ * Parses JSONC content by removing comments and trailing commas before parsing.
+ */
+function parseJsonc(jsonContent: string): unknown {
+	const withoutBlockComments = jsonContent.replaceAll(/\/\*[\s\S]*?\*\//g, '');
+	const withoutLineComments = withoutBlockComments.replaceAll(/(^|[^:\\])\/\/.*$/gm, '$1');
+	const withoutTrailingCommas = withoutLineComments.replaceAll(/,\s*([}\]])/g, '$1');
+	return JSON.parse(withoutTrailingCommas);
+}
+
+/**
+ * Loads `compilerOptions` from the local `tsconfig.json` when present.
+ *
+ * Values are reused for `tsconfigRaw` so esbuild keeps native tsconfig behavior
+ * while we only override options required by Ecopages runtime semantics.
+ */
+function loadTsconfigCompilerOptions(rootDir: string): {
+	baseUrl?: string;
+	paths?: Record<string, string[]>;
+	jsxImportSource?: string;
+} {
+	const tsconfigPath = path.join(rootDir, 'tsconfig.json');
+
+	if (!fileSystem.exists(tsconfigPath)) {
+		return {};
+	}
+
+	try {
+		const tsconfigContent = fileSystem.readFileSync(tsconfigPath).toString();
+		const parsed = parseJsonc(tsconfigContent) as {
+			compilerOptions?: {
+				baseUrl?: string;
+				paths?: Record<string, string[]>;
+			};
+		};
+
+		return parsed.compilerOptions ?? {};
+	} catch {
+		return {};
+	}
+}
+
+/**
+ * Provides common transpile output defaults shared across build profiles.
+ */
+function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
+	switch (profile) {
+		case 'browser-script':
+			return {
+				target: 'browser',
+				format: 'esm',
+				sourcemap: 'none',
+			};
+		case 'hmr-runtime':
+			return {
+				target: 'browser',
+				format: 'esm',
+				sourcemap: 'none',
+			};
+		case 'hmr-entrypoint':
+			return {
+				target: 'browser',
+				format: 'esm',
+				sourcemap: 'none',
+			};
+	}
+}
+
+/**
+ * Node build adapter backed by esbuild.
+ *
+ * This adapter keeps Ecopages build plugin compatibility (`onResolve`, `onLoad`,
+ * and `module`) while delegating bundling and TypeScript/decorator transforms to esbuild.
+ */
+export class NodeEsbuildBuildAdapter implements BuildAdapter {
+	private registeredPlugins: EcoBuildPlugin[] = [];
+
+	private escapeRegExp(value: string): string {
+		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	}
+
+	private getPluginsForBuild(additionalPlugins?: EcoBuildPlugin[]): EcoBuildPlugin[] {
+		const merged = [...this.registeredPlugins, ...(additionalPlugins ?? [])];
+		const byName = new Map<string, EcoBuildPlugin>();
+
+		for (const plugin of merged) {
+			if (!byName.has(plugin.name)) {
+				byName.set(plugin.name, plugin);
+			}
+		}
+
+		return Array.from(byName.values());
+	}
+
+	private normalizeEsbuildLoader(loader: unknown): EsbuildLoader | undefined {
+		switch (loader) {
+			case 'base64':
+			case 'binary':
+			case 'copy':
+			case 'css':
+			case 'dataurl':
+			case 'empty':
+			case 'file':
+			case 'global-css':
+			case 'js':
+			case 'json':
+			case 'jsx':
+			case 'local-css':
+			case 'text':
+			case 'ts':
+			case 'tsx':
+				return loader as EsbuildLoader;
+			default:
+				return undefined;
+		}
+	}
+
+	private inferEsbuildLoaderFromPath(filePath: string): EsbuildLoader {
+		const extension = path.extname(filePath).toLowerCase();
+
+		switch (extension) {
+			case '.ts':
+				return 'ts';
+			case '.tsx':
+				return 'tsx';
+			case '.jsx':
+				return 'jsx';
+			case '.json':
+				return 'json';
+			case '.css':
+				return 'css';
+			default:
+				return 'js';
+		}
+	}
+
+	private convertLoadResultToModuleSource(result: unknown): string | undefined {
+		if (!result || typeof result !== 'object') {
+			return undefined;
+		}
+
+		const candidate = result as {
+			contents?: string;
+			loader?: unknown;
+			exports?: Record<string, unknown>;
+		};
+
+		if (typeof candidate.contents === 'string') {
+			return candidate.contents;
+		}
+
+		if (candidate.loader === 'object' && candidate.exports && typeof candidate.exports === 'object') {
+			const entries = Object.entries(candidate.exports)
+				.map(([key, value]) =>
+					key === 'default'
+						? `export default ${JSON.stringify(value)};`
+						: `export const ${key} = ${JSON.stringify(value)};`,
+				)
+				.join('\n');
+
+			return entries;
+		}
+
+		return undefined;
+	}
+
+	private convertPluginOnLoadResult(args: { path: string }, result: unknown): EsbuildOnLoadResult | undefined {
+		if (!result || typeof result !== 'object') {
+			return undefined;
+		}
+
+		const candidate = result as EcoBuildOnLoadResult;
+
+		const sourceFromExports =
+			candidate.loader === 'object' && candidate.exports && typeof candidate.exports === 'object'
+				? this.convertLoadResultToModuleSource(candidate)
+				: undefined;
+
+		if (sourceFromExports) {
+			return {
+				contents: sourceFromExports,
+				loader: 'js',
+				resolveDir: path.dirname(args.path),
+			};
+		}
+
+		if (typeof candidate.contents === 'string' || candidate.contents instanceof Uint8Array) {
+			return {
+				contents: candidate.contents,
+				loader: this.normalizeEsbuildLoader(candidate.loader) ?? this.inferEsbuildLoaderFromPath(args.path),
+				resolveDir: typeof candidate.resolveDir === 'string' ? candidate.resolveDir : path.dirname(args.path),
+			};
+		}
+
+		return undefined;
+	}
+
+	private resolvePluginPath(value: string, args: { importer: string }, contextRoot: string): string {
+		if (path.isAbsolute(value)) {
+			return value;
+		}
+
+		if (value.startsWith('.') || value.startsWith('..')) {
+			const baseDir = args.importer ? path.dirname(args.importer) : contextRoot;
+			return path.resolve(baseDir, value);
+		}
+
+		return value;
+	}
+
+	/**
+	 * Creates an esbuild plugin bridge compatible with the existing Ecopages
+	 * plugin API shape.
+	 */
+	private createEcoPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): EsbuildPlugin {
+		return {
+			name: 'ecopages-plugin-bridge',
+			setup: async (build) => {
+				let moduleCounter = 0;
+
+				const bridge: EcoBuildPluginBuilder = {
+					onResolve: (options: { filter: RegExp; namespace?: string }, callback): void => {
+						build.onResolve(options, async (args) => {
+							const result = await callback({
+								path: args.path,
+								importer: args.importer,
+								namespace: args.namespace,
+							});
+
+							if (!result || typeof result !== 'object') {
+								return undefined;
+							}
+
+							const candidate = result as EcoBuildOnResolveResult;
+
+							const resolveResult: EsbuildOnResolveResult = {};
+
+							if (typeof candidate.path === 'string') {
+								resolveResult.path = this.resolvePluginPath(candidate.path, args, contextRoot);
+							}
+
+							if (typeof candidate.namespace === 'string') {
+								resolveResult.namespace = candidate.namespace;
+							}
+
+							if (typeof candidate.external === 'boolean') {
+								resolveResult.external = candidate.external;
+							}
+
+							return Object.keys(resolveResult).length > 0 ? resolveResult : undefined;
+						});
+					},
+					onLoad: (options: { filter: RegExp; namespace?: string }, callback): void => {
+						build.onLoad(options, async (args) => {
+							const result = await callback({
+								path: args.path,
+								namespace: args.namespace,
+							});
+
+							return this.convertPluginOnLoadResult(args, result);
+						});
+					},
+					module: (specifier: string, callback): void => {
+						const namespace = `ecopages-module-${moduleCounter}`;
+						moduleCounter += 1;
+						const filter = new RegExp(`^${this.escapeRegExp(specifier)}$`);
+
+						build.onResolve({ filter }, () => ({
+							path: specifier,
+							namespace,
+						}));
+
+						build.onLoad({ filter, namespace }, async (args) => {
+							const result = await callback();
+							return this.convertPluginOnLoadResult(args, result);
+						});
+					},
+				};
+
+				for (const plugin of plugins) {
+					await plugin.setup(bridge);
+				}
+			},
+		};
+	}
+
+	private async loadEsbuildModule(): Promise<typeof import('esbuild')> {
+		const esbuildModule = (await import('esbuild')) as typeof import('esbuild');
+
+		if (typeof esbuildModule.build !== 'function') {
+			throw new Error('esbuild is not available. Install esbuild to use Node bundling.');
+		}
+
+		return esbuildModule;
+	}
+
+	private mapEsbuildSourcemap(value: string | undefined): false | 'linked' | 'inline' | 'external' | 'both' {
+		switch (value) {
+			case 'none':
+				return false;
+			case 'inline':
+				return 'inline';
+			case 'both':
+				return 'both';
+			case 'external':
+				return 'external';
+			default:
+				return 'linked';
+		}
+	}
+
+	private mapEsbuildFormat(value: string | undefined): 'esm' | 'cjs' | 'iife' {
+		switch (value) {
+			case 'cjs':
+				return 'cjs';
+			case 'iife':
+				return 'iife';
+			default:
+				return 'esm';
+		}
+	}
+
+	/**
+	 * Normalizes esbuild errors into Ecopages `BuildLog` entries.
+	 */
+	private toBuildLogs(error: unknown): BuildLog[] {
+		if (error && typeof error === 'object') {
+			const candidate = error as {
+				errors?: Array<{ text?: string; location?: { file?: string; line?: number; column?: number } }>;
+				message?: string;
+			};
+
+			if (Array.isArray(candidate.errors) && candidate.errors.length > 0) {
+				return candidate.errors.map((entry) => {
+					const locationPrefix = entry.location?.file
+						? `${entry.location.file}:${entry.location.line ?? 0}:${entry.location.column ?? 0} `
+						: '';
+
+					return {
+						message: `${locationPrefix}${entry.text ?? 'Unknown esbuild error'}`,
+					};
+				});
+			}
+
+			if (typeof candidate.message === 'string') {
+				return [{ message: candidate.message }];
+			}
+		}
+
+		return [{ message: 'Unknown esbuild error' }];
+	}
+
+	/**
+	 * Bundles entrypoints using esbuild for Node runtime builds.
+	 */
+	async build(options: BuildOptions): Promise<BuildResult> {
+		const esbuild = await this.loadEsbuildModule();
+		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+		const outdir = path.resolve(options.outdir ?? '.eco/assets');
+		const compilerOptions = loadTsconfigCompilerOptions(contextRoot);
+		const jsxImportSource = compilerOptions.jsxImportSource;
+
+		const plugins = this.getPluginsForBuild(options.plugins);
+		const esbuildPlugins: EsbuildPlugin[] = [
+			...(plugins.length > 0 ? [this.createEcoPluginBridge(plugins, contextRoot)] : []),
+		];
+
+		const outfile = options.naming ? path.join(outdir, options.naming) : undefined;
+		if (outfile) {
+			fileSystem.ensureDir(path.dirname(outfile));
+		}
+
+		try {
+			const result = await esbuild.build({
+				absWorkingDir: contextRoot,
+				entryPoints: options.entrypoints,
+				bundle: true,
+				...(outfile
+					? { outfile }
+					: { outdir, entryNames: '[name]', chunkNames: '[name]', assetNames: '[name]' }),
+				format: this.mapEsbuildFormat(options.format),
+				platform: options.target === 'browser' ? 'browser' : 'node',
+				sourcemap: this.mapEsbuildSourcemap(options.sourcemap),
+				splitting: outfile ? false : !!options.splitting,
+				minify: !!options.minify,
+				external: options.external,
+				target: 'es2022',
+				metafile: true,
+				write: true,
+				plugins: esbuildPlugins,
+				jsx: 'automatic',
+				jsxImportSource,
+				tsconfigRaw: {
+					compilerOptions: {
+						...compilerOptions,
+						experimentalDecorators: true,
+					},
+				},
+				logLevel: 'silent',
+			});
+
+			const outputs = Object.keys(result.metafile.outputs).map((outputPath) => ({
+				path: path.isAbsolute(outputPath) ? outputPath : path.join(contextRoot, outputPath),
+			}));
+			const logs = result.warnings.map((warning) => ({ message: warning.text }));
+
+			return {
+				success: true,
+				logs,
+				outputs,
+			};
+		} catch (error) {
+			return {
+				success: false,
+				logs: this.toBuildLogs(error),
+				outputs: [],
+			};
+		}
+	}
+
+	/**
+	 * Resolves module specifiers from a project root.
+	 */
+	resolve(importPath: string, rootDir: string): string {
+		const localRequire = createRequire(path.join(rootDir, 'package.json'));
+		return localRequire.resolve(importPath);
+	}
+
+	/**
+	 * Registers a build plugin once by plugin name.
+	 */
+	registerPlugin(plugin: EcoBuildPlugin): void {
+		if (!this.registeredPlugins.find((registered) => registered.name === plugin.name)) {
+			this.registeredPlugins.push(plugin);
+		}
+	}
+
+	/**
+	 * Returns transpile defaults for a known transpile profile.
+	 */
+	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
+		return transpileProfileToOptions(profile);
+	}
+}

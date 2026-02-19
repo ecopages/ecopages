@@ -9,10 +9,10 @@ import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { fileSystem } from '@ecopages/file-system';
 import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
+import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { Logger } from '@ecopages/logger';
-import type { BunPlugin } from 'bun';
-import { createImagePlugin, createImagePluginBundler } from './bun-plugins';
+import { createImagePlugin, createImagePluginBundler } from './image-plugins';
 import { ImageProcessor } from './image-processor';
 import type { ImageSize, ImageSpecifications } from './types';
 import { anyCaseToCamelCase } from './utils';
@@ -97,11 +97,11 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		});
 	}
 
-	get buildPlugins(): BunPlugin[] {
+	get buildPlugins(): EcoBuildPlugin[] {
 		return [createImagePluginBundler(this.processedImages)];
 	}
 
-	get plugins(): BunPlugin[] {
+	get plugins(): EcoBuildPlugin[] {
 		return [createImagePlugin(this.processedImages)];
 	}
 

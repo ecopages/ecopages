@@ -421,7 +421,7 @@ export function stripServerOnlyPlugin(options: StripServerOnlyPluginOptions): Ec
 				};
 			});
 
-			build.onLoad({ filter: pageFileFilter, namespace: 'file' }, async (args) => {
+			build.onLoad({ filter: pageFileFilter, namespace: 'file' }, (args) => {
 				if (SERVER_FILE_PATTERN.test(args.path)) {
 					return undefined;
 				}
@@ -430,7 +430,7 @@ export function stripServerOnlyPlugin(options: StripServerOnlyPluginOptions): Ec
 					return undefined;
 				}
 
-				const source = await fileSystem.readFile(args.path);
+				const source = fileSystem.readFileSync(args.path);
 
 				try {
 					const transformed = transformSource(source, args.path);

@@ -202,4 +202,4 @@ export interface ProcessorPlugin {
 }
 
 // Re-export HMR types from public-types for internal use
-export type { ClientBridgeEvent, DefaultHmrContext, IHmrManager } from './public-types.ts';
+export type { ClientBridgeEvent, DefaultHmrContext, IHmrManager, IClientBridge } from './public-types.ts';

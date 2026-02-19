@@ -4,6 +4,7 @@
  */
 
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import type { IHmrManager } from '@ecopages/core/internal-types';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
@@ -13,6 +14,7 @@ import type React from 'react';
 import { ReactRenderer } from './react-renderer.ts';
 import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
+import { createMdxLoaderPlugin } from '@ecopages/mdx/mdx-loader-plugin';
 
 const appLogger = new Logger('[ReactPlugin]');
 
@@ -102,6 +104,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	private mdxEnabled: boolean;
 	private mdxCompilerOptions?: CompileOptions;
 	private mdxExtensions: string[];
+	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
 
 	constructor(options?: Omit<ReactPluginOptions, 'name'>) {
 		const extensions = ['.tsx'];
@@ -145,27 +148,18 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		this.integrationDependencies.unshift(...this.getDependencies());
 	}
 
-	override async setup(): Promise<void> {
-		if (this.mdxEnabled && this.mdxCompilerOptions) {
-			await this.setupMdxBunPlugin();
+	override get plugins(): EcoBuildPlugin[] {
+		if (this.mdxLoaderPlugin) {
+			return [this.mdxLoaderPlugin];
 		}
-		await super.setup();
+		return [];
 	}
 
-	/**
-	 * Registers the MDX esbuild plugin with Bun for MDX file compilation.
-	 * @remarks Uses esbuild plugin API which is compatible with Bun's plugin system.
-	 */
-	private async setupMdxBunPlugin(): Promise<void> {
-		const bunRuntime = (globalThis as { Bun?: { plugin: (plugin: unknown) => void | Promise<void> } }).Bun;
-		if (!bunRuntime) {
-			appLogger.debug('Skipping React MDX Bun plugin registration in non-Bun runtime');
-			return;
+	override async setup(): Promise<void> {
+		if (this.mdxEnabled && this.mdxCompilerOptions) {
+			this.mdxLoaderPlugin = createMdxLoaderPlugin(this.mdxCompilerOptions);
 		}
-
-		const mdx = (await import('@mdx-js/esbuild')).default;
-		await bunRuntime.plugin(mdx(this.mdxCompilerOptions));
-		appLogger.debug('MDX Bun plugin registered');
+		await super.setup();
 	}
 
 	/**

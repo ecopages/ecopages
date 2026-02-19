@@ -1,7 +1,5 @@
 import { createServer, type IncomingMessage, type Server as NodeServerInstance, type ServerResponse } from 'node:http';
-import { register } from 'node:module';
 import { Readable } from 'node:stream';
-import { pathToFileURL } from 'node:url';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
@@ -12,7 +10,7 @@ import {
 	type RouteHandler,
 } from '../abstract/application-adapter.ts';
 import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';
-import { registerNodeRuntimePlugins } from './node-runtime-plugin-adapter.ts';
+import { registerNodeRuntimePlugins, registerRuntimeHooks } from './node-runtime-plugin-adapter.ts';
 
 export type NodeMiddleware<TExtension extends Record<string, any> = {}> = Middleware<
 	Request,
@@ -77,36 +75,6 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 	private runtimeOrigin = '';
 	private static nodeRuntimeLoaderRegistered = false;
 
-	private registerNodeCssProcessingBridge() {
-		type NodeCssBridge = (args: { filePath: string; contents: string }) => Promise<string>;
-		type NodeProcessWithCssBridge = NodeJS.Process & {
-			__ECOPAGES_NODE_PROCESS_CSS__?: NodeCssBridge;
-		};
-
-		const processWithBridge = process as NodeProcessWithCssBridge;
-		const processors = Array.from(this.appConfig.processors.values()) as Array<{
-			cssProcessor?: (contents: string, filePath: string) => Promise<string>;
-			nodeCssProcessor?: (contents: string, filePath: string) => Promise<string>;
-			processForNodeRuntime?: (contents: string, filePath: string) => Promise<string>;
-		}>;
-
-		const cssProcessor = processors
-			.map((processor) => processor.cssProcessor ?? processor.nodeCssProcessor ?? processor.processForNodeRuntime)
-			.find(
-				(processor): processor is (contents: string, filePath: string) => Promise<string> =>
-					typeof processor === 'function',
-			);
-
-		if (!cssProcessor) {
-			delete processWithBridge.__ECOPAGES_NODE_PROCESS_CSS__;
-			return;
-		}
-
-		processWithBridge.__ECOPAGES_NODE_PROCESS_CSS__ = async ({ filePath, contents }) => {
-			return await cssProcessor(contents, filePath);
-		};
-	}
-
 	private ensureNodeRuntimeLoaderRegistration() {
 		if (EcopagesApp.nodeRuntimeLoaderRegistered) {
 			return;
@@ -117,7 +85,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 		process.env.ECOPAGES_DIST_DIR = this.appConfig.absolutePaths.distDir;
 		process.env.ECOPAGES_JSX_IMPORT_SOURCE = process.env.ECOPAGES_JSX_IMPORT_SOURCE ?? '@kitajs/html';
 
-		register(new URL('./node-runtime-loader.mjs', import.meta.url), pathToFileURL(`${this.appConfig.rootDir}/`));
+		registerRuntimeHooks();
 		EcopagesApp.nodeRuntimeLoaderRegistered = true;
 	}
 
@@ -380,14 +348,13 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 	}
 
 	public async start(): Promise<NodeServerInstance | void> {
-		await registerNodeRuntimePlugins(this.appConfig);
 		this.ensureNodeRuntimeLoaderRegistration();
 
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
 
-		this.registerNodeCssProcessingBridge();
+		await registerNodeRuntimePlugins(this.appConfig);
 
 		if (this.server) {
 			return this.server;

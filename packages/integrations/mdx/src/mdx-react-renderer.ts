@@ -9,7 +9,7 @@
  * ## Architecture Overview
  *
  * 1. **Global Plugin Registration**:
- *    The `MDXPlugin` (defined in `mdx-react.plugin.ts`) registers a global Bun plugin (`@mdx-js/esbuild`).
+ *    The `MDXPlugin` registers a global `@mdx-js/esbuild` loader plugin.
  *    This allows Bun to understand how to import and bundle `.mdx` files natively.
  *
  * 2. **File-Based Bundling**:
@@ -49,7 +49,7 @@ import {
 	type ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
 import type { CompileOptions } from '@mdx-js/mdx';
-import mdx from '@mdx-js/esbuild';
+import { createMdxLoaderPlugin } from './mdx-loader-plugin.ts';
 import { createMDXHydrationScript } from './utils/hydration-scripts.ts';
 
 /**
@@ -153,6 +153,8 @@ export class MDXReactRenderer extends IntegrationRenderer {
 				.replace(path.basename(pagePath), `${componentName}.js`)
 				.replace(/\\/g, '/')}`;
 
+			const mdxPlugin = await createMdxLoaderPlugin(this.compilerOptions);
+
 			const fileScript = AssetFactory.createFileScript({
 				position: 'head',
 				filepath: pagePath,
@@ -163,7 +165,7 @@ export class MDXReactRenderer extends IntegrationRenderer {
 					loading: 'lazy',
 					external: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
 					naming: `${componentName}.[ext]`,
-					plugins: [mdx(this.compilerOptions)],
+					plugins: [mdxPlugin],
 					...(import.meta.env.NODE_ENV === 'production' && {
 						minify: true,
 						splitting: false,

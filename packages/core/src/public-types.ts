@@ -123,6 +123,19 @@ export type ClientBridgeEvent = {
 };
 
 /**
+ * Adapter-agnostic interface for broadcasting development events to connected clients.
+ * Implemented by both the Bun and Node client bridges.
+ */
+export interface IClientBridge {
+	broadcast(event: ClientBridgeEvent): void;
+	reload(): void;
+	cssUpdate(path: string): void;
+	update(path: string): void;
+	error(message: string): void;
+	subscriberCount: number;
+}
+
+/**
  * Interface for the HMR Manager.
  * Used by integration plugins to register entrypoints and strategies.
  */

@@ -134,7 +134,7 @@ export class StaticSiteGenerator {
 					if (typeof body === 'string' || Buffer.isBuffer(body)) {
 						contents = body;
 					} else if (body instanceof ReadableStream) {
-						contents = await Bun.readableStreamToText(body);
+						contents = await new Response(body).text();
 					} else {
 						throw new Error(`Unsupported body type for static generation: ${typeof body}`);
 					}

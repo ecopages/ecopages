@@ -112,8 +112,9 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		};
 
 		if (isMdx && ReactRenderer.mdxCompilerOptions) {
-			const mdx = (await import('@mdx-js/esbuild')).default;
-			options.plugins = [mdx(ReactRenderer.mdxCompilerOptions)];
+			const { createMdxLoaderPlugin } = await import('@ecopages/mdx/mdx-loader-plugin');
+			const mdxPlugin = await createMdxLoaderPlugin(ReactRenderer.mdxCompilerOptions);
+			options.plugins = [mdxPlugin];
 		}
 
 		return options;

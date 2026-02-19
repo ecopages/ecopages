@@ -11,6 +11,16 @@
 	"main": "./src/mdx.plugin.ts",
 	"types": "./src/mdx.plugin.ts",
 	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/mdx.plugin.ts",
+			"types": "./src/mdx.plugin.ts"
+		},
+		"./mdx-loader-plugin": {
+			"default": "./src/mdx-loader-plugin.ts",
+			"types": "./src/mdx-loader-plugin.ts"
+		}
+	},
 	"files": [
 		"src"
 	],

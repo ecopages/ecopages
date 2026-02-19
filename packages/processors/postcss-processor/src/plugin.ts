@@ -4,15 +4,15 @@
  */
 
 import path from 'node:path';
-import { ClientBridge } from '@ecopages/core/adapters/bun/client-bridge';
+import type { IClientBridge } from '@ecopages/core';
 import { fileSystem } from '@ecopages/file-system';
 import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processor';
+import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
 import { PostCssProcessor } from './postcss-processor';
-import { createBunCssLoaderPlugin } from './runtime/css-loader.bun';
-import { createCssRuntimeProcessor } from './runtime/css-loader.node';
-import type { CssRuntimeProcessor, CssTransformInput, NodeCssProcessor } from './runtime/css-runtime-contract';
+import { createCssLoaderPlugin } from './runtime/css-loader-plugin';
+import type { CssTransformInput } from './runtime/css-runtime-contract';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
 	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
@@ -39,7 +39,7 @@ export interface PostCssProcessorPluginConfig {
 	 * @param filePath The absolute path to the CSS file being processed
 	 * @returns The transformed contents
 	 */
-	transformInput?: (contents: string | Buffer, filePath: string) => Promise<string>;
+	transformInput?: (contents: string | Buffer, filePath: string) => string | Promise<string>;
 	/**
 	 * Function to transform the output CSS after PostCSS processing.
 	 * It can be handy to add a custom header or footer to the processed CSS.
@@ -69,15 +69,24 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		return this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
 	}
 
-	private async transformCss(input: CssTransformInput): Promise<string> {
+	private transformCssSync(input: CssTransformInput): string {
+		const { contents } = input;
+		return typeof contents === 'string' ? contents : contents.toString('utf-8');
+	}
+
+	private async transformCssAsync(input: CssTransformInput): Promise<string> {
 		const { contents, filePath } = input;
 		let transformed: string = typeof contents === 'string' ? contents : contents.toString('utf-8');
 
 		if (this.options?.transformInput) {
-			transformed = await this.options.transformInput(contents, filePath);
+			const result = this.options.transformInput(contents, filePath);
+			transformed =
+				typeof (result as unknown as Record<string, unknown>).then === 'function'
+					? await (result as Promise<string>)
+					: (result as string);
 		}
 
-		return await this.process(transformed, filePath);
+		return this.process(transformed, filePath);
 	}
 
 	override matchesFileFilter(filepath: string): boolean {
@@ -114,7 +123,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 * Handles CSS file changes during development.
 	 * Processes the file and broadcasts a css-update event for hot reloading.
 	 */
-	private async handleCssChange(filePath: string, bridge: ClientBridge): Promise<void> {
+	private async handleCssChange(filePath: string, bridge: IClientBridge): Promise<void> {
 		if (!this.context) return;
 
 		try {
@@ -142,22 +151,22 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		}
 	}
 
-	get buildPlugins(): Bun.BunPlugin[] {
+	get buildPlugins(): EcoBuildPlugin[] {
 		return [
-			createBunCssLoaderPlugin({
+			createCssLoaderPlugin({
 				name: 'postcss-processor-build-loader',
 				filter: this.getCssFilter(),
-				transform: this.transformCss.bind(this),
+				transform: this.transformCssAsync.bind(this),
 			}),
 		];
 	}
 
-	get plugins(): Bun.BunPlugin[] {
+	get plugins(): EcoBuildPlugin[] {
 		return [
-			createBunCssLoaderPlugin({
+			createCssLoaderPlugin({
 				name: 'postcss-processor-runtime-loader',
 				filter: this.getCssFilter(),
-				transform: this.transformCss.bind(this),
+				transform: this.transformCssSync.bind(this),
 			}),
 		];
 	}
@@ -250,19 +259,12 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		});
 	}
 
-	async processForNodeRuntime(contents: string, filePath: string): Promise<string> {
-		return await this.transformCss({
-			contents,
+	processSync(fileAsString: string, filePath?: string): string {
+		return PostCssProcessor.processStringOrBufferSync(fileAsString, {
 			filePath,
+			plugins: this.postcssPlugins,
+			transformOutput: this.options?.transformOutput,
 		});
-	}
-
-	get cssProcessor(): CssRuntimeProcessor {
-		return createCssRuntimeProcessor(this.transformCss.bind(this));
-	}
-
-	get nodeCssProcessor(): NodeCssProcessor {
-		return this.cssProcessor;
 	}
 
 	/**

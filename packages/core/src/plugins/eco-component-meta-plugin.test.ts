@@ -53,7 +53,7 @@ describe('eco-component-meta-plugin', () => {
 			throw new Error(`File path ${filePath} does not match plugin filter ${regexFilter}`);
 		}
 
-		const fileSpy = spyOn(fileSystem, 'readFile').mockImplementation(async () => content);
+		const fileSpy = spyOn(fileSystem, 'readFileSync').mockImplementation(() => content);
 
 		try {
 			return await onLoadCallback({ path: filePath });

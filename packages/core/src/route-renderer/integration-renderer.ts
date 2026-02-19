@@ -228,9 +228,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		props: Record<string, unknown>;
 		metadata?: PageMetadataProps;
 	}> {
-		return getStaticProps && options?.params
+		return getStaticProps
 			? await getStaticProps({
-					pathname: { params: options.params },
+					pathname: { params: options?.params ?? {} },
 					appConfig: this.appConfig,
 					runtimeOrigin: this.runtimeOrigin,
 				})
@@ -342,10 +342,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		const baseDir = componentDir.split(this.appConfig.srcDir)[1] ?? '';
 		const resolvedPaths = scripts.map((script) => {
-			return [AssetFactory.RESOLVED_ASSETS_DIR, baseDir, getSafeFileName(script)]
+			const relativePath = [AssetFactory.RESOLVED_ASSETS_DIR, baseDir, getSafeFileName(script)]
 				.filter(Boolean)
 				.join('/')
 				.replace(/\/+/g, '/');
+
+			return `/${relativePath.replace(/^\/+/, '')}`;
 		});
 
 		return resolvedPaths.join(',');

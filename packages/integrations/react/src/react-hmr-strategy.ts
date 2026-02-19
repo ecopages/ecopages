@@ -10,6 +10,7 @@
 import path from 'node:path';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
+import { defaultBuildAdapter } from '@ecopages/core/build/build-adapter';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core';
@@ -188,12 +189,12 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const plugins = [...this.context.getPlugins()];
 
 			if (isMdx && this.mdxCompilerOptions) {
-				const mdx = (await import('@mdx-js/esbuild')).default;
-				// @ts-expect-error: esbuild plugin vs bun plugin
-				plugins.unshift(mdx(this.mdxCompilerOptions));
+				const { createMdxLoaderPlugin } = await import('@ecopages/mdx/mdx-loader-plugin');
+				const mdxPlugin = await createMdxLoaderPlugin(this.mdxCompilerOptions);
+				plugins.unshift(mdxPlugin);
 			}
 
-			const result = await Bun.build({
+			const result = await defaultBuildAdapter.build({
 				entrypoints: [entrypointPath],
 				outdir: tempDir,
 				naming: `[name].[hash].tmp.js`,

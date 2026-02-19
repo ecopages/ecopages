@@ -193,9 +193,9 @@ export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptio
 			const extensionPattern = createExtensionPattern(allExtensions);
 			const extensionToIntegration = buildExtensionToIntegrationMap(options.config.integrations);
 
-			build.onLoad({ filter: extensionPattern }, async (args) => {
+			build.onLoad({ filter: extensionPattern }, (args) => {
 				const filePath = args.path.split('?')[0];
-				const contents = await fileSystem.readFile(filePath);
+				const contents = fileSystem.readFileSync(filePath);
 				const integration = detectIntegration(filePath, extensionToIntegration);
 				const transformedContents = injectEcoMeta(contents, filePath, integration);
 

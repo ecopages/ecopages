@@ -4,6 +4,7 @@
  */
 
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type {
 	EcoComponent,
 	EcoComponentConfig,
@@ -23,6 +24,8 @@ import {
 	type AssetDefinition,
 	type ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
+import { defaultBuildAdapter } from '@ecopages/core/build/build-adapter';
+import { fileSystem } from '@ecopages/file-system';
 import { createElement, type ReactNode } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import type { CompileOptions } from '@mdx-js/mdx';
@@ -207,7 +210,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const components: Partial<EcoComponent>[] = [];
 
 		if (resolvedLayout?.config?.dependencies) {
-			components.push({ config: resolvedLayout.config });
+			const layoutConfig = this.ensureConfigFileMetadata(resolvedLayout.config, pagePath);
+			components.push({ config: layoutConfig });
 		}
 
 		if (config?.dependencies) {
@@ -219,6 +223,47 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		}
 
 		return this.processComponentDependencies(components);
+	}
+
+	private ensureConfigFileMetadata(config: EcoComponentConfig, pagePath: string): EcoComponentConfig {
+		if (config.__eco?.file) {
+			return config;
+		}
+
+		const buildEcoMeta = (file: string) => ({
+			id: config.__eco?.id ?? rapidhash(file).toString(36),
+			integration: config.__eco?.integration ?? this.name,
+			file,
+		});
+
+		const dependencyPaths = [
+			...(config.dependencies?.stylesheets ?? []),
+			...(config.dependencies?.scripts ?? []),
+			...(config.dependencies?.lazy?.scripts ?? []),
+		].filter((value) => value.startsWith('./') || value.startsWith('../'));
+
+		const candidateDirs = [
+			this.appConfig.absolutePaths.layoutsDir,
+			this.appConfig.absolutePaths.componentsDir,
+			path.dirname(pagePath),
+		].filter((value): value is string => typeof value === 'string' && value.length > 0);
+
+		for (const dependencyPath of dependencyPaths) {
+			for (const candidateDir of candidateDirs) {
+				const resolvedDependency = path.resolve(candidateDir, dependencyPath);
+				if (fileSystem.exists(resolvedDependency)) {
+					return {
+						...config,
+						__eco: buildEcoMeta(resolvedDependency),
+					};
+				}
+			}
+		}
+
+		return {
+			...config,
+			__eco: buildEcoMeta(pagePath),
+		};
 	}
 
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
@@ -263,7 +308,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	protected override async importPageFile(file: string): Promise<EcoPageFile<{ config?: EcoComponentConfig }>> {
-		const module = await import(file);
+		const module = (
+			this.isMdxFile(file) ? await this.importMdxPageFile(file) : await super.importPageFile(file)
+		) as EcoPageFile<{ config?: EcoComponentConfig }> & {
+			config?: EcoComponentConfig;
+		};
 		const { default: Page, getMetadata, config } = module;
 
 		if (this.isMdxFile(file) && config) {
@@ -275,6 +324,53 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			getMetadata,
 			config,
 		};
+	}
+
+	private async importMdxPageFile(filePath: string): Promise<unknown> {
+		const { createMdxLoaderPlugin } = await import('@ecopages/mdx/mdx-loader-plugin');
+		const mdxPlugin = createMdxLoaderPlugin(
+			ReactRenderer.mdxCompilerOptions ?? {
+				jsxImportSource: 'react',
+				jsxRuntime: 'automatic',
+				development: process.env.NODE_ENV === 'development',
+			},
+		);
+
+		const outdir = path.join(this.appConfig.absolutePaths.distDir, '.server-modules-react-mdx');
+		const fileBaseName = path.basename(filePath, path.extname(filePath));
+		const fileHash = fileSystem.hash(filePath);
+		const cacheBuster = process.env.NODE_ENV === 'development' ? `-${Date.now()}` : '';
+		const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
+
+		const buildResult = await defaultBuildAdapter.build({
+			entrypoints: [filePath],
+			root: this.appConfig.rootDir,
+			outdir,
+			target: 'node',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: false,
+			minify: false,
+			treeshaking: false,
+			naming: outputFileName,
+			plugins: [mdxPlugin],
+		});
+
+		if (!buildResult.success) {
+			const details = buildResult.logs.map((log) => log.message).join(' | ');
+			throw new Error(`Failed to compile MDX page module: ${details}`);
+		}
+
+		const preferredOutputPath = path.join(outdir, outputFileName);
+		const compiledOutput =
+			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
+			buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
+
+		if (!compiledOutput) {
+			throw new Error(`No compiled MDX output generated for page: ${filePath}`);
+		}
+
+		return await import(pathToFileURL(compiledOutput).href);
 	}
 
 	async render({

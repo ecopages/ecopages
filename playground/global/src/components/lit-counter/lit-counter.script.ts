@@ -11,13 +11,13 @@ export type LitCounterProps = {
 export class LitCounter extends StyledMixin(LitElement, [styles]) {
 	@property({ type: Number }) count = 0;
 
-	decrement() {
+	decrement = () => {
 		if (this.count > 0) this.count--;
-	}
+	};
 
-	increment() {
+	increment = () => {
 		this.count++;
-	}
+	};
 
 	override render() {
 		return html`

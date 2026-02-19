@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
 import type {
 	EcoComponent,
@@ -31,6 +32,8 @@ import {
 	type ProcessedAsset,
 } from '../services/asset-processing-service/index.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
+import { defaultBuildAdapter } from '../build/build-adapter.ts';
+import { fileSystem } from '@ecopages/file-system';
 import { invariant } from '../utils/invariant.ts';
 import { HttpError } from '../errors/http-error.ts';
 import { LocalsAccessError } from '../errors/locals-access-error.ts';
@@ -277,9 +280,47 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The imported module.
 	 */
 	protected async importPageFile(file: string): Promise<EcoPageFile> {
+		if (typeof Bun !== 'undefined') {
+			try {
+				const query = process.env.NODE_ENV === 'development' ? `?update=${Date.now()}` : '';
+				return await import(file + query);
+			} catch (error) {
+				invariant(false, `Error importing page file: ${error}`);
+			}
+		}
+
 		try {
-			const query = process.env.NODE_ENV === 'development' ? `?update=${Date.now()}` : '';
-			return await import(file + query);
+			const outdir = path.join(this.appConfig.absolutePaths.distDir, '.server-modules');
+			const fileBaseName = path.basename(file, path.extname(file));
+			const fileHash = fileSystem.hash(file);
+			const cacheBuster = process.env.NODE_ENV === 'development' ? `-${Date.now()}` : '';
+			const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
+
+			const buildResult = await defaultBuildAdapter.build({
+				entrypoints: [file],
+				root: this.appConfig.rootDir,
+				outdir,
+				target: 'node',
+				format: 'esm',
+				sourcemap: 'none',
+				splitting: false,
+				minify: false,
+				naming: outputFileName,
+			});
+
+			if (!buildResult.success) {
+				const details = buildResult.logs.map((log) => log.message).join(' | ');
+				invariant(false, `Error transpiling page file: ${details}`);
+			}
+
+			const preferredOutputPath = path.join(outdir, outputFileName);
+			const compiledOutput =
+				buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
+				buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
+
+			invariant(!!compiledOutput, `No transpiled output generated for page: ${file}`);
+
+			return await import(pathToFileURL(compiledOutput).href);
 		} catch (error) {
 			invariant(false, `Error importing page file: ${error}`);
 		}
@@ -377,6 +418,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	): Promise<ProcessedAsset[]> {
 		if (!this.assetProcessingService?.processDependencies) return [];
 		const dependencies: AssetDefinition[] = [];
+		const lazyScriptsByConfig = new Map<
+			NonNullable<EcoComponent['config']>,
+			{ sourcePath: string; fallbackUrl: string }[]
+		>();
 
 		for (const component of components) {
 			const componentFile = component.config?.__eco?.file;
@@ -413,8 +458,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				 * Lazy scripts are bundled but excluded from HTML output.
 				 */
 				if (config.dependencies.lazy?.scripts) {
-					const lazyScriptPaths = this.resolveLazyScripts(dir, config.dependencies.lazy.scripts);
-					config._resolvedScripts = lazyScriptPaths;
+					const lazyScriptFallbacks = this.resolveLazyScripts(dir, config.dependencies.lazy.scripts).split(
+						',',
+					);
+					const lazyScripts = config.dependencies.lazy.scripts.map((script, index) => ({
+						sourcePath: this.resolveDependencyPath(dir, script),
+						fallbackUrl: lazyScriptFallbacks[index] ?? '',
+					}));
+
+					const existingLazyScripts = lazyScriptsByConfig.get(config) ?? [];
+					existingLazyScripts.push(...lazyScripts);
+					lazyScriptsByConfig.set(config, existingLazyScripts);
 
 					for (const script of config.dependencies.lazy.scripts) {
 						const resolvedPath = this.resolveDependencyPath(dir, script);
@@ -485,7 +539,29 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			);
 		}
 
-		return await this.assetProcessingService.processDependencies(dependencies, this.name);
+		const processedDependencies = await this.assetProcessingService.processDependencies(dependencies, this.name);
+		const lazySourceToOutputUrl = new Map<string, string>();
+
+		for (const dependency of processedDependencies) {
+			if (dependency.kind === 'script' && dependency.srcUrl && dependency.filepath) {
+				lazySourceToOutputUrl.set(path.normalize(dependency.filepath), dependency.srcUrl);
+			}
+		}
+
+		for (const [config, lazyScripts] of lazyScriptsByConfig.entries()) {
+			const resolvedUrls = lazyScripts
+				.map(
+					({ sourcePath, fallbackUrl }) =>
+						lazySourceToOutputUrl.get(path.normalize(sourcePath)) ?? fallbackUrl,
+				)
+				.filter((url) => url.length > 0);
+
+			if (resolvedUrls.length > 0) {
+				config._resolvedScripts = Array.from(new Set(resolvedUrls)).join(',');
+			}
+		}
+
+		return processedDependencies;
 	}
 
 	/**

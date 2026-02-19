@@ -1,5 +1,7 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { fileSystem } from '@ecopages/file-system';
+import { defaultBuildAdapter } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
 import type { MatchResult } from '../../internal-types.ts';
@@ -212,13 +214,49 @@ export class FileSystemResponseMatcher {
 	}
 
 	private async importPageModule(filePath: string): Promise<unknown> {
-		const moduleUrl = pathToFileURL(filePath);
+		if (typeof Bun !== 'undefined') {
+			const moduleUrl = pathToFileURL(filePath);
 
-		if (process.env.NODE_ENV === 'development') {
-			moduleUrl.searchParams.set('update', `${Date.now()}`);
+			if (process.env.NODE_ENV === 'development') {
+				moduleUrl.searchParams.set('update', `${Date.now()}`);
+			}
+
+			return await import(moduleUrl.href);
 		}
 
-		return await import(moduleUrl.href);
+		const outdir = path.join(this.router.assetPrefix, '.server-modules-meta');
+		const fileBaseName = path.basename(filePath, path.extname(filePath));
+		const fileHash = fileSystem.hash(filePath);
+		const cacheBuster = process.env.NODE_ENV === 'development' ? `-${Date.now()}` : '';
+		const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
+
+		const buildResult = await defaultBuildAdapter.build({
+			entrypoints: [filePath],
+			root: path.dirname(this.router.assetPrefix),
+			outdir,
+			target: 'node',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: false,
+			minify: false,
+			naming: outputFileName,
+		});
+
+		if (!buildResult.success) {
+			const details = buildResult.logs.map((log) => log.message).join(' | ');
+			throw new Error(`Error transpiling page module: ${details}`);
+		}
+
+		const preferredOutputPath = path.join(outdir, outputFileName);
+		const compiledOutput =
+			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
+			buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
+
+		if (!compiledOutput) {
+			throw new Error(`No transpiled output generated for page module: ${filePath}`);
+		}
+
+		return await import(pathToFileURL(compiledOutput).href);
 	}
 
 	/**

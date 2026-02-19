@@ -246,7 +246,12 @@ export class MDXReactRenderer extends IntegrationRenderer {
 		}>
 	> {
 		try {
-			const mdxModule = await import(file);
+			const mdxModule = (await super.importPageFile(file)) as EcoPageFile<{
+				config?: EcoComponentConfig;
+				layout?: EcoComponent<any> | React.ComponentType<any>;
+			}> & {
+				config?: EcoComponentConfig;
+			};
 
 			const { default: Page, getMetadata, config } = mdxModule;
 

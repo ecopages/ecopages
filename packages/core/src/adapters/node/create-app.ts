@@ -10,7 +10,6 @@ import {
 	type RouteHandler,
 } from '../abstract/application-adapter.ts';
 import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';
-import { registerNodeRuntimePlugins, registerRuntimeHooks } from './node-runtime-plugin-adapter.ts';
 
 export type NodeMiddleware<TExtension extends Record<string, any> = {}> = Middleware<
 	Request,
@@ -73,21 +72,6 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 	serverAdapter: NodeServerAdapterResult | undefined;
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
-	private static nodeRuntimeLoaderRegistered = false;
-
-	private ensureNodeRuntimeLoaderRegistration() {
-		if (EcopagesApp.nodeRuntimeLoaderRegistered) {
-			return;
-		}
-
-		process.env.ECOPAGES_APP_ROOT = this.appConfig.rootDir;
-		process.env.ECOPAGES_SRC_DIR = this.appConfig.absolutePaths.srcDir;
-		process.env.ECOPAGES_DIST_DIR = this.appConfig.absolutePaths.distDir;
-		process.env.ECOPAGES_JSX_IMPORT_SOURCE = process.env.ECOPAGES_JSX_IMPORT_SOURCE ?? '@kitajs/html';
-
-		registerRuntimeHooks();
-		EcopagesApp.nodeRuntimeLoaderRegistered = true;
-	}
 
 	public async stop(force = true): Promise<void> {
 		if (!this.server) {
@@ -348,13 +332,9 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 	}
 
 	public async start(): Promise<NodeServerInstance | void> {
-		this.ensureNodeRuntimeLoaderRegistration();
-
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
-
-		await registerNodeRuntimePlugins(this.appConfig);
 
 		if (this.server) {
 			return this.server;

@@ -9,10 +9,12 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
+const defaultPort = process.env.ECOPAGES_PORT ?? '3000';
+const defaultBaseUrl = `http://localhost:${defaultPort}`;
 
 export default await new ConfigBuilder()
 	.setRootDir(rootDir)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? defaultBaseUrl)
 	.setIntegrations([
 		kitajsPlugin(),
 		litPlugin(),

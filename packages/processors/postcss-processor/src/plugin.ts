@@ -4,13 +4,15 @@
  */
 
 import path from 'node:path';
-import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
 import { ClientBridge } from '@ecopages/core/adapters/bun/client-bridge';
 import { fileSystem } from '@ecopages/file-system';
 import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
-import { getFileAsBuffer, PostCssProcessor } from './postcss-processor';
+import { PostCssProcessor } from './postcss-processor';
+import { createBunCssLoaderPlugin } from './runtime/css-loader.bun';
+import { createCssRuntimeProcessor } from './runtime/css-loader.node';
+import type { CssRuntimeProcessor, CssTransformInput, NodeCssProcessor } from './runtime/css-runtime-contract';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
 	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
@@ -63,6 +65,26 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 	private postcssPlugins: postcss.AcceptedPlugin[] = [];
 
+	private getCssFilter(): RegExp {
+		return this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
+	}
+
+	private async transformCss(input: CssTransformInput): Promise<string> {
+		const { contents, filePath } = input;
+		let transformed: string = typeof contents === 'string' ? contents : contents.toString('utf-8');
+
+		if (this.options?.transformInput) {
+			transformed = await this.options.transformInput(contents, filePath);
+		}
+
+		return await this.process(transformed, filePath);
+	}
+
+	override matchesFileFilter(filepath: string): boolean {
+		const filter = this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
+		return filter.test(filepath);
+	}
+
 	constructor(
 		config: Omit<ProcessorConfig<PostCssProcessorPluginConfig>, 'name' | 'description'> = {
 			options: PostCssProcessorPlugin.DEFAULT_OPTIONS,
@@ -71,6 +93,12 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		super({
 			name: 'ecopages-postcss-processor',
 			description: 'A Processor for transforming CSS files using PostCSS.',
+			capabilities: [
+				{
+					kind: 'stylesheet',
+					extensions: ['*.css'],
+				},
+			],
 			watch: {
 				paths: [],
 				extensions: ['.css', '.scss', '.sass', '.less'],
@@ -115,49 +143,22 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	get buildPlugins(): Bun.BunPlugin[] {
-		const options = this.options;
 		return [
-			bunInlineCssPlugin({
-				filter: this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter,
-				namespace: 'bun-postcss-processor-build-plugin',
-				transform: async (contents: string | Buffer, args: { path: string }) => {
-					let transformed: string =
-						contents instanceof Buffer ? contents.toString('utf-8') : (contents as string);
-					if (options?.transformInput) {
-						transformed = await options.transformInput(contents, args.path);
-					}
-					return await this.process(transformed, args.path);
-				},
+			createBunCssLoaderPlugin({
+				name: 'postcss-processor-build-loader',
+				filter: this.getCssFilter(),
+				transform: this.transformCss.bind(this),
 			}),
 		];
 	}
 
 	get plugins(): Bun.BunPlugin[] {
-		const bindedInputProcessing = this.process.bind(this);
-		const options = this.options;
 		return [
-			{
-				name: 'bun-postcss-processor-plugin-loader',
-				setup(build) {
-					const postcssFilter = options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
-
-					build.onLoad({ filter: postcssFilter }, async (args) => {
-						let text: string = getFileAsBuffer(args.path).toString('utf-8');
-
-						if (options?.transformInput) {
-							text = await options.transformInput(text, args.path);
-						}
-
-						const contents = await bindedInputProcessing(text, args.path);
-
-						return {
-							contents,
-							exports: { default: contents },
-							loader: 'object',
-						};
-					});
-				},
-			},
+			createBunCssLoaderPlugin({
+				name: 'postcss-processor-runtime-loader',
+				filter: this.getCssFilter(),
+				transform: this.transformCss.bind(this),
+			}),
 		];
 	}
 
@@ -247,6 +248,21 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			plugins: this.postcssPlugins,
 			transformOutput: this.options?.transformOutput,
 		});
+	}
+
+	async processForNodeRuntime(contents: string, filePath: string): Promise<string> {
+		return await this.transformCss({
+			contents,
+			filePath,
+		});
+	}
+
+	get cssProcessor(): CssRuntimeProcessor {
+		return createCssRuntimeProcessor(this.transformCss.bind(this));
+	}
+
+	get nodeCssProcessor(): NodeCssProcessor {
+		return this.cssProcessor;
 	}
 
 	/**

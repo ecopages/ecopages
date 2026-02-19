@@ -24,7 +24,6 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
-		"@ecopages/bun-inline-css-plugin": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "latest",

@@ -56,7 +56,8 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
-		const { config } = await import(pagePath);
+		const { default: pageComponent } = await this.importPageFile(pagePath);
+		const config = pageComponent.config;
 		const components: Partial<EcoComponent>[] = [];
 
 		const resolvedLayout = config?.layout;

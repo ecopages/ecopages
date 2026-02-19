@@ -29,11 +29,30 @@ export interface ProcessorWatchConfig {
 	onError?: (error: Error) => void;
 }
 
+export type ProcessorAssetKind = 'script' | 'stylesheet' | 'image';
+export type ProcessorExtensionPattern = string;
+
+export interface ProcessorAssetCapability {
+	kind: ProcessorAssetKind;
+	/**
+	 * Supported patterns:
+	 * - `*` (all extensions)
+	 * - `.css` or `css`
+	 * - `*.css`
+	 * - `*.{css,scss,sass}`
+	 *
+	 * Pattern matching is case-insensitive and trims surrounding spaces,
+	 * including grouped values (e.g. `*.{ CSS, ScSs }`).
+	 */
+	extensions?: ProcessorExtensionPattern[];
+}
+
 export interface ProcessorConfig<TOptions = Record<string, unknown>> {
 	name: string;
 	description?: string;
 	options?: TOptions;
 	watch?: ProcessorWatchConfig;
+	capabilities?: ProcessorAssetCapability[];
 }
 export interface ProcessorContext {
 	config: EcoPagesAppConfig;
@@ -55,6 +74,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	protected context?: ProcessorContext;
 	protected options?: TOptions;
 	protected watchConfig?: ProcessorWatchConfig;
+	protected capabilities: ProcessorAssetCapability[] = [];
 
 	/** Plugins that are only used during the build process */
 	abstract buildPlugins?: EcoBuildPlugin[];
@@ -66,6 +86,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 		this.name = config.name;
 		this.options = config.options;
 		this.watchConfig = config.watch;
+		this.capabilities = config.capabilities ?? [];
 	}
 
 	setContext(appConfig: EcoPagesAppConfig): void {
@@ -87,7 +108,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 
 	abstract setup(): Promise<void>;
 	abstract teardown(): Promise<void>;
-	abstract process(input: unknown): Promise<unknown>;
+	abstract process(input: unknown, filePath?: string): Promise<unknown>;
 
 	protected getCachePath(key: string): string {
 		return `${this.context?.cache}/${key}`;
@@ -122,5 +143,75 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 
 	getName(): string {
 		return this.name;
+	}
+
+	getAssetCapabilities(): ProcessorAssetCapability[] {
+		return this.capabilities;
+	}
+
+	matchesFileFilter(_filepath: string): boolean {
+		return true;
+	}
+
+	canProcessAsset(kind: ProcessorAssetKind, filepath?: string): boolean {
+		const capabilities = this.getAssetCapabilities();
+		if (capabilities.length === 0) {
+			return false;
+		}
+
+		const matchingKind = capabilities.filter((capability) => capability.kind === kind);
+		if (matchingKind.length === 0) {
+			return false;
+		}
+
+		if (!filepath) {
+			return true;
+		}
+
+		return matchingKind.some((capability) => this.matchesCapabilityExtensions(filepath, capability.extensions));
+	}
+
+	private matchesCapabilityExtensions(filepath: string, extensions?: ProcessorExtensionPattern[]): boolean {
+		if (!extensions || extensions.length === 0) {
+			return true;
+		}
+
+		const normalizedExt = path.extname(filepath).toLowerCase();
+
+		return extensions.some((rawPattern) => {
+			const pattern = this.normalizeExtensionPattern(rawPattern);
+			if (!pattern) {
+				return false;
+			}
+
+			if (pattern === '*') {
+				return true;
+			}
+
+			const groupedMatch = pattern.match(/^\*\.\{(.+)\}$/);
+			if (groupedMatch) {
+				const groupItems = groupedMatch[1]
+					.split(',')
+					.map((item) => this.normalizeExtensionPattern(item))
+					.filter(Boolean);
+
+				return groupItems.some((item) => normalizedExt === item || normalizedExt === `.${item}`);
+			}
+
+			if (pattern.startsWith('*')) {
+				const suffix = pattern.slice(1);
+				return normalizedExt.endsWith(suffix);
+			}
+
+			if (pattern.startsWith('.')) {
+				return normalizedExt === pattern;
+			}
+
+			return normalizedExt === `.${pattern}`;
+		});
+	}
+
+	private normalizeExtensionPattern(rawPattern: string): string {
+		return rawPattern.trim().toLowerCase();
 	}
 }

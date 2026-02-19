@@ -1,19 +1,21 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
-import path from 'node:path';
 import fs from 'node:fs';
+import path from 'node:path';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../internal-types';
-import { Processor, type ProcessorConfig } from './processor';
+import { Processor, type ProcessorConfig } from './processor.ts';
 
 class TestProcessor extends Processor {
-	buildPlugins?: EcoBuildPlugin[] = [];
-	plugins?: EcoBuildPlugin[] = [];
+	override buildPlugins?: EcoBuildPlugin[] = [];
+	override plugins?: EcoBuildPlugin[] = [];
 
-	async setup(): Promise<void> {}
-	async process(input: unknown): Promise<unknown> {
+	override async setup(): Promise<void> {}
+
+	override async process(input: unknown, _filePath?: string): Promise<unknown> {
 		return input;
 	}
-	async teardown(): Promise<void> {}
+
+	override async teardown(): Promise<void> {}
 }
 
 describe('Processor', () => {
@@ -60,5 +62,72 @@ describe('Processor', () => {
 		expect(processor.getWatchConfig()).toEqual({
 			paths: ['/test'],
 		});
+	});
+});
+
+describe('Processor capability matching', () => {
+	test('matches all extensions with * pattern', () => {
+		const processor = new TestProcessor({
+			name: 'wildcard-all',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*'] }],
+		});
+
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.css')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.scss')).toBe(true);
+	});
+
+	test('matches explicit *.ext patterns', () => {
+		const processor = new TestProcessor({
+			name: 'wildcard-explicit',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }],
+		});
+
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.css')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.scss')).toBe(false);
+	});
+
+	test('matches grouped extension patterns', () => {
+		const processor = new TestProcessor({
+			name: 'wildcard-group',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.{css,scss,sass}'] }],
+		});
+
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.css')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.scss')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.sass')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.less')).toBe(false);
+	});
+
+	test('matches grouped patterns with mixed case and spacing', () => {
+		const processor = new TestProcessor({
+			name: 'wildcard-group-normalized',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.{ CSS, ScSs , .SASS }'] }],
+		});
+
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.css')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.scss')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.sass')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.less')).toBe(false);
+	});
+
+	test('matches plain extension and dotted extension forms', () => {
+		const processor = new TestProcessor({
+			name: 'plain-ext',
+			capabilities: [{ kind: 'stylesheet', extensions: ['css', '.scss'] }],
+		});
+
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.css')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.scss')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.sass')).toBe(false);
+	});
+
+	test('respects capability kind filtering', () => {
+		const processor = new TestProcessor({
+			name: 'kind-filter',
+			capabilities: [{ kind: 'image', extensions: ['*.png'] }],
+		});
+
+		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.css')).toBe(false);
+		expect(processor.canProcessAsset('image', '/src/assets/logo.png')).toBe(true);
 	});
 });

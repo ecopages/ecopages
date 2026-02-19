@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { appLogger } from '../../global/app-logger.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
 import type { MatchResult } from '../../internal-types.ts';
@@ -211,8 +212,13 @@ export class FileSystemResponseMatcher {
 	}
 
 	private async importPageModule(filePath: string): Promise<unknown> {
-		const query = process.env.NODE_ENV === 'development' ? `?update=${Date.now()}` : '';
-		return await import(filePath + query);
+		const moduleUrl = pathToFileURL(filePath);
+
+		if (process.env.NODE_ENV === 'development') {
+			moduleUrl.searchParams.set('update', `${Date.now()}`);
+		}
+
+		return await import(moduleUrl.href);
 	}
 
 	/**

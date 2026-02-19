@@ -79,8 +79,10 @@ export class BundleError extends Error {
  * A structure representing an MDX file export.
  */
 export type MDXReactFile = {
-	/** The default export which is the converted MDX content as a React component. */
-	default: ReactNode;
+	/** The default export is a component function that returns React content. */
+	default: ((props: Record<string, unknown>) => ReactNode | Promise<ReactNode>) & {
+		config?: EcoComponentConfig;
+	};
 	/** Optional page-specific configuration. */
 	config?: EcoComponentConfig;
 	/** Function to retrieve page metadata. */
@@ -250,10 +252,12 @@ export class MDXReactRenderer extends IntegrationRenderer {
 				throw new Error(`MDX file must export a default function, got ${typeof Page}: ${String(Page)}`);
 			}
 
-			if (config) Page.config = config;
+			const pageComponent = Page as EcoComponent<any>;
+
+			if (config) pageComponent.config = config;
 
 			return {
-				default: Page,
+				default: pageComponent,
 				getMetadata,
 				config,
 				layout: config?.layout,

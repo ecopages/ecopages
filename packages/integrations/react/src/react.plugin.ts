@@ -157,9 +157,14 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	 * @remarks Uses esbuild plugin API which is compatible with Bun's plugin system.
 	 */
 	private async setupMdxBunPlugin(): Promise<void> {
+		const bunRuntime = (globalThis as { Bun?: { plugin: (plugin: unknown) => void | Promise<void> } }).Bun;
+		if (!bunRuntime) {
+			appLogger.debug('Skipping React MDX Bun plugin registration in non-Bun runtime');
+			return;
+		}
+
 		const mdx = (await import('@mdx-js/esbuild')).default;
-		// @ts-expect-error esbuild plugin type is compatible with Bun plugin
-		await Bun.plugin(mdx(this.mdxCompilerOptions));
+		await bunRuntime.plugin(mdx(this.mdxCompilerOptions));
 		appLogger.debug('MDX Bun plugin registered');
 	}
 

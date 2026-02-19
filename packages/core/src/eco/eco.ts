@@ -5,6 +5,7 @@
 
 import type {
 	EcoComponent,
+	EcoInjectedMeta,
 	EcoPagesElement,
 	GetMetadata,
 	GetStaticPaths,
@@ -25,6 +26,64 @@ import type {
 	PagePropsForWithLocals,
 	PageRequires,
 } from './eco.types.ts';
+
+function resolveCallerFile(): string | undefined {
+	const stack = new Error().stack;
+	if (!stack) {
+		return undefined;
+	}
+
+	const stackLines = stack.split('\n');
+	const currentModulePath = new URL(import.meta.url).pathname;
+
+	for (const line of stackLines) {
+		const match = line.match(/(?:file:\/\/)?(\/[^\s)]+\.(?:tsx?|jsx?|mjs|cjs|mts|cts))/i);
+		if (!match) {
+			continue;
+		}
+
+		const candidate = decodeURIComponent(match[1]);
+		if (candidate === currentModulePath) {
+			continue;
+		}
+
+		if (candidate.includes('/packages/core/src/eco/')) {
+			continue;
+		}
+
+		return candidate;
+	}
+
+	return undefined;
+}
+
+function inferIntegrationFromFile(filePath: string): string {
+	if (filePath.endsWith('.kita.tsx')) return 'kitajs';
+	if (filePath.endsWith('.lit.tsx')) return 'lit';
+	if (filePath.endsWith('.mdx')) return 'mdx';
+	if (filePath.endsWith('.ghtml.ts') || filePath.endsWith('.ghtml.tsx')) return 'ghtml';
+	return 'unknown';
+}
+
+function createEcoMetadata(optionsEco: EcoInjectedMeta | undefined, componentSourceFile: string | undefined) {
+	if (!optionsEco && !componentSourceFile) {
+		return undefined;
+	}
+
+	if (optionsEco) {
+		return {
+			...optionsEco,
+			file: componentSourceFile ?? optionsEco.file,
+		} satisfies EcoInjectedMeta;
+	}
+
+	const filePath = componentSourceFile as string;
+	return {
+		id: filePath,
+		file: filePath,
+		integration: inferIntegrationFromFile(filePath),
+	} satisfies EcoInjectedMeta;
+}
 
 /**
  * Builds scripts-injector HTML attributes from lazy config
@@ -56,12 +115,14 @@ function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	const lazy = options.dependencies?.lazy;
 	const isReact = options.__eco?.integration === 'react';
+	const componentSourceFile = options.__eco?.file ?? resolveCallerFile();
+	const ecoMetadata = createEcoMetadata(options.__eco, componentSourceFile);
 
 	// For React, use render directly to preserve React hooks semantics
 	if (isReact) {
 		const comp = options.render as EcoComponent<P, E>;
 		comp.config = {
-			__eco: options.__eco,
+			__eco: ecoMetadata,
 			dependencies: options.dependencies,
 		};
 		return comp;
@@ -80,7 +141,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 	}) as EcoComponent<P, E>;
 
 	comp.config = {
-		__eco: options.__eco,
+		__eco: ecoMetadata,
 		dependencies: options.dependencies,
 	};
 

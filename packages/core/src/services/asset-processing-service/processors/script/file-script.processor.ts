@@ -71,7 +71,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 			}
 
 			const relativeFilepath = path.relative(this.appConfig.srcDir, dep.filepath);
-			const outdirPath = path.join(this.appConfig.distDir, RESOLVED_ASSETS_DIR, relativeFilepath);
+			const outdirPath = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, relativeFilepath);
 			const outdirDirname = path.dirname(outdirPath);
 
 			const bundledFilePath = await this.bundleScript({

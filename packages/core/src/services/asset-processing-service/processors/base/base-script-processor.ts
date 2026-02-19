@@ -2,6 +2,8 @@ import { appLogger } from '../../../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
 import { defaultBuildAdapter } from '../../../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../../../build/build-types.ts';
+import { fileSystem } from '@ecopages/file-system';
+import path from 'node:path';
 import type { ScriptAsset } from '../../assets.types';
 import { BaseProcessor } from './base-processor';
 
@@ -65,6 +67,39 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			}
 		}
 
-		return build.outputs[0].path;
+		const entryBaseName = path.parse(entrypoint).name;
+		const entryOutput = build.outputs
+			.map((output) => output.path)
+			.find((outputPath) => path.basename(outputPath) === `${entryBaseName}.js`);
+
+		if (entryOutput) {
+			return entryOutput;
+		}
+
+		const nonVendorOutput = build.outputs
+			.map((output) => output.path)
+			.find((outputPath) => !path.basename(outputPath).startsWith('vendors'));
+
+		if (nonVendorOutput) {
+			return nonVendorOutput;
+		}
+
+		const primaryOutput = build.outputs[0]?.path;
+		if (primaryOutput) {
+			return primaryOutput;
+		}
+
+		const namedFallbackOutput = path.join(outdir, `${entryBaseName}.js`);
+		if (fileSystem.exists(namedFallbackOutput)) {
+			return namedFallbackOutput;
+		}
+
+		const fallbackOutput = path.join(outdir, 'entry_0.js');
+		if (fileSystem.exists(fallbackOutput)) {
+			return fallbackOutput;
+		}
+
+		const logMessage = build.logs.map((log) => log.message).join(' | ');
+		throw new Error(`No build output generated for ${entrypoint}${logMessage ? `: ${logMessage}` : ''}`);
 	}
 }

@@ -101,9 +101,14 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 	 * Registers the MDX plugin with Bun globally.
 	 */
 	async setupBunPlugin(options?: Readonly<CompileOptions>): Promise<void> {
+		const bunRuntime = (globalThis as { Bun?: { plugin: (plugin: unknown) => void | Promise<void> } }).Bun;
+		if (!bunRuntime) {
+			appLogger.debug('Skipping MDX Bun plugin registration in non-Bun runtime');
+			return;
+		}
+
 		const mdx = (await import('@mdx-js/esbuild')).default;
-		// @ts-expect-error: esbuild plugin vs bun plugin
-		await Bun.plugin(mdx(options));
+		await bunRuntime.plugin(mdx(options));
 	}
 
 	/**

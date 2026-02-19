@@ -71,9 +71,12 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	public processedImages: Record<string, ImageSpecifications> = {};
 
 	constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>) {
+		const acceptedFormats = config.options?.acceptedFormats ?? ['jpg', 'jpeg', 'png', 'webp'];
+		const extensionPatterns = acceptedFormats.map((format) => `*.${format.replace(/^\./, '')}`);
+
 		const defaultWatchConfig: ProcessorWatchConfig = {
 			paths: [],
-			extensions: config.options?.acceptedFormats ?? ['jpg', 'jpeg', 'png', 'webp'],
+			extensions: acceptedFormats,
 			onCreate: async (ctx) => this.process([ctx.path]),
 			onChange: async (ctx) => this.process([ctx.path]),
 			onDelete: async (ctx) => this.deleteProcessedImagesbyPath(ctx.path),
@@ -84,6 +87,12 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 			...config,
 			name: 'ecopages-image-processor',
 			description: 'A Processor for optimizing images.',
+			capabilities: [
+				{
+					kind: 'image',
+					extensions: extensionPatterns,
+				},
+			],
 			watch: config.watch ? deepMerge(defaultWatchConfig, config.watch) : defaultWatchConfig,
 		});
 	}
@@ -286,6 +295,22 @@ declare module "ecopages:images" {
 
 		fileSystem.write(indexTypesDir, indexContent);
 		logger.debug('Generated index types for virtual module', { indexTypesDir });
+
+		const runtimeVirtualModulePath = resolveGeneratedPath('cache', {
+			root: this.context.distDir,
+			module: this.name,
+			subPath: 'virtual-module.ts',
+		});
+
+		const runtimeModuleContent = Object.entries(this.processedImages)
+			.map(([key, value]) => {
+				return `export const ${anyCaseToCamelCase(key)} = ${JSON.stringify(value, null, 2)} as const;`;
+			})
+			.join('\n\n');
+
+		fileSystem.ensureDir(path.dirname(runtimeVirtualModulePath));
+		fileSystem.write(runtimeVirtualModulePath, runtimeModuleContent);
+		logger.debug('Generated runtime virtual module for images', { runtimeVirtualModulePath });
 	}
 
 	/**

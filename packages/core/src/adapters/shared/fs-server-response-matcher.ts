@@ -101,7 +101,7 @@ export class FileSystemResponseMatcher {
 				});
 
 			const localsStore: RequestLocals = {};
-			const pageModule = await import(match.filePath);
+			const pageModule = await this.importPageModule(match.filePath);
 			const Page = (pageModule as any)?.default;
 			const pageMiddleware = (Page?.middleware ?? []) as Middleware[];
 			const pageCacheStrategy = (Page?.cache as CacheStrategy | undefined) ?? this.defaultCacheStrategy;
@@ -208,6 +208,11 @@ export class FileSystemResponseMatcher {
 			}
 			return this.fileSystemResponseFactory.createCustomNotFoundResponse();
 		}
+	}
+
+	private async importPageModule(filePath: string): Promise<unknown> {
+		const query = process.env.NODE_ENV === 'development' ? `?update=${Date.now()}` : '';
+		return await import(filePath + query);
 	}
 
 	/**

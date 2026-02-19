@@ -1,0 +1,25 @@
+import type { PageMetadataProps } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
+
+const baseUrl = process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000';
+const withBaseUrl = (relativePath: string) => new URL(relativePath, baseUrl).toString();
+
+export function Seo({
+	title,
+	description,
+	image = '/assets/images/default-og.webp',
+	url,
+	keywords,
+}: PageMetadataProps) {
+	return html`<title>${title}</title>
+		<link rel="icon" type="image/x-icon" href="/assets/favicon.svg" />
+		<link rel="robots" href="/robots.txt" />
+		<meta name="description" content="${description}" />
+		!${keywords?.length ? html`<meta name="keywords" content="!${keywords.join(',')}" />` : null}
+		<meta property="og:title" content="${title}" />
+		<meta property="og:description" content="${description}" />
+		<meta property="og:image" content="${withBaseUrl(image)}" />
+		<meta name="twitter:title" content="${title}" />
+		<meta name="twitter:description" content="${description}" />
+		${url ? html`<link rel="canonical" href=${withBaseUrl(url)} />` : null} `;
+}

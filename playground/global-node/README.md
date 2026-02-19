@@ -1,0 +1,3 @@
+# Ecopages
+
+Static site generator

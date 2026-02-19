@@ -86,6 +86,10 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	public async testPrepareRenderOptions(options: RouteRendererOptions) {
 		return this.prepareRenderOptions(options);
 	}
+
+	public async testProcessComponentDependencies(components: (EcoComponent | Partial<EcoComponent>)[]) {
+		return this.processComponentDependencies(components);
+	}
 }
 
 describe('IntegrationRenderer', () => {
@@ -240,6 +244,93 @@ describe('IntegrationRenderer', () => {
 
 		expect(result.locals).toBe(incomingLocals);
 		expect(result.pageLocals).toBe(incomingLocals);
+	});
+
+	it('should prefer processed lazy script srcUrl for _resolvedScripts', async () => {
+		let capturedDeps: unknown[] = [];
+		const mockLazySrcUrl = '/assets/_hmr/components/lit-counter/lit-counter.script.js';
+		const mockService = {
+			processDependencies: mock(async (deps: unknown[]) => {
+				capturedDeps = deps;
+				return [
+					{
+						kind: 'script',
+						filepath: '/app/components/lit-counter/lit-counter.script.ts',
+						srcUrl: mockLazySrcUrl,
+					},
+				] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+
+		const renderer = new TestIntegrationRenderer({
+			appConfig: mockAppConfig,
+			assetProcessingService: mockService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const component = ((_) => '<lit-counter></lit-counter>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'lit-counter',
+				integration: 'lit',
+				file: '/app/components/lit-counter/lit-counter.kita.tsx',
+			},
+			dependencies: {
+				lazy: {
+					'on:interaction': 'click,mouseenter,focusin',
+					scripts: ['./lit-counter.script.ts'],
+				},
+			},
+		};
+
+		await renderer.testProcessComponentDependencies([component]);
+
+		expect(component.config._resolvedScripts).toBe(mockLazySrcUrl);
+		expect(
+			capturedDeps.some((dep) => {
+				if (!dep || typeof dep !== 'object') return false;
+				const candidate = dep as { source?: string; importPath?: string };
+				return candidate.source === 'node-module' && candidate.importPath === '@ecopages/scripts-injector';
+			}),
+		).toBe(true);
+	});
+
+	it('should fallback to static lazy script URL when processed srcUrl is unavailable', async () => {
+		const mockService = {
+			processDependencies: mock(async () => {
+				return [
+					{
+						kind: 'script',
+						filepath: '/app/components/lit-counter/lit-counter.script.ts',
+					},
+				] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+
+		const renderer = new TestIntegrationRenderer({
+			appConfig: mockAppConfig,
+			assetProcessingService: mockService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const component = ((_) => '<lit-counter></lit-counter>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'lit-counter',
+				integration: 'lit',
+				file: '/app/components/lit-counter/lit-counter.kita.tsx',
+			},
+			dependencies: {
+				lazy: {
+					'on:interaction': 'click,mouseenter,focusin',
+					scripts: ['./lit-counter.script.ts'],
+				},
+			},
+		};
+
+		await renderer.testProcessComponentDependencies([component]);
+
+		expect(component.config._resolvedScripts).toBe('/assets/components/lit-counter/lit-counter.script.js');
 	});
 
 	describe('renderToResponse', () => {

@@ -30,6 +30,25 @@ export interface JsHmrContext {
 	getSpecifierMap(): Map<string, string>;
 
 	/**
+	 * Returns entrypoints impacted by a changed dependency path.
+	 *
+	 * @remarks
+	 * This hook is currently provided by the Node HMR manager where dependency
+	 * graph metadata is extracted from the Node/esbuild build adapter.
+	 */
+	getDependencyEntrypoints?(filePath: string): Set<string>;
+
+	/**
+	 * Stores latest dependency set for an entrypoint.
+	 *
+	 * @remarks
+	 * This hook is currently used only by the Node HMR manager to maintain a
+	 * reverse invalidation index. Runtimes that do not provide it keep rebuild-all
+	 * fallback semantics.
+	 */
+	setEntrypointDependencies?(entrypointPath: string, dependencies: string[]): void;
+
+	/**
 	 * Directory where HMR bundles are written.
 	 */
 	getDistDir(): string;
@@ -106,13 +125,17 @@ export class JsHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Processes a file change by rebuilding all registered entrypoints.
+	 * Processes a file change by rebuilding affected entrypoints.
 	 *
-	 * @param _filePath - Absolute path to the changed file
+	 * @param filePath - Absolute path to the changed file
+	 *
+	 * @remarks
+	 * If runtime-specific dependency graph hooks are unavailable, this strategy
+	 * falls back to rebuilding all watched entrypoints.
 	 * @returns Action to broadcast update events
 	 */
-	async process(_filePath: string): Promise<HmrAction> {
-		appLogger.debug(`[JsHmrStrategy] Processing ${_filePath}`);
+	async process(filePath: string): Promise<HmrAction> {
+		appLogger.debug(`[JsHmrStrategy] Processing ${filePath}`);
 		const watchedFiles = this.context.getWatchedFiles();
 
 		if (watchedFiles.size === 0) {
@@ -122,10 +145,28 @@ export class JsHmrStrategy extends HmrStrategy {
 
 		const updates: string[] = [];
 		let reloadRequired = false;
+		const dependencyHits = this.context.getDependencyEntrypoints?.(filePath) ?? new Set<string>();
+		const hasDependencyHit = dependencyHits.size > 0;
+		const impactedEntrypoints = hasDependencyHit
+			? Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(entrypoint))
+			: Array.from(watchedFiles.keys());
 
-		for (const [entrypoint, outputUrl] of watchedFiles.entries()) {
+		if (!hasDependencyHit) {
+			appLogger.debug('[JsHmrStrategy] Dependency graph miss, rebuilding all watched entrypoints');
+		}
+
+		for (const entrypoint of impactedEntrypoints) {
+			const outputUrl = watchedFiles.get(entrypoint);
+			if (!outputUrl) {
+				continue;
+			}
+
 			const result = await this.bundleEntrypoint(entrypoint, outputUrl);
 			if (result.success) {
+				if (result.dependencies && this.context.setEntrypointDependencies) {
+					this.context.setEntrypointDependencies(entrypoint, result.dependencies);
+				}
+
 				updates.push(outputUrl);
 				if (result.requiresReload) {
 					reloadRequired = true;
@@ -169,7 +210,7 @@ export class JsHmrStrategy extends HmrStrategy {
 	private async bundleEntrypoint(
 		entrypointPath: string,
 		outputUrl: string,
-	): Promise<{ success: boolean; requiresReload: boolean }> {
+	): Promise<{ success: boolean; requiresReload: boolean; dependencies?: string[] }> {
 		try {
 			const srcDir = this.context.getSrcDir();
 			const relativePath = path.relative(srcDir, entrypointPath);
@@ -188,13 +229,19 @@ export class JsHmrStrategy extends HmrStrategy {
 
 			if (!result.success) {
 				appLogger.error(`[JsHmrStrategy] Failed to build ${entrypointPath}:`, result.logs);
-				return { success: false, requiresReload: false };
+				return { success: false, requiresReload: false, dependencies: undefined };
 			}
 
-			return await this.processOutput(outputPath, outputUrl);
+			const dependencyGraph = result.dependencyGraph?.entrypoints?.[path.resolve(entrypointPath)] ?? [];
+			const output = await this.processOutput(outputPath, outputUrl);
+
+			return {
+				...output,
+				dependencies: dependencyGraph,
+			};
 		} catch (error) {
 			appLogger.error(`[JsHmrStrategy] Error bundling ${entrypointPath}:`, error as Error);
-			return { success: false, requiresReload: false };
+			return { success: false, requiresReload: false, dependencies: undefined };
 		}
 	}
 

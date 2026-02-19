@@ -13,10 +13,33 @@ export interface BuildOutput {
 	path: string;
 }
 
+/**
+ * Dependency graph metadata produced by a build backend.
+ *
+ * @remarks
+ * This structure is runtime-neutral at the type level, but current population
+ * is Node/esbuild-only. Bun-backed builds may omit this metadata.
+ */
+export interface BuildDependencyGraph {
+	/**
+	 * Normalized absolute entrypoint path mapped to all normalized absolute
+	 * source inputs that contributed to that entrypoint output.
+	 */
+	entrypoints: Record<string, string[]>;
+}
+
 export interface BuildResult {
 	success: boolean;
 	logs: BuildLog[];
 	outputs: BuildOutput[];
+	/**
+	 * Optional build dependency metadata for selective invalidation.
+	 *
+	 * @remarks
+	 * This is currently filled by the Node/esbuild adapter. Other runtimes should
+	 * treat missing graph data as a valid state and fall back deterministically.
+	 */
+	dependencyGraph?: BuildDependencyGraph;
 }
 
 export interface BuildOptions {
@@ -24,6 +47,7 @@ export interface BuildOptions {
 	outdir?: string;
 	naming?: string;
 	minify?: boolean;
+	treeshaking?: boolean;
 	target?: string;
 	format?: string;
 	sourcemap?: string;

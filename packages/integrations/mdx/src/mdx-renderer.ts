@@ -92,7 +92,19 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		}>
 	> {
 		try {
-			const { default: Page, config, getMetadata } = await import(file);
+			const {
+				default: Page,
+				config,
+				getMetadata,
+			} = (await super.importPageFile(file)) as EcoPageFile<{
+				layout?:
+					| EcoComponent<any>
+					| {
+							config: EcoComponentConfig | undefined;
+					  };
+			}> & {
+				config?: EcoComponentConfig;
+			};
 
 			if (typeof Page !== 'function') {
 				throw new Error('MDX file must export a default function');

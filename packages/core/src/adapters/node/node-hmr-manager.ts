@@ -24,6 +24,14 @@ export class NodeHmrManager implements IHmrManager {
 	private watchers = new Map<string, fs.FSWatcher>();
 	private watchedFiles = new Map<string, string>();
 	private specifierMap = new Map<string, string>();
+	/**
+	 * Node-only reverse invalidation index: dependency file -> affected entrypoints.
+	 */
+	private dependencyEntrypoints = new Map<string, Set<string>>();
+	/**
+	 * Node-only forward index: entrypoint -> latest dependency set.
+	 */
+	private entrypointDependencies = new Map<string, Set<string>>();
 	private distDir: string;
 	private plugins: EcoBuildPlugin[] = [];
 	private enabled = true;
@@ -42,6 +50,10 @@ export class NodeHmrManager implements IHmrManager {
 		const jsContext = {
 			getWatchedFiles: () => this.watchedFiles,
 			getSpecifierMap: () => this.specifierMap,
+			getDependencyEntrypoints: (filePath: string) =>
+				new Set(this.dependencyEntrypoints.get(path.resolve(filePath)) ?? []),
+			setEntrypointDependencies: (entrypointPath: string, dependencies: string[]) =>
+				this.setEntrypointDependencies(entrypointPath, dependencies),
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
@@ -161,6 +173,45 @@ export class NodeHmrManager implements IHmrManager {
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
 		};
+	}
+
+	/**
+	 * Updates Node HMR dependency indexes for selective invalidation.
+	 *
+	 * @remarks
+	 * Graph data comes from Node/esbuild build metadata and does not affect Bun
+	 * HMR behavior.
+	 */
+	private setEntrypointDependencies(entrypointPath: string, dependencies: string[]): void {
+		const normalizedEntrypoint = path.resolve(entrypointPath);
+		const previousDependencies = this.entrypointDependencies.get(normalizedEntrypoint);
+
+		if (previousDependencies) {
+			for (const dependencyPath of previousDependencies) {
+				const entrypoints = this.dependencyEntrypoints.get(dependencyPath);
+				if (!entrypoints) {
+					continue;
+				}
+
+				entrypoints.delete(normalizedEntrypoint);
+				if (entrypoints.size === 0) {
+					this.dependencyEntrypoints.delete(dependencyPath);
+				}
+			}
+		}
+
+		const normalizedDependencies = new Set<string>([
+			normalizedEntrypoint,
+			...dependencies.map((dependencyPath) => path.resolve(dependencyPath)),
+		]);
+
+		this.entrypointDependencies.set(normalizedEntrypoint, normalizedDependencies);
+
+		for (const dependencyPath of normalizedDependencies) {
+			const entrypoints = this.dependencyEntrypoints.get(dependencyPath) ?? new Set<string>();
+			entrypoints.add(normalizedEntrypoint);
+			this.dependencyEntrypoints.set(dependencyPath, entrypoints);
+		}
 	}
 
 	public async registerEntrypoint(entrypointPath: string): Promise<string> {

@@ -1,8 +1,9 @@
-import type { Server as NodeHttpServer } from 'node:http';
+import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { defaultBuildAdapter } from '../../build/build-adapter.ts';
+import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
@@ -77,6 +78,7 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 	private readonly schemaValidator = new SchemaValidationService();
 	private bridge: NodeClientBridge | null = null;
 	private hmrManager: NodeHmrManager | null = null;
+	private processorBuildPlugins: EcoBuildPlugin[] = [];
 
 	constructor(options: NodeServerAdapterParams) {
 		super(options);
@@ -117,7 +119,7 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 	}
 
 	private async initializePlugins(): Promise<void> {
-		const processorBuildPlugins: import('../../build/build-types.ts').EcoBuildPlugin[] = [];
+		const processorBuildPlugins: EcoBuildPlugin[] = [];
 
 		for (const processor of this.appConfig.processors.values()) {
 			await processor.setup();
@@ -129,6 +131,9 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 			}
 			if (processor.buildPlugins) {
 				processorBuildPlugins.push(...processor.buildPlugins);
+				for (const plugin of processor.buildPlugins) {
+					defaultBuildAdapter.registerPlugin(plugin);
+				}
 			}
 		}
 
@@ -144,6 +149,8 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 				defaultBuildAdapter.registerPlugin(plugin);
 			}
 		}
+
+		this.processorBuildPlugins = processorBuildPlugins;
 	}
 
 	private async initRouter(): Promise<void> {
@@ -229,14 +236,20 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 			await this.initialize();
 		}
 
-		await this.staticBuilder.build(
-			{ preview: false },
-			{
-				router: this.router,
-				routeRendererFactory: this.routeRendererFactory,
-				staticRoutes: this.staticRoutes,
-			},
-		);
+		const buildServer = await this.startBuildRuntimeServer();
+
+		try {
+			await this.staticBuilder.build(
+				{ preview: false },
+				{
+					router: this.router,
+					routeRendererFactory: this.routeRendererFactory,
+					staticRoutes: this.staticRoutes,
+				},
+			);
+		} finally {
+			await this.stopBuildRuntimeServer(buildServer);
+		}
 
 		if (!options?.preview) {
 			return;
@@ -258,6 +271,101 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 		const previewHostname = this.serveOptions.hostname || 'localhost';
 		const previewPort = this.serveOptions.port || 3000;
 		appLogger.info(`Preview running at http://${previewHostname}:${previewPort}`);
+	}
+
+	private createWebRequest(req: IncomingMessage): Request {
+		const url = new URL(req.url ?? '/', this.runtimeOrigin);
+		const headers = new Headers();
+
+		for (const [key, value] of Object.entries(req.headers)) {
+			if (Array.isArray(value)) {
+				for (const item of value) {
+					headers.append(key, item);
+				}
+				continue;
+			}
+
+			if (value !== undefined) {
+				headers.set(key, value);
+			}
+		}
+
+		const method = (req.method ?? 'GET').toUpperCase();
+		const requestInit: RequestInit & { duplex?: 'half' } = {
+			method,
+			headers,
+		};
+
+		if (method !== 'GET' && method !== 'HEAD') {
+			requestInit.body = req as unknown as BodyInit;
+			requestInit.duplex = 'half';
+		}
+
+		return new Request(url, requestInit);
+	}
+
+	private async sendNodeResponse(res: ServerResponse, response: Response): Promise<void> {
+		res.statusCode = response.status;
+
+		response.headers.forEach((value, key) => {
+			res.setHeader(key, value);
+		});
+
+		if (!response.body) {
+			res.end();
+			return;
+		}
+
+		const body = Buffer.from(await response.arrayBuffer());
+		res.end(body);
+	}
+
+	private async startBuildRuntimeServer(): Promise<NodeHttpServer> {
+		const hostname = String(this.serveOptions.hostname || 'localhost');
+		const port = Number(this.serveOptions.port || 3000);
+
+		const server = createServer(async (req, res) => {
+			try {
+				const webRequest = this.createWebRequest(req);
+				const response = await this.handleRequest(webRequest);
+				await this.sendNodeResponse(res, response);
+			} catch (error) {
+				appLogger.error('Node static build runtime request failed', error as Error);
+				res.statusCode = 500;
+				res.end('Internal Server Error');
+			}
+		});
+
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(port, hostname, () => {
+				server.off('error', reject);
+				resolve();
+			});
+		});
+
+		this.serverInstance = server;
+		appLogger.info(`Server running at http://${hostname}:${port}`);
+
+		return server;
+	}
+
+	private async stopBuildRuntimeServer(server: NodeHttpServer): Promise<void> {
+		await new Promise<void>((resolve, reject) => {
+			server.close((error) => {
+				if (error) {
+					reject(error);
+					return;
+				}
+
+				resolve();
+			});
+			server.closeAllConnections();
+		});
+
+		if (this.serverInstance === server) {
+			this.serverInstance = null;
+		}
 	}
 
 	public async createAdapter(): Promise<NodeServerAdapterResult> {
@@ -565,7 +673,8 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 			});
 
 			const loaderPlugins = Array.from(this.appConfig.loaders.values());
-			this.hmrManager.setPlugins(loaderPlugins);
+			const hmrBuildPlugins = [...loaderPlugins, ...this.processorBuildPlugins];
+			this.hmrManager.setPlugins(hmrBuildPlugins);
 
 			for (const integration of this.appConfig.integrations) {
 				integration.setHmrManager(this.hmrManager);

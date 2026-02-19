@@ -64,12 +64,84 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	};
 
 	private postcssPlugins: postcss.AcceptedPlugin[] = [];
+	private readonly runtimeCssCache = new Map<string, string>();
 
 	private getCssFilter(): RegExp {
 		return this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
 	}
 
+	private resolveProcessedCssPath(filePath: string): string | null {
+		if (!this.context) {
+			return null;
+		}
+
+		const relativePath = path.relative(this.context.srcDir, filePath);
+		if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+			return null;
+		}
+
+		return path.join(this.context.distDir, 'assets', relativePath);
+	}
+
+	private readProcessedCssFromDist(filePath: string): string | null {
+		const outputPath = this.resolveProcessedCssPath(filePath);
+		if (!outputPath || !fileSystem.exists(outputPath)) {
+			return null;
+		}
+
+		return fileSystem.readFileAsBuffer(outputPath).toString('utf-8');
+	}
+
+	private async persistProcessedCss(filePath: string, css: string): Promise<void> {
+		const outputPath = this.resolveProcessedCssPath(filePath);
+		if (!outputPath) {
+			return;
+		}
+
+		fileSystem.ensureDir(path.dirname(outputPath));
+		fileSystem.write(outputPath, css);
+	}
+
+	private async prewarmRuntimeCssCache(): Promise<void> {
+		if (!this.context) {
+			return;
+		}
+
+		const sourceFiles = await fileSystem.glob(['**/*.{css,scss,sass,less}'], {
+			cwd: this.context.srcDir,
+		});
+
+		for (const relativePath of sourceFiles) {
+			const filePath = path.join(this.context.srcDir, relativePath);
+			if (!this.matchesFileFilter(filePath)) {
+				continue;
+			}
+
+			const rawContents = await fileSystem.readFile(filePath);
+			let transformedInput = rawContents;
+
+			if (this.options?.transformInput) {
+				transformedInput = await this.options.transformInput(rawContents, filePath);
+			}
+
+			const processed = await this.process(transformedInput, filePath);
+			this.runtimeCssCache.set(filePath, processed);
+			await this.persistProcessedCss(filePath, processed);
+		}
+	}
+
 	private transformCssSync(input: CssTransformInput): string {
+		const cached = this.runtimeCssCache.get(input.filePath);
+		if (cached) {
+			return cached;
+		}
+
+		const persisted = this.readProcessedCssFromDist(input.filePath);
+		if (persisted) {
+			this.runtimeCssCache.set(input.filePath, persisted);
+			return persisted;
+		}
+
 		const { contents } = input;
 		return typeof contents === 'string' ? contents : contents.toString('utf-8');
 	}
@@ -86,7 +158,10 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 					: (result as string);
 		}
 
-		return this.process(transformed, filePath);
+		const processed = await this.process(transformed, filePath);
+		this.runtimeCssCache.set(filePath, processed);
+		await this.persistProcessedCss(filePath, processed);
+		return processed;
 	}
 
 	override matchesFileFilter(filepath: string): boolean {
@@ -127,9 +202,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		if (!this.context) return;
 
 		try {
-			const relativePath = path.relative(this.context.srcDir, filePath);
-			const outputPath = path.join(this.context.distDir, 'assets', relativePath);
-
 			let content = await fileSystem.readFile(filePath);
 
 			if (this.options?.transformInput) {
@@ -137,9 +209,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			}
 
 			const processed = await this.process(content, filePath);
-
-			fileSystem.ensureDir(path.dirname(outputPath));
-			fileSystem.write(outputPath, processed);
+			this.runtimeCssCache.set(filePath, processed);
+			await this.persistProcessedCss(filePath, processed);
 
 			bridge.cssUpdate(filePath);
 
@@ -176,6 +247,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 */
 	async setup(): Promise<void> {
 		await this.collectPostcssPlugins();
+		await this.prewarmRuntimeCssCache();
 	}
 
 	/**

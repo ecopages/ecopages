@@ -15,6 +15,7 @@ import type {
 } from './build-types.ts';
 import type {
 	BuildAdapter,
+	BuildDependencyGraph,
 	BuildLog,
 	BuildOptions,
 	BuildResult,
@@ -104,7 +105,7 @@ export class NodeEsbuildBuildAdapter implements BuildAdapter {
 	}
 
 	private getPluginsForBuild(additionalPlugins?: EcoBuildPlugin[]): EcoBuildPlugin[] {
-		const merged = [...this.registeredPlugins, ...(additionalPlugins ?? [])];
+		const merged = [...(additionalPlugins ?? []), ...this.registeredPlugins];
 		const byName = new Map<string, EcoBuildPlugin>();
 
 		for (const plugin of merged) {
@@ -344,6 +345,61 @@ export class NodeEsbuildBuildAdapter implements BuildAdapter {
 		}
 	}
 
+	private hasTemplateTokens(value: string | undefined): boolean {
+		return typeof value === 'string' && /\[[^\]]+\]/.test(value);
+	}
+
+	private toEntryNamePattern(value: string | undefined): string {
+		if (!value) {
+			return '[name]';
+		}
+
+		const pattern = value.replaceAll(/\.?\[ext\]/g, '');
+		return pattern.length > 0 ? pattern : '[name]';
+	}
+
+	private normalizeMetafilePath(value: string, contextRoot: string): string {
+		if (path.isAbsolute(value)) {
+			return path.normalize(value);
+		}
+
+		return path.normalize(path.resolve(contextRoot, value));
+	}
+
+	private extractDependencyGraph(
+		metafile: {
+			outputs: Record<string, { entryPoint?: string; inputs?: Record<string, unknown> }>;
+		},
+		contextRoot: string,
+	): BuildDependencyGraph {
+		const entrypoints = new Map<string, Set<string>>();
+
+		for (const outputMeta of Object.values(metafile.outputs)) {
+			if (!outputMeta.entryPoint) {
+				continue;
+			}
+
+			const entrypointPath = this.normalizeMetafilePath(outputMeta.entryPoint, contextRoot);
+			const dependencies = entrypoints.get(entrypointPath) ?? new Set<string>();
+			dependencies.add(entrypointPath);
+
+			for (const inputPath of Object.keys(outputMeta.inputs ?? {})) {
+				dependencies.add(this.normalizeMetafilePath(inputPath, contextRoot));
+			}
+
+			entrypoints.set(entrypointPath, dependencies);
+		}
+
+		return {
+			entrypoints: Object.fromEntries(
+				Array.from(entrypoints.entries(), ([entrypointPath, dependencies]) => [
+					entrypointPath,
+					Array.from(dependencies),
+				]),
+			),
+		};
+	}
+
 	/**
 	 * Normalizes esbuild errors into Ecopages `BuildLog` entries.
 	 */
@@ -388,27 +444,37 @@ export class NodeEsbuildBuildAdapter implements BuildAdapter {
 		const esbuildPlugins: EsbuildPlugin[] = [
 			...(plugins.length > 0 ? [this.createEcoPluginBridge(plugins, contextRoot)] : []),
 		];
+		const transpileTarget = options.target === 'browser' ? 'es2022' : 'esnext';
 
-		const outfile = options.naming ? path.join(outdir, options.naming) : undefined;
+		const usesTemplatedNaming = this.hasTemplateTokens(options.naming);
+		const outfile = options.naming && !usesTemplatedNaming ? path.join(outdir, options.naming) : undefined;
 		if (outfile) {
 			fileSystem.ensureDir(path.dirname(outfile));
 		}
+
+		const outputOptions = outfile
+			? { outfile }
+			: {
+					outdir,
+					entryNames: usesTemplatedNaming ? this.toEntryNamePattern(options.naming) : '[name]',
+					chunkNames: '[name]',
+					assetNames: '[name]',
+				};
 
 		try {
 			const result = await esbuild.build({
 				absWorkingDir: contextRoot,
 				entryPoints: options.entrypoints,
 				bundle: true,
-				...(outfile
-					? { outfile }
-					: { outdir, entryNames: '[name]', chunkNames: '[name]', assetNames: '[name]' }),
+				...outputOptions,
 				format: this.mapEsbuildFormat(options.format),
 				platform: options.target === 'browser' ? 'browser' : 'node',
 				sourcemap: this.mapEsbuildSourcemap(options.sourcemap),
 				splitting: outfile ? false : !!options.splitting,
 				minify: !!options.minify,
+				...(typeof options.treeshaking === 'boolean' ? { treeShaking: options.treeshaking } : {}),
 				external: options.external,
-				target: 'es2022',
+				target: transpileTarget,
 				metafile: true,
 				write: true,
 				plugins: esbuildPlugins,
@@ -427,11 +493,13 @@ export class NodeEsbuildBuildAdapter implements BuildAdapter {
 				path: path.isAbsolute(outputPath) ? outputPath : path.join(contextRoot, outputPath),
 			}));
 			const logs = result.warnings.map((warning) => ({ message: warning.text }));
+			const dependencyGraph = this.extractDependencyGraph(result.metafile, contextRoot);
 
 			return {
 				success: true,
 				logs,
 				outputs,
+				dependencyGraph,
 			};
 		} catch (error) {
 			return {

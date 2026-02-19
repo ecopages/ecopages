@@ -12,6 +12,8 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 	return {
 		getWatchedFiles: () => new Map(),
 		getSpecifierMap: () => new Map(),
+		getDependencyEntrypoints: () => new Set(),
+		setEntrypointDependencies: () => {},
 		getDistDir: () => TMP_DIR,
 		getPlugins: () => [],
 		getSrcDir: () => SRC_DIR,
@@ -127,6 +129,97 @@ describe('JsHmrStrategy', () => {
 			const action = await strategy.process(path.join(SRC_DIR, 'app.ts'));
 
 			expect(action.type).toBe('none');
+		});
+
+		it('rebuilds only dependency-connected entrypoints when graph hit exists', async () => {
+			const entryA = path.join(SRC_DIR, 'entry-a.ts');
+			const entryB = path.join(SRC_DIR, 'entry-b.ts');
+			const depA = path.join(SRC_DIR, 'shared-a.ts');
+			const setEntrypointDependenciesCalls: Array<{ entrypointPath: string; dependencies: string[] }> = [];
+			const bundledEntrypoints: string[] = [];
+
+			const context = createMockContext({
+				getWatchedFiles: () =>
+					new Map([
+						[entryA, '/_hmr/entry-a.js'],
+						[entryB, '/_hmr/entry-b.js'],
+					]),
+				getDependencyEntrypoints: (filePath: string) =>
+					filePath === depA ? new Set([entryA]) : new Set<string>(),
+				setEntrypointDependencies: (entrypointPath: string, dependencies: string[]) => {
+					setEntrypointDependenciesCalls.push({ entrypointPath, dependencies });
+				},
+			});
+
+			const strategy = new JsHmrStrategy(context) as unknown as {
+				process: (filePath: string) => Promise<{ type: string; events?: unknown[] }>;
+				[key: string]: unknown;
+			};
+
+			strategy.bundleEntrypoint = async (entrypointPath: string) => {
+				bundledEntrypoints.push(entrypointPath);
+				return { success: true, requiresReload: false, dependencies: [entrypointPath, depA] };
+			};
+
+			const action = await strategy.process(depA);
+
+			expect(bundledEntrypoints).toEqual([entryA]);
+			expect(setEntrypointDependenciesCalls).toEqual([{ entrypointPath: entryA, dependencies: [entryA, depA] }]);
+			expect(action).toEqual({
+				type: 'broadcast',
+				events: [
+					{
+						type: 'update',
+						path: '/_hmr/entry-a.js',
+						timestamp: expect.any(Number),
+					},
+				],
+			});
+		});
+
+		it('falls back to rebuilding all watched entrypoints when graph has no hit', async () => {
+			const entryA = path.join(SRC_DIR, 'entry-a.ts');
+			const entryB = path.join(SRC_DIR, 'entry-b.ts');
+			const changedFile = path.join(SRC_DIR, 'new-shared.ts');
+			const bundledEntrypoints: string[] = [];
+
+			const context = createMockContext({
+				getWatchedFiles: () =>
+					new Map([
+						[entryA, '/_hmr/entry-a.js'],
+						[entryB, '/_hmr/entry-b.js'],
+					]),
+				getDependencyEntrypoints: () => new Set<string>(),
+			});
+
+			const strategy = new JsHmrStrategy(context) as unknown as {
+				process: (filePath: string) => Promise<{ type: string; events?: unknown[] }>;
+				[key: string]: unknown;
+			};
+
+			strategy.bundleEntrypoint = async (entrypointPath: string) => {
+				bundledEntrypoints.push(entrypointPath);
+				return { success: true, requiresReload: false, dependencies: [entrypointPath] };
+			};
+
+			const action = await strategy.process(changedFile);
+
+			expect(bundledEntrypoints).toEqual([entryA, entryB]);
+			expect(action).toEqual({
+				type: 'broadcast',
+				events: [
+					{
+						type: 'update',
+						path: '/_hmr/entry-a.js',
+						timestamp: expect.any(Number),
+					},
+					{
+						type: 'update',
+						path: '/_hmr/entry-b.js',
+						timestamp: expect.any(Number),
+					},
+				],
+			});
 		});
 	});
 });

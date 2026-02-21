@@ -200,6 +200,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 				naming: `[name].[hash].tmp.js`,
 				target: 'browser',
 				format: 'esm',
+				sourcemap: 'none',
 				plugins,
 				minify: false,
 				external: ['react', 'react-dom'],

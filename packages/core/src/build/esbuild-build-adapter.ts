@@ -97,7 +97,7 @@ function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspi
  * This adapter keeps Ecopages build plugin compatibility (`onResolve`, `onLoad`,
  * and `module`) while delegating bundling and TypeScript/decorator transforms to esbuild.
  */
-export class NodeEsbuildBuildAdapter implements BuildAdapter {
+export class EsbuildBuildAdapter implements BuildAdapter {
 	private registeredPlugins: EcoBuildPlugin[] = [];
 
 	private escapeRegExp(value: string): string {

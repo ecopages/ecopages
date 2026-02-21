@@ -10,14 +10,15 @@ export function createMdxLoaderPlugin(compilerOptions?: CompileOptions): EcoBuil
 	const mdExtensions = compilerOptions?.mdExtensions ?? ['.md'];
 	const allExtensions = [...mdxExtensions, ...mdExtensions];
 	const escapedExts = allExtensions.map((ext) => ext.replace('.', '\\.'));
-	const filter = new RegExp(`(${escapedExts.join('|')})$`);
+	const filter = new RegExp(`(${escapedExts.join('|')})(\\?.*)?$`);
 
 	return {
 		name: 'mdx-loader',
 		setup(build) {
 			build.onLoad({ filter }, (args) => {
-				const source = readFileSync(args.path, 'utf-8');
-				const file = new VFile({ path: args.path, value: source });
+				const filePath = args.path.includes('?') ? args.path.split('?')[0] : args.path;
+				const source = readFileSync(filePath, 'utf-8');
+				const file = new VFile({ path: filePath, value: source });
 
 				const compiled = compileSync(file, {
 					...compilerOptions,

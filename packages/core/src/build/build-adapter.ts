@@ -1,9 +1,9 @@
 import type { BunPlugin } from 'bun';
 import type { EcoBuildPlugin } from './build-types.ts';
-import { NodeEsbuildBuildAdapter } from './node-esbuild-build-adapter.ts';
-import { getBunRuntime, getRequiredBunRuntime } from '../utils/runtime.ts';
+import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
+import { getRequiredBunRuntime } from '../utils/runtime.ts';
 
-export { NodeEsbuildBuildAdapter } from './node-esbuild-build-adapter.ts';
+export { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 
 export interface BuildLog {
 	message: string;
@@ -96,6 +96,9 @@ function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspi
 	}
 }
 
+/**
+ * @deprecated Use EsbuildBuildAdapter instead. Bun native build is missing some dependency graph features.
+ */
 export class BunBuildAdapter implements BuildAdapter {
 	async build(options: BuildOptions): Promise<BuildResult> {
 		const bun = getRequiredBunRuntime();
@@ -124,6 +127,4 @@ export class BunBuildAdapter implements BuildAdapter {
 	}
 }
 
-export const defaultBuildAdapter: BuildAdapter = getBunRuntime()
-	? new BunBuildAdapter()
-	: new NodeEsbuildBuildAdapter();
+export const defaultBuildAdapter: BuildAdapter = new EsbuildBuildAdapter();

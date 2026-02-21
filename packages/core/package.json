@@ -20,7 +20,6 @@
 		"directory": "packages/core"
 	},
 	"scripts": {
-		"test:node": "node --import tsx --test src/**/*.test.node.ts",
 		"typecheck": "bunx tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
@@ -74,15 +73,15 @@
 			"types": "./src/constants.ts",
 			"default": "./src/constants.ts"
 		},
-		"./adapters/bun": {
+		"./bun": {
 			"types": "./src/adapters/bun/index.ts",
 			"default": "./src/adapters/bun/index.ts"
 		},
-		"./adapters/bun/create-app": {
+		"./bun/create-app": {
 			"types": "./src/adapters/bun/create-app.ts",
 			"default": "./src/adapters/bun/create-app.ts"
 		},
-		"./adapters/bun/define-api-handler": {
+		"./bun/define-api-handler": {
 			"types": "./src/adapters/bun/define-api-handler.ts",
 			"default": "./src/adapters/bun/define-api-handler.ts"
 		},
@@ -137,15 +136,15 @@
 			"types": "./src/adapters/bun/client-bridge.ts",
 			"default": "./src/adapters/bun/client-bridge.ts"
 		},
-		"./adapters/node": {
+		"./node": {
 			"types": "./src/adapters/node/index.ts",
 			"default": "./src/adapters/node/index.ts"
 		},
-		"./adapters/node/server-adapter": {
+		"./node/server-adapter": {
 			"types": "./src/adapters/node/server-adapter.ts",
 			"default": "./src/adapters/node/server-adapter.ts"
 		},
-		"./adapters/node/create-app": {
+		"./node/create-app": {
 			"types": "./src/adapters/node/create-app.ts",
 			"default": "./src/adapters/node/create-app.ts"
 		},

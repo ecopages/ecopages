@@ -86,6 +86,13 @@ interface HMRPayload {
 			}
 
 			await import(url);
+
+			// If we're inside the EcoRouter, we need to trigger a router navigation to render the new component.
+			// Passing clearCache: false preserves the persisted layout cache.
+			const reloadFn = window.__ecopages_reload_current_page__;
+			if (typeof reloadFn === 'function') {
+				await reloadFn({ clearCache: false });
+			}
 		} catch (e) {
 			console.error('[ecopages] Failed to apply HMR update:', e);
 		}

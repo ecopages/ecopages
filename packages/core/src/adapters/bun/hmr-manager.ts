@@ -124,7 +124,7 @@ export class HmrManager implements IHmrManager {
 	 * Builds the client-side HMR runtime script.
 	 */
 	public async buildRuntime(): Promise<void> {
-		const runtimeSource = path.resolve(import.meta.dir, '../../hmr/client/hmr-runtime.ts');
+		const runtimeSource = path.resolve(import.meta.dirname, '../../hmr/client/hmr-runtime.ts');
 
 		const result = await defaultBuildAdapter.build({
 			entrypoints: [runtimeSource],

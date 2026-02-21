@@ -86,10 +86,35 @@ function buildBunArgs(args, options, entryFile, hasConfig) {
 	return bunArgs;
 }
 
+function buildNodeArgs(args, options, entryFile) {
+	const tsxArgs = [];
+
+	if (options.watch) tsxArgs.push('watch');
+
+	tsxArgs.push(entryFile, ...args);
+
+	if (options.reactFastRefresh) {
+		tsxArgs.push('--react-fast-refresh');
+	}
+
+	return tsxArgs;
+}
+
 function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
 	const hasConfig = existsSync('eco.config.ts');
 	const envOverrides = buildEnvOverrides(options);
 	const runtime = detectRuntime();
+
+	if (runtime === 'node') {
+		return {
+			runtime,
+			executionStrategy: 'tsx',
+			command: 'tsx',
+			commandArgs: buildNodeArgs(args, options, entryFile),
+			envOverrides,
+			env: { ...process.env, ...envOverrides },
+		};
+	}
 
 	return {
 		runtime,
@@ -102,12 +127,6 @@ function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
 }
 
 function runLaunchPlan(launchPlan) {
-	if (launchPlan.runtime === 'node' && launchPlan.command === 'bun') {
-		logger.warn(
-			'Node launcher compatibility is in progress. This command still requires Bun for execution in the current release.',
-		);
-	}
-
 	if (Object.keys(launchPlan.envOverrides).length > 0) {
 		logger.info(`Environment overrides: ${JSON.stringify(launchPlan.envOverrides)}`);
 	}
@@ -120,8 +139,12 @@ function runLaunchPlan(launchPlan) {
 	});
 
 	child.on('error', (error) => {
-		if (error && error.code === 'ENOENT' && launchPlan.command === 'bun') {
-			logger.error('Bun is required for this command right now. Install Bun to continue.');
+		if (error && error.code === 'ENOENT') {
+			const hint =
+				launchPlan.command === 'bun'
+					? 'Install Bun from https://bun.sh to continue.'
+					: 'Install tsx (`npm i -g tsx` or add it as a devDependency) to continue.';
+			logger.error(`Command not found: ${launchPlan.command}. ${hint}`);
 			process.exit(1);
 		}
 

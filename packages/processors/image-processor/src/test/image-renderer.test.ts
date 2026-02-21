@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { ImageRenderer } from '../image-renderer';
 
-const mockImageProps = {
+const ImageProps = {
 	attributes: {
 		src: '/assets/images/test-123-800.webp',
 		width: 800,
@@ -32,22 +32,22 @@ describe('ImageRenderer', () => {
 
 	describe('generateAttributes', () => {
 		it('should generate correct attributes for default layout', () => {
-			const attributes = renderer.generateAttributes(mockImageProps);
+			const attributes = renderer.generateAttributes(ImageProps);
 
 			expect(attributes).toMatchObject({
-				src: mockImageProps.attributes.src,
+				src: ImageProps.attributes.src,
 				loading: 'lazy',
 				fetchpriority: 'auto',
 				decoding: 'async',
-				srcset: mockImageProps.attributes.srcset,
-				sizes: mockImageProps.attributes.sizes,
+				srcset: ImageProps.attributes.srcset,
+				sizes: ImageProps.attributes.sizes,
 				style: 'object-fit:cover;width:100%;max-width:800px;max-height:600px;aspect-ratio:800/600',
 			});
 		});
 
 		it('should handle priority images', () => {
 			const attributes = renderer.generateAttributes({
-				...mockImageProps,
+				...ImageProps,
 				priority: true,
 			});
 
@@ -60,7 +60,7 @@ describe('ImageRenderer', () => {
 
 		it('should handle static variants', () => {
 			const attributes = renderer.generateAttributes({
-				...mockImageProps,
+				...ImageProps,
 				staticVariant: 'sm',
 			});
 
@@ -71,7 +71,7 @@ describe('ImageRenderer', () => {
 
 		it('should handle aspect ratio', () => {
 			const attributes = renderer.generateAttributes({
-				...mockImageProps,
+				...ImageProps,
 				aspectRatio: '16/9',
 				width: 1600,
 			});
@@ -100,19 +100,19 @@ describe('ImageRenderer', () => {
 
 		it('should handle fixed layout', () => {
 			const attributes = renderer.generateAttributes({
-				...mockImageProps,
+				...ImageProps,
 				layout: 'fixed',
 			});
 
 			expect(attributes).toMatchObject({
-				width: mockImageProps.attributes.width,
-				height: mockImageProps.attributes.height,
+				width: ImageProps.attributes.width,
+				height: ImageProps.attributes.height,
 			});
 		});
 
 		it('should not include width/height for non-fixed layouts', () => {
 			const attributes = renderer.generateAttributes({
-				...mockImageProps,
+				...ImageProps,
 				layout: 'full-width',
 			});
 
@@ -122,7 +122,7 @@ describe('ImageRenderer', () => {
 
 		it('should handle aspect ratio with existing height', () => {
 			const attributes = renderer.generateAttributes({
-				...mockImageProps,
+				...ImageProps,
 				aspectRatio: '16/9',
 				height: 900,
 			});
@@ -146,7 +146,7 @@ describe('ImageRenderer', () => {
 
 		it('should handle constrained layout styles', () => {
 			const attributes = renderer.generateAttributes({
-				...mockImageProps,
+				...ImageProps,
 				layout: 'constrained',
 			});
 
@@ -156,7 +156,7 @@ describe('ImageRenderer', () => {
 
 		it('should include className in output', () => {
 			const attributes = renderer.generateAttributes({
-				...mockImageProps,
+				...ImageProps,
 				className: 'test-class',
 			});
 
@@ -165,7 +165,7 @@ describe('ImageRenderer', () => {
 
 		it('should handle multiple HTML attributes', () => {
 			const attributes = renderer.generateAttributes({
-				...mockImageProps,
+				...ImageProps,
 				className: 'test-class',
 				id: 'test-id',
 				'data-testid': 'test-image',
@@ -180,7 +180,7 @@ describe('ImageRenderer', () => {
 
 		it('should merge user styles with generated styles', () => {
 			const attributes = renderer.generateAttributes({
-				...mockImageProps,
+				...ImageProps,
 				style: 'border-radius:8px',
 			});
 
@@ -191,15 +191,15 @@ describe('ImageRenderer', () => {
 
 	describe('generateAttributesJsx', () => {
 		it('should generate correct JSX attributes', () => {
-			const attributes = renderer.generateAttributesJsx(mockImageProps);
+			const attributes = renderer.generateAttributesJsx(ImageProps);
 
 			expect(attributes).toMatchObject({
-				src: mockImageProps.attributes.src,
+				src: ImageProps.attributes.src,
 				loading: 'lazy',
 				fetchPriority: 'auto',
 				decoding: 'async',
-				srcSet: mockImageProps.attributes.srcset,
-				sizes: mockImageProps.attributes.sizes,
+				srcSet: ImageProps.attributes.srcset,
+				sizes: ImageProps.attributes.sizes,
 				style: {
 					maxWidth: '800px',
 					maxHeight: '600px',
@@ -211,16 +211,16 @@ describe('ImageRenderer', () => {
 
 		it('should handle unstyled prop', () => {
 			const attributes = renderer.generateAttributesJsx({
-				...mockImageProps,
+				...ImageProps,
 				unstyled: true,
 			});
 
-			expect(attributes?.style).toBeEmpty();
+			expect(attributes?.style).toEqual({});
 		});
 
 		it('should pass through additional attributes', () => {
 			const attributes = renderer.generateAttributesJsx({
-				...mockImageProps,
+				...ImageProps,
 				className: 'test-class',
 				'data-testid': 'test-image',
 			});
@@ -233,7 +233,7 @@ describe('ImageRenderer', () => {
 
 		it('should not pass through internal props', () => {
 			const attributes = renderer.generateAttributesJsx({
-				...mockImageProps,
+				...ImageProps,
 				layout: 'fixed',
 				staticVariant: 'sm',
 				priority: true,
@@ -246,7 +246,7 @@ describe('ImageRenderer', () => {
 
 		it('should convert style properties to camelCase', () => {
 			const attributes = renderer.generateAttributesJsx({
-				...mockImageProps,
+				...ImageProps,
 				layout: 'constrained',
 			});
 
@@ -259,7 +259,7 @@ describe('ImageRenderer', () => {
 
 		it('should handle mixed HTML and internal attributes', () => {
 			const attributes = renderer.generateAttributesJsx({
-				...mockImageProps,
+				...ImageProps,
 				className: 'test-class',
 				layout: 'fixed',
 				style: { color: 'red' },
@@ -276,7 +276,7 @@ describe('ImageRenderer', () => {
 
 		it('should merge user styles with generated styles in JSX', () => {
 			const attributes = renderer.generateAttributesJsx({
-				...mockImageProps,
+				...ImageProps,
 				style: { borderRadius: '8px', objectFit: 'contain' },
 			});
 
@@ -291,10 +291,10 @@ describe('ImageRenderer', () => {
 
 	describe('renderToString', () => {
 		it('should render correct HTML string', () => {
-			const html = renderer.renderToString(mockImageProps);
+			const html = renderer.renderToString(ImageProps);
 
 			expect(html).toContain('<img');
-			expect(html).toContain(`src="${mockImageProps.attributes.src}"`);
+			expect(html).toContain(`src="${ImageProps.attributes.src}"`);
 			expect(html).toContain(`style="`);
 			expect(html).toContain(`srcset="`);
 			expect(html).toContain(`sizes="`);
@@ -302,7 +302,7 @@ describe('ImageRenderer', () => {
 
 		it('should handle boolean attributes correctly', () => {
 			const html = renderer.renderToString({
-				...mockImageProps,
+				...ImageProps,
 				crossOrigin: true,
 				async: true,
 				style: undefined,
@@ -313,7 +313,7 @@ describe('ImageRenderer', () => {
 
 		it('should handle complex attributes', () => {
 			const html = renderer.renderToString({
-				...mockImageProps,
+				...ImageProps,
 				class: 'test-class',
 				style: 'color:red',
 				'data-testid': 'test-image',
@@ -328,7 +328,7 @@ describe('ImageRenderer', () => {
 
 		it('should handle empty strings and undefined values', () => {
 			const html = renderer.renderToString({
-				...mockImageProps,
+				...ImageProps,
 				className: '',
 				alt: '',
 				style: {},

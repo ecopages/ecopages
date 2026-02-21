@@ -34,6 +34,9 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	});
 
 	test('HMR refreshes page content with persist layouts enabled', async ({ page }) => {
+		page.on('console', (msg) => console.log(`[Browser]: ${msg.text()}`));
+		page.on('pageerror', (err) => console.log(`[Browser Error]: ${err.message}`));
+
 		await page.goto('/docs');
 		await page.waitForLoadState('networkidle');
 

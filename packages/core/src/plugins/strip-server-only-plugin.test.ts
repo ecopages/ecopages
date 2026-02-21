@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { transformSource } from './strip-server-only-plugin';
 
 describe('stripServerOnlyPlugin transformation', () => {
@@ -147,12 +147,10 @@ export default eco.page({
 	cache: 'dynamic',
 	middleware: [authMiddleware],
 	metadata: () => ({
-		title: 'Dashboard',
-	}),
+		title: 'Dashboard' }),
 	render: ({ locals }) => {
 		return <DashboardContent user={locals?.session?.user} />;
-	},
-});`;
+	} });`;
 
 		const result = transformSource(source, 'dashboard.tsx');
 

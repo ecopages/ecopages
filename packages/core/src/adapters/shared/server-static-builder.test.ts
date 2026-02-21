@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeAll, afterAll } from 'bun:test';
+import { describe, expect, it, beforeAll, afterAll, vi } from 'vitest';
 import { ServerStaticBuilder, type ServeOptions } from './server-static-builder';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
@@ -11,38 +11,38 @@ import { StaticContentServer } from '../../dev/sc-server';
 
 const TMP_DIR = path.join(os.tmpdir(), 'server-static-builder-test');
 
-mock.module('../../dev/sc-server', () => ({
+vi.mock('../../dev/sc-server', () => ({
 	StaticContentServer: {
-		createServer: mock(() => ({
+		createServer: vi.fn(() => ({
 			server: { port: 3000 },
 		})),
 	},
 }));
 
 function createMockDependencies() {
-	const mockStaticSiteGenerator = {
-		run: mock(() => Promise.resolve()),
+	const StaticSiteGenerator = {
+		run: vi.fn(() => Promise.resolve()),
 	} as unknown as StaticSiteGenerator;
 
-	const mockAppConfig = {
+	const AppConfig = {
 		rootDir: TMP_DIR,
 		distDir: 'dist',
 	} as unknown as EcoPagesAppConfig;
 
-	const mockServeOptions: ServeOptions = {
+	const ServeOptions: ServeOptions = {
 		hostname: 'localhost',
 		port: 3000,
 	};
 
-	const mockRouter = {} as FSRouter;
-	const mockRouteRendererFactory = {} as RouteRendererFactory;
+	const Router = {} as FSRouter;
+	const RouteRendererFactory = {} as RouteRendererFactory;
 
 	return {
-		mockStaticSiteGenerator,
-		mockAppConfig,
-		mockServeOptions,
-		mockRouter,
-		mockRouteRendererFactory,
+		StaticSiteGenerator,
+		AppConfig,
+		ServeOptions,
+		Router,
+		RouteRendererFactory,
 	};
 }
 
@@ -53,16 +53,16 @@ describe('ServerStaticBuilder', () => {
 
 	afterAll(() => {
 		fs.rmSync(TMP_DIR, { recursive: true, force: true });
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	describe('constructor', () => {
 		it('should create instance with provided options', () => {
-			const { mockAppConfig, mockStaticSiteGenerator, mockServeOptions } = createMockDependencies();
+			const { AppConfig, StaticSiteGenerator, ServeOptions } = createMockDependencies();
 			const builder = new ServerStaticBuilder({
-				appConfig: mockAppConfig,
-				staticSiteGenerator: mockStaticSiteGenerator,
-				serveOptions: mockServeOptions,
+				appConfig: AppConfig,
+				staticSiteGenerator: StaticSiteGenerator,
+				serveOptions: ServeOptions,
 			});
 			expect(builder).toBeDefined();
 		});
@@ -70,30 +70,29 @@ describe('ServerStaticBuilder', () => {
 
 	describe('build', () => {
 		it('should run static site generator with correct options', async () => {
-			const { mockAppConfig, mockStaticSiteGenerator, mockServeOptions, mockRouter, mockRouteRendererFactory } =
+			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory } =
 				createMockDependencies();
 
 			const builder = new ServerStaticBuilder({
-				appConfig: mockAppConfig,
-				staticSiteGenerator: mockStaticSiteGenerator,
-				serveOptions: mockServeOptions,
+				appConfig: AppConfig,
+				staticSiteGenerator: StaticSiteGenerator,
+				serveOptions: ServeOptions,
 			});
 
 			await builder.build(undefined, {
-				router: mockRouter,
-				routeRendererFactory: mockRouteRendererFactory,
+				router: Router,
+				routeRendererFactory: RouteRendererFactory,
 			});
 
-			expect(mockStaticSiteGenerator.run).toHaveBeenCalledWith({
-				router: mockRouter,
+			expect(StaticSiteGenerator.run).toHaveBeenCalledWith({
+				router: Router,
 				baseUrl: 'http://localhost:3000',
-				routeRendererFactory: mockRouteRendererFactory,
+				routeRendererFactory: RouteRendererFactory,
 			});
 		});
 
 		it('should handle custom serve options for base URL', async () => {
-			const { mockAppConfig, mockStaticSiteGenerator, mockRouter, mockRouteRendererFactory } =
-				createMockDependencies();
+			const { AppConfig, StaticSiteGenerator, Router, RouteRendererFactory } = createMockDependencies();
 
 			const customServeOptions: ServeOptions = {
 				hostname: '0.0.0.0',
@@ -101,17 +100,17 @@ describe('ServerStaticBuilder', () => {
 			};
 
 			const builder = new ServerStaticBuilder({
-				appConfig: mockAppConfig,
-				staticSiteGenerator: mockStaticSiteGenerator,
+				appConfig: AppConfig,
+				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: customServeOptions,
 			});
 
 			await builder.build(undefined, {
-				router: mockRouter,
-				routeRendererFactory: mockRouteRendererFactory,
+				router: Router,
+				routeRendererFactory: RouteRendererFactory,
 			});
 
-			expect(mockStaticSiteGenerator.run).toHaveBeenCalledWith(
+			expect(StaticSiteGenerator.run).toHaveBeenCalledWith(
 				expect.objectContaining({
 					baseUrl: 'http://0.0.0.0:8080',
 				}),
@@ -119,25 +118,25 @@ describe('ServerStaticBuilder', () => {
 		});
 
 		it('should start preview server when preview option is true', async () => {
-			const { mockAppConfig, mockStaticSiteGenerator, mockServeOptions, mockRouter, mockRouteRendererFactory } =
+			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory } =
 				createMockDependencies();
 
 			const builder = new ServerStaticBuilder({
-				appConfig: mockAppConfig,
-				staticSiteGenerator: mockStaticSiteGenerator,
-				serveOptions: mockServeOptions,
+				appConfig: AppConfig,
+				staticSiteGenerator: StaticSiteGenerator,
+				serveOptions: ServeOptions,
 			});
 
 			await builder.build(
 				{ preview: true },
 				{
-					router: mockRouter,
-					routeRendererFactory: mockRouteRendererFactory,
+					router: Router,
+					routeRendererFactory: RouteRendererFactory,
 				},
 			);
 
 			expect(StaticContentServer.createServer).toHaveBeenCalledWith({
-				appConfig: mockAppConfig,
+				appConfig: AppConfig,
 				options: { port: 3000 },
 			});
 		});

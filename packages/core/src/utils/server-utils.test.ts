@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { FIXTURE_APP_PROJECT_DIR } from '../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { ServerUtils } from './server-utils.module.ts';

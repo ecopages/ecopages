@@ -1,4 +1,4 @@
-import { describe, expect, test, mock } from 'bun:test';
+import { describe, expect, test, vi } from 'vitest';
 import { FIXTURE_APP_PROJECT_DIR } from '../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import type { Route, Routes } from '../internal-types.ts';
@@ -12,8 +12,11 @@ const {
 
 const scanner = new FSRouterScanner({
 	dir: pagesDir,
-	// @ts-expect-error
-	appConfig: {},
+	appConfig: {
+		absolutePaths: {
+			distDir,
+		},
+	} as any,
 	origin: 'http://localhost:3000',
 	templatesExt,
 	options: {
@@ -92,11 +95,11 @@ describe('FSRouter', async () => {
 
 	describe('match', () => {
 		const createRouterWithRoutes = (routes: Routes) => {
-			const mockScanner = { scan: async () => routes } as unknown as FSRouterScanner;
+			const Scanner = { scan: async () => routes } as unknown as FSRouterScanner;
 			const testRouter = new FSRouter({
 				origin: 'http://localhost:3000',
 				assetPrefix: '/dist',
-				scanner: mockScanner,
+				scanner: Scanner,
 			});
 			testRouter.routes = routes;
 			return testRouter;
@@ -187,14 +190,14 @@ describe('FSRouter', async () => {
 
 	describe('setOnReload and reload', () => {
 		test('should set and call onReload callback', async () => {
-			const mockScanner = { scan: async () => ({}) } as unknown as FSRouterScanner;
+			const Scanner = { scan: async () => ({}) } as unknown as FSRouterScanner;
 			const testRouter = new FSRouter({
 				origin: 'http://localhost:3000',
 				assetPrefix: '/dist',
-				scanner: mockScanner,
+				scanner: Scanner,
 			});
 
-			const callback = mock(() => {});
+			const callback = vi.fn(() => {});
 			testRouter.setOnReload(callback);
 			testRouter.reload();
 

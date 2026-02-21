@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IntegrationPlugin, type IntegrationPluginConfig } from './integration-plugin';
 import type { AssetDefinition } from '../services/asset-processing-service';
 
 class TestIntegrationPlugin extends IntegrationPlugin {
-	renderer = mock() as any;
+	renderer = vi.fn() as any;
 	override setup(): Promise<void> {
 		return Promise.resolve();
 	}

@@ -1,7 +1,9 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { FIXTURE_APP_PROJECT_DIR } from '../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { FSRouterScanner } from './fs-router-scanner.ts';
+import os from 'node:os';
+import path from 'node:path';
 
 const {
 	templatesExt,
@@ -12,8 +14,11 @@ describe('FSRouterScanner', () => {
 	test('when scan is called, it should return an object with routes', async () => {
 		const scanner = new FSRouterScanner({
 			dir: pagesDir,
-			// @ts-expect-error
-			appConfig: {},
+			appConfig: {
+				absolutePaths: {
+					distDir: path.join(os.tmpdir(), 'ecopages-test-dist-scanner'),
+				},
+			} as any,
 			origin: 'http://localhost:3000',
 			templatesExt,
 			options: {

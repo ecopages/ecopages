@@ -2,7 +2,7 @@
  * Unit tests for PageCacheService
  */
 
-import { describe, expect, test, beforeEach, mock } from 'bun:test';
+import { describe, expect, test, beforeEach, vi } from 'vitest';
 import { PageCacheService, getCacheControlHeader } from './page-cache-service.ts';
 import { MemoryCacheStore } from './memory-cache-store.ts';
 
@@ -24,7 +24,7 @@ describe('PageCacheService', () => {
 
 	describe('getOrCreate', () => {
 		test('should return miss and render on cache miss', async () => {
-			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
+			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
 			const result = await service.getOrCreate('/page', 'static', renderFn);
 
@@ -35,7 +35,7 @@ describe('PageCacheService', () => {
 		});
 
 		test('should return hit on cache hit', async () => {
-			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
+			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
 			await service.getOrCreate('/page', 'static', renderFn);
 
@@ -49,7 +49,7 @@ describe('PageCacheService', () => {
 		});
 
 		test('should bypass cache for dynamic strategy', async () => {
-			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'dynamic' as const });
+			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'dynamic' as const });
 
 			const result1 = await service.getOrCreate('/page', 'dynamic', renderFn);
 			const result2 = await service.getOrCreate('/page', 'dynamic', renderFn);
@@ -61,7 +61,7 @@ describe('PageCacheService', () => {
 
 		test('should return stale when entry is past revalidation time', async () => {
 			const revalidateStrategy = { revalidate: 60 };
-			const renderFn = mock().mockResolvedValue({ html: '<html>v1</html>', strategy: revalidateStrategy });
+			const renderFn = vi.fn().mockResolvedValue({ html: '<html>v1</html>', strategy: revalidateStrategy });
 
 			const staleEntry = {
 				html: '<html>stale</html>',
@@ -79,7 +79,7 @@ describe('PageCacheService', () => {
 
 		test('should deduplicate concurrent regeneration requests', async () => {
 			let callCount = 0;
-			const renderFn = mock().mockImplementation(async () => {
+			const renderFn = vi.fn().mockImplementation(async () => {
 				callCount++;
 				await new Promise((resolve) => setTimeout(resolve, 10));
 				return { html: `<html>v${callCount}</html>`, strategy: { revalidate: 60 } };
@@ -114,7 +114,7 @@ describe('PageCacheService', () => {
 	describe('invalidation', () => {
 		test('should invalidate by tags', async () => {
 			const strategy = { revalidate: 3600, tags: ['blog'] };
-			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy });
+			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy });
 
 			await service.getOrCreate('/blog/1', strategy, renderFn);
 			await service.getOrCreate('/blog/2', strategy, renderFn);
@@ -128,7 +128,7 @@ describe('PageCacheService', () => {
 		});
 
 		test('should invalidate by paths', async () => {
-			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
+			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
 			await service.getOrCreate('/blog/1', 'static', renderFn);
 
@@ -144,7 +144,7 @@ describe('PageCacheService', () => {
 	describe('disabled cache', () => {
 		test('should bypass cache when disabled', async () => {
 			const disabledService = new PageCacheService({ store, enabled: false });
-			const renderFn = mock().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
+			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
 			const result1 = await disabledService.getOrCreate('/page', 'static', renderFn);
 			const result2 = await disabledService.getOrCreate('/page', 'static', renderFn);

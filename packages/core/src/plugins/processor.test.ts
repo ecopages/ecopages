@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, test } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { EcoBuildPlugin } from '../build/build-types.ts';

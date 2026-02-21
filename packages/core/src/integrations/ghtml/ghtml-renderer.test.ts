@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import HtmlTemplate from '../../../__fixtures__/app/src/includes/html.ghtml.js';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../../config/config-builder.ts';
@@ -33,10 +33,10 @@ describe('GhtmlRenderer', () => {
 				HtmlTemplate,
 			})
 			.then((body) => {
-				expect(body).toInclude('<!DOCTYPE html>');
-				expect(body).toInclude('<body>Hello World</body>');
-				expect(body).toInclude('<title>Ecopages</title>');
-				expect(body).toInclude('<meta name="description" content="Ecopages" />');
+				expect(body).toContain('<!DOCTYPE html>');
+				expect(body).toContain('<body>Hello World</body>');
+				expect(body).toContain('<title>Ecopages</title>');
+				expect(body).toContain('<meta name="description" content="Ecopages" />');
 			});
 	});
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeEach, afterAll, beforeAll } from 'bun:test';
+import { describe, expect, it, vi, beforeEach, afterAll, beforeAll } from 'vitest';
 import { HmrManager } from './hmr-manager';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { ClientBridge } from './client-bridge';
@@ -9,10 +9,10 @@ import path from 'node:path';
 import os from 'node:os';
 
 type MockConfig = Partial<EcoPagesAppConfig>;
-type MockClientBridge = Partial<ClientBridge> & {
-	subscribe: ReturnType<typeof mock>;
-	unsubscribe: ReturnType<typeof mock>;
-	broadcast: ReturnType<typeof mock>;
+type MockClientBridge = Omit<Partial<ClientBridge>, 'subscribe' | 'unsubscribe' | 'broadcast'> & {
+	subscribe: ReturnType<typeof vi.fn>;
+	unsubscribe: ReturnType<typeof vi.fn>;
+	broadcast: ReturnType<typeof vi.fn>;
 };
 
 const TMP_DIR = path.join(os.tmpdir(), 'hmr-manager-test');
@@ -25,9 +25,9 @@ const mockConfig: MockConfig = {
 };
 
 const mockBridge: MockClientBridge = {
-	subscribe: mock(),
-	unsubscribe: mock(),
-	broadcast: mock(),
+	subscribe: vi.fn(),
+	unsubscribe: vi.fn(),
+	broadcast: vi.fn(),
 	subscriberCount: 0,
 };
 
@@ -56,7 +56,7 @@ describe('HmrManager', () => {
 	});
 
 	beforeEach(() => {
-		mockBridge.broadcast = mock();
+		mockBridge.broadcast = vi.fn();
 		manager = new HmrManager({
 			appConfig: mockConfig as EcoPagesAppConfig,
 			bridge: mockBridge as unknown as ClientBridge,
@@ -109,7 +109,7 @@ describe('HmrManager', () => {
 
 	it('should manage WebSocket connections', () => {
 		const handler = manager.getWebSocketHandler();
-		const ws = {} as any;
+		const ws = { send: vi.fn() } as any;
 
 		handler?.open?.(ws);
 		expect(mockBridge.subscribe).toHaveBeenCalledWith(ws);

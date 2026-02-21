@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { ContentStylesheetProcessor } from './content-stylesheet.processor';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
@@ -18,16 +18,16 @@ const createMockConfig = (): EcoPagesAppConfig =>
 	}) as unknown as EcoPagesAppConfig;
 
 describe('ContentStylesheetProcessor', () => {
-	let writeMock: ReturnType<typeof mock>;
+	let writeMock: any;
 
 	beforeEach(() => {
-		writeMock = mock(() => {});
+		writeMock = vi.fn(() => {});
 		fileSystem.write = writeMock;
 	});
 
 	afterEach(() => {
 		fileSystem.write = originalWrite;
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	describe('process - file-based stylesheet', () => {

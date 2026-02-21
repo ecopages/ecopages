@@ -1,4 +1,4 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
@@ -33,8 +33,8 @@ describe('ReactRenderer locals split', () => {
 	} as unknown as EcoPagesAppConfig;
 
 	const assetService = {
-		processDependencies: mock(() => Promise.resolve([])),
-		getHmrManager: mock(() => undefined),
+		processDependencies: vi.fn(() => Promise.resolve([])),
+		getHmrManager: vi.fn(() => undefined),
 	} as unknown as AssetProcessingService;
 
 	it('uses pageLocals for Page and locals for Layout', async () => {
@@ -44,12 +44,12 @@ describe('ReactRenderer locals split', () => {
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		const pageRenderMock = mock((props: { locals?: unknown }) => {
+		const pageRenderMock = vi.fn((props: { locals?: unknown }) => {
 			return 'page' as unknown as ReactNode;
 		});
 		const Page = pageRenderMock as unknown as IntegrationRendererRenderOptions<ReactNode>['Page'];
 
-		const layoutRenderMock = mock((props: { children: ReactNode; locals?: unknown }) => {
+		const layoutRenderMock = vi.fn((props: { children: ReactNode; locals?: unknown }) => {
 			return props.children as unknown as ReactNode;
 		});
 		const Layout = layoutRenderMock as unknown as IntegrationRendererRenderOptions<ReactNode>['Layout'];

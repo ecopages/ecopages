@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
@@ -6,7 +6,7 @@ import { ConfigBuilder } from './config-builder.ts';
 
 const createMockIntegration = (name: string, extensions: string[]): IntegrationPlugin => {
 	return new (class extends IntegrationPlugin {
-		renderer = mock() as any;
+		renderer = vi.fn() as any;
 		override extensions: string[];
 		constructor() {
 			super({ name, extensions });
@@ -153,14 +153,9 @@ describe('EcoConfigBuilder', () => {
 			createMockIntegration('test-integration', ['.test1']),
 			createMockIntegration('test-integration', ['.test2']),
 		];
-		expect(
-			async () =>
-				await builder
-					.setBaseUrl('https://example.com')
-					.setRootDir('/project')
-					.setIntegrations(integrations)
-					.build(),
-		).toThrow('Integrations names must be unique');
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
+		).rejects.toThrow('Integrations names must be unique');
 	});
 
 	test('should throw error for duplicate integration extensions', async () => {
@@ -168,9 +163,9 @@ describe('EcoConfigBuilder', () => {
 			createMockIntegration('test-integration-1', ['.test']),
 			createMockIntegration('test-integration-2', ['.test']),
 		];
-		expect(async () =>
+		await expect(
 			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
-		).toThrow('Integrations extensions must be unique');
+		).rejects.toThrow('Integrations extensions must be unique');
 	});
 
 	test('should add additionalWatchPaths', async () => {

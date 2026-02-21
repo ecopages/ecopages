@@ -1,11 +1,11 @@
-import { describe, expect, test, afterAll, beforeAll, spyOn } from 'bun:test';
+import { describe, expect, test, afterAll, beforeAll, vi } from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs';
 import { PostCssProcessorPlugin } from '../plugin';
 import type { ClientBridge } from '@ecopages/core/adapters/bun/client-bridge';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 
-const TMP_DIR = path.join(import.meta.dir, 'tmp_test_hmr');
+const TMP_DIR = path.join(__dirname, 'tmp_test_hmr');
 const SRC_DIR = path.join(TMP_DIR, 'src');
 const DIST_DIR = path.join(TMP_DIR, 'dist');
 
@@ -44,7 +44,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 
 		plugin.setContext(config);
 
-		const mockBridge = {
+		const Bridge = {
 			cssUpdate: () => {},
 			error: (msg: string) => {
 				throw new Error(msg);
@@ -52,11 +52,11 @@ describe('PostCssProcessorPlugin HMR', () => {
 			reload: () => {},
 		} as unknown as ClientBridge;
 
-		const bridgeSpy = spyOn(mockBridge, 'cssUpdate');
+		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 
 		const watchConfig = plugin.getWatchConfig();
 		if (watchConfig && watchConfig.onChange) {
-			await watchConfig.onChange({ path: cssFile, bridge: mockBridge });
+			await watchConfig.onChange({ path: cssFile, bridge: Bridge });
 		} else {
 			throw new Error('Plugin does not have watch handler');
 		}

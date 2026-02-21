@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, spyOn } from 'bun:test';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { fileSystem } from '@ecopages/file-system';
@@ -11,7 +11,7 @@ MockPage.config = {};
 
 const testDir = path.join(__dirname, 'fixture/.eco-mdx');
 
-const mockConfig = await new ConfigBuilder()
+const Config = await new ConfigBuilder()
 	.setDistDir(testDir)
 	.setIntegrations([])
 	.setBaseUrl('http://localhost:3000')
@@ -61,7 +61,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 	});
 
 	it('should warn when extensions are provided but MDX is disabled', () => {
-		const warnSpy = spyOn(Logger.prototype, 'warn');
+		const warnSpy = vi.spyOn(Logger.prototype, 'warn');
 
 		reactPlugin({
 			mdx: {
@@ -87,7 +87,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		});
 
 		const renderer = new ReactRenderer({
-			appConfig: mockConfig,
+			appConfig: Config,
 			assetProcessingService: {
 				getHmrManager: () => null,
 				processDependencies: async (deps: any) => deps,

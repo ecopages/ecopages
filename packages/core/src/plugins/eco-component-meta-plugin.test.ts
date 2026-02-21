@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from 'bun:test';
+import { describe, expect, it, vi } from 'vitest';
 import { createEcoComponentMetaPlugin } from './eco-component-meta-plugin';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { fileSystem } from '@ecopages/file-system';
@@ -13,7 +13,7 @@ function ecoMetaPattern(file: string, integration: string): RegExp {
 }
 
 describe('eco-component-meta-plugin', () => {
-	const mockConfig = {
+	const Config = {
 		integrations: [
 			{
 				name: 'kitajs',
@@ -30,7 +30,7 @@ describe('eco-component-meta-plugin', () => {
 		],
 	} as EcoPagesAppConfig;
 
-	const plugin = createEcoComponentMetaPlugin({ config: mockConfig });
+	const plugin = createEcoComponentMetaPlugin({ config: Config });
 
 	async function runPluginOnContent(content: string, filePath: string) {
 		let regexFilter: RegExp | undefined;
@@ -53,7 +53,7 @@ describe('eco-component-meta-plugin', () => {
 			throw new Error(`File path ${filePath} does not match plugin filter ${regexFilter}`);
 		}
 
-		const fileSpy = spyOn(fileSystem, 'readFileSync').mockImplementation(() => content);
+		const fileSpy = vi.spyOn(fileSystem, 'readFileSync').mockImplementation(() => content);
 
 		try {
 			return await onLoadCallback({ path: filePath });
@@ -96,10 +96,7 @@ describe('eco-component-meta-plugin', () => {
             export const LitCounter: EcoComponent = {
                 config: {
                     dependencies: {
-                        scripts: ['lit-counter.script.ts'],
-                    },
-                },
-            };
+                        scripts: ['lit-counter.script.ts'] } } };
         `;
 
 		const result = await runPluginOnContent(content, '/path/to/lit-counter.ts');
@@ -113,10 +110,8 @@ describe('eco-component-meta-plugin', () => {
             import { eco } from '@ecopages/core';
             export const Counter = eco.component${'<CounterProps>'}({
                 dependencies: {
-                    scripts: ['./counter.ts'],
-                },
-                render: () => '${'<div>'}Counter${'</div>'}',
-            });
+                    scripts: ['./counter.ts'] },
+                render: () => '${'<div>'}Counter${'</div>'}' });
         `;
 
 		const result = await runPluginOnContent(content, '/path/to/counter.tsx');
@@ -131,10 +126,8 @@ describe('eco-component-meta-plugin', () => {
             import { eco } from '@ecopages/core';
             export default eco.page({
                 dependencies: {
-                    components: [],
-                },
-                render: () => '${'<main>'}Page${'</main>'}',
-            });
+                    components: [] },
+                render: () => '${'<main>'}Page${'</main>'}' });
         `;
 
 		const result = await runPluginOnContent(content, '/path/to/pages/index.tsx');
@@ -149,11 +142,8 @@ describe('eco-component-meta-plugin', () => {
                 dependencies: {
                     lazy: {
                         'on:interaction': 'click',
-                        scripts: ['./counter.ts'],
-                    },
-                },
-                render: () => '${'<div>'}Lazy${'</div>'}',
-            });
+                        scripts: ['./counter.ts'] } },
+                render: () => '${'<div>'}Lazy${'</div>'}' });
         `;
 
 		const result = await runPluginOnContent(content, '/path/to/lazy-counter.tsx');
@@ -168,15 +158,13 @@ import type { PageHeadProps } from '@ecopages/core';
 
 export const Head = eco.component<PageHeadProps<string>>({
 	dependencies: {
-		stylesheets: ['../styles/global.css'],
-	},
+		stylesheets: ['../styles/global.css'] },
 	render: ({ metadata, children }) => (
 		<head>
 			<meta charset="UTF-8" />
 			{children}
 		</head>
-	),
-});`;
+	) });`;
 
 		const result = await runPluginOnContent(content, '/path/to/includes/head.kita.tsx');
 
@@ -190,8 +178,7 @@ import { eco } from '@ecopages/core';
 
 export default eco.page<{ title: string; callback: (arg: string) => void }>({
 	staticProps: async () => ({ props: { title: 'Hello', callback: () => {} } }),
-	render: (props) => '<div>' + props.title + '</div>',
-});
+	render: (props) => '<div>' + props.title + '</div>' });
 `;
 
 		const result = await runPluginOnContent(content, '/path/to/pages/complex.tsx');
@@ -205,12 +192,10 @@ export default eco.page<{ title: string; callback: (arg: string) => void }>({
 import { eco } from '@ecopages/core';
 
 export const Button = eco.component({
-	render: () => '<button>Click</button>',
-});
+	render: () => '<button>Click</button>' });
 
 export const Input = eco.component({
-	render: () => '<input type="text" />',
-});
+	render: () => '<input type="text" />' });
 `;
 
 		const result = await runPluginOnContent(content, '/path/to/components.tsx');
@@ -240,8 +225,7 @@ export const Simple = eco.component({});
 import { other } from 'some-lib';
 
 export const Thing = other.component({
-	render: () => '<div>Thing</div>',
-});
+	render: () => '<div>Thing</div>' });
 `;
 
 		const result = await runPluginOnContent(content, '/path/to/thing.tsx');
@@ -254,8 +238,7 @@ export const Thing = other.component({
 		const content = `
 const settings = {
 	theme: 'dark',
-	locale: 'en',
-};
+	locale: 'en' };
 `;
 
 		const result = await runPluginOnContent(content, '/path/to/settings.ts');
@@ -269,8 +252,7 @@ const settings = {
 import { eco } from '@ecopages/core';
 
 export default eco.page({
-	render: () => '<div>Page</div>',
-});
+	render: () => '<div>Page</div>' });
 `;
 
 		const result = await runPluginOnContent(content, '/path/to/my-app/pages/index.tsx');
@@ -288,12 +270,9 @@ export const LazyComponent = eco.component({
 		lazy: {
 			'on:interaction': 'click',
 			scripts: ['./script.ts'],
-			stylesheets: ['./style.css'],
-		},
-		components: [],
-	},
-	render: () => '<div>Lazy</div>',
-});
+			stylesheets: ['./style.css'] },
+		components: [] },
+	render: () => '<div>Lazy</div>' });
 `;
 
 		const result = await runPluginOnContent(content, '/path/to/lazy.tsx');
@@ -307,10 +286,8 @@ export const LazyComponent = eco.component({
 
 export const Counter = eco.component({
 	dependencies: {
-		scripts: ['./counter.ts'],
-	},
-	render: () => '<button>0</button>',
-});`;
+		scripts: ['./counter.ts'] },
+	render: () => '<button>0</button>' });`;
 
 		const result = await runPluginOnContent(content, '/path/to/counter.tsx');
 
@@ -325,8 +302,7 @@ export const Counter = eco.component({
 import { eco } from '@ecopages/core';
 
 export default eco.page({
-	render: () => '<div>Page</div>',
-});
+	render: () => '<div>Page</div>' });
 `;
 
 		const result = await runPluginOnContent(content, '/path/to/pages/index.tsx?update=123456');
@@ -349,16 +325,14 @@ export const BlogList = eco.page<BlogListProps>({
 	layout: MainLayout,
 	metadata: () => ({
 		title: 'EcoBlog | Home',
-		description: 'A blog about sustainability and technology',
-	}),
+		description: 'A blog about sustainability and technology' }),
 	render: ({ posts }) => {
 		return (
 			<div class="max-w-3xl mx-auto space-y-12">
                 {/* content */}
 			</div>
 		);
-	},
-});`;
+	} });`;
 
 			const result = await runPluginOnContent(
 				content,

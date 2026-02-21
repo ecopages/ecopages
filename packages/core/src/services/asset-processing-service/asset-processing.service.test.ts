@@ -1,15 +1,15 @@
-import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
 
-const mockConfig = {
+const Config = {
 	absolutePaths: {
 		distDir: '/test/dist',
 	},
 } as any;
 
-const mockProcessor = {
+const Processor = {
 	process: async () => ({
 		filepath: '/test/dist/assets/test.js',
 		kind: 'script',
@@ -25,12 +25,12 @@ const originalRemove = fileSystem.remove;
 const originalExists = fileSystem.exists;
 
 beforeEach(() => {
-	fileSystem.ensureDir = mock(() => {});
-	fileSystem.gzipDir = mock(() => {});
-	fileSystem.write = mock(() => {});
-	fileSystem.readFileSync = mock(() => Buffer.from('') as any);
-	fileSystem.remove = mock(() => {});
-	fileSystem.exists = mock(() => false);
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.write = vi.fn(() => {});
+	fileSystem.readFileSync = vi.fn(() => Buffer.from('') as any);
+	fileSystem.remove = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => false);
 });
 
 afterEach(() => {
@@ -40,17 +40,17 @@ afterEach(() => {
 	fileSystem.readFileSync = originalReadFileSync;
 	fileSystem.remove = originalRemove;
 	fileSystem.exists = originalExists;
-	mock.restore();
+	vi.restoreAllMocks();
 });
 
 test('AssetProcessingService - registerProcessor', () => {
-	const service = new AssetProcessingService(mockConfig);
-	service.registerProcessor('script', 'file', mockProcessor);
+	const service = new AssetProcessingService(Config);
+	service.registerProcessor('script', 'file', Processor);
 	expect(service.getRegistry().getProcessor('script', 'file')).toBeDefined();
 });
 
 test('AssetProcessingService - processDependencies', async () => {
-	const service = AssetProcessingService.createWithDefaultProcessors(mockConfig);
+	const service = AssetProcessingService.createWithDefaultProcessors(Config);
 	const results = await service.processDependencies(
 		[
 			{
@@ -68,34 +68,34 @@ test('AssetProcessingService - processDependencies', async () => {
 });
 
 test('AssetProcessingService - createWithDefaultProcessors', () => {
-	const service = AssetProcessingService.createWithDefaultProcessors(mockConfig);
+	const service = AssetProcessingService.createWithDefaultProcessors(Config);
 	expect([...service.getRegistry().getAllProcessors().values()].length).toBeGreaterThan(0);
 });
 
 test('AssetProcessingService - processDependencies - success', async () => {
-	const ensureDirMock = mock(() => {});
-	const gzipDirMock = mock(() => {});
+	const ensureDirMock = vi.fn(() => {});
+	const gzipDirMock = vi.fn(() => {});
 	fileSystem.ensureDir = ensureDirMock;
 	fileSystem.gzipDir = gzipDirMock;
-	fileSystem.exists = mock(() => true);
+	fileSystem.exists = vi.fn(() => true);
 
-	const service = new AssetProcessingService(mockConfig);
-	const mockProcessor1 = {
-		process: mock(async () => ({
+	const service = new AssetProcessingService(Config);
+	const Processor1 = {
+		process: vi.fn(async () => ({
 			filepath: '/test/dist/assets/script.js',
 			kind: 'script',
 			inline: false,
 		})),
 	};
-	const mockProcessor2 = {
-		process: mock(async () => ({
+	const Processor2 = {
+		process: vi.fn(async () => ({
 			filepath: '/test/dist/assets/style.css',
 			kind: 'stylesheet',
 			inline: false,
 		})),
 	};
-	service.registerProcessor('script', 'file', mockProcessor1);
-	service.registerProcessor('stylesheet', 'file', mockProcessor2);
+	service.registerProcessor('script', 'file', Processor1);
+	service.registerProcessor('stylesheet', 'file', Processor2);
 
 	const dependencies: AssetDefinition[] = [
 		{ kind: 'script', source: 'file', filepath: 'path/to/script.js' },
@@ -106,8 +106,8 @@ test('AssetProcessingService - processDependencies - success', async () => {
 	const results = await service.processDependencies(dependencies, key);
 
 	expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/assets');
-	expect(mockProcessor1.process).toHaveBeenCalledTimes(1);
-	expect(mockProcessor2.process).toHaveBeenCalledTimes(1);
+	expect(Processor1.process).toHaveBeenCalledTimes(1);
+	expect(Processor2.process).toHaveBeenCalledTimes(1);
 	expect(results.length).toBe(2);
 
 	expect(results[0]).toEqual(
@@ -131,13 +131,13 @@ test('AssetProcessingService - processDependencies - success', async () => {
 });
 
 test('AssetProcessingService - processDependencies - processor not found', async () => {
-	const ensureDirMock = mock(() => {});
-	const gzipDirMock = mock(() => {});
+	const ensureDirMock = vi.fn(() => {});
+	const gzipDirMock = vi.fn(() => {});
 
 	fileSystem.ensureDir = ensureDirMock;
 	fileSystem.gzipDir = gzipDirMock;
 
-	const service = new AssetProcessingService(mockConfig);
+	const service = new AssetProcessingService(Config);
 
 	const dependencies: AssetDefinition[] = [{ kind: 'script', source: 'content', content: 'alert(1)' }];
 	const key = 'test-key-missing';
@@ -150,15 +150,15 @@ test('AssetProcessingService - processDependencies - processor not found', async
 });
 
 test('AssetProcessingService - processDependencies - error during processing', async () => {
-	const ensureDirMock = mock(() => {});
-	const gzipDirMock = mock(() => {});
+	const ensureDirMock = vi.fn(() => {});
+	const gzipDirMock = vi.fn(() => {});
 	fileSystem.ensureDir = ensureDirMock;
 	fileSystem.gzipDir = gzipDirMock;
-	fileSystem.exists = mock(() => true);
+	fileSystem.exists = vi.fn(() => true);
 
-	const service = new AssetProcessingService(mockConfig);
+	const service = new AssetProcessingService(Config);
 	const erroringProcessor = {
-		process: mock(async () => {
+		process: vi.fn(async () => {
 			throw new Error('Processing failed!');
 		}),
 	};
@@ -180,20 +180,20 @@ test('AssetProcessingService - processDependencies - error during processing', a
 });
 
 test('AssetProcessingService - processDependencies - handles undefined filepath for srcUrl', async () => {
-	const ensureDirMock = mock(() => {});
-	const gzipDirMock = mock(() => {});
+	const ensureDirMock = vi.fn(() => {});
+	const gzipDirMock = vi.fn(() => {});
 	fileSystem.ensureDir = ensureDirMock;
 	fileSystem.gzipDir = gzipDirMock;
 
-	const service = new AssetProcessingService(mockConfig);
-	const mockProcessorInline = {
-		process: mock(async () => ({
+	const service = new AssetProcessingService(Config);
+	const ProcessorInline = {
+		process: vi.fn(async () => ({
 			kind: 'script',
 			inline: true,
 			content: 'console.log("inline");',
 		})),
 	};
-	service.registerProcessor('script', 'content', mockProcessorInline);
+	service.registerProcessor('script', 'content', ProcessorInline);
 
 	const dependencies: AssetDefinition[] = [
 		{ kind: 'script', source: 'content', content: 'console.log("inline");', inline: true },
@@ -203,7 +203,7 @@ test('AssetProcessingService - processDependencies - handles undefined filepath 
 	const results = await service.processDependencies(dependencies, key);
 
 	expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/assets');
-	expect(mockProcessorInline.process).toHaveBeenCalledTimes(1);
+	expect(ProcessorInline.process).toHaveBeenCalledTimes(1);
 	expect(results.length).toBe(1);
 
 	expect(results[0]).toEqual(
@@ -219,12 +219,12 @@ test('AssetProcessingService - processDependencies - handles undefined filepath 
 });
 
 test('AssetProcessingService - caching returns cached asset without reprocessing', async () => {
-	fileSystem.ensureDir = mock(() => {});
-	fileSystem.gzipDir = mock(() => {});
-	fileSystem.exists = mock(() => true);
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
 
-	const service = new AssetProcessingService(mockConfig);
-	const processMock = mock(async () => ({
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/cached.js',
 		kind: 'script',
 		inline: false,
@@ -244,12 +244,12 @@ test('AssetProcessingService - caching returns cached asset without reprocessing
 });
 
 test('AssetProcessingService - deduplication processes duplicate deps only once', async () => {
-	fileSystem.ensureDir = mock(() => {});
-	fileSystem.gzipDir = mock(() => {});
-	fileSystem.exists = mock(() => true);
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
 
-	const service = new AssetProcessingService(mockConfig);
-	const processMock = mock(async () => ({
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/dedup.js',
 		kind: 'script',
 		inline: false,
@@ -266,12 +266,12 @@ test('AssetProcessingService - deduplication processes duplicate deps only once'
 });
 
 test('AssetProcessingService - clearCache clears all cached assets', async () => {
-	fileSystem.ensureDir = mock(() => {});
-	fileSystem.gzipDir = mock(() => {});
-	fileSystem.exists = mock(() => true);
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
 
-	const service = new AssetProcessingService(mockConfig);
-	const processMock = mock(async () => ({
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/clear.js',
 		kind: 'script',
 		inline: false,
@@ -290,12 +290,12 @@ test('AssetProcessingService - clearCache clears all cached assets', async () =>
 });
 
 test('AssetProcessingService - invalidateCacheForFile removes specific file from cache', async () => {
-	fileSystem.ensureDir = mock(() => {});
-	fileSystem.gzipDir = mock(() => {});
-	fileSystem.exists = mock(() => true);
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
 
-	const service = new AssetProcessingService(mockConfig);
-	const processMock = mock(async () => ({
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/invalidate.js',
 		kind: 'script',
 		inline: false,
@@ -314,12 +314,12 @@ test('AssetProcessingService - invalidateCacheForFile removes specific file from
 });
 
 test('AssetProcessingService - skips missing file dependencies', async () => {
-	fileSystem.ensureDir = mock(() => {});
-	fileSystem.gzipDir = mock(() => {});
-	fileSystem.exists = mock(() => false);
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => false);
 
-	const service = new AssetProcessingService(mockConfig);
-	const processMock = mock(async () => ({
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/missing.js',
 		kind: 'script',
 		inline: false,

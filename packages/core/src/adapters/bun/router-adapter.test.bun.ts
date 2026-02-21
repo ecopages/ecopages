@@ -1,11 +1,11 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, vi } from 'vitest';
 import type { Route, Routes } from '../../internal-types';
 import { BunRouterAdapter } from './router-adapter';
 import type { BunServerAdapter } from './server-adapter';
 
 describe('BunRouterAdapter', () => {
-	const mockServerAdapter: BunServerAdapter = {
-		handleRequest: mock(() => Promise.resolve(new Response())),
+	const ServerAdapter: BunServerAdapter = {
+		handleRequest: vi.fn(() => Promise.resolve(new Response())),
 	} as any;
 
 	class TestBunRouterAdapter extends BunRouterAdapter {
@@ -22,7 +22,7 @@ describe('BunRouterAdapter', () => {
 		}
 	}
 
-	const testAdapter = new TestBunRouterAdapter({ serverAdapter: mockServerAdapter });
+	const testAdapter = new TestBunRouterAdapter({ serverAdapter: ServerAdapter });
 
 	describe('convertPath', () => {
 		it('should convert dynamic route parameters', () => {
@@ -71,11 +71,11 @@ describe('BunRouterAdapter', () => {
 			const request = new Request('http://localhost/about');
 
 			await (adapted['/about'] as any)(request);
-			expect(mockServerAdapter.handleRequest).toHaveBeenCalledWith(request);
+			expect(ServerAdapter.handleRequest).toHaveBeenCalledWith(request);
 		});
 
 		it('should handle errors in route handlers', async () => {
-			mockServerAdapter.handleRequest = mock(() => Promise.reject(new Error('Test error')));
+			ServerAdapter.handleRequest = vi.fn(() => Promise.reject(new Error('Test error')));
 
 			const adapted = testAdapter.adaptRoutes(testRoutes);
 			const request = new Request('http://localhost/about');

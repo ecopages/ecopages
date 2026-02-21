@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { Server } from 'bun';
 import { html } from '../../utils/html.ts';
 import { eco } from '../../eco/eco.ts';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import type { ProcessedAsset } from './asset-processing-service';
 import { HtmlTransformerService } from './html-transformer.service';
 
@@ -22,8 +22,8 @@ describe('HtmlTransformerService', () => {
 		];
 
 		const transformer = new HtmlTransformerService(dependencies);
-		const mockResponse = createMockResponse('<html><head></head><body></body></html>');
-		const result = await transformer.transform(mockResponse);
+		const Response = createMockResponse('<html><head></head><body></body></html>');
+		const result = await transformer.transform(Response);
 		const html = await result.text();
 
 		expect(html).toContain('<script id="test-script">console.log(\'test\')</script>');
@@ -41,8 +41,8 @@ describe('HtmlTransformerService', () => {
 		];
 
 		const transformer = new HtmlTransformerService(dependencies);
-		const mockResponse = createMockResponse('<html><head></head><body></body></html>');
-		const result = await transformer.transform(mockResponse);
+		const Response = createMockResponse('<html><head></head><body></body></html>');
+		const result = await transformer.transform(Response);
 		const html = await result.text();
 
 		expect(html).toContain('<link rel="stylesheet" href="/test.css" media="screen">');
@@ -66,8 +66,8 @@ describe('HtmlTransformerService', () => {
 		];
 
 		const transformer = new HtmlTransformerService(dependencies);
-		const mockResponse = createMockResponse('<html><head></head><body></body></html>');
-		const result = await transformer.transform(mockResponse);
+		const Response = createMockResponse('<html><head></head><body></body></html>');
+		const result = await transformer.transform(Response);
 		const html = await result.text();
 
 		expect(html).toContain('<script>const x = 1;</script>');
@@ -87,8 +87,8 @@ describe('HtmlTransformerService', () => {
 
 		const originalHtml = '<html><head><title>Test</title></head><body><div>Content</div></body></html>';
 		const transformer = new HtmlTransformerService(dependencies);
-		const mockResponse = createMockResponse(originalHtml);
-		const result = await transformer.transform(mockResponse);
+		const Response = createMockResponse(originalHtml);
+		const result = await transformer.transform(Response);
 		const html = await result.text();
 
 		expect(html).toContain('<title>Test</title>');

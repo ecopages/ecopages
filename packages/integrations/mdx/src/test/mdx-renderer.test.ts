@@ -1,9 +1,9 @@
-import { describe, expect, it, spyOn } from 'bun:test';
+import { describe, expect, it, vi } from 'vitest';
 import type { EcoComponent, HtmlTemplateProps, EcoPagesElement } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { MDXRenderer } from '../mdx-renderer.ts';
 
-const mockConfig = await new ConfigBuilder()
+const Config = await new ConfigBuilder()
 	.setIncludesTemplates({
 		head: 'head.ts',
 		html: 'html.ts',
@@ -29,17 +29,17 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 
 const createRenderer = () => {
 	const renderer = new MDXRenderer({
-		appConfig: mockConfig,
+		appConfig: Config,
 		assetProcessingService: {} as any,
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
-	spyOn(renderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
+	vi.spyOn(renderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
 	return renderer;
 };
 
 const renderer = new MDXRenderer({
-	appConfig: mockConfig,
+	appConfig: Config,
 	assetProcessingService: {} as any,
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
@@ -113,10 +113,11 @@ describe('MDXRenderer', () => {
 	describe('renderToResponse', () => {
 		it('should render a view with default status 200', async () => {
 			const testRenderer = createRenderer();
-			const mockView = (async (props: { title: string }) =>
-				`<h1>${props.title}</h1>`) as unknown as EcoComponent<{ title: string }>;
+			const View = (async (props: { title: string }) => `<h1>${props.title}</h1>`) as unknown as EcoComponent<{
+				title: string;
+			}>;
 
-			const response = await testRenderer.renderToResponse(mockView, { title: 'Hello MDX' }, {});
+			const response = await testRenderer.renderToResponse(View, { title: 'Hello MDX' }, {});
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
@@ -126,14 +127,10 @@ describe('MDXRenderer', () => {
 
 		it('should render a partial view without layout', async () => {
 			const testRenderer = createRenderer();
-			const mockView = (async (props: { content: string }) =>
+			const View = (async (props: { content: string }) =>
 				`<div>${props.content}</div>`) as unknown as EcoComponent<{ content: string }>;
 
-			const response = await testRenderer.renderToResponse(
-				mockView,
-				{ content: 'Partial MDX' },
-				{ partial: true },
-			);
+			const response = await testRenderer.renderToResponse(View, { content: 'Partial MDX' }, { partial: true });
 
 			const body = await response.text();
 			expect(body).toBe('<div>Partial MDX</div>');
@@ -142,19 +139,19 @@ describe('MDXRenderer', () => {
 
 		it('should apply custom status code', async () => {
 			const testRenderer = createRenderer();
-			const mockView = (async () => '<p>Not Found</p>') as unknown as EcoComponent<object>;
+			const View = (async () => '<p>Not Found</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(mockView, {}, { status: 404 });
+			const response = await testRenderer.renderToResponse(View, {}, { status: 404 });
 
 			expect(response.status).toBe(404);
 		});
 
 		it('should apply custom headers', async () => {
 			const testRenderer = createRenderer();
-			const mockView = (async () => '<p>Cached</p>') as unknown as EcoComponent<object>;
+			const View = (async () => '<p>Cached</p>') as unknown as EcoComponent<object>;
 
 			const response = await testRenderer.renderToResponse(
-				mockView,
+				View,
 				{},
 				{
 					headers: {
@@ -170,14 +167,15 @@ describe('MDXRenderer', () => {
 
 		it('should render with layout when not partial', async () => {
 			const testRenderer = createRenderer();
-			const mockLayout = (async (props: { children: EcoPagesElement }) =>
+			const Layout = (async (props: { children: EcoPagesElement }) =>
 				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: EcoPagesElement }>;
 
-			const mockView = (async (props: { message: string }) =>
-				`<p>${props.message}</p>`) as unknown as EcoComponent<{ message: string }>;
-			mockView.config = { layout: mockLayout };
+			const View = (async (props: { message: string }) => `<p>${props.message}</p>`) as unknown as EcoComponent<{
+				message: string;
+			}>;
+			View.config = { layout: Layout };
 
-			const response = await testRenderer.renderToResponse(mockView, { message: 'With Layout' }, {});
+			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
 
 			const body = await response.text();
 			expect(body).toContain('<main class="layout">');
@@ -186,11 +184,11 @@ describe('MDXRenderer', () => {
 
 		it('should throw an error if the view fails to render', async () => {
 			const testRenderer = createRenderer();
-			const mockView = (async () => {
+			const View = (async () => {
 				throw new Error('View failed to render');
 			}) as unknown as EcoComponent<object>;
 
-			await expect(testRenderer.renderToResponse(mockView, {}, {})).rejects.toThrow(
+			await expect(testRenderer.renderToResponse(View, {}, {})).rejects.toThrow(
 				'Error rendering view: View failed to render',
 			);
 		});

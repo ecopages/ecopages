@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import path from 'node:path';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types';
@@ -12,27 +12,27 @@ const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppC
 
 describe('ProjectWatcher', () => {
 	let watcher: ProjectWatcher;
-	let mockConfig: EcoPagesAppConfig;
-	let mockHmrManager: IHmrManager;
-	let mockBridge: ClientBridge;
-	let mockRefreshCallback: ReturnType<typeof mock>;
+	let Config: EcoPagesAppConfig;
+	let HmrManager: IHmrManager;
+	let Bridge: ClientBridge;
+	let RefreshCallback: any;
 
 	beforeEach(async () => {
-		mockConfig = await createMockConfig();
-		mockHmrManager = createMockHmrManager();
-		mockBridge = createMockBridge();
-		mockRefreshCallback = mock(() => {});
+		Config = await createMockConfig();
+		HmrManager = createMockHmrManager();
+		Bridge = createMockBridge();
+		RefreshCallback = vi.fn(() => {});
 
 		watcher = new ProjectWatcher({
-			config: mockConfig,
-			refreshRouterRoutesCallback: mockRefreshCallback,
-			hmrManager: mockHmrManager,
-			bridge: mockBridge,
+			config: Config,
+			refreshRouterRoutesCallback: RefreshCallback,
+			hmrManager: HmrManager,
+			bridge: Bridge,
 		});
 	});
 
 	afterEach(() => {
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	describe('constructor', () => {
@@ -48,17 +48,17 @@ describe('ProjectWatcher', () => {
 
 	describe('triggerRouterRefresh', () => {
 		test('should call refresh callback for page directory changes', () => {
-			const pagePath = path.join(mockConfig.absolutePaths.pagesDir, 'index.tsx');
+			const pagePath = path.join(Config.absolutePaths.pagesDir, 'index.tsx');
 			watcher.triggerRouterRefresh(pagePath);
 
-			expect(mockRefreshCallback).toHaveBeenCalled();
+			expect(RefreshCallback).toHaveBeenCalled();
 		});
 
 		test('should not call refresh callback for non-page directory changes', () => {
 			const nonPagePath = '/test/project/src/components/Button.tsx';
 			watcher.triggerRouterRefresh(nonPagePath);
 
-			expect(mockRefreshCallback).not.toHaveBeenCalled();
+			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
 	});
 
@@ -67,7 +67,7 @@ describe('ProjectWatcher', () => {
 			const error = new Error('Test error');
 			watcher.handleError(error);
 
-			expect(mockHmrManager.broadcast).toHaveBeenCalledWith({
+			expect(HmrManager.broadcast).toHaveBeenCalledWith({
 				type: 'error',
 				message: 'Test error',
 			});
@@ -76,161 +76,161 @@ describe('ProjectWatcher', () => {
 		test('should handle non-Error objects', () => {
 			watcher.handleError('string error');
 
-			expect(mockHmrManager.broadcast).not.toHaveBeenCalled();
+			expect(HmrManager.broadcast).not.toHaveBeenCalled();
 		});
 	});
 });
 
 describe('ProjectWatcher - File Change Handling', () => {
 	let watcher: ProjectWatcher;
-	let mockConfig: EcoPagesAppConfig;
-	let mockHmrManager: IHmrManager;
-	let mockBridge: ClientBridge;
-	let mockRefreshCallback: ReturnType<typeof mock>;
+	let Config: EcoPagesAppConfig;
+	let HmrManager: IHmrManager;
+	let Bridge: ClientBridge;
+	let RefreshCallback: any;
 
 	beforeEach(async () => {
-		mockConfig = await createMockConfig();
-		mockHmrManager = createMockHmrManager();
-		mockBridge = createMockBridge();
-		mockRefreshCallback = mock(() => {});
+		Config = await createMockConfig();
+		HmrManager = createMockHmrManager();
+		Bridge = createMockBridge();
+		RefreshCallback = vi.fn(() => {});
 
 		watcher = new ProjectWatcher({
-			config: mockConfig as EcoPagesAppConfig,
-			refreshRouterRoutesCallback: mockRefreshCallback,
-			hmrManager: mockHmrManager,
-			bridge: mockBridge,
+			config: Config as EcoPagesAppConfig,
+			refreshRouterRoutesCallback: RefreshCallback,
+			hmrManager: HmrManager,
+			bridge: Bridge,
 		});
 	});
 
 	afterEach(() => {
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	describe('public directory files', () => {
 		test('should handle public file changes with single-file copy', async () => {
-			const publicFilePath = path.join(mockConfig.absolutePaths.publicDir, 'favicon.ico');
+			const publicFilePath = path.join(Config.absolutePaths.publicDir, 'favicon.ico');
 
 			await (watcher as any).handleFileChange(publicFilePath);
 
-			expect(mockBridge.reload).toHaveBeenCalled();
-			expect(mockHmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 		});
 
 		test('should handle public file in subdirectory', async () => {
-			const publicFilePath = path.join(mockConfig.absolutePaths.publicDir, 'images', 'logo.png');
+			const publicFilePath = path.join(Config.absolutePaths.publicDir, 'images', 'logo.png');
 
 			await (watcher as any).handleFileChange(publicFilePath);
 
-			expect(mockBridge.reload).toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalled();
 		});
 
 		test('should not call uncacheModules for public files', async () => {
-			const publicFilePath = path.join(mockConfig.absolutePaths.publicDir, 'robots.txt');
+			const publicFilePath = path.join(Config.absolutePaths.publicDir, 'robots.txt');
 
 			await (watcher as any).handleFileChange(publicFilePath);
 
-			expect(mockHmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 		});
 	});
 
 	describe('page files', () => {
 		test('should refresh router for page file changes', async () => {
-			const pageFilePath = path.join(mockConfig.absolutePaths.pagesDir, 'about.tsx');
+			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'about.tsx');
 
 			await (watcher as any).handleFileChange(pageFilePath);
 
-			expect(mockRefreshCallback).toHaveBeenCalled();
+			expect(RefreshCallback).toHaveBeenCalled();
 		});
 
 		test('should call HMR manager for page file changes', async () => {
-			const pageFilePath = path.join(mockConfig.absolutePaths.pagesDir, 'contact.tsx');
+			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'contact.tsx');
 
 			await (watcher as any).handleFileChange(pageFilePath);
 
-			expect(mockHmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(pageFilePath));
+			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(pageFilePath));
 		});
 	});
 
 	describe('additionalWatchPaths', () => {
 		test('should reload for files matching additionalWatchPaths pattern', async () => {
-			mockConfig.additionalWatchPaths = ['**/*.config.ts'];
+			Config.additionalWatchPaths = ['**/*.config.ts'];
 			const configFilePath = '/test/project/app.config.ts';
 
 			await (watcher as any).handleFileChange(configFilePath);
 
-			expect(mockBridge.reload).toHaveBeenCalled();
-			expect(mockHmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 		});
 
 		test('should reload for exact path matches', async () => {
 			const exactPath = '/test/project/tailwind.config.ts';
-			mockConfig.additionalWatchPaths = [exactPath];
+			Config.additionalWatchPaths = [exactPath];
 
 			await (watcher as any).handleFileChange(exactPath);
 
-			expect(mockBridge.reload).toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalled();
 		});
 
 		test('should not reload for non-matching paths', async () => {
-			mockConfig.additionalWatchPaths = ['**/*.config.ts'];
+			Config.additionalWatchPaths = ['**/*.config.ts'];
 			const nonMatchingPath = '/test/project/src/components/Button.tsx';
 
 			await (watcher as any).handleFileChange(nonMatchingPath);
 
-			expect(mockHmrManager.handleFileChange).toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).toHaveBeenCalled();
 		});
 	});
 
 	describe('processor-handled files', () => {
 		test('should skip HMR for processor-handled extensions', async () => {
-			const mockProcessor = {
-				getWatchConfig: mock(() => ({
+			const Processor = {
+				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css', '.scss'],
 				})),
 			};
-			mockConfig.processors.set('css', mockProcessor as any);
+			Config.processors.set('css', Processor as any);
 
 			const cssFilePath = '/test/project/src/styles/main.css';
 
 			await (watcher as any).handleFileChange(cssFilePath);
 
-			expect(mockHmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 		});
 
 		test('should process files through HMR when not handled by processor', async () => {
-			const mockProcessor = {
-				getWatchConfig: mock(() => ({
+			const Processor = {
+				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css'],
 				})),
 			};
-			mockConfig.processors.set('css', mockProcessor as any);
+			Config.processors.set('css', Processor as any);
 
 			const jsFilePath = '/test/project/src/app.js';
 
 			await (watcher as any).handleFileChange(jsFilePath);
 
-			expect(mockHmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(jsFilePath));
+			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(jsFilePath));
 		});
 
 		test('should handle processor without watchConfig', async () => {
-			const mockProcessor = {
-				getWatchConfig: mock(() => null),
+			const Processor = {
+				getWatchConfig: vi.fn(() => null),
 			};
-			mockConfig.processors.set('no-watch', mockProcessor as any);
+			Config.processors.set('no-watch', Processor as any);
 
 			const filePath = '/test/project/src/app.js';
 
 			await (watcher as any).handleFileChange(filePath);
 
-			expect(mockHmrManager.handleFileChange).toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).toHaveBeenCalled();
 		});
 	});
 
 	describe('error handling', () => {
 		test('should handle errors during file change processing', async () => {
-			mockHmrManager.handleFileChange = mock(async () => {
+			HmrManager.handleFileChange = vi.fn(async () => {
 				throw new Error('HMR error');
 			});
 
@@ -238,11 +238,11 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(filePath);
 
-			expect(mockBridge.error).toHaveBeenCalledWith('HMR error');
+			expect(Bridge.error).toHaveBeenCalledWith('HMR error');
 		});
 
 		test('should continue processing after error', async () => {
-			mockHmrManager.handleFileChange = mock(async () => {
+			HmrManager.handleFileChange = vi.fn(async () => {
 				throw new Error('Processing failed');
 			});
 
@@ -250,76 +250,76 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(filePath);
 
-			expect(mockBridge.error).toHaveBeenCalledWith('Processing failed');
+			expect(Bridge.error).toHaveBeenCalledWith('Processing failed');
 		});
 	});
 });
 
 describe('ProjectWatcher - Priority Rules', () => {
 	let watcher: ProjectWatcher;
-	let mockConfig: EcoPagesAppConfig;
-	let mockHmrManager: IHmrManager;
-	let mockBridge: ClientBridge;
+	let Config: EcoPagesAppConfig;
+	let HmrManager: IHmrManager;
+	let Bridge: ClientBridge;
 
 	beforeEach(async () => {
-		mockConfig = await createMockConfig();
-		mockHmrManager = createMockHmrManager();
-		mockBridge = createMockBridge();
+		Config = await createMockConfig();
+		HmrManager = createMockHmrManager();
+		Bridge = createMockBridge();
 
 		watcher = new ProjectWatcher({
-			config: mockConfig as EcoPagesAppConfig,
-			refreshRouterRoutesCallback: mock(() => {}),
-			hmrManager: mockHmrManager,
-			bridge: mockBridge,
+			config: Config as EcoPagesAppConfig,
+			refreshRouterRoutesCallback: vi.fn(() => {}),
+			hmrManager: HmrManager,
+			bridge: Bridge,
 		});
 	});
 
 	afterEach(() => {
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	test('should prioritize public dir over additionalWatchPaths', async () => {
-		mockConfig.additionalWatchPaths = ['**/*'];
-		const publicFilePath = path.join(mockConfig.absolutePaths.publicDir, 'icon.png');
+		Config.additionalWatchPaths = ['**/*'];
+		const publicFilePath = path.join(Config.absolutePaths.publicDir, 'icon.png');
 
 		await (watcher as any).handleFileChange(publicFilePath);
 
-		expect(mockBridge.reload).toHaveBeenCalledTimes(1);
-		expect(mockHmrManager.handleFileChange).not.toHaveBeenCalled();
+		expect(Bridge.reload).toHaveBeenCalledTimes(1);
+		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 	});
 
 	test('should prioritize additionalWatchPaths over processors', async () => {
-		mockConfig.additionalWatchPaths = ['**/*.config.ts'];
-		const mockProcessor = {
-			getWatchConfig: mock(() => ({
+		Config.additionalWatchPaths = ['**/*.config.ts'];
+		const Processor = {
+			getWatchConfig: vi.fn(() => ({
 				paths: ['/test/project'],
 				extensions: ['.ts'],
 			})),
 		};
-		mockConfig.processors.set('ts', mockProcessor as any);
+		Config.processors.set('ts', Processor as any);
 
 		const configFilePath = '/test/project/app.config.ts';
 
 		await (watcher as any).handleFileChange(configFilePath);
 
-		expect(mockBridge.reload).toHaveBeenCalled();
-		expect(mockHmrManager.handleFileChange).not.toHaveBeenCalled();
+		expect(Bridge.reload).toHaveBeenCalled();
+		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 	});
 
 	test('should prioritize processors over HMR strategies', async () => {
-		const mockProcessor = {
-			getWatchConfig: mock(() => ({
+		const Processor = {
+			getWatchConfig: vi.fn(() => ({
 				paths: ['/test/project/src'],
 				extensions: ['.mdx'],
 			})),
 		};
-		mockConfig.processors.set('mdx', mockProcessor as any);
+		Config.processors.set('mdx', Processor as any);
 
 		const mdxFilePath = '/test/project/src/content.mdx';
 
 		await (watcher as any).handleFileChange(mdxFilePath);
 
-		expect(mockHmrManager.handleFileChange).not.toHaveBeenCalled();
+		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 	});
 
 	test('should use HMR as final fallback', async () => {
@@ -327,19 +327,19 @@ describe('ProjectWatcher - Priority Rules', () => {
 
 		await (watcher as any).handleFileChange(regularFilePath);
 
-		expect(mockHmrManager.handleFileChange).toHaveBeenCalled();
+		expect(HmrManager.handleFileChange).toHaveBeenCalled();
 	});
 });
 
 describe('ProjectWatcher - Helper Methods', () => {
 	let watcher: ProjectWatcher;
-	let mockConfig: EcoPagesAppConfig;
+	let Config: EcoPagesAppConfig;
 
 	beforeEach(async () => {
-		mockConfig = await createMockConfig();
+		Config = await createMockConfig();
 		watcher = new ProjectWatcher({
-			config: mockConfig as EcoPagesAppConfig,
-			refreshRouterRoutesCallback: mock(() => {}),
+			config: Config as EcoPagesAppConfig,
+			refreshRouterRoutesCallback: vi.fn(() => {}),
 			hmrManager: createMockHmrManager(),
 			bridge: createMockBridge(),
 		});
@@ -347,13 +347,13 @@ describe('ProjectWatcher - Helper Methods', () => {
 
 	describe('isPublicDirFile', () => {
 		test('should return true for files in public directory', () => {
-			const publicFile = path.join(mockConfig.absolutePaths.publicDir, 'favicon.ico');
+			const publicFile = path.join(Config.absolutePaths.publicDir, 'favicon.ico');
 			const result = (watcher as any).isPublicDirFile(publicFile);
 			expect(result).toBe(true);
 		});
 
 		test('should return false for files outside public directory', () => {
-			const srcFile = path.join(mockConfig.absolutePaths.srcDir, 'app.tsx');
+			const srcFile = path.join(Config.absolutePaths.srcDir, 'app.tsx');
 			const result = (watcher as any).isPublicDirFile(srcFile);
 			expect(result).toBe(false);
 		});
@@ -361,26 +361,26 @@ describe('ProjectWatcher - Helper Methods', () => {
 
 	describe('matchesAdditionalWatchPaths', () => {
 		test('should match wildcard patterns', () => {
-			mockConfig.additionalWatchPaths = ['**/*.config.ts'];
+			Config.additionalWatchPaths = ['**/*.config.ts'];
 			const result = (watcher as any).matchesAdditionalWatchPaths('/test/app.config.ts');
 			expect(result).toBe(true);
 		});
 
 		test('should match exact paths', () => {
 			const exactPath = '/test/project/tailwind.config.ts';
-			mockConfig.additionalWatchPaths = [exactPath];
+			Config.additionalWatchPaths = [exactPath];
 			const result = (watcher as any).matchesAdditionalWatchPaths(exactPath);
 			expect(result).toBe(true);
 		});
 
 		test('should return false when no patterns match', () => {
-			mockConfig.additionalWatchPaths = ['**/*.config.ts'];
+			Config.additionalWatchPaths = ['**/*.config.ts'];
 			const result = (watcher as any).matchesAdditionalWatchPaths('/test/app.tsx');
 			expect(result).toBe(false);
 		});
 
 		test('should return false when additionalWatchPaths is empty', () => {
-			mockConfig.additionalWatchPaths = [];
+			Config.additionalWatchPaths = [];
 			const result = (watcher as any).matchesAdditionalWatchPaths('/test/app.tsx');
 			expect(result).toBe(false);
 		});
@@ -388,49 +388,49 @@ describe('ProjectWatcher - Helper Methods', () => {
 
 	describe('isHandledByProcessor', () => {
 		test('should return true when file extension matches processor', () => {
-			const mockProcessor = {
-				getWatchConfig: mock(() => ({
+			const Processor = {
+				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css', '.scss'],
 				})),
 			};
-			mockConfig.processors.set('css', mockProcessor as any);
+			Config.processors.set('css', Processor as any);
 
 			const result = (watcher as any).isHandledByProcessor('/test/styles/main.css');
 			expect(result).toBe(true);
 		});
 
 		test('should return false when no processor handles the extension', () => {
-			const mockProcessor = {
-				getWatchConfig: mock(() => ({
+			const Processor = {
+				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css'],
 				})),
 			};
-			mockConfig.processors.set('css', mockProcessor as any);
+			Config.processors.set('css', Processor as any);
 
 			const result = (watcher as any).isHandledByProcessor('/test/app.tsx');
 			expect(result).toBe(false);
 		});
 
 		test('should handle processor without watchConfig', () => {
-			const mockProcessor = {
-				getWatchConfig: mock(() => null),
+			const Processor = {
+				getWatchConfig: vi.fn(() => null),
 			};
-			mockConfig.processors.set('no-watch', mockProcessor as any);
+			Config.processors.set('no-watch', Processor as any);
 
 			const result = (watcher as any).isHandledByProcessor('/test/app.tsx');
 			expect(result).toBe(false);
 		});
 
 		test('should handle processor with empty extensions array', () => {
-			const mockProcessor = {
-				getWatchConfig: mock(() => ({
+			const Processor = {
+				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: [],
 				})),
 			};
-			mockConfig.processors.set('empty', mockProcessor as any);
+			Config.processors.set('empty', Processor as any);
 
 			const result = (watcher as any).isHandledByProcessor('/test/app.tsx');
 			expect(result).toBe(false);

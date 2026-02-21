@@ -1,19 +1,19 @@
-import { describe, expect, it, mock, afterEach } from 'bun:test';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { ClientBridge } from './client-bridge';
 import type { ServerWebSocket } from 'bun';
 
-interface MockWebSocket extends Partial<ServerWebSocket<unknown>> {
-	send: ReturnType<typeof mock>;
+interface MockWebSocket extends Omit<Partial<ServerWebSocket<unknown>>, 'send'> {
+	send: ReturnType<typeof vi.fn>;
 }
 
 describe('ClientBridge', () => {
 	afterEach(() => {
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	it('should manage subscribers', () => {
 		const bridge = new ClientBridge();
-		const ws = { send: mock() } as MockWebSocket;
+		const ws = { send: vi.fn() } as MockWebSocket; // Changed mock() to vi.fn()
 
 		bridge.subscribe(ws as unknown as ServerWebSocket<unknown>);
 		expect(bridge.subscriberCount).toBe(1);
@@ -24,8 +24,8 @@ describe('ClientBridge', () => {
 
 	it('should broadcast events to all subscribers', () => {
 		const bridge = new ClientBridge();
-		const ws1 = { send: mock() } as MockWebSocket;
-		const ws2 = { send: mock() } as MockWebSocket;
+		const ws1 = { send: vi.fn() } as MockWebSocket;
+		const ws2 = { send: vi.fn() } as MockWebSocket;
 
 		bridge.subscribe(ws1 as unknown as ServerWebSocket<unknown>);
 		bridge.subscribe(ws2 as unknown as ServerWebSocket<unknown>);
@@ -39,7 +39,7 @@ describe('ClientBridge', () => {
 
 	it('should broadcast reload event', () => {
 		const bridge = new ClientBridge();
-		const ws = { send: mock() } as MockWebSocket;
+		const ws = { send: vi.fn() } as MockWebSocket;
 		bridge.subscribe(ws as unknown as ServerWebSocket<unknown>);
 
 		bridge.reload();
@@ -49,7 +49,7 @@ describe('ClientBridge', () => {
 
 	it('should broadcast css-update event', () => {
 		const bridge = new ClientBridge();
-		const ws = { send: mock() } as MockWebSocket;
+		const ws = { send: vi.fn() } as MockWebSocket;
 		bridge.subscribe(ws as unknown as ServerWebSocket<unknown>);
 
 		const path = '/styles/main.css';
@@ -65,7 +65,7 @@ describe('ClientBridge', () => {
 
 	it('should broadcast update event', () => {
 		const bridge = new ClientBridge();
-		const ws = { send: mock() } as MockWebSocket;
+		const ws = { send: vi.fn() } as MockWebSocket;
 		bridge.subscribe(ws as unknown as ServerWebSocket<unknown>);
 
 		const path = '/scripts/main.js';
@@ -81,7 +81,7 @@ describe('ClientBridge', () => {
 
 	it('should broadcast error event', () => {
 		const bridge = new ClientBridge();
-		const ws = { send: mock() } as MockWebSocket;
+		const ws = { send: vi.fn() } as MockWebSocket;
 		bridge.subscribe(ws as unknown as ServerWebSocket<unknown>);
 
 		const message = 'Something went wrong';

@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
-const mockConfig = await new ConfigBuilder()
+const Config = await new ConfigBuilder()
 	.setIncludesTemplates({
 		head: 'head.kita.tsx',
 		html: 'html.kita.tsx',
@@ -28,7 +28,7 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 };
 
 const renderer = new KitaRenderer({
-	appConfig: mockConfig,
+	appConfig: Config,
 	assetProcessingService: {} as any,
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],

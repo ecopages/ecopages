@@ -2,7 +2,7 @@
  * Unit tests for MemoryCacheStore
  */
 
-import { describe, expect, test, beforeEach } from 'bun:test';
+import { describe, expect, test, beforeEach } from 'vitest';
 import { MemoryCacheStore } from './memory-cache-store.ts';
 import type { CacheEntry } from './cache.types.ts';
 

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import nodeTest from 'node:test';
-import { defaultBuildAdapter, NodeEsbuildBuildAdapter } from './build-adapter.ts';
+import { defaultBuildAdapter, EsbuildBuildAdapter } from './build-adapter.ts';
 import type { EcoBuildPluginBuilder } from './build-types.ts';
 
 const test = process.versions.bun ? nodeTest.skip : nodeTest;
@@ -26,11 +26,11 @@ function clearNodeCssBridge(): void {
 	return;
 }
 
-test('defaultBuildAdapter uses NodeEsbuildBuildAdapter on Node runtime', () => {
-	assert.ok(defaultBuildAdapter instanceof NodeEsbuildBuildAdapter);
+test('defaultBuildAdapter uses EsbuildBuildAdapter on Node runtime', () => {
+	assert.ok(defaultBuildAdapter instanceof EsbuildBuildAdapter);
 });
 
-test('NodeEsbuildBuildAdapter supports module virtual modules', async () => {
+test('EsbuildBuildAdapter supports module virtual modules', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-virtual-module');
 		const srcDir = path.join(root, 'src');
@@ -40,7 +40,7 @@ test('NodeEsbuildBuildAdapter supports module virtual modules', async () => {
 		const entryPath = path.join(srcDir, 'entry.ts');
 		fs.writeFileSync(entryPath, "import answer from 'virtual:answer';\nexport const value = answer;");
 
-		const adapter = new NodeEsbuildBuildAdapter();
+		const adapter = new EsbuildBuildAdapter();
 		adapter.registerPlugin({
 			name: 'virtual-module-test',
 			setup(build: EcoBuildPluginBuilder) {
@@ -76,7 +76,7 @@ test('NodeEsbuildBuildAdapter supports module virtual modules', async () => {
 	}
 });
 
-test('NodeEsbuildBuildAdapter applies registered plugin CSS transforms to imported CSS strings', async () => {
+test('EsbuildBuildAdapter applies registered plugin CSS transforms to imported CSS strings', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-css');
 		const srcDir = path.join(root, 'src');
@@ -89,7 +89,7 @@ test('NodeEsbuildBuildAdapter applies registered plugin CSS transforms to import
 		fs.writeFileSync(cssPath, '.counter { color: red; }');
 		fs.writeFileSync(entryPath, "import styles from './styles.css';\nexport const cssText = styles;");
 
-		const adapter = new NodeEsbuildBuildAdapter();
+		const adapter = new EsbuildBuildAdapter();
 		adapter.registerPlugin({
 			name: 'css-bridge-replacement-test',
 			setup(build) {
@@ -130,7 +130,7 @@ test('NodeEsbuildBuildAdapter applies registered plugin CSS transforms to import
 	}
 });
 
-test('NodeEsbuildBuildAdapter resolves tsconfig path aliases', async () => {
+test('EsbuildBuildAdapter resolves tsconfig path aliases', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-tsconfig-paths');
 		const srcDir = path.join(root, 'src');
@@ -157,7 +157,7 @@ test('NodeEsbuildBuildAdapter resolves tsconfig path aliases', async () => {
 		const entryPath = path.join(srcDir, 'entry.ts');
 		fs.writeFileSync(entryPath, "import { count } from '@/lib/count';\nexport const value = count;");
 
-		const adapter = new NodeEsbuildBuildAdapter();
+		const adapter = new EsbuildBuildAdapter();
 		const result = await adapter.build({
 			entrypoints: [entryPath],
 			root,
@@ -182,7 +182,7 @@ test('NodeEsbuildBuildAdapter resolves tsconfig path aliases', async () => {
 	}
 });
 
-test('NodeEsbuildBuildAdapter compiles decorated declare fields', async () => {
+test('EsbuildBuildAdapter compiles decorated declare fields', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-decorated-declare');
 		const srcDir = path.join(root, 'src');
@@ -201,7 +201,7 @@ test('NodeEsbuildBuildAdapter compiles decorated declare fields', async () => {
 			].join('\n'),
 		);
 
-		const adapter = new NodeEsbuildBuildAdapter();
+		const adapter = new EsbuildBuildAdapter();
 		const result = await adapter.build({
 			entrypoints: [entryPath],
 			root,
@@ -223,7 +223,7 @@ test('NodeEsbuildBuildAdapter compiles decorated declare fields', async () => {
 	}
 });
 
-test('NodeEsbuildBuildAdapter compiles decorated accessor fields', async () => {
+test('EsbuildBuildAdapter compiles decorated accessor fields', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-decorated-accessor');
 		const srcDir = path.join(root, 'src');
@@ -244,7 +244,7 @@ test('NodeEsbuildBuildAdapter compiles decorated accessor fields', async () => {
 			].join('\n'),
 		);
 
-		const adapter = new NodeEsbuildBuildAdapter();
+		const adapter = new EsbuildBuildAdapter();
 		const result = await adapter.build({
 			entrypoints: [entryPath],
 			root,
@@ -266,7 +266,7 @@ test('NodeEsbuildBuildAdapter compiles decorated accessor fields', async () => {
 	}
 });
 
-test('NodeEsbuildBuildAdapter downlevels accessor fields for browser target bundles', async () => {
+test('EsbuildBuildAdapter downlevels accessor fields for browser target bundles', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-browser-accessor');
 		const srcDir = path.join(root, 'src');
@@ -284,7 +284,7 @@ test('NodeEsbuildBuildAdapter downlevels accessor fields for browser target bund
 			].join('\n'),
 		);
 
-		const adapter = new NodeEsbuildBuildAdapter();
+		const adapter = new EsbuildBuildAdapter();
 		const result = await adapter.build({
 			entrypoints: [entryPath],
 			root,
@@ -309,7 +309,7 @@ test('NodeEsbuildBuildAdapter downlevels accessor fields for browser target bund
 	}
 });
 
-test('NodeEsbuildBuildAdapter applies plugin CSS transforms for CSS imported in TS modules', async () => {
+test('EsbuildBuildAdapter applies plugin CSS transforms for CSS imported in TS modules', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-plugin-css-transform');
 		const srcDir = path.join(root, 'src');
@@ -322,7 +322,7 @@ test('NodeEsbuildBuildAdapter applies plugin CSS transforms for CSS imported in 
 		fs.writeFileSync(cssPath, '.counter { color: red; }');
 		fs.writeFileSync(entryPath, "import styles from './styles.css';\nexport const cssText = styles;");
 
-		const adapter = new NodeEsbuildBuildAdapter();
+		const adapter = new EsbuildBuildAdapter();
 		adapter.registerPlugin({
 			name: 'css-transform-test-plugin',
 			setup(build) {
@@ -363,7 +363,7 @@ test('NodeEsbuildBuildAdapter applies plugin CSS transforms for CSS imported in 
 	}
 });
 
-test('NodeEsbuildBuildAdapter returns dependency graph entrypoint mapping', async () => {
+test('EsbuildBuildAdapter returns dependency graph entrypoint mapping', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-dependency-graph');
 		const srcDir = path.join(root, 'src');
@@ -378,7 +378,7 @@ test('NodeEsbuildBuildAdapter returns dependency graph entrypoint mapping', asyn
 		fs.writeFileSync(leafPath, 'export const leaf = 2;');
 		fs.writeFileSync(entryPath, "import { shared } from './shared';\nexport const value = shared;");
 
-		const adapter = new NodeEsbuildBuildAdapter();
+		const adapter = new EsbuildBuildAdapter();
 		const result = await adapter.build({
 			entrypoints: [entryPath],
 			root,
@@ -404,7 +404,7 @@ test('NodeEsbuildBuildAdapter returns dependency graph entrypoint mapping', asyn
 	}
 });
 
-test('NodeEsbuildBuildAdapter prioritizes per-build plugins over registered plugins', async () => {
+test('EsbuildBuildAdapter prioritizes per-build plugins over registered plugins', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-plugin-precedence');
 		const srcDir = path.join(root, 'src');
@@ -417,7 +417,7 @@ test('NodeEsbuildBuildAdapter prioritizes per-build plugins over registered plug
 		fs.writeFileSync(cssPath, '.counter { color: red; }');
 		fs.writeFileSync(entryPath, "import styles from './styles.css';\nexport const cssText = styles;");
 
-		const adapter = new NodeEsbuildBuildAdapter();
+		const adapter = new EsbuildBuildAdapter();
 		adapter.registerPlugin({
 			name: 'registered-css-plugin',
 			setup(build) {
@@ -472,7 +472,7 @@ test('NodeEsbuildBuildAdapter prioritizes per-build plugins over registered plug
 	}
 });
 
-test('NodeEsbuildBuildAdapter resolves templated naming patterns to concrete output files', async () => {
+test('EsbuildBuildAdapter resolves templated naming patterns to concrete output files', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-naming-template');
 		const srcDir = path.join(root, 'src');
@@ -482,7 +482,7 @@ test('NodeEsbuildBuildAdapter resolves templated naming patterns to concrete out
 		const entryPath = path.join(srcDir, 'entry.ts');
 		fs.writeFileSync(entryPath, 'export const value = 1;');
 
-		const adapter = new NodeEsbuildBuildAdapter();
+		const adapter = new EsbuildBuildAdapter();
 		const result = await adapter.build({
 			entrypoints: [entryPath],
 			root,

@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { NodeModuleScriptProcessor } from './node-module-script.processor';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
@@ -21,12 +21,12 @@ const createMockConfig = (): EcoPagesAppConfig =>
 	}) as unknown as EcoPagesAppConfig;
 
 describe('NodeModuleScriptProcessor', () => {
-	let existsMock: ReturnType<typeof mock>;
-	let readFileAsBufferMock: ReturnType<typeof mock>;
+	let existsMock: any;
+	let readFileAsBufferMock: any;
 
 	beforeEach(() => {
-		existsMock = mock(() => true);
-		readFileAsBufferMock = mock(() => Buffer.from('// module content'));
+		existsMock = vi.fn(() => true);
+		readFileAsBufferMock = vi.fn(() => Buffer.from('// module content'));
 		fileSystem.exists = existsMock;
 		fileSystem.readFileAsBuffer = readFileAsBufferMock;
 	});
@@ -34,7 +34,7 @@ describe('NodeModuleScriptProcessor', () => {
 	afterEach(() => {
 		fileSystem.exists = originalExists;
 		fileSystem.readFileAsBuffer = originalReadFileAsBuffer;
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	describe('process - inline module', () => {
@@ -109,7 +109,7 @@ describe('NodeModuleScriptProcessor', () => {
 
 	describe('resolveModulePath', () => {
 		test('should throw error when module not found', async () => {
-			existsMock = mock(() => false);
+			existsMock = vi.fn(() => false);
 			fileSystem.exists = existsMock;
 
 			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
@@ -126,7 +126,7 @@ describe('NodeModuleScriptProcessor', () => {
 
 		test('should find module in parent directories', async () => {
 			let callCount = 0;
-			existsMock = mock((_path: string) => {
+			existsMock = vi.fn((_path: string) => {
 				callCount++;
 				return callCount >= 3;
 			});
@@ -177,6 +177,7 @@ describe('NodeModuleScriptProcessor', () => {
 			const config = createMockConfig();
 			config.rootDir = process.cwd();
 			const processor = new NodeModuleScriptProcessor({ appConfig: config });
+			fileSystem.readFileAsBuffer = vi.fn().mockResolvedValue(Buffer.from('dummy content'));
 
 			const dep: NodeModuleScriptAsset = {
 				kind: 'script',

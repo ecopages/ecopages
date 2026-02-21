@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import path from 'node:path';
 import { PostCssProcessor } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
@@ -27,7 +27,7 @@ describe('Presets Verification', () => {
 
 		const result = await PostCssProcessor.processStringOrBuffer(cssToPrefix, {
 			plugins: plugins ? Object.values(plugins) : [],
-			filePath: path.resolve(import.meta.dir, 'style.css'),
+			filePath: path.resolve(__dirname, 'style.css'),
 		});
 
 		/**
@@ -57,7 +57,7 @@ describe('Presets Verification', () => {
 
 		const result = await PostCssProcessor.processStringOrBuffer(cssWithNesting, {
 			plugins: plugins ? Object.values(plugins) : [],
-			filePath: path.resolve(import.meta.dir, 'style.css'),
+			filePath: path.resolve(__dirname, 'style.css'),
 		});
 
 		expect(result).toContain('.parent .child{color:blue}');
@@ -66,12 +66,12 @@ describe('Presets Verification', () => {
 
 	test('Tailwind v4 preset should add vendor prefixes (via Lightning CSS)', async () => {
 		const preset = tailwindV4Preset({
-			referencePath: path.resolve(import.meta.dir, '../fixtures/tailwind.css'),
+			referencePath: path.resolve(__dirname, '../fixtures/tailwind.css'),
 		});
 
 		const result = await PostCssProcessor.processStringOrBuffer(cssToPrefix, {
 			plugins: preset.plugins ? Object.values(preset.plugins) : [],
-			filePath: path.resolve(import.meta.dir, 'style.css'),
+			filePath: path.resolve(__dirname, 'style.css'),
 		});
 
 		/**
@@ -90,14 +90,14 @@ describe('Presets Verification', () => {
 
 	test('Tailwind v4 preset should resolve @import', async () => {
 		const preset = tailwindV4Preset({
-			referencePath: path.resolve(import.meta.dir, '../fixtures/tailwind.css'),
+			referencePath: path.resolve(__dirname, '../fixtures/tailwind.css'),
 		});
 
 		/**
 		 * Provide a filePath that allows resolving sibling files (like base.css in existing tests/css dir)
 		 * We'll leverage the existing test css files
 		 */
-		const filePath = path.resolve(import.meta.dir, 'css/import.css');
+		const filePath = path.resolve(__dirname, 'css/import.css');
 
 		const result = await PostCssProcessor.processStringOrBuffer(cssWithImport, {
 			plugins: preset.plugins ? Object.values(preset.plugins) : [],
@@ -115,7 +115,7 @@ describe('Presets Verification', () => {
 
 test('Tailwind v4 preset should support nesting', async () => {
 	const preset = tailwindV4Preset({
-		referencePath: path.resolve(import.meta.dir, '../fixtures/tailwind.css'),
+		referencePath: path.resolve(__dirname, '../fixtures/tailwind.css'),
 	});
 
 	const cssWithNesting = `
@@ -132,7 +132,7 @@ test('Tailwind v4 preset should support nesting', async () => {
 
 	const result = await PostCssProcessor.processStringOrBuffer(cssWithNesting, {
 		plugins: preset.plugins ? Object.values(preset.plugins) : [],
-		filePath: path.resolve(import.meta.dir, 'style.css'),
+		filePath: path.resolve(__dirname, 'style.css'),
 	});
 
 	expect(result).toContain('.parent .child{color:blue}');

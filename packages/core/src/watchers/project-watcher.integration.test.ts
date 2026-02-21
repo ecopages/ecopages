@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { ProjectWatcher } from './project-watcher';
@@ -6,7 +6,7 @@ import type { EcoPagesAppConfig } from '../internal-types';
 import { ConfigBuilder } from '../config/config-builder';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
 
-const TEST_ROOT = path.join(import.meta.dir, '__test-temp__');
+const TEST_ROOT = path.join(__dirname, '__test-temp__');
 
 const createTestDir = (subpath: string): string => {
 	const fullPath = path.join(TEST_ROOT, subpath);
@@ -39,7 +39,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 		if (existsSync(TEST_ROOT)) {
 			rmSync(TEST_ROOT, { recursive: true, force: true });
 		}
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	describe('Public Directory File Operations', () => {
@@ -54,7 +54,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(() => {}),
 				hmrManager,
 				bridge,
 			});
@@ -81,7 +81,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(() => {}),
 				hmrManager,
 				bridge,
 			});
@@ -109,7 +109,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(() => {}),
 				hmrManager,
 				bridge,
 			});
@@ -142,7 +142,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(() => {}),
 				hmrManager,
 				bridge,
 			});
@@ -170,7 +170,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(() => {}),
 				hmrManager,
 				bridge,
 			});
@@ -194,7 +194,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(() => {}),
 				hmrManager,
 				bridge,
 			});
@@ -219,7 +219,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(() => {}),
 				hmrManager,
 				bridge,
 			});
@@ -247,7 +247,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(() => {}),
 				hmrManager,
 				bridge,
 			});
@@ -276,7 +276,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(() => {}),
 				hmrManager,
 				bridge,
 			});
@@ -309,7 +309,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(() => {}),
 				hmrManager,
 				bridge,
 			});

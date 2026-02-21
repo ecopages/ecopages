@@ -1,78 +1,78 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, vi } from 'vitest';
 import { ServerRouteHandler } from './server-route-handler';
 import type { FSRouter } from '../../router/fs-router';
 import type { FileSystemResponseMatcher } from './fs-server-response-matcher';
 import type { IHmrManager } from '../../public-types';
 
 function createMockDependencies() {
-	const mockRouter = {
-		match: mock(() => null),
+	const Router = {
+		match: vi.fn(() => null),
 	} as unknown as FSRouter;
 
-	const mockFileSystemResponseMatcher = {
-		handleMatch: mock(() => Promise.resolve(new Response('Matched Content'))),
-		handleNoMatch: mock(() => Promise.resolve(new Response('Not Found', { status: 404 }))),
+	const FileSystemResponseMatcher = {
+		handleMatch: vi.fn(() => Promise.resolve(new Response('Matched Content'))),
+		handleNoMatch: vi.fn(() => Promise.resolve(new Response('Not Found', { status: 404 }))),
 	} as unknown as FileSystemResponseMatcher;
 
-	const mockHmrManager = {
-		isEnabled: mock(() => true),
-		broadcast: mock(),
+	const HmrManager = {
+		isEnabled: vi.fn(() => true),
+		broadcast: vi.fn(),
 	} as unknown as IHmrManager;
 
 	return {
-		mockRouter,
-		mockFileSystemResponseMatcher,
-		mockHmrManager,
+		Router,
+		FileSystemResponseMatcher,
+		HmrManager,
 	};
 }
 
 describe('ServerRouteHandler', () => {
 	describe('handleResponse', () => {
 		it('should delegate to fileSystemResponseMatcher when route matches', async () => {
-			const { mockRouter, mockFileSystemResponseMatcher } = createMockDependencies();
+			const { Router, FileSystemResponseMatcher } = createMockDependencies();
 			const handler = new ServerRouteHandler({
-				router: mockRouter,
-				fileSystemResponseMatcher: mockFileSystemResponseMatcher,
+				router: Router,
+				fileSystemResponseMatcher: FileSystemResponseMatcher,
 			});
 
-			mockRouter.match = mock(
+			Router.match = vi.fn(
 				() =>
 					({
-						/* mock match */
+						/* match */
 					}) as any,
 			);
 			const request = new Request('http://localhost/test');
 			const response = await handler.handleResponse(request);
 
-			expect(mockFileSystemResponseMatcher.handleMatch).toHaveBeenCalled();
+			expect(FileSystemResponseMatcher.handleMatch).toHaveBeenCalled();
 			expect(response.status).toBe(200);
 		});
 
 		it('should delegate to handleNoMatch when route does not match', async () => {
-			const { mockRouter, mockFileSystemResponseMatcher } = createMockDependencies();
+			const { Router, FileSystemResponseMatcher } = createMockDependencies();
 			const handler = new ServerRouteHandler({
-				router: mockRouter,
-				fileSystemResponseMatcher: mockFileSystemResponseMatcher,
+				router: Router,
+				fileSystemResponseMatcher: FileSystemResponseMatcher,
 			});
 
 			const request = new Request('http://localhost/unknown');
 			const response = await handler.handleResponse(request);
 
-			expect(mockFileSystemResponseMatcher.handleNoMatch).toHaveBeenCalled();
+			expect(FileSystemResponseMatcher.handleNoMatch).toHaveBeenCalled();
 			expect(response.status).toBe(404);
 		});
 
 		it('should inject HMR script in watch mode for HTML responses', async () => {
-			const { mockRouter, mockFileSystemResponseMatcher, mockHmrManager } = createMockDependencies();
+			const { Router, FileSystemResponseMatcher, HmrManager } = createMockDependencies();
 			const handler = new ServerRouteHandler({
-				router: mockRouter,
-				fileSystemResponseMatcher: mockFileSystemResponseMatcher,
+				router: Router,
+				fileSystemResponseMatcher: FileSystemResponseMatcher,
 				watch: true,
-				hmrManager: mockHmrManager,
+				hmrManager: HmrManager,
 			});
 
-			mockRouter.match = mock(() => ({}) as any);
-			mockFileSystemResponseMatcher.handleMatch = mock(() =>
+			Router.match = vi.fn(() => ({}) as any);
+			FileSystemResponseMatcher.handleMatch = vi.fn(() =>
 				Promise.resolve(
 					new Response('<html><body></body></html>', { headers: { 'Content-Type': 'text/html' } }),
 				),
@@ -88,15 +88,15 @@ describe('ServerRouteHandler', () => {
 
 	describe('handleNoMatch', () => {
 		it('should broadcast error if handleNoMatch throws', async () => {
-			const { mockRouter, mockFileSystemResponseMatcher, mockHmrManager } = createMockDependencies();
+			const { Router, FileSystemResponseMatcher, HmrManager } = createMockDependencies();
 			const handler = new ServerRouteHandler({
-				router: mockRouter,
-				fileSystemResponseMatcher: mockFileSystemResponseMatcher,
+				router: Router,
+				fileSystemResponseMatcher: FileSystemResponseMatcher,
 				watch: true,
-				hmrManager: mockHmrManager,
+				hmrManager: HmrManager,
 			});
 
-			mockFileSystemResponseMatcher.handleNoMatch = mock(() => {
+			FileSystemResponseMatcher.handleNoMatch = vi.fn(() => {
 				throw new Error('Test Error');
 			});
 
@@ -104,7 +104,7 @@ describe('ServerRouteHandler', () => {
 			const response = await handler.handleNoMatch(request);
 
 			expect(response.status).toBe(500);
-			expect(mockHmrManager.broadcast).toHaveBeenCalledWith({ type: 'error', message: 'Test Error' });
+			expect(HmrManager.broadcast).toHaveBeenCalledWith({ type: 'error', message: 'Test Error' });
 		});
 	});
 });

@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, spyOn } from 'bun:test';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import {
 	FIXTURE_APP_PROJECT_DIR,
 	FIXTURE_EXISTING_CSS_FILE_IN_DIST,
@@ -132,7 +132,7 @@ describe('FileSystemServerResponseFactory', () => {
 		it('should create a response with the route renderer body if error404 template file exists', async () => {
 			const response = await responseFactory.createCustomNotFoundResponse();
 			const body = await response.text();
-			expect(body).toInclude('<h1>404 - Page Not Found</h1>');
+			expect(body).toContain('<h1>404 - Page Not Found</h1>');
 			expect(response.headers.get('Content-Type')).toBe('text/html');
 			expect(response.status).toBe(404);
 		});
@@ -155,8 +155,8 @@ describe('FileSystemServerResponseFactory', () => {
 		});
 
 		it('should log debug for ENOENT errors', async () => {
-			const debugSpy = spyOn(appLogger, 'debug');
-			const errorSpy = spyOn(appLogger, 'error');
+			const debugSpy = vi.spyOn(appLogger, 'debug');
+			const errorSpy = vi.spyOn(appLogger, 'error');
 
 			await responseFactory.createFileResponse('/path/to/nonexistent-debug.txt', 'text/plain');
 

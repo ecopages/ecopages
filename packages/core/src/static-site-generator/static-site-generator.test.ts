@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { StaticSiteGenerator } from './static-site-generator';
 import type { EcoPagesAppConfig } from '../internal-types';
@@ -24,12 +24,12 @@ const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesA
 	}) as EcoPagesAppConfig;
 
 describe('StaticSiteGenerator', () => {
-	let ensureDirMock: ReturnType<typeof mock>;
-	let writeMock: ReturnType<typeof mock>;
+	let ensureDirMock: any;
+	let writeMock: any;
 
 	beforeEach(() => {
-		ensureDirMock = mock(() => {});
-		writeMock = mock(() => {});
+		ensureDirMock = vi.fn(() => {});
+		writeMock = vi.fn(() => {});
 		fileSystem.ensureDir = ensureDirMock;
 		fileSystem.write = writeMock;
 	});
@@ -37,7 +37,7 @@ describe('StaticSiteGenerator', () => {
 	afterEach(() => {
 		fileSystem.ensureDir = originalEnsureDir;
 		fileSystem.write = originalWrite;
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	describe('constructor', () => {
@@ -144,79 +144,79 @@ describe('StaticSiteGenerator', () => {
 
 		test('should filter out dynamic routes containing [', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const mockRouter = createMockRouter({
+			const Router = createMockRouter({
 				'/static': { filePath: '/src/pages/static.ghtml.ts', pathname: '/static' },
 				'/dynamic/[id]': { filePath: '/src/pages/dynamic/[id].ghtml.ts', pathname: '/dynamic/[id]' },
 			});
 
-			const mockRendererFactory = {
-				createRenderer: mock(() => ({
-					createRoute: mock(async () => ({ body: '<html>Static</html>' })),
+			const RendererFactory = {
+				createRenderer: vi.fn(() => ({
+					createRoute: vi.fn(async () => ({ body: '<html>Static</html>' })),
 				})),
 			} as unknown as RouteRendererFactory;
 
-			await ssg.generateStaticPages(mockRouter, 'http://localhost:3000', mockRendererFactory);
+			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
 			expect(writeMock).toHaveBeenCalledTimes(1);
 		});
 
 		test('should create directories for nested routes', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const mockRouter = createMockRouter({
+			const Router = createMockRouter({
 				'/blog/post': { filePath: '/src/pages/blog/post.ghtml.ts', pathname: '/blog/post' },
 			});
 
-			const mockRendererFactory = {
-				createRenderer: mock(() => ({
-					createRoute: mock(async () => ({ body: '<html>Blog Post</html>' })),
+			const RendererFactory = {
+				createRenderer: vi.fn(() => ({
+					createRoute: vi.fn(async () => ({ body: '<html>Blog Post</html>' })),
 				})),
 			} as unknown as RouteRendererFactory;
 
-			await ssg.generateStaticPages(mockRouter, 'http://localhost:3000', mockRendererFactory);
+			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
 			expect(ensureDirMock).toHaveBeenCalled();
 		});
 
 		test('should throw error when routeRendererFactory is missing for render strategy', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const mockRouter = createMockRouter({
+			const Router = createMockRouter({
 				'/page': { filePath: '/src/pages/page.ghtml.ts', pathname: '/page' },
 			});
 
-			await ssg.generateStaticPages(mockRouter, 'http://localhost:3000', undefined);
+			await ssg.generateStaticPages(Router, 'http://localhost:3000', undefined);
 		});
 
 		test('should write index.html for root path', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const mockRouter = createMockRouter({
+			const Router = createMockRouter({
 				'/': { filePath: '/src/pages/index.ghtml.ts', pathname: '/' },
 			});
 
-			const mockRendererFactory = {
-				createRenderer: mock(() => ({
-					createRoute: mock(async () => ({ body: '<html>Home</html>' })),
+			const RendererFactory = {
+				createRenderer: vi.fn(() => ({
+					createRoute: vi.fn(async () => ({ body: '<html>Home</html>' })),
 				})),
 			} as unknown as RouteRendererFactory;
 
-			await ssg.generateStaticPages(mockRouter, 'http://localhost:3000', mockRendererFactory);
+			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
 			expect(writeMock).toHaveBeenCalledWith(expect.stringContaining('index.html'), '<html>Home</html>');
 		});
 
 		test('should handle Buffer content from renderer', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const mockRouter = createMockRouter({
+			const Router = createMockRouter({
 				'/': { filePath: '/src/pages/index.ghtml.ts', pathname: '/' },
 			});
 
 			const bufferContent = Buffer.from('<html>Buffer Content</html>');
-			const mockRendererFactory = {
-				createRenderer: mock(() => ({
-					createRoute: mock(async () => ({ body: bufferContent })),
+			const RendererFactory = {
+				createRenderer: vi.fn(() => ({
+					createRoute: vi.fn(async () => ({ body: bufferContent })),
 				})),
 			} as unknown as RouteRendererFactory;
 
-			await ssg.generateStaticPages(mockRouter, 'http://localhost:3000', mockRendererFactory);
+			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
 			expect(writeMock).toHaveBeenCalledWith(expect.stringContaining('index.html'), bufferContent);
 		});
@@ -225,13 +225,13 @@ describe('StaticSiteGenerator', () => {
 	describe('run', () => {
 		test('should call generateRobotsTxt and generateStaticPages', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const mockRouter = {
+			const Router = {
 				routes: {},
 				origin: 'http://localhost:3000',
 			} as unknown as FSRouter;
 
 			await ssg.run({
-				router: mockRouter,
+				router: Router,
 				baseUrl: 'http://localhost:3000',
 			});
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeAll, afterAll } from 'bun:test';
+import { describe, expect, it, beforeAll, afterAll, vi } from 'vitest';
 import { ServerLifecycle, type ServerLifecycleParams } from './server-lifecycle';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { ClientBridge } from './client-bridge';
@@ -13,15 +13,15 @@ const DIST_DIR = path.join(TMP_DIR, 'dist');
 const PUBLIC_DIR = 'public';
 
 function createMockData(): ServerLifecycleParams {
-	const mockHmrManager = {
-		buildRuntime: mock(() => Promise.resolve()),
-		setEnabled: mock(),
-		setPlugins: mock(),
+	const HmrManager = {
+		buildRuntime: vi.fn(() => Promise.resolve()),
+		setEnabled: vi.fn(),
+		setPlugins: vi.fn(),
 	} as unknown as HmrManager;
 
-	const mockBridge = {} as ClientBridge;
+	const Bridge = {} as ClientBridge;
 
-	const mockAppConfig = {
+	const AppConfig = {
 		rootDir: TMP_DIR,
 		srcDir: 'src',
 		distDir: 'dist',
@@ -36,10 +36,10 @@ function createMockData(): ServerLifecycleParams {
 	} as unknown as EcoPagesAppConfig;
 
 	return {
-		appConfig: mockAppConfig,
+		appConfig: AppConfig,
 		runtimeOrigin: 'http://localhost:3000',
-		hmrManager: mockHmrManager,
-		bridge: mockBridge,
+		hmrManager: HmrManager,
+		bridge: Bridge,
 	};
 }
 

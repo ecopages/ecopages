@@ -3,13 +3,13 @@
  * @description Parity tests to verify BunFileSystem and NodeFileSystem return identical results.
  */
 
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { BunFileSystem } from '../src/adapters/bun';
 import { NodeFileSystem } from '../src/adapters/node';
 
-const TEST_DIR = path.join(import.meta.dir, '.parity-fixtures');
+const TEST_DIR = path.join(__dirname, '.parity-fixtures');
 
 const bunFs = new BunFileSystem();
 const nodeFs = new NodeFileSystem();

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { APP_TEST_ROUTES_URLS, FIXTURE_APP_PROJECT_DIR } from '../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { StaticContentServer } from './sc-server.ts';

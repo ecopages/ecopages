@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, spyOn } from 'bun:test';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
@@ -10,7 +10,7 @@ import { Page } from './fixture/test-page';
 
 const testDir = path.join(__dirname, 'fixture/.eco');
 
-const mockConfig = await new ConfigBuilder()
+const Config = await new ConfigBuilder()
 	.setDistDir(testDir)
 	.setIncludesTemplates({
 		head: 'head.tsx',
@@ -42,7 +42,7 @@ const pageFilePath = path.resolve(__dirname, 'fixture/test-page.tsx');
 const errorPageFile = path.resolve(__dirname, 'fixture/error-page.tsx');
 
 const renderer = new ReactRenderer({
-	appConfig: mockConfig,
+	appConfig: Config,
 	assetProcessingService: {} as any,
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
@@ -50,12 +50,12 @@ const renderer = new ReactRenderer({
 
 const createRenderer = () => {
 	const testRenderer = new ReactRenderer({
-		appConfig: mockConfig,
+		appConfig: Config,
 		assetProcessingService: {} as any,
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
-	spyOn(testRenderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
+	vi.spyOn(testRenderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
 	return testRenderer;
 };
 

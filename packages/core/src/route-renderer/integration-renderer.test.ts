@@ -1,4 +1,4 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, vi } from 'vitest';
 import { IntegrationRenderer, type RenderToResponseContext } from './integration-renderer.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../services/asset-processing-service/index.ts';
@@ -14,15 +14,15 @@ import type {
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 
 /**
- * Concrete implementation with mocked file loading for testing purposes.
+ * Concrete implementation with ed file loading for testing purposes.
  */
 class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test-renderer';
 
 	/** Mock data container for page module */
-	mockPageModule: EcoPageFile | null = null;
+	PageModule: EcoPageFile | null = null;
 	/** Mock HTML template container */
-	mockHtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
+	HtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
 
 	async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
 		return '<html><body>Test Page</body></html>';
@@ -55,16 +55,16 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	/**
-	 * Override protected methods to return mock data.
+	 * Override protected methods to return data.
 	 */
 	protected override async importPageFile(_file: string): Promise<EcoPageFile> {
-		if (!this.mockPageModule) throw new Error('Mock page module not set');
-		return this.mockPageModule;
+		if (!this.PageModule) throw new Error('Mock page module not set');
+		return this.PageModule;
 	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
-		if (!this.mockHtmlTemplate) throw new Error('Mock HTML template not set');
-		return this.mockHtmlTemplate;
+		if (!this.HtmlTemplate) throw new Error('Mock HTML template not set');
+		return this.HtmlTemplate;
 	}
 
 	/**
@@ -93,7 +93,7 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 }
 
 describe('IntegrationRenderer', () => {
-	const mockAppConfig = {
+	const AppConfig = {
 		absolutePaths: {
 			pagesDir: '/app/pages',
 			htmlTemplatePath: '/app/index.ghtml.ts',
@@ -105,26 +105,26 @@ describe('IntegrationRenderer', () => {
 		srcDir: '/app',
 	} as unknown as EcoPagesAppConfig;
 
-	const mockAssetService = {
-		processDependencies: mock(() => Promise.resolve([])),
+	const AssetService = {
+		processDependencies: vi.fn(() => Promise.resolve([])),
 	} as unknown as AssetProcessingService;
 
 	it('should extract cache strategy from page component (static property)', async () => {
 		const renderer = new TestIntegrationRenderer({
-			appConfig: mockAppConfig,
-			assetProcessingService: mockAssetService,
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		/** Mock page with cache strategy */
-		const mockPageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
 		/** Simulate eco.page() attaching cache config */
-		mockPageIdx.cache = { revalidate: 60 };
+		PageIdx.cache = { revalidate: 60 };
 
-		renderer.mockPageModule = {
-			default: mockPageIdx,
+		renderer.PageModule = {
+			default: PageIdx,
 		};
-		renderer.mockHtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
 
 		const options: RouteRendererOptions = {
 			file: '/app/pages/cached-page.ts',
@@ -139,18 +139,18 @@ describe('IntegrationRenderer', () => {
 
 	it('should return undefined cache strategy if not present', async () => {
 		const renderer = new TestIntegrationRenderer({
-			appConfig: mockAppConfig,
-			assetProcessingService: mockAssetService,
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		/** Mock page without cache strategy */
-		const mockPageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
 
-		renderer.mockPageModule = {
-			default: mockPageIdx,
+		renderer.PageModule = {
+			default: PageIdx,
 		};
-		renderer.mockHtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
 
 		const options: RouteRendererOptions = {
 			file: '/app/pages/simple-page.ts',
@@ -165,23 +165,23 @@ describe('IntegrationRenderer', () => {
 
 	it('should resolve static props and metadata correctly', async () => {
 		const renderer = new TestIntegrationRenderer({
-			appConfig: mockAppConfig,
-			assetProcessingService: mockAssetService,
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		const mockPageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
 		/** Attached static methods */
-		mockPageIdx.staticProps = async () => ({ props: { title: 'Dynamic Title' } });
-		mockPageIdx.metadata = async ({ props }: { props: Record<string, unknown> }) => ({
+		PageIdx.staticProps = async () => ({ props: { title: 'Dynamic Title' } });
+		PageIdx.metadata = async ({ props }: { props: Record<string, unknown> }) => ({
 			title: props.title as string,
 			description: 'Dynamic Description',
 		});
 
-		renderer.mockPageModule = {
-			default: mockPageIdx,
+		renderer.PageModule = {
+			default: PageIdx,
 		};
-		renderer.mockHtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
 
 		const options: RouteRendererOptions = {
 			file: '/app/pages/props-page.ts',
@@ -197,17 +197,17 @@ describe('IntegrationRenderer', () => {
 
 	it('should keep layout locals safe and page locals guarded on static pages', async () => {
 		const renderer = new TestIntegrationRenderer({
-			appConfig: mockAppConfig,
-			assetProcessingService: mockAssetService,
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		const mockPageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
 
-		renderer.mockPageModule = {
-			default: mockPageIdx,
+		renderer.PageModule = {
+			default: PageIdx,
 		};
-		renderer.mockHtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
 
 		const result = await renderer.testPrepareRenderOptions({
 			file: '/app/pages/static-page.ts',
@@ -221,18 +221,18 @@ describe('IntegrationRenderer', () => {
 
 	it('should provide both locals and pageLocals on dynamic pages', async () => {
 		const renderer = new TestIntegrationRenderer({
-			appConfig: mockAppConfig,
-			assetProcessingService: mockAssetService,
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		const mockPageIdx = (() => 'Page Content') as EcoPageComponent<any>;
-		mockPageIdx.cache = 'dynamic';
+		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		PageIdx.cache = 'dynamic';
 
-		renderer.mockPageModule = {
-			default: mockPageIdx,
+		renderer.PageModule = {
+			default: PageIdx,
 		};
-		renderer.mockHtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
 
 		const incomingLocals = { session: { userId: 'u-1' } } as Record<string, unknown>;
 		const result = await renderer.testPrepareRenderOptions({
@@ -248,23 +248,23 @@ describe('IntegrationRenderer', () => {
 
 	it('should prefer processed lazy script srcUrl for _resolvedScripts', async () => {
 		let capturedDeps: unknown[] = [];
-		const mockLazySrcUrl = '/assets/_hmr/components/lit-counter/lit-counter.script.js';
-		const mockService = {
-			processDependencies: mock(async (deps: unknown[]) => {
+		const LazySrcUrl = '/assets/_hmr/components/lit-counter/lit-counter.script.js';
+		const Service = {
+			processDependencies: vi.fn(async (deps: unknown[]) => {
 				capturedDeps = deps;
 				return [
 					{
 						kind: 'script',
 						filepath: '/app/components/lit-counter/lit-counter.script.ts',
-						srcUrl: mockLazySrcUrl,
+						srcUrl: LazySrcUrl,
 					},
 				] as ProcessedAsset[];
 			}),
 		} as unknown as AssetProcessingService;
 
 		const renderer = new TestIntegrationRenderer({
-			appConfig: mockAppConfig,
-			assetProcessingService: mockService,
+			appConfig: AppConfig,
+			assetProcessingService: Service,
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
@@ -285,7 +285,7 @@ describe('IntegrationRenderer', () => {
 
 		await renderer.testProcessComponentDependencies([component]);
 
-		expect(component.config._resolvedScripts).toBe(mockLazySrcUrl);
+		expect(component.config._resolvedScripts).toBe(LazySrcUrl);
 		expect(
 			capturedDeps.some((dep) => {
 				if (!dep || typeof dep !== 'object') return false;
@@ -296,8 +296,8 @@ describe('IntegrationRenderer', () => {
 	});
 
 	it('should fallback to static lazy script URL when processed srcUrl is unavailable', async () => {
-		const mockService = {
-			processDependencies: mock(async () => {
+		const Service = {
+			processDependencies: vi.fn(async () => {
 				return [
 					{
 						kind: 'script',
@@ -308,8 +308,8 @@ describe('IntegrationRenderer', () => {
 		} as unknown as AssetProcessingService;
 
 		const renderer = new TestIntegrationRenderer({
-			appConfig: mockAppConfig,
-			assetProcessingService: mockService,
+			appConfig: AppConfig,
+			assetProcessingService: Service,
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
@@ -336,16 +336,16 @@ describe('IntegrationRenderer', () => {
 	describe('renderToResponse', () => {
 		it('should render a view with default status 200', async () => {
 			const renderer = new TestIntegrationRenderer({
-				appConfig: mockAppConfig,
-				assetProcessingService: mockAssetService,
+				appConfig: AppConfig,
+				assetProcessingService: AssetService,
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const mockView = ((props: { title: string }) => `<h1>${props.title}</h1>`) as EcoComponent<{
+			const View = ((props: { title: string }) => `<h1>${props.title}</h1>`) as EcoComponent<{
 				title: string;
 			}>;
 
-			const response = await renderer.renderToResponse(mockView, { title: 'Hello' }, {});
+			const response = await renderer.renderToResponse(View, { title: 'Hello' }, {});
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
@@ -355,16 +355,16 @@ describe('IntegrationRenderer', () => {
 
 		it('should render a partial view without layout', async () => {
 			const renderer = new TestIntegrationRenderer({
-				appConfig: mockAppConfig,
-				assetProcessingService: mockAssetService,
+				appConfig: AppConfig,
+				assetProcessingService: AssetService,
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const mockView = ((props: { content: string }) => `<div>${props.content}</div>`) as EcoComponent<{
+			const View = ((props: { content: string }) => `<div>${props.content}</div>`) as EcoComponent<{
 				content: string;
 			}>;
 
-			const response = await renderer.renderToResponse(mockView, { content: 'Partial' }, { partial: true });
+			const response = await renderer.renderToResponse(View, { content: 'Partial' }, { partial: true });
 
 			const body = await response.text();
 			expect(body).toBe('<div>Partial</div>');
@@ -373,29 +373,29 @@ describe('IntegrationRenderer', () => {
 
 		it('should apply custom status code', async () => {
 			const renderer = new TestIntegrationRenderer({
-				appConfig: mockAppConfig,
-				assetProcessingService: mockAssetService,
+				appConfig: AppConfig,
+				assetProcessingService: AssetService,
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const mockView = (() => '<p>Not Found</p>') as EcoComponent<object>;
+			const View = (() => '<p>Not Found</p>') as EcoComponent<object>;
 
-			const response = await renderer.renderToResponse(mockView, {}, { status: 404 });
+			const response = await renderer.renderToResponse(View, {}, { status: 404 });
 
 			expect(response.status).toBe(404);
 		});
 
 		it('should apply custom headers', async () => {
 			const renderer = new TestIntegrationRenderer({
-				appConfig: mockAppConfig,
-				assetProcessingService: mockAssetService,
+				appConfig: AppConfig,
+				assetProcessingService: AssetService,
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const mockView = (() => '<p>Cached</p>') as EcoComponent<object>;
+			const View = (() => '<p>Cached</p>') as EcoComponent<object>;
 
 			const response = await renderer.renderToResponse(
-				mockView,
+				View,
 				{},
 				{
 					headers: {
@@ -411,20 +411,20 @@ describe('IntegrationRenderer', () => {
 
 		it('should render with layout when not partial', async () => {
 			const renderer = new TestIntegrationRenderer({
-				appConfig: mockAppConfig,
-				assetProcessingService: mockAssetService,
+				appConfig: AppConfig,
+				assetProcessingService: AssetService,
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const mockLayout = ((props: { children: string }) =>
+			const Layout = ((props: { children: string }) =>
 				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: string }>;
 
-			const mockView = ((props: { message: string }) => `<p>${props.message}</p>`) as EcoComponent<{
+			const View = ((props: { message: string }) => `<p>${props.message}</p>`) as EcoComponent<{
 				message: string;
 			}>;
-			mockView.config = { layout: mockLayout };
+			View.config = { layout: Layout };
 
-			const response = await renderer.renderToResponse(mockView, { message: 'With Layout' }, {});
+			const response = await renderer.renderToResponse(View, { message: 'With Layout' }, {});
 
 			const body = await response.text();
 			expect(body).toContain('<main class="layout">');

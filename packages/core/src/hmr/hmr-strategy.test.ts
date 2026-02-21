@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, vi } from 'vitest';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from './hmr-strategy';
 
 /**
@@ -13,7 +13,7 @@ class MockStrategy extends HmrStrategy {
 		super();
 		this.type = options.type;
 		this.priorityOffset = options.priorityOffset ?? 0;
-		this.matchPattern = options.matchPattern ?? '.mock';
+		this.matchPattern = options.matchPattern ?? '.';
 	}
 
 	matches(filePath: string): boolean {
@@ -113,12 +113,12 @@ describe('HmrStrategy', () => {
 	describe('process', () => {
 		it('should return an HmrAction', async () => {
 			const strategy = new MockStrategy({ type: HmrStrategyType.ASSET });
-			const action = await strategy.process('/path/to/file.mock');
+			const action = await strategy.process('/path/to/file.');
 
 			expect(action.type).toBe('broadcast');
 			expect(action.events).toBeDefined();
 			expect(action.events?.[0].type).toBe('update');
-			expect(action.events?.[0].path).toBe('/path/to/file.mock');
+			expect(action.events?.[0].path).toBe('/path/to/file.');
 		});
 	});
 });

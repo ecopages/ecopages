@@ -1,11 +1,11 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, test, vi } from 'vitest';
 import type { EcoPageComponent, StaticRoute, ViewLoader } from '../../public-types.ts';
 import { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
 
 function createMockView(integration = 'ghtml'): EcoPageComponent<any> {
 	const view = (() => '<div>Test</div>') as EcoPageComponent<any>;
 	view.config = {
-		__eco: { id: 'test', file: '/test/mock-view.ts', integration },
+		__eco: { id: 'test', file: '/test/-view.ts', integration },
 	};
 	return view;
 }
@@ -242,7 +242,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const matcher = new ExplicitStaticRouteMatcher({
 				appConfig: { baseUrl: 'http://localhost:3000' } as any,
 				routeRendererFactory: {
-					getRendererByIntegration: mock(() => null),
+					getRendererByIntegration: vi.fn(() => null),
 				} as any,
 				staticRoutes: [createMockRoute('/about', viewWithoutIntegration)],
 			});
@@ -254,13 +254,13 @@ describe('ExplicitStaticRouteMatcher', () => {
 
 		test('should throw error when renderer is not found', async () => {
 			const view = createMockView('nonexistent-integration');
-			const mockRendererFactory = {
-				getRendererByIntegration: mock(() => null),
+			const RendererFactory = {
+				getRendererByIntegration: vi.fn(() => null),
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
 				appConfig: { baseUrl: 'http://localhost:3000' } as any,
-				routeRendererFactory: mockRendererFactory as any,
+				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/about', view)],
 			});
 
@@ -274,16 +274,16 @@ describe('ExplicitStaticRouteMatcher', () => {
 		test('should call renderer.renderToResponse with correct arguments', async () => {
 			const view = createMockView('ghtml');
 			const mockResponse = new Response('<html>Test</html>');
-			const mockRenderToResponse = mock(() => mockResponse);
-			const mockRendererFactory = {
-				getRendererByIntegration: mock(() => ({
-					renderToResponse: mockRenderToResponse,
+			const RenderToResponse = vi.fn(() => mockResponse);
+			const RendererFactory = {
+				getRendererByIntegration: vi.fn(() => ({
+					renderToResponse: RenderToResponse,
 				})),
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
 				appConfig: { baseUrl: 'http://localhost:3000' } as any,
-				routeRendererFactory: mockRendererFactory as any,
+				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/about', view)],
 			});
 
@@ -291,27 +291,27 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const response = await matcher.handleMatch(match!);
 
 			expect(response).toBe(mockResponse);
-			expect(mockRenderToResponse).toHaveBeenCalledTimes(1);
-			expect(mockRenderToResponse).toHaveBeenCalledWith(view, {}, {});
+			expect(RenderToResponse).toHaveBeenCalledTimes(1);
+			expect(RenderToResponse).toHaveBeenCalledWith(view, {}, {});
 		});
 
 		test('should resolve staticProps and pass to renderer', async () => {
 			const view = createMockView('ghtml');
-			view.staticProps = mock(async () => ({
+			view.staticProps = vi.fn(async () => ({
 				props: { title: 'About Page', content: 'Hello' },
 			}));
 
 			const mockResponse = new Response('<html>Test</html>');
-			const mockRenderToResponse = mock(() => mockResponse);
-			const mockRendererFactory = {
-				getRendererByIntegration: mock(() => ({
-					renderToResponse: mockRenderToResponse,
+			const RenderToResponse = vi.fn(() => mockResponse);
+			const RendererFactory = {
+				getRendererByIntegration: vi.fn(() => ({
+					renderToResponse: RenderToResponse,
 				})),
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
 				appConfig: { baseUrl: 'http://localhost:3000' } as any,
-				routeRendererFactory: mockRendererFactory as any,
+				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/about', view)],
 			});
 
@@ -319,25 +319,25 @@ describe('ExplicitStaticRouteMatcher', () => {
 			await matcher.handleMatch(match!);
 
 			expect(view.staticProps).toHaveBeenCalledTimes(1);
-			expect(mockRenderToResponse).toHaveBeenCalledWith(view, { title: 'About Page', content: 'Hello' }, {});
+			expect(RenderToResponse).toHaveBeenCalledWith(view, { title: 'About Page', content: 'Hello' }, {});
 		});
 
 		test('should pass params to staticProps', async () => {
 			const view = createMockView('ghtml');
-			view.staticProps = mock(async ({ pathname }) => ({
+			view.staticProps = vi.fn(async ({ pathname }) => ({
 				props: { slug: pathname.params.slug },
 			}));
 
 			const mockResponse = new Response('<html>Test</html>');
-			const mockRendererFactory = {
-				getRendererByIntegration: mock(() => ({
-					renderToResponse: mock(() => mockResponse),
+			const RendererFactory = {
+				getRendererByIntegration: vi.fn(() => ({
+					renderToResponse: vi.fn(() => mockResponse),
 				})),
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
 				appConfig: { baseUrl: 'http://localhost:3000' } as any,
-				routeRendererFactory: mockRendererFactory as any,
+				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/blog/:slug', view)],
 			});
 

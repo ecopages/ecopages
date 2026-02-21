@@ -1,38 +1,38 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, vi } from 'vitest';
 import { createRenderContext } from './render-context.ts';
 import type { IntegrationPlugin } from '../../plugins/integration-plugin.ts';
 import type { IntegrationRenderer } from '../../route-renderer/integration-renderer.ts';
 import type { EcoFunctionComponent } from '../../public-types.ts';
 
 describe('createRenderContext', () => {
-	const mockRenderToResponse = mock(() => Promise.resolve(new Response('rendered')));
+	const RenderToResponse = vi.fn(() => Promise.resolve(new Response('rendered')));
 
-	const mockRenderer = {
-		name: 'mock-renderer',
-		renderToResponse: mockRenderToResponse,
+	const Renderer = {
+		name: '-renderer',
+		renderToResponse: RenderToResponse,
 	} as unknown as IntegrationRenderer;
 
-	const mockInitializeRenderer = mock(() => mockRenderer);
+	const InitializeRenderer = vi.fn(() => Renderer);
 
-	const mockPlugin = {
-		name: 'mock-integration',
-		initializeRenderer: mockInitializeRenderer,
+	const Plugin = {
+		name: '-integration',
+		initializeRenderer: InitializeRenderer,
 	} as unknown as IntegrationPlugin;
 
-	const mockViewFn = ((props: { foo: string }) => `<div>${props.foo}</div>`) as EcoFunctionComponent<
+	const ViewFn = ((props: { foo: string }) => `<div>${props.foo}</div>`) as EcoFunctionComponent<
 		{ foo: string },
 		string
 	>;
-	mockViewFn.config = {
+	ViewFn.config = {
 		__eco: {
 			id: 'test',
-			file: '/some/dir/mock-view.ts',
-			integration: 'mock-integration',
+			file: '/some/dir/-view.ts',
+			integration: '-integration',
 		},
 	};
 
 	const renderContext = createRenderContext({
-		integrations: [mockPlugin],
+		integrations: [Plugin],
 	});
 
 	it('should create a render context with methods', () => {
@@ -44,14 +44,14 @@ describe('createRenderContext', () => {
 
 	describe('render', () => {
 		it('should call renderer.renderToResponse with partial: false', async () => {
-			mockRenderToResponse.mockClear();
+			RenderToResponse.mockClear();
 			const props = { foo: 'bar' };
 			const options = { status: 201, headers: { 'X-Custom': '1' } };
 
-			const response = await renderContext.render(mockViewFn, props, options);
+			const response = await renderContext.render(ViewFn, props, options);
 
-			expect(mockInitializeRenderer).toHaveBeenCalled();
-			expect(mockRenderToResponse).toHaveBeenCalledWith(mockViewFn, props, {
+			expect(InitializeRenderer).toHaveBeenCalled();
+			expect(RenderToResponse).toHaveBeenCalledWith(ViewFn, props, {
 				partial: false,
 				status: 201,
 				headers: { 'X-Custom': '1' },
@@ -74,14 +74,14 @@ describe('createRenderContext', () => {
 
 	describe('renderPartial', () => {
 		it('should call renderer.renderToResponse with partial: true', async () => {
-			mockRenderToResponse.mockClear();
+			RenderToResponse.mockClear();
 			const props = { foo: 'bar' };
 			const options = { status: 200 };
 
-			await renderContext.renderPartial(mockViewFn, props, options);
+			await renderContext.renderPartial(ViewFn, props, options);
 
-			expect(mockInitializeRenderer).toHaveBeenCalled();
-			expect(mockRenderToResponse).toHaveBeenCalledWith(mockViewFn, props, {
+			expect(InitializeRenderer).toHaveBeenCalled();
+			expect(RenderToResponse).toHaveBeenCalledWith(ViewFn, props, {
 				partial: true,
 				status: 200,
 				headers: undefined,

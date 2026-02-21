@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { FileScriptProcessor } from './file-script.processor';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../../internal-types';
@@ -22,14 +22,14 @@ const createMockConfig = (): EcoPagesAppConfig =>
 	}) as unknown as EcoPagesAppConfig;
 
 describe('FileScriptProcessor', () => {
-	let readFileSyncMock: ReturnType<typeof mock>;
-	let copyFileMock: ReturnType<typeof mock>;
-	let existsMock: ReturnType<typeof mock>;
+	let readFileSyncMock: any;
+	let copyFileMock: any;
+	let existsMock: any;
 
 	beforeEach(() => {
-		readFileSyncMock = mock(() => 'console.log("test");');
-		copyFileMock = mock(() => {});
-		existsMock = mock(() => false);
+		readFileSyncMock = vi.fn(() => 'console.log("test");');
+		copyFileMock = vi.fn(() => {});
+		existsMock = vi.fn(() => false);
 		fileSystem.readFileSync = readFileSyncMock;
 		fileSystem.copyFile = copyFileMock;
 		fileSystem.exists = existsMock;
@@ -39,29 +39,29 @@ describe('FileScriptProcessor', () => {
 		fileSystem.readFileSync = originalReadFileSync;
 		fileSystem.copyFile = originalCopyFile;
 		fileSystem.exists = originalExists;
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	describe('setHmrManager', () => {
 		test('should accept an HMR manager', () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
-			const mockHmrManager = {
+			const HmrManager = {
 				isEnabled: () => true,
 				registerEntrypoint: async () => '/hmr/script.js',
 			} as unknown as IHmrManager;
 
-			expect(() => processor.setHmrManager(mockHmrManager)).not.toThrow();
+			expect(() => processor.setHmrManager(HmrManager)).not.toThrow();
 		});
 	});
 
 	describe('process', () => {
 		test('should delegate to HMR manager when enabled and not inline', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
-			const mockHmrManager = {
+			const HmrManager = {
 				isEnabled: () => true,
-				registerEntrypoint: mock(async () => '/hmr/script.js'),
+				registerEntrypoint: vi.fn(async () => '/hmr/script.js'),
 			} as unknown as IHmrManager;
-			processor.setHmrManager(mockHmrManager);
+			processor.setHmrManager(HmrManager);
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -72,18 +72,18 @@ describe('FileScriptProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(mockHmrManager.registerEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
+			expect(HmrManager.registerEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
 			expect(result.srcUrl).toBe('/hmr/script.js');
 			expect(result.inline).toBe(false);
 		});
 
 		test('should not use HMR when inline is true', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
-			const mockHmrManager = {
+			const HmrManager = {
 				isEnabled: () => true,
-				registerEntrypoint: mock(async () => '/hmr/script.js'),
+				registerEntrypoint: vi.fn(async () => '/hmr/script.js'),
 			} as unknown as IHmrManager;
-			processor.setHmrManager(mockHmrManager);
+			processor.setHmrManager(HmrManager);
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -95,7 +95,7 @@ describe('FileScriptProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(mockHmrManager.registerEntrypoint).not.toHaveBeenCalled();
+			expect(HmrManager.registerEntrypoint).not.toHaveBeenCalled();
 			expect(result.inline).toBe(true);
 			expect(result.content).toBeDefined();
 		});

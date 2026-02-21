@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import assert from 'node:assert/strict';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+
+const suite = process.versions.bun ? describe.skip : describe;
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -40,7 +43,7 @@ function createAppConfig(distDir: string): EcoPagesAppConfig {
 	} as unknown as EcoPagesAppConfig;
 }
 
-describe('NodeStaticContentServer', () => {
+suite('NodeStaticContentServer', () => {
 	let server: NodeStaticContentServer | null = null;
 	let port = 0;
 	const hostname = '127.0.0.1';
@@ -73,9 +76,9 @@ describe('NodeStaticContentServer', () => {
 		const baseUrl = await startServer();
 
 		const response = await fetch(`${baseUrl}/`);
-		expect(response.status).toBe(200);
-		expect(response.headers.get('content-type')).toContain('text/html');
-		expect(await response.text()).toBe('<h1>home</h1>');
+		assert.equal(response.status, 200);
+		assert.match(response.headers.get('content-type')!, /text\/html/);
+		assert.equal(await response.text(), '<h1>home</h1>');
 	});
 
 	it('serves html fallback for extensionless routes', async () => {
@@ -83,9 +86,9 @@ describe('NodeStaticContentServer', () => {
 		const baseUrl = await startServer();
 
 		const response = await fetch(`${baseUrl}/about`);
-		expect(response.status).toBe(200);
-		expect(response.headers.get('content-type')).toContain('text/html');
-		expect(await response.text()).toBe('<h1>about</h1>');
+		assert.equal(response.status, 200);
+		assert.match(response.headers.get('content-type')!, /text\/html/);
+		assert.equal(await response.text(), '<h1>about</h1>');
 	});
 
 	it('serves static files by extension', async () => {
@@ -94,9 +97,9 @@ describe('NodeStaticContentServer', () => {
 		const baseUrl = await startServer();
 
 		const response = await fetch(`${baseUrl}/assets/app.js`);
-		expect(response.status).toBe(200);
-		expect(response.headers.get('content-type')).toContain('text/javascript');
-		expect(await response.text()).toBe('console.log("ok")');
+		assert.equal(response.status, 200);
+		assert.match(response.headers.get('content-type')!, /text\/javascript/);
+		assert.equal(await response.text(), 'console.log("ok")');
 	});
 
 	it('serves custom 404 page when route is missing', async () => {
@@ -104,16 +107,16 @@ describe('NodeStaticContentServer', () => {
 		const baseUrl = await startServer();
 
 		const response = await fetch(`${baseUrl}/does-not-exist`);
-		expect(response.status).toBe(404);
-		expect(response.headers.get('content-type')).toContain('text/html');
-		expect(await response.text()).toBe('<h1>missing</h1>');
+		assert.equal(response.status, 404);
+		assert.match(response.headers.get('content-type')!, /text\/html/);
+		assert.equal(await response.text(), '<h1>missing</h1>');
 	});
 
 	it('rejects methods other than GET and HEAD', async () => {
 		const baseUrl = await startServer();
 		const response = await fetch(`${baseUrl}/`, { method: 'POST' });
 
-		expect(response.status).toBe(405);
-		expect(response.headers.get('allow')).toBe('GET, HEAD');
+		assert.equal(response.status, 405);
+		assert.equal(response.headers.get('allow'), 'GET, HEAD');
 	});
 });

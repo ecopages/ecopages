@@ -114,7 +114,7 @@ Create an entry point file (e.g., `app.ts`) to initialize and run Ecopages:
 
 ```typescript
 // filepath: app.ts
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import config from './eco.config.ts';
 
 const app = new EcopagesApp({ appConfig: config });

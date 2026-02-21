@@ -122,7 +122,7 @@ Good for simple, quick endpoints.
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import config from './eco.config';
 
 const app = new EcopagesApp({ appConfig: config });
@@ -137,7 +137,7 @@ For larger apps, define handlers in separate files using `defineApiHandler`. Thi
 
 ```typescript
 // handlers/greet.ts
-import { defineApiHandler } from '@ecopages/core/adapters/bun';
+import { defineApiHandler } from '@ecopages/core/bun';
 import { z } from 'zod';
 
 export const greetHandler = defineApiHandler({

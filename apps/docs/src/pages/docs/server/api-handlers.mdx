@@ -19,7 +19,7 @@ You define API handlers using methods on your `EcopagesApp` instance, typically 
 
 ```typescript
 // filepath: app.ts
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import appConfig from './eco.config';
 
 const app = new EcopagesApp({ appConfig });
@@ -178,7 +178,7 @@ await app.start({
 Use `app.group()` to organize related routes under a shared prefix with optional middleware. This is useful for sections like admin panels or authenticated APIs.
 
 ```typescript
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import * as admin from './handlers/admin';
 import { authMiddleware } from './middleware/auth';
 

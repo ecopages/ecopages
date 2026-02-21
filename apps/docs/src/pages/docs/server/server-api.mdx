@@ -18,7 +18,7 @@ Ecopages provides a powerful server API that allows you to create endpoints and 
 Create an `app.ts` file in your project root:
 
 ```typescript
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import appConfig from './eco.config';
 
 const app = new EcopagesApp({ appConfig });
@@ -68,7 +68,7 @@ When using the Bun adapter, you can use the `defineApiHandler` helper function. 
 
 ```typescript
 // Import the adapter-specific helper
-import { defineApiHandler } from '@ecopages/core/adapters/bun/define-handler'; // Adjust path if needed
+import { defineApiHandler } from '@ecopages/core/bun/define-handler'; // Adjust path if needed
 
 // Define the handler using the helper
 const getUserHandler = defineApiHandler({

@@ -1,4 +1,4 @@
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import appConfig from './eco.config';
 import * as auth from './src/handlers/auth.server';
 

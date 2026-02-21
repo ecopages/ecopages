@@ -1,4 +1,4 @@
-import { EcopagesApp } from '@ecopages/core/adapters/node/create-app';
+import { EcopagesApp } from '@ecopages/core/node/create-app';
 import appConfig from './eco.config';
 import { getAllAuthorIds, getAllBlogPostSlugs, getAuthor, getBlogPost } from './src/mocks/data.ts';
 

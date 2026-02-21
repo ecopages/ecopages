@@ -1,4 +1,4 @@
-import { defineGroupHandler } from '@ecopages/core/adapters/bun';
+import { defineGroupHandler } from '@ecopages/core/bun';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
 import { type Post, posts } from '../data';

@@ -1,5 +1,5 @@
 import type { ApiHandlerContext } from '@ecopages/core';
-import type { BunMiddleware } from '@ecopages/core/adapters/bun';
+import type { BunMiddleware } from '@ecopages/core/bun';
 import { auth } from '@/lib/auth';
 
 export type Session = typeof auth.$Infer.Session;

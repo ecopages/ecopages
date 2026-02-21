@@ -1,4 +1,4 @@
-import { defineApiHandler } from '@ecopages/core/adapters/bun';
+import { defineApiHandler } from '@ecopages/core/bun';
 import { HttpError } from '@ecopages/core/errors';
 import { posts } from '../data';
 

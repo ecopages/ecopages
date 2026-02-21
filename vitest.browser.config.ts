@@ -1,8 +1,9 @@
-import { defineConfig } from 'vitest/config';
+import { defineProject } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 
-export default defineConfig({
+export default defineProject({
 	test: {
+		name: 'browser',
 		include: ['packages/**/*.test.browser.ts'],
 		browser: {
 			enabled: true,

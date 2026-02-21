@@ -84,7 +84,7 @@ For small projects or rapid prototyping, define everything inline in `app.ts`.
 ### Example
 
 ```typescript
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import { db } from './src/db';
 import appConfig from './eco.config';
@@ -209,7 +209,7 @@ export async function destroy(ctx: ApiHandlerContext) {
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import * as posts from './src/handlers/posts';
 import * as users from './src/handlers/users';
 import appConfig from './eco.config';
@@ -309,7 +309,7 @@ export function createPostsHandlers(db: Database) {
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import { createPostsHandlers } from './src/handlers/posts';
 import { db } from './src/db';
 import appConfig from './eco.config';
@@ -487,7 +487,7 @@ export class PostsController {
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import { PostsController } from './src/controllers/posts.controller';
 import { PostsService } from './src/services/posts.service';
 import { db } from './src/db';
@@ -700,7 +700,7 @@ export function createPostsHandlers(
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import { createBlogService } from './src/services/blog.service';
 import { postAdapter } from './src/adapters/post.adapter';
 import { createPostsHandlers } from './src/handlers/posts';

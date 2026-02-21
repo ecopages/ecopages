@@ -45,7 +45,7 @@ Use `defineApiHandler` to create a self-contained handler with its path, method,
 
 ```typescript
 // handlers/blog.ts
-import { defineApiHandler } from '@ecopages/core/adapters/bun';
+import { defineApiHandler } from '@ecopages/core/bun';
 
 export const list = defineApiHandler({
   path: '/api/posts',
@@ -73,7 +73,7 @@ Register handlers directly with HTTP method functions:
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import * as blog from './handlers/blog';
 
 const app = new EcopagesApp({ appConfig });
@@ -89,7 +89,7 @@ await app.start();
 Define a schema to get typed access to request body, query parameters, and headers:
 
 ```typescript
-import { defineApiHandler } from '@ecopages/core/adapters/bun';
+import { defineApiHandler } from '@ecopages/core/bun';
 import { z } from 'zod';
 
 const createPostSchema = {
@@ -121,7 +121,7 @@ export const createPost = defineApiHandler({
 Attach route-specific middleware that extends the handler context:
 
 ```typescript
-import { defineApiHandler } from '@ecopages/core/adapters/bun';
+import { defineApiHandler } from '@ecopages/core/bun';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 
 export const sensitiveEndpoint = defineApiHandler({
@@ -143,7 +143,7 @@ Use `defineGroupHandler` when you have multiple routes that share a URL prefix a
 
 ```typescript
 // handlers/admin.ts
-import { defineGroupHandler } from '@ecopages/core/adapters/bun';
+import { defineGroupHandler } from '@ecopages/core/bun';
 import { authMiddleware } from './middleware/auth';
 import type { AuthenticatedContext } from './middleware/auth';
 
@@ -187,7 +187,7 @@ Register the entire group with `app.group()`:
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import { adminGroup } from './handlers/admin';
 import appConfig from './eco.config';
 
@@ -259,7 +259,7 @@ Middleware can extend the handler context with additional properties:
 
 ```typescript
 // middleware/auth.ts
-import type { BunMiddleware } from '@ecopages/core/adapters/bun';
+import type { BunMiddleware } from '@ecopages/core/bun';
 
 export type AuthenticatedContext = {
   session: { user: User; token: string };
@@ -284,7 +284,7 @@ When used with `defineGroupHandler`, all routes receive the extended context aut
 
 ```typescript
 // handlers/blog.ts
-import { defineApiHandler, defineGroupHandler } from '@ecopages/core/adapters/bun';
+import { defineApiHandler, defineGroupHandler } from '@ecopages/core/bun';
 import { authMiddleware, type AuthenticatedContext } from '../middleware/auth';
 import { z } from 'zod';
 
@@ -359,7 +359,7 @@ export const protectedGroup = defineGroupHandler({
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/bun/create-app';
 import * as blog from './handlers/blog';
 
 const app = new EcopagesApp({ appConfig });

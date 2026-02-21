@@ -214,7 +214,7 @@ export default config;
 Create `app.ts`:
 
 ```typescript
-import { EcopagesApp } from "@ecopages/core/adapters/bun/create-app";
+import { EcopagesApp } from "@ecopages/core/bun/create-app";
 import appConfig from "./eco.config";
 
 const app = new EcopagesApp({ appConfig });
@@ -356,7 +356,7 @@ export default eco.page<{ user: User }>({
 
 ```typescript
 // src/handlers/dashboard.ts
-import { defineGroupHandler } from "@ecopages/core/adapters/bun";
+import { defineGroupHandler } from "@ecopages/core/bun";
 
 export const dashboardGroup = defineGroupHandler({
   prefix: "/dashboard",
@@ -417,7 +417,7 @@ export function SimpleButton({ label, onClick }) {
 For individual API routes:
 
 ```typescript
-import { defineApiHandler } from "@ecopages/core/adapters/bun";
+import { defineApiHandler } from "@ecopages/core/bun";
 import { z } from "zod";
 
 const createPostSchema = {
@@ -443,7 +443,7 @@ export const createPost = defineApiHandler({
 For routes that share a prefix and middleware:
 
 ```typescript
-import { defineGroupHandler } from "@ecopages/core/adapters/bun";
+import { defineGroupHandler } from "@ecopages/core/bun";
 import { authMiddleware } from "./auth";
 
 export const adminGroup = defineGroupHandler({
@@ -931,7 +931,7 @@ Create `src/handlers/auth.ts`:
 
 ```typescript
 import type { ApiHandlerContext } from "@ecopages/core";
-import type { BunMiddleware } from "@ecopages/core/adapters/bun";
+import type { BunMiddleware } from "@ecopages/core/bun";
 import { auth } from "@/lib/auth";
 
 export type Session = (typeof auth)["$Infer"]["Session"];
@@ -960,7 +960,7 @@ export const authHandler = async (ctx: ApiHandlerContext) => {
 In `app.ts`:
 
 ```typescript
-import { EcopagesApp } from "@ecopages/core/adapters/bun/create-app";
+import { EcopagesApp } from "@ecopages/core/bun/create-app";
 import appConfig from "./eco.config";
 import * as auth from "./src/handlers/auth";
 
@@ -1026,7 +1026,7 @@ export const AuthNav = eco.component({
 Use `authMiddleware` with `defineGroupHandler`:
 
 ```typescript
-import { defineGroupHandler } from "@ecopages/core/adapters/bun";
+import { defineGroupHandler } from "@ecopages/core/bun";
 import { authMiddleware } from "./auth";
 
 export const protectedGroup = defineGroupHandler({

@@ -1,4 +1,4 @@
-import { defineGroupHandler } from '@ecopages/core/adapters/bun';
+import { defineGroupHandler } from '@ecopages/core/bun';
 import { authMiddleware } from './auth.server';
 
 export const dashboardGroup = defineGroupHandler({

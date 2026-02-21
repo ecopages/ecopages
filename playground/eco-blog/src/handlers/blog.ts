@@ -1,5 +1,5 @@
 import { HttpError } from '@ecopages/core/errors';
-import { defineApiHandler } from '@ecopages/core/adapters/bun';
+import { defineApiHandler } from '@ecopages/core/bun';
 import { dbService } from '@/lib/db';
 
 export const list = defineApiHandler({

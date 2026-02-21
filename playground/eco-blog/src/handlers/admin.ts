@@ -1,5 +1,5 @@
 import { HttpError } from '@ecopages/core/errors';
-import { defineGroupHandler } from '@ecopages/core/adapters/bun';
+import { defineGroupHandler } from '@ecopages/core/bun';
 import { dbService } from '@/lib/db';
 import path from 'node:path';
 import { ImageProcessor } from '@ecopages/image-processor';

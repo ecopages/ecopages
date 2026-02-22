@@ -601,7 +601,10 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 						context = {
 							request: this.attachRouteParams(request, params),
 							params: Object.fromEntries(
-								Object.entries(params).map(([key, value]) => [key, Array.isArray(value) ? value.join('/') : value]),
+								Object.entries(params).map(([key, value]) => [
+									key,
+									Array.isArray(value) ? value.join('/') : value,
+								]),
 							),
 							response: new ApiResponseBuilder(),
 							server: this.serverInstance,

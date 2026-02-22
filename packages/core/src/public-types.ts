@@ -1114,10 +1114,10 @@ export interface GroupOptions<
  * Used by RouteGroupBuilder to merge schema validation types with middleware-extended context.
  * Note: Path parameter typing (e.g., :id -> params.id) comes from the TContext.request type.
  */
-export type TypedGroupHandlerContext<
-	TSchema extends RouteSchema,
-	TContext extends ApiHandlerContext<any, any>,
-> = Omit<TContext, 'body' | 'query' | 'headers' | 'params'> & {
+export type TypedGroupHandlerContext<TSchema extends RouteSchema, TContext extends ApiHandlerContext<any, any>> = Omit<
+	TContext,
+	'body' | 'query' | 'headers' | 'params'
+> & {
 	body: InferSchemaOutput<TSchema['body']>;
 	query: InferSchemaOutput<TSchema['query']>;
 	headers: InferSchemaOutput<TSchema['headers']>;

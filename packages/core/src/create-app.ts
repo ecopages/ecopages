@@ -1,19 +1,11 @@
-import type {
-	EcopagesAppOptions as BunOptions,
-	EcopagesApp as BunApp,
-} from './adapters/bun/create-app.ts';
-import type {
-	EcopagesAppOptions as NodeOptions,
-	NodeEcopagesApp as NodeApp,
-} from './adapters/node/create-app.ts';
+import type { EcopagesAppOptions as BunOptions, EcopagesApp as BunApp } from './adapters/bun/create-app.ts';
+import type { EcopagesAppOptions as NodeOptions, NodeEcopagesApp as NodeApp } from './adapters/node/create-app.ts';
 import type { AbstractApplicationAdapter } from './adapters/abstract/application-adapter.ts';
 
 export type EcopagesAppOptions = BunOptions | NodeOptions;
 export type UniversalEcopagesApp = AbstractApplicationAdapter<EcopagesAppOptions, any, Request>;
 
-export async function createApp<WebSocketData = undefined>(
-	options: EcopagesAppOptions,
-): Promise<UniversalEcopagesApp> {
+export async function createApp<WebSocketData = undefined>(options: EcopagesAppOptions): Promise<UniversalEcopagesApp> {
 	const bun = (globalThis as { Bun?: unknown }).Bun;
 
 	if (bun) {

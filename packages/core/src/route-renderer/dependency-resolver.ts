@@ -1,7 +1,11 @@
 import path from 'node:path';
 import type { EcoComponent } from '../public-types.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { AssetDefinition, AssetProcessingService, ProcessedAsset } from '../services/asset-processing-service/index.ts';
+import type {
+	AssetDefinition,
+	AssetProcessingService,
+	ProcessedAsset,
+} from '../services/asset-processing-service/index.ts';
 import { AssetFactory } from '../services/asset-processing-service/index.ts';
 import { normalizeModuleDeclarations } from '../eco/module-dependencies.ts';
 import { rapidhash } from '../utils/hash.ts';

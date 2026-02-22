@@ -124,7 +124,9 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'GET',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
+			options as
+				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
+				| undefined,
 		);
 	}
 
@@ -143,7 +145,9 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'POST',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
+			options as
+				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
+				| undefined,
 		);
 	}
 
@@ -162,7 +166,9 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'PUT',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
+			options as
+				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
+				| undefined,
 		);
 	}
 
@@ -181,7 +187,9 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'DELETE',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
+			options as
+				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
+				| undefined,
 		);
 	}
 
@@ -200,7 +208,9 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'PATCH',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
+			options as
+				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
+				| undefined,
 		);
 	}
 
@@ -219,7 +229,9 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'OPTIONS',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
+			options as
+				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
+				| undefined,
 		);
 	}
 
@@ -238,7 +250,9 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'HEAD',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
+			options as
+				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
+				| undefined,
 		);
 	}
 
@@ -258,9 +272,9 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			handler.handler as RouteHandler<Request, NodeServerInstance>,
 			handler.middleware || handler.schema
 				? {
-					middleware: handler.middleware as Middleware<Request, NodeServerInstance, any>[] | undefined,
-					schema: handler.schema,
-				}
+						middleware: handler.middleware as Middleware<Request, NodeServerInstance, any>[] | undefined,
+						schema: handler.schema,
+					}
 				: undefined,
 		);
 	}

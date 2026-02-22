@@ -314,7 +314,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		};
 	}
 
-	private hasModulesInConfig(config: EcoComponentConfig | undefined, visited = new Set<EcoComponentConfig>()): boolean {
+	private hasModulesInConfig(
+		config: EcoComponentConfig | undefined,
+		visited = new Set<EcoComponentConfig>(),
+	): boolean {
 		if (!config || visited.has(config)) {
 			return false;
 		}

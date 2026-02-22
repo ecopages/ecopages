@@ -9,6 +9,7 @@
 
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import { invariant } from '../../utils/invariant.ts';
 import type {
 	ApiHandler,
 	ApiHandlerContext,
@@ -50,10 +51,7 @@ export type RouteHandler<
 	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
 > = (context: TContext) => Promise<Response> | Response;
 
-export type RouteGroupDefinition<
-	TRequest extends Request = Request,
-	TServer = any,
-> = {
+export type RouteGroupDefinition<TRequest extends Request = Request, TServer = any> = {
 	prefix: string;
 	middleware?: readonly Middleware<TRequest, TServer, any>[];
 	routes: readonly ApiHandler<string, TRequest, TServer>[];
@@ -221,6 +219,16 @@ export abstract class AbstractApplicationAdapter<
 		middleware?: Middleware<TSpecRequest, TSpecServer, TContext>[],
 		schema?: ApiHandler['schema'],
 	): this {
+		invariant(
+			typeof path === 'string',
+			`Invalid route path for ${method}: expected a string path starting with "/" but received ${Object.prototype.toString.call(path)}. If you're passing a prebuilt ApiHandler, use app.add(handler).`,
+		);
+
+		invariant(
+			path.startsWith('/'),
+			`Invalid route path for ${method}: "${path}". Route paths must start with '/'.`,
+		);
+
 		this.apiHandlers.push({
 			path,
 			method,

@@ -87,6 +87,18 @@ describe('EcopagesApp', () => {
 			expect(apiHandlers[0].path).toBe('/from-add');
 			expect(apiHandlers[0].method).toBe('GET');
 		});
+
+		test('get() with ApiHandler object throws clear guidance', () => {
+			const prebuilt = defineApiHandler({
+				path: '/from-get-object',
+				method: 'GET',
+				handler: testHandler,
+			});
+
+			expect(() => app.get(prebuilt as unknown as '/from-get-object', testHandler)).toThrow(
+				'[ecopages] Invalid route path for GET: expected a string path starting with "/" but received [object Object]. If you\'re passing a prebuilt ApiHandler, use app.add(handler).',
+			);
+		});
 	});
 
 	describe('request()', () => {

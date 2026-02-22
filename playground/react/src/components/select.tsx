@@ -24,6 +24,9 @@ interface MySelectProps<T extends object> extends Omit<SelectProps<T>, 'children
 }
 
 export const Select = eco.component<MySelectProps<object>, ReactNode>({
+	dependencies: {
+		modules: ['react-aria-components{Select,Button,FieldError,Label,ListBox,ListBoxItem,Popover,SelectValue,Text}'],
+	},
 	render: ({ label, description, errorMessage, children, items, ...props }) => {
 		return (
 			<AriaSelect className="grid gap-2 items-start justify-start w-fit cursor-pointer" {...props}>

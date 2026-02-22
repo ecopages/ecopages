@@ -32,6 +32,27 @@ import type { CompileOptions } from '@mdx-js/mdx';
 import { PLUGIN_NAME } from './react.plugin.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
 import { createHydrationScript } from './utils/hydration-scripts.ts';
+import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
+
+function parseDeclaredModuleSource(value: string): string | undefined {
+	const source = value.trim();
+	if (source.length === 0) return undefined;
+	const openBraceIndex = source.indexOf('{');
+	if (openBraceIndex < 0) return source;
+	const from = source.slice(0, openBraceIndex).trim();
+	return from.length > 0 ? from : undefined;
+}
+
+function normalizeDeclaredModuleSources(modules?: string[]): string[] {
+	const seen = new Set<string>();
+	for (const declaration of modules ?? []) {
+		const from = parseDeclaredModuleSource(declaration);
+		if (from) {
+			seen.add(from);
+		}
+	}
+	return Array.from(seen);
+}
 
 /**
  * Error thrown when an error occurs while rendering a React component.
@@ -66,6 +87,13 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	static routerAdapter: ReactRouterAdapter | undefined;
 	static mdxCompilerOptions: CompileOptions | undefined;
 	static mdxExtensions: string[] = ['.mdx'];
+	/**
+	 * Enables explicit graph behavior for React page-entry bundling.
+	 *
+	 * When true, page-entry bundles disable AST server-only stripping and rely
+	 * on explicit dependency declarations for browser graph composition.
+	 */
+	static explicitGraphEnabled = false;
 
 	/**
 	 * Checks if the given file path corresponds to an MDX file based on configured extensions.
@@ -103,21 +131,41 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * @param isMdx - Whether the source file is an MDX file
 	 * @returns Bundle options object for Bun.build
 	 */
-	private async createBundleOptions(componentName: string, isMdx: boolean): Promise<Record<string, unknown>> {
+	private async createBundleOptions(
+		componentName: string,
+		isMdx: boolean,
+		declaredModules: string[],
+	): Promise<Record<string, unknown>> {
 		const options: Record<string, unknown> = {
 			external: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
 			naming: `${componentName}.[ext]`,
-			...(import.meta.env.NODE_ENV === 'production' && {
+			...(import.meta.env?.NODE_ENV === 'production' && {
 				minify: true,
 				splitting: false,
 				treeshaking: true,
 			}),
 		};
 
+		const graphBoundaryPlugin = createClientGraphBoundaryPlugin({
+			absWorkingDir: this.appConfig.rootDir,
+			declaredModules,
+			alwaysAllowSpecifiers: [
+				'@ecopages/core',
+				'react',
+				'react-dom',
+				'react/jsx-runtime',
+				'react/jsx-dev-runtime',
+				'react-dom/client',
+				...(ReactRenderer.routerAdapter ? [ReactRenderer.routerAdapter.importMapKey] : []),
+			],
+		});
+
 		if (isMdx && ReactRenderer.mdxCompilerOptions) {
 			const { createMdxLoaderPlugin } = await import('@ecopages/mdx/mdx-loader-plugin');
 			const mdxPlugin = await createMdxLoaderPlugin(ReactRenderer.mdxCompilerOptions);
-			options.plugins = [mdxPlugin];
+			options.plugins = [mdxPlugin, graphBoundaryPlugin];
+		} else {
+			options.plugins = [graphBoundaryPlugin];
 		}
 
 		return options;
@@ -266,15 +314,95 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		};
 	}
 
+	private hasModulesInConfig(config: EcoComponentConfig | undefined, visited = new Set<EcoComponentConfig>()): boolean {
+		if (!config || visited.has(config)) {
+			return false;
+		}
+
+		visited.add(config);
+
+		if (config.dependencies?.modules?.some((entry) => entry.trim().length > 0)) {
+			return true;
+		}
+
+		if (config.layout?.config && this.hasModulesInConfig(config.layout.config, visited)) {
+			return true;
+		}
+
+		for (const component of config.dependencies?.components ?? []) {
+			if (this.hasModulesInConfig(component.config, visited)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private async shouldHydratePage(pagePath: string): Promise<boolean> {
+		if (ReactRenderer.routerAdapter) {
+			return true;
+		}
+
+		const pageModule = (await this.importPageFile(pagePath)) as EcoPageFile<{ config?: EcoComponentConfig }> & {
+			config?: EcoComponentConfig;
+		};
+		const pageConfig = pageModule.default?.config;
+		return this.hasModulesInConfig(pageConfig) || this.hasModulesInConfig(pageModule.config);
+	}
+
+	private collectDeclaredModulesInConfig(
+		config: EcoComponentConfig | undefined,
+		visited = new Set<EcoComponentConfig>(),
+	): string[] {
+		if (!config || visited.has(config)) {
+			return [];
+		}
+
+		visited.add(config);
+
+		const declarations = normalizeDeclaredModuleSources(config.dependencies?.modules);
+
+		if (config.layout?.config) {
+			declarations.push(...this.collectDeclaredModulesInConfig(config.layout.config, visited));
+		}
+
+		for (const component of config.dependencies?.components ?? []) {
+			if (component.config) {
+				declarations.push(...this.collectDeclaredModulesInConfig(component.config, visited));
+			}
+		}
+
+		return declarations;
+	}
+
+	private async collectPageDeclaredModules(pagePath: string): Promise<string[]> {
+		const pageModule = (await this.importPageFile(pagePath)) as EcoPageFile<{ config?: EcoComponentConfig }> & {
+			config?: EcoComponentConfig;
+		};
+
+		const declarations = [
+			...this.collectDeclaredModulesInConfig(pageModule.default?.config),
+			...this.collectDeclaredModulesInConfig(pageModule.config),
+		];
+
+		return Array.from(new Set(declarations));
+	}
+
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
 		try {
+			const shouldHydrate = ReactRenderer.explicitGraphEnabled ? true : await this.shouldHydratePage(pagePath);
+			if (!shouldHydrate) {
+				return [];
+			}
+
 			const isMdx = this.isMdxFile(pagePath);
 			const componentName = `ecopages-react-${rapidhash(pagePath)}`;
 			const hmrManager = this.assetProcessingService?.getHmrManager();
 			const isDevelopment = hmrManager?.isEnabled() ?? false;
 
 			const importPath = await this.resolveAssetImportPath(pagePath, componentName);
-			const bundleOptions = await this.createBundleOptions(componentName, isMdx);
+			const declaredModules = await this.collectPageDeclaredModules(pagePath);
+			const bundleOptions = await this.createBundleOptions(componentName, isMdx, declaredModules);
 			const dependencies = this.createPageDependencies(
 				pagePath,
 				componentName,
@@ -332,14 +460,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			ReactRenderer.mdxCompilerOptions ?? {
 				jsxImportSource: 'react',
 				jsxRuntime: 'automatic',
-				development: process.env.NODE_ENV === 'development',
+				development: process?.env?.NODE_ENV === 'development',
 			},
 		);
 
 		const outdir = path.join(this.appConfig.absolutePaths.distDir, '.server-modules-react-mdx');
 		const fileBaseName = path.basename(filePath, path.extname(filePath));
 		const fileHash = fileSystem.hash(filePath);
-		const cacheBuster = process.env.NODE_ENV === 'development' ? `-${Date.now()}` : '';
+		const cacheBuster = process?.env?.NODE_ENV === 'development' ? `-${Date.now()}` : '';
 		const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
 
 		const buildResult = await defaultBuildAdapter.build({

@@ -11,11 +11,13 @@ import path from 'node:path';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { defaultBuildAdapter } from '@ecopages/core/build/build-adapter';
+import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { injectHmrHandler } from './utils/hmr-scripts.ts';
+import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
 
@@ -59,6 +61,42 @@ export class ReactHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
 	private mdxCompilerOptions?: CompileOptions;
 
+	private createUseSyncExternalStoreShimPlugin(): EcoBuildPlugin {
+		return {
+			name: 'react-hmr-use-sync-external-store-shim',
+			setup(build) {
+				build.onResolve({ filter: /^use-sync-external-store\/shim(?:\/index\.js)?$/ }, () => ({
+					path: 'use-sync-external-store/shim',
+					namespace: 'ecopages-react-hmr-shim',
+				}));
+
+				build.onLoad(
+					{ filter: /^use-sync-external-store\/shim$/, namespace: 'ecopages-react-hmr-shim' },
+					() => ({
+						contents: "export { useSyncExternalStore } from 'react';",
+						loader: 'js',
+					}),
+				);
+
+				build.onLoad(
+					{ filter: /[\\/]use-sync-external-store[\\/]shim[\\/]index\.js$/ },
+					() => ({
+						contents: "export { useSyncExternalStore } from 'react';",
+						loader: 'js',
+					}),
+				);
+
+				build.onLoad(
+					{ filter: /[\\/]use-sync-external-store[\\/]cjs[\\/]use-sync-external-store-shim\.development\.js$/ },
+					() => ({
+						contents: "export { useSyncExternalStore } from 'react';",
+						loader: 'js',
+					}),
+				);
+			},
+		};
+	}
+
 	/**
 	 * Creates a new React HMR strategy instance.
 	 *
@@ -66,13 +104,51 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 *                  and the layouts directory for detecting layout file changes that require full
 	 *                  page reloads instead of module-level HMR updates.
 	 * @param mdxCompilerOptions - Optional MDX compiler options for processing .mdx files
+	 * @param explicitGraphEnabled - Enables explicit graph mode for React HMR bundling.
+	 * In explicit mode, HMR builds omit AST server-only stripping plugins in React paths.
 	 */
 	constructor(
 		private context: DefaultHmrContext,
 		mdxCompilerOptions?: CompileOptions,
+		private explicitGraphEnabled = false,
 	) {
 		super();
 		this.mdxCompilerOptions = mdxCompilerOptions;
+	}
+
+	/**
+	 * Returns build plugins for React HMR bundling.
+	 *
+	 * Includes the client graph boundary plugin to prevent undeclared imports
+	 * (including `node:*`) from breaking the browser bundle.
+	 */
+	private getBuildPlugins(): EcoBuildPlugin[] {
+		const allowSpecifiers = [
+			'@ecopages/core',
+			'react',
+			'react-dom',
+			'react/jsx-runtime',
+			'react/jsx-dev-runtime',
+			'react-dom/client',
+			...Array.from(this.context.getSpecifierMap().keys()),
+		];
+
+		return [
+			createClientGraphBoundaryPlugin({
+				absWorkingDir: path.dirname(this.context.getSrcDir()),
+				alwaysAllowSpecifiers: allowSpecifiers,
+			}),
+			...this.context.getPlugins(),
+			this.createUseSyncExternalStoreShimPlugin(),
+		];
+	}
+
+	private isReactEntrypoint(filePath: string): boolean {
+		if (filePath.endsWith('.tsx')) {
+			return true;
+		}
+
+		return filePath.endsWith('.mdx') && this.mdxCompilerOptions !== undefined;
 	}
 
 	/**
@@ -88,10 +164,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
-		const isTsx = filePath.endsWith('.tsx');
-		const isMdx = filePath.endsWith('.mdx') && this.mdxCompilerOptions !== undefined;
-
-		return isTsx || isMdx;
+		return this.isReactEntrypoint(filePath);
 	}
 
 	/**
@@ -134,6 +207,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 		const updates: string[] = [];
 		for (const [entrypoint, outputUrl] of watchedFiles.entries()) {
+			if (!this.isReactEntrypoint(entrypoint)) {
+				continue;
+			}
+
 			appLogger.debug(`Bundling ${entrypoint}`);
 			const success = await this.bundleReactEntrypoint(entrypoint, outputUrl);
 			if (success) {
@@ -186,7 +263,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const outputPath = path.join(this.context.getDistDir(), encodedPathJs);
 			const tempDir = path.dirname(outputPath);
 
-			const plugins = [...this.context.getPlugins()];
+			const plugins = this.getBuildPlugins();
 
 			if (isMdx && this.mdxCompilerOptions) {
 				const { createMdxLoaderPlugin } = await import('@ecopages/mdx/mdx-loader-plugin');
@@ -203,7 +280,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 				sourcemap: 'none',
 				plugins,
 				minify: false,
-				external: ['react', 'react-dom'],
+				external: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
 			});
 
 			if (!result.success) {

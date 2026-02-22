@@ -61,6 +61,14 @@ export type ReactPluginOptions = {
 	extensions?: string[];
 	dependencies?: AssetDefinition[];
 	/**
+	 * Enables explicit client graph mode for React page entries.
+	 *
+	 * When enabled, React page-entry bundling relies on explicit dependency declarations
+	 * and skips AST-based `middleware`/`requires` stripping in the React path.
+	 * @default false
+	 */
+	explicitGraph?: boolean;
+	/**
 	 * Router adapter for SPA navigation.
 	 * When provided, pages with layouts will be wrapped in the router for client-side navigation.
 	 * @example
@@ -105,6 +113,10 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	private mdxCompilerOptions?: CompileOptions;
 	private mdxExtensions: string[];
 	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
+	/**
+	 * Indicates whether React explicit graph mode is enabled for renderer/HMR behavior.
+	 */
+	private explicitGraphEnabled: boolean;
 
 	constructor(options?: Omit<ReactPluginOptions, 'name'>) {
 		const extensions = ['.tsx'];
@@ -142,9 +154,11 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		}
 
 		this.routerAdapter = options?.router;
+		this.explicitGraphEnabled = options?.explicitGraph ?? false;
 		ReactRenderer.routerAdapter = this.routerAdapter;
 		ReactRenderer.mdxCompilerOptions = this.mdxCompilerOptions;
 		ReactRenderer.mdxExtensions = this.mdxExtensions;
+		ReactRenderer.explicitGraphEnabled = this.explicitGraphEnabled;
 		this.integrationDependencies.unshift(...this.getDependencies());
 	}
 
@@ -174,7 +188,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 
 		const context = this.hmrManager.getDefaultContext();
 
-		return new ReactHmrStrategy(context, this.mdxCompilerOptions);
+		return new ReactHmrStrategy(context, this.mdxCompilerOptions, this.explicitGraphEnabled);
 	}
 
 	/**

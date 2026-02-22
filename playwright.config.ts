@@ -60,6 +60,14 @@ export default defineConfig({
 				baseURL: 'http://localhost:4005',
 			},
 		},
+		{
+			name: 'react-playground-e2e',
+			testMatch: 'e2e/tests/react-playground/**/*.test.e2e.ts',
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:3000',
+			},
+		},
 	],
 	webServer: [
 		{
@@ -106,6 +114,14 @@ export default defineConfig({
 			command: 'NODE_ENV=development ECOPAGES_PORT=4006 ECOPAGES_PERSIST_LAYOUTS=true bun run app.ts --dev',
 			cwd: 'e2e/fixtures/react-router-app',
 			port: 4006,
+			reuseExistingServer: !process.env.CI,
+			stdout: 'pipe',
+			stderr: 'pipe',
+		},
+		{
+			command: 'bun run --filter @ecopages/playground-react dev',
+			cwd: '.',
+			port: 3000,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',
 			stderr: 'pipe',

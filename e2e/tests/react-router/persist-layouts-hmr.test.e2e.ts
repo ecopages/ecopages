@@ -17,9 +17,29 @@ function patchLayoutMdxLabel(content: string, suffix: string) {
 	);
 }
 
+function createRuntimeErrorTracker() {
+	const pageErrors: string[] = [];
+	const consoleErrors: string[] = [];
+
+	return {
+		onPageError: (error: Error) => {
+			pageErrors.push(error.message);
+		},
+		onConsoleMessage: (message: string) => {
+			consoleErrors.push(message);
+		},
+		assertNoBoundaryRegressions: () => {
+			const combinedErrors = [...pageErrors, ...consoleErrors].join('\n');
+			expect(combinedErrors).not.toMatch(/is not defined/i);
+			expect(combinedErrors).not.toMatch(/Cannot set properties of null/i);
+		},
+	};
+}
+
 test.describe('React Router Persist Layouts - Dev HMR', () => {
 	let originalDocsPage: string;
 	let originalDocsLayout: string;
+	let runtimeErrorTracker = createRuntimeErrorTracker();
 
 	test.describe.configure({ mode: 'serial' });
 
@@ -28,15 +48,26 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		originalDocsLayout = fs.readFileSync(DOCS_LAYOUT_FILE, 'utf-8');
 	});
 
+	test.beforeEach(async ({ page }) => {
+		runtimeErrorTracker = createRuntimeErrorTracker();
+		page.on('pageerror', runtimeErrorTracker.onPageError);
+		page.on('console', (msg) => {
+			if (msg.type() === 'error') {
+				runtimeErrorTracker.onConsoleMessage(msg.text());
+			}
+		});
+	});
+
+	test.afterEach(() => {
+		runtimeErrorTracker.assertNoBoundaryRegressions();
+	});
+
 	test.afterAll(() => {
 		fs.writeFileSync(DOCS_PAGE_FILE, originalDocsPage, 'utf-8');
 		fs.writeFileSync(DOCS_LAYOUT_FILE, originalDocsLayout, 'utf-8');
 	});
 
 	test('HMR refreshes page content with persist layouts enabled', async ({ page }) => {
-		page.on('console', (msg) => console.log(`[Browser]: ${msg.text()}`));
-		page.on('pageerror', (err) => console.log(`[Browser Error]: ${err.message}`));
-
 		await page.goto('/docs');
 		await page.waitForLoadState('networkidle');
 
@@ -49,6 +80,13 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		await expect(page.locator('h1')).toHaveText('Documentation (updated)', { timeout: 10000 });
 
 		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
+	});
+
+	test('HMR index page chunk is served', async ({ request }) => {
+		const response = await request.get('/assets/_hmr/pages/docs/index.js');
+		expect(response.ok()).toBe(true);
+		const contentType = response.headers()['content-type'] ?? '';
+		expect(contentType).toContain('javascript');
 	});
 
 	test('HMR updates layout while MDX page is active (persist layouts enabled)', async ({ page }) => {

@@ -7,13 +7,13 @@ export const RadiantCounter = eco.component<RadiantCounterProps, ReactNode>({
 		scripts: ['./radiant-counter.script.ts'],
 	},
 
-	render: ({ value = 5 }) => {
+	render: ({ count = 5 }) => {
 		return (
-			<radiant-counter value={value} class="counter">
+			<radiant-counter count={count} class="counter">
 				<button type="button" data-ref="decrement" aria-label="Decrement" className="decrement">
 					-
 				</button>
-				<span data-ref="count">{value}</span>
+				<span data-ref="count">{count}</span>
 				<button type="button" data-ref="increment" aria-label="Increment" className="increment">
 					+
 				</button>

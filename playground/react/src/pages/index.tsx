@@ -33,7 +33,7 @@ export default eco.page<{}, ReactNode>({
 					Test MDX
 				</a>
 				<Counter defaultValue={10} />
-				<RadiantCounter value={5} />
+				<RadiantCounter count={5} />
 				<Select label="Ice cream flavor">
 					<Item>Chocolate</Item>
 					<Item>Mint</Item>

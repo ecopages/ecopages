@@ -1,6 +1,8 @@
 import { eco } from '@ecopages/core';
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { type ReactNode, useReducer, useState } from 'react';
+import fs from 'node:fs';
+import path from 'node:path';
 
 type Person = {
 	firstName: string;
@@ -70,14 +72,20 @@ const columns = [
 	}),
 ];
 
+const code = fs.readFileSync(path.resolve('./src/components/radiant-counter.tsx'), 'utf-8');
+
 export const TanstackTable = eco.component<{}, ReactNode>({
 	dependencies: {
 		stylesheets: ['./tanstack-table.css'],
+		modules: ['@tanstack/react-table'],
 	},
 
 	render: () => {
 		const [data, _setData] = useState(() => [...defaultData]);
-		const rerender = useReducer(() => ({}), {})[1];
+		const rerender = useReducer(() => {
+			console.log('Rerendering table with same data');
+			return {};
+		}, {})[1];
 
 		const table = useReactTable({
 			data,
@@ -87,6 +95,10 @@ export const TanstackTable = eco.component<{}, ReactNode>({
 
 		return (
 			<div className="p-2">
+				The below code is read from the filesystem via fs.
+				<pre className="bg-gray-200 rounded-md p-4">
+					<code>{code}</code>
+				</pre>
 				<table>
 					<thead>
 						{table.getHeaderGroups().map((headerGroup) => (

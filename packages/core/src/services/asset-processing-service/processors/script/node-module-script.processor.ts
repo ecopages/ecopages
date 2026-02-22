@@ -32,7 +32,7 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 				entrypoint: modulePath,
 				outdir: outdir,
 				minify: this.isProduction,
-				naming: dep.name ? `${dep.name}.[ext]` : '[name].[ext]',
+				naming: dep.name ? `${dep.name}-[hash].[ext]` : '[name]-[hash].[ext]',
 				...this.getBundlerOptions(dep),
 			});
 

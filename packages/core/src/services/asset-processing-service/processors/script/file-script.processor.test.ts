@@ -185,6 +185,48 @@ describe('FileScriptProcessor', () => {
 			expect(result.position).toBe('head');
 		});
 
+		test('should pass bundle plugins through when bundling', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const bundleScriptSpy = vi.spyOn(processor as any, 'bundleScript').mockResolvedValue('/tmp/out.js');
+			const customPlugin = {
+				name: 'custom-plugin',
+				setup() {},
+			};
+
+			const dep: FileScriptAsset = {
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/script.tsx',
+				bundle: true,
+				bundleOptions: {
+					plugins: [customPlugin],
+				},
+			};
+
+			await processor.process(dep);
+
+			expect(bundleScriptSpy).toHaveBeenCalled();
+			const buildArgs = bundleScriptSpy.mock.calls[0]?.[0] as { plugins?: Array<{ name?: string }> };
+			expect(buildArgs.plugins?.some((plugin) => plugin.name === 'custom-plugin')).toBe(true);
+		});
+
+		test('should bundle nested source files into dist assets subdirectories', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const bundleScriptSpy = vi.spyOn(processor as any, 'bundleScript').mockResolvedValue('/tmp/out.js');
+
+			const dep: FileScriptAsset = {
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/pages/index.tsx',
+				bundle: true,
+			};
+
+			await processor.process(dep);
+
+			const buildArgs = bundleScriptSpy.mock.calls[0]?.[0] as { outdir?: string };
+			expect(buildArgs.outdir).toBe('/test/project/.eco/public/assets/pages');
+		});
+
 		test('should return updated attributes when cached asset is retrieved with different attributes', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 

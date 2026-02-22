@@ -11,7 +11,6 @@ import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy.ts
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { ClientBridgeEvent } from '../../public-types.ts';
-import { stripServerOnlyPlugin } from '../../plugins/strip-server-only-plugin.ts';
 
 export interface NodeHmrManagerParams {
 	appConfig: EcoPagesAppConfig;
@@ -41,9 +40,18 @@ export class NodeHmrManager implements IHmrManager {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
 		this.distDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, '_hmr');
-		fileSystem.ensureDir(this.distDir);
-		this.plugins = [stripServerOnlyPlugin({ pagesDir: this.appConfig.absolutePaths.pagesDir })];
+		this.cleanDistDir();
 		this.initializeStrategies();
+	}
+
+	/**
+	 * Ensures the HMR output directory exists.
+	 *
+	 * This must not remove the directory because multiple app processes
+	 * can share the same dist path during e2e runs.
+	 */
+	private cleanDistDir(): void {
+		fileSystem.ensureDir(this.distDir);
 	}
 
 	private initializeStrategies(): void {
@@ -67,8 +75,7 @@ export class NodeHmrManager implements IHmrManager {
 	}
 
 	public setPlugins(plugins: EcoBuildPlugin[]): void {
-		const corePlugin = stripServerOnlyPlugin({ pagesDir: this.appConfig.absolutePaths.pagesDir });
-		this.plugins = [corePlugin, ...plugins];
+		this.plugins = [...plugins];
 	}
 
 	public setEnabled(enabled: boolean): void {
@@ -226,10 +233,27 @@ export class NodeHmrManager implements IHmrManager {
 
 		const urlPath = encodedPathJs.split(path.sep).join('/');
 		const outputUrl = `/${path.join(RESOLVED_ASSETS_DIR, '_hmr', urlPath)}`;
+		const outputPath = path.join(this.distDir, urlPath);
 
 		this.watchedFiles.set(entrypointPath, outputUrl);
 
 		await this.handleFileChange(entrypointPath);
+
+		if (!fileSystem.exists(outputPath)) {
+			const fallback = await defaultBuildAdapter.build({
+				entrypoints: [entrypointPath],
+				outdir: this.distDir,
+				naming: encodedPathJs,
+				minify: false,
+				external: Array.from(this.specifierMap.keys()),
+				...defaultBuildAdapter.getTranspileOptions('hmr-entrypoint'),
+				plugins: this.plugins,
+			});
+
+			if (!fallback.success) {
+				appLogger.error(`[HMR] Fallback build failed for ${entrypointPath}:`, fallback.logs);
+			}
+		}
 
 		return outputUrl;
 	}

@@ -1,21 +1,12 @@
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../../../constants';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoBuildPlugin } from '../../../../build/build-types.ts';
 import type { IHmrManager } from '../../../../internal-types';
-import { stripServerOnlyPlugin } from '../../../../plugins/strip-server-only-plugin';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types';
 import { BaseScriptProcessor } from '../base/base-script-processor';
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	private hmrManager?: IHmrManager;
-
-	protected override collectBuildPlugins(): EcoBuildPlugin[] {
-		return [
-			stripServerOnlyPlugin({ pagesDir: this.appConfig.absolutePaths.pagesDir }),
-			...super.collectBuildPlugins(),
-		];
-	}
 
 	setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
@@ -51,7 +42,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 		return this.getOrProcess(cachekey, async () => {
 			if (!shouldBundle) {
-				const outFilepath = path.relative(this.appConfig.srcDir, dep.filepath);
+				const outFilepath = path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath);
 				let filepath: string | undefined;
 
 				if (!dep.inline) {
@@ -70,15 +61,17 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				};
 			}
 
-			const relativeFilepath = path.relative(this.appConfig.srcDir, dep.filepath);
+			const relativeFilepath = path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath);
 			const outdirPath = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, relativeFilepath);
 			const outdirDirname = path.dirname(outdirPath);
+			const bundlerOptions = this.getBundlerOptions(dep);
 
 			const bundledFilePath = await this.bundleScript({
 				entrypoint: dep.filepath,
 				outdir: outdirDirname,
 				minify: this.isProduction,
-				...this.getBundlerOptions(dep),
+				...bundlerOptions,
+				plugins: bundlerOptions.plugins,
 			});
 
 			return {

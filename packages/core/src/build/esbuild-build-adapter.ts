@@ -439,12 +439,14 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		const outdir = path.resolve(options.outdir ?? '.eco/assets');
 		const compilerOptions = loadTsconfigCompilerOptions(contextRoot);
 		const jsxImportSource = compilerOptions.jsxImportSource;
+		const tsconfigPath = path.join(contextRoot, 'tsconfig.json');
+		const tsconfigExists = fileSystem.exists(tsconfigPath);
 
 		const plugins = this.getPluginsForBuild(options.plugins);
 		const esbuildPlugins: EsbuildPlugin[] = [
 			...(plugins.length > 0 ? [this.createEcoPluginBridge(plugins, contextRoot)] : []),
 		];
-		const transpileTarget = options.target === 'browser' ? 'es2022' : 'esnext';
+		const transpileTarget = 'es2022';
 
 		const usesTemplatedNaming = this.hasTemplateTokens(options.naming);
 		const outfile = options.naming && !usesTemplatedNaming ? path.join(outdir, options.naming) : undefined;
@@ -457,35 +459,33 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 			: {
 					outdir,
 					entryNames: usesTemplatedNaming ? this.toEntryNamePattern(options.naming) : '[name]',
-					chunkNames: '[name]',
-					assetNames: '[name]',
+					chunkNames: '[name]-[hash]',
+					assetNames: '[name]-[hash]',
 				};
 
 		try {
 			const result = await esbuild.build({
 				absWorkingDir: contextRoot,
 				entryPoints: options.entrypoints,
-				bundle: true,
+				bundle: options.bundle ?? true,
 				...outputOptions,
 				format: this.mapEsbuildFormat(options.format),
-				platform: options.target === 'browser' ? 'browser' : 'node',
+				platform: (options.target === 'browser' ? 'browser' : 'node') as 'browser' | 'node',
 				sourcemap: this.mapEsbuildSourcemap(options.sourcemap),
 				splitting: outfile ? false : !!options.splitting,
 				minify: !!options.minify,
 				...(typeof options.treeshaking === 'boolean' ? { treeShaking: options.treeshaking } : {}),
 				external: options.external,
+				...(options.target !== 'browser' && options.externalPackages !== false
+					? { packages: 'external' as const }
+					: {}),
 				target: transpileTarget,
 				metafile: true,
 				write: true,
 				plugins: esbuildPlugins,
 				jsx: 'automatic',
 				jsxImportSource,
-				tsconfigRaw: {
-					compilerOptions: {
-						...compilerOptions,
-						experimentalDecorators: true,
-					},
-				},
+				tsconfig: tsconfigExists ? tsconfigPath : undefined,
 				logLevel: 'silent',
 			});
 

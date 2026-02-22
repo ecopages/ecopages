@@ -56,7 +56,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			root: this.appConfig.rootDir,
 			...defaultBuildAdapter.getTranspileOptions('browser-script'),
 			splitting: true,
-			naming: '[name].[ext]',
+			naming: '[name]-[hash].[ext]',
 			plugins: allPlugins,
 			...rest,
 		});

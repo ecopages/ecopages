@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { getRequiredBunRuntime } from '../../utils/runtime.ts';
+import { getBunRuntime } from '../../utils/runtime.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
 import { defaultBuildAdapter } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger';
@@ -61,7 +61,7 @@ export class ServerLifecycle {
 		const loaders = this.appConfig.loaders;
 		for (const loader of loaders.values()) {
 			defaultBuildAdapter.registerPlugin(loader);
-			getRequiredBunRuntime().plugin(loader as any);
+			getBunRuntime()?.plugin(loader as any);
 		}
 	}
 
@@ -102,7 +102,7 @@ export class ServerLifecycle {
 				if (processor.plugins) {
 					for (const plugin of processor.plugins) {
 						defaultBuildAdapter.registerPlugin(plugin);
-						getRequiredBunRuntime().plugin(plugin as any);
+						getBunRuntime()?.plugin(plugin as any);
 					}
 				}
 				if (processor.buildPlugins) {
@@ -118,7 +118,7 @@ export class ServerLifecycle {
 
 				for (const plugin of integration.plugins) {
 					defaultBuildAdapter.registerPlugin(plugin);
-					getRequiredBunRuntime().plugin(plugin as any);
+					getBunRuntime()?.plugin(plugin as any);
 				}
 			});
 

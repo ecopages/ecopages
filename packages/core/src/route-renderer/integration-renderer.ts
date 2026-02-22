@@ -4,8 +4,6 @@
  * @module
  */
 
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
 import type {
 	EcoComponent,
@@ -26,17 +24,15 @@ import type {
 	StaticPageContext,
 } from '../public-types.ts';
 import {
-	type AssetDefinition,
-	AssetFactory,
 	type AssetProcessingService,
 	type ProcessedAsset,
 } from '../services/asset-processing-service/index.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
-import { defaultBuildAdapter } from '../build/build-adapter.ts';
-import { fileSystem } from '@ecopages/file-system';
 import { invariant } from '../utils/invariant.ts';
 import { HttpError } from '../errors/http-error.ts';
 import { LocalsAccessError } from '../errors/locals-access-error.ts';
+import { DependencyResolverService } from './dependency-resolver.ts';
+import { PageModuleLoaderService } from './page-module-loader.ts';
 
 /**
  * Creates a Proxy that throws LocalsAccessError on any property access.
@@ -100,6 +96,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	declare protected options: Required<IntegrationRendererRenderOptions>;
 	protected runtimeOrigin: string;
+	protected dependencyResolverService: DependencyResolverService;
+	protected pageModuleLoaderService: PageModuleLoaderService;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -180,6 +178,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.htmlTransformer = new HtmlTransformerService();
 		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 		this.runtimeOrigin = runtimeOrigin;
+		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
+		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
 	}
 
 	/**
@@ -231,20 +231,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		props: Record<string, unknown>;
 		metadata?: PageMetadataProps;
 	}> {
-		return getStaticProps
-			? await getStaticProps({
-					pathname: { params: options?.params ?? {} },
-					appConfig: this.appConfig,
-					runtimeOrigin: this.runtimeOrigin,
-				})
-					.then((data) => data)
-					.catch((err) => {
-						throw new Error(`Error fetching static props: ${err.message}`);
-					})
-			: {
-					props: {},
-					metadata: undefined,
-				};
+		return this.pageModuleLoaderService.getStaticPropsForPage({
+			getStaticProps,
+			params: options?.params,
+		});
 	}
 
 	/**
@@ -259,17 +249,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		getMetadata: GetMetadata | undefined,
 		{ props, params, query }: GetMetadataContext,
 	): Promise<PageMetadataProps> {
-		let metadata: PageMetadataProps = this.appConfig.defaultMetadata;
-		if (getMetadata) {
-			const dynamicMetadata = await getMetadata({
-				params,
-				query,
-				props,
-				appConfig: this.appConfig,
-			});
-			metadata = { ...metadata, ...dynamicMetadata };
-		}
-		return metadata;
+		return this.pageModuleLoaderService.getMetadataPropsForPage({
+			getMetadata,
+			context: { props, params, query } as GetMetadataContext,
+		});
 	}
 
 	/**
@@ -280,50 +263,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The imported module.
 	 */
 	protected async importPageFile(file: string): Promise<EcoPageFile> {
-		if (typeof Bun !== 'undefined') {
-			try {
-				const query = process.env.NODE_ENV === 'development' ? `?update=${Date.now()}` : '';
-				return await import(file + query);
-			} catch (error) {
-				invariant(false, `Error importing page file: ${error}`);
-			}
-		}
-
-		try {
-			const outdir = path.join(this.appConfig.absolutePaths.distDir, '.server-modules');
-			const fileBaseName = path.basename(file, path.extname(file));
-			const fileHash = fileSystem.hash(file);
-			const cacheBuster = process.env.NODE_ENV === 'development' ? `-${Date.now()}` : '';
-			const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
-
-			const buildResult = await defaultBuildAdapter.build({
-				entrypoints: [file],
-				root: this.appConfig.rootDir,
-				outdir,
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				naming: outputFileName,
-			});
-
-			if (!buildResult.success) {
-				const details = buildResult.logs.map((log) => log.message).join(' | ');
-				invariant(false, `Error transpiling page file: ${details}`);
-			}
-
-			const preferredOutputPath = path.join(outdir, outputFileName);
-			const compiledOutput =
-				buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
-				buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
-
-			invariant(!!compiledOutput, `No transpiled output generated for page: ${file}`);
-
-			return await import(pathToFileURL(compiledOutput).href);
-		} catch (error) {
-			invariant(false, `Error importing page file: ${error}`);
-		}
+		return this.pageModuleLoaderService.importPageFile(file);
 	}
 
 	/**
@@ -335,7 +275,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The resolved dependency path.
 	 */
 	protected resolveDependencyPath(componentDir: string, pathUrl: string): string {
-		return path.join(componentDir, pathUrl);
+		return this.dependencyResolverService.resolveDependencyPath(componentDir, pathUrl);
 	}
 
 	/**
@@ -375,23 +315,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns Comma-separated string of resolved public script paths.
 	 */
 	protected resolveLazyScripts(componentDir: string, scripts: string[]): string {
-		const getSafeFileName = (filepath: string): string => {
-			const EXTENSIONS_TO_JS = ['ts', 'tsx'];
-			const safe = filepath.replace(new RegExp(`\\.(${EXTENSIONS_TO_JS.join('|')})$`), '.js');
-			return safe.startsWith('./') ? safe.slice(2) : safe;
-		};
-
-		const baseDir = componentDir.split(this.appConfig.srcDir)[1] ?? '';
-		const resolvedPaths = scripts.map((script) => {
-			const relativePath = [AssetFactory.RESOLVED_ASSETS_DIR, baseDir, getSafeFileName(script)]
-				.filter(Boolean)
-				.join('/')
-				.replace(/\/+/g, '/');
-
-			return `/${relativePath.replace(/^\/+/, '')}`;
-		});
-
-		return resolvedPaths.join(',');
+		return this.dependencyResolverService.resolveLazyScripts(componentDir, scripts);
 	}
 
 	/**
@@ -416,152 +340,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async processComponentDependencies(
 		components: (EcoComponent | Partial<EcoComponent>)[],
 	): Promise<ProcessedAsset[]> {
-		if (!this.assetProcessingService?.processDependencies) return [];
-		const dependencies: AssetDefinition[] = [];
-		const lazyScriptsByConfig = new Map<
-			NonNullable<EcoComponent['config']>,
-			{ sourcePath: string; fallbackUrl: string }[]
-		>();
-
-		for (const component of components) {
-			const componentFile = component.config?.__eco?.file;
-			if (!componentFile) continue;
-
-			const stylesheetsSet = new Set<string>();
-			const scriptsSet = new Set<string>();
-
-			/**
-			 * Recursively collects dependencies from component config.
-			 * Mutates config._resolvedScripts when lazy scripts are present.
-			 */
-			const collect = (config: EcoComponent['config']) => {
-				if (!config?.dependencies) return;
-
-				const file = config.__eco?.file;
-				if (!file) return;
-				const dir = path.dirname(file);
-
-				if (config.dependencies.stylesheets) {
-					for (const style of config.dependencies.stylesheets) {
-						stylesheetsSet.add(this.resolveDependencyPath(dir, style));
-					}
-				}
-
-				if (config.dependencies.scripts) {
-					for (const script of config.dependencies.scripts) {
-						scriptsSet.add(this.resolveDependencyPath(dir, script));
-					}
-				}
-
-				/**
-				 * Process lazy dependencies - resolve paths and store for auto-wrapping.
-				 * Lazy scripts are bundled but excluded from HTML output.
-				 */
-				if (config.dependencies.lazy?.scripts) {
-					const lazyScriptFallbacks = this.resolveLazyScripts(dir, config.dependencies.lazy.scripts).split(
-						',',
-					);
-					const lazyScripts = config.dependencies.lazy.scripts.map((script, index) => ({
-						sourcePath: this.resolveDependencyPath(dir, script),
-						fallbackUrl: lazyScriptFallbacks[index] ?? '',
-					}));
-
-					const existingLazyScripts = lazyScriptsByConfig.get(config) ?? [];
-					existingLazyScripts.push(...lazyScripts);
-					lazyScriptsByConfig.set(config, existingLazyScripts);
-
-					for (const script of config.dependencies.lazy.scripts) {
-						const resolvedPath = this.resolveDependencyPath(dir, script);
-						dependencies.push(
-							AssetFactory.createFileScript({
-								filepath: resolvedPath,
-								position: 'head',
-								excludeFromHtml: true,
-								attributes: {
-									type: 'module',
-									defer: '',
-								},
-							}),
-						);
-					}
-				}
-
-				if (config.dependencies.components) {
-					for (const component of config.dependencies.components) {
-						if (component.config) {
-							collect(component.config);
-						}
-					}
-				}
-			};
-
-			collect(component.config);
-
-			const deps = {
-				stylesheets: Array.from(stylesheetsSet),
-				scripts: Array.from(scriptsSet),
-			};
-
-			dependencies.push(
-				...deps.stylesheets.map((stylesheet) =>
-					AssetFactory.createFileStylesheet({
-						filepath: stylesheet,
-						position: 'head',
-						attributes: { rel: 'stylesheet' },
-					}),
-				),
-				...deps.scripts.map((script) =>
-					AssetFactory.createFileScript({
-						filepath: script,
-						position: 'head',
-						attributes: {
-							type: 'module',
-							defer: '',
-						},
-					}),
-				),
-			);
-		}
-
-		const hasLazyDependencies = dependencies.some((dep) => dep.kind === 'script' && dep.excludeFromHtml === true);
-
-		if (hasLazyDependencies) {
-			dependencies.unshift(
-				AssetFactory.createNodeModuleScript({
-					position: 'head',
-					importPath: '@ecopages/scripts-injector',
-					name: 'scripts-injector',
-					attributes: {
-						type: 'module',
-						defer: '',
-					},
-				}),
-			);
-		}
-
-		const processedDependencies = await this.assetProcessingService.processDependencies(dependencies, this.name);
-		const lazySourceToOutputUrl = new Map<string, string>();
-
-		for (const dependency of processedDependencies) {
-			if (dependency.kind === 'script' && dependency.srcUrl && dependency.filepath) {
-				lazySourceToOutputUrl.set(path.normalize(dependency.filepath), dependency.srcUrl);
-			}
-		}
-
-		for (const [config, lazyScripts] of lazyScriptsByConfig.entries()) {
-			const resolvedUrls = lazyScripts
-				.map(
-					({ sourcePath, fallbackUrl }) =>
-						lazySourceToOutputUrl.get(path.normalize(sourcePath)) ?? fallbackUrl,
-				)
-				.filter((url) => url.length > 0);
-
-			if (resolvedUrls.length > 0) {
-				config._resolvedScripts = Array.from(new Set(resolvedUrls)).join(',');
-			}
-		}
-
-		return processedDependencies;
+		return this.dependencyResolverService.processComponentDependencies(components, this.name);
 	}
 
 	/**
@@ -634,21 +413,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		getMetadata?: GetMetadata;
 		integrationSpecificProps: Record<string, unknown>;
 	}> {
-		const module = await this.importPageFile(file);
-		const {
-			default: Page,
-			getStaticProps: moduleGetStaticProps,
-			getMetadata: moduleGetMetadata,
-			...integrationSpecificProps
-		} = module;
-
-		return {
-			Page,
-			/* Prefer attached static methods (new API) over exports (legacy) */
-			getStaticProps: Page.staticProps ?? moduleGetStaticProps,
-			getMetadata: Page.metadata ?? moduleGetMetadata,
-			integrationSpecificProps,
-		};
+		return this.pageModuleLoaderService.resolvePageModule({
+			file,
+			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
+		});
 	}
 
 	/**
@@ -664,15 +432,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		props: Record<string, unknown>;
 		metadata: PageMetadataProps;
 	}> {
-		const { props } = await this.getStaticProps(pageModule.getStaticProps, options);
-
-		const metadata = await this.getMetadataProps(pageModule.getMetadata, {
-			props,
-			params: options.params ?? {},
-			query: options.query ?? {},
-		} as GetMetadataContext);
-
-		return { props, metadata };
+		return this.pageModuleLoaderService.resolvePageData({
+			pageModule,
+			routeOptions: options,
+		});
 	}
 
 	/**

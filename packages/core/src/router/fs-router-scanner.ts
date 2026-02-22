@@ -167,6 +167,7 @@ export class FSRouterScanner {
 			format: 'esm',
 			sourcemap: 'none',
 			splitting: false,
+			externalPackages: false,
 			minify: false,
 			naming: outputFileName,
 		});

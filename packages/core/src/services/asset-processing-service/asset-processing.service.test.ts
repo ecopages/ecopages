@@ -218,6 +218,30 @@ test('AssetProcessingService - processDependencies - handles undefined filepath 
 	expect(gzipDirMock).not.toHaveBeenCalled();
 });
 
+test('AssetProcessingService - processDependencies - normalizes absolute srcUrl to public assets path', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	const service = new AssetProcessingService(Config);
+	const processor = {
+		process: vi.fn(async () => ({
+			srcUrl: '/test/dist/assets/scripts/module--tanstack-react-table.js',
+			kind: 'script',
+			inline: false,
+		})),
+	};
+	service.registerProcessor('script', 'file', processor);
+
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/module.js' };
+
+	const results = await service.processDependencies([dependency], 'normalize-src-url-key');
+
+	expect(processor.process).toHaveBeenCalledTimes(1);
+	expect(results.length).toBe(1);
+	expect(results[0].srcUrl).toBe('/assets/scripts/module--tanstack-react-table.js');
+});
+
 test('AssetProcessingService - caching returns cached asset without reprocessing', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});

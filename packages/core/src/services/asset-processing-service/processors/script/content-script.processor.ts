@@ -30,7 +30,10 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		if (dep.content) {
 			const tempDir = this.appConfig.absolutePaths.distDir;
 			fileSystem.ensureDir(tempDir);
-			const tempFileName = path.join(tempDir, filename);
+					const tempFileName = path.join(
+						tempDir,
+						`${path.parse(filename).name}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp.js`,
+					);
 			fileSystem.write(tempFileName, dep.content);
 
 			const bundledFilePath = await this.bundleScript({
@@ -41,9 +44,8 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 			});
 
 			const processedAsset: ProcessedAsset = {
-				filepath,
+				filepath: bundledFilePath,
 				content: dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
-				srcUrl: bundledFilePath,
 				kind: 'script',
 				position: dep.position,
 				attributes: dep.attributes,

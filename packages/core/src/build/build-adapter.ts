@@ -53,6 +53,8 @@ export interface BuildOptions {
 	sourcemap?: string;
 	splitting?: boolean;
 	root?: string;
+	bundle?: boolean;
+	externalPackages?: boolean;
 	external?: string[];
 	plugins?: EcoBuildPlugin[];
 	[key: string]: unknown;

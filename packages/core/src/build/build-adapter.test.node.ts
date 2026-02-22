@@ -182,7 +182,7 @@ test('EsbuildBuildAdapter resolves tsconfig path aliases', async () => {
 	}
 });
 
-test('EsbuildBuildAdapter compiles decorated declare fields', async () => {
+test('EsbuildBuildAdapter compiles decorated classes without legacy mode', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-decorated-declare');
 		const srcDir = path.join(root, 'src');
@@ -193,10 +193,11 @@ test('EsbuildBuildAdapter compiles decorated declare fields', async () => {
 		fs.writeFileSync(
 			entryPath,
 			[
-				'function legacyDecorator(_target: unknown, _propertyKey: string | symbol) {}',
-				'class Counter {',
-				'\t@legacyDecorator declare count: number;',
+				'function sealed<T extends new (...args: never[]) => object>(value: T) {',
+				'\treturn value;',
 				'}',
+				'@sealed',
+				'class Counter {}',
 				'export const ready = typeof Counter === "function";',
 			].join('\n'),
 		);

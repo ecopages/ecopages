@@ -128,12 +128,7 @@ export class AssetProcessingService {
 
 				try {
 					const processed = await processor.process(dep);
-					const srcUrl =
-						processed.srcUrl && processed.srcUrl.startsWith('/')
-							? processed.srcUrl
-							: processed.filepath
-								? this.getSrcUrl(processed.filepath)
-								: undefined;
+					const srcUrl = this.resolveProcessedAssetSrcUrl(processed);
 
 					const processedWithKey = {
 						key,
@@ -182,6 +177,40 @@ export class AssetProcessingService {
 		const relativePath = filepath.slice(distDir.length);
 		const urlPath = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
 		return urlPath.replace(/\\/g, '/');
+	}
+
+	private resolveProcessedAssetSrcUrl(processed: ProcessedAsset): string | undefined {
+		if (processed.srcUrl) {
+			if (this.isFilesystemPath(processed.srcUrl)) {
+				const srcUrlFromPath = this.getSrcUrl(processed.srcUrl);
+				if (srcUrlFromPath) return srcUrlFromPath;
+			} else {
+				return processed.srcUrl;
+			}
+		}
+
+		if (processed.filepath) {
+			return this.getSrcUrl(processed.filepath);
+		}
+
+		return undefined;
+	}
+
+	private isFilesystemPath(value: string): boolean {
+		if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('//')) {
+			return false;
+		}
+
+		if (value.startsWith(this.config.absolutePaths.distDir)) {
+			return true;
+		}
+
+		const rootDir = this.config.rootDir;
+		if (rootDir && value.startsWith(rootDir)) {
+			return true;
+		}
+
+		return /^[A-Za-z]:\\/.test(value);
 	}
 
 	private async optimizeDependencies(depsDir: string): Promise<void> {

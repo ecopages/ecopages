@@ -1,11 +1,11 @@
-import { EcopagesApp } from '@ecopages/core/bun/create-app';
+import { createApp } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import appConfig from './eco.config';
 import * as api from './src/handlers/api';
 import { adminGroup } from './src/handlers/admin';
 import { posts } from './src/data';
 
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 
 app.static('/', () => import('./src/views/post-list-view.kita'))
 	.static('/posts', () => import('./src/views/post-list-view.kita'))
@@ -15,8 +15,8 @@ app.static('/', () => import('./src/views/post-list-view.kita'))
 		const latestPost = posts[posts.length - 1];
 		return ctx.render(PostView, latestPost);
 	})
-	.get(api.list)
-	.get(api.detail)
+	.add(api.list)
+	.add(api.detail)
 	.group(adminGroup);
 
 app.onError((error, ctx) => {

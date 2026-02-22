@@ -514,9 +514,13 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 			const schema = routeConfig.schema;
 			const locals: Record<string, unknown> = {};
 			const requestWithParams = this.attachRouteParams(request, params);
+			const normalizedParams = Object.fromEntries(
+				Object.entries(params).map(([key, value]) => [key, Array.isArray(value) ? value.join('/') : value]),
+			);
 
 			context = {
 				request: requestWithParams,
+				params: normalizedParams,
 				response: new ApiResponseBuilder(),
 				server: this.serverInstance,
 				locals,
@@ -544,7 +548,7 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 				}
 
 				const validationResult = await this.schemaValidator.validateRequest(
-					{ body, query: queryParams, headers },
+					{ body, query: queryParams, headers, params: normalizedParams },
 					schema,
 				);
 
@@ -564,6 +568,9 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 				}
 				if (validated.headers !== undefined) {
 					context.headers = validated.headers;
+				}
+				if (validated.params !== undefined) {
+					context.params = validated.params as Record<string, string>;
 				}
 			}
 
@@ -593,6 +600,9 @@ export class NodeServerAdapter extends AbstractServerAdapter<NodeServerAdapterPa
 						const locals: Record<string, unknown> = {};
 						context = {
 							request: this.attachRouteParams(request, params),
+							params: Object.fromEntries(
+								Object.entries(params).map(([key, value]) => [key, Array.isArray(value) ? value.join('/') : value]),
+							),
 							response: new ApiResponseBuilder(),
 							server: this.serverInstance,
 							locals,

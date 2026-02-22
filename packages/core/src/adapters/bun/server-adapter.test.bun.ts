@@ -28,8 +28,8 @@ describe('BunServerAdapter', () => {
 				defineApiHandler({
 					path: '/api/:id',
 					method: 'GET',
-					handler: async ({ request }) => {
-						const { id } = request.params as { id: string };
+					handler: async ({ params }) => {
+						const { id } = params;
 						return new Response(id);
 					},
 				}),

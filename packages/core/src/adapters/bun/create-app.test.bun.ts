@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 import { EcopagesApp } from './create-app';
+import { defineApiHandler } from './define-api-handler.ts';
 
 describe('EcopagesApp', () => {
 	let app: EcopagesApp;
@@ -70,6 +71,20 @@ describe('EcopagesApp', () => {
 			const apiHandlers = app.getApiHandlers();
 			expect(apiHandlers).toHaveLength(1);
 			expect(apiHandlers[0].path).toBe('/custom');
+			expect(apiHandlers[0].method).toBe('GET');
+		});
+
+		test('add() adds pre-built ApiHandler', () => {
+			const prebuilt = defineApiHandler({
+				path: '/from-add',
+				method: 'GET',
+				handler: testHandler,
+			});
+
+			app.add(prebuilt);
+			const apiHandlers = app.getApiHandlers();
+			expect(apiHandlers).toHaveLength(1);
+			expect(apiHandlers[0].path).toBe('/from-add');
 			expect(apiHandlers[0].method).toBe('GET');
 		});
 	});

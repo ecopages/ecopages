@@ -1,6 +1,7 @@
 import { defineApiHandler } from '@ecopages/core/bun';
 import { HttpError } from '@ecopages/core/errors';
 import { posts } from '../data';
+import z from 'zod';
 
 export const list = defineApiHandler({
 	path: '/api/v1/posts',
@@ -13,11 +14,16 @@ export const list = defineApiHandler({
 export const detail = defineApiHandler({
 	path: '/api/v1/posts/:slug',
 	method: 'GET',
-	handler: async ({ request, response }) => {
-		const post = posts.find((p) => p.slug === request.params.slug);
+	handler: async ({ params, response }) => {
+		const post = posts.find((p) => p.slug === params.slug);
 		if (!post) {
 			throw HttpError.NotFound('Post not found');
 		}
 		return response.json(post);
+	},
+	schema: {
+		params: z.object({
+			slug: z.string(),
+		}),
 	},
 });

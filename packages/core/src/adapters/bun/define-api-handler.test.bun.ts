@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { Server } from 'bun';
+import type { NodeServerInstance } from '../node/server-adapter.ts';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import type { Middleware, StandardSchema } from '../../public-types.ts';
@@ -31,7 +32,7 @@ const loggingMiddleware: Middleware = async (context, next) => {
 };
 
 describe('defineApiHandler', () => {
-	let server: Server<undefined> | undefined;
+	let server: Server<undefined> | NodeServerInstance | undefined;
 
 	const listHandler = defineApiHandler({
 		path: '/api/posts',
@@ -44,8 +45,8 @@ describe('defineApiHandler', () => {
 	const detailHandler = defineApiHandler({
 		path: '/api/posts/:id',
 		method: 'GET',
-		handler: async ({ request, response }) => {
-			const { id } = request.params;
+		handler: async ({ params, response }) => {
+			const { id } = params;
 			return response.json({ post: { id, title: `Post ${id}` } });
 		},
 	});
@@ -53,8 +54,8 @@ describe('defineApiHandler', () => {
 	const nestedParamsHandler = defineApiHandler({
 		path: '/api/users/:userId/posts/:postId',
 		method: 'GET',
-		handler: async ({ request, response }) => {
-			const { userId, postId } = request.params;
+		handler: async ({ params, response }) => {
+			const { userId, postId } = params;
 			return response.json({ userId, postId });
 		},
 	});
@@ -77,17 +78,17 @@ describe('defineApiHandler', () => {
 			},
 		});
 
-		app.get(listHandler);
-		app.get(detailHandler);
-		app.get(nestedParamsHandler);
-		app.get(handlerWithMiddleware);
+		app.add(listHandler);
+		app.add(detailHandler);
+		app.add(nestedParamsHandler);
+		app.add(handlerWithMiddleware);
 
 		const result = await app.start();
 		if (result) server = result;
 	});
 
 	afterAll(() => {
-		if (server) {
+		if (server && 'stop' in server) {
 			server.stop(true);
 		}
 	});
@@ -129,7 +130,7 @@ describe('defineApiHandler', () => {
 });
 
 describe('defineGroupHandler', () => {
-	let server: Server<undefined> | undefined;
+	let server: Server<undefined> | NodeServerInstance | undefined;
 
 	const adminGroup = defineGroupHandler({
 		prefix: '/admin',
@@ -150,7 +151,7 @@ describe('defineGroupHandler', () => {
 				method: 'GET',
 				handler: async (ctx) => {
 					return ctx.response.json({
-						postId: ctx.request.params.id,
+						postId: ctx.params.id,
 						role: ctx.session.role,
 					});
 				},
@@ -195,7 +196,7 @@ describe('defineGroupHandler', () => {
 	});
 
 	afterAll(() => {
-		if (server) {
+		if (server && 'stop' in server) {
 			server.stop(true);
 		}
 	});
@@ -251,7 +252,7 @@ describe('defineGroupHandler', () => {
 });
 
 describe('defineGroupHandler with schema', () => {
-	let server: Server<undefined> | undefined;
+	let server: Server<undefined> | NodeServerInstance | undefined;
 
 	const createSchema = <T>(
 		validator: (value: unknown) => { valid: boolean; data?: T; errors?: string[] },
@@ -312,7 +313,7 @@ describe('defineGroupHandler with schema', () => {
 	});
 
 	afterAll(() => {
-		if (server) {
+		if (server && 'stop' in server) {
 			server.stop(true);
 		}
 	});
@@ -342,7 +343,7 @@ describe('defineGroupHandler with schema', () => {
 });
 
 describe('HTTP method overloads with handler objects', () => {
-	let server: Server<undefined> | undefined;
+	let server: Server<undefined> | NodeServerInstance | undefined;
 
 	const getHandler = defineApiHandler({
 		path: '/test/get',
@@ -383,47 +384,47 @@ describe('HTTP method overloads with handler objects', () => {
 			},
 		});
 
-		app.get(getHandler);
-		app.post(postHandler);
-		app.put(putHandler);
-		app.delete(deleteHandler);
-		app.patch(patchHandler);
+		app.add(getHandler);
+		app.add(postHandler);
+		app.add(putHandler);
+		app.add(deleteHandler);
+		app.add(patchHandler);
 
 		const result = await app.start();
 		if (result) server = result;
 	});
 
 	afterAll(() => {
-		if (server) {
+		if (server && 'stop' in server) {
 			server.stop(true);
 		}
 	});
 
-	test('app.get() accepts handler object', async () => {
+	test('app.add() accepts GET handler object', async () => {
 		const res = await fetch(`http://localhost:${TEST_PORT + 3}/test/get`);
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ method: 'GET' });
 	});
 
-	test('app.post() accepts handler object', async () => {
+	test('app.add() accepts POST handler object', async () => {
 		const res = await fetch(`http://localhost:${TEST_PORT + 3}/test/post`, { method: 'POST' });
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ method: 'POST' });
 	});
 
-	test('app.put() accepts handler object', async () => {
+	test('app.add() accepts PUT handler object', async () => {
 		const res = await fetch(`http://localhost:${TEST_PORT + 3}/test/put`, { method: 'PUT' });
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ method: 'PUT' });
 	});
 
-	test('app.delete() accepts handler object', async () => {
+	test('app.add() accepts DELETE handler object', async () => {
 		const res = await fetch(`http://localhost:${TEST_PORT + 3}/test/delete`, { method: 'DELETE' });
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ method: 'DELETE' });
 	});
 
-	test('app.patch() accepts handler object', async () => {
+	test('app.add() accepts PATCH handler object', async () => {
 		const res = await fetch(`http://localhost:${TEST_PORT + 3}/test/patch`, { method: 'PATCH' });
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ method: 'PATCH' });

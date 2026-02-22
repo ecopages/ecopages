@@ -141,6 +141,24 @@ describe('SchemaValidationService', () => {
 			expect(result.data?.query).toEqual({ format: 'json' });
 		});
 
+		test('validates route params with schema', async () => {
+			const paramsSchema = z.object({
+				id: z.coerce.number().int(),
+			});
+
+			const result = await service.validateRequest(
+				{
+					params: { id: '42' },
+				},
+				{
+					params: paramsSchema as unknown as Parameters<typeof service.validateRequest>[1]['params'],
+				},
+			);
+
+			expect(result.success).toBe(true);
+			expect(result.data?.params).toEqual({ id: 42 });
+		});
+
 		test('aggregates errors from multiple sources', async () => {
 			const bodySchema = z.object({
 				title: z.string().min(5),

@@ -9,8 +9,8 @@ const app = new EcopagesApp({ appConfig: appConfig })
 	.post('/api/auth/*', auth.authHandler)
 	.static('/login', () => import('./src/views/auth/login.kita'))
 	.static('/signup', () => import('./src/views/auth/signup.kita'))
-	.get(blog.list)
-	.get(blog.detail)
+	.add(blog.list)
+	.add(blog.detail)
 	.group(adminGroup);
 
 await app.start();

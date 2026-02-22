@@ -35,6 +35,7 @@ Ecopages includes a type-safe, lightweight backend. Define handlers with full ty
 
 - **Typed Handlers**: Define API handlers with full type safety.
 - **Explicit Routing**: Use `app.get`, `app.post`, etc., for dynamic routes.
+- **Route API docs**: See `packages/core/README.md` for route registration patterns (`app.get`, `defineApiHandler`, `defineGroupHandler`, and API direction notes).
 
 ### AI-Ready Documentation
 
@@ -43,9 +44,20 @@ We provide an `llms.txt` file to help AI agents understand and assist with your 
 
 ### Playground
 
-Explore Ecopages' capabilities:
+Explore Ecopages' capabilities by running any of the available playgrounds:
 
-`bun run dev:playground`
+```bash
+# Run a specific playground (e.g. global, react, tailwind-v4)
+bun run --filter @ecopages/playground-global dev
+
+# Run using node instead of bun
+npm run --workspace=@ecopages/playground-react dev
+
+# Production start command
+bun run --filter @ecopages/playground-explicit-routes start
+```
+
+Use workspace package names in the format `@ecopages/playground-<name>`.
 
 ### Documentation
 

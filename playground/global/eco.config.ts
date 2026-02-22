@@ -8,8 +8,8 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
 export default await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(import.meta.dirname)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
 	.setIntegrations([
 		kitajsPlugin(),
 		litPlugin(),
@@ -23,8 +23,8 @@ export default await new ConfigBuilder()
 	.setProcessors([
 		imageProcessorPlugin({
 			options: {
-				sourceDir: path.resolve(import.meta.dir, 'src/images'),
-				outputDir: path.resolve(import.meta.dir, '.eco/images'),
+				sourceDir: path.resolve(import.meta.dirname, 'src/images'),
+				outputDir: path.resolve(import.meta.dirname, '.eco/images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 				quality: 80,

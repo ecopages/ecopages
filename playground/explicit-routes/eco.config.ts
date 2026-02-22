@@ -5,7 +5,7 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
+	.setRootDir(import.meta.dirname)
 	.setBaseUrl('http://localhost:3000')
 	.setIntegrations([kitajsPlugin()])
 	.setIncludesTemplates({
@@ -16,7 +16,7 @@ const config = await new ConfigBuilder()
 	.setProcessors([
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dir, 'src/styles/tailwind.css'),
+				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
 			}),
 		),
 	])

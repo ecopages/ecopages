@@ -6,13 +6,13 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
 export default await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL ?? '/')
+	.setRootDir(import.meta.dirname)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? '/')
 	.setIntegrations([kitajsPlugin(), litPlugin()])
 	.setProcessors([
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dir, 'src/styles/global.css'),
+				referencePath: path.resolve(import.meta.dirname, 'src/styles/global.css'),
 			}),
 		),
 	])

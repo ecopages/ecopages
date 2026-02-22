@@ -5,13 +5,13 @@ import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v
 import { reactPlugin } from '@ecopages/react';
 
 export default await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL ?? '/')
+	.setRootDir(import.meta.dirname)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? '/')
 	.setIntegrations([reactPlugin()])
 	.setProcessors([
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dir, 'src/styles/tailwind.css'),
+				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
 			}),
 		),
 	])

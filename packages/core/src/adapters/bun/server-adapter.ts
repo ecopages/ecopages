@@ -56,7 +56,7 @@ export interface BunServerAdapterParams {
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
 	serveOptions: BunServeAdapterServerOptions;
-	apiHandlers?: ApiHandler<any, BunRequest, BunServerInstance>[];
+	apiHandlers?: ApiHandler<string, Request, BunServerInstance>[];
 	staticRoutes?: StaticRoute[];
 	errorHandler?: ErrorHandler;
 	options?: {
@@ -79,7 +79,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	declare appConfig: EcoPagesAppConfig;
 	declare options: BunServerAdapterParams['options'];
 	declare serveOptions: BunServerAdapterParams['serveOptions'];
-	protected apiHandlers: ApiHandler<any, BunRequest>[];
+	protected apiHandlers: ApiHandler<string, Request, BunServerInstance>[];
 	protected staticRoutes: StaticRoute[];
 	protected errorHandler?: ErrorHandler;
 
@@ -416,7 +416,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 			appLogger.debug(`[BunServerAdapter] Registering API route: ${method} ${path}`);
 
 			const wrappedHandler = async (request: BunRequest<string>): Promise<Response> => {
-				let context: ApiHandlerContext<BunRequest<string>, Server<unknown> | null> | undefined;
+				let context: ApiHandlerContext<Request, BunServerInstance> | undefined;
 
 				try {
 					await waitForInit();
@@ -424,8 +424,9 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 					const locals: Record<string, unknown> = {};
 					context = {
 						request,
+						params: request.params as Record<string, string>,
 						response: new ApiResponseBuilder(),
-						server: this.serverInstance,
+						server: this.serverInstance as BunServerInstance,
 						locals,
 						require: createRequire((): Record<string, unknown> => locals),
 						services: {
@@ -451,7 +452,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 						}
 
 						const validationResult = await this.schemaValidator.validateRequest(
-							{ body, query: queryParams, headers },
+							{ body, query: queryParams, headers, params: context.params },
 							schema,
 						);
 
@@ -471,6 +472,9 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 						}
 						if (validated.headers !== undefined) {
 							context.headers = validated.headers;
+						}
+						if (validated.params !== undefined) {
+							context.params = validated.params as Record<string, string>;
 						}
 					}
 
@@ -501,8 +505,9 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 								const locals: Record<string, unknown> = {};
 								context = {
 									request,
+									params: request.params as Record<string, string>,
 									response: new ApiResponseBuilder(),
-									server: this.serverInstance,
+									server: this.serverInstance as BunServerInstance,
 									locals,
 									require: createRequire((): Record<string, unknown> => locals),
 									services: { cache: getCacheService() },
@@ -548,6 +553,7 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 							const locals: Record<string, unknown> = {};
 							const context = {
 								request,
+								params: {},
 								response: new ApiResponseBuilder(),
 								server: this,
 								locals,

@@ -50,6 +50,15 @@ export type RouteHandler<
 	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
 > = (context: TContext) => Promise<Response> | Response;
 
+export type RouteGroupDefinition<
+	TRequest extends Request = Request,
+	TServer = any,
+> = {
+	prefix: string;
+	middleware?: readonly Middleware<TRequest, TServer, any>[];
+	routes: readonly ApiHandler<string, TRequest, TServer>[];
+};
+
 /**
  * Abstract base class for application adapters across different runtimes
  */
@@ -92,8 +101,10 @@ export abstract class AbstractApplicationAdapter<
 	}
 
 	/**
-	 * Register a GET route handler
-	 * The handler expects a context where request.params exists.
+	 * Register a GET route handler.
+	 *
+	 * Use verb methods for inline route definitions.
+	 * For dynamic HTTP method registration, use `route(...)`.
 	 */
 	abstract get<
 		P extends string,
@@ -177,7 +188,11 @@ export abstract class AbstractApplicationAdapter<
 	): this;
 
 	/**
-	 * Register a route with any HTTP method
+	 * Register a route with an explicit HTTP method.
+	 *
+	 * This is useful when the method is determined programmatically, or when
+	 * registering a pre-built route declaration object by forwarding its
+	 * `path`, `method`, and `handler` fields.
 	 */
 	abstract route<P extends string>(
 		path: P,
@@ -185,6 +200,11 @@ export abstract class AbstractApplicationAdapter<
 		handler: RouteHandler<TRequest, TServer>,
 		options?: RouteOptions<TRequest, TServer>,
 	): this;
+
+	/**
+	 * Register a pre-built API handler declaration.
+	 */
+	abstract add(handler: ApiHandler<string, TRequest, TServer>): this;
 
 	/**
 	 * Internal method to add route handlers to the API handlers array
@@ -217,6 +237,7 @@ export abstract class AbstractApplicationAdapter<
 	 *
 	 * Each adapter implements this with its own builder type to support
 	 * runtime-specific features (e.g., Bun's path parameter inference).
+	 * Implementations may also support passing a pre-built group object.
 	 *
 	 * @param prefix - URL prefix for all routes in the group (e.g., '/api/v1')
 	 * @param callback - Function that receives a builder to define routes
@@ -229,6 +250,8 @@ export abstract class AbstractApplicationAdapter<
 			middleware?: readonly Middleware<TRequest, TServer, any>[];
 		},
 	): this;
+
+	abstract group(group: RouteGroupDefinition<TRequest, TServer>): this;
 
 	/**
 	 * Get all registered API handlers

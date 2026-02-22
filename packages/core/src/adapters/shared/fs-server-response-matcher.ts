@@ -121,6 +121,7 @@ export class FileSystemResponseMatcher {
 
 			const middlewareContext: ApiHandlerContext = {
 				request: resolvedRequest,
+				params: match.params as Record<string, string>,
 				response: new ApiResponseBuilder(),
 				server: null,
 				services: {

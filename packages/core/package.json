@@ -43,9 +43,14 @@
 	},
 	"exports": {
 		".": {
+			"browser": "./src/index.browser.ts",
 			"import": "./src/index.ts",
 			"require": "./src/index.ts",
 			"types": "./src/public-types.ts"
+		},
+		"./create-app": {
+			"types": "./src/create-app.ts",
+			"default": "./src/create-app.ts"
 		},
 		"./route-renderer/integration-renderer": {
 			"types": "./src/route-renderer/integration-renderer.ts",
@@ -119,10 +124,6 @@
 		"./plugins/integration-plugin": {
 			"types": "./src/plugins/integration-plugin.ts",
 			"default": "./src/plugins/integration-plugin.ts"
-		},
-		"./plugins/strip-server-only-plugin": {
-			"types": "./src/plugins/strip-server-only-plugin.ts",
-			"default": "./src/plugins/strip-server-only-plugin.ts"
 		},
 		"./build/build-types": {
 			"types": "./src/build/build-types.ts",

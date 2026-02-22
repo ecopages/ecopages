@@ -13,18 +13,21 @@ export interface ValidationSource {
 	body?: unknown;
 	query?: Record<string, string>;
 	headers?: Record<string, string>;
+	params?: Record<string, string>;
 }
 
 export interface ValidationSchemas {
 	body?: StandardSchema;
 	query?: StandardSchema;
 	headers?: StandardSchema;
+	params?: StandardSchema;
 }
 
 export interface ValidatedData {
 	body?: unknown;
 	query?: unknown;
 	headers?: unknown;
+	params?: unknown;
 }
 
 /**
@@ -143,6 +146,15 @@ export class SchemaValidationService {
 				allErrors.push(...(result.errors || []));
 			} else {
 				validated.headers = result.data;
+			}
+		}
+
+		if (schemas.params && source.params) {
+			const result = await this.validateWithSchema(schemas.params, source.params);
+			if (!result.success) {
+				allErrors.push(...(result.errors || []));
+			} else {
+				validated.params = result.data;
 			}
 		}
 

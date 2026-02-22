@@ -30,6 +30,9 @@ export interface EcopagesAppOptions extends ApplicationAdapterOptions {
 
 export type NodeEcopagesAppOptions = EcopagesAppOptions;
 
+/**
+ * Builder API used by `group('/prefix', callback)` in the Node adapter.
+ */
 interface NodeRouteGroupBuilder {
 	get(
 		path: string,
@@ -121,9 +124,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'GET',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as
-				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
-				| undefined,
+			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
 		);
 	}
 
@@ -142,9 +143,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'POST',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as
-				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
-				| undefined,
+			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
 		);
 	}
 
@@ -163,9 +162,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'PUT',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as
-				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
-				| undefined,
+			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
 		);
 	}
 
@@ -184,9 +181,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'DELETE',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as
-				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
-				| undefined,
+			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
 		);
 	}
 
@@ -205,9 +200,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'PATCH',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as
-				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
-				| undefined,
+			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
 		);
 	}
 
@@ -226,9 +219,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'OPTIONS',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as
-				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
-				| undefined,
+			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
 		);
 	}
 
@@ -247,9 +238,7 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			path,
 			'HEAD',
 			handler as RouteHandler<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>,
-			options as
-				| RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>>
-				| undefined,
+			options as RouteOptions<Request, NodeServerInstance, ApiHandlerContext<Request, NodeServerInstance>> | undefined,
 		);
 	}
 
@@ -262,14 +251,46 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 		return this.register(path, method, handler, options);
 	}
 
+	add(handler: ApiHandler<string, Request, NodeServerInstance>): this {
+		return this.register(
+			handler.path,
+			handler.method,
+			handler.handler as RouteHandler<Request, NodeServerInstance>,
+			handler.middleware || handler.schema
+				? {
+					middleware: handler.middleware as Middleware<Request, NodeServerInstance, any>[] | undefined,
+					schema: handler.schema,
+				}
+				: undefined,
+		);
+	}
+
+	/**
+	 * Create a route group with shared prefix and middleware.
+	 *
+	 * Supports either:
+	 * - builder form: `group('/prefix', (builder) => { ... })`
+	 * - pre-built object form: `group(groupHandler)`
+	 */
+
 	group(
-		prefix: string,
-		callback: (builder: NodeRouteGroupBuilder) => void,
+		prefixOrGroup:
+			| string
+			| {
+					prefix: string;
+					middleware?: readonly Middleware<Request, NodeServerInstance, any>[];
+					routes: readonly ApiHandler<string, Request, NodeServerInstance>[];
+			  },
+		callback?: (builder: NodeRouteGroupBuilder) => void,
 		options?: {
 			middleware?: readonly Middleware<Request, NodeServerInstance, any>[];
 		},
 	): this {
-		const normalizedPrefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+		if (typeof prefixOrGroup === 'object') {
+			return this.registerGroup(prefixOrGroup);
+		}
+
+		const normalizedPrefix = prefixOrGroup.endsWith('/') ? prefixOrGroup.slice(0, -1) : prefixOrGroup;
 		const groupMiddleware = options?.middleware ?? [];
 
 		const createHandler = (method: ApiHandler['method']) => {
@@ -301,7 +322,34 @@ export class EcopagesApp extends AbstractApplicationAdapter<EcopagesAppOptions, 
 			head: createHandler('HEAD'),
 		};
 
-		callback(builder);
+		callback!(builder);
+		return this;
+	}
+
+	private registerGroup(group: {
+		prefix: string;
+		middleware?: readonly Middleware<Request, NodeServerInstance, any>[];
+		routes: readonly ApiHandler<string, Request, NodeServerInstance>[];
+	}): this {
+		const normalizedPrefix = group.prefix.endsWith('/') ? group.prefix.slice(0, -1) : group.prefix;
+		const groupMiddleware = group.middleware ?? [];
+
+		for (const route of group.routes) {
+			const normalizedPath = route.path.startsWith('/') ? route.path : `/${route.path}`;
+			const fullPath = route.path === '/' ? normalizedPrefix : `${normalizedPrefix}${normalizedPath}`;
+			const combinedMiddleware = [...groupMiddleware, ...(route.middleware ?? [])];
+
+			this.addRouteHandler(
+				fullPath,
+				route.method,
+				route.handler as RouteHandler<Request, NodeServerInstance>,
+				combinedMiddleware.length > 0
+					? (combinedMiddleware as Middleware<Request, NodeServerInstance, any>[])
+					: undefined,
+				route.schema,
+			);
+		}
+
 		return this;
 	}
 

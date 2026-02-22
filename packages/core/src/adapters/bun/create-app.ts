@@ -211,11 +211,7 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Request,
 			Server<WebSocketData>
 		>,
-	>(
-		path: P,
-		handler: BunHandler<WebSocketData, TContext>,
-		options?: BunRouteOptions<WebSocketData, TContext>,
-	): this {
+	>(path: P, handler: BunHandler<WebSocketData, TContext>, options?: BunRouteOptions<WebSocketData, TContext>): this {
 		return this.register(path, 'GET', handler, options);
 	}
 
@@ -225,11 +221,7 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Request,
 			Server<WebSocketData>
 		>,
-	>(
-		path: P,
-		handler: BunHandler<WebSocketData, TContext>,
-		options?: BunRouteOptions<WebSocketData, TContext>,
-	): this {
+	>(path: P, handler: BunHandler<WebSocketData, TContext>, options?: BunRouteOptions<WebSocketData, TContext>): this {
 		return this.register(path, 'POST', handler, options);
 	}
 
@@ -239,11 +231,7 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Request,
 			Server<WebSocketData>
 		>,
-	>(
-		path: P,
-		handler: BunHandler<WebSocketData, TContext>,
-		options?: BunRouteOptions<WebSocketData, TContext>,
-	): this {
+	>(path: P, handler: BunHandler<WebSocketData, TContext>, options?: BunRouteOptions<WebSocketData, TContext>): this {
 		return this.register(path, 'PUT', handler, options);
 	}
 
@@ -253,11 +241,7 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Request,
 			Server<WebSocketData>
 		>,
-	>(
-		path: P,
-		handler: BunHandler<WebSocketData, TContext>,
-		options?: BunRouteOptions<WebSocketData, TContext>,
-	): this {
+	>(path: P, handler: BunHandler<WebSocketData, TContext>, options?: BunRouteOptions<WebSocketData, TContext>): this {
 		return this.register(path, 'DELETE', handler, options);
 	}
 
@@ -267,11 +251,7 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Request,
 			Server<WebSocketData>
 		>,
-	>(
-		path: P,
-		handler: BunHandler<WebSocketData, TContext>,
-		options?: BunRouteOptions<WebSocketData, TContext>,
-	): this {
+	>(path: P, handler: BunHandler<WebSocketData, TContext>, options?: BunRouteOptions<WebSocketData, TContext>): this {
 		return this.register(path, 'PATCH', handler, options);
 	}
 
@@ -295,11 +275,7 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 			Request,
 			Server<WebSocketData>
 		>,
-	>(
-		path: P,
-		handler: BunHandler<WebSocketData, TContext>,
-		options?: BunRouteOptions<WebSocketData, TContext>,
-	): this {
+	>(path: P, handler: BunHandler<WebSocketData, TContext>, options?: BunRouteOptions<WebSocketData, TContext>): this {
 		return this.register(path, 'HEAD', handler, options);
 	}
 
@@ -395,7 +371,9 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 				this.addRouteHandler(
 					fullPath,
 					method,
-					handler as (context: ApiHandlerContext<Request, Server<WebSocketData>>) => Promise<Response> | Response,
+					handler as (
+						context: ApiHandlerContext<Request, Server<WebSocketData>>,
+					) => Promise<Response> | Response,
 					combinedMiddleware.length > 0
 						? (combinedMiddleware as Middleware<Request, Server<WebSocketData>>[])
 						: undefined,

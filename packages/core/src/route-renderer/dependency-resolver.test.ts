@@ -63,7 +63,11 @@ describe('DependencyResolverService', () => {
 			return asset.source === 'content' && typeof asset.content === 'string';
 		}) as { name?: string; content: string }[];
 
-		expect(contentScripts.some((script) => script.content.includes("export { Table, Button } from 'react-aria-components';"))).toBe(true);
+		expect(
+			contentScripts.some((script) =>
+				script.content.includes("export { Table, Button } from 'react-aria-components';"),
+			),
+		).toBe(true);
 		expect(contentScripts.some((script) => script.content.includes("export * from './client-utils';"))).toBe(true);
 		expect(contentScripts.every((script) => /^module-[a-f0-9]+$/.test(script.name ?? ''))).toBe(true);
 		expect(

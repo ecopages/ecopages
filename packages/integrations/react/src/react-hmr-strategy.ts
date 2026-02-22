@@ -78,16 +78,15 @@ export class ReactHmrStrategy extends HmrStrategy {
 					}),
 				);
 
-				build.onLoad(
-					{ filter: /[\\/]use-sync-external-store[\\/]shim[\\/]index\.js$/ },
-					() => ({
-						contents: "export { useSyncExternalStore } from 'react';",
-						loader: 'js',
-					}),
-				);
+				build.onLoad({ filter: /[\\/]use-sync-external-store[\\/]shim[\\/]index\.js$/ }, () => ({
+					contents: "export { useSyncExternalStore } from 'react';",
+					loader: 'js',
+				}));
 
 				build.onLoad(
-					{ filter: /[\\/]use-sync-external-store[\\/]cjs[\\/]use-sync-external-store-shim\.development\.js$/ },
+					{
+						filter: /[\\/]use-sync-external-store[\\/]cjs[\\/]use-sync-external-store-shim\.development\.js$/,
+					},
 					() => ({
 						contents: "export { useSyncExternalStore } from 'react';",
 						loader: 'js',

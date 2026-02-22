@@ -153,30 +153,31 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 
 				if (source.includes('readFileSync')) {
 					const readFileTransformed = transformed.replace(
-					/\bfs\.readFileSync\s*\(\s*path\.resolve\s*\(\s*(['"`])([^'"`\n]+)\1\s*\)\s*,\s*['"`]utf-?8['"`]\s*\)/g,
-					(_match, _q, relPath) => {
-						modified = true;
-						try {
-							const sourceDir = dirname(args.path);
-							const srcDirIndex = args.path.lastIndexOf('/src/');
-							const inferredProjectRoot = srcDirIndex >= 0 ? args.path.slice(0, srcDirIndex) : undefined;
-							const candidates = [
-								resolve(absWorkingDir, relPath),
-								resolve(process.cwd(), relPath),
-								resolve(sourceDir, relPath),
-								...(inferredProjectRoot ? [resolve(inferredProjectRoot, relPath)] : []),
-							];
+						/\bfs\.readFileSync\s*\(\s*path\.resolve\s*\(\s*(['"`])([^'"`\n]+)\1\s*\)\s*,\s*['"`]utf-?8['"`]\s*\)/g,
+						(_match, _q, relPath) => {
+							modified = true;
+							try {
+								const sourceDir = dirname(args.path);
+								const srcDirIndex = args.path.lastIndexOf('/src/');
+								const inferredProjectRoot =
+									srcDirIndex >= 0 ? args.path.slice(0, srcDirIndex) : undefined;
+								const candidates = [
+									resolve(absWorkingDir, relPath),
+									resolve(process.cwd(), relPath),
+									resolve(sourceDir, relPath),
+									...(inferredProjectRoot ? [resolve(inferredProjectRoot, relPath)] : []),
+								];
 
-							const absolutePath = candidates.find((candidate) => existsSync(candidate));
-							if (!absolutePath) return '""';
+								const absolutePath = candidates.find((candidate) => existsSync(candidate));
+								if (!absolutePath) return '""';
 
-							const content = readFileSync(absolutePath, 'utf-8');
-							return JSON.stringify(content);
-						} catch {
-							return '""';
-						}
-					},
-				);
+								const content = readFileSync(absolutePath, 'utf-8');
+								return JSON.stringify(content);
+							} catch {
+								return '""';
+							}
+						},
+					);
 					transformed = readFileTransformed;
 				}
 

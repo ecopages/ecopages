@@ -13,7 +13,9 @@ import { createClientGraphBoundaryPlugin } from './client-graph-boundary-plugin.
 
 type OnLoadRegistration = {
 	options: { filter: RegExp; namespace?: string };
-	callback: (args: EcoBuildOnLoadArgs) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>;
+	callback: (
+		args: EcoBuildOnLoadArgs,
+	) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>;
 };
 
 function createPluginTestHarness(pluginOptions?: Parameters<typeof createClientGraphBoundaryPlugin>[0]) {

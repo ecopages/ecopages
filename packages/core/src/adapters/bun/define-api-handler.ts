@@ -33,9 +33,7 @@ export function defineApiHandler<
 	>,
 >(
 	handler: Omit<ApiHandler<string, Request, Server<WebSocketData>>, 'handler' | 'middleware' | 'schema'> & {
-		handler: (
-			context: BunSchemaHandlerContext<TSchema, WebSocketData, TContext>,
-		) => Promise<Response> | Response;
+		handler: (context: BunSchemaHandlerContext<TSchema, WebSocketData, TContext>) => Promise<Response> | Response;
 		middleware?: Middleware<Request, Server<WebSocketData>, TContext>[];
 		schema?: TSchema;
 	},
@@ -52,16 +50,14 @@ export interface GroupHandler<TPrefix extends string = string, WebSocketData = u
 	routes: readonly ApiHandler<string, Request, Server<WebSocketData>>[];
 }
 
-type GroupDefineHandler<
-	WebSocketData,
-	TContext extends ApiHandlerContext<Request, Server<WebSocketData>>,
-> = <const TPath extends string, TSchema extends RouteSchema | undefined = undefined>(
+type GroupDefineHandler<WebSocketData, TContext extends ApiHandlerContext<Request, Server<WebSocketData>>> = <
+	const TPath extends string,
+	TSchema extends RouteSchema | undefined = undefined,
+>(
 	handler: Omit<ApiHandler<TPath, Request, Server<WebSocketData>>, 'handler' | 'middleware' | 'schema'> & {
 		path: TPath;
 		handler: (
-			context: TSchema extends RouteSchema
-				? TypedGroupHandlerContext<TSchema, TContext>
-				: TContext,
+			context: TSchema extends RouteSchema ? TypedGroupHandlerContext<TSchema, TContext> : TContext,
 		) => Promise<Response> | Response;
 		middleware?: Middleware<Request, Server<WebSocketData>, TContext>[];
 		schema?: TSchema;
@@ -94,10 +90,13 @@ export function defineGroupHandler<
 	TPrefix extends string,
 	WebSocketData = undefined,
 	TMiddleware extends readonly Middleware<Request, Server<WebSocketData>, any>[] = [],
-	TContext extends ApiHandlerContext<Request, Server<WebSocketData>> =
-		TMiddleware extends readonly Middleware<Request, Server<WebSocketData>, infer TGroupContext>[]
-			? TGroupContext
-			: ApiHandlerContext<Request, Server<WebSocketData>>,
+	TContext extends ApiHandlerContext<Request, Server<WebSocketData>> = TMiddleware extends readonly Middleware<
+		Request,
+		Server<WebSocketData>,
+		infer TGroupContext
+	>[]
+		? TGroupContext
+		: ApiHandlerContext<Request, Server<WebSocketData>>,
 >(config: {
 	prefix: TPrefix;
 	middleware?: TMiddleware;

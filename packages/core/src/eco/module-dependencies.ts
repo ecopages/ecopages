@@ -8,13 +8,7 @@ function normalizeImports(imports: string[] | undefined): string[] | undefined {
 		return undefined;
 	}
 
-	const normalized = Array.from(
-		new Set(
-			imports
-				.map((entry) => entry.trim())
-				.filter((entry) => entry.length > 0),
-		),
-	);
+	const normalized = Array.from(new Set(imports.map((entry) => entry.trim()).filter((entry) => entry.length > 0)));
 
 	return normalized.length > 0 ? normalized : undefined;
 }

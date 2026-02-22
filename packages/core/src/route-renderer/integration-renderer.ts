@@ -23,10 +23,7 @@ import type {
 	RouteRenderResult,
 	StaticPageContext,
 } from '../public-types.ts';
-import {
-	type AssetProcessingService,
-	type ProcessedAsset,
-} from '../services/asset-processing-service/index.ts';
+import { type AssetProcessingService, type ProcessedAsset } from '../services/asset-processing-service/index.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
 import { HttpError } from '../errors/http-error.ts';

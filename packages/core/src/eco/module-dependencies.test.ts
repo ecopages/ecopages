@@ -1,8 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import {
-	normalizeModuleDeclarations,
-	parseModuleDeclaration,
-} from './module-dependencies.ts';
+import { normalizeModuleDeclarations, parseModuleDeclaration } from './module-dependencies.ts';
 
 describe('module dependencies parser', () => {
 	test('parses simple module declaration', () => {

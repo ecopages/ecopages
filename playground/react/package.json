@@ -1,13 +1,14 @@
 {
 	"name": "@ecopages/playground-react",
 	"private": true,
+	"type": "module",
 	"scripts": {
-		"start": "NODE_ENV=production bun run app.ts",
-		"dev": "bun run app.ts --dev --react-fast-refresh",
-		"build": "NODE_ENV=production bun run app.ts --build",
-		"preview": "NODE_ENV=production bun run app.ts --preview",
-		"watch:dev": "bun --watch run app.ts --dev",
-		"hot:dev": "bun --hot run app.ts --dev"
+		"start": "NODE_ENV=production ecopages start",
+		"dev": "ecopages dev --react-fast-refresh",
+		"build": "NODE_ENV=production ecopages build",
+		"preview": "NODE_ENV=production ecopages preview",
+		"watch:dev": "ecopages dev:watch",
+		"hot:dev": "ecopages dev:hot"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

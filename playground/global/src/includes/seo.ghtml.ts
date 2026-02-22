@@ -1,7 +1,7 @@
 import type { PageMetadataProps } from '@ecopages/core';
 import { html } from '@ecopages/core/html';
 
-const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
+const withBaseUrl = (path: string) => `${process.env.ECOPAGES_BASE_URL}/${path}`;
 
 export function Seo({
 	title,

@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import { existsSync, readFileSync } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import tiged from 'tiged';
 import { Logger } from '@ecopages/logger';
 
@@ -59,6 +59,14 @@ function buildEnvOverrides(options) {
 
 function detectRuntime() {
 	if (typeof Bun !== 'undefined') {
+		return 'bun';
+	}
+
+	const bunVersionResult = spawnSync('bun', ['--version'], {
+		stdio: 'ignore',
+	});
+
+	if (!bunVersionResult.error && bunVersionResult.status === 0) {
 		return 'bun';
 	}
 

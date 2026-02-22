@@ -1,12 +1,13 @@
 {
 	"name": "@ecopages/eco-blog",
 	"private": true,
+	"type": "module",
 	"scripts": {
-		"start": "bun run app.ts",
-		"dev": "bun run app.ts --dev",
-		"build": "bun run app.ts --build",
-		"preview": "bun run app.ts --preview",
-		"watch:dev": "bun --watch run app.ts --dev",
+		"start": "ecopages start",
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"preview": "ecopages preview",
+		"watch:dev": "ecopages dev:watch",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "bun run src/lib/migrate.ts",
 		"db:seed": "bun run src/lib/seed.ts",

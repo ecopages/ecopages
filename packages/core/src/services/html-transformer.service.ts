@@ -10,10 +10,7 @@ type HtmlRewriterRuntime = {
 };
 
 export class HtmlTransformerService {
-	htmlRewriter: HtmlRewriterRuntime | null;
-	constructor(private processedDependencies: ProcessedAsset[] = []) {
-		this.htmlRewriter = this.createHtmlRewriter();
-	}
+	private processedDependencies: ProcessedAsset[] = [];
 
 	private createHtmlRewriter(): HtmlRewriterRuntime | null {
 		const RuntimeHtmlRewriter = (globalThis as { HTMLRewriter?: new () => HtmlRewriterRuntime }).HTMLRewriter;
@@ -89,12 +86,13 @@ export class HtmlTransformerService {
 
 	async transform(res: Response): Promise<Response> {
 		const { head, body } = this.groupDependenciesByPosition();
+		const htmlRewriter = this.createHtmlRewriter();
 
 		const html = await res.text();
 		const headers = new Headers(res.headers);
 
-		if (this.htmlRewriter) {
-			this.htmlRewriter
+		if (htmlRewriter) {
+			htmlRewriter
 				.on('head', {
 					element: (element) => this.appendDependencies(element, head),
 				})
@@ -102,7 +100,7 @@ export class HtmlTransformerService {
 					element: (element) => this.appendDependencies(element, body),
 				});
 
-			return this.htmlRewriter.transform(
+			return htmlRewriter.transform(
 				new Response(html, {
 					headers,
 					status: res.status,

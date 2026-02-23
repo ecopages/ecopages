@@ -2,11 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import nodeTest from 'node:test';
+import { test } from 'vitest';
 import { defaultBuildAdapter, EsbuildBuildAdapter } from './build-adapter.ts';
 import type { EcoBuildPluginBuilder } from './build-types.ts';
-
-const test = process.versions.bun ? nodeTest.skip : nodeTest;
 
 const tempRoots: string[] = [];
 

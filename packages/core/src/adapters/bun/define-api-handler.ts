@@ -77,8 +77,8 @@ type GroupDefineHandler<WebSocketData, TContext extends ApiHandlerContext<Reques
  *     define({ path: '/', method: 'GET', handler: (ctx) => ctx.render(List, {}) }),
  *     define({ path: '/posts/:id', method: 'GET', handler: (ctx) => {
  *       // ctx.session is typed from authMiddleware!
- *       // ctx.request.params.id is typed from path!
- *       return ctx.render(Post, { id: ctx.request.params.id });
+ *       // ctx.params.id is typed from path!
+ *       return ctx.render(Post, { id: ctx.params.id });
  *     }}),
  *   ],
  * });

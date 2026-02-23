@@ -968,7 +968,7 @@ export type EcoMiddleware<TContext extends ApiHandlerContext<any, any>> =
  * @example Basic handler
  * ```typescript
  * app.get('/users/:id', async (ctx) => {
- *   return ctx.json({ id: ctx.request.params.id });
+ *   return ctx.json({ id: ctx.params.id });
  * });
  * ```
  *

@@ -20,6 +20,7 @@ export class RouteRenderer {
 export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
+	private rendererCache = new Map<string, IntegrationRenderer>();
 
 	constructor({ appConfig, runtimeOrigin }: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }) {
 		this.appConfig = appConfig;
@@ -41,7 +42,15 @@ export class RouteRendererFactory {
 		if (!integrationPlugin) {
 			return null;
 		}
-		return integrationPlugin.initializeRenderer();
+
+		const cached = this.rendererCache.get(integrationName);
+		if (cached) {
+			return cached;
+		}
+
+		const renderer = integrationPlugin.initializeRenderer();
+		this.rendererCache.set(integrationName, renderer);
+		return renderer;
 	}
 
 	getIntegrationPlugin(filePath: string): IntegrationPlugin {
@@ -59,6 +68,13 @@ export class RouteRendererFactory {
 
 	private getRouteRendererEngine(filePath: string): IntegrationRenderer {
 		const integrationPlugin = this.getIntegrationPlugin(filePath);
-		return integrationPlugin.initializeRenderer();
+		const cached = this.rendererCache.get(integrationPlugin.name);
+		if (cached) {
+			return cached;
+		}
+
+		const renderer = integrationPlugin.initializeRenderer();
+		this.rendererCache.set(integrationPlugin.name, renderer);
+		return renderer;
 	}
 }

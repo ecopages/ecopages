@@ -48,7 +48,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		outdir: string;
 	} & ScriptAsset['bundleOptions']): Promise<string> {
 		const buildPlugins = this.collectBuildPlugins();
-		const allPlugins = additionalPlugins ? [...buildPlugins, ...additionalPlugins] : buildPlugins;
+		const allPlugins = additionalPlugins ? [...additionalPlugins, ...buildPlugins] : buildPlugins;
 
 		const build = await defaultBuildAdapter.build({
 			entrypoints: [entrypoint],

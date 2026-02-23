@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import type { EcoComponent } from '../public-types.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
@@ -9,6 +10,71 @@ import type {
 import { AssetFactory } from '../services/asset-processing-service/index.ts';
 import { normalizeModuleDeclarations } from '../eco/module-dependencies.ts';
 import { rapidhash } from '../utils/hash.ts';
+import { parseSync } from 'oxc-parser';
+
+/**
+ * Parses a component's source file with oxc-parser and collects all
+ * `ecopages:` virtual module imports, preserving their named specifiers.
+ * Type-only imports (`import type`) are skipped since they don't exist at runtime.
+ *
+ * @example
+ * // import { foo } from 'ecopages:images'  →  { from: 'ecopages:images', imports: ['foo'] }
+ */
+function extractEcopagesVirtualImports(file: string): Array<{ from: string; imports: string[] | undefined }> {
+	let source: string;
+	try {
+		source = readFileSync(file, 'utf-8');
+	} catch {
+		return [];
+	}
+
+	let result;
+	try {
+		result = parseSync(file, source, { sourceType: 'module' });
+	} catch {
+		return [];
+	}
+
+	const found = new Map<string, Set<string> | null>();
+
+	for (const node of (result.program as any).body ?? []) {
+		if (node.type !== 'ImportDeclaration') continue;
+		if (node.importKind === 'type') continue;
+		const specifier: string = node.source?.value ?? '';
+		if (!specifier.startsWith('ecopages:')) continue;
+
+		if (found.get(specifier) === null) {
+			continue;
+		}
+
+		const namedImports: string[] = [];
+		for (const spec of node.specifiers ?? []) {
+			if (spec.type === 'ImportSpecifier') {
+				namedImports.push(spec.imported?.name ?? spec.imported?.value ?? spec.local?.name);
+			}
+		}
+
+		if (namedImports.length === 0) {
+			found.set(specifier, null);
+			continue;
+		}
+
+		const existing = found.get(specifier);
+		if (!existing) {
+			found.set(specifier, new Set(namedImports));
+			continue;
+		}
+
+		for (const imported of namedImports) {
+			existing.add(imported);
+		}
+	}
+
+	return Array.from(found.entries()).map(([from, importsSet]) => ({
+		from,
+		imports: importsSet ? Array.from(importsSet) : undefined,
+	}));
+}
 
 function createModuleScriptName(from: string, imports: string[] | undefined): string {
 	const normalizedImports = imports ? [...imports].sort().join(',') : '*';
@@ -92,25 +158,26 @@ export class DependencyResolverService {
 			const modulesMap = new Map<string, Set<string> | null>();
 
 			const collect = (config: EcoComponent['config']) => {
-				if (!config?.dependencies) return;
+				if (!config) return;
 
 				const file = config.__eco?.file;
 				if (!file) return;
 				const dir = path.dirname(file);
+				const dependenciesConfig = config.dependencies;
 
-				if (config.dependencies.stylesheets) {
-					for (const style of config.dependencies.stylesheets) {
+				if (dependenciesConfig?.stylesheets) {
+					for (const style of dependenciesConfig.stylesheets) {
 						stylesheetsSet.add(resolveDependencyPath(dir, style));
 					}
 				}
 
-				if (config.dependencies.scripts) {
-					for (const script of config.dependencies.scripts) {
+				if (dependenciesConfig?.scripts) {
+					for (const script of dependenciesConfig.scripts) {
 						scriptsSet.add(resolveDependencyPath(dir, script));
 					}
 				}
 
-				const normalizedModules = normalizeModuleDeclarations(config.dependencies.modules);
+				const normalizedModules = normalizeModuleDeclarations(dependenciesConfig?.modules);
 
 				for (const declaration of normalizedModules) {
 					const existing = modulesMap.get(declaration.from);
@@ -130,11 +197,11 @@ export class DependencyResolverService {
 					modulesMap.set(declaration.from, merged);
 				}
 
-				if (config.dependencies.lazy?.scripts) {
-					const lazyScriptFallbacks = this.resolveLazyScripts(dir, config.dependencies.lazy.scripts).split(
+				if (dependenciesConfig?.lazy?.scripts) {
+					const lazyScriptFallbacks = this.resolveLazyScripts(dir, dependenciesConfig.lazy.scripts).split(
 						',',
 					);
-					const lazyScripts = config.dependencies.lazy.scripts.map((script, index) => ({
+					const lazyScripts = dependenciesConfig.lazy.scripts.map((script, index) => ({
 						sourcePath: this.resolveDependencyPath(dir, script),
 						fallbackUrl: lazyScriptFallbacks[index] ?? '',
 					}));
@@ -143,7 +210,7 @@ export class DependencyResolverService {
 					existingLazyScripts.push(...lazyScripts);
 					lazyScriptsByConfig.set(config, existingLazyScripts);
 
-					for (const script of config.dependencies.lazy.scripts) {
+					for (const script of dependenciesConfig.lazy.scripts) {
 						const resolvedPath = this.resolveDependencyPath(dir, script);
 						dependencies.push(
 							AssetFactory.createFileScript({
@@ -159,12 +226,26 @@ export class DependencyResolverService {
 					}
 				}
 
-				if (config.dependencies.components) {
-					for (const nestedComponent of config.dependencies.components) {
+				if (dependenciesConfig?.components) {
+					for (const nestedComponent of dependenciesConfig.components) {
 						if (nestedComponent.config) {
 							collect(nestedComponent.config);
 						}
 					}
+				}
+
+				// Auto-detect `ecopages:` virtual module imports from the component source file
+				const autoVirtualImports = extractEcopagesVirtualImports(file);
+				for (const { from, imports } of autoVirtualImports) {
+					const existing = modulesMap.get(from);
+					if (!imports || imports.length === 0) {
+						if (existing !== null) modulesMap.set(from, null);
+						continue;
+					}
+					if (existing === null) continue;
+					const merged = existing ?? new Set<string>();
+					for (const imported of imports) merged.add(imported);
+					modulesMap.set(from, merged);
 				}
 			};
 

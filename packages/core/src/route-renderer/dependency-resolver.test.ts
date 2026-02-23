@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { DependencyResolverService } from './dependency-resolver.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../services/asset-processing-service/index.ts';
@@ -78,5 +81,48 @@ describe('DependencyResolverService', () => {
 			}),
 		).toBe(true);
 		expect(component.config._resolvedScripts).toBe('/assets/components/table/table.client.js');
+	});
+
+	it('should detect ecopages virtual imports via parser', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-dependency-resolver-'));
+		const componentFile = join(tempDir, 'component.tsx');
+
+		writeFileSync(
+			componentFile,
+			"import { heroImage as imageAsset } from 'ecopages:images';\nexport const ok = imageAsset.src;\n",
+			'utf-8',
+		);
+
+		let capturedDeps: unknown[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: unknown[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'component',
+				integration: 'react',
+				file: componentFile,
+			},
+		};
+
+		try {
+			await service.processComponentDependencies([component], 'react');
+
+			const contentScripts = capturedDeps.filter((dep) => {
+				if (!dep || typeof dep !== 'object') return false;
+				const asset = dep as { source?: string; content?: string };
+				return asset.source === 'content' && typeof asset.content === 'string';
+			}) as { content: string }[];
+
+			expect(contentScripts.some((script) => script.content.includes("from 'ecopages:images';"))).toBe(true);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 });

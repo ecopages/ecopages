@@ -21,7 +21,8 @@ describe('HtmlTransformerService', () => {
 			},
 		];
 
-		const transformer = new HtmlTransformerService(dependencies);
+		const transformer = new HtmlTransformerService();
+		transformer.setProcessedDependencies(dependencies);
 		const Response = createMockResponse('<html><head></head><body></body></html>');
 		const result = await transformer.transform(Response);
 		const html = await result.text();
@@ -40,7 +41,8 @@ describe('HtmlTransformerService', () => {
 			},
 		];
 
-		const transformer = new HtmlTransformerService(dependencies);
+		const transformer = new HtmlTransformerService();
+		transformer.setProcessedDependencies(dependencies);
 		const Response = createMockResponse('<html><head></head><body></body></html>');
 		const result = await transformer.transform(Response);
 		const html = await result.text();
@@ -65,7 +67,8 @@ describe('HtmlTransformerService', () => {
 			},
 		];
 
-		const transformer = new HtmlTransformerService(dependencies);
+		const transformer = new HtmlTransformerService();
+		transformer.setProcessedDependencies(dependencies);
 		const Response = createMockResponse('<html><head></head><body></body></html>');
 		const result = await transformer.transform(Response);
 		const html = await result.text();
@@ -86,7 +89,8 @@ describe('HtmlTransformerService', () => {
 		];
 
 		const originalHtml = '<html><head><title>Test</title></head><body><div>Content</div></body></html>';
-		const transformer = new HtmlTransformerService(dependencies);
+		const transformer = new HtmlTransformerService();
+		transformer.setProcessedDependencies(dependencies);
 		const Response = createMockResponse(originalHtml);
 		const result = await transformer.transform(Response);
 		const html = await result.text();

@@ -61,7 +61,7 @@ export class AssetProcessingService {
 		const dedupedDeps = this.deduplicateDependencies(deps);
 		const results = await this.processDependenciesParallel(dedupedDeps, key);
 
-		await this.optimizeDependencies(depsDir);
+		await this.optimizeDependencies(results);
 		return results;
 	}
 
@@ -78,6 +78,25 @@ export class AssetProcessingService {
 		return Array.from(seen.values());
 	}
 
+	private getScriptDependencyBuildSignature(dep: AssetDefinition): string | undefined {
+		if (dep.kind !== 'script') {
+			return undefined;
+		}
+
+		const pluginNames = dep.bundleOptions?.plugins?.map((plugin) => plugin.name) ?? [];
+		const signature = {
+			bundle: dep.bundle,
+			inline: dep.inline,
+			excludeFromHtml: dep.excludeFromHtml,
+			naming: dep.bundleOptions?.naming,
+			external: dep.bundleOptions?.external,
+			minify: dep.bundleOptions?.minify,
+			plugins: pluginNames,
+		};
+
+		return this.generateHash(JSON.stringify(signature));
+	}
+
 	private getDependencyKey(dep: AssetDefinition): string {
 		const parts: string[] = [dep.kind, dep.source];
 
@@ -91,6 +110,11 @@ export class AssetProcessingService {
 
 		if ('position' in dep && dep.position) {
 			parts.push(dep.position);
+		}
+
+		const scriptBuildSignature = this.getScriptDependencyBuildSignature(dep);
+		if (scriptBuildSignature) {
+			parts.push(`build:${scriptBuildSignature}`);
 		}
 
 		return parts.join(':');
@@ -213,9 +237,32 @@ export class AssetProcessingService {
 		return /^[A-Za-z]:\\/.test(value);
 	}
 
-	private async optimizeDependencies(depsDir: string): Promise<void> {
-		if (process.env.NODE_ENV === 'production') {
-			fileSystem.gzipDir(depsDir, ['css', 'js']);
+	private async optimizeDependencies(processedAssets: ProcessedAsset[]): Promise<void> {
+		if (process.env.NODE_ENV !== 'production') {
+			return;
+		}
+
+		const filesToGzip = new Set<string>();
+
+		for (const asset of processedAssets) {
+			if (!asset.filepath) {
+				continue;
+			}
+
+			if (!asset.filepath.startsWith(this.config.absolutePaths.distDir)) {
+				continue;
+			}
+
+			const extension = path.extname(asset.filepath).slice(1);
+			if (extension === 'css' || extension === 'js') {
+				filesToGzip.add(asset.filepath);
+			}
+		}
+
+		for (const filePath of filesToGzip) {
+			if (fileSystem.exists(filePath)) {
+				fileSystem.gzipFile(filePath);
+			}
 		}
 	}
 

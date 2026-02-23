@@ -74,7 +74,7 @@ function UrbanVintageCredits() {
 
 export default eco.page<{}, ReactNode>({
 	dependencies: {
-		components: [BaseLayout],
+		components: [BaseLayout, ClientImageGenerator],
 	},
 
 	metadata: () => ({

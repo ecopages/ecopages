@@ -50,8 +50,8 @@ app.head('/api/resource', handler);
 You can define dynamic route parameters using the `:param` syntax:
 
 ```typescript
-app.get('/api/users/:id/posts/:postId', async ({ request }) => {
-	const { id, postId } = request.params;
+app.get('/api/users/:id/posts/:postId', async ({ params }) => {
+	const { id, postId } = params;
 	return new Response(JSON.stringify({ userId: id, postId }));
 });
 ```
@@ -60,11 +60,11 @@ app.get('/api/users/:id/posts/:postId', async ({ request }) => {
 
 Ecopages leverages TypeScript to provide strong type safety for your API handlers, especially for route parameters.
 
-While you can define handlers directly, ensuring the `request.params` type matches the `path` string requires careful manual typing. To simplify this and improve code organization, Ecopages provides adapter-specific helper functions.
+While you can define handlers directly, ensuring the `params` type matches the `path` string requires careful manual typing. To simplify this and improve code organization, Ecopages provides adapter-specific helper functions.
 
 ### Using `defineApiHandler`
 
-When using the Bun adapter, you can use the `defineApiHandler` helper function. This function automatically infers the parameter types from the `path` string literal, ensuring your `request.params` object is correctly typed without explicit annotations.
+When using the Bun adapter, you can use the `defineApiHandler` helper function. This function automatically infers the parameter types from the `path` string literal, ensuring your `params` object is correctly typed without explicit annotations.
 
 ```typescript
 // Import the adapter-specific helper
@@ -74,9 +74,9 @@ import { defineApiHandler } from '@ecopages/core/bun/define-handler'; // Adjust 
 const getUserHandler = defineApiHandler({
 	method: 'GET',
 	path: '/api/users/:id', // Type of 'id' is inferred from here
-	handler: async ({ request }) => {
-		// request.params is automatically typed as { id: string }
-	const { id } = request.params;
+	handler: async ({ params }) => {
+		// params is automatically typed as { id: string }
+	const { id } = params;
 		// Fetch user logic...
 	const user = { id: id, name: 'Example User' };
 
@@ -94,8 +94,8 @@ app.get(getUserHandler.path, getUserHandler.handler);
 const updateUserHandler = defineApiHandler({
 	method: 'PUT',
 	path: '/api/users/:id',
-	handler: async ({ request }) => {
-		const { id } = request.params;
+	handler: async ({ params }) => {
+		const { id } = params;
 		// Update user logic...
 		return new Response(JSON.stringify({ id, message: 'User updated' }));
 	}
@@ -109,7 +109,7 @@ app.put(updateUserHandler.path, updateUserHandler.handler);
 
 Using defineApiHandler offers several advantages:
 
-- Automatic Parameter Typing: Eliminates the need to manually type request.params.
+- Automatic Parameter Typing: Eliminates the need to manually type params.
 - Improved Readability: Keeps the handler definition concise.
 - Enhanced Organization: Encourages defining handlers as separate, reusable constants before registering them.
 - Reduced Errors: Prevents type mismatches between the path string and the parameters used in the handler.

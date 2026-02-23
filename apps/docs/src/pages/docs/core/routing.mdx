@@ -68,8 +68,8 @@ import { EcopagesApp } from '@ecopages/core/bun/create-app';
 
 const app = new EcopagesApp({ appConfig: config });
 
-app.get('/api/users/:id', async ({ request, response }) => {
-    const { id } = request.params;
+app.get('/api/users/:id', async ({ params, response }) => {
+    const { id } = params;
     return response.json({ userId: id });
 });
 ```

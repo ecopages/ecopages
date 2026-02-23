@@ -56,7 +56,7 @@ Use dynamic imports for views to enable HMR (hot module replacement) during deve
 ```typescript
 app.get('/posts/:slug', async (ctx) => {
 	const { default: PostView } = await import('./src/views/post-view');
-	const post = await getPost(ctx.request.params.slug);
+	const post = await getPost(ctx.params.slug);
 	if (!post) {
 		throw HttpError.NotFound('Post not found');
 	}
@@ -316,7 +316,7 @@ Throw `HttpError` for standard HTTP errors:
 import { HttpError } from '@ecopages/core/errors';
 
 app.get('/posts/:slug', async (ctx) => {
-	const post = await getPost(ctx.request.params.slug);
+	const post = await getPost(ctx.params.slug);
 	if (!post) {
 		throw HttpError.NotFound('Post not found');
 	}

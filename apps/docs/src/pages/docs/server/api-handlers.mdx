@@ -44,8 +44,8 @@ await app.start();
 Every API handler function receives a `HandlerContext` object as its argument. This object provides access to essential information and utilities for handling the request and constructing the response.
 
 ```typescript
-app.get('/api/example/:id', async ({ request, response }) => {
-	const { id } = request.params;
+app.get('/api/example/:id', async ({ request, response, params }) => {
+	const { id } = params;
 	const userAgent = request.headers.get('user-agent');
 	const queryParam = request.query.get('search');
 	const body = {
@@ -60,10 +60,10 @@ app.get('/api/example/:id', async ({ request, response }) => {
 
 The `HandlerContext` contains:
 
-- `request`: The incoming request object (specific to the adapter, e.g., `BunRequest` for the Bun adapter). It includes:
-    - `params`: An object containing route parameters (e.g., `:id` in `/api/users/:id`).
-    - Standard `Request` properties like `headers`, `method`, `url`, etc.
-    - Methods like `json()`, `text()`, `formData()` to parse the request body.
+- `request`: The incoming request object (specific to the adapter, e.g., `Request` for Bun and Node).
+	- Standard `Request` properties like `headers`, `method`, `url`, etc.
+	- Methods like `json()`, `text()`, `formData()` to parse the request body.
+- `params`: Route parameters parsed from the path (e.g., `:id` in `/api/users/:id`).
 - `response`: An instance of `ApiResponseBuilder`, a utility for constructing `Response` objects fluently.
 - `server`: The underlying server instance (e.g., Bun's server object), which exposes advanced utilities such as `requestIP`, `reload`, and other debugging or runtime methods.
 - `body`: The parsed and optionally validated request body. Automatically typed when using schemas.
@@ -140,8 +140,8 @@ app.get('/api/old-path', async ({ response }) => {
 	return response.status(301).redirect('/api/new-path');
 });
 
-app.get('/api/find/:id', async ({ request, response }) => {
-	const { id } = request.params;
+app.get('/api/find/:id', async ({ params, response }) => {
+	const { id } = params;
 	const item = // ... find item logic ...
 
 	if (!item) {

@@ -103,7 +103,7 @@ app.get('/posts', async (ctx) => {
 app.get('/posts/:slug', async (ctx) => {
 	const { default: PostView } = await import('./src/views/post');
 	const post = await db.posts.findUnique({
-		where: { slug: ctx.request.params.slug }
+		where: { slug: ctx.params.slug }
 	});
 	if (!post) throw HttpError.NotFound('Post not found');
 	return ctx.render(PostView, post);
@@ -176,7 +176,7 @@ export async function index(ctx: ApiHandlerContext) {
 export async function show(ctx: ApiHandlerContext) {
 	const { default: PostView } = await import('../views/post');
 	const post = await db.posts.findUnique({
-		where: { slug: ctx.request.params.slug },
+		where: { slug: ctx.params.slug },
 		include: { author: true }
 	});
 	if (!post) throw HttpError.NotFound('Post not found');
@@ -192,7 +192,7 @@ export async function create(ctx: ApiHandlerContext) {
 }
 
 export async function update(ctx: ApiHandlerContext) {
-	const { slug } = ctx.request.params;
+	const { slug } = ctx.params;
 	const post = await db.posts.update({
 		where: { slug },
 		data: ctx.body
@@ -201,7 +201,7 @@ export async function update(ctx: ApiHandlerContext) {
 }
 
 export async function destroy(ctx: ApiHandlerContext) {
-	const { slug } = ctx.request.params;
+	const { slug } = ctx.params;
 	await db.posts.delete({ where: { slug } });
 	return ctx.json({ deleted: true });
 }
@@ -289,7 +289,7 @@ export function createPostsHandlers(db: Database) {
 		show: async (ctx: ApiHandlerContext) => {
 			const { default: PostView } = await import('../views/post');
 			const post = await db.posts.findUnique({
-				where: { slug: ctx.request.params.slug },
+				where: { slug: ctx.params.slug },
 				include: { author: true }
 			});
 			if (!post) throw HttpError.NotFound('Post not found');
@@ -460,7 +460,7 @@ export class PostsController {
 
 	async show(ctx: ApiHandlerContext) {
 		const { default: PostView } = await import('../views/post');
-		const post = await this.postsService.findBySlug(ctx.request.params.slug);
+		const post = await this.postsService.findBySlug(ctx.params.slug);
 		if (!post) throw HttpError.NotFound('Post not found');
 		return ctx.render(PostView, post);
 	}
@@ -472,13 +472,13 @@ export class PostsController {
 	}
 
 	async update(ctx: ApiHandlerContext) {
-		const { slug } = ctx.request.params;
+		const { slug } = ctx.params;
 		const post = await this.postsService.update(slug, ctx.body);
 		return ctx.json(post);
 	}
 
 	async destroy(ctx: ApiHandlerContext) {
-		const { slug } = ctx.request.params;
+		const { slug } = ctx.params;
 		await this.postsService.delete(slug);
 		return ctx.json({ deleted: true });
 	}
@@ -676,7 +676,7 @@ export function createPostsHandlers(
 
 		async show(ctx: ApiHandlerContext) {
 			const { default: PostView } = await import('../views/post');
-			const post = await service.getPostBySlug(ctx.request.params.slug);
+			const post = await service.getPostBySlug(ctx.params.slug);
 			if (!post) throw HttpError.NotFound('Post not found');
 			const viewData = adapter.toDetailView(post);
 			return ctx.render(PostView, viewData);
@@ -689,7 +689,7 @@ export function createPostsHandlers(
 		},
 
 		async publish(ctx: ApiHandlerContext) {
-			const { slug } = ctx.request.params;
+			const { slug } = ctx.params;
 			const post = await service.publishPost(slug);
 			if (!post) throw HttpError.NotFound('Post not found');
 			return ctx.json(post);
@@ -810,7 +810,7 @@ Handlers should orchestrate, not implement business logic:
 ```typescript
 async show(ctx: ApiHandlerContext) {
 	const { default: PostView } = await import('../views/post');
-	const post = await service.getPostBySlug(ctx.request.params.slug);
+	const post = await service.getPostBySlug(ctx.params.slug);
 	if (!post) throw HttpError.NotFound();
 	return ctx.render(PostView, adapter.toView(post));
 }

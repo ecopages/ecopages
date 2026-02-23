@@ -18,6 +18,7 @@ import type { DefaultHmrContext } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { injectHmrHandler } from './utils/hmr-scripts.ts';
 import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
+import { collectPageDeclaredModules } from './utils/declared-modules.ts';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
 
@@ -121,7 +122,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * Includes the client graph boundary plugin to prevent undeclared imports
 	 * (including `node:*`) from breaking the browser bundle.
 	 */
-	private getBuildPlugins(): EcoBuildPlugin[] {
+	private getBuildPlugins(declaredModules?: string[]): EcoBuildPlugin[] {
 		const allowSpecifiers = [
 			'@ecopages/core',
 			'react',
@@ -136,6 +137,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			createClientGraphBoundaryPlugin({
 				absWorkingDir: path.dirname(this.context.getSrcDir()),
 				alwaysAllowSpecifiers: allowSpecifiers,
+				declaredModules,
 			}),
 			...this.context.getPlugins(),
 			this.createUseSyncExternalStoreShimPlugin(),
@@ -262,7 +264,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const outputPath = path.join(this.context.getDistDir(), encodedPathJs);
 			const tempDir = path.dirname(outputPath);
 
-			const plugins = this.getBuildPlugins();
+			const declaredModules = await collectPageDeclaredModules(entrypointPath);
+			const plugins = this.getBuildPlugins(declaredModules);
 
 			if (isMdx && this.mdxCompilerOptions) {
 				const { createMdxLoaderPlugin } = await import('@ecopages/mdx/mdx-loader-plugin');
@@ -273,7 +276,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const result = await defaultBuildAdapter.build({
 				entrypoints: [entrypointPath],
 				outdir: tempDir,
-				naming: `[name].[hash].tmp.js`,
+				naming: `[name].[hash].tmp`,
 				target: 'browser',
 				format: 'esm',
 				sourcemap: 'none',

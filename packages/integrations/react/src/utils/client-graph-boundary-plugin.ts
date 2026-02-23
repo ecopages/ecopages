@@ -1,22 +1,40 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import { parseSync } from 'oxc-parser';
 
 const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
-const STATIC_IMPORT_WITH_FROM_PATTERN = /^\s*import\s+[\s\S]*?\s+from\s+(['"])([^'"\n]+)\1\s*;?\s*$/gm;
-const STATIC_SIDE_EFFECT_IMPORT_PATTERN = /^\s*import\s+(['"])([^'"\n]+)\1\s*;?\s*$/gm;
-const EXPORT_FROM_PATTERN = /^\s*export\s+[\s\S]*?\s+from\s+(['"])([^'"\n]+)\1\s*;?\s*$/gm;
-const DYNAMIC_IMPORT_PATTERN = /\bimport\(\s*(['"])([^'"\n]+)\1\s*\)/g;
-const REQUIRE_PATTERN = /\brequire\(\s*(['"])([^'"\n]+)\1\s*\)/g;
-const MODULE_DECLARATION_ARRAY_PATTERN = /\bmodules\s*:\s*\[([\s\S]*?)\]/g;
-const STRING_LITERAL_PATTERN = /(['"])([^'"\n]+)\1/g;
 
+/**
+ * Configuration options for the Client Graph Boundary esbuild plugin.
+ *
+ * This plugin serves as the primary security layer between server-only logic and the client-side JavaScript bundle.
+ * It prevents Node.js built-ins (`node:fs`, `node:path`) and backend-exclusive dependencies (e.g. `pg`, `redis`)
+ * from accidentally leaking into the browser compilation step, which would cause immediate crashes.
+ */
 type ClientGraphBoundaryOptions = {
+	/** Absolute path to the current working directory, used as a root fallback for resolving inline file reads. */
 	absWorkingDir?: string;
+	/**
+	 * Array of module specifiers that are explicitly whitelisted to be bundled in the client code.
+	 * This is typically populated by parsing `modules: ["..."]` declarations in React/Lit components.
+	 */
 	declaredModules?: string[];
+	/** Array of emergency escape-hatch specifiers that always bypass the boundary checks regardless of component declarations. */
 	alwaysAllowSpecifiers?: string[];
 };
 
+/**
+ * Evaluates whether a module import is referencing an external package dependency
+ * (e.g., `react` or `lodash`) as opposed to a local internal file (e.g., `./component` or `/absolute/path`).
+ *
+ * This is a critical building block for the graph boundary. We only want to restrict
+ * specific external dependencies (like server-only utilities) from entering the client bundle,
+ * while allowing all normal local relative UI component imports to flow through Esbuild safely.
+ *
+ * @param specifier - The raw import string found in the source code (e.g., `./Button.tsx` or `node:fs`)
+ * @returns True if the import string refers to a top-level package or Node built-in.
+ */
 function isBareSpecifier(specifier: string): boolean {
 	if (specifier.startsWith('.')) return false;
 	if (specifier.startsWith('/')) return false;
@@ -25,9 +43,25 @@ function isBareSpecifier(specifier: string): boolean {
 }
 
 function isProjectAliasSpecifier(specifier: string): boolean {
-	return specifier.startsWith('@/') || specifier.startsWith('~/');
+	return specifier.startsWith('@/') || specifier.startsWith('~/') || specifier.startsWith('ecopages:');
 }
 
+/**
+ * Strips down a deep path module specifier to its foundational root package name.
+ *
+ * When checking against the "allowed modules" whitelist, a component might import something deeply
+ * nested like `lodash/fp/map` or `@myorg/ui/button`. However, the user configuration only whitelists
+ * the root `lodash` or `@myorg/ui` package. This normalizer ensures we are comparing apples to apples
+ * by extracting the base package scope before checking the authorization list.
+ *
+ * @example
+ * toModuleBaseSpecifier('@scope/package/deep/file') -> '@scope/package'
+ * toModuleBaseSpecifier('lodash/cloneDeep') -> 'lodash'
+ * toModuleBaseSpecifier('node:fs') -> 'node:fs'
+ *
+ * @param specifier - The raw import specifier from the code.
+ * @returns The root package name, preserving scoped npm organizations.
+ */
 function toModuleBaseSpecifier(specifier: string): string {
 	if (!isBareSpecifier(specifier) || specifier.startsWith('node:')) {
 		return specifier;
@@ -43,83 +77,300 @@ function toModuleBaseSpecifier(specifier: string): string {
 	return name ?? specifier;
 }
 
-function extractLocalDeclaredModules(source: string): string[] {
-	const declarations: string[] = [];
+/**
+ * Parses the grammar syntax of declared modules.
+ * Handles patterns like `@pkg/name` and `@pkg/name{namedImport,anotherImport}`
+ * returning a map of base packages to their explicitly allowed specifiers.
+ */
+function parseDeclaredModules(moduleDeclarations: string[] | undefined): Map<string, Set<string> | '*'> {
+	const map = new Map<string, Set<string> | '*'>();
+	for (const declaration of moduleDeclarations ?? []) {
+		const source = declaration.trim();
+		if (source.length === 0) continue;
+		const openBraceIndex = source.indexOf('{');
+		if (openBraceIndex < 0) {
+			map.set(toModuleBaseSpecifier(source), '*');
+			continue;
+		}
 
-	for (const match of source.matchAll(MODULE_DECLARATION_ARRAY_PATTERN)) {
-		const arraySource = match[1] ?? '';
-		for (const value of arraySource.matchAll(STRING_LITERAL_PATTERN)) {
-			const declaration = value[2]?.trim();
-			if (declaration) {
-				declarations.push(declaration);
+		const closeBraceIndex = source.indexOf('}', openBraceIndex);
+		const rawPkg = source.slice(0, openBraceIndex).trim();
+		if (rawPkg.length === 0) continue;
+		const pkg = toModuleBaseSpecifier(rawPkg);
+
+		const namedImportsStr =
+			closeBraceIndex > openBraceIndex
+				? source.slice(openBraceIndex + 1, closeBraceIndex)
+				: source.slice(openBraceIndex + 1);
+
+		const namedImports = namedImportsStr
+			.split(',')
+			.map((s) => s.trim())
+			.filter(Boolean);
+
+		const existing = map.get(pkg);
+		if (existing === '*') continue;
+
+		if (!existing) {
+			if (namedImports.length === 0) {
+				map.set(pkg, '*');
+			} else {
+				map.set(pkg, new Set(namedImports));
+			}
+		} else {
+			for (const name of namedImports) {
+				existing.add(name);
 			}
 		}
 	}
-
-	return declarations;
+	return map;
 }
 
-function parseDeclaredModuleSource(value: string): string | undefined {
-	const source = value.trim();
-	if (source.length === 0) return undefined;
-	const openBraceIndex = source.indexOf('{');
-	if (openBraceIndex < 0) return source;
-	const from = source.slice(0, openBraceIndex).trim();
-	return from.length > 0 ? from : undefined;
-}
-
-function toAllowedModuleSources(moduleDeclarations: string[] | undefined): Set<string> {
-	const normalized = new Set<string>();
-	for (const declaration of moduleDeclarations ?? []) {
-		const from = parseDeclaredModuleSource(declaration);
-		if (from) {
-			normalized.add(from);
+function mergeDeclaredModulesMap(
+	a: Map<string, Set<string> | '*'>,
+	b: Map<string, Set<string> | '*'>,
+): Map<string, Set<string> | '*'> {
+	const result = new Map(a);
+	for (const [pkg, imports] of b.entries()) {
+		const existing = result.get(pkg);
+		if (existing === '*') continue;
+		if (imports === '*') {
+			result.set(pkg, '*');
+			continue;
+		}
+		if (!existing) {
+			result.set(pkg, imports);
+		} else {
+			for (const name of imports) {
+				existing.add(name);
+			}
 		}
 	}
-	return normalized;
+	return result;
 }
 
-function shouldStripSpecifier(specifier: string, allowedModuleSources: Set<string>): boolean {
-	if (specifier.startsWith('node:')) {
-		return true;
-	}
-
-	if (isProjectAliasSpecifier(specifier)) {
-		return false;
-	}
-
-	if (!isBareSpecifier(specifier)) {
-		return false;
-	}
-
-	const moduleBase = toModuleBaseSpecifier(specifier);
-	return !allowedModuleSources.has(moduleBase);
+function parserLanguageForFile(filename: string): 'js' | 'jsx' | 'ts' | 'tsx' {
+	const extension = extname(filename).toLowerCase();
+	if (extension === '.tsx') return 'tsx';
+	if (extension === '.ts') return 'ts';
+	if (extension === '.jsx') return 'jsx';
+	return 'js';
 }
 
-function stripForbiddenImports(source: string, allowedModuleSources: Set<string>): string {
+/**
+ * Parses a module using Oxc AST and surgically removes forbidden imports.
+ * Filters down to the exact specifiers requested via `{namedImport}` syntax.
+ */
+function transformModuleImports(
+	source: string,
+	filename: string,
+	globallyAllowed: Map<string, Set<string> | '*'>,
+): { transformed: string; modified: boolean } {
+	let result;
+	try {
+		result = parseSync(filename, source, {
+			sourceType: 'module',
+			lang: parserLanguageForFile(filename),
+		});
+	} catch {
+		return { transformed: source, modified: false };
+	}
+
+	const { program } = result;
+	const localDeclared: string[] = [];
+
+	/** Use any here because Oxc AST nodes are highly dynamic */
+	function walk(node: any) {
+		if (!node || typeof node !== 'object') return;
+		if (Array.isArray(node)) {
+			for (const child of node) walk(child);
+			return;
+		}
+
+		if (node.type === 'Property' && node.key?.name === 'modules' && node.value?.type === 'ArrayExpression') {
+			for (const el of node.value.elements) {
+				if ((el.type === 'StringLiteral' || el.type === 'Literal') && typeof el.value === 'string') {
+					localDeclared.push(el.value);
+				}
+			}
+		}
+
+		for (const key in node) {
+			if (key !== 'type' && key !== 'start' && key !== 'end') {
+				walk(node[key]);
+			}
+		}
+	}
+	walk(program);
+
+	const locallyAllowed = parseDeclaredModules(localDeclared);
+	const allowedMap = mergeDeclaredModulesMap(globallyAllowed, locallyAllowed);
+
+	const edits: { start: number; end: number; replacement: string }[] = [];
+
+	function processSpecifier(specifier: string): { allowed: boolean; rules?: Set<string> | '*' } {
+		if (specifier.startsWith('node:')) return { allowed: false };
+		if (isProjectAliasSpecifier(specifier)) return { allowed: true, rules: '*' };
+		if (!isBareSpecifier(specifier)) return { allowed: true, rules: '*' };
+
+		const moduleBase = toModuleBaseSpecifier(specifier);
+		if (allowedMap.has(moduleBase)) {
+			return { allowed: true, rules: allowedMap.get(moduleBase) };
+		}
+		return { allowed: false };
+	}
+
+	/** Use any here because Oxc AST nodes are highly dynamic */
+	function walkImports(node: any) {
+		if (!node || typeof node !== 'object') return;
+		if (Array.isArray(node)) {
+			for (const child of node) walkImports(child);
+			return;
+		}
+
+		if (node.type === 'ImportDeclaration') {
+			const specifier = node.source.value as string;
+			const { allowed, rules } = processSpecifier(specifier);
+
+			if (!allowed) {
+				edits.push({ start: node.start, end: node.end, replacement: '' });
+			} else if (rules && rules !== '*') {
+				const specifiers = node.specifiers || [];
+				if (specifiers.length === 0) {
+					edits.push({ start: node.start, end: node.end, replacement: '' });
+				} else {
+					const keptSpecifiers: string[] = [];
+					let keptDefault: string | undefined;
+					let keptNamespace: string | undefined;
+
+					for (const spec of specifiers) {
+						if (spec.type === 'ImportDefaultSpecifier') {
+							if (rules.has('default')) keptDefault = spec.local.name;
+						} else if (spec.type === 'ImportNamespaceSpecifier') {
+							if (rules.has('*')) keptNamespace = spec.local.name;
+						} else if (spec.type === 'ImportSpecifier') {
+							const importedName = spec.imported.name || spec.imported.value;
+							if (rules.has(importedName)) {
+								if (importedName === spec.local.name) {
+									keptSpecifiers.push(importedName);
+								} else {
+									keptSpecifiers.push(`${importedName} as ${spec.local.name}`);
+								}
+							}
+						}
+					}
+
+					const parts = [];
+					if (keptDefault) parts.push(keptDefault);
+					if (keptNamespace) parts.push(`* as ${keptNamespace}`);
+					if (keptSpecifiers.length > 0) parts.push(`{ ${keptSpecifiers.join(', ')} }`);
+
+					if (parts.length > 0) {
+						const typePrefix = node.importKind === 'type' ? 'type ' : '';
+						edits.push({
+							start: node.start,
+							end: node.end,
+							replacement: `import ${typePrefix}${parts.join(', ')} from '${specifier}';`,
+						});
+					} else {
+						edits.push({ start: node.start, end: node.end, replacement: '' });
+					}
+				}
+			}
+			/**
+			 * Do not traverse inside ImportDeclaration
+			 */
+			return;
+		}
+
+		if (node.type === 'ExportNamedDeclaration' && node.source) {
+			const specifier = node.source.value as string;
+			const { allowed, rules } = processSpecifier(specifier);
+
+			if (!allowed) {
+				edits.push({ start: node.start, end: node.end, replacement: '' });
+			} else if (rules && rules !== '*') {
+				const specifiers = node.specifiers || [];
+				if (specifiers.length === 0) {
+					edits.push({ start: node.start, end: node.end, replacement: '' });
+				} else {
+					const keptSpecifiers: string[] = [];
+					for (const spec of specifiers) {
+						if (spec.type === 'ExportSpecifier') {
+							const exportedName = spec.exported.name || spec.exported.value;
+							const localName = spec.local.name;
+							if (rules.has(localName) || rules.has(exportedName)) {
+								if (localName === exportedName) {
+									keptSpecifiers.push(localName);
+								} else {
+									keptSpecifiers.push(`${localName} as ${exportedName}`);
+								}
+							}
+						}
+					}
+					if (keptSpecifiers.length > 0) {
+						const typePrefix = node.exportKind === 'type' ? 'type ' : '';
+						edits.push({
+							start: node.start,
+							end: node.end,
+							replacement: `export ${typePrefix}{ ${keptSpecifiers.join(', ')} } from '${specifier}';`,
+						});
+					} else {
+						edits.push({ start: node.start, end: node.end, replacement: '' });
+					}
+				}
+			}
+			return;
+		}
+
+		if (node.type === 'ExportAllDeclaration' && node.source) {
+			const specifier = node.source.value as string;
+			const { allowed, rules } = processSpecifier(specifier);
+			if (!allowed || (rules && rules !== '*')) {
+				edits.push({ start: node.start, end: node.end, replacement: '' });
+			}
+			return;
+		}
+
+		if (node.type === 'ImportExpression' && node.source?.value) {
+			const specifier = node.source.value as string;
+			const { allowed } = processSpecifier(specifier);
+			if (!allowed) {
+				edits.push({ start: node.start, end: node.end, replacement: 'Promise.resolve({})' });
+			}
+			return;
+		}
+
+		if (node.type === 'CallExpression' && node.callee?.type === 'Identifier' && node.callee.name === 'require') {
+			const arg = node.arguments?.[0];
+			if (arg && (arg.type === 'StringLiteral' || arg.type === 'Literal') && typeof arg.value === 'string') {
+				const specifier = arg.value;
+				const { allowed } = processSpecifier(specifier);
+				if (!allowed) {
+					edits.push({ start: node.start, end: node.end, replacement: '({})' });
+				}
+			}
+		}
+
+		for (const key in node) {
+			if (key !== 'type' && key !== 'start' && key !== 'end') {
+				walkImports(node[key]);
+			}
+		}
+	}
+	walkImports(program);
+
+	if (edits.length === 0) {
+		return { transformed: source, modified: false };
+	}
+
+	edits.sort((a, b) => b.start - a.start);
 	let transformed = source;
+	for (const edit of edits) {
+		transformed = transformed.slice(0, edit.start) + edit.replacement + transformed.slice(edit.end);
+	}
 
-	transformed = transformed.replace(STATIC_IMPORT_WITH_FROM_PATTERN, (full, _quote, specifier: string) => {
-		return shouldStripSpecifier(specifier, allowedModuleSources) ? '' : full;
-	});
-
-	transformed = transformed.replace(STATIC_SIDE_EFFECT_IMPORT_PATTERN, (full, _quote, specifier: string) => {
-		return shouldStripSpecifier(specifier, allowedModuleSources) ? '' : full;
-	});
-
-	transformed = transformed.replace(EXPORT_FROM_PATTERN, (full, _quote, specifier: string) => {
-		return shouldStripSpecifier(specifier, allowedModuleSources) ? '' : full;
-	});
-
-	transformed = transformed.replace(DYNAMIC_IMPORT_PATTERN, (full, _quote, specifier: string) => {
-		return shouldStripSpecifier(specifier, allowedModuleSources) ? 'Promise.resolve({})' : full;
-	});
-
-	transformed = transformed.replace(REQUIRE_PATTERN, (full, _quote, specifier: string) => {
-		return shouldStripSpecifier(specifier, allowedModuleSources) ? '({})' : full;
-	});
-
-	return transformed;
+	return { transformed, modified: true };
 }
 
 export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOptions): EcoBuildPlugin {
@@ -127,9 +378,9 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 		name: 'ecopages-client-graph-boundary',
 		setup(build) {
 			const absWorkingDir = options?.absWorkingDir ?? process.cwd();
-			const globallyDeclaredSources = toAllowedModuleSources(options?.declaredModules);
+			const globallyDeclaredSources = parseDeclaredModules(options?.declaredModules);
 			for (const alwaysAllow of options?.alwaysAllowSpecifiers ?? []) {
-				globallyDeclaredSources.add(toModuleBaseSpecifier(alwaysAllow));
+				globallyDeclaredSources.set(toModuleBaseSpecifier(alwaysAllow), '*');
 			}
 
 			/**
@@ -181,12 +432,15 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 					transformed = readFileTransformed;
 				}
 
-				const localDeclaredSources = toAllowedModuleSources(extractLocalDeclaredModules(source));
-				const allowedModuleSources = new Set<string>([...globallyDeclaredSources, ...localDeclaredSources]);
-				const strippedImports = stripForbiddenImports(transformed, allowedModuleSources);
-				if (strippedImports !== transformed) {
+				const { transformed: oxcTransformed, modified: importsModified } = transformModuleImports(
+					transformed,
+					args.path,
+					globallyDeclaredSources,
+				);
+
+				if (importsModified) {
 					modified = true;
-					transformed = strippedImports;
+					transformed = oxcTransformed;
 				}
 
 				if (!modified) return undefined;

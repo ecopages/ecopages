@@ -237,24 +237,14 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	 */
 	private getDependencies(): AssetDefinition[] {
 		const deps: AssetDefinition[] = [
-			AssetFactory.createInlineContentScript({
-				position: 'head',
-				bundle: false,
-				content: JSON.stringify(
-					{
-						imports: this.getSpecifierMap(),
-					},
-					null,
-					2,
-				),
-				attributes: {
-					type: 'importmap',
-				},
-			}),
 			AssetFactory.createNodeModuleScript({
 				position: 'head',
 				importPath: '@ecopages/react/react-esm.ts',
 				name: 'react-esm',
+				excludeFromHtml: true,
+				bundleOptions: {
+					naming: 'react-esm.js',
+				},
 				attributes: {
 					type: 'module',
 					defer: '',
@@ -264,6 +254,10 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 				position: 'head',
 				importPath: '@ecopages/react/react-dom-esm.ts',
 				name: 'react-dom-esm',
+				excludeFromHtml: true,
+				bundleOptions: {
+					naming: 'react-dom-esm.js',
+				},
 				attributes: {
 					type: 'module',
 					defer: '',
@@ -272,13 +266,22 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		];
 
 		if (this.routerAdapter) {
+			const runtimeAliasPlugin = this.createRuntimeAliasPlugin();
+			const mappedSpecifiers = new Set(Object.keys(this.getSpecifierMap()));
+			const unresolvedExternals = this.routerAdapter.bundle.externals.filter(
+				(external) => !mappedSpecifiers.has(external),
+			);
+
 			deps.push(
 				AssetFactory.createNodeModuleScript({
 					position: 'head',
 					importPath: this.routerAdapter.bundle.importPath,
 					name: this.routerAdapter.bundle.outputName,
+					excludeFromHtml: true,
 					bundleOptions: {
-						external: this.routerAdapter.bundle.externals,
+						naming: `${this.routerAdapter.bundle.outputName}.js`,
+						external: unresolvedExternals,
+						plugins: [runtimeAliasPlugin],
 					},
 					attributes: {
 						type: 'module',
@@ -289,6 +292,30 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		}
 
 		return deps;
+	}
+
+	private createRuntimeAliasPlugin(): EcoBuildPlugin {
+		const specifierMap = this.getSpecifierMap();
+		const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const filter = new RegExp(
+			`^(${Object.keys(specifierMap)
+				.map((key) => escapeRegExp(key))
+				.join('|')})$`,
+		);
+
+		return {
+			name: 'react-plugin-runtime-alias',
+			setup(build) {
+				build.onResolve({ filter }, (args) => {
+					const mappedPath = specifierMap[args.path];
+					if (!mappedPath) return undefined;
+					return {
+						path: mappedPath,
+						external: true,
+					};
+				});
+			},
+		};
 	}
 }
 

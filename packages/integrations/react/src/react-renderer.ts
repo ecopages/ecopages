@@ -33,26 +33,16 @@ import { PLUGIN_NAME } from './react.plugin.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
 import { createHydrationScript } from './utils/hydration-scripts.ts';
 import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
+import { collectDeclaredModulesInConfig } from './utils/declared-modules.ts';
 
-function parseDeclaredModuleSource(value: string): string | undefined {
-	const source = value.trim();
-	if (source.length === 0) return undefined;
-	const openBraceIndex = source.indexOf('{');
-	if (openBraceIndex < 0) return source;
-	const from = source.slice(0, openBraceIndex).trim();
-	return from.length > 0 ? from : undefined;
-}
-
-function normalizeDeclaredModuleSources(modules?: string[]): string[] {
-	const seen = new Set<string>();
-	for (const declaration of modules ?? []) {
-		const from = parseDeclaredModuleSource(declaration);
-		if (from) {
-			seen.add(from);
-		}
-	}
-	return Array.from(seen);
-}
+type ReactRuntimeImports = {
+	react: string;
+	reactDomClient: string;
+	reactJsxRuntime: string;
+	reactJsxDevRuntime: string;
+	reactDom: string;
+	router?: string;
+};
 
 /**
  * Error thrown when an error occurs while rendering a React component.
@@ -136,8 +126,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		isMdx: boolean,
 		declaredModules: string[],
 	): Promise<Record<string, unknown>> {
+		const runtimeImports = this.getRuntimeImports();
 		const options: Record<string, unknown> = {
 			external: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
+			mainFields: ['module', 'browser', 'main'],
 			naming: `${componentName}.[ext]`,
 			...(import.meta.env?.NODE_ENV === 'production' && {
 				minify: true,
@@ -160,12 +152,73 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			],
 		});
 
+		const runtimeAliasPlugin = this.createRuntimeAliasPlugin(runtimeImports);
+
+		const useSyncExternalStoreShimPlugin = {
+			name: 'react-renderer-use-sync-external-store-shim',
+			setup(build: {
+				onResolve: (
+					options: { filter: RegExp; namespace?: string },
+					callback: (args: {
+						path: string;
+						importer: string;
+						namespace: string;
+					}) => { path?: string; namespace?: string } | undefined,
+				) => void;
+				onLoad: (
+					options: { filter: RegExp; namespace?: string },
+					callback: (args: {
+						path: string;
+						namespace: string;
+					}) => { contents?: string; loader?: 'js' } | undefined,
+				) => void;
+			}) {
+				build.onResolve({ filter: /^use-sync-external-store\/shim(?:\/index\.js)?$/ }, () => ({
+					path: 'use-sync-external-store/shim',
+					namespace: 'ecopages-react-renderer-shim',
+				}));
+
+				build.onLoad(
+					{ filter: /^use-sync-external-store\/shim$/, namespace: 'ecopages-react-renderer-shim' },
+					() => ({
+						contents: "export { useSyncExternalStore } from 'react';",
+						loader: 'js',
+					}),
+				);
+
+				build.onLoad({ filter: /[\\/]use-sync-external-store[\\/]shim[\\/]index\.js$/ }, () => ({
+					contents: "export { useSyncExternalStore } from 'react';",
+					loader: 'js',
+				}));
+
+				build.onLoad(
+					{
+						filter: /[\\/]use-sync-external-store[\\/]cjs[\\/]use-sync-external-store-shim\.development\.js$/,
+					},
+					() => ({
+						contents: "export { useSyncExternalStore } from 'react';",
+						loader: 'js',
+					}),
+				);
+
+				build.onLoad(
+					{
+						filter: /[\\/]use-sync-external-store[\\/]cjs[\\/]use-sync-external-store-shim\.production\.js$/,
+					},
+					() => ({
+						contents: "export { useSyncExternalStore } from 'react';",
+						loader: 'js',
+					}),
+				);
+			},
+		};
+
 		if (isMdx && ReactRenderer.mdxCompilerOptions) {
 			const { createMdxLoaderPlugin } = await import('@ecopages/mdx/mdx-loader-plugin');
 			const mdxPlugin = await createMdxLoaderPlugin(ReactRenderer.mdxCompilerOptions);
-			options.plugins = [mdxPlugin, graphBoundaryPlugin];
+			options.plugins = [runtimeAliasPlugin, mdxPlugin, useSyncExternalStoreShimPlugin, graphBoundaryPlugin];
 		} else {
-			options.plugins = [graphBoundaryPlugin];
+			options.plugins = [runtimeAliasPlugin, useSyncExternalStoreShimPlugin, graphBoundaryPlugin];
 		}
 
 		return options;
@@ -195,6 +248,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		isMdx: boolean,
 		props?: Record<string, unknown>,
 	): AssetDefinition[] {
+		const runtimeImports = this.getRuntimeImports();
 		const dependencies: AssetDefinition[] = [
 			AssetFactory.createFileScript({
 				position: 'head',
@@ -230,6 +284,9 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				position: 'head',
 				content: createHydrationScript({
 					importPath,
+					reactImportPath: runtimeImports.react,
+					reactDomClientImportPath: runtimeImports.reactDomClient,
+					routerImportPath: runtimeImports.router,
 					isDevelopment,
 					isMdx,
 					router: ReactRenderer.routerAdapter,
@@ -245,6 +302,66 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		);
 
 		return dependencies;
+	}
+
+	private getRuntimeImports(): ReactRuntimeImports {
+		const vendorsBase = `/${AssetFactory.RESOLVED_ASSETS_VENDORS_DIR}`;
+		return {
+			react: `${vendorsBase}/react-esm.js`,
+			reactDomClient: `${vendorsBase}/react-esm.js`,
+			reactJsxRuntime: `${vendorsBase}/react-esm.js`,
+			reactJsxDevRuntime: `${vendorsBase}/react-esm.js`,
+			reactDom: `${vendorsBase}/react-dom-esm.js`,
+			router: ReactRenderer.routerAdapter
+				? `${vendorsBase}/${ReactRenderer.routerAdapter.bundle.outputName}.js`
+				: undefined,
+		};
+	}
+
+	private createRuntimeAliasPlugin(runtimeImports: ReactRuntimeImports) {
+		const aliases = new Map<string, string>([
+			['react', runtimeImports.react],
+			['react-dom/client', runtimeImports.reactDomClient],
+			['react/jsx-runtime', runtimeImports.reactJsxRuntime],
+			['react/jsx-dev-runtime', runtimeImports.reactJsxDevRuntime],
+			['react-dom', runtimeImports.reactDom],
+		]);
+
+		if (ReactRenderer.routerAdapter && runtimeImports.router) {
+			aliases.set(ReactRenderer.routerAdapter.importMapKey, runtimeImports.router);
+		}
+
+		const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const pattern = new RegExp(
+			`^(${Array.from(aliases.keys())
+				.map((key) => escapeRegExp(key))
+				.join('|')})$`,
+		);
+
+		return {
+			name: 'react-runtime-import-alias',
+			setup(build: {
+				onResolve: (
+					options: { filter: RegExp; namespace?: string },
+					callback: (args: {
+						path: string;
+						importer: string;
+						namespace: string;
+					}) => { path?: string; namespace?: string; external?: boolean } | undefined,
+				) => void;
+			}) {
+				build.onResolve({ filter: pattern }, (args) => {
+					const mappedPath = aliases.get(args.path);
+					if (!mappedPath) {
+						return undefined;
+					}
+					return {
+						path: mappedPath,
+						external: true,
+					};
+				});
+			},
+		};
 	}
 
 	/**
@@ -353,39 +470,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return this.hasModulesInConfig(pageConfig) || this.hasModulesInConfig(pageModule.config);
 	}
 
-	private collectDeclaredModulesInConfig(
-		config: EcoComponentConfig | undefined,
-		visited = new Set<EcoComponentConfig>(),
-	): string[] {
-		if (!config || visited.has(config)) {
-			return [];
-		}
-
-		visited.add(config);
-
-		const declarations = normalizeDeclaredModuleSources(config.dependencies?.modules);
-
-		if (config.layout?.config) {
-			declarations.push(...this.collectDeclaredModulesInConfig(config.layout.config, visited));
-		}
-
-		for (const component of config.dependencies?.components ?? []) {
-			if (component.config) {
-				declarations.push(...this.collectDeclaredModulesInConfig(component.config, visited));
-			}
-		}
-
-		return declarations;
-	}
-
 	private async collectPageDeclaredModules(pagePath: string): Promise<string[]> {
 		const pageModule = (await this.importPageFile(pagePath)) as EcoPageFile<{ config?: EcoComponentConfig }> & {
 			config?: EcoComponentConfig;
 		};
 
 		const declarations = [
-			...this.collectDeclaredModulesInConfig(pageModule.default?.config),
-			...this.collectDeclaredModulesInConfig(pageModule.config),
+			...collectDeclaredModulesInConfig(pageModule.default?.config),
+			...collectDeclaredModulesInConfig(pageModule.config),
 		];
 
 		return Array.from(new Set(declarations));

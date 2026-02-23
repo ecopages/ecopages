@@ -132,4 +132,33 @@ describe('createClientGraphBoundaryPlugin', () => {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
+
+	it('surgically removes undeclared named imports when using pkg{named} grammar', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const filePath = join(tempDir, 'entry.tsx');
+		writeFileSync(
+			filePath,
+			[
+				"import { createColumnHelper, useReactTable } from '@tanstack/react-table';",
+				"import type { TableOptions } from '@tanstack/react-table';",
+				"const Component = eco.component({ dependencies: { modules: ['@tanstack/react-table{useReactTable}'] } });",
+				'export default Component;',
+			].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const harness = createPluginTestHarness();
+			const transformed = await harness.transformFile(filePath);
+
+			expect(transformed).toBeDefined();
+			// should have dropped createColumnHelper
+			expect(transformed).toContain("import { useReactTable } from '@tanstack/react-table';");
+			expect(transformed).not.toContain('createColumnHelper');
+			// TableOptions wasn't allowed, so the whole line should be dropped.
+			expect(transformed).not.toContain('TableOptions');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
 });

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { HttpError } from '@ecopages/core/errors';
 import { defineGroupHandler } from '@ecopages/core/bun';
 import { dbService } from '@/lib/db';
@@ -53,11 +54,11 @@ export const adminGroup = defineGroupHandler({
 		define({
 			path: '/posts/:id',
 			method: 'GET',
+			schema: { params: z.object({ id: z.coerce.number() }) },
 			handler: async (ctx) => {
 				const { default: PostEditor } = await import('@/views/admin/post-editor.kita');
-				const id = Number.parseInt(ctx.request.params.id);
 				const posts = await dbService.getAllPosts();
-				const post = posts.find((p) => p.id === id);
+				const post = posts.find((p) => p.id === ctx.params.id);
 				if (!post) throw HttpError.NotFound('Post not found');
 				return ctx.render(PostEditor, { post });
 			},
@@ -66,10 +67,10 @@ export const adminGroup = defineGroupHandler({
 		define({
 			path: '/posts/:id',
 			method: 'POST',
+			schema: { params: z.object({ id: z.coerce.number() }) },
 			handler: async (ctx) => {
-				const id = Number.parseInt(ctx.request.params.id);
 				const body = await ctx.request.formData();
-				dbService.updatePost(id, {
+				dbService.updatePost(ctx.params.id, {
 					title: body.get('title') as string,
 					slug: body.get('slug') as string,
 					content: body.get('content') as string,
@@ -82,9 +83,9 @@ export const adminGroup = defineGroupHandler({
 		define({
 			path: '/posts/:id/delete',
 			method: 'POST',
+			schema: { params: z.object({ id: z.coerce.number() }) },
 			handler: async (ctx) => {
-				const id = Number.parseInt(ctx.request.params.id);
-				dbService.deletePost(id);
+				dbService.deletePost(ctx.params.id);
 				return Response.redirect('/admin');
 			},
 		}),

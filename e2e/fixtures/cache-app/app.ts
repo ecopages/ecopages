@@ -3,8 +3,20 @@ import appConfig from './eco.config';
 
 const app = new EcopagesApp({ appConfig });
 
+interface CacheInvalidationBody {
+	tags?: string[];
+	paths?: string[];
+	clear?: boolean;
+}
+
 app.post('/api/revalidate', async ({ request, services }) => {
-	const body = (await request.json()) as { tags?: string[]; paths?: string[]; clear?: boolean };
+	let body: CacheInvalidationBody;
+	try {
+		body = (await request.json()) as CacheInvalidationBody;
+	} catch (e) {
+		console.error('Failed to parse JSON body:', e);
+		return Response.json({ error: String(e) }, { status: 400 });
+	}
 
 	if (!services.cache) {
 		return Response.json({ error: 'Cache service not available' }, { status: 503 });

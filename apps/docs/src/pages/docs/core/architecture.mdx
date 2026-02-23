@@ -30,7 +30,9 @@ When a request hits your Ecopages application, it follows this simplified flow:
 For those wishing to dive deeper, we recommend exploring the source code:
 
 - **[`EcopagesApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/bun/create-app.ts)**: The main entry point and orchestrator.
+- **[`SharedServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/shared/server-adapter.ts)**: The core server logic shared across environments.
 - **[`BunServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/bun/server-adapter.ts)**: Handles the low-level Bun server interface.
+- **[`NodeServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/server-adapter.ts)**: Handles the low-level Node server interface.
 - **[`IntegrationPlugin`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/plugins/integration-plugin.ts)**: The base class for all templating integrations.
 - **[`ConfigBuilder`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/config/config-builder.ts)**: Validates and constructs your application state.
 

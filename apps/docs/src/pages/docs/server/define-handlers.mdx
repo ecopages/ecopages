@@ -20,8 +20,8 @@ These helpers enable you to define handlers outside your main app file while pre
 When defining handlers inline, TypeScript can infer types from context:
 
 ```typescript
-app.get('/api/posts/:id', async ({ request }) => {
-  const { id } = request.params; // TypeScript knows id exists
+app.get('/api/posts/:id', async ({ params }) => {
+  const { id } = params; // TypeScript knows id exists
   return Response.json({ id });
 });
 ```
@@ -30,8 +30,8 @@ However, when you extract handlers to separate files, you lose that inference:
 
 ```typescript
 // handlers/blog.ts - Type inference is lost
-export const getPost = async ({ request }) => {
-  const { id } = request.params; // Error: params is { [x: string]: string }
+export const getPost = async ({ params }) => {
+  const { id } = params; // Error: params is { [x: string]: string }
 };
 ```
 
@@ -59,9 +59,9 @@ export const list = defineApiHandler({
 export const detail = defineApiHandler({
   path: '/api/posts/:id',
   method: 'GET',
-  handler: async ({ request, response }) => {
-    // request.params.id is correctly typed as string
-    const post = await getPost(request.params.id);
+  handler: async ({ params, response }) => {
+    // params.id is correctly typed as string
+    const post = await getPost(params.id);
     return response.json(post);
   },
 });
@@ -164,8 +164,8 @@ export const adminGroup = defineGroupHandler({
       method: 'GET',
       handler: async (ctx) => {
         // ctx.session is typed from authMiddleware
-        // ctx.request.params.id is typed from the path
-        const post = await getPost(ctx.request.params.id);
+        // ctx.params.id is typed from the path
+        const post = await getPost(ctx.params.id);
         return ctx.response.json(post);
       },
     }),
@@ -173,7 +173,7 @@ export const adminGroup = defineGroupHandler({
       path: '/posts/:id',
       method: 'DELETE',
       handler: async (ctx) => {
-        await deletePost(ctx.request.params.id);
+        await deletePost(ctx.params.id);
         return ctx.response.status(204).text('');
       },
     }),
@@ -246,9 +246,9 @@ Path parameters are inferred from the literal path string:
 defineApiHandler({
   path: '/api/users/:userId/posts/:postId',
   method: 'GET',
-  handler: async ({ request }) => {
-    // request.params is typed as { userId: string; postId: string }
-    const { userId, postId } = request.params;
+  handler: async ({ params }) => {
+    // params is typed as { userId: string; postId: string }
+    const { userId, postId } = params;
   },
 });
 ```
@@ -315,8 +315,8 @@ export const list = defineApiHandler({
 export const detail = defineApiHandler({
   path: '/api/posts/:id',
   method: 'GET',
-  handler: async ({ request, response }) => {
-    const post = await getPost(request.params.id);
+  handler: async ({ params, response }) => {
+    const post = await getPost(params.id);
     if (!post) return response.status(404).json({ error: 'Not found' });
     return response.json(post);
   },
@@ -341,7 +341,7 @@ export const protectedGroup = defineGroupHandler({
       method: 'PUT',
       schema: updatePostSchema,
       handler: async (ctx) => {
-        const post = await updatePost(ctx.request.params.id, ctx.body, ctx.session.user.id);
+        const post = await updatePost(ctx.params.id, ctx.body, ctx.session.user.id);
         return ctx.response.json(post);
       },
     }),
@@ -349,7 +349,7 @@ export const protectedGroup = defineGroupHandler({
       path: '/:id',
       method: 'DELETE',
       handler: async (ctx) => {
-        await deletePost(ctx.request.params.id, ctx.session.user.id);
+        await deletePost(ctx.params.id, ctx.session.user.id);
         return ctx.response.status(204).text('');
       },
     }),

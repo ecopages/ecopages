@@ -72,8 +72,8 @@ Ecopages API handlers run on the Bun server. They are perfect for proxying reque
 
 ```typescript
 // app.ts
-app.get('/api/users/:id', async ({ request, response }) => {
-    const user = await db.users.find(request.params.id);
+app.get('/api/users/:id', async ({ params, response }) => {
+    const user = await db.users.find(params.id);
     return response.json(user);
 });
 ```

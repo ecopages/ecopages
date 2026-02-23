@@ -80,6 +80,8 @@ import { heroImage, profilePicture, blogThumbnail } from 'ecopages:images';
 // src/images/profile_picture.png -> profilePicture
 ```
 
+No manual `dependencies.modules` declaration is required for `ecopages:images`; imports are automatically detected and included in the client bundle.
+
 #### Benefits:
 
 - **TypeScript Integration**: Full autocompletion support for image names

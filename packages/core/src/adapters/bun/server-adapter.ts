@@ -1,38 +1,20 @@
-import path from 'node:path';
-import type { BunRequest, Server, WebSocketHandler } from 'bun';
+import type { Server, WebSocketHandler } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type {
-	ApiHandler,
-	ApiHandlerContext,
-	CacheInvalidator,
-	ErrorHandler,
-	RenderContext,
-	StaticRoute,
-} from '../../public-types.ts';
+import type { ApiHandler, ApiHandlerContext, ErrorHandler, StaticRoute } from '../../public-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
-import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
-import { FSRouter } from '../../router/fs-router.ts';
-import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
-import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
-import { PageCacheService } from '../../services/cache/page-cache-service.ts';
-import { SchemaValidationService } from '../../services/schema-validation-service.ts';
-import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
-import { deepMerge } from '../../utils/deep-merge.ts';
+
 import { fileSystem } from '@ecopages/file-system';
-import { AbstractServerAdapter, type ServerAdapterResult } from '../abstract/server-adapter.ts';
-import { ApiResponseBuilder } from '../shared/api-response.js';
-import { ExplicitStaticRouteMatcher } from '../shared/explicit-static-route-matcher.ts';
-import { FileSystemServerResponseFactory } from '../shared/fs-server-response-factory.ts';
-import { FileSystemResponseMatcher } from '../shared/fs-server-response-matcher.ts';
-import { createRenderContext } from '../shared/render-context.ts';
-import { ServerRouteHandler, type ServerRouteHandlerParams } from '../shared/server-route-handler';
+import { SharedServerAdapter } from '../shared/server-adapter.ts';
+import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
+import { ApiResponseBuilder } from '../shared/api-response.ts';
+
+import { ServerRouteHandler, type ServerRouteHandlerParams } from '../shared/server-route-handler.ts';
 import { ServerStaticBuilder, type ServerStaticBuilderParams } from '../shared/server-static-builder';
 import { ClientBridge } from './client-bridge';
 import { HmrManager } from './hmr-manager';
-import { BunRouterAdapter } from './router-adapter.ts';
-import { ServerLifecycle } from './server-lifecycle';
+import { ServerLifecycle } from './server-lifecycle.ts';
 
 type BunServerInstance = Server<unknown>;
 type BunNativeServeOptions = Bun.Serve.Options<unknown>;
@@ -41,13 +23,11 @@ export type BunServerRoutes = Bun.Serve.Routes<unknown, string>;
 
 export type BunServeAdapterServerOptions = Partial<
 	Omit<BunNativeServeOptions, 'fetch'> & {
-		routes: BunServerRoutes;
 		fetch(this: BunServerInstance, request: Request): Promise<void | Response>;
 	}
 >;
 
 export type BunServeOptions = Omit<BunNativeServeOptions, 'fetch'> & {
-	routes: BunServerRoutes;
 	fetch?: (this: BunServerInstance, request: Request, server: BunServerInstance) => Promise<void | Response>;
 	websocket?: WebSocketHandler<unknown>;
 };
@@ -75,28 +55,21 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
 	completeInitialization: (server: BunServerInstance) => Promise<void>;
 }
 
-export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterParams, BunServerAdapterResult> {
+export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams, BunServerAdapterResult> {
 	declare appConfig: EcoPagesAppConfig;
 	declare options: BunServerAdapterParams['options'];
-	declare serveOptions: BunServerAdapterParams['serveOptions'];
+	declare serveOptions: BunServeAdapterServerOptions;
 	protected apiHandlers: ApiHandler<string, Request, BunServerInstance>[];
 	protected staticRoutes: StaticRoute[];
+
 	protected errorHandler?: ErrorHandler;
 
-	private router!: FSRouter;
-	private fileSystemResponseMatcher!: FileSystemResponseMatcher;
-	private routeRendererFactory!: RouteRendererFactory;
-	private routes: BunServerRoutes = {};
-	private staticSiteGenerator!: StaticSiteGenerator;
 	private bridge!: ClientBridge;
 	private lifecycle!: ServerLifecycle;
-	private staticBuilder!: ServerStaticBuilder;
-	private routeHandler!: ServerRouteHandler;
 	public hmrManager!: HmrManager;
 	private initializationPromise: Promise<void> | null = null;
 	private fullyInitialized = false;
 	declare serverInstance: BunServerInstance | null;
-	private readonly schemaValidator = new SchemaValidationService();
 
 	private readonly lifecycleFactory?: ServerLifecycle;
 	private readonly staticBuilderFactory?: (params: ServerStaticBuilderParams) => ServerStaticBuilder;
@@ -204,8 +177,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	private async refreshRouterRoutes(): Promise<void> {
 		if (this.serverInstance && typeof this.serverInstance.reload === 'function') {
 			try {
-				await this.router.init();
-				this.configureResponseHandlers();
+				await this.initSharedRouter();
+				this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 				const options = this.getServerOptions({ enableHmr: true });
 				this.serverInstance.reload(options as BunNativeServeOptions);
 				appLogger.debug('Server routes updated with dynamic routes');
@@ -224,90 +197,6 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		await this.lifecycle.startWatching({
 			refreshRouterRoutesCallback: this.refreshRouterRoutes.bind(this),
 		});
-	}
-
-	/**
-	 * Initializes the file system router.
-	 */
-	private async initRouter(): Promise<void> {
-		const scanner = new FSRouterScanner({
-			dir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
-			appConfig: this.appConfig,
-			origin: this.runtimeOrigin,
-			templatesExt: this.appConfig.templatesExt,
-			options: {
-				buildMode: !this.options?.watch,
-			},
-		});
-
-		this.router = new FSRouter({
-			origin: this.runtimeOrigin,
-			assetPrefix: path.join(this.appConfig.rootDir, this.appConfig.distDir),
-			scanner,
-		});
-
-		await this.router.init();
-	}
-
-	private configureResponseHandlers(): void {
-		this.routeRendererFactory = new RouteRendererFactory({
-			appConfig: this.appConfig,
-			runtimeOrigin: this.runtimeOrigin,
-		});
-
-		const fileSystemResponseFactory = new FileSystemServerResponseFactory({
-			appConfig: this.appConfig,
-			routeRendererFactory: this.routeRendererFactory,
-			options: {
-				watchMode: !!this.options?.watch,
-			},
-		});
-
-		const cacheConfig = this.appConfig.cache;
-		const isCacheEnabled = cacheConfig?.enabled ?? !this.options?.watch;
-		let cacheService: PageCacheService | null = null;
-
-		if (isCacheEnabled) {
-			const store =
-				cacheConfig?.store === 'memory' || !cacheConfig?.store
-					? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
-					: cacheConfig.store;
-			cacheService = new PageCacheService({ store, enabled: true });
-		}
-
-		this.fileSystemResponseMatcher = new FileSystemResponseMatcher({
-			router: this.router,
-			routeRendererFactory: this.routeRendererFactory,
-			fileSystemResponseFactory,
-			cacheService,
-			defaultCacheStrategy: cacheConfig?.defaultStrategy ?? 'static',
-		});
-
-		const explicitStaticRouteMatcher =
-			this.staticRoutes.length > 0
-				? new ExplicitStaticRouteMatcher({
-						appConfig: this.appConfig,
-						routeRendererFactory: this.routeRendererFactory,
-						staticRoutes: this.staticRoutes,
-					})
-				: undefined;
-
-		const routeHandlerParams: ServerRouteHandlerParams = {
-			router: this.router,
-			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
-			explicitStaticRouteMatcher,
-			watch: !!this.options?.watch,
-			hmrManager: this.hmrManager,
-		};
-
-		this.routeHandler = this.routeHandlerFactory
-			? this.routeHandlerFactory(routeHandlerParams)
-			: new ServerRouteHandler(routeHandlerParams);
-	}
-
-	private adaptRouterRoutes(): void {
-		const routerAdapter = new BunRouterAdapter({ serverAdapter: this });
-		this.routes = routerAdapter.adaptRoutes(this.router.routes);
 	}
 
 	/**
@@ -390,186 +279,50 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	}
 
 	/**
-	 * Creates complete server configuration with merged routes, API handlers, and request handling.
+	 * Creates complete server configuration with request handling.
 	 * @returns Server options ready for Bun.serve()
 	 */
 	private buildServerSettings(): BunServeOptions {
-		const { routes, ...serverOptions } = this.serveOptions as BunServeAdapterServerOptions;
+		const serverOptions = { ...this.serveOptions } as BunServeAdapterServerOptions;
 		const handleNoMatch = this.handleNoMatch.bind(this);
 		const waitForInit = this.waitForInitialization.bind(this);
 		const handleReq = this.handleRequest.bind(this);
 		const errorHandler = this.errorHandler;
-		const getCacheService = (): CacheInvalidator | null =>
-			this.fileSystemResponseMatcher?.getCacheService() ?? null;
-		const getRenderContext = (): RenderContext =>
-			createRenderContext({ integrations: this.appConfig.integrations });
+		const getCacheService = () => this.getCacheService();
+		const getRenderContext = () => this.getRenderContext();
 
-		const mergedRoutes = deepMerge(routes || {}, this.routes);
-		appLogger.debug(`[BunServerAdapter] Building server settings with ${this.apiHandlers.length} API handlers`);
-
-		for (const routeConfig of this.apiHandlers) {
-			const method = routeConfig.method || 'GET';
-			const path = routeConfig.path;
-			const middleware = routeConfig.middleware || [];
-			const schema = routeConfig.schema;
-
-			appLogger.debug(`[BunServerAdapter] Registering API route: ${method} ${path}`);
-
-			const wrappedHandler = async (request: BunRequest<string>): Promise<Response> => {
-				let context: ApiHandlerContext<Request, BunServerInstance> | undefined;
-
-				try {
-					await waitForInit();
-					const renderContext = getRenderContext();
-					const locals: Record<string, unknown> = {};
-					context = {
-						request,
-						params: request.params as Record<string, string>,
-						response: new ApiResponseBuilder(),
-						server: this.serverInstance as BunServerInstance,
-						locals,
-						require: createRequire((): Record<string, unknown> => locals),
-						services: {
-							cache: getCacheService(),
-						},
-						...renderContext,
-					};
-
-					if (schema) {
-						const url = new URL(request.url);
-						const queryParams = Object.fromEntries(url.searchParams);
-						const headers = Object.fromEntries(request.headers);
-
-						let body: unknown;
-						if (schema.body) {
-							try {
-								body = await this.retrieveBodyFromRequest(request);
-							} catch {
-								return context.response.status(400).json({
-									error: 'Invalid request body',
-								});
-							}
-						}
-
-						const validationResult = await this.schemaValidator.validateRequest(
-							{ body, query: queryParams, headers, params: context.params },
-							schema,
-						);
-
-						if (!validationResult.success) {
-							return context.response.status(400).json({
-								error: 'Validation failed',
-								issues: validationResult.errors,
-							});
-						}
-
-						const validated = validationResult.data!;
-						if (validated.body !== undefined) {
-							context.body = validated.body;
-						}
-						if (validated.query !== undefined) {
-							context.query = validated.query;
-						}
-						if (validated.headers !== undefined) {
-							context.headers = validated.headers;
-						}
-						if (validated.params !== undefined) {
-							context.params = validated.params as Record<string, string>;
-						}
-					}
-
-					if (middleware.length === 0) {
-						const response = await routeConfig.handler(context);
-						return await this.maybeInjectHmrScript(response);
-					}
-
-					let index = 0;
-					const executeNext = async (): Promise<Response> => {
-						if (index < middleware.length) {
-							const currentMiddleware = middleware[index++];
-							return await currentMiddleware(context!, executeNext);
-						}
-						return await routeConfig.handler(context!);
-					};
-
-					const response = await executeNext();
-					return await this.maybeInjectHmrScript(response);
-				} catch (error) {
-					if (error instanceof Response) {
-						return error;
-					}
-					if (this.errorHandler) {
-						try {
-							if (!context) {
-								const renderContext = getRenderContext();
-								const locals: Record<string, unknown> = {};
-								context = {
-									request,
-									params: request.params as Record<string, string>,
-									response: new ApiResponseBuilder(),
-									server: this.serverInstance as BunServerInstance,
-									locals,
-									require: createRequire((): Record<string, unknown> => locals),
-									services: { cache: getCacheService() },
-									...renderContext,
-								};
-							}
-							return await this.errorHandler(error, context);
-						} catch (handlerError) {
-							appLogger.error(`[ecopages] Error in custom error handler: ${handlerError}`);
-						}
-					}
-
-					if (error instanceof HttpError) {
-						return error.toResponse();
-					}
-					appLogger.error(`[ecopages] Error handling API request: ${error}`);
-					return new Response('Internal Server Error', { status: 500 });
-				}
-			};
-
-			mergedRoutes[path] = {
-				...mergedRoutes[path],
-				[method.toUpperCase()]: wrappedHandler,
-			};
-		}
-
-		appLogger.debug('[BunServerAdapter] Final bunRoutes:', Object.keys(mergedRoutes));
+		appLogger.debug(`[BunServerAdapter] Building server settings`);
 
 		const finalOptions: BunServeOptions = {
 			...serverOptions,
-			routes: mergedRoutes,
 			async fetch(this: Server<unknown>, request: Request, _server: Server<unknown>) {
 				try {
 					await waitForInit();
 					return await handleReq(request);
 				} catch (error) {
-					if (error instanceof Response) {
-						return error;
-					}
+					if (error instanceof Response) return error;
 					if (errorHandler) {
 						try {
-							const renderContext = getRenderContext();
 							const locals: Record<string, unknown> = {};
-							const context = {
+							const context: ApiHandlerContext<Request, BunServerInstance> = {
 								request,
 								params: {},
 								response: new ApiResponseBuilder(),
-								server: this,
+								server: _server as BunServerInstance,
 								locals,
 								require: createRequire((): Record<string, unknown> => locals),
-								services: { cache: getCacheService() },
-								...renderContext,
+								services: {
+									cache: getCacheService(),
+								},
+								...getRenderContext(),
 							};
+
 							return await errorHandler(error, context);
 						} catch (handlerError) {
 							appLogger.error(`[ecopages] Error in custom error handler: ${handlerError}`);
 						}
 					}
-
-					if (error instanceof HttpError) {
-						return error.toResponse();
-					}
+					if (error instanceof HttpError) return error.toResponse();
 
 					appLogger.error(`[ecopages] Error handling request: ${error}`);
 					return new Response('Internal Server Error', { status: 500 });
@@ -590,9 +343,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	 */
 	public async buildStatic(options?: { preview?: boolean }): Promise<void> {
 		if (!this.fullyInitialized) {
-			await this.initRouter();
-			this.configureResponseHandlers();
-			this.adaptRouterRoutes();
+			await this.initSharedRouter();
+			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 		}
 
 		await this.staticBuilder.build(options, {
@@ -624,9 +376,8 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 		this.serverInstance = server;
 		appLogger.debug('Completing server initialization with dynamic routes');
 
-		await this.initRouter();
-		this.configureResponseHandlers();
-		this.adaptRouterRoutes();
+		await this.initSharedRouter();
+		this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 
 		this.fullyInitialized = true;
 
@@ -654,10 +405,18 @@ export class BunServerAdapter extends AbstractServerAdapter<BunServerAdapterPara
 	}
 
 	/**
-	 * Handles HTTP requests from the router adapter.
+	 * Handles HTTP requests by passing them securely to the shared core router adapter.
 	 */
 	public async handleRequest(request: Request): Promise<Response> {
-		return this.routeHandler.handleResponse(request);
+		const response = await this.handleSharedRequest(request, {
+			apiHandlers: this.apiHandlers,
+			errorHandler: this.errorHandler,
+			serverInstance: this.serverInstance,
+			hmrManager: this.hmrManager,
+		});
+
+		// Check if we need to manually inject HMR script since we're bypassing route level HMR wrapping
+		return await this.maybeInjectHmrScript(response);
 	}
 
 	/**

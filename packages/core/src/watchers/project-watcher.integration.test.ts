@@ -1,12 +1,13 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig } from '../internal-types';
 import { ConfigBuilder } from '../config/config-builder';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
 
-const TEST_ROOT = path.join(__dirname, '__test-temp__');
+const TEST_ROOT = path.join(os.tmpdir(), 'ecopages-integration-test-temp');
 
 const createTestDir = (subpath: string): string => {
 	const fullPath = path.join(TEST_ROOT, subpath);

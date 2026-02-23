@@ -107,7 +107,7 @@ type BunRouteOptions<
 /**
  * Bun-specific route group builder that properly infers route params from path patterns.
  * When you define a route like `/posts/:slug`, the handler context will have
- * `ctx.request.params.slug` typed as `string`.
+ * `ctx.params.slug` typed as `string`.
  *
  * @typeParam WebSocketData - WebSocket data type for the server
  * @typeParam TContext - Extended context type from middleware (e.g., `{ user: User }`)
@@ -500,6 +500,23 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
 		}
 
 		const { dev, preview, build } = this.cliArgs;
+		const requiresFetchRuntime = this.appConfig.integrations.some(
+			(integration) => integration.staticBuildStep === 'fetch',
+		);
+		const canBuildWithoutRuntimeServer = (build || preview) && !requiresFetchRuntime;
+
+		if (canBuildWithoutRuntimeServer) {
+			appLogger.debugTime('Building static pages');
+			await this.serverAdapter.buildStatic({ preview });
+			appLogger.debugTimeEnd('Building static pages');
+
+			if (build) {
+				process.exit(0);
+			}
+
+			return;
+		}
+
 		const enableHmr = dev || (!preview && !build);
 		const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
 

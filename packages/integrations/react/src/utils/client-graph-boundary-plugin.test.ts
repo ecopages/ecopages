@@ -57,9 +57,10 @@ describe('createClientGraphBoundaryPlugin', () => {
 				"import fs from 'node:fs';",
 				"import { createColumnHelper } from '@tanstack/react-table';",
 				"import leftPad from 'left-pad';",
-				"const dynamicBad = import('left-pad');",
-				"const dynamicGood = import('@tanstack/react-table');",
-				"const requiredBad = require('left-pad');",
+				"const dynamicUndeclared = import('left-pad');",
+				"const dynamicDeclared = import('@tanstack/react-table');",
+				"const requiredUndeclared = require('left-pad');",
+				"const dynamicFs = import('node:fs');",
 				"const Component = eco.component({ dependencies: { modules: ['@tanstack/react-table{createColumnHelper}'] } });",
 				'export default Component;',
 			].join('\n'),
@@ -71,12 +72,29 @@ describe('createClientGraphBoundaryPlugin', () => {
 			const transformed = await harness.transformFile(filePath);
 
 			expect(transformed).toBeDefined();
+			/** Forbidden dependencies correctly removed */
 			expect(transformed).not.toContain("import fs from 'node:fs'");
+
+			/** Safe UI imports are kept for ESBuild to natively treeshake */
 			expect(transformed).toContain("import { createColumnHelper } from '@tanstack/react-table';");
-			expect(transformed).not.toContain("import leftPad from 'left-pad';");
-			expect(transformed).toContain('const dynamicBad = Promise.resolve({});');
-			expect(transformed).toContain("const dynamicGood = import('@tanstack/react-table');");
-			expect(transformed).toContain('const requiredBad = ({});');
+			expect(transformed).toContain("import leftPad from 'left-pad';");
+
+			/** dynamic loads */
+			expect(transformed).toContain("const dynamicUndeclared = import('left-pad');");
+			expect(transformed).toContain("const dynamicDeclared = import('@tanstack/react-table');");
+
+			/**
+			 * True forbidden dependencies (like `node:fs`) dynamically imported are stubbed
+			 * to prevent hydration crashes if they are unreachable.
+			 */
+			expect(transformed).toContain('const dynamicFs = Promise.resolve({});');
+
+			/**
+			 * require is strictly matched out if it's node.
+			 * The plugin strips requires only if they are forbidden.
+			 * `leftPad` is allowed, so it is just left alone!
+			 */
+			expect(transformed).toContain("const requiredUndeclared = require('left-pad');");
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -133,15 +151,15 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
-	it('surgically removes undeclared named imports when using pkg{named} grammar', async () => {
+	it('surgically removes undeclared named imports when using pkg{named} grammar for forbidden modules', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
 		const filePath = join(tempDir, 'entry.tsx');
 		writeFileSync(
 			filePath,
 			[
+				"import { readFileSync, writeFileSync } from 'node:fs';",
 				"import { createColumnHelper, useReactTable } from '@tanstack/react-table';",
-				"import type { TableOptions } from '@tanstack/react-table';",
-				"const Component = eco.component({ dependencies: { modules: ['@tanstack/react-table{useReactTable}'] } });",
+				"const Component = eco.component({ dependencies: { modules: ['node:fs{readFileSync}'] } });",
 				'export default Component;',
 			].join('\n'),
 			'utf-8',
@@ -152,11 +170,21 @@ describe('createClientGraphBoundaryPlugin', () => {
 			const transformed = await harness.transformFile(filePath);
 
 			expect(transformed).toBeDefined();
-			// should have dropped createColumnHelper
-			expect(transformed).toContain("import { useReactTable } from '@tanstack/react-table';");
-			expect(transformed).not.toContain('createColumnHelper');
-			// TableOptions wasn't allowed, so the whole line should be dropped.
-			expect(transformed).not.toContain('TableOptions');
+
+			/**
+			 * We declared `node:fs{readFileSync}` is allowed.
+			 * So `readFileSync` stays, but `writeFileSync` MUST be surgically removed
+			 * from the import specifiers since it's a forbidden module that wasn't declared.
+			 */
+			expect(transformed).toContain("import { readFileSync } from 'node:fs';");
+			expect(transformed).not.toContain('writeFileSync');
+
+			/**
+			 * `react-table` is completely safe UI code.
+			 * Even though it wasn't explicitly declared, we don't prune safe imports.
+			 * We let ESBuild safely treeshake `createColumnHelper` and `useReactTable` natively.
+			 */
+			expect(transformed).toContain("import { createColumnHelper, useReactTable } from '@tanstack/react-table';");
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}

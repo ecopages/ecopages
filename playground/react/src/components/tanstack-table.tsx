@@ -77,7 +77,6 @@ const code = fs.readFileSync(path.resolve('./src/components/radiant-counter.tsx'
 export const TanstackTable = eco.component<{}, ReactNode>({
 	dependencies: {
 		stylesheets: ['./tanstack-table.css'],
-		modules: ['@tanstack/react-table'],
 	},
 
 	render: () => {

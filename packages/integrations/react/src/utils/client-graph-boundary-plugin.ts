@@ -1,7 +1,25 @@
+/**
+ * @module ClientGraphBoundaryPlugin
+ *
+ * This module defines the primary esbuild plugin responsible for securing the Ecopages
+ * isomorphic compilation pipeline. It ensures that backend-only code, sensitive Node.js APIs,
+ * and massive server utilities do not accidentally leak into the browser bundle.
+ *
+ * It achieves this by intercepting all client module compilation passes and applying the
+ * `analyzeReachability` AST pass. If a forbidden import (e.g. `node:fs` or `*.server.ts`)
+ * is completely unreachable from the client component's `render` function, it is surgically
+ * pruned. If a forbidden import IS reachable, the build is intentionally failed to prevent
+ * runtime hydration crashes.
+ *
+ * Additionally, this plugin provides a build-time transform that statically resolves and
+ * inlines `fs.readFileSync(path.resolve(...))` calls to prevent server/client data mismatches.
+ */
+
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { parseSync } from 'oxc-parser';
+import { analyzeReachability } from './reachability-analyzer';
 
 const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
 
@@ -81,6 +99,9 @@ function toModuleBaseSpecifier(specifier: string): string {
  * Parses the grammar syntax of declared modules.
  * Handles patterns like `@pkg/name` and `@pkg/name{namedImport,anotherImport}`
  * returning a map of base packages to their explicitly allowed specifiers.
+ *
+ * @param moduleDeclarations - A list of module declaration strings.
+ * @returns A structured map of allowed packages and their named exports.
  */
 function parseDeclaredModules(moduleDeclarations: string[] | undefined): Map<string, Set<string> | '*'> {
 	const map = new Map<string, Set<string> | '*'>();
@@ -126,6 +147,13 @@ function parseDeclaredModules(moduleDeclarations: string[] | undefined): Map<str
 	return map;
 }
 
+/**
+ * Merges two declared module maps, combining their allowable specific scopes.
+ *
+ * @param a - First map of declared modules.
+ * @param b - Second map of declared modules to merge into the first.
+ * @returns A unified map of both declarations.
+ */
 function mergeDeclaredModulesMap(
 	a: Map<string, Set<string> | '*'>,
 	b: Map<string, Set<string> | '*'>,
@@ -149,6 +177,12 @@ function mergeDeclaredModulesMap(
 	return result;
 }
 
+/**
+ * Returns the proper OxC parser dialect to use for string source parsing.
+ *
+ * @param filename - File path.
+ * @returns Language string.
+ */
 function parserLanguageForFile(filename: string): 'js' | 'jsx' | 'ts' | 'tsx' {
 	const extension = extname(filename).toLowerCase();
 	if (extension === '.tsx') return 'tsx';
@@ -160,6 +194,11 @@ function parserLanguageForFile(filename: string): 'js' | 'jsx' | 'ts' | 'tsx' {
 /**
  * Parses a module using Oxc AST and surgically removes forbidden imports.
  * Filters down to the exact specifiers requested via `{namedImport}` syntax.
+ *
+ * @param source - The raw string source content of the module.
+ * @param filename - The absolute path of the module.
+ * @param globallyAllowed - A map of modules declared globally allowable by the build configuration.
+ * @returns An object containing the transformed string and a boolean indicating if changes occurred.
  */
 function transformModuleImports(
 	source: string,
@@ -179,7 +218,6 @@ function transformModuleImports(
 	const { program } = result;
 	const localDeclared: string[] = [];
 
-	/** Use any here because Oxc AST nodes are highly dynamic */
 	function walk(node: any) {
 		if (!node || typeof node !== 'object') return;
 		if (Array.isArray(node)) {
@@ -205,22 +243,28 @@ function transformModuleImports(
 
 	const locallyAllowed = parseDeclaredModules(localDeclared);
 	const allowedMap = mergeDeclaredModulesMap(globallyAllowed, locallyAllowed);
+	const reachability = analyzeReachability(source, filename);
 
 	const edits: { start: number; end: number; replacement: string }[] = [];
 
 	function processSpecifier(specifier: string): { allowed: boolean; rules?: Set<string> | '*' } {
-		if (specifier.startsWith('node:')) return { allowed: false };
-		if (isProjectAliasSpecifier(specifier)) return { allowed: true, rules: '*' };
-		if (!isBareSpecifier(specifier)) return { allowed: true, rules: '*' };
-
 		const moduleBase = toModuleBaseSpecifier(specifier);
-		if (allowedMap.has(moduleBase)) {
-			return { allowed: true, rules: allowedMap.get(moduleBase) };
+		const explicitRules = allowedMap.get(moduleBase);
+
+		if (specifier.startsWith('node:') || specifier.includes('.server.')) {
+			if (explicitRules) {
+				return { allowed: true, rules: explicitRules };
+			}
+			return { allowed: false };
 		}
-		return { allowed: false };
+
+		if (isProjectAliasSpecifier(specifier)) return { allowed: true, rules: explicitRules ?? '*' };
+		if (!isBareSpecifier(specifier)) return { allowed: true, rules: explicitRules ?? '*' };
+
+		/** By default, bare specifiers (NPM modules) are allowed entirely. */
+		return { allowed: true, rules: explicitRules ?? '*' };
 	}
 
-	/** Use any here because Oxc AST nodes are highly dynamic */
 	function walkImports(node: any) {
 		if (!node || typeof node !== 'object') return;
 		if (Array.isArray(node)) {
@@ -230,94 +274,82 @@ function transformModuleImports(
 
 		if (node.type === 'ImportDeclaration') {
 			const specifier = node.source.value as string;
+			const reachableRules = reachability.reachableImports.get(specifier);
 			const { allowed, rules } = processSpecifier(specifier);
 
 			if (!allowed) {
-				edits.push({ start: node.start, end: node.end, replacement: '' });
-			} else if (rules && rules !== '*') {
-				const specifiers = node.specifiers || [];
-				if (specifiers.length === 0) {
-					edits.push({ start: node.start, end: node.end, replacement: '' });
+				if (reachableRules && !reachability.isFallbackRoots) {
+					throw new Error(
+						`[Ecopages Client Reachability] Forbidden client import '${specifier}' at ${filename}:${node.start}. This import is explicitly reachable from the React render function.`,
+					);
 				} else {
-					const keptSpecifiers: string[] = [];
-					let keptDefault: string | undefined;
-					let keptNamespace: string | undefined;
+					edits.push({ start: node.start, end: node.end, replacement: '' });
+				}
+				return;
+			}
 
-					for (const spec of specifiers) {
-						if (spec.type === 'ImportDefaultSpecifier') {
-							if (rules.has('default')) keptDefault = spec.local.name;
-						} else if (spec.type === 'ImportNamespaceSpecifier') {
-							if (rules.has('*')) keptNamespace = spec.local.name;
-						} else if (spec.type === 'ImportSpecifier') {
-							const importedName = spec.imported.name || spec.imported.value;
-							if (rules.has(importedName)) {
-								if (importedName === spec.local.name) {
-									keptSpecifiers.push(importedName);
-								} else {
-									keptSpecifiers.push(`${importedName} as ${spec.local.name}`);
-								}
-							}
+			/**
+			 * If it IS allowed by the base specifier, we must check if there are specific named rules.
+			 * If there are specific rules (a Set), we must surgically remove any specifiers that aren't in the rule.
+			 */
+			if (rules instanceof Set && node.specifiers && node.specifiers.length > 0) {
+				const keepNodes: string[] = [];
+				for (const spec of node.specifiers) {
+					if (spec.type === 'ImportSpecifier') {
+						const importedName = spec.imported.name;
+						if (rules.has(importedName)) {
+							keepNodes.push(importedName);
+						}
+					} else if (spec.type === 'ImportDefaultSpecifier') {
+						if (rules.has('default')) {
+							keepNodes.push(spec.local.name);
+						}
+					} else if (spec.type === 'ImportNamespaceSpecifier') {
+						if (rules.has('*')) {
+							keepNodes.push(`* as ${spec.local.name}`);
 						}
 					}
-
-					const parts = [];
-					if (keptDefault) parts.push(keptDefault);
-					if (keptNamespace) parts.push(`* as ${keptNamespace}`);
-					if (keptSpecifiers.length > 0) parts.push(`{ ${keptSpecifiers.join(', ')} }`);
-
-					if (parts.length > 0) {
-						const typePrefix = node.importKind === 'type' ? 'type ' : '';
-						edits.push({
-							start: node.start,
-							end: node.end,
-							replacement: `import ${typePrefix}${parts.join(', ')} from '${specifier}';`,
-						});
-					} else {
-						edits.push({ start: node.start, end: node.end, replacement: '' });
-					}
 				}
+
+				if (keepNodes.length === 0) {
+					edits.push({ start: node.start, end: node.end, replacement: '' });
+				} else if (keepNodes.length < node.specifiers.length) {
+					const newDeclaration = `import { ${keepNodes.join(', ')} } from '${specifier}';`;
+					edits.push({ start: node.start, end: node.end, replacement: newDeclaration });
+				}
+				return;
 			}
+
 			/**
-			 * Do not traverse inside ImportDeclaration
+			 * If it IS allowed (globally or all specifiers match) and IS reachable,
+			 * we can safely just leave the import alone.
+			 * ESBuild will natively treeshake any bindings that are actually unused.
+			 *
+			 * However, if it is completely unreachable, and it's a side-effect import
+			 * (no specifiers), we want to proactively prune it.
 			 */
+			if (!reachableRules && (!node.specifiers || node.specifiers.length === 0)) {
+				edits.push({ start: node.start, end: node.end, replacement: '' });
+			}
+
 			return;
 		}
 
 		if (node.type === 'ExportNamedDeclaration' && node.source) {
 			const specifier = node.source.value as string;
-			const { allowed, rules } = processSpecifier(specifier);
+			const { allowed } = processSpecifier(specifier);
 
+			/**
+			 * We skip checking reachability of re-exports for now to avoid false negatives.
+			 * But we MUST check security.
+			 */
 			if (!allowed) {
-				edits.push({ start: node.start, end: node.end, replacement: '' });
-			} else if (rules && rules !== '*') {
-				const specifiers = node.specifiers || [];
-				if (specifiers.length === 0) {
-					edits.push({ start: node.start, end: node.end, replacement: '' });
+				if (!reachability.isFallbackRoots) {
+					throw new Error(
+						`[Ecopages Client Reachability] Forbidden client export from '${specifier}' at ${filename}:${node.start}.`,
+					);
 				} else {
-					const keptSpecifiers: string[] = [];
-					for (const spec of specifiers) {
-						if (spec.type === 'ExportSpecifier') {
-							const exportedName = spec.exported.name || spec.exported.value;
-							const localName = spec.local.name;
-							if (rules.has(localName) || rules.has(exportedName)) {
-								if (localName === exportedName) {
-									keptSpecifiers.push(localName);
-								} else {
-									keptSpecifiers.push(`${localName} as ${exportedName}`);
-								}
-							}
-						}
-					}
-					if (keptSpecifiers.length > 0) {
-						const typePrefix = node.exportKind === 'type' ? 'type ' : '';
-						edits.push({
-							start: node.start,
-							end: node.end,
-							replacement: `export ${typePrefix}{ ${keptSpecifiers.join(', ')} } from '${specifier}';`,
-						});
-					} else {
-						edits.push({ start: node.start, end: node.end, replacement: '' });
-					}
+					edits.push({ start: node.start, end: node.end, replacement: '' });
 				}
 			}
 			return;
@@ -325,9 +357,15 @@ function transformModuleImports(
 
 		if (node.type === 'ExportAllDeclaration' && node.source) {
 			const specifier = node.source.value as string;
-			const { allowed, rules } = processSpecifier(specifier);
-			if (!allowed || (rules && rules !== '*')) {
-				edits.push({ start: node.start, end: node.end, replacement: '' });
+			const { allowed } = processSpecifier(specifier);
+			if (!allowed) {
+				if (!reachability.isFallbackRoots) {
+					throw new Error(
+						`[Ecopages Client Reachability] Forbidden client export * from '${specifier}' at ${filename}:${node.start}.`,
+					);
+				} else {
+					edits.push({ start: node.start, end: node.end, replacement: '' });
+				}
 			}
 			return;
 		}
@@ -335,8 +373,23 @@ function transformModuleImports(
 		if (node.type === 'ImportExpression' && node.source?.value) {
 			const specifier = node.source.value as string;
 			const { allowed } = processSpecifier(specifier);
+			const reachableRules = reachability.reachableImports.get(specifier);
+
+			if (!reachableRules) {
+				if (!allowed) {
+					edits.push({ start: node.start, end: node.end, replacement: 'Promise.resolve({})' });
+				}
+				return;
+			}
+
 			if (!allowed) {
-				edits.push({ start: node.start, end: node.end, replacement: 'Promise.resolve({})' });
+				if (!reachability.isFallbackRoots) {
+					throw new Error(
+						`[Ecopages Client Reachability] Forbidden dynamic import('${specifier}') at ${filename}:${node.start}. This import is explicitly reachable from the React render function.`,
+					);
+				} else {
+					edits.push({ start: node.start, end: node.end, replacement: 'Promise.resolve({})' });
+				}
 			}
 			return;
 		}
@@ -346,8 +399,20 @@ function transformModuleImports(
 			if (arg && (arg.type === 'StringLiteral' || arg.type === 'Literal') && typeof arg.value === 'string') {
 				const specifier = arg.value;
 				const { allowed } = processSpecifier(specifier);
-				if (!allowed) {
-					edits.push({ start: node.start, end: node.end, replacement: '({})' });
+				const reachableRules = reachability.reachableImports.get(specifier);
+
+				if (!reachableRules) {
+					if (!allowed) {
+						edits.push({ start: node.start, end: node.end, replacement: '({})' });
+					}
+				} else if (!allowed) {
+					if (!reachability.isFallbackRoots) {
+						throw new Error(
+							`[Ecopages Client Reachability] Forbidden require('${specifier}') at ${filename}:${node.start}. This import is explicitly reachable from the React render function.`,
+						);
+					} else {
+						edits.push({ start: node.start, end: node.end, replacement: '({})' });
+					}
 				}
 			}
 		}
@@ -373,6 +438,12 @@ function transformModuleImports(
 	return { transformed, modified: true };
 }
 
+/**
+ * Instantiates the client graph boundary esbuild plugin.
+ *
+ * @param options - Configuration options for the graph boundary.
+ * @returns The resulting `EcoBuildPlugin`.
+ */
 export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOptions): EcoBuildPlugin {
 	return {
 		name: 'ecopages-client-graph-boundary',

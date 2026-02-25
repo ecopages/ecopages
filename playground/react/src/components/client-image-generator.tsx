@@ -14,9 +14,6 @@ const availableImages = [
 ];
 
 export const ClientImageGenerator = eco.component<{}, ReactNode>({
-	dependencies: {
-		modules: ['@ecopages/image-processor/component/react{EcoImage}'],
-	},
 	render: () => {
 		const [randomIndex, setRandomIndex] = useState<number | undefined>();
 

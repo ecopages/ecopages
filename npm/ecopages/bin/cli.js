@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import { existsSync, readFileSync } from 'node:fs';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import tiged from 'tiged';
 import { Logger } from '@ecopages/logger';
 
@@ -57,19 +57,30 @@ function buildEnvOverrides(options) {
 	return env;
 }
 
-function detectRuntime() {
+function detectRuntime(options = {}) {
+	if (options.runtime === 'bun' || options.runtime === 'node') {
+		return options.runtime;
+	}
+
+	const userAgent = process.env.npm_config_user_agent || '';
+
+	/**
+	 * If explicitly launched via bun (e.g., `bun run ...`)
+	 */
+	if (userAgent.startsWith('bun/')) {
+		return 'bun';
+	}
+
+	/**
+	 * Catch when CLI is run directly by Bun without a package manager command
+	 */
 	if (typeof Bun !== 'undefined') {
 		return 'bun';
 	}
 
-	const bunVersionResult = spawnSync('bun', ['--version'], {
-		stdio: 'ignore',
-	});
-
-	if (!bunVersionResult.error && bunVersionResult.status === 0) {
-		return 'bun';
-	}
-
+	/**
+	 * Default to node for npm, pnpm, yarn, or direct execution
+	 */
 	return 'node';
 }
 
@@ -111,7 +122,7 @@ function buildNodeArgs(args, options, entryFile) {
 function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
 	const hasConfig = existsSync('eco.config.ts');
 	const envOverrides = buildEnvOverrides(options);
-	const runtime = detectRuntime();
+	const runtime = detectRuntime(options);
 
 	if (runtime === 'node') {
 		return {
@@ -139,6 +150,7 @@ function runLaunchPlan(launchPlan) {
 		logger.info(`Environment overrides: ${JSON.stringify(launchPlan.envOverrides)}`);
 	}
 
+	logger.info(`Runtime: ${launchPlan.runtime}`);
 	logger.info(`Running: ${launchPlan.command} ${launchPlan.commandArgs.join(' ')}`);
 
 	const child = spawn(launchPlan.command, launchPlan.commandArgs, {
@@ -193,7 +205,8 @@ const serverOptions = (cmd) =>
 		.option('-n, --hostname <hostname>', 'Override ECOPAGES_HOSTNAME')
 		.option('-b, --base-url <url>', 'Override ECOPAGES_BASE_URL')
 		.option('-d, --debug', 'Enable debug logging (ECOPAGES_LOGGER_DEBUG=true)')
-		.option('-r, --react-fast-refresh', 'Enable React Fast Refresh for HMR');
+		.option('-r, --react-fast-refresh', 'Enable React Fast Refresh for HMR')
+		.option('--runtime <runtime>', 'Force a specific runtime (bun or node)');
 
 serverOptions(
 	program.command('dev').description('Start the development server').argument('[entry]', 'Entry file', 'app.ts'),
@@ -223,8 +236,9 @@ program
 	.command('build')
 	.description('Build the project for production')
 	.argument('[entry]', 'Entry file', 'app.ts')
-	.action((entry) => {
-		runBunCommand(['--build'], { nodeEnv: 'production' }, entry);
+	.option('--runtime <runtime>', 'Force a specific runtime (bun or node)')
+	.action((entry, opts) => {
+		runBunCommand(['--build'], { nodeEnv: 'production', ...opts }, entry);
 	});
 
 serverOptions(

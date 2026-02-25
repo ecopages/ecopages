@@ -23,15 +23,27 @@ export default eco.page<{}, ReactNode>({
 		return (
 			<BaseLayout className="main-content">
 				<h1 className="main-title">Ecopages</h1>
-				<a href="/test" className="text-blue-700 underline">
+				<a href="/test" className="text-blue-700 underline block mb-2">
 					Test Splitting
 				</a>
-				<a href="/images" className="text-blue-700 underline">
+				<a href="/images" className="text-blue-700 underline block mb-2">
 					Test Images
 				</a>
-				<a href="/mdx-test" className="text-blue-700 underline">
+				<a href="/mdx-test" className="text-blue-700 underline block mb-6">
 					Test MDX
 				</a>
+
+				<h2 className="text-xl font-bold mt-4 mb-2">Reachability Examples (RFC 0001)</h2>
+				<a href="/reachability-node-hydration" className="text-blue-700 underline block mb-2">
+					1. Server Node APIs + Client Hydration
+				</a>
+				<a href="/reachability-mixed-pruning" className="text-blue-700 underline block mb-2">
+					2. Safe Pruning of Unused Server Utilities
+				</a>
+				<a href="/reachability-analytics-pruning" className="text-blue-700 underline block mb-6">
+					3. Safe Pruning of Top-Level Analytics
+				</a>
+
 				<Counter defaultValue={10} />
 				<RadiantCounter count={5} />
 				<Select label="Ice cream flavor">

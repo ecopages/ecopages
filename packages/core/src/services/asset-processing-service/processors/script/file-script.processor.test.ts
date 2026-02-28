@@ -55,7 +55,7 @@ describe('FileScriptProcessor', () => {
 	});
 
 	describe('process', () => {
-		test('should delegate to HMR manager when enabled and not inline', async () => {
+		test('should delegate to HMR manager when enabled and not inline and preserve excludeFromHtml', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
@@ -68,6 +68,7 @@ describe('FileScriptProcessor', () => {
 				source: 'file',
 				filepath: '/test/project/src/script.ts',
 				inline: false,
+				excludeFromHtml: true,
 			};
 
 			const result = await processor.process(dep);
@@ -75,6 +76,31 @@ describe('FileScriptProcessor', () => {
 			expect(HmrManager.registerEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
 			expect(result.srcUrl).toBe('/hmr/script.js');
 			expect(result.inline).toBe(false);
+			expect(result.excludeFromHtml).toBe(true);
+		});
+
+		test('should preserve excludeFromHtml: false when delegating to HMR manager', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const HmrManager = {
+				isEnabled: () => true,
+				registerEntrypoint: vi.fn(async () => '/hmr/script.js'),
+			} as unknown as IHmrManager;
+			processor.setHmrManager(HmrManager);
+
+			const dep: FileScriptAsset = {
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/script.ts',
+				inline: false,
+				excludeFromHtml: false,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(HmrManager.registerEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
+			expect(result.srcUrl).toBe('/hmr/script.js');
+			expect(result.inline).toBe(false);
+			expect(result.excludeFromHtml).toBe(false);
 		});
 
 		test('should not use HMR when inline is true', async () => {

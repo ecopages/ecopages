@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
-import { type CompileOptions, compileSync } from '@mdx-js/mdx';
+import { type CompileOptions, compile } from '@mdx-js/mdx';
 import { SourceMapGenerator } from 'source-map';
 import { VFile } from 'vfile';
 
@@ -15,12 +15,12 @@ export function createMdxLoaderPlugin(compilerOptions?: CompileOptions): EcoBuil
 	return {
 		name: 'mdx-loader',
 		setup(build) {
-			build.onLoad({ filter }, (args) => {
+			build.onLoad({ filter }, async (args) => {
 				const filePath = args.path.includes('?') ? args.path.split('?')[0] : args.path;
 				const source = readFileSync(filePath, 'utf-8');
 				const file = new VFile({ path: filePath, value: source });
 
-				const compiled = compileSync(file, {
+				const compiled = await compile(file, {
 					...compilerOptions,
 					SourceMapGenerator,
 				});

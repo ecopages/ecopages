@@ -8,9 +8,15 @@
 		"preview": "NODE_ENV=production bun run app.ts --preview"
 	},
 	"devDependencies": {
+		"@ecopages/browser-router": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/kitajs": "workspace:*",
-		"@ecopages/browser-router": "workspace:*",
-		"@ecopages/mdx": "workspace:*"
+		"@ecopages/mdx": "workspace:*",
+		"@kitajs/html": "^4.2.13",
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4"
+	},
+	"dependencies": {
+		"@mdx-js/mdx": "^3.1.1"
 	}
 }

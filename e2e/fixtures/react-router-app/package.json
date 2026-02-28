@@ -9,15 +9,14 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
 		"@ecopages/react": "workspace:*",
 		"@ecopages/react-router": "workspace:*",
-		"@ecopages/mdx": "workspace:*",
-		"@types/react": "^19",
-		"@types/react-dom": "^19"
-	},
-	"dependencies": {
 		"react": "^19",
 		"react-dom": "^19"
+	},
+	"dependencies": {
+		"@mdx-js/mdx": "^3.1.1"
 	},
 	"overrides": {
 		"react": "^19",

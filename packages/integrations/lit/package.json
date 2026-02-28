@@ -33,12 +33,10 @@
 		"typecheck": "tsc --noEmit",
 		"release:jsr": "bunx jsr publish"
 	},
-	"dependencies": {
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*",
 		"@lit-labs/ssr": "^3.3.0",
 		"@lit-labs/ssr-client": "^1.1.7",
 		"lit": "^3.2.1"
-	},
-	"peerDependencies": {
-		"@ecopages/core": "workspace:*"
 	}
 }

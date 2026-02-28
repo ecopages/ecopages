@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 
 export default defineConfig({
 	test: {
@@ -18,7 +18,7 @@ export default defineConfig({
 						'packages/loaders/**/*.test.ts',
 						'packages/file-system/**/*.test.ts',
 					],
-					exclude: ['packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
+					exclude: [...configDefaults.exclude, 'packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
 				},
 			},
 			{

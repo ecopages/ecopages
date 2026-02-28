@@ -1,0 +1,16 @@
+packages:
+    - npm/*
+    - packages/*
+    - packages/core/__fixtures__/app
+    - packages/integrations/*
+    - packages/loaders/*
+    - packages/plugins/*
+    - packages/processors/*
+    - playground/*
+    - e2e/fixtures/*
+    - apps/*
+
+onlyBuiltDependencies:
+    - bun
+    - esbuild
+    - sharp

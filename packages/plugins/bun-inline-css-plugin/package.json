@@ -24,8 +24,9 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"devDependencies": {
-		"@types/bun": "latest",
+		"@ecopages/logger": "latest",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/logger": "latest"
+		"@types/bun": "latest",
+		"tailwindcss": "^3.4.0"
 	}
 }

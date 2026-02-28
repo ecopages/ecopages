@@ -173,7 +173,7 @@ describe('NodeModuleScriptProcessor', () => {
 			fileSystem.readFileAsBuffer = originalReadFileAsBuffer;
 		});
 
-		test('should resolve @ecopages/radiant using Bun.resolveSync', async () => {
+		test('should resolve @ecopages/logger using Bun.resolveSync', async () => {
 			const config = createMockConfig();
 			config.rootDir = process.cwd();
 			const processor = new NodeModuleScriptProcessor({ appConfig: config });
@@ -182,7 +182,7 @@ describe('NodeModuleScriptProcessor', () => {
 			const dep: NodeModuleScriptAsset = {
 				kind: 'script',
 				source: 'node-module',
-				importPath: '@ecopages/radiant',
+				importPath: '@ecopages/logger',
 				inline: true,
 			};
 

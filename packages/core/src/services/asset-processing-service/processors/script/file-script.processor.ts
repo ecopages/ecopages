@@ -25,7 +25,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				position: dep.position,
 				attributes: dep.attributes,
 				inline: false,
-				excludeFromHtml: false,
+				excludeFromHtml: dep.excludeFromHtml,
 			};
 		}
 

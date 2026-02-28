@@ -13,7 +13,7 @@
 	"devDependencies": {
 		"jscodeshift": "^17.3.0",
 		"@types/jscodeshift": "^17.3.0",
-		"vitest": "^3.0.0"
+		"vitest": "^4.0.18"
 	},
 	"peerDependencies": {
 		"typescript": "^5.0.0"

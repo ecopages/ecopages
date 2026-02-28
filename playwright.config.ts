@@ -119,7 +119,7 @@ export default defineConfig({
 			stderr: 'pipe',
 		},
 		{
-			command: 'bun run --filter @ecopages/playground-react dev',
+			command: 'pnpm --filter @ecopages/playground-react run dev',
 			cwd: '.',
 			port: 3000,
 			reuseExistingServer: !process.env.CI,

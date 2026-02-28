@@ -14,10 +14,16 @@ The result is fast static pages, minimal dependencies, and code you can actually
 
 Ecopages runs on [Bun](https://bun.sh/) and uses [Ghtml](https://github.com/gurgunday/ghtml) for rendering. Extend it with templating integrations:
 
+Ecopages supports multiple rendering libraries via plug-and-play integrations. Because Ecopages is an SSG framework operating at build-time, you must explicitly install both the integration plugin and its underlying renderer as development dependencies.
+
 - **[KitaJS](https://kitajs.org/html/)** – Fast JSX template (Recommended choice)
+  `pnpm add -D @ecopages/kitajs @kitajs/html`
 - **[Lit](https://lit.dev/)** – Web Components with SSR
+  `pnpm add -D @ecopages/lit lit`
 - **[MDX](https://mdxjs.com/)** – Markdown with components
+  `pnpm add -D @ecopages/mdx @mdx-js/mdx react react-dom`
 - **[React](https://react.dev/)** – Full React ecosystem support when you need it
+  `pnpm add -D @ecopages/react react react-dom`
 
 For styling, use [Tailwind CSS](https://tailwindcss.com/) with `@apply` directives or plain CSS.
 
@@ -48,13 +54,10 @@ Explore Ecopages' capabilities by running any of the available playgrounds:
 
 ```bash
 # Run a specific playground (e.g. global, react, tailwind-v4)
-bun run --filter @ecopages/playground-global dev
-
-# Run using node instead of bun
-npm run --workspace=@ecopages/playground-react dev
+pnpm --filter @ecopages/playground-global run dev
 
 # Production start command
-bun run --filter @ecopages/playground-explicit-routes start
+pnpm --filter @ecopages/playground-explicit-routes run start
 ```
 
 Use workspace package names in the format `@ecopages/playground-<name>`.
@@ -62,14 +65,12 @@ Use workspace package names in the format `@ecopages/playground-<name>`.
 ### Documentation
 
 Learn more about using Ecopages:
-
-`bun run dev:docs`
+`pnpm run dev:docs`
 
 ### Testing
 
 Verify your site's functionality:
-
-`bun test --coverage`
+`pnpm run test:all`
 
 ## Embracing Simplicity with a Side of Verbosity
 

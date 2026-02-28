@@ -39,7 +39,7 @@
 		"@ecopages/logger": "^0.2.2"
 	},
 	"peerDependencies": {
-		"bun-types": "latest",
+		"bun-types": "*",
 		"typescript": "^5"
 	}
 }

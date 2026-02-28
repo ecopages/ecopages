@@ -24,9 +24,7 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "workspace:*"
-	},
-	"dependencies": {
+		"@ecopages/core": "workspace:*",
 		"@kitajs/html": "^4.1.0",
 		"@kitajs/ts-html-plugin": "^4.0.1"
 	}

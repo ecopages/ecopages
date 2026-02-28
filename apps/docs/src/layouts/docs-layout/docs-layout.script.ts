@@ -2,7 +2,6 @@ import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
 import { BurgerEvents } from '@/components/burger/burger.events';
-import '@ecopages/scripts-injector';
 
 @customElement('radiant-navigation')
 export class RadiantCounter extends RadiantElement {

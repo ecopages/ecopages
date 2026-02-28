@@ -8,7 +8,7 @@ const app = await createApp({ appConfig });
 app.get('/api/hello', async ({ response, request, server }) => {
 	return response.json({
 		message: 'Hello world!',
-		requestIp: server.requestIP(request),
+		requestIp: typeof server?.requestIP === 'function' ? server.requestIP(request) : server.address?.().address,
 	});
 });
 

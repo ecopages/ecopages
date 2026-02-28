@@ -6,7 +6,6 @@ export const RadiantCounter = eco.component<RadiantCounterProps, ReactNode>({
 	dependencies: {
 		scripts: ['./radiant-counter.script.ts'],
 	},
-
 	render: ({ count = 5 }) => {
 		return (
 			<radiant-counter count={count} class="counter">

@@ -12,30 +12,30 @@ app.get('/api/hello', async ({ response, request, server }) => {
 	});
 });
 
-app.get('/api/test/:id/subpath/:subpath', async ({ request, response }) => {
-	const { id, subpath } = request.params;
-	return response.json({ message: 'Hello from the API!', id, subpath });
+app.get('/api/test/:id/subpath/:subpath', async (ctx) => {
+	const { id, subpath } = ctx.params;
+	return ctx.response.json({ message: 'Hello from the API!', id, subpath });
 });
 
-app.get('/api/blog/posts', async ({ response }) => {
+app.get('/api/blog/posts', async (ctx) => {
 	const posts = getAllBlogPostSlugs();
-	return response.json(posts);
+	return ctx.response.json(posts);
 });
 
-app.get('/api/blog/post/:slug', async ({ request, response }) => {
-	const { slug } = request.params;
+app.get('/api/blog/post/:slug', async (ctx) => {
+	const { slug } = ctx.params;
 	const post = getBlogPost(slug);
 
 	if (post) {
-		return response.json(post);
+		return ctx.response.json(post);
 	}
 
-	return response.status(404).json({ error: 'Post not found' });
+	return ctx.response.status(404).json({ error: 'Post not found' });
 });
 
-app.get('/api/blog/authors', async ({ response }) => {
+app.get('/api/blog/authors', async (ctx) => {
 	const authors = getAllAuthorIds();
-	return response.json(authors);
+	return ctx.response.json(authors);
 });
 
 /**
@@ -47,22 +47,22 @@ app.get('/api/blog/authors', async ({ response }) => {
 const getAuthorApiHandler = defineApiHandler({
 	method: 'GET',
 	path: '/api/blog/author/:id',
-	handler: async ({ request, response }) => {
-		const { id } = request.params;
+	handler: async (ctx) => {
+		const { id } = ctx.params;
 		const author = getAuthor(id);
 
 		if (author) {
-			return response.json(author);
+			return ctx.response.json(author);
 		}
 
-		return response.status(404).json({ error: 'Author not found' });
+		return ctx.response.status(404).json({ error: 'Author not found' });
 	},
 });
 
 app.get(getAuthorApiHandler.path, getAuthorApiHandler.handler);
 
-app.get('/api/*', async ({ response }) => {
-	return response.json({ message: 'Hello from the API! > /api/*' });
+app.get('/api/*', async (ctx) => {
+	return ctx.response.json({ message: 'Hello from the API! > /api/*' });
 });
 
 await app.start();

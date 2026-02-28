@@ -10,13 +10,17 @@
 		"watch:dev": "ecopages dev:watch"
 	},
 	"devDependencies": {
-		"@ecopages/core": "workspace:*",
-		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/core": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
+		"@ecopages/kitajs": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
+		"@ecopages/radiant": "^0.2.0",
 		"@tailwindcss/postcss": "^4.1.18",
+		"ecopages": "workspace:*",
 		"tailwindcss": "^4.1.18",
-		"@ecopages/radiant": "^0.2.0"
-	}
+		"@kitajs/html": "^4.2.13"
+	},
+	"dependencies": {}
 }

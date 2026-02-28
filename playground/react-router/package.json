@@ -12,20 +12,18 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
+		"@ecopages/image-processor": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
 		"@ecopages/radiant": "^0.2.0",
 		"@ecopages/react": "workspace:*",
 		"@ecopages/react-router": "workspace:*",
-		"@ecopages/image-processor": "workspace:*",
-		"@ecopages/postcss-processor": "workspace:*",
 		"@tailwindcss/postcss": "^4.1.18",
+		"ecopages": "workspace:*",
 		"tailwindcss": "^4.1.18",
-		"@types/react": "^19",
-		"@types/react-dom": "^19"
-	},
-	"dependencies": {
 		"react": "^19",
 		"react-dom": "^19"
 	},
+	"dependencies": {},
 	"overrides": {
 		"react": "^19",
 		"react-dom": "^19"

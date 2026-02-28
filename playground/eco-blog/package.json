@@ -22,7 +22,8 @@
 		"@faker-js/faker": "^10.2.0",
 		"@tailwindcss/postcss": "latest",
 		"drizzle-kit": "^0.31.8",
-		"tailwindcss": "latest"
+		"tailwindcss": "latest",
+		"@kitajs/html": "^4.2.13"
 	},
 	"dependencies": {
 		"@tiptap/core": "latest",

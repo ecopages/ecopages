@@ -137,4 +137,51 @@ describe('analyzeReachability', () => {
 		/** With fallback roots and NO exports, it remains empty in reachability. */
 		expect(result.unreachableSideEffectImports).toHaveLength(1);
 	});
+
+	it('marks export * from source as fully reachable when eco.page roots are present', () => {
+		/**
+		 * Previously, `ExportAllDeclaration` nodes were ignored when the file had
+		 * explicit `eco.page` client roots. This test confirms the fix: the re-exported
+		 * module is now correctly tracked as fully reachable ('*'), so the boundary plugin
+		 * can evaluate it and fail the build if it contains forbidden imports.
+		 */
+		const source = `
+			export * from './utils/server-helpers';
+
+			export default eco.page({
+				render: () => <App />
+			});
+		`;
+
+		const result = analyzeReachability(source, 'page.tsx');
+
+		expect(result.analyzed).toBe(true);
+		expect(result.isFallbackRoots).toBe(false);
+		// './utils/server-helpers' must be marked as fully reachable
+		expect(result.reachableImports.get('./utils/server-helpers')).toBe('*');
+	});
+
+	it('marks export * from source as fully reachable even without eco roots', () => {
+		/**
+		 * A file that only contains `export * from` statements has no eco.page/eco.component
+		 * call. Previously this would have fallen into fallback mode where ALL exports were
+		 * treated as roots. Now, `ExportAllDeclaration` nodes are always seeded directly into
+		 * `potentialClientRoots`, so the file is NOT in fallback mode and the re-exported
+		 * sources are correctly tracked as fully reachable ('*').
+		 */
+		const source = `
+			export * from './shared-utils';
+			export * from './more-helpers';
+
+			export function localFn() {}
+		`;
+
+		const result = analyzeReachability(source, 'utils.ts');
+
+		expect(result.analyzed).toBe(true);
+		// export* nodes are now direct client roots — not fallback mode
+		expect(result.isFallbackRoots).toBe(false);
+		expect(result.reachableImports.get('./shared-utils')).toBe('*');
+		expect(result.reachableImports.get('./more-helpers')).toBe('*');
+	});
 });

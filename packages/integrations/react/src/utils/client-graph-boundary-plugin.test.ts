@@ -189,4 +189,55 @@ describe('createClientGraphBoundaryPlugin', () => {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
+
+	it('preserves local aliases and default import syntax when pruning forbidden named specifiers', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const filePath = join(tempDir, 'entry.tsx');
+		writeFileSync(
+			filePath,
+			[
+				"import fsDefault, { readFileSync as readText, writeFileSync } from 'node:fs';",
+				"const Component = eco.component({ dependencies: { modules: ['node:fs{default,readFileSync}'] } });",
+				'export default Component;',
+			].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const harness = createPluginTestHarness();
+			const transformed = await harness.transformFile(filePath);
+
+			expect(transformed).toBeDefined();
+			expect(transformed).toContain("import fsDefault, { readFileSync as readText } from 'node:fs';");
+			expect(transformed).not.toContain('writeFileSync');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('rewrites default and namespace import combinations into valid syntax after pruning', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const filePath = join(tempDir, 'entry.tsx');
+		writeFileSync(
+			filePath,
+			[
+				"import fsDefault, * as fsNs from 'node:fs';",
+				"const Component = eco.component({ dependencies: { modules: ['node:fs{*}'] } });",
+				'export default Component;',
+			].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const harness = createPluginTestHarness();
+			const transformed = await harness.transformFile(filePath);
+
+			expect(transformed).toBeDefined();
+			expect(transformed).toContain("import * as fsNs from 'node:fs';");
+			expect(transformed).not.toContain('import { * as fsNs }');
+			expect(transformed).not.toContain('fsDefault, * as fsNs');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
 });

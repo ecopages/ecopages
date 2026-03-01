@@ -205,6 +205,14 @@ function transformModuleImports(
 	filename: string,
 	globallyAllowed: Map<string, Set<string> | '*'>,
 ): { transformed: string; modified: boolean } {
+	/**
+	 * Parse the source
+	 *
+	 * We parse once here and then reuse the resulting `program` AST for both
+	 * the local `modules` declaration walk (step 2) and the reachability analysis
+	 * (step 3). Passing it through avoids a redundant second `parseSync` call inside
+	 * `analyzeReachability`, cutting the per-file OxC work roughly in half.
+	 */
 	let result;
 	try {
 		result = parseSync(filename, source, {
@@ -217,6 +225,18 @@ function transformModuleImports(
 
 	const { program } = result;
 	const localDeclared: string[] = [];
+
+	/**
+	 * Collect locally declared modules
+	 *
+	 * Walk the AST looking for `modules: [...]` array properties. These are the
+	 * component-level allowlist declarations that a developer writes inside
+	 * `eco.page({ modules: ['react', '@myorg/ui{Button}'] })` to explicitly opt
+	 * specific packages into the client bundle.
+	 *
+	 * The collected specifiers are merged with the globally configured allowlist
+	 * before any import filtering takes place.
+	 */
 
 	function walk(node: any) {
 		if (!node || typeof node !== 'object') return;
@@ -239,12 +259,35 @@ function transformModuleImports(
 			}
 		}
 	}
+
 	walk(program);
 
+	/**
+	 * Merge allowlists and compute reachability
+	 *
+	 * Combine the globally declared modules (from plugin config) with the locally
+	 * declared ones (from the component's `modules` array) into a single authoritative map.
+	 *
+	 * Then run the reachability analysis, passing the already-parsed `program` so the
+	 * analyser skips its own internal `parseSync` call (see step 1 above).
+	 */
 	const locallyAllowed = parseDeclaredModules(localDeclared);
 	const allowedMap = mergeDeclaredModulesMap(globallyAllowed, locallyAllowed);
-	const reachability = analyzeReachability(source, filename);
+	const reachability = analyzeReachability(source, filename, program);
 
+	/**
+	 * Build the edit list
+	 *
+	 * Walk the AST a second time, this time inspecting every import/export/dynamic-import
+	 * node against the combined allowlist and the reachability graph:
+	 *
+	 * - **Forbidden + unreachable** → replace with empty string (pruned).
+	 * - **Forbidden + reachable from a known client root** → throw a build error so the
+	 *   developer is forced to resolve the server-client boundary violation explicitly.
+	 * - **Allowed with specific named rules** → surgically rewrite the import to keep only
+	 *   the permitted named bindings; esbuild tree-shakes the rest.
+	 * - **Allowed with no restrictions** → left untouched; esbuild handles tree-shaking.
+	 */
 	const edits: { start: number; end: number; replacement: string }[] = [];
 
 	function processSpecifier(specifier: string): { allowed: boolean; rules?: Set<string> | '*' } {
@@ -293,28 +336,51 @@ function transformModuleImports(
 			 * If there are specific rules (a Set), we must surgically remove any specifiers that aren't in the rule.
 			 */
 			if (rules instanceof Set && node.specifiers && node.specifiers.length > 0) {
-				const keepNodes: string[] = [];
+				let keptSpecifierCount = 0;
+				let defaultImportLocal: string | undefined;
+				let namespaceImportLocal: string | undefined;
+				const namedImportNodes: string[] = [];
 				for (const spec of node.specifiers) {
 					if (spec.type === 'ImportSpecifier') {
-						const importedName = spec.imported.name;
+						const importedName =
+							spec.imported.type === 'Identifier' ? spec.imported.name : (spec.imported.value as string);
 						if (rules.has(importedName)) {
-							keepNodes.push(importedName);
+							keptSpecifierCount += 1;
+							const localName = spec.local?.name;
+							if (localName && localName !== importedName) {
+								namedImportNodes.push(`${importedName} as ${localName}`);
+							} else {
+								namedImportNodes.push(importedName);
+							}
 						}
 					} else if (spec.type === 'ImportDefaultSpecifier') {
 						if (rules.has('default')) {
-							keepNodes.push(spec.local.name);
+							keptSpecifierCount += 1;
+							defaultImportLocal = spec.local.name;
 						}
 					} else if (spec.type === 'ImportNamespaceSpecifier') {
 						if (rules.has('*')) {
-							keepNodes.push(`* as ${spec.local.name}`);
+							keptSpecifierCount += 1;
+							namespaceImportLocal = spec.local.name;
 						}
 					}
 				}
 
-				if (keepNodes.length === 0) {
+				if (keptSpecifierCount === 0) {
 					edits.push({ start: node.start, end: node.end, replacement: '' });
-				} else if (keepNodes.length < node.specifiers.length) {
-					const newDeclaration = `import { ${keepNodes.join(', ')} } from '${specifier}';`;
+				} else if (keptSpecifierCount < node.specifiers.length) {
+					let newDeclaration = '';
+					if (defaultImportLocal && namespaceImportLocal) {
+						newDeclaration = `import ${defaultImportLocal}, * as ${namespaceImportLocal} from '${specifier}';`;
+					} else if (namespaceImportLocal) {
+						newDeclaration = `import * as ${namespaceImportLocal} from '${specifier}';`;
+					} else if (defaultImportLocal && namedImportNodes.length > 0) {
+						newDeclaration = `import ${defaultImportLocal}, { ${namedImportNodes.join(', ')} } from '${specifier}';`;
+					} else if (defaultImportLocal) {
+						newDeclaration = `import ${defaultImportLocal} from '${specifier}';`;
+					} else {
+						newDeclaration = `import { ${namedImportNodes.join(', ')} } from '${specifier}';`;
+					}
 					edits.push({ start: node.start, end: node.end, replacement: newDeclaration });
 				}
 				return;

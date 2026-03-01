@@ -271,13 +271,13 @@ Lazy loading is configured per dependency entry in `dependencies.scripts`:
 
 ```tsx
 // Load on idle
-scripts: [{ src: './component.script.ts', lazy: { 'on:idle': true } }]
+scripts: [{ src: './component.script.ts', lazy: { 'on:idle': true } }];
 
 // Load on interaction
-scripts: [{ src: './component.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }]
+scripts: [{ src: './component.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }];
 
 // Load on visibility
-scripts: [{ src: './component.script.ts', lazy: { 'on:visible': true } }] // or viewport margin like '100px'
+scripts: [{ src: './component.script.ts', lazy: { 'on:visible': true } }]; // or viewport margin like '100px'
 ```
 
 Each entry can define its own trigger, so mixed strategies in one component are supported.

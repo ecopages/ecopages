@@ -24,48 +24,6 @@ import type {
 } from './build-adapter.ts';
 
 /**
- * Parses JSONC content by removing comments and trailing commas before parsing.
- */
-function parseJsonc(jsonContent: string): unknown {
-	const withoutBlockComments = jsonContent.replaceAll(/\/\*[\s\S]*?\*\//g, '');
-	const withoutLineComments = withoutBlockComments.replaceAll(/(^|[^:\\])\/\/.*$/gm, '$1');
-	const withoutTrailingCommas = withoutLineComments.replaceAll(/,\s*([}\]])/g, '$1');
-	return JSON.parse(withoutTrailingCommas);
-}
-
-/**
- * Loads `compilerOptions` from the local `tsconfig.json` when present.
- *
- * Values are reused for `tsconfigRaw` so esbuild keeps native tsconfig behavior
- * while we only override options required by Ecopages runtime semantics.
- */
-function loadTsconfigCompilerOptions(rootDir: string): {
-	baseUrl?: string;
-	paths?: Record<string, string[]>;
-	jsxImportSource?: string;
-} {
-	const tsconfigPath = path.join(rootDir, 'tsconfig.json');
-
-	if (!fileSystem.exists(tsconfigPath)) {
-		return {};
-	}
-
-	try {
-		const tsconfigContent = fileSystem.readFileSync(tsconfigPath).toString();
-		const parsed = parseJsonc(tsconfigContent) as {
-			compilerOptions?: {
-				baseUrl?: string;
-				paths?: Record<string, string[]>;
-			};
-		};
-
-		return parsed.compilerOptions ?? {};
-	} catch {
-		return {};
-	}
-}
-
-/**
  * Provides common transpile output defaults shared across build profiles.
  */
 function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
@@ -236,6 +194,25 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 	/**
 	 * Creates an esbuild plugin bridge compatible with the existing Ecopages
 	 * plugin API shape.
+	 *
+	 * **Plugin ordering is semantically significant.**
+	 *
+	 * Esbuild applies `onResolve` and `onLoad` hooks in the order they are
+	 * registered: the first handler whose filter matches wins for `onResolve`,
+	 * and the first handler that returns a non-`undefined` result wins for
+	 * `onLoad`. Because we call `plugin.setup(bridge)` sequentially here, the
+	 * position of each plugin in the `plugins` array determines its priority:
+	 *
+	 * - **Index 0** has the highest priority (its hooks run first).
+	 * - **Last index** has the lowest priority (its hooks only run if no earlier
+	 *   plugin claimed the path).
+	 *
+	 * When adding new integrations or processors, ensure security-critical plugins
+	 * (e.g. `ecopages-client-graph-boundary`) are placed **before** general-purpose
+	 * loaders in the array so they always get first refusal on every source file.
+	 *
+	 * There is currently no priority system or validation — correct ordering is
+	 * the caller's responsibility.
 	 */
 	private createEcoPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): EsbuildPlugin {
 		return {
@@ -437,8 +414,6 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		const esbuild = await this.loadEsbuildModule();
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? '.eco/assets');
-		const compilerOptions = loadTsconfigCompilerOptions(contextRoot);
-		const jsxImportSource = compilerOptions.jsxImportSource;
 		const tsconfigPath = path.join(contextRoot, 'tsconfig.json');
 		const tsconfigExists = fileSystem.exists(tsconfigPath);
 
@@ -484,7 +459,6 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 				write: true,
 				plugins: esbuildPlugins,
 				jsx: 'automatic',
-				jsxImportSource,
 				tsconfig: tsconfigExists ? tsconfigPath : undefined,
 				logLevel: 'silent',
 			});

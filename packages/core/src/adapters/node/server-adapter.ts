@@ -18,6 +18,18 @@ import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
 
 import { NodeStaticContentServer } from './static-content-server.ts';
 
+/**
+ * Sentinel error thrown when the client closes the connection before the
+ * request body is fully consumed (killed tab, ECONNRESET, cancelled upload).
+ * Caught by `handleRequest` to return 499 instead of 500.
+ */
+class ClientAbortError extends Error {
+	constructor() {
+		super('Client closed the request');
+		this.name = 'ClientAbortError';
+	}
+}
+
 export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
 	port?: number;
@@ -42,6 +54,26 @@ export interface NodeServerAdapterResult extends ServerAdapterResult {
 	handleRequest: (request: Request) => Promise<Response>;
 }
 
+/**
+ * Node.js HTTP server adapter for the Ecopages runtime.
+ *
+ * `NodeServerAdapter` bridges the Node.js `http` module and the Ecopages
+ * `SharedServerAdapter` abstraction, translating between Node's
+ * `IncomingMessage`/`ServerResponse` API and the platform-agnostic Web
+ * `Request`/`Response` model.
+ *
+ * Lifecycle:
+ * 1. `createAdapter()` — calls `initialize()` and returns the public adapter result.
+ * 2. `completeInitialization(server)` — called once the HTTP server is listening.
+ *    Conditionally wires HMR, WebSocket upgrades, and the file watcher when
+ *    `options.watch` is `true`.
+ * 3. `handleRequest(request)` — delegates to `handleSharedRequest` for routing;
+ *    intercepts `ClientAbortError` to return 499 instead of 500.
+ * 4. `buildStatic()` — spins up an ephemeral runtime server, generates all static
+ *    pages against it, then tears it down.
+ *
+ * @see SharedServerAdapter for routing, caching and response handler logic.
+ */
 export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterParams, NodeServerAdapterResult> {
 	private serverInstance: NodeServerInstance | null = null;
 	private initialized = false;
@@ -60,6 +92,19 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.errorHandler = options.errorHandler;
 	}
 
+	/**
+	 * Prepares the adapter for use.
+	 *
+	 * Order is intentional:
+	 * 1. **Loaders** are registered first so processors and integrations can
+	 *    reference loader-provided file types in their own plugins.
+	 * 2. **Public dir** is copied before any build so static assets are in `distDir`
+	 *    before the first request arrives.
+	 * 3. **Plugins** (processors, then integrations) are set up after the public dir
+	 *    is in place so they can safely reference dist-relative paths.
+	 * 4. **Router** is initialised last because it may depend on files written by
+	 *    processors during their `setup()` calls.
+	 */
 	public async initialize(): Promise<void> {
 		this.setupLoaders();
 		this.copyPublicDir();
@@ -75,6 +120,15 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.initialized = true;
 	}
 
+	/**
+	 * Registers every configured file loader as a build plugin on the shared
+	 * `defaultBuildAdapter`.
+	 *
+	 * Loaders are registered on the *shared* adapter (not on a per-build instance)
+	 * because they must be available globally to both the SSR build and any dynamic
+	 * transpile passes that happen outside of a top-level `build()` call (e.g. HMR
+	 * incremental rebuilds).
+	 */
 	private setupLoaders(): void {
 		for (const loader of this.appConfig.loaders.values()) {
 			defaultBuildAdapter.registerPlugin(loader);
@@ -91,6 +145,22 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 	}
 
+	/**
+	 * Sets up all configured processors and integrations in two distinct phases.
+	 *
+	 * **Phase 1 — Processors:**
+	 * Each processor's `setup()` is called first. A processor may expose two
+	 * plugin lists:
+	 * - `plugins` — transform plugins used during SSR rendering (e.g. PostCSS).
+	 * - `buildPlugins` — esbuild plugins used during the client bundle step.
+	 * Both are registered on `defaultBuildAdapter` so later build calls pick them up.
+	 *
+	 * **Phase 2 — Integrations:**
+	 * Integrations receive the fully-resolved app config, the runtime origin, and
+	 * (if already initialised) the HMR manager before their own `setup()` is called.
+	 * This ordering ensures integrations can query config values that processors
+	 * may have mutated during phase 1.
+	 */
 	private async initializePlugins(): Promise<void> {
 		const processorBuildPlugins: EcoBuildPlugin[] = [];
 
@@ -174,6 +244,20 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		appLogger.info(`Preview running at http://${previewHostname}:${previewPort}`);
 	}
 
+	/**
+	 * Converts a Node.js `IncomingMessage` into a Web API `Request`.
+	 *
+	 * Multi-value headers (e.g. `set-cookie`) are appended individually so no
+	 * value is silently dropped.
+	 *
+	 * For methods that carry a body (`POST`, `PUT`, `PATCH`, …), the raw
+	 * `IncomingMessage` stream is wrapped in a `ReadableStream` rather than
+	 * cast directly to `BodyInit`. See the inline doc block inside the `if`
+	 * branch for the rationale (client-abort handling).
+	 *
+	 * `duplex: 'half'` is required by the `fetch` spec when a streaming body is
+	 * provided — without it Node.js 18+ throws a `TypeError`.
+	 */
 	private createWebRequest(req: IncomingMessage): Request {
 		const url = new URL(req.url ?? '/', this.runtimeOrigin);
 		const headers = new Headers();
@@ -198,13 +282,55 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		};
 
 		if (method !== 'GET' && method !== 'HEAD') {
-			requestInit.body = req as unknown as BodyInit;
+			/**
+			 * Wrap the IncomingMessage in a ReadableStream so we can intercept
+			 * mid-stream client aborts (killed tab, network drop, cancelled upload).
+			 *
+			 * Without this, Node.js emits 'aborted'/'error' on the raw stream *after*
+			 * the Request body is already being consumed, causing the error to bubble
+			 * up as a generic 500 Internal Server Error with noise in the logs.
+			 *
+			 * The ReadableStream controller.error() triggers a stream-level rejection
+			 * which propagates as a ClientAbortError. The `handleRequest` catch block
+			 * detects it and returns 499 (Client Closed Request) silently instead.
+			 */
+			const body = new ReadableStream({
+				start(controller) {
+					req.on('data', (chunk: Buffer) => controller.enqueue(chunk));
+					req.once('end', () => controller.close());
+					req.once('aborted', () => {
+						controller.error(new ClientAbortError());
+					});
+					req.once('error', (err) => {
+						const isClientAbort = (err as NodeJS.ErrnoException).code === 'ECONNRESET';
+						controller.error(isClientAbort ? new ClientAbortError() : err);
+					});
+				},
+				cancel() {
+					/**
+					 * Client cancelled the stream mid-transfer (e.g. back button, fetch abort).
+					 * Destroy the underlying socket so Node.js releases the file descriptor
+					 * immediately rather than waiting for TCP keepalive to time out.
+					 */
+					req.destroy();
+				},
+			});
+
+			requestInit.body = body;
 			requestInit.duplex = 'half';
 		}
 
 		return new Request(url, requestInit);
 	}
 
+	/**
+	 * Writes a Web `Response` back to a Node.js `ServerResponse`.
+	 *
+	 * The entire body is buffered via `arrayBuffer()` before writing. This is
+	 * intentional for the current use-case (SSR pages and API routes), where
+	 * responses are typically small and fully materialised. Streaming responses
+	 * are not yet supported.
+	 */
 	private async sendNodeResponse(res: ServerResponse, response: Response): Promise<void> {
 		res.statusCode = response.status;
 
@@ -221,6 +347,18 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		res.end(body);
 	}
 
+	/**
+	 * Starts an ephemeral HTTP server used *only* during a static site generation
+	 * run.
+	 *
+	 * Static generation works by having the `StaticSiteGenerator` issue real HTTP
+	 * requests to a live server for each route, capturing the rendered HTML. This
+	 * approach reuses the normal request pipeline (middleware, caching, API
+	 * handlers) without any special-casing for the build path.
+	 *
+	 * The server is torn down immediately after generation completes via
+	 * `stopBuildRuntimeServer`, so it never overlaps with the actual dev/prod server.
+	 */
 	private async startBuildRuntimeServer(): Promise<NodeHttpServer> {
 		const hostname = String(this.serveOptions.hostname || 'localhost');
 		const port = Number(this.serveOptions.port || 3000);
@@ -251,6 +389,18 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		return server;
 	}
 
+	/**
+	 * Gracefully shuts down the ephemeral build runtime server.
+	 *
+	 * `closeAllConnections()` is called *before* `close()` because `server.close()`
+	 * only stops accepting new connections — it waits for existing keep-alive
+	 * connections to finish naturally, which can stall the build indefinitely.
+	 * `closeAllConnections()` force-closes any lingering sockets immediately so
+	 * the `close()` callback fires promptly.
+	 *
+	 * The `NodeClientBridge` heartbeat is also destroyed here so its `setInterval`
+	 * does not prevent the Node.js process from exiting cleanly after the build.
+	 */
 	private async stopBuildRuntimeServer(server: NodeHttpServer): Promise<void> {
 		await new Promise<void>((resolve, reject) => {
 			server.close((error) => {
@@ -283,19 +433,57 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		};
 	}
 
+	/**
+	 * Handles a single incoming Web `Request` and returns a Web `Response`.
+	 *
+	 * Delegates to `handleSharedRequest` for all routing, caching, and response
+	 * handler logic. The only Node-specific concern here is translating a
+	 * `ClientAbortError` — which the body `ReadableStream` raises when the
+	 * underlying socket closes early — into a 499 response so it does not
+	 * incorrectly surface as a 500 in application logs.
+	 */
 	public async handleRequest(_request: Request): Promise<Response> {
 		if (!this.initialized) {
 			throw new Error('Node server adapter is not initialized. Call createAdapter() first.');
 		}
 
-		return this.handleSharedRequest(_request, {
-			apiHandlers: this.apiHandlers,
-			errorHandler: this.errorHandler,
-			serverInstance: this.serverInstance,
-			hmrManager: this.hmrManager,
-		});
+		try {
+			return await this.handleSharedRequest(_request, {
+				apiHandlers: this.apiHandlers,
+				errorHandler: this.errorHandler,
+				serverInstance: this.serverInstance,
+				hmrManager: this.hmrManager,
+			});
+		} catch (error) {
+			if (error instanceof ClientAbortError) {
+				/**
+				 * The client disconnected before the response was sent (killed tab,
+				 * network drop, or programmatic abort). This is a normal browser behaviour,
+				 * not a server fault. Return 499 (Client Closed Request) silently so the
+				 * error does not surface in application logs as a 500.
+				 */
+				return new Response(null, { status: 499 });
+			}
+			throw error;
+		}
 	}
 
+	/**
+	 * Called once the HTTP server is bound and listening.
+	 *
+	 * When `options.watch` is `true` this method wires the full HMR pipeline:
+	 * - A `WebSocketServer` is attached to the existing HTTP server via the
+	 *   `upgrade` event (no separate port needed).
+	 * - `NodeClientBridge` tracks active WebSocket connections and handles
+	 *   broadcast + heartbeat cleanup.
+	 * - `NodeHmrManager` watches the filesystem and triggers incremental esbuild
+	 *   rebuilds, notifying connected clients via the bridge.
+	 * - `ProjectWatcher` listens for route-level file changes and refreshes the
+	 *   router and response handlers when pages are added or removed.
+	 *
+	 * WebSocket upgrade requests that do not target `/_hmr` are rejected with an
+	 * immediate socket destroy to prevent unhandled upgrade leaks.
+	 */
 	public async completeInitialization(_server: NodeServerInstance): Promise<void> {
 		this.serverInstance = _server;
 
@@ -352,6 +540,13 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	}
 }
 
+/**
+ * Factory function that creates and fully initialises a `NodeServerAdapter`.
+ *
+ * `runtimeOrigin` is derived from `serveOptions` when not explicitly provided,
+ * so callers only need to set it when the server is behind a reverse proxy that
+ * changes the effective host or port.
+ */
 export async function createNodeServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapterResult> {
 	const runtimeOrigin =
 		params.runtimeOrigin ??

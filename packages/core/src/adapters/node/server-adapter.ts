@@ -267,6 +267,9 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		if (this.serverInstance === server) {
 			this.serverInstance = null;
 		}
+
+		this.bridge?.destroy();
+		this.bridge = null;
 	}
 
 	public async createAdapter(): Promise<NodeServerAdapterResult> {

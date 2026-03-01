@@ -65,7 +65,7 @@ export default defineConfig({
 			testMatch: 'e2e/tests/react-playground/**/*.test.e2e.ts',
 			use: {
 				...devices['Desktop Chrome'],
-				baseURL: 'http://localhost:3000',
+				baseURL: 'http://localhost:3001',
 			},
 		},
 	],
@@ -119,9 +119,9 @@ export default defineConfig({
 			stderr: 'pipe',
 		},
 		{
-			command: 'pnpm --filter @ecopages/playground-react run dev',
+			command: 'ECOPAGES_PORT=3001 pnpm --filter @ecopages/playground-react run dev',
 			cwd: '.',
-			port: 3000,
+			port: 3001,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',
 			stderr: 'pipe',

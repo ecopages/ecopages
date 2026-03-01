@@ -111,15 +111,16 @@ export class DomSwapper {
 	 * - Merges meta tags (adds new, updates changed)
 	 * - Leaves stylesheets untouched (they're preloaded separately)
 	 * - Handles script re-execution for marked scripts
+	 * - Injects new scripts from the incoming page that are absent from the current head
 	 */
 	morphHead(newDocument: Document): void {
-		// Update title
+		/** Update the document title if it has changed. */
 		const newTitle = newDocument.head.querySelector('title');
 		if (newTitle && document.title !== newTitle.textContent) {
 			document.title = newTitle.textContent || '';
 		}
 
-		// Merge meta tags
+		/** Merge meta tags: update existing ones whose content changed, append new ones. */
 		const newMetas = newDocument.head.querySelectorAll('meta[name], meta[property]');
 		for (const newMeta of newMetas) {
 			const name = newMeta.getAttribute('name');
@@ -138,15 +139,18 @@ export class DomSwapper {
 			}
 		}
 
-		// Handle scripts marked for re-run
+		/**
+		 * Re-execute scripts that are explicitly marked with `data-eco-rerun`.
+		 * Deduplication is performed via `data-eco-script-id` to prevent double execution.
+		 */
 		const existingScriptIds = new Set(
 			Array.from(document.head.querySelectorAll('script[data-eco-script-id]')).map((s) =>
 				s.getAttribute('data-eco-script-id'),
 			),
 		);
 
-		const newScripts = newDocument.head.querySelectorAll('script[data-eco-rerun]');
-		for (const script of newScripts) {
+		const rerunScripts = newDocument.head.querySelectorAll('script[data-eco-rerun]');
+		for (const script of rerunScripts) {
 			const scriptId = script.getAttribute('data-eco-script-id');
 			if (scriptId && !existingScriptIds.has(scriptId)) {
 				const newScript = document.createElement('script');
@@ -157,6 +161,55 @@ export class DomSwapper {
 				}
 				newScript.textContent = script.textContent;
 				document.head.appendChild(newScript);
+			}
+		}
+
+		/**
+		 * Inject new scripts from the incoming page that are not already loaded.
+		 *
+		 * When the client-side router swaps pages, the new page may require scripts
+		 * (e.g. custom-element definitions) that were not present on the previous page.
+		 * Because the browser only executes a <script> element when it is first parsed
+		 * or dynamically appended to the DOM, a fresh element must be created for each
+		 * new script — cloneNode() alone is not sufficient to trigger execution.
+		 *
+		 * - External scripts are matched by their `src` attribute.
+		 * - Inline scripts are matched by trimmed text content to avoid re-running duplicates.
+		 */
+		const existingScriptSrcs = new Set(
+			Array.from(document.head.querySelectorAll('script[src]')).map((s) => s.getAttribute('src')),
+		);
+		const existingInlineContents = new Set(
+			Array.from(document.head.querySelectorAll('script:not([src])')).map((s) => (s.textContent ?? '').trim()),
+		);
+
+		const allNewHeadScripts = newDocument.head.querySelectorAll('script');
+		for (const script of allNewHeadScripts) {
+			/** Skip scripts already handled by the `data-eco-rerun` mechanism above. */
+			if (script.hasAttribute('data-eco-rerun')) continue;
+
+			const src = script.getAttribute('src');
+
+			if (src) {
+				if (existingScriptSrcs.has(src)) continue;
+				/** New external script — append a freshly created element so the browser fetches and executes it. */
+				const newScript = document.createElement('script');
+				for (const attr of script.attributes) {
+					newScript.setAttribute(attr.name, attr.value);
+				}
+				document.head.appendChild(newScript);
+				existingScriptSrcs.add(src);
+			} else {
+				/** Inline script — skip if identical content is already present to avoid re-running on every navigation. */
+				const content = (script.textContent ?? '').trim();
+				if (!content || existingInlineContents.has(content)) continue;
+				const newScript = document.createElement('script');
+				for (const attr of script.attributes) {
+					newScript.setAttribute(attr.name, attr.value);
+				}
+				newScript.textContent = script.textContent;
+				document.head.appendChild(newScript);
+				existingInlineContents.add(content);
 			}
 		}
 	}

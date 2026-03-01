@@ -41,34 +41,28 @@ describe('eco namespace', () => {
 			const Counter = eco.component({
 				dependencies: {
 					stylesheets: ['./counter.css'],
-					lazy: {
-						'on:interaction': 'mouseenter,focusin',
-						scripts: ['./counter.script.ts'],
-					},
+					scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 				},
 				render: () => '<my-counter></my-counter>',
 			});
 
-			expect(Counter.config?.dependencies?.lazy).toBeDefined();
-			if (Counter.config?.dependencies?.lazy && 'on:interaction' in Counter.config.dependencies.lazy) {
-				expect(Counter.config.dependencies.lazy['on:interaction']).toBe('mouseenter,focusin');
-			}
+			expect(Counter.config?.dependencies?.scripts).toEqual([
+				{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } },
+			]);
 		});
 
 		test('should auto-wrap component with scripts-injector when lazy scripts are resolved', () => {
 			const Counter = eco.component({
 				dependencies: {
-					lazy: {
-						'on:interaction': 'mouseenter,focusin',
-						scripts: ['./counter.script.ts'],
-					},
+					scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 				},
 				render: () => '<my-counter></my-counter>',
 			});
 
-			// Simulate renderer setting _resolvedScripts
 			if (Counter.config) {
-				Counter.config._resolvedScripts = '/_assets/counter.js';
+				Counter.config._resolvedLazyScripts = [
+					{ lazy: { 'on:interaction': 'mouseenter,focusin' }, scripts: '/_assets/counter.js' },
+				];
 			}
 
 			const result = Counter({});
@@ -82,16 +76,13 @@ describe('eco namespace', () => {
 		test('should handle on:idle trigger', () => {
 			const Component = eco.component({
 				dependencies: {
-					lazy: {
-						'on:idle': true,
-						scripts: ['./script.ts'],
-					},
+					scripts: [{ src: './script.ts', lazy: { 'on:idle': true } }],
 				},
 				render: () => '<div>Content</div>',
 			});
 
 			if (Component.config) {
-				Component.config._resolvedScripts = '/_assets/script.js';
+				Component.config._resolvedLazyScripts = [{ lazy: { 'on:idle': true }, scripts: '/_assets/script.js' }];
 			}
 
 			const result = Component({});
@@ -102,16 +93,15 @@ describe('eco namespace', () => {
 		test('should handle on:visible trigger with boolean', () => {
 			const Component = eco.component({
 				dependencies: {
-					lazy: {
-						'on:visible': true,
-						scripts: ['./script.ts'],
-					},
+					scripts: [{ src: './script.ts', lazy: { 'on:visible': true } }],
 				},
 				render: () => '<div>Content</div>',
 			});
 
 			if (Component.config) {
-				Component.config._resolvedScripts = '/_assets/script.js';
+				Component.config._resolvedLazyScripts = [
+					{ lazy: { 'on:visible': true }, scripts: '/_assets/script.js' },
+				];
 			}
 
 			const result = Component({});
@@ -122,29 +112,25 @@ describe('eco namespace', () => {
 		test('should handle on:visible trigger with threshold value', () => {
 			const Component = eco.component({
 				dependencies: {
-					lazy: {
-						'on:visible': '0.5',
-						scripts: ['./script.ts'],
-					},
+					scripts: [{ src: './script.ts', lazy: { 'on:visible': '0.5' } }],
 				},
 				render: () => '<div>Content</div>',
 			});
 
 			if (Component.config) {
-				Component.config._resolvedScripts = '/_assets/script.js';
+				Component.config._resolvedLazyScripts = [
+					{ lazy: { 'on:visible': '0.5' }, scripts: '/_assets/script.js' },
+				];
 			}
 
 			const result = Component({});
 			expect(result).toContain('on:visible="0.5"');
 		});
 
-		test('should not wrap when lazy is defined but _resolvedScripts is not set', () => {
+		test('should not wrap when lazy script entries exist but _resolvedLazyScripts is not set', () => {
 			const Component = eco.component({
 				dependencies: {
-					lazy: {
-						'on:interaction': 'mouseenter',
-						scripts: ['./script.ts'],
-					},
+					scripts: [{ src: './script.ts', lazy: { 'on:interaction': 'mouseenter' } }],
 				},
 				render: () => '<div>Content</div>',
 			});
@@ -162,6 +148,32 @@ describe('eco namespace', () => {
 
 			const result = Component({ name: 'Counter', count: 5 });
 			expect(result).toBe('<div>Counter: 5</div>');
+		});
+
+		test('should support multiple lazy triggers in dependencies.scripts', () => {
+			const Component = eco.component({
+				dependencies: {
+					scripts: [
+						{ src: './idle.ts', lazy: { 'on:idle': true } },
+						{ src: './visible.ts', lazy: { 'on:visible': '0.5' } },
+					],
+				},
+				render: () => '<section>Content</section>',
+			});
+
+			if (Component.config) {
+				Component.config._resolvedLazyScripts = [
+					{ lazy: { 'on:idle': true }, scripts: '/_assets/idle.js' },
+					{ lazy: { 'on:visible': '0.5' }, scripts: '/_assets/visible.js' },
+				];
+			}
+
+			const result = Component({});
+			expect(result).toContain('on:idle');
+			expect(result).toContain('scripts="/_assets/idle.js"');
+			expect(result).toContain('on:visible="0.5"');
+			expect(result).toContain('scripts="/_assets/visible.js"');
+			expect(result).toContain('<section>Content</section>');
 		});
 	});
 
@@ -192,16 +204,15 @@ describe('eco namespace', () => {
 		test('should work with lazy dependencies on pages', () => {
 			const Page = eco.page({
 				dependencies: {
-					lazy: {
-						'on:interaction': 'click',
-						scripts: ['./page.script.ts'],
-					},
+					scripts: [{ src: './page.script.ts', lazy: { 'on:interaction': 'click' } }],
 				},
 				render: () => '<div>Page Content</div>',
 			});
 
 			if (Page.config) {
-				Page.config._resolvedScripts = '/_assets/page.js';
+				Page.config._resolvedLazyScripts = [
+					{ lazy: { 'on:interaction': 'click' }, scripts: '/_assets/page.js' },
+				];
 			}
 
 			const result = Page({});
@@ -345,10 +356,14 @@ describe('eco namespace', () => {
 		test('should work with nested components', () => {
 			const Button = eco.component<{ label: string }>({
 				dependencies: {
-					lazy: {
-						'on:interaction': 'click',
-						scripts: ['./button.script.ts'],
-					},
+					scripts: [
+						{
+							src: './button.script.ts',
+							lazy: {
+								'on:interaction': 'click',
+							},
+						},
+					],
 				},
 				render: ({ label }) => `<button>${label}</button>`,
 			});

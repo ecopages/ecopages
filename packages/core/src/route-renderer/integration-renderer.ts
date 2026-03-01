@@ -291,10 +291,24 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}: {
 		componentDir: string;
 	} & EcoComponentDependencies): EcoComponentDependencies {
-		const scriptsPaths = [...new Set(scripts?.map((script) => this.resolveDependencyPath(componentDir, script)))];
+		const scriptsPaths = [
+			...new Set(
+				(scripts ?? [])
+					.filter((script) => (typeof script === 'string' ? true : !script.lazy))
+					.map((script) => (typeof script === 'string' ? script : script.src))
+					.filter((script): script is string => Boolean(script))
+					.map((script) => this.resolveDependencyPath(componentDir, script)),
+			),
+		];
 
 		const stylesheetsPaths = [
-			...new Set(stylesheets?.map((style) => this.resolveDependencyPath(componentDir, style))),
+			...new Set(
+				(stylesheets ?? [])
+					.filter((style) => (typeof style === 'string' ? true : !style.lazy))
+					.map((style) => (typeof style === 'string' ? style : style.src))
+					.filter((style): style is string => Boolean(style))
+					.map((style) => this.resolveDependencyPath(componentDir, style)),
+			),
 		];
 
 		return {

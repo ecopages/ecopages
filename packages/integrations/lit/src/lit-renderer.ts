@@ -14,6 +14,7 @@ import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/cor
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import { PLUGIN_NAME } from './lit.plugin.ts';
 
 /**
@@ -21,6 +22,48 @@ import { PLUGIN_NAME } from './lit.plugin.ts';
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = PLUGIN_NAME;
+	private readonly ssrLazyPreloader = new LitSsrLazyPreloader({
+		resolveDependencyPath: this.resolveDependencyPath.bind(this),
+		processDependencies: this.assetProcessingService?.processDependencies?.bind(this.assetProcessingService),
+	});
+
+	/**
+	 * Detects preload failures that are expected for browser-only modules.
+	 *
+	 * These errors are treated as non-fatal during SSR preload because some
+	 * lazy client scripts intentionally depend on browser globals.
+	 */
+	protected isExpectedSsrPreloadError(error: unknown): boolean {
+		return this.ssrLazyPreloader.isExpectedSsrPreloadError(error);
+	}
+
+	/**
+	 * Collects lazy script file paths eligible for SSR preloading.
+	 *
+	 * Only per-entry lazy script dependencies with `ssr: true` are collected.
+	 * File-backed entries are required (`src` must be present);
+	 * inline content lazy entries are intentionally skipped.
+	 */
+	protected collectSsrPreloadScripts(components: Array<EcoComponent | undefined>): string[] {
+		return this.ssrLazyPreloader.collectSsrPreloadScripts(components);
+	}
+
+	/**
+	 * Preloads SSR-eligible lazy scripts to register custom elements before render.
+	 */
+	protected async preloadSsrLazyScripts(components: Array<EcoComponent | undefined>): Promise<void> {
+		await this.ssrLazyPreloader.preloadSsrLazyScripts(components);
+	}
+
+	/**
+	 * Resolves the concrete JS entrypoint used for SSR preloading.
+	 *
+	 * Scripts are passed through the asset pipeline so preload imports can use
+	 * the same processed output shape as runtime dependencies.
+	 */
+	protected async resolveSsrPreloadEntrypoint(scriptPath: string): Promise<string | null> {
+		return this.ssrLazyPreloader.resolveSsrPreloadEntrypoint(scriptPath);
+	}
 
 	async render({
 		params,
@@ -33,6 +76,8 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		HtmlTemplate,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
+			await this.preloadSsrLazyScripts([Page, Layout]);
+
 			const pageContent = await Page({ params, query, ...props, locals });
 			const children = Layout
 				? await (Layout as (props: { children: EcoPagesElement } & Record<string, unknown>) => EcoPagesElement)(
@@ -76,6 +121,8 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			const Layout = viewConfig?.layout as
 				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => EcoPagesElement)
 				| undefined;
+
+			await this.preloadSsrLazyScripts([view as unknown as EcoComponent, Layout as unknown as EcoComponent]);
 
 			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
 			const pageContent = await viewFn(props);

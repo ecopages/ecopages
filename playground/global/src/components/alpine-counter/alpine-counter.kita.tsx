@@ -7,10 +7,7 @@ export type AlpineCounterProps = {
 export const AlpineCounter = eco.component<AlpineCounterProps>({
 	dependencies: {
 		stylesheets: ['./alpine-counter.css'],
-		lazy: {
-			'on:interaction': 'mouseenter,focusin',
-			scripts: ['./alpine-counter.script.ts'],
-		},
+		scripts: [{ src: './alpine-counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 
 	render: ({ count = 0 }) => {

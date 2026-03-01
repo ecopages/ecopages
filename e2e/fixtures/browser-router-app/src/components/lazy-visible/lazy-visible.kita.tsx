@@ -2,10 +2,7 @@ import { eco } from '@ecopages/core';
 
 export const LazyVisible = eco.component({
 	dependencies: {
-		lazy: {
-			'on:visible': true,
-			scripts: ['./lazy-visible.script.ts'],
-		},
+		scripts: [{ src: './lazy-visible.script.ts', lazy: { 'on:visible': true } }],
 	},
 	render: () => (
 		<div id="lazy-visible-component">

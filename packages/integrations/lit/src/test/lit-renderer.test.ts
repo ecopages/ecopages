@@ -46,6 +46,85 @@ const renderer = new LitRenderer({
 });
 
 describe('LitRenderer', () => {
+	describe('ssr lazy preload', () => {
+		it('should collect nested lazy script entries for SSR preload when ssr is true', () => {
+			const testRenderer = createRenderer();
+			const nested = (() => '<div>Nested</div>') as unknown as EcoComponent<object>;
+			nested.config = {
+				__eco: {
+					id: 'nested',
+					file: '/project/src/components/nested.lit.tsx',
+					integration: 'lit',
+				},
+				dependencies: {
+					scripts: [{ src: './nested.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
+				},
+			};
+
+			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
+			view.config = {
+				__eco: {
+					id: 'view',
+					file: '/project/src/pages/index.lit.tsx',
+					integration: 'lit',
+				},
+				dependencies: {
+					components: [nested],
+					scripts: [{ src: './view.script.ts', lazy: { 'on:idle': true }, ssr: true }],
+				},
+			};
+
+			const scripts = (testRenderer as any).collectSsrPreloadScripts([view]);
+
+			expect(scripts).toContain('/project/src/pages/view.script.ts');
+			expect(scripts).toContain('/project/src/components/nested.script.ts');
+		});
+
+		it('should skip lazy scripts from SSR preload when ssr is not true', () => {
+			const testRenderer = createRenderer();
+			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
+			view.config = {
+				__eco: {
+					id: 'view',
+					file: '/project/src/pages/index.lit.tsx',
+					integration: 'lit',
+				},
+				dependencies: {
+					scripts: [{ src: './view.script.ts', lazy: { 'on:idle': true }, ssr: false }],
+				},
+			};
+
+			const scripts = (testRenderer as any).collectSsrPreloadScripts([view]);
+
+			expect(scripts).toEqual([]);
+		});
+
+		it('should collect object-entry lazy scripts when ssr is true', () => {
+			const testRenderer = createRenderer();
+			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
+			view.config = {
+				__eco: {
+					id: 'view',
+					file: '/project/src/pages/index.lit.tsx',
+					integration: 'lit',
+				},
+				dependencies: {
+					scripts: [
+						{
+							src: './view.script.ts',
+							lazy: { 'on:interaction': 'click' },
+							ssr: true,
+						},
+					],
+				},
+			};
+
+			const scripts = (testRenderer as any).collectSsrPreloadScripts([view]);
+
+			expect(scripts).toEqual(['/project/src/pages/view.script.ts']);
+		});
+	});
+
 	describe('render', () => {
 		it('should render the page', async () => {
 			const body = await renderer.render({

@@ -4,6 +4,7 @@
  */
 
 import type {
+	DependencyLazyTrigger,
 	EcoComponent,
 	EcoInjectedMeta,
 	EcoPagesElement,
@@ -19,7 +20,6 @@ import type {
 	ComponentOptions,
 	Eco,
 	EcoPageComponent,
-	LazyTrigger,
 	PageOptions,
 	PageOptionsBase,
 	PagePropsFor,
@@ -88,7 +88,7 @@ function createEcoMetadata(optionsEco: EcoInjectedMeta | undefined, componentSou
 /**
  * Builds scripts-injector HTML attributes from lazy config
  */
-function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
+function buildInjectorAttrs(lazy: DependencyLazyTrigger, scripts: string): string {
 	const normalizedScripts = scripts
 		.split(',')
 		.map((scriptPath) => scriptPath.trim())
@@ -126,7 +126,6 @@ function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
  * For other integrations, wraps render to support lazy script injection.
  */
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
-	const lazy = options.dependencies?.lazy;
 	const isReact = options.__eco?.integration === 'react';
 	const componentSourceFile = options.__eco?.file ?? resolveCallerFile();
 	const ecoMetadata = createEcoMetadata(options.__eco, componentSourceFile);
@@ -141,13 +140,20 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 		return comp;
 	}
 
-	// For non-React integrations, wrap to support lazy script injection
+	/* For non-React integrations, wrap to support lazy script injection */
 	const comp: EcoComponent<P, E> = ((props: P) => {
 		const content = options.render(props);
+		const lazyGroups = comp.config?._resolvedLazyScripts;
 
-		if (lazy && comp.config?._resolvedScripts) {
-			const attrs = buildInjectorAttrs(lazy, comp.config._resolvedScripts);
-			return `<scripts-injector ${attrs}>${content}</scripts-injector>`;
+		if (lazyGroups && lazyGroups.length > 0) {
+			let wrappedContent = String(content);
+
+			for (const group of lazyGroups) {
+				const attrs = buildInjectorAttrs(group.lazy, group.scripts);
+				wrappedContent = `<scripts-injector ${attrs}>${wrappedContent}</scripts-injector>`;
+			}
+
+			return wrappedContent;
 		}
 
 		return content;

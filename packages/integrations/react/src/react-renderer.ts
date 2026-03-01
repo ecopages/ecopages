@@ -401,11 +401,15 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			file,
 		});
 
+		const resolveDependencyValue = (value: string | { src?: string }) =>
+			typeof value === 'string' ? value : value.src;
+
 		const dependencyPaths = [
-			...(config.dependencies?.stylesheets ?? []),
-			...(config.dependencies?.scripts ?? []),
-			...(config.dependencies?.lazy?.scripts ?? []),
-		].filter((value) => value.startsWith('./') || value.startsWith('../'));
+			...(config.dependencies?.stylesheets ?? []).map(resolveDependencyValue),
+			...(config.dependencies?.scripts ?? []).map(resolveDependencyValue),
+		]
+			.filter((value): value is string => Boolean(value))
+			.filter((value) => value.startsWith('./') || value.startsWith('../'));
 
 		const candidateDirs = [
 			this.appConfig.absolutePaths.layoutsDir,

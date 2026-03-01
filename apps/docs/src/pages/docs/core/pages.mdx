@@ -85,17 +85,14 @@ Ecopages provides powerful tools for lazy loading components, which can signific
 
 Ecopages provides powerful tools for lazy loading components, which can significantly improve your site's performance.
 
-Lazy loading is handled directly within the `eco.component` or `eco.page` options using the `dependencies.lazy` property.
+Lazy loading is handled directly within dependency entries in `dependencies.scripts`.
 
 ```typescript
 import { eco } from '@ecopages/core';
 
 export const MyComponent = eco.component({
 	dependencies: {
-		lazy: {
-			'on:interaction': 'mouseenter,focusin', // Load on interaction
-			scripts: ['./my-component.script.ts'],
-		},
+		scripts: [{ src: './my-component.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }], // Load on interaction
 	},
 	render: (props) => <my-component {...props} />,
 });

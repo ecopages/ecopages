@@ -1,6 +1,11 @@
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
-import type { EcoComponent } from '../public-types.ts';
+import type {
+	DependencyLazyTrigger,
+	EcoComponent,
+	EcoComponentDependencyEntry,
+	ResolvedLazyScriptGroup,
+} from '../public-types.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
 	AssetDefinition,
@@ -95,6 +100,68 @@ function resolveDependencyPath(componentDir: string, pathUrl: string): string {
 	return path.join(componentDir, pathUrl);
 }
 
+function isDependencyEntryObject(entry: string | EcoComponentDependencyEntry): entry is EcoComponentDependencyEntry {
+	return typeof entry === 'object' && entry !== null;
+}
+
+function getDependencyEntrySrc(entry: string | EcoComponentDependencyEntry): string | undefined {
+	return isDependencyEntryObject(entry) ? entry.src : entry;
+}
+
+/**
+ * Reads inline dependency content from an entry object.
+ * Returns `undefined` for string entries.
+ */
+function getDependencyEntryContent(entry: string | EcoComponentDependencyEntry): string | undefined {
+	return isDependencyEntryObject(entry) ? entry.content : undefined;
+}
+
+/**
+ * Reads optional HTML tag attributes from an entry object.
+ * Returns `undefined` for string entries.
+ */
+function getDependencyEntryAttributes(entry: string | EcoComponentDependencyEntry): Record<string, string> | undefined {
+	return isDependencyEntryObject(entry) ? entry.attributes : undefined;
+}
+
+/**
+ * Resolves the `src` field from a dependency entry and throws when absent.
+ *
+ * Used for entry forms where a file-backed source is mandatory
+ * (for example certain lazy script code paths).
+ */
+function getDependencyEntrySrcOrThrow(entry: string | EcoComponentDependencyEntry, context: string): string {
+	const src = getDependencyEntrySrc(entry);
+	if (!src) {
+		throw new Error(`${context} requires a src value`);
+	}
+
+	return src;
+}
+
+/**
+ * Creates a stable grouping key for a lazy trigger.
+ *
+ * This key is used to bucket lazy scripts that share the same trigger so
+ * each group can be emitted into its own scripts-injector wrapper.
+ */
+function getLazyTriggerKey(lazy: DependencyLazyTrigger): string {
+	if ('on:idle' in lazy) {
+		return 'on:idle';
+	}
+
+	if ('on:interaction' in lazy) {
+		return `on:interaction:${lazy['on:interaction']}`;
+	}
+
+	if ('on:visible' in lazy) {
+		const value = lazy['on:visible'];
+		return `on:visible:${value === true ? 'true' : value}`;
+	}
+
+	return JSON.stringify(lazy);
+}
+
 function resolveLazyScripts(appConfig: EcoPagesAppConfig, componentDir: string, scripts: string[]): string {
 	const getSafeFileName = (filepath: string): string => {
 		const EXTENSIONS_TO_JS = ['ts', 'tsx'];
@@ -136,7 +203,7 @@ export class DependencyResolverService {
 	/**
 	 * Collects and processes component dependencies (styles, scripts, modules, lazy scripts).
 	 * Adds the scripts injector only when at least one lazy script exists,
-	 * and backfills `_resolvedScripts` from processed output URLs (or fallback URLs).
+	 * and backfills `_resolvedLazyScripts` from processed output URLs (or fallback URLs).
 	 */
 	async processComponentDependencies(
 		components: (EcoComponent | Partial<EcoComponent>)[],
@@ -144,17 +211,23 @@ export class DependencyResolverService {
 	): Promise<ProcessedAsset[]> {
 		if (!this.assetProcessingService?.processDependencies) return [];
 		const dependencies: AssetDefinition[] = [];
-		const lazyScriptsByConfig = new Map<
-			NonNullable<EcoComponent['config']>,
-			{ sourcePath: string; fallbackUrl: string }[]
-		>();
+		type LazyScriptRef = {
+			lazyKey: string;
+			fallbackUrl?: string;
+		};
+		type LazyGroup = {
+			lazy: DependencyLazyTrigger;
+			scripts: LazyScriptRef[];
+		};
+		const lazyScriptsByConfig = new Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>();
+		const lazyDependencyKeys = new Set<string>();
 
 		for (const component of components) {
 			const componentFile = component.config?.__eco?.file;
 			if (!componentFile) continue;
 
-			const stylesheetsSet = new Set<string>();
-			const scriptsSet = new Set<string>();
+			const stylesheetDependencyKeys = new Set<string>();
+			const scriptDependencyKeys = new Set<string>();
 			const modulesMap = new Map<string, Set<string> | null>();
 
 			const collect = (config: EcoComponent['config']) => {
@@ -165,15 +238,127 @@ export class DependencyResolverService {
 				const dir = path.dirname(file);
 				const dependenciesConfig = config.dependencies;
 
+				const registerLazyScript = ({
+					lazy,
+					lazyKey,
+					fallbackUrl,
+				}: {
+					lazy: DependencyLazyTrigger;
+					lazyKey: string;
+					fallbackUrl?: string;
+				}) => {
+					let grouped = lazyScriptsByConfig.get(config);
+					if (!grouped) {
+						grouped = new Map<string, LazyGroup>();
+						lazyScriptsByConfig.set(config, grouped);
+					}
+
+					const triggerKey = getLazyTriggerKey(lazy);
+					const existing = grouped.get(triggerKey) ?? { lazy, scripts: [] };
+					existing.scripts.push({ lazyKey, fallbackUrl });
+					grouped.set(triggerKey, existing);
+				};
+
 				if (dependenciesConfig?.stylesheets) {
 					for (const style of dependenciesConfig.stylesheets) {
-						stylesheetsSet.add(resolveDependencyPath(dir, style));
+						const content = getDependencyEntryContent(style);
+						const src = getDependencyEntrySrc(style);
+						const attributes = getDependencyEntryAttributes(style);
+
+						if (content) {
+							const depKey = `style:content:${content}:${JSON.stringify(attributes ?? {})}`;
+							if (stylesheetDependencyKeys.has(depKey)) {
+								continue;
+							}
+
+							stylesheetDependencyKeys.add(depKey);
+							dependencies.push(
+								AssetFactory.createContentStylesheet({
+									content,
+									position: 'head',
+									attributes,
+								}),
+							);
+							continue;
+						}
+
+						if (!src) {
+							throw new Error('Invalid stylesheet dependency entry: expected src or content');
+						}
+
+						const resolvedPath = resolveDependencyPath(dir, src);
+						const depKey = `style:file:${resolvedPath}:${JSON.stringify(attributes ?? {})}`;
+						if (stylesheetDependencyKeys.has(depKey)) {
+							continue;
+						}
+
+						stylesheetDependencyKeys.add(depKey);
+						dependencies.push(
+							AssetFactory.createFileStylesheet({
+								filepath: resolvedPath,
+								position: 'head',
+								attributes: {
+									rel: 'stylesheet',
+									...attributes,
+								},
+							}),
+						);
 					}
 				}
 
 				if (dependenciesConfig?.scripts) {
 					for (const script of dependenciesConfig.scripts) {
-						scriptsSet.add(resolveDependencyPath(dir, script));
+						if (isDependencyEntryObject(script) && script.lazy) {
+							continue;
+						}
+
+						const content = getDependencyEntryContent(script);
+						const src = getDependencyEntrySrc(script);
+						const attributes = getDependencyEntryAttributes(script);
+
+						if (content) {
+							const depKey = `script:content:${content}:${JSON.stringify(attributes ?? {})}`;
+							if (scriptDependencyKeys.has(depKey)) {
+								continue;
+							}
+
+							scriptDependencyKeys.add(depKey);
+							dependencies.push(
+								AssetFactory.createContentScript({
+									position: 'head',
+									content,
+									attributes: {
+										type: 'module',
+										defer: '',
+										...attributes,
+									},
+								}),
+							);
+							continue;
+						}
+
+						if (!src) {
+							throw new Error('Invalid script dependency entry: expected src or content');
+						}
+
+						const resolvedPath = resolveDependencyPath(dir, src);
+						const depKey = `script:file:${resolvedPath}:${JSON.stringify(attributes ?? {})}`;
+						if (scriptDependencyKeys.has(depKey)) {
+							continue;
+						}
+
+						scriptDependencyKeys.add(depKey);
+						dependencies.push(
+							AssetFactory.createFileScript({
+								filepath: resolvedPath,
+								position: 'head',
+								attributes: {
+									type: 'module',
+									defer: '',
+									...attributes,
+								},
+							}),
+						);
 					}
 				}
 
@@ -197,21 +382,56 @@ export class DependencyResolverService {
 					modulesMap.set(declaration.from, merged);
 				}
 
-				if (dependenciesConfig?.lazy?.scripts) {
-					const lazyScriptFallbacks = this.resolveLazyScripts(dir, dependenciesConfig.lazy.scripts).split(
-						',',
-					);
-					const lazyScripts = dependenciesConfig.lazy.scripts.map((script, index) => ({
-						sourcePath: this.resolveDependencyPath(dir, script),
-						fallbackUrl: lazyScriptFallbacks[index] ?? '',
-					}));
+				for (const [index, scriptEntry] of (dependenciesConfig?.scripts ?? []).entries()) {
+					if (!isDependencyEntryObject(scriptEntry) || !scriptEntry.lazy) {
+						continue;
+					}
 
-					const existingLazyScripts = lazyScriptsByConfig.get(config) ?? [];
-					existingLazyScripts.push(...lazyScripts);
-					lazyScriptsByConfig.set(config, existingLazyScripts);
+					const lazy = scriptEntry.lazy;
+					const content = scriptEntry.content;
+					const src = scriptEntry.src;
+					const attributes = scriptEntry.attributes;
 
-					for (const script of dependenciesConfig.lazy.scripts) {
-						const resolvedPath = this.resolveDependencyPath(dir, script);
+					if (content) {
+						const lazyKey = `lazy:${rapidhash(`${file}:entry:${index}:${content}`).toString(16)}`;
+						const depKey = `lazy:entry:content:${getLazyTriggerKey(lazy)}:${content}:${JSON.stringify(attributes ?? {})}`;
+						if (!lazyDependencyKeys.has(depKey)) {
+							lazyDependencyKeys.add(depKey);
+							dependencies.push(
+								AssetFactory.createContentScript({
+									position: 'head',
+									content,
+									excludeFromHtml: true,
+									attributes: {
+										type: 'module',
+										defer: '',
+										'data-eco-lazy-key': lazyKey,
+										...attributes,
+									},
+								}),
+							);
+						}
+
+						registerLazyScript({
+							lazy,
+							lazyKey,
+						});
+						continue;
+					}
+
+					const script =
+						src ??
+						getDependencyEntrySrcOrThrow(
+							scriptEntry,
+							'Lazy script dependency entry in dependencies.scripts',
+						);
+					const resolvedPath = this.resolveDependencyPath(dir, script);
+					const fallbackUrl = this.resolveLazyScripts(dir, [script]).split(',')[0] ?? '';
+					const lazyKey = `lazy:${rapidhash(`${resolvedPath}:${getLazyTriggerKey(lazy)}`).toString(16)}`;
+					const depKey = `lazy:entry:file:${getLazyTriggerKey(lazy)}:${resolvedPath}:${JSON.stringify(attributes ?? {})}`;
+
+					if (!lazyDependencyKeys.has(depKey)) {
+						lazyDependencyKeys.add(depKey);
 						dependencies.push(
 							AssetFactory.createFileScript({
 								filepath: resolvedPath,
@@ -220,10 +440,18 @@ export class DependencyResolverService {
 								attributes: {
 									type: 'module',
 									defer: '',
+									'data-eco-lazy-key': lazyKey,
+									...attributes,
 								},
 							}),
 						);
 					}
+
+					registerLazyScript({
+						lazy,
+						lazyKey,
+						fallbackUrl,
+					});
 				}
 
 				if (dependenciesConfig?.components) {
@@ -252,23 +480,6 @@ export class DependencyResolverService {
 			collect(component.config);
 
 			dependencies.push(
-				...Array.from(stylesheetsSet).map((stylesheet) =>
-					AssetFactory.createFileStylesheet({
-						filepath: stylesheet,
-						position: 'head',
-						attributes: { rel: 'stylesheet' },
-					}),
-				),
-				...Array.from(scriptsSet).map((script) =>
-					AssetFactory.createFileScript({
-						filepath: script,
-						position: 'head',
-						attributes: {
-							type: 'module',
-							defer: '',
-						},
-					}),
-				),
 				...Array.from(modulesMap.entries()).map(([from, importsSet]) => {
 					const imports = importsSet ? Array.from(importsSet) : undefined;
 					return AssetFactory.createContentScript({
@@ -307,25 +518,36 @@ export class DependencyResolverService {
 			dependencies,
 			integrationName,
 		);
-		const lazySourceToOutputUrl = new Map<string, string>();
+		const lazyKeyToOutputUrl = new Map<string, string>();
 
 		for (const dependency of processedDependencies) {
-			if (dependency.kind === 'script' && dependency.srcUrl && dependency.filepath) {
-				lazySourceToOutputUrl.set(path.normalize(dependency.filepath), dependency.srcUrl);
+			if (dependency.kind === 'script' && dependency.srcUrl) {
+				const lazyKey = dependency.attributes?.['data-eco-lazy-key'];
+				if (lazyKey) {
+					lazyKeyToOutputUrl.set(lazyKey, dependency.srcUrl);
+				}
 			}
 		}
 
-		for (const [config, lazyScripts] of lazyScriptsByConfig.entries()) {
-			const resolvedUrls = lazyScripts
-				.map(
-					({ sourcePath, fallbackUrl }) =>
-						lazySourceToOutputUrl.get(path.normalize(sourcePath)) ?? fallbackUrl,
-				)
-				.filter((url) => url.length > 0);
+		for (const [config, lazyGroupsMap] of lazyScriptsByConfig.entries()) {
+			const resolvedGroups: ResolvedLazyScriptGroup[] = [];
 
-			if (resolvedUrls.length > 0) {
-				config._resolvedScripts = Array.from(new Set(resolvedUrls)).join(',');
+			for (const group of lazyGroupsMap.values()) {
+				const resolvedUrls = group.scripts
+					.map(({ lazyKey, fallbackUrl }) => lazyKeyToOutputUrl.get(lazyKey) ?? fallbackUrl)
+					.filter((url): url is string => Boolean(url && url.length > 0));
+
+				if (resolvedUrls.length === 0) {
+					continue;
+				}
+
+				resolvedGroups.push({
+					lazy: group.lazy,
+					scripts: Array.from(new Set(resolvedUrls)).join(','),
+				});
 			}
+
+			config._resolvedLazyScripts = resolvedGroups.length > 0 ? resolvedGroups : undefined;
 		}
 
 		return processedDependencies;

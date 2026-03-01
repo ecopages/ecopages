@@ -140,9 +140,7 @@ describe('eco-component-meta-plugin', () => {
 		const content = `
             export const LazyCounter = eco.component({
                 dependencies: {
-                    lazy: {
-                        'on:interaction': 'click',
-                        scripts: ['./counter.ts'] } },
+					scripts: [{ src: './counter.ts', lazy: { 'on:interaction': 'click' } }] },
                 render: () => '${'<div>'}Lazy${'</div>'}' });
         `;
 
@@ -267,10 +265,8 @@ import { eco } from '@ecopages/core';
 
 export const LazyComponent = eco.component({
 	dependencies: {
-		lazy: {
-			'on:interaction': 'click',
-			scripts: ['./script.ts'],
-			stylesheets: ['./style.css'] },
+		stylesheets: ['./style.css'],
+		scripts: [{ src: './script.ts', lazy: { 'on:interaction': 'click' } }],
 		components: [] },
 	render: () => '<div>Lazy</div>' });
 `;

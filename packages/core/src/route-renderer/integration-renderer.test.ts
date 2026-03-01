@@ -246,16 +246,26 @@ describe('IntegrationRenderer', () => {
 		expect(result.pageLocals).toBe(incomingLocals);
 	});
 
-	it('should prefer processed lazy script srcUrl for _resolvedScripts', async () => {
+	it('should prefer processed lazy script srcUrl for _resolvedLazyScripts', async () => {
 		let capturedDeps: unknown[] = [];
 		const LazySrcUrl = '/assets/_hmr/components/lit-counter/lit-counter.script.js';
 		const Service = {
 			processDependencies: vi.fn(async (deps: unknown[]) => {
 				capturedDeps = deps;
+				const lazyFileDep = (
+					deps as Array<{
+						kind?: string;
+						source?: string;
+						filepath?: string;
+						attributes?: Record<string, string>;
+					}>
+				).find((dep) => dep.kind === 'script' && dep.source === 'file' && Boolean(dep.filepath));
+
 				return [
 					{
 						kind: 'script',
-						filepath: '/app/components/lit-counter/lit-counter.script.ts',
+						filepath: lazyFileDep?.filepath,
+						attributes: lazyFileDep?.attributes,
 						srcUrl: LazySrcUrl,
 					},
 				] as ProcessedAsset[];
@@ -276,16 +286,20 @@ describe('IntegrationRenderer', () => {
 				file: '/app/components/lit-counter/lit-counter.kita.tsx',
 			},
 			dependencies: {
-				lazy: {
-					'on:interaction': 'click,mouseenter,focusin',
-					scripts: ['./lit-counter.script.ts'],
-				},
+				scripts: [
+					{
+						src: './lit-counter.script.ts',
+						lazy: { 'on:interaction': 'click,mouseenter,focusin' },
+					},
+				],
 			},
 		};
 
 		await renderer.testProcessComponentDependencies([component]);
 
-		expect(component.config._resolvedScripts).toBe(LazySrcUrl);
+		expect(component.config._resolvedLazyScripts).toEqual([
+			{ lazy: { 'on:interaction': 'click,mouseenter,focusin' }, scripts: LazySrcUrl },
+		]);
 		expect(
 			capturedDeps.some((dep) => {
 				if (!dep || typeof dep !== 'object') return false;
@@ -321,16 +335,23 @@ describe('IntegrationRenderer', () => {
 				file: '/app/components/lit-counter/lit-counter.kita.tsx',
 			},
 			dependencies: {
-				lazy: {
-					'on:interaction': 'click,mouseenter,focusin',
-					scripts: ['./lit-counter.script.ts'],
-				},
+				scripts: [
+					{
+						src: './lit-counter.script.ts',
+						lazy: { 'on:interaction': 'click,mouseenter,focusin' },
+					},
+				],
 			},
 		};
 
 		await renderer.testProcessComponentDependencies([component]);
 
-		expect(component.config._resolvedScripts).toBe('/assets/components/lit-counter/lit-counter.script.js');
+		expect(component.config._resolvedLazyScripts).toEqual([
+			{
+				lazy: { 'on:interaction': 'click,mouseenter,focusin' },
+				scripts: '/assets/components/lit-counter/lit-counter.script.js',
+			},
+		]);
 	});
 
 	describe('renderToResponse', () => {

@@ -3,10 +3,7 @@ import type { RadiantEditorProps } from './radiant-editor.script';
 
 export const RadiantEditor = eco.component<RadiantEditorProps & { name: string }>({
 	dependencies: {
-		lazy: {
-			'on:interaction': 'mouseenter,focusin',
-			scripts: ['./radiant-editor.script.ts'],
-		},
+		scripts: [{ src: './radiant-editor.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 
 	render: ({ content, name }) => {

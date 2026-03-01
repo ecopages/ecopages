@@ -113,10 +113,7 @@ import { eco } from '@ecopages/core';
 export const Counter = eco.component({
 	dependencies: {
 		stylesheets: ['./counter.css'],
-		lazy: {
-			'on:interaction': 'mouseenter,focusin',
-			scripts: ['./counter.script.ts'],
-		},
+		scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count }) => <my-counter count={count} />,
 });
@@ -260,10 +257,9 @@ export const BaseLayout = eco.component({
 export const Counter = eco.component({
 	dependencies: {
 		stylesheets: ['./counter.css'], // loaded immediately
-		lazy: {
-			'on:interaction': 'mouseenter,focusin',
-			scripts: ['./counter.script.ts'], // loaded on trigger
-		},
+		scripts: [
+			{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }, // loaded on trigger
+		],
 	},
 	render: ({ count }) => <my-counter count={count}></my-counter>,
 });
@@ -271,27 +267,20 @@ export const Counter = eco.component({
 
 #### Lazy Loading Options
 
-The `lazy` property accepts one trigger type:
+Lazy loading is configured per dependency entry in `dependencies.scripts`:
 
 ```tsx
 // Load on idle
-lazy: {
-  'on:idle': true,
-  scripts: ['./component.script.ts'],
-}
+scripts: [{ src: './component.script.ts', lazy: { 'on:idle': true } }]
 
 // Load on interaction
-lazy: {
-  'on:interaction': 'mouseenter,focusin',
-  scripts: ['./component.script.ts'],
-}
+scripts: [{ src: './component.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }]
 
 // Load on visibility
-lazy: {
-  'on:visible': true, // or viewport margin like '100px'
-  scripts: ['./component.script.ts'],
-}
+scripts: [{ src: './component.script.ts', lazy: { 'on:visible': true } }] // or viewport margin like '100px'
 ```
+
+Each entry can define its own trigger, so mixed strategies in one component are supported.
 
 These map directly to [`scripts-injector`](https://github.com/ecopages/scripts-injector) attributes.
 
@@ -457,10 +446,7 @@ import { eco } from '@ecopages/core';
 export const Counter = eco.component({
 	dependencies: {
 		stylesheets: ['./counter.css'],
-		lazy: {
-			'on:interaction': 'mouseenter,focusin',
-			scripts: ['./counter.script.ts'],
-		},
+		scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count }) => <my-counter count={count} />,
 });
@@ -507,16 +493,18 @@ export default eco.page({
 ```typescript
 type LazyTrigger = { 'on:idle': true } | { 'on:interaction': string } | { 'on:visible': true | string };
 
-type LazyDependencies = LazyTrigger & {
-	scripts?: string[];
-	stylesheets?: string[];
+type DependencyEntry = {
+	src?: string;
+	content?: string;
+	lazy?: LazyTrigger;
+	ssr?: boolean;
+	attributes?: Record<string, string>;
 };
 
 interface EcoComponentDependencies {
-	scripts?: string[];
-	stylesheets?: string[];
+	scripts?: Array<string | DependencyEntry>;
+	stylesheets?: Array<string | DependencyEntry>;
 	components?: EcoComponent[];
-	lazy?: LazyDependencies;
 }
 
 interface ComponentOptions<P, E = EcoPagesElement> {

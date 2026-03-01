@@ -120,15 +120,12 @@ Mandatory fields in options:
 
 ## Lazy Loading
 
-Ecopages supports lazy loading of component scripts to improve initial page load performance. This is configured via the `dependencies.lazy` option.
+Ecopages supports lazy loading of component scripts to improve initial page load performance. This is configured per script entry in `dependencies.scripts`.
 
 ```typescript
 export const RadiantCounter = eco.component({
 	dependencies: {
-		lazy: {
-			'on:interaction': 'mouseenter,focusin',
-			scripts: ['./radiant-counter.script.ts'],
-		},
+		scripts: [{ src: './radiant-counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 		stylesheets: ['./radiant-counter.css'],
 	},
 	render: (props) => { ... }

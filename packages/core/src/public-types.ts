@@ -6,6 +6,7 @@ import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from './hmr/hmr-strategy.ts';
 import type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from './services/cache/cache.types.ts';
+import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
 
 export type { EcoPageComponent } from './eco/eco.types.ts';
 
@@ -25,6 +26,28 @@ export type {
 	StandardSchemaFailureResult,
 	StandardSchemaIssue,
 	InferOutput,
+};
+
+export type InteractionEventsString = ScriptsInjectorInteractionEventsString;
+
+export type DependencyLazyTrigger =
+	| { 'on:idle': true }
+	| { 'on:interaction': InteractionEventsString }
+	| { 'on:visible': true | string };
+
+export type DependencyAttributes = Record<string, string>;
+
+export type EcoComponentDependencyEntry = {
+	src?: string;
+	content?: string;
+	attributes?: DependencyAttributes;
+	lazy?: DependencyLazyTrigger;
+	ssr?: boolean;
+};
+
+export type ResolvedLazyScriptGroup = {
+	lazy: DependencyLazyTrigger;
+	scripts: string;
 };
 
 /**
@@ -215,8 +238,8 @@ export interface IHmrManager {
  * Represents the dependencies for an EcoComponent.
  */
 export type EcoComponentDependencies = {
-	stylesheets?: string[];
-	scripts?: string[];
+	stylesheets?: Array<string | EcoComponentDependencyEntry>;
+	scripts?: Array<string | EcoComponentDependencyEntry>;
 	/**
 	 * Browser module declarations resolved from node_modules.
 	 *
@@ -225,14 +248,6 @@ export type EcoComponentDependencies = {
 	 */
 	modules?: string[];
 	components?: EcoComponent[];
-	/**
-	 * Lazy dependencies - scripts/stylesheets loaded on user interaction or visibility.
-	 * Supports three trigger modes: on:idle, on:interaction, and on:visible.
-	 */
-	lazy?:
-		| ({ 'on:idle': true } & { scripts?: string[]; stylesheets?: string[] })
-		| ({ 'on:interaction': string } & { scripts?: string[]; stylesheets?: string[] })
-		| ({ 'on:visible': true | string } & { scripts?: string[]; stylesheets?: string[] });
 };
 
 export type EcoPagesElement = string | Promise<string>;
@@ -294,11 +309,11 @@ export type EcoComponentConfig = {
 	layout?: EcoComponent;
 	dependencies?: EcoComponentDependencies;
 	/**
-	 * Internal: Comma-separated resolved script paths for lazy dependencies.
-	 * Set by the renderer, used by eco.component() for auto-wrapping.
+	 * Internal: Resolved lazy scripts grouped by trigger.
+	 * Set by the renderer, used by eco.component() for multi-trigger auto-wrapping.
 	 * @internal
 	 */
-	_resolvedScripts?: string;
+	_resolvedLazyScripts?: ResolvedLazyScriptGroup[];
 };
 
 /**

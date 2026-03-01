@@ -98,7 +98,7 @@ const HomePage = eco.component({
 
 ### Lazy Dependencies
 
-You can also defer loading of scripts and stylesheets until they are needed using the `lazy` options. This is useful for improving initial page load performance.
+You can also defer loading of scripts until they are needed using per-entry `dependencies.scripts[].lazy` options. This is useful for improving initial page load performance.
 
 The supported triggers are:
 - `on:idle`: Loads when the browser is idle.
@@ -108,10 +108,7 @@ The supported triggers are:
 ```typescript
 const MyComponent = eco.component({
   dependencies: {
-    lazy: {
-      'on:visible': true, // or provide a specific selector string
-      scripts: ['./heavy-script.ts'],
-    }
+    scripts: [{ src: './heavy-script.ts', lazy: { 'on:visible': true } }], // or provide a specific selector string
   },
   render: () => html`<div>Heavy Content</div>`
 });

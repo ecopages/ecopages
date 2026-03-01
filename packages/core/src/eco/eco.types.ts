@@ -4,6 +4,7 @@
  */
 
 import type {
+	DependencyLazyTrigger,
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoInjectedMeta,
@@ -29,22 +30,7 @@ export type PageRequires<K extends RequiresKeys = RequiresKeys> = K | readonly K
  * Lazy trigger options map directly to scripts-injector attributes.
  * Only one trigger type can be active at a time.
  */
-export type LazyTrigger = { 'on:idle': true } | { 'on:interaction': string } | { 'on:visible': true | string };
-
-/**
- * Lazy dependencies - scripts/stylesheets loaded on trigger.
- */
-export type LazyDependencies = LazyTrigger & {
-	scripts?: string[];
-	stylesheets?: string[];
-};
-
-/**
- * Extended component dependencies that include lazy loading support.
- */
-export type EcoComponentDependenciesWithLazy = EcoComponentDependencies & {
-	lazy?: LazyDependencies;
-};
+export type LazyTrigger = DependencyLazyTrigger;
 
 /**
  * Options for creating a component with eco.component()
@@ -54,7 +40,7 @@ export type EcoComponentDependenciesWithLazy = EcoComponentDependencies & {
 export interface ComponentOptions<P, E = EcoPagesElement> {
 	/** @internal Injected by eco-component-meta-plugin */
 	__eco?: EcoInjectedMeta;
-	dependencies?: EcoComponentDependenciesWithLazy;
+	dependencies?: EcoComponentDependencies;
 	render: (props: P) => E | Promise<E>;
 }
 
@@ -64,7 +50,7 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
 export interface PageOptionsBase<T, E = EcoPagesElement> {
 	/** @internal Injected by eco-component-meta-plugin */
 	__eco?: EcoInjectedMeta;
-	dependencies?: EcoComponentDependenciesWithLazy;
+	dependencies?: EcoComponentDependencies;
 	layout?: EcoComponent<{ children: E } & Partial<RequestPageContext>>;
 
 	/**

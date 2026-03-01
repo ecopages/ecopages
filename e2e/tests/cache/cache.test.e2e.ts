@@ -35,7 +35,7 @@ test.describe('Cache Headers', () => {
 		expect(response.ok()).toBeTruthy();
 
 		const cacheControl = response.headers()['cache-control'];
-		expect(cacheControl).toContain('max-age=5');
+		expect(cacheControl).toContain('max-age=2');
 		expect(cacheControl).toContain('stale-while-revalidate');
 	});
 
@@ -97,13 +97,13 @@ test.describe('Time-based Revalidation', () => {
 		expect(timestamp2).toBe(timestamp1);
 		expect(response2.headers()['x-cache']).toBe('HIT');
 
-		await new Promise((resolve) => setTimeout(resolve, 6000));
+		await new Promise((resolve) => setTimeout(resolve, 2500));
 
 		const response3 = await request.get(`${BASE_URL}/revalidate`);
 		const xCache3 = response3.headers()['x-cache'];
 		expect(['STALE', 'HIT']).toContain(xCache3);
 
-		await new Promise((resolve) => setTimeout(resolve, 1000));
+		await new Promise((resolve) => setTimeout(resolve, 500));
 
 		const response4 = await request.get(`${BASE_URL}/revalidate`);
 		const timestamp4 = extractTimestamp(await response4.text());

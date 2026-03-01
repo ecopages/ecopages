@@ -3,7 +3,7 @@ import { html } from '@ecopages/core/html';
 
 export default eco.page({
 	cache: {
-		revalidate: 5,
+		revalidate: 2,
 		tags: ['revalidate-test'],
 	},
 	render: () => {

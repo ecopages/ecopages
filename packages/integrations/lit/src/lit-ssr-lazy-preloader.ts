@@ -1,10 +1,11 @@
 import type { EcoComponent, EcoComponentConfig } from '@ecopages/core';
 import { AssetFactory } from '@ecopages/core/services/asset-processing-service';
+import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 type ProcessDependencies = (
-	dependencies: ReturnType<typeof AssetFactory.createFileScript>[],
+	dependencies: AssetDefinition[],
 	integrationName: string,
 ) => Promise<Array<{ filepath?: string }>>;
 
@@ -171,9 +172,10 @@ export class LitSsrLazyPreloader {
 		try {
 			const processed = await this.processDependencies(
 				[
-					AssetFactory.createFileScript({
+					AssetFactory.createInlineFileScript({
 						filepath: scriptPath,
 						position: 'head',
+						bundle: true,
 						attributes: {
 							type: 'module',
 							defer: '',

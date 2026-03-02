@@ -1,5 +1,41 @@
 import { test, expect } from '@playwright/test';
 
+type InjectorMapConfig = Record<string, { value?: string | boolean; scripts: string[] }>;
+
+function parseInjectorMapFromHtml(html: string | null | undefined): InjectorMapConfig {
+	expect(html).toBeTruthy();
+	const mapMatches = Array.from(html?.matchAll(/<script type="ecopages\/injector-map">([\s\S]*?)<\/script>/g) ?? []);
+	expect(mapMatches.length).toBeGreaterThan(0);
+
+	const mergedMap: InjectorMapConfig = {};
+
+	for (const match of mapMatches) {
+		const raw = match[1];
+		if (!raw) {
+			continue;
+		}
+
+		const map = JSON.parse(raw) as InjectorMapConfig;
+
+		for (const [trigger, config] of Object.entries(map)) {
+			if (!mergedMap[trigger]) {
+				mergedMap[trigger] = {
+					value: config.value,
+					scripts: [...config.scripts],
+				};
+				continue;
+			}
+
+			mergedMap[trigger] = {
+				value: mergedMap[trigger].value ?? config.value,
+				scripts: Array.from(new Set([...mergedMap[trigger].scripts, ...config.scripts])),
+			};
+		}
+	}
+
+	return mergedMap;
+}
+
 test.describe('Lazy Dependencies', () => {
 	test.describe('on:interaction (click)', () => {
 		test('should not load lazy script before interaction', async ({ page }) => {
@@ -24,14 +60,12 @@ test.describe('Lazy Dependencies', () => {
 		});
 
 		test('should wrap component with scripts-injector element', async ({ page }) => {
-			await page.goto('/lazy-deps');
-			await page.waitForLoadState('networkidle');
+			const response = await page.goto('/lazy-deps');
+			const html = await response?.text();
+			const injectorMap = parseInjectorMapFromHtml(html);
 
-			const injector = page.locator('scripts-injector[on\\:interaction]');
-			await expect(injector).toBeVisible();
-
-			const onInteraction = await injector.getAttribute('on:interaction');
-			expect(onInteraction).toBe('mouseenter,click');
+			expect(injectorMap['on:interaction']?.value).toBe('mouseenter,click');
+			expect(injectorMap['on:interaction']?.scripts.some((script) => script.includes('/lazy-script'))).toBe(true);
 		});
 	});
 
@@ -60,11 +94,14 @@ test.describe('Lazy Dependencies', () => {
 		});
 
 		test('should wrap component with scripts-injector on:visible attribute', async ({ page }) => {
-			await page.goto('/lazy-deps');
-			await page.waitForLoadState('networkidle');
+			const response = await page.goto('/lazy-deps');
+			const html = await response?.text();
+			const injectorMap = parseInjectorMapFromHtml(html);
 
-			const injector = page.locator('scripts-injector[on\\:visible]');
-			await expect(injector.first()).toBeAttached();
+			expect(injectorMap['on:visible']).toBeDefined();
+			expect(injectorMap['on:visible']?.scripts.some((script) => script.includes('/lazy-visible.script'))).toBe(
+				true,
+			);
 		});
 	});
 
@@ -79,11 +116,12 @@ test.describe('Lazy Dependencies', () => {
 		});
 
 		test('should wrap component with scripts-injector on:idle attribute', async ({ page }) => {
-			await page.goto('/lazy-deps');
-			await page.waitForLoadState('networkidle');
+			const response = await page.goto('/lazy-deps');
+			const html = await response?.text();
+			const injectorMap = parseInjectorMapFromHtml(html);
 
-			const injector = page.locator('scripts-injector[on\\:idle]');
-			await expect(injector).toBeAttached();
+			expect(injectorMap['on:idle']).toBeDefined();
+			expect(injectorMap['on:idle']?.scripts.some((script) => script.includes('/lazy-idle.script'))).toBe(true);
 		});
 	});
 

@@ -4,10 +4,10 @@
  */
 
 import type {
-	DependencyLazyTrigger,
 	EcoComponent,
 	EcoInjectedMeta,
 	EcoPagesElement,
+	EcoPageComponent,
 	GetMetadata,
 	GetStaticPaths,
 	GetStaticProps,
@@ -19,14 +19,19 @@ import type { CacheStrategy } from '../services/cache/cache.types.ts';
 import type {
 	ComponentOptions,
 	Eco,
-	EcoPageComponent,
 	PageOptions,
 	PageOptionsBase,
 	PagePropsFor,
 	PagePropsForWithLocals,
 	PageRequires,
 } from './eco.types.ts';
+import { buildInjectorMapScript } from './lazy-injector-map.ts';
 
+/**
+ * Resolves the caller source file from the current stack trace.
+ *
+ * @returns Absolute file path of the first external caller when available.
+ */
 function resolveCallerFile(): string | undefined {
 	const stack = new Error().stack;
 	if (!stack) {
@@ -57,6 +62,12 @@ function resolveCallerFile(): string | undefined {
 	return undefined;
 }
 
+/**
+ * Infers integration id from the component file extension.
+ *
+ * @param filePath Absolute component source path.
+ * @returns Integration identifier.
+ */
 function inferIntegrationFromFile(filePath: string): string {
 	if (filePath.endsWith('.kita.tsx')) return 'kitajs';
 	if (filePath.endsWith('.lit.tsx')) return 'lit';
@@ -65,6 +76,13 @@ function inferIntegrationFromFile(filePath: string): string {
 	return 'unknown';
 }
 
+/**
+ * Creates normalized eco metadata for a component.
+ *
+ * @param optionsEco Metadata injected by tooling.
+ * @param componentSourceFile Resolved component source file path.
+ * @returns Hydrated metadata object or `undefined` when no metadata source exists.
+ */
 function createEcoMetadata(optionsEco: EcoInjectedMeta | undefined, componentSourceFile: string | undefined) {
 	if (!optionsEco && !componentSourceFile) {
 		return undefined;
@@ -86,51 +104,19 @@ function createEcoMetadata(optionsEco: EcoInjectedMeta | undefined, componentSou
 }
 
 /**
- * Builds scripts-injector HTML attributes from lazy config
- */
-function buildInjectorAttrs(lazy: DependencyLazyTrigger, scripts: string): string {
-	const normalizedScripts = scripts
-		.split(',')
-		.map((scriptPath) => scriptPath.trim())
-		.filter(Boolean)
-		.map((scriptPath) => {
-			if (scriptPath.startsWith('/')) {
-				return scriptPath;
-			}
-
-			return `/${scriptPath.replace(/^\/+/, '')}`;
-		})
-		.join(',');
-
-	let triggerAttr: string;
-
-	if ('on:idle' in lazy) {
-		triggerAttr = 'on:idle';
-	} else if ('on:interaction' in lazy) {
-		triggerAttr = `on:interaction="${lazy['on:interaction']}"`;
-	} else if ('on:visible' in lazy) {
-		const value = lazy['on:visible'];
-		triggerAttr = value === true ? 'on:visible' : `on:visible="${value}"`;
-	} else {
-		throw new Error(
-			`Invalid lazy options: must specify on:idle, on:interaction, or on:visible. Received: ${JSON.stringify(lazy)}`,
-		);
-	}
-
-	return `${triggerAttr} scripts="${normalizedScripts}"`;
-}
-
-/**
  * Creates a component factory that auto-wraps lazy dependencies.
  * For React integration, returns the render function directly to preserve hook semantics.
  * For other integrations, wraps render to support lazy script injection.
+ *
+ * @param options Component options for rendering and dependency declaration.
+ * @returns Configured eco component.
  */
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	const isReact = options.__eco?.integration === 'react';
 	const componentSourceFile = options.__eco?.file ?? resolveCallerFile();
 	const ecoMetadata = createEcoMetadata(options.__eco, componentSourceFile);
 
-	// For React, use render directly to preserve React hooks semantics
+	/* For React, use render directly to preserve React hooks semantics and rely on the integration to handle lazy dependencies */
 	if (isReact) {
 		const comp = options.render as EcoComponent<P, E>;
 		comp.config = {
@@ -146,14 +132,10 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 		const lazyGroups = comp.config?._resolvedLazyScripts;
 
 		if (lazyGroups && lazyGroups.length > 0) {
-			let wrappedContent = String(content);
+			const wrappedContent = String(content);
+			const injectorMapScript = buildInjectorMapScript(lazyGroups);
 
-			for (const group of lazyGroups) {
-				const attrs = buildInjectorAttrs(group.lazy, group.scripts);
-				wrappedContent = `<scripts-injector ${attrs}>${wrappedContent}</scripts-injector>`;
-			}
-
-			return wrappedContent;
+			return `<scripts-injector><script type="ecopages/injector-map">${injectorMapScript}</script>${wrappedContent}</scripts-injector>`;
 		}
 
 		return content;
@@ -168,14 +150,17 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 }
 
 /**
- * Create a reusable component with dependencies and optional lazy-loading
+ * Creates a reusable component with optional dependencies.
+ *
+ * @param options Component definition options.
+ * @returns Eco component function.
  */
 function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	return createComponentFactory(options);
 }
 
 /**
- * Create a page component with type-safe props from getStaticProps
+ * Creates a page component with typed props and optional static helpers.
  */
 function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
 function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = keyof RequestLocals>(
@@ -184,6 +169,12 @@ function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals =
 		render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
 	},
 ): EcoPageComponent<T>;
+/**
+ * Creates a page component and attaches optional static APIs.
+ *
+ * @param options Page options.
+ * @returns Eco page component.
+ */
 function page<T, E>(
 	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: Middleware[] },
 ): EcoPageComponent<T> {
@@ -217,21 +208,30 @@ function page<T, E>(
 }
 
 /**
- * Type-safe wrapper for page metadata (identity function)
+ * Type-safe wrapper for metadata functions.
+ *
+ * @param fn Metadata factory function.
+ * @returns The same function.
  */
 function metadata<P = {}>(fn: GetMetadata<P>): GetMetadata<P> {
 	return fn;
 }
 
 /**
- * Type-safe wrapper for static paths (identity function)
+ * Type-safe wrapper for static paths functions.
+ *
+ * @param fn Static paths function.
+ * @returns The same function.
  */
 function staticPaths(fn: GetStaticPaths): GetStaticPaths {
 	return fn;
 }
 
 /**
- * Type-safe wrapper for static props (identity function)
+ * Type-safe wrapper for static props functions.
+ *
+ * @param fn Static props function.
+ * @returns The same function.
  */
 function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
 	return fn;

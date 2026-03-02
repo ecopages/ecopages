@@ -282,7 +282,8 @@ scripts: [{ src: './component.script.ts', lazy: { 'on:visible': true } }]; // or
 
 Each entry can define its own trigger, so mixed strategies in one component are supported.
 
-These map directly to [`scripts-injector`](https://github.com/ecopages/scripts-injector) attributes.
+At render time, lazy script groups are emitted into a single [`scripts-injector`](https://github.com/ecopages/scripts-injector)
+wrapper using an internal `<script type="ecopages/injector-map">` payload.
 
 ### `eco.page()`
 
@@ -455,7 +456,15 @@ export const Counter = eco.component({
 **HTML Output:**
 
 ```html
-<scripts-injector on:interaction="mouseenter,focusin" scripts="/_assets/components/counter/counter.script.js">
+<scripts-injector>
+	<script type="ecopages/injector-map">
+		{
+			"on:interaction": {
+				"value": "mouseenter,focusin",
+				"scripts": ["/_assets/components/counter/counter.script.js"]
+			}
+		}
+	</script>
 	<my-counter count="5">
 		<!-- SSR content -->
 	</my-counter>
@@ -482,7 +491,7 @@ export default eco.page({
 	render: () => (
 		<>
 			<h1>Welcome</h1>
-			<Counter count={5} /> {/* Automatically wrapped in scripts-injector */}
+			<Counter count={5} />
 		</>
 	),
 });

@@ -67,8 +67,10 @@ describe('eco namespace', () => {
 
 			const result = Counter({});
 			expect(result).toContain('<scripts-injector');
-			expect(result).toContain('on:interaction="mouseenter,focusin"');
-			expect(result).toContain('scripts="/_assets/counter.js"');
+			expect(result).toContain('<script type="ecopages/injector-map">');
+			expect(result).toContain(
+				'"on:interaction":{"value":"mouseenter,focusin","scripts":["/_assets/counter.js"]}',
+			);
 			expect(result).toContain('<my-counter></my-counter>');
 			expect(result).toContain('</scripts-injector>');
 		});
@@ -86,8 +88,7 @@ describe('eco namespace', () => {
 			}
 
 			const result = Component({});
-			expect(result).toContain('on:idle');
-			expect(result).not.toContain('on:idle="true"');
+			expect(result).toContain('"on:idle":{"scripts":["/_assets/script.js"]}');
 		});
 
 		test('should handle on:visible trigger with boolean', () => {
@@ -105,8 +106,7 @@ describe('eco namespace', () => {
 			}
 
 			const result = Component({});
-			expect(result).toContain('on:visible');
-			expect(result).not.toContain('on:visible="true"');
+			expect(result).toContain('"on:visible":{"scripts":["/_assets/script.js"]}');
 		});
 
 		test('should handle on:visible trigger with threshold value', () => {
@@ -124,7 +124,7 @@ describe('eco namespace', () => {
 			}
 
 			const result = Component({});
-			expect(result).toContain('on:visible="0.5"');
+			expect(result).toContain('"on:visible":{"value":"0.5","scripts":["/_assets/script.js"]}');
 		});
 
 		test('should not wrap when lazy script entries exist but _resolvedLazyScripts is not set', () => {
@@ -169,11 +169,10 @@ describe('eco namespace', () => {
 			}
 
 			const result = Component({});
-			expect(result).toContain('on:idle');
-			expect(result).toContain('scripts="/_assets/idle.js"');
-			expect(result).toContain('on:visible="0.5"');
-			expect(result).toContain('scripts="/_assets/visible.js"');
+			expect(result).toContain('"on:idle":{"scripts":["/_assets/idle.js"]}');
+			expect(result).toContain('"on:visible":{"value":"0.5","scripts":["/_assets/visible.js"]}');
 			expect(result).toContain('<section>Content</section>');
+			expect((result.match(/<scripts-injector/g) ?? []).length).toBe(1);
 		});
 	});
 
@@ -217,7 +216,7 @@ describe('eco namespace', () => {
 
 			const result = Page({});
 			expect(result).toContain('<scripts-injector');
-			expect(result).toContain('on:interaction="click"');
+			expect(result).toContain('"on:interaction":{"value":"click","scripts":["/_assets/page.js"]}');
 		});
 
 		test('should store layout in config and include in dependencies', async () => {

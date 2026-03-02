@@ -7,6 +7,7 @@ import type {
 	FileStylesheetAsset,
 	InlineContentScriptAsset,
 	InlineContentStylesheetAsset,
+	InlineFileScriptAsset,
 	JsonScriptAsset,
 	NodeModuleScriptAsset,
 } from './assets.types';
@@ -39,6 +40,13 @@ export class AssetFactory {
 			source: 'file',
 			position: options.position || 'body',
 			...options,
+		};
+	}
+
+	static createInlineFileScript(options: CreateAssetOptions<InlineFileScriptAsset>): InlineFileScriptAsset {
+		return {
+			...AssetFactory.createFileScript(options),
+			inline: true,
 		};
 	}
 

@@ -304,7 +304,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const stylesheetsPaths = [
 			...new Set(
 				(stylesheets ?? [])
-					.filter((style) => (typeof style === 'string' ? true : !style.lazy))
 					.map((style) => (typeof style === 'string' ? style : style.src))
 					.filter((style): style is string => Boolean(style))
 					.map((style) => this.resolveDependencyPath(componentDir, style)),

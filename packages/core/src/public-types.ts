@@ -37,7 +37,13 @@ export type DependencyLazyTrigger =
 
 export type DependencyAttributes = Record<string, string>;
 
-export type EcoComponentDependencyEntry = {
+export type EcoComponentStylesheetEntry = {
+	src?: string;
+	content?: string;
+	attributes?: DependencyAttributes;
+};
+
+export type EcoComponentScriptEntry = {
 	src?: string;
 	content?: string;
 	attributes?: DependencyAttributes;
@@ -238,8 +244,8 @@ export interface IHmrManager {
  * Represents the dependencies for an EcoComponent.
  */
 export type EcoComponentDependencies = {
-	stylesheets?: Array<string | EcoComponentDependencyEntry>;
-	scripts?: Array<string | EcoComponentDependencyEntry>;
+	stylesheets?: Array<string | EcoComponentStylesheetEntry>;
+	scripts?: Array<string | EcoComponentScriptEntry>;
 	/**
 	 * Browser module declarations resolved from node_modules.
 	 *

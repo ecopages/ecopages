@@ -2,9 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { DependencyResolverService } from './dependency-resolver.ts';
+import { DEPENDENCY_ERRORS, DependencyResolverService } from './dependency-resolver.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { AssetProcessingService, ProcessedAsset } from '../services/asset-processing-service/index.ts';
+import type {
+	AssetDefinition,
+	AssetProcessingService,
+	ProcessedAsset,
+	ContentScriptAsset,
+} from '../services/asset-processing-service/index.ts';
 import type { EcoComponent } from '../public-types.ts';
 
 describe('DependencyResolverService', () => {
@@ -27,9 +32,9 @@ describe('DependencyResolverService', () => {
 	});
 
 	it('should emit module dependencies as content scripts and include lazy injector', async () => {
-		let capturedDeps: unknown[] = [];
+		let capturedDeps: AssetDefinition[] = [];
 		const assetProcessingService = {
-			processDependencies: vi.fn(async (deps: unknown[]) => {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
 				capturedDeps = deps;
 				return [
 					{
@@ -57,11 +62,9 @@ describe('DependencyResolverService', () => {
 
 		await service.processComponentDependencies([component], 'react');
 
-		const contentScripts = capturedDeps.filter((dep) => {
-			if (!dep || typeof dep !== 'object') return false;
-			const asset = dep as { source?: string; content?: string };
-			return asset.source === 'content' && typeof asset.content === 'string';
-		}) as { name?: string; content: string }[];
+		const contentScripts = capturedDeps.filter(
+			(dep): dep is ContentScriptAsset => dep.kind === 'script' && dep.source === 'content',
+		);
 
 		expect(
 			contentScripts.some((script) =>
@@ -70,13 +73,15 @@ describe('DependencyResolverService', () => {
 		).toBe(true);
 		expect(contentScripts.some((script) => script.content.includes("export * from './client-utils';"))).toBe(true);
 		expect(contentScripts.every((script) => /^module-[a-f0-9]+$/.test(script.name ?? ''))).toBe(true);
-		expect(
-			capturedDeps.some((dep) => {
-				if (!dep || typeof dep !== 'object') return false;
-				const asset = dep as { source?: string; importPath?: string };
-				return asset.source === 'node-module' && asset.importPath === '@ecopages/scripts-injector';
-			}),
-		).toBe(true);
+
+		const hasInjector = capturedDeps.some(
+			(dep) =>
+				dep.kind === 'script' &&
+				dep.source === 'node-module' &&
+				dep.importPath === '@ecopages/scripts-injector',
+		);
+		expect(hasInjector).toBe(true);
+
 		expect(component.config._resolvedLazyScripts).toEqual([
 			{ lazy: { 'on:interaction': 'click' }, scripts: '/assets/components/table/table.client.js' },
 		]);
@@ -92,9 +97,9 @@ describe('DependencyResolverService', () => {
 			'utf-8',
 		);
 
-		let capturedDeps: unknown[] = [];
+		let capturedDeps: AssetDefinition[] = [];
 		const assetProcessingService = {
-			processDependencies: vi.fn(async (deps: unknown[]) => {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
 				capturedDeps = deps;
 				return [] as ProcessedAsset[];
 			}),
@@ -113,11 +118,9 @@ describe('DependencyResolverService', () => {
 		try {
 			await service.processComponentDependencies([component], 'react');
 
-			const contentScripts = capturedDeps.filter((dep) => {
-				if (!dep || typeof dep !== 'object') return false;
-				const asset = dep as { source?: string; content?: string };
-				return asset.source === 'content' && typeof asset.content === 'string';
-			}) as { content: string }[];
+			const contentScripts = capturedDeps.filter(
+				(dep): dep is ContentScriptAsset => dep.kind === 'script' && dep.source === 'content',
+			);
 
 			expect(contentScripts.some((script) => script.content.includes("from 'ecopages:images';"))).toBe(true);
 		} finally {
@@ -126,9 +129,9 @@ describe('DependencyResolverService', () => {
 	});
 
 	it('should pass entry attributes and support inline stylesheet content', async () => {
-		let capturedDeps: unknown[] = [];
+		let capturedDeps: AssetDefinition[] = [];
 		const assetProcessingService = {
-			processDependencies: vi.fn(async (deps: unknown[]) => {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
 				capturedDeps = deps;
 				return [] as ProcessedAsset[];
 			}),
@@ -173,59 +176,32 @@ describe('DependencyResolverService', () => {
 
 		expect(
 			capturedDeps.some((dep) => {
-				if (!dep || typeof dep !== 'object') return false;
-				const asset = dep as {
-					source?: string;
-					kind?: string;
-					filepath?: string;
-					attributes?: Record<string, string>;
-				};
+				if (dep.kind !== 'script' || dep.source !== 'file') return false;
 				return (
-					asset.kind === 'script' &&
-					asset.source === 'file' &&
-					asset.filepath === '/app/components/attrs-inline/client.ts' &&
-					asset.attributes?.type === 'module' &&
-					asset.attributes?.defer === '' &&
-					asset.attributes?.async === '' &&
-					asset.attributes?.['data-script-id'] === 'main-client'
+					dep.filepath === '/app/components/attrs-inline/client.ts' &&
+					dep.attributes?.type === 'module' &&
+					dep.attributes?.defer === '' &&
+					dep.attributes?.async === '' &&
+					dep.attributes?.['data-script-id'] === 'main-client'
 				);
 			}),
 		).toBe(true);
 
 		expect(
 			capturedDeps.some((dep) => {
-				if (!dep || typeof dep !== 'object') return false;
-				const asset = dep as {
-					source?: string;
-					kind?: string;
-					filepath?: string;
-					attributes?: Record<string, string>;
-				};
+				if (dep.kind !== 'stylesheet' || dep.source !== 'file') return false;
 				return (
-					asset.kind === 'stylesheet' &&
-					asset.source === 'file' &&
-					asset.filepath === '/app/components/attrs-inline/styles.css' &&
-					asset.attributes?.rel === 'stylesheet' &&
-					asset.attributes?.media === 'print'
+					dep.filepath === '/app/components/attrs-inline/styles.css' &&
+					dep.attributes?.rel === 'stylesheet' &&
+					dep.attributes?.media === 'print'
 				);
 			}),
 		).toBe(true);
 
 		expect(
 			capturedDeps.some((dep) => {
-				if (!dep || typeof dep !== 'object') return false;
-				const asset = dep as {
-					source?: string;
-					kind?: string;
-					content?: string;
-					attributes?: Record<string, string>;
-				};
-				return (
-					asset.kind === 'stylesheet' &&
-					asset.source === 'content' &&
-					asset.content === 'body { background: red; }' &&
-					asset.attributes?.media === 'screen'
-				);
+				if (dep.kind !== 'stylesheet' || dep.source !== 'content') return false;
+				return dep.content === 'body { background: red; }' && dep.attributes?.media === 'screen';
 			}),
 		).toBe(true);
 	});
@@ -253,24 +229,16 @@ describe('DependencyResolverService', () => {
 		};
 
 		await expect(service.processComponentDependencies([component], 'react')).rejects.toThrow(
-			'Lazy script dependency entry in dependencies.scripts requires a src value',
+			DEPENDENCY_ERRORS.LAZY_SCRIPT_MISSING_SRC,
 		);
 	});
 
 	it('should resolve lazy scripts by trigger group, including lazy content entries', async () => {
 		const assetProcessingService = {
-			processDependencies: vi.fn(async (deps: unknown[]) => {
-				return (
-					deps as Array<{
-						kind?: string;
-						source?: string;
-						filepath?: string;
-						attributes?: Record<string, string>;
-						content?: string;
-					}>
-				).map((dep, index) => {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				return deps.map((dep, index) => {
 					const lazyKey = dep.attributes?.['data-eco-lazy-key'];
-					const hasContent = dep.source === 'content' && typeof dep.content === 'string';
+					const hasContent = dep.source === 'content' && typeof (dep as any).content === 'string';
 					const isLazyScript = dep.kind === 'script' && Boolean(lazyKey);
 					const srcUrl = isLazyScript
 						? hasContent
@@ -280,7 +248,7 @@ describe('DependencyResolverService', () => {
 
 					return {
 						kind: dep.kind ?? 'script',
-						filepath: dep.filepath,
+						filepath: (dep as Record<string, any>).filepath,
 						attributes: dep.attributes,
 						srcUrl,
 					} as ProcessedAsset;

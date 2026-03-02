@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import type {
 	DependencyLazyTrigger,
 	EcoComponent,
-	EcoComponentDependencyEntry,
+	EcoComponentScriptEntry,
 	ResolvedLazyScriptGroup,
 } from '../public-types.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
@@ -12,10 +12,16 @@ import type {
 	AssetProcessingService,
 	ProcessedAsset,
 } from '../services/asset-processing-service/index.ts';
+import { rapidhash } from '../utils/hash.ts';
 import { AssetFactory } from '../services/asset-processing-service/index.ts';
 import { normalizeModuleDeclarations } from '../eco/module-dependencies.ts';
-import { rapidhash } from '../utils/hash.ts';
 import { parseSync } from 'oxc-parser';
+
+export const DEPENDENCY_ERRORS = {
+	INVALID_STYLESHEET_ENTRY: 'Invalid stylesheet dependency entry: expected src or content',
+	INVALID_SCRIPT_ENTRY: 'Invalid script dependency entry: expected src or content',
+	LAZY_SCRIPT_MISSING_SRC: 'Lazy script dependency entry in dependencies.scripts requires a src value',
+} as const;
 
 /**
  * Parses a component's source file with oxc-parser and collects all
@@ -100,11 +106,11 @@ function resolveDependencyPath(componentDir: string, pathUrl: string): string {
 	return path.join(componentDir, pathUrl);
 }
 
-function isDependencyEntryObject(entry: string | EcoComponentDependencyEntry): entry is EcoComponentDependencyEntry {
+function isDependencyEntryObject(entry: string | EcoComponentScriptEntry): entry is EcoComponentScriptEntry {
 	return typeof entry === 'object' && entry !== null;
 }
 
-function getDependencyEntrySrc(entry: string | EcoComponentDependencyEntry): string | undefined {
+function getDependencyEntrySrc(entry: string | EcoComponentScriptEntry): string | undefined {
 	return isDependencyEntryObject(entry) ? entry.src : entry;
 }
 
@@ -112,7 +118,7 @@ function getDependencyEntrySrc(entry: string | EcoComponentDependencyEntry): str
  * Reads inline dependency content from an entry object.
  * Returns `undefined` for string entries.
  */
-function getDependencyEntryContent(entry: string | EcoComponentDependencyEntry): string | undefined {
+function getDependencyEntryContent(entry: string | EcoComponentScriptEntry): string | undefined {
 	return isDependencyEntryObject(entry) ? entry.content : undefined;
 }
 
@@ -120,7 +126,7 @@ function getDependencyEntryContent(entry: string | EcoComponentDependencyEntry):
  * Reads optional HTML tag attributes from an entry object.
  * Returns `undefined` for string entries.
  */
-function getDependencyEntryAttributes(entry: string | EcoComponentDependencyEntry): Record<string, string> | undefined {
+function getDependencyEntryAttributes(entry: string | EcoComponentScriptEntry): Record<string, string> | undefined {
 	return isDependencyEntryObject(entry) ? entry.attributes : undefined;
 }
 
@@ -130,10 +136,10 @@ function getDependencyEntryAttributes(entry: string | EcoComponentDependencyEntr
  * Used for entry forms where a file-backed source is mandatory
  * (for example certain lazy script code paths).
  */
-function getDependencyEntrySrcOrThrow(entry: string | EcoComponentDependencyEntry, context: string): string {
+function getDependencyEntrySrcOrThrow(entry: string | EcoComponentScriptEntry, errorMessage: string): string {
 	const src = getDependencyEntrySrc(entry);
 	if (!src) {
-		throw new Error(`${context} requires a src value`);
+		throw new Error(errorMessage);
 	}
 
 	return src;
@@ -283,7 +289,7 @@ export class DependencyResolverService {
 						}
 
 						if (!src) {
-							throw new Error('Invalid stylesheet dependency entry: expected src or content');
+							throw new Error(DEPENDENCY_ERRORS.INVALID_STYLESHEET_ENTRY);
 						}
 
 						const resolvedPath = resolveDependencyPath(dir, src);
@@ -338,7 +344,7 @@ export class DependencyResolverService {
 						}
 
 						if (!src) {
-							throw new Error('Invalid script dependency entry: expected src or content');
+							throw new Error(DEPENDENCY_ERRORS.INVALID_SCRIPT_ENTRY);
 						}
 
 						const resolvedPath = resolveDependencyPath(dir, src);
@@ -420,11 +426,7 @@ export class DependencyResolverService {
 					}
 
 					const script =
-						src ??
-						getDependencyEntrySrcOrThrow(
-							scriptEntry,
-							'Lazy script dependency entry in dependencies.scripts',
-						);
+						src ?? getDependencyEntrySrcOrThrow(scriptEntry, DEPENDENCY_ERRORS.LAZY_SCRIPT_MISSING_SRC);
 					const resolvedPath = this.resolveDependencyPath(dir, script);
 					const fallbackUrl = this.resolveLazyScripts(dir, [script]).split(',')[0] ?? '';
 					const lazyKey = `lazy:${rapidhash(`${resolvedPath}:${getLazyTriggerKey(lazy)}`).toString(16)}`;

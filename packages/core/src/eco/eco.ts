@@ -5,7 +5,6 @@
 
 import type {
 	EcoComponent,
-	EcoInjectedMeta,
 	EcoPagesElement,
 	EcoPageComponent,
 	GetMetadata,
@@ -25,83 +24,7 @@ import type {
 	PagePropsForWithLocals,
 	PageRequires,
 } from './eco.types.ts';
-import { buildInjectorMapScript } from './lazy-injector-map.ts';
-
-/**
- * Resolves the caller source file from the current stack trace.
- *
- * @returns Absolute file path of the first external caller when available.
- */
-function resolveCallerFile(): string | undefined {
-	const stack = new Error().stack;
-	if (!stack) {
-		return undefined;
-	}
-
-	const stackLines = stack.split('\n');
-	const currentModulePath = new URL(import.meta.url).pathname;
-
-	for (const line of stackLines) {
-		const match = line.match(/(?:file:\/\/)?(\/[^\s)]+\.(?:tsx?|jsx?|mjs|cjs|mts|cts))/i);
-		if (!match) {
-			continue;
-		}
-
-		const candidate = decodeURIComponent(match[1]);
-		if (candidate === currentModulePath) {
-			continue;
-		}
-
-		if (candidate.includes('/packages/core/src/eco/')) {
-			continue;
-		}
-
-		return candidate;
-	}
-
-	return undefined;
-}
-
-/**
- * Infers integration id from the component file extension.
- *
- * @param filePath Absolute component source path.
- * @returns Integration identifier.
- */
-function inferIntegrationFromFile(filePath: string): string {
-	if (filePath.endsWith('.kita.tsx')) return 'kitajs';
-	if (filePath.endsWith('.lit.tsx')) return 'lit';
-	if (filePath.endsWith('.mdx')) return 'mdx';
-	if (filePath.endsWith('.ghtml.ts') || filePath.endsWith('.ghtml.tsx')) return 'ghtml';
-	return 'unknown';
-}
-
-/**
- * Creates normalized eco metadata for a component.
- *
- * @param optionsEco Metadata injected by tooling.
- * @param componentSourceFile Resolved component source file path.
- * @returns Hydrated metadata object or `undefined` when no metadata source exists.
- */
-function createEcoMetadata(optionsEco: EcoInjectedMeta | undefined, componentSourceFile: string | undefined) {
-	if (!optionsEco && !componentSourceFile) {
-		return undefined;
-	}
-
-	if (optionsEco) {
-		return {
-			...optionsEco,
-			file: componentSourceFile ?? optionsEco.file,
-		} satisfies EcoInjectedMeta;
-	}
-
-	const filePath = componentSourceFile as string;
-	return {
-		id: filePath,
-		file: filePath,
-		integration: inferIntegrationFromFile(filePath),
-	} satisfies EcoInjectedMeta;
-}
+import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './eco.utils.ts';
 
 /**
  * Creates a component factory that auto-wraps lazy dependencies.
@@ -113,14 +36,12 @@ function createEcoMetadata(optionsEco: EcoInjectedMeta | undefined, componentSou
  */
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	const isReact = options.__eco?.integration === 'react';
-	const componentSourceFile = options.__eco?.file ?? resolveCallerFile();
-	const ecoMetadata = createEcoMetadata(options.__eco, componentSourceFile);
 
 	/* For React, use render directly to preserve React hooks semantics and rely on the integration to handle lazy dependencies */
 	if (isReact) {
 		const comp = options.render as EcoComponent<P, E>;
 		comp.config = {
-			__eco: ecoMetadata,
+			__eco: options.__eco,
 			dependencies: options.dependencies,
 		};
 		return comp;
@@ -129,20 +50,30 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 	/* For non-React integrations, wrap to support lazy script injection */
 	const comp: EcoComponent<P, E> = ((props: P) => {
 		const content = options.render(props);
+
+		const lazyTriggers = comp.config?._resolvedLazyTriggers;
+		if (lazyTriggers && lazyTriggers.length > 0) {
+			const triggerId = lazyTriggers[0].triggerId;
+			if (isThenable(content)) {
+				return content.then((resolvedContent) => addTriggerAttribute(resolvedContent, triggerId));
+			}
+			return addTriggerAttribute(content, triggerId);
+		}
+
 		const lazyGroups = comp.config?._resolvedLazyScripts;
 
 		if (lazyGroups && lazyGroups.length > 0) {
-			const wrappedContent = String(content);
-			const injectorMapScript = buildInjectorMapScript(lazyGroups);
-
-			return `<scripts-injector><script type="ecopages/injector-map">${injectorMapScript}</script>${wrappedContent}</scripts-injector>`;
+			if (isThenable(content)) {
+				return content.then((resolvedContent) => wrapWithScriptsInjector(resolvedContent, lazyGroups));
+			}
+			return wrapWithScriptsInjector(content, lazyGroups);
 		}
 
 		return content;
 	}) as EcoComponent<P, E>;
 
 	comp.config = {
-		__eco: ecoMetadata,
+		__eco: options.__eco,
 		dependencies: options.dependencies,
 	};
 
@@ -169,6 +100,7 @@ function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals =
 		render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
 	},
 ): EcoPageComponent<T>;
+
 /**
  * Creates a page component and attaches optional static APIs.
  *

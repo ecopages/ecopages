@@ -40,6 +40,7 @@ export type LazyTrigger = DependencyLazyTrigger;
 export interface ComponentOptions<P, E = EcoPagesElement> {
 	/** @internal Injected by eco-component-meta-plugin */
 	__eco?: EcoInjectedMeta;
+	integration?: string;
 	dependencies?: EcoComponentDependencies;
 	render: (props: P) => E | Promise<E>;
 }
@@ -50,6 +51,7 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
 export interface PageOptionsBase<T, E = EcoPagesElement> {
 	/** @internal Injected by eco-component-meta-plugin */
 	__eco?: EcoInjectedMeta;
+	integration?: string;
 	dependencies?: EcoComponentDependencies;
 	layout?: EcoComponent<{ children: E } & Partial<RequestPageContext>>;
 

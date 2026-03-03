@@ -3,6 +3,8 @@ import { IntegrationRenderer, type RenderToResponseContext } from './integration
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../services/asset-processing-service/index.ts';
 import type {
+	ComponentRenderInput,
+	ComponentRenderResult,
 	RouteRendererBody,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
@@ -23,9 +25,19 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	PageModule: EcoPageFile | null = null;
 	/** Mock HTML template container */
 	HtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
+	RenderedBody: RouteRendererBody = '<html><body>Test Page</body></html>';
+	MockComponentRenderResult: ComponentRenderResult | null = null;
 
 	async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
-		return '<html><body>Test Page</body></html>';
+		return this.RenderedBody;
+	}
+
+	override async renderComponent(_input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		if (this.MockComponentRenderResult) {
+			return this.MockComponentRenderResult;
+		}
+
+		return super.renderComponent(_input);
 	}
 
 	async renderToResponse<P>(view: EcoComponent<P>, props: P, ctx: RenderToResponseContext): Promise<Response> {
@@ -98,6 +110,7 @@ describe('IntegrationRenderer', () => {
 			pagesDir: '/app/pages',
 			htmlTemplatePath: '/app/index.ghtml.ts',
 		},
+		integrations: [],
 		defaultMetadata: {
 			title: 'Default Title',
 			description: 'Default Description',
@@ -246,7 +259,7 @@ describe('IntegrationRenderer', () => {
 		expect(result.pageLocals).toBe(incomingLocals);
 	});
 
-	it('should prefer processed lazy script srcUrl for _resolvedLazyScripts', async () => {
+	it('should prefer processed lazy script srcUrl for _resolvedLazyTriggers', async () => {
 		let capturedDeps: unknown[] = [];
 		const LazySrcUrl = '/assets/_hmr/components/lit-counter/lit-counter.script.js';
 		const Service = {
@@ -297,8 +310,15 @@ describe('IntegrationRenderer', () => {
 
 		await renderer.testProcessComponentDependencies([component]);
 
-		expect(component.config._resolvedLazyScripts).toEqual([
-			{ lazy: { 'on:interaction': 'click,mouseenter,focusin' }, scripts: LazySrcUrl },
+		expect(component.config._resolvedLazyScripts).toBeUndefined();
+		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
+		expect(component.config._resolvedLazyTriggers?.[0]?.rules).toEqual([
+			{
+				'on:interaction': {
+					value: 'click,mouseenter,focusin',
+					scripts: [LazySrcUrl],
+				},
+			},
 		]);
 		expect(
 			capturedDeps.some((dep) => {
@@ -306,7 +326,7 @@ describe('IntegrationRenderer', () => {
 				const candidate = dep as { source?: string; importPath?: string };
 				return candidate.source === 'node-module' && candidate.importPath === '@ecopages/scripts-injector';
 			}),
-		).toBe(true);
+		).toBe(false);
 	});
 
 	it('should fallback to static lazy script URL when processed srcUrl is unavailable', async () => {
@@ -346,10 +366,14 @@ describe('IntegrationRenderer', () => {
 
 		await renderer.testProcessComponentDependencies([component]);
 
-		expect(component.config._resolvedLazyScripts).toEqual([
+		expect(component.config._resolvedLazyScripts).toBeUndefined();
+		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
+		expect(component.config._resolvedLazyTriggers?.[0]?.rules).toEqual([
 			{
-				lazy: { 'on:interaction': 'click,mouseenter,focusin' },
-				scripts: '/assets/components/lit-counter/lit-counter.script.js',
+				'on:interaction': {
+					value: 'click,mouseenter,focusin',
+					scripts: ['/assets/components/lit-counter/lit-counter.script.js'],
+				},
 			},
 		]);
 	});
@@ -450,6 +474,401 @@ describe('IntegrationRenderer', () => {
 			const body = await response.text();
 			expect(body).toContain('<main class="layout">');
 			expect(body).toContain('<p>With Layout</p>');
+		});
+	});
+
+	describe('renderComponent', () => {
+		it('should render a component with structured output', async () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: AppConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			const View = ((props: { title: string }) => `<h1>${props.title}</h1>`) as EcoComponent<{ title: string }>;
+
+			const result = await renderer.renderComponent({
+				component: View,
+				props: { title: 'Hello Component' },
+			});
+
+			expect(result.integrationName).toBe('test-renderer');
+			expect(result.canAttachAttributes).toBe(true);
+			expect(result.rootTag).toBe('h1');
+			expect(result.html).toContain('<h1>Hello Component</h1>');
+		});
+	});
+
+	describe('execute component-level artifacts', () => {
+		it('should handle stream-like render bodies without re-consuming disturbed responses', async () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: AppConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			renderer.RenderedBody = new Response('<html><body><main>Stream Body</main></body></html>').body as BodyInit;
+			renderer.PageModule = {
+				default: (() => '<main>Stream Body</main>') as unknown as EcoPageComponent<any>,
+			};
+			renderer.HtmlTemplate = (() => '<html><body><main>Stream Body</main></body></html>') as EcoComponent<
+				HtmlTemplateProps
+			>;
+
+			const result = await renderer.execute({
+				file: '/app/pages/index.ts',
+				params: {},
+				query: {},
+			});
+
+			const body = await new Response(result.body as BodyInit).text();
+			expect(body).toContain('<main>Stream Body</main>');
+		});
+
+		it('should include renderComponent assets and apply root attributes', async () => {
+			const appConfig = {
+				...AppConfig,
+			} as EcoPagesAppConfig;
+
+			const renderer = new TestIntegrationRenderer({
+				appConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			renderer.RenderedBody = '<html><body><main>Test Page</main></body></html>';
+			renderer.MockComponentRenderResult = {
+				html: '<main>Test Page</main>',
+				canAttachAttributes: true,
+				rootTag: 'main',
+				integrationName: 'test-renderer',
+				rootAttributes: { 'data-eco-component-id': 'eco-page-root' },
+				assets: [
+					{
+						kind: 'script',
+						srcUrl: '/assets/island.js',
+						position: 'head',
+					} as ProcessedAsset,
+				],
+			};
+
+			renderer.PageModule = {
+				default: (() => '<main>Test Page</main>') as unknown as EcoPageComponent<any>,
+			};
+			renderer.HtmlTemplate = (() => '<html><body><main>Test Page</main></body></html>') as EcoComponent<
+				HtmlTemplateProps
+			>;
+
+			const result = await renderer.execute({
+				file: '/app/pages/index.ts',
+				params: {},
+				query: {},
+			});
+
+			const body = await new Response(result.body as BodyInit).text();
+			expect(body).toContain('<main data-eco-component-id="eco-page-root">Test Page</main>');
+
+			const processedDeps = (renderer as any).htmlTransformer.getProcessedDependencies();
+			expect(processedDeps.some((dep: ProcessedAsset) => dep.srcUrl === '/assets/island.js')).toBe(true);
+		});
+
+		it('should not force render nested dependency components without resolved props context', async () => {
+			const explicitRenderer = {
+				renderComponent: vi.fn(async () => ({
+					html: '<aside>Nested</aside>',
+					canAttachAttributes: true,
+					rootTag: 'aside',
+					integrationName: 'explicit-renderer',
+				})),
+			} as unknown as IntegrationRenderer;
+
+			const appConfig = {
+				...AppConfig,
+				integrations: [
+					{
+						name: 'explicit-renderer',
+						initializeRenderer: () => explicitRenderer,
+					},
+				],
+			} as unknown as EcoPagesAppConfig;
+
+			const renderer = new TestIntegrationRenderer({
+				appConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			renderer.RenderedBody = '<html><body><main>Test Page</main></body></html>';
+			renderer.MockComponentRenderResult = {
+				html: '<main>Test Page</main>',
+				canAttachAttributes: true,
+				rootTag: 'main',
+				integrationName: 'test-renderer',
+				rootAttributes: { 'data-eco-component-id': 'eco-page-root' },
+			};
+
+			const NestedComponent = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
+			NestedComponent.config = {
+				integration: 'explicit-renderer',
+				__eco: {
+					id: 'nested-component',
+					file: '/app/components/nested-component.ts',
+					integration: 'test-renderer',
+				},
+			};
+
+			const Page = (() => '<main>Test Page</main>') as unknown as EcoPageComponent<any>;
+			Page.config = {
+				dependencies: {
+					components: [NestedComponent],
+				},
+			};
+
+			renderer.PageModule = {
+				default: Page,
+			};
+			renderer.HtmlTemplate = (() => '<html><body><main>Test Page</main></body></html>') as EcoComponent<
+				HtmlTemplateProps
+			>;
+
+			const result = await renderer.execute({
+				file: '/app/pages/index.ts',
+				params: {},
+				query: {},
+			});
+
+			expect((explicitRenderer.renderComponent as any).mock.calls).toHaveLength(0);
+
+			const body = await new Response(result.body as BodyInit).text();
+			expect(body).toContain('<main data-eco-component-id="eco-page-root">Test Page</main>');
+
+			const processedDeps = (renderer as any).htmlTransformer.getProcessedDependencies();
+			expect(processedDeps.some((dep: ProcessedAsset) => dep.srcUrl === '/assets/nested-explicit.js')).toBe(false);
+		});
+
+		it('should include global integration dependencies for referenced component integrations once', async () => {
+			const explicitIntegrationDependency = {
+				kind: 'script',
+				srcUrl: '/assets/react-runtime.js',
+				position: 'head',
+			} as ProcessedAsset;
+
+			const appConfig = {
+				...AppConfig,
+				integrations: [
+					{
+						name: 'react',
+						initializeRenderer: () => renderer as unknown as IntegrationRenderer,
+						getResolvedIntegrationDependencies: () => [explicitIntegrationDependency],
+					},
+				],
+			} as unknown as EcoPagesAppConfig;
+
+			const renderer = new TestIntegrationRenderer({
+				appConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			renderer.RenderedBody = '<html><body><main>Test Page</main></body></html>';
+			renderer.MockComponentRenderResult = {
+				html: '<main>Test Page</main>',
+				canAttachAttributes: true,
+				rootTag: 'main',
+				integrationName: 'test-renderer',
+			};
+
+			const ReactNested = (() => '<div>React Nested</div>') as EcoComponent<Record<string, unknown>>;
+			ReactNested.config = {
+				integration: 'react',
+				__eco: {
+					id: 'react-nested',
+					file: '/app/components/react-nested.react.tsx',
+					integration: 'react',
+				},
+			};
+
+			const Page = (() => '<main>Test Page</main>') as unknown as EcoPageComponent<any>;
+			Page.config = {
+				dependencies: {
+					components: [ReactNested],
+				},
+			};
+
+			renderer.PageModule = {
+				default: Page,
+			};
+			renderer.HtmlTemplate = (() => '<html><body><main>Test Page</main></body></html>') as EcoComponent<
+				HtmlTemplateProps
+			>;
+
+			await renderer.execute({
+				file: '/app/pages/index.ts',
+				params: {},
+				query: {},
+			});
+
+			const processedDeps = (renderer as any).htmlTransformer.getProcessedDependencies();
+			expect(processedDeps.filter((dep: ProcessedAsset) => dep.srcUrl === '/assets/react-runtime.js')).toHaveLength(1);
+		});
+
+		it('should resolve eco-marker nodes via integration renderComponent with referenced props', async () => {
+			const explicitRenderer = {
+				renderComponent: vi.fn(async () => ({
+					html: '<aside>Nested Render</aside>',
+					canAttachAttributes: true,
+					rootTag: 'aside',
+					integrationName: 'explicit-renderer',
+					rootAttributes: { 'data-eco-component-id': 'nested-1' },
+					assets: [
+						{
+							kind: 'script',
+							srcUrl: '/assets/nested-render.js',
+							position: 'head',
+						} as ProcessedAsset,
+					],
+				})),
+			} as unknown as IntegrationRenderer;
+
+			const appConfig = {
+				...AppConfig,
+				integrations: [
+					{
+						name: 'explicit-renderer',
+						initializeRenderer: () => explicitRenderer,
+					},
+				],
+			} as unknown as EcoPagesAppConfig;
+
+			const renderer = new TestIntegrationRenderer({
+				appConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			renderer.RenderedBody =
+				'<html><body><main>Before<eco-marker data-eco-node-id="n_1" data-eco-integration="explicit-renderer" data-eco-component-ref="nested-component" data-eco-props-ref="props-1"></eco-marker>After</main></body></html>';
+			renderer.MockComponentRenderResult = {
+				html: '<main>Test Page</main>',
+				canAttachAttributes: true,
+				rootTag: 'main',
+				integrationName: 'test-renderer',
+			};
+
+			const NestedComponent = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
+			NestedComponent.config = {
+				integration: 'explicit-renderer',
+				__eco: {
+					id: 'nested-component',
+					file: '/app/components/nested-component.ts',
+					integration: 'explicit-renderer',
+				},
+			};
+
+			const Page = (() => '<main>Test Page</main>') as unknown as EcoPageComponent<any>;
+			Page.config = {
+				dependencies: {
+					components: [NestedComponent],
+				},
+			};
+
+			renderer.PageModule = {
+				default: Page,
+				componentGraphContext: {
+					propsByRef: {
+						'props-1': { count: 3 },
+					},
+				},
+			} as unknown as EcoPageFile;
+			renderer.HtmlTemplate = (() => '<html><body><main>Test Page</main></body></html>') as EcoComponent<
+				HtmlTemplateProps
+			>;
+
+			const result = await renderer.execute({
+				file: '/app/pages/index.ts',
+				params: {},
+				query: {},
+			});
+
+			const body = await new Response(result.body as BodyInit).text();
+			expect(body).toContain('<aside data-eco-component-id="nested-1">Nested Render</aside>');
+			expect(body).not.toContain('<eco-marker');
+			expect((explicitRenderer.renderComponent as any).mock.calls).toHaveLength(1);
+			expect((explicitRenderer.renderComponent as any).mock.calls[0][0].props).toEqual({ count: 3 });
+
+			const processedDeps = (renderer as any).htmlTransformer.getProcessedDependencies();
+			expect(processedDeps.some((dep: ProcessedAsset) => dep.srcUrl === '/assets/nested-render.js')).toBe(true);
+		});
+
+		it('should fail marker resolution when props reference is missing', async () => {
+			const explicitRenderer = {
+				renderComponent: vi.fn(async () => ({
+					html: '<aside>Nested Render</aside>',
+					canAttachAttributes: true,
+					rootTag: 'aside',
+					integrationName: 'explicit-renderer',
+				})),
+			} as unknown as IntegrationRenderer;
+
+			const appConfig = {
+				...AppConfig,
+				integrations: [
+					{
+						name: 'explicit-renderer',
+						initializeRenderer: () => explicitRenderer,
+					},
+				],
+			} as unknown as EcoPagesAppConfig;
+
+			const renderer = new TestIntegrationRenderer({
+				appConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			renderer.RenderedBody =
+				'<html><body><main><eco-marker data-eco-node-id="n_1" data-eco-integration="explicit-renderer" data-eco-component-ref="nested-component" data-eco-props-ref="props-missing"></eco-marker></main></body></html>';
+			renderer.MockComponentRenderResult = {
+				html: '<main>Test Page</main>',
+				canAttachAttributes: true,
+				rootTag: 'main',
+				integrationName: 'test-renderer',
+			};
+
+			const NestedComponent = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
+			NestedComponent.config = {
+				integration: 'explicit-renderer',
+				__eco: {
+					id: 'nested-component',
+					file: '/app/components/nested-component.ts',
+					integration: 'explicit-renderer',
+				},
+			};
+
+			const Page = (() => '<main>Test Page</main>') as unknown as EcoPageComponent<any>;
+			Page.config = {
+				dependencies: {
+					components: [NestedComponent],
+				},
+			};
+
+			renderer.PageModule = {
+				default: Page,
+				componentGraphContext: {
+					propsByRef: {},
+				},
+			} as unknown as EcoPageFile;
+			renderer.HtmlTemplate = (() => '<html><body><main>Test Page</main></body></html>') as EcoComponent<
+				HtmlTemplateProps
+			>;
+
+			await expect(
+				renderer.execute({
+					file: '/app/pages/index.ts',
+					params: {},
+					query: {},
+				}),
+			).rejects.toThrow('Missing props reference for marker: props-missing');
 		});
 	});
 });

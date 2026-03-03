@@ -24,31 +24,70 @@ import type {
 	PagePropsForWithLocals,
 	PageRequires,
 } from './eco.types.ts';
+import {
+	createNodeId,
+	createPropsRef,
+	createSlotRef,
+	getComponentRenderContext,
+} from './component-render-context.ts';
+import { createComponentMarker, parseComponentMarkers } from '../route-renderer/component-marker.ts';
 import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './eco.utils.ts';
 
 /**
- * Creates a component factory that auto-wraps lazy dependencies.
- * For React integration, returns the render function directly to preserve hook semantics.
- * For other integrations, wraps render to support lazy script injection.
+ * Creates a component factory with lazy-trigger support and cross-integration
+ * marker emission for React boundaries.
+ *
+ * Behavior:
+ * - In normal render flow, returns `options.render(props)` with optional lazy
+ *   trigger/script wrapping.
+ * - When rendering under component graph context and crossing from non-React
+ *   integration into React, emits an `eco-marker` token instead of rendering
+ *   the component immediately.
  *
  * @param options Component options for rendering and dependency declaration.
  * @returns Configured eco component.
  */
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
-	const isReact = options.__eco?.integration === 'react';
-
-	/* For React, use render directly to preserve React hooks semantics and rely on the integration to handle lazy dependencies */
-	if (isReact) {
-		const comp = options.render as EcoComponent<P, E>;
-		comp.config = {
-			__eco: options.__eco,
-			dependencies: options.dependencies,
-		};
-		return comp;
-	}
-
-	/* For non-React integrations, wrap to support lazy script injection */
+	const integrationName = options.integration ?? options.__eco?.integration;
 	const comp: EcoComponent<P, E> = ((props: P) => {
+		const renderContext = getComponentRenderContext();
+		const shouldEmitMarker =
+			renderContext !== undefined &&
+			integrationName === 'react' &&
+			Boolean(integrationName) &&
+			renderContext.currentIntegration !== integrationName;
+
+		if (shouldEmitMarker && renderContext) {
+			const nodeId = createNodeId(renderContext);
+			const propsRef = createPropsRef(renderContext);
+			const componentRef = comp.config?.__eco?.id ?? comp.config?.__eco?.file;
+
+			if (!componentRef) {
+				throw new Error('[ecopages] Missing component reference metadata for cross-integration marker emission.');
+			}
+
+			const componentProps = (props ?? {}) as Record<string, unknown>;
+			renderContext.propsByRef[propsRef] = componentProps;
+
+			let slotRef: string | undefined;
+			const children = componentProps.children;
+			if (typeof children === 'string' && children.includes('<eco-marker')) {
+				const childMarkers = parseComponentMarkers(children);
+				if (childMarkers.length > 0) {
+					slotRef = createSlotRef(renderContext);
+					renderContext.slotChildrenByRef[slotRef] = childMarkers.map((marker) => marker.nodeId);
+				}
+			}
+
+			return createComponentMarker({
+				nodeId,
+				integration: integrationName as string,
+				componentRef,
+				propsRef,
+				slotRef,
+			}) as E;
+		}
+
 		const content = options.render(props);
 
 		const lazyTriggers = comp.config?._resolvedLazyTriggers;
@@ -74,6 +113,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 
 	comp.config = {
 		__eco: options.__eco,
+		integration: options.integration,
 		dependencies: options.dependencies,
 	};
 
@@ -114,6 +154,7 @@ function page<T, E>(
 
 	const componentOptions: ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E> = {
 		__eco: options.__eco,
+		integration: options.integration,
 		dependencies: layout
 			? {
 					...dependencies,

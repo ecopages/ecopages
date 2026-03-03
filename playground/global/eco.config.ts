@@ -6,6 +6,7 @@ import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
+import { reactPlugin } from '@ecopages/react';
 
 export default await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)
@@ -13,6 +14,7 @@ export default await new ConfigBuilder()
 	.setIntegrations([
 		kitajsPlugin(),
 		litPlugin(),
+		reactPlugin(),
 		mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
@@ -39,5 +41,4 @@ export default await new ConfigBuilder()
 		}),
 		postcssProcessorPlugin(tailwindV3Preset()),
 	])
-	.setExperimental({ renderingMode: 'global-injector' })
 	.build();

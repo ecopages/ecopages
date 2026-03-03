@@ -5,12 +5,13 @@ import { AlpineCounter } from '@/components/alpine-counter';
 import Introduction from '@/components/introduction.mdx';
 import { LitCounter } from '@/components/lit-counter';
 import { RadiantCounter } from '@/components/radiant-counter';
+import { ReactCounter } from '@/components/react-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 
 export default eco.page({
 	dependencies: {
 		stylesheets: ['./index.css'],
-		components: [BaseLayout, AlpineCounter, RadiantCounter, LitCounter],
+		components: [BaseLayout, AlpineCounter, RadiantCounter, LitCounter, ReactCounter],
 	},
 
 	metadata: () => ({
@@ -34,6 +35,8 @@ export default eco.page({
 				<RadiantCounter count={5} />
 				<span class="font-bold text-xl">Lit Counter</span>
 				<LitCounter count={8} />
+				<span class="font-bold text-xl">React Counter</span>
+				<ReactCounter count={3} />
 				<EndpointsTesting />
 			</BaseLayout>
 		);

@@ -18,18 +18,21 @@
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
+		"@ecopages/react": "workspace:*",
 		"@ecopages/radiant": "^0.1.7",
 		"@ecopages/scripts-injector": "^0.1.3",
 		"@faker-js/faker": "9.7.0",
 		"@types/alpinejs": "^3.13.6",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
 		"alpinejs": "^3.13.10",
 		"ecopages": "workspace:*",
 		"shiki": "^1.1.2",
 		"tailwindcss": "^3.4.19",
 		"@kitajs/html": "^4.2.13",
 		"lit": "^3.3.2",
-		"react": "^19.2.4",
-		"react-dom": "^19.2.4"
+		"react": "^19",
+		"react-dom": "^19"
 	},
 	"repository": "https://github.com/ecopages/ecopages.git",
 	"dependencies": {

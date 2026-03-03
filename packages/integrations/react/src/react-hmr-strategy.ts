@@ -12,7 +12,7 @@ import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { defaultBuildAdapter } from '@ecopages/core/build/build-adapter';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
-import { fileSystem } from '@ecopages/file-system';
+import { FileNotFoundError, fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
@@ -322,6 +322,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * @returns True if processing was successful
 	 */
 	private async processOutput(tempPath: string, finalPath: string, url: string): Promise<boolean> {
+		if (!fileSystem.exists(tempPath)) {
+			appLogger.debug(`Skipping stale temp output for ${url}: ${tempPath}`);
+			return false;
+		}
+
 		try {
 			let code = await fileSystem.readFile(tempPath);
 
@@ -334,6 +339,16 @@ export class ReactHmrStrategy extends HmrStrategy {
 			appLogger.debug(`Processed ${url} with HMR handler`);
 			return true;
 		} catch (error) {
+			if (
+				error instanceof FileNotFoundError ||
+				(error instanceof Error && error.message.includes('not found')) ||
+				(error instanceof Error && 'code' in error && error.code === 'ENOENT')
+			) {
+				appLogger.debug(`Skipping stale temp output for ${url}: ${tempPath}`);
+				await fileSystem.removeAsync(tempPath).catch(() => {});
+				return false;
+			}
+
 			appLogger.error(`Error processing output for ${url}:`, error as Error);
 			await fileSystem.removeAsync(tempPath).catch(() => {});
 			return false;

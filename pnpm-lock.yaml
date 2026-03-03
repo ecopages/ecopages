@@ -162,6 +162,34 @@ importers:
         specifier: ^19.2.4
         version: 19.2.4(react@19.2.4)
 
+  e2e/fixtures/kitchen-sink-app:
+    dependencies:
+      '@mdx-js/mdx':
+        specifier: ^3.1.1
+        version: 3.1.1
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/kitajs':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/kitajs
+      '@ecopages/lit':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/lit
+      '@ecopages/react':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/react
+      '@kitajs/html':
+        specifier: ^4.2.13
+        version: 4.2.13
+      react:
+        specifier: ^19
+        version: 19.2.4
+      react-dom:
+        specifier: ^19
+        version: 19.2.4(react@19.2.4)
+
   e2e/fixtures/react-router-app:
     dependencies:
       '@mdx-js/mdx':
@@ -735,6 +763,12 @@ importers:
       '@types/alpinejs':
         specifier: ^3.13.6
         version: 3.13.11
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
       alpinejs:
         specifier: ^3.13.10
         version: 3.15.8
@@ -745,10 +779,10 @@ importers:
         specifier: ^3.3.2
         version: 3.3.2
       react:
-        specifier: ^19.2.4
+        specifier: ^19
         version: 19.2.4
       react-dom:
-        specifier: ^19.2.4
+        specifier: ^19
         version: 19.2.4(react@19.2.4)
       shiki:
         specifier: ^1.1.2

@@ -6,6 +6,8 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type {
+	ComponentRenderInput,
+	ComponentRenderResult,
 	EcoComponent,
 	EcoComponentConfig,
 	EcoPageFile,
@@ -27,13 +29,15 @@ import {
 import { defaultBuildAdapter } from '@ecopages/core/build/build-adapter';
 import { fileSystem } from '@ecopages/file-system';
 import { createElement, type ReactNode } from 'react';
-import { renderToReadableStream } from 'react-dom/server';
+import { renderToReadableStream, renderToString } from 'react-dom/server';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { PLUGIN_NAME } from './react.plugin.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
 import { createHydrationScript } from './utils/hydration-scripts.ts';
+import { createIslandHydrationScript } from './utils/hydration-scripts.ts';
 import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
 import { collectDeclaredModulesInConfig } from './utils/declared-modules.ts';
+import { hasSingleRootElement } from './utils/html-boundary.ts';
 
 type ReactRuntimeImports = {
 	react: string;
@@ -42,6 +46,10 @@ type ReactRuntimeImports = {
 	reactJsxDevRuntime: string;
 	reactDom: string;
 	router?: string;
+};
+
+type ReactComponentRenderContext = {
+	componentInstanceId?: string;
 };
 
 /**
@@ -74,6 +82,7 @@ export class BundleError extends Error {
 export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	name = PLUGIN_NAME;
 	componentDirectory = RESOLVED_ASSETS_DIR;
+	private componentRenderSequence = 0;
 	static routerAdapter: ReactRouterAdapter | undefined;
 	static mdxCompilerOptions: CompileOptions | undefined;
 	static mdxExtensions: string[] = ['.mdx'];
@@ -84,6 +93,119 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * on explicit dependency declarations for browser graph composition.
 	 */
 	static explicitGraphEnabled = false;
+
+	protected override shouldRenderPageComponent(): boolean {
+		return false;
+	}
+
+	/**
+	 * Renders a React component for component-level orchestration.
+	 *
+	 * Behavior:
+	 * - SSR always returns the component's own root HTML (no synthetic wrapper).
+	 * - For single-root output, a stable `data-eco-component-id` attribute is attached
+	 *   to the root element so the client island runtime can target it directly.
+	 * - Island client scripts are emitted through `assets` and mounted independently.
+	 *
+	 * This preserves DOM shape for global CSS/layout selectors while keeping a
+	 * deterministic mount target per component instance.
+	 */
+	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		const Component = input.component as unknown as React.FunctionComponent;
+		const componentConfig = input.component.config;
+		const element =
+			input.children === undefined
+				? createElement(Component, input.props)
+				: createElement(Component, input.props, input.children);
+		let html = renderToString(element);
+		let canAttachAttributes = hasSingleRootElement(html);
+		let rootTag = this.getRootTagName(html);
+		const componentFile = componentConfig?.__eco?.file;
+		const context = (input.integrationContext as ReactComponentRenderContext | undefined) ?? {};
+
+		let rootAttributes: Record<string, string> | undefined;
+		let assets: ProcessedAsset[] | undefined;
+
+		if (canAttachAttributes && componentFile && this.assetProcessingService) {
+			const componentInstanceId =
+				context.componentInstanceId ??
+				`eco-component-${rapidhash(componentFile)}-${++this.componentRenderSequence}`;
+			assets = await this.buildComponentRenderAssets(componentFile, componentInstanceId, input.props, componentConfig);
+			rootAttributes = { 'data-eco-component-id': componentInstanceId };
+		}
+
+		return {
+			html,
+			canAttachAttributes,
+			rootTag,
+			integrationName: this.name,
+			rootAttributes,
+			assets,
+		};
+	}
+
+	private async buildComponentRenderAssets(
+		componentFile: string,
+		componentInstanceId: string,
+		props: Record<string, unknown>,
+		config?: EcoComponentConfig,
+	): Promise<ProcessedAsset[]> {
+		/**
+		 * Asset emission flow for one React component island:
+		 * 1. Bundle component entry for browser execution.
+		 * 2. Emit inline island bootstrap script bound to `componentInstanceId`.
+		 * 3. Return processed assets for route-level dedupe/injection.
+		 */
+		const componentName = `ecopages-react-island-${rapidhash(`${componentFile}:${componentInstanceId}`)}`;
+		const importPath = await this.resolveAssetImportPath(componentFile, componentName);
+		const hmrManager = this.assetProcessingService?.getHmrManager();
+		const isDevelopment = hmrManager?.isEnabled() ?? false;
+		const declaredModules = collectDeclaredModulesInConfig(config);
+		const bundleOptions = await this.createBundleOptions(componentName, false, declaredModules);
+		const runtimeImports = this.getRuntimeImports();
+
+		const dependencies: AssetDefinition[] = [
+			AssetFactory.createFileScript({
+				position: 'head',
+				filepath: componentFile,
+				name: componentName,
+				excludeFromHtml: true,
+				bundle: true,
+				bundleOptions,
+				attributes: {
+					type: 'module',
+					defer: '',
+					'data-eco-persist': 'true',
+				},
+			}),
+			AssetFactory.createContentScript({
+				position: 'head',
+				content: createIslandHydrationScript({
+					importPath,
+					reactImportPath: runtimeImports.react,
+					reactDomClientImportPath: runtimeImports.reactDomClient,
+					targetSelector: `[data-eco-component-id="${componentInstanceId}"]`,
+					props,
+					componentRef: config?.__eco?.id,
+					componentFile,
+					isDevelopment,
+				}),
+				name: `${componentName}-hydration`,
+				bundle: false,
+				attributes: {
+					type: 'module',
+					defer: '',
+					'data-eco-persist': 'true',
+				},
+			}),
+		];
+
+		if (!this.assetProcessingService) {
+			return [];
+		}
+
+		return this.assetProcessingService.processDependencies(dependencies, componentName);
+	}
 
 	/**
 	 * Checks if the given file path corresponds to an MDX file based on configured extensions.

@@ -4,6 +4,8 @@
  */
 
 import type {
+	ComponentRenderInput,
+	ComponentRenderResult,
 	EcoComponent,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
@@ -22,6 +24,31 @@ import { PLUGIN_NAME } from './lit.plugin.ts';
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = PLUGIN_NAME;
+
+	/**
+	 * Renders a Lit component boundary for component-level orchestration.
+	 *
+	 * Includes component-scoped dependency assets when declared.
+	 */
+	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		const component = input.component as (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement;
+		const props = input.children === undefined ? input.props : { ...input.props, children: input.children };
+		const content = await component(props);
+		const html = String(content);
+		const hasDependencies = Boolean(input.component.config?.dependencies);
+		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
+		const assets =
+			hasDependencies && canResolveAssets ? await this.processComponentDependencies([input.component]) : undefined;
+
+		return {
+			html,
+			canAttachAttributes: true,
+			rootTag: this.getRootTagName(html),
+			integrationName: this.name,
+			assets,
+		};
+	}
+
 	private readonly ssrLazyPreloader = new LitSsrLazyPreloader({
 		resolveDependencyPath: this.resolveDependencyPath.bind(this),
 		processDependencies: this.assetProcessingService?.processDependencies?.bind(this.assetProcessingService),

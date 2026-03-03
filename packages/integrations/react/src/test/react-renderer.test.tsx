@@ -59,7 +59,85 @@ const createRenderer = () => {
 	return testRenderer;
 };
 
+const createRendererWithAssets = () => {
+	const assetProcessingService = {
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+		processDependencies: vi.fn(async () => []),
+	};
+
+	const testRenderer = new ReactRenderer({
+		appConfig: Config,
+		assetProcessingService: assetProcessingService as any,
+		runtimeOrigin: 'http://localhost:3000',
+		resolvedIntegrationDependencies: [],
+	});
+	vi.spyOn(testRenderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
+	return { testRenderer, assetProcessingService };
+};
+
 describe('ReactRenderer', () => {
+	describe('renderComponent', () => {
+		it('should render a single React component with structured output', async () => {
+			const testRenderer = createRenderer();
+			const Component = ((props: { title: string }) => <h2>{props.title}</h2>) as unknown as EcoComponent<{
+				title: string;
+			}>;
+
+			const result = await testRenderer.renderComponent({
+				component: Component,
+				props: { title: 'React Component' },
+			});
+
+			expect(result.integrationName).toBe('react');
+			expect(result.canAttachAttributes).toBe(true);
+			expect(result.rootTag).toBe('h2');
+			expect(result.html).toContain('<h2>React Component</h2>');
+		});
+
+		it('should report non-attachable boundaries for fragment output', async () => {
+			const testRenderer = createRenderer();
+			const Component = (() => (
+				<>
+					<span>One</span>
+					<span>Two</span>
+				</>
+			)) as unknown as EcoComponent<object>;
+
+			const result = await testRenderer.renderComponent({
+				component: Component,
+				props: {},
+			});
+
+			expect(result.canAttachAttributes).toBe(false);
+			expect(result.rootTag).toBe('span');
+			expect(result.html).toContain('<span>One</span>');
+		});
+
+		it('should emit hydration assets for attachable component roots', async () => {
+			const { testRenderer, assetProcessingService } = createRendererWithAssets();
+			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
+				title: string;
+			}>;
+			Component.config = {
+				__eco: {
+					id: 'component-id',
+					file: pageFilePath,
+					integration: 'react',
+				},
+			};
+
+			const result = await testRenderer.renderComponent({
+				component: Component,
+				props: { title: 'Island' },
+				integrationContext: { componentInstanceId: 'island-1' },
+			});
+
+			expect(result.canAttachAttributes).toBe(true);
+			expect(result.rootAttributes).toEqual({ 'data-eco-component-id': 'island-1' });
+			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
+		});
+	});
+
 	afterAll(() => {
 		if (fileSystem.exists(testDir)) {
 			fileSystem.remove(testDir);

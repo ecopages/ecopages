@@ -38,6 +38,27 @@ const createRenderer = () => {
 	return renderer;
 };
 
+const createRendererWithAssets = () => {
+	const assetProcessingService = {
+		processDependencies: vi.fn(async () => [
+			{
+				kind: 'script',
+				srcUrl: '/assets/island.js',
+				position: 'head',
+			},
+		]),
+	};
+
+	const renderer = new LitRenderer({
+		appConfig: Config,
+		assetProcessingService: assetProcessingService as any,
+		runtimeOrigin: 'http://localhost:3000',
+		resolvedIntegrationDependencies: [],
+	});
+	vi.spyOn(renderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
+	return { renderer, assetProcessingService };
+};
+
 const renderer = new LitRenderer({
 	appConfig: Config,
 	assetProcessingService: {} as any,
@@ -46,6 +67,49 @@ const renderer = new LitRenderer({
 });
 
 describe('LitRenderer', () => {
+	describe('renderComponent', () => {
+		it('should render a single component with structured output', async () => {
+			const testRenderer = createRenderer();
+			const Component = (async (props: { label: string }) =>
+				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
+
+			const result = await testRenderer.renderComponent({
+				component: Component,
+				props: { label: 'Lit Component' },
+			});
+
+			expect(result.integrationName).toBe('lit');
+			expect(result.canAttachAttributes).toBe(true);
+			expect(result.rootTag).toBe('section');
+			expect(result.html).toContain('<section>Lit Component</section>');
+		});
+
+		it('should include component assets when dependencies are declared', async () => {
+			const { renderer, assetProcessingService } = createRendererWithAssets();
+			const Component = (async (props: { label: string }) =>
+				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
+			Component.config = {
+				__eco: {
+					id: 'lit-comp',
+					file: '/project/src/components/lit-comp.lit.ts',
+					integration: 'lit',
+				},
+				dependencies: {
+					scripts: ['./lit-comp.script.ts'],
+				},
+			};
+
+			const result = await renderer.renderComponent({
+				component: Component,
+				props: { label: 'Lit Assets' },
+			});
+
+			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
+			expect(result.assets).toBeDefined();
+			expect(result.assets?.[0]?.srcUrl).toBe('/assets/island.js');
+		});
+	});
+
 	describe('ssr lazy preload', () => {
 		it('should collect nested lazy script entries for SSR preload when ssr is true', () => {
 			const testRenderer = createRenderer();

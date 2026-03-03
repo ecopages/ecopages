@@ -4,6 +4,8 @@
  */
 
 import type {
+	ComponentRenderInput,
+	ComponentRenderResult,
 	EcoComponent,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
@@ -18,6 +20,30 @@ import { PLUGIN_NAME } from './kitajs.plugin.ts';
  */
 export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = PLUGIN_NAME;
+
+	/**
+	 * Renders a Kita component boundary for component-level orchestration.
+	 *
+	 * Includes component-scoped dependency assets when declared.
+	 */
+	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		const component = input.component as (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement;
+		const props = input.children === undefined ? input.props : { ...input.props, children: input.children };
+		const content = await component(props);
+		const html = String(content);
+		const hasDependencies = Boolean(input.component.config?.dependencies);
+		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
+		const assets =
+			hasDependencies && canResolveAssets ? await this.processComponentDependencies([input.component]) : undefined;
+
+		return {
+			html,
+			canAttachAttributes: true,
+			rootTag: this.getRootTagName(html),
+			integrationName: this.name,
+			assets,
+		};
+	}
 
 	async render({
 		params,

@@ -68,6 +68,14 @@ export default defineConfig({
 				baseURL: 'http://localhost:3001',
 			},
 		},
+		{
+			name: 'kitchen-sink-e2e',
+			testMatch: 'e2e/tests/kitchen-sink/**/*.test.e2e.ts',
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:4007',
+			},
+		},
 	],
 	webServer: [
 		{
@@ -122,6 +130,14 @@ export default defineConfig({
 			command: 'ECOPAGES_PORT=3001 pnpm --filter @ecopages/playground-react run dev',
 			cwd: '.',
 			port: 3001,
+			reuseExistingServer: !process.env.CI,
+			stdout: 'pipe',
+			stderr: 'pipe',
+		},
+		{
+			command: 'NODE_ENV=production ECOPAGES_PORT=4007 bun run app.ts --preview',
+			cwd: 'e2e/fixtures/kitchen-sink-app',
+			port: 4007,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',
 			stderr: 'pipe',

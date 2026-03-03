@@ -1,13 +1,16 @@
 import { test, expect } from '@playwright/test';
 
-type InjectorMapConfig = Record<string, { value?: string | boolean; scripts: string[] }>;
+type GlobalInjectorRule = { value?: string | boolean; scripts: string[] };
+type GlobalInjectorMapConfig = Record<string, Record<string, GlobalInjectorRule>>;
 
-function parseInjectorMapFromHtml(html: string | null | undefined): InjectorMapConfig {
+function parseInjectorMapFromHtml(html: string | null | undefined): GlobalInjectorMapConfig {
 	expect(html).toBeTruthy();
-	const mapMatches = Array.from(html?.matchAll(/<script type="ecopages\/injector-map">([\s\S]*?)<\/script>/g) ?? []);
+	const mapMatches = Array.from(
+		html?.matchAll(/<script type="ecopages\/global-injector-map">([\s\S]*?)<\/script>/g) ?? [],
+	);
 	expect(mapMatches.length).toBeGreaterThan(0);
 
-	const mergedMap: InjectorMapConfig = {};
+	const mergedMap: GlobalInjectorMapConfig = {};
 
 	for (const match of mapMatches) {
 		const raw = match[1];
@@ -15,25 +18,46 @@ function parseInjectorMapFromHtml(html: string | null | undefined): InjectorMapC
 			continue;
 		}
 
-		const map = JSON.parse(raw) as InjectorMapConfig;
+		const map = JSON.parse(raw) as GlobalInjectorMapConfig;
 
-		for (const [trigger, config] of Object.entries(map)) {
+		for (const [trigger, rules] of Object.entries(map)) {
 			if (!mergedMap[trigger]) {
-				mergedMap[trigger] = {
-					value: config.value,
-					scripts: [...config.scripts],
-				};
+				mergedMap[trigger] = { ...rules };
 				continue;
 			}
 
-			mergedMap[trigger] = {
-				value: mergedMap[trigger].value ?? config.value,
-				scripts: Array.from(new Set([...mergedMap[trigger].scripts, ...config.scripts])),
-			};
+			for (const [ruleName, config] of Object.entries(rules)) {
+				const existingRule = mergedMap[trigger][ruleName];
+				if (!existingRule) {
+					mergedMap[trigger][ruleName] = {
+						value: config.value,
+						scripts: [...config.scripts],
+					};
+					continue;
+				}
+
+				mergedMap[trigger][ruleName] = {
+					value: existingRule.value ?? config.value,
+					scripts: Array.from(new Set([...existingRule.scripts, ...config.scripts])),
+				};
+			}
 		}
 	}
 
 	return mergedMap;
+}
+
+function findRule(
+	map: GlobalInjectorMapConfig,
+	ruleName: 'on:interaction' | 'on:visible' | 'on:idle',
+): GlobalInjectorRule | undefined {
+	for (const triggerRules of Object.values(map)) {
+		if (triggerRules[ruleName]) {
+			return triggerRules[ruleName];
+		}
+	}
+
+	return undefined;
 }
 
 test.describe('Lazy Dependencies', () => {
@@ -59,13 +83,14 @@ test.describe('Lazy Dependencies', () => {
 			await expect(sentinel).toHaveText('Lazy script loaded!');
 		});
 
-		test('should wrap component with scripts-injector element', async ({ page }) => {
+		test('should expose interaction trigger in global injector map', async ({ page }) => {
 			const response = await page.goto('/lazy-deps');
 			const html = await response?.text();
 			const injectorMap = parseInjectorMapFromHtml(html);
+			const interactionRule = findRule(injectorMap, 'on:interaction');
 
-			expect(injectorMap['on:interaction']?.value).toBe('mouseenter,click');
-			expect(injectorMap['on:interaction']?.scripts.some((script) => script.includes('/lazy-script'))).toBe(true);
+			expect(interactionRule?.value).toBe('mouseenter,click');
+			expect(interactionRule?.scripts.some((script) => script.includes('/lazy-script'))).toBe(true);
 		});
 	});
 
@@ -93,15 +118,14 @@ test.describe('Lazy Dependencies', () => {
 			await expect(sentinel).toHaveText('Visible script loaded!');
 		});
 
-		test('should wrap component with scripts-injector on:visible attribute', async ({ page }) => {
+		test('should expose visible trigger in global injector map', async ({ page }) => {
 			const response = await page.goto('/lazy-deps');
 			const html = await response?.text();
 			const injectorMap = parseInjectorMapFromHtml(html);
+			const visibleRule = findRule(injectorMap, 'on:visible');
 
-			expect(injectorMap['on:visible']).toBeDefined();
-			expect(injectorMap['on:visible']?.scripts.some((script) => script.includes('/lazy-visible.script'))).toBe(
-				true,
-			);
+			expect(visibleRule).toBeDefined();
+			expect(visibleRule?.scripts.some((script) => script.includes('/lazy-visible.script'))).toBe(true);
 		});
 	});
 
@@ -115,13 +139,14 @@ test.describe('Lazy Dependencies', () => {
 			await expect(sentinel).toHaveText('Idle script loaded!');
 		});
 
-		test('should wrap component with scripts-injector on:idle attribute', async ({ page }) => {
+		test('should expose idle trigger in global injector map', async ({ page }) => {
 			const response = await page.goto('/lazy-deps');
 			const html = await response?.text();
 			const injectorMap = parseInjectorMapFromHtml(html);
+			const idleRule = findRule(injectorMap, 'on:idle');
 
-			expect(injectorMap['on:idle']).toBeDefined();
-			expect(injectorMap['on:idle']?.scripts.some((script) => script.includes('/lazy-idle.script'))).toBe(true);
+			expect(idleRule).toBeDefined();
+			expect(idleRule?.scripts.some((script) => script.includes('/lazy-idle.script'))).toBe(true);
 		});
 	});
 
@@ -138,11 +163,12 @@ test.describe('Lazy Dependencies', () => {
 			expect(lazyScriptTags).toBeNull();
 		});
 
-		test('should include scripts-injector in page dependencies', async ({ page }) => {
+		test('should include global injector assets in page dependencies', async ({ page }) => {
 			const response = await page.goto('/lazy-deps');
 			const html = await response?.text();
 
-			expect(html).toContain('scripts-injector');
+			expect(html).toContain('ecopages/global-injector-map');
+			expect(html).toContain('ecopages-global-injector-bootstrap');
 		});
 	});
 });

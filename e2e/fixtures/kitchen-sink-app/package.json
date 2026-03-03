@@ -1,0 +1,22 @@
+{
+	"name": "@ecopages/e2e-kitchen-sink-app",
+	"private": true,
+	"scripts": {
+		"start": "NODE_ENV=production bun run app.ts",
+		"dev": "bun run app.ts --dev",
+		"build": "NODE_ENV=production bun run app.ts --build",
+		"preview": "NODE_ENV=production bun run app.ts --preview"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/kitajs": "workspace:*",
+		"@ecopages/lit": "workspace:*",
+		"@ecopages/react": "workspace:*",
+		"@kitajs/html": "^4.2.13",
+		"react": "^19",
+		"react-dom": "^19"
+	},
+	"dependencies": {
+		"@mdx-js/mdx": "^3.1.1"
+	}
+}

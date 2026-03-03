@@ -90,7 +90,7 @@ describe('ReactRenderer', () => {
 	});
 
 	it('should throw an error if the page fails to render', async () => {
-		expect(
+		await expect(
 			renderer.render({
 				params: {},
 				query: {},

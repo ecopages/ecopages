@@ -121,7 +121,7 @@ describe('NodeModuleScriptProcessor', () => {
 				inline: true,
 			};
 
-			expect(processor.process(dep)).rejects.toThrow(/Could not resolve module/);
+			await expect(processor.process(dep)).rejects.toThrow(/Could not resolve module/);
 		});
 
 		test('should find module in parent directories', async () => {

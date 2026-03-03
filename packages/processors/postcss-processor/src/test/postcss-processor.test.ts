@@ -23,7 +23,7 @@ describe('PostCssProcessor', () => {
 
 	test('processPath should throw when the file does not exist', async () => {
 		const filePath = 'fake-path.css';
-		expect(PostCssProcessor.processPath(filePath)).rejects.toThrow();
+		await expect(PostCssProcessor.processPath(filePath)).rejects.toThrow();
 	});
 
 	test('processPath should use the custom plugins', async () => {

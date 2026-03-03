@@ -16,6 +16,14 @@ import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
+export const FILE_SYSTEM_RESPONSE_MATCHER_ERRORS = {
+	CTX_RENDER_UNAVAILABLE: '[ecopages] ctx.render is not available in file-route middleware',
+	CTX_RENDER_PARTIAL_UNAVAILABLE: '[ecopages] ctx.renderPartial is not available in file-route middleware',
+	transpilePageModuleFailed: (details: string) => `Error transpiling page module: ${details}`,
+	noTranspiledOutputForPageModule: (filePath: string) =>
+		`No transpiled output generated for page module: ${filePath}`,
+} as const;
+
 export interface FileSystemResponseMatcherOptions {
 	router: FSRouter;
 	routeRendererFactory: RouteRendererFactory;
@@ -130,10 +138,10 @@ export class FileSystemResponseMatcher {
 				locals: localsStore,
 				require: createRequire(() => middlewareContext.locals as unknown as Record<string, unknown>),
 				render: async () => {
-					throw new Error('[ecopages] ctx.render is not available in file-route middleware');
+					throw new Error(FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.CTX_RENDER_UNAVAILABLE);
 				},
 				renderPartial: async () => {
-					throw new Error('[ecopages] ctx.renderPartial is not available in file-route middleware');
+					throw new Error(FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.CTX_RENDER_PARTIAL_UNAVAILABLE);
 				},
 				json: (data, options) => {
 					const builder = new ApiResponseBuilder();
@@ -245,7 +253,7 @@ export class FileSystemResponseMatcher {
 
 		if (!buildResult.success) {
 			const details = buildResult.logs.map((log) => log.message).join(' | ');
-			throw new Error(`Error transpiling page module: ${details}`);
+			throw new Error(FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.transpilePageModuleFailed(details));
 		}
 
 		const preferredOutputPath = path.join(outdir, outputFileName);
@@ -254,7 +262,7 @@ export class FileSystemResponseMatcher {
 			buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
 
 		if (!compiledOutput) {
-			throw new Error(`No transpiled output generated for page module: ${filePath}`);
+			throw new Error(FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.noTranspiledOutputForPageModule(filePath));
 		}
 
 		return await import(pathToFileURL(compiledOutput).href);

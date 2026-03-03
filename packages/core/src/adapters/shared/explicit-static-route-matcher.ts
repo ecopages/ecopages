@@ -3,6 +3,12 @@ import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { StaticRoute } from '../../public-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 
+export const EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS = {
+	missingIntegration: (routePath: string) =>
+		`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page() and exported as default.`,
+	noRendererForIntegration: (integrationName: string) => `No renderer found for integration: ${integrationName}`,
+} as const;
+
 export interface ExplicitStaticRouteMatcherOptions {
 	appConfig: EcoPagesAppConfig;
 	routeRendererFactory: RouteRendererFactory;
@@ -98,14 +104,12 @@ export class ExplicitStaticRouteMatcher {
 
 			const integrationName = view.config?.__eco?.integration;
 			if (!integrationName) {
-				throw new Error(
-					`View at ${route.path} is missing __eco.integration. Ensure it's defined with eco.page() and exported as default.`,
-				);
+				throw new Error(EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS.missingIntegration(route.path));
 			}
 
 			const renderer = this.routeRendererFactory.getRendererByIntegration(integrationName);
 			if (!renderer) {
-				throw new Error(`No renderer found for integration: ${integrationName}`);
+				throw new Error(EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS.noRendererForIntegration(integrationName));
 			}
 
 			const props = view.staticProps

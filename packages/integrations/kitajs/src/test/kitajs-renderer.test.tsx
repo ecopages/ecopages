@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { vi } from 'vitest';
 import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { KitaRenderer } from '../kitajs-renderer.ts';
@@ -34,7 +35,71 @@ const renderer = new KitaRenderer({
 	resolvedIntegrationDependencies: [],
 });
 
+const createRendererWithAssets = () => {
+	const assetProcessingService = {
+		processDependencies: vi.fn(async () => [
+			{
+				kind: 'script',
+				srcUrl: '/assets/kita-island.js',
+				position: 'head',
+			},
+		]),
+	};
+
+	return {
+		renderer: new KitaRenderer({
+			appConfig: Config,
+			assetProcessingService: assetProcessingService as any,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		}),
+		assetProcessingService,
+	};
+};
+
 describe('KitaRenderer', () => {
+	it('should render a single component with renderComponent', async () => {
+		const Component = (async (props: { title: string }) => `<h2>${props.title}</h2>`) as unknown as EcoComponent<{
+			title: string;
+		}>;
+
+		const result = await renderer.renderComponent({
+			component: Component,
+			props: { title: 'Kita Component' },
+		});
+
+		expect(result.integrationName).toBe('kitajs');
+		expect(result.canAttachAttributes).toBe(true);
+		expect(result.rootTag).toBe('h2');
+		expect(result.html).toContain('<h2>Kita Component</h2>');
+	});
+
+	it('should include component assets when dependencies are declared', async () => {
+		const { renderer, assetProcessingService } = createRendererWithAssets();
+		const Component = (async (props: { title: string }) => `<h2>${props.title}</h2>`) as unknown as EcoComponent<{
+			title: string;
+		}>;
+		Component.config = {
+			__eco: {
+				id: 'kita-comp',
+				file: '/project/src/components/kita-comp.kita.tsx',
+				integration: 'kitajs',
+			},
+			dependencies: {
+				scripts: ['./kita-comp.script.ts'],
+			},
+		};
+
+		const result = await renderer.renderComponent({
+			component: Component,
+			props: { title: 'Kita Assets' },
+		});
+
+		expect(assetProcessingService.processDependencies).toHaveBeenCalled();
+		expect(result.assets).toBeDefined();
+		expect(result.assets?.[0]?.srcUrl).toBe('/assets/kita-island.js');
+	});
+
 	it('should render the page', async () => {
 		renderer
 			.render({

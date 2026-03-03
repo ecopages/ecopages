@@ -50,3 +50,14 @@ export default config;
 ```
 
 This approach is recommended when using a client-side router (e.g., `@ecopages/react-router`) as it ensures consistent navigation between TSX and MDX pages.
+
+## Component-Level Islands
+
+Current behavior:
+
+- SSR output keeps the authored component DOM structure (no synthetic wrapper element).
+- A stable `data-eco-component-id` attribute is attached to the component SSR root when a single root element is available.
+- Client bootstrap resolves the component export and mounts with `createRoot()` into that root boundary.
+- Component assets are emitted through the shared dependency pipeline and deduplicated with other integrations.
+
+This design preserves global CSS/layout selectors while keeping runtime ownership isolated per island instance.

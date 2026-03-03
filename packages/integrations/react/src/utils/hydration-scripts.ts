@@ -26,6 +26,25 @@ export type HydrationScriptOptions = {
 	router?: ReactRouterAdapter;
 };
 
+export type IslandHydrationScriptOptions = {
+  /** Bundled browser module path for the island component. */
+  importPath: string;
+  /** Browser import path for React runtime. */
+  reactImportPath: string;
+  /** Browser import path for react-dom/client runtime. */
+  reactDomClientImportPath: string;
+  /** Selector that resolves to the SSR root element for this island instance. */
+  targetSelector: string;
+  /** Serialized component props emitted at render time. */
+  props: Record<string, unknown>;
+  /** Optional stable component id used to resolve named exports reliably. */
+  componentRef?: string;
+  /** Optional source file hint used as fallback for component resolution. */
+  componentFile?: string;
+  /** Enables development-oriented non-minified output. */
+  isDevelopment: boolean;
+};
+
 /**
  * Generates the import statement for the page component.
  * MDX files use namespace imports to access the config export.
@@ -231,4 +250,77 @@ export function createHydrationScript(options: HydrationScriptOptions): string {
 	}
 
 	return router ? createProdScriptWithRouter(options) : createProdScriptWithoutRouter(options);
+}
+
+/**
+ * Creates the client bootstrap for component-level React islands.
+ *
+ * The island runtime intentionally uses `createRoot()` (not `hydrateRoot()`) and
+ * mounts into the SSR element identified by `targetSelector`.
+ *
+ * Rationale:
+ * - No synthetic wrapper element is introduced in SSR output.
+ * - DOM structure remains identical to authored component markup.
+ * - Runtime ownership is isolated per island instance.
+ *
+ * Generated script behavior:
+ * - resolves the component export by metadata (`componentRef`, `componentFile`)
+ *   before falling back to default/first function export
+ * - selects island root using `targetSelector`
+ * - creates a fresh React root and renders with serialized `props`
+ *
+ * @param options Island script generation options.
+ * @returns Browser-executable JavaScript module source.
+ */
+export function createIslandHydrationScript(options: IslandHydrationScriptOptions): string {
+  const targetSelector = JSON.stringify(options.targetSelector);
+  const serializedProps = JSON.stringify(options.props ?? {});
+  const componentRef = JSON.stringify(options.componentRef ?? '');
+  const componentFile = JSON.stringify(options.componentFile ?? '');
+
+  if (options.isDevelopment) {
+    return `
+import { createRoot } from "${options.reactDomClientImportPath}";
+import { createElement } from "${options.reactImportPath}";
+import * as ComponentModule from "${options.importPath}";
+
+const resolveComponent = () => {
+  const id = ${componentRef};
+  const file = ${componentFile};
+  const moduleValues = Object.values(ComponentModule);
+
+  const matchByMetadata = moduleValues.find((entry) => {
+    if (typeof entry !== "function") return false;
+    const config = entry.config;
+    const eco = config?.__eco;
+    if (!eco) return false;
+    if (id && eco.id === id) return true;
+    if (file && eco.file === file) return true;
+    return false;
+  });
+
+  if (matchByMetadata && typeof matchByMetadata === "function") {
+    return matchByMetadata;
+  }
+
+  const defaultExport = ComponentModule.default;
+  if (typeof defaultExport === "function") {
+    return defaultExport;
+  }
+
+  const firstFunction = moduleValues.find((entry) => typeof entry === "function");
+  return typeof firstFunction === "function" ? firstFunction : null;
+};
+
+const target = document.querySelector(${targetSelector});
+const Component = resolveComponent();
+if (target && Component) {
+  const props = ${serializedProps};
+  const root = createRoot(target);
+  root.render(createElement(Component, props));
+}
+`.trim();
+  }
+
+  return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const t=document.querySelector(${targetSelector});if(t&&c){const p=${serializedProps};cr(t).render(ce(c,p))}`;
 }

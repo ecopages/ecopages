@@ -3,9 +3,11 @@
  */
 
 import { describe, expect, test } from 'vitest';
+import { createRequire } from 'node:module';
 import { eco } from './eco.ts';
 import type { EcoComponent, GetMetadataContext, StaticPath } from '../public-types.ts';
 import type { EcoPagesAppConfig } from 'src/internal-types.ts';
+import { runWithComponentRenderContext } from './component-render-context.ts';
 
 const mockAppConfig = {} as EcoPagesAppConfig;
 
@@ -174,6 +176,65 @@ describe('eco namespace', () => {
 			expect(result).toContain('<section>Content</section>');
 			expect((result.match(/<scripts-injector/g) ?? []).length).toBe(1);
 		});
+
+		test('should set explicit integration on component config', () => {
+			const Component = eco.component({
+				integration: 'lit',
+				render: () => '<div>Content</div>',
+			});
+
+			expect(Component.config?.integration).toBe('lit');
+		});
+
+		test('should emit marker output for React components from non-React context when metadata exists', async () => {
+			const require = createRequire(import.meta.url);
+			const React = require('react') as {
+				createElement: (tag: string, props: Record<string, unknown>, children: string) => unknown;
+			};
+
+			const ReactButton = eco.component({
+				integration: 'react',
+				__eco: {
+					id: 'react-button',
+					file: '/app/components/react-button.react.tsx',
+					integration: 'react',
+				},
+				render: () => React.createElement('button', { type: 'button' }, 'Click'),
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+				},
+				async () => ReactButton({}),
+			);
+
+			expect(execution.value).toContain('<eco-marker');
+			expect(execution.value).toContain('data-eco-integration="react"');
+			expect(execution.value).toContain('data-eco-component-ref="react-button"');
+		});
+
+		test('should throw a clear error when React marker emission is missing component metadata', async () => {
+			const require = createRequire(import.meta.url);
+			const React = require('react') as {
+				createElement: (tag: string, props: Record<string, unknown>, children: string) => unknown;
+			};
+
+			const ReactButton = eco.component({
+				integration: 'react',
+				render: () => React.createElement('button', { type: 'button' }, 'Click'),
+			});
+
+			await expect(
+				runWithComponentRenderContext(
+					{
+						currentIntegration: 'lit',
+					},
+					async () => ReactButton({}),
+				),
+			).rejects.toThrow('Missing component reference metadata for cross-integration marker emission');
+		});
+
 	});
 
 	describe('eco.page()', () => {
@@ -271,6 +332,15 @@ describe('eco namespace', () => {
 
 			expect(Page.config?.dependencies?.components).toContain(Layout);
 			expect(Page.config?.dependencies?.stylesheets).toEqual(['./page.css']);
+		});
+
+		test('should set explicit integration on page config', () => {
+			const Page = eco.page({
+				integration: 'react',
+				render: () => '<h1>Page</h1>',
+			});
+
+			expect(Page.config?.integration).toBe('react');
 		});
 	});
 

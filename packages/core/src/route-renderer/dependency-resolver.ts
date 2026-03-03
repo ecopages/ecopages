@@ -49,7 +49,7 @@ function extractEcopagesVirtualImports(file: string): Array<{ from: string; impo
 
 	const found = new Map<string, Set<string> | null>();
 
-	for (const node of (result.program as any).body ?? []) {
+	for (const node of result.program.body ?? []) {
 		if (node.type !== 'ImportDeclaration') continue;
 		if (node.importKind === 'type') continue;
 		const specifier: string = node.source?.value ?? '';
@@ -253,8 +253,7 @@ export class DependencyResolverService {
 
 	/**
 	 * Collects and processes component dependencies (styles, scripts, modules, lazy scripts).
-	 * Adds the scripts injector only when at least one lazy script exists,
-	 * and backfills `_resolvedLazyScripts` from processed output URLs (or fallback URLs).
+	 * Lazy dependencies are always resolved into global-injector trigger maps.
 	 */
 	async processComponentDependencies(
 		components: (EcoComponent | Partial<EcoComponent>)[],
@@ -546,22 +545,6 @@ export class DependencyResolverService {
 		}
 
 		const hasLazyDependencies = dependencies.some((dep) => dep.kind === 'script' && dep.excludeFromHtml === true);
-		const renderingMode = this.appConfig.experimental?.renderingMode;
-		const useGlobalInjector = renderingMode === 'global-injector' || renderingMode === 'full';
-
-		if (hasLazyDependencies && !useGlobalInjector) {
-			dependencies.unshift(
-				AssetFactory.createNodeModuleScript({
-					position: 'head',
-					importPath: '@ecopages/scripts-injector',
-					name: 'scripts-injector',
-					attributes: {
-						type: 'module',
-						defer: '',
-					},
-				}),
-			);
-		}
 
 		const processedDependencies = await this.assetProcessingService.processDependencies(
 			dependencies,
@@ -593,14 +576,9 @@ export class DependencyResolverService {
 				rawGroups.push({ lazy: group.lazy, scripts: Array.from(new Set(resolvedUrls)) });
 			}
 
-			if (useGlobalInjector) {
+			if (hasLazyDependencies) {
 				config._resolvedLazyTriggers = buildResolvedLazyTriggers(config, rawGroups);
 				config._resolvedLazyScripts = undefined;
-			} else {
-				config._resolvedLazyScripts =
-					rawGroups.length > 0
-						? rawGroups.map((rawGroup) => ({ lazy: rawGroup.lazy, scripts: rawGroup.scripts.join(',') }))
-						: undefined;
 			}
 		}
 

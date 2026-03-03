@@ -6,6 +6,8 @@
 
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
 import type {
+	ComponentRenderInput,
+	ComponentRenderResult,
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoFunctionComponent,
@@ -24,7 +26,11 @@ import type {
 	RouteRenderResult,
 	StaticPageContext,
 } from '../public-types.ts';
-import { type AssetProcessingService, AssetFactory, type ProcessedAsset } from '../services/asset-processing-service/index.ts';
+import {
+	type AssetProcessingService,
+	AssetFactory,
+	type ProcessedAsset,
+} from '../services/asset-processing-service/index.ts';
 import { buildGlobalInjectorMapScript, GLOBAL_INJECTOR_BOOTSTRAP_CONTENT } from '../eco/global-injector-map.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
@@ -32,6 +38,13 @@ import { HttpError } from '../errors/http-error.ts';
 import { LocalsAccessError } from '../errors/locals-access-error.ts';
 import { DependencyResolverService } from './dependency-resolver.ts';
 import { PageModuleLoaderService } from './page-module-loader.ts';
+import type { MarkerNodeId } from './component-marker.ts';
+import { extractComponentGraph } from './component-graph.ts';
+import { resolveComponentGraph } from './component-graph-executor.ts';
+import {
+	runWithComponentRenderContext,
+	type ComponentGraphContext as CapturedComponentGraphContext,
+} from '../eco/component-render-context.ts';
 
 /**
  * Creates a Proxy that throws LocalsAccessError on any property access.
@@ -80,6 +93,11 @@ export interface RenderToResponseContext {
 	status?: number;
 	headers?: HeadersInit;
 }
+
+type ComponentGraphContext = {
+	propsByRef?: Record<string, Record<string, unknown>>;
+	slotChildrenByRef?: Record<string, MarkerNodeId[]>;
+};
 
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
@@ -156,7 +174,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async prepareViewDependencies(view: EcoComponent, layout?: EcoComponent): Promise<ProcessedAsset[]> {
 		const HtmlTemplate = await this.getHtmlTemplate();
 		const componentsToResolve = layout ? [HtmlTemplate, layout, view] : [HtmlTemplate, view];
-		const resolvedDependencies = await this.resolveDependencies(componentsToResolve);
+		const resolvedDependencies = this.dedupeProcessedAssets(await this.resolveDependencies(componentsToResolve));
 		this.htmlTransformer.setProcessedDependencies(resolvedDependencies);
 		return resolvedDependencies;
 	}
@@ -209,7 +227,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const { absolutePaths } = this.appConfig;
 		try {
 			const { default: HtmlTemplate } = await this.importPageFile(absolutePaths.htmlTemplatePath);
-			return HtmlTemplate;
+			return HtmlTemplate as EcoComponent<HtmlTemplateProps>;
 		} catch (error) {
 			invariant(false, `Error importing HtmlTemplate: ${error}`);
 		}
@@ -367,6 +385,60 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return triggers;
 	}
 
+	private collectIntegrationNames(
+		components: (EcoComponent | Partial<EcoComponent>)[],
+		seen = new Set<object>(),
+	): Set<string> {
+		const integrationNames = new Set<string>();
+
+		for (const comp of components) {
+			const ecoComp = comp as EcoComponent;
+			if (seen.has(ecoComp)) continue;
+			seen.add(ecoComp);
+
+			const integrationName = ecoComp.config?.integration ?? ecoComp.config?.__eco?.integration;
+			if (integrationName) {
+				integrationNames.add(integrationName);
+			}
+
+			const nested = ecoComp.config?.dependencies?.components;
+			if (nested && nested.length > 0) {
+				const nestedNames = this.collectIntegrationNames(nested, seen);
+				for (const nestedName of nestedNames) {
+					integrationNames.add(nestedName);
+				}
+			}
+		}
+
+		return integrationNames;
+	}
+
+	private collectUsedIntegrationDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): ProcessedAsset[] {
+		const integrationNames = this.collectIntegrationNames(components);
+		const dependencies: ProcessedAsset[] = [];
+
+		for (const integrationName of integrationNames) {
+			if (integrationName === this.name) {
+				continue;
+			}
+
+			const integrationPlugin = this.appConfig.integrations.find(
+				(integration) => integration.name === integrationName,
+			);
+			if (!integrationPlugin) {
+				continue;
+			}
+
+			if (typeof integrationPlugin.getResolvedIntegrationDependencies !== 'function') {
+				continue;
+			}
+
+			dependencies.push(...integrationPlugin.getResolvedIntegrationDependencies());
+		}
+
+		return dependencies;
+	}
+
 	/**
 	 * Processes component-specific dependencies WITHOUT prepending global integration dependencies.
 	 * Use this method when you need only the component's own assets.
@@ -398,37 +470,61 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		const componentsToResolve = Layout ? [HtmlTemplate, Layout, Page] : [HtmlTemplate, Page];
 		const resolvedDependencies = await this.resolveDependencies(componentsToResolve);
+		const usedIntegrationDependencies = this.collectUsedIntegrationDependencies(componentsToResolve);
 
 		const pageDeps = (await this.buildRouteRenderAssets(options.file)) || [];
 
-		const allDependencies = [...resolvedDependencies, ...pageDeps];
+		const allDependencies = [...resolvedDependencies, ...usedIntegrationDependencies, ...pageDeps];
+		let componentRender: ComponentRenderResult | undefined;
 
-		const renderingMode = this.appConfig.experimental?.renderingMode;
-		if (renderingMode === 'global-injector' || renderingMode === 'full') {
-			const triggers = this.collectResolvedTriggers(componentsToResolve);
-			if (triggers.length > 0) {
-				const mapScript = AssetFactory.createInlineContentScript({
-					position: 'head',
-					name: 'ecopages-global-injector-map',
-					content: buildGlobalInjectorMapScript(triggers),
-					attributes: { type: 'ecopages/global-injector-map' },
-					bundle: false,
-				});
-				const bootstrapScript = AssetFactory.createContentScript({
-					position: 'head',
-					name: 'ecopages-global-injector-bootstrap',
-					content: GLOBAL_INJECTOR_BOOTSTRAP_CONTENT,
-					attributes: { type: 'module' },
-				});
-				const globalAssets = await this.assetProcessingService.processDependencies(
-					[mapScript, bootstrapScript],
-					this.name,
-				);
-				allDependencies.push(...globalAssets);
+		if (this.shouldRenderPageComponent({ Page, Layout, options })) {
+			const componentRenderExecution = await runWithComponentRenderContext(
+				{
+					currentIntegration: this.name,
+				},
+				async () =>
+					this.renderComponent({
+						component: Page as EcoComponent,
+						props: {
+							...props,
+							params: options.params || {},
+							query: options.query || {},
+						},
+						integrationContext: {
+							componentInstanceId: 'eco-page-root',
+						},
+					}),
+			);
+			componentRender = componentRenderExecution.value;
+
+			if (componentRender.assets && componentRender.assets.length > 0) {
+				allDependencies.push(...componentRender.assets);
 			}
 		}
 
-		this.htmlTransformer.setProcessedDependencies(allDependencies);
+		const triggers = this.collectResolvedTriggers(componentsToResolve);
+		if (triggers.length > 0) {
+			const mapScript = AssetFactory.createInlineContentScript({
+				position: 'head',
+				name: 'ecopages-global-injector-map',
+				content: buildGlobalInjectorMapScript(triggers),
+				attributes: { type: 'ecopages/global-injector-map' },
+				bundle: false,
+			});
+			const bootstrapScript = AssetFactory.createContentScript({
+				position: 'head',
+				name: 'ecopages-global-injector-bootstrap',
+				content: GLOBAL_INJECTOR_BOOTSTRAP_CONTENT,
+				attributes: { type: 'module' },
+			});
+			const globalAssets = await this.assetProcessingService.processDependencies(
+				[mapScript, bootstrapScript],
+				this.name,
+			);
+			allDependencies.push(...globalAssets);
+		}
+
+		this.htmlTransformer.setProcessedDependencies(this.dedupeProcessedAssets(allDependencies));
 
 		const pageProps = {
 			...props,
@@ -451,6 +547,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			...options,
 			...integrationSpecificProps,
 			resolvedDependencies,
+			componentRender,
 			HtmlTemplate,
 			Layout,
 			props,
@@ -463,6 +560,22 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			pageLocals,
 			cacheStrategy: (Page as EcoPageComponent<any>).cache,
 		};
+	}
+
+	/**
+	 * Controls whether the page root should be rendered through `renderComponent()`
+	 * during route option preparation in component-capable modes.
+	 *
+	 * Integrations that already own page-level hydration (for example router-driven
+	 * React rendering) can override this and return `false` to avoid duplicate root
+	 * mount assets and competing hydration entrypoints.
+	 */
+	protected shouldRenderPageComponent(_input: {
+		Page: EcoComponent;
+		Layout?: EcoComponent;
+		options: RouteRendererOptions;
+	}): boolean {
+		return true;
 	}
 
 	/**
@@ -502,15 +615,85 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	/**
 	 * Executes the integration renderer with the provided options.
 	 *
-	 * @param options - The route renderer options.
-	 * @returns The rendered body with cache strategy.
+	 * Execution flow:
+	 * 1. Build normalized render options (`prepareRenderOptions`).
+	 * 2. Render once inside component render context to capture marker graph refs.
+	 * 3. Merge captured refs with optional explicit page-module graph context.
+	 * 4. Resolve any `eco-marker` graph bottom-up and merge produced assets.
+	 * 5. Optionally apply root attributes for page/component root boundaries.
+	 * 6. Run HTML transformer with final dependency set.
+	 *
+	 * Stream-safety note: the first render result is normalized to a string once,
+	 * then the pipeline continues with that immutable HTML value to avoid disturbed
+	 * response-body errors.
+	 *
+	 * @param options Route renderer options.
+	 * @returns Rendered route body plus effective cache strategy.
 	 */
 	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
 		const renderOptions = (await this.prepareRenderOptions(options)) as IntegrationRendererRenderOptions<C>;
+		const shouldApplyComponentRootAttributes =
+			renderOptions.componentRender?.canAttachAttributes &&
+			renderOptions.componentRender.rootAttributes &&
+			Object.keys(renderOptions.componentRender.rootAttributes).length > 0;
+
+		let capturedGraphContext: CapturedComponentGraphContext = {
+			propsByRef: {},
+			slotChildrenByRef: {},
+		};
+		const renderExecution = await runWithComponentRenderContext(
+			{
+				currentIntegration: this.name,
+			},
+			async () => this.render(renderOptions),
+		);
+		capturedGraphContext = renderExecution.graphContext;
+
+		let renderedHtml = await new Response(renderExecution.value as BodyInit).text();
+		const explicitComponentGraphContext =
+			(renderOptions as IntegrationRendererRenderOptions<C> & { componentGraphContext?: ComponentGraphContext })
+				.componentGraphContext ?? {};
+		const componentGraphContext: ComponentGraphContext = {
+			propsByRef: {
+				...(capturedGraphContext.propsByRef ?? {}),
+				...(explicitComponentGraphContext.propsByRef ?? {}),
+			},
+			slotChildrenByRef: {
+				...(capturedGraphContext.slotChildrenByRef ?? {}),
+				...(explicitComponentGraphContext.slotChildrenByRef ?? {}),
+			},
+		};
+
+		if (renderedHtml.includes('<eco-marker')) {
+			const componentsToResolve = renderOptions.Layout
+				? [renderOptions.HtmlTemplate as EcoComponent, renderOptions.Layout as EcoComponent, renderOptions.Page]
+				: [renderOptions.HtmlTemplate as EcoComponent, renderOptions.Page];
+			const markerResolution = await this.resolveMarkerGraphHtml({
+				html: renderedHtml,
+				componentsToResolve,
+				graphContext: componentGraphContext,
+			});
+			renderedHtml = markerResolution.html;
+
+			if (markerResolution.assets.length > 0) {
+				const mergedDependencies = this.dedupeProcessedAssets([
+					...this.htmlTransformer.getProcessedDependencies(),
+					...markerResolution.assets,
+				]);
+				this.htmlTransformer.setProcessedDependencies(mergedDependencies);
+			}
+		}
+
+		if (shouldApplyComponentRootAttributes) {
+			renderedHtml = this.applyAttributesToFirstBodyElement(
+				renderedHtml,
+				renderOptions.componentRender?.rootAttributes as Record<string, string>,
+			);
+		}
 
 		const body = await this.htmlTransformer
 			.transform(
-				new Response((await this.render(renderOptions)) as BodyInit, {
+				new Response(renderedHtml, {
 					headers: {
 						'Content-Type': 'text/html',
 					},
@@ -524,6 +707,146 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			body,
 			cacheStrategy: renderOptions.cacheStrategy,
 		};
+	}
+
+	/**
+	 * Resolves all `eco-marker` placeholders in rendered HTML using integration
+	 * dispatch and bottom-up graph execution.
+	 *
+	 * Resolver callback behavior per marker:
+	 * - resolve component definition by `componentRef`
+	 * - resolve serialized props by `propsRef`
+	 * - stitch resolved child HTML when `slotRef` is present
+	 * - dispatch to target integration `renderComponent`
+	 * - collect produced assets and apply root attributes when attachable
+	 *
+	 * @param options.html HTML that may still contain marker tokens.
+	 * @param options.componentsToResolve Component set used to build component ref registry.
+	 * @param options.graphContext Props/slot linkage captured during render.
+	 * @returns Resolved HTML plus any component-scoped assets produced while resolving nodes.
+	 * @throws Error when marker component refs or props refs cannot be resolved.
+	 */
+	private async resolveMarkerGraphHtml(options: {
+		html: string;
+		componentsToResolve: EcoComponent[];
+		graphContext: ComponentGraphContext;
+	}): Promise<{ html: string; assets: ProcessedAsset[] }> {
+		const registry = this.buildComponentRefRegistry(options.componentsToResolve);
+		const graph = extractComponentGraph(options.html, options.graphContext.slotChildrenByRef ?? {});
+		const integrationRendererCache = new Map<string, IntegrationRenderer>();
+		const resolvedNodeHtml = new Map<MarkerNodeId, string>();
+		const assets: ProcessedAsset[] = [];
+
+		const resolvedHtml = await resolveComponentGraph(options.html, graph, async (marker) => {
+			const component = registry.get(marker.componentRef);
+			if (!component) {
+				throw new Error(`[ecopages] Missing component reference for marker: ${marker.componentRef}`);
+			}
+
+			const props = options.graphContext.propsByRef?.[marker.propsRef];
+			if (!props) {
+				throw new Error(`[ecopages] Missing props reference for marker: ${marker.propsRef}`);
+			}
+
+			let children: string | undefined;
+			if (marker.slotRef) {
+				const childNodeIds = options.graphContext.slotChildrenByRef?.[marker.slotRef] ?? [];
+				if (childNodeIds.length > 0) {
+					children = childNodeIds.map((childNodeId) => resolvedNodeHtml.get(childNodeId) ?? '').join('');
+				}
+			}
+
+			const renderer = this.getIntegrationRendererForName(marker.integration, integrationRendererCache);
+			const componentRender = await renderer.renderComponent({
+				component,
+				props,
+				children,
+			});
+
+			if (componentRender.assets?.length) {
+				assets.push(...componentRender.assets);
+			}
+
+			const htmlWithAttributes =
+				componentRender.canAttachAttributes && componentRender.rootAttributes
+					? this.applyAttributesToFirstElement(componentRender.html, componentRender.rootAttributes)
+					: componentRender.html;
+
+			resolvedNodeHtml.set(marker.nodeId, htmlWithAttributes);
+			return { html: htmlWithAttributes };
+		});
+
+		return {
+			html: resolvedHtml,
+			assets,
+		};
+	}
+
+	/**
+	 * Builds a lookup from component reference keys to component definitions.
+	 *
+	 * Traverses nested dependency components depth-first and deduplicates by
+	 * component identity to avoid re-registering cycles.
+	 *
+	 * @param components Root components to index.
+	 * @returns Map keyed by component `__eco.id` or `__eco.file`.
+	 */
+	private buildComponentRefRegistry(components: EcoComponent[]): Map<string, EcoComponent> {
+		const registry = new Map<string, EcoComponent>();
+		const stack = [...components];
+		const seen = new Set<EcoComponent>();
+
+		while (stack.length > 0) {
+			const current = stack.pop();
+			if (!current || seen.has(current)) {
+				continue;
+			}
+			seen.add(current);
+
+			const ref = current.config?.__eco?.id ?? current.config?.__eco?.file;
+			if (ref) {
+				registry.set(ref, current);
+			}
+
+			const nested = current.config?.dependencies?.components ?? [];
+			for (const component of nested) {
+				stack.push(component);
+			}
+		}
+
+		return registry;
+	}
+
+	/**
+	 * Returns a renderer instance for a given integration name.
+	 *
+	 * Uses a per-execution cache to avoid repeated renderer initialization.
+	 *
+	 * @param integrationName Target integration name.
+	 * @param cache Render-pass renderer cache.
+	 * @returns Renderer for the requested integration.
+	 * @throws Error when no integration plugin matches `integrationName`.
+	 */
+	private getIntegrationRendererForName(
+		integrationName: string,
+		cache: Map<string, IntegrationRenderer<any>>,
+	): IntegrationRenderer<any> {
+		if (cache.has(integrationName)) {
+			return cache.get(integrationName) as IntegrationRenderer<any>;
+		}
+
+		if (integrationName === this.name) {
+			cache.set(integrationName, this);
+			return this;
+		}
+
+		const integrationPlugin = this.appConfig.integrations.find(
+			(integration) => integration.name === integrationName,
+		);
+		invariant(!!integrationPlugin, `[ecopages] Integration not found for marker: ${integrationName}`);
+		const renderer = integrationPlugin.initializeRenderer();
+		cache.set(integrationName, renderer);
+		return renderer;
 	}
 
 	/**
@@ -549,6 +872,133 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		props: P,
 		ctx: RenderToResponseContext,
 	): Promise<Response>;
+
+	/**
+	 * Render a single component and return structured output for orchestration paths.
+	 *
+	 * Default behavior delegates to `renderToResponse` in partial mode and wraps
+	 * the resulting HTML into the `ComponentRenderResult` contract.
+	 *
+	 * Integrations can override this for richer behavior (asset emission,
+	 * root attributes, integration-specific hydration metadata).
+	 *
+	 * @param input Component render request.
+	 * @returns Structured render result used by marker/page orchestration.
+	 */
+	async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		const response = await this.renderToResponse(
+			input.component as EcoFunctionComponent<Record<string, unknown>, EcoPagesElement>,
+			input.props,
+			{ partial: true },
+		);
+		const html = await response.text();
+
+		return {
+			html,
+			canAttachAttributes: true,
+			rootTag: this.getRootTagName(html),
+			integrationName: this.name,
+		};
+	}
+
+	/**
+	 * Extracts the first root element tag name from HTML output.
+	 *
+	 * @param html HTML fragment.
+	 * @returns Root tag name when present; otherwise `undefined`.
+	 */
+	protected getRootTagName(html: string): string | undefined {
+		const rootTag = html.match(/^\s*<([a-zA-Z][a-zA-Z0-9:-]*)\b/);
+		return rootTag?.[1];
+	}
+
+	/**
+	 * Applies attributes to the first element immediately inside `<body>`.
+	 *
+	 * @param html Full HTML document.
+	 * @param attributes Attribute map to inject.
+	 * @returns Updated HTML document.
+	 */
+	private applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string {
+		const bodyMatch = html.match(/<body\b[^>]*>/i);
+		if (!bodyMatch || bodyMatch.index === undefined) {
+			return html;
+		}
+
+		const bodyOpenEnd = bodyMatch.index + bodyMatch[0].length;
+		const afterBody = html.slice(bodyOpenEnd);
+		const firstTagMatch = afterBody.match(/^(\s*<)([a-zA-Z][a-zA-Z0-9:-]*)(\b[^>]*>)/);
+		if (!firstTagMatch || firstTagMatch.index === undefined) {
+			return html;
+		}
+
+		const attrs = Object.entries(attributes)
+			.filter(([key, value]) => key.length > 0 && value.length > 0)
+			.map(([key, value]) => ` ${key}="${value}"`)
+			.join('');
+
+		if (attrs.length === 0) {
+			return html;
+		}
+
+		const injectionOffset = bodyOpenEnd + firstTagMatch[1].length + firstTagMatch[2].length;
+		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
+	}
+
+	/**
+	 * Applies attributes to the first top-level element of an HTML fragment.
+	 *
+	 * @param html HTML fragment.
+	 * @param attributes Attribute map to inject.
+	 * @returns Updated HTML fragment.
+	 */
+	private applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string {
+		const firstTagMatch = html.match(/^(\s*<)([a-zA-Z][a-zA-Z0-9:-]*)(\b[^>]*>)/);
+		if (!firstTagMatch || firstTagMatch.index === undefined) {
+			return html;
+		}
+
+		const attrs = Object.entries(attributes)
+			.filter(([key, value]) => key.length > 0 && value.length > 0)
+			.map(([key, value]) => ` ${key}="${value}"`)
+			.join('');
+
+		if (attrs.length === 0) {
+			return html;
+		}
+
+		const injectionOffset = firstTagMatch[1].length + firstTagMatch[2].length;
+		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
+	}
+
+	/**
+	 * Deduplicates processed assets using a stable composite key.
+	 *
+	 * @param assets Candidate processed assets.
+	 * @returns Deduplicated asset list preserving first-seen order.
+	 */
+	private dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
+		const unique = new Map<string, ProcessedAsset>();
+
+		for (const asset of assets) {
+			const key = [
+				asset.kind,
+				asset.position ?? '',
+				asset.srcUrl ?? '',
+				asset.filepath ?? '',
+				asset.content ?? '',
+				asset.inline ? 'inline' : 'external',
+				asset.excludeFromHtml ? 'excluded' : 'included',
+				JSON.stringify(asset.attributes ?? {}),
+			].join('|');
+
+			if (!unique.has(key)) {
+				unique.set(key, asset);
+			}
+		}
+
+		return [...unique.values()];
+	}
 
 	/**
 	 * Method to build route render assets.

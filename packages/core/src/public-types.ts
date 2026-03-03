@@ -295,6 +295,11 @@ export type EcoComponentConfig = {
 	/** @internal Injected by eco-component-meta-plugin */
 	__eco?: EcoInjectedMeta;
 	/**
+	 * Explicit integration override for this component.
+	 * When provided, this takes precedence over auto-detected integration metadata.
+	 */
+	integration?: string;
+	/**
 	 * The layout component to wrap this page during rendering.
 	 *
 	 * The layout receives the page content as `children` and is responsible for
@@ -332,7 +337,7 @@ export type EcoComponentConfig = {
 	_resolvedLazyScripts?: ResolvedLazyScriptGroup[];
 	/**
 	 * Internal: Resolved lazy triggers for the global injector map.
-	 * Set by the renderer when experimental.renderingMode is 'global-injector' or 'full'.
+	 * Set by the renderer in the default full orchestration flow.
 	 * @internal
 	 */
 	_resolvedLazyTriggers?: ResolvedLazyTrigger[];
@@ -683,10 +688,27 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	Layout?: EcoComponent;
 	dependencies?: EcoComponentDependencies;
 	resolvedDependencies: ProcessedAsset[];
+	componentRender?: ComponentRenderResult;
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;
 };
+
+export interface ComponentRenderInput {
+	component: EcoComponent;
+	props: Record<string, unknown>;
+	children?: string;
+	integrationContext?: unknown;
+}
+
+export interface ComponentRenderResult {
+	html: string;
+	canAttachAttributes: boolean;
+	rootTag?: string;
+	integrationName: string;
+	rootAttributes?: Record<string, string>;
+	assets?: ProcessedAsset[];
+}
 
 /**
  * Represents a deep required type for a given object

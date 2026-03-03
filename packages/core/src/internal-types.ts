@@ -132,16 +132,9 @@ export type EcoPagesAppConfig = {
 	 */
 	cache?: CacheConfig;
 	/**
-	 * Experimental features. Opt-in to new rendering behaviors before they become default.
+	 * Experimental features.
 	 */
 	experimental?: {
-		/**
-		 * Controls the lazy dependency injection strategy and integration granularity.
-		 * - 'global-injector': global injector map + data-eco-trigger; page-level integration
-		 * - 'component-level': <scripts-injector> wrapper; component-level integration dispatch
-		 * - 'full': global injector map + component-level integration (target end state)
-		 */
-		renderingMode?: 'global-injector' | 'component-level' | 'full';
 		/** Escape hatch for short-lived private toggles. No validation or IntelliSense. */
 		unsafe?: Record<string, unknown>;
 	};

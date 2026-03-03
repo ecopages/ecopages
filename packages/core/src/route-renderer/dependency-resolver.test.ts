@@ -31,7 +31,7 @@ describe('DependencyResolverService', () => {
 		);
 	});
 
-	it('should emit module dependencies as content scripts and include lazy injector', async () => {
+	it('should emit module dependencies as content scripts and resolve lazy triggers by default', async () => {
 		let capturedDeps: AssetDefinition[] = [];
 		const assetProcessingService = {
 			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
@@ -80,10 +80,17 @@ describe('DependencyResolverService', () => {
 				dep.source === 'node-module' &&
 				dep.importPath === '@ecopages/scripts-injector',
 		);
-		expect(hasInjector).toBe(true);
+		expect(hasInjector).toBe(false);
 
-		expect(component.config._resolvedLazyScripts).toEqual([
-			{ lazy: { 'on:interaction': 'click' }, scripts: '/assets/components/table/table.client.js' },
+		expect(component.config._resolvedLazyScripts).toBeUndefined();
+		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
+		expect(component.config._resolvedLazyTriggers?.[0]?.rules).toEqual([
+			{
+				'on:interaction': {
+					value: 'click',
+					scripts: ['/assets/components/table/table.client.js'],
+				},
+			},
 		]);
 	});
 
@@ -233,7 +240,7 @@ describe('DependencyResolverService', () => {
 		);
 	});
 
-	it('should resolve lazy scripts by trigger group, including lazy content entries', async () => {
+	it('should resolve lazy triggers by group, including lazy content entries', async () => {
 		const assetProcessingService = {
 			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
 				return deps.map((dep, index) => {
@@ -274,13 +281,18 @@ describe('DependencyResolverService', () => {
 
 		await service.processComponentDependencies([component], 'lit');
 
-		expect(component.config._resolvedLazyScripts).toBeDefined();
-		expect(component.config._resolvedLazyScripts).toHaveLength(2);
+		expect(component.config._resolvedLazyScripts).toBeUndefined();
+		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
 
-		const idleGroup = component.config._resolvedLazyScripts?.find((group) => 'on:idle' in group.lazy);
-		const visibleGroup = component.config._resolvedLazyScripts?.find((group) => 'on:visible' in group.lazy);
+		const rules = component.config._resolvedLazyTriggers?.[0]?.rules ?? [];
+		const idleRule = rules.find((rule) => 'on:idle' in rule);
+		const visibleRule = rules.find((rule) => 'on:visible' in rule);
 
-		expect(idleGroup?.scripts).toMatch(/^\/assets\/lazy\/file-\d+\.js$/);
-		expect(visibleGroup?.scripts).toMatch(/^\/assets\/lazy\/content-\d+\.js$/);
+		expect(idleRule && 'on:idle' in idleRule ? idleRule['on:idle'].scripts[0] : undefined).toMatch(
+			/^\/assets\/lazy\/file-\d+\.js$/,
+		);
+		expect(
+			visibleRule && 'on:visible' in visibleRule ? visibleRule['on:visible'].scripts[0] : undefined,
+		).toMatch(/^\/assets\/lazy\/content-\d+\.js$/);
 	});
 });

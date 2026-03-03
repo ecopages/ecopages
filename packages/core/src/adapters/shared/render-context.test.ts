@@ -12,11 +12,23 @@ describe('createRenderContext', () => {
 		renderToResponse: RenderToResponse,
 	} as unknown as IntegrationRenderer;
 
+	const ExplicitRenderer = {
+		name: 'explicit-renderer',
+		renderToResponse: RenderToResponse,
+	} as unknown as IntegrationRenderer;
+
 	const InitializeRenderer = vi.fn(() => Renderer);
 
 	const Plugin = {
 		name: '-integration',
 		initializeRenderer: InitializeRenderer,
+	} as unknown as IntegrationPlugin;
+
+	const ExplicitInitializeRenderer = vi.fn(() => ExplicitRenderer);
+
+	const ExplicitPlugin = {
+		name: 'explicit-renderer',
+		initializeRenderer: ExplicitInitializeRenderer,
 	} as unknown as IntegrationPlugin;
 
 	const ViewFn = ((props: { foo: string }) => `<div>${props.foo}</div>`) as EcoFunctionComponent<
@@ -32,7 +44,7 @@ describe('createRenderContext', () => {
 	};
 
 	const renderContext = createRenderContext({
-		integrations: [Plugin],
+		integrations: [Plugin, ExplicitPlugin],
 	});
 
 	it('should create a render context with methods', () => {
@@ -45,6 +57,8 @@ describe('createRenderContext', () => {
 	describe('render', () => {
 		it('should call renderer.renderToResponse with partial: false', async () => {
 			RenderToResponse.mockClear();
+			InitializeRenderer.mockClear();
+			ExplicitInitializeRenderer.mockClear();
 			const props = { foo: 'bar' };
 			const options = { status: 201, headers: { 'X-Custom': '1' } };
 
@@ -69,6 +83,23 @@ describe('createRenderContext', () => {
 			const badViewFn = (() => '<div></div>') as EcoFunctionComponent<{}, string>;
 			badViewFn.config = { __eco: undefined };
 			await expect(renderContext.render(badViewFn, {})).rejects.toThrow('Cannot determine integration for view');
+		});
+
+		it('should prefer explicit config.integration over injected metadata', async () => {
+			RenderToResponse.mockClear();
+			InitializeRenderer.mockClear();
+			ExplicitInitializeRenderer.mockClear();
+
+			const explicitViewFn = (() => '<div></div>') as EcoFunctionComponent<{}, string>;
+			explicitViewFn.config = {
+				integration: 'explicit-renderer',
+				__eco: { id: 'test', file: '/some/file.tsx', integration: '-integration' },
+			};
+
+			await renderContext.render(explicitViewFn, {});
+
+			expect(ExplicitInitializeRenderer).toHaveBeenCalled();
+			expect(InitializeRenderer).not.toHaveBeenCalled();
 		});
 	});
 

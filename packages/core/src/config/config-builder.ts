@@ -19,7 +19,7 @@ export const CONFIG_BUILDER_ERRORS = {
 	DUPLICATE_INTEGRATION_NAMES: 'Integrations names must be unique',
 	DUPLICATE_INTEGRATION_EXTENSIONS: 'Integrations extensions must be unique',
 	MIXED_JSX_ENGINES:
-		'Cannot enable both kitajs and react integrations in the same app. Use one JSX engine per project.',
+		'[ecopages] Both kitajs and react integrations are enabled. Use per-file JSX import source/pragma consistently (React files with React JSX runtime, Kita files with @kitajs/html).',
 	duplicateProcessorName: (name: string) => `Processor with name "${name}" already exists`,
 	duplicateLoaderName: (name: string) => `Loader with name "${name}" already exists`,
 } as const;
@@ -401,7 +401,9 @@ export class ConfigBuilder {
 
 		const hasKitaJs = uniqueName.has('kitajs');
 		const hasReact = uniqueName.has('react');
-		invariant(!(hasKitaJs && hasReact), CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
+		if (hasKitaJs && hasReact) {
+			console.warn(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
+		}
 
 		const integrationsExtensions = integrations.flatMap((integration) => integration.extensions);
 		const uniqueExtensions = new Set(integrationsExtensions);

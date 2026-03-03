@@ -168,14 +168,19 @@ describe('EcoConfigBuilder', () => {
 		).rejects.toThrow(CONFIG_BUILDER_ERRORS.DUPLICATE_INTEGRATION_EXTENSIONS);
 	});
 
-	test('should throw error when both kitajs and react are enabled', async () => {
+	test('should warn when both kitajs and react are enabled', async () => {
 		const integrations: IntegrationPlugin[] = [
 			createMockIntegration('kitajs', ['.kita.tsx']),
 			createMockIntegration('react', ['.tsx']),
 		];
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
 		await expect(
 			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
-		).rejects.toThrow(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
+		).resolves.toBeDefined();
+
+		expect(warnSpy).toHaveBeenCalledWith(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
+		warnSpy.mockRestore();
 	});
 
 	test('should add additionalWatchPaths', async () => {
@@ -216,5 +221,15 @@ describe('EcoConfigBuilder', () => {
 			.build();
 
 		expect(config.cache?.defaultStrategy).toEqual({ revalidate: 3600, tags: ['default'] });
+	});
+
+	test('should set experimental unsafe config', async () => {
+		const config = await builder
+			.setBaseUrl('https://example.com')
+			.setRootDir('/project')
+			.setExperimental({ unsafe: { featureFlag: true } })
+			.build();
+
+		expect(config.experimental?.unsafe).toEqual({ featureFlag: true });
 	});
 });

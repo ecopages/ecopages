@@ -2,6 +2,7 @@ import { defineConfig, configDefaults } from 'vitest/config';
 
 export default defineConfig({
 	test: {
+		silent: 'passed-only',
 		projects: [
 			'vitest.browser.config.ts',
 			{

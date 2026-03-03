@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
-import { ConfigBuilder } from './config-builder.ts';
+import { CONFIG_BUILDER_ERRORS, ConfigBuilder } from './config-builder.ts';
 
 const createMockIntegration = (name: string, extensions: string[]): IntegrationPlugin => {
 	return new (class extends IntegrationPlugin {
@@ -155,7 +155,7 @@ describe('EcoConfigBuilder', () => {
 		];
 		await expect(
 			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
-		).rejects.toThrow('Integrations names must be unique');
+		).rejects.toThrow(CONFIG_BUILDER_ERRORS.DUPLICATE_INTEGRATION_NAMES);
 	});
 
 	test('should throw error for duplicate integration extensions', async () => {
@@ -165,7 +165,17 @@ describe('EcoConfigBuilder', () => {
 		];
 		await expect(
 			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
-		).rejects.toThrow('Integrations extensions must be unique');
+		).rejects.toThrow(CONFIG_BUILDER_ERRORS.DUPLICATE_INTEGRATION_EXTENSIONS);
+	});
+
+	test('should throw error when both kitajs and react are enabled', async () => {
+		const integrations: IntegrationPlugin[] = [
+			createMockIntegration('kitajs', ['.kita.tsx']),
+			createMockIntegration('react', ['.tsx']),
+		];
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
+		).rejects.toThrow(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
 	});
 
 	test('should add additionalWatchPaths', async () => {

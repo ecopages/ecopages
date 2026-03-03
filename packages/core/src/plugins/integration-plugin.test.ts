@@ -41,8 +41,8 @@ describe('IntegrationPlugin', () => {
 		expect(pluginWithoutDeps.getResolvedIntegrationDependencies()).toEqual([]);
 	});
 
-	it('should implement setup and teardown methods', () => {
-		expect(plugin.setup()).resolves.toBeUndefined();
-		expect(plugin.teardown()).resolves.toBeUndefined();
+	it('should implement setup and teardown methods', async () => {
+		await expect(plugin.setup()).resolves.toBeUndefined();
+		await expect(plugin.teardown()).resolves.toBeUndefined();
 	});
 });

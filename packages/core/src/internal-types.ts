@@ -131,6 +131,20 @@ export type EcoPagesAppConfig = {
 	 * @default { store: 'memory', defaultStrategy: 'static', enabled: true }
 	 */
 	cache?: CacheConfig;
+	/**
+	 * Experimental features. Opt-in to new rendering behaviors before they become default.
+	 */
+	experimental?: {
+		/**
+		 * Controls the lazy dependency injection strategy and integration granularity.
+		 * - 'global-injector': global injector map + data-eco-trigger; page-level integration
+		 * - 'component-level': <scripts-injector> wrapper; component-level integration dispatch
+		 * - 'full': global injector map + component-level integration (target end state)
+		 */
+		renderingMode?: 'global-injector' | 'component-level' | 'full';
+		/** Escape hatch for short-lived private toggles. No validation or IntelliSense. */
+		unsafe?: Record<string, unknown>;
+	};
 };
 
 export type IntegrationDependencyConfig = {

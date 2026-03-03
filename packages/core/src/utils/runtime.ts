@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
 
+export const RUNTIME_ERRORS = {
+	BUN_RUNTIME_REQUIRED: 'Bun runtime is required',
+} as const;
+
 type RuntimeBun = typeof Bun;
 
 export function getBunRuntime(): RuntimeBun | undefined {
@@ -10,7 +14,7 @@ export function getRequiredBunRuntime(): RuntimeBun {
 	const bun = getBunRuntime();
 
 	if (!bun) {
-		throw new Error('Bun runtime is required');
+		throw new Error(RUNTIME_ERRORS.BUN_RUNTIME_REQUIRED);
 	}
 
 	return bun;

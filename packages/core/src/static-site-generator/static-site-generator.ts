@@ -7,6 +7,16 @@ import type { FSRouter } from '../router/fs-router.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { PathUtils } from '../utils/path-utils.module.ts';
 
+export const STATIC_SITE_GENERATOR_ERRORS = {
+	ROUTE_RENDERER_FACTORY_REQUIRED: 'RouteRendererFactory is required for render strategy',
+	unsupportedBodyType: (bodyType: string) => `Unsupported body type for static generation: ${bodyType}`,
+	missingIntegration: (routePath: string) =>
+		`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page().`,
+	noRendererForIntegration: (integrationName: string) => `No renderer found for integration: ${integrationName}`,
+	dynamicRouteRequiresStaticPaths: (routePath: string) =>
+		`Dynamic route ${routePath} requires staticPaths to be defined on the view.`,
+} as const;
+
 export class StaticSiteGenerator {
 	appConfig: EcoPagesAppConfig;
 
@@ -105,7 +115,7 @@ export class StaticSiteGenerator {
 					contents = await response.text();
 				} else {
 					if (!routeRendererFactory) {
-						throw new Error('RouteRendererFactory is required for render strategy');
+						throw new Error(STATIC_SITE_GENERATOR_ERRORS.ROUTE_RENDERER_FACTORY_REQUIRED);
 					}
 
 					let pathname = routePathname;
@@ -136,7 +146,7 @@ export class StaticSiteGenerator {
 					} else if (body instanceof ReadableStream) {
 						contents = await new Response(body).text();
 					} else {
-						throw new Error(`Unsupported body type for static generation: ${typeof body}`);
+						throw new Error(STATIC_SITE_GENERATOR_ERRORS.unsupportedBodyType(typeof body));
 					}
 				}
 
@@ -227,12 +237,12 @@ export class StaticSiteGenerator {
 	): Promise<void> {
 		const integrationName = view.config?.__eco?.integration;
 		if (!integrationName) {
-			throw new Error(`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page().`);
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.missingIntegration(routePath));
 		}
 
 		const renderer = routeRendererFactory.getRendererByIntegration(integrationName);
 		if (!renderer) {
-			throw new Error(`No renderer found for integration: ${integrationName}`);
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.noRendererForIntegration(integrationName));
 		}
 
 		const props = view.staticProps
@@ -264,17 +274,17 @@ export class StaticSiteGenerator {
 		routeRendererFactory: RouteRendererFactory,
 	): Promise<void> {
 		if (!view.staticPaths) {
-			throw new Error(`Dynamic route ${routePath} requires staticPaths to be defined on the view.`);
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.dynamicRouteRequiresStaticPaths(routePath));
 		}
 
 		const integrationName = view.config?.__eco?.integration;
 		if (!integrationName) {
-			throw new Error(`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page().`);
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.missingIntegration(routePath));
 		}
 
 		const renderer = routeRendererFactory.getRendererByIntegration(integrationName);
 		if (!renderer) {
-			throw new Error(`No renderer found for integration: ${integrationName}`);
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.noRendererForIntegration(integrationName));
 		}
 
 		const { paths } = await view.staticPaths({

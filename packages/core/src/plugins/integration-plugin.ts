@@ -6,6 +6,11 @@ import type { IntegrationRenderer } from '../route-renderer/integration-renderer
 import { AssetProcessingService } from '../services/asset-processing-service/asset-processing.service';
 import type { AssetDefinition, ProcessedAsset } from '../services/asset-processing-service/assets.types';
 
+export const INTEGRATION_PLUGIN_ERRORS = {
+	NOT_INITIALIZED_WITH_APP_CONFIG: 'Plugin not initialized with app config',
+	NOT_INITIALIZED_WITH_ASSET_SERVICE: 'Plugin not initialized with asset dependency service',
+} as const;
+
 export interface IntegrationPluginConfig {
 	/**
 	 * The name of the integration plugin.
@@ -101,7 +106,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	initializeAssetDefinitionService(): void {
-		if (!this.appConfig) throw new Error('Plugin not initialized with app config');
+		if (!this.appConfig) throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 
 		this.assetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
 		if (this.hmrManager) {
@@ -115,7 +120,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	initializeRenderer(): IntegrationRenderer<C> {
 		if (!this.appConfig) {
-			throw new Error('Plugin not initialized with app config');
+			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 		}
 
 		const assetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
@@ -139,7 +144,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	async setup(): Promise<void> {
 		if (this.integrationDependencies.length === 0) return;
-		if (!this.assetProcessingService) throw new Error('Plugin not initialized with asset dependency service');
+		if (!this.assetProcessingService)
+			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_ASSET_SERVICE);
 
 		this.resolvedIntegrationDependencies = await this.assetProcessingService.processDependencies(
 			this.integrationDependencies,

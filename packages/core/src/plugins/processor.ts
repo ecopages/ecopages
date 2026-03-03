@@ -5,6 +5,10 @@ import type { EcoPagesAppConfig, IClientBridge } from '../internal-types';
 import type { AssetDefinition } from '../services/asset-processing-service';
 import { GENERATED_BASE_PATHS } from '../constants';
 
+export const PROCESSOR_ERRORS = {
+	CACHE_DIRECTORY_NOT_SET: 'Cache directory not set in context',
+} as const;
+
 function resolveGeneratedPath(
 	type: keyof typeof GENERATED_BASE_PATHS,
 	options: { root: string; module: string; subPath?: string },
@@ -125,7 +129,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 
 	protected async writeCache<T>(key: string, data: T): Promise<void> {
 		if (!this.context?.cache) {
-			throw new Error('Cache directory not set in context');
+			throw new Error(PROCESSOR_ERRORS.CACHE_DIRECTORY_NOT_SET);
 		}
 
 		const cachePath = this.getCachePath(key);

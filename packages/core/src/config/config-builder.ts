@@ -15,6 +15,15 @@ import type { PageMetadataProps } from '../public-types.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import { invariant } from '../utils/invariant.ts';
 
+export const CONFIG_BUILDER_ERRORS = {
+	DUPLICATE_INTEGRATION_NAMES: 'Integrations names must be unique',
+	DUPLICATE_INTEGRATION_EXTENSIONS: 'Integrations extensions must be unique',
+	MIXED_JSX_ENGINES:
+		'Cannot enable both kitajs and react integrations in the same app. Use one JSX engine per project.',
+	duplicateProcessorName: (name: string) => `Processor with name "${name}" already exists`,
+	duplicateLoaderName: (name: string) => `Loader with name "${name}" already exists`,
+} as const;
+
 /**
  * A builder class for creating and configuring EcoPages application configuration.
  * Provides a fluent interface for setting various configuration options and managing
@@ -296,7 +305,7 @@ export class ConfigBuilder {
 	 */
 	addProcessor(processor: Processor): this {
 		if (this.config.processors.has(processor.name)) {
-			throw new Error(`Processor with name "${processor.name}" already exists`);
+			throw new Error(CONFIG_BUILDER_ERRORS.duplicateProcessorName(processor.name));
 		}
 		this.config.processors.set(processor.name, processor);
 		return this;
@@ -327,7 +336,7 @@ export class ConfigBuilder {
 	 */
 	addLoader(name: string, loader: EcoBuildPlugin): this {
 		if (this.config.loaders.has(name)) {
-			throw new Error(`Loader with name "${name}" already exists`);
+			throw new Error(CONFIG_BUILDER_ERRORS.duplicateLoaderName(name));
 		}
 		this.config.loaders.set(name, loader);
 		return this;
@@ -341,6 +350,11 @@ export class ConfigBuilder {
 	 */
 	setCacheConfig(cacheConfig: CacheConfig): this {
 		this.config.cache = cacheConfig;
+		return this;
+	}
+
+	setExperimental(experimental: NonNullable<EcoPagesAppConfig['experimental']>): this {
+		this.config.experimental = experimental;
 		return this;
 	}
 
@@ -383,12 +397,19 @@ export class ConfigBuilder {
 		const integrationName = integrations.map((integration) => integration.name);
 		const uniqueName = new Set(integrationName);
 
-		invariant(integrationName.length === uniqueName.size, 'Integrations names must be unique');
+		invariant(integrationName.length === uniqueName.size, CONFIG_BUILDER_ERRORS.DUPLICATE_INTEGRATION_NAMES);
+
+		const hasKitaJs = uniqueName.has('kitajs');
+		const hasReact = uniqueName.has('react');
+		invariant(!(hasKitaJs && hasReact), CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
 
 		const integrationsExtensions = integrations.flatMap((integration) => integration.extensions);
 		const uniqueExtensions = new Set(integrationsExtensions);
 
-		invariant(integrationsExtensions.length === uniqueExtensions.size, 'Integrations extensions must be unique');
+		invariant(
+			integrationsExtensions.length === uniqueExtensions.size,
+			CONFIG_BUILDER_ERRORS.DUPLICATE_INTEGRATION_EXTENSIONS,
+		);
 
 		this.config.templatesExt = integrationsExtensions;
 	}

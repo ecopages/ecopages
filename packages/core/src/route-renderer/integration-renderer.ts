@@ -18,12 +18,14 @@ import type {
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
 	PageMetadataProps,
+	ResolvedLazyTrigger,
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
 	StaticPageContext,
 } from '../public-types.ts';
-import { type AssetProcessingService, type ProcessedAsset } from '../services/asset-processing-service/index.ts';
+import { type AssetProcessingService, AssetFactory, type ProcessedAsset } from '../services/asset-processing-service/index.ts';
+import { buildGlobalInjectorMapScript, GLOBAL_INJECTOR_BOOTSTRAP_CONTENT } from '../eco/global-injector-map.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
 import { HttpError } from '../errors/http-error.ts';
@@ -206,7 +208,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		const { absolutePaths } = this.appConfig;
 		try {
-			const { default: HtmlTemplate } = await import(absolutePaths.htmlTemplatePath);
+			const { default: HtmlTemplate } = await this.importPageFile(absolutePaths.htmlTemplatePath);
 			return HtmlTemplate;
 		} catch (error) {
 			invariant(false, `Error importing HtmlTemplate: ${error}`);
@@ -342,6 +344,30 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
+	 * Walks the component tree depth-first and collects every `_resolvedLazyTrigger`
+	 * attached to component configs. A `seen` set prevents re-processing shared
+	 * component references and guards against cycles in the dependency graph.
+	 */
+	private collectResolvedTriggers(
+		components: (EcoComponent | Partial<EcoComponent>)[],
+		seen = new Set<object>(),
+	): ResolvedLazyTrigger[] {
+		const triggers: ResolvedLazyTrigger[] = [];
+		for (const comp of components) {
+			const ecoComp = comp as EcoComponent;
+			if (seen.has(ecoComp)) continue;
+			seen.add(ecoComp);
+			const ownTriggers = ecoComp.config?._resolvedLazyTriggers;
+			if (ownTriggers && ownTriggers.length > 0) triggers.push(...ownTriggers);
+			const nested = ecoComp.config?.dependencies?.components;
+			if (nested && nested.length > 0) {
+				triggers.push(...this.collectResolvedTriggers(nested, seen));
+			}
+		}
+		return triggers;
+	}
+
+	/**
 	 * Processes component-specific dependencies WITHOUT prepending global integration dependencies.
 	 * Use this method when you need only the component's own assets.
 	 *
@@ -376,6 +402,31 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const pageDeps = (await this.buildRouteRenderAssets(options.file)) || [];
 
 		const allDependencies = [...resolvedDependencies, ...pageDeps];
+
+		const renderingMode = this.appConfig.experimental?.renderingMode;
+		if (renderingMode === 'global-injector' || renderingMode === 'full') {
+			const triggers = this.collectResolvedTriggers(componentsToResolve);
+			if (triggers.length > 0) {
+				const mapScript = AssetFactory.createInlineContentScript({
+					position: 'head',
+					name: 'ecopages-global-injector-map',
+					content: buildGlobalInjectorMapScript(triggers),
+					attributes: { type: 'ecopages/global-injector-map' },
+					bundle: false,
+				});
+				const bootstrapScript = AssetFactory.createContentScript({
+					position: 'head',
+					name: 'ecopages-global-injector-bootstrap',
+					content: GLOBAL_INJECTOR_BOOTSTRAP_CONTENT,
+					attributes: { type: 'module' },
+				});
+				const globalAssets = await this.assetProcessingService.processDependencies(
+					[mapScript, bootstrapScript],
+					this.name,
+				);
+				allDependencies.push(...globalAssets);
+			}
+		}
 
 		this.htmlTransformer.setProcessedDependencies(allDependencies);
 

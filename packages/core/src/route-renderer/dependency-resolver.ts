@@ -4,7 +4,8 @@ import type {
 	DependencyLazyTrigger,
 	EcoComponent,
 	EcoComponentScriptEntry,
-	ResolvedLazyScriptGroup,
+	LazyTriggerRule,
+	ResolvedLazyTrigger,
 } from '../public-types.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
@@ -186,6 +187,50 @@ function resolveLazyScripts(appConfig: EcoPagesAppConfig, componentDir: string, 
 	});
 
 	return resolvedPaths.join(',');
+}
+
+type ResolvedLazyGroup = { lazy: DependencyLazyTrigger; scripts: string[] };
+
+/**
+ * Derives a deterministic `triggerId` and the full set of `LazyTriggerRule` entries
+ * for a component's lazy script groups.
+ *
+ * The trigger ID is a hex digest of `rapidhash(componentFile + ':' + sortedUrls)`,
+ * making it stable across renders as long as the source file path and resolved
+ * script URLs do not change. Sorting the URLs before hashing ensures the ID is
+ * independent of declaration order in the component config.
+ *
+ * Scripts are received as plain arrays (already deduplicated by the caller) to
+ * avoid a CSV round-trip that would otherwise require `split(',')` here.
+ */
+function buildResolvedLazyTriggers(
+	config: NonNullable<EcoComponent['config']>,
+	groups: ResolvedLazyGroup[],
+): ResolvedLazyTrigger[] {
+	if (groups.length === 0) return [];
+
+	const componentFile = config.__eco?.file ?? '';
+	const sortedUrls = groups.flatMap((group) => group.scripts).sort().join(',');
+	const triggerId = `eco-trigger-${rapidhash(`${componentFile}:${sortedUrls}`).toString(16)}`;
+
+	const rules: LazyTriggerRule[] = groups.map((group) => {
+		const { scripts, lazy } = group;
+
+		if ('on:idle' in lazy) {
+			return { 'on:idle': { scripts } };
+		}
+		if ('on:interaction' in lazy) {
+			return { 'on:interaction': { value: lazy['on:interaction'], scripts } };
+		}
+		if ('on:visible' in lazy) {
+			const visibleSelector = lazy['on:visible'];
+			if (visibleSelector === true) return { 'on:visible': { scripts } };
+			return { 'on:visible': { value: String(visibleSelector), scripts } };
+		}
+		throw new Error(`Unknown lazy trigger kind: ${JSON.stringify(lazy)}`);
+	});
+
+	return [{ triggerId, rules }];
 }
 
 export class DependencyResolverService {
@@ -501,8 +546,10 @@ export class DependencyResolverService {
 		}
 
 		const hasLazyDependencies = dependencies.some((dep) => dep.kind === 'script' && dep.excludeFromHtml === true);
+		const renderingMode = this.appConfig.experimental?.renderingMode;
+		const useGlobalInjector = renderingMode === 'global-injector' || renderingMode === 'full';
 
-		if (hasLazyDependencies) {
+		if (hasLazyDependencies && !useGlobalInjector) {
 			dependencies.unshift(
 				AssetFactory.createNodeModuleScript({
 					position: 'head',
@@ -532,7 +579,7 @@ export class DependencyResolverService {
 		}
 
 		for (const [config, lazyGroupsMap] of lazyScriptsByConfig.entries()) {
-			const resolvedGroups: ResolvedLazyScriptGroup[] = [];
+			const rawGroups: ResolvedLazyGroup[] = [];
 
 			for (const group of lazyGroupsMap.values()) {
 				const resolvedUrls = group.scripts
@@ -543,13 +590,18 @@ export class DependencyResolverService {
 					continue;
 				}
 
-				resolvedGroups.push({
-					lazy: group.lazy,
-					scripts: Array.from(new Set(resolvedUrls)).join(','),
-				});
+				rawGroups.push({ lazy: group.lazy, scripts: Array.from(new Set(resolvedUrls)) });
 			}
 
-			config._resolvedLazyScripts = resolvedGroups.length > 0 ? resolvedGroups : undefined;
+			if (useGlobalInjector) {
+				config._resolvedLazyTriggers = buildResolvedLazyTriggers(config, rawGroups);
+				config._resolvedLazyScripts = undefined;
+			} else {
+				config._resolvedLazyScripts =
+					rawGroups.length > 0
+						? rawGroups.map((rawGroup) => ({ lazy: rawGroup.lazy, scripts: rawGroup.scripts.join(',') }))
+						: undefined;
+			}
 		}
 
 		return processedDependencies;

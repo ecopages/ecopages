@@ -39,4 +39,5 @@ export default await new ConfigBuilder()
 		}),
 		postcssProcessorPlugin(tailwindV3Preset()),
 	])
+	.setExperimental({ renderingMode: 'global-injector' })
 	.build();

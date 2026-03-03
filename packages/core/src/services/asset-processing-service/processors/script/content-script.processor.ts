@@ -40,6 +40,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				entrypoint: tempFileName,
 				outdir: this.getAssetsDir(),
 				minify: this.isProduction,
+				naming: `${path.parse(filename).name}-[hash].[ext]`,
 				...this.getBundlerOptions(dep),
 			});
 

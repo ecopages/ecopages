@@ -56,6 +56,16 @@ export type ResolvedLazyScriptGroup = {
 	scripts: string;
 };
 
+export type LazyTriggerRule =
+	| { 'on:idle': { scripts: string[] } }
+	| { 'on:interaction': { value: string; scripts: string[] } }
+	| { 'on:visible': { value?: string; scripts: string[] } };
+
+export type ResolvedLazyTrigger = {
+	triggerId: string;
+	rules: LazyTriggerRule[];
+};
+
 /**
  * Narrow interface for cache invalidation in API handlers.
  * Exposes only the methods needed for programmatic cache control.
@@ -320,6 +330,12 @@ export type EcoComponentConfig = {
 	 * @internal
 	 */
 	_resolvedLazyScripts?: ResolvedLazyScriptGroup[];
+	/**
+	 * Internal: Resolved lazy triggers for the global injector map.
+	 * Set by the renderer when experimental.renderingMode is 'global-injector' or 'full'.
+	 * @internal
+	 */
+	_resolvedLazyTriggers?: ResolvedLazyTrigger[];
 };
 
 /**

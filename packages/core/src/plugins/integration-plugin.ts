@@ -144,8 +144,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	async setup(): Promise<void> {
 		if (this.integrationDependencies.length === 0) return;
-		if (!this.assetProcessingService)
-			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_ASSET_SERVICE);
+		if (!this.assetProcessingService) throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_ASSET_SERVICE);
 
 		this.resolvedIntegrationDependencies = await this.assetProcessingService.processDependencies(
 			this.integrationDependencies,

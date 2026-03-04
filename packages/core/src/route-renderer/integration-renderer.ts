@@ -4,6 +4,7 @@
  * @module
  */
 
+import { createRequire } from 'node:module';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
 import type {
 	ComponentRenderInput,
@@ -31,7 +32,7 @@ import {
 	AssetFactory,
 	type ProcessedAsset,
 } from '../services/asset-processing-service/index.ts';
-import { buildGlobalInjectorMapScript, GLOBAL_INJECTOR_BOOTSTRAP_CONTENT } from '../eco/global-injector-map.ts';
+import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../eco/global-injector-map.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
 import { HttpError } from '../errors/http-error.ts';
@@ -45,6 +46,8 @@ import {
 	runWithComponentRenderContext,
 	type ComponentGraphContext as CapturedComponentGraphContext,
 } from '../eco/component-render-context.ts';
+
+const coreRequire = createRequire(import.meta.url);
 
 /**
  * Creates a Proxy that throws LocalsAccessError on any property access.
@@ -504,6 +507,23 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		const triggers = this.collectResolvedTriggers(componentsToResolve);
 		if (triggers.length > 0) {
+			const globalInjectorImportPath = coreRequire.resolve('@ecopages/scripts-injector/global');
+			const globalInjectorRuntimeAsset = AssetFactory.createNodeModuleScript({
+				position: 'head',
+				name: 'ecopages-scripts-injector-global',
+				importPath: globalInjectorImportPath,
+				excludeFromHtml: true,
+			});
+			const [globalInjectorRuntimeProcessed] = await this.assetProcessingService.processDependencies(
+				[globalInjectorRuntimeAsset],
+				this.name,
+			);
+
+			const globalInjectorModuleUrl = globalInjectorRuntimeProcessed?.srcUrl;
+			if (!globalInjectorModuleUrl) {
+				throw new Error('[ecopages] Failed to resolve global injector runtime asset URL.');
+			}
+
 			const mapScript = AssetFactory.createInlineContentScript({
 				position: 'head',
 				name: 'ecopages-global-injector-map',
@@ -514,11 +534,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			const bootstrapScript = AssetFactory.createContentScript({
 				position: 'head',
 				name: 'ecopages-global-injector-bootstrap',
-				content: GLOBAL_INJECTOR_BOOTSTRAP_CONTENT,
+				content: buildGlobalInjectorBootstrapContent(globalInjectorModuleUrl),
 				attributes: { type: 'module' },
+				bundle: false,
 			});
 			const globalAssets = await this.assetProcessingService.processDependencies(
-				[mapScript, bootstrapScript],
+				[mapScript, bootstrapScript, globalInjectorRuntimeAsset],
 				this.name,
 			);
 			allDependencies.push(...globalAssets);

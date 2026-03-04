@@ -210,7 +210,10 @@ function buildResolvedLazyTriggers(
 	if (groups.length === 0) return [];
 
 	const componentFile = config.__eco?.file ?? '';
-	const sortedUrls = groups.flatMap((group) => group.scripts).sort().join(',');
+	const sortedUrls = groups
+		.flatMap((group) => group.scripts)
+		.sort()
+		.join(',');
 	const triggerId = `eco-trigger-${rapidhash(`${componentFile}:${sortedUrls}`).toString(16)}`;
 
 	const rules: LazyTriggerRule[] = groups.map((group) => {

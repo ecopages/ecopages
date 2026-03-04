@@ -511,9 +511,8 @@ describe('IntegrationRenderer', () => {
 			renderer.PageModule = {
 				default: (() => '<main>Stream Body</main>') as unknown as EcoPageComponent<any>,
 			};
-			renderer.HtmlTemplate = (() => '<html><body><main>Stream Body</main></body></html>') as EcoComponent<
-				HtmlTemplateProps
-			>;
+			renderer.HtmlTemplate = (() =>
+				'<html><body><main>Stream Body</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
 			const result = await renderer.execute({
 				file: '/app/pages/index.ts',
@@ -555,9 +554,8 @@ describe('IntegrationRenderer', () => {
 			renderer.PageModule = {
 				default: (() => '<main>Test Page</main>') as unknown as EcoPageComponent<any>,
 			};
-			renderer.HtmlTemplate = (() => '<html><body><main>Test Page</main></body></html>') as EcoComponent<
-				HtmlTemplateProps
-			>;
+			renderer.HtmlTemplate = (() =>
+				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
 			const result = await renderer.execute({
 				file: '/app/pages/index.ts',
@@ -627,9 +625,8 @@ describe('IntegrationRenderer', () => {
 			renderer.PageModule = {
 				default: Page,
 			};
-			renderer.HtmlTemplate = (() => '<html><body><main>Test Page</main></body></html>') as EcoComponent<
-				HtmlTemplateProps
-			>;
+			renderer.HtmlTemplate = (() =>
+				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
 			const result = await renderer.execute({
 				file: '/app/pages/index.ts',
@@ -643,7 +640,9 @@ describe('IntegrationRenderer', () => {
 			expect(body).toContain('<main data-eco-component-id="eco-page-root">Test Page</main>');
 
 			const processedDeps = (renderer as any).htmlTransformer.getProcessedDependencies();
-			expect(processedDeps.some((dep: ProcessedAsset) => dep.srcUrl === '/assets/nested-explicit.js')).toBe(false);
+			expect(processedDeps.some((dep: ProcessedAsset) => dep.srcUrl === '/assets/nested-explicit.js')).toBe(
+				false,
+			);
 		});
 
 		it('should include global integration dependencies for referenced component integrations once', async () => {
@@ -698,9 +697,8 @@ describe('IntegrationRenderer', () => {
 			renderer.PageModule = {
 				default: Page,
 			};
-			renderer.HtmlTemplate = (() => '<html><body><main>Test Page</main></body></html>') as EcoComponent<
-				HtmlTemplateProps
-			>;
+			renderer.HtmlTemplate = (() =>
+				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
 			await renderer.execute({
 				file: '/app/pages/index.ts',
@@ -709,7 +707,9 @@ describe('IntegrationRenderer', () => {
 			});
 
 			const processedDeps = (renderer as any).htmlTransformer.getProcessedDependencies();
-			expect(processedDeps.filter((dep: ProcessedAsset) => dep.srcUrl === '/assets/react-runtime.js')).toHaveLength(1);
+			expect(
+				processedDeps.filter((dep: ProcessedAsset) => dep.srcUrl === '/assets/react-runtime.js'),
+			).toHaveLength(1);
 		});
 
 		it('should resolve eco-marker nodes via integration renderComponent with referenced props', async () => {
@@ -780,9 +780,8 @@ describe('IntegrationRenderer', () => {
 					},
 				},
 			} as unknown as EcoPageFile;
-			renderer.HtmlTemplate = (() => '<html><body><main>Test Page</main></body></html>') as EcoComponent<
-				HtmlTemplateProps
-			>;
+			renderer.HtmlTemplate = (() =>
+				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
 			const result = await renderer.execute({
 				file: '/app/pages/index.ts',
@@ -858,9 +857,8 @@ describe('IntegrationRenderer', () => {
 					propsByRef: {},
 				},
 			} as unknown as EcoPageFile;
-			renderer.HtmlTemplate = (() => '<html><body><main>Test Page</main></body></html>') as EcoComponent<
-				HtmlTemplateProps
-			>;
+			renderer.HtmlTemplate = (() =>
+				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
 			await expect(
 				renderer.execute({

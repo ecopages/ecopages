@@ -27,22 +27,22 @@ export type HydrationScriptOptions = {
 };
 
 export type IslandHydrationScriptOptions = {
-  /** Bundled browser module path for the island component. */
-  importPath: string;
-  /** Browser import path for React runtime. */
-  reactImportPath: string;
-  /** Browser import path for react-dom/client runtime. */
-  reactDomClientImportPath: string;
-  /** Selector that resolves to the SSR root element for this island instance. */
-  targetSelector: string;
-  /** Serialized component props emitted at render time. */
-  props: Record<string, unknown>;
-  /** Optional stable component id used to resolve named exports reliably. */
-  componentRef?: string;
-  /** Optional source file hint used as fallback for component resolution. */
-  componentFile?: string;
-  /** Enables development-oriented non-minified output. */
-  isDevelopment: boolean;
+	/** Bundled browser module path for the island component. */
+	importPath: string;
+	/** Browser import path for React runtime. */
+	reactImportPath: string;
+	/** Browser import path for react-dom/client runtime. */
+	reactDomClientImportPath: string;
+	/** Selector that resolves to the SSR root element for this island instance. */
+	targetSelector: string;
+	/** Serialized component props emitted at render time. */
+	props: Record<string, unknown>;
+	/** Optional stable component id used to resolve named exports reliably. */
+	componentRef?: string;
+	/** Optional source file hint used as fallback for component resolution. */
+	componentFile?: string;
+	/** Enables development-oriented non-minified output. */
+	isDevelopment: boolean;
 };
 
 /**
@@ -273,13 +273,13 @@ export function createHydrationScript(options: HydrationScriptOptions): string {
  * @returns Browser-executable JavaScript module source.
  */
 export function createIslandHydrationScript(options: IslandHydrationScriptOptions): string {
-  const targetSelector = JSON.stringify(options.targetSelector);
-  const serializedProps = JSON.stringify(options.props ?? {});
-  const componentRef = JSON.stringify(options.componentRef ?? '');
-  const componentFile = JSON.stringify(options.componentFile ?? '');
+	const targetSelector = JSON.stringify(options.targetSelector);
+	const serializedProps = JSON.stringify(options.props ?? {});
+	const componentRef = JSON.stringify(options.componentRef ?? '');
+	const componentFile = JSON.stringify(options.componentFile ?? '');
 
-  if (options.isDevelopment) {
-    return `
+	if (options.isDevelopment) {
+		return `
 import { createRoot } from "${options.reactDomClientImportPath}";
 import { createElement } from "${options.reactImportPath}";
 import * as ComponentModule from "${options.importPath}";
@@ -320,7 +320,7 @@ if (target && Component) {
   root.render(createElement(Component, props));
 }
 `.trim();
-  }
+	}
 
-  return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const t=document.querySelector(${targetSelector});if(t&&c){const p=${serializedProps};cr(t).render(ce(c,p))}`;
+	return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const t=document.querySelector(${targetSelector});if(t&&c){const p=${serializedProps};cr(t).render(ce(c,p))}`;
 }

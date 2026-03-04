@@ -22,9 +22,7 @@ export default eco.page({
 
 				<KitaShell id="kita-root">
 					<LitShell id="kita-lit-child">
-						<ReactShell id="kita-react-child">
-							kita-root-child
-						</ReactShell>
+						<ReactShell id="kita-react-child">kita-root-child</ReactShell>
 					</LitShell>
 				</KitaShell>
 

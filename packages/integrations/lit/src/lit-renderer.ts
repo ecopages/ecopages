@@ -31,14 +31,18 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * Includes component-scoped dependency assets when declared.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		const component = input.component as (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement;
+		const component = input.component as (
+			props: Record<string, unknown>,
+		) => Promise<EcoPagesElement> | EcoPagesElement;
 		const props = input.children === undefined ? input.props : { ...input.props, children: input.children };
 		const content = await component(props);
 		const html = String(content);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
 		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
 		const assets =
-			hasDependencies && canResolveAssets ? await this.processComponentDependencies([input.component]) : undefined;
+			hasDependencies && canResolveAssets
+				? await this.processComponentDependencies([input.component])
+				: undefined;
 
 		return {
 			html,

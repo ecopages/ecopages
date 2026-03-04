@@ -130,7 +130,12 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			const componentInstanceId =
 				context.componentInstanceId ??
 				`eco-component-${rapidhash(componentFile)}-${++this.componentRenderSequence}`;
-			assets = await this.buildComponentRenderAssets(componentFile, componentInstanceId, input.props, componentConfig);
+			assets = await this.buildComponentRenderAssets(
+				componentFile,
+				componentInstanceId,
+				input.props,
+				componentConfig,
+			);
 			rootAttributes = { 'data-eco-component-id': componentInstanceId };
 		}
 

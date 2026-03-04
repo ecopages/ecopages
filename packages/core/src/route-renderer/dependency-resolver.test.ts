@@ -291,8 +291,8 @@ describe('DependencyResolverService', () => {
 		expect(idleRule && 'on:idle' in idleRule ? idleRule['on:idle'].scripts[0] : undefined).toMatch(
 			/^\/assets\/lazy\/file-\d+\.js$/,
 		);
-		expect(
-			visibleRule && 'on:visible' in visibleRule ? visibleRule['on:visible'].scripts[0] : undefined,
-		).toMatch(/^\/assets\/lazy\/content-\d+\.js$/);
+		expect(visibleRule && 'on:visible' in visibleRule ? visibleRule['on:visible'].scripts[0] : undefined).toMatch(
+			/^\/assets\/lazy\/content-\d+\.js$/,
+		);
 	});
 });

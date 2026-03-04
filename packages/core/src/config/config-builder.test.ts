@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
+import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { CONFIG_BUILDER_ERRORS, ConfigBuilder } from './config-builder.ts';
 
@@ -173,7 +174,7 @@ describe('EcoConfigBuilder', () => {
 			createMockIntegration('kitajs', ['.kita.tsx']),
 			createMockIntegration('react', ['.tsx']),
 		];
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+		const warnSpy = vi.spyOn(appLogger, 'warn').mockImplementation(() => undefined);
 
 		await expect(
 			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),

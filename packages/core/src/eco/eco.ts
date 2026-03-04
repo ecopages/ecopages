@@ -24,12 +24,7 @@ import type {
 	PagePropsForWithLocals,
 	PageRequires,
 } from './eco.types.ts';
-import {
-	createNodeId,
-	createPropsRef,
-	createSlotRef,
-	getComponentRenderContext,
-} from './component-render-context.ts';
+import { createNodeId, createPropsRef, createSlotRef, getComponentRenderContext } from './component-render-context.ts';
 import { createComponentMarker, parseComponentMarkers } from '../route-renderer/component-marker.ts';
 import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './eco.utils.ts';
 
@@ -63,7 +58,9 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 			const componentRef = comp.config?.__eco?.id ?? comp.config?.__eco?.file;
 
 			if (!componentRef) {
-				throw new Error('[ecopages] Missing component reference metadata for cross-integration marker emission.');
+				throw new Error(
+					'[ecopages] Missing component reference metadata for cross-integration marker emission.',
+				);
 			}
 
 			const componentProps = (props ?? {}) as Record<string, unknown>;

@@ -49,6 +49,10 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 	}
 
 	private resolveModulePath(importPath: string, rootDir: string): string {
+		if (path.isAbsolute(importPath) && fileSystem.exists(importPath)) {
+			return importPath;
+		}
+
 		try {
 			return defaultBuildAdapter.resolve(importPath, rootDir);
 		} catch {
@@ -57,25 +61,24 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 	}
 
 	private resolveModulePathFallback(importPath: string, rootDir: string, maxDepth = 5): string {
-		const tryPath = (dir: string): string => {
-			const modulePath = path.join(dir, 'node_modules', importPath);
+		let currentDir = rootDir;
+		let remainingDepth = maxDepth;
+
+		while (remainingDepth >= 0) {
+			const modulePath = path.join(currentDir, 'node_modules', importPath);
 			if (fileSystem.exists(modulePath)) {
 				return modulePath;
 			}
-			throw new Error(`Could not find module: ${importPath}`);
-		};
 
-		const findInParentDirs = (dir: string, depth: number): string => {
-			try {
-				return tryPath(dir);
-			} catch {
-				if (depth === 0 || dir === path.parse(dir).root) {
-					throw new Error(`Could not resolve module '${importPath}' from '${rootDir}'`);
-				}
-				return findInParentDirs(path.dirname(dir), depth - 1);
+			const parentDir = path.dirname(currentDir);
+			if (parentDir === currentDir) {
+				break;
 			}
-		};
 
-		return findInParentDirs(rootDir, maxDepth);
+			currentDir = parentDir;
+			remainingDepth -= 1;
+		}
+
+		throw new Error(`Could not resolve module '${importPath}' from '${rootDir}'`);
 	}
 }

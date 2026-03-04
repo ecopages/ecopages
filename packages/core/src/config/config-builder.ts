@@ -14,12 +14,13 @@ import type { Processor } from '../plugins/processor.ts';
 import type { PageMetadataProps } from '../public-types.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import { invariant } from '../utils/invariant.ts';
+import { appLogger } from '../global/app-logger.ts';
 
 export const CONFIG_BUILDER_ERRORS = {
 	DUPLICATE_INTEGRATION_NAMES: 'Integrations names must be unique',
 	DUPLICATE_INTEGRATION_EXTENSIONS: 'Integrations extensions must be unique',
 	MIXED_JSX_ENGINES:
-		'[ecopages] Both kitajs and react integrations are enabled. Use per-file JSX import source/pragma consistently (React files with React JSX runtime, Kita files with @kitajs/html).',
+		'Both kitajs and react integrations are enabled. Use per-file JSX import source/pragma consistently (e.g. `/** @jsxImportSource react */` for React files and `/** @jsxImportSource @kitajs/html */` for Kita files).',
 	duplicateProcessorName: (name: string) => `Processor with name "${name}" already exists`,
 	duplicateLoaderName: (name: string) => `Loader with name "${name}" already exists`,
 } as const;
@@ -402,7 +403,7 @@ export class ConfigBuilder {
 		const hasKitaJs = uniqueName.has('kitajs');
 		const hasReact = uniqueName.has('react');
 		if (hasKitaJs && hasReact) {
-			console.warn(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
+			appLogger.warn(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
 		}
 
 		const integrationsExtensions = integrations.flatMap((integration) => integration.extensions);

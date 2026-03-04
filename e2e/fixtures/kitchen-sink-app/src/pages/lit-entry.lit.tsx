@@ -10,15 +10,7 @@ import { ReactShell } from '@/components/react-shell.react';
 export default eco.page({
 	integration: 'lit',
 	dependencies: {
-		components: [
-			KitaShell,
-			LitShell,
-			ReactShell,
-			KitaCounter,
-			LitCounter,
-			ReactCounter,
-			ReactMdxBlock,
-		],
+		components: [KitaShell, LitShell, ReactShell, KitaCounter, LitCounter, ReactCounter, ReactMdxBlock],
 	},
 	metadata: () => ({
 		title: 'Lit Entry',

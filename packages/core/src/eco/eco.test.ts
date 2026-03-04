@@ -234,7 +234,6 @@ describe('eco namespace', () => {
 				),
 			).rejects.toThrow('Missing component reference metadata for cross-integration marker emission');
 		});
-
 	});
 
 	describe('eco.page()', () => {

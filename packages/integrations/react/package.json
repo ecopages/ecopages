@@ -21,6 +21,9 @@
 			"default": "./src/react.plugin.ts",
 			"types": "./src/react.plugin.ts"
 		},
+		"./declarations": {
+			"types": "./src/declarations.d.ts"
+		},
 		"./react-esm": "./react-esm.ts",
 		"./react-dom-esm": "./react-dom-esm.ts",
 		"./utils/dynamic": "./src/utils/dynamic.ts",

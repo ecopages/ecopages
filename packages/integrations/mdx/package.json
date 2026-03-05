@@ -16,6 +16,9 @@
 			"default": "./src/mdx.plugin.ts",
 			"types": "./src/mdx.plugin.ts"
 		},
+		"./declarations": {
+			"types": "./src/declarations.d.ts"
+		},
 		"./mdx-loader-plugin": {
 			"default": "./src/mdx-loader-plugin.ts",
 			"types": "./src/mdx-loader-plugin.ts"

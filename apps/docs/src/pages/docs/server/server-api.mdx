@@ -68,7 +68,7 @@ When using the Bun adapter, you can use the `defineApiHandler` helper function. 
 
 ```typescript
 // Import the adapter-specific helper
-import { defineApiHandler } from '@ecopages/core/bun/define-handler'; // Adjust path if needed
+import { defineApiHandler } from '@ecopages/core/bun';
 
 // Define the handler using the helper
 const getUserHandler = defineApiHandler({
@@ -76,15 +76,15 @@ const getUserHandler = defineApiHandler({
 	path: '/api/users/:id', // Type of 'id' is inferred from here
 	handler: async ({ params }) => {
 		// params is automatically typed as { id: string }
-	const { id } = params;
+		const { id } = params;
 		// Fetch user logic...
-	const user = { id: id, name: 'Example User' };
+		const user = { id: id, name: 'Example User' };
 
-	if (!user) {
-		return new Response('User not found', { status: 404 });
-	}
-	return new Response(JSON.stringify(user));
-},
+		if (!user) {
+			return new Response('User not found', { status: 404 });
+		}
+		return new Response(JSON.stringify(user));
+	},
 });
 
 // Register the handler with the app

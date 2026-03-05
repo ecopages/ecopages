@@ -47,7 +47,7 @@ Every API handler function receives a `HandlerContext` object as its argument. T
 app.get('/api/example/:id', async ({ request, response, params }) => {
 	const { id } = params;
 	const userAgent = request.headers.get('user-agent');
-	const queryParam = request.query.get('search');
+	const queryParam = new URL(request.url).searchParams.get('search');
 	const body = {
 		userId: id,
 		agent: userAgent,
@@ -56,6 +56,28 @@ app.get('/api/example/:id', async ({ request, response, params }) => {
 
 	return response.status(200).json(body);
 });
+```
+
+### Validating Route Params with `schema`
+
+You can validate and type route parameters through `schema.params`.
+
+```typescript
+import { z } from 'zod';
+
+app.get(
+	'/api/users/:id',
+	async ({ params, response }) => {
+		return response.json({ userId: params.id });
+	},
+	{
+		schema: {
+			params: z.object({
+				id: z.string().uuid(),
+			}),
+		},
+	},
+);
 ```
 
 The `HandlerContext` contains:

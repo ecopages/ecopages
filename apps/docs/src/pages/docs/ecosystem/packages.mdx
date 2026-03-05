@@ -1,3 +1,4 @@
+import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const config = {
@@ -73,6 +74,20 @@ Tools for processing assets and extending Bun's loading capabilities.
 
 You can install multiple packages at once using Bun:
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx jsr add @ecopages/core @ecopages/kitajs @ecopages/image-processor
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx jsr add @ecopages/core @ecopages/kitajs @ecopages/image-processor
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx jsr add @ecopages/core @ecopages/kitajs @ecopages/image-processor
 ```
+  </CodeTab>
+</CodeSnippetTabs>

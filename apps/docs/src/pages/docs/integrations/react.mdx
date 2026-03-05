@@ -1,3 +1,4 @@
+import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
@@ -18,9 +19,23 @@ The `@ecopages/react` package introduces first-class integration with [React](ht
 
 ## Installation
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx jsr add @ecopages/react
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx jsr add @ecopages/react
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx jsr add @ecopages/react
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ## Usage
 

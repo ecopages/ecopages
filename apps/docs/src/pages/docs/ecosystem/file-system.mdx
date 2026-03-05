@@ -1,3 +1,4 @@
+import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const config = {
@@ -22,9 +23,23 @@ The `@ecopages/file-system` package provides runtime-agnostic file system utilit
 
 ## Installation
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx jsr add @ecopages/file-system
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx jsr add @ecopages/file-system
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx jsr add @ecopages/file-system
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ## Usage
 

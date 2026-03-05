@@ -1,3 +1,4 @@
+import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const config = {
@@ -17,9 +18,23 @@ The `@ecopages/lit` package provides seamless integration with [Lit](https://lit
 
 To install the Lit integration plugin, run the following command in your project directory:
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx jsr add @ecopages/lit
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx jsr add @ecopages/lit
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx jsr add @ecopages/lit
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ## Usage
 

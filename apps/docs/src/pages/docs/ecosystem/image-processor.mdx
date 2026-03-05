@@ -1,3 +1,4 @@
+import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
@@ -19,9 +20,23 @@ The `@ecopages/image-processor` package provides powerful image processing capab
 
 Install the package from JSR:
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx jsr add @ecopages/image-processor
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx jsr add @ecopages/image-processor
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx jsr add @ecopages/image-processor
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ## Configuration
 

@@ -1,3 +1,4 @@
+import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
@@ -20,9 +21,23 @@ The `@ecopages/kitajs` package provides seamless integration with [Kita](https:/
 
 To install the KitaJS integration plugin, run the following command in your project directory:
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx jsr add @ecopages/kitajs
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx jsr add @ecopages/kitajs
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx jsr add @ecopages/kitajs
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ## Usage
 

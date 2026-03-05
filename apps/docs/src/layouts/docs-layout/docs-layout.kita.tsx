@@ -4,6 +4,7 @@ import { docsConfig } from '@/data/docs-config';
 import { BaseLayout } from '@/layouts/base-layout';
 import { Banner } from '@/components/banner/banner.kita';
 import { getGroupIcon } from './get-group-icon.kita';
+import { CodeSnippetTabs } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 
 export type DocsLayoutProps = {
 	children: JSX.Element;
@@ -61,6 +62,6 @@ DocsLayout.config = {
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
 		scripts: ['./docs-layout.script.ts'],
-		components: [BaseLayout, ApiField, Banner],
+		components: [BaseLayout, ApiField, Banner, CodeSnippetTabs],
 	},
 };

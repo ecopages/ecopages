@@ -1,22 +1,37 @@
+import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
 export const config = {
-	layout: DocsLayout,
+    layout: DocsLayout,
 };
 
 export const getMetadata = () => ({
-	title: 'Docs | Installation',
-	description: 'Learn how to install and set up Ecopages for your project',
+    title: 'Docs | Installation',
+    description: 'Learn how to install and set up Ecopages for your project',
 });
 
 ## Installation
 
 To create a new Ecopages project, you can install the core package and desired integrations using Bun:
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 <Banner type="info">
   <Banner.Title>JSR Configuration</Banner.Title>
@@ -63,15 +78,12 @@ Ecopages uses environment variables for configuration overrides. Create a `.env`
 ECOPAGES_BASE_URL=https://staging.your-production-domain.com
 
 # Overrides the hostname the server listens on (Default: localhost)
-
 ECOPAGES_HOSTNAME=0.0.0.0
 
 # Overrides the port the server listens on (Default: 3000)
-
 ECOPAGES_PORT=8080
 
 # Enable debug logging (Default: false)
-
 ECOPAGES_LOGGER_DEBUG=true
 ```
 

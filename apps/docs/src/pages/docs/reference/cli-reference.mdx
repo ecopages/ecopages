@@ -1,3 +1,4 @@
+import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const config = {
@@ -15,15 +16,43 @@ The Ecopages CLI is the canonical command-line interface for scaffolding, develo
 
 Run it with `bunx` (recommended for one-off usage):
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx ecopages --help
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx ecopages --help
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx ecopages --help
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 Or install it in your app and run via scripts:
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm add ecopages
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npm install ecopages
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bun add ecopages
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ## Commands
 
@@ -122,19 +151,61 @@ Used to determine where the server listens.
 ## Example Usage
 
 ### Show CLI help
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx ecopages --help
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx ecopages --help
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx ecopages --help
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ### Initialize a starter app
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx ecopages init ecopages-app
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx ecopages init ecopages-app
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx ecopages init ecopages-app
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ### Run development server
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx ecopages dev
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx ecopages dev
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx ecopages dev
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ### Build for production with a specific base URL
 ```bash

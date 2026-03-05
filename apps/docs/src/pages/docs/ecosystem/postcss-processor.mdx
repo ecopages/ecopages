@@ -1,3 +1,4 @@
+import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const config = {
@@ -17,9 +18,23 @@ The `@ecopages/postcss-processor` package provides a PostCSS processor plugin fo
 
 Install the package from JSR:
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx jsr add @ecopages/postcss-processor
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx jsr add @ecopages/postcss-processor
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx jsr add @ecopages/postcss-processor
 ```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ## Presets
 
@@ -29,9 +44,23 @@ The processor comes with presets to get you started quickly with popular setups.
 
 This preset includes the standard Tailwind CSS v3 stack: `tailwindcss`, `tailwindcss/nesting`, `autoprefixer`, `postcss-import`, and `cssnano`.
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
 ```bash
-bun add -D tailwindcss@3.4.19
+pnpm add -D tailwindcss@3.4.19
 ```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npm install -D tailwindcss@3.4.19
+```
+  </CodeTab>
+  <CodeTab name="bun">
+```bash
+bun add -d tailwindcss@3.4.19
+```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core';
@@ -51,9 +80,23 @@ export default config;
 
 This preset supports Tailwind CSS v4, utilizing `@tailwindcss/postcss`. It includes `autoprefixer`, `postcss-nested`, and `cssnano` by default. It also automatically handles `@reference` injection for `@apply` directives, making usage simpler in isolated component styles.
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
 ```bash
-bun add -D @tailwindcss/postcss tailwindcss
+pnpm add -D @tailwindcss/postcss tailwindcss
 ```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npm install -D @tailwindcss/postcss tailwindcss
+```
+  </CodeTab>
+  <CodeTab name="bun">
+```bash
+bun add -d @tailwindcss/postcss tailwindcss
+```
+  </CodeTab>
+</CodeSnippetTabs>
 
 ```typescript
 import path from 'node:path';

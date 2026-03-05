@@ -1,3 +1,4 @@
+import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
 import { DocsLayout } from '@/layouts/docs-layout';
 import { Banner } from '@/components/banner/banner.kita';
 
@@ -18,12 +19,26 @@ export const getMetadata = () => ({
 	<p>
 		Ecopages is currently in beta. The API may change before the stable release. <a href="https://github.com/ecopages/ecopages/tree/main/examples" target="_blank">Check out the examples.</a>
 	</p>
-	```bash
-	bunx degit ecopages/ecopages/examples/starter-jsx my-ecopages
-	```
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+```
+  </CodeTab>
+  <CodeTab name="bun">
+```bash
+bunx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+```
+  </CodeTab>
+</CodeSnippetTabs>
 </Banner>
 
-Ecopages is a **modern, basic** web framework built on [Bun](https://bun.sh/).
+Ecopages is a **modern, basic** web framework built on [Bun](https://bun.sh/) and supports Node.js.
 
 No virtual DOM. No complex state management. No framework-specific mental models. Just TypeScript and HTML.
 
@@ -176,9 +191,29 @@ Refer your AI agent to our [`llms.txt`](/llms.txt) file (found at the root of ou
 
 Ready to try Ecopages? Check out the [Installation Guide](/docs/getting-started/installation) to create your first project.
 
+<CodeSnippetTabs>
+  <CodeTab name="pnpm">
+```bash
+pnpm dlx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+cd my-ecopages
+pnpm install
+pnpm run dev
+```
+  </CodeTab>
+  <CodeTab name="npm">
+```bash
+npx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+cd my-ecopages
+npm install
+npm run dev
+```
+  </CodeTab>
+  <CodeTab name="bun">
 ```bash
 bunx degit ecopages/ecopages/examples/starter-jsx my-ecopages
 cd my-ecopages
 bun install
-bun run dev
+bun run dev # or npm/pnpm equivalent
 ```
+  </CodeTab>
+</CodeSnippetTabs>

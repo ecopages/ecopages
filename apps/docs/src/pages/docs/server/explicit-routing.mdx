@@ -221,8 +221,23 @@ app.post('/api/posts', async (ctx) => {
 | `body` | Request body (JSON) | `ctx.body` |
 | `query` | Query string parameters | `ctx.query` |
 | `headers` | Request headers | `ctx.headers` |
+| `params` | Route path parameters | `ctx.params` |
 
 These properties contain parsed data. When schemas are provided, they contain validated and type-safe data. For raw access, use `ctx.request.body`, `ctx.request.url`, and `ctx.request.headers`.
+
+### Path Params Validation
+
+```typescript
+app.get('/api/users/:id', async (ctx) => {
+	return ctx.json({ userId: ctx.params.id });
+}, {
+	schema: {
+		params: z.object({
+			id: z.string().uuid()
+		})
+	}
+});
+```
 
 ### Validation in Route Groups
 

@@ -215,8 +215,19 @@ export class DomSwapper {
 	}
 
 	/**
+	 * Detects custom elements without shadow DOM (light-DOM custom elements).
+	 * These need full replacement rather than morphing, because morphdom would
+	 * strip JS-generated content from their light DOM children.
+	 */
+	private isLightDomCustomElement(element: Element): boolean {
+		return element.localName.includes('-') && element.shadowRoot === null;
+	}
+
+	/**
 	 * Morphs document body using morphdom.
 	 * Preserves persisted elements and hydrated custom elements.
+	 * Light-DOM custom elements are fully replaced to trigger proper
+	 * disconnectedCallback → connectedCallback lifecycle.
 	 */
 	morphBody(newDocument: Document): void {
 		const persistAttr = this.persistAttribute;
@@ -227,6 +238,24 @@ export class DomSwapper {
 					return false;
 				}
 				if (isHydratedCustomElement(fromEl)) {
+					return false;
+				}
+
+				/**
+				 * Light-DOM custom elements (e.g. <radiant-code-tabs>) often
+				 * generate DOM in connectedCallback that doesn't exist in the
+				 * server-rendered HTML. Morphdom would diff those children away.
+				 * Instead, replace the element entirely so the browser fires
+				 * disconnectedCallback on the old instance and connectedCallback
+				 * on the fresh one.
+				 */
+				if (this.isLightDomCustomElement(fromEl)) {
+					const newEl = document.createElement(toEl.tagName);
+					for (const attr of toEl.attributes) {
+						newEl.setAttribute(attr.name, attr.value);
+					}
+					newEl.innerHTML = toEl.innerHTML;
+					fromEl.replaceWith(newEl);
 					return false;
 				}
 

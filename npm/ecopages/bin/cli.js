@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { join } from 'node:path';
 import tiged from 'tiged';
 import { Logger } from '@ecopages/logger';
 
@@ -13,36 +14,47 @@ const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url),
 
 program.name('ecopages').description('Ecopages CLI utilities').version(pkg.version);
 
+async function handleInit(dir, opts) {
+	const { template, repo } = opts;
+	const targetDir = dir;
+
+	if (existsSync(targetDir)) {
+		logger.error(`Target directory already exists: ${targetDir}`);
+		process.exit(1);
+	}
+
+	logger.info(`Creating target directory '${targetDir}'...`);
+
+	try {
+		const emitter = tiged(`${repo}/examples/${template}`, {
+			disableCache: true,
+			force: true,
+			verbose: false,
+		});
+
+		await emitter.clone(targetDir);
+
+		const pkgPath = join(targetDir, 'package.json');
+		if (existsSync(pkgPath)) {
+			const projectPkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+			projectPkg.name = dir;
+			writeFileSync(pkgPath, JSON.stringify(projectPkg, null, 2) + '\n');
+			logger.info(`Renamed project to '${dir}'`);
+		}
+
+		logger.info('Project initialized! Run `bun install && bun dev` to start.');
+	} catch (err) {
+		logger.error(`Failed to fetch template: ${err.message}`);
+		process.exit(1);
+	}
+}
+
 program
 	.command('init <dir>')
 	.description('Initialize a new project from a template')
 	.option('--template <name>', 'Template name from ecopages/examples/', 'starter-jsx')
 	.option('--repo <repo>', 'GitHub repo (user/repo)', 'ecopages/ecopages')
-	.action(async (dir, opts) => {
-		const { template, repo } = opts;
-		const targetDir = dir;
-
-		if (existsSync(targetDir)) {
-			logger.error(`Target directory already exists: ${targetDir}`);
-			process.exit(1);
-		}
-
-		logger.info(`Creating target directory '${targetDir}'...`);
-
-		try {
-			const emitter = tiged(`${repo}/examples/${template}`, {
-				disableCache: true,
-				force: true,
-				verbose: false,
-			});
-
-			await emitter.clone(targetDir);
-			logger.info('Project initialized! Run `bun install && bun dev` to start.');
-		} catch (err) {
-			logger.error(`Failed to fetch template: ${err.message}`);
-			process.exit(1);
-		}
-	});
+	.action(handleInit);
 
 /**
  * Build environment variables from CLI options

@@ -9,10 +9,10 @@ import Html from '@kitajs/html';
  */
 export const transformerEscapeHtml: ShikiTransformer = {
 	name: 'escape-html',
-	// Run after other transformers to escape the final content
+	/** Run after other transformers to escape the final content */
 	enforce: 'post',
 	span(node) {
-		// Escape HTML entities in text nodes within spans
+		/** Escape HTML entities in text nodes within spans */
 		escapeChildTextNodes(node);
 	},
 };

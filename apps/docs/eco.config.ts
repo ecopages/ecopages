@@ -9,6 +9,7 @@ import remarkGfm from 'remark-gfm';
 import rehypePrettyCode from 'rehype-pretty-code';
 import { rehypeSimpleTableWrapper } from './src/plugins/rehype-simple-table-wrapper';
 import { transformerEscapeHtml } from './src/plugins/transformer-escape-html';
+import { remarkEscapeInlineCodeHtml } from '@/plugins/remark-escape-inline-code-html';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
@@ -18,7 +19,7 @@ const config = await new ConfigBuilder()
 		mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
-				remarkPlugins: [remarkGfm],
+				remarkPlugins: [remarkGfm, remarkEscapeInlineCodeHtml],
 				rehypePlugins: [
 					[
 						rehypePrettyCode,

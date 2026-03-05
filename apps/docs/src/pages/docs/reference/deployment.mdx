@@ -19,7 +19,7 @@ Deploying an Ecopages application depends on whether you are using only static f
 Before deploying, you must create a production build. This processes your assets, pre-renders static pages, and prepares the `.eco` directory.
 
 ```bash
-bun run build
+pnpm run build
 ```
 
 This command will:
@@ -35,8 +35,8 @@ This command will:
 
 If your site **does not** use API routes or programmatic server logic, you can host the contents of the `.eco/public` (or similar output) directory on any static provider.
 
-- **Vercel / Netlify**: Connect your repository and set the build command to `bun run build`. Set the output directory to `.eco`.
-- **GitHub Pages**: Use a GitHub Action to run `bun run build` and deploy the output directory.
+- **Vercel / Netlify**: Connect your repository and set the build command to `pnpm run build`. Set the output directory to `.eco`.
+- **GitHub Pages**: Use a GitHub Action to run `pnpm run build` and deploy the output directory.
 
 <Banner type="info">
   **Base URL Configuration**
@@ -48,24 +48,24 @@ If your site **does not** use API routes or programmatic server logic, you can h
 
 ## Server Hosting (Node/Bun)
 
-If your application uses **API routes** or **dynamic server logic**, you need a runtime environment that supports Bun.
+If your application uses **API routes** or **dynamic server logic**, you need a runtime environment compatible with the adapter you configured (Bun or Node).
 
-### 1. Using `bun run start`
+### 1. Using `pnpm run start`
 After building, you can start the production server:
 
 ```bash
-bun run start
+pnpm run start
 ```
 
 ### 2. Docker Deployment
-You can easily containerize your Ecopages app using the official Bun image.
+You can easily containerize your Ecopages app using the official Bun image when using the Bun adapter.
 
 ```dockerfile
 FROM oven/bun:latest
 
 WORKDIR /app
 
-COPY package.json bun.lockb ./
+COPY package.json ./
 RUN bun install --production
 
 COPY . .

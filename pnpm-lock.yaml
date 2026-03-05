@@ -48,10 +48,6 @@ importers:
                 version: 4.0.18(@types/node@24.11.0)(@vitest/browser-playwright@4.0.18)(jiti@2.6.1)(lightningcss@1.31.1)(tsx@4.21.0)(yaml@2.8.2)
 
     apps/docs:
-        dependencies:
-            '@mdx-js/mdx':
-                specifier: ^3.1.1
-                version: 3.1.1
         devDependencies:
             '@ecopages/browser-router':
                 specifier: workspace:*
@@ -77,12 +73,21 @@ importers:
             '@kitajs/html':
                 specifier: ^4.2.13
                 version: 4.2.13
+            '@mdx-js/mdx':
+                specifier: ^3.1.1
+                version: 3.1.1
             '@rehype-pretty/transformers':
                 specifier: ^0.13.2
                 version: 0.13.2
             '@tailwindcss/postcss':
                 specifier: ^4.0.0
                 version: 4.2.1
+            '@types/hast':
+                specifier: ^3.0.4
+                version: 3.0.4
+            '@types/mdast':
+                specifier: ^4.0.4
+                version: 4.0.4
             react:
                 specifier: ^19.2.4
                 version: 19.2.4
@@ -218,7 +223,7 @@ importers:
         dependencies:
             '@ecopages/logger':
                 specifier: ^0.2.2
-                version: 0.2.2(typescript@5.9.3)
+                version: 0.2.3(typescript@5.9.3)
             bun-types:
                 specifier: '*'
                 version: 1.3.10
@@ -240,10 +245,6 @@ importers:
             morphdom:
                 specifier: ^2.7.8
                 version: 2.7.8
-        devDependencies:
-            '@types/morphdom':
-                specifier: ^2.4.2
-                version: 2.4.2
 
     packages/codemod:
         dependencies:
@@ -268,7 +269,7 @@ importers:
                 version: link:../file-system
             '@ecopages/logger':
                 specifier: latest
-                version: 0.2.2(typescript@5.9.3)
+                version: 0.2.3(typescript@5.9.3)
             '@ecopages/scripts-injector':
                 specifier: ^0.1.3
                 version: 0.1.5(typescript@5.9.3)
@@ -385,7 +386,7 @@ importers:
                 version: link:../../file-system
             '@ecopages/logger':
                 specifier: ^0.2.2
-                version: 0.2.2(typescript@5.9.3)
+                version: 0.2.3(typescript@5.9.3)
             '@kitajs/html':
                 specifier: ^4.1.0
                 version: 4.2.13
@@ -422,7 +423,7 @@ importers:
                 version: link:../../file-system
             '@ecopages/logger':
                 specifier: latest
-                version: 0.2.2(typescript@5.9.3)
+                version: 0.2.3(typescript@5.9.3)
             '@mdx-js/esbuild':
                 specifier: ^3.0.1
                 version: 3.1.1(esbuild@0.27.3)
@@ -485,7 +486,7 @@ importers:
         devDependencies:
             '@ecopages/logger':
                 specifier: latest
-                version: 0.2.2(typescript@5.9.3)
+                version: 0.2.3(typescript@5.9.3)
             '@ecopages/postcss-processor':
                 specifier: workspace:*
                 version: link:../../processors/postcss-processor
@@ -506,7 +507,7 @@ importers:
                 version: link:../../file-system
             '@ecopages/logger':
                 specifier: latest
-                version: 0.2.2(typescript@5.9.3)
+                version: 0.2.3(typescript@5.9.3)
             react:
                 specifier: ^19
                 version: 19.2.4
@@ -534,7 +535,7 @@ importers:
                 version: link:../../file-system
             '@ecopages/logger':
                 specifier: latest
-                version: 0.2.2(typescript@5.9.3)
+                version: 0.2.3(typescript@5.9.3)
             autoprefixer:
                 specifier: ^10.4.0
                 version: 10.4.27(postcss@8.5.8)
@@ -1409,10 +1410,10 @@ packages:
                 integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==,
             }
 
-    '@ecopages/logger@0.2.2':
+    '@ecopages/logger@0.2.3':
         resolution:
             {
-                integrity: sha512-h3zSN/Kn/U8LjHS/R5KgiEl2joLpa9LwmU3OSyfRNpIUTfveQy+dVnj71v3hfVRlHjDXm+0/yERH7G2xLpgEAQ==,
+                integrity: sha512-Hkt5H9Kzv6y07aiPZPaDkJ6/Bp7+Aen5ZFuI5zQ6ON7PyeuVu1lMiQy9pL+9Wm8yeO3wnMO44Jmph84Cc0X0lQ==,
             }
         peerDependencies:
             typescript: ^5.0.0
@@ -5070,13 +5071,6 @@ packages:
                 integrity: sha512-+OWZQfAYyio6YkJb3HLxDrvnx6SWWDbC0zVPfBRzUk0/nqoDyf6dNxQi3eArPe8rJ473nobTMQ/8Zk+LxJ+Yuw==,
             }
 
-    '@types/morphdom@2.4.2':
-        resolution:
-            {
-                integrity: sha512-tKZZkqBzRJ1ucthVqr41rW2yvTO5ItYTp5I1vc30t06OsRmZTP+TprYa5S6VHdQEuMbnAxR5WXtFmOZ2FIhc/g==,
-            }
-        deprecated: This is a stub types definition. morphdom provides its own type definitions, so you do not need this installed.
-
     '@types/ms@2.1.0':
         resolution:
             {
@@ -6310,10 +6304,10 @@ packages:
             }
         engines: { node: '>=6' }
 
-    flow-parser@0.303.0:
+    flow-parser@0.304.0:
         resolution:
             {
-                integrity: sha512-SGifrPA0IQqN4S3MFZ3KPqphxWd+VehHEwpQPEjWQGtJSnPsFakrlqNQH88MLyJGi/Z7WO15FMylybGONwqwxA==,
+                integrity: sha512-JjHRBxQX5b5pAn0nwr/U29U+uodOQzIyAKRAFEaXpB2BUkNyW76IRRD0eCEKvZGj23sJ+zDyPuwGGRGNwWW5vQ==,
             }
         engines: { node: '>=0.4.0' }
 
@@ -6731,10 +6725,10 @@ packages:
             }
         hasBin: true
 
-    jose@6.1.3:
+    jose@6.2.0:
         resolution:
             {
-                integrity: sha512-0TpaTfihd4QMNwrz/ob2Bp7X04yuxJkjRGi4aKmOqwhov54i6u79oCv7T+C7lo70MKH6BesI3vscD1yb/yzKXQ==,
+                integrity: sha512-xsfE1TcSCbUdo6U07tR0mvhg0flGxU8tPLbF03mirl2ukGQENhUg4ubGYQnhVH0b5stLlPM+WOqDkEl1R1y5sQ==,
             }
 
     js-tokens@4.0.0:
@@ -9549,31 +9543,31 @@ snapshots:
             '@babel/helper-string-parser': 7.27.1
             '@babel/helper-validator-identifier': 7.28.5
 
-    '@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1)':
+    '@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1)':
         dependencies:
             '@better-auth/utils': 0.3.1
             '@better-fetch/fetch': 1.1.21
             '@standard-schema/spec': 1.1.0
             better-call: 1.3.2(zod@4.3.6)
-            jose: 6.1.3
+            jose: 6.2.0
             kysely: 0.28.11
             nanostores: 1.1.1
             zod: 4.3.6
 
-    '@better-auth/kysely-adapter@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(kysely@0.28.11)':
+    '@better-auth/kysely-adapter@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(kysely@0.28.11)':
         dependencies:
-            '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1)
+            '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1)
             '@better-auth/utils': 0.3.1
             kysely: 0.28.11
 
-    '@better-auth/memory-adapter@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)':
+    '@better-auth/memory-adapter@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)':
         dependencies:
-            '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1)
+            '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1)
             '@better-auth/utils': 0.3.1
 
-    '@better-auth/telemetry@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1))':
+    '@better-auth/telemetry@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))':
         dependencies:
-            '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1)
+            '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1)
             '@better-auth/utils': 0.3.1
             '@better-fetch/fetch': 1.1.21
 
@@ -9629,7 +9623,7 @@ snapshots:
 
     '@drizzle-team/brocli@0.10.2': {}
 
-    '@ecopages/logger@0.2.2(typescript@5.9.3)':
+    '@ecopages/logger@0.2.3(typescript@5.9.3)':
         dependencies:
             typescript: 5.9.3
 
@@ -11913,10 +11907,6 @@ snapshots:
 
     '@types/mdx@2.0.13': {}
 
-    '@types/morphdom@2.4.2':
-        dependencies:
-            morphdom: 2.7.8
-
     '@types/ms@2.1.0': {}
 
     '@types/node@16.18.126': {}
@@ -12096,17 +12086,17 @@ snapshots:
 
     better-auth@1.5.3(drizzle-kit@0.31.9)(drizzle-orm@0.45.1(bun-types@1.3.10)(kysely@0.28.11))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@4.0.18):
         dependencies:
-            '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1)
-            '@better-auth/kysely-adapter': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(kysely@0.28.11)
-            '@better-auth/memory-adapter': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)
-            '@better-auth/telemetry': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.1))
+            '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1)
+            '@better-auth/kysely-adapter': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(kysely@0.28.11)
+            '@better-auth/memory-adapter': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)
+            '@better-auth/telemetry': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))
             '@better-auth/utils': 0.3.1
             '@better-fetch/fetch': 1.1.21
             '@noble/ciphers': 2.1.1
             '@noble/hashes': 2.0.1
             better-call: 1.3.2(zod@4.3.6)
             defu: 6.1.4
-            jose: 6.1.3
+            jose: 6.2.0
             kysely: 0.28.11
             nanostores: 1.1.1
             zod: 4.3.6
@@ -12664,7 +12654,7 @@ snapshots:
         dependencies:
             locate-path: 3.0.0
 
-    flow-parser@0.303.0: {}
+    flow-parser@0.304.0: {}
 
     formdata-polyfill@4.0.10:
         dependencies:
@@ -12942,7 +12932,7 @@ snapshots:
 
     jiti@2.6.1: {}
 
-    jose@6.1.3: {}
+    jose@6.2.0: {}
 
     js-tokens@4.0.0: {}
 
@@ -12958,7 +12948,7 @@ snapshots:
             '@babel/preset-flow': 7.27.1(@babel/core@7.29.0)
             '@babel/preset-typescript': 7.28.5(@babel/core@7.29.0)
             '@babel/register': 7.28.6(@babel/core@7.29.0)
-            flow-parser: 0.303.0
+            flow-parser: 0.304.0
             graceful-fs: 4.2.11
             micromatch: 4.0.8
             neo-async: 2.6.2

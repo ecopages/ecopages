@@ -24,10 +24,18 @@ export default eco.page({
 					<span data-cross-child="react-entry">react-entry-nested-child</span>
 				</LitShell>
 			</KitaShell>
-			<ReactMdxBlock />
-			<KitaCounter />
-			<LitCounter />
-			<ReactCounter />
+
+			<section>
+				<h2>MDX</h2>
+				<ReactMdxBlock />
+			</section>
+
+			<section>
+				<h2>Counters</h2>
+				<KitaCounter />
+				<LitCounter />
+				<ReactCounter />
+			</section>
 		</main>
 	),
 });

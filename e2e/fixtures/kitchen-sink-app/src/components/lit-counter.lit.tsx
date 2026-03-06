@@ -1,17 +1,11 @@
 import { eco } from '@ecopages/core';
 import type { EcoPagesElement } from '@ecopages/core';
+import type { LitCounterProps } from './lit-counter.script';
 
-export const LitCounter = eco.component<{}, EcoPagesElement>({
+export const LitCounter = eco.component<LitCounterProps, EcoPagesElement>({
 	integration: 'lit',
 	dependencies: {
 		scripts: ['./lit-counter.script.ts'],
 	},
-	render: () => (
-		<div data-lit-counter>
-			<button type="button" data-lit-inc>
-				+
-			</button>
-			<span data-lit-value>0</span>
-		</div>
-	),
+	render: ({ count = 0 }) => <lit-counter count={count}></lit-counter>,
 });

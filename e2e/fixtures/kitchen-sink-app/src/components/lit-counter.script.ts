@@ -1,20 +1,35 @@
-function bindLitCounter() {
-	const root = document.querySelector('[data-lit-counter]');
-	if (!root || root.getAttribute('data-bound') === 'true') {
-		return;
+import { html, LitElement } from 'lit';
+import { customElement, property } from 'lit/decorators.js';
+
+export type LitCounterProps = {
+	count?: number;
+};
+
+@customElement('lit-counter')
+export class LitCounter extends LitElement {
+	@property({ type: Number }) declare count: number;
+
+	constructor() {
+		super();
+		this.count = 0;
 	}
 
-	root.setAttribute('data-bound', 'true');
-	const value = root.querySelector('[data-lit-value]');
-	const inc = root.querySelector('[data-lit-inc]');
-	if (!value || !inc) {
-		return;
-	}
+	increment = () => {
+		this.count++;
+	};
 
-	inc.addEventListener('click', () => {
-		const next = Number(value.textContent ?? '0') + 1;
-		value.textContent = String(next);
-	});
+	render() {
+		return html`
+			<button type="button" data-lit-inc @click=${this.increment}>+</button>
+			<span data-lit-value>${this.count}</span>
+		`;
+	}
 }
 
-queueMicrotask(bindLitCounter);
+declare global {
+	namespace JSX {
+		interface IntrinsicElements {
+			'lit-counter': HtmlTag & LitCounterProps;
+		}
+	}
+}

@@ -77,6 +77,12 @@ Default behavior:
 - marker-graph component orchestration + component render artifacts.
 - global lazy trigger map + global injector bootstrap.
 
+Global injector lifecycle notes:
+
+- The bootstrap remains active across client-side navigations.
+- On `eco:after-swap`, it prunes stale `ecopages/global-injector-map` scripts and calls `refresh()` so newly swapped `data-eco-trigger` elements can bind their lazy rules.
+- It must not call injector `cleanup()` on every swap, because that permanently disables future refresh work for the current runtime instance.
+
 ## Current Component Artifact Contract
 
 Integration `renderComponent()` returns `ComponentRenderResult` with:
@@ -108,6 +114,8 @@ This enables island-style hydration assets (for example React/Lit/Kita integrati
 - React component-level islands are emitted without synthetic wrapper elements.
 - The React integration attaches `data-eco-component-id` on the component's own SSR root element when a single root is available.
 - Island client bootstrap mounts with `createRoot()` into that root boundary.
+- The emitted hydration bootstrap also listens for `eco:after-swap` so islands hydrate correctly when their SSR markup appears after client-side navigation.
+- React hydration bootstraps are emitted with `data-eco-rerun` and stable `data-eco-script-id` metadata so head-script reconciliation can safely re-execute them when needed.
 - This keeps authored DOM shape stable for global layout/style selectors while preserving per-island runtime isolation.
 
 ## Output Pipeline (High-Level)

@@ -16,6 +16,8 @@ This package works with MPA-style rendering (KitaJS, Lit, vanilla JS) where the 
 
 **Not compatible with React/Preact** - These frameworks manage their own virtual DOM and component trees. Replacing the DOM breaks hydration, state, and event handlers. For React apps, use a framework-specific routing solution.
 
+Component-level islands are a narrower case: small interactive roots emitted by another integration (for example a React island inside an otherwise MPA-style page) can work with `@ecopages/browser-router`, because ownership stays scoped to the island root instead of the full document.
+
 ## Installation
 
 ```bash
@@ -77,6 +79,16 @@ To force a script to re-execute on every navigation (e.g. analytics, hydration),
 	trackPageview();
 </script>
 ```
+
+### React islands with `@ecopages/browser-router`
+
+When `@ecopages/browser-router` is used in an MPA-style app that also renders component-level React islands:
+
+- island hydration scripts may need to run again after `eco:after-swap`
+- hydration bootstraps should carry stable `data-eco-script-id` metadata
+- `data-eco-rerun` allows those bootstraps to be re-executed safely during head reconciliation
+
+This note is specific to DOM-swapping navigation with `@ecopages/browser-router`. It does **not** apply to full React applications using [@ecopages/react-router](../react-router/README.md), where page routing and hydration are handled by the React router runtime itself.
 
 ## Force Full Reload
 

@@ -61,3 +61,5 @@ Current behavior:
 - Component assets are emitted through the shared dependency pipeline and deduplicated with other integrations.
 
 This design preserves global CSS/layout selectors while keeping runtime ownership isolated per island instance.
+
+For full React pages with client-side navigation, prefer [@ecopages/react-router](../react-router/README.md), where routing and hydration are handled by the React-specific runtime.

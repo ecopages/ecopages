@@ -277,6 +277,7 @@ export function createIslandHydrationScript(options: IslandHydrationScriptOption
 	const serializedProps = JSON.stringify(options.props ?? {});
 	const componentRef = JSON.stringify(options.componentRef ?? '');
 	const componentFile = JSON.stringify(options.componentFile ?? '');
+	const mountedAttribute = 'data-eco-react-mounted';
 
 	if (options.isDevelopment) {
 		return `
@@ -312,15 +313,26 @@ const resolveComponent = () => {
   return typeof firstFunction === "function" ? firstFunction : null;
 };
 
-const target = document.querySelector(${targetSelector});
-const Component = resolveComponent();
-if (target && Component) {
+const mount = () => {
+  const target = document.querySelector(${targetSelector});
+  const Component = resolveComponent();
+  if (!target || !Component || target.hasAttribute("${mountedAttribute}")) {
+    return;
+  }
   const props = ${serializedProps};
+  target.setAttribute("${mountedAttribute}", "true");
   const root = createRoot(target);
   root.render(createElement(Component, props));
+};
+
+document.addEventListener("eco:after-swap", mount);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", mount, { once: true });
+} else {
+  mount();
 }
 `.trim();
 	}
 
-	return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const t=document.querySelector(${targetSelector});if(t&&c){const p=${serializedProps};cr(t).render(ce(c,p))}`;
+	return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const m=()=>{const t=document.querySelector(${targetSelector});if(!t||!c||t.hasAttribute("${mountedAttribute}"))return;const p=${serializedProps};t.setAttribute("${mountedAttribute}","true");cr(t).render(ce(c,p))};document.addEventListener("eco:after-swap",m);document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m,{once:true}):m()`;
 }

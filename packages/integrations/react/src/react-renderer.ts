@@ -200,6 +200,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				attributes: {
 					type: 'module',
 					defer: '',
+					'data-eco-rerun': 'true',
+					'data-eco-script-id': `${componentName}-hydration`,
 					'data-eco-persist': 'true',
 				},
 			}),
@@ -423,6 +425,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				attributes: {
 					type: 'module',
 					defer: '',
+					'data-eco-rerun': 'true',
+					'data-eco-script-id': `${componentName}-hydration`,
 					'data-eco-persist': 'true',
 				},
 			}),

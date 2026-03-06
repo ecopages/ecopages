@@ -97,21 +97,15 @@ if (typeof globalScope.__ecoGlobalInjectorCleanup === 'function') {
 
 const injector = initGlobalInjector();
 
-const handleBeforeSwap = () => {
-	injector.cleanup();
-};
-
 const handleAfterSwap = () => {
 	pruneStaleTriggerMaps();
 	injector.refresh();
 };
 
-document.addEventListener('eco:before-swap', handleBeforeSwap);
 document.addEventListener('eco:after-swap', handleAfterSwap);
 pruneStaleTriggerMaps();
 
 globalScope.__ecoGlobalInjectorCleanup = () => {
-	document.removeEventListener('eco:before-swap', handleBeforeSwap);
 	document.removeEventListener('eco:after-swap', handleAfterSwap);
 	injector.cleanup();
 };`;

@@ -1,12 +1,11 @@
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, RouteKind, Routes } from '../internal-types.ts';
 import type { EcoPageFile, GetStaticPaths } from '../public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { invariant } from '../utils/invariant.ts';
 import { existsSync } from 'node:fs';
-import { defaultBuildAdapter } from '../build/build-adapter.ts';
+import { PageModuleImportService } from '../services/page-module-import.service.ts';
 
 type CreateRouteArgs = {
 	routePath: string;
@@ -36,6 +35,7 @@ export class FSRouterScanner {
 	private options: FSRouterScannerOptions;
 	private appConfig: EcoPagesAppConfig;
 	routes: Routes = {};
+	private pageModuleImportService = new PageModuleImportService();
 
 	constructor({
 		dir,
@@ -143,50 +143,14 @@ export class FSRouterScanner {
 	}
 
 	private async importPageModule(filePath: string): Promise<unknown> {
-		if (typeof Bun !== 'undefined') {
-			const moduleUrl = pathToFileURL(filePath);
-
-			if (process.env.NODE_ENV === 'development') {
-				moduleUrl.searchParams.set('update', `${Date.now()}`);
-			}
-
-			return await import(moduleUrl.href);
-		}
-
-		const outdir = path.join(this.appConfig.absolutePaths.distDir, '.server-route-modules');
-		const fileBaseName = path.basename(filePath, path.extname(filePath));
-		const fileHash = fileSystem.hash(filePath);
-		const cacheBuster = process.env.NODE_ENV === 'development' ? `-${Date.now()}` : '';
-		const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
-
-		const buildResult = await defaultBuildAdapter.build({
-			entrypoints: [filePath],
-			root: this.appConfig.rootDir,
-			outdir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
+		return this.pageModuleImportService.importModule({
+			filePath,
+			rootDir: this.appConfig.rootDir,
+			outdir: path.join(this.appConfig.absolutePaths.distDir, '.server-route-modules'),
 			externalPackages: false,
-			minify: false,
-			naming: outputFileName,
+			transpileErrorMessage: (details) => `Error transpiling route module: ${details}`,
+			noOutputMessage: (targetFilePath) => `No transpiled output generated for route module: ${targetFilePath}`,
 		});
-
-		if (!buildResult.success) {
-			const details = buildResult.logs.map((log) => log.message).join(' | ');
-			throw new Error(`Error transpiling route module: ${details}`);
-		}
-
-		const preferredOutputPath = path.join(outdir, outputFileName);
-		const compiledOutput =
-			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
-			buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
-
-		if (!compiledOutput) {
-			throw new Error(`No transpiled output generated for route module: ${filePath}`);
-		}
-
-		return await import(pathToFileURL(compiledOutput).href);
 	}
 
 	private createRoute(kind: RouteKind, { filePath, route, routePath }: CreateRouteArgs): void {

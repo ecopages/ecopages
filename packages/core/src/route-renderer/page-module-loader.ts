@@ -1,7 +1,3 @@
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { defaultBuildAdapter } from '../build/build-adapter.ts';
-import { fileSystem } from '@ecopages/file-system';
 import { invariant } from '../utils/invariant.ts';
 import type {
 	EcoPageFile,
@@ -13,62 +9,34 @@ import type {
 	EcoPageComponent,
 } from '../public-types.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
+import { PageModuleImportService } from '../services/page-module-import.service.ts';
 
 /**
  * Handles page module loading plus static props/metadata resolution.
  */
 export class PageModuleLoaderService {
+	private pageModuleImportService: PageModuleImportService;
+
 	constructor(
 		private appConfig: EcoPagesAppConfig,
 		private runtimeOrigin: string,
-	) {}
+	) {
+		this.pageModuleImportService = new PageModuleImportService();
+	}
 
 	/**
 	 * Imports a page module from source.
 	 * Uses direct dynamic import in Bun and transpile+import fallback for other runtimes.
 	 */
 	async importPageFile(file: string): Promise<EcoPageFile> {
-		if (typeof Bun !== 'undefined') {
-			try {
-				const query = process.env.NODE_ENV === 'development' ? `?update=${Date.now()}` : '';
-				return await import(file + query);
-			} catch (error) {
-				invariant(false, `Error importing page file: ${error}`);
-			}
-		}
-
 		try {
-			const outdir = path.join(this.appConfig.absolutePaths.distDir, '.server-modules');
-			const fileBaseName = path.basename(file, path.extname(file));
-			const fileHash = fileSystem.hash(file);
-			const cacheBuster = process.env.NODE_ENV === 'development' ? `-${Date.now()}` : '';
-			const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
-
-			const buildResult = await defaultBuildAdapter.build({
-				entrypoints: [file],
-				root: this.appConfig.rootDir,
-				outdir,
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				naming: outputFileName,
+			return await this.pageModuleImportService.importModule<EcoPageFile>({
+				filePath: file,
+				rootDir: this.appConfig.rootDir,
+				outdir: `${this.appConfig.absolutePaths.distDir}/.server-modules`,
+				transpileErrorMessage: (details) => `Error transpiling page file: ${details}`,
+				noOutputMessage: (targetFilePath) => `No transpiled output generated for page: ${targetFilePath}`,
 			});
-
-			if (!buildResult.success) {
-				const details = buildResult.logs.map((log) => log.message).join(' | ');
-				invariant(false, `Error transpiling page file: ${details}`);
-			}
-
-			const preferredOutputPath = path.join(outdir, outputFileName);
-			const compiledOutput =
-				buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
-				buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
-
-			invariant(!!compiledOutput, `No transpiled output generated for page: ${file}`);
-
-			return await import(pathToFileURL(compiledOutput).href);
 		} catch (error) {
 			invariant(false, `Error importing page file: ${error}`);
 		}

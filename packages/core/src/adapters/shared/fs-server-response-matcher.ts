@@ -1,14 +1,13 @@
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { fileSystem } from '@ecopages/file-system';
-import { defaultBuildAdapter } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
 import type { MatchResult } from '../../internal-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../../router/fs-router.ts';
-import { getCacheControlHeader, type PageCacheService } from '../../services/cache/page-cache-service.ts';
+import type { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from '../../services/cache/cache.types.ts';
+import { PageModuleImportService } from '../../services/page-module-import.service.ts';
+import { PageRequestCacheCoordinator } from '../../services/page-request-cache-coordinator.service.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
 import type { ApiHandlerContext, Middleware, RequestLocals } from '../../public-types.ts';
 import { ApiResponseBuilder } from './api-response.js';
@@ -39,7 +38,8 @@ export class FileSystemResponseMatcher {
 	private routeRendererFactory: RouteRendererFactory;
 	private fileSystemResponseFactory: FileSystemServerResponseFactory;
 	private cacheService: PageCacheService | null;
-	private defaultCacheStrategy: CacheStrategy;
+	private pageModuleImportService: PageModuleImportService;
+	private pageRequestCacheCoordinator: PageRequestCacheCoordinator;
 
 	constructor({
 		router,
@@ -52,7 +52,8 @@ export class FileSystemResponseMatcher {
 		this.routeRendererFactory = routeRendererFactory;
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
 		this.cacheService = cacheService;
-		this.defaultCacheStrategy = defaultCacheStrategy;
+		this.pageModuleImportService = new PageModuleImportService();
+		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy);
 	}
 
 	async handleNoMatch(requestUrl: string): Promise<Response> {
@@ -73,36 +74,8 @@ export class FileSystemResponseMatcher {
 	 * Build the full cache key from match result.
 	 * Includes pathname and query string for proper cache isolation.
 	 */
-	private buildCacheKey(match: MatchResult): string {
-		let key = match.pathname;
-		if (match.query && Object.keys(match.query).length > 0) {
-			const queryString = new URLSearchParams(match.query).toString();
-			key += `?${queryString}`;
-		}
-		return key;
-	}
-
 	async handleMatch(match: MatchResult, request?: Request): Promise<Response> {
-		const cacheKey = this.buildCacheKey(match);
-
-		/**
-		 * Convert body (which may be Buffer, ReadableStream, etc.) to string for caching.
-		 */
-		const bodyToString = async (body: unknown): Promise<string> => {
-			if (typeof body === 'string') {
-				return body;
-			}
-			if (Buffer.isBuffer(body)) {
-				return body.toString('utf-8');
-			}
-			if (body instanceof ReadableStream) {
-				return new Response(body).text();
-			}
-			if (body instanceof Uint8Array) {
-				return new TextDecoder().decode(body);
-			}
-			return String(body);
-		};
+		const cacheKey = this.pageRequestCacheCoordinator.buildCacheKey(match);
 
 		try {
 			const resolvedRequest =
@@ -115,7 +88,8 @@ export class FileSystemResponseMatcher {
 			const pageModule = await this.importPageModule(match.filePath);
 			const Page = (pageModule as any)?.default;
 			const pageMiddleware = (Page?.middleware ?? []) as Middleware[];
-			const pageCacheStrategy = (Page?.cache as CacheStrategy | undefined) ?? this.defaultCacheStrategy;
+			const pageCacheStrategy =
+				(Page?.cache as CacheStrategy | undefined) ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
 			const localsForRender: RequestLocals | undefined =
 				pageCacheStrategy === 'dynamic' ? localsStore : undefined;
 
@@ -164,8 +138,8 @@ export class FileSystemResponseMatcher {
 					query: match.query,
 					locals: localsForRender,
 				});
-				const html = await bodyToString(result.body);
-				const strategy = result.cacheStrategy ?? this.defaultCacheStrategy;
+				const html = await this.pageRequestCacheCoordinator.bodyToString(result.body);
+				const strategy = result.cacheStrategy ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
 				return { html, strategy };
 			};
 
@@ -180,13 +154,11 @@ export class FileSystemResponseMatcher {
 			 * Pages with `cache: 'static'` use the cache service normally.
 			 */
 			const renderResponse = async (): Promise<Response> => {
-				if (!this.cacheService || pageCacheStrategy === 'dynamic') {
-					const { html, strategy } = await renderFn();
-					return this.createCachedResponse(html, strategy, 'disabled');
-				}
-
-				const result = await this.cacheService.getOrCreate(cacheKey, pageCacheStrategy, renderFn);
-				return this.createCachedResponse(result.html, result.strategy, result.status);
+				return this.pageRequestCacheCoordinator.render({
+					cacheKey,
+					pageCacheStrategy,
+					renderFn,
+				});
 			};
 
 			if (pageMiddleware.length === 0) {
@@ -223,72 +195,19 @@ export class FileSystemResponseMatcher {
 	}
 
 	private async importPageModule(filePath: string): Promise<unknown> {
-		if (typeof Bun !== 'undefined') {
-			const moduleUrl = pathToFileURL(filePath);
-
-			if (process.env.NODE_ENV === 'development') {
-				moduleUrl.searchParams.set('update', `${Date.now()}`);
-			}
-
-			return await import(moduleUrl.href);
-		}
-
-		const outdir = path.join(this.router.assetPrefix, '.server-modules-meta');
-		const fileBaseName = path.basename(filePath, path.extname(filePath));
-		const fileHash = fileSystem.hash(filePath);
-		const cacheBuster = process.env.NODE_ENV === 'development' ? `-${Date.now()}` : '';
-		const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
-
-		const buildResult = await defaultBuildAdapter.build({
-			entrypoints: [filePath],
-			root: path.dirname(this.router.assetPrefix),
-			outdir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			naming: outputFileName,
+		return this.pageModuleImportService.importModule({
+			filePath,
+			rootDir: path.dirname(this.router.assetPrefix),
+			outdir: path.join(this.router.assetPrefix, '.server-modules-meta'),
+			transpileErrorMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.transpilePageModuleFailed,
+			noOutputMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.noTranspiledOutputForPageModule,
 		});
-
-		if (!buildResult.success) {
-			const details = buildResult.logs.map((log) => log.message).join(' | ');
-			throw new Error(FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.transpilePageModuleFailed(details));
-		}
-
-		const preferredOutputPath = path.join(outdir, outputFileName);
-		const compiledOutput =
-			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
-			buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
-
-		if (!compiledOutput) {
-			throw new Error(FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.noTranspiledOutputForPageModule(filePath));
-		}
-
-		return await import(pathToFileURL(compiledOutput).href);
-	}
-
-	/**
-	 * Create a response with appropriate cache headers.
-	 */
-	private createCachedResponse(
-		html: string,
-		strategy: CacheStrategy,
-		cacheStatus: 'hit' | 'miss' | 'stale' | 'expired' | 'disabled',
-	): Response {
-		const headers: HeadersInit = {
-			'Content-Type': 'text/html',
-			'Cache-Control': getCacheControlHeader(cacheStatus === 'disabled' ? 'disabled' : strategy),
-			'X-Cache': cacheStatus.toUpperCase(),
-		};
-
-		return new Response(html, { headers });
 	}
 
 	/**
 	 * Get the underlying cache service for external invalidation.
 	 */
 	getCacheService(): PageCacheService | null {
-		return this.cacheService;
+		return this.pageRequestCacheCoordinator.getCacheService();
 	}
 }

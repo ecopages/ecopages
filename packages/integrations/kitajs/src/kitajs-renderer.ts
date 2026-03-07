@@ -14,6 +14,12 @@ import type {
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { PLUGIN_NAME } from './kitajs.plugin.ts';
 
+/** Narrows an EcoComponent to its KitaJS callable signature. */
+type KitaViewFn<P> = (props: P) => Promise<EcoPagesElement> | EcoPagesElement;
+
+/** KitaJS layout function signature. */
+type KitaLayoutFn = (props: { children: EcoPagesElement } & Record<string, unknown>) => Promise<EcoPagesElement>;
+
 /**
  * A renderer for the Kita.js integration.
  * It renders a page using the HtmlTemplate and Page components.
@@ -27,9 +33,7 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * Includes component-scoped dependency assets when declared.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		const component = input.component as (
-			props: Record<string, unknown>,
-		) => Promise<EcoPagesElement> | EcoPagesElement;
+		const component = input.component as KitaViewFn<Record<string, unknown>>;
 		const props = input.children === undefined ? input.props : { ...input.props, children: input.children };
 		const content = await component(props);
 		const html = String(content);
@@ -82,11 +86,9 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
-			const Layout = view.config?.layout as
-				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => Promise<EcoPagesElement>)
-				| undefined;
+			const Layout = view.config?.layout as KitaLayoutFn | undefined;
 
-			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
+			const viewFn = view as KitaViewFn<P>;
 			const pageContent = await viewFn(props);
 
 			if (ctx.partial) {
@@ -111,7 +113,7 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 				(await HtmlTemplate({
 					metadata,
 					pageProps: props as Record<string, unknown>,
-					children: children as EcoPagesElement,
+					children: children ?? '',
 				}));
 
 			const transformedResponse = await this.htmlTransformer.transform(
@@ -120,7 +122,7 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 				}),
 			);
 
-			return this.createHtmlResponse(transformedResponse.body as BodyInit, ctx);
+			return this.createHtmlResponse(transformedResponse.body ?? '', ctx);
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
 		}

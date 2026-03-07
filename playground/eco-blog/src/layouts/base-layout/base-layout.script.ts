@@ -1,1 +1,0 @@
-import '@ecopages/scripts-injector';

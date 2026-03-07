@@ -1,7 +1,7 @@
 import type { EcoBuildPlugin } from '../build/build-types';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types';
 import type { HmrStrategy } from '../hmr/hmr-strategy';
-import type { EcoPagesElement } from '../public-types';
+import type { EcoComponent, EcoPagesElement } from '../public-types';
 import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
 import { AssetProcessingService } from '../services/asset-processing-service/asset-processing.service';
 import type { AssetDefinition, ProcessedAsset } from '../services/asset-processing-service/assets.types';
@@ -34,6 +34,18 @@ export interface IntegrationPluginConfig {
 	 */
 	staticBuildStep?: 'render' | 'fetch';
 }
+
+/**
+ * Metadata used by integration-owned boundary policy.
+ *
+ * This payload describes the currently active integration pass together with the
+ * target component boundary being entered.
+ */
+export type ComponentBoundaryPolicyInput = {
+	currentIntegration: string;
+	targetIntegration?: string;
+	component: EcoComponent;
+};
 
 type RendererClass<C> = new (options: {
 	appConfig: EcoPagesAppConfig;
@@ -140,6 +152,21 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		}
 
 		return renderer;
+	}
+
+	/**
+	 * Declares whether a component boundary targeting this integration should be
+	 * deferred through the marker pipeline.
+	 *
+	 * The default implementation never defers. Integrations that require deferred
+	 * subtree rendering should override this method and return `true` when their
+	 * boundary must be resolved during the marker graph stage.
+	 *
+	 * @param input Boundary metadata for the current render pass.
+	 * @returns `true` when the boundary should be deferred; otherwise `false`.
+	 */
+	shouldDeferComponentBoundary(_input: ComponentBoundaryPolicyInput): boolean {
+		return false;
 	}
 
 	async setup(): Promise<void> {

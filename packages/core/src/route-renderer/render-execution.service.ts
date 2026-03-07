@@ -1,5 +1,6 @@
 import {
 	runWithComponentRenderContext,
+	type ComponentRenderBoundaryContext,
 	type ComponentGraphContext as CapturedComponentGraphContext,
 } from '../eco/component-render-context.ts';
 import type {
@@ -24,6 +25,7 @@ export type RenderExecutionGraphContext = {
 export interface RenderExecutionCallbacks<C> {
 	prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions<C>>;
 	render(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
+	getComponentRenderBoundaryContext(): ComponentRenderBoundaryContext;
 	resolveMarkerGraphHtml(input: {
 		html: string;
 		componentsToResolve: EcoComponent[];
@@ -69,6 +71,7 @@ export class RenderExecutionService {
 		const renderExecution = await runWithComponentRenderContext(
 			{
 				currentIntegration: currentIntegrationName,
+				boundaryContext: callbacks.getComponentRenderBoundaryContext(),
 			},
 			async () => callbacks.render(renderOptions),
 		);

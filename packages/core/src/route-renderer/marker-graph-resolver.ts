@@ -41,6 +41,11 @@ export interface MarkerGraphResolverOptions {
  * component rendering. It builds a component reference registry, constructs a
  * deterministic marker DAG, resolves leaf nodes before parents, and collects any
  * component-level assets emitted during that process.
+ *
+ * Responsibility split:
+ * - core resolves marker structure, refs, child ordering, and renderer dispatch
+ * - the target integration renderer resolves the actual component render through
+ *   `renderComponent()` once the marker has been decoded into component input
  */
 export class MarkerGraphResolver {
 	/**
@@ -50,6 +55,10 @@ export class MarkerGraphResolver {
 	 * The resolver is intentionally fail-fast: missing component refs or props refs
 	 * indicate a broken render graph and should surface immediately instead of
 	 * producing partial output.
+	 *
+	 * The resolver does not render integration-specific HTML itself. Instead, it
+	 * reconstructs `ComponentRenderInput` from the marker payload and then delegates
+	 * the actual rendering to the target integration renderer.
 	 *
 	 * @param options Marker graph resolution inputs for one render pass.
 	 * @returns Resolved HTML and collected component assets.

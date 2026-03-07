@@ -39,9 +39,7 @@ import { HttpError } from '../errors/http-error.ts';
 import { LocalsAccessError } from '../errors/locals-access-error.ts';
 import { DependencyResolverService } from './dependency-resolver.ts';
 import { PageModuleLoaderService } from './page-module-loader.ts';
-import type { MarkerNodeId } from './component-marker.ts';
-import { extractComponentGraph } from './component-graph.ts';
-import { resolveComponentGraph } from './component-graph-executor.ts';
+import { MarkerGraphResolver, type MarkerGraphContext } from './marker-graph-resolver.ts';
 import {
 	runWithComponentRenderContext,
 	type ComponentGraphContext as CapturedComponentGraphContext,
@@ -99,7 +97,7 @@ export interface RenderToResponseContext {
 
 type ComponentGraphContext = {
 	propsByRef?: Record<string, Record<string, unknown>>;
-	slotChildrenByRef?: Record<string, MarkerNodeId[]>;
+	slotChildrenByRef?: MarkerGraphContext['slotChildrenByRef'];
 };
 
 /**
@@ -118,6 +116,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected runtimeOrigin: string;
 	protected dependencyResolverService: DependencyResolverService;
 	protected pageModuleLoaderService: PageModuleLoaderService;
+	protected markerGraphResolver: MarkerGraphResolver;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -200,6 +199,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.runtimeOrigin = runtimeOrigin;
 		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
+		this.markerGraphResolver = new MarkerGraphResolver();
 	}
 
 	/**
@@ -752,90 +752,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		componentsToResolve: EcoComponent[];
 		graphContext: ComponentGraphContext;
 	}): Promise<{ html: string; assets: ProcessedAsset[] }> {
-		const registry = this.buildComponentRefRegistry(options.componentsToResolve);
-		const graph = extractComponentGraph(options.html, options.graphContext.slotChildrenByRef ?? {});
 		const integrationRendererCache = new Map<string, IntegrationRenderer>();
-		const resolvedNodeHtml = new Map<MarkerNodeId, string>();
-		const assets: ProcessedAsset[] = [];
-
-		const resolvedHtml = await resolveComponentGraph(options.html, graph, async (marker) => {
-			const component = registry.get(marker.componentRef);
-			if (!component) {
-				throw new Error(`[ecopages] Missing component reference for marker: ${marker.componentRef}`);
-			}
-
-			const props = options.graphContext.propsByRef?.[marker.propsRef];
-			if (!props) {
-				throw new Error(`[ecopages] Missing props reference for marker: ${marker.propsRef}`);
-			}
-
-			let children: string | undefined;
-			if (marker.slotRef) {
-				const childNodeIds = options.graphContext.slotChildrenByRef?.[marker.slotRef] ?? [];
-				if (childNodeIds.length > 0) {
-					children = childNodeIds.map((childNodeId) => resolvedNodeHtml.get(childNodeId) ?? '').join('');
-				}
-			}
-
-			const renderer = this.getIntegrationRendererForName(marker.integration, integrationRendererCache);
-			const componentRender = await renderer.renderComponent({
-				component,
-				props,
-				children,
-			});
-
-			if (componentRender.assets?.length) {
-				assets.push(...componentRender.assets);
-			}
-
-			const htmlWithAttributes =
-				componentRender.canAttachAttributes && componentRender.rootAttributes
-					? this.applyAttributesToFirstElement(componentRender.html, componentRender.rootAttributes)
-					: componentRender.html;
-
-			resolvedNodeHtml.set(marker.nodeId, htmlWithAttributes);
-			return { html: htmlWithAttributes };
+		return this.markerGraphResolver.resolve({
+			html: options.html,
+			componentsToResolve: options.componentsToResolve,
+			graphContext: options.graphContext,
+			resolveRenderer: (integrationName) =>
+				this.getIntegrationRendererForName(integrationName, integrationRendererCache),
+			applyAttributesToFirstElement: (html, attributes) => this.applyAttributesToFirstElement(html, attributes),
 		});
-
-		return {
-			html: resolvedHtml,
-			assets,
-		};
-	}
-
-	/**
-	 * Builds a lookup from component reference keys to component definitions.
-	 *
-	 * Traverses nested dependency components depth-first and deduplicates by
-	 * component identity to avoid re-registering cycles.
-	 *
-	 * @param components Root components to index.
-	 * @returns Map keyed by component `__eco.id` or `__eco.file`.
-	 */
-	private buildComponentRefRegistry(components: EcoComponent[]): Map<string, EcoComponent> {
-		const registry = new Map<string, EcoComponent>();
-		const stack = [...components];
-		const seen = new Set<EcoComponent>();
-
-		while (stack.length > 0) {
-			const current = stack.pop();
-			if (!current || seen.has(current)) {
-				continue;
-			}
-			seen.add(current);
-
-			const ref = current.config?.__eco?.id ?? current.config?.__eco?.file;
-			if (ref) {
-				registry.set(ref, current);
-			}
-
-			const nested = current.config?.dependencies?.components ?? [];
-			for (const component of nested) {
-				stack.push(component);
-			}
-		}
-
-		return registry;
 	}
 
 	/**

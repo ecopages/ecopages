@@ -23,9 +23,9 @@ export class KitaHtmlPlugin extends IntegrationPlugin {
 }
 
 /**
- * Factory function to create a React plugin instance
- * @param options Configuration options for the React plugin
- * @returns A new ReactPlugin instance
+ * Factory function to create a Kita.js plugin instance.
+ * @param options Configuration options for the Kita.js plugin
+ * @returns A new KitaHtmlPlugin instance
  */
 export function kitajsPlugin(options?: Omit<IntegrationPluginConfig, 'name'>): KitaHtmlPlugin {
 	return new KitaHtmlPlugin(options);

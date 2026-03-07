@@ -28,6 +28,14 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
 };
 
+/**
+ * Creates a typed test component that satisfies EcoComponent without
+ * requiring `as unknown as` double-casts.
+ */
+function createTestComponent<P>(fn: (props: P) => Promise<string> | string): EcoComponent<P> {
+	return fn as EcoComponent<P>;
+}
+
 const renderer = new KitaRenderer({
 	appConfig: Config,
 	assetProcessingService: {} as any,
@@ -59,9 +67,7 @@ const createRendererWithAssets = () => {
 
 describe('KitaRenderer', () => {
 	it('should render a single component with renderComponent', async () => {
-		const Component = (async (props: { title: string }) => `<h2>${props.title}</h2>`) as unknown as EcoComponent<{
-			title: string;
-		}>;
+		const Component = createTestComponent<{ title: string }>(async (props) => `<h2>${props.title}</h2>`);
 
 		const result = await renderer.renderComponent({
 			component: Component,
@@ -76,9 +82,7 @@ describe('KitaRenderer', () => {
 
 	it('should include component assets when dependencies are declared', async () => {
 		const { renderer, assetProcessingService } = createRendererWithAssets();
-		const Component = (async (props: { title: string }) => `<h2>${props.title}</h2>`) as unknown as EcoComponent<{
-			title: string;
-		}>;
+		const Component = createTestComponent<{ title: string }>(async (props) => `<h2>${props.title}</h2>`);
 		Component.config = {
 			__eco: {
 				id: 'kita-comp',
@@ -101,28 +105,26 @@ describe('KitaRenderer', () => {
 	});
 
 	it('should render the page', async () => {
-		renderer
-			.render({
-				params: {},
-				query: {},
-				props: {},
-				file: 'file',
-				resolvedDependencies: [],
-				metadata: {
-					title: 'Hello World',
-					description: 'Hello World',
-				},
-				Page: async () => 'Hello World',
-				HtmlTemplate,
-			})
-			.then((body) => {
-				expect(body).toBe('<!DOCTYPE html><html><body>Hello World</body></html>');
-			});
+		const body = await renderer.render({
+			params: {},
+			query: {},
+			props: {},
+			file: 'file',
+			resolvedDependencies: [],
+			metadata: {
+				title: 'Hello World',
+				description: 'Hello World',
+			},
+			Page: createTestComponent(async () => 'Hello World'),
+			HtmlTemplate,
+		});
+
+		expect(body).toBe('<!DOCTYPE html><html><body>Hello World</body></html>');
 	});
 
 	it('should throw an error if the page fails to render', async () => {
-		renderer
-			.render({
+		await expect(
+			renderer.render({
 				params: {},
 				query: {},
 				props: {},
@@ -132,13 +134,11 @@ describe('KitaRenderer', () => {
 					title: 'Hello World',
 					description: 'Hello World',
 				},
-				Page: async () => {
+				Page: createTestComponent(async () => {
 					throw new Error('Page failed to render');
-				},
+				}),
 				HtmlTemplate,
-			})
-			.catch((error) => {
-				expect(error.message).toBe('Error rendering page: Page failed to render');
-			});
+			}),
+		).rejects.toThrow('Error rendering page');
 	});
 });

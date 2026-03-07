@@ -1,4 +1,4 @@
-import { defineApiHandler } from '@ecopages/core/bun';
+import { defineApiHandler } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import { posts } from '../data';
 import z from 'zod';

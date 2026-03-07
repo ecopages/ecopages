@@ -1,5 +1,5 @@
 import { createApp } from '@ecopages/core';
-import { defineApiHandler } from '@ecopages/core/bun/define-api-handler';
+import { defineApiHandler } from '@ecopages/core';
 import appConfig from './eco.config';
 import { getAllAuthorIds, getAllBlogPostSlugs, getAuthor, getBlogPost } from './src/mocks/data';
 

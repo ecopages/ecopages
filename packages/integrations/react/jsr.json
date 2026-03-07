@@ -3,24 +3,12 @@
 	"version": "0.1.105",
 	"exports": {
 		".": "./src/react.plugin.ts",
-		"./react-esm": "./react-esm.ts",
-		"./react-dom-esm": "./react-dom-esm.ts",
 		"./utils/dynamic": "./src/utils/dynamic.ts",
 		"./utils/client-only": "./src/utils/client-only.ts"
 	},
 	"exclude": ["src/test", "**/*.test.ts"],
 	"publish": {
-		"include": [
-			"src/**/*.ts",
-			"src/**/*.tsx",
-			"LICENSE",
-			"README.md",
-			"jsr.json",
-			"package.json",
-			"react-esm.ts",
-			"react-dom-esm.ts",
-			"react-dev-esm.ts"
-		],
+		"include": ["src/**/*.ts", "src/**/*.tsx", "LICENSE", "README.md", "jsr.json", "package.json"],
 		"exclude": ["src/test"]
 	}
 }

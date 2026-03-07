@@ -31,7 +31,7 @@ const appLogger = new Logger('[ReactHmrStrategy]');
  * The processing steps are:
  * 1. Check if any React entrypoints are registered
  * 2. Rebuild all React entrypoints (the changed file could be a dependency)
- * 3. Replace bare specifiers with vendor URLs
+ * 3. Replace bare specifiers with runtime URLs
  * 4. Inject HMR acceptance handler
  * 5. Broadcast update events for each rebuilt entrypoint
  *
@@ -356,12 +356,12 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Replaces bare specifiers with vendor URLs.
+	 * Replaces bare specifiers with runtime URLs.
 	 *
 	 * Handles both static imports and dynamic imports.
 	 *
 	 * @param code - The bundled code to transform
-	 * @returns The transformed code with vendor URLs
+	 * @returns The transformed code with runtime URLs
 	 */
 	private replaceBareSpecifiers(code: string): string {
 		const specifierMap = this.context.getSpecifierMap();
@@ -371,10 +371,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 
 		let result = code;
-		for (const [bareSpec, vendorUrl] of specifierMap.entries()) {
+		for (const [bareSpec, runtimeUrl] of specifierMap.entries()) {
 			const escaped = bareSpec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			result = result.replace(new RegExp(`from\\s*["']${escaped}["']`, 'g'), `from "${vendorUrl}"`);
-			result = result.replace(new RegExp(`import\\(["']${escaped}["']\\)`, 'g'), `import("${vendorUrl}")`);
+			result = result.replace(new RegExp(`from\\s*["']${escaped}["']`, 'g'), `from "${runtimeUrl}"`);
+			result = result.replace(new RegExp(`import\\(["']${escaped}["']\\)`, 'g'), `import("${runtimeUrl}")`);
 		}
 
 		return result;

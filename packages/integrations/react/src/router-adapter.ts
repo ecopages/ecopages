@@ -33,7 +33,7 @@ export interface ReactRouterAdapter {
 	name: string;
 
 	/**
-	 * Vendor bundle configuration.
+	 * Runtime bundle configuration.
 	 */
 	bundle: {
 		/**

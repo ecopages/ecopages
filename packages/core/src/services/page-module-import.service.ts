@@ -12,7 +12,31 @@ export interface PageModuleImportOptions {
 	noOutputMessage?: (filePath: string) => string;
 }
 
+/**
+ * Loads source page modules in a runtime-agnostic way.
+ *
+ * This service centralizes the Bun-vs-Node import strategy used by route
+ * scanning, page data loading, and request-time page inspection. In Bun it can
+ * import source files directly; in Node it transpiles the file into a dedicated
+ * output directory first and then imports the generated module.
+ *
+ * Keeping this logic in one place prevents subtle drift in cache-busting,
+ * transpilation settings, and error semantics across the different callers.
+ */
 export class PageModuleImportService {
+	/**
+	 * Imports a page-like module from source.
+	 *
+	 * The caller controls the output directory and error wording so different
+	 * subsystems can reuse the same loading mechanism while preserving their
+	 * current diagnostics. The generated filename remains deterministic per input
+	 * file hash, with an additional development cache-buster to avoid stale module
+	 * reuse during watch mode.
+	 *
+	 * @typeParam T Expected module shape.
+	 * @param options Runtime-specific import settings.
+	 * @returns The loaded module.
+	 */
 	async importModule<T = unknown>(options: PageModuleImportOptions): Promise<T> {
 		const {
 			filePath,

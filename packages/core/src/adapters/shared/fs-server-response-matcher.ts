@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { appLogger } from '../../global/app-logger.ts';
-import { createRequire } from '../../utils/locals-utils.ts';
 import type { MatchResult } from '../../internal-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../../router/fs-router.ts';
@@ -9,15 +8,13 @@ import type { CacheStrategy, RenderResult } from '../../services/cache/cache.typ
 import { PageModuleImportService } from '../../services/page-module-import.service.ts';
 import { PageRequestCacheCoordinator } from '../../services/page-request-cache-coordinator.service.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
-import type { ApiHandlerContext, Middleware, RequestLocals } from '../../public-types.ts';
-import { ApiResponseBuilder } from './api-response.js';
+import type { Middleware, RequestLocals } from '../../public-types.ts';
+import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
 export const FILE_SYSTEM_RESPONSE_MATCHER_ERRORS = {
-	CTX_RENDER_UNAVAILABLE: '[ecopages] ctx.render is not available in file-route middleware',
-	CTX_RENDER_PARTIAL_UNAVAILABLE: '[ecopages] ctx.renderPartial is not available in file-route middleware',
 	transpilePageModuleFailed: (details: string) => `Error transpiling page module: ${details}`,
 	noTranspiledOutputForPageModule: (filePath: string) =>
 		`No transpiled output generated for page module: ${filePath}`,
@@ -33,13 +30,21 @@ export interface FileSystemResponseMatcherOptions {
 	defaultCacheStrategy?: CacheStrategy;
 }
 
+/**
+ * Matches file-system routes to rendered HTML responses.
+ *
+ * This class sits at the request-time boundary between router matches and the
+ * render pipeline. It coordinates page module inspection, request-local policy,
+ * renderer invocation, middleware execution, cache integration, and fallback
+ * error translation.
+ */
 export class FileSystemResponseMatcher {
 	private router: FSRouter;
 	private routeRendererFactory: RouteRendererFactory;
 	private fileSystemResponseFactory: FileSystemServerResponseFactory;
-	private cacheService: PageCacheService | null;
 	private pageModuleImportService: PageModuleImportService;
 	private pageRequestCacheCoordinator: PageRequestCacheCoordinator;
+	private fileRouteMiddlewarePipeline: FileRouteMiddlewarePipeline;
 
 	constructor({
 		router,
@@ -51,11 +56,18 @@ export class FileSystemResponseMatcher {
 		this.router = router;
 		this.routeRendererFactory = routeRendererFactory;
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
-		this.cacheService = cacheService;
 		this.pageModuleImportService = new PageModuleImportService();
 		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy);
+		this.fileRouteMiddlewarePipeline = new FileRouteMiddlewarePipeline(cacheService);
 	}
 
+	/**
+	 * Resolves unmatched paths either as static asset requests or as the custom
+	 * not-found page.
+	 *
+	 * @param requestUrl Incoming pathname.
+	 * @returns Static file response or rendered 404 response.
+	 */
 	async handleNoMatch(requestUrl: string): Promise<Response> {
 		const isStaticFileRequest = ServerUtils.hasKnownExtension(requestUrl);
 
@@ -71,8 +83,15 @@ export class FileSystemResponseMatcher {
 	}
 
 	/**
-	 * Build the full cache key from match result.
-	 * Includes pathname and query string for proper cache isolation.
+	 * Handles a matched file-system page route.
+	 *
+	 * The method inspects page metadata needed for request-time execution,
+	 * prepares the renderer invocation, validates middleware/cache constraints,
+	 * and delegates caching plus middleware execution to dedicated collaborators.
+	 *
+	 * @param match Router match result.
+	 * @param request Optional incoming request. A synthetic GET request is created when omitted.
+	 * @returns Final response for the matched route.
 	 */
 	async handleMatch(match: MatchResult, request?: Request): Promise<Response> {
 		const cacheKey = this.pageRequestCacheCoordinator.buildCacheKey(match);
@@ -93,43 +112,18 @@ export class FileSystemResponseMatcher {
 			const localsForRender: RequestLocals | undefined =
 				pageCacheStrategy === 'dynamic' ? localsStore : undefined;
 
-			if (pageMiddleware.length > 0 && pageCacheStrategy !== 'dynamic') {
-				throw new LocalsAccessError(
-					`[ecopages] Page middleware requires cache: 'dynamic'. Page: ${match.filePath}`,
-				);
-			}
+			this.fileRouteMiddlewarePipeline.assertValidConfiguration({
+				middleware: pageMiddleware,
+				pageCacheStrategy,
+				filePath: match.filePath,
+			});
 
 			const routeRenderer = this.routeRendererFactory.createRenderer(match.filePath);
-
-			const middlewareContext: ApiHandlerContext = {
+			const middlewareContext = this.fileRouteMiddlewarePipeline.createContext({
 				request: resolvedRequest,
 				params: match.params as Record<string, string>,
-				response: new ApiResponseBuilder(),
-				server: null,
-				services: {
-					cache: this.cacheService,
-				},
 				locals: localsStore,
-				require: createRequire(() => middlewareContext.locals as unknown as Record<string, unknown>),
-				render: async () => {
-					throw new Error(FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.CTX_RENDER_UNAVAILABLE);
-				},
-				renderPartial: async () => {
-					throw new Error(FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.CTX_RENDER_PARTIAL_UNAVAILABLE);
-				},
-				json: (data, options) => {
-					const builder = new ApiResponseBuilder();
-					if (options?.status) builder.status(options.status);
-					if (options?.headers) builder.headers(options.headers);
-					return builder.json(data);
-				},
-				html: (content, options) => {
-					const builder = new ApiResponseBuilder();
-					if (options?.status) builder.status(options.status);
-					if (options?.headers) builder.headers(options.headers);
-					return builder.html(content);
-				},
-			};
+			});
 
 			const renderFn = async (): Promise<RenderResult> => {
 				const result = await routeRenderer.createRoute({
@@ -142,17 +136,6 @@ export class FileSystemResponseMatcher {
 				const strategy = result.cacheStrategy ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
 				return { html, strategy };
 			};
-
-			/**
-			 * Handles the rendering response with appropriate caching behavior.
-			 *
-			 * Pages with `cache: 'dynamic'` bypass the cache entirely to ensure:
-			 * - Middleware runs on every request
-			 * - Locals modifications are always reflected in the response
-			 * - No stale cached responses with outdated request-specific data
-			 *
-			 * Pages with `cache: 'static'` use the cache service normally.
-			 */
 			const renderResponse = async (): Promise<Response> => {
 				return this.pageRequestCacheCoordinator.render({
 					cacheKey,
@@ -161,20 +144,11 @@ export class FileSystemResponseMatcher {
 				});
 			};
 
-			if (pageMiddleware.length === 0) {
-				return await renderResponse();
-			}
-
-			let index = 0;
-			const executeNext = async (): Promise<Response> => {
-				if (index < pageMiddleware.length) {
-					const current = pageMiddleware[index++];
-					return await current(middlewareContext, executeNext);
-				}
-				return await renderResponse();
-			};
-
-			return await executeNext();
+			return await this.fileRouteMiddlewarePipeline.run({
+				middleware: pageMiddleware,
+				context: middlewareContext,
+				renderResponse,
+			});
 		} catch (error) {
 			if (error instanceof Response) {
 				return error;
@@ -194,6 +168,16 @@ export class FileSystemResponseMatcher {
 		}
 	}
 
+	/**
+	 * Loads the matched page module for request-time inspection.
+	 *
+	 * The matcher needs access to page-level metadata such as `cache` and
+	 * `middleware` before full rendering starts, so it uses the shared module
+	 * import service directly rather than going through route rendering.
+	 *
+	 * @param filePath Absolute page module path.
+	 * @returns Imported page module.
+	 */
 	private async importPageModule(filePath: string): Promise<unknown> {
 		return this.pageModuleImportService.importModule({
 			filePath,

@@ -329,10 +329,9 @@ export abstract class AbstractApplicationAdapter<
 	public abstract start(): Promise<TServer | void>;
 
 	/**
-	 * Makes a request to the running server using real HTTP fetch.
-	 * This is useful for testing API endpoints.
-	 * @param request - URL string or Request object
-	 * @returns Promise<Response>
+	 * Handles a standard Web request without requiring a bound network server.
+	 * This is the primary interoperability surface for embedding Ecopages inside
+	 * other runtimes and frameworks.
 	 */
-	public abstract request(request: string | Request): Promise<Response>;
+	public abstract fetch(request: TRequest): Promise<Response>;
 }

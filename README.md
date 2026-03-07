@@ -43,6 +43,14 @@ Ecopages includes a type-safe, lightweight backend. Define handlers with full ty
 - **Explicit Routing**: Use `app.get`, `app.post`, etc., for dynamic routes.
 - **Route API docs**: See `packages/core/README.md` for route registration patterns (`app.get`, `defineApiHandler`, `defineGroupHandler`, and API direction notes).
 
+Use root imports by default:
+
+```ts
+import { EcopagesApp, defineApiHandler, defineGroupHandler } from '@ecopages/core';
+```
+
+Treat `@ecopages/core/bun` and `@ecopages/core/node` as advanced escape hatches for runtime-specific APIs.
+
 ### AI-Ready Documentation
 
 We provide an `llms.txt` file to help AI agents understand and assist with your Ecopages projects.

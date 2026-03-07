@@ -2,12 +2,11 @@
  * This module contains the react plugin for Ecopages
  * @module
  */
-
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import type { IHmrManager } from '@ecopages/core/internal-types';
-import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
+import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type React from 'react';
@@ -16,6 +15,7 @@ import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
 import { createMdxLoaderPlugin } from '@ecopages/mdx/mdx-loader-plugin';
 import type { ComponentBoundaryPolicyInput } from '@ecopages/core/plugins/integration-plugin';
+import { ReactRuntimeBundleService } from './services/react-runtime-bundle.service.ts';
 
 const appLogger = new Logger('[ReactPlugin]');
 
@@ -114,6 +114,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	private mdxCompilerOptions?: CompileOptions;
 	private mdxExtensions: string[];
 	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
+	private runtimeBundleService: ReactRuntimeBundleService;
 	/**
 	 * Indicates whether React explicit graph mode is enabled for renderer/HMR behavior.
 	 */
@@ -155,12 +156,15 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		}
 
 		this.routerAdapter = options?.router;
+		this.runtimeBundleService = new ReactRuntimeBundleService({
+			routerAdapter: this.routerAdapter,
+		});
 		this.explicitGraphEnabled = options?.explicitGraph ?? false;
 		ReactRenderer.routerAdapter = this.routerAdapter;
 		ReactRenderer.mdxCompilerOptions = this.mdxCompilerOptions;
 		ReactRenderer.mdxExtensions = this.mdxExtensions;
 		ReactRenderer.explicitGraphEnabled = this.explicitGraphEnabled;
-		this.integrationDependencies.unshift(...this.getDependencies());
+		this.integrationDependencies.unshift(...this.runtimeBundleService.getDependencies());
 	}
 
 	override get plugins(): EcoBuildPlugin[] {
@@ -197,7 +201,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	 */
 	override setHmrManager(hmrManager: IHmrManager): void {
 		super.setHmrManager(hmrManager);
-		hmrManager.registerSpecifierMap(this.getSpecifierMap());
+		hmrManager.registerSpecifierMap(this.runtimeBundleService.getSpecifierMap());
 	}
 
 	/**
@@ -212,125 +216,6 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	 */
 	override shouldDeferComponentBoundary(input: ComponentBoundaryPolicyInput): boolean {
 		return input.targetIntegration === this.name && input.currentIntegration !== this.name;
-	}
-
-	/**
-	 * Constructs the URL path for vendor assets in the import map.
-	 * @param fileName - The vendor file name
-	 * @returns The resolved URL path for the vendor asset
-	 */
-	private buildImportMapSourceUrl(fileName: string): string {
-		return `/${AssetFactory.RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
-	}
-
-	/**
-	 * Returns the bare specifier to vendor URL mappings for React.
-	 * Used for both the import map and HMR specifier replacement.
-	 */
-	private getSpecifierMap(): Record<string, string> {
-		const map: Record<string, string> = {
-			react: this.buildImportMapSourceUrl('react-esm.js'),
-			'react/jsx-runtime': this.buildImportMapSourceUrl('react-esm.js'),
-			'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-esm.js'),
-			'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
-			'react-dom/client': this.buildImportMapSourceUrl('react-esm.js'),
-		};
-
-		if (this.routerAdapter) {
-			map[this.routerAdapter.importMapKey] = this.buildImportMapSourceUrl(
-				`${this.routerAdapter.bundle.outputName}.js`,
-			);
-		}
-
-		return map;
-	}
-
-	/**
-	 * Builds the list of asset dependencies required for React integration.
-	 * Includes import map, React ESM bundles, and router bundle if configured.
-	 * @returns Array of asset definitions for the integration
-	 */
-	private getDependencies(): AssetDefinition[] {
-		const deps: AssetDefinition[] = [
-			AssetFactory.createNodeModuleScript({
-				position: 'head',
-				importPath: '@ecopages/react/react-esm.ts',
-				name: 'react-esm',
-				excludeFromHtml: true,
-				bundleOptions: {
-					naming: 'react-esm.js',
-				},
-				attributes: {
-					type: 'module',
-					defer: '',
-				},
-			}),
-			AssetFactory.createNodeModuleScript({
-				position: 'head',
-				importPath: '@ecopages/react/react-dom-esm.ts',
-				name: 'react-dom-esm',
-				excludeFromHtml: true,
-				bundleOptions: {
-					naming: 'react-dom-esm.js',
-				},
-				attributes: {
-					type: 'module',
-					defer: '',
-				},
-			}),
-		];
-
-		if (this.routerAdapter) {
-			const runtimeAliasPlugin = this.createRuntimeAliasPlugin();
-			const mappedSpecifiers = new Set(Object.keys(this.getSpecifierMap()));
-			const unresolvedExternals = this.routerAdapter.bundle.externals.filter(
-				(external) => !mappedSpecifiers.has(external),
-			);
-
-			deps.push(
-				AssetFactory.createNodeModuleScript({
-					position: 'head',
-					importPath: this.routerAdapter.bundle.importPath,
-					name: this.routerAdapter.bundle.outputName,
-					excludeFromHtml: true,
-					bundleOptions: {
-						naming: `${this.routerAdapter.bundle.outputName}.js`,
-						external: unresolvedExternals,
-						plugins: [runtimeAliasPlugin],
-					},
-					attributes: {
-						type: 'module',
-						defer: '',
-					},
-				}),
-			);
-		}
-
-		return deps;
-	}
-
-	private createRuntimeAliasPlugin(): EcoBuildPlugin {
-		const specifierMap = this.getSpecifierMap();
-		const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		const filter = new RegExp(
-			`^(${Object.keys(specifierMap)
-				.map((key) => escapeRegExp(key))
-				.join('|')})$`,
-		);
-
-		return {
-			name: 'react-plugin-runtime-alias',
-			setup(build) {
-				build.onResolve({ filter }, (args) => {
-					const mappedPath = specifierMap[args.path];
-					if (!mappedPath) return undefined;
-					return {
-						path: mappedPath,
-						external: true,
-					};
-				});
-			},
-		};
 	}
 }
 

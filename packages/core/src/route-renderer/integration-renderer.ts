@@ -25,10 +25,7 @@ import type {
 	RouteRenderResult,
 	StaticPageContext,
 } from '../public-types.ts';
-import {
-	type AssetProcessingService,
-	type ProcessedAsset,
-} from '../services/asset-processing-service/index.ts';
+import { type AssetProcessingService, type ProcessedAsset } from '../services/asset-processing-service/index.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
 import { HttpError } from '../errors/http-error.ts';
@@ -37,10 +34,7 @@ import { DependencyResolverService } from './dependency-resolver.ts';
 import { HtmlPostProcessingService } from './html-post-processing.service.ts';
 import { PageModuleLoaderService } from './page-module-loader.ts';
 import { MarkerGraphResolver } from './marker-graph-resolver.ts';
-import {
-	RenderExecutionService,
-	type RenderExecutionGraphContext,
-} from './render-execution.service.ts';
+import { RenderExecutionService, type RenderExecutionGraphContext } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
 
 /**

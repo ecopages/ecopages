@@ -76,9 +76,11 @@ export class RenderExecutionService {
 		let renderedHtml = await new Response(renderExecution.value as BodyInit).text();
 		const componentGraphContext = this.mergeGraphContext(
 			renderExecution.graphContext,
-			(renderOptions as IntegrationRendererRenderOptions<C> & {
-				componentGraphContext?: RenderExecutionGraphContext;
-			}).componentGraphContext,
+			(
+				renderOptions as IntegrationRendererRenderOptions<C> & {
+					componentGraphContext?: RenderExecutionGraphContext;
+				}
+			).componentGraphContext,
 		);
 
 		if (renderedHtml.includes('<eco-marker')) {
@@ -145,9 +147,7 @@ export class RenderExecutionService {
 	 * @param renderOptions Normalized render options for the pass.
 	 * @returns Ordered component list for graph registry construction.
 	 */
-	private getComponentsToResolve<C>(
-		renderOptions: IntegrationRendererRenderOptions<C>,
-	): EcoComponent[] {
+	private getComponentsToResolve<C>(renderOptions: IntegrationRendererRenderOptions<C>): EcoComponent[] {
 		return renderOptions.Layout
 			? [renderOptions.HtmlTemplate as EcoComponent, renderOptions.Layout as EcoComponent, renderOptions.Page]
 			: [renderOptions.HtmlTemplate as EcoComponent, renderOptions.Page];

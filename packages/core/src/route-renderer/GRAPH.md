@@ -24,11 +24,11 @@ These diagrams are based on a few architectural assumptions that seem important 
 There are three main rendering entry points:
 
 1. **Runtime request rendering**
-   - handled through the server adapters and file-system route matching
+    - handled through the server adapters and file-system route matching
 2. **Explicit rendering APIs**
-   - handled through `renderToResponse()` and route-handler render context helpers
+    - handled through `renderToResponse()` and route-handler render context helpers
 3. **Static site generation**
-   - handled through explicit route generation and route renderer reuse at build time
+    - handled through explicit route generation and route renderer reuse at build time
 
 ## 1) Runtime Request Flow (Bun and Node)
 
@@ -63,25 +63,29 @@ This is the most operationally important runtime path because it is where middle
 
 ```mermaid
 flowchart TD
-  A[FileSystemResponseMatcher handleMatch] --> B[importPageModule]
+  A[FileSystemResponseMatcher handleMatch] --> B[PageModuleImportService importModule]
   B --> C[read Page cache and Page middleware]
-  C --> D{Middleware exists?}
+  C --> D[FileRouteMiddlewarePipeline assertValidConfiguration]
+  D --> E{Middleware exists?}
 
-  D -- Yes --> E{cache dynamic?}
-  E -- No --> F[throw LocalsAccessError]
-  E -- Yes --> G[execute page middleware chain]
-  G --> H[renderResponse]
+  E -- Yes --> F{cache dynamic?}
+  F -- No --> G[throw LocalsAccessError]
+  F -- Yes --> H[FileRouteMiddlewarePipeline createContext]
+  H --> I[FileRouteMiddlewarePipeline run]
 
-  D -- No --> H[renderResponse]
+  E -- No --> J[renderResponse]
+  I --> J
 
-  H --> I{cache disabled OR dynamic page?}
-  I -- Yes --> J[renderFn directly]
-  I -- No --> K[PageCacheService getOrCreate]
+  J --> K[PageRequestCacheCoordinator render]
+  K --> L{cache disabled OR dynamic page?}
+  L -- Yes --> M[renderFn directly]
+  L -- No --> N[PageCacheService getOrCreate]
 
-  J --> L[routeRenderer createRoute]
-  K --> L
-  L --> M[html and strategy]
-  M --> N[createCachedResponse with cache headers]
+  M --> O[routeRenderer createRoute]
+  N --> O
+  O --> P[PageRequestCacheCoordinator bodyToString]
+  P --> Q[html and strategy]
+  Q --> R[createCachedResponse with cache headers]
 ```
 
 ## 3) RouteRendererFactory Selection Logic
@@ -110,46 +114,50 @@ flowchart TD
 
 The original single graph was accurate but a bit dense. Splitting it into preparation and execution phases makes the orchestration easier to reason about.
 
-### 4.1 Render preparation
+### 4.1 Render preparation via `RenderPreparationService`
 
 ```mermaid
 flowchart TD
-  A[prepareRenderOptions] --> B[resolvePageModule]
-  B --> C[resolvePageData staticProps to metadata]
-  C --> D[resolveDependencies and integration deps and route assets]
-  D --> E{shouldRenderPageComponent?}
-  E -- Yes --> F[renderComponent for page root]
-  E -- No --> G[skip page root component render]
-  F --> H[merge component assets]
-  G --> H
-  H --> I[collect lazy triggers]
-  I --> J{triggers found?}
-  J -- Yes --> K[append global injector runtime and scripts]
-  J -- No --> L[continue]
-  K --> L
-  L --> M[htmlTransformer setProcessedDependencies]
-  M --> N[return normalized render options]
+  A[IntegrationRenderer prepareRenderOptions] --> B[RenderPreparationService prepare]
+  B --> C[resolvePageModule]
+  C --> D[resolvePageData staticProps to metadata]
+  D --> E[resolveDependencies and used integration deps and route assets]
+  E --> F{shouldRenderPageComponent?}
+  F -- Yes --> G[renderPageRoot via renderComponent]
+  F -- No --> H[skip page root component render]
+  G --> I[merge component assets]
+  H --> I
+  I --> J[collect lazy triggers]
+  J --> K{triggers found?}
+  K -- Yes --> L[buildGlobalInjectorAssets]
+  K -- No --> M[continue]
+  L --> M
+  M --> N[HtmlPostProcessingService dedupeProcessedAssets]
+  N --> O[htmlTransformer setProcessedDependencies]
+  O --> P[return normalized render options]
 ```
 
-### 4.2 Main execute flow
+### 4.2 Main execute flow via `RenderExecutionService`
 
 ```mermaid
 flowchart TD
-  A[execute options] --> B[prepareRenderOptions]
-  B --> C[runWithComponentRenderContext then render]
-  C --> D[normalize response body to renderedHtml]
-  D --> E[merge captured and explicit componentGraphContext]
-  E --> F{contains eco marker token?}
-  F -- Yes --> G[resolveMarkerGraphHtml]
-  F -- No --> H[skip graph resolution]
-  G --> I[merge marker assets into transformer deps]
-  H --> J{root attributes attachable?}
-  I --> J
-  J -- Yes --> K[apply attributes to first body element]
-  J -- No --> L[leave html unchanged]
-  K --> M[htmlTransformer transform]
-  L --> M
-  M --> N[return body stream and cache strategy]
+  A[IntegrationRenderer execute] --> B[RenderExecutionService execute]
+  B --> C[prepareRenderOptions]
+  C --> D[runWithComponentRenderContext then render]
+  D --> E[normalize response body to renderedHtml]
+  E --> F[merge captured and explicit componentGraphContext]
+  F --> G{contains eco marker token?}
+  G -- Yes --> H[resolveMarkerGraphHtml]
+  G -- No --> I[skip graph resolution]
+  H --> J[HtmlPostProcessingService dedupeProcessedAssets]
+  J --> K[merge marker assets into transformer deps]
+  I --> L{root attributes attachable?}
+  K --> L
+  L -- Yes --> M[HtmlPostProcessingService applyAttributesToFirstBodyElement]
+  L -- No --> N[leave html unchanged]
+  M --> O[htmlTransformer transform]
+  N --> O
+  O --> P[return body stream and cache strategy]
 ```
 
 ### 4.3 Render preparation responsibilities
@@ -167,6 +175,26 @@ flowchart LR
 
   D --> J[prepared render options]
   I --> J
+```
+
+### 4.4 Service boundary map
+
+```mermaid
+flowchart LR
+  A[IntegrationRenderer] --> B[RenderPreparationService]
+  A --> C[RenderExecutionService]
+  A --> D[MarkerGraphResolver]
+  A --> E[HtmlPostProcessingService]
+  A --> F[PageModuleLoaderService]
+  A --> G[DependencyResolverService]
+  A --> H[HtmlTransformerService]
+
+  B --> F
+  B --> G
+  B --> E
+  C --> D
+  C --> E
+  C --> H
 ```
 
 ## 5) Marker Emission + Graph Resolution
@@ -259,32 +287,45 @@ For someone new to the rendering system, this is probably the most useful order 
 
 1. `server-route-handler.ts`
 2. `fs-server-response-matcher.ts`
-3. `route-renderer.ts`
-4. `integration-renderer.ts`
-5. `page-module-loader.ts`
-6. `dependency-resolver.ts`
-7. `component-marker.ts`
-8. `component-graph.ts`
-9. `component-graph-executor.ts`
-10. `eco.ts`
-11. `component-render-context.ts`
-12. `html-transformer.service.ts`
+3. `file-route-middleware-pipeline.ts`
+4. `page-request-cache-coordinator.service.ts`
+5. `route-renderer.ts`
+6. `integration-renderer.ts`
+7. `render-preparation.service.ts`
+8. `render-execution.service.ts`
+9. `marker-graph-resolver.ts`
+10. `html-post-processing.service.ts`
+11. `page-module-loader.ts`
+12. `dependency-resolver.ts`
+13. `component-marker.ts`
+14. `component-graph.ts`
+15. `component-graph-executor.ts`
+16. `eco.ts`
+17. `component-render-context.ts`
+18. `html-transformer.service.ts`
 
 ## 9) Key Files
 
 - `packages/core/src/adapters/shared/server-adapter.ts`
 - `packages/core/src/adapters/shared/server-route-handler.ts`
 - `packages/core/src/adapters/shared/fs-server-response-matcher.ts`
+- `packages/core/src/adapters/shared/file-route-middleware-pipeline.ts`
 - `packages/core/src/adapters/shared/fs-server-response-factory.ts`
 - `packages/core/src/adapters/shared/explicit-static-route-matcher.ts`
 - `packages/core/src/adapters/shared/render-context.ts`
 - `packages/core/src/route-renderer/route-renderer.ts`
 - `packages/core/src/route-renderer/integration-renderer.ts`
+- `packages/core/src/route-renderer/render-preparation.service.ts`
+- `packages/core/src/route-renderer/render-execution.service.ts`
+- `packages/core/src/route-renderer/html-post-processing.service.ts`
+- `packages/core/src/route-renderer/marker-graph-resolver.ts`
 - `packages/core/src/route-renderer/component-marker.ts`
 - `packages/core/src/route-renderer/component-graph.ts`
 - `packages/core/src/route-renderer/component-graph-executor.ts`
 - `packages/core/src/route-renderer/page-module-loader.ts`
 - `packages/core/src/route-renderer/dependency-resolver.ts`
+- `packages/core/src/services/page-module-import.service.ts`
+- `packages/core/src/services/page-request-cache-coordinator.service.ts`
 - `packages/core/src/eco/component-render-context.ts`
 - `packages/core/src/eco/eco.ts`
 - `packages/core/src/services/html-transformer.service.ts`

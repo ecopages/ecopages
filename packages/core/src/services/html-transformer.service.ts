@@ -1,8 +1,11 @@
+import { appLogger } from '../global/app-logger.ts';
 import type { AssetPosition, ProcessedAsset, ScriptAsset } from './asset-processing-service/assets.types';
 
 type HtmlRewriterElement = {
 	append(content: string, options?: { html?: boolean }): void;
 };
+
+type HtmlRewriterConstructor = new () => HtmlRewriterRuntime;
 
 type HtmlRewriterRuntime = {
 	on(selector: 'head' | 'body', handler: { element: (element: HtmlRewriterElement) => void }): HtmlRewriterRuntime;
@@ -11,14 +14,50 @@ type HtmlRewriterRuntime = {
 
 export class HtmlTransformerService {
 	private processedDependencies: ProcessedAsset[] = [];
+	private htmlRewriterConstructorPromise?: Promise<HtmlRewriterConstructor | null>;
 
-	private createHtmlRewriter(): HtmlRewriterRuntime | null {
-		const RuntimeHtmlRewriter = (globalThis as { HTMLRewriter?: new () => HtmlRewriterRuntime }).HTMLRewriter;
-		if (!RuntimeHtmlRewriter) {
-			return null;
+	/**
+	 * Creates an HTML rewriter instance from the best available runtime.
+	 *
+	 * Resolution order is:
+	 * 1. native `globalThis.HTMLRewriter`
+	 * 2. `@worker-tools/html-rewriter/base64`
+	 * 3. `null`, which triggers the string-based fallback path
+	 *
+	 * @returns HTML rewriter instance when available; otherwise `null`.
+	 */
+	private async createHtmlRewriter(): Promise<HtmlRewriterRuntime | null> {
+		const RuntimeHtmlRewriter = await this.resolveHtmlRewriterConstructor();
+		return RuntimeHtmlRewriter ? new RuntimeHtmlRewriter() : null;
+	}
+
+	/**
+	 * Resolves the constructor used for HTML rewriting.
+	 *
+	 * The worker-tools fallback is loaded lazily so native runtimes avoid the WASM
+	 * dependency cost unless it is actually needed.
+	 *
+	 * @returns Rewriter constructor when available; otherwise `null`.
+	 */
+	private async resolveHtmlRewriterConstructor(): Promise<HtmlRewriterConstructor | null> {
+		if (!this.htmlRewriterConstructorPromise) {
+			const RuntimeHtmlRewriter = (globalThis as { HTMLRewriter?: HtmlRewriterConstructor }).HTMLRewriter;
+			if (RuntimeHtmlRewriter) {
+				this.htmlRewriterConstructorPromise = Promise.resolve(RuntimeHtmlRewriter);
+			} else {
+				this.htmlRewriterConstructorPromise = import('@worker-tools/html-rewriter/base64')
+					.then((module) => module.HTMLRewriter as HtmlRewriterConstructor)
+					.catch((error: unknown) => {
+						const message = error instanceof Error ? error.message : String(error);
+						appLogger.warn(
+							`[HtmlTransformerService] Failed to load @worker-tools/html-rewriter/base64, falling back to string injection: ${message}`,
+						);
+						return null;
+					});
+			}
 		}
 
-		return new RuntimeHtmlRewriter();
+		return this.htmlRewriterConstructorPromise;
 	}
 
 	private formatAttributes(attrs?: Record<string, string>): string {
@@ -86,7 +125,7 @@ export class HtmlTransformerService {
 
 	async transform(res: Response): Promise<Response> {
 		const { head, body } = this.groupDependenciesByPosition();
-		const htmlRewriter = this.createHtmlRewriter();
+		const htmlRewriter = await this.createHtmlRewriter();
 
 		const html = await res.text();
 		const headers = new Headers(res.headers);

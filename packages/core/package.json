@@ -27,6 +27,7 @@
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "latest",
 		"@ecopages/scripts-injector": "^0.1.3",
+		"@worker-tools/html-rewriter": "0.1.0-pre.19",
 		"chokidar": "^4.0.3",
 		"esbuild": "^0.27.3",
 		"ghtml": "^4.0.2",

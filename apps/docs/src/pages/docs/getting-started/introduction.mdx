@@ -175,7 +175,7 @@ import { greetHandler } from './handlers/greet';
 
 // ... app initialization
 
-app.post(greetHandler);
+app.post(greetHandler.path, greetHandler.handler);
 ```
 
 ## AI Agents & Ecopages

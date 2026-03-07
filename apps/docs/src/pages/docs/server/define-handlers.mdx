@@ -78,8 +78,8 @@ import * as blog from './handlers/blog';
 
 const app = new EcopagesApp({ appConfig });
 
-app.get(blog.list);
-app.get(blog.detail);
+app.get(blog.list.path, blog.list.handler);
+app.get(blog.detail.path, blog.detail.handler);
 
 await app.start();
 ```

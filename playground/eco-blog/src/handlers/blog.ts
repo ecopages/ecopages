@@ -1,5 +1,5 @@
 import { HttpError } from '@ecopages/core/errors';
-import { defineApiHandler } from '@ecopages/core/bun';
+import { defineApiHandler } from '@ecopages/core';
 import { dbService } from '@/lib/db';
 import { z } from 'zod';
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { HttpError } from '@ecopages/core/errors';
-import { defineGroupHandler } from '@ecopages/core/bun';
+import { defineGroupHandler } from '@ecopages/core';
 import { dbService } from '@/lib/db';
 import path from 'node:path';
 import { ImageProcessor } from '@ecopages/image-processor';

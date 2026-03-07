@@ -8,6 +8,7 @@
 		"start:docs": "pnpm --filter @ecopages/docs run start",
 		"preview:docs": "pnpm --filter @ecopages/docs run preview",
 		"clean": "clear && pnpx npkill -D -y && rm -rf pnpm-lock.yaml node_modules && pnpm install",
+		"check:portability": "tsx scripts/check-portability.ts",
 		"format": "prettier --write .",
 		"lint": "oxlint . --fix",
 		"lint-staged": "lint-staged",
@@ -23,7 +24,7 @@
 		"test:vitest": "vitest run --project shared-core --project browser",
 		"test:e2e": "playwright test",
 		"test:e2e:ui": "playwright test --ui",
-		"typecheck": "pnpm --filter '*' run typecheck"
+		"typecheck": "pnpm run check:portability && pnpm --filter '*' run typecheck"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.0.6",

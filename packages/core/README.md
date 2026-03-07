@@ -17,3 +17,16 @@ As a project in its early stages, Ecopages is continuously evolving. Users may e
 ```bash
 bunx jsr add @ecopages/core
 ```
+
+## Portable imports first
+
+Use the root package exports for normal Ecopages authoring:
+
+```ts
+import { EcopagesApp, defineApiHandler, defineGroupHandler } from '@ecopages/core';
+```
+
+Use runtime-specific subpaths only as advanced escape hatches when you explicitly need Bun- or Node-native APIs:
+
+- `@ecopages/core/bun`
+- `@ecopages/core/node`

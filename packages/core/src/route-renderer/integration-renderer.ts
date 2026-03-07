@@ -4,7 +4,6 @@
  * @module
  */
 
-import { createRequire } from 'node:module';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
 import type {
 	ComponentRenderInput,
@@ -29,10 +28,8 @@ import type {
 } from '../public-types.ts';
 import {
 	type AssetProcessingService,
-	AssetFactory,
 	type ProcessedAsset,
 } from '../services/asset-processing-service/index.ts';
-import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../eco/global-injector-map.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
 import { invariant } from '../utils/invariant.ts';
 import { HttpError } from '../errors/http-error.ts';
@@ -40,12 +37,11 @@ import { LocalsAccessError } from '../errors/locals-access-error.ts';
 import { DependencyResolverService } from './dependency-resolver.ts';
 import { PageModuleLoaderService } from './page-module-loader.ts';
 import { MarkerGraphResolver, type MarkerGraphContext } from './marker-graph-resolver.ts';
+import { RenderPreparationService } from './render-preparation.service.ts';
 import {
 	runWithComponentRenderContext,
 	type ComponentGraphContext as CapturedComponentGraphContext,
 } from '../eco/component-render-context.ts';
-
-const coreRequire = createRequire(import.meta.url);
 
 /**
  * Creates a Proxy that throws LocalsAccessError on any property access.
@@ -117,6 +113,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected dependencyResolverService: DependencyResolverService;
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected markerGraphResolver: MarkerGraphResolver;
+	protected renderPreparationService: RenderPreparationService;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -200,6 +197,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
 		this.markerGraphResolver = new MarkerGraphResolver();
+		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService);
 	}
 
 	/**
@@ -365,84 +363,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Walks the component tree depth-first and collects every `_resolvedLazyTrigger`
-	 * attached to component configs. A `seen` set prevents re-processing shared
-	 * component references and guards against cycles in the dependency graph.
-	 */
-	private collectResolvedTriggers(
-		components: (EcoComponent | Partial<EcoComponent>)[],
-		seen = new Set<object>(),
-	): ResolvedLazyTrigger[] {
-		const triggers: ResolvedLazyTrigger[] = [];
-		for (const comp of components) {
-			const ecoComp = comp as EcoComponent;
-			if (seen.has(ecoComp)) continue;
-			seen.add(ecoComp);
-			const ownTriggers = ecoComp.config?._resolvedLazyTriggers;
-			if (ownTriggers && ownTriggers.length > 0) triggers.push(...ownTriggers);
-			const nested = ecoComp.config?.dependencies?.components;
-			if (nested && nested.length > 0) {
-				triggers.push(...this.collectResolvedTriggers(nested, seen));
-			}
-		}
-		return triggers;
-	}
-
-	private collectIntegrationNames(
-		components: (EcoComponent | Partial<EcoComponent>)[],
-		seen = new Set<object>(),
-	): Set<string> {
-		const integrationNames = new Set<string>();
-
-		for (const comp of components) {
-			const ecoComp = comp as EcoComponent;
-			if (seen.has(ecoComp)) continue;
-			seen.add(ecoComp);
-
-			const integrationName = ecoComp.config?.integration ?? ecoComp.config?.__eco?.integration;
-			if (integrationName) {
-				integrationNames.add(integrationName);
-			}
-
-			const nested = ecoComp.config?.dependencies?.components;
-			if (nested && nested.length > 0) {
-				const nestedNames = this.collectIntegrationNames(nested, seen);
-				for (const nestedName of nestedNames) {
-					integrationNames.add(nestedName);
-				}
-			}
-		}
-
-		return integrationNames;
-	}
-
-	private collectUsedIntegrationDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): ProcessedAsset[] {
-		const integrationNames = this.collectIntegrationNames(components);
-		const dependencies: ProcessedAsset[] = [];
-
-		for (const integrationName of integrationNames) {
-			if (integrationName === this.name) {
-				continue;
-			}
-
-			const integrationPlugin = this.appConfig.integrations.find(
-				(integration) => integration.name === integrationName,
-			);
-			if (!integrationPlugin) {
-				continue;
-			}
-
-			if (typeof integrationPlugin.getResolvedIntegrationDependencies !== 'function') {
-				continue;
-			}
-
-			dependencies.push(...integrationPlugin.getResolvedIntegrationDependencies());
-		}
-
-		return dependencies;
-	}
-
-	/**
 	 * Processes component-specific dependencies WITHOUT prepending global integration dependencies.
 	 * Use this method when you need only the component's own assets.
 	 *
@@ -462,125 +382,26 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The prepared render options.
 	 */
 	protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
-		const pageModule = await this.resolvePageModule(options.file);
-		const { Page, integrationSpecificProps } = pageModule;
-
-		const HtmlTemplate = await this.getHtmlTemplate();
-
-		const { props, metadata } = await this.resolvePageData(pageModule, options);
-
-		const Layout = Page.config?.layout;
-
-		const componentsToResolve = Layout ? [HtmlTemplate, Layout, Page] : [HtmlTemplate, Page];
-		const resolvedDependencies = await this.resolveDependencies(componentsToResolve);
-		const usedIntegrationDependencies = this.collectUsedIntegrationDependencies(componentsToResolve);
-
-		const pageDeps = (await this.buildRouteRenderAssets(options.file)) || [];
-
-		const allDependencies = [...resolvedDependencies, ...usedIntegrationDependencies, ...pageDeps];
-		let componentRender: ComponentRenderResult | undefined;
-
-		if (this.shouldRenderPageComponent({ Page, Layout, options })) {
-			const componentRenderExecution = await runWithComponentRenderContext(
-				{
-					currentIntegration: this.name,
-				},
-				async () =>
-					this.renderComponent({
-						component: Page as EcoComponent,
-						props: {
-							...props,
-							params: options.params || {},
-							query: options.query || {},
-						},
-						integrationContext: {
-							componentInstanceId: 'eco-page-root',
-						},
-					}),
-			);
-			componentRender = componentRenderExecution.value;
-
-			if (componentRender.assets && componentRender.assets.length > 0) {
-				allDependencies.push(...componentRender.assets);
-			}
-		}
-
-		const triggers = this.collectResolvedTriggers(componentsToResolve);
-		if (triggers.length > 0) {
-			const globalInjectorImportPath = coreRequire.resolve('@ecopages/scripts-injector/global');
-			const globalInjectorRuntimeAsset = AssetFactory.createNodeModuleScript({
-				position: 'head',
-				name: 'ecopages-scripts-injector-global',
-				importPath: globalInjectorImportPath,
-				excludeFromHtml: true,
-			});
-			const [globalInjectorRuntimeProcessed] = await this.assetProcessingService.processDependencies(
-				[globalInjectorRuntimeAsset],
-				this.name,
-			);
-
-			const globalInjectorModuleUrl = globalInjectorRuntimeProcessed?.srcUrl;
-			if (!globalInjectorModuleUrl) {
-				throw new Error('[ecopages] Failed to resolve global injector runtime asset URL.');
-			}
-
-			const mapScript = AssetFactory.createInlineContentScript({
-				position: 'head',
-				name: 'ecopages-global-injector-map',
-				content: buildGlobalInjectorMapScript(triggers),
-				attributes: { type: 'ecopages/global-injector-map' },
-				bundle: false,
-			});
-			const bootstrapScript = AssetFactory.createContentScript({
-				position: 'head',
-				name: 'ecopages-global-injector-bootstrap',
-				content: buildGlobalInjectorBootstrapContent(globalInjectorModuleUrl),
-				attributes: { type: 'module' },
-				bundle: false,
-			});
-			const globalAssets = await this.assetProcessingService.processDependencies(
-				[mapScript, bootstrapScript, globalInjectorRuntimeAsset],
-				this.name,
-			);
-			allDependencies.push(...globalAssets);
-		}
-
-		this.htmlTransformer.setProcessedDependencies(this.dedupeProcessedAssets(allDependencies));
-
-		const pageProps = {
-			...props,
-			params: options.params || {},
-			query: options.query || {},
-		};
-
-		const cacheStrategy = (Page as EcoPageComponent<any>).cache;
-		const defaultCacheStrategy = this.appConfig.cache?.defaultStrategy ?? 'static';
-		const effectiveCacheStrategy = cacheStrategy ?? defaultCacheStrategy;
-		const localsAvailable = effectiveCacheStrategy === 'dynamic' && options.locals !== undefined;
-
-		const pageLocals = localsAvailable
-			? options.locals!
-			: (createLocalsProxy(options.file) as unknown as RouteRendererOptions['locals']);
-
-		const locals = localsAvailable ? options.locals : undefined;
-
-		return {
-			...options,
-			...integrationSpecificProps,
-			resolvedDependencies,
-			componentRender,
-			HtmlTemplate,
-			Layout,
-			props,
-			Page: Page as EcoFunctionComponent<StaticPageContext, EcoPagesElement>,
-			metadata,
-			params: options.params || {},
-			query: options.query || {},
-			pageProps,
-			locals,
-			pageLocals,
-			cacheStrategy: (Page as EcoPageComponent<any>).cache,
-		};
+		return this.renderPreparationService.prepare(options, this.name, {
+			resolvePageModule: (file) => this.resolvePageModule(file),
+			getHtmlTemplate: () => this.getHtmlTemplate(),
+			resolvePageData: (pageModule, routeOptions) => this.resolvePageData(pageModule, routeOptions),
+			resolveDependencies: (components) => this.resolveDependencies(components),
+			buildRouteRenderAssets: (file) => this.buildRouteRenderAssets(file),
+			shouldRenderPageComponent: (input) => this.shouldRenderPageComponent(input),
+			renderPageComponent: ({ component, props }) =>
+				this.renderComponent({
+					component,
+					props,
+					integrationContext: {
+						componentInstanceId: 'eco-page-root',
+					},
+				}),
+			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
+			dedupeProcessedAssets: (assets) => this.dedupeProcessedAssets(assets),
+			createPageLocalsProxy: (filePath) =>
+				createLocalsProxy(filePath) as unknown as RouteRendererOptions['locals'],
+		});
 	}
 
 	/**

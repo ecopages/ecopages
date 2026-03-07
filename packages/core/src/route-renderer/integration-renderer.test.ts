@@ -102,6 +102,14 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	public async testProcessComponentDependencies(components: (EcoComponent | Partial<EcoComponent>)[]) {
 		return this.processComponentDependencies(components);
 	}
+
+	public testShouldDeferComponentBoundary(input: {
+		currentIntegration: string;
+		targetIntegration?: string;
+		component: EcoComponent;
+	}) {
+		return this.shouldDeferComponentBoundary(input);
+	}
 }
 
 describe('IntegrationRenderer', () => {
@@ -257,6 +265,62 @@ describe('IntegrationRenderer', () => {
 
 		expect(result.locals).toBe(incomingLocals);
 		expect(result.pageLocals).toBe(incomingLocals);
+	});
+
+	it('should delegate boundary deferral decisions to the target integration plugin', () => {
+		const reactPlugin = {
+			name: 'react',
+			shouldDeferComponentBoundary: vi.fn(() => true),
+			initializeRenderer: vi.fn(),
+		} as unknown as EcoPagesAppConfig['integrations'][number];
+		const renderer = new TestIntegrationRenderer({
+			appConfig: {
+				...AppConfig,
+				integrations: [reactPlugin],
+			} as EcoPagesAppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const component = (() => '<div>Component</div>') as EcoComponent<Record<string, unknown>>;
+
+		const result = renderer.testShouldDeferComponentBoundary({
+			currentIntegration: 'ghtml',
+			targetIntegration: 'react',
+			component,
+		});
+
+		expect(result).toBe(true);
+		expect(reactPlugin.shouldDeferComponentBoundary).toHaveBeenCalledWith({
+			currentIntegration: 'ghtml',
+			targetIntegration: 'react',
+			component,
+		});
+	});
+
+	it('should not defer boundaries when target integration matches current integration', () => {
+		const reactPlugin = {
+			name: 'react',
+			shouldDeferComponentBoundary: vi.fn(() => true),
+			initializeRenderer: vi.fn(),
+		} as unknown as EcoPagesAppConfig['integrations'][number];
+		const renderer = new TestIntegrationRenderer({
+			appConfig: {
+				...AppConfig,
+				integrations: [reactPlugin],
+			} as EcoPagesAppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const component = (() => '<div>Component</div>') as EcoComponent<Record<string, unknown>>;
+
+		const result = renderer.testShouldDeferComponentBoundary({
+			currentIntegration: 'react',
+			targetIntegration: 'react',
+			component,
+		});
+
+		expect(result).toBe(false);
+		expect(reactPlugin.shouldDeferComponentBoundary).not.toHaveBeenCalled();
 	});
 
 	it('should prefer processed lazy script srcUrl for _resolvedLazyTriggers', async () => {

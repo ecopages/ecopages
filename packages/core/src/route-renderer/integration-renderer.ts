@@ -23,7 +23,6 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
-	StaticPageContext,
 } from '../public-types.ts';
 import { type AssetProcessingService, type ProcessedAsset } from '../services/asset-processing-service/index.ts';
 import { HtmlTransformerService } from '../services/html-transformer.service.ts';
@@ -36,6 +35,7 @@ import { PageModuleLoaderService } from './page-module-loader.ts';
 import { MarkerGraphResolver } from './marker-graph-resolver.ts';
 import { RenderExecutionService, type RenderExecutionGraphContext } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
+import type { BoundaryRenderDecisionInput, ComponentRenderBoundaryContext } from '../eco/component-render-context.ts';
 
 /**
  * Creates a Proxy that throws LocalsAccessError on any property access.
@@ -392,6 +392,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						componentInstanceId: 'eco-page-root',
 					},
 				}),
+			getComponentRenderBoundaryContext: () => this.getComponentRenderBoundaryContext(),
 			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
 			dedupeProcessedAssets: (assets) => this.htmlPostProcessingService.dedupeProcessedAssets(assets),
 			createPageLocalsProxy: (filePath) =>
@@ -472,6 +473,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			prepareRenderOptions: (routeOptions) =>
 				this.prepareRenderOptions(routeOptions) as Promise<IntegrationRendererRenderOptions<C>>,
 			render: (renderOptions) => this.render(renderOptions),
+			getComponentRenderBoundaryContext: () => this.getComponentRenderBoundaryContext(),
 			resolveMarkerGraphHtml: (input) =>
 				this.resolveMarkerGraphHtml({
 					html: input.html,
@@ -499,6 +501,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	/**
 	 * Resolves all `eco-marker` placeholders in rendered HTML using integration
 	 * dispatch and bottom-up graph execution.
+	 *
+	 * Responsibility split:
+	 * - core decodes markers into component refs, props, slot children, and target
+	 *   integration dispatch
+	 * - the selected integration renderer performs the actual component render via
+	 *   `renderComponent()`
 	 *
 	 * Resolver callback behavior per marker:
 	 * - resolve component definition by `componentRef`
@@ -592,6 +600,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Default behavior delegates to `renderToResponse` in partial mode and wraps
 	 * the resulting HTML into the `ComponentRenderResult` contract.
 	 *
+	 * In marker resolution, this method is the integration-owned step that turns an
+	 * already-resolved deferred boundary into concrete HTML, assets, and optional
+	 * root attributes.
+	 *
 	 * Integrations can override this for richer behavior (asset emission,
 	 * root attributes, integration-specific hydration metadata).
 	 *
@@ -634,5 +646,51 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	protected buildRouteRenderAssets(_file: string): Promise<ProcessedAsset[]> | undefined {
 		return undefined;
+	}
+
+	/**
+	 * Builds the narrow boundary policy facade injected into component render
+	 * context for this render pass.
+	 *
+	 * `eco.component()` consumes this facade without knowing about integration
+	 * registries or plugin instances.
+	 *
+	 * @returns Boundary policy context for the active integration renderer.
+	 */
+	protected getComponentRenderBoundaryContext(): ComponentRenderBoundaryContext {
+		return {
+			decideBoundaryRender: (input) => (this.shouldDeferComponentBoundary(input) ? 'defer' : 'inline'),
+		};
+	}
+
+	/**
+	 * Resolves whether a component boundary should be deferred by consulting the
+	 * target integration plugin.
+	 *
+	 * Boundaries targeting the current integration always render inline. Cross-
+	 * integration boundaries delegate the decision to the target integration's
+	 * `shouldDeferComponentBoundary()` policy.
+	 *
+	 * @param input Boundary metadata for the active render pass.
+	 * @returns `true` when the boundary should emit a marker; otherwise `false`.
+	 */
+	protected shouldDeferComponentBoundary(input: BoundaryRenderDecisionInput): boolean {
+		if (!input.targetIntegration || input.targetIntegration === input.currentIntegration) {
+			return false;
+		}
+
+		const targetIntegration = this.appConfig.integrations.find(
+			(integration) => integration.name === input.targetIntegration,
+		);
+		invariant(
+			!!targetIntegration,
+			`[ecopages] Integration not found for component boundary: ${input.targetIntegration}`,
+		);
+
+		return targetIntegration.shouldDeferComponentBoundary({
+			currentIntegration: input.currentIntegration,
+			targetIntegration: input.targetIntegration,
+			component: input.component,
+		});
 	}
 }

@@ -71,6 +71,9 @@ describe('RenderExecutionService', () => {
 						propsRef: 'captured',
 					})}</body></html>`;
 				},
+				getComponentRenderBoundaryContext: () => ({
+					decideBoundaryRender: () => 'inline',
+				}),
 				resolveMarkerGraphHtml,
 				dedupeProcessedAssets,
 				getProcessedDependencies: () => [asset],

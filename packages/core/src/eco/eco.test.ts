@@ -205,6 +205,10 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
+					boundaryContext: {
+						decideBoundaryRender: ({ targetIntegration }) =>
+							targetIntegration === 'react' ? 'defer' : 'inline',
+					},
 				},
 				async () => ReactButton({}),
 			);
@@ -229,10 +233,41 @@ describe('eco namespace', () => {
 				runWithComponentRenderContext(
 					{
 						currentIntegration: 'lit',
+						boundaryContext: {
+							decideBoundaryRender: ({ targetIntegration }) =>
+								targetIntegration === 'react' ? 'defer' : 'inline',
+						},
 					},
 					async () => ReactButton({}),
 				),
 			).rejects.toThrow('Missing component reference metadata for cross-integration marker emission');
+		});
+
+		test('should render inline when boundary context returns inline for a React component', async () => {
+			const ReactButton = eco.component({
+				integration: 'react',
+				__eco: {
+					id: 'react-button',
+					file: '/app/components/react-button.react.tsx',
+					integration: 'react',
+				},
+				render: () => '<button type="button">Click</button>',
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					boundaryContext: {
+						decideBoundaryRender: () => 'inline',
+					},
+				},
+				async () => ReactButton({}),
+			);
+
+			expect(execution.value).toBe('<button type="button">Click</button>');
+			expect(execution.value).not.toContain('<eco-marker');
+			expect(execution.graphContext.propsByRef).toEqual({});
+			expect(execution.graphContext.slotChildrenByRef).toEqual({});
 		});
 	});
 

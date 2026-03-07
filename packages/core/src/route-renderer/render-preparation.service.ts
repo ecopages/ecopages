@@ -3,7 +3,6 @@ import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
 	ComponentRenderResult,
 	EcoComponent,
-	EcoFunctionComponent,
 	EcoPageComponent,
 	EcoPageFile,
 	EcoPagesElement,
@@ -15,7 +14,6 @@ import type {
 	PageMetadataProps,
 	ResolvedLazyTrigger,
 	RouteRendererOptions,
-	StaticPageContext,
 } from '../public-types.ts';
 import {
 	type AssetProcessingService,
@@ -23,7 +21,7 @@ import {
 	type ProcessedAsset,
 } from '../services/asset-processing-service/index.ts';
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../eco/global-injector-map.ts';
-import { runWithComponentRenderContext } from '../eco/component-render-context.ts';
+import { runWithComponentRenderContext, type ComponentRenderBoundaryContext } from '../eco/component-render-context.ts';
 
 const coreRequire = createRequire(import.meta.url);
 
@@ -55,6 +53,11 @@ export interface RenderPreparationCallbacks {
 		component: EcoComponent;
 		props: Record<string, unknown>;
 	}): Promise<ComponentRenderResult>;
+	/**
+	 * Returns the boundary policy context that should be active while rendering
+	 * page-root component output during preparation.
+	 */
+	getComponentRenderBoundaryContext(): ComponentRenderBoundaryContext;
 	setProcessedDependencies(dependencies: ProcessedAsset[]): void;
 	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
 	createPageLocalsProxy(filePath: string): RouteRendererOptions['locals'];
@@ -288,6 +291,7 @@ export class RenderPreparationService {
 		const execution = await runWithComponentRenderContext(
 			{
 				currentIntegration: input.currentIntegrationName,
+				boundaryContext: input.callbacks.getComponentRenderBoundaryContext(),
 			},
 			async () =>
 				input.callbacks.renderPageComponent({

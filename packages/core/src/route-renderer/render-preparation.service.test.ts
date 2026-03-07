@@ -88,6 +88,9 @@ describe('RenderPreparationService', () => {
 				integrationName: 'ghtml',
 				assets: [componentAsset],
 			}),
+			getComponentRenderBoundaryContext: () => ({
+				decideBoundaryRender: () => 'inline',
+			}),
 			setProcessedDependencies,
 			dedupeProcessedAssets: (assets) => assets,
 			createPageLocalsProxy: () => ({ guarded: true }),
@@ -141,6 +144,9 @@ describe('RenderPreparationService', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent,
+				getComponentRenderBoundaryContext: () => ({
+					decideBoundaryRender: () => 'inline',
+				}),
 				setProcessedDependencies: vi.fn(),
 				dedupeProcessedAssets: (assets) => assets,
 				createPageLocalsProxy: () => ({ guarded: true }),

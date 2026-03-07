@@ -14,6 +14,10 @@ These diagrams are based on a few architectural assumptions that seem important 
   Static props, metadata, dependency processing, and route assets are all upstream of final HTML injection.
 - **Marker graph orchestration should be a post-render reconciliation step.**
   The initial integration render may emit deferred component markers; those are resolved after the first HTML pass, not during route matching.
+- **Marker emission is integration-defined boundary behavior.**
+  Markers are emitted when the active render boundary policy decides a component boundary must be deferred. If no `eco-marker` tokens are emitted, the marker graph stage is skipped entirely.
+- **The marker pipeline remains generic after emission.**
+  Once markers exist, core resolves them generically through marker graph extraction, integration renderer dispatch, asset collection, and HTML replacement. The current built-in React integration is one concrete consumer of that mechanism.
 - **Caching policy is authoritative at the page layer.**
   Middleware, locals, and response reuse all depend on the effective page cache strategy.
 - **Asset emission should converge into one injection stage.**
@@ -139,6 +143,8 @@ flowchart TD
 
 ### 4.2 Main execute flow via `RenderExecutionService`
 
+Important nuance: this phase does not always run marker graph resolution. It only does that when the first render pass actually produced `eco-marker` placeholders. In practice today, that usually means a non-React renderer crossed into React component rendering and deferred those nodes for the second pass.
+
 ```mermaid
 flowchart TD
   A[IntegrationRenderer execute] --> B[RenderExecutionService execute]
@@ -201,24 +207,72 @@ flowchart LR
 
 This part is architecturally interesting because it introduces a second render stage. The first pass captures boundaries; the second pass resolves them in dependency order.
 
+If this feels complex, the simplest mental model is:
+
+- first pass: render everything that can be rendered safely right now
+- when a boundary cannot be rendered safely in the current integration pass, emit a placeholder marker instead
+- second pass: revisit those placeholders and render them using the correct integration renderer
+- final pass: merge any emitted assets and perform the normal HTML transformation
+
+In the current implementation, this marker path exists to defer React subtrees that cannot be rendered inline during the active non-React integration pass.
+
+Important clarification: not every integration automatically goes through this stage. The marker pipeline is conditional.
+
+- If the first render pass returns plain HTML with no `eco-marker` tokens, rendering continues directly to post-processing and HTML transformation.
+- If the first render pass emits `eco-marker` tokens, the marker graph is built and resolved before the final HTML rewrite.
+- In the current implementation, marker emission is triggered when the active render pass boundary policy decides that entering React should be deferred. The policy is injected through component render context, and the React integration currently opts into that deferred behavior.
+
+### Why this exists
+
+The marker pipeline exists because some component boundaries cannot always be rendered eagerly inside the current integration pass.
+
+Typical reasons include:
+
+- the child component belongs to a different integration/runtime
+- the child integration needs its own renderer entry point
+- the parent render needs to preserve ordering and slots before the child subtree is resolved
+- the child render may emit its own assets or root attributes that must be merged back into the final document
+
+So the first pass captures a stable placeholder plus serialized render context, and the second pass resolves those placeholders using the correct integration renderer.
+
+Responsibility split:
+
+- core resolves the deferred marker mechanically: graph shape, refs, slot relationships, and target renderer lookup
+- the selected integration renderer resolves the actual component render once it receives `component`, `props`, and optional `children`
+
+Another way to say it:
+
+- a marker is a promise that says "this subtree will be rendered later by another renderer"
+- the marker stores just enough information to make that later render deterministic
+- the graph exists so nested deferred boundaries resolve from leaves to parents, preserving child insertion order and slot structure
+
 ### 5.1 Marker emission in `eco.component` factory
+
+The key rule here today is: markers are not a general-purpose placeholder for every component. During an active component render pass, `eco.component` asks the current render boundary context whether the next boundary should be deferred. When the answer is defer, it captures props/refs/slot links and returns an `eco-marker` token instead of rendering the component immediately.
+
+For the current built-in integrations, this is how non-React renders defer React subtrees until the marker resolution pass.
 
 ```mermaid
 flowchart TD
   A[eco component render] --> B[getComponentRenderContext]
-  B --> C{cross integration to react?}
-  C -- No --> D[render component content immediately]
-  C -- Yes --> E[create nodeId + propsRef]
-  E --> F[store props in propsByRef]
-  F --> G{children include eco-marker tokens?}
-  G -- Yes --> H[create slotRef and slotChildrenByRef links]
-  G -- No --> I[no slot links]
-  H --> J[createComponentMarker]
-  I --> J
-  J --> K[return eco marker token]
+  B --> C[boundaryContext decideBoundaryRender]
+  C --> D{decision is defer?}
+  D -- No --> E[render component content immediately]
+  D -- Yes --> F[create nodeId + propsRef]
+  F --> G[store props in propsByRef]
+  G --> H{children include eco-marker tokens?}
+  H -- Yes --> I[create slotRef and slotChildrenByRef links]
+  H -- No --> J[no slot links]
+  I --> K[createComponentMarker]
+  J --> K
+  K --> L[return eco marker token]
 ```
 
 ### 5.2 Marker graph execution
+
+Once markers exist in the HTML, the second pass is integration-agnostic at execution time. Each marker carries its target integration name, so the resolver can ask the right renderer to render that specific node. Even though marker emission is currently React-focused, the resolution phase itself is generic and works off the marker payload plus renderer lookup.
+
+This means the marker itself is not interpreted by the integration renderer. Core interprets the marker and reconstructs render input; the integration renderer only performs the final component render.
 
 ```mermaid
 flowchart TD

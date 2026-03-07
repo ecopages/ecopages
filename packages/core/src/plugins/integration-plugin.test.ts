@@ -45,4 +45,14 @@ describe('IntegrationPlugin', () => {
 		await expect(plugin.setup()).resolves.toBeUndefined();
 		await expect(plugin.teardown()).resolves.toBeUndefined();
 	});
+
+	it('should not defer component boundaries by default', () => {
+		expect(
+			plugin.shouldDeferComponentBoundary({
+				currentIntegration: 'ghtml',
+				targetIntegration: 'react',
+				component: () => '<div></div>',
+			}),
+		).toBe(false);
+	});
 });

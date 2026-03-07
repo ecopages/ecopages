@@ -29,15 +29,15 @@ import { createComponentMarker, parseComponentMarkers } from '../route-renderer/
 import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './eco.utils.ts';
 
 /**
- * Creates a component factory with lazy-trigger support and cross-integration
- * marker emission for React boundaries.
+ * Creates a component factory with lazy-trigger support and deferred-boundary
+ * marker emission.
  *
  * Behavior:
  * - In normal render flow, returns `options.render(props)` with optional lazy
  *   trigger/script wrapping.
- * - When rendering under component graph context and crossing from non-React
- *   integration into React, emits an `eco-marker` token instead of rendering
- *   the component immediately.
+ * - When rendering under component graph context and the active boundary policy
+ *   decides the target boundary should defer, emits an `eco-marker` token
+ *   instead of rendering the component immediately.
  *
  * @param options Component options for rendering and dependency declaration.
  * @returns Configured eco component.
@@ -48,9 +48,11 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 		const renderContext = getComponentRenderContext();
 		const shouldEmitMarker =
 			renderContext !== undefined &&
-			integrationName === 'react' &&
-			Boolean(integrationName) &&
-			renderContext.currentIntegration !== integrationName;
+			renderContext.boundaryContext.decideBoundaryRender({
+				currentIntegration: renderContext.currentIntegration,
+				targetIntegration: integrationName,
+				component: comp,
+			}) === 'defer';
 
 		if (shouldEmitMarker && renderContext) {
 			const nodeId = createNodeId(renderContext);

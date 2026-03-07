@@ -1,4 +1,43 @@
+import type { EcoComponent } from '../public-types.ts';
 import type { MarkerNodeId } from '../route-renderer/component-marker.ts';
+
+/**
+ * Outcome returned by boundary policy during one component render pass.
+ *
+ * - `inline`: render the target component immediately in the current pass
+ * - `defer`: emit an `eco-marker` and resolve it during the marker graph phase
+ */
+export type BoundaryRenderMode = 'inline' | 'defer';
+
+/**
+ * Input provided to boundary policy when a component boundary is reached.
+ *
+ * This keeps `eco.component()` decoupled from concrete integration/plugin
+ * objects while still giving policy enough information to decide whether the
+ * boundary should render immediately or be deferred.
+ */
+export type BoundaryRenderDecisionInput = {
+	currentIntegration: string;
+	targetIntegration?: string;
+	component: EcoComponent;
+};
+
+/**
+ * Narrow render-pass facade used by `eco.component()` for boundary decisions.
+ *
+ * The boundary context is intentionally small so component rendering can remain
+ * unaware of integration registries, plugin instances, or renderer lifecycles.
+ */
+export type ComponentRenderBoundaryContext = {
+	/**
+	 * Decides whether the next component boundary should render inline or defer to
+	 * the marker graph stage.
+	 *
+	 * @param input Boundary metadata for the current render pass.
+	 * @returns Boundary rendering mode for the target component.
+	 */
+	decideBoundaryRender(input: BoundaryRenderDecisionInput): BoundaryRenderMode;
+};
 
 /**
  * Per-render mutable state used while collecting marker graph references.
@@ -7,6 +46,7 @@ import type { MarkerNodeId } from '../route-renderer/component-marker.ts';
  */
 type ComponentRenderContext = {
 	currentIntegration: string;
+	boundaryContext: ComponentRenderBoundaryContext;
 	nextNodeId: number;
 	nextPropsRefId: number;
 	nextSlotRefId: number;
@@ -117,18 +157,20 @@ export function createSlotRef(context: ComponentRenderContext): string {
  * - the render result value
  * - captured graph reference maps for downstream marker resolution
  *
- * @param input Execution metadata for current integration/mode.
+ * @param input Execution metadata for current integration and boundary policy.
  * @param render Async render function to execute inside the context.
  * @returns Render result and captured graph context maps.
  */
 export async function runWithComponentRenderContext<T>(
 	input: {
 		currentIntegration: string;
+		boundaryContext: ComponentRenderBoundaryContext;
 	},
 	render: () => Promise<T>,
 ): Promise<{ value: T; graphContext: ComponentGraphContext }> {
 	const context: ComponentRenderContext = {
 		currentIntegration: input.currentIntegration,
+		boundaryContext: input.boundaryContext,
 		nextNodeId: 0,
 		nextPropsRefId: 0,
 		nextSlotRefId: 0,

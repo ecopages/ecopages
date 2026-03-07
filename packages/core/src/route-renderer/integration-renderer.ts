@@ -35,6 +35,7 @@ import { invariant } from '../utils/invariant.ts';
 import { HttpError } from '../errors/http-error.ts';
 import { LocalsAccessError } from '../errors/locals-access-error.ts';
 import { DependencyResolverService } from './dependency-resolver.ts';
+import { HtmlPostProcessingService } from './html-post-processing.service.ts';
 import { PageModuleLoaderService } from './page-module-loader.ts';
 import { MarkerGraphResolver, type MarkerGraphContext } from './marker-graph-resolver.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
@@ -114,6 +115,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected markerGraphResolver: MarkerGraphResolver;
 	protected renderPreparationService: RenderPreparationService;
+	protected htmlPostProcessingService: HtmlPostProcessingService;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -173,7 +175,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async prepareViewDependencies(view: EcoComponent, layout?: EcoComponent): Promise<ProcessedAsset[]> {
 		const HtmlTemplate = await this.getHtmlTemplate();
 		const componentsToResolve = layout ? [HtmlTemplate, layout, view] : [HtmlTemplate, view];
-		const resolvedDependencies = this.dedupeProcessedAssets(await this.resolveDependencies(componentsToResolve));
+		const resolvedDependencies = this.htmlPostProcessingService.dedupeProcessedAssets(
+			await this.resolveDependencies(componentsToResolve),
+		);
 		this.htmlTransformer.setProcessedDependencies(resolvedDependencies);
 		return resolvedDependencies;
 	}
@@ -198,6 +202,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
 		this.markerGraphResolver = new MarkerGraphResolver();
 		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService);
+		this.htmlPostProcessingService = new HtmlPostProcessingService();
 	}
 
 	/**
@@ -398,7 +403,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					},
 				}),
 			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
-			dedupeProcessedAssets: (assets) => this.dedupeProcessedAssets(assets),
+			dedupeProcessedAssets: (assets) => this.htmlPostProcessingService.dedupeProcessedAssets(assets),
 			createPageLocalsProxy: (filePath) =>
 				createLocalsProxy(filePath) as unknown as RouteRendererOptions['locals'],
 		});
@@ -518,7 +523,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			renderedHtml = markerResolution.html;
 
 			if (markerResolution.assets.length > 0) {
-				const mergedDependencies = this.dedupeProcessedAssets([
+				const mergedDependencies = this.htmlPostProcessingService.dedupeProcessedAssets([
 					...this.htmlTransformer.getProcessedDependencies(),
 					...markerResolution.assets,
 				]);
@@ -527,7 +532,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		}
 
 		if (shouldApplyComponentRootAttributes) {
-			renderedHtml = this.applyAttributesToFirstBodyElement(
+			renderedHtml = this.htmlPostProcessingService.applyAttributesToFirstBodyElement(
 				renderedHtml,
 				renderOptions.componentRender?.rootAttributes as Record<string, string>,
 			);
@@ -580,7 +585,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			graphContext: options.graphContext,
 			resolveRenderer: (integrationName) =>
 				this.getIntegrationRendererForName(integrationName, integrationRendererCache),
-			applyAttributesToFirstElement: (html, attributes) => this.applyAttributesToFirstElement(html, attributes),
+			applyAttributesToFirstElement: (html, attributes) =>
+				this.htmlPostProcessingService.applyAttributesToFirstElement(html, attributes),
 		});
 	}
 
@@ -677,94 +683,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected getRootTagName(html: string): string | undefined {
 		const rootTag = html.match(/^\s*<([a-zA-Z][a-zA-Z0-9:-]*)\b/);
 		return rootTag?.[1];
-	}
-
-	/**
-	 * Applies attributes to the first element immediately inside `<body>`.
-	 *
-	 * @param html Full HTML document.
-	 * @param attributes Attribute map to inject.
-	 * @returns Updated HTML document.
-	 */
-	private applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string {
-		const bodyMatch = html.match(/<body\b[^>]*>/i);
-		if (!bodyMatch || bodyMatch.index === undefined) {
-			return html;
-		}
-
-		const bodyOpenEnd = bodyMatch.index + bodyMatch[0].length;
-		const afterBody = html.slice(bodyOpenEnd);
-		const firstTagMatch = afterBody.match(/^(\s*<)([a-zA-Z][a-zA-Z0-9:-]*)(\b[^>]*>)/);
-		if (!firstTagMatch || firstTagMatch.index === undefined) {
-			return html;
-		}
-
-		const attrs = Object.entries(attributes)
-			.filter(([key, value]) => key.length > 0 && value.length > 0)
-			.map(([key, value]) => ` ${key}="${value}"`)
-			.join('');
-
-		if (attrs.length === 0) {
-			return html;
-		}
-
-		const injectionOffset = bodyOpenEnd + firstTagMatch[1].length + firstTagMatch[2].length;
-		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
-	}
-
-	/**
-	 * Applies attributes to the first top-level element of an HTML fragment.
-	 *
-	 * @param html HTML fragment.
-	 * @param attributes Attribute map to inject.
-	 * @returns Updated HTML fragment.
-	 */
-	private applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string {
-		const firstTagMatch = html.match(/^(\s*<)([a-zA-Z][a-zA-Z0-9:-]*)(\b[^>]*>)/);
-		if (!firstTagMatch || firstTagMatch.index === undefined) {
-			return html;
-		}
-
-		const attrs = Object.entries(attributes)
-			.filter(([key, value]) => key.length > 0 && value.length > 0)
-			.map(([key, value]) => ` ${key}="${value}"`)
-			.join('');
-
-		if (attrs.length === 0) {
-			return html;
-		}
-
-		const injectionOffset = firstTagMatch[1].length + firstTagMatch[2].length;
-		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
-	}
-
-	/**
-	 * Deduplicates processed assets using a stable composite key.
-	 *
-	 * @param assets Candidate processed assets.
-	 * @returns Deduplicated asset list preserving first-seen order.
-	 */
-	private dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
-		const unique = new Map<string, ProcessedAsset>();
-
-		for (const asset of assets) {
-			const key = [
-				asset.kind,
-				asset.position ?? '',
-				asset.srcUrl ?? '',
-				asset.filepath ?? '',
-				asset.content ?? '',
-				asset.inline ? 'inline' : 'external',
-				asset.excludeFromHtml ? 'excluded' : 'included',
-				JSON.stringify(asset.attributes ?? {}),
-			].join('|');
-
-			if (!unique.has(key)) {
-				unique.set(key, asset);
-			}
-		}
-
-		return [...unique.values()];
 	}
 
 	/**

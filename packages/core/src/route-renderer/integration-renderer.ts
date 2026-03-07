@@ -20,7 +20,6 @@ import type {
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
 	PageMetadataProps,
-	ResolvedLazyTrigger,
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
@@ -37,12 +36,12 @@ import { LocalsAccessError } from '../errors/locals-access-error.ts';
 import { DependencyResolverService } from './dependency-resolver.ts';
 import { HtmlPostProcessingService } from './html-post-processing.service.ts';
 import { PageModuleLoaderService } from './page-module-loader.ts';
-import { MarkerGraphResolver, type MarkerGraphContext } from './marker-graph-resolver.ts';
-import { RenderPreparationService } from './render-preparation.service.ts';
+import { MarkerGraphResolver } from './marker-graph-resolver.ts';
 import {
-	runWithComponentRenderContext,
-	type ComponentGraphContext as CapturedComponentGraphContext,
-} from '../eco/component-render-context.ts';
+	RenderExecutionService,
+	type RenderExecutionGraphContext,
+} from './render-execution.service.ts';
+import { RenderPreparationService } from './render-preparation.service.ts';
 
 /**
  * Creates a Proxy that throws LocalsAccessError on any property access.
@@ -92,11 +91,6 @@ export interface RenderToResponseContext {
 	headers?: HeadersInit;
 }
 
-type ComponentGraphContext = {
-	propsByRef?: Record<string, Record<string, unknown>>;
-	slotChildrenByRef?: MarkerGraphContext['slotChildrenByRef'];
-};
-
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
  * It handles the import of page files, collection of dependencies, and preparation of render options.
@@ -116,6 +110,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected markerGraphResolver: MarkerGraphResolver;
 	protected renderPreparationService: RenderPreparationService;
 	protected htmlPostProcessingService: HtmlPostProcessingService;
+	protected renderExecutionService: RenderExecutionService;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -203,6 +198,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.markerGraphResolver = new MarkerGraphResolver();
 		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService);
 		this.htmlPostProcessingService = new HtmlPostProcessingService();
+		this.renderExecutionService = new RenderExecutionService();
 	}
 
 	/**
@@ -478,82 +474,32 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns Rendered route body plus effective cache strategy.
 	 */
 	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		const renderOptions = (await this.prepareRenderOptions(options)) as IntegrationRendererRenderOptions<C>;
-		const shouldApplyComponentRootAttributes =
-			renderOptions.componentRender?.canAttachAttributes &&
-			renderOptions.componentRender.rootAttributes &&
-			Object.keys(renderOptions.componentRender.rootAttributes).length > 0;
-
-		let capturedGraphContext: CapturedComponentGraphContext = {
-			propsByRef: {},
-			slotChildrenByRef: {},
-		};
-		const renderExecution = await runWithComponentRenderContext(
-			{
-				currentIntegration: this.name,
-			},
-			async () => this.render(renderOptions),
-		);
-		capturedGraphContext = renderExecution.graphContext;
-
-		let renderedHtml = await new Response(renderExecution.value as BodyInit).text();
-		const explicitComponentGraphContext =
-			(renderOptions as IntegrationRendererRenderOptions<C> & { componentGraphContext?: ComponentGraphContext })
-				.componentGraphContext ?? {};
-		const componentGraphContext: ComponentGraphContext = {
-			propsByRef: {
-				...(capturedGraphContext.propsByRef ?? {}),
-				...(explicitComponentGraphContext.propsByRef ?? {}),
-			},
-			slotChildrenByRef: {
-				...(capturedGraphContext.slotChildrenByRef ?? {}),
-				...(explicitComponentGraphContext.slotChildrenByRef ?? {}),
-			},
-		};
-
-		if (renderedHtml.includes('<eco-marker')) {
-			const componentsToResolve = renderOptions.Layout
-				? [renderOptions.HtmlTemplate as EcoComponent, renderOptions.Layout as EcoComponent, renderOptions.Page]
-				: [renderOptions.HtmlTemplate as EcoComponent, renderOptions.Page];
-			const markerResolution = await this.resolveMarkerGraphHtml({
-				html: renderedHtml,
-				componentsToResolve,
-				graphContext: componentGraphContext,
-			});
-			renderedHtml = markerResolution.html;
-
-			if (markerResolution.assets.length > 0) {
-				const mergedDependencies = this.htmlPostProcessingService.dedupeProcessedAssets([
-					...this.htmlTransformer.getProcessedDependencies(),
-					...markerResolution.assets,
-				]);
-				this.htmlTransformer.setProcessedDependencies(mergedDependencies);
-			}
-		}
-
-		if (shouldApplyComponentRootAttributes) {
-			renderedHtml = this.htmlPostProcessingService.applyAttributesToFirstBodyElement(
-				renderedHtml,
-				renderOptions.componentRender?.rootAttributes as Record<string, string>,
-			);
-		}
-
-		const body = await this.htmlTransformer
-			.transform(
-				new Response(renderedHtml, {
-					headers: {
-						'Content-Type': 'text/html',
-					},
+		return this.renderExecutionService.execute(options, this.name, {
+			prepareRenderOptions: (routeOptions) =>
+				this.prepareRenderOptions(routeOptions) as Promise<IntegrationRendererRenderOptions<C>>,
+			render: (renderOptions) => this.render(renderOptions),
+			resolveMarkerGraphHtml: (input) =>
+				this.resolveMarkerGraphHtml({
+					html: input.html,
+					componentsToResolve: input.componentsToResolve,
+					graphContext: input.graphContext,
 				}),
-			)
-			.then((res: Response) => {
-				return res.body as RouteRendererBody;
-			});
-
-		return {
-			body,
-			cacheStrategy: renderOptions.cacheStrategy,
-		};
+			dedupeProcessedAssets: (assets) => this.htmlPostProcessingService.dedupeProcessedAssets(assets),
+			getProcessedDependencies: () => this.htmlTransformer.getProcessedDependencies(),
+			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
+			applyAttributesToFirstBodyElement: (html, attributes) =>
+				this.htmlPostProcessingService.applyAttributesToFirstBodyElement(html, attributes),
+			transformHtml: async (html) => {
+				const response = await this.htmlTransformer.transform(
+					new Response(html, {
+						headers: {
+							'Content-Type': 'text/html',
+						},
+					}),
+				);
+				return response.body as RouteRendererBody;
+			},
+		});
 	}
 
 	/**
@@ -576,7 +522,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	private async resolveMarkerGraphHtml(options: {
 		html: string;
 		componentsToResolve: EcoComponent[];
-		graphContext: ComponentGraphContext;
+		graphContext: RenderExecutionGraphContext;
 	}): Promise<{ html: string; assets: ProcessedAsset[] }> {
 		const integrationRendererCache = new Map<string, IntegrationRenderer>();
 		return this.markerGraphResolver.resolve({

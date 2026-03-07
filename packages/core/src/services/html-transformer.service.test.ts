@@ -54,6 +54,20 @@ vi.mock('@worker-tools/html-rewriter/base64', () => ({
 	HTMLRewriter: TestHtmlRewriter,
 }));
 
+type HtmlRewriterModeScenario = {
+	label: string;
+	html: string;
+	dependencies: ProcessedAsset[];
+	expectedFragments: string[];
+	unexpectedFragments?: string[];
+};
+
+type HtmlRewriterModeCase = {
+	label: string;
+	mode: 'auto' | 'native' | 'worker-tools' | 'fallback';
+	hasNativeRuntime: boolean;
+};
+
 describe('HtmlTransformerService', () => {
 	const originalHtmlRewriter = (globalThis as { HTMLRewriter?: typeof TestHtmlRewriter }).HTMLRewriter;
 
@@ -67,6 +81,91 @@ describe('HtmlTransformerService', () => {
 			headers: { 'Content-Type': 'text/html' },
 		});
 	};
+
+	const htmlRewriterModeCases: HtmlRewriterModeCase[] = [
+		{ label: 'auto with native runtime', mode: 'auto', hasNativeRuntime: true },
+		{ label: 'auto without native runtime', mode: 'auto', hasNativeRuntime: false },
+		{ label: 'native', mode: 'native', hasNativeRuntime: true },
+		{ label: 'worker-tools', mode: 'worker-tools', hasNativeRuntime: true },
+		{ label: 'fallback', mode: 'fallback', hasNativeRuntime: true },
+	];
+
+	const htmlRewriterScenarios: HtmlRewriterModeScenario[] = [
+		{
+			label: 'injects mixed head and body dependencies while preserving document content',
+			html: '<html><head><title>Matrix</title></head><body><main>Page content</main></body></html>',
+			dependencies: [
+				{
+					kind: 'stylesheet',
+					inline: false,
+					position: 'head',
+					srcUrl: '/matrix.css',
+					attributes: { media: 'screen' },
+				},
+				{
+					kind: 'script',
+					inline: true,
+					content: 'window.matrix = true;',
+					position: 'head',
+					srcUrl: '/matrix-inline.js',
+					attributes: { id: 'matrix-inline' },
+				},
+				{
+					kind: 'script',
+					inline: false,
+					position: 'body',
+					srcUrl: '/matrix-body.js',
+					attributes: { defer: 'true' },
+				},
+			],
+			expectedFragments: [
+				'<title>Matrix</title>',
+				'<main>Page content</main>',
+				'<link rel="stylesheet" href="/matrix.css" media="screen">',
+				'<script id="matrix-inline">window.matrix = true;</script>',
+				'<script src="/matrix-body.js" defer="true"></script>',
+			],
+		},
+		{
+			label: 'skips excluded scripts while still injecting remaining dependencies',
+			html: '<html><head></head><body><section>Visible</section></body></html>',
+			dependencies: [
+				{
+					kind: 'script',
+					inline: false,
+					position: 'body',
+					srcUrl: '/excluded.js',
+					excludeFromHtml: true,
+				},
+				{
+					kind: 'script',
+					inline: false,
+					position: 'body',
+					srcUrl: '/included.js',
+				},
+			],
+			expectedFragments: ['<section>Visible</section>', '<script src="/included.js"></script>'],
+			unexpectedFragments: ['<script src="/excluded.js"></script>'],
+		},
+		{
+			label: 'injects inline styles and preserves nested body markup',
+			html: '<html><head></head><body><div><span>Nested</span></div></body></html>',
+			dependencies: [
+				{
+					kind: 'stylesheet',
+					inline: true,
+					position: 'head',
+					content: '.nested{color:red;}',
+					srcUrl: '/nested.css',
+					attributes: { 'data-test': 'inline-style' },
+				},
+			],
+			expectedFragments: [
+				'<div><span>Nested</span></div>',
+				'<style data-test="inline-style">.nested{color:red;}</style>',
+			],
+		},
+	];
 
 	it('should inject script dependencies correctly', async () => {
 		const dependencies: ProcessedAsset[] = [
@@ -195,5 +294,109 @@ describe('HtmlTransformerService', () => {
 		const html = await result.text();
 
 		expect(html).toContain('<link rel="stylesheet" href="/worker-tools.css">');
+	});
+
+	it('should allow forcing worker-tools mode even when native HTMLRewriter exists', async () => {
+		(globalThis as { HTMLRewriter?: typeof TestHtmlRewriter }).HTMLRewriter = TestHtmlRewriter;
+		const dependencies: ProcessedAsset[] = [
+			{
+				kind: 'stylesheet',
+				inline: false,
+				position: 'head',
+				srcUrl: '/forced-worker-tools.css',
+			},
+		];
+
+		const transformer = new HtmlTransformerService({ htmlRewriterMode: 'worker-tools' });
+		transformer.setProcessedDependencies(dependencies);
+		const result = await transformer.transform(createMockResponse('<html><head></head><body></body></html>'));
+		const html = await result.text();
+
+		expect(html).toContain('<link rel="stylesheet" href="/forced-worker-tools.css">');
+	});
+
+	it('should allow forcing worker-tools mode via setter after construction', async () => {
+		(globalThis as { HTMLRewriter?: typeof TestHtmlRewriter }).HTMLRewriter = TestHtmlRewriter;
+		const dependencies: ProcessedAsset[] = [
+			{
+				kind: 'stylesheet',
+				inline: false,
+				position: 'head',
+				srcUrl: '/env-worker-tools.css',
+			},
+		];
+
+		const transformer = new HtmlTransformerService();
+		transformer.setHtmlRewriterMode('worker-tools');
+		transformer.setProcessedDependencies(dependencies);
+		const result = await transformer.transform(createMockResponse('<html><head></head><body></body></html>'));
+		const html = await result.text();
+
+		expect(html).toContain('<link rel="stylesheet" href="/env-worker-tools.css">');
+	});
+
+	it('should allow forcing string fallback mode', async () => {
+		(globalThis as { HTMLRewriter?: typeof TestHtmlRewriter }).HTMLRewriter = TestHtmlRewriter;
+		const dependencies: ProcessedAsset[] = [
+			{
+				kind: 'script',
+				inline: false,
+				position: 'body',
+				srcUrl: '/fallback.js',
+			},
+		];
+
+		const transformer = new HtmlTransformerService({ htmlRewriterMode: 'fallback' });
+		transformer.setProcessedDependencies(dependencies);
+		const result = await transformer.transform(createMockResponse('<html><head></head><body></body></html>'));
+		const html = await result.text();
+
+		expect(html).toContain('<script src="/fallback.js"></script>');
+	});
+
+	it('should allow forcing fallback mode via setter after construction', async () => {
+		(globalThis as { HTMLRewriter?: typeof TestHtmlRewriter }).HTMLRewriter = TestHtmlRewriter;
+		const dependencies: ProcessedAsset[] = [
+			{
+				kind: 'script',
+				inline: false,
+				position: 'body',
+				srcUrl: '/env-fallback.js',
+			},
+		];
+
+		const transformer = new HtmlTransformerService();
+		transformer.setHtmlRewriterMode('fallback');
+		transformer.setProcessedDependencies(dependencies);
+		const result = await transformer.transform(createMockResponse('<html><head></head><body></body></html>'));
+		const html = await result.text();
+
+		expect(html).toContain('<script src="/env-fallback.js"></script>');
+	});
+
+	it('should support the same transformation scenarios across all html rewriter modes', async () => {
+		const transformer = new HtmlTransformerService();
+
+		for (const modeCase of htmlRewriterModeCases) {
+			(globalThis as { HTMLRewriter?: typeof TestHtmlRewriter }).HTMLRewriter = modeCase.hasNativeRuntime
+				? TestHtmlRewriter
+				: undefined;
+
+			for (const scenario of htmlRewriterScenarios) {
+				transformer.setHtmlRewriterMode(modeCase.mode);
+				transformer.setProcessedDependencies(scenario.dependencies);
+
+				const result = await transformer.transform(createMockResponse(scenario.html));
+				const html = await result.text();
+
+				for (const expectedFragment of scenario.expectedFragments) {
+					expect(html, `${modeCase.label}: ${scenario.label}`).toContain(expectedFragment);
+				}
+
+				for (const unexpectedFragment of scenario.unexpectedFragments ?? []) {
+					expect(html, `${modeCase.label}: ${scenario.label}`).not.toContain(unexpectedFragment);
+				}
+			}
+		}
 	});
 });

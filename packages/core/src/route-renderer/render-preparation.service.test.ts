@@ -4,6 +4,13 @@ import type { EcoComponent, EcoPageComponent, HtmlTemplateProps, RouteRendererOp
 import type { AssetProcessingService, ProcessedAsset } from '../services/asset-processing-service/index.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
 
+declare module '../public-types.ts' {
+	interface RequestLocals {
+		user?: string;
+		guarded?: boolean;
+	}
+}
+
 describe('RenderPreparationService', () => {
 	it('should prepare dynamic render options and merge renderer-owned assets', async () => {
 		const integrationDependency = {
@@ -69,7 +76,7 @@ describe('RenderPreparationService', () => {
 			getHtmlTemplate: async () => HtmlTemplate,
 			resolvePageData: async () => ({
 				props: { title: 'Hello' },
-				metadata: { title: 'Hello' },
+				metadata: { title: 'Hello', description: 'Hello description' },
 			}),
 			resolveDependencies: async () => [resolvedDependency],
 			buildRouteRenderAssets: async () => [pageDependency],
@@ -89,7 +96,7 @@ describe('RenderPreparationService', () => {
 		expect(result.locals).toEqual({ user: 'andee' });
 		expect(result.pageLocals).toEqual({ user: 'andee' });
 		expect(result.pageProps).toEqual({ title: 'Hello', params: { slug: 'hello' }, query: { preview: '1' } });
-		expect(result.layoutMode).toBe('full');
+		expect((result as typeof result & { layoutMode?: string }).layoutMode).toBe('full');
 		expect(result.componentRender?.assets).toEqual([componentAsset]);
 		expect(setProcessedDependencies).toHaveBeenCalledWith([
 			resolvedDependency,
@@ -126,7 +133,10 @@ describe('RenderPreparationService', () => {
 					integrationSpecificProps: {},
 				}),
 				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({ props: {}, metadata: {} }),
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: 'Static page', description: 'Static page description' },
+				}),
 				resolveDependencies: async () => [],
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,

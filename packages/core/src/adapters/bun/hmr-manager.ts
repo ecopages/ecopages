@@ -28,7 +28,7 @@ export class HmrManager implements IHmrManager {
 	private watchers = new Map<string, fs.FSWatcher>();
 	/** entrypoint -> output path */
 	private watchedFiles = new Map<string, string>();
-	/** bare specifier -> vendor URL (e.g., 'react' -> '/assets/vendors/react-esm.js') */
+	/** bare specifier -> runtime URL (e.g., 'react' -> '/assets/vendors/react.js') */
 	private specifierMap = new Map<string, string>();
 	private distDir: string;
 	private plugins: EcoBuildPlugin[] = [];

@@ -37,7 +37,9 @@ export class FileRouteMiddlewarePipeline {
 		filePath: string;
 	}): void {
 		if (input.middleware.length > 0 && input.pageCacheStrategy !== 'dynamic') {
-			throw new LocalsAccessError(FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS.middlewareRequiresDynamic(input.filePath));
+			throw new LocalsAccessError(
+				FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS.middlewareRequiresDynamic(input.filePath),
+			);
 		}
 	}
 

@@ -141,9 +141,7 @@ export class RenderPreparationService {
 		const effectiveCacheStrategy = cacheStrategy ?? defaultCacheStrategy;
 		const localsAvailable = effectiveCacheStrategy === 'dynamic' && routeOptions.locals !== undefined;
 
-		const pageLocals = localsAvailable
-			? routeOptions.locals!
-			: callbacks.createPageLocalsProxy(routeOptions.file);
+		const pageLocals = localsAvailable ? routeOptions.locals! : callbacks.createPageLocalsProxy(routeOptions.file);
 
 		const locals = localsAvailable ? routeOptions.locals : undefined;
 

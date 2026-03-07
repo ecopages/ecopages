@@ -108,7 +108,8 @@ export class FileSystemResponseMatcher {
 			const Page = (pageModule as any)?.default;
 			const pageMiddleware = (Page?.middleware ?? []) as Middleware[];
 			const pageCacheStrategy =
-				(Page?.cache as CacheStrategy | undefined) ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
+				(Page?.cache as CacheStrategy | undefined) ??
+				this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
 			const localsForRender: RequestLocals | undefined =
 				pageCacheStrategy === 'dynamic' ? localsStore : undefined;
 

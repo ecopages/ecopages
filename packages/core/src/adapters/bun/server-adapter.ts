@@ -52,7 +52,8 @@ export interface BunServerAdapterParams {
 export interface BunServerAdapterResult extends ServerAdapterResult {
 	getServerOptions: (options?: { enableHmr?: boolean }) => BunServeOptions;
 	buildStatic: (options?: { preview?: boolean }) => Promise<void>;
-	completeInitialization: (server: BunServerInstance) => Promise<void>;
+	completeInitialization: (server?: BunServerInstance | null) => Promise<void>;
+	handleRequest: (request: Request) => Promise<Response>;
 }
 
 export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams, BunServerAdapterResult> {
@@ -359,11 +360,16 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Must be called before handling any requests.
 	 * @param server - The Bun server instance
 	 */
-	public async completeInitialization(server: BunServerInstance): Promise<void> {
-		if (this.fullyInitialized) return;
+	public async completeInitialization(server?: BunServerInstance | null): Promise<void> {
+		if (this.fullyInitialized) {
+			if (server && !this.serverInstance) {
+				this.serverInstance = server;
+			}
+			return;
+		}
 
 		if (!this.initializationPromise) {
-			this.initializationPromise = this._performInitialization(server);
+			this.initializationPromise = this._performInitialization(server ?? null);
 		}
 
 		return this.initializationPromise;
@@ -372,7 +378,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	/**
 	 * Performs complete server setup including routing, watchers, and HMR.
 	 */
-	private async _performInitialization(server: BunServerInstance): Promise<void> {
+	private async _performInitialization(server: BunServerInstance | null): Promise<void> {
 		this.serverInstance = server;
 		appLogger.debug('Completing server initialization with dynamic routes');
 
@@ -401,6 +407,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			getServerOptions: this.getServerOptions.bind(this),
 			buildStatic: this.buildStatic.bind(this),
 			completeInitialization: this.completeInitialization.bind(this),
+			handleRequest: this.handleRequest.bind(this),
 		};
 	}
 

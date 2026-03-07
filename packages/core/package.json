@@ -48,7 +48,7 @@
 			"browser": "./src/index.browser.ts",
 			"import": "./src/index.ts",
 			"require": "./src/index.ts",
-			"types": "./src/public-types.ts"
+			"types": "./src/index.ts"
 		},
 		"./create-app": {
 			"types": "./src/create-app.ts",

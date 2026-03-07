@@ -6,6 +6,13 @@ import {
 	FileRouteMiddlewarePipeline,
 } from './file-route-middleware-pipeline.ts';
 
+declare module '../../public-types.ts' {
+	interface RequestLocals {
+		user?: string;
+		first?: boolean;
+	}
+}
+
 describe('FileRouteMiddlewarePipeline', () => {
 	it('should reject middleware on non-dynamic pages', () => {
 		const service = new FileRouteMiddlewarePipeline(null);
@@ -25,18 +32,21 @@ describe('FileRouteMiddlewarePipeline', () => {
 
 	it('should create middleware context with render methods disabled', async () => {
 		const service = new FileRouteMiddlewarePipeline(null);
+		const DummyView = (() => '<div>dummy</div>') as never;
 		const context = service.createContext({
 			request: new Request('http://localhost:3000/hello'),
 			params: { slug: 'hello' },
 			locals: { user: 'andee' },
 		});
 
-		await expect(context.render()).rejects.toThrow(FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS.CTX_RENDER_UNAVAILABLE);
-		await expect(context.renderPartial()).rejects.toThrow(
+		await expect(context.render(DummyView, {})).rejects.toThrow(
+			FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS.CTX_RENDER_UNAVAILABLE,
+		);
+		await expect(context.renderPartial(DummyView, {})).rejects.toThrow(
 			FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS.CTX_RENDER_PARTIAL_UNAVAILABLE,
 		);
 
-		expect(context.require('user')).toBe('andee');
+		expect(context.require('user', () => new Response('missing', { status: 500 }))).toBe('andee');
 		expect(await context.html('<p>ok</p>').text()).toContain('<p>ok</p>');
 		expect(await context.json({ ok: true }).text()).toContain('{"ok":true}');
 	});

@@ -11,6 +11,7 @@ import type {
 	GetStaticProps,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
+	PageProps,
 	PageMetadataProps,
 	ResolvedLazyTrigger,
 	RouteRendererOptions,
@@ -144,16 +145,14 @@ export class RenderPreparationService {
 		const pageLocals = localsAvailable ? routeOptions.locals! : callbacks.createPageLocalsProxy(routeOptions.file);
 
 		const locals = localsAvailable ? routeOptions.locals : undefined;
-
-		return {
+		const preparedOptions: IntegrationRendererRenderOptions<C> = {
 			...routeOptions,
-			...integrationSpecificProps,
 			resolvedDependencies,
 			componentRender,
-			HtmlTemplate,
+			HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps, C>,
 			Layout,
 			props,
-			Page: Page as EcoFunctionComponent<StaticPageContext, EcoPagesElement>,
+			Page: Page as EcoComponent<PageProps, C>,
 			metadata,
 			params: routeOptions.params || {},
 			query: routeOptions.query || {},
@@ -161,7 +160,12 @@ export class RenderPreparationService {
 			locals,
 			pageLocals,
 			cacheStrategy,
-		} as IntegrationRendererRenderOptions<C>;
+		};
+
+		return {
+			...integrationSpecificProps,
+			...preparedOptions,
+		};
 	}
 
 	/**

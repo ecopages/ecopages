@@ -7,14 +7,38 @@ type HtmlRewriterElement = {
 
 type HtmlRewriterConstructor = new () => HtmlRewriterRuntime;
 
+export type HtmlRewriterMode = 'auto' | 'native' | 'worker-tools' | 'fallback';
+
 type HtmlRewriterRuntime = {
 	on(selector: 'head' | 'body', handler: { element: (element: HtmlRewriterElement) => void }): HtmlRewriterRuntime;
 	transform(response: Response): Response;
 };
 
+export interface HtmlTransformerServiceOptions {
+	htmlRewriterMode?: HtmlRewriterMode;
+}
+
 export class HtmlTransformerService {
 	private processedDependencies: ProcessedAsset[] = [];
 	private htmlRewriterConstructorPromise?: Promise<HtmlRewriterConstructor | null>;
+	private htmlRewriterMode: HtmlRewriterMode = 'auto';
+
+	constructor(options: HtmlTransformerServiceOptions = {}) {
+		this.setHtmlRewriterMode(options.htmlRewriterMode ?? 'auto');
+	}
+
+	/**
+	 * Overrides the HTML rewriter runtime selection.
+	 *
+	 * This is intended for internal/runtime tests that need deterministic
+	 * selection between native, worker-tools, and string fallback behavior.
+	 *
+	 * @param mode Requested runtime selection strategy.
+	 */
+	setHtmlRewriterMode(mode: HtmlRewriterMode) {
+		this.htmlRewriterMode = mode;
+		this.htmlRewriterConstructorPromise = undefined;
+	}
 
 	/**
 	 * Creates an HTML rewriter instance from the best available runtime.
@@ -41,8 +65,21 @@ export class HtmlTransformerService {
 	 */
 	private async resolveHtmlRewriterConstructor(): Promise<HtmlRewriterConstructor | null> {
 		if (!this.htmlRewriterConstructorPromise) {
+			const mode = this.htmlRewriterMode;
 			const RuntimeHtmlRewriter = (globalThis as { HTMLRewriter?: HtmlRewriterConstructor }).HTMLRewriter;
-			if (RuntimeHtmlRewriter) {
+
+			if (mode === 'fallback') {
+				this.htmlRewriterConstructorPromise = Promise.resolve(null);
+			} else if (mode === 'native') {
+				if (RuntimeHtmlRewriter) {
+					this.htmlRewriterConstructorPromise = Promise.resolve(RuntimeHtmlRewriter);
+				} else {
+					appLogger.warn(
+						'[HtmlTransformerService] Native HTMLRewriter was forced but is unavailable, falling back to string injection.',
+					);
+					this.htmlRewriterConstructorPromise = Promise.resolve(null);
+				}
+			} else if (mode === 'auto' && RuntimeHtmlRewriter) {
 				this.htmlRewriterConstructorPromise = Promise.resolve(RuntimeHtmlRewriter);
 			} else {
 				this.htmlRewriterConstructorPromise = import('@worker-tools/html-rewriter/base64')

@@ -3,9 +3,11 @@ node_modules
 
 # ecopages
 .eco
+.examples
 
 # build
 public/js
+packages/**/dist
 
 # misc
 .DS_Store

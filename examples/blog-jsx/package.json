@@ -18,6 +18,7 @@
 		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
 		"@ecopages/browser-router": "npm:@jsr/ecopages__browser-router@latest",
 		"@ecopages/scripts-injector": "latest",
+		"@kitajs/html": "^4.2.13",
 		"@tailwindcss/postcss": "^4.1.18",
 		"tailwindcss": "^4.1.18",
 		"@ecopages/radiant": "^0.2.0"

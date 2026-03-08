@@ -6,9 +6,11 @@ import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL || 'http://localhost:3000')
 	.setIntegrations([
 		reactPlugin({
 			router: ecoRouter(),
@@ -20,8 +22,8 @@ const config = await new ConfigBuilder()
 	.setProcessors([
 		imageProcessorPlugin({
 			options: {
-				sourceDir: path.resolve(import.meta.dir, 'src/images'),
-				outputDir: path.resolve(import.meta.dir, '.eco/images'),
+				sourceDir: path.resolve(appRoot, 'src/images'),
+				outputDir: path.resolve(appRoot, '.eco/images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 				quality: 80,
@@ -36,7 +38,7 @@ const config = await new ConfigBuilder()
 		}),
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dir, 'src/styles/tailwind.css'),
+				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
 		),
 	])

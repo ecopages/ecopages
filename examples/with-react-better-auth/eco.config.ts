@@ -8,10 +8,11 @@ import { ecoRouter } from '@ecopages/react-router';
 import rehypePrettyCode from 'rehype-pretty-code';
 import remarkGfm from 'remark-gfm';
 
-const baseUrl = import.meta.env?.ECOPAGES_BASE_URL ?? 'http://localhost:3000';
+const appRoot = process.cwd();
+const baseUrl = process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000';
 
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
+	.setRootDir(appRoot)
 	.setBaseUrl(baseUrl)
 	.setDefaultMetadata({
 		title: 'Ecopages + Better Auth Starter',
@@ -40,8 +41,8 @@ const config = await new ConfigBuilder()
 	.setProcessors([
 		imageProcessorPlugin({
 			options: {
-				sourceDir: path.resolve(import.meta.dir, 'src/images'),
-				outputDir: path.resolve(import.meta.dir, '.eco/images'),
+				sourceDir: path.resolve(appRoot, 'src/images'),
+				outputDir: path.resolve(appRoot, '.eco/images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 				quality: 80,
@@ -56,7 +57,7 @@ const config = await new ConfigBuilder()
 		}),
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dir, 'src/styles/app.css'),
+				referencePath: path.resolve(appRoot, 'src/styles/app.css'),
 			}),
 		),
 	])

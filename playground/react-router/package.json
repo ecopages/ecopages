@@ -11,6 +11,7 @@
 		"hot:dev": "ecopages dev:hot"
 	},
 	"devDependencies": {
+		"ecopages": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
@@ -18,7 +19,8 @@
 		"@ecopages/react": "workspace:*",
 		"@ecopages/react-router": "workspace:*",
 		"@tailwindcss/postcss": "^4.1.18",
-		"ecopages": "workspace:*",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
 		"tailwindcss": "^4.1.18",
 		"react": "^19",
 		"react-dom": "^19"

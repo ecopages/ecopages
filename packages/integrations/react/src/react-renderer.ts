@@ -27,6 +27,7 @@ import { PLUGIN_NAME } from './react.plugin.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
 import { hasSingleRootElement } from './utils/html-boundary.ts';
 import { ReactBundleService } from './services/react-bundle.service.ts';
+import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 import { ReactPageModuleService } from './services/react-page-module.service.ts';
 import { ReactHydrationAssetService } from './services/react-hydration-asset.service.ts';
 
@@ -68,6 +69,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	static routerAdapter: ReactRouterAdapter | undefined;
 	static mdxCompilerOptions: CompileOptions | undefined;
 	static mdxExtensions: string[] = ['.mdx'];
+	static hmrPageMetadataCache: ReactHmrPageMetadataCache | undefined;
 	/**
 	 * Enables explicit graph behavior for React page-entry bundling.
 	 *
@@ -113,6 +115,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			routerAdapter: ReactRenderer.routerAdapter,
 			assetProcessingService: this.assetProcessingService,
 			bundleService: this.bundleService,
+			hmrPageMetadataCache: ReactRenderer.hmrPageMetadataCache,
 		});
 	}
 

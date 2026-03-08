@@ -25,6 +25,7 @@ import { PageModuleImportService } from './page-module-import.service.ts';
 describe('PageModuleImportService', () => {
 	afterEach(() => {
 		vi.clearAllMocks();
+		PageModuleImportService.clearImportCache();
 		delete process.env.NODE_ENV;
 	});
 
@@ -78,5 +79,67 @@ describe('PageModuleImportService', () => {
 				transpileErrorMessage: (details) => `transpile failed: ${details}`,
 			}),
 		).rejects.toThrow('transpile failed: Unexpected token');
+	});
+
+	it('should keep a stable node module path in development for unchanged files', async () => {
+		process.env.NODE_ENV = 'development';
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-dev-'));
+		const compiledOutput = join(tempDir, 'page-hash123.js');
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		mocks.build.mockResolvedValue({
+			success: true,
+			logs: [],
+			outputs: [{ path: compiledOutput }],
+		});
+
+		try {
+			const service = new PageModuleImportService();
+			await service.importModule({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+
+			expect(mocks.build).toHaveBeenCalledWith(
+				expect.objectContaining({
+					naming: 'page-hash123.js',
+				}),
+			);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should reuse cached node modules across different output directories', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-cache-'));
+		const compiledOutput = join(tempDir, 'page-hash123.js');
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		mocks.build.mockResolvedValue({
+			success: true,
+			logs: [],
+			outputs: [{ path: compiledOutput }],
+		});
+
+		try {
+			const service = new PageModuleImportService();
+
+			const first = await service.importModule<{ default: { ok: boolean } }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: join(tempDir, 'meta'),
+			});
+
+			const second = await service.importModule<{ default: { ok: boolean } }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: join(tempDir, 'render'),
+			});
+
+			expect(first.default).toEqual({ ok: true });
+			expect(second.default).toEqual({ ok: true });
+			expect(mocks.build).toHaveBeenCalledTimes(1);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 });

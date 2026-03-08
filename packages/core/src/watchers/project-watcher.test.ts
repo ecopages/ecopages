@@ -149,6 +149,18 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(pageFilePath));
 		});
+
+		test('should ignore duplicate save events for the same page within the debounce window', async () => {
+			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'contact.tsx');
+			const nowSpy = vi.spyOn(Date, 'now');
+			nowSpy.mockReturnValueOnce(1000).mockReturnValueOnce(1050);
+
+			await (watcher as any).handleFileChange(pageFilePath);
+			await (watcher as any).handleFileChange(pageFilePath);
+
+			expect(HmrManager.handleFileChange).toHaveBeenCalledTimes(1);
+			expect(RefreshCallback).toHaveBeenCalledTimes(1);
+		});
 	});
 
 	describe('additionalWatchPaths', () => {

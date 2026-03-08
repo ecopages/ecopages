@@ -8,6 +8,11 @@
 
 import type { EcoComponentConfig } from '@ecopages/core';
 
+type PageConfigModule = {
+	default?: { config?: EcoComponentConfig };
+	config?: EcoComponentConfig;
+};
+
 /**
  * Extracts the module source (package name) from a declared module string,
  * stripping any `{namedImport,...}` grammar.
@@ -69,22 +74,25 @@ export function collectDeclaredModulesInConfig(
 }
 
 /**
+ * Collects declared module sources from an already imported page module.
+ */
+export function collectPageDeclaredModulesFromModule(pageModule: PageConfigModule): string[] {
+	const declarations = [
+		...collectDeclaredModulesInConfig(pageModule.default?.config),
+		...collectDeclaredModulesInConfig(pageModule.config),
+	];
+
+	return Array.from(new Set(declarations));
+}
+
+/**
  * Imports a page entrypoint and collects all transitively declared module sources
  * from its config, layout config, and nested component configs.
  */
 export async function collectPageDeclaredModules(pagePath: string): Promise<string[]> {
 	try {
-		const pageModule = (await import(pagePath)) as {
-			default?: { config?: EcoComponentConfig };
-			config?: EcoComponentConfig;
-		};
-
-		const declarations = [
-			...collectDeclaredModulesInConfig(pageModule.default?.config),
-			...collectDeclaredModulesInConfig(pageModule.config),
-		];
-
-		return Array.from(new Set(declarations));
+		const pageModule = (await import(pagePath)) as PageConfigModule;
+		return collectPageDeclaredModulesFromModule(pageModule);
 	} catch {
 		return [];
 	}

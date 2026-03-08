@@ -43,6 +43,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
+- Inlined the React MDX loader so React apps no longer need to install `@ecopages/mdx` when enabling React MDX support (`unreleased`).
 - Fixed stale temp module race during Fast Refresh cycles (`b2cf8466`).
 - Fixed client graph boundary wiring for runtime dependencies (`4b6cd32e`).
 

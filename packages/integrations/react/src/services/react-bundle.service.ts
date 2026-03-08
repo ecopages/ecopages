@@ -83,8 +83,8 @@ export class ReactBundleService {
 		const useSyncExternalStoreShimPlugin = this.createSyncExternalStorePlugin();
 
 		if (isMdx && this.config.mdxCompilerOptions) {
-			const { createMdxLoaderPlugin } = await import('@ecopages/mdx/mdx-loader-plugin');
-			const mdxPlugin = await createMdxLoaderPlugin(this.config.mdxCompilerOptions);
+			const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
+			const mdxPlugin = createReactMdxLoaderPlugin(this.config.mdxCompilerOptions);
 			options.plugins = [runtimeAliasPlugin, mdxPlugin, useSyncExternalStoreShimPlugin, graphBoundaryPlugin];
 		} else {
 			options.plugins = [runtimeAliasPlugin, useSyncExternalStoreShimPlugin, graphBoundaryPlugin];

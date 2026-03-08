@@ -53,8 +53,8 @@ export class ReactPageModuleService {
 	 * @returns The imported module
 	 */
 	async importMdxPageFile(filePath: string): Promise<unknown> {
-		const { createMdxLoaderPlugin } = await import('@ecopages/mdx/mdx-loader-plugin');
-		const mdxPlugin = createMdxLoaderPlugin(
+		const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
+		const mdxPlugin = createReactMdxLoaderPlugin(
 			this.config.mdxCompilerOptions ?? {
 				jsxImportSource: 'react',
 				jsxRuntime: 'automatic',

@@ -1,5 +1,5 @@
 import { eco } from '@ecopages/core';
-import { LitCounter } from '../lit-counter';
+import { LitCounter } from '@/components/lit-counter';
 
 export type CardProps = {
 	title: string;
@@ -17,7 +17,7 @@ export const Card = eco.component<CardProps>({
 			<article class="card prose">
 				<h1 safe>{title}</h1>
 				<p>{copy as 'safe'}</p>
-				<lit-counter class="lit-counter" count={8}></lit-counter>
+				<LitCounter count={8} />
 			</article>
 		);
 	},

@@ -10,7 +10,7 @@ export type LitCounterProps = {
 export class LitCounter extends LitElement {
 	static override styles = [unsafeCSS(styles)];
 
-	@property({ type: Number }) count = 0;
+	@property({ type: Number }) declare count = 0;
 
 	decrement() {
 		if (this.count > 0) this.count--;

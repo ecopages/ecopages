@@ -14,9 +14,7 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import { getBunRuntime } from '../../utils/runtime.ts';
 import type { ApiHandlerContext, RouteGroupBuilder } from '../../public-types.ts';
-import {
-	type ApplicationAdapterOptions,
-} from '../abstract/application-adapter.ts';
+import { type ApplicationAdapterOptions } from '../abstract/application-adapter.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
 

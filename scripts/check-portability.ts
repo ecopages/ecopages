@@ -94,14 +94,17 @@ const checks: Check[] = [
 		roots: ['packages'],
 		message: 'Direct Bun filesystem APIs are not allowed in Ecopages packages outside @ecopages/file-system.',
 		shouldSkip: (relativePath) =>
-			relativePath.startsWith('packages/file-system/src/') || relativePath.includes('/test/') || relativePath.includes('.test.'),
+			relativePath.startsWith('packages/file-system/src/') ||
+			relativePath.includes('/test/') ||
+			relativePath.includes('.test.'),
 		match: (relativePath, content) =>
 			relativePath.startsWith('packages/') ? findMatchingLines(/\bBun\.(write|file)\b/, content) : [],
 	},
 	{
 		id: 'app-runtime-subpaths',
 		roots: ['apps', 'examples', 'playground', 'e2e'],
-		message: 'Apps, examples, playgrounds, and fixtures should use the root @ecopages/core exports instead of runtime subpaths.',
+		message:
+			'Apps, examples, playgrounds, and fixtures should use the root @ecopages/core exports instead of runtime subpaths.',
 		match: (_relativePath, content) => findMatchingLines(/@ecopages\/core\/(bun|node)(?:\/[^'"\s]+)?/, content),
 	},
 ];

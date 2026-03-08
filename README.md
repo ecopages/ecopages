@@ -120,6 +120,58 @@ Learn more about using Ecopages:
 Verify your site's functionality:
 `pnpm run test:all`
 
+The release workflow runs this same command in CI, so Playwright browser dependencies must be installed there before publishing.
+
+### Releases
+
+Release versioning is managed from the workspace root.
+
+Stable bumps:
+
+```bash
+pnpm run bump:patch
+pnpm run bump:minor
+pnpm run bump:major
+```
+
+Prerelease bumps:
+
+```bash
+pnpm run bump:alpha
+pnpm run bump:alpha:minor
+pnpm run bump:alpha:major
+pnpm run bump:beta
+pnpm run bump:beta:minor
+pnpm run bump:beta:major
+```
+
+Examples:
+
+- `0.1.105 -> 0.1.106-alpha.0`: `pnpm run bump:alpha`
+- `0.1.105 -> 0.2.0-alpha.0`: `pnpm run bump:alpha:minor`
+- `0.1.105 -> 1.0.0-alpha.0`: `pnpm run bump:alpha:major`
+
+The bump script also supports direct usage for previews:
+
+```bash
+pnpm exec tsx scripts/bump-version.ts prerelease alpha minor --dry-run
+pnpm exec tsx scripts/bump-version.ts --help
+```
+
+After bumping, sync the package versions if your chosen root script did not already do it:
+
+```bash
+pnpm run jsr:sync-version
+```
+
+Release pipeline notes:
+
+- JSR publishing runs package by package.
+- npm publishing also runs package by package.
+- npm publishing uses provenance-enabled `npm publish --provenance`.
+- npm publish steps skip a package if that exact version is already published.
+- brand new npm packages usually require an initial manual npm-side setup before trusted publishing can work.
+
 ## Embracing Simplicity with a Side of Verbosity
 
 In our quest to simplify, we've made choices that sometimes lead to more verbose code. By being a bit more explicit in our code, we aim to peel back the layers of "magic" that often obscure what's happening in many modern technologies. We believe this clarity not only aids in learning but also in debugging and customizing your projects. It's all about striking the right balance between simplicity and control.

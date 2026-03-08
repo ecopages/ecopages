@@ -15,31 +15,27 @@ export default eco.page({
 		return (
 			<div class="showcase prose">
 				<section class="showcase-section">
-					<div>
-						<h2 class="section-title">Reactivity</h2>
-						<p>Islands of interactivity. Control how and when to load your JS.</p>
-						<a href="https://ecopages.app/docs/reference/eco-namespace" class="section-link">
-							Ecopages Docs →
-						</a>
-					</div>
+					<h2 class="section-title">Reactivity</h2>
+					<p>Islands of interactivity. Control how and when to load your JS.</p>
 					<RadiantCounter count={0} />
+					<a href="https://ecopages.app/docs/reference/eco-namespace" class="section-link mt-4">
+						Ecopages Docs →
+					</a>
 				</section>
 
 				<section class="showcase-section">
-					<div>
-						<h2 class="section-title">MDX</h2>
-						<ShowcaseMdx />
-					</div>
+					<h2 class="section-title">MDX</h2>
+					<ShowcaseMdx />
 					<a href="/docs" class="section-link">
 						MDX as page →
 					</a>
 				</section>
 
 				<section class="showcase-section">
-					<div class="grid md:grid-cols-2 gap-8">
-						<div>
+					<div class="grid md:grid-cols-3 gap-8">
+						<div class="col-span-2">
 							<h2 class="section-title">Optimization</h2>
-							<p>Plug and play image processing and optimization.</p>{' '}
+							<p>Plug and play image processing and optimization.</p>
 							<a href="/image" class="section-link">
 								Image Docs →
 							</a>
@@ -47,7 +43,7 @@ export default eco.page({
 						<EcoImage
 							{...kitaKamakuraPng}
 							alt="Kita-kamakura"
-							class="rounded"
+							class="rounded object-cover"
 							data-view-transition="kita-image"
 						/>
 					</div>

@@ -2,15 +2,15 @@
 
 @layer components {
 	.showcase {
-		@apply grid grid-cols-1 gap-y-8;
+		@apply grid grid-cols-1 gap-4;
 	}
 
 	.showcase-section {
-		@apply flex flex-col gap-8  border-solid border-l p-4 bg-background-accent;
+		@apply grid border-solid border-l p-4 bg-background-accent;
 	}
 
 	.section-title {
-		@apply text-[0.625rem] font-medium tracking-widest m-0;
+		@apply text-[0.625rem] font-medium tracking-widest;
 		font-family: var(--font-display);
 	}
 

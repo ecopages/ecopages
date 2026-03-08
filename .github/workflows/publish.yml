@@ -4,6 +4,7 @@ on:
     push:
         branches:
             - main
+    workflow_dispatch:
 
 jobs:
     publish:
@@ -68,24 +69,47 @@ jobs:
             - name: Sync versions
               run: pnpm run jsr:sync-version
 
+            - name: Build npm packages
+              run: pnpm run build:npm
+
             - name: Setup Node.js for NPM Publish
               uses: actions/setup-node@v4
               with:
                   node-version: '24'
                   registry-url: 'https://registry.npmjs.org'
 
-            - name: Check if version already published
-              id: check-version
+            - name: Publish npm packages
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
               run: |
-                  LOCAL_VERSION=$(node -p "require('./npm/ecopages/package.json').version")
-                  if npm view "ecopages@$LOCAL_VERSION" version &>/dev/null; then
-                    echo "Version $LOCAL_VERSION is already published"
-                    echo "published=true" >> $GITHUB_OUTPUT
-                  else
-                    echo "Version $LOCAL_VERSION is not published yet"
-                    echo "published=false" >> $GITHUB_OUTPUT
-                  fi
+                  publish_package() {
+                    local package_dir="$1"
+                    local package_name
+                    local package_version
+                    local dist_tag
 
-            - name: Publish ecopages to NPM
-              if: steps.check-version.outputs.published == 'false'
-              run: cd npm/ecopages && npm publish --access public --provenance
+                    package_name=$(node -p "require('./${package_dir}/package.json').name")
+                    package_version=$(node -p "require('./${package_dir}/package.json').version")
+                    dist_tag=$(node -p "(() => { const version = require('./${package_dir}/package.json').version; const match = version.match(/-([0-9A-Za-z-]+)\./); return match ? match[1] : 'latest'; })()")
+
+                    if npm view "${package_name}@${package_version}" version &>/dev/null; then
+                      echo "${package_name}@${package_version} already published"
+                      return 0
+                    fi
+
+                    echo "Publishing ${package_name}@${package_version} with tag ${dist_tag}"
+                    (cd "${package_dir}" && npm publish --access public --provenance --tag "${dist_tag}")
+                  }
+
+                  publish_package packages/file-system/dist
+                  publish_package packages/core/dist
+                  publish_package packages/processors/postcss-processor/dist
+                  publish_package packages/processors/image-processor/dist
+                  publish_package packages/plugins/bun-inline-css-plugin/dist
+                  publish_package packages/integrations/kitajs/dist
+                  publish_package packages/integrations/lit/dist
+                  publish_package packages/integrations/mdx/dist
+                  publish_package packages/integrations/react/dist
+                  publish_package packages/browser-router/dist
+                  publish_package packages/react-router/dist
+                  publish_package npm/ecopages

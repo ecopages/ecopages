@@ -46,11 +46,11 @@ for (const jsrJson of jsrFiles) {
 }
 
 /**
- * Sync version to npm/ecopages package.json
+ * Sync version to packages/ecopages package.json
  */
-const npmPkgPath = path.resolve(import.meta.dirname, '../npm/ecopages/package.json');
+const npmPkgPath = path.resolve(import.meta.dirname, '../packages/ecopages/package.json');
 const npmPkg = JSON.parse(readFileSync(npmPkgPath, 'utf-8'));
 npmPkg.version = rootPackage.version;
 writeFileSync(npmPkgPath, JSON.stringify(npmPkg, null, 2) + '\n', 'utf-8');
 
-appLogger.info(`npm/ecopages: ${rootPackage.version}`);
+appLogger.info(`packages/ecopages: ${rootPackage.version}`);

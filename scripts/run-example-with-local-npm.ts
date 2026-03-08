@@ -23,7 +23,7 @@ const examplesRoot = path.join(repoRoot, 'examples');
 const sourceFilePattern = /\.[cm]?[jt]sx?$/u;
 
 const localPackageTargets: Record<string, string> = {
-	ecopages: 'npm/ecopages',
+	ecopages: 'packages/ecopages',
 	'@ecopages/browser-router': 'packages/browser-router/dist',
 	'@ecopages/core': 'packages/core/dist',
 	'@ecopages/file-system': 'packages/file-system/dist',

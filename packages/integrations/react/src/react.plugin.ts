@@ -13,7 +13,6 @@ import type React from 'react';
 import { ReactRenderer } from './react-renderer.ts';
 import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
-import { createMdxLoaderPlugin } from '@ecopages/mdx/mdx-loader-plugin';
 import type { ComponentBoundaryPolicyInput } from '@ecopages/core/plugins/integration-plugin';
 import { ReactRuntimeBundleService } from './services/react-runtime-bundle.service.ts';
 import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
@@ -179,7 +178,8 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 
 	override async setup(): Promise<void> {
 		if (this.mdxEnabled && this.mdxCompilerOptions) {
-			this.mdxLoaderPlugin = createMdxLoaderPlugin(this.mdxCompilerOptions);
+			const { createReactMdxLoaderPlugin } = await import('./utils/react-mdx-loader-plugin.ts');
+			this.mdxLoaderPlugin = createReactMdxLoaderPlugin(this.mdxCompilerOptions);
 		}
 		await super.setup();
 	}

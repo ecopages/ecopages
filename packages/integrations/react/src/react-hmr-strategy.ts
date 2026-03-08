@@ -330,8 +330,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const plugins = this.getBuildPlugins(declaredModules);
 
 			if (isMdx && this.mdxCompilerOptions) {
-				const { createMdxLoaderPlugin } = await import('@ecopages/mdx/mdx-loader-plugin');
-				const mdxPlugin = await createMdxLoaderPlugin(this.mdxCompilerOptions);
+				const { createReactMdxLoaderPlugin } = await import('./utils/react-mdx-loader-plugin.ts');
+				const mdxPlugin = createReactMdxLoaderPlugin(this.mdxCompilerOptions);
 				plugins.unshift(mdxPlugin);
 			}
 

@@ -8,8 +8,10 @@ import type {
 
 type UniversalContext = ApiHandlerContext<Request, unknown>;
 
-type SchemaHandlerContext<TSchema extends RouteSchema | undefined, TContext extends UniversalContext> =
-	TSchema extends RouteSchema ? TypedGroupHandlerContext<TSchema, TContext> : TContext;
+type SchemaHandlerContext<
+	TSchema extends RouteSchema | undefined,
+	TContext extends UniversalContext,
+> = TSchema extends RouteSchema ? TypedGroupHandlerContext<TSchema, TContext> : TContext;
 
 export function defineApiHandler<
 	TPath extends string,

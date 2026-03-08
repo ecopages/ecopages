@@ -38,7 +38,10 @@ export abstract class SharedApplicationAdapter<
 		return this.register(path, 'GET', handler, options);
 	}
 
-	post<P extends string, TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>>(
+	post<
+		P extends string,
+		TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	>(
 		path: P,
 		handler: RouteHandler<TRequest, TServer, TContext>,
 		options?: RouteOptions<TRequest, TServer, TContext>,
@@ -65,7 +68,10 @@ export abstract class SharedApplicationAdapter<
 		return this.register(path, 'DELETE', handler, options);
 	}
 
-	patch<P extends string, TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>>(
+	patch<
+		P extends string,
+		TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	>(
 		path: P,
 		handler: RouteHandler<TRequest, TServer, TContext>,
 		options?: RouteOptions<TRequest, TServer, TContext>,
@@ -84,7 +90,10 @@ export abstract class SharedApplicationAdapter<
 		return this.register(path, 'OPTIONS', handler, options);
 	}
 
-	head<P extends string, TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>>(
+	head<
+		P extends string,
+		TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	>(
 		path: P,
 		handler: RouteHandler<TRequest, TServer, TContext>,
 		options?: RouteOptions<TRequest, TServer, TContext>,

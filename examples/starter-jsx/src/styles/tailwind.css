@@ -63,7 +63,7 @@ body {
 	h1,
 	h2,
 	h3 {
-		@apply font-semibold mb-4 mt-0 font-display tracking-tight;
+		@apply font-semibold font-display tracking-tight;
 	}
 	h1 {
 		@apply text-3xl;
@@ -85,7 +85,7 @@ body {
 
 	ul,
 	ol {
-		@apply my-4 pl-6 list-disc;
+		@apply text-sm  my-4 pl-6 list-disc;
 	}
 
 	li {

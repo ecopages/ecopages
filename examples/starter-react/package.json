@@ -10,12 +10,12 @@
 		"watch:dev": "ecopages watch:dev -r"
 	},
 	"devDependencies": {
-		"ecopages": "latest",
-		"@ecopages/core": "npm:@jsr/ecopages__core@latest",
-		"@ecopages/postcss-processor": "npm:@jsr/ecopages__postcss-processor@latest",
-		"@ecopages/react-router": "npm:@jsr/ecopages__react-router@latest",
+		"ecopages": "0.2.0-alpha.2",
+		"@ecopages/core": "0.2.0-alpha.2",
+		"@ecopages/postcss-processor": "0.2.0-alpha.2",
+		"@ecopages/react-router": "0.2.0-alpha.2",
 		"@ecopages/radiant": "latest",
-		"@ecopages/react": "npm:@jsr/ecopages__react@latest",
+		"@ecopages/react": "0.2.0-alpha.2",
 		"@tailwindcss/postcss": "^4.0.0",
 		"@types/react": "^19",
 		"@types/react-dom": "^19",

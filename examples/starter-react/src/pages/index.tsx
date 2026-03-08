@@ -3,6 +3,19 @@ import type { ReactNode } from 'react';
 import { Counter } from '@/components/counter';
 import { BaseLayout } from '@/layouts/base-layout';
 
+const EcopagesLogo = () => {
+	return (
+		<div className="flex gap-2 md:gap-6">
+			<div className="ecopages-logo">
+				<div className="folded-rectangle" />
+				<div className="folded-rectangle" />
+				<div className="folded-rectangle" />
+			</div>
+			<span className="text-2xl font-bold">ecopages</span>
+		</div>
+	);
+};
+
 export default eco.page<{}, ReactNode>({
 	dependencies: {
 		stylesheets: ['./index.css'],
@@ -19,10 +32,8 @@ export default eco.page<{}, ReactNode>({
 	render: () => {
 		return (
 			<BaseLayout class="main-content">
-				<>
-					<h1 className="main-title">React App</h1>
-					<Counter defaultValue={10} />
-				</>
+				<EcopagesLogo />
+				<Counter defaultValue={10} />
 			</BaseLayout>
 		);
 	},

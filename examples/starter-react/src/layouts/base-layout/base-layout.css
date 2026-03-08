@@ -3,5 +3,5 @@ body {
 }
 
 main {
-	@apply p-8;
+	@apply w-full max-w-3xl mx-auto h-full;
 }

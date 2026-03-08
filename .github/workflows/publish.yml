@@ -9,17 +9,19 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-    publish:
+    prepare:
         runs-on: ubuntu-latest
         permissions:
             contents: read
-            id-token: write # Required for OIDC authentication
         steps:
             - name: Checkout Repo
               uses: actions/checkout@v4
 
             - name: Setup pnpm
               uses: pnpm/action-setup@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
 
             - name: Setup Node
               uses: actions/setup-node@v4
@@ -40,6 +42,51 @@ jobs:
 
             - name: Validate synced versions
               run: pnpm run release:check:versions
+
+            - name: Build npm packages
+              run: pnpm run build:npm
+
+            - name: Upload npm build artifacts
+              # Stores the built dist folders in GitHub Actions artifact storage.
+              # They are not kept in this runner's filesystem for the next job.
+              uses: actions/upload-artifact@v4
+              with:
+                  name: npm-build-artifacts
+                  path: |
+                      packages/browser-router/dist
+                      packages/core/dist
+                      packages/file-system/dist
+                      packages/integrations/kitajs/dist
+                      packages/integrations/lit/dist
+                      packages/integrations/mdx/dist
+                      packages/integrations/react/dist
+                      packages/processors/image-processor/dist
+                      packages/processors/postcss-processor/dist
+                      packages/react-router/dist
+
+    publish-jsr:
+        needs: prepare
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # Required for OIDC authentication
+        steps:
+            - name: Checkout Repo
+              uses: actions/checkout@v4
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+
+            - name: Install Dependencies
+              run: pnpm install
 
             - name: Publish package @ecopages/file-system
               run: pnpm --filter @ecopages/file-system release:jsr
@@ -71,14 +118,35 @@ jobs:
             - name: Publish package @ecopages/react-router
               run: pnpm --filter @ecopages/react-router release:jsr
 
-            - name: Build npm packages
-              run: pnpm run build:npm
+    publish-npm:
+        needs: prepare
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # Required for OIDC authentication
+        steps:
+            - name: Checkout Repo
+              uses: actions/checkout@v4
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
 
             - name: Setup Node.js for NPM Publish
               uses: actions/setup-node@v4
               with:
                   node-version: '24'
                   registry-url: 'https://registry.npmjs.org'
+
+            - name: Install Dependencies
+              run: pnpm install
+
+            - name: Download npm build artifacts
+              # Restores the uploaded artifact into this job's workspace at '.'.
+              # After download, the dist folders exist again under their original paths.
+              uses: actions/download-artifact@v4
+              with:
+                  name: npm-build-artifacts
+                  path: .
 
             - name: Publish npm package @ecopages/file-system
               run: pnpm run release:npm -- packages/file-system/dist

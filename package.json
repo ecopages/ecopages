@@ -1,7 +1,7 @@
 {
 	"name": "@ecopages/ecopages",
 	"private": true,
-	"version": "0.1.105",
+	"version": "0.2.0-alpha.0",
 	"scripts": {
 		"dev:docs": "pnpm --filter @ecopages/docs run dev",
 		"build:docs": "pnpm --filter @ecopages/docs run build",

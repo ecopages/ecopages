@@ -1,46 +1,52 @@
 import path from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
 import rootPackage from '../package.json';
 
-if (!rootPackage.version) {
-	throw new Error('Root package.json does not have a version');
-}
-
 type BumpType = 'major' | 'minor' | 'patch';
 
-const bump: BumpType = (process.argv[2] as BumpType) || 'patch';
-
-const appLogger = new Logger('[@ecopages/bump-version]');
-
-const currentVersionParts = rootPackage.version.split('.');
-
-const bumpIndex = {
+const BUMP_INDEX: Record<BumpType, number> = {
 	major: 0,
 	minor: 1,
 	patch: 2,
 };
 
-if (!bumpIndex[bump]) {
+/**
+ * Computes the next version string given the current version and bump type.
+ */
+function computeNextVersion(current: string, bump: BumpType): string {
+	const parts = current.split('.').map(Number);
+	parts[BUMP_INDEX[bump]]++;
+	if (bump === 'minor') parts[2] = 0;
+	if (bump === 'major') {
+		parts[1] = 0;
+		parts[2] = 0;
+	}
+	return parts.join('.');
+}
+
+/**
+ * Updates the root package.json with the new version.
+ */
+function writeRootVersion(version: string): void {
+	const packageJsonPath = path.resolve(import.meta.dirname, '../package.json');
+	rootPackage.version = version;
+	writeFileSync(packageJsonPath, JSON.stringify(rootPackage, null, 2), 'utf-8');
+}
+
+if (!rootPackage.version) {
+	throw new Error('Root package.json does not have a version');
+}
+
+const bump = (process.argv[2] as BumpType) || 'patch';
+
+if (!BUMP_INDEX[bump]) {
 	throw new Error(`Invalid bump type: ${bump}`);
 }
 
-currentVersionParts[bumpIndex[bump]] = String(Number(currentVersionParts[bumpIndex[bump]]) + 1);
-
-if (bump === 'minor') {
-	currentVersionParts[2] = '0';
-}
-
-if (bump === 'major') {
-	currentVersionParts[1] = '0';
-	currentVersionParts[2] = '0';
-}
-
-const newVersion = currentVersionParts.join('.');
+const appLogger = new Logger('[@ecopages/bump-version]');
+const newVersion = computeNextVersion(rootPackage.version, bump);
 
 appLogger.info(`Updating ${bump} version to v${newVersion}`);
 
-rootPackage.version = newVersion;
-
-const packageJsonPath = path.resolve(__dirname, '../package.json');
-
-Bun.write(packageJsonPath, JSON.stringify(rootPackage, null, 2));
+writeRootVersion(newVersion);

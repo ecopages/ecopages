@@ -1,9 +1,0 @@
-[test]
-preload = ["./scripts/setup-test.ts"]
-exclude = ["**/*.test.browser.ts", "**/*.test.e2e.ts", "**/*.test.node.ts", "**/*.node.test.ts"]
-
-[install.scopes]
-"@jsr" = "https://npm.jsr.io"
-
-[install]
-linker = "hoisted"

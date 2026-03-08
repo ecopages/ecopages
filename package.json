@@ -15,9 +15,9 @@
 		"jsr:sync-version": "tsx scripts/jsr-sync-version.ts",
 		"prerelease": "pnpm run test:all && pnpm run jsr:sync-version",
 		"release": "pnpm --filter '*' run release:jsr",
-		"bump:patch": "tsx scripts/bump-version.ts patch && pnpm run jsr:sync-version",
-		"bump:minor": "tsx scripts/bump-version.ts minor && pnpm run jsr:sync-version",
-		"bump:major": "tsx scripts/bump-version.ts major && pnpm run jsr:sync-version",
+		"bump:patch": "tsx scripts/bump-version.ts patch && pnpm run jsr:sync-version && tsx scripts/stamp-changelogs.ts",
+		"bump:minor": "tsx scripts/bump-version.ts minor && pnpm run jsr:sync-version && tsx scripts/stamp-changelogs.ts",
+		"bump:major": "tsx scripts/bump-version.ts major && pnpm run jsr:sync-version && tsx scripts/stamp-changelogs.ts",
 		"commit": "better-commits",
 		"prepare:husky": "husky",
 		"test:all": "pnpm run test:vitest && playwright test",
@@ -27,8 +27,9 @@
 		"typecheck": "pnpm run check:portability && pnpm --filter '*' run typecheck"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.0.6",
+		"@ecopages/logger": "^0.2.3",
 		"@playwright/test": "^1.57.0",
+		"@types/node": "^24.12.0",
 		"@vitest/browser": "^4.0.16",
 		"@vitest/browser-playwright": "^4.0.16",
 		"better-commits": "^1.18.1",

@@ -12,6 +12,10 @@ All notable changes to `@ecopages/browser-router` are documented here.
 - **Improved `morphHead` script injection** — New scripts from the incoming page's `<head>` are now injected and executed correctly during client-side navigation, even when not marked with `data-eco-rerun` (`08e15e99`).
 - **Global injector lifecycle management** — Enhanced global injector with structured lifecycle hooks and tests for hydration script handling (`2ba35aa4`).
 
+### Bug Fixes
+
+- Published npm package metadata now includes validated declaration exports for generated dist entrypoints.
+
 ### Refactoring
 
 - Removed unused `@types/morphdom` dev dependency (`ceb243d0`).

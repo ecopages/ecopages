@@ -64,6 +64,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 - Fixed invariant checks for route paths with improved error messaging in `AbstractApplicationAdapter` (`9c2a6242`).
 - Fixed dependency import name extraction in `extractEcopagesVirtualImports` (`39bbc472`).
+- Removed an invalid npm export entry that pointed to a non-existent `utils/ecopages-url-resolver` declaration target.
 
 ### Tests
 

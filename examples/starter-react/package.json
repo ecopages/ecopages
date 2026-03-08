@@ -1,6 +1,7 @@
 {
 	"name": "@ecopages/starter-react",
 	"private": true,
+	"type": "module",
 	"scripts": {
 		"start": "ecopages start",
 		"dev": "ecopages dev -r",

@@ -226,6 +226,50 @@ describe('ProjectWatcher - File Change Handling', () => {
 			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(jsFilePath));
 		});
 
+		test('should keep TSX changes in HMR when a processor only handles stylesheet assets', async () => {
+			const Processor = {
+				getWatchConfig: vi.fn(() => ({
+					paths: ['/test/project/src'],
+					extensions: ['.css', '.tsx'],
+				})),
+				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
+				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
+					return kind === 'stylesheet' && filepath?.endsWith('.css');
+				}),
+				matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
+			};
+			Config.processors.set('css', Processor as any);
+
+			const tsxFilePath = '/test/project/src/components/Button.tsx';
+
+			await (watcher as any).handleFileChange(tsxFilePath);
+
+			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(tsxFilePath));
+		});
+
+		test('should trigger current-page refresh when a processor rebuild handles a watched TSX change', async () => {
+			const Processor = {
+				getWatchConfig: vi.fn(() => ({
+					paths: ['/test/project/src'],
+					extensions: ['.css', '.tsx'],
+				})),
+				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
+				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
+					return kind === 'stylesheet' && filepath?.endsWith('.css');
+				}),
+				matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
+			};
+			Config.processors.set('css', Processor as any);
+			HmrManager.canHandleFileChange = vi.fn(() => false);
+
+			const tsxFilePath = '/test/project/src/components/Button.tsx';
+
+			await (watcher as any).handleFileChange(tsxFilePath);
+
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(HmrManager.broadcast).toHaveBeenCalledWith({ type: 'layout-update' });
+		});
+
 		test('should handle processor without watchConfig', async () => {
 			const Processor = {
 				getWatchConfig: vi.fn(() => null),

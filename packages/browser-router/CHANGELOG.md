@@ -15,6 +15,7 @@ All notable changes to `@ecopages/browser-router` are documented here.
 ### Bug Fixes
 
 - Published npm package metadata now includes validated declaration exports for generated dist entrypoints.
+- Registered a current-page HMR refresh hook that invalidates cached HTML before re-fetching the active route.
 
 ### Refactoring
 

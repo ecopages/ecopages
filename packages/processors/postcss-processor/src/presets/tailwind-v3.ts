@@ -13,7 +13,7 @@ import type postcss from 'postcss';
 import postcssImport from 'postcss-import';
 import tailwindcss from 'tailwindcss';
 import tailwindcssNesting from 'tailwindcss/nesting/index.js';
-import type { PostCssProcessorPluginConfig } from '../plugin.ts';
+import type { PluginFactoryRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
 
 type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
 
@@ -23,6 +23,8 @@ type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
  * Features:
  * - Uses classic Tailwind v3 plugin stack
  * - Includes postcss-import, tailwindcss/nesting, tailwindcss, autoprefixer, cssnano
+ * - Returns both `plugins` for immediate use and `pluginFactories` so Ecopages
+ *   can recreate fresh Tailwind/PostCSS plugin instances on dependency-driven rebuilds
  *
  * @example
  * ```typescript
@@ -49,13 +51,22 @@ export function tailwindV3Preset(): PostCssProcessorPluginConfig {
 				overrideBrowserslist: ['>0.3%', 'not ie 11', 'not dead', 'not op_mini all'],
 			};
 
-	const plugins: PluginsRecord = {
-		'postcss-import': postcssImport(),
-		'tailwindcss/nesting': tailwindcssNesting(),
-		tailwindcss: tailwindcss(),
-		autoprefixer: autoprefixer(autoprefixerOptions),
-		cssnano: cssnano(),
+	const pluginFactories: PluginFactoryRecord = {
+		'postcss-import': () => postcssImport(),
+		'tailwindcss/nesting': () => tailwindcssNesting(),
+		tailwindcss: () => tailwindcss(),
+		autoprefixer: () => autoprefixer(autoprefixerOptions),
+		cssnano: () => cssnano(),
 	};
 
-	return { plugins };
+	const plugins: PluginsRecord = Object.fromEntries(
+		Object.entries(pluginFactories).map(([name, factory]) => [name, factory()]),
+	) as PluginsRecord;
+
+	/**
+	 * Keep both forms:
+	 * - `plugins` are used immediately by the processor
+	 * - `pluginFactories` let the processor recreate fresh plugin instances later
+	 */
+	return { plugins, pluginFactories };
 }

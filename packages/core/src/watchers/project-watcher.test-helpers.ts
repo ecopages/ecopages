@@ -12,6 +12,7 @@ export const createMockHmrManager = (): IHmrManager =>
 		registerSpecifierMap: vi.fn(() => {}),
 		registerStrategy: vi.fn(() => {}),
 		isEnabled: vi.fn(() => true),
+		canHandleFileChange: vi.fn(() => true),
 		getOutputUrl: vi.fn(() => undefined),
 		getWatchedFiles: vi.fn(() => new Map()),
 		getSpecifierMap: vi.fn(() => new Map()),

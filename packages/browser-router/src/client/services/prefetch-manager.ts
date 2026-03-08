@@ -122,6 +122,12 @@ export class PrefetchManager {
 		return this.htmlCache.get(url.href) ?? null;
 	}
 
+	invalidate(href: string): void {
+		const url = new URL(href, window.location.origin);
+		this.htmlCache.delete(url.href);
+		this.prefetched.delete(url.href);
+	}
+
 	/**
 	 * Caches HTML content for a visited page and triggers background revalidation.
 	 *

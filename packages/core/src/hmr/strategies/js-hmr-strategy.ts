@@ -121,7 +121,19 @@ export class JsHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
-		return isJsTs && isInSrc;
+		if (!isJsTs || !isInSrc) {
+			return false;
+		}
+
+		if (watchedFiles.has(filePath)) {
+			return true;
+		}
+
+		if (this.context.getDependencyEntrypoints) {
+			return this.context.getDependencyEntrypoints(filePath).size > 0;
+		}
+
+		return true;
 	}
 
 	/**

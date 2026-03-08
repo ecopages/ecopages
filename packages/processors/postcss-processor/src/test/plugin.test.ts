@@ -1,6 +1,7 @@
 import { describe, expect, test, afterAll, beforeAll, vi } from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs';
+import postcss from 'postcss';
 import { PostCssProcessorPlugin } from '../plugin';
 import type { ClientBridge } from '@ecopages/core/adapters/bun/client-bridge';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
@@ -69,6 +70,67 @@ describe('PostCssProcessorPlugin HMR', () => {
 		expect(outputContent).toContain('.foo { color: red; }');
 
 		expect(bridgeSpy).toHaveBeenCalled();
+		expect(bridgeSpy).toHaveBeenCalledWith(cssFile);
+	});
+
+	test('dependency changes should rebuild tracked CSS with fresh plugin instances', async () => {
+		const cssFile = path.join(SRC_DIR, 'style.css');
+		const dependencyFile = path.join(SRC_DIR, 'component.tsx');
+		fs.writeFileSync(cssFile, '.foo { color: red; }');
+		fs.writeFileSync(dependencyFile, 'export const Component = () => <div className="text-red-500" />;');
+
+		let activeColor = 'red';
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /\.css$/,
+				pluginFactories: {
+					'test-color-plugin': () => {
+						const colorAtCreation = activeColor;
+
+						return {
+							postcssPlugin: 'test-color-plugin',
+							Declaration(decl) {
+								if (decl.prop === 'color') {
+									decl.value = colorAtCreation;
+								}
+							},
+						} as postcss.AcceptedPlugin;
+					},
+				},
+			},
+		});
+
+		const config = await new ConfigBuilder()
+			.setRootDir(TMP_DIR)
+			.setSrcDir('src')
+			.setDistDir('dist')
+			.setBaseUrl('http://localhost:3000')
+			.build();
+
+		plugin.setContext(config);
+		await plugin.setup();
+
+		const Bridge = {
+			cssUpdate: () => {},
+			error: (msg: string) => {
+				throw new Error(msg);
+			},
+			reload: () => {},
+		} as unknown as ClientBridge;
+
+		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChange) {
+			throw new Error('Plugin does not have watch handler');
+		}
+
+		activeColor = 'blue';
+		await watchConfig.onChange({ path: dependencyFile, bridge: Bridge });
+
+		const outputFile = path.join(DIST_DIR, 'assets', 'style.css');
+		const outputContent = fs.readFileSync(outputFile, 'utf-8');
+
+		expect(outputContent).toContain('color: blue');
 		expect(bridgeSpy).toHaveBeenCalledWith(cssFile);
 	});
 });

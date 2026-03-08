@@ -49,6 +49,20 @@ export class EcoRouter {
 		window.addEventListener('popstate', this.handlePopState);
 		this.prefetchManager?.start();
 
+		const windowWithHmr = window as typeof window & {
+			__ecopages_reload_current_page__?: (options: { clearCache: boolean }) => Promise<void>;
+		};
+
+		windowWithHmr.__ecopages_reload_current_page__ = async (options: { clearCache: boolean }) => {
+			const currentUrl = window.location.pathname + window.location.search;
+
+			if (options.clearCache) {
+				this.prefetchManager?.invalidate(currentUrl);
+			}
+
+			await this.performNavigation(new URL(currentUrl, window.location.origin), 'replace');
+		};
+
 		// Cache the initial page for instant back-navigation
 		const initialHtml = document.documentElement.outerHTML;
 		this.prefetchManager?.cacheVisitedPage(window.location.href, initialHtml);
@@ -62,6 +76,12 @@ export class EcoRouter {
 		document.removeEventListener('click', this.handleClick);
 		window.removeEventListener('popstate', this.handlePopState);
 		this.prefetchManager?.stop();
+
+		const windowWithHmr = window as typeof window & {
+			__ecopages_reload_current_page__?: (options: { clearCache: boolean }) => Promise<void>;
+		};
+
+		windowWithHmr.__ecopages_reload_current_page__ = undefined;
 	}
 
 	/**

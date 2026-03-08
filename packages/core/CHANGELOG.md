@@ -65,6 +65,8 @@ All notable changes to `@ecopages/core` are documented here.
 - Fixed invariant checks for route paths with improved error messaging in `AbstractApplicationAdapter` (`9c2a6242`).
 - Fixed dependency import name extraction in `extractEcopagesVirtualImports` (`39bbc472`).
 - Removed an invalid npm export entry that pointed to a non-existent `utils/ecopages-url-resolver` declaration target.
+- Kept source module HMR active when stylesheet processors also watch TSX and JSX files for Tailwind-driven CSS rebuilds.
+- Triggered HMR current-page refreshes instead of fallback reload suppression for processor-watched TSX and JSX changes that are not client entrypoints.
 
 ### Tests
 

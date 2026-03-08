@@ -54,27 +54,43 @@ describe('JsHmrStrategy', () => {
 			expect(strategy.matches(path.join(SRC_DIR, 'app.ts'))).toBe(false);
 		});
 
-		it('returns true for .ts files in src directory when watched files exist', () => {
+		it('returns false for unrelated .ts files when dependency graph support is available', () => {
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
+				getDependencyEntrypoints: () => new Set<string>(),
 			});
 			const strategy = new JsHmrStrategy(context);
 
-			expect(strategy.matches(path.join(SRC_DIR, 'component.ts'))).toBe(true);
+			expect(strategy.matches(path.join(SRC_DIR, 'component.ts'))).toBe(false);
 		});
 
-		it('returns true for .tsx files in src directory', () => {
+		it('returns true for dependency-connected .tsx files in src directory', () => {
+			const changedFile = path.join(SRC_DIR, 'component.tsx');
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
+				getDependencyEntrypoints: (filePath: string) =>
+					filePath === changedFile ? new Set([path.join(SRC_DIR, 'entry.ts')]) : new Set<string>(),
 			});
 			const strategy = new JsHmrStrategy(context);
 
-			expect(strategy.matches(path.join(SRC_DIR, 'component.tsx'))).toBe(true);
+			expect(strategy.matches(changedFile)).toBe(true);
+		});
+
+		it('returns true for registered entrypoints even without dependency graph hits', () => {
+			const entrypoint = path.join(SRC_DIR, 'entry.tsx');
+			const context = createMockContext({
+				getWatchedFiles: () => new Map([[entrypoint, '/output.js']]),
+				getDependencyEntrypoints: () => new Set<string>(),
+			});
+			const strategy = new JsHmrStrategy(context);
+
+			expect(strategy.matches(entrypoint)).toBe(true);
 		});
 
 		it('returns true for .js files in src directory', () => {
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
+				getDependencyEntrypoints: undefined,
 			});
 			const strategy = new JsHmrStrategy(context);
 
@@ -84,6 +100,7 @@ describe('JsHmrStrategy', () => {
 		it('returns true for .jsx files in src directory', () => {
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
+				getDependencyEntrypoints: undefined,
 			});
 			const strategy = new JsHmrStrategy(context);
 

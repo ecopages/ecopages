@@ -144,6 +144,11 @@ export class ProjectWatcher {
 				return;
 			}
 
+			if (this.isWatchedByProcessor(filePath) && !this.hmrManager.canHandleFileChange(filePath)) {
+				this.hmrManager.broadcast({ type: 'layout-update' });
+				return;
+			}
+
 			await this.hmrManager.handleFileChange(filePath);
 		} catch (error) {
 			if (error instanceof Error) {
@@ -179,11 +184,44 @@ export class ProjectWatcher {
 	}
 
 	/**
+	 * Checks whether a file is watched by any processor, even if that processor
+	 * does not own the file as a primary asset.
+	 */
+	private isWatchedByProcessor(filePath: string): boolean {
+		for (const processor of this.appConfig.processors.values()) {
+			const watchConfig = processor.getWatchConfig();
+			if (!watchConfig) continue;
+
+			const { extensions = [] } = watchConfig;
+			if (extensions.length && extensions.some((ext) => filePath.endsWith(ext))) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Checks if a file is handled by a processor.
 	 * Processors that declare extensions own those file types.
 	 */
 	private isHandledByProcessor(filePath: string): boolean {
 		for (const processor of this.appConfig.processors.values()) {
+			const capabilities = processor.getAssetCapabilities?.() ?? [];
+			if (capabilities.length > 0) {
+				const matchesConfiguredAsset =
+					typeof processor.matchesFileFilter !== 'function' || processor.matchesFileFilter(filePath);
+
+				if (
+					matchesConfiguredAsset &&
+					capabilities.some((capability) => processor.canProcessAsset?.(capability.kind, filePath))
+				) {
+					return true;
+				}
+
+				continue;
+			}
+
 			const watchConfig = processor.getWatchConfig();
 			if (!watchConfig) continue;
 

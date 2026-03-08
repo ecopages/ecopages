@@ -13,7 +13,7 @@ import cssnano from 'cssnano';
 import path from 'node:path';
 import postcssImport from 'postcss-import';
 import postcssNested from 'postcss-nested';
-import type { PostCssProcessorPluginConfig } from '../plugin.ts';
+import type { PluginFactoryRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
 
 /**
  * Options for Tailwind v4 preset
@@ -33,6 +33,8 @@ export interface TailwindV4PresetOptions {
  * - Uses `@tailwindcss/postcss` plugin (v4)
  * - Automatically injects `@reference` headers for `@apply` support
  * - Includes cssnano for CSS minification
+ * - Returns both `plugins` for immediate use and `pluginFactories` so Ecopages
+ *   can recreate fresh Tailwind/PostCSS plugin instances on dependency-driven rebuilds
  *
  * @example
  * ```typescript
@@ -63,14 +65,21 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 				overrideBrowserslist: ['>0.3%', 'not ie 11', 'not dead', 'not op_mini all'],
 			};
 
+	const pluginFactories: PluginFactoryRecord = {
+		'postcss-import': () => postcssImport(),
+		'postcss-nested': () => postcssNested(),
+		'@tailwindcss/postcss': () => tailwindcss(),
+		autoprefixer: () => autoprefixer(autoprefixerOptions),
+		cssnano: () => cssnano(),
+	};
+
 	return {
-		plugins: {
-			'postcss-import': postcssImport(),
-			'postcss-nested': postcssNested(),
-			'@tailwindcss/postcss': tailwindcss(),
-			autoprefixer: autoprefixer(autoprefixerOptions),
-			cssnano: cssnano(),
-		},
+		/**
+		 * Instantiate the initial plugin list for the active processor instance.
+		 * Fresh instances can later be recreated from `pluginFactories`.
+		 */
+		plugins: Object.fromEntries(Object.entries(pluginFactories).map(([name, factory]) => [name, factory()])),
+		pluginFactories,
 		transformInput: async (contents: string | Buffer, filePath: string): Promise<string> => {
 			const css = contents instanceof Buffer ? contents.toString('utf-8') : (contents as string);
 			const normalizedFilePath = path.resolve(filePath);

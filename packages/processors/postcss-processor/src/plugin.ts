@@ -24,6 +24,16 @@ const logger = new Logger('[@ecopages/postcss-processor]', {
 export type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
 
 /**
+ * Lazily creates PostCSS plugins.
+ *
+ * This is primarily used in development when a non-CSS file change forces the
+ * processor to rebuild tracked stylesheets. Some plugins, including Tailwind,
+ * keep internal caches in long-lived plugin instances, so recreating them is
+ * required to pick up newly discovered classes.
+ */
+export type PluginFactoryRecord = Record<string, () => postcss.AcceptedPlugin>;
+
+/**
  * Configuration for the PostCSS processor
  */
 export interface PostCssProcessorPluginConfig {
@@ -52,6 +62,13 @@ export interface PostCssProcessorPluginConfig {
 	 * @default undefined (uses default plugins)
 	 */
 	plugins?: PluginsRecord;
+	/**
+	 * Factory functions for recreating stateful PostCSS plugins.
+	 *
+	 * When provided, Ecopages uses these factories to build a fresh plugin list
+	 * for dependency-driven stylesheet rebuilds during development.
+	 */
+	pluginFactories?: PluginFactoryRecord;
 }
 
 /**
@@ -64,7 +81,10 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	};
 
 	private postcssPlugins: postcss.AcceptedPlugin[] = [];
+	private pluginFactories?: PluginFactoryRecord;
 	private readonly runtimeCssCache = new Map<string, string>();
+	private readonly trackedCssFiles = new Set<string>();
+	private watchQueue: Promise<void> = Promise.resolve();
 
 	private getCssFilter(): RegExp {
 		return this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
@@ -116,6 +136,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			if (!this.matchesFileFilter(filePath)) {
 				continue;
 			}
+
+			this.trackedCssFiles.add(filePath);
 
 			const rawContents = await fileSystem.readFile(filePath);
 			let transformedInput = rawContents;
@@ -169,6 +191,47 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		return filter.test(filepath);
 	}
 
+	private materializePluginFactories(pluginFactories: PluginFactoryRecord): postcss.AcceptedPlugin[] {
+		return Object.values(pluginFactories).map((factory) => factory());
+	}
+
+	private refreshConfiguredPlugins(): void {
+		if (!this.pluginFactories) {
+			return;
+		}
+
+		this.postcssPlugins = this.materializePluginFactories(this.pluginFactories);
+	}
+
+	private enqueueWatchTask(task: () => Promise<void>): Promise<void> {
+		const queuedTask = this.watchQueue.then(task, task);
+		this.watchQueue = queuedTask.catch(() => undefined);
+		return queuedTask;
+	}
+
+	private getTrackedCssFiles(): string[] {
+		return Array.from(this.trackedCssFiles).filter(
+			(filePath) => this.matchesFileFilter(filePath) && fileSystem.exists(filePath),
+		);
+	}
+
+	private async handleDependencyChange(bridge: IClientBridge): Promise<void> {
+		if (!this.context) {
+			return;
+		}
+
+		const cssFiles = this.getTrackedCssFiles();
+		if (cssFiles.length === 0) {
+			return;
+		}
+
+		this.refreshConfiguredPlugins();
+
+		for (const cssFilePath of cssFiles) {
+			await this.handleCssChange(cssFilePath, bridge, false);
+		}
+	}
+
 	constructor(
 		config: Omit<ProcessorConfig<PostCssProcessorPluginConfig>, 'name' | 'description'> = {
 			options: PostCssProcessorPlugin.DEFAULT_OPTIONS,
@@ -180,14 +243,55 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			capabilities: [
 				{
 					kind: 'stylesheet',
-					extensions: ['*.css'],
+					extensions: ['*.{css,scss,sass,less}'],
 				},
 			],
 			watch: {
 				paths: [],
-				extensions: ['.css', '.scss', '.sass', '.less'],
+				extensions: [
+					'.css',
+					'.scss',
+					'.sass',
+					'.less',
+					'.tsx',
+					'.ts',
+					'.jsx',
+					'.js',
+					'.mdx',
+					'.html',
+					'.svelte',
+					'.vue',
+				],
 				onChange: async ({ path, bridge }) => {
-					await this.handleCssChange(path, bridge);
+					await this.enqueueWatchTask(async () => {
+						if (this.matchesFileFilter(path)) {
+							await this.handleCssChange(path, bridge);
+							return;
+						}
+
+						await this.handleDependencyChange(bridge);
+					});
+				},
+				onCreate: async ({ path, bridge }) => {
+					await this.enqueueWatchTask(async () => {
+						if (this.matchesFileFilter(path)) {
+							await this.handleCssChange(path, bridge);
+							return;
+						}
+
+						await this.handleDependencyChange(bridge);
+					});
+				},
+				onDelete: async ({ path, bridge }) => {
+					await this.enqueueWatchTask(async () => {
+						if (this.matchesFileFilter(path)) {
+							this.runtimeCssCache.delete(path);
+							this.trackedCssFiles.delete(path);
+							return;
+						}
+
+						await this.handleDependencyChange(bridge);
+					});
 				},
 			},
 			...config,
@@ -198,10 +302,17 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 * Handles CSS file changes during development.
 	 * Processes the file and broadcasts a css-update event for hot reloading.
 	 */
-	private async handleCssChange(filePath: string, bridge: IClientBridge): Promise<void> {
+	private async handleCssChange(filePath: string, bridge: IClientBridge, refreshPlugins = true): Promise<void> {
 		if (!this.context) return;
+		if (!fileSystem.exists(filePath)) return;
 
 		try {
+			this.trackedCssFiles.add(filePath);
+
+			if (refreshPlugins) {
+				this.refreshConfiguredPlugins();
+			}
+
 			let content = await fileSystem.readFile(filePath);
 
 			if (this.options?.transformInput) {
@@ -209,6 +320,12 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			}
 
 			const processed = await this.process(content, filePath);
+
+			const cached = this.runtimeCssCache.get(filePath);
+			if (cached === processed) {
+				return;
+			}
+
 			this.runtimeCssCache.set(filePath, processed);
 			await this.persistProcessedCss(filePath, processed);
 
@@ -262,6 +379,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		const configExtensions = ['js', 'cjs', 'mjs', 'ts'];
 		let foundConfigPath: string | undefined;
 		let loadedPlugins: postcss.AcceptedPlugin[] | undefined;
+		let loadedPluginFactories: PluginFactoryRecord | undefined;
 
 		for (const ext of configExtensions) {
 			const configPath = path.join(this.context.rootDir, `postcss.config.${ext}`);
@@ -277,6 +395,13 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 				const postcssConfigModule = await import(foundConfigPath);
 				const postcssConfig = postcssConfigModule.default || postcssConfigModule;
+				if (
+					postcssConfig &&
+					typeof postcssConfig.pluginFactories === 'object' &&
+					postcssConfig.pluginFactories !== null
+				) {
+					loadedPluginFactories = postcssConfig.pluginFactories as PluginFactoryRecord;
+				}
 
 				if (postcssConfig && typeof postcssConfig.plugins === 'object' && postcssConfig.plugins !== null) {
 					if (Array.isArray(postcssConfig.plugins)) {
@@ -298,16 +423,26 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			logger.debug('No PostCSS config file found in root directory.');
 		}
 
-		if (loadedPlugins) {
+		if (loadedPluginFactories) {
+			this.pluginFactories = loadedPluginFactories;
+			this.postcssPlugins = this.materializePluginFactories(loadedPluginFactories);
+		} else if (loadedPlugins) {
+			this.pluginFactories = undefined;
 			this.postcssPlugins = loadedPlugins;
+		} else if (this.options?.pluginFactories) {
+			logger.debug('Using PostCSS plugin factories provided in processor options.');
+			this.pluginFactories = this.options.pluginFactories;
+			this.postcssPlugins = this.materializePluginFactories(this.options.pluginFactories);
 		} else if (this.options?.plugins) {
 			logger.debug('Using PostCSS plugins provided in processor options.');
+			this.pluginFactories = undefined;
 			this.postcssPlugins = Object.values(this.options.plugins);
 		} else {
 			logger.warn(
 				'No PostCSS plugins configured. Use a preset like tailwindV3Preset() or tailwindV4Preset(), ' +
 					'provide plugins via options, or create a postcss.config file.',
 			);
+			this.pluginFactories = undefined;
 			this.postcssPlugins = [];
 		}
 

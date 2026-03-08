@@ -7,6 +7,7 @@ import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../in
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { HmrStrategy } from '../../hmr/hmr-strategy';
+import { HmrStrategyType } from '../../hmr/hmr-strategy';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy';
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy';
 import { appLogger } from '../../global/app-logger';
@@ -156,6 +157,20 @@ export class HmrManager implements IHmrManager {
 			`[HMR] Broadcasting ${event.type} event, path=${event.path || 'all'}, subscribers=${this.bridge.subscriberCount}`,
 		);
 		this.bridge.broadcast(event);
+	}
+
+	public canHandleFileChange(filePath: string): boolean {
+		const sorted = [...this.strategies].sort((a, b) => b.priority - a.priority);
+		const strategy = sorted.find((candidate) => {
+			try {
+				return candidate.matches(filePath);
+			} catch (err) {
+				appLogger.error(`[HmrManager] Error checking match for ${candidate.constructor.name}:`, err as Error);
+				return false;
+			}
+		});
+
+		return strategy !== undefined && strategy.type !== HmrStrategyType.FALLBACK;
 	}
 
 	/**

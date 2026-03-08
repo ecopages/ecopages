@@ -7,6 +7,7 @@ import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager, IClientBridge }
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { HmrStrategy } from '../../hmr/hmr-strategy.ts';
+import { HmrStrategyType } from '../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy.ts';
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -119,6 +120,23 @@ export class NodeHmrManager implements IHmrManager {
 			`[HMR] Broadcasting ${event.type} event, path=${event.path || 'all'}, subscribers=${this.bridge.subscriberCount}`,
 		);
 		this.bridge.broadcast(event);
+	}
+
+	public canHandleFileChange(filePath: string): boolean {
+		const sorted = [...this.strategies].sort((a, b) => b.priority - a.priority);
+		const strategy = sorted.find((candidate) => {
+			try {
+				return candidate.matches(filePath);
+			} catch (err) {
+				appLogger.error(
+					`[NodeHmrManager] Error checking match for ${candidate.constructor.name}:`,
+					err as Error,
+				);
+				return false;
+			}
+		});
+
+		return strategy !== undefined && strategy.type !== HmrStrategyType.FALLBACK;
 	}
 
 	public async handleFileChange(filePath: string): Promise<void> {

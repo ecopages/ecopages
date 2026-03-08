@@ -75,17 +75,16 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 | :-------------------------------- | :-------------------------------------------------------- | :---------------------------------------------------- |
 | `@ecopages/browser-router`        | Client-side navigation and view transitions for Ecopages. | [JSR](https://jsr.io/@ecopages/browser-router)        |
 | `@ecopages/bun-inline-css-plugin` | Bun plugin to process CSS files using CSS Processors.     | [JSR](https://jsr.io/@ecopages/bun-inline-css-plugin) |
-| `@ecopages/bun-mdx-kitajs-loader` | Bun loader to load MDX files with KitaJS.                 | [JSR](https://jsr.io/@ecopages/bun-mdx-kitajs-loader) |
-| `@ecopages/bun-postcss-loader`    | Bun loader to load PostCSS files.                         | [JSR](https://jsr.io/@ecopages/bun-postcss-loader)    |
-| `@ecopages/core`                  | Foundational layer of the Ecopages ecosystem.             | [JSR](https://jsr.io/@ecopages/core)                  |
-| `@ecopages/file-system`           | Runtime-agnostic file system utilities (Bun/Node.js).     | [JSR](https://jsr.io/@ecopages/file-system)           |
-| `@ecopages/image-processor`       | Image processing library for optimized responsive images. | [JSR](https://jsr.io/@ecopages/image-processor)       |
-| `@ecopages/kitajs`                | KitaJS plugin for Ecopages integration.                   | [JSR](https://jsr.io/@ecopages/kitajs)                |
-| `@ecopages/lit`                   | Lit plugin for Ecopages integration.                      | [JSR](https://jsr.io/@ecopages/lit)                   |
-| `@ecopages/mdx`                   | MDX plugin for Ecopages integration.                      | [JSR](https://jsr.io/@ecopages/mdx)                   |
-| `@ecopages/postcss-processor`     | Utility functions for processing CSS with PostCSS.        | [JSR](https://jsr.io/@ecopages/postcss-processor)     |
-| `@ecopages/react`                 | React plugin for Ecopages integration.                    | [JSR](https://jsr.io/@ecopages/react)                 |
-| `@ecopages/react-router`          | Client-side SPA router for Ecopages React apps.           | [JSR](https://jsr.io/@ecopages/react-router)          |
+
+| `@ecopages/core` | Foundational layer of the Ecopages ecosystem. | [JSR](https://jsr.io/@ecopages/core) |
+| `@ecopages/file-system` | Runtime-agnostic file system utilities (Bun/Node.js). | [JSR](https://jsr.io/@ecopages/file-system) |
+| `@ecopages/image-processor` | Image processing library for optimized responsive images. | [JSR](https://jsr.io/@ecopages/image-processor) |
+| `@ecopages/kitajs` | KitaJS plugin for Ecopages integration. | [JSR](https://jsr.io/@ecopages/kitajs) |
+| `@ecopages/lit` | Lit plugin for Ecopages integration. | [JSR](https://jsr.io/@ecopages/lit) |
+| `@ecopages/mdx` | MDX plugin for Ecopages integration. | [JSR](https://jsr.io/@ecopages/mdx) |
+| `@ecopages/postcss-processor` | Utility functions for processing CSS with PostCSS. | [JSR](https://jsr.io/@ecopages/postcss-processor) |
+| `@ecopages/react` | React plugin for Ecopages integration. | [JSR](https://jsr.io/@ecopages/react) |
+| `@ecopages/react-router` | Client-side SPA router for Ecopages React apps. | [JSR](https://jsr.io/@ecopages/react-router) |
 
 Explore all packages at [jsr.io/@ecopages](https://jsr.io/@ecopages).
 

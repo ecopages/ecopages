@@ -37,6 +37,7 @@ const sharedNpmTsconfigPath = path.join(repoRoot, 'tsconfig.npm.json');
 const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts']);
 const tsSourceExtensions = new Set(['.ts', '.tsx', '.mts', '.cts']);
 const supportedManifestFields = ['main', 'module'] as const;
+const runtimeExportConditionPriority = ['default', 'import', 'browser', 'node', 'deno', 'bun', 'worker'] as const;
 
 function readJsonFile<T>(filePath: string): T {
 	return JSON.parse(readFileSync(filePath, 'utf-8')) as T;
@@ -44,6 +45,19 @@ function readJsonFile<T>(filePath: string): T {
 
 function toPosix(filePath: string): string {
 	return filePath.replaceAll(path.sep, '/');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isExportSubpathKey(key: string): boolean {
+	return key === '.' || key.startsWith('./');
+}
+
+function isConditionalExportObject(value: Record<string, unknown>): boolean {
+	const keys = Object.keys(value);
+	return keys.length > 0 && keys.every((key) => !isExportSubpathKey(key));
 }
 
 function isPublishablePackageManifest(packageJsonPath: string): boolean {
@@ -244,12 +258,12 @@ function rewriteExportMap(value: unknown): unknown {
 		return rewriteManifestRuntimePath(value);
 	}
 
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+	if (!isRecord(value)) {
 		return value;
 	}
 
 	const rewritten: Record<string, unknown> = {};
-	for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+	for (const [key, nestedValue] of Object.entries(value)) {
 		if (key === 'require') {
 			continue;
 		}
@@ -269,13 +283,109 @@ function rewriteExportMap(value: unknown): unknown {
 	return rewritten;
 }
 
+function getTypesPathForRuntimePath(value: string): string {
+	return rewriteManifestTypesPath(value);
+}
+
+function findRuntimeExportPath(value: unknown): string | undefined {
+	if (typeof value === 'string') {
+		return value;
+	}
+
+	if (!isRecord(value)) {
+		return undefined;
+	}
+
+	for (const key of runtimeExportConditionPriority) {
+		const nestedValue = value[key];
+		const runtimePath = findRuntimeExportPath(nestedValue);
+		if (runtimePath) {
+			return runtimePath;
+		}
+	}
+
+	for (const nestedValue of Object.values(value)) {
+		const runtimePath = findRuntimeExportPath(nestedValue);
+		if (runtimePath) {
+			return runtimePath;
+		}
+	}
+
+	return undefined;
+}
+
+function normalizeExportTarget(value: unknown): unknown {
+	if (typeof value === 'string') {
+		const runtimePath = rewriteManifestRuntimePath(value);
+		return {
+			types: getTypesPathForRuntimePath(value),
+			default: runtimePath,
+		};
+	}
+
+	if (!isRecord(value)) {
+		return value;
+	}
+
+	if (!isConditionalExportObject(value)) {
+		return Object.fromEntries(
+			Object.entries(value).map(([key, nestedValue]) => [key, normalizeExportTarget(nestedValue)]),
+		);
+	}
+
+	const normalized: Record<string, unknown> = {};
+	for (const [key, nestedValue] of Object.entries(value)) {
+		if (key === 'types' && typeof nestedValue === 'string') {
+			normalized[key] = rewriteManifestTypesPath(nestedValue);
+			continue;
+		}
+
+		if (typeof nestedValue === 'string') {
+			normalized[key] = rewriteManifestRuntimePath(nestedValue);
+			continue;
+		}
+
+		normalized[key] = normalizeExportTarget(nestedValue);
+	}
+
+	if (!('default' in normalized) && typeof normalized.import === 'string') {
+		normalized.default = normalized.import;
+	}
+
+	if (!('types' in normalized)) {
+		const runtimePath = findRuntimeExportPath(normalized);
+		if (runtimePath) {
+			normalized.types = getTypesPathForRuntimePath(runtimePath);
+		}
+	}
+
+	return normalized;
+}
+
+function getRootExportTypesPath(exportsField: unknown): string | undefined {
+	if (!isRecord(exportsField)) {
+		return undefined;
+	}
+
+	if (isConditionalExportObject(exportsField)) {
+		return typeof exportsField.types === 'string' ? exportsField.types : undefined;
+	}
+
+	const rootExport = exportsField['.'];
+	if (!isRecord(rootExport)) {
+		return undefined;
+	}
+
+	return typeof rootExport.types === 'string' ? rootExport.types : undefined;
+}
+
 function createTsExtensionExportAliases(exportsField: unknown): Record<string, unknown> {
-	if (!exportsField || typeof exportsField !== 'object' || Array.isArray(exportsField)) {
+	if (!isRecord(exportsField)) {
 		return {};
 	}
 
 	const aliases: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(exportsField as Record<string, unknown>)) {
+	for (const [key, value] of Object.entries(exportsField)) {
 		if (key === '.' || key.endsWith('.ts')) {
 			continue;
 		}
@@ -284,6 +394,106 @@ function createTsExtensionExportAliases(exportsField: unknown): Record<string, u
 	}
 
 	return aliases;
+}
+
+function ensureManifestPathExists(distDir: string, value: string, label: string, expectTypes: boolean): void {
+	if (!value.startsWith('./')) {
+		throw new Error(`Invalid ${label} path "${value}". Expected a relative dist path starting with "./".`);
+	}
+
+	if (expectTypes) {
+		if (!value.endsWith('.d.ts')) {
+			throw new Error(`Invalid ${label} path "${value}". Expected a declaration file ending in ".d.ts".`);
+		}
+	} else if (/\.(cts|mts|tsx|ts|jsx)$/u.test(value)) {
+		throw new Error(
+			`Invalid ${label} path "${value}". Runtime manifest entries must not point to source TypeScript files.`,
+		);
+	}
+
+	const absolutePath = path.join(distDir, value);
+	if (!existsSync(absolutePath)) {
+		throw new Error(`Missing ${label} target "${value}" in ${toPosix(path.relative(repoRoot, distDir))}.`);
+	}
+}
+
+function inspectConditionalExportEntry(
+	entry: unknown,
+	distDir: string,
+	label: string,
+): { hasRuntime: boolean; hasTypes: boolean } {
+	if (typeof entry === 'string') {
+		ensureManifestPathExists(distDir, entry, label, false);
+		return { hasRuntime: true, hasTypes: false };
+	}
+
+	if (!isRecord(entry)) {
+		throw new Error(`Invalid export entry for ${label}. Expected a string or condition map.`);
+	}
+
+	let hasRuntime = false;
+	let hasTypes = false;
+
+	for (const [condition, nestedValue] of Object.entries(entry)) {
+		if (condition === 'types') {
+			if (typeof nestedValue !== 'string') {
+				throw new Error(`Invalid types condition for ${label}. Expected a string path.`);
+			}
+
+			ensureManifestPathExists(distDir, nestedValue, `${label}#types`, true);
+			hasTypes = true;
+			continue;
+		}
+
+		const nestedResult = inspectConditionalExportEntry(nestedValue, distDir, `${label}#${condition}`);
+		hasRuntime ||= nestedResult.hasRuntime;
+		hasTypes ||= nestedResult.hasTypes;
+	}
+
+	return { hasRuntime, hasTypes };
+}
+
+function validateDistManifest(distManifest: PackageManifest, distDir: string): void {
+	for (const field of supportedManifestFields) {
+		if (typeof distManifest[field] === 'string') {
+			ensureManifestPathExists(distDir, distManifest[field] as string, field, false);
+		}
+	}
+
+	if (typeof distManifest.types === 'string') {
+		ensureManifestPathExists(distDir, distManifest.types, 'types', true);
+	}
+
+	if (distManifest.exports === undefined) {
+		return;
+	}
+
+	if (typeof distManifest.exports === 'string') {
+		const result = inspectConditionalExportEntry(distManifest.exports, distDir, 'exports[.]');
+		if (result.hasRuntime && !result.hasTypes) {
+			throw new Error('Missing types metadata for exports[.].');
+		}
+		return;
+	}
+
+	if (!isRecord(distManifest.exports)) {
+		throw new Error('Invalid exports field. Expected a string or export map object.');
+	}
+
+	if (isConditionalExportObject(distManifest.exports)) {
+		const result = inspectConditionalExportEntry(distManifest.exports, distDir, 'exports[.]');
+		if (result.hasRuntime && !result.hasTypes) {
+			throw new Error('Missing types metadata for exports[.].');
+		}
+		return;
+	}
+
+	for (const [exportKey, exportValue] of Object.entries(distManifest.exports)) {
+		const result = inspectConditionalExportEntry(exportValue, distDir, `exports[${exportKey}]`);
+		if (result.hasRuntime && !result.hasTypes) {
+			throw new Error(`Missing types metadata for exports[${exportKey}].`);
+		}
+	}
 }
 
 function rewriteWorkspaceRanges(
@@ -439,7 +649,7 @@ async function buildJavaScript(packageDir: string, codeFiles: string[], distDir:
 }
 
 function createDistManifest(manifest: PackageManifest, version: string): PackageManifest {
-	const rewrittenExports = rewriteExportMap(manifest.exports);
+	const rewrittenExports = normalizeExportTarget(rewriteExportMap(manifest.exports));
 	const distManifest: PackageManifest = {
 		...manifest,
 		version,
@@ -463,6 +673,13 @@ function createDistManifest(manifest: PackageManifest, version: string): Package
 
 	if (typeof distManifest.types === 'string') {
 		distManifest.types = rewriteManifestTypesPath(distManifest.types);
+	}
+
+	if (typeof distManifest.types !== 'string') {
+		const inferredTypesPath = getRootExportTypesPath(distManifest.exports);
+		if (inferredTypesPath) {
+			distManifest.types = inferredTypesPath;
+		}
 	}
 
 	delete distManifest.private;
@@ -524,6 +741,7 @@ async function buildPackage(packageDir: string, version: string): Promise<void> 
 	copyMetadataFiles(packageDir, distDir);
 
 	const distManifest = createDistManifest(manifest, version);
+	validateDistManifest(distManifest, distDir);
 	writeTextFile(path.join(distDir, 'package.json'), `${JSON.stringify(distManifest, null, 2)}\n`);
 
 	console.log(`Built ${manifest.name} -> ${toPosix(path.relative(repoRoot, distDir))}`);

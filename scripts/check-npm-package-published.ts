@@ -1,12 +1,16 @@
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
 import { isVersionPublished, readPackageManifest, repoRoot, setGithubOutput } from './npm-release-utils.ts';
 
 const appLogger = new Logger('[NPM Package Check]');
 
 function getManifestInput(): string | undefined {
-	const args = process.argv.slice(2);
-	return args[0] === '--' ? args[1] : args[0];
+	const { positionals } = parseArgs({
+		allowPositionals: true,
+	});
+
+	return positionals[0];
 }
 
 async function main(): Promise<void> {

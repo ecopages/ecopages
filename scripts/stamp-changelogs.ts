@@ -58,7 +58,7 @@ export function stampAllChangelogs(version: string, logger: Logger): void {
 }
 
 // Allow running directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if ((import.meta as ImportMeta & { main?: boolean }).main) {
 	const appLogger = new Logger('[@ecopages/stamp-changelogs]');
 	if (!rootPackage.version) {
 		throw new Error('Root package.json does not have a version');

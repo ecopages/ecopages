@@ -1,13 +1,17 @@
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
 import { getDistTag, isVersionPublished, readPackageManifest, repoRoot } from './npm-release-utils.ts';
 
 const appLogger = new Logger('[NPM Release]');
 
 function getManifestInput(): string | undefined {
-	const args = process.argv.slice(2);
-	return args[0] === '--' ? args[1] : args[0];
+	const { positionals } = parseArgs({
+		allowPositionals: true,
+	});
+
+	return positionals[0];
 }
 
 async function main(): Promise<void> {

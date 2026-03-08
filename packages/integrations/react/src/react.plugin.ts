@@ -16,6 +16,7 @@ import type { ReactRouterAdapter } from './router-adapter.ts';
 import { createMdxLoaderPlugin } from '@ecopages/mdx/mdx-loader-plugin';
 import type { ComponentBoundaryPolicyInput } from '@ecopages/core/plugins/integration-plugin';
 import { ReactRuntimeBundleService } from './services/react-runtime-bundle.service.ts';
+import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 
 const appLogger = new Logger('[ReactPlugin]');
 
@@ -115,6 +116,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	private mdxExtensions: string[];
 	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
 	private runtimeBundleService: ReactRuntimeBundleService;
+	private readonly hmrPageMetadataCache = new ReactHmrPageMetadataCache();
 	/**
 	 * Indicates whether React explicit graph mode is enabled for renderer/HMR behavior.
 	 */
@@ -164,6 +166,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		ReactRenderer.mdxCompilerOptions = this.mdxCompilerOptions;
 		ReactRenderer.mdxExtensions = this.mdxExtensions;
 		ReactRenderer.explicitGraphEnabled = this.explicitGraphEnabled;
+		ReactRenderer.hmrPageMetadataCache = this.hmrPageMetadataCache;
 		this.integrationDependencies.unshift(...this.runtimeBundleService.getDependencies());
 	}
 
@@ -184,6 +187,10 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	/**
 	 * Provides React-specific HMR strategy with Fast Refresh support.
 	 *
+	 * The strategy shares a React-only page metadata cache with the renderer so
+	 * save-time rebuilds can reuse declared-module analysis without expanding the
+	 * core HMR interfaces.
+	 *
 	 * @returns ReactHmrStrategy instance for handling React component updates
 	 */
 	override getHmrStrategy(): HmrStrategy | undefined {
@@ -193,7 +200,12 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 
 		const context = this.hmrManager.getDefaultContext();
 
-		return new ReactHmrStrategy(context, this.mdxCompilerOptions, this.explicitGraphEnabled);
+		return new ReactHmrStrategy(
+			context,
+			this.hmrPageMetadataCache,
+			this.mdxCompilerOptions,
+			this.explicitGraphEnabled,
+		);
 	}
 
 	/**

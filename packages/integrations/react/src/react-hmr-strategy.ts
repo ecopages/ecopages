@@ -8,17 +8,19 @@
  */
 
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { defaultBuildAdapter } from '@ecopages/core/build/build-adapter';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { FileNotFoundError, fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
-import type { DefaultHmrContext } from '@ecopages/core';
+import type { DefaultHmrContext, EcoComponentConfig } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { injectHmrHandler } from './utils/hmr-scripts.ts';
 import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
-import { collectPageDeclaredModules } from './utils/declared-modules.ts';
+import { collectPageDeclaredModules, collectPageDeclaredModulesFromModule } from './utils/declared-modules.ts';
+import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
 
@@ -61,6 +63,50 @@ const appLogger = new Logger('[ReactHmrStrategy]');
 export class ReactHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
 	private mdxCompilerOptions?: CompileOptions;
+	private readonly knownEntrypoints = new Set<string>();
+
+	private async importNodePageModule(entrypointPath: string): Promise<{
+		default?: { config?: EcoComponentConfig };
+		config?: EcoComponentConfig;
+	}> {
+		const srcDir = this.context.getSrcDir();
+		const rootDir = path.dirname(srcDir);
+		const outdir = path.join(path.resolve(this.context.getDistDir(), '..', '..'), '.server-modules');
+		const fileBaseName = path.basename(entrypointPath, path.extname(entrypointPath));
+		const fileHash = fileSystem.hash(entrypointPath);
+		const outputFileName = `${fileBaseName}-${fileHash}.js`;
+
+		const buildResult = await defaultBuildAdapter.build({
+			entrypoints: [entrypointPath],
+			root: rootDir,
+			outdir,
+			target: 'node',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: false,
+			minify: false,
+			naming: outputFileName,
+		});
+
+		if (!buildResult.success) {
+			const details = buildResult.logs.map((log) => log.message).join(' | ');
+			throw new Error(`Error transpiling React HMR page module: ${details}`);
+		}
+
+		const preferredOutputPath = path.join(outdir, outputFileName);
+		const compiledOutput =
+			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
+			buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
+
+		if (!compiledOutput) {
+			throw new Error(`No transpiled output generated for React HMR page module: ${entrypointPath}`);
+		}
+
+		return (await import(pathToFileURL(compiledOutput).href)) as {
+			default?: { config?: EcoComponentConfig };
+			config?: EcoComponentConfig;
+		};
+	}
 
 	private createUseSyncExternalStoreShimPlugin(): EcoBuildPlugin {
 		return {
@@ -103,12 +149,16 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * @param context - The HMR context providing access to watched files, plugins, build directories,
 	 *                  and the layouts directory for detecting layout file changes that require full
 	 *                  page reloads instead of module-level HMR updates.
+	 * @param pageMetadataCache - React-only cache of declared browser modules discovered during
+	 *                            server rendering. This avoids re-importing unchanged page modules
+	 *                            during save-time Fast Refresh rebuilds.
 	 * @param mdxCompilerOptions - Optional MDX compiler options for processing .mdx files
 	 * @param explicitGraphEnabled - Enables explicit graph mode for React HMR bundling.
 	 * In explicit mode, HMR builds omit AST server-only stripping plugins in React paths.
 	 */
 	constructor(
 		private context: DefaultHmrContext,
+		private pageMetadataCache: ReactHmrPageMetadataCache,
 		mdxCompilerOptions?: CompileOptions,
 		private explicitGraphEnabled = false,
 	) {
@@ -188,6 +238,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 *
 	 * For layout files, broadcasts a 'layout-update' event to trigger full page reload.
 	 * For regular components/pages, broadcasts 'update' events for module-level HMR.
+	 * When a page entrypoint is first registered, only that entrypoint is built.
+	 * Subsequent file updates rebuild all watched React entrypoints as usual.
 	 *
 	 * @param _filePath - Absolute path to the changed file
 	 * @returns Action to broadcast update events (layout-update for layouts, update for components)
@@ -206,8 +258,14 @@ export class ReactHmrStrategy extends HmrStrategy {
 			appLogger.debug(`Detected layout file change: ${_filePath}`);
 		}
 
+		const entrypointsToBuild =
+			!this.knownEntrypoints.has(_filePath) && watchedFiles.has(_filePath)
+				? [[_filePath, watchedFiles.get(_filePath)!]]
+				: watchedFiles.entries();
+		this.knownEntrypoints.add(_filePath);
+
 		const updates: string[] = [];
-		for (const [entrypoint, outputUrl] of watchedFiles.entries()) {
+		for (const [entrypoint, outputUrl] of entrypointsToBuild) {
 			if (!this.isReactEntrypoint(entrypoint)) {
 				continue;
 			}
@@ -264,7 +322,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const outputPath = path.join(this.context.getDistDir(), encodedPathJs);
 			const tempDir = path.dirname(outputPath);
 
-			const declaredModules = await collectPageDeclaredModules(entrypointPath);
+			const declaredModules = this.pageMetadataCache.getDeclaredModules(entrypointPath)
+				? this.pageMetadataCache.getDeclaredModules(entrypointPath)!
+				: isMdx
+					? await collectPageDeclaredModules(entrypointPath)
+					: collectPageDeclaredModulesFromModule(await this.importNodePageModule(entrypointPath));
 			const plugins = this.getBuildPlugins(declaredModules);
 
 			if (isMdx && this.mdxCompilerOptions) {

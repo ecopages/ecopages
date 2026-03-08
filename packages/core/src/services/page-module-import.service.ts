@@ -24,20 +24,56 @@ export interface PageModuleImportOptions {
  * transpilation settings, and error semantics across the different callers.
  */
 export class PageModuleImportService {
+	private static readonly importCache = new Map<string, Promise<unknown>>();
+
+	static clearImportCache(): void {
+		this.importCache.clear();
+	}
+
 	/**
 	 * Imports a page-like module from source.
 	 *
 	 * The caller controls the output directory and error wording so different
 	 * subsystems can reuse the same loading mechanism while preserving their
-	 * current diagnostics. The generated filename remains deterministic per input
-	 * file hash, with an additional development cache-buster to avoid stale module
-	 * reuse during watch mode.
+	 * current diagnostics. Module identities stay stable for unchanged files and
+	 * roll forward automatically when the source hash changes during watch mode.
 	 *
 	 * @typeParam T Expected module shape.
 	 * @param options Runtime-specific import settings.
 	 * @returns The loaded module.
 	 */
 	async importModule<T = unknown>(options: PageModuleImportOptions): Promise<T> {
+		const { filePath, rootDir, externalPackages } = options;
+
+		const fileHash = fileSystem.hash(filePath);
+		const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node';
+		const cacheKey = [runtime, filePath, rootDir, externalPackages ?? 'default', fileHash].join('::');
+		const cachedModule = PageModuleImportService.importCache.get(cacheKey);
+
+		if (cachedModule) {
+			return (await cachedModule) as T;
+		}
+
+		const importPromise = this.loadModule<T>({
+			...options,
+			fileHash,
+		});
+
+		PageModuleImportService.importCache.set(cacheKey, importPromise);
+
+		try {
+			return await importPromise;
+		} catch (error) {
+			PageModuleImportService.importCache.delete(cacheKey);
+			throw error;
+		}
+	}
+
+	private async loadModule<T = unknown>(
+		options: PageModuleImportOptions & {
+			fileHash: string;
+		},
+	): Promise<T> {
 		const {
 			filePath,
 			rootDir,
@@ -45,22 +81,21 @@ export class PageModuleImportService {
 			externalPackages,
 			transpileErrorMessage = (details) => `Error transpiling page module: ${details}`,
 			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
+			fileHash,
 		} = options;
 
 		if (typeof Bun !== 'undefined') {
 			const moduleUrl = pathToFileURL(filePath);
 
 			if (process.env.NODE_ENV === 'development') {
-				moduleUrl.searchParams.set('update', `${Date.now()}`);
+				moduleUrl.searchParams.set('update', fileHash);
 			}
 
 			return (await import(moduleUrl.href)) as T;
 		}
 
 		const fileBaseName = path.basename(filePath, path.extname(filePath));
-		const fileHash = fileSystem.hash(filePath);
-		const cacheBuster = process.env.NODE_ENV === 'development' ? `-${Date.now()}` : '';
-		const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
+		const outputFileName = `${fileBaseName}-${fileHash}.js`;
 
 		const buildResult = await defaultBuildAdapter.build({
 			entrypoints: [filePath],

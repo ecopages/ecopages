@@ -908,6 +908,12 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.1.18
         version: 4.2.1
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
       ecopages:
         specifier: workspace:*
         version: link:../../npm/ecopages

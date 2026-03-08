@@ -36,11 +36,20 @@ export interface ProjectWatcherConfig {
  * @class ProjectWatcher
  */
 export class ProjectWatcher {
+	/**
+	 * Duplicate identical watcher events within this window are ignored.
+	 *
+	 * Some editors or save pipelines emit two near-identical filesystem change
+	 * notifications for the same file. Ecopages should treat those as one logical
+	 * update so HMR and route refresh work are not repeated unnecessarily.
+	 */
+	private static readonly duplicateChangeWindowMs = 150;
 	private appConfig: EcoPagesAppConfig;
 	private refreshRouterRoutesCallback: () => void;
 	private hmrManager: IHmrManager;
 	private bridge: IClientBridge;
 	private watcher: FSWatcher | null = null;
+	private lastHandledChange = new Map<string, number>();
 
 	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge }: ProjectWatcherConfig) {
 		this.appConfig = config;
@@ -99,10 +108,20 @@ export class ProjectWatcher {
 	 * 1. additionalWatchPaths match? → reload
 	 * 2. Processor extension match? → processor handles (skip HMR)
 	 * 3. Otherwise → HMR strategies
+	 *
+	 * Duplicate identical watcher events for the same file are coalesced within a
+	 * short window before any of the priority rules run.
 	 * @param rawPath - Path of the changed file
 	 */
 	private async handleFileChange(rawPath: string): Promise<void> {
 		const filePath = path.resolve(rawPath);
+		const now = Date.now();
+		const lastHandledAt = this.lastHandledChange.get(filePath);
+		if (lastHandledAt !== undefined && now - lastHandledAt < ProjectWatcher.duplicateChangeWindowMs) {
+			return;
+		}
+		this.lastHandledChange.set(filePath, now);
+
 		try {
 			if (this.isPublicDirFile(filePath)) {
 				await this.handlePublicDirFileChange(filePath);

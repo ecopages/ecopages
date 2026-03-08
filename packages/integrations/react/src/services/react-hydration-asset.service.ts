@@ -22,6 +22,7 @@ import { createHydrationScript } from '../utils/hydration-scripts.ts';
 import { createIslandHydrationScript } from '../utils/hydration-scripts.ts';
 import { collectDeclaredModulesInConfig } from '../utils/declared-modules.ts';
 import type { ReactBundleService } from './react-bundle.service.ts';
+import type { ReactHmrPageMetadataCache } from './react-hmr-page-metadata-cache.ts';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 
 /**
@@ -32,6 +33,7 @@ export interface ReactHydrationAssetServiceConfig {
 	routerAdapter?: ReactRouterAdapter;
 	assetProcessingService: AssetProcessingService;
 	bundleService: ReactBundleService;
+	hmrPageMetadataCache?: ReactHmrPageMetadataCache;
 }
 
 /**
@@ -230,6 +232,9 @@ export class ReactHydrationAssetService {
 		const componentName = `ecopages-react-${rapidhash(pagePath)}`;
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
 		const isDevelopment = hmrManager?.isEnabled() ?? false;
+		if (isDevelopment) {
+			this.config.hmrPageMetadataCache?.setDeclaredModules(pagePath, declaredModules);
+		}
 
 		const importPath = await this.resolveAssetImportPath(pagePath, componentName);
 		const bundleOptions = await this.config.bundleService.createBundleOptions(

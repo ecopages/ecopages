@@ -6,12 +6,14 @@ on:
             - main
     workflow_dispatch:
 
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
 jobs:
     publish:
         runs-on: ubuntu-latest
         permissions:
             contents: read
-            id-token: write # The OIDC ID token is used for authentication with JSR.
+            id-token: write # Required for OIDC authentication
         steps:
             - name: Checkout Repo
               uses: actions/checkout@v4
@@ -27,11 +29,17 @@ jobs:
             - name: Install Dependencies
               run: pnpm install
 
+            - name: Install Playwright Browsers
+              run: pnpm exec playwright install --with-deps
+
             - name: Test
               run: pnpm run test:all
               env:
                   ECOPAGES_BASE_URL: http://localhost:3000
                   ECOPAGES_LOGGER_DEBUG: false
+
+            - name: Validate synced versions
+              run: pnpm run release:check:versions
 
             - name: Publish package @ecopages/bun-inline-css-plugin
               run: pnpm --filter @ecopages/bun-inline-css-plugin release:jsr
@@ -66,9 +74,6 @@ jobs:
             - name: Publish package @ecopages/react-router
               run: pnpm --filter @ecopages/react-router release:jsr
 
-            - name: Sync versions
-              run: pnpm run jsr:sync-version
-
             - name: Build npm packages
               run: pnpm run build:npm
 
@@ -78,38 +83,38 @@ jobs:
                   node-version: '24'
                   registry-url: 'https://registry.npmjs.org'
 
-            - name: Publish npm packages
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-              run: |
-                  publish_package() {
-                    local package_dir="$1"
-                    local package_name
-                    local package_version
-                    local dist_tag
+            - name: Publish npm package @ecopages/file-system
+              run: pnpm run release:npm -- packages/file-system/dist
 
-                    package_name=$(node -p "require('./${package_dir}/package.json').name")
-                    package_version=$(node -p "require('./${package_dir}/package.json').version")
-                    dist_tag=$(node -p "(() => { const version = require('./${package_dir}/package.json').version; const match = version.match(/-([0-9A-Za-z-]+)\./); return match ? match[1] : 'latest'; })()")
+            - name: Publish npm package @ecopages/core
+              run: pnpm run release:npm -- packages/core/dist
 
-                    if npm view "${package_name}@${package_version}" version &>/dev/null; then
-                      echo "${package_name}@${package_version} already published"
-                      return 0
-                    fi
+            - name: Publish npm package @ecopages/postcss-processor
+              run: pnpm run release:npm -- packages/processors/postcss-processor/dist
 
-                    echo "Publishing ${package_name}@${package_version} with tag ${dist_tag}"
-                    (cd "${package_dir}" && npm publish --access public --provenance --tag "${dist_tag}")
-                  }
+            - name: Publish npm package @ecopages/image-processor
+              run: pnpm run release:npm -- packages/processors/image-processor/dist
 
-                  publish_package packages/file-system/dist
-                  publish_package packages/core/dist
-                  publish_package packages/processors/postcss-processor/dist
-                  publish_package packages/processors/image-processor/dist
-                  publish_package packages/plugins/bun-inline-css-plugin/dist
-                  publish_package packages/integrations/kitajs/dist
-                  publish_package packages/integrations/lit/dist
-                  publish_package packages/integrations/mdx/dist
-                  publish_package packages/integrations/react/dist
-                  publish_package packages/browser-router/dist
-                  publish_package packages/react-router/dist
-                  publish_package npm/ecopages
+            - name: Publish npm package @ecopages/bun-inline-css-plugin
+              run: pnpm run release:npm -- packages/plugins/bun-inline-css-plugin/dist
+
+            - name: Publish npm package @ecopages/kitajs
+              run: pnpm run release:npm -- packages/integrations/kitajs/dist
+
+            - name: Publish npm package @ecopages/lit
+              run: pnpm run release:npm -- packages/integrations/lit/dist
+
+            - name: Publish npm package @ecopages/mdx
+              run: pnpm run release:npm -- packages/integrations/mdx/dist
+
+            - name: Publish npm package @ecopages/react
+              run: pnpm run release:npm -- packages/integrations/react/dist
+
+            - name: Publish npm package @ecopages/browser-router
+              run: pnpm run release:npm -- packages/browser-router/dist
+
+            - name: Publish npm package @ecopages/react-router
+              run: pnpm run release:npm -- packages/react-router/dist
+
+            - name: Publish npm package ecopages
+              run: pnpm run release:npm -- npm/ecopages

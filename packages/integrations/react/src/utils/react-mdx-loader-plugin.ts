@@ -9,7 +9,7 @@ export function createReactMdxLoaderPlugin(compilerOptions?: CompileOptions): Ec
 	const mdxExtensions = compilerOptions?.mdxExtensions ?? ['.mdx'];
 	const mdExtensions = compilerOptions?.mdExtensions ?? ['.md'];
 	const allExtensions = [...mdxExtensions, ...mdExtensions];
-	const escapedExts = allExtensions.map((ext) => ext.replace('.', '\\.') );
+	const escapedExts = allExtensions.map((ext) => ext.replace('.', '\\.'));
 	const filter = new RegExp(`(${escapedExts.join('|')})(\\?.*)?$`);
 
 	return {

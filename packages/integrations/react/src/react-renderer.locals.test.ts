@@ -44,7 +44,7 @@ describe('ReactRenderer locals split', () => {
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		const pageRenderMock = vi.fn((props: { locals?: unknown }) => {
+		const pageRenderMock = vi.fn((_props: { locals?: unknown }) => {
 			return 'page' as unknown as ReactNode;
 		});
 		const Page = pageRenderMock as unknown as IntegrationRendererRenderOptions<ReactNode>['Page'];

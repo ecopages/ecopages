@@ -1,4 +1,4 @@
-import type { EcopagesAppOptions as BunOptions, EcopagesApp as BunApp } from './adapters/bun/create-app.ts';
+import type { EcopagesAppOptions as BunOptions } from './adapters/bun/create-app.ts';
 import type { EcopagesAppOptions as NodeOptions } from './adapters/node/create-app.ts';
 import { AbstractApplicationAdapter } from './adapters/abstract/application-adapter.ts';
 import type { ApiHandler } from './public-types.ts';

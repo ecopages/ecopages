@@ -219,10 +219,7 @@ function createSandboxExampleDir(exampleDir: string): string {
  * Builds the mutated package manifest that points the sandboxed example at the
  * locally built npm artifacts.
  */
-function createSandboxPackageJson(
-	packageJson: PackageJson,
-	packageNames: string[],
-): PackageJson {
+function createSandboxPackageJson(packageJson: PackageJson, packageNames: string[]): PackageJson {
 	const overrides = {
 		...(packageJson.pnpm?.overrides ?? {}),
 	};

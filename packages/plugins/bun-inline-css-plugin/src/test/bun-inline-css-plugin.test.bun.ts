@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from 'vitest';
-import type { BunPlugin } from 'bun';
 import fs from 'node:fs';
 import path from 'node:path';
 import { bunInlineCssPlugin } from '../bun-inline-css-plugin.ts';

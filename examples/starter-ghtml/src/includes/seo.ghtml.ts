@@ -1,7 +1,8 @@
 import type { PageMetadataProps } from '@ecopages/core';
 import { html } from '@ecopages/core/html';
 
-const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
+const baseUrl = process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000';
+const withBaseUrl = (path: string) => `${baseUrl}/${path.replace(/^\//u, '')}`;
 
 export function Seo({
 	title,

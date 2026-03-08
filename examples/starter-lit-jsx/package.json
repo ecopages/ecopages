@@ -18,6 +18,7 @@
 		"@ecopages/radiant": "latest",
 		"@ecopages/scripts-injector": "latest",
 		"@kitajs/html": "^4.2.13",
+		"lit": "^3.3.2",
 		"@tailwindcss/postcss": "^4.0.0",
 		"tailwindcss": "^4.0.0"
 	}

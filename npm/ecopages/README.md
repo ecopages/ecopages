@@ -71,9 +71,9 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 
 ### Available Packages
 
-| Package                           | Description                                               | JSR Link                                              |
-| :-------------------------------- | :-------------------------------------------------------- | :---------------------------------------------------- |
-| `@ecopages/browser-router`        | Client-side navigation and view transitions for Ecopages. | [JSR](https://jsr.io/@ecopages/browser-router)        |
+| Package                    | Description                                               | JSR Link                                       |
+| :------------------------- | :-------------------------------------------------------- | :--------------------------------------------- |
+| `@ecopages/browser-router` | Client-side navigation and view transitions for Ecopages. | [JSR](https://jsr.io/@ecopages/browser-router) |
 
 | `@ecopages/core` | Foundational layer of the Ecopages ecosystem. | [JSR](https://jsr.io/@ecopages/core) |
 | `@ecopages/file-system` | Runtime-agnostic file system utilities (Bun/Node.js). | [JSR](https://jsr.io/@ecopages/file-system) |

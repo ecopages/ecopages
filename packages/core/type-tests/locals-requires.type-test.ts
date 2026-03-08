@@ -14,7 +14,7 @@ eco.page({
 		props.locals?.session?.userId;
 
 		// @ts-expect-error locals can be undefined without requires
-		props.locals.session;
+		void props.locals.session;
 
 		return '';
 	},
@@ -33,7 +33,7 @@ eco.page({
 		props.locals.featureFlag?.valueOf();
 
 		// @ts-expect-error unknown key should not exist
-		props.locals.notARealKey;
+		void props.locals.notARealKey;
 
 		return '';
 	},
@@ -64,7 +64,7 @@ eco.page({
 		props.locals?.session?.userId;
 
 		// @ts-expect-error locals can be undefined without requires in render too
-		props.locals.session;
+		void props.locals.session;
 
 		return '';
 	},

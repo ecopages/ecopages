@@ -26,10 +26,7 @@ type ParsedVersion = {
  * Computes the next version string given the current version and bump type.
  */
 function computeNextVersion(current: string, bump: BumpType): string {
-	const parts = current
-		.split('-')[0]
-		.split('.')
-		.map(Number);
+	const parts = current.split('-')[0].split('.').map(Number);
 	parts[BUMP_INDEX[bump]]++;
 	if (bump === 'minor') parts[2] = 0;
 	if (bump === 'major') {
@@ -62,9 +59,9 @@ function parseVersion(version: string): ParsedVersion {
 		prerelease:
 			channel && prereleaseNumber
 				? {
-					channel,
-					number: Number(prereleaseNumber),
-				}
+						channel,
+						number: Number(prereleaseNumber),
+					}
 				: undefined,
 	};
 }

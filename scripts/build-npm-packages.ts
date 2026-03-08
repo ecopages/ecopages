@@ -105,7 +105,9 @@ function isTestLike(relativePath: string): boolean {
 }
 
 function shouldSkipDirectory(name: string): boolean {
-	return name === 'node_modules' || name === 'dist' || name === '__fixtures__' || name === 'test' || name === '__tests__';
+	return (
+		name === 'node_modules' || name === 'dist' || name === '__fixtures__' || name === 'test' || name === '__tests__'
+	);
 }
 
 function collectPackageRoots(packageDir: string, manifest: PackageManifest): string[] {
@@ -132,7 +134,10 @@ function collectPackageRoots(packageDir: string, manifest: PackageManifest): str
 		.filter((entry) => existsSync(entry));
 }
 
-function scanPackageFiles(packageDir: string, roots: string[]): {
+function scanPackageFiles(
+	packageDir: string,
+	roots: string[],
+): {
 	codeFiles: string[];
 	declarationFiles: string[];
 	assetFiles: string[];
@@ -192,10 +197,13 @@ function getLoader(filePath: string): 'ts' | 'tsx' | 'js' | 'jsx' {
 }
 
 function rewriteRelativeSpecifiers(content: string): string {
-	return content.replace(/(["'])((?:\.{1,2}\/)[^"'\n\r]+?)\.(cts|mts|tsx|ts|jsx)(\1)/g, (_match, quote, specifier, extension, closingQuote) => {
-		const nextExtension = extension === 'mts' ? 'mjs' : extension === 'cts' ? 'cjs' : 'js';
-		return `${quote}${specifier}.${nextExtension}${closingQuote}`;
-	});
+	return content.replace(
+		/(["'])((?:\.{1,2}\/)[^"'\n\r]+?)\.(cts|mts|tsx|ts|jsx)(\1)/g,
+		(_match, quote, specifier, extension, closingQuote) => {
+			const nextExtension = extension === 'mts' ? 'mjs' : extension === 'cts' ? 'cjs' : 'js';
+			return `${quote}${specifier}.${nextExtension}${closingQuote}`;
+		},
+	);
 }
 
 function rewriteManifestRuntimePath(value: string): string {
@@ -277,7 +285,10 @@ function createTsExtensionExportAliases(exportsField: unknown): Record<string, u
 	return aliases;
 }
 
-function rewriteWorkspaceRanges(record: Record<string, string> | undefined, version: string): Record<string, string> | undefined {
+function rewriteWorkspaceRanges(
+	record: Record<string, string> | undefined,
+	version: string,
+): Record<string, string> | undefined {
 	if (!record) {
 		return record;
 	}
@@ -399,11 +410,14 @@ async function buildJavaScript(packageDir: string, codeFiles: string[], distDir:
 	for (const sourceFile of codeFiles) {
 		const extension = path.extname(sourceFile);
 		const relativePath = path.relative(packageDir, sourceFile);
-		const outputRelativePath = relativePath.replace(/\.(mts|cts|tsx|ts|jsx|js)$/u, (_match, fileExtension: string) => {
-			if (fileExtension === 'mts') return '.mjs';
-			if (fileExtension === 'cts') return '.cjs';
-			return '.js';
-		});
+		const outputRelativePath = relativePath.replace(
+			/\.(mts|cts|tsx|ts|jsx|js)$/u,
+			(_match, fileExtension: string) => {
+				if (fileExtension === 'mts') return '.mjs';
+				if (fileExtension === 'cts') return '.cjs';
+				return '.js';
+			},
+		);
 		const outputPath = path.join(distDir, outputRelativePath);
 		const source = readFileSync(sourceFile, 'utf-8');
 		const transformed = await transform(source, {
@@ -434,9 +448,9 @@ function createDistManifest(manifest: PackageManifest, version: string): Package
 		exports:
 			rewrittenExports && typeof rewrittenExports === 'object' && !Array.isArray(rewrittenExports)
 				? {
-					...(rewrittenExports as Record<string, unknown>),
-					...createTsExtensionExportAliases(rewrittenExports),
-				}
+						...(rewrittenExports as Record<string, unknown>),
+						...createTsExtensionExportAliases(rewrittenExports),
+					}
 				: rewrittenExports,
 	};
 
@@ -518,7 +532,13 @@ async function main(): Promise<void> {
 	const filters = new Set(process.argv.slice(2));
 	const rootPackage = readJsonFile<{ version: string }>(rootPackageJsonPath);
 	const packageDirs = findPublishablePackageDirs(packagesRoot)
-		.filter((packageDir) => matchesRequestedPackage(packageDir, readJsonFile<PackageManifest>(path.join(packageDir, 'package.json')), filters))
+		.filter((packageDir) =>
+			matchesRequestedPackage(
+				packageDir,
+				readJsonFile<PackageManifest>(path.join(packageDir, 'package.json')),
+				filters,
+			),
+		)
 		.sort();
 
 	if (packageDirs.length === 0) {
@@ -528,7 +548,7 @@ async function main(): Promise<void> {
 	for (const packageDir of packageDirs) {
 		await buildPackage(packageDir, rootPackage.version);
 	}
-	}
+}
 
 main().catch((error) => {
 	console.error(error instanceof Error ? error.message : error);

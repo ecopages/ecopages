@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import { BaseLayout } from '@/layouts/base-layout';
+// oxlint-disable-next-line no-unused-vars
 import { formatDate, dbSecretQuery } from '@/utils/mixed-utils';
 
 export default eco.page<{}, ReactNode>({

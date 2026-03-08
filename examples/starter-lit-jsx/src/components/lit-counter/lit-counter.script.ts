@@ -8,9 +8,9 @@ export type LitCounterProps = {
 
 @customElement('lit-counter')
 export class LitCounter extends LitElement {
-	static override styles = [unsafeCSS(styles)];
+	static styles = [unsafeCSS(styles)];
 
-	@property({ type: Number }) declare count = 0;
+	@property({ type: Number }) declare count: number;
 
 	decrement() {
 		if (this.count > 0) this.count--;

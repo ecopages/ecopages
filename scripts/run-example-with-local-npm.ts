@@ -31,7 +31,6 @@ const localPackageTargets: Record<string, string> = {
 	'@ecopages/mdx': 'packages/integrations/mdx/dist',
 	'@ecopages/react': 'packages/integrations/react/dist',
 	'@ecopages/react-router': 'packages/react-router/dist',
-	'@ecopages/bun-inline-css-plugin': 'packages/plugins/bun-inline-css-plugin/dist',
 	'@ecopages/image-processor': 'packages/processors/image-processor/dist',
 	'@ecopages/postcss-processor': 'packages/processors/postcss-processor/dist',
 };

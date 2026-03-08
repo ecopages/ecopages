@@ -41,9 +41,6 @@ jobs:
             - name: Validate synced versions
               run: pnpm run release:check:versions
 
-            - name: Publish package @ecopages/bun-inline-css-plugin
-              run: pnpm --filter @ecopages/bun-inline-css-plugin release:jsr
-
             - name: Publish package @ecopages/file-system
               run: pnpm --filter @ecopages/file-system release:jsr
 
@@ -94,9 +91,6 @@ jobs:
 
             - name: Publish npm package @ecopages/image-processor
               run: pnpm run release:npm -- packages/processors/image-processor/dist
-
-            - name: Publish npm package @ecopages/bun-inline-css-plugin
-              run: pnpm run release:npm -- packages/plugins/bun-inline-css-plugin/dist
 
             - name: Publish npm package @ecopages/kitajs
               run: pnpm run release:npm -- packages/integrations/kitajs/dist

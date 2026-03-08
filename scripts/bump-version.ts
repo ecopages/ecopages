@@ -1,10 +1,12 @@
 import path from 'node:path';
 import { writeFileSync } from 'node:fs';
+import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
 import rootPackage from '../package.json';
 
 type BumpType = 'major' | 'minor' | 'patch';
 type PrereleaseChannel = 'alpha' | 'beta';
+type Command = BumpType | 'prerelease';
 
 const BUMP_INDEX: Record<BumpType, number> = {
 	major: 0,
@@ -101,37 +103,87 @@ function computeNextPrerelease(current: string, channel: PrereleaseChannel, bump
 	});
 }
 
+function isBumpType(value: string | undefined): value is BumpType {
+	return value === 'major' || value === 'minor' || value === 'patch';
+}
+
+function isPrereleaseChannel(value: string | undefined): value is PrereleaseChannel {
+	return value === 'alpha' || value === 'beta';
+}
+
+function printUsage(): void {
+	console.log(`Usage:
+  tsx scripts/bump-version.ts [patch|minor|major]
+  tsx scripts/bump-version.ts prerelease <alpha|beta> [patch|minor|major]
+
+Options:
+  --channel <alpha|beta>
+  --bump <patch|minor|major>
+  --dry-run
+  -h, --help`);
+}
+
 if (!rootPackage.version) {
 	throw new Error('Root package.json does not have a version');
 }
 
 const appLogger = new Logger('[@ecopages/bump-version]');
-const command = process.argv[2] ?? 'patch';
+const parsedArgs = parseArgs({
+	allowPositionals: true,
+	options: {
+		channel: {
+			type: 'string',
+		},
+		bump: {
+			type: 'string',
+		},
+		'dry-run': {
+			type: 'boolean',
+		},
+		help: {
+			type: 'boolean',
+			short: 'h',
+		},
+	},
+});
+
+if (parsedArgs.values.help) {
+	printUsage();
+	process.exit(0);
+}
+
+const [commandPositional, channelPositional, bumpPositional] = parsedArgs.positionals;
+const command = (commandPositional ?? 'patch') as Command;
+const dryRun = parsedArgs.values['dry-run'] ?? false;
 
 if (command === 'prerelease') {
-	const channel = process.argv[3] as PrereleaseChannel | undefined;
-	const bump = (process.argv[4] as BumpType | undefined) ?? 'patch';
+	const channel = parsedArgs.values.channel ?? channelPositional;
+	const bump = parsedArgs.values.bump ?? bumpPositional ?? 'patch';
 
-	if (channel !== 'alpha' && channel !== 'beta') {
+	if (!isPrereleaseChannel(channel)) {
 		throw new Error(`Invalid prerelease channel: ${channel ?? 'undefined'}`);
 	}
 
-	if (!(bump in BUMP_INDEX)) {
+	if (!isBumpType(bump)) {
 		throw new Error(`Invalid bump type: ${bump}`);
 	}
 
 	const newVersion = computeNextPrerelease(rootPackage.version, channel, bump);
-	appLogger.info(`Updating prerelease version to v${newVersion}`);
-	writeRootVersion(newVersion);
+	appLogger.info(`${dryRun ? 'Would update' : 'Updating'} prerelease version to v${newVersion}`);
+	if (!dryRun) {
+		writeRootVersion(newVersion);
+	}
 	process.exit(0);
 }
 
-const bump = command as BumpType;
-
-if (!(bump in BUMP_INDEX)) {
-	throw new Error(`Invalid bump type: ${bump}`);
+if (!isBumpType(command)) {
+	throw new Error(`Invalid bump type: ${command}`);
 }
 
+const bump = command;
+
 const newVersion = computeNextVersion(rootPackage.version, bump);
-appLogger.info(`Updating ${bump} version to v${newVersion}`);
-writeRootVersion(newVersion);
+appLogger.info(`${dryRun ? 'Would update' : 'Updating'} ${bump} version to v${newVersion}`);
+if (!dryRun) {
+	writeRootVersion(newVersion);
+}

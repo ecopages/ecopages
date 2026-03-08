@@ -1,6 +1,7 @@
 {
 	"name": "@ecopages/starter-ghtml",
 	"description": "Starter template for Ecopages projects, minimal setup",
+	"type": "module",
 	"private": true,
 	"scripts": {
 		"start": "ecopages start",

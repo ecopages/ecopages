@@ -1,5 +1,6 @@
 {
 	"name": "blog-jsx",
+	"type": "module",
 	"private": true,
 	"scripts": {
 		"start": "ecopages start",

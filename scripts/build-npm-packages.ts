@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import {
 	copyFileSync,
 	existsSync,
@@ -529,7 +530,10 @@ async function buildPackage(packageDir: string, version: string): Promise<void> 
 }
 
 async function main(): Promise<void> {
-	const filters = new Set(process.argv.slice(2));
+	const { positionals } = parseArgs({
+		allowPositionals: true,
+	});
+	const filters = new Set(positionals);
 	const rootPackage = readJsonFile<{ version: string }>(rootPackageJsonPath);
 	const packageDirs = findPublishablePackageDirs(packagesRoot)
 		.filter((packageDir) =>

@@ -2,6 +2,7 @@ import path from 'node:path';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { parseArgs } from 'node:util';
 
 type PackageJson = {
 	name?: string;
@@ -269,24 +270,54 @@ type CliOptions = {
 /**
  * Parses runner options before the example path.
  */
-function parseCliOptions(rawArgs: string[]): CliOptions {
-	const normalizedArgs = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
+
+function parseCliOptions(): CliOptions {
+	const parsed = parseArgs({
+		allowPositionals: true,
+		strict: false,
+		tokens: true,
+		options: {
+			'skip-build': {
+				type: 'boolean',
+			},
+		},
+	});
+
 	let skipBuild = false;
 	let exampleArg: string | undefined;
 	const commandArgs: string[] = [];
 
-	for (const arg of normalizedArgs) {
-		if (!exampleArg && arg === '--skip-build') {
-			skipBuild = true;
-			continue;
-		}
-
+	for (const token of parsed.tokens ?? []) {
 		if (!exampleArg) {
-			exampleArg = arg;
+			if (token.kind === 'option' && token.name === 'skip-build') {
+				skipBuild = true;
+				continue;
+			}
+
+			if (token.kind === 'positional' && token.value === '--skip-build') {
+				skipBuild = true;
+				continue;
+			}
+
+			if (token.kind === 'positional') {
+				exampleArg = token.value;
+			}
+
 			continue;
 		}
 
-		commandArgs.push(arg);
+		if (token.kind === 'positional') {
+			commandArgs.push(token.value);
+			continue;
+		}
+
+		if (token.kind === 'option') {
+			commandArgs.push(token.rawName);
+
+			if (!token.inlineValue && typeof token.value === 'string') {
+				commandArgs.push(token.value);
+			}
+		}
 	}
 
 	return {
@@ -297,7 +328,7 @@ function parseCliOptions(rawArgs: string[]): CliOptions {
 }
 
 async function main(): Promise<void> {
-	const { skipBuild, exampleArg, commandArgs } = parseCliOptions(process.argv.slice(2));
+	const { skipBuild, exampleArg, commandArgs } = parseCliOptions();
 
 	if (!exampleArg) {
 		throw new Error('Usage: pnpm run example:local-npm -- [--skip-build] <example-dir> [command...]');

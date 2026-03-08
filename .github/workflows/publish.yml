@@ -47,12 +47,6 @@ jobs:
             - name: Publish package @ecopages/image-processor
               run: pnpm --filter @ecopages/image-processor release:jsr
 
-            - name: Publish package @ecopages/bun-postcss-loader
-              run: pnpm --filter @ecopages/bun-postcss-loader release:jsr
-
-            - name: Publish package @ecopages/bun-mdx-kitajs-loader
-              run: pnpm --filter @ecopages/bun-mdx-kitajs-loader release:jsr
-
             - name: Publish package @ecopages/kitajs
               run: pnpm --filter @ecopages/kitajs release:jsr
 

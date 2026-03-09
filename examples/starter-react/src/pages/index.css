@@ -3,75 +3,18 @@
 }
 
 .main-content {
-	@apply flex flex-col gap-4 justify-center items-center text-center;
+	@apply flex flex-col gap-8 justify-center items-center text-center;
 }
 
 .ecopages-logo {
-	--logo-width: 2rem;
-	--logo-radius: 0.5rem;
-	--logo-overlap: 1.2rem;
-	@apply relative isolate flex flex-col;
-	width: var(--logo-width);
-
-	@media (min-width: 640px) {
-		--logo-width: 4rem;
-		--logo-radius: 1rem;
-		--logo-overlap: 2.5rem;
-	}
+	@apply flex gap-2 md:gap-4 items-center text-5xl md:text-8xl;
 }
 
-.folded-rectangle {
-	--r: var(--logo-radius);
-
-	position: relative;
-	transform: skew(-10deg);
-	rotate: 10deg;
-	width: var(--logo-width);
-	aspect-ratio: 1.1;
-	border-radius: var(--r) 0 / calc(2 * var(--r)) 0;
-	padding-block: var(--r);
-	--_m: #0000 100%, #000 calc(100% + 1px);
-	mask:
-		conic-gradient(#000 0 0) content-box,
-		radial-gradient(var(--r) at 100% 100%, var(--_m)) 0 100% no-repeat,
-		radial-gradient(var(--r) at 0 0, var(--_m)) 100% 0 no-repeat;
-	mask-size: var(--r) var(--r);
-	filter: drop-shadow(0.2rem 0.5rem 0.5rem rgb(16 48 22 / 0.2)) drop-shadow(0.55rem 1rem 1rem rgb(16 48 22 / 0.16));
-}
-
-.folded-rectangle + .folded-rectangle {
-	margin-top: calc(var(--logo-overlap) * -1);
-}
-
-.folded-rectangle:nth-child(1) {
-	z-index: 3;
-	background: linear-gradient(135deg, #d7f7c5 0%, #9be27b 48%, #63b957 100%);
-	filter: drop-shadow(0.18rem 0.45rem 0.4rem rgb(63 138 61 / 0.24))
-		drop-shadow(0.7rem 1.15rem 1.1rem rgb(45 97 49 / 0.26));
-}
-
-.folded-rectangle:nth-child(2) {
-	z-index: 2;
-	background: linear-gradient(135deg, #a7e58d 0%, #63bf58 50%, #37893d 100%);
-	filter: drop-shadow(0.22rem 0.5rem 0.45rem rgb(39 102 44 / 0.28))
-		drop-shadow(0.8rem 1.25rem 1.15rem rgb(27 73 32 / 0.32));
-}
-
-.folded-rectangle:nth-child(3) {
-	z-index: 1;
-	background: linear-gradient(135deg, #6fca63 0%, #3f9646 52%, #205b2d 100%);
-	filter: drop-shadow(0.25rem 0.55rem 0.5rem rgb(23 67 29 / 0.3))
-		drop-shadow(0.9rem 1.35rem 1.2rem rgb(15 44 20 / 0.38));
-}
-
-.ecopages-logo + span {
+.ecopages-logo__text {
+	font-weight: bold;
 	color: var(--color-on-background);
 	font-family: 'Montserrat', sans-serif;
 	letter-spacing: -0.02em;
-	font-size: 3rem;
 	margin: 0;
 	line-height: 1;
-	@media (min-width: 640px) {
-		font-size: 5rem;
-	}
 }

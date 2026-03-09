@@ -113,6 +113,7 @@ function collectManifestPaths(value: unknown, output: Set<string>): void {
 function isTestLike(relativePath: string): boolean {
 	return (
 		relativePath.includes('/__fixtures__/') ||
+		relativePath.includes('/__screenshots__/') ||
 		relativePath.includes('/test/') ||
 		relativePath.includes('/__tests__/') ||
 		/\.(test|spec)\.[^.]+$/i.test(relativePath)
@@ -121,7 +122,12 @@ function isTestLike(relativePath: string): boolean {
 
 function shouldSkipDirectory(name: string): boolean {
 	return (
-		name === 'node_modules' || name === 'dist' || name === '__fixtures__' || name === 'test' || name === '__tests__'
+		name === 'node_modules' ||
+		name === 'dist' ||
+		name === '__fixtures__' ||
+		name === '__screenshots__' ||
+		name === 'test' ||
+		name === '__tests__'
 	);
 }
 

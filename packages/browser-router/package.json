@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/browser-router",
-	"version": "0.2.0-alpha.3",
+	"version": "0.2.0-alpha.4",
 	"description": "Client-side router for Ecopages with view transitions support",
 	"keywords": [
 		"ecopages",

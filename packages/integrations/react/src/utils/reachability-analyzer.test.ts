@@ -184,4 +184,51 @@ describe('analyzeReachability', () => {
 		expect(result.reachableImports.get('./shared-utils')).toBe('*');
 		expect(result.reachableImports.get('./more-helpers')).toBe('*');
 	});
+
+	it('tracks named re-exports when explicit requested exports are provided', () => {
+		const source = `
+			export { Button } from './button';
+			export { db } from './db.server';
+		`;
+
+		const result = analyzeReachability(source, 'barrel.ts', undefined, new Set(['Button']));
+
+		expect(result.analyzed).toBe(true);
+		expect(result.isFallbackRoots).toBe(false);
+		expect(result.reachableImports.get('./button')).toBeInstanceOf(Set);
+		expect((result.reachableImports.get('./button') as Set<string>).has('Button')).toBe(true);
+		expect(result.reachableImports.has('./db.server')).toBe(false);
+	});
+
+	it('keeps export-all declarations reachable when namespace access is explicitly requested', () => {
+		const source = `
+			export * from './shared-utils';
+		`;
+
+		const result = analyzeReachability(source, 'barrel.ts', undefined, '*');
+
+		expect(result.analyzed).toBe(true);
+		expect(result.isFallbackRoots).toBe(false);
+		expect(result.reachableImports.get('./shared-utils')).toBe('*');
+	});
+
+	it('does not traverse unrequested local exports from export lists', () => {
+		const source = `
+			async function serverOnly() {
+				return import('node:async_hooks');
+			}
+
+			function browserSafe() {
+				return 'ok';
+			}
+
+			export { browserSafe, serverOnly };
+		`;
+
+		const result = analyzeReachability(source, 'component-render-context.js', undefined, new Set(['browserSafe']));
+
+		expect(result.analyzed).toBe(true);
+		expect(result.isFallbackRoots).toBe(false);
+		expect(result.reachableImports.has('node:async_hooks')).toBe(false);
+	});
 });

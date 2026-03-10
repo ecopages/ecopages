@@ -59,6 +59,16 @@ export type ReachabilityResult = {
 };
 
 /**
+ * Optional export filter supplied by the client graph boundary when a local
+ * module is imported through a narrower named-export surface.
+ *
+ * `'*'` means the whole module namespace is considered reachable, while a
+ * `Set` restricts analysis to the named exports that are actually requested by
+ * downstream client-reachable modules.
+ */
+type ExplicitlyRequestedExports = Set<string> | '*';
+
+/**
  * Analyzes a module using Oxc AST and extracts a strict reachability graph
  * starting from client roots (`render`, `errorBoundary`, `loadingFallback` of `eco.page` or `eco.component`).
  *
@@ -66,11 +76,14 @@ export type ReachabilityResult = {
  * @param filename - Absolute or relative path to the module file.
  * @param program - Optional pre-parsed Oxc program AST. When supplied, the
  *   internal `parseSync` call is skipped entirely (avoids double-parsing).
+ * @param explicitlyRequestedExports - Optional named export filter propagated
+ *   from a downstream importer when this module is only partially reachable.
  */
 export function analyzeReachability(
 	source: string,
 	filename: string,
 	program?: ReturnType<typeof parseSync>['program'],
+	explicitlyRequestedExports?: ExplicitlyRequestedExports,
 ): ReachabilityResult {
 	/**
 	 * AST Resolution
@@ -243,6 +256,57 @@ export function analyzeReachability(
 	}
 
 	/**
+	 * Resolves the externally visible export name from an export specifier.
+	 *
+	 * @param specifier - Oxc export specifier node.
+	 * @returns The exported binding name when available.
+	 */
+	function getExportedName(specifier: any): string | undefined {
+		if (specifier?.exported?.type === 'Identifier') return specifier.exported.name;
+		if (typeof specifier?.exported?.value === 'string') return specifier.exported.value;
+		if (specifier?.local?.type === 'Identifier') return specifier.local.name;
+		if (typeof specifier?.local?.value === 'string') return specifier.local.value;
+		return undefined;
+	}
+
+	/**
+	 * Resolves the imported binding name represented by a re-export specifier.
+	 *
+	 * @param specifier - Oxc export specifier node.
+	 * @returns The source-module binding name that should be marked reachable.
+	 */
+	function getReexportedImportName(specifier: any): string | undefined {
+		if (specifier?.local?.type === 'Identifier') return specifier.local.name;
+		if (typeof specifier?.local?.value === 'string') return specifier.local.value;
+		if (specifier?.imported?.type === 'Identifier') return specifier.imported.name;
+		if (typeof specifier?.imported?.value === 'string') return specifier.imported.value;
+		return getExportedName(specifier);
+	}
+
+	/**
+	 * Resolves the local identifier used by a local export list entry.
+	 *
+	 * @param specifier - Oxc export specifier node.
+	 * @returns The local symbol name referenced by the export list.
+	 */
+	function getLocalExportName(specifier: any): string | undefined {
+		if (specifier?.local?.type === 'Identifier') return specifier.local.name;
+		if (typeof specifier?.local?.value === 'string') return specifier.local.value;
+		return undefined;
+	}
+
+	/**
+	 * Checks whether a named export is part of the explicitly requested subset.
+	 *
+	 * @param name - Export name to test.
+	 * @returns True when the export should seed or continue traversal.
+	 */
+	function isExplicitlyRequestedExport(name: string): boolean {
+		if (explicitlyRequestedExports === '*') return true;
+		return explicitlyRequestedExports?.has(name) ?? false;
+	}
+
+	/**
 	 * Client root resolution (fallback mode)
 	 *
 	 * If *no* `eco.page`/`eco.component` call was found in the file, we fall back to treating
@@ -255,14 +319,73 @@ export function analyzeReachability(
 	 */
 	let isFallbackRoots = false;
 	if (potentialClientRoots.length === 0) {
-		isFallbackRoots = true;
-		for (const node of resolvedProgram.body) {
-			if (
-				(node as { type: string }).type === 'ExportNamedDeclaration' ||
-				(node as { type: string }).type === 'ExportDefaultDeclaration' ||
-				(node as { type: string }).type === 'ExportAllDeclaration'
-			) {
-				potentialClientRoots.push(node);
+		if (explicitlyRequestedExports) {
+			for (const node of resolvedProgram.body) {
+				if ((node as { type: string }).type === 'ExportNamedDeclaration') {
+					const exportNode = node as any;
+					if (exportNode.source && exportNode.specifiers?.length) {
+						const hasRequestedReexport = exportNode.specifiers.some((specifier: any) => {
+							const exportedName = getExportedName(specifier);
+							return exportedName ? isExplicitlyRequestedExport(exportedName) : false;
+						});
+						if (hasRequestedReexport) {
+							potentialClientRoots.push(node);
+						}
+						continue;
+					}
+
+					if (
+						exportNode.declaration?.type === 'FunctionDeclaration' ||
+						exportNode.declaration?.type === 'ClassDeclaration'
+					) {
+						const declarationName = exportNode.declaration.id?.name;
+						if (declarationName && isExplicitlyRequestedExport(declarationName)) {
+							potentialClientRoots.push(node);
+						}
+						continue;
+					}
+
+					if (exportNode.declaration?.type === 'VariableDeclaration') {
+						const hasRequestedDeclaration = exportNode.declaration.declarations.some(
+							(declaration: any) =>
+								declaration.id?.type === 'Identifier' &&
+								isExplicitlyRequestedExport(declaration.id.name),
+						);
+						if (hasRequestedDeclaration) {
+							potentialClientRoots.push(node);
+						}
+						continue;
+					}
+
+					if (exportNode.specifiers?.length) {
+						const hasRequestedSpecifier = exportNode.specifiers.some((specifier: any) => {
+							const exportedName = getExportedName(specifier);
+							return exportedName ? isExplicitlyRequestedExport(exportedName) : false;
+						});
+						if (hasRequestedSpecifier) {
+							potentialClientRoots.push(node);
+						}
+					}
+				} else if ((node as { type: string }).type === 'ExportDefaultDeclaration') {
+					if (isExplicitlyRequestedExport('default')) {
+						potentialClientRoots.push(node);
+					}
+				} else if ((node as { type: string }).type === 'ExportAllDeclaration') {
+					if (explicitlyRequestedExports === '*') {
+						potentialClientRoots.push(node);
+					}
+				}
+			}
+		} else {
+			isFallbackRoots = true;
+			for (const node of resolvedProgram.body) {
+				if (
+					(node as { type: string }).type === 'ExportNamedDeclaration' ||
+					(node as { type: string }).type === 'ExportDefaultDeclaration' ||
+					(node as { type: string }).type === 'ExportAllDeclaration'
+				) {
+					potentialClientRoots.push(node);
+				}
 			}
 		}
 	}
@@ -350,6 +473,36 @@ export function analyzeReachability(
 		 */
 		if (node.type === 'ExportAllDeclaration' && typeof node.source?.value === 'string') {
 			markImportReachable(node.source.value as string, '*');
+			return;
+		}
+
+		if (node.type === 'ExportNamedDeclaration' && typeof node.source?.value === 'string') {
+			for (const specifier of node.specifiers ?? []) {
+				const importedName = getReexportedImportName(specifier);
+				if (importedName) {
+					markImportReachable(node.source.value as string, importedName);
+				}
+			}
+			return;
+		}
+
+		if (
+			node.type === 'ExportNamedDeclaration' &&
+			!node.source &&
+			explicitlyRequestedExports &&
+			node.specifiers?.length
+		) {
+			for (const specifier of node.specifiers) {
+				const exportedName = getExportedName(specifier);
+				if (!exportedName || !isExplicitlyRequestedExport(exportedName)) {
+					continue;
+				}
+
+				const localName = getLocalExportName(specifier);
+				if (localName && !currentScope.has(localName)) {
+					checkIdentifier(localName);
+				}
+			}
 			return;
 		}
 

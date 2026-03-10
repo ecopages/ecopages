@@ -186,7 +186,7 @@ function runExamplePnpm(args: string[], cwd: string): Promise<number> {
 
 function shouldCopyExamplePath(sourcePath: string): boolean {
 	const name = path.basename(sourcePath);
-	return name !== 'node_modules' && name !== 'dist' && name !== 'pnpm-lock.yaml';
+	return name !== 'node_modules' && name !== 'dist' && name !== '.eco' && name !== 'pnpm-lock.yaml';
 }
 
 /**
@@ -212,6 +212,7 @@ function createSandboxExampleDir(exampleDir: string): string {
 		recursive: true,
 		filter: shouldCopyExamplePath,
 	});
+	rmSync(path.join(sandboxExampleDir, '.eco'), { recursive: true, force: true });
 	return sandboxExampleDir;
 }
 

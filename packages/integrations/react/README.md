@@ -63,3 +63,23 @@ Current behavior:
 This design preserves global CSS/layout selectors while keeping runtime ownership isolated per island instance.
 
 For full React pages with client-side navigation, prefer [@ecopages/react-router](../react-router/README.md), where routing and hydration are handled by the React-specific runtime.
+
+## Server And Client Graph Contract
+
+The React integration supports Node.js modules and server-only code, but only on the server execution graph.
+
+- Server rendering can import and execute `node:*` modules, database clients, filesystem utilities, and `*.server.*` modules.
+- Client-hydrated React code must resolve to browser-safe modules only.
+- Shared files and barrel files are allowed when the exports that become client-reachable are browser-safe.
+- If a server-only import becomes client-reachable, the client build fails instead of silently replacing the import.
+
+In practice, this means you can keep server helpers close to your React code, but the browser bundle boundary is strict:
+
+```ts
+export { Button } from './button';
+export { db } from './db.server';
+```
+
+If a client entry only reaches `Button`, the `db` re-export is removed from the browser transform. If a client entry reaches `db`, the build fails because the server-only export crossed into the client graph.
+
+This contract keeps SSR and server functions free to use Node.js while ensuring the final browser bundle contains no client-reachable server-only code.

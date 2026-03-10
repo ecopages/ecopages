@@ -240,4 +240,68 @@ describe('createClientGraphBoundaryPlugin', () => {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
+
+	it('fails when a named barrel re-export makes a server module client-reachable', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const entryPath = join(tempDir, 'entry.tsx');
+		const barrelPath = join(tempDir, 'barrel.ts');
+
+		writeFileSync(
+			entryPath,
+			["import { db } from './barrel';", 'export default eco.page({', '\trender: () => String(db)', '});'].join(
+				'\n',
+			),
+			'utf-8',
+		);
+		writeFileSync(
+			barrelPath,
+			["export { db } from './db.server';", "export { Button } from './button';"].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const harness = createPluginTestHarness();
+			await harness.transformFile(entryPath);
+
+			await expect(harness.transformFile(barrelPath)).rejects.toThrow(
+				"Forbidden client export from './db.server'",
+			);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('prunes unreachable server-only named re-exports from shared barrels', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const entryPath = join(tempDir, 'entry.tsx');
+		const barrelPath = join(tempDir, 'barrel.ts');
+
+		writeFileSync(
+			entryPath,
+			[
+				"import { Button } from './barrel';",
+				'export default eco.page({',
+				'\trender: () => <Button />',
+				'});',
+			].join('\n'),
+			'utf-8',
+		);
+		writeFileSync(
+			barrelPath,
+			["export { Button } from './button';", "export { db } from './db.server';"].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const harness = createPluginTestHarness();
+			await harness.transformFile(entryPath);
+			const transformed = await harness.transformFile(barrelPath);
+
+			expect(transformed).toBeDefined();
+			expect(transformed).toContain("export { Button } from './button';");
+			expect(transformed).not.toContain("export { db } from './db.server';");
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
 });

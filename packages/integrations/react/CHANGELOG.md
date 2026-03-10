@@ -46,6 +46,11 @@ All notable changes to `@ecopages/react` are documented here.
 - Inlined the React MDX loader so React apps no longer need to install `@ecopages/mdx` when enabling React MDX support (`unreleased`).
 - Fixed stale temp module race during Fast Refresh cycles (`b2cf8466`).
 - Fixed client graph boundary wiring for runtime dependencies (`4b6cd32e`).
+- Fixed shared React barrel handling so client-reachable server-only re-exports now fail the build instead of being silently pruned (`unreleased`).
+
+### Documentation
+
+- Documented the React integration server/client graph contract for shared modules and barrel exports (`unreleased`).
 
 ### Tests
 

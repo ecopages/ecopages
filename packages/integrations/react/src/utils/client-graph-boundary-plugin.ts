@@ -65,6 +65,20 @@ function isProjectAliasSpecifier(specifier: string): boolean {
 }
 
 /**
+ * Determines whether a specifier should be treated as server-only.
+ *
+ * This covers Node built-ins as well as local module conventions such as
+ * `.server.ts` and extensionless imports that resolve to `.server.*` files.
+ *
+ * @param specifier - Raw import specifier from the module source.
+ * @returns True when the import must never become client-reachable.
+ */
+function isServerOnlySpecifier(specifier: string): boolean {
+	if (specifier.startsWith('node:')) return true;
+	return /(?:^|[/])[^/]+\.server(?:$|\.)/.test(specifier);
+}
+
+/**
  * Strips down a deep path module specifier to its foundational root package name.
  *
  * When checking against the "allowed modules" whitelist, a component might import something deeply
@@ -192,18 +206,95 @@ function parserLanguageForFile(filename: string): 'js' | 'jsx' | 'ts' | 'tsx' {
 }
 
 /**
+ * Tracks the subset of exports that a downstream local module is allowed to expose.
+ *
+ * `'*'` means the full module namespace is reachable, while a `Set` limits the
+ * consumer to specific named exports.
+ */
+type RequestedExportRules = Set<string> | '*';
+
+/**
+ * Normalizes a file path into a registry key used for requested-export propagation.
+ *
+ * The normalization strips JS/TS extensions and collapses `/index` suffixes so
+ * equivalent local import forms resolve to the same key.
+ *
+ * @param pathname - Absolute or resolved local module path.
+ * @returns Stable registry key for `requestedExports`.
+ */
+function normalizeRequestedExportsKey(pathname: string): string {
+	let normalized = pathname.replace(/\\/g, '/');
+	normalized = normalized.replace(/\.(tsx?|jsx?)$/i, '');
+	if (normalized.endsWith('/index')) {
+		normalized = normalized.slice(0, -'/index'.length);
+	}
+	return normalized;
+}
+
+/**
+ * Resolves a local import specifier into a requested-export registry key.
+ *
+ * Bare package specifiers and project aliases are intentionally ignored because
+ * requested-export propagation is only used for cross-file local reachability.
+ *
+ * @param importer - Absolute path of the importing module.
+ * @param specifier - Raw import or re-export specifier.
+ * @returns Registry key for a local dependency, or `undefined` when not applicable.
+ */
+function resolveRequestedExportsKey(importer: string, specifier: string): string | undefined {
+	if (isBareSpecifier(specifier) || isProjectAliasSpecifier(specifier)) {
+		return undefined;
+	}
+
+	const resolved = specifier.startsWith('/') ? specifier : resolve(dirname(importer), specifier);
+	return normalizeRequestedExportsKey(resolved);
+}
+
+/**
+ * Merges newly discovered requested-export rules into the local propagation registry.
+ *
+ * Once a module is promoted to `'*'`, it stays fully reachable for the remainder
+ * of the transform pass.
+ *
+ * @param registry - Cross-module requested-export registry.
+ * @param moduleKey - Normalized local module key.
+ * @param rules - Newly observed reachable export rules for the module.
+ */
+function mergeRequestedExportRules(
+	registry: Map<string, RequestedExportRules>,
+	moduleKey: string,
+	rules: Set<string> | '*',
+) {
+	const existing = registry.get(moduleKey);
+	if (existing === '*') return;
+	if (rules === '*') {
+		registry.set(moduleKey, '*');
+		return;
+	}
+	if (!existing) {
+		registry.set(moduleKey, new Set(rules));
+		return;
+	}
+	for (const rule of rules) {
+		existing.add(rule);
+	}
+}
+
+/**
  * Parses a module using Oxc AST and surgically removes forbidden imports.
  * Filters down to the exact specifiers requested via `{namedImport}` syntax.
  *
  * @param source - The raw string source content of the module.
  * @param filename - The absolute path of the module.
  * @param globallyAllowed - A map of modules declared globally allowable by the build configuration.
+ * @param requestedExports - Local requested-export registry used to propagate named reachability across files.
  * @returns An object containing the transformed string and a boolean indicating if changes occurred.
  */
 function transformModuleImports(
 	source: string,
 	filename: string,
 	globallyAllowed: Map<string, Set<string> | '*'>,
+	requestedExports: Map<string, RequestedExportRules>,
 ): { transformed: string; modified: boolean } {
 	/**
 	 * Parse the source
@@ -273,7 +364,36 @@ function transformModuleImports(
 	 */
 	const locallyAllowed = parseDeclaredModules(localDeclared);
 	const allowedMap = mergeDeclaredModulesMap(globallyAllowed, locallyAllowed);
-	const reachability = analyzeReachability(source, filename, program);
+	const explicitRequestedExports = requestedExports.get(normalizeRequestedExportsKey(filename));
+	const reachability = analyzeReachability(source, filename, program, explicitRequestedExports);
+
+	for (const statement of program.body) {
+		if (statement.type === 'ImportDeclaration') {
+			const reachableRules = reachability.reachableImports.get(statement.source.value as string);
+			const requestedModuleKey = resolveRequestedExportsKey(filename, statement.source.value as string);
+			if (!requestedModuleKey || !reachableRules) continue;
+
+			mergeRequestedExportRules(requestedExports, requestedModuleKey, reachableRules);
+			continue;
+		}
+
+		if (statement.type === 'ExportNamedDeclaration' && statement.source) {
+			const reachableRules = reachability.reachableImports.get(statement.source.value as string);
+			const requestedModuleKey = resolveRequestedExportsKey(filename, statement.source.value as string);
+			if (!requestedModuleKey || !reachableRules) continue;
+
+			mergeRequestedExportRules(requestedExports, requestedModuleKey, reachableRules);
+			continue;
+		}
+
+		if (statement.type === 'ExportAllDeclaration' && statement.source) {
+			const reachableRules = reachability.reachableImports.get(statement.source.value as string);
+			const requestedModuleKey = resolveRequestedExportsKey(filename, statement.source.value as string);
+			if (!requestedModuleKey || !reachableRules) continue;
+
+			mergeRequestedExportRules(requestedExports, requestedModuleKey, reachableRules);
+		}
+	}
 
 	/**
 	 * Build the edit list
@@ -294,7 +414,7 @@ function transformModuleImports(
 		const moduleBase = toModuleBaseSpecifier(specifier);
 		const explicitRules = allowedMap.get(moduleBase);
 
-		if (specifier.startsWith('node:') || specifier.includes('.server.')) {
+		if (isServerOnlySpecifier(specifier)) {
 			if (explicitRules) {
 				return { allowed: true, rules: explicitRules };
 			}
@@ -405,14 +525,11 @@ function transformModuleImports(
 			const specifier = node.source.value as string;
 			const { allowed } = processSpecifier(specifier);
 
-			/**
-			 * We skip checking reachability of re-exports for now to avoid false negatives.
-			 * But we MUST check security.
-			 */
 			if (!allowed) {
-				if (!reachability.isFallbackRoots) {
+				const reachableRules = reachability.reachableImports.get(specifier);
+				if (reachableRules && !reachability.isFallbackRoots) {
 					throw new Error(
-						`[Ecopages Client Reachability] Forbidden client export from '${specifier}' at ${filename}:${node.start}.`,
+						`[Ecopages Client Reachability] Forbidden client export from '${specifier}' at ${filename}:${node.start}. This export is explicitly reachable from the React render function.`,
 					);
 				} else {
 					edits.push({ start: node.start, end: node.end, replacement: '' });
@@ -425,9 +542,10 @@ function transformModuleImports(
 			const specifier = node.source.value as string;
 			const { allowed } = processSpecifier(specifier);
 			if (!allowed) {
-				if (!reachability.isFallbackRoots) {
+				const reachableRules = reachability.reachableImports.get(specifier);
+				if (reachableRules && !reachability.isFallbackRoots) {
 					throw new Error(
-						`[Ecopages Client Reachability] Forbidden client export * from '${specifier}' at ${filename}:${node.start}.`,
+						`[Ecopages Client Reachability] Forbidden client export * from '${specifier}' at ${filename}:${node.start}. This export is explicitly reachable from the React render function.`,
 					);
 				} else {
 					edits.push({ start: node.start, end: node.end, replacement: '' });
@@ -516,6 +634,7 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 		setup(build) {
 			const absWorkingDir = options?.absWorkingDir ?? process.cwd();
 			const globallyDeclaredSources = parseDeclaredModules(options?.declaredModules);
+			const requestedExports = new Map<string, RequestedExportRules>();
 			for (const alwaysAllow of options?.alwaysAllowSpecifiers ?? []) {
 				globallyDeclaredSources.set(toModuleBaseSpecifier(alwaysAllow), '*');
 			}
@@ -573,6 +692,7 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 					transformed,
 					args.path,
 					globallyDeclaredSources,
+					requestedExports,
 				);
 
 				if (importsModified) {

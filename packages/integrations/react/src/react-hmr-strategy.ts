@@ -108,6 +108,17 @@ export class ReactHmrStrategy extends HmrStrategy {
 		};
 	}
 
+	/**
+	 * Redirects `use-sync-external-store/shim` imports to React's built-in
+	 * `useSyncExternalStore`.
+	 *
+	 * Libraries like React Aria still list `use-sync-external-store` as a
+	 * dependency to support React 16/17. On React 18+ the `/shim` export is
+	 * already a pass-through, but without this plugin esbuild would bundle
+	 * the full CJS shim (including `process.env` branching) into the browser
+	 * bundle. The plugin short-circuits the resolution so only a single clean
+	 * ESM re-export is emitted.
+	 */
 	private createUseSyncExternalStoreShimPlugin(): EcoBuildPlugin {
 		return {
 			name: 'react-hmr-use-sync-external-store-shim',

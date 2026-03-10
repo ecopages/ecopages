@@ -85,9 +85,9 @@ export class ReactBundleService {
 		if (isMdx && this.config.mdxCompilerOptions) {
 			const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
 			const mdxPlugin = createReactMdxLoaderPlugin(this.config.mdxCompilerOptions);
-			options.plugins = [runtimeAliasPlugin, mdxPlugin, useSyncExternalStoreShimPlugin, graphBoundaryPlugin];
+			options.plugins = [graphBoundaryPlugin, runtimeAliasPlugin, mdxPlugin, useSyncExternalStoreShimPlugin];
 		} else {
-			options.plugins = [runtimeAliasPlugin, useSyncExternalStoreShimPlugin, graphBoundaryPlugin];
+			options.plugins = [graphBoundaryPlugin, runtimeAliasPlugin, useSyncExternalStoreShimPlugin];
 		}
 
 		return options;
@@ -144,10 +144,15 @@ export class ReactBundleService {
 	}
 
 	/**
-	 * Creates the esbuild plugin that shims `use-sync-external-store/shim`
-	 * to re-export from React's built-in `useSyncExternalStore`.
-	 * This is needed because some packages use `use-sync-external-store/shim`
-	 * but React 18+ has built-in `useSyncExternalStore`.
+	 * Redirects `use-sync-external-store/shim` imports to React's built-in
+	 * `useSyncExternalStore`.
+	 *
+	 * Libraries like React Aria still list `use-sync-external-store` as a
+	 * dependency to support React 16/17. On React 18+ the `/shim` export is
+	 * already a pass-through, but without this plugin esbuild would bundle
+	 * the full CJS shim (including `process.env` branching) into the browser
+	 * bundle. The plugin short-circuits the resolution so only a single clean
+	 * ESM re-export is emitted.
 	 */
 	private createSyncExternalStorePlugin() {
 		return {

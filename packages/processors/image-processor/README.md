@@ -1,35 +1,38 @@
 # @ecopages/image-processor
 
-A powerful and flexible image processing library designed to optimize and manage responsive images in ecopages applications.
+Image processing pipeline for responsive, optimized images in Ecopages.
+
+It provides automatic image processing (e.g. converting and compressing to WebP) and virtual module integration, allowing you to import your optimized images safely and directly via `ecopages:images`.
 
 ## Features
 
-- **Automatic Image Optimization**: Converts and compresses images to modern formats
-- **Responsive Image Generation**: Creates multiple image variants for different screen sizes
-- **Virtual Module Integration**: Direct import of optimized images through `ecopages:images`
-- **TypeScript Support**: Full type definitions and auto-generated types
-- **Multiple Layout Options**: Supports fixed, constrained, and full-width layouts
-- **Ecopages Integration**: Seamlessly integrated with the ecopages framework
+- **Automatic Image Optimization**: Converts and compresses images to modern formats at build time.
+- **Responsive Image Generation**: Creates multiple variants for different screen sizes.
+- **Virtual Module Integration**: Type-safe imports through `ecopages:images`.
+- **Ecopages Components**: Ready-to-use HTML (`EcoImage`) and React (`EcoImage`) components.
+- **Multiple Layout Options**: Fixed, constrained, and full-width layouts built-in.
 
 ## Installation
 
 ```bash
-npm install @ecopages/image-processor
+bunx jsr add @ecopages/image-processor
 ```
 
 ## Configuration
 
+Import and register the processor in your `eco.config.ts`:
+
 ```typescript
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { ImageProcessorPlugin } from '@ecopages/image-processor';
 
 const imageProcessor = new ImageProcessorPlugin({
 	name: 'ecopages-image-processor',
 	type: 'image',
 	options: {
-		sourceDir: path.resolve(import.meta.dir, 'src/images'),
-		outputDir: path.resolve(import.meta.dir, '.eco/images'),
+		sourceDir: path.resolve(import.meta.dirname, 'src/images'),
+		outputDir: path.resolve(import.meta.dirname, '.eco/images'),
 		publicPath: '/images',
 		acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 		quality: 80,
@@ -44,175 +47,62 @@ const imageProcessor = new ImageProcessorPlugin({
 });
 
 export default await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
+	.setRootDir(import.meta.dirname)
 	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
 	.setProcessors([imageProcessor])
 	.build();
 ```
 
-### Configuration Options
-
-#### ImageProcessorConfig
-
-| Option            | Type                                    | Default                       | Description                           |
-| ----------------- | --------------------------------------- | ----------------------------- | ------------------------------------- |
-| `sourceDir`       | `string`                                | `'/src/public/assets/images'` | Source directory for images           |
-| `outputDir`       | `string`                                | `'/dist/assets/optimized'`    | Output directory for processed images |
-| `publicPath`      | `string`                                | `'/assets/optimized'`         | Public URL path for images            |
-| `sizes`           | `Array<{width: number, label: string}>` | `[]`                          | Image variants configuration          |
-| `quality`         | `number`                                | `80`                          | Output image quality (0-100)          |
-| `format`          | `'webp' \| 'jpeg' \| 'png' \| 'avif'`   | `'webp'`                      | Output image format                   |
-| `acceptedFormats` | `string[]`                              | `['jpg','jpeg','png','webp']` | Accepted input formats                |
-
 ## Usage
 
 ### Virtual Module System
 
-The `ecopages:images` virtual module provides a unified, type-safe way to handle images across your project:
+The `ecopages:images` virtual module provides a type-safe way to import processed images:
 
 ```typescript
-// All images from your source directory are available as named exports
-import { heroImage, profilePicture, blogThumbnail } from 'ecopages:images';
-
-// Names are automatically converted to camelCase
-// example:
-// src/images/hero-image.jpg -> heroImage
-// src/images/profile_picture.png -> profilePicture
+// Imports from your source directory are resolved automatically and camelCased
+import { heroImage, profilePicture } from 'ecopages:images';
 ```
 
-No manual `dependencies.modules` declaration is required for `ecopages:images`; imports are automatically detected and included in the client bundle.
+> [!TIP]
+> **No manual dependencies required.**
+> Ecopages automatically detects these virtual module imports and processes them during the build, enabling effective tree-shaking for only the required images.
 
-#### Benefits:
+### Components
 
-- **TypeScript Integration**: Full autocompletion support for image names
-- **Automatic Processing**: Images are processed at build time
-- **Tree Shaking**: Only imported images and their required metadata are included in the final bundle
-- **Type Safety**: Prevents imports of non-existent images
-- **Unified API**: Consistent way to handle images across your project
+The plugin provides ready-to-use components for HTML (`@kitajs/html`) and React:
 
-### Importing Images
-
-Images are available through the virtual module `ecopages:images`:
-
-```typescript
-import { myImage } from 'ecopages:images';
-
-// myImage contains:
-// {
-//   attributes: {
-//     src: string,
-//     width: number,  // original image width
-//     height: number, // original image height
-//     sizes: string,
-//     srcset: string
-//   },
-//   variants: Array<{ width, height, src, label }>
-// }
-```
-
-### HTML Component
+**HTML Component:**
 
 ```typescript
 import { EcoImage } from '@ecopages/image-processor/component/html';
 
-// Basic usage
 EcoImage({
-	...myImage,
-	width: 800,
-	height: 600,
-	alt: 'My image',
-});
-
-// Advanced usage
-EcoImage({
-	...myImage,
-	alt: 'My image',
+	...heroImage,
 	layout: 'constrained',
+	alt: 'Hero banner',
 	priority: true,
-	aspectRatio: '16/9',
-	staticVariant: 'xl',
 });
 ```
 
-### React Component
+**React Component:**
 
 ```jsx
-import { EcoImage } from "@ecopages/image-processor/component/react";
+import { EcoImage } from '@ecopages/image-processor/component/react';
 
-// Basic usage
-<EcoImage
-  {...myImage}
-  alt="My image"
-/>
-
-// Advanced usage
-<EcoImage
-  {...myImage}
-  alt="My image"
-  layout="constrained"
-  priority
-  aspectRatio="16/9"
-  staticVariant="xl"
-/>
+<EcoImage {...heroImage} alt="Hero banner" layout="constrained" priority />;
 ```
 
 ### Component Props
 
-The component accepts all standard HTML/React image attributes (`src`, `alt`, `data-*`, `crossOrigin`, etc.) in addition to the following specific props:
+The components accept standard HTML/React attributes plus these specifics:
 
-| Prop            | Type                                       | Default             | Description                                  |
-| --------------- | ------------------------------------------ | ------------------- | -------------------------------------------- |
-| `width`         | `number`                                   | From image metadata | Original width, can be overridden if needed  |
-| `height`        | `number`                                   | From image metadata | Original height, can be overridden if needed |
-| `priority`      | `boolean`                                  | `false`             | Prioritize loading                           |
-| `layout`        | `'fixed' \| 'constrained' \| 'full-width'` | `'constrained'`     | Layout behavior                              |
-| `staticVariant` | `string`                                   | -                   | Force specific size variant                  |
-| `aspectRatio`   | `string`                                   | From width/height   | Override the natural aspect ratio            |
-| `unstyled`      | `boolean`                                  | `false`             | Disable default styling                      |
-
-Note: Images imported through `ecopages:images` automatically include their width and height metadata, preventing layout shifts by default. These values can be overridden when needed, for example when using a different aspect ratio or specific layout requirements.
-
-## Layout Modes
-
-### Fixed Layout
-
-```typescript
-EcoImage({
-	...myImage,
-	layout: 'fixed',
-	width: 400,
-	height: 300,
-	alt: 'Fixed image',
-});
-```
-
-### Constrained Layout
-
-```typescript
-EcoImage({
-	...myImage,
-	layout: 'constrained',
-	width: 800,
-	alt: 'Constrained image',
-});
-```
-
-### Full-Width Layout
-
-```typescript
-EcoImage({
-	...myImage,
-	layout: 'full-width',
-	alt: 'Full-width image',
-});
-```
-
-## Best Practices
-
-1. Always provide `alt` text for accessibility
-2. Use `priority` for above-the-fold images
-3. Always specify both `width` and `height` to prevent layout shifts
-4. Use `aspectRatio` only when you need to force a different aspect ratio than width/height
-5. Choose appropriate `layout` modes based on your needs
-6. Utilize the virtual module for type-safe image imports
-7. Configure size variants that match your breakpoints
+| Prop            | Type                                       | Default         |
+| :-------------- | :----------------------------------------- | :-------------- |
+| `layout`        | `'fixed' \| 'constrained' \| 'full-width'` | `'constrained'` |
+| `priority`      | `boolean`                                  | `false`         |
+| `width`         | `number`                                   | From metadata   |
+| `height`        | `number`                                   | From metadata   |
+| `aspectRatio`   | `string`                                   | Natural ratio   |
+| `staticVariant` | `string`                                   | -               |
+| `unstyled`      | `boolean`                                  | `false`         |

@@ -12,7 +12,7 @@ The result is fast static pages, minimal dependencies, and code you can actually
 
 ## Built With
 
-Ecopages runs on [Bun](https://bun.sh/) and uses [Ghtml](https://github.com/gurgunday/ghtml) for rendering. Extend it with templating integrations:
+Ecopages runs on [Bun](https://bun.sh/) and [Node.js](https://nodejs.org/), and uses [Ghtml](https://github.com/gurgunday/ghtml) for rendering. Extend it with templating integrations:
 
 Ecopages supports multiple rendering libraries via plug-and-play integrations. Because Ecopages is an SSG framework operating at build-time, you must explicitly install both the integration plugin and its underlying renderer as development dependencies.
 
@@ -21,7 +21,7 @@ Ecopages supports multiple rendering libraries via plug-and-play integrations. B
 - **[Lit](https://lit.dev/)** – Web Components with SSR
   `pnpm add -D @ecopages/lit lit`
 - **[MDX](https://mdxjs.com/)** – Markdown with components
-  `pnpm add -D @ecopages/mdx @mdx-js/mdx react react-dom`
+  `pnpm add -D @ecopages/mdx @mdx-js/mdx @kitajs/html`
 - **[React](https://react.dev/)** – Full React ecosystem support when you need it
   `pnpm add -D @ecopages/react react react-dom`
 
@@ -46,7 +46,7 @@ Ecopages includes a type-safe, lightweight backend. Define handlers with full ty
 Use root imports by default:
 
 ```ts
-import { EcopagesApp, defineApiHandler, defineGroupHandler } from '@ecopages/core';
+import { createApp, defineApiHandler, defineGroupHandler } from '@ecopages/core';
 ```
 
 Treat `@ecopages/core/bun` and `@ecopages/core/node` as advanced escape hatches for runtime-specific APIs.

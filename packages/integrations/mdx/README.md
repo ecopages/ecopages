@@ -1,8 +1,8 @@
-# Ecopages MDX Integration Plugin
+# @ecopages/mdx
 
-The `@ecopages/mdx` package adds standalone MDX support for non-React JSX runtimes such as `@kitajs/html`. It uses the MDX compiler through Ecopages' integration system and is intended for server-rendered `.mdx` routes.
+Integration plugin for standalone MDX support in Ecopages, specifically designed for non-React JSX runtimes (such as `@kitajs/html`). It configures the MDX compiler to process `.mdx` routes natively.
 
-## Install
+## Installation
 
 ```bash
 bunx jsr add @ecopages/mdx
@@ -10,10 +10,10 @@ bunx jsr add @ecopages/mdx
 
 ## Usage
 
-Integrating MDX into your Ecopages project is made simple. Import and apply the `mdxPlugin` in your Ecopages configuration as demonstrated below:
+Import and apply the `mdxPlugin` in your `eco.config.ts`:
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
@@ -29,11 +29,12 @@ By default, the standalone plugin uses:
 - `jsxImportSource: '@kitajs/html'`
 - `jsxRuntime: 'automatic'`
 
-You can override MDX compiler options, but React runtimes are intentionally not supported here.
+> [!WARNING]
+> React runtimes are intentionally rejected by this standalone plugin.
 
-## Using MDX with React Router
+## Using MDX with React
 
-If you are using `@ecopages/react` with a client-side router, enable MDX directly within the React plugin instead of using this standalone plugin. This ensures unified routing, hydration, and HMR for both `.tsx` and `.mdx` pages:
+If you are using `@ecopages/react` and building a full React application, **do not** use this standalone MDX plugin. Instead, enable MDX directly within the React plugin configuration to ensure unified hydration, client-side routing, and HMR:
 
 ```ts
 import { reactPlugin } from '@ecopages/react';
@@ -44,9 +45,3 @@ reactPlugin({
 	mdx: { enabled: true },
 });
 ```
-
-See the `@ecopages/react` documentation for details.
-
-## React runtimes are not supported here
-
-Standalone `mdxPlugin()` rejects `jsxImportSource: 'react'` and related React JSX runtimes. For React-backed MDX, use [@ecopages/react](../react/README.md) with `mdx.enabled`.

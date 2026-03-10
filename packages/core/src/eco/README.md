@@ -42,9 +42,9 @@ export function Card({ children, class: className }: CardProps) {
 
 > **Note:** If your component requires a dedicated CSS file, use `eco.component()` instead to manage the stylesheet dependency.
 
-### Plain React Components (With Bun)
+### Plain React Components
 
-When using Bun, React components with hooks and Tailwind CSS work out of the box without `eco.component()`. Bun auto-imports dependencies, so you can write standard React components:
+React components with hooks and Tailwind CSS work out of the box without `eco.component()`. Standard React components can be used directly:
 
 ```tsx
 import { useEffect, useState } from 'react';
@@ -99,7 +99,6 @@ export function ThemeToggle() {
 - React components with hooks (`useState`, `useEffect`, etc.)
 - Components styled with Tailwind CSS classes
 - Interactive UI that doesn't require external scripts or dedicated stylesheets
-- Bun handles all imports automatically
 
 > **Note:** Use `eco.component()` only when you need to manage external stylesheets, scripts, or lazy loading. For React components relying solely on hooks and Tailwind, plain functions are simpler and sufficient.
 
@@ -128,14 +127,14 @@ export const Counter = eco.component({
 
 ### Comparison
 
-| Aspect               | Simple JSX | Plain React (Bun) | `eco.component()` |
-| -------------------- | ---------- | ----------------- | ----------------- |
-| React hooks          | No         | Yes               | Yes               |
-| Scripts/Stylesheets  | No         | No                | Yes               |
-| Lazy loading         | No         | No                | Yes               |
-| Hydration strategies | No         | No                | Yes               |
-| Runtime cost         | Zero       | Minimal           | Minimal           |
-| Use case             | Static UI  | Interactive UI    | Advanced UI       |
+| Aspect               | Simple JSX | Plain React | `eco.component()` |
+| -------------------- | ---------- | ----------- | ----------------- |
+| React hooks          | No         | Yes         | Yes               |
+| Scripts/Stylesheets  | No         | No          | Yes               |
+| Lazy loading         | No         | No          | Yes               |
+| Hydration strategies | No         | No          | Yes               |
+| Runtime cost         | Zero       | Minimal     | Minimal           |
+| Use case             | Static UI  | Interactive UI | Advanced UI    |
 
 All patterns can coexist in the same project. Use the right tool for the job.
 

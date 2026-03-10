@@ -22,17 +22,17 @@ export const getMetadata = () => ({
 <CodeSnippetTabs>
   <CodeTab name="pnpm">
 ```bash
-pnpm dlx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+pnpm dlx ecopages init ecopages-app
 ```
   </CodeTab>
   <CodeTab name="npm">
 ```bash
-npx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+npx ecopages init ecopages-app
 ```
   </CodeTab>
   <CodeTab name="bun">
 ```bash
-bunx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+bunx ecopages init ecopages-app
 ```
   </CodeTab>
 </CodeSnippetTabs>
@@ -194,7 +194,7 @@ Ready to try Ecopages? Check out the [Installation Guide](/docs/getting-started/
 <CodeSnippetTabs>
   <CodeTab name="pnpm">
 ```bash
-pnpm dlx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+pnpm dlx ecopages init my-ecopages
 cd my-ecopages
 pnpm install
 pnpm run dev
@@ -202,7 +202,7 @@ pnpm run dev
   </CodeTab>
   <CodeTab name="npm">
 ```bash
-npx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+npx ecopages init my-ecopages
 cd my-ecopages
 npm install
 npm run dev
@@ -210,10 +210,10 @@ npm run dev
   </CodeTab>
   <CodeTab name="bun">
 ```bash
-bunx degit ecopages/ecopages/examples/starter-jsx my-ecopages
+bunx ecopages init my-ecopages
 cd my-ecopages
 bun install
-bun run dev # or npm/pnpm equivalent
+bun run dev
 ```
   </CodeTab>
 </CodeSnippetTabs>

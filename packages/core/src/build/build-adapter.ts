@@ -45,6 +45,7 @@ export interface BuildResult {
 export interface BuildOptions {
 	entrypoints: string[];
 	outdir?: string;
+	outbase?: string;
 	naming?: string;
 	minify?: boolean;
 	treeshaking?: boolean;

@@ -3,7 +3,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../internal-types.ts';
-import type { ProcessorWatchContext } from '../plugins/processor.ts';
+import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
 
 /**
  * Configuration options for the ProjectWatcher
@@ -50,6 +50,7 @@ export class ProjectWatcher {
 	private bridge: IClientBridge;
 	private watcher: FSWatcher | null = null;
 	private lastHandledChange = new Map<string, number>();
+	private changeQueue: Promise<void> = Promise.resolve();
 
 	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge }: ProjectWatcherConfig) {
 		this.appConfig = config;
@@ -102,18 +103,32 @@ export class ProjectWatcher {
 	}
 
 	/**
+	 * Serializes file change handling so that concurrent chokidar events are
+	 * processed one at a time, preventing overlapping builds and race conditions.
+	 */
+	private enqueueChange(task: () => Promise<void>): void {
+		const queuedTask = this.changeQueue.then(task, task);
+		this.changeQueue = queuedTask.catch(() => undefined);
+	}
+
+	/**
 	 * Handles file changes by uncaching modules, refreshing routes, and delegating appropriately.
 	 * Follows 4-rule priority:
-	 * 0. Public directory match? → copy file and reload
-	 * 1. additionalWatchPaths match? → reload
-	 * 2. Processor extension match? → processor handles (skip HMR)
-	 * 3. Otherwise → HMR strategies
+	 * 0. Public directory match? -> copy file and reload
+	 * 1. additionalWatchPaths match? -> reload
+	 * 2. Processor-owned asset? -> processor already handled it via notification, skip HMR
+	 * 3. Otherwise -> HMR strategies
+	 *
+	 * Processors that watch a file extension as a dependency (e.g. PostCSS watching
+	 * .tsx for Tailwind class scanning) are always notified first, but do not
+	 * prevent the file from flowing through the normal HMR strategy pipeline.
 	 *
 	 * Duplicate identical watcher events for the same file are coalesced within a
 	 * short window before any of the priority rules run.
 	 * @param rawPath - Path of the changed file
+	 * @param event - The type of file system event
 	 */
-	private async handleFileChange(rawPath: string): Promise<void> {
+	private async handleFileChange(rawPath: string, event: 'change' | 'add' | 'unlink' = 'change'): Promise<void> {
 		const filePath = path.resolve(rawPath);
 		const now = Date.now();
 		const lastHandledAt = this.lastHandledChange.get(filePath);
@@ -140,12 +155,9 @@ export class ProjectWatcher {
 				return;
 			}
 
-			if (this.isHandledByProcessor(filePath)) {
-				return;
-			}
+			await this.notifyProcessors(filePath, event);
 
-			if (this.isWatchedByProcessor(filePath) && !this.hmrManager.canHandleFileChange(filePath)) {
-				this.hmrManager.broadcast({ type: 'layout-update' });
+			if (this.isHandledByProcessor(filePath)) {
 				return;
 			}
 
@@ -155,6 +167,45 @@ export class ProjectWatcher {
 				this.bridge.error(error.message);
 				this.handleError(error);
 			}
+		}
+	}
+
+	/**
+	 * Notifies all processors whose watch config matches the given file extension.
+	 * This is called before checking processor ownership so that dependency-only
+	 * processors (e.g. PostCSS watching .tsx for class scanning) receive their
+	 * notifications regardless of whether they own the file.
+	 */
+	private async notifyProcessors(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void> {
+		const ctx: ProcessorWatchContext = { path: filePath, bridge: this.bridge };
+
+		for (const processor of this.appConfig.processors.values()) {
+			const watchConfig = processor.getWatchConfig();
+			if (!watchConfig) continue;
+
+			const { extensions = [] } = watchConfig;
+			if (extensions.length && !extensions.some((ext) => filePath.endsWith(ext))) {
+				continue;
+			}
+
+			const handler = this.getProcessorHandler(watchConfig, event);
+			if (handler) {
+				await handler(ctx);
+			}
+		}
+	}
+
+	private getProcessorHandler(
+		watchConfig: ProcessorWatchConfig,
+		event: 'change' | 'add' | 'unlink',
+	): ((ctx: ProcessorWatchContext) => Promise<void>) | undefined {
+		switch (event) {
+			case 'change':
+				return watchConfig.onChange;
+			case 'add':
+				return watchConfig.onCreate;
+			case 'unlink':
+				return watchConfig.onDelete;
 		}
 	}
 
@@ -184,26 +235,9 @@ export class ProjectWatcher {
 	}
 
 	/**
-	 * Checks whether a file is watched by any processor, even if that processor
-	 * does not own the file as a primary asset.
-	 */
-	private isWatchedByProcessor(filePath: string): boolean {
-		for (const processor of this.appConfig.processors.values()) {
-			const watchConfig = processor.getWatchConfig();
-			if (!watchConfig) continue;
-
-			const { extensions = [] } = watchConfig;
-			if (extensions.length && extensions.some((ext) => filePath.endsWith(ext))) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
 	 * Checks if a file is handled by a processor.
-	 * Processors that declare extensions own those file types.
+	 * Processors that declare asset capabilities own those file types.
+	 * Processors without capabilities fall back to checking watch extensions.
 	 */
 	private isHandledByProcessor(filePath: string): boolean {
 		for (const processor of this.appConfig.processors.values()) {
@@ -259,27 +293,14 @@ export class ProjectWatcher {
 	}
 
 	/**
-	 * Processes file changes for specific file extensions.
-	 * Used by processors to handle their specific file types.
-	 *
-	 * @private
-	 * @param {string} path - Path of the changed file
-	 * @param {string[]} extensions - File extensions to process
-	 * @param {(ctx: ProcessorWatchContext) => void} handler - Handler function for the file change
-	 */
-	private shouldProcess(path: string, extensions: string[], handler: (ctx: ProcessorWatchContext) => void) {
-		if (!extensions.length || extensions.some((ext) => path.endsWith(ext))) {
-			handler({ path, bridge: this.bridge });
-		}
-	}
-
-	/**
 	 * Creates and configures the file system watcher.
 	 * This sets up:
-	 * 1. Processor-specific file watching
-	 * 2. Page file watching
-	 * 3. Directory watching
-	 * 4. Error handling
+	 * 1. Page file watching
+	 * 2. Directory watching
+	 * 3. Error handling
+	 *
+	 * Processor notifications are dispatched inside handleFileChange, ensuring
+	 * a single unified event pipeline with no parallel chokidar bindings.
 	 *
 	 * Uses chokidar's built-in debouncing through `awaitWriteFinish` to handle
 	 * rapid file changes efficiently.
@@ -315,29 +336,28 @@ export class ProjectWatcher {
 			});
 		}
 
-		for (const processor of this.appConfig.processors.values()) {
-			const watchConfig = processor.getWatchConfig();
-			if (!watchConfig) continue;
-			const { extensions = [], onCreate, onChange, onDelete, onError } = watchConfig;
-
-			if (onCreate) this.watcher.on('add', (path) => this.shouldProcess(path, extensions, onCreate));
-			if (onChange) this.watcher.on('change', (path) => this.shouldProcess(path, extensions, onChange));
-			if (onDelete) this.watcher.on('unlink', (path) => this.shouldProcess(path, extensions, onDelete));
-			if (onError) this.watcher.on('error', onError as (error: unknown) => void);
-		}
-
 		this.watcher.add(this.appConfig.absolutePaths.srcDir);
 
 		this.watcher
-			.on('change', (path) => this.handleFileChange(path))
-			.on('add', (path) => {
-				this.handleFileChange(path);
-				this.triggerRouterRefresh(path);
+			.on('change', (p) => this.enqueueChange(() => this.handleFileChange(p, 'change')))
+			.on('add', (p) => {
+				this.enqueueChange(() => this.handleFileChange(p, 'add'));
+				this.triggerRouterRefresh(p);
 			})
-			.on('addDir', (path) => this.triggerRouterRefresh(path))
-			.on('unlink', (path) => this.triggerRouterRefresh(path))
-			.on('unlinkDir', (path) => this.triggerRouterRefresh(path))
+			.on('addDir', (p) => this.triggerRouterRefresh(p))
+			.on('unlink', (p) => {
+				this.enqueueChange(() => this.handleFileChange(p, 'unlink'));
+				this.triggerRouterRefresh(p);
+			})
+			.on('unlinkDir', (p) => this.triggerRouterRefresh(p))
 			.on('error', (error) => this.handleError(error));
+
+		for (const processor of this.appConfig.processors.values()) {
+			const watchConfig = processor.getWatchConfig();
+			if (watchConfig?.onError) {
+				this.watcher.on('error', watchConfig.onError as (error: unknown) => void);
+			}
+		}
 
 		return this.watcher;
 	}

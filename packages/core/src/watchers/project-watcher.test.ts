@@ -195,10 +195,12 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 	describe('processor-handled files', () => {
 		test('should skip HMR for processor-handled extensions', async () => {
+			const onChange = vi.fn(async () => {});
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css', '.scss'],
+					onChange,
 				})),
 			};
 			Config.processors.set('css', Processor as any);
@@ -207,6 +209,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(cssFilePath);
 
+			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(cssFilePath), bridge: Bridge });
 			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 		});
 
@@ -227,10 +230,12 @@ describe('ProjectWatcher - File Change Handling', () => {
 		});
 
 		test('should keep TSX changes in HMR when a processor only handles stylesheet assets', async () => {
+			const onChange = vi.fn(async () => {});
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css', '.tsx'],
+					onChange,
 				})),
 				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
 				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
@@ -244,14 +249,17 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(tsxFilePath);
 
+			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(tsxFilePath), bridge: Bridge });
 			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(tsxFilePath));
 		});
 
-		test('should trigger current-page refresh when a processor rebuild handles a watched TSX change', async () => {
+		test('should route TSX through HMR even when no specific strategy matches', async () => {
+			const onChange = vi.fn(async () => {});
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css', '.tsx'],
+					onChange,
 				})),
 				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
 				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
@@ -260,14 +268,14 @@ describe('ProjectWatcher - File Change Handling', () => {
 				matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
 			};
 			Config.processors.set('css', Processor as any);
-			HmrManager.canHandleFileChange = vi.fn(() => false);
 
 			const tsxFilePath = '/test/project/src/components/Button.tsx';
 
 			await (watcher as any).handleFileChange(tsxFilePath);
 
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(HmrManager.broadcast).toHaveBeenCalledWith({ type: 'layout-update' });
+			expect(onChange).toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(tsxFilePath));
+			expect(HmrManager.broadcast).not.toHaveBeenCalledWith({ type: 'layout-update' });
 		});
 
 		test('should handle processor without watchConfig', async () => {
@@ -384,6 +392,30 @@ describe('ProjectWatcher - Priority Rules', () => {
 		await (watcher as any).handleFileChange(regularFilePath);
 
 		expect(HmrManager.handleFileChange).toHaveBeenCalled();
+	});
+
+	test('should notify processor for dependency file before proceeding to HMR', async () => {
+		const onChange = vi.fn(async () => {});
+		const Processor = {
+			getWatchConfig: vi.fn(() => ({
+				paths: ['/test/project/src'],
+				extensions: ['.css', '.tsx'],
+				onChange,
+			})),
+			getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
+			canProcessAsset: vi.fn((kind: string, filepath?: string) => {
+				return kind === 'stylesheet' && filepath?.endsWith('.css');
+			}),
+			matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
+		};
+		Config.processors.set('css', Processor as any);
+
+		const tsxFilePath = '/test/project/src/components/Button.tsx';
+
+		await (watcher as any).handleFileChange(tsxFilePath);
+
+		expect(onChange).toHaveBeenCalledWith({ path: path.resolve(tsxFilePath), bridge: Bridge });
+		expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(tsxFilePath));
 	});
 });
 

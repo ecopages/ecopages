@@ -144,6 +144,8 @@ export class JsHmrStrategy extends HmrStrategy {
 	 * @remarks
 	 * If runtime-specific dependency graph hooks are unavailable, this strategy
 	 * falls back to rebuilding all watched entrypoints.
+	 * When multiple entrypoints are impacted they are bundled in a single esbuild
+	 * invocation to share AST parsing and chunk deduplication.
 	 * @returns Action to broadcast update events
 	 */
 	async process(filePath: string): Promise<HmrAction> {
@@ -155,8 +157,6 @@ export class JsHmrStrategy extends HmrStrategy {
 			return { type: 'none' };
 		}
 
-		const updates: string[] = [];
-		let reloadRequired = false;
 		const dependencyHits = this.context.getDependencyEntrypoints?.(filePath) ?? new Set<string>();
 		const hasDependencyHit = dependencyHits.size > 0;
 		const impactedEntrypoints = hasDependencyHit
@@ -167,18 +167,35 @@ export class JsHmrStrategy extends HmrStrategy {
 			appLogger.debug('[JsHmrStrategy] Dependency graph miss, rebuilding all watched entrypoints');
 		}
 
+		if (impactedEntrypoints.length === 0) {
+			return { type: 'none' };
+		}
+
+		const buildResult = await this.bundleEntrypoints(impactedEntrypoints);
+
+		if (!buildResult.success) {
+			return { type: 'none' };
+		}
+
+		const updates: string[] = [];
+		let reloadRequired = false;
+
 		for (const entrypoint of impactedEntrypoints) {
 			const outputUrl = watchedFiles.get(entrypoint);
-			if (!outputUrl) {
-				continue;
+			if (!outputUrl) continue;
+
+			if (buildResult.dependencies && this.context.setEntrypointDependencies) {
+				const entrypointDeps = buildResult.dependencies.get(path.resolve(entrypoint)) ?? [];
+				this.context.setEntrypointDependencies(entrypoint, entrypointDeps);
 			}
 
-			const result = await this.bundleEntrypoint(entrypoint, outputUrl);
-			if (result.success) {
-				if (result.dependencies && this.context.setEntrypointDependencies) {
-					this.context.setEntrypointDependencies(entrypoint, result.dependencies);
-				}
+			const srcDir = this.context.getSrcDir();
+			const relativePath = path.relative(srcDir, entrypoint);
+			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?)$/, '.js');
+			const outputPath = path.join(this.context.getDistDir(), relativePathJs);
 
+			const result = await this.processOutput(outputPath, outputUrl);
+			if (result.success) {
 				updates.push(outputUrl);
 				if (result.requiresReload) {
 					reloadRequired = true;
@@ -191,19 +208,15 @@ export class JsHmrStrategy extends HmrStrategy {
 				appLogger.debug(`[JsHmrStrategy] Full reload required (no HMR accept found)`);
 				return {
 					type: 'broadcast',
-					events: [
-						{
-							type: 'reload',
-						},
-					],
+					events: [{ type: 'reload' }],
 				};
 			}
 
 			return {
 				type: 'broadcast',
-				events: updates.map((path) => ({
+				events: updates.map((p) => ({
 					type: 'update',
-					path,
+					path: p,
 					timestamp: Date.now(),
 				})),
 			};
@@ -213,26 +226,19 @@ export class JsHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Bundles a single entrypoint and processes the output.
-	 *
-	 * @param entrypointPath - Absolute path to the source file
-	 * @param outputUrl - URL path for the bundled file
-	 * @returns True if bundling was successful
+	 * Bundles one or more entrypoints in a single esbuild invocation.
+	 * Uses the source directory as the output base so that the directory structure
+	 * is preserved under the HMR dist folder.
 	 */
-	private async bundleEntrypoint(
-		entrypointPath: string,
-		outputUrl: string,
-	): Promise<{ success: boolean; requiresReload: boolean; dependencies?: string[] }> {
+	private async bundleEntrypoints(
+		entrypoints: string[],
+	): Promise<{ success: boolean; dependencies?: Map<string, string[]> }> {
 		try {
-			const srcDir = this.context.getSrcDir();
-			const relativePath = path.relative(srcDir, entrypointPath);
-			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?)$/, '.js');
-			const outputPath = path.join(this.context.getDistDir(), relativePathJs);
-
 			const result = await defaultBuildAdapter.build({
-				entrypoints: [entrypointPath],
+				entrypoints,
 				outdir: this.context.getDistDir(),
-				naming: relativePathJs,
+				outbase: this.context.getSrcDir(),
+				naming: '[dir]/[name]',
 				...defaultBuildAdapter.getTranspileOptions('hmr-entrypoint'),
 				plugins: this.context.getPlugins(),
 				minify: false,
@@ -240,20 +246,21 @@ export class JsHmrStrategy extends HmrStrategy {
 			});
 
 			if (!result.success) {
-				appLogger.error(`[JsHmrStrategy] Failed to build ${entrypointPath}:`, result.logs);
-				return { success: false, requiresReload: false, dependencies: undefined };
+				appLogger.error('[JsHmrStrategy] Batched build failed:', result.logs);
+				return { success: false };
 			}
 
-			const dependencyGraph = result.dependencyGraph?.entrypoints?.[path.resolve(entrypointPath)] ?? [];
-			const output = await this.processOutput(outputPath, outputUrl);
+			const dependencies = new Map<string, string[]>();
+			if (result.dependencyGraph?.entrypoints) {
+				for (const [entrypoint, deps] of Object.entries(result.dependencyGraph.entrypoints)) {
+					dependencies.set(path.resolve(entrypoint), deps);
+				}
+			}
 
-			return {
-				...output,
-				dependencies: dependencyGraph,
-			};
+			return { success: true, dependencies };
 		} catch (error) {
-			appLogger.error(`[JsHmrStrategy] Error bundling ${entrypointPath}:`, error as Error);
-			return { success: false, requiresReload: false, dependencies: undefined };
+			appLogger.error('[JsHmrStrategy] Error in batched build:', error as Error);
+			return { success: false };
 		}
 	}
 

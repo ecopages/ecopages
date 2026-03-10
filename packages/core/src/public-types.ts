@@ -210,11 +210,6 @@ export interface IHmrManager {
 	isEnabled(): boolean;
 
 	/**
-	 * Returns true when a changed file matches a non-fallback HMR strategy.
-	 */
-	canHandleFileChange(path: string): boolean;
-
-	/**
 	 * Broadcasts an HMR event to connected clients.
 	 */
 	broadcast(event: ClientBridgeEvent): void;

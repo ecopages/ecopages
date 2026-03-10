@@ -1,8 +1,8 @@
-# Ecopages KitaJs Integration Plugin
+# @ecopages/kitajs
 
-The `@ecopages/kitajs` package provides seamless integration with [Kita](https://kitajs.org/html/), enabling effortless rendering of JSX templates. This integration represents a minimalistic layer within the broader Ecopages integration plugin system, designed to enhance the platform's flexibility and ease of use.
+Integration plugin for [KitaJS](https://kitajs.org/html/) HTML within the Ecopages framework. It enables the rendering of standard JSX templates for multi-page applications.
 
-## Install
+## Installation
 
 ```bash
 bunx jsr add @ecopages/kitajs
@@ -10,10 +10,10 @@ bunx jsr add @ecopages/kitajs
 
 ## Usage
 
-Incorporating this integration into your project is straightforward. Simply import and include the `kitajsPlugin` in your Ecopages configuration as shown below:
+Import and register the `kitajsPlugin` in your `eco.config.ts`.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
 const config = await new ConfigBuilder()

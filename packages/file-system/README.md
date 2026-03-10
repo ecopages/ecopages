@@ -1,18 +1,17 @@
 # @ecopages/file-system
 
-Runtime-agnostic file system utilities for Ecopages with optimized Bun and Node.js adapters.
+Runtime-agnostic file system utilities for Ecopages that automatically select the optimal adapter (Bun or Node.js) based on the execution environment.
 
 ## Features
 
-- **Runtime Detection**: Automatically selects optimal adapter based on runtime
-- **Bun Optimized**: Uses `Bun.Glob`, `Bun.hash`, `Bun.file` for maximum performance
-- **Node.js Fallback**: Uses `fast-glob` and `crypto` for full compatibility
-- **Type Safe**: Full TypeScript support with consistent interface
+- **Runtime Detection**: Automatically uses `Bun.Glob`, `Bun.hash`, `Bun.file` for maximum performance on Bun, and falls back to `fast-glob` and `crypto` on Node.js.
+- **Unified Interface**: Write file system code once; let the runtime handle the optimization.
+- **Type Safe**: Full TypeScript support with a consistent API.
 
 ## Installation
 
 ```bash
-bun add @ecopages/file-system
+bunx jsr add @ecopages/file-system
 ```
 
 ## Usage
@@ -41,11 +40,11 @@ if (fileSystem.exists('file.txt')) {
 ## API
 
 | Method                      | Description                       |
-| --------------------------- | --------------------------------- |
+| :-------------------------- | :-------------------------------- |
 | `glob(patterns, options)`   | Find files matching glob patterns |
 | `readFile(path)`            | Read file as string (async)       |
 | `readFileSync(path)`        | Read file as string (sync)        |
-| `readFileAsBuffer(path)`    | Read file as Buffer               |
+| `readFileAsBuffer(path)`    | Read file as `Buffer`             |
 | `write(path, content)`      | Write content to file             |
 | `writeAsync(path, content)` | Write content to file (async)     |
 | `exists(path)`              | Check if path exists              |
@@ -59,18 +58,3 @@ if (fileSystem.exists('file.txt')) {
 | `gzipDir(path, extensions)` | Gzip files in directory           |
 | `isDirectory(path)`         | Check if path is directory        |
 | `verifyFileExists(path)`    | Throw if file doesn't exist       |
-
-## Performance
-
-Benchmark results (Apple M4):
-
-| Operation        | BunFileSystem | NodeFileSystem |
-| ---------------- | ------------- | -------------- |
-| glob (100 files) | 64.85 µs      | 71.06 µs       |
-| hash (1MB file)  | **87 µs**     | **393 µs**     |
-
-Bun adapter is **4.5x faster** for file hashing.
-
-## License
-
-MIT

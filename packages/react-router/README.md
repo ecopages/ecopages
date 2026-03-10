@@ -1,46 +1,46 @@
 # @ecopages/react-router
 
-Client-side SPA router for EcoPages React applications. Enables single-page application navigation while preserving full SSR benefits.
+Client-side SPA router for Ecopages React applications. Features single-page application navigation while preserving all the benefits of Server-Side Rendering (SSR).
+
+## Features
+
+- **SSR preserved**: Initial loads are fully server-rendered.
+- **Opt-in via config**: A single line in your config enables SPA navigation across all pages.
+- **Layout persistence**: Shared layouts stay mounted while page content swaps.
+- **Standard links**: Works with regular `<a>` tags.
+- **Head sync**: Automatically updates document metadata `<head>` during navigation.
+- **View Transitions**: Built-in support for the browser View Transitions API.
 
 ## Installation
 
 ```bash
-bun add @ecopages/react-router
+bunx jsr add @ecopages/react-router
 ```
 
 ## Quick Start
 
-Add the router adapter to your `eco.config.ts`:
+Pass the router adapter to the React plugin in your `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
+	.setRootDir(import.meta.dirname)
 	.setIntegrations([reactPlugin({ router: ecoRouter() })])
 	.build();
 
 export default config;
 ```
 
-That's it! All pages now have SPA navigation enabled.
-
-## Features
-
-- **Opt-in via config** - Single line enables SPA for all pages
-- **SSR preserved** - Full server-side rendering on initial load
-- **Layout persistence** - Layouts stay mounted, only page content swaps
-- **Standard links** - Works with regular `<a>` tags
-- **Head sync** - Automatically updates title, meta, and stylesheets
-- **Pluggable** - Extensible adapter pattern
+SPA navigation is now enabled for all React pages in your project.
 
 ## Usage
 
 ### Layouts (Optional)
 
-Use `config.layout` for persistent UI across navigations:
+Configure your page with a layout to keep UI components (like headers/navs) mounted across navigations:
 
 ```tsx
 // src/layouts/base-layout.tsx
@@ -64,6 +64,8 @@ export default HomePage;
 ```
 
 ### Links
+
+Standard relative links are intercepted natively. To bypass the router and force a hard reload, use the `data-eco-reload` attribute.
 
 ```tsx
 // SPA navigation (intercepted)
@@ -89,39 +91,21 @@ const MyComponent = () => {
 };
 ```
 
-### View Transitions
+## View Transitions
 
-The router automatically supports the [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) for smooth page transitions.
+The router automatically integrates with the [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API).
 
-#### Lifecycle
-
-When a navigation occurs with View Transitions enabled:
-
-1.  **Snapshot**: The browser captures the current state (screenshot) of the page.
-2.  **Update**: React processes the state change and renders the new page.
-3.  **Animate**: The browser animates from the old snapshot to the new live state.
-
-The router uses a deferred promise mechanism to ensure React has fully finished rendering the new content before telling the browser to start the animation phase.
-
-#### Shared Element Transitions
-
-To animate elements between pages (e.g., a thumbnail becoming a hero image), use the `data-view-transition` attribute. Ensure the value is unique to the specific element being transitioned and matches on both pages.
+To animate elements between pages using Shared Element Transitions, mark them with a unique `data-view-transition` id that matches across both pages:
 
 ```tsx
-// List Page (Source)
-<img
-  src={post.image}
-  data-view-transition={`hero-${post.id}`}
-/>
+// List Page
+<img src={post.image} data-view-transition={`hero-${post.id}`} />
 
-// Detail Page (Destination)
-<img
-  src={post.image}
-  data-view-transition={`hero-${post.id}`}
-/>
+// Detail Page
+<img src={post.image} data-view-transition={`hero-${post.id}`} />
 ```
 
-By default, the router applies a **clean morph** animation (disabling the default cross-fade ghosting). If you prefer the standard browser cross-fade, you can opt-out:
+By default, we impose a "clean morph", disabling default cross-fade ghosting. To use standard crossfades on elements, opt-out:
 
 ```tsx
 <div data-view-transition="my-hero" data-view-transition-animate="fade">
@@ -129,84 +113,15 @@ By default, the router applies a **clean morph** animation (disabling the defaul
 </div>
 ```
 
-#### Cross-Fade
-
-By default, the router provides a smooth cross-fade for the root content. You can customize this by overriding the default view transition CSS:
-
-```css
-::view-transition-old(root),
-::view-transition-new(root) {
-	animation-duration: 0.5s;
-}
-```
-
 ## How It Works
 
-The router uses an **HTML-First** navigation strategy to ensure consistency with Server-Side Rendering (SSR).
+The router relies on **HTML-First** navigation to sync perfectly with SSR:
 
-1.  **SSR**: Server renders full HTML for the initial page load.
-2.  **Hydration**: Client hydrates, router attaches to the document.
-3.  **Navigation**: On link click:
-    - **Fetch**: Requests the full HTML of the target page (just like a standard browser navigation).
-    - **Parse**: Extracts the page component URL and serialized props from the HTML.
-    - **Preload**: Dynamically imports the new page component.
-    - **Transition**:
-        - Calls `document.startViewTransition()`.
-        - Updates the document head (title, meta, styles).
-        - Updates the React state to render the new page component.
-        - Waits for React commit (useEffect).
-    - **Resolve**: View Transition finishes, browser plays the animation.
-
-## API
-
-### `ecoRouter()`
-
-Creates a router adapter for the React plugin.
-
-```typescript
-reactPlugin({ router: ecoRouter() });
-```
-
-### `useRouter()`
-
-Hook for programmatic navigation.
-
-```typescript
-const { navigate, isPending } = useRouter();
-```
-
-### Link Behavior
-
-Links are **not** intercepted when:
-
-- Modifier keys held (Ctrl, Cmd, Shift, Alt)
-- Has `target="_blank"` or `download` attribute
-- Has `data-eco-reload` attribute
-- Points to different origin
-- Starts with `#` or `javascript:`
-
-## Architecture
-
-The router uses a pluggable adapter pattern:
-
-```typescript
-interface ReactRouterAdapter {
-	name: string;
-	bundle: { importPath; outputName; externals };
-	importMapKey: string;
-	components: { router; pageContent };
-	getRouterProps(page, props): string;
-}
-```
-
-This allows custom router implementations while keeping integration simple.
-
-## Compatibility
-
-- React 18.x or 19.x
-- Modern browsers with ES modules
-- EcoPages with React integration
-
-## License
-
-MIT
+1. **SSR**: Initial page arrives completely rendered.
+2. **Hydration**: Client hydrates and the router attaches.
+3. **Navigation**: On click, the router:
+    - Fetches the raw HTML of the next route.
+    - Extracts page-level serialized props and metadata.
+    - Preloads the next page component via dynamic import.
+    - Updates React state, syncs `<head>`, and triggers `startViewTransition`.
+    - The React graph reconciles and the animation plays.

@@ -1,8 +1,8 @@
-# Ecopages React Integration Plugin
+# @ecopages/react
 
-The `@ecopages/react` package introduces first-class integration with [React](https://reactjs.org/) version 19, enabling developers to leverage React's robust ecosystem and component model within the Ecopages platform. This integration provides a seamless experience for using React components in your Ecopages projects, combining React's declarative UI library with the flexibility and simplicity of Ecopages.
+First-class integration for [React 19](https://react.dev/) in Ecopages. This plugin enables React SSR and client hydration, allowing you to build component-level React islands or full React Single Page Applications (SPAs).
 
-## Install
+## Installation
 
 ```bash
 bunx jsr add @ecopages/react
@@ -10,10 +10,10 @@ bunx jsr add @ecopages/react
 
 ## Usage
 
-To incorporate the React integration into your Ecopages project, configure your project as follows:
+Configure the plugin in your `eco.config.ts`:
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { reactPlugin } from '@ecopages/react';
 
 const config = await new ConfigBuilder()
@@ -24,16 +24,27 @@ const config = await new ConfigBuilder()
 export default config;
 ```
 
+## Component-Level Islands
+
+By default, Ecopages React acts in island mode:
+
+- SSR output preserves the authored DOM structure (no unnecessary wrapper elements).
+- A stable `data-eco-component-id` attribute is attached to the component SSR root.
+- The client bootstrap mounts the component via `createRoot()` strictly within that root boundary.
+
+> [!TIP]
+> **Full React SPA Routing:**
+> If you are building full React pages and want client-side navigation (SPA), use [@ecopages/react-router](../react-router/README.md) and pass it to the react plugin: `reactPlugin({ router: ecoRouter() })`.
+
 ## MDX Support
 
-The React plugin includes optional MDX support. When enabled, you can write `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
+The React plugin includes built-in MDX support. When enabled, you can write `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { reactPlugin } from '@ecopages/react';
 
 const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
 	.setIntegrations([
 		reactPlugin({
 			mdx: {
@@ -49,37 +60,12 @@ const config = await new ConfigBuilder()
 export default config;
 ```
 
-This approach is recommended when using a client-side router (e.g., `@ecopages/react-router`) as it ensures consistent navigation between TSX and MDX pages.
+## Server and Client Graph Contract
 
-## Component-Level Islands
+The React integration supports Node.js modules and server-only code **only on the server execution graph**.
 
-Current behavior:
-
-- SSR output keeps the authored component DOM structure (no synthetic wrapper element).
-- A stable `data-eco-component-id` attribute is attached to the component SSR root when a single root element is available.
-- Client bootstrap resolves the component export and mounts with `createRoot()` into that root boundary.
-- Component assets are emitted through the shared dependency pipeline and deduplicated with other integrations.
-
-This design preserves global CSS/layout selectors while keeping runtime ownership isolated per island instance.
-
-For full React pages with client-side navigation, prefer [@ecopages/react-router](../react-router/README.md), where routing and hydration are handled by the React-specific runtime.
-
-## Server And Client Graph Contract
-
-The React integration supports Node.js modules and server-only code, but only on the server execution graph.
-
-- Server rendering can import and execute `node:*` modules, database clients, filesystem utilities, and `*.server.*` modules.
+- Server rendering can safely import `node:*` modules, database clients, filesystem utilities, etc.
 - Client-hydrated React code must resolve to browser-safe modules only.
-- Shared files and barrel files are allowed when the exports that become client-reachable are browser-safe.
-- If a server-only import becomes client-reachable, the client build fails instead of silently replacing the import.
+- If a server-only import crosses the boundary and becomes reachable by client code, **the client build will intentionally fail**.
 
-In practice, this means you can keep server helpers close to your React code, but the browser bundle boundary is strict:
-
-```ts
-export { Button } from './button';
-export { db } from './db.server';
-```
-
-If a client entry only reaches `Button`, the `db` re-export is removed from the browser transform. If a client entry reaches `db`, the build fails because the server-only export crossed into the client graph.
-
-This contract keeps SSR and server functions free to use Node.js while ensuring the final browser bundle contains no client-reachable server-only code.
+Keep server helpers close, but separate them physically or logically so they do not leak into the client bundle.

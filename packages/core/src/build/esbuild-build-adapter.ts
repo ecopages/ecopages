@@ -433,6 +433,7 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 			? { outfile }
 			: {
 					outdir,
+					...(options.outbase ? { outbase: path.resolve(options.outbase) } : {}),
 					entryNames: usesTemplatedNaming ? this.toEntryNamePattern(options.naming) : '[name]',
 					chunkNames: '[name]-[hash]',
 					assetNames: '[name]-[hash]',

@@ -153,7 +153,7 @@ describe('JsHmrStrategy', () => {
 			const entryB = path.join(SRC_DIR, 'entry-b.ts');
 			const depA = path.join(SRC_DIR, 'shared-a.ts');
 			const setEntrypointDependenciesCalls: Array<{ entrypointPath: string; dependencies: string[] }> = [];
-			const bundledEntrypoints: string[] = [];
+			let batchedEntrypoints: string[] = [];
 
 			const context = createMockContext({
 				getWatchedFiles: () =>
@@ -173,14 +173,22 @@ describe('JsHmrStrategy', () => {
 				[key: string]: unknown;
 			};
 
-			strategy.bundleEntrypoint = async (entrypointPath: string) => {
-				bundledEntrypoints.push(entrypointPath);
-				return { success: true, requiresReload: false, dependencies: [entrypointPath, depA] };
+			strategy.bundleEntrypoints = async (entrypoints: string[]) => {
+				batchedEntrypoints = entrypoints;
+				const dependencies = new Map<string, string[]>();
+				for (const ep of entrypoints) {
+					dependencies.set(path.resolve(ep), [ep, depA]);
+				}
+				return { success: true, dependencies };
+			};
+
+			strategy.processOutput = async () => {
+				return { success: true, requiresReload: false };
 			};
 
 			const action = await strategy.process(depA);
 
-			expect(bundledEntrypoints).toEqual([entryA]);
+			expect(batchedEntrypoints).toEqual([entryA]);
 			expect(setEntrypointDependenciesCalls).toEqual([{ entrypointPath: entryA, dependencies: [entryA, depA] }]);
 			expect(action).toEqual({
 				type: 'broadcast',
@@ -198,7 +206,7 @@ describe('JsHmrStrategy', () => {
 			const entryA = path.join(SRC_DIR, 'entry-a.ts');
 			const entryB = path.join(SRC_DIR, 'entry-b.ts');
 			const changedFile = path.join(SRC_DIR, 'new-shared.ts');
-			const bundledEntrypoints: string[] = [];
+			let batchedEntrypoints: string[] = [];
 
 			const context = createMockContext({
 				getWatchedFiles: () =>
@@ -214,14 +222,22 @@ describe('JsHmrStrategy', () => {
 				[key: string]: unknown;
 			};
 
-			strategy.bundleEntrypoint = async (entrypointPath: string) => {
-				bundledEntrypoints.push(entrypointPath);
-				return { success: true, requiresReload: false, dependencies: [entrypointPath] };
+			strategy.bundleEntrypoints = async (entrypoints: string[]) => {
+				batchedEntrypoints = entrypoints;
+				const dependencies = new Map<string, string[]>();
+				for (const ep of entrypoints) {
+					dependencies.set(path.resolve(ep), [ep]);
+				}
+				return { success: true, dependencies };
+			};
+
+			strategy.processOutput = async () => {
+				return { success: true, requiresReload: false };
 			};
 
 			const action = await strategy.process(changedFile);
 
-			expect(bundledEntrypoints).toEqual([entryA, entryB]);
+			expect(batchedEntrypoints).toEqual([entryA, entryB]);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [

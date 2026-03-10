@@ -7,7 +7,6 @@ import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../in
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { HmrStrategy } from '../../hmr/hmr-strategy';
-import { HmrStrategyType } from '../../hmr/hmr-strategy';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy';
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy';
 import { appLogger } from '../../global/app-logger';
@@ -159,32 +158,13 @@ export class HmrManager implements IHmrManager {
 		this.bridge.broadcast(event);
 	}
 
-	public canHandleFileChange(filePath: string): boolean {
-		const sorted = [...this.strategies].sort((a, b) => b.priority - a.priority);
-		const strategy = sorted.find((candidate) => {
-			try {
-				return candidate.matches(filePath);
-			} catch (err) {
-				appLogger.error(`[HmrManager] Error checking match for ${candidate.constructor.name}:`, err as Error);
-				return false;
-			}
-		});
-
-		return strategy !== undefined && strategy.type !== HmrStrategyType.FALLBACK;
-	}
-
-	/**
-	 * Handles file changes using registered HMR strategies.
-	 * Strategies are evaluated in priority order until one matches.
-	 * @param filePath - Absolute path to the changed file
-	 */
 	public async handleFileChange(filePath: string): Promise<void> {
 		const sorted = [...this.strategies].sort((a, b) => b.priority - a.priority);
 		const strategy = sorted.find((s) => {
 			try {
 				return s.matches(filePath);
 			} catch (err) {
-				appLogger.error(`[HmrManager] Error checking match for ${s.constructor.name}:`, err as Error);
+				appLogger.error(err);
 				return false;
 			}
 		});

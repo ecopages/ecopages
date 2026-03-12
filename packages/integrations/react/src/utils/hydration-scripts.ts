@@ -178,7 +178,8 @@ window.__ECO_PAGE__ = {
 const createTree = (Component, props) => {
   const Layout = Component.config?.layout;
   const pageElement = createElement(Component, props);
-  return Layout ? createElement(Layout, null, pageElement) : pageElement;
+  const layoutProps = props?.locals ? { locals: props.locals } : null;
+  return Layout ? createElement(Layout, layoutProps, pageElement) : pageElement;
 };
 
 const mount = () => {
@@ -224,16 +225,20 @@ function createProdScriptWithRouter(options: HydrationScriptOptions): string {
 }
 
 /**
- * Creates minified production hydration script without router.
+ * Creates the minified production hydration script for non-router pages.
+ *
+ * In this mode the page module is responsible for reconstructing its own layout
+ * tree. If the server serialized request `locals`, the script forwards those
+ * values to the layout as well as the page so hydration matches the server HTML.
  */
 function createProdScriptWithoutRouter(options: HydrationScriptOptions): string {
 	const { importPath, isMdx, reactImportPath, reactDomClientImportPath } = options;
 
 	if (isMdx) {
-		return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+		return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);const lp=p?.locals?{locals:p.locals}:null;return L?ce(L,lp,pe):pe};const m=()=>hr(document,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 	}
 
-	return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import P from"${importPath}";const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);return L?ce(L,null,pe):pe};const m=()=>hr(document,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+	return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import P from"${importPath}";const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);const lp=p?.locals?{locals:p.locals}:null;return L?ce(L,lp,pe):pe};const m=()=>hr(document,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 }
 
 /**

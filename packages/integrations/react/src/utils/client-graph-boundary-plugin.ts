@@ -22,6 +22,14 @@ import { parseSync } from 'oxc-parser';
 import { analyzeReachability } from './reachability-analyzer';
 
 const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
+const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
+	'cache',
+	'middleware',
+	'requires',
+	'metadata',
+	'staticProps',
+	'staticPaths',
+]);
 
 /**
  * Configuration options for the Client Graph Boundary esbuild plugin.
@@ -203,6 +211,104 @@ function parserLanguageForFile(filename: string): 'js' | 'jsx' | 'ts' | 'tsx' {
 	if (extension === '.ts') return 'ts';
 	if (extension === '.jsx') return 'jsx';
 	return 'js';
+}
+
+/**
+ * Extracts a static property key name from an object literal property node.
+ *
+ * The client graph boundary rewrite only strips known `eco.page(...)` keys when
+ * it can prove the property name statically. Computed or otherwise dynamic keys
+ * are ignored so the transform remains conservative.
+ *
+ * @param node - OXC AST node representing an object property key.
+ * @returns Static property key name when it can be resolved, otherwise `undefined`.
+ */
+function getObjectPropertyKeyName(node: any): string | undefined {
+	if (!node) return undefined;
+	if (node.type === 'Identifier') return node.name;
+	if (node.type === 'StringLiteral' || node.type === 'Literal') {
+		return typeof node.value === 'string' ? node.value : undefined;
+	}
+	return undefined;
+}
+
+/**
+ * Removes server-only `eco.page(...)` options from browser-bound modules.
+ *
+ * Import pruning alone is not sufficient because a page module can still retain
+ * references to stripped server imports through config fields like `middleware`
+ * or `metadata`. This pass rewrites the `eco.page(...)` object literal so only
+ * browser-relevant properties remain.
+ *
+ * @param source - Original or already-transformed module source.
+ * @param program - Parsed OXC program for the same source text.
+ * @returns Updated source plus a flag indicating whether any rewrite occurred.
+ */
+function stripServerOnlyEcoPageOptions(source: string, program: any): { transformed: string; modified: boolean } {
+	const edits: { start: number; end: number; replacement: string }[] = [];
+
+	function walk(node: any) {
+		if (!node || typeof node !== 'object') return;
+		if (Array.isArray(node)) {
+			for (const child of node) walk(child);
+			return;
+		}
+
+		if (
+			node.type === 'CallExpression' &&
+			node.callee?.type === 'MemberExpression' &&
+			node.callee.object?.type === 'Identifier' &&
+			node.callee.object.name === 'eco' &&
+			node.callee.property?.type === 'Identifier' &&
+			node.callee.property.name === 'page' &&
+			node.arguments?.[0]?.type === 'ObjectExpression'
+		) {
+			const objectExpression = node.arguments[0];
+			const keptProperties: string[] = [];
+			let removedProperty = false;
+
+			for (const property of objectExpression.properties ?? []) {
+				if (property?.type === 'Property') {
+					const keyName = getObjectPropertyKeyName(property.key);
+					if (keyName && SERVER_ONLY_ECO_PAGE_OPTION_KEYS.has(keyName)) {
+						removedProperty = true;
+						continue;
+					}
+				}
+
+				keptProperties.push(source.slice(property.start, property.end));
+			}
+
+			if (removedProperty) {
+				const replacement = keptProperties.length > 0 ? `{ ${keptProperties.join(', ')} }` : '{}';
+				edits.push({
+					start: objectExpression.start,
+					end: objectExpression.end,
+					replacement,
+				});
+			}
+		}
+
+		for (const key in node) {
+			if (key !== 'type' && key !== 'start' && key !== 'end') {
+				walk(node[key]);
+			}
+		}
+	}
+
+	walk(program);
+
+	if (edits.length === 0) {
+		return { transformed: source, modified: false };
+	}
+
+	edits.sort((a, b) => b.start - a.start);
+	let transformed = source;
+	for (const edit of edits) {
+		transformed = transformed.slice(0, edit.start) + edit.replacement + transformed.slice(edit.end);
+	}
+
+	return { transformed, modified: true };
 }
 
 /**
@@ -610,13 +716,28 @@ function transformModuleImports(
 	walkImports(program);
 
 	if (edits.length === 0) {
-		return { transformed: source, modified: false };
+		return stripServerOnlyEcoPageOptions(source, program);
 	}
 
 	edits.sort((a, b) => b.start - a.start);
 	let transformed = source;
 	for (const edit of edits) {
 		transformed = transformed.slice(0, edit.start) + edit.replacement + transformed.slice(edit.end);
+	}
+
+	let reparsedResult;
+	try {
+		reparsedResult = parseSync(filename, transformed, {
+			sourceType: 'module',
+			lang: parserLanguageForFile(filename),
+		});
+	} catch {
+		return { transformed, modified: true };
+	}
+
+	const strippedPageOptions = stripServerOnlyEcoPageOptions(transformed, reparsedResult.program);
+	if (strippedPageOptions.modified) {
+		return strippedPageOptions;
 	}
 
 	return { transformed, modified: true };

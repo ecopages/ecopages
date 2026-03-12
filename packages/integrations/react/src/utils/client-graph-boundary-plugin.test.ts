@@ -304,4 +304,39 @@ describe('createClientGraphBoundaryPlugin', () => {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
+
+	it('strips server-only eco.page options so unreachable middleware imports do not leak into the browser bundle', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const filePath = join(tempDir, 'entry.tsx');
+		writeFileSync(
+			filePath,
+			[
+				"import { authMiddleware } from './auth.server';",
+				'export default eco.page({',
+				"\tcache: 'dynamic',",
+				'\tmiddleware: [authMiddleware],',
+				"\trequires: ['session'],",
+				"\tmetadata: () => ({ title: 'Dashboard' }),",
+				'\trender: () => <div>Dashboard</div>,',
+				'});',
+			].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const harness = createPluginTestHarness();
+			const transformed = await harness.transformFile(filePath);
+
+			expect(transformed).toBeDefined();
+			expect(transformed).not.toContain("import { authMiddleware } from './auth.server';");
+			expect(transformed).not.toContain('authMiddleware');
+			expect(transformed).not.toContain('cache:');
+			expect(transformed).not.toContain('middleware:');
+			expect(transformed).not.toContain('requires:');
+			expect(transformed).not.toContain('metadata:');
+			expect(transformed).toContain('render: () => <div>Dashboard</div>');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
 });

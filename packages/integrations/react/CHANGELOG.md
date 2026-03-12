@@ -47,10 +47,13 @@ All notable changes to `@ecopages/react` are documented here.
 - Fixed stale temp module race during Fast Refresh cycles (`b2cf8466`).
 - Fixed client graph boundary wiring for runtime dependencies (`4b6cd32e`).
 - Fixed shared React barrel handling so client-reachable server-only re-exports now fail the build instead of being silently pruned (`unreleased`).
+- Fixed page-entry browser bundles to strip server-only `eco.page()` options so unreachable middleware imports do not leave dangling runtime references (`unreleased`).
+- Fixed non-router page hydration so layouts receive serialized request locals on the client, preventing mismatches on middleware-backed dynamic pages (`unreleased`).
 
 ### Documentation
 
 - Documented the React integration server/client graph contract for shared modules and barrel exports (`unreleased`).
+- Expanded the React README with the client graph boundary architecture, AST rewrite order, and hydration `locals` contract (`unreleased`).
 
 ### Tests
 

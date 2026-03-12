@@ -285,7 +285,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				? createElement(Layout as React.FunctionComponent, { locals } as object, pageElement)
 				: pageElement;
 
-			const safeLocals = this.getSerializableLocals(locals as RequestLocals);
+			const safeLocals = this.getSerializableLocals(
+				locals as RequestLocals,
+				(Page as typeof Page & { requires?: string | readonly string[] }).requires,
+			);
 			const allPageProps: HtmlTemplateProps['pageProps'] = {
 				...pageProps,
 				params,
@@ -309,23 +312,44 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	/**
-	 * Safely extracts locals for client-side hydration.
+	 * Safely extracts the declared subset of locals for client-side hydration.
 	 *
 	 * On dynamic pages with `cache: 'dynamic'`, middleware populates `locals` with
-	 * request-scoped data (e.g., session). This data needs to be serialized to the
-	 * client for hydration to match the server-rendered output.
+	 * request-scoped data (e.g., session). Only keys explicitly declared via
+	 * `Page.requires` are serialized to the client so sensitive request-only data
+	 * is not leaked into hydration payloads by default.
 	 *
 	 * On static pages, `locals` is a Proxy that throws `LocalsAccessError` on access
 	 * to prevent accidental use. This method safely detects that case and returns
 	 * `undefined` instead of throwing.
 	 *
 	 * @param locals - The locals object from the render context
-	 * @returns The locals object if serializable, undefined otherwise
+	 * @param requiredLocals - Keys explicitly requested for client hydration
+	 * @returns The filtered locals object if serializable, undefined otherwise
 	 */
-	private getSerializableLocals(locals: RequestLocals): RequestLocals | undefined {
+	private getSerializableLocals(
+		locals: RequestLocals,
+		requiredLocals?: string | readonly string[],
+	): RequestLocals | undefined {
 		try {
-			if (locals && Object.keys(locals).length > 0) {
-				return locals;
+			const requiredKeys = requiredLocals
+				? Array.isArray(requiredLocals)
+					? requiredLocals
+					: [requiredLocals]
+				: [];
+
+			if (requiredKeys.length === 0) {
+				return undefined;
+			}
+
+			const serializedLocals = Object.fromEntries(
+				requiredKeys
+					.filter((key) => Object.prototype.hasOwnProperty.call(locals, key))
+					.map((key) => [key, locals[key as keyof RequestLocals]]),
+			) as RequestLocals;
+
+			if (Object.keys(serializedLocals).length > 0) {
+				return serializedLocals;
 			}
 			return undefined;
 		} catch (e) {

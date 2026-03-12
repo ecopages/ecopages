@@ -127,14 +127,14 @@ export const Counter = eco.component({
 
 ### Comparison
 
-| Aspect               | Simple JSX | Plain React | `eco.component()` |
-| -------------------- | ---------- | ----------- | ----------------- |
-| React hooks          | No         | Yes         | Yes               |
-| Scripts/Stylesheets  | No         | No          | Yes               |
-| Lazy loading         | No         | No          | Yes               |
-| Hydration strategies | No         | No          | Yes               |
-| Runtime cost         | Zero       | Minimal     | Minimal           |
-| Use case             | Static UI  | Interactive UI | Advanced UI    |
+| Aspect               | Simple JSX | Plain React    | `eco.component()` |
+| -------------------- | ---------- | -------------- | ----------------- |
+| React hooks          | No         | Yes            | Yes               |
+| Scripts/Stylesheets  | No         | No             | Yes               |
+| Lazy loading         | No         | No             | Yes               |
+| Hydration strategies | No         | No             | Yes               |
+| Runtime cost         | Zero       | Minimal        | Minimal           |
+| Use case             | Static UI  | Interactive UI | Advanced UI       |
 
 All patterns can coexist in the same project. Use the right tool for the job.
 

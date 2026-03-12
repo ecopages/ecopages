@@ -36,8 +36,21 @@ const PageContext = createContext<PageContextValue>(null);
 
 const PersistLayoutsContext = createContext<boolean>(false);
 
-function getLayoutFromPage(Page: ComponentType<unknown>): ComponentType | undefined {
-	const config = (Page as ComponentType & { config?: { layout?: ComponentType } }).config;
+type LayoutComponent = ComponentType<Record<string, unknown>>;
+
+/**
+ * Reads the optional layout assigned to a page component.
+ *
+ * The router recreates the server-rendered tree on the client, so it needs to
+ * recover the layout reference from page config before rendering `PageContent`.
+ * The returned type is widened to a generic record-based component because
+ * layouts may receive serialized `locals` during hydration.
+ *
+ * @param Page - Hydrated page component.
+ * @returns Configured layout component when present.
+ */
+function getLayoutFromPage(Page: ComponentType<unknown>): LayoutComponent | undefined {
+	const config = (Page as ComponentType & { config?: { layout?: LayoutComponent } }).config;
 	return config?.layout;
 }
 
@@ -62,17 +75,24 @@ export interface EcoRouterProps {
  *
  * Stored on window to persist across module reloads during HMR/SPA navigation.
  */
-function getLayoutCache(): Map<string, ComponentType> {
+function getLayoutCache(): Map<string, LayoutComponent> {
 	if (typeof window === 'undefined') {
 		return new Map();
 	}
-	const win = window as typeof window & { __ecoLayoutCache?: Map<string, ComponentType> };
+	const win = window as typeof window & { __ecoLayoutCache?: Map<string, LayoutComponent> };
 	if (!win.__ecoLayoutCache) {
 		win.__ecoLayoutCache = new Map();
 	}
 	return win.__ecoLayoutCache;
 }
 
+/**
+ * Normalizes a layout cache key so logically identical layouts reuse the same
+ * persistent instance across SPA navigations and HMR cycles.
+ *
+ * @param value - Raw layout identifier, display name, or injected module id.
+ * @returns Stable cache key.
+ */
 function normalizeLayoutKey(value: string): string {
 	const trimmed = value.trim();
 	if (!trimmed) return 'layout';
@@ -96,7 +116,9 @@ export function clearLayoutCache(): void {
  * Renders the current page with its layout.
  *
  * Must be a child of {@link EcoRouter}. When `persistLayouts` is enabled,
- * shared layouts remain mounted across navigations.
+ * shared layouts remain mounted across navigations. When the server serialized
+ * request `locals` for hydration, the same `locals` object is passed to the
+ * layout on the client so the hydrated tree matches SSR.
  *
  * @example
  * ```tsx
@@ -119,6 +141,7 @@ export const PageContent: FC = () => {
 	const { Component: Page, props } = pageContext;
 	const Layout = getLayoutFromPage(Page);
 	const pageElement = createElement(Page, props);
+	const layoutProps = props?.locals ? { locals: props.locals } : null;
 
 	if (!Layout) {
 		return pageElement;
@@ -126,7 +149,7 @@ export const PageContent: FC = () => {
 
 	if (persistLayouts) {
 		const layoutCache = getLayoutCache();
-		const layoutConfig = (Layout as ComponentType & { config?: { __eco?: EcoInjectedMeta } }).config;
+		const layoutConfig = (Layout as LayoutComponent & { config?: { __eco?: EcoInjectedMeta } }).config;
 		const layoutKeyRaw = layoutConfig?.__eco?.id || Layout.displayName || Layout.name || 'layout';
 		const layoutKey = normalizeLayoutKey(layoutKeyRaw);
 
@@ -135,10 +158,10 @@ export const PageContent: FC = () => {
 		}
 		const CachedLayout = layoutCache.get(layoutKey)!;
 
-		return createElement(CachedLayout, { key: layoutKey }, pageElement);
+		return createElement(CachedLayout, { key: layoutKey, ...(layoutProps ?? {}) }, pageElement);
 	}
 
-	return createElement(Layout, null, pageElement);
+	return createElement(Layout, layoutProps, pageElement);
 };
 
 function createDeferred<T>() {

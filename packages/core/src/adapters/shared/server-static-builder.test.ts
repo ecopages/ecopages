@@ -4,6 +4,7 @@ import type { EcoPagesAppConfig } from '../../internal-types';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
 import type { FSRouter } from '../../router/fs-router';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer';
+import { appLogger } from '../../global/app-logger.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -43,6 +44,7 @@ function createMockDependencies() {
 		ServeOptions,
 		Router,
 		RouteRendererFactory,
+		ApiHandlers: [],
 	};
 }
 
@@ -54,6 +56,31 @@ describe('ServerStaticBuilder', () => {
 	afterAll(() => {
 		fs.rmSync(TMP_DIR, { recursive: true, force: true });
 		vi.restoreAllMocks();
+	});
+
+	it('should warn when API handlers are registered for static build modes', async () => {
+		const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory } = createMockDependencies();
+		const warnSpy = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+
+		const builder = new ServerStaticBuilder({
+			appConfig: AppConfig,
+			staticSiteGenerator: StaticSiteGenerator,
+			serveOptions: ServeOptions,
+			apiHandlers: [
+				{ method: 'GET', path: '/api/auth/*', handler: vi.fn() } as any,
+				{ method: 'POST', path: '/api/auth/*', handler: vi.fn() } as any,
+			],
+		});
+
+		await builder.build(undefined, {
+			router: Router,
+			routeRendererFactory: RouteRendererFactory,
+		});
+
+		expect(warnSpy).toHaveBeenCalledWith(
+			'Registered API endpoints are not available in static build or preview modes because no server runtime is started. They are excluded from the generated output.\n',
+			'➤ GET /api/auth/*, POST /api/auth/*',
+		);
 	});
 
 	describe('constructor', () => {

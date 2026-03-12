@@ -6,6 +6,7 @@ import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../router/fs-router.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { PathUtils } from '../utils/path-utils.module.ts';
+import { PageModuleImportService } from '../services/page-module-import.service.ts';
 
 export const STATIC_SITE_GENERATOR_ERRORS = {
 	ROUTE_RENDERER_FACTORY_REQUIRED: 'RouteRendererFactory is required for render strategy',
@@ -19,9 +20,49 @@ export const STATIC_SITE_GENERATOR_ERRORS = {
 
 export class StaticSiteGenerator {
 	appConfig: EcoPagesAppConfig;
+	private pageModuleImportService = new PageModuleImportService();
 
 	constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
 		this.appConfig = appConfig;
+	}
+
+	private getStaticPageModuleOutdir(): string {
+		return path.join(this.appConfig.rootDir, this.appConfig.distDir, '.server-static-page-modules');
+	}
+
+	private warnDynamicPageSkipped(filePath: string): void {
+		appLogger.warn(
+			"Pages with cache: 'dynamic' are not supported in static generation or preview, so they will be skipped\n",
+			`➤ ${filePath}`,
+		);
+	}
+
+	private async shouldSkipStaticPageFile(filePath: string): Promise<boolean> {
+		const module = (await this.pageModuleImportService.importModule({
+			filePath,
+			rootDir: this.appConfig.rootDir,
+			outdir: this.getStaticPageModuleOutdir(),
+			externalPackages: false,
+			transpileErrorMessage: (details) => `Error transpiling static page module: ${details}`,
+			noOutputMessage: (targetFilePath) =>
+				`No transpiled output generated for static page module: ${targetFilePath}`,
+		})) as { default?: EcoPageComponent<any> };
+
+		if (module.default?.cache !== 'dynamic') {
+			return false;
+		}
+
+		this.warnDynamicPageSkipped(filePath);
+		return true;
+	}
+
+	private shouldSkipStaticView(routePath: string, view: EcoPageComponent<any>): boolean {
+		if (view.cache !== 'dynamic') {
+			return false;
+		}
+
+		this.warnDynamicPageSkipped(routePath);
+		return true;
 	}
 
 	generateRobotsTxt(): void {
@@ -98,6 +139,10 @@ export class StaticSiteGenerator {
 		for (const route of routes) {
 			try {
 				const { filePath, pathname: routePathname } = router.routes[route];
+				if (await this.shouldSkipStaticPageFile(filePath)) {
+					continue;
+				}
+
 				const ext = PathUtils.getEcoTemplateExtension(filePath);
 				const integration = this.appConfig.integrations.find((plugin) => plugin.extensions.includes(ext));
 				const strategy = integration?.staticBuildStep || 'render';
@@ -210,6 +255,9 @@ export class StaticSiteGenerator {
 			try {
 				const mod = await route.loader();
 				const view = mod.default;
+				if (this.shouldSkipStaticView(route.path, view)) {
+					continue;
+				}
 
 				const isDynamic = route.path.includes(':') || route.path.includes('[');
 

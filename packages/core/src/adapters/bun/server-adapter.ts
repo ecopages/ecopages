@@ -163,6 +163,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			appConfig: this.appConfig,
 			staticSiteGenerator: this.staticSiteGenerator,
 			serveOptions: this.serveOptions,
+			apiHandlers: this.apiHandlers,
 		};
 
 		this.staticBuilder = this.staticBuilderFactory

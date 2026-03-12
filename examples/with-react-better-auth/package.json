@@ -24,6 +24,8 @@
 		"@ecopages/react-router": "npm:@jsr/ecopages__react-router@latest",
 		"@tailwindcss/postcss": "^4.1.18",
 		"@types/bun": "latest",
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0",
 		"drizzle-kit": "^0.31.8",
 		"rehype-pretty-code": "^0.14.1",
 		"remark-gfm": "^4.0.1",

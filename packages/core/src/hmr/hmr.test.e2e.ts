@@ -44,32 +44,27 @@ test.describe('HMR E2E', () => {
 
 	test('should reload page when CSS file changes', async ({ page }) => {
 		const originalCss = readFileSync(TEST_CSS_FILE, 'utf-8');
+		const title = page.locator('.main-title').first();
 
-		await page.goto(TEST_URL, { waitUntil: 'networkidle' });
+		await writeFile(BUILT_CSS_FILE, originalCss, { flush: true });
 
-		const initialColor = await page.evaluate(() => {
-			const el = document.querySelector('.main-title');
-			return el ? getComputedStyle(el).color : null;
-		});
+		try {
+			await page.goto(TEST_URL, { waitUntil: 'networkidle' });
+			await expect(title).toBeVisible();
 
-		expect(initialColor).toBeTruthy();
+			const initialColor = await title.evaluate((el) => getComputedStyle(el).color);
+			expect(initialColor).toBeTruthy();
 
-		const modifiedCss = originalCss.replace('.main-title {', '.main-title {\n\tcolor: rgb(255, 0, 0);');
+			const modifiedCss = originalCss.replace('.main-title {', '.main-title {\n\tcolor: rgb(255, 0, 0);');
 
-		const loadPromise = page.waitForEvent('load', { timeout: 10000 });
+			await writeFile(TEST_CSS_FILE, modifiedCss, { flush: true });
 
-		await writeFile(TEST_CSS_FILE, modifiedCss, { flush: true });
-		await writeFile(BUILT_CSS_FILE, modifiedCss, { flush: true });
-
-		await loadPromise;
-
-		const updatedColor = await page.evaluate(() => {
-			const el = document.querySelector('.main-title');
-			return el ? getComputedStyle(el).color : null;
-		});
-
-		expect(updatedColor).toBe('rgb(255, 0, 0)');
-
-		await writeFile(TEST_CSS_FILE, originalCss, { flush: true });
+			await expect
+				.poll(async () => title.evaluate((el) => getComputedStyle(el).color), { timeout: 10000 })
+				.toBe('rgb(255, 0, 0)');
+		} finally {
+			await writeFile(TEST_CSS_FILE, originalCss, { flush: true });
+			await writeFile(BUILT_CSS_FILE, originalCss, { flush: true });
+		}
 	});
 });

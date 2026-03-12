@@ -82,4 +82,75 @@ describe('ReactRenderer locals split', () => {
 		expect(pageRenderMock.mock.calls[0]?.[0]?.locals).toBe(guardedPageLocals);
 		expect(layoutRenderMock.mock.calls[0]?.[0]?.locals).toBeUndefined();
 	});
+
+	it('serializes only locals declared in requires for hydration payloads', async () => {
+		const renderer = new TestReactRenderer({
+			appConfig,
+			assetProcessingService: assetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const Page = Object.assign(
+			vi.fn(() => 'page' as unknown as ReactNode),
+			{ requires: ['session'] as const },
+		) as unknown as IntegrationRendererRenderOptions<ReactNode>['Page'];
+
+		const htmlTemplateMock = vi.fn(({ children }: HtmlTemplateProps) => children as ReactNode);
+
+		await renderer.render({
+			file: '/tmp/pages/test.tsx',
+			params: {},
+			query: {},
+			props: {},
+			locals: {
+				session: { userId: 'u-1' },
+				csrfSecret: 'server-only-secret',
+			} as Record<string, unknown>,
+			pageLocals: {
+				session: { userId: 'u-1' },
+				csrfSecret: 'server-only-secret',
+			} as Record<string, unknown>,
+			metadata: appConfig.defaultMetadata,
+			Page,
+			Layout: undefined,
+			HtmlTemplate: htmlTemplateMock as IntegrationRendererRenderOptions<ReactNode>['HtmlTemplate'],
+			resolvedDependencies: [],
+			pageProps: {},
+		});
+
+		expect(htmlTemplateMock.mock.calls[0]?.[0]?.pageProps?.locals).toEqual({
+			session: { userId: 'u-1' },
+		});
+		expect(htmlTemplateMock.mock.calls[0]?.[0]?.pageProps?.locals).not.toHaveProperty('csrfSecret');
+	});
+
+	it('does not serialize locals when requires is not declared', async () => {
+		const renderer = new TestReactRenderer({
+			appConfig,
+			assetProcessingService: assetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const Page = vi.fn(
+			() => 'page' as unknown as ReactNode,
+		) as unknown as IntegrationRendererRenderOptions<ReactNode>['Page'];
+		const htmlTemplateMock = vi.fn(({ children }: HtmlTemplateProps) => children as ReactNode);
+
+		await renderer.render({
+			file: '/tmp/pages/test.tsx',
+			params: {},
+			query: {},
+			props: {},
+			locals: { session: { userId: 'u-1' } } as Record<string, unknown>,
+			pageLocals: { session: { userId: 'u-1' } } as Record<string, unknown>,
+			metadata: appConfig.defaultMetadata,
+			Page,
+			Layout: undefined,
+			HtmlTemplate: htmlTemplateMock as IntegrationRendererRenderOptions<ReactNode>['HtmlTemplate'],
+			resolvedDependencies: [],
+			pageProps: {},
+		});
+
+		expect(htmlTemplateMock.mock.calls[0]?.[0]?.pageProps?.locals).toBeUndefined();
+	});
 });

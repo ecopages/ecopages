@@ -4,6 +4,8 @@ import { StaticSiteGenerator } from './static-site-generator';
 import type { EcoPagesAppConfig } from '../internal-types';
 import type { FSRouter } from '../router/fs-router';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer';
+import { appLogger } from '../global/app-logger.ts';
+import { PageModuleImportService } from '../services/page-module-import.service.ts';
 
 const originalEnsureDir = fileSystem.ensureDir;
 const originalWrite = fileSystem.write;
@@ -32,6 +34,10 @@ describe('StaticSiteGenerator', () => {
 		writeMock = vi.fn(() => {});
 		fileSystem.ensureDir = ensureDirMock;
 		fileSystem.write = writeMock;
+		vi.spyOn(PageModuleImportService.prototype, 'importModule').mockResolvedValue({
+			default: Object.assign(() => null, { cache: 'static' }),
+		});
+		vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
 	});
 
 	afterEach(() => {
@@ -220,6 +226,32 @@ describe('StaticSiteGenerator', () => {
 
 			expect(writeMock).toHaveBeenCalledWith(expect.stringContaining('index.html'), bufferContent);
 		});
+
+		test('should skip cache dynamic pages during static generation and log a warning', async () => {
+			vi.spyOn(PageModuleImportService.prototype, 'importModule').mockResolvedValue({
+				default: Object.assign(() => null, { cache: 'dynamic' }),
+			});
+
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+			const Router = createMockRouter({
+				'/dashboard': { filePath: '/src/pages/dashboard.tsx', pathname: '/dashboard' },
+			});
+
+			const RendererFactory = {
+				createRenderer: vi.fn(() => ({
+					createRoute: vi.fn(async () => ({ body: '<html>Dashboard</html>' })),
+				})),
+			} as unknown as RouteRendererFactory;
+
+			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+
+			expect(RendererFactory.createRenderer).not.toHaveBeenCalled();
+			expect(writeMock).not.toHaveBeenCalled();
+			expect(appLogger.warn).toHaveBeenCalledWith(
+				"Pages with cache: 'dynamic' are not supported in static generation or preview, so they will be skipped\n",
+				'➤ /src/pages/dashboard.tsx',
+			);
+		});
 	});
 
 	describe('run', () => {
@@ -237,6 +269,33 @@ describe('StaticSiteGenerator', () => {
 
 			expect(ensureDirMock).toHaveBeenCalled();
 			expect(writeMock).toHaveBeenCalledWith('.eco/robots.txt', expect.any(String));
+		});
+
+		test('should skip explicit static routes backed by cache dynamic views', async () => {
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+			const dynamicView = Object.assign(() => null, { cache: 'dynamic' }) as any;
+
+			await ssg.run({
+				router: {
+					routes: {},
+					origin: 'http://localhost:3000',
+				} as unknown as FSRouter,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: {
+					getRendererByIntegration: vi.fn(),
+				} as unknown as RouteRendererFactory,
+				staticRoutes: [
+					{
+						path: '/dashboard',
+						loader: async () => ({ default: dynamicView }),
+					},
+				],
+			});
+
+			expect(appLogger.warn).toHaveBeenCalledWith(
+				"Pages with cache: 'dynamic' are not supported in static generation or preview, so they will be skipped\n",
+				'➤ /dashboard',
+			);
 		});
 	});
 });

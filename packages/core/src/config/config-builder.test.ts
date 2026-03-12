@@ -174,7 +174,7 @@ describe('EcoConfigBuilder', () => {
 			createMockIntegration('kitajs', ['.kita.tsx']),
 			createMockIntegration('react', ['.tsx']),
 		];
-		const warnSpy = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+		const warnSpy = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
 
 		await expect(
 			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),

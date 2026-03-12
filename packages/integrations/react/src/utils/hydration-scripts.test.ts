@@ -1,5 +1,56 @@
 import { describe, expect, test } from 'vitest';
-import { createIslandHydrationScript } from './hydration-scripts.ts';
+import { createHydrationScript, createIslandHydrationScript } from './hydration-scripts.ts';
+
+describe('createHydrationScript', () => {
+	const baseOptions = {
+		importPath: '/assets/page.js',
+		reactImportPath: '/assets/react.js',
+		reactDomClientImportPath: '/assets/react-dom-client.js',
+		isMdx: false,
+	};
+
+	test('development output passes serialized locals to layout hydration for non-router pages', () => {
+		const script = createHydrationScript({
+			...baseOptions,
+			isDevelopment: true,
+		});
+
+		expect(script).toContain('const layoutProps = props?.locals ? { locals: props.locals } : null;');
+		expect(script).toContain('return Layout ? createElement(Layout, layoutProps, pageElement) : pageElement;');
+	});
+
+	test('development output passes serialized locals to layout hydration for non-router MDX pages', () => {
+		const script = createHydrationScript({
+			...baseOptions,
+			isDevelopment: true,
+			isMdx: true,
+		});
+
+		expect(script).toContain('const layoutProps = props?.locals ? { locals: props.locals } : null;');
+		expect(script).toContain('return Layout ? createElement(Layout, layoutProps, pageElement) : pageElement;');
+	});
+
+	test('production output passes serialized locals to layout hydration for non-router pages', () => {
+		const script = createHydrationScript({
+			...baseOptions,
+			isDevelopment: false,
+		});
+
+		expect(script).toContain('const lp=p?.locals?{locals:p.locals}:null;');
+		expect(script).toContain('return L?ce(L,lp,pe):pe');
+	});
+
+	test('production output passes serialized locals to layout hydration for non-router MDX pages', () => {
+		const script = createHydrationScript({
+			...baseOptions,
+			isDevelopment: false,
+			isMdx: true,
+		});
+
+		expect(script).toContain('const lp=p?.locals?{locals:p.locals}:null;');
+		expect(script).toContain('return L?ce(L,lp,pe):pe');
+	});
+});
 
 describe('createIslandHydrationScript', () => {
 	const baseOptions = {

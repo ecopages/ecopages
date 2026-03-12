@@ -116,6 +116,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			appConfig: this.appConfig,
 			staticSiteGenerator: this.staticSiteGenerator,
 			serveOptions: this.serveOptions,
+			apiHandlers: this.apiHandlers,
 		});
 		this.initialized = true;
 	}

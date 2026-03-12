@@ -70,6 +70,8 @@ All notable changes to `@ecopages/core` are documented here.
 - Added async task queue to `ProjectWatcher` to serialize concurrent file change handling and prevent overlapping builds.
 - Batched `JsHmrStrategy` entrypoint builds into a single esbuild invocation for improved AST sharing and rebuild speed.
 - Added `outbase` support to `BuildOptions` for correct output directory structure with multi-entrypoint builds.
+- Static generation and preview now skip pages with `cache: 'dynamic'` and warn instead of attempting to render request-time routes (`unreleased`).
+- Static build and preview now warn when registered API endpoints will be unavailable because no server runtime is started (`unreleased`).
 
 ### Tests
 

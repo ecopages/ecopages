@@ -158,7 +158,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				input.props,
 				componentConfig,
 			);
-			rootAttributes = { 'data-eco-component-id': componentInstanceId };
+			rootAttributes = {
+				'data-eco-component-id': componentInstanceId,
+				'data-eco-props': btoa(JSON.stringify(input.props ?? {})),
+			};
 		}
 
 		return {

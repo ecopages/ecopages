@@ -70,8 +70,10 @@ describe('createIslandHydrationScript', () => {
 		});
 
 		expect(script).toContain('document.addEventListener("eco:after-swap", mount);');
-		expect(script).toContain('target.hasAttribute("data-eco-react-mounted")');
-		expect(script).toContain('target.setAttribute("data-eco-react-mounted", "true")');
+		expect(script).toContain('document.createElement("eco-island")');
+		expect(script).toContain('container.style.display = "contents"');
+		expect(script).toContain('target.replaceWith(container)');
+		expect(script).toContain('JSON.parse(atob(target.getAttribute("data-eco-props")');
 		expect(script).toContain('document.addEventListener("DOMContentLoaded", mount, { once: true });');
 	});
 
@@ -82,8 +84,10 @@ describe('createIslandHydrationScript', () => {
 		});
 
 		expect(script).toContain('document.addEventListener("eco:after-swap",m)');
-		expect(script).toContain('hasAttribute("data-eco-react-mounted")');
-		expect(script).toContain('setAttribute("data-eco-react-mounted","true")');
+		expect(script).toContain('createElement("eco-island")');
+		expect(script).toContain('style.display="contents"');
+		expect(script).toContain('replaceWith(ct)');
+		expect(script).toContain('JSON.parse(atob(t.getAttribute("data-eco-props")');
 		expect(script).toContain('DOMContentLoaded",m,{once:true}');
 	});
 });

@@ -279,10 +279,8 @@ export function createHydrationScript(options: HydrationScriptOptions): string {
  */
 export function createIslandHydrationScript(options: IslandHydrationScriptOptions): string {
 	const targetSelector = JSON.stringify(options.targetSelector);
-	const serializedProps = JSON.stringify(options.props ?? {});
 	const componentRef = JSON.stringify(options.componentRef ?? '');
 	const componentFile = JSON.stringify(options.componentFile ?? '');
-	const mountedAttribute = 'data-eco-react-mounted';
 
 	if (options.isDevelopment) {
 		return `
@@ -321,12 +319,14 @@ const resolveComponent = () => {
 const mount = () => {
   const target = document.querySelector(${targetSelector});
   const Component = resolveComponent();
-  if (!target || !Component || target.hasAttribute("${mountedAttribute}")) {
+  if (!target || !Component) {
     return;
   }
-  const props = ${serializedProps};
-  target.setAttribute("${mountedAttribute}", "true");
-  const root = createRoot(target);
+  const props = JSON.parse(atob(target.getAttribute("data-eco-props") || "e30="));
+  const container = document.createElement("eco-island");
+  container.style.display = "contents";
+  target.replaceWith(container);
+  const root = createRoot(container);
   root.render(createElement(Component, props));
 };
 
@@ -339,5 +339,5 @@ if (document.readyState === "loading") {
 `.trim();
 	}
 
-	return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const m=()=>{const t=document.querySelector(${targetSelector});if(!t||!c||t.hasAttribute("${mountedAttribute}"))return;const p=${serializedProps};t.setAttribute("${mountedAttribute}","true");cr(t).render(ce(c,p))};document.addEventListener("eco:after-swap",m);document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m,{once:true}):m()`;
+	return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const m=()=>{const t=document.querySelector(${targetSelector});if(!t||!c)return;const p=JSON.parse(atob(t.getAttribute("data-eco-props")||"e30="));const ct=document.createElement("eco-island");ct.style.display="contents";t.replaceWith(ct);cr(ct).render(ce(c,p))};document.addEventListener("eco:after-swap",m);document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m,{once:true}):m()`;
 }

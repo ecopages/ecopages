@@ -1,0 +1,15 @@
+/* View transitions for React Router */
+
+/* Disable root animation - prevents full page flash */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	::view-transition-group(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none !important;
+	}
+}

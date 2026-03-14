@@ -18,8 +18,7 @@ import {
 	type ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import { createHydrationScript } from '../utils/hydration-scripts.ts';
-import { createIslandHydrationScript } from '../utils/hydration-scripts.ts';
+import { createHydrationScript, createIslandHydrationScript } from '../utils/hydration-scripts.ts';
 import { collectDeclaredModulesInConfig } from '../utils/declared-modules.ts';
 import type { ReactBundleService } from './react-bundle.service.ts';
 import type { ReactHmrPageMetadataCache } from './react-hmr-page-metadata-cache.ts';

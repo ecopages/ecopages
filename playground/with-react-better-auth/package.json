@@ -1,0 +1,41 @@
+{
+	"name": "with-react-better-auth",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "ecopages start",
+		"dev": "ecopages dev -r",
+		"build": "ecopages build",
+		"preview": "ecopages preview",
+		"dev:watch": "ecopages dev:watch -r",
+		"dev:hot": "ecopages dev:hot -r",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "bun run src/lib/migrate.ts",
+		"db:push": "drizzle-kit push"
+	},
+	"devDependencies": {
+		"ecopages": "workspace:*",
+		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
+		"@ecopages/image-processor": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
+		"@ecopages/react": "workspace:*",
+		"@ecopages/react-router": "workspace:*",
+		"@tailwindcss/postcss": "^4.1.18",
+		"@types/bun": "latest",
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0",
+		"drizzle-kit": "^0.31.8",
+		"rehype-pretty-code": "^0.14.1",
+		"remark-gfm": "^4.0.1",
+		"tailwindcss": "^4.1.18",
+		"typescript": "^5.7.2"
+	},
+	"dependencies": {
+		"better-auth": "^1.2.0",
+		"drizzle-orm": "^0.45.1",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0"
+	}
+}

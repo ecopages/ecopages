@@ -1,0 +1,7 @@
+.auth-nav {
+	@apply flex items-center gap-4;
+}
+
+.auth-nav__link {
+	@apply text-sm font-medium text-muted hover:text-on-background transition-colors;
+}

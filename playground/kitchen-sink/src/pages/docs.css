@@ -1,0 +1,50 @@
+.docs-page__prose {
+	@apply leading-relaxed text-zinc-900 dark:text-zinc-100 max-w-none;
+
+	h1,
+	h2,
+	h3 {
+		@apply font-semibold font-display tracking-tight;
+	}
+
+	h1 {
+		@apply text-3xl;
+	}
+
+	h2 {
+		@apply text-2xl;
+	}
+
+	h3 {
+		@apply text-xl text-zinc-500 dark:text-zinc-400;
+	}
+
+	p {
+		@apply text-sm my-4;
+	}
+
+	a {
+		@apply underline underline-offset-2 text-blue-600 dark:text-blue-400;
+	}
+
+	ul,
+	ol {
+		@apply text-sm my-4 pl-6 list-disc;
+	}
+
+	li {
+		@apply my-1;
+	}
+
+	code {
+		@apply text-sm py-0.5 px-1.5 rounded bg-background-accent font-mono;
+	}
+
+	pre {
+		@apply p-4 rounded-lg overflow-x-auto my-6 bg-background-accent text-on-background-accent;
+
+		code {
+			@apply bg-transparent p-0 text-inherit;
+		}
+	}
+}

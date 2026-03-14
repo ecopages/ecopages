@@ -1,11 +1,6 @@
 export function ThemeToggle() {
 	return (
-		<button
-			id="theme-toggle"
-			class="button"
-			title="Toggle theme"
-			aria-label="Toggle theme"
-		>
+		<button id="theme-toggle" class="button" title="Toggle theme" aria-label="Toggle theme">
 			<span class="dark-hidden">Dark Mode</span>
 			<span class="light-hidden hidden">Light Mode</span>
 			<script>

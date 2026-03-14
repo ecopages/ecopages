@@ -11,7 +11,9 @@ export const KitaCounter = eco.component<{}, EcoPagesElement>({
 			<button class="integration-counter__button" type="button" data-kita-inc>
 				+
 			</button>
-			<span class="integration-counter__value" data-kita-value>0</span>
+			<span class="integration-counter__value" data-kita-value>
+				0
+			</span>
 		</div>
 	),
 });

@@ -57,5 +57,17 @@
 	},
 	"module": "src/index.js",
 	"repository": "https://github.com/ecopages/ecopages.git",
-	"type": "module"
+	"type": "module",
+	"workspaces": [
+		"npm/*",
+		"packages/*",
+		"packages/core/__fixtures__/app",
+		"packages/integrations/*",
+		"packages/loaders/*",
+		"packages/plugins/*",
+		"packages/processors/*",
+		"playground/*",
+		"e2e/fixtures/*",
+		"apps/*"
+	]
 }

@@ -15,12 +15,15 @@ export default eco.page({
 			<div class="space-y-10">
 				<section class="section--featured border-dashed border-sky-400">
 					<div class="space-y-5">
-						<p class="text-sm font-semibold uppercase tracking-[0.28em] text-fuchsia-500">PostCSS Validation</p>
+						<p class="text-sm font-semibold uppercase tracking-[0.28em] text-fuchsia-500">
+							PostCSS Validation
+						</p>
 						<h2 class="font-display text-4xl font-semibold tracking-tight lg:text-5xl">
 							Testing inline and component BEM classes.
 						</h2>
 						<p class="max-w-2xl text-lg leading-8 text-muted">
-							This page verifies that the updated CSS BEM methodology seamlessly functions alongside raw ad-hoc tailwind utility variations.
+							This page verifies that the updated CSS BEM methodology seamlessly functions alongside raw
+							ad-hoc tailwind utility variations.
 						</p>
 						<div class="flex flex-wrap gap-3">
 							<button class="button button--primary shadow-xl shadow-sky-500/20 hover:scale-105">
@@ -36,9 +39,15 @@ export default eco.page({
 						<div class="mt-4 space-y-3 text-sm text-on-background-accent">
 							<p>This BEM `.card--accent` also leverages:</p>
 							<ul class="list-disc pl-5">
-								<li><code>transform rotate-1</code></li>
-								<li><code>bg-gradient-to-br</code></li>
-								<li><code>to-sky-50 dark:to-sky-950</code></li>
+								<li>
+									<code>transform rotate-1</code>
+								</li>
+								<li>
+									<code>bg-gradient-to-br</code>
+								</li>
+								<li>
+									<code>to-sky-50 dark:to-sky-950</code>
+								</li>
 							</ul>
 						</div>
 					</div>

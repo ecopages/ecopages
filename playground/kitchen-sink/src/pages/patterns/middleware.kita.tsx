@@ -20,15 +20,16 @@ export default eco.page({
 			<div class="section--split">
 				<section class="card">
 					<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Page middleware</p>
-					<h1 class="mt-3 font-display text-4xl font-semibold tracking-tight">Request locals become normal render inputs.</h1>
+					<h1 class="mt-3 font-display text-4xl font-semibold tracking-tight">
+						Request locals become normal render inputs.
+					</h1>
 					<p class="mt-4 text-base leading-8 text-muted">
-						The middleware for this route attaches a request id, feature flags, and viewer role before rendering the page. The same locals also appear in the layout header.
+						The middleware for this route attaches a request id, feature flags, and viewer role before
+						rendering the page. The same locals also appear in the layout header.
 					</p>
 					<div class="mt-6 flex flex-wrap gap-2">
 						{locals?.featureFlags?.map((flag) => (
-							<span class="badge">
-								{flag}
-							</span>
+							<span class="badge">{flag}</span>
 						))}
 					</div>
 				</section>

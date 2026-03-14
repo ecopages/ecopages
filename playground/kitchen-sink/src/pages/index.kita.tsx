@@ -57,7 +57,8 @@ export default eco.page({
 	layout: BaseLayout,
 	metadata: () => ({
 		title: 'Kitchen Sink',
-		description: 'A broad Ecopages showcase for routing, images, mixed integrations, explicit routes, middleware, locals, and grouped APIs.',
+		description:
+			'A broad Ecopages showcase for routing, images, mixed integrations, explicit routes, middleware, locals, and grouped APIs.',
 		url: '/',
 	}),
 	render: () => {
@@ -70,8 +71,9 @@ export default eco.page({
 							One playground that exercises the runtime instead of just proving it boots.
 						</h2>
 						<p class="max-w-2xl text-lg leading-8 text-muted">
-							This kitchen sink now mixes file-system pages, browser-router navigation, image processing, cross-integration
-							rendering, explicit routes, request middleware, locals, grouped handlers, and imperative rendering.
+							This kitchen sink now mixes file-system pages, browser-router navigation, image processing,
+							cross-integration rendering, explicit routes, request middleware, locals, grouped handlers,
+							and imperative rendering.
 						</p>
 						<div class="flex flex-wrap gap-3">
 							<a href="/integration-matrix" class="button button--primary">
@@ -89,21 +91,23 @@ export default eco.page({
 							<li>{releaseNotes.length} release notes powering an explicit ctx.render() route.</li>
 							<li>{liveAnnouncements.length} mutable announcements served by the admin API group.</li>
 							<li>Browser-router navigation runs across the shared kitchen-sink shell.</li>
-							<li>Image processing and mixed Kita, Lit, React, and MDX composition are covered by dedicated routes.</li>
+							<li>
+								Image processing and mixed Kita, Lit, React, and MDX composition are covered by
+								dedicated routes.
+							</li>
 						</ul>
 					</div>
 				</section>
 
 				<section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 					{featureMatrix.map((feature) => (
-						<a
-							href={feature.href}
-							class="card card--hoverable group"
-						>
+						<a href={feature.href} class="card card--hoverable group">
 							<p class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600">Use case</p>
 							<h3 class="mt-3 font-display text-2xl font-semibold tracking-tight">{feature.title}</h3>
 							<p class="mt-2 text-sm leading-7 text-muted">{feature.description}</p>
-							<p class="mt-4 text-sm font-semibold text-on-background transition group-hover:text-sky-600">Open route</p>
+							<p class="mt-4 text-sm font-semibold text-on-background transition group-hover:text-sky-600">
+								Open route
+							</p>
 						</a>
 					))}
 				</section>
@@ -113,30 +117,57 @@ export default eco.page({
 						<p class="text-xs font-semibold uppercase tracking-[0.28em] text-muted">What to click</p>
 						<div class="mt-4 space-y-4 text-sm leading-7 text-muted">
 							<p>
-								Open <a class="text-sky-600 underline underline-offset-2" href="/integration-matrix">/integration-matrix</a> and then hop to the Lit and React entries to verify browser-router transitions while each integration renders the others.
+								Open{' '}
+								<a class="text-sky-600 underline underline-offset-2" href="/integration-matrix">
+									/integration-matrix
+								</a>{' '}
+								and then hop to the Lit and React entries to verify browser-router transitions while
+								each integration renders the others.
 							</p>
 							<p>
-								Visit <a class="text-sky-600 underline underline-offset-2" href="/images">/images</a> to inspect image-processor variants, constrained layouts, and a view-transition-ready asset.
+								Visit{' '}
+								<a class="text-sky-600 underline underline-offset-2" href="/images">
+									/images
+								</a>{' '}
+								to inspect image-processor variants, constrained layouts, and a view-transition-ready
+								asset.
 							</p>
 							<p>
-								Visit <a class="text-sky-600 underline underline-offset-2" href="/patterns/middleware?flag=locals&flag=dynamic">/patterns/middleware?flag=locals&flag=dynamic</a> to watch
-								request locals flow into the page and layout.
+								Visit{' '}
+								<a
+									class="text-sky-600 underline underline-offset-2"
+									href="/patterns/middleware?flag=locals&flag=dynamic"
+								>
+									/patterns/middleware?flag=locals&flag=dynamic
+								</a>{' '}
+								to watch request locals flow into the page and layout.
 							</p>
 							<p>
-								Open <a class="text-sky-600 underline underline-offset-2" href="/latest">/latest</a> to see an imperative handler call <span class="font-mono">ctx.render()</span> with a normal EcoPages view.
+								Open{' '}
+								<a class="text-sky-600 underline underline-offset-2" href="/latest">
+									/latest
+								</a>{' '}
+								to see an imperative handler call <span class="font-mono">ctx.render()</span> with a
+								normal EcoPages view.
 							</p>
 							<p>
-								Send a POST to <span class="font-mono">/api/v1/admin/announcements</span> with the <span class="font-mono">x-kitchen-role: admin</span> header to exercise the grouped handler middleware chain.
+								Send a POST to <span class="font-mono">/api/v1/admin/announcements</span> with the{' '}
+								<span class="font-mono">x-kitchen-role: admin</span> header to exercise the grouped
+								handler middleware chain.
 							</p>
 						</div>
 					</div>
 					<div class="card p-6">
-						<p class="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Static catalog entries</p>
+						<p class="text-xs font-semibold uppercase tracking-[0.28em] text-muted">
+							Static catalog entries
+						</p>
 						<div class="mt-4 grid gap-4 md:grid-cols-2">
 							{showcasePatterns.map((pattern) => (
 								<a href={`/catalog/${pattern.slug}`} class="card card--accent">
 									<p class="text-xs uppercase tracking-[0.24em] text-muted">{pattern.stage}</p>
-									<h3 class="mt-2 font-display text-2xl font-semibold tracking-tight text-on-background-accent">{pattern.title}</h3>
+									<h3 class="mt-2 font-display text-2xl font-semibold tracking-tight text-on-background-accent">
+										{pattern.title}
+									</h3>
 									<p class="mt-2 text-sm leading-6 text-muted">{pattern.summary}</p>
 								</a>
 							))}

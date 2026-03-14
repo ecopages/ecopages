@@ -43,7 +43,9 @@ export default eco.page<CatalogPageProps>({
 			return (
 				<section class="rounded-[1.75rem] border border-border bg-background p-8">
 					<h1 class="font-display text-4xl font-semibold tracking-tight">Unknown catalog entry</h1>
-					<p class="mt-4 text-muted">No static props were found for the slug <span class="font-mono">{params?.slug as string}</span>.</p>
+					<p class="mt-4 text-muted">
+						No static props were found for the slug <span class="font-mono">{params?.slug as string}</span>.
+					</p>
 				</section>
 			);
 		}
@@ -51,7 +53,9 @@ export default eco.page<CatalogPageProps>({
 		return (
 			<div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
 				<section class="rounded-[1.75rem] border border-border bg-background p-8">
-					<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Static paths + static props</p>
+					<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">
+						Static paths + static props
+					</p>
 					<h1 class="mt-3 font-display text-4xl font-semibold tracking-tight">{pattern.title}</h1>
 					<p class="mt-4 text-base leading-8 text-muted">{pattern.summary}</p>
 					<div class="mt-6 flex flex-wrap gap-2">

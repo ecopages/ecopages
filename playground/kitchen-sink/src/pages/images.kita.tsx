@@ -16,10 +16,13 @@ export default eco.page({
 		<div class="space-y-8">
 			<section class="card space-y-4">
 				<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Image processor</p>
-				<h1 class="font-display text-4xl font-semibold tracking-tight">One local asset, multiple delivery modes.</h1>
+				<h1 class="font-display text-4xl font-semibold tracking-tight">
+					One local asset, multiple delivery modes.
+				</h1>
 				<p class="max-w-3xl text-base leading-8 text-muted">
-					This route exercises the image processor inside the kitchen sink with static variants, constrained sizing,
-					full-width layouts, and styling overrides against the local <span class="font-mono">kita-kamakura.png</span> source file.
+					This route exercises the image processor inside the kitchen sink with static variants, constrained
+					sizing, full-width layouts, and styling overrides against the local{' '}
+					<span class="font-mono">kita-kamakura.png</span> source file.
 				</p>
 			</section>
 
@@ -59,8 +62,8 @@ export default eco.page({
 						data-view-transition="kitchen-sink-kamakura"
 					/>
 					<p class="text-sm leading-7 text-muted">
-						This image carries a stable <span class="font-mono">data-view-transition</span> key so the browser router
-						can animate it between routes when another page reuses the same asset.
+						This image carries a stable <span class="font-mono">data-view-transition</span> key so the
+						browser router can animate it between routes when another page reuses the same asset.
 					</p>
 				</div>
 			</section>
@@ -68,9 +71,20 @@ export default eco.page({
 			<section class="card card--accent space-y-4">
 				<p class="text-xs uppercase tracking-[0.24em] text-muted">Render notes</p>
 				<ul class="space-y-3 text-sm leading-7 text-on-background-accent">
-					<li>Imports from <span class="font-mono">ecopages:images</span> are auto-detected and bundled.</li>
-					<li>The same source asset can be rendered in Kita pages and React routes through the matching EcoImage component.</li>
-					<li>Open <a class="underline underline-offset-2 text-sky-600" href="/integration-matrix/react-entry">the React entry</a> to see the same asset handled through the React integration.</li>
+					<li>
+						Imports from <span class="font-mono">ecopages:images</span> are auto-detected and bundled.
+					</li>
+					<li>
+						The same source asset can be rendered in Kita pages and React routes through the matching
+						EcoImage component.
+					</li>
+					<li>
+						Open{' '}
+						<a class="underline underline-offset-2 text-sky-600" href="/integration-matrix/react-entry">
+							the React entry
+						</a>{' '}
+						to see the same asset handled through the React integration.
+					</li>
 				</ul>
 			</section>
 		</div>

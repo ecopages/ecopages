@@ -8,6 +8,21 @@ import { ReactRenderer } from '../react-renderer';
 import { ErrorPage } from './fixture/error-page';
 import { Page } from './fixture/test-page';
 
+const mockRouterAdapter = {
+	name: 'test-router',
+	bundle: {
+		importPath: '@test/router/browser',
+		outputName: 'test-router',
+		externals: ['react', 'react-dom'],
+	},
+	importMapKey: '@test/router',
+	components: {
+		router: 'TestRouter',
+		pageContent: 'TestPageContent',
+	},
+	getRouterProps: (page: string, props: string) => `{ page: ${page}, pageProps: ${props} }`,
+};
+
 const testDir = path.join(__dirname, 'fixture/.eco');
 
 const Config = await new ConfigBuilder()
@@ -135,6 +150,37 @@ describe('ReactRenderer', () => {
 			expect(result.canAttachAttributes).toBe(true);
 			expect(result.rootAttributes).toEqual({ 'data-eco-component-id': 'island-1' });
 			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
+		});
+
+		it('should not emit island assets when no componentInstanceId is provided', async () => {
+			const originalRouterAdapter = ReactRenderer.routerAdapter;
+			ReactRenderer.routerAdapter = mockRouterAdapter;
+
+			try {
+				const { testRenderer, assetProcessingService } = createRendererWithAssets();
+				const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
+					title: string;
+				}>;
+				Component.config = {
+					__eco: {
+						id: 'component-id',
+						file: pageFilePath,
+						integration: 'react',
+					},
+				};
+
+				const result = await testRenderer.renderComponent({
+					component: Component,
+					props: { title: 'Page child' },
+				});
+
+				expect(result.canAttachAttributes).toBe(true);
+				expect(result.rootAttributes).toBeUndefined();
+				expect(result.assets).toBeUndefined();
+				expect(assetProcessingService.processDependencies).not.toHaveBeenCalled();
+			} finally {
+				ReactRenderer.routerAdapter = originalRouterAdapter;
+			}
 		});
 	});
 

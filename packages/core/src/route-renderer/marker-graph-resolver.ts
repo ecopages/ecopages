@@ -93,6 +93,9 @@ export class MarkerGraphResolver {
 				component,
 				props,
 				children,
+				integrationContext: {
+					componentInstanceId: marker.nodeId,
+				},
 			});
 
 			if (componentRender.assets?.length) {

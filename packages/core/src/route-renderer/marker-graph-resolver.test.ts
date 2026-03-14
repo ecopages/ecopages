@@ -52,6 +52,55 @@ describe('MarkerGraphResolver', () => {
 			component: Nested,
 			props: { count: 3 },
 			children: undefined,
+			integrationContext: {
+				componentInstanceId: 'n_1',
+			},
+		});
+	});
+
+	it('should pass stable marker node ids as component instance ids for nested renders', async () => {
+		const service = new MarkerGraphResolver();
+		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
+		Nested.config = {
+			integration: 'react',
+			__eco: {
+				id: 'nested-component',
+				file: '/app/components/nested-component.tsx',
+				integration: 'react',
+			},
+		};
+		const renderComponent = vi.fn(async () => ({
+			html: '<aside>Nested Render</aside>',
+			canAttachAttributes: true,
+			rootTag: 'aside',
+			integrationName: 'react',
+		}));
+
+		await service.resolve({
+			html: `<main>${createComponentMarker({
+				nodeId: 'n_42',
+				integration: 'react',
+				componentRef: 'nested-component',
+				propsRef: 'p_1',
+			})}</main>`,
+			componentsToResolve: [Nested],
+			graphContext: {
+				propsByRef: {
+					p_1: { count: 7 },
+				},
+				slotChildrenByRef: {},
+			},
+			resolveRenderer: () => ({ renderComponent }),
+			applyAttributesToFirstElement: (fragment) => fragment,
+		});
+
+		expect(renderComponent).toHaveBeenCalledWith({
+			component: Nested,
+			props: { count: 7 },
+			children: undefined,
+			integrationContext: {
+				componentInstanceId: 'n_42',
+			},
 		});
 	});
 

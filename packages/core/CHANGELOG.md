@@ -70,6 +70,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Added async task queue to `ProjectWatcher` to serialize concurrent file change handling and prevent overlapping builds.
 - Batched `JsHmrStrategy` entrypoint builds into a single esbuild invocation for improved AST sharing and rebuild speed.
 - Added `outbase` support to `BuildOptions` for correct output directory structure with multi-entrypoint builds.
+- Fixed marker graph resolution to pass stable component instance ids into nested integration renders so cross-integration islands continue hydrating after the React explicit-island change (`unreleased`).
 - Static generation and preview now skip pages with `cache: 'dynamic'` and warn instead of attempting to render request-time routes (`unreleased`).
 - Static build and preview now warn when registered API endpoints will be unavailable because no server runtime is started (`unreleased`).
 
@@ -78,6 +79,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Added node static content server test coverage (`435dc250`).
 - Strengthened HTML transformer mode matrix coverage (`286c1253`).
 - Aligned integration and dependency processing tests to new orchestration model (`7cc73316`).
+- Added marker graph regression coverage for nested integration render instance ids (`unreleased`).
 - Added `EsbuildBuildAdapter` test suite with 500+ lines (`build-adapter.test.ts`).
 - Added `file-route-middleware-pipeline` tests.
 

@@ -44,6 +44,7 @@ All notable changes to `@ecopages/react` are documented here.
 ### Bug Fixes
 
 - Inlined the React MDX loader so React apps no longer need to install `@ecopages/mdx` when enabling React MDX support (`unreleased`).
+- Fixed React component renders to emit island hydration only when an explicit instance id is provided, avoiding implicit island treatment inside fully React pages (`unreleased`).
 - Fixed stale temp module race during Fast Refresh cycles (`b2cf8466`).
 - Fixed client graph boundary wiring for runtime dependencies (`4b6cd32e`).
 - Fixed shared React barrel handling so client-reachable server-only re-exports now fail the build instead of being silently pruned (`unreleased`).
@@ -60,6 +61,7 @@ All notable changes to `@ecopages/react` are documented here.
 - Added `html-boundary.test.ts` covering boundary wrapping utilities.
 - Added `hydration-scripts.test.ts` with hydration script generation coverage.
 - Added `reachability-analyzer.test.ts` (187 lines) covering export declaration reachability.
+- Added a React renderer regression test to prevent implicit island hydration for router-backed component renders (`unreleased`).
 - Updated integration tests for esbuild adapter compatibility (`31a44458`).
 
 ---

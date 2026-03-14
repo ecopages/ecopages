@@ -65,7 +65,6 @@ export class BundleError extends Error {
 export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	name = PLUGIN_NAME;
 	componentDirectory = RESOLVED_ASSETS_DIR;
-	private componentRenderSequence = 0;
 	static routerAdapter: ReactRouterAdapter | undefined;
 	static mdxCompilerOptions: CompileOptions | undefined;
 	static mdxExtensions: string[] = ['.mdx'];
@@ -128,9 +127,9 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 *
 	 * Behavior:
 	 * - SSR always returns the component's own root HTML (no synthetic wrapper).
-	 * - For single-root output, a stable `data-eco-component-id` attribute is attached
-	 *   to the root element so the client island runtime can target it directly.
-	 * - Island client scripts are emitted through `assets` and mounted independently.
+	 * - When an explicit component instance id is provided, a stable
+	 *   `data-eco-component-id` attribute is attached so island hydration can target it.
+	 * - Without an explicit instance id, component renders remain plain SSR output.
 	 *
 	 * This preserves DOM shape for global CSS/layout selectors while keeping a
 	 * deterministic mount target per component instance.
@@ -151,10 +150,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		let rootAttributes: Record<string, string> | undefined;
 		let assets: ProcessedAsset[] | undefined;
 
-		if (canAttachAttributes && componentFile && this.assetProcessingService) {
-			const componentInstanceId =
-				context.componentInstanceId ??
-				`eco-component-${rapidhash(componentFile)}-${++this.componentRenderSequence}`;
+		if (canAttachAttributes && componentFile && context.componentInstanceId && this.assetProcessingService) {
+			const componentInstanceId = context.componentInstanceId;
 			assets = await this.hydrationAssetService.buildComponentRenderAssets(
 				componentFile,
 				componentInstanceId,

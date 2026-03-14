@@ -1,0 +1,64 @@
+.integration-shell {
+	@apply rounded-md border border-border bg-background p-4 text-on-background shadow-[0_8px_30px_rgba(15,23,42,0.04)];
+
+	&--kita {
+		@apply border-sky-300/70;
+	}
+
+	&--lit {
+		@apply border-emerald-300/70 bg-background-accent;
+	}
+
+	&--react {
+		@apply border-amber-300/70;
+	}
+
+	&__label {
+		@apply text-xs font-semibold uppercase tracking-[0.24em] text-muted;
+	}
+
+	&__body {
+		@apply mt-3 space-y-3;
+	}
+}
+
+.integration-counter {
+	@apply inline-flex items-center gap-3 rounded-full border border-border bg-background-accent px-4 py-2 text-sm text-on-background-accent;
+
+	&__button {
+		@apply inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-on-background transition hover:border-sky-300 hover:text-sky-600;
+	}
+
+	&__value {
+		@apply min-w-6 font-mono text-base;
+	}
+}
+
+.integration-matrix__prose {
+	@apply leading-relaxed text-zinc-900 dark:text-zinc-100 max-w-none;
+
+	h2,
+	h3 {
+		@apply font-semibold font-display tracking-tight;
+	}
+
+	h2 {
+		@apply text-2xl;
+	}
+
+	h3 {
+		@apply text-xl text-zinc-500 dark:text-zinc-400;
+	}
+
+	p {
+		@apply text-sm my-4;
+	}
+
+	a {
+		@apply underline underline-offset-2 text-blue-600 dark:text-blue-400;
+	}
+
+	code {
+		@apply text-sm py-0.5 px-1.5 rounded bg-background-accent font-mono;
+	}
+}

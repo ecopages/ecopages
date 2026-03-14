@@ -5,15 +5,6 @@ import type { PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from './router/fs-router.ts';
 import type { CacheConfig } from './services/cache/cache.types.ts';
 
-/**
- * The templates used to build the pages and loaded via the includes directory.
- */
-export type IncludesTemplates = {
-	head: string;
-	html: string;
-	seo: string;
-};
-
 export interface RobotsPreference {
 	/**
 	 * The user agent
@@ -61,15 +52,6 @@ export type EcoPagesAppConfig = {
 	 * @default "layouts"
 	 */
 	layoutsDir: string;
-	/**
-	 * The templates used for the pages
-	 * @default "{head: 'head.kita.tsx', html: 'html.kita.tsx', seo: 'seo.kita.tsx'}"
-	 */
-	includesTemplates: IncludesTemplates;
-	/** Error 404 page
-	 * @default "404.kita.tsx"
-	 */
-	error404Template: string;
 	/**
 	 * The directory where the output will be located
 	 * @default "dist"

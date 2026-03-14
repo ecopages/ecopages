@@ -8,6 +8,8 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Features
 
+- Added `eco.html()` and `eco.layout()` as Phase 1 semantic factories over the existing component pipeline, along with exported `EcoHtmlComponent`, `EcoLayoutComponent`, and `LayoutProps` types.
+
 #### Node.js Runtime Support
 
 - **Node server adapter** — Full HTTP server adapter for Node.js via `packages/core/src/adapters/node/`, including request bridging, route handling, static content serving, and graceful shutdown.
@@ -62,11 +64,13 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Removed legacy template filename config and now derive `html` and `404` entries semantically from registered integration extensions.
 - Fixed invariant checks for route paths with improved error messaging in `AbstractApplicationAdapter` (`9c2a6242`).
 - Fixed dependency import name extraction in `extractEcopagesVirtualImports` (`39bbc472`).
 - Removed an invalid npm export entry that pointed to a non-existent `utils/ecopages-url-resolver` declaration target.
 - Fixed processor lifecycle hijacking where PostCSS watching TSX/HTML for Tailwind class scanning incorrectly prevented those files from reaching the HMR strategy pipeline.
 - Unified the file watcher event pipeline: processors are now notified inside `handleFileChange` instead of binding separate chokidar listeners, eliminating double-execution and race conditions.
+- Fixed dev CSS updates to stay on the processor-owned path instead of using a parallel core stylesheet HMR strategy, so PostCSS transforms remain authoritative during HMR.
 - Added async task queue to `ProjectWatcher` to serialize concurrent file change handling and prevent overlapping builds.
 - Batched `JsHmrStrategy` entrypoint builds into a single esbuild invocation for improved AST sharing and rebuild speed.
 - Added `outbase` support to `BuildOptions` for correct output directory structure with multi-entrypoint builds.
@@ -76,6 +80,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Tests
 
+- Added coverage for `eco.html()` and `eco.layout()` plus metadata injection for the new factory calls.
 - Added node static content server test coverage (`435dc250`).
 - Strengthened HTML transformer mode matrix coverage (`286c1253`).
 - Aligned integration and dependency processing tests to new orchestration model (`7cc73316`).

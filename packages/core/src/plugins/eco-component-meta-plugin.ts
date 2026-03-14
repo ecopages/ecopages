@@ -163,6 +163,8 @@ export interface EcoComponentDirPluginOptions {
  * Supported patterns:
  * - `eco.page({ ... })` - Page component declarations
  * - `eco.component({ ... })` - Reusable component declarations
+ * - `eco.html({ ... })` - HTML shell declarations
+ * - `eco.layout({ ... })` - Layout declarations
  * - `Component.config = { ... }` - Config assignment pattern
  * - `config: { ... }` - Config property in object literals
  * - `export const config = { ... }` - Exported config declarations
@@ -260,6 +262,8 @@ interface Insertion {
  * |---------|---------------|---------|------------|
  * | `eco.page({...})` | CallExpression | `export default eco.page({ render: () => 'hi' })` | All |
  * | `eco.component({...})` | CallExpression | `export const Btn = eco.component({ render: () => '<button/>' })` | All |
+ * | `eco.html({...})` | CallExpression | `export default eco.html({ render: () => '<html />' })` | All |
+ * | `eco.layout({...})` | CallExpression | `export const MainLayout = eco.layout({ render: () => '<main />' })` | All |
  * | `X.config = {...}` | AssignmentExpression | `MyComponent.config = { dependencies: [] }` | All |
  * | `config: {...}` | ObjectProperty | `const X: EcoComponent = { config: {...} }` | EcoComponent-typed only |
  *
@@ -289,7 +293,7 @@ function findInjectionPoints(
 	const n = node as Record<string, unknown>;
 
 	/**
-	 * Pattern 1: eco.page({...}) or eco.component({...})
+	 * Pattern 1: eco.page({...}), eco.component({...}), eco.html({...}), or eco.layout({...})
 	 * AST structure: CallExpression with MemberExpression callee where object is "eco"
 	 */
 	if (n.type === 'CallExpression') {
@@ -303,11 +307,14 @@ function findInjectionPoints(
 			const obj = callee.object as Record<string, unknown> | undefined;
 			const prop = callee.property as Record<string, unknown> | undefined;
 
-			/** Check: is this `eco.page(...)` or `eco.component(...)`? */
+			/** Check: is this `eco.page(...)`, `eco.component(...)`, `eco.html(...)`, or `eco.layout(...)`? */
 			if (
 				obj?.type === 'Identifier' &&
 				obj?.name === 'eco' &&
-				(prop?.name === 'page' || prop?.name === 'component')
+				(prop?.name === 'page' ||
+					prop?.name === 'component' ||
+					prop?.name === 'html' ||
+					prop?.name === 'layout')
 			) {
 				/** Get the first argument - should be an object literal {...} */
 				const args = n.arguments as Array<Record<string, unknown>> | undefined;

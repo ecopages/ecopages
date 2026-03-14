@@ -58,13 +58,13 @@ export class NodeHmrManager implements IHmrManager {
 		const jsContext = {
 			getWatchedFiles: () => this.watchedFiles,
 			getSpecifierMap: () => this.specifierMap,
+			getDistDir: () => this.distDir,
+			getPlugins: () => this.plugins,
+			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getDependencyEntrypoints: (filePath: string) =>
 				new Set(this.dependencyEntrypoints.get(path.resolve(filePath)) ?? []),
 			setEntrypointDependencies: (entrypointPath: string, dependencies: string[]) =>
 				this.setEntrypointDependencies(entrypointPath, dependencies),
-			getDistDir: () => this.distDir,
-			getPlugins: () => this.plugins,
-			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 		};
 
 		this.strategies = [new JsHmrStrategy(jsContext), new DefaultHmrStrategy()];

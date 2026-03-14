@@ -4,12 +4,6 @@ import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { MDXRenderer } from '../mdx-renderer.ts';
 
 const Config = await new ConfigBuilder()
-	.setIncludesTemplates({
-		head: 'head.ts',
-		html: 'html.ts',
-		seo: 'seo.ts',
-	})
-	.setError404Template('404.ts')
 	.setRobotsTxt({
 		preferences: {
 			'*': [],

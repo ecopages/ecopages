@@ -4,6 +4,7 @@ import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.t
 import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { CONFIG_BUILDER_ERRORS, ConfigBuilder } from './config-builder.ts';
+import { fileSystem } from '@ecopages/file-system';
 
 const createMockIntegration = (name: string, extensions: string[]): IntegrationPlugin => {
 	return new (class extends IntegrationPlugin {
@@ -21,6 +22,7 @@ describe('EcoConfigBuilder', () => {
 
 	beforeEach(() => {
 		builder = new ConfigBuilder();
+		vi.restoreAllMocks();
 	});
 
 	test('should set baseUrl and rootDir', async () => {
@@ -57,29 +59,42 @@ describe('EcoConfigBuilder', () => {
 		expect(config.distDir).toBe('custom-dist');
 	});
 
-	test('should set includesTemplates', async () => {
-		const includesTemplates = {
-			head: 'custom-head.ghtml.ts',
-			html: 'custom-html.ghtml.ts',
-			seo: 'custom-seo.ghtml.ts',
-		};
+	test('should derive semantic html and 404 template paths', async () => {
+		vi.spyOn(fileSystem, 'exists').mockImplementation((candidate) => {
+			return (
+				candidate === path.join('/project', 'src', 'includes', 'html.test1') ||
+				candidate === path.join('/project', 'src', 'pages', '404.test2')
+			);
+		});
+
+		const integrations: IntegrationPlugin[] = [
+			createMockIntegration('test-integration', ['.test1', '.test2']),
+		];
 		const config = await builder
 			.setBaseUrl('https://example.com')
 			.setRootDir('/project')
-			.setIncludesTemplates(includesTemplates)
+			.setIntegrations(integrations)
 			.build();
 
-		expect(config.includesTemplates).toEqual(includesTemplates);
+		expect(config.absolutePaths.htmlTemplatePath).toBe(path.join('/project', 'src', 'includes', 'html.test1'));
+		expect(config.absolutePaths.error404TemplatePath).toBe(path.join('/project', 'src', 'pages', '404.test2'));
 	});
 
-	test('should set error404Template', async () => {
-		const config = await builder
-			.setBaseUrl('https://example.com')
-			.setRootDir('/project')
-			.setError404Template('custom-404.ghtml.ts')
-			.build();
+	test('should throw for duplicate semantic html templates', async () => {
+		vi.spyOn(fileSystem, 'exists').mockImplementation((candidate) => {
+			return (
+				candidate === path.join('/project', 'src', 'includes', 'html.test1') ||
+				candidate === path.join('/project', 'src', 'includes', 'html.test2')
+			);
+		});
 
-		expect(config.error404Template).toBe('custom-404.ghtml.ts');
+		const integrations: IntegrationPlugin[] = [
+			createMockIntegration('test-integration', ['.test1', '.test2']),
+		];
+
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
+		).rejects.toThrow('Multiple html templates found');
 	});
 
 	test('should set robotsTxt', async () => {

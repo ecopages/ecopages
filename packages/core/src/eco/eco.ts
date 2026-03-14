@@ -5,6 +5,8 @@
 
 import type {
 	EcoComponent,
+	EcoHtmlComponent,
+	EcoLayoutComponent,
 	EcoPagesElement,
 	EcoPageComponent,
 	GetMetadata,
@@ -18,6 +20,8 @@ import type { CacheStrategy } from '../services/cache/cache.types.ts';
 import type {
 	ComponentOptions,
 	Eco,
+	HtmlOptions,
+	LayoutOptions,
 	PageOptions,
 	PageOptionsBase,
 	PagePropsFor,
@@ -130,6 +134,26 @@ function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>)
 }
 
 /**
+ * Creates a document shell component.
+ *
+ * Phase 1 keeps this as a semantic alias over eco.component() so existing
+ * renderer behavior remains unchanged.
+ */
+function html<E = EcoPagesElement>(options: HtmlOptions<E>): EcoHtmlComponent<E> {
+	return createComponentFactory(options) as EcoHtmlComponent<E>;
+}
+
+/**
+ * Creates a route layout component.
+ *
+ * Phase 1 keeps this as a semantic alias over eco.component() so existing
+ * renderer behavior remains unchanged.
+ */
+function layout<E = EcoPagesElement>(options: LayoutOptions<E>): EcoLayoutComponent<E> {
+	return createComponentFactory(options) as EcoLayoutComponent<E>;
+}
+
+/**
  * Creates a page component with typed props and optional static helpers.
  */
 function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
@@ -214,6 +238,8 @@ function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
  */
 export const eco: Eco = {
 	component,
+	html,
+	layout,
 	page,
 	metadata,
 	staticPaths,

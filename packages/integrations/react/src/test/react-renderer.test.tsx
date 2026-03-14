@@ -27,12 +27,6 @@ const testDir = path.join(__dirname, 'fixture/.eco');
 
 const Config = await new ConfigBuilder()
 	.setDistDir(testDir)
-	.setIncludesTemplates({
-		head: 'head.tsx',
-		html: 'html.tsx',
-		seo: 'seo.tsx',
-	})
-	.setError404Template('404.tsx')
 	.setRobotsTxt({
 		preferences: {
 			'*': [],

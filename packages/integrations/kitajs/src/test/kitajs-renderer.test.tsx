@@ -5,12 +5,6 @@ import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
 const Config = await new ConfigBuilder()
-	.setIncludesTemplates({
-		head: 'head.kita.tsx',
-		html: 'html.kita.tsx',
-		seo: 'seo.kita.tsx',
-	})
-	.setError404Template('404.kita.tsx')
 	.setRobotsTxt({
 		preferences: {
 			'*': [],

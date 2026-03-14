@@ -80,6 +80,20 @@ export class ProjectWatcher {
 		}
 	}
 
+	private isRouteSourceFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+
+		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir)) {
+			return false;
+		}
+
+		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
+			return true;
+		}
+
+		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+	}
+
 	/**
 	 * Handles public directory file changes by copying only the changed file.
 	 * @param filePath - Absolute path of the changed file
@@ -144,7 +158,7 @@ export class ProjectWatcher {
 			}
 
 			this.uncacheModules();
-			const isPageFile = filePath.startsWith(this.appConfig.absolutePaths.pagesDir);
+			const isPageFile = this.isRouteSourceFile(filePath);
 
 			if (isPageFile) {
 				this.refreshRouterRoutesCallback();
@@ -273,9 +287,11 @@ export class ProjectWatcher {
 	 *
 	 * @param {string} path - Path of the changed directory
 	 */
-	triggerRouterRefresh(path: string) {
-		const isPageDir = path.startsWith(this.appConfig.absolutePaths.pagesDir);
-		if (isPageDir) {
+	triggerRouterRefresh(changedPath: string) {
+		const resolvedPath = path.resolve(changedPath);
+		const isPageDir = resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir) && path.extname(resolvedPath) === '';
+
+		if (isPageDir || this.isRouteSourceFile(resolvedPath)) {
 			this.refreshRouterRoutesCallback();
 		}
 	}

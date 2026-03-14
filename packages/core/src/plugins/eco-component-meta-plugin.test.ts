@@ -136,6 +136,32 @@ describe('eco-component-meta-plugin', () => {
 		expect(result.contents).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
 	});
 
+	it('should inject __eco into eco.layout call', async () => {
+		const content = `
+            import { eco } from '@ecopages/core';
+            export const MainLayout = eco.layout({
+                render: ({ children }) => '${'<main>'}' + children + '${'</main>'}' });
+        `;
+
+		const result = await runPluginOnContent(content, '/path/to/layouts/main-layout.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/layouts/main-layout.tsx', 'react'));
+	});
+
+	it('should inject __eco into eco.html call', async () => {
+		const content = `
+            import { eco } from '@ecopages/core';
+            export default eco.html({
+                render: ({ children }) => '${'<html><body>'}' + children + '${'</body></html>'}' });
+        `;
+
+		const result = await runPluginOnContent(content, '/path/to/html.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/html.tsx', 'react'));
+	});
+
 	it('should inject __eco into eco.component() with lazy dependencies', async () => {
 		const content = `
             export const LazyCounter = eco.component({

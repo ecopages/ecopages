@@ -327,7 +327,7 @@ export type EcoComponentConfig = {
 	 * MyPage.config = { layout: Layout };
 	 * ```
 	 */
-	layout?: EcoLayoutComponent<any>;
+	layout?: EcoPageLayoutComponent<any>;
 	dependencies?: EcoComponentDependencies;
 	/**
 	 * Internal: Resolved lazy scripts grouped by trigger.
@@ -468,6 +468,14 @@ export interface HtmlTemplateProps extends PageHeadProps {
 }
 
 /**
+ * Layout components accepted by pages.
+ *
+ * This preserves compatibility with existing `eco.component()` layouts while
+ * also supporting semantic `eco.layout()` declarations.
+ */
+export type EcoPageLayoutComponent<T = EcoPagesElement> = EcoLayoutComponent<T> | EcoComponent<any, T>;
+
+/**
  * Represents a layout component created with eco.layout().
  */
 export type EcoLayoutComponent<T = EcoPagesElement> = EcoComponent<LayoutProps<T>, T>;
@@ -478,7 +486,7 @@ export type EcoLayoutComponent<T = EcoPagesElement> = EcoComponent<LayoutProps<T
 export type EcoHtmlComponent<T = EcoPagesElement> = EcoComponent<HtmlTemplateProps, T>;
 
 /**
- * Represents the props for the error 404 template.
+export interface LayoutProps<T = EcoPagesElement> extends Partial<RequestPageContext> {
  */
 export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
 	message: string;
@@ -702,7 +710,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	metadata: PageMetadataProps;
 	HtmlTemplate: EcoHtmlComponent<C>;
 	Page: EcoComponent<PageProps, C>;
-	Layout?: EcoLayoutComponent<any>;
+	Layout?: EcoPageLayoutComponent<any>;
 	dependencies?: EcoComponentDependencies;
 	resolvedDependencies: ProcessedAsset[];
 	componentRender?: ComponentRenderResult;

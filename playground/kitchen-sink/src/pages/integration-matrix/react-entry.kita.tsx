@@ -22,9 +22,12 @@ export default eco.page({
 		<div class="space-y-8">
 			<section class="card space-y-4">
 				<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">React shell entry</p>
-				<h1 class="font-display text-4xl font-semibold tracking-tight">The React boundary can anchor the route without owning the whole page.</h1>
+				<h1 class="font-display text-4xl font-semibold tracking-tight">
+					The React boundary can anchor the route without owning the whole page.
+				</h1>
 				<p class="max-w-3xl text-base leading-8 text-muted">
-					This follows the e2e kitchen-sink pattern more closely: the file-system page remains Kita-based while the primary interactive shell is React and still nests Lit and Kita content inside it.
+					This follows the e2e kitchen-sink pattern more closely: the file-system page remains Kita-based
+					while the primary interactive shell is React and still nests Lit and Kita content inside it.
 				</p>
 			</section>
 

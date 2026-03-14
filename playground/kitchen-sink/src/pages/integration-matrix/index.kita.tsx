@@ -22,13 +22,20 @@ export default eco.page({
 		<div class="space-y-8">
 			<section class="card space-y-4">
 				<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Cross integration matrix</p>
-				<h1 class="font-display text-4xl font-semibold tracking-tight">Render every integration through every other one.</h1>
+				<h1 class="font-display text-4xl font-semibold tracking-tight">
+					Render every integration through every other one.
+				</h1>
 				<p class="max-w-3xl text-base leading-8 text-muted">
-					This route mirrors the e2e kitchen sink intent: one page exercises nested Kita, Lit, React, and React-flavored MDX blocks while the browser router transitions between different entry routes.
+					This route mirrors the e2e kitchen sink intent: one page exercises nested Kita, Lit, React, and
+					React-flavored MDX blocks while the browser router transitions between different entry routes.
 				</p>
 				<div class="flex flex-wrap gap-3 text-sm">
-					<a class="button button--primary" href="/integration-matrix/lit-entry">Open Lit entry</a>
-					<a class="button button--secondary" href="/integration-matrix/react-entry">Open React entry</a>
+					<a class="button button--primary" href="/integration-matrix/lit-entry">
+						Open Lit entry
+					</a>
+					<a class="button button--secondary" href="/integration-matrix/react-entry">
+						Open React entry
+					</a>
 				</div>
 			</section>
 

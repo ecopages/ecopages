@@ -23,9 +23,12 @@ export default eco.page({
 		<div class="space-y-8">
 			<section class="card space-y-4">
 				<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Lit route entry</p>
-				<h1 class="font-display text-4xl font-semibold tracking-tight">The page entry can change while the matrix stays shared.</h1>
+				<h1 class="font-display text-4xl font-semibold tracking-tight">
+					The page entry can change while the matrix stays shared.
+				</h1>
 				<p class="max-w-3xl text-base leading-8 text-muted">
-					This route starts in the Lit integration, then nests Kita and React content inside the same layout and navigation shell.
+					This route starts in the Lit integration, then nests Kita and React content inside the same layout
+					and navigation shell.
 				</p>
 			</section>
 

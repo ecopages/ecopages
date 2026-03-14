@@ -8,9 +8,9 @@ import { releaseNotes } from './src/data/demo-data';
 const app = await createApp({ appConfig });
 
 app.get('/explicit/team', async (ctx) => {
-		const { default: ExplicitTeamView } = await import('./src/views/explicit-team-view.kita');
-		return ctx.render(ExplicitTeamView, {});
-	})
+	const { default: ExplicitTeamView } = await import('./src/views/explicit-team-view.kita');
+	return ctx.render(ExplicitTeamView, {});
+})
 	.get('/latest', async (ctx) => {
 		const { default: LatestReleaseView } = await import('./src/views/latest-release-view.kita');
 		const latestRelease = releaseNotes[releaseNotes.length - 1]!;

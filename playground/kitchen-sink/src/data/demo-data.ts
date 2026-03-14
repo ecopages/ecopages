@@ -33,7 +33,8 @@ export const showcasePatterns: ShowcasePattern[] = [
 	{
 		slug: 'semantic-html',
 		title: 'Semantic html shell discovery',
-		summary: 'The document shell now resolves by basename and integration extension instead of config-driven filenames.',
+		summary:
+			'The document shell now resolves by basename and integration extension instead of config-driven filenames.',
 		highlights: ['eco.html()', 'html.* semantic lookup', 'single document shell per route'],
 		stage: 'active',
 		release: 'Phase 1 foundation',
@@ -41,7 +42,8 @@ export const showcasePatterns: ShowcasePattern[] = [
 	{
 		slug: 'route-middleware',
 		title: 'Page middleware and request locals',
-		summary: 'Request data is attached once and consumed by both the page and the layout through the same contract.',
+		summary:
+			'Request data is attached once and consumed by both the page and the layout through the same contract.',
 		highlights: ['cache: dynamic', 'requires', 'layout locals'],
 		stage: 'stable',
 		release: 'Runtime flow',
@@ -49,7 +51,8 @@ export const showcasePatterns: ShowcasePattern[] = [
 	{
 		slug: 'grouped-handlers',
 		title: 'Grouped handlers and JSON APIs',
-		summary: 'Explicit API groups reuse middleware, locals, and shared error handling without leaving the app boundary.',
+		summary:
+			'Explicit API groups reuse middleware, locals, and shared error handling without leaving the app boundary.',
 		highlights: ['defineApiHandler()', 'defineGroupHandler()', 'ctx.response.json()'],
 		stage: 'experimental',
 		release: 'Operations lane',

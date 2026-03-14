@@ -46,7 +46,8 @@ export const echo = defineApiHandler({
 		return response.status(201).json({
 			received: body,
 			requestId: locals.requestInfo?.requestId,
-			sampleCurl: "curl -X POST http://localhost:3000/api/v1/echo -H 'content-type: application/json' -d '{\"message\":\"hello\"}'",
+			sampleCurl:
+				'curl -X POST http://localhost:3000/api/v1/echo -H \'content-type: application/json\' -d \'{"message":"hello"}\'',
 		});
 	},
 });

@@ -40,12 +40,6 @@ const config = await new ConfigBuilder()
 			}),
 		),
 	])
-	.setError404Template('404.kita.tsx')
-	.setIncludesTemplates({
-		head: 'head.kita.tsx',
-		html: 'html.kita.tsx',
-		seo: 'seo.kita.tsx',
-	})
 	.build();
 
 export default config;

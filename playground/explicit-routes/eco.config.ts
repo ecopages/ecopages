@@ -8,11 +8,6 @@ const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)
 	.setBaseUrl('http://localhost:3000')
 	.setIntegrations([kitajsPlugin()])
-	.setIncludesTemplates({
-		head: 'head.kita.tsx',
-		html: 'html.kita.tsx',
-		seo: 'seo.kita.tsx',
-	})
 	.setProcessors([
 		postcssProcessorPlugin(
 			tailwindV4Preset({

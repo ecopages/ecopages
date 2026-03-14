@@ -96,12 +96,13 @@ const config = await new ConfigBuilder()
 
 ### 404 Error Page
 
-You can define a custom 404 page by creating a `404.{ext}` file in your `src/pages` directory and configuring it:
+You can define a custom 404 page by creating a `404.{ext}` file in your `src/pages` directory:
 
 ```typescript
-const config = await new ConfigBuilder()
-    .setError404Template('404.kita.tsx')
-    .build();
+// src/pages/404.kita.tsx
+export default eco.page({
+    render: () => <h1>Not found</h1>,
+});
 ```
 
 ---

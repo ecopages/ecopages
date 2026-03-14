@@ -42,12 +42,6 @@ const config = await new ConfigBuilder()
 			}),
 		),
 	])
-	.setError404Template('404.tsx')
-	.setIncludesTemplates({
-		head: 'head.tsx',
-		html: 'html.tsx',
-		seo: 'seo.tsx',
-	})
 	.build();
 
 export default config;

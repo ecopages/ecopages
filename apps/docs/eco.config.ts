@@ -42,12 +42,6 @@ const config = await new ConfigBuilder()
 		image: 'public/assets/images/default-og.png',
 		keywords: ['typescript', 'framework', 'static'],
 	})
-	.setIncludesTemplates({
-		head: 'head.kita.tsx',
-		html: 'html.kita.tsx',
-		seo: 'seo.kita.tsx',
-	})
-	.setError404Template('404.kita.tsx')
 	.setAdditionalWatchPaths(['src/data'])
 	.setProcessors([
 		postcssProcessorPlugin(

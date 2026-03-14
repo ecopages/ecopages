@@ -57,11 +57,6 @@ const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
 	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
 	.setIntegrations([kitajsPlugin()])
-	.setIncludesTemplates({
-		head: 'head.kita.tsx',
-		html: 'html.kita.tsx',
-		seo: 'seo.kita.tsx',
-	})
 	.build();
 ```
 

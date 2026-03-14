@@ -21,12 +21,6 @@ const config = await new ConfigBuilder()
 			extensions: ['.ts'],
 		}),
 	])
-	.setError404Template('404.ts')
-	.setIncludesTemplates({
-		head: 'head.ghtml.ts',
-		html: 'html.ghtml.ts',
-		seo: 'seo.ghtml.ts',
-	})
 	.build();
 
 export default config;

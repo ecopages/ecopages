@@ -8,12 +8,6 @@ import { ecoRouter } from '@ecopages/react-router';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
-	.setIntegrations([
-		reactPlugin({
-			router: ecoRouter(),
-			mdx: {
-				enabled: true,
 			},
 		}),
 	])
@@ -40,12 +34,6 @@ const config = await new ConfigBuilder()
 			}),
 		),
 	])
-	.setError404Template('404.tsx')
-	.setIncludesTemplates({
-		head: 'head.tsx',
-		html: 'html.tsx',
-		seo: 'seo.tsx',
-	})
 	.build();
 
 export default config;

@@ -21,7 +21,6 @@ export default await new ConfigBuilder()
 			},
 		}),
 	])
-	.setError404Template('404.kita.tsx')
 	.setProcessors([
 		imageProcessorPlugin({
 			options: {

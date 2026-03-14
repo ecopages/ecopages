@@ -25,14 +25,11 @@ Ecopages uses a flexible integration system to extend its functionality. Each in
 For example, the KitaJS integration might set up template extensions like this:
 
 ```typescript
-  .setIncludesTemplates({
-    head: 'head.kita.tsx',
-    html: 'html.kita.tsx',
-    seo: 'seo.kita.tsx',
-  })
+  // html.kita.tsx and 404.kita.tsx are discovered automatically
+  .setIntegrations([kitajsPlugin()])
 ```
 
-This configuration tells Ecopages which files to use for specific parts of the page structure.
+Those extensions are then used to resolve semantic files such as `html.*` and `404.*`.
 
 ## CSS Processing
 

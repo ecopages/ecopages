@@ -29,12 +29,6 @@ const config = await new ConfigBuilder()
 		}),
 		postcssProcessorPlugin(tailwindV3Preset()),
 	])
-	.setError404Template('404.tsx')
-	.setIncludesTemplates({
-		head: 'head.tsx',
-		html: 'html.tsx',
-		seo: 'seo.tsx',
-	})
 	.build();
 
 export default config;

@@ -8,12 +8,6 @@ import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
-	.setIntegrations([
-		kitajsPlugin(),
-		mdxPlugin({
-			compilerOptions: {
-				jsxImportSource: '@kitajs/html',
 			},
 		}),
 	])
@@ -40,12 +34,6 @@ const config = await new ConfigBuilder()
 			}),
 		),
 	])
-	.setError404Template('404.kita.tsx')
-	.setIncludesTemplates({
-		head: 'head.kita.tsx',
-		html: 'html.kita.tsx',
-		seo: 'seo.kita.tsx',
-	})
 	.build();
 
 export default config;

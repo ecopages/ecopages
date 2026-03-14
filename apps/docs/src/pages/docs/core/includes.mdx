@@ -31,13 +31,10 @@ You can configure includes in your `eco.config.ts`:
 import { ConfigBuilder } from '@ecopages/core';
 
 const config = await new ConfigBuilder()
-	.setIncludesTemplates({
-		head: 'head.kita.tsx',
-		html: 'html.kita.tsx',
-		seo: 'seo.kita.tsx',
-	})
 	.build();
 ```
+
+Ecopages resolves `src/includes/html.*` automatically using the registered integration extensions.
 
 ## Include Templates
 

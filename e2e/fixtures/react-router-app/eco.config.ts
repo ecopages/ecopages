@@ -13,12 +13,6 @@ const config = await new ConfigBuilder()
 			mdx: { enabled: true },
 		}),
 	])
-	.setIncludesTemplates({
-		head: 'head.tsx',
-		html: 'html.tsx',
-		seo: 'seo.tsx',
-	})
-	.setError404Template('404.tsx')
 	.build();
 
 export default config;

@@ -74,18 +74,12 @@ export default config;
 	The directory for layout components, relative to the src directory.
 </ApiField>
 
-<ApiField
-	name="includesTemplates"
-	type="IncludesTemplates"
-	defaultValue="{head: 'head.ghtml.ts', html: 'html.ghtml.ts', seo: 'seo.ghtml.ts'}"
-	setter="setIncludesTemplates"
->
-	Specifies the templates used for different parts of your pages.
-</ApiField>
+Ecopages now discovers the document shell and 404 page semantically:
 
-<ApiField name="error404Template" type="string" defaultValue="404.ghtml.ts" setter="setError404Template">
-	The template for the 404 error page, located in the pages directory.
-</ApiField>
+- `src/includes/html.*` resolves the HTML shell by basename and integration extension.
+- `src/pages/404.*` resolves the not-found page by basename and integration extension.
+
+No template filename setter is required in `eco.config.ts`.
 
 <ApiField name="distDir" type="string" defaultValue=".eco" setter="setDistDir">
 	The output directory for the built files.

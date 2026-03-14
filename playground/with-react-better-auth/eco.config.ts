@@ -15,7 +15,7 @@ const config = await new ConfigBuilder()
 	.setRootDir(appRoot)
 	.setBaseUrl(baseUrl)
 	.setDefaultMetadata({
-		title: 'Ecopages + Better Auth Starter',
+		title: 'Ecopages Better Auth Playground',
 		description: 'A minimal, high-performance starter template for Ecopages with Better Auth integration.',
 	})
 	.setIntegrations([
@@ -61,12 +61,6 @@ const config = await new ConfigBuilder()
 			}),
 		),
 	])
-	.setError404Template('404.tsx')
-	.setIncludesTemplates({
-		head: 'head.tsx',
-		html: 'html.tsx',
-		seo: 'seo.tsx',
-	})
 	.build();
 
 export default config;

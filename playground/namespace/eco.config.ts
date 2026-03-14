@@ -16,10 +16,4 @@ export default await new ConfigBuilder()
 			}),
 		),
 	])
-	.setIncludesTemplates({
-		head: 'head.kita.tsx',
-		html: 'html.kita.tsx',
-		seo: 'seo.kita.tsx',
-	})
-	.setError404Template('404.kita.tsx')
 	.build();

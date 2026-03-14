@@ -54,6 +54,13 @@ describe('ProjectWatcher', () => {
 			expect(RefreshCallback).toHaveBeenCalled();
 		});
 
+		test('should not call refresh callback for stylesheet assets inside the pages directory', () => {
+			const stylesheetPath = path.join(Config.absolutePaths.pagesDir, 'index.css');
+			watcher.triggerRouterRefresh(stylesheetPath);
+
+			expect(RefreshCallback).not.toHaveBeenCalled();
+		});
+
 		test('should not call refresh callback for non-page directory changes', () => {
 			const nonPagePath = '/test/project/src/components/Button.tsx';
 			watcher.triggerRouterRefresh(nonPagePath);
@@ -148,6 +155,14 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await (watcher as any).handleFileChange(pageFilePath);
 
 			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(pageFilePath));
+		});
+
+		test('should not refresh router for stylesheet changes inside the pages directory', async () => {
+			const pageCssPath = path.join(Config.absolutePaths.pagesDir, 'index.css');
+
+			await (watcher as any).handleFileChange(pageCssPath);
+
+			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
 
 		test('should ignore duplicate save events for the same page within the debounce window', async () => {

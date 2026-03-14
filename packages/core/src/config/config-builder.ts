@@ -7,7 +7,7 @@ import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
-import type { EcoPagesAppConfig, IncludesTemplates, RobotsPreference } from '../internal-types.ts';
+import type { EcoPagesAppConfig, RobotsPreference } from '../internal-types.ts';
 import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
@@ -15,6 +15,7 @@ import type { PageMetadataProps } from '../public-types.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import { invariant } from '../utils/invariant.ts';
 import { appLogger } from '../global/app-logger.ts';
+import { fileSystem } from '@ecopages/file-system';
 
 export const CONFIG_BUILDER_ERRORS = {
 	DUPLICATE_INTEGRATION_NAMES: 'Integrations names must be unique',
@@ -23,6 +24,8 @@ export const CONFIG_BUILDER_ERRORS = {
 		'Both kitajs and react integrations are enabled. Use per-file JSX import source/pragma consistently (e.g. `/** @jsxImportSource react */` for React files and `/** @jsxImportSource @kitajs/html */` for Kita files).',
 	duplicateProcessorName: (name: string) => `Processor with name "${name}" already exists`,
 	duplicateLoaderName: (name: string) => `Loader with name "${name}" already exists`,
+	duplicateSemanticTemplate: (kind: 'html' | '404', matches: string[]) =>
+		`Multiple ${kind} templates found: ${matches.join(', ')}`,
 } as const;
 
 /**
@@ -65,12 +68,6 @@ export class ConfigBuilder {
 		componentsDir: 'components',
 		layoutsDir: 'layouts',
 		publicDir: 'public',
-		includesTemplates: {
-			head: 'head.ghtml.ts',
-			html: 'html.ghtml.ts',
-			seo: 'seo.ghtml.ts',
-		},
-		error404Template: '404.ghtml.ts',
 		robotsTxt: {
 			preferences: {
 				'*': [],
@@ -195,29 +192,6 @@ export class ConfigBuilder {
 	 */
 	setPublicDir(publicDir: string): this {
 		this.config.publicDir = publicDir;
-		return this;
-	}
-
-	/**
-	 * Sets the templates used for includes.
-	 * These templates are used to build the HTML structure of pages.
-	 *
-	 * @param includesTemplates - An object containing the template file names
-	 * @returns The ConfigBuilder instance for method chaining
-	 */
-	setIncludesTemplates(includesTemplates: IncludesTemplates): this {
-		this.config.includesTemplates = includesTemplates;
-		return this;
-	}
-
-	/**
-	 * Sets the template file for the 404 error page.
-	 *
-	 * @param error404Template - The file name of the 404 error template (default: '404.ghtml.ts')
-	 * @returns The ConfigBuilder instance for method chaining
-	 */
-	setError404Template(error404Template: string): this {
-		this.config.error404Template = error404Template;
 		return this;
 	}
 
@@ -368,8 +342,6 @@ export class ConfigBuilder {
 			pagesDir,
 			publicDir,
 			distDir,
-			includesTemplates,
-			error404Template,
 		} = config;
 
 		const projectDir = config.rootDir;
@@ -377,21 +349,54 @@ export class ConfigBuilder {
 		const absoluteSrcDir = path.resolve(projectDir, srcDir);
 		const absoluteDistDir = path.resolve(projectDir, distDir);
 
+		const absoluteIncludesDir = path.join(absoluteSrcDir, includesDir);
+		const absolutePagesDir = path.join(absoluteSrcDir, pagesDir);
+
 		this.config.absolutePaths = {
 			config: path.join(projectDir, 'eco.config.ts'),
 			projectDir: projectDir,
 			srcDir: absoluteSrcDir,
 			distDir: absoluteDistDir,
 			componentsDir: path.join(absoluteSrcDir, componentsDir),
-			includesDir: path.join(absoluteSrcDir, includesDir),
+			includesDir: absoluteIncludesDir,
 			layoutsDir: path.join(absoluteSrcDir, layoutsDir),
-			pagesDir: path.join(absoluteSrcDir, pagesDir),
+			pagesDir: absolutePagesDir,
 			publicDir: path.join(absoluteSrcDir, publicDir),
-			htmlTemplatePath: path.join(absoluteSrcDir, includesDir, includesTemplates.html),
-			error404TemplatePath: path.join(absoluteSrcDir, pagesDir, error404Template),
+			htmlTemplatePath: this.resolveSemanticTemplatePath({
+				dirPath: absoluteIncludesDir,
+				basename: 'html',
+			}),
+			error404TemplatePath: this.resolveSemanticTemplatePath({
+				dirPath: absolutePagesDir,
+				basename: '404',
+			}),
 		};
 
 		return this;
+	}
+
+	private resolveSemanticTemplatePath({
+		dirPath,
+		basename,
+	}: {
+		dirPath: string;
+		basename: 'html' | '404';
+	}): string {
+		const extensions = this.config.templatesExt.length > 0 ? this.config.templatesExt : ['.ghtml.ts'];
+		const matches = extensions
+			.map((extension) => path.join(dirPath, `${basename}${extension}`))
+			.filter((candidate) => fileSystem.exists(candidate));
+
+		invariant(
+			matches.length <= 1,
+			CONFIG_BUILDER_ERRORS.duplicateSemanticTemplate(basename, matches),
+		);
+
+		if (matches.length === 1) {
+			return matches[0]!;
+		}
+
+		return path.join(dirPath, `${basename}${extensions[0]}`);
 	}
 
 	private createIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
@@ -463,8 +468,8 @@ export class ConfigBuilder {
 			this.config.integrations.push(ghtmlPlugin());
 		}
 
-		this.createAbsolutePaths(this.config);
 		this.createIntegrationTemplatesExt(this.config.integrations);
+		this.createAbsolutePaths(this.config);
 
 		await this.initializeDefaultLoaders();
 		this.initializeProcessors();

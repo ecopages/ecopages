@@ -5,7 +5,7 @@
 import { describe, expect, test } from 'vitest';
 import { createRequire } from 'node:module';
 import { eco } from './eco.ts';
-import type { EcoComponent, GetMetadataContext, StaticPath } from '../public-types.ts';
+import type { EcoComponent, GetMetadataContext, HtmlTemplateProps, LayoutProps, StaticPath } from '../public-types.ts';
 import type { EcoPagesAppConfig } from 'src/internal-types.ts';
 import { runWithComponentRenderContext } from './component-render-context.ts';
 
@@ -268,6 +268,52 @@ describe('eco namespace', () => {
 			expect(execution.value).not.toContain('<eco-marker');
 			expect(execution.graphContext.propsByRef).toEqual({});
 			expect(execution.graphContext.slotChildrenByRef).toEqual({});
+		});
+	});
+
+	describe('eco.html()', () => {
+		test('should create a document shell component with html props', () => {
+			const Html = eco.html({
+				render: ({ children, language = 'en' }: HtmlTemplateProps) =>
+					`<html lang="${language}"><body>${children}</body></html>`,
+			});
+
+			const result = Html({
+				children: '<main>Hello</main>',
+				metadata: { title: 'Home', description: 'Welcome' },
+				pageProps: {},
+			});
+
+			expect(typeof Html).toBe('function');
+			expect(result).toBe('<html lang="en"><body><main>Hello</main></body></html>');
+		});
+	});
+
+	describe('eco.layout()', () => {
+		test('should create a route layout component with layout props', () => {
+			const Layout = eco.layout({
+				render: ({ children, locals }: LayoutProps<string>) =>
+					`<main data-user="${locals?.userId ?? 'guest'}">${children}</main>`,
+			});
+
+			const result = Layout({ children: '<h1>Page</h1>', locals: { userId: '123' } });
+
+			expect(typeof Layout).toBe('function');
+			expect(result).toBe('<main data-user="123"><h1>Page</h1></main>');
+		});
+
+		test('should work when used as page layout', () => {
+			const Layout = eco.layout<string>({
+				render: ({ children }) => `<main>${children}</main>`,
+			});
+
+			const Page = eco.page({
+				layout: Layout,
+				render: () => '<h1>Page Content</h1>',
+			});
+
+			expect(Page.config?.layout).toBe(Layout);
+			expect(Page.config?.dependencies?.components).toContain(Layout);
 		});
 	});
 

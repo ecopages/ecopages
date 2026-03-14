@@ -7,11 +7,15 @@ import type {
 	DependencyLazyTrigger,
 	EcoComponent,
 	EcoComponentDependencies,
+	EcoHtmlComponent,
 	EcoInjectedMeta,
+	EcoLayoutComponent,
 	EcoPagesElement,
 	GetMetadata,
 	GetStaticPaths,
 	GetStaticProps,
+	HtmlTemplateProps,
+	LayoutProps,
 	Middleware,
 	RequestLocals,
 	RequestPageContext,
@@ -45,6 +49,10 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
 	render: (props: P) => E | Promise<E>;
 }
 
+export type HtmlOptions<E = EcoPagesElement> = ComponentOptions<HtmlTemplateProps, E>;
+
+export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
+
 /**
  * Base options shared by all page variants
  */
@@ -53,7 +61,7 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 	__eco?: EcoInjectedMeta;
 	integration?: string;
 	dependencies?: EcoComponentDependencies;
-	layout?: EcoComponent<{ children: E } & Partial<RequestPageContext>>;
+	layout?: EcoLayoutComponent<E>;
 
 	/**
 	 * Define static paths for dynamic routes (e.g., [slug].tsx).
@@ -168,6 +176,16 @@ export interface Eco {
 	 * @template E - Element/return type (EcoPagesElement for Kita, ReactNode for React)
 	 */
 	component: <P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>) => EcoComponent<P, E>;
+
+	/**
+	 * Create a document shell component for the HTML wrapper.
+	 */
+	html: <E = EcoPagesElement>(options: HtmlOptions<E>) => EcoHtmlComponent<E>;
+
+	/**
+	 * Create a route layout component.
+	 */
+	layout: <E = EcoPagesElement>(options: LayoutOptions<E>) => EcoLayoutComponent<E>;
 
 	/**
 	 * Create a page component with type-safe props from getStaticProps.

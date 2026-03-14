@@ -106,7 +106,6 @@ describe('FileSystemServerResponseFactory', () => {
 		it('should create a response with status 404 if error404 template file does not exist', async () => {
 			const customAppConfig = {
 				...appConfig,
-				error404Template: 'non-existent-file',
 				absolutePaths: {
 					...appConfig.absolutePaths,
 					error404TemplatePath: 'non-existent-file',

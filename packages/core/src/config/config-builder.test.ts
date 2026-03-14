@@ -67,9 +67,7 @@ describe('EcoConfigBuilder', () => {
 			);
 		});
 
-		const integrations: IntegrationPlugin[] = [
-			createMockIntegration('test-integration', ['.test1', '.test2']),
-		];
+		const integrations: IntegrationPlugin[] = [createMockIntegration('test-integration', ['.test1', '.test2'])];
 		const config = await builder
 			.setBaseUrl('https://example.com')
 			.setRootDir('/project')
@@ -88,9 +86,7 @@ describe('EcoConfigBuilder', () => {
 			);
 		});
 
-		const integrations: IntegrationPlugin[] = [
-			createMockIntegration('test-integration', ['.test1', '.test2']),
-		];
+		const integrations: IntegrationPlugin[] = [createMockIntegration('test-integration', ['.test1', '.test2'])];
 
 		await expect(
 			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),

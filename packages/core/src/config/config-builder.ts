@@ -334,15 +334,7 @@ export class ConfigBuilder {
 	}
 
 	private createAbsolutePaths(config: EcoPagesAppConfig): this {
-		const {
-			srcDir,
-			componentsDir,
-			includesDir,
-			layoutsDir,
-			pagesDir,
-			publicDir,
-			distDir,
-		} = config;
+		const { srcDir, componentsDir, includesDir, layoutsDir, pagesDir, publicDir, distDir } = config;
 
 		const projectDir = config.rootDir;
 
@@ -375,22 +367,13 @@ export class ConfigBuilder {
 		return this;
 	}
 
-	private resolveSemanticTemplatePath({
-		dirPath,
-		basename,
-	}: {
-		dirPath: string;
-		basename: 'html' | '404';
-	}): string {
+	private resolveSemanticTemplatePath({ dirPath, basename }: { dirPath: string; basename: 'html' | '404' }): string {
 		const extensions = this.config.templatesExt.length > 0 ? this.config.templatesExt : ['.ghtml.ts'];
 		const matches = extensions
 			.map((extension) => path.join(dirPath, `${basename}${extension}`))
 			.filter((candidate) => fileSystem.exists(candidate));
 
-		invariant(
-			matches.length <= 1,
-			CONFIG_BUILDER_ERRORS.duplicateSemanticTemplate(basename, matches),
-		);
+		invariant(matches.length <= 1, CONFIG_BUILDER_ERRORS.duplicateSemanticTemplate(basename, matches));
 
 		if (matches.length === 1) {
 			return matches[0]!;

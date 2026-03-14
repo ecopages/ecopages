@@ -35,7 +35,14 @@ await router.init();
 describe('FSRouter', async () => {
 	describe('init', async () => {
 		test('should scan and return routes', async () => {
-			expect(Object.keys(router.routes).length).toBe(5);
+			expect(Object.keys(router.routes).sort()).toEqual([
+				'http://localhost:3000/',
+				'http://localhost:3000/404',
+				'http://localhost:3000/catch-all/[...path]',
+				'http://localhost:3000/dynamic/another-blog-post',
+				'http://localhost:3000/dynamic/blog-post',
+				'http://localhost:3000/postcss-hmr',
+			]);
 		});
 	});
 

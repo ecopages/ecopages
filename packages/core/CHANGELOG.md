@@ -71,6 +71,8 @@ All notable changes to `@ecopages/core` are documented here.
 - Fixed processor lifecycle hijacking where PostCSS watching TSX/HTML for Tailwind class scanning incorrectly prevented those files from reaching the HMR strategy pipeline.
 - Unified the file watcher event pipeline: processors are now notified inside `handleFileChange` instead of binding separate chokidar listeners, eliminating double-execution and race conditions.
 - Fixed dev CSS updates to stay on the processor-owned path instead of using a parallel core stylesheet HMR strategy, so PostCSS transforms remain authoritative during HMR.
+- Fixed emitted asset paths for file stylesheet dependencies so processed CSS stays under the correct `src`-relative asset location during HMR and rebuilds.
+- Fixed page layout typing to accept both semantic `eco.layout()` components and existing `eco.component()` layouts without widening page render contracts.
 - Added async task queue to `ProjectWatcher` to serialize concurrent file change handling and prevent overlapping builds.
 - Batched `JsHmrStrategy` entrypoint builds into a single esbuild invocation for improved AST sharing and rebuild speed.
 - Added `outbase` support to `BuildOptions` for correct output directory structure with multi-entrypoint builds.
@@ -81,6 +83,7 @@ All notable changes to `@ecopages/core` are documented here.
 ### Tests
 
 - Added coverage for `eco.html()` and `eco.layout()` plus metadata injection for the new factory calls.
+- Added stylesheet HMR regression coverage for raw CSS fallback reloads and processor-owned PostCSS updates.
 - Added node static content server test coverage (`435dc250`).
 - Strengthened HTML transformer mode matrix coverage (`286c1253`).
 - Aligned integration and dependency processing tests to new orchestration model (`7cc73316`).

@@ -486,7 +486,7 @@ export type EcoLayoutComponent<T = EcoPagesElement> = EcoComponent<LayoutProps<T
 export type EcoHtmlComponent<T = EcoPagesElement> = EcoComponent<HtmlTemplateProps, T>;
 
 /**
-export interface LayoutProps<T = EcoPagesElement> extends Partial<RequestPageContext> {
+ * Represents the props for the error 404 template.
  */
 export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
 	message: string;

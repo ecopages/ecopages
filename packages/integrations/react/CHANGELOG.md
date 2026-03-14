@@ -34,10 +34,12 @@ All notable changes to `@ecopages/react` are documented here.
 - **`html-boundary.ts`** — New utility that wraps rendered output in explicit boundary markers for the cross-integration boundary rendering policy (`ec1e4d66`).
 - **`hydration-scripts.ts`** — Expanded with new helpers for generating and injecting hydration entry scripts.
 
-### Refactoring
+### Bug Fixes
 
-- Aligned React renderer to full orchestration mode — removed legacy rendering path (`fc07bdb0`).
-- Ambient module declarations cleaned up (`5f46ecc5`).
+- **Fixed React island duplicate DOM** — Island bootstrap now creates an `eco-island` container (`display: contents`) and calls `createRoot` on it, replacing the SSR element rather than mounting React inside it. This prevents the component root element from being duplicated on client mount.
+- **Fixed island script prop collision** — Component props are now embedded in the SSR element as `data-eco-props` (base64-encoded JSON) and read from the DOM at mount time, rather than being hardcoded in the shared island script. This resolves incorrect props being applied when the same component appeared at the same position on multiple pages, because the script file was shared but overwritten during build.
+
+
 - Client graph boundaries and runtime dependency wiring corrected (`4b6cd32e`).
 - Updated test suite for esbuild adapter and Node.js runtime compatibility (`31a44458`).
 
@@ -50,6 +52,8 @@ All notable changes to `@ecopages/react` are documented here.
 - Fixed shared React barrel handling so client-reachable server-only re-exports now fail the build instead of being silently pruned (`unreleased`).
 - Fixed page-entry browser bundles to strip server-only `eco.page()` options so unreachable middleware imports do not leave dangling runtime references (`unreleased`).
 - Fixed non-router page hydration so layouts receive serialized request locals on the client, preventing mismatches on middleware-backed dynamic pages (`unreleased`).
+- Fixed React island duplicate DOM — island bootstrap now creates an `eco-island` container (`display:contents`) that replaces the SSR element, then calls `createRoot` on it. This prevents the component root from being nested inside itself on client mount.
+- Fixed island script prop collision — component props are now embedded in the SSR element as `data-eco-props` (base64 JSON) and read from the DOM at mount time. This resolves incorrect props being used when the same component appeared at the same position on multiple pages, because the generated script file was shared but the hardcoded props were overwritten during build.
 
 ### Documentation
 

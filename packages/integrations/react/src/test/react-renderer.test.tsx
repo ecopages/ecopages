@@ -142,7 +142,10 @@ describe('ReactRenderer', () => {
 			});
 
 			expect(result.canAttachAttributes).toBe(true);
-			expect(result.rootAttributes).toEqual({ 'data-eco-component-id': 'island-1' });
+			expect(result.html).toBe('<h3>Island</h3>');
+			expect(result.html).not.toContain('<div');
+			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-1');
+			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
 			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
 		});
 

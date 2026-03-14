@@ -14,21 +14,20 @@ import { resolve } from 'node:path';
 
 const FIXTURE_DIR = resolve(process.cwd(), 'packages/core/__fixtures__/app');
 const TEST_CSS_FILE = resolve(FIXTURE_DIR, 'src/pages/index.css');
-const TEST_URL = 'http://localhost:3002';
 
 test.describe('HMR E2E', () => {
 	test('should load page with .main-title element', async ({ page }) => {
-		await page.goto(TEST_URL, { waitUntil: 'networkidle' });
+		await page.goto('/', { waitUntil: 'networkidle' });
 		const title = page.locator('.main-title').first();
 		await expect(title).toBeVisible();
 	});
 
 	test('should connect to HMR WebSocket', async ({ page }) => {
-		await page.goto(TEST_URL);
+		await page.goto('/');
 
 		const connected = await page.evaluate(async () => {
 			return new Promise<boolean>((resolve) => {
-				const ws = new WebSocket('ws://localhost:3002/_hmr');
+				const ws = new WebSocket(`ws://${location.host}/_hmr`);
 				ws.onopen = () => {
 					ws.close();
 					resolve(true);
@@ -41,20 +40,27 @@ test.describe('HMR E2E', () => {
 		expect(connected).toBe(true);
 	});
 
-	test('should reload page when CSS file changes', async ({ page }) => {
+	test('should fall back to a full page reload when raw CSS file changes', async ({ page }) => {
 		const originalCss = readFileSync(TEST_CSS_FILE, 'utf-8');
 		const title = page.locator('.main-title').first();
 
 		try {
-			await page.goto(TEST_URL, { waitUntil: 'networkidle' });
+			await page.goto('/', { waitUntil: 'networkidle' });
 			await expect(title).toBeVisible();
 
 			const initialColor = await title.evaluate((el) => getComputedStyle(el).color);
 			expect(initialColor).toBeTruthy();
 
 			const modifiedCss = originalCss.replace('.main-title {', '.main-title {\n\tcolor: rgb(255, 0, 0);');
+			const reloadPromise = page.waitForEvent('framenavigated', {
+				predicate: (frame) => frame === page.mainFrame(),
+				timeout: 10000,
+			});
 
 			await writeFile(TEST_CSS_FILE, modifiedCss, { flush: true });
+
+			await reloadPromise;
+			await page.waitForLoadState('networkidle');
 
 			await expect
 				.poll(async () => title.evaluate((el) => getComputedStyle(el).color), { timeout: 10000 })

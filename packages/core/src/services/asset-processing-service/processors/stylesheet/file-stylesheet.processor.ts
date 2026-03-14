@@ -56,7 +56,7 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 		const cachekey = this.buildCacheKey(dep.filepath, hash, dep);
 
 		return this.getOrProcess(cachekey, () => {
-			const filepath = path.join(this.getAssetsDir(), path.relative(this.appConfig.srcDir, dep.filepath));
+			const filepath = path.join(this.getAssetsDir(), path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath));
 			const outputBuffer = Buffer.from(processedContent);
 
 			if (!dep.inline) {

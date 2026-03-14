@@ -14,9 +14,20 @@ export default defineConfig({
 		{
 			name: 'core-e2e',
 			testMatch: 'packages/core/**/*.test.e2e.ts',
+			testIgnore: ['packages/core/**/*.postcss.test.e2e.ts'],
+			workers: 1,
 			use: {
 				...devices['Desktop Chrome'],
 				baseURL: 'http://localhost:3002',
+			},
+		},
+		{
+			name: 'core-postcss-e2e',
+			testMatch: 'packages/core/**/*.postcss.test.e2e.ts',
+			workers: 1,
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:3008',
 			},
 		},
 		{
@@ -82,6 +93,14 @@ export default defineConfig({
 			command: 'NODE_ENV=development ECOPAGES_PORT=3002 bun run app.ts --dev',
 			cwd: 'packages/core/__fixtures__/app',
 			port: 3002,
+			reuseExistingServer: !process.env.CI,
+			stdout: 'pipe',
+			stderr: 'pipe',
+		},
+		{
+			command: 'NODE_ENV=development ECOPAGES_USE_POSTCSS_PROCESSOR=true ECOPAGES_PORT=3008 bun run app.ts --dev',
+			cwd: 'packages/core/__fixtures__/app',
+			port: 3008,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',
 			stderr: 'pipe',

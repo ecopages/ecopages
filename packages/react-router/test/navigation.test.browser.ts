@@ -194,7 +194,7 @@ describe('extractComponentUrl', () => {
 		const html = `
 			<html>
 				<body>
-					<script type="module" src="/ecopages-react/hydration.js">
+					<script type="module" src="/assets/scripts/ecopages-react-123-hydration.js">
 						import Content from './pages/about.js';
 					</script>
 				</body>
@@ -210,6 +210,20 @@ describe('extractComponentUrl', () => {
 		expect(url).toBe('./pages/about.js');
 
 		fetchSpy.mockRestore();
+	});
+
+	it('should ignore island hydration assets when extracting a page module URL', async () => {
+		const html = `
+			<html>
+				<body>
+					<script src="/assets/scripts/ecopages-react-island-123-hydration.js" type="module"></script>
+				</body>
+			</html>
+		`;
+		const doc = createMockDocument(html);
+
+		const url = await extractComponentUrl(doc);
+		expect(url).toBeNull();
 	});
 });
 
@@ -236,7 +250,7 @@ describe('loadPageModule', () => {
 		const result = await loadPageModule('/test');
 
 		expect(result).toBeNull();
-		expect(consoleErrorSpy).toHaveBeenCalled();
+		expect(consoleErrorSpy).not.toHaveBeenCalled();
 	});
 
 	it('should handle fetch errors gracefully', async () => {
@@ -246,6 +260,16 @@ describe('loadPageModule', () => {
 
 		expect(result).toBeNull();
 		expect(consoleErrorSpy).toHaveBeenCalledWith('[EcoRouter] Navigation failed:', expect.any(Error));
+	});
+
+	it('should return null without logging when the navigation fetch is aborted', async () => {
+		const abortController = new AbortController();
+		fetchSpy.mockRejectedValueOnce(new DOMException('The operation was aborted.', 'AbortError'));
+
+		const result = await loadPageModule('/test', { signal: abortController.signal });
+
+		expect(result).toBeNull();
+		expect(consoleErrorSpy).not.toHaveBeenCalled();
 	});
 });
 
@@ -384,7 +408,7 @@ describe('Cache busting in development', () => {
 		const mockHtml = `
 			<html>
 				<body>
-					<script type="module" src="/ecopages-react/hydration.js">
+					<script type="module" src="/assets/scripts/ecopages-react-123-hydration.js">
 						import Content from './page.js';
 					</script>
 				</body>
@@ -397,10 +421,10 @@ describe('Cache busting in development', () => {
 		await extractComponentUrl(doc);
 
 		const hydrationCalls = fetchSpy.mock.calls.filter((call: [RequestInfo | URL, RequestInit?]) =>
-			call[0].toString().includes('hydration.js'),
+			call[0].toString().includes('ecopages-react-123-hydration.js'),
 		);
 
 		expect(hydrationCalls.length).toBe(1);
-		expect(hydrationCalls[0][0].toString()).toMatch(/hydration\.js\?t=\d+/);
+		expect(hydrationCalls[0][0].toString()).toMatch(/ecopages-react-123-hydration\.js\?t=\d+/);
 	});
 });

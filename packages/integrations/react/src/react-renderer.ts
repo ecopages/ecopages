@@ -8,7 +8,10 @@ import type {
 	ComponentRenderResult,
 	EcoComponent,
 	EcoComponentConfig,
+	EcoHtmlComponent,
 	EcoPageFile,
+	EcoPageLayoutComponent,
+	EcoPagesElement,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
 	PageMetadataProps,
@@ -33,6 +36,33 @@ import { ReactHydrationAssetService } from './services/react-hydration-asset.ser
 
 type ReactComponentRenderContext = {
 	componentInstanceId?: string;
+};
+
+type SerializableProps = Record<string, unknown>;
+
+type ReactRenderableComponent<P extends SerializableProps = SerializableProps> = React.FunctionComponent<P> & {
+	config?: EcoComponentConfig;
+	requires?: string | readonly string[];
+};
+
+type NonReactLayoutProps = {
+	children: string;
+	locals?: RequestLocals;
+};
+
+type NonReactHtmlTemplateProps = {
+	metadata: PageMetadataProps;
+	pageProps: HtmlTemplateProps['pageProps'];
+	children: string;
+	headContent?: string;
+};
+
+type ReactPageModule = EcoPageFile<{ config?: EcoComponentConfig }> & {
+	config?: EcoComponentConfig;
+};
+
+type RequiresAwareComponent = {
+	requires?: string | readonly string[];
 };
 
 /**
@@ -123,6 +153,224 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	/**
+	 * Reads the declared integration name for a component or layout.
+	 *
+	 * We honor both the explicit `config.integration` override and injected
+	 * `config.__eco.integration` metadata because pages can arrive here through
+	 * authored config as well as build-time component metadata.
+	 */
+	private getComponentIntegration(component?: { config?: EcoComponentConfig } | null): string | undefined {
+		return component?.config?.integration ?? component?.config?.__eco?.integration;
+	}
+
+	/**
+	 * Returns whether a component should stay inside the React render lane.
+	 *
+	 * Components without explicit integration metadata are treated as React-owned
+	 * here because this renderer only receives them after the route pipeline has
+	 * already selected the React integration.
+	 */
+	private isReactManagedComponent(component?: { config?: EcoComponentConfig } | null): boolean {
+		const integration = this.getComponentIntegration(component);
+		return integration === undefined || integration === this.name;
+	}
+
+	/**
+	 * Creates the fallback page-props payload used when a React page is rendered
+	 * inside a non-React HTML shell.
+	 *
+	 * browser-router can only inspect the final HTML document. When the HTML shell
+	 * is owned by another integration, the normal React page-data script may not be
+	 * the easiest marker to detect, so we emit a stable fallback payload in the
+	 * document head for router handoff and hydration recovery.
+	 */
+	private buildRouterFallbackScript(pageProps: HtmlTemplateProps['pageProps'] | undefined): string {
+		const safeJson = JSON.stringify(pageProps || {}).replace(/</g, '\\u003c');
+		return `<script id="__ECO_PAGE_DATA_FALLBACK__" type="application/json">${safeJson}</script>`;
+	}
+
+	/**
+	 * Commits a framework-agnostic component to React semantics.
+	 *
+	 * This is one of the two real cast boundaries in this file. Core keeps
+	 * `EcoComponent` broad so integrations can share the same public surface; once
+	 * the React renderer is executing, `createElement()` needs a concrete React
+	 * component signature.
+	 */
+	private asReactComponent<P extends SerializableProps>(component: unknown): ReactRenderableComponent<P> {
+		return component as ReactRenderableComponent<P>;
+	}
+
+	/**
+	 * Commits a mixed-shell component to the string-returning contract required by
+	 * non-React layouts and HTML templates.
+	 *
+	 * This is the second real cast boundary: once we decide a shell is not managed
+	 * by React, we call it directly and require serialized HTML back.
+	 */
+	private asNonReactShellComponent<P extends SerializableProps>(
+		component: unknown,
+	): (props: P) => EcoPagesElement | Promise<EcoPagesElement> {
+		return component as (props: P) => EcoPagesElement | Promise<EcoPagesElement>;
+	}
+
+	/**
+	 * Builds the serialized page-props payload embedded into the final HTML.
+	 *
+	 * The document payload is intentionally narrower than the full server render
+	 * input: only routing data, public page props, and explicitly allowed locals are
+	 * exposed to the browser.
+	 */
+	private buildSerializedPageProps(options: {
+		pageProps?: HtmlTemplateProps['pageProps'];
+		params: IntegrationRendererRenderOptions<ReactNode>['params'];
+		query: IntegrationRendererRenderOptions<ReactNode>['query'];
+		safeLocals?: RequestLocals;
+	}): HtmlTemplateProps['pageProps'] {
+		return {
+			...options.pageProps,
+			params: options.params,
+			query: options.query,
+			...(options.safeLocals && { locals: options.safeLocals }),
+		};
+	}
+
+	/**
+	 * Appends route hydration assets for a concrete page/view file to the current
+	 * HTML transformer state.
+	 */
+	private async appendHydrationAssetsForFile(filePath?: string): Promise<void> {
+		if (!filePath) {
+			return;
+		}
+
+		const hydrationAssets = await this.buildRouteRenderAssets(filePath);
+		this.htmlTransformer.setProcessedDependencies([
+			...this.htmlTransformer.getProcessedDependencies(),
+			...hydrationAssets,
+		]);
+	}
+
+	/**
+	 * Resolves metadata for direct `renderToResponse()` calls.
+	 *
+	 * View rendering bypasses the normal route-file pipeline, so metadata has to be
+	 * evaluated here from either the component-level generator or the application
+	 * default.
+	 */
+	private async resolveViewMetadata<P>(view: EcoComponent<P>, props: P): Promise<PageMetadataProps> {
+		return view.metadata
+			? await view.metadata({
+					params: {},
+					query: {},
+					props,
+					appConfig: this.appConfig,
+				})
+			: this.appConfig.defaultMetadata;
+	}
+
+	/**
+	 * Renders a non-React layout or HTML template and enforces that mixed shells
+	 * return serialized HTML.
+	 *
+	 * The React renderer can compose through another integration's shell, but only
+	 * if that shell yields a string that can be inserted into the final document.
+	 */
+	private async renderNonReactShellComponent<P extends SerializableProps>(
+		Component: (props: P) => EcoPagesElement | Promise<EcoPagesElement>,
+		props: P,
+		label: 'Layout' | 'HtmlTemplate',
+	): Promise<string> {
+		const output = await Component(props);
+		if (typeof output === 'string') {
+			return output;
+		}
+
+		throw new ReactRenderError(`${label} must return a string when used as a mixed shell for React pages.`);
+	}
+
+	/**
+	 * Produces the page body before the final HTML template is applied.
+	 *
+	 * This method owns the React/non-React layout split. React-managed layouts stay
+	 * as React elements so they can stream normally; non-React layouts are rendered
+	 * to HTML first and then passed through as serialized content.
+	 */
+	private async composePageContent(options: {
+		Page: ReactRenderableComponent<SerializableProps>;
+		Layout?: EcoPageLayoutComponent<any>;
+		pageProps: SerializableProps;
+		locals?: RequestLocals;
+	}): Promise<{ contentNode: ReactNode; contentHtml: string }> {
+		const pageElement = createElement(options.Page, options.pageProps);
+		const pageHtml = renderToString(pageElement);
+		const layoutProps = options.locals ? { locals: options.locals } : {};
+
+		if (!options.Layout) {
+			return { contentNode: pageElement, contentHtml: pageHtml };
+		}
+
+		if (this.isReactManagedComponent(options.Layout)) {
+			const layoutElement = createElement(this.asReactComponent(options.Layout), layoutProps, pageElement);
+			return {
+				contentNode: layoutElement,
+				contentHtml: renderToString(layoutElement),
+			};
+		}
+
+		const layoutHtml = await this.renderNonReactShellComponent(
+			this.asNonReactShellComponent<NonReactLayoutProps>(options.Layout),
+			{ ...layoutProps, children: pageHtml },
+			'Layout',
+		);
+
+		return { contentNode: layoutHtml, contentHtml: layoutHtml };
+	}
+
+	/**
+	 * Wraps composed page content in the final document template.
+	 *
+	 * React-owned HTML templates stream directly. Non-React templates receive
+	 * pre-rendered page HTML plus an optional React router fallback payload so the
+	 * client runtime can still recover page data after cross-integration handoff.
+	 */
+	private async renderDocument(options: {
+		HtmlTemplate: EcoHtmlComponent<ReactNode>;
+		metadata: PageMetadataProps;
+		pageProps: HtmlTemplateProps['pageProps'];
+		contentNode: ReactNode;
+		contentHtml: string;
+	}): Promise<RouteRendererBody> {
+		if (this.isReactManagedComponent(options.HtmlTemplate)) {
+			return renderToReadableStream(
+				createElement(
+					this.asReactComponent(options.HtmlTemplate),
+					{
+						metadata: options.metadata,
+						pageProps: options.pageProps,
+					},
+					options.contentNode,
+				),
+			);
+		}
+
+		const headContent = ReactRenderer.routerAdapter
+			? this.buildRouterFallbackScript(options.pageProps)
+			: undefined;
+
+		return this.renderNonReactShellComponent(
+			this.asNonReactShellComponent<NonReactHtmlTemplateProps>(options.HtmlTemplate),
+			{
+				metadata: options.metadata,
+				pageProps: options.pageProps,
+				children: options.contentHtml,
+				headContent,
+			},
+			'HtmlTemplate',
+		);
+	}
+
+	/**
 	 * Renders a React component for component-level orchestration.
 	 *
 	 * Behavior:
@@ -135,7 +383,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * deterministic mount target per component instance.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		const Component = input.component as unknown as React.FunctionComponent;
+		const Component = this.asReactComponent(input.component);
 		const componentConfig = input.component.config;
 		const element =
 			input.children === undefined
@@ -211,9 +459,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
 		try {
-			const pageModule = (await this.importPageFile(pagePath)) as EcoPageFile<{ config?: EcoComponentConfig }> & {
-				config?: EcoComponentConfig;
-			};
+			const pageModule = await this.importPageFile(pagePath);
 			const shouldHydrate = ReactRenderer.explicitGraphEnabled
 				? true
 				: this.pageModuleService.shouldHydratePage(pageModule);
@@ -246,14 +492,20 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		}
 	}
 
-	protected override async importPageFile(file: string): Promise<EcoPageFile<{ config?: EcoComponentConfig }>> {
+	/**
+	 * Imports a page module while normalizing React MDX modules to the same shape
+	 * as ordinary React page files.
+	 *
+	 * MDX page imports can expose `config` separately from the default export. The
+	 * React renderer reattaches that config to the page component so downstream
+	 * layout, dependency, and hydration logic can treat MDX and TSX pages the same.
+	 */
+	protected override async importPageFile(file: string): Promise<ReactPageModule> {
 		const module = (
 			this.pageModuleService.isMdxFile(file)
 				? await this.pageModuleService.importMdxPageFile(file)
 				: await super.importPageFile(file)
-		) as EcoPageFile<{ config?: EcoComponentConfig }> & {
-			config?: EcoComponentConfig;
-		};
+		) as ReactPageModule;
 		const { default: Page, getMetadata, config } = module;
 
 		if (this.pageModuleService.isMdxFile(file) && config) {
@@ -267,6 +519,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		};
 	}
 
+	/**
+	 * Renders a full route response for the filesystem page pipeline.
+	 *
+	 * This path receives already-resolved route metadata, layout, locals, and HTML
+	 * template instances from the shared renderer orchestration. Its main job is to
+	 * serialize only the browser-safe page payload, compose the mixed React/non-
+	 * React shell tree, and hand the result back as a document body.
+	 */
 	async render({
 		params,
 		query,
@@ -280,32 +540,27 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		pageProps,
 	}: IntegrationRendererRenderOptions<ReactNode>): Promise<RouteRendererBody> {
 		try {
-			const pageElement = createElement(Page, { params, query, ...props, locals: pageLocals });
-			const contentElement = Layout
-				? createElement(Layout as React.FunctionComponent, { locals } as object, pageElement)
-				: pageElement;
-
-			const safeLocals = this.getSerializableLocals(
-				locals as RequestLocals,
-				(Page as typeof Page & { requires?: string | readonly string[] }).requires,
-			);
-			const allPageProps: HtmlTemplateProps['pageProps'] = {
-				...pageProps,
+			const safeLocals = this.getSerializableLocals(locals, (Page as RequiresAwareComponent).requires);
+			const allPageProps = this.buildSerializedPageProps({
+				pageProps,
 				params,
 				query,
-				...(safeLocals && { locals: safeLocals }),
-			};
+				safeLocals,
+			});
+			const { contentNode, contentHtml } = await this.composePageContent({
+				Page: this.asReactComponent(Page),
+				Layout,
+				pageProps: { params, query, ...props, locals: pageLocals },
+				locals,
+			});
 
-			return await renderToReadableStream(
-				createElement(
-					HtmlTemplate,
-					{
-						metadata,
-						pageProps: allPageProps,
-					} as HtmlTemplateProps,
-					contentElement,
-				),
-			);
+			return await this.renderDocument({
+				HtmlTemplate,
+				metadata,
+				pageProps: allPageProps,
+				contentNode,
+				contentHtml,
+			});
 		} catch (error) {
 			throw this.createRenderError('Failed to render component', error);
 		}
@@ -328,10 +583,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * @returns The filtered locals object if serializable, undefined otherwise
 	 */
 	private getSerializableLocals(
-		locals: RequestLocals,
+		locals: RequestLocals | undefined,
 		requiredLocals?: string | readonly string[],
 	): RequestLocals | undefined {
 		try {
+			if (!locals) {
+				return undefined;
+			}
+
 			const requiredKeys = requiredLocals
 				? Array.isArray(requiredLocals)
 					? requiredLocals
@@ -360,6 +619,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		}
 	}
 
+	/**
+	 * Renders an arbitrary React view through the application's HTML shell.
+	 *
+	 * Unlike route rendering, this path starts from a single component rather than a
+	 * page module discovered by the router. It still needs to resolve metadata,
+	 * layout dependencies, and hydration assets so direct `ctx.render()` calls match
+	 * normal page responses.
+	 */
 	async renderToResponse<P = Record<string, unknown>>(
 		view: EcoComponent<P>,
 		props: P,
@@ -367,54 +634,37 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	): Promise<Response> {
 		try {
 			const viewConfig = view.config;
-			const Layout = viewConfig?.layout as React.FunctionComponent | undefined;
-
-			const ViewComponent = view as unknown as React.FunctionComponent;
-			const pageElement = createElement(ViewComponent, props || {});
+			const Layout = viewConfig?.layout;
+			const ViewComponent = this.asReactComponent(view);
+			const normalizedProps = (props ?? {}) as SerializableProps;
 
 			if (ctx.partial) {
-				const stream = await renderToReadableStream(pageElement);
+				const stream = await renderToReadableStream(createElement(ViewComponent, normalizedProps));
 				return this.createHtmlResponse(stream, ctx);
 			}
 
-			const contentElement = Layout
-				? createElement(Layout as React.FunctionComponent, {}, pageElement)
-				: pageElement;
-
 			const HtmlTemplate = await this.getHtmlTemplate();
-			const metadata: PageMetadataProps = view.metadata
-				? await view.metadata({
-						params: {},
-						query: {},
-						props,
-						appConfig: this.appConfig,
-					})
-				: this.appConfig.defaultMetadata;
+			const metadata = await this.resolveViewMetadata(view, props);
 
-			await this.prepareViewDependencies(view, Layout as unknown as EcoComponent | undefined);
+			await this.prepareViewDependencies(view, Layout);
+			await this.appendHydrationAssetsForFile(viewConfig?.__eco?.file);
 
-			const viewFilePath = viewConfig?.__eco?.file;
-			if (viewFilePath) {
-				const hydrationAssets = await this.buildRouteRenderAssets(viewFilePath);
-				this.htmlTransformer.setProcessedDependencies([
-					...this.htmlTransformer.getProcessedDependencies(),
-					...hydrationAssets,
-				]);
-			}
+			const { contentNode, contentHtml } = await this.composePageContent({
+				Page: ViewComponent,
+				Layout,
+				pageProps: normalizedProps,
+			});
 
-			const streamBody = await renderToReadableStream(
-				createElement(
-					HtmlTemplate,
-					{
-						metadata,
-						pageProps: props,
-					} as HtmlTemplateProps,
-					contentElement,
-				),
-			);
+			const body = await this.renderDocument({
+				HtmlTemplate,
+				metadata,
+				pageProps: normalizedProps,
+				contentNode,
+				contentHtml,
+			});
 
 			const transformedResponse = await this.htmlTransformer.transform(
-				new Response(streamBody, {
+				new Response(body as BodyInit, {
 					headers: { 'Content-Type': 'text/html' },
 				}),
 			);

@@ -6,6 +6,11 @@ All notable changes to `@ecopages/react` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Bug Fixes
+
+- Fixed React MDX `.md` opt-in routes compiling in plain-markdown mode. When `compilerOptions.mdExtensions` includes `.md`, those files are now parsed as MDX so top-level `import` and `export` statements work correctly.
+- Fixed `react-mdx-loader` incorrectly handling `.md` files by default, which caused `.md` pages intended for the standalone `mdxPlugin` (with `@kitajs/html` JSX runtime) to be compiled with React's JSX runtime. The React MDX loader now defaults to only `.mdx` extensions; use `compilerOptions.mdExtensions` to opt in to `.md` handling.
+
 ### Features
 
 #### Render Reachability Analysis
@@ -36,7 +41,8 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
-- **Fixed React island duplicate DOM** — Island bootstrap now creates an `eco-island` container (`display: contents`) and calls `createRoot` on it, replacing the SSR element rather than mounting React inside it. This prevents the component root element from being duplicated on client mount.
+- **Fixed React island duplicate DOM** — Island bootstrap now creates an `eco-island` container with `display: block` and calls `createRoot` on it, replacing the SSR element rather than mounting React inside it. This prevents the component root element from being duplicated on client mount.
+- **Fixed eco-island CSS regression** — Changed `eco-island` container from `display: contents` to `display: block`. With `display: contents`, the element has no layout box and CSS sibling selectors (e.g. Tailwind `space-y-*`) applied margins to a box-less element, producing no visual effect. With `display: block`, eco-island participates in layout as expected.
 - **Fixed island script prop collision** — Component props are now embedded in the SSR element as `data-eco-props` (base64-encoded JSON) and read from the DOM at mount time, rather than being hardcoded in the shared island script. This resolves incorrect props being applied when the same component appeared at the same position on multiple pages, because the script file was shared but overwritten during build.
 
 
@@ -52,8 +58,11 @@ All notable changes to `@ecopages/react` are documented here.
 - Fixed shared React barrel handling so client-reachable server-only re-exports now fail the build instead of being silently pruned (`unreleased`).
 - Fixed page-entry browser bundles to strip server-only `eco.page()` options so unreachable middleware imports do not leave dangling runtime references (`unreleased`).
 - Fixed non-router page hydration so layouts receive serialized request locals on the client, preventing mismatches on middleware-backed dynamic pages (`unreleased`).
-- Fixed React island duplicate DOM — island bootstrap now creates an `eco-island` container (`display:contents`) that replaces the SSR element, then calls `createRoot` on it. This prevents the component root from being nested inside itself on client mount.
+- Fixed React page hydration bootstrap re-entry so repeated page scripts reuse the existing root instead of re-hydrating the document during fast route handoffs (`unreleased`).
+- Fixed React island duplicate DOM — island bootstrap now creates an `eco-island` container with `display: block` that replaces the SSR element, then calls `createRoot` on it. This prevents the component root from being nested inside itself on client mount.
+- Fixed eco-island CSS regression — changed `eco-island` container from `display: contents` to `display: block` so the element has a layout box and participates correctly in CSS sibling spacing rules (e.g. Tailwind `space-y-*`).
 - Fixed island script prop collision — component props are now embedded in the SSR element as `data-eco-props` (base64 JSON) and read from the DOM at mount time. This resolves incorrect props being used when the same component appeared at the same position on multiple pages, because the generated script file was shared but the hardcoded props were overwritten during build.
+- Fixed React page rendering inside explicit non-React HTML/layout shells so `.tsx` and `.mdx` React routes can run inside shared Kita app chrome while preserving React hydration and router handoff.
 
 ### Documentation
 

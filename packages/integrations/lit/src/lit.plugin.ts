@@ -52,7 +52,6 @@ export class LitPlugin extends IntegrationPlugin {
 				content: litElementHydrateScript,
 				bundle: false,
 				attributes: {
-					'data-eco-rerun': 'true',
 					'data-eco-script-id': 'lit-hydrate-support',
 				},
 			}),

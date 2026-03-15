@@ -3,6 +3,8 @@
  * Injected into the browser to handle Hot Module Replacement updates.
  */
 
+import { getEcoNavigationRuntime } from '../../router/navigation-coordinator.ts';
+
 interface HMRPayload {
 	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update';
 	path?: string;
@@ -41,14 +43,14 @@ interface HMRPayload {
 	}
 
 	async function handleMessage(payload: HMRPayload) {
+		const navigationRuntime = getEcoNavigationRuntime(window);
+
 		switch (payload.type) {
 			case 'reload':
 				location.reload();
 				break;
 			case 'layout-update': {
-				const reloadFn = window.__ecopages_reload_current_page__;
-				if (typeof reloadFn === 'function') {
-					await reloadFn({ clearCache: true });
+				if (await navigationRuntime.reloadCurrentPage({ clearCache: true })) {
 				} else {
 					location.reload();
 				}
@@ -79,6 +81,7 @@ interface HMRPayload {
 		try {
 			const url = path + '?t=' + (timestamp || Date.now());
 			const handlers = window.__ecopages_hmr_handlers__;
+			const navigationRuntime = getEcoNavigationRuntime(window);
 
 			if (handlers?.[path]) {
 				await handlers[path](url);
@@ -89,9 +92,7 @@ interface HMRPayload {
 
 			// If we're inside the EcoRouter, we need to trigger a router navigation to render the new component.
 			// Passing clearCache: false preserves the persisted layout cache.
-			const reloadFn = window.__ecopages_reload_current_page__;
-			if (typeof reloadFn === 'function') {
-				await reloadFn({ clearCache: false });
+			if (await navigationRuntime.reloadCurrentPage({ clearCache: false })) {
 			}
 		} catch (e) {
 			console.error('[ecopages] Failed to apply HMR update:', e);

@@ -64,6 +64,12 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Fixed HMR fallback entrypoint builds to honor integration-registered bare specifier mappings when rewriting browser-loaded fallback bundles, so unresolved runtime imports no longer leak through.
+- Fixed browser-side current-page reload coordination so HMR refreshes still target the active runtime even when the reload request originates from that same owner.
+
+### Refactoring
+
+- Added a shared browser-side navigation coordinator so client runtimes can hand off ownership, reload the current page, and request cross-router navigation through one internal protocol instead of ad hoc globals.
 - Removed legacy template filename config and now derive `html` and `404` entries semantically from registered integration extensions.
 - Fixed invariant checks for route paths with improved error messaging in `AbstractApplicationAdapter` (`9c2a6242`).
 - Fixed dependency import name extraction in `extractEcopagesVirtualImports` (`39bbc472`).

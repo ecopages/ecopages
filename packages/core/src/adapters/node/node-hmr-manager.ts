@@ -92,6 +92,21 @@ export class NodeHmrManager implements IHmrManager {
 		}
 	}
 
+	private rewriteBareSpecifiers(code: string): string {
+		if (this.specifierMap.size === 0) {
+			return code;
+		}
+
+		let result = code;
+		for (const [bareSpec, runtimeUrl] of this.specifierMap.entries()) {
+			const escaped = bareSpec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			result = result.replace(new RegExp(`from\\s*["']${escaped}["']`, 'g'), `from "${runtimeUrl}"`);
+			result = result.replace(new RegExp(`import\\(["']${escaped}["']\\)`, 'g'), `import("${runtimeUrl}")`);
+		}
+
+		return result;
+	}
+
 	public async buildRuntime(): Promise<void> {
 		const currentDir = path.dirname(fileURLToPath(import.meta.url));
 		const runtimeSource = path.resolve(currentDir, '../../hmr/client/hmr-runtime.ts');
@@ -239,6 +254,11 @@ export class NodeHmrManager implements IHmrManager {
 
 		await this.handleFileChange(entrypointPath);
 
+		if (fileSystem.exists(outputPath)) {
+			const code = this.rewriteBareSpecifiers(await fileSystem.readFile(outputPath));
+			await fileSystem.writeAsync(outputPath, code);
+		}
+
 		if (!fileSystem.exists(outputPath)) {
 			const fallback = await defaultBuildAdapter.build({
 				entrypoints: [entrypointPath],
@@ -253,6 +273,11 @@ export class NodeHmrManager implements IHmrManager {
 			if (!fallback.success) {
 				appLogger.error(`[HMR] Fallback build failed for ${entrypointPath}:`, fallback.logs);
 			}
+		}
+
+		if (fileSystem.exists(outputPath)) {
+			const code = this.rewriteBareSpecifiers(await fileSystem.readFile(outputPath));
+			await fileSystem.writeAsync(outputPath, code);
 		}
 
 		return outputUrl;

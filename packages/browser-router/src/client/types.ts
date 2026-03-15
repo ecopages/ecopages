@@ -73,6 +73,10 @@ export interface EcoRouterOptions {
 	prefetch?: PrefetchConfig | false;
 }
 
+export type BrowserRouterNavigateOptions = {
+	direction?: 'forward' | 'back' | 'replace';
+};
+
 /** Events emitted during the navigation lifecycle */
 export interface EcoNavigationEvent {
 	url: URL;

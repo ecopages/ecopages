@@ -4,6 +4,7 @@
  */
 
 import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types.ts';
+import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { DEFAULT_OPTIONS } from './types.ts';
 import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services/index.ts';
 
@@ -14,6 +15,8 @@ import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } fro
 export class EcoRouter {
 	private options: Required<EcoRouterOptions>;
 	private abortController: AbortController | null = null;
+	private navigationSequence = 0;
+	private unregisterNavigationRuntime: (() => void) | null = null;
 
 	private domSwapper: DomSwapper;
 	private scrollManager: ScrollManager;
@@ -38,6 +41,33 @@ export class EcoRouter {
 		this.handlePopState = this.handlePopState.bind(this);
 	}
 
+	private isReactRouterActive(): boolean {
+		return getEcoNavigationRuntime(window).getOwnerState().owner === 'react-router';
+	}
+
+	private isReactManagedDocument(doc: Document): boolean {
+		return Array.from(doc.querySelectorAll('script')).some((script) => {
+			const content = script.textContent ?? '';
+			const src = script.getAttribute('src') ?? '';
+			return (
+				script.id === '__ECO_PAGE_DATA_FALLBACK__' ||
+				content.includes('__ECO_PAGE_DATA_FALLBACK__') ||
+				(src.includes('ecopages-react-') &&
+					src.includes('-hydration') &&
+					!src.includes('ecopages-react-island-'))
+			);
+		});
+	}
+
+	private setRouterOwnership(doc: Document): void {
+		const owner = this.isReactManagedDocument(doc) ? 'react-router' : 'browser-router';
+		getEcoNavigationRuntime(window).setOwner(owner);
+	}
+
+	private reloadDocument(url: URL): void {
+		window.location.assign(url.href);
+	}
+
 	/**
 	 * Starts the router and begins intercepting navigation.
 	 *
@@ -45,23 +75,32 @@ export class EcoRouter {
 	 * back/forward buttons. Also starts the prefetch manager if configured.
 	 */
 	public start(): void {
+		const navigationRuntime = getEcoNavigationRuntime(window);
+
 		document.addEventListener('click', this.handleClick);
 		window.addEventListener('popstate', this.handlePopState);
 		this.prefetchManager?.start();
+		this.unregisterNavigationRuntime?.();
+		this.unregisterNavigationRuntime = navigationRuntime.register({
+			owner: 'browser-router',
+			navigate: async (request) => {
+				await this.performNavigation(
+					new URL(request.href, window.location.origin),
+					request.direction ?? 'forward',
+				);
+				return true;
+			},
+			reloadCurrentPage: async (request) => {
+				const currentUrl = window.location.pathname + window.location.search;
 
-		const windowWithHmr = window as typeof window & {
-			__ecopages_reload_current_page__?: (options: { clearCache: boolean }) => Promise<void>;
-		};
+				if (request?.clearCache) {
+					this.prefetchManager?.invalidate(currentUrl);
+				}
 
-		windowWithHmr.__ecopages_reload_current_page__ = async (options: { clearCache: boolean }) => {
-			const currentUrl = window.location.pathname + window.location.search;
-
-			if (options.clearCache) {
-				this.prefetchManager?.invalidate(currentUrl);
-			}
-
-			await this.performNavigation(new URL(currentUrl, window.location.origin), 'replace');
-		};
+				await this.performNavigation(new URL(currentUrl, window.location.origin), 'replace');
+			},
+		});
+		this.setRouterOwnership(document);
 
 		// Cache the initial page for instant back-navigation
 		const initialHtml = document.documentElement.outerHTML;
@@ -76,12 +115,8 @@ export class EcoRouter {
 		document.removeEventListener('click', this.handleClick);
 		window.removeEventListener('popstate', this.handlePopState);
 		this.prefetchManager?.stop();
-
-		const windowWithHmr = window as typeof window & {
-			__ecopages_reload_current_page__?: (options: { clearCache: boolean }) => Promise<void>;
-		};
-
-		windowWithHmr.__ecopages_reload_current_page__ = undefined;
+		this.unregisterNavigationRuntime?.();
+		this.unregisterNavigationRuntime = null;
 	}
 
 	/**
@@ -124,6 +159,8 @@ export class EcoRouter {
 	 * Shadow DOM boundaries (Web Components).
 	 */
 	private handleClick(event: MouseEvent): void {
+		if (this.isReactRouterActive()) return;
+
 		const link = event
 			.composedPath()
 			.find(
@@ -160,6 +197,8 @@ export class EcoRouter {
 	 * Triggered by the History API's popstate event.
 	 */
 	private handlePopState(_event: PopStateEvent): void {
+		if (this.isReactRouterActive()) return;
+
 		const url = new URL(window.location.href);
 		this.performNavigation(url, 'back');
 	}
@@ -192,15 +231,24 @@ export class EcoRouter {
 	 */
 	private async performNavigation(url: URL, direction: EcoNavigationEvent['direction']): Promise<void> {
 		const previousUrl = new URL(window.location.href);
+		const navigationSequence = ++this.navigationSequence;
 
 		this.abortController?.abort();
-		this.abortController = new AbortController();
+		const abortController = new AbortController();
+		this.abortController = abortController;
+		const isStaleNavigation = () =>
+			this.navigationSequence !== navigationSequence || abortController.signal.aborted;
 
 		try {
-			const html = await this.fetchPage(url, this.abortController.signal);
-			const newDocument = this.domSwapper.parseHTML(html, url);
+			const html = await this.fetchPage(url, abortController.signal);
+			if (isStaleNavigation()) return;
 
-			let shouldReload = false;
+			const newDocument = this.domSwapper.parseHTML(html, url);
+			if (isStaleNavigation()) return;
+
+			const currentDocumentIsReactManaged = this.isReactManagedDocument(document);
+			const newDocumentIsReactManaged = this.isReactManagedDocument(newDocument);
+			let shouldReload = currentDocumentIsReactManaged !== newDocumentIsReactManaged;
 			const beforeSwapEvent: EcoBeforeSwapEvent = {
 				url,
 				direction,
@@ -211,11 +259,20 @@ export class EcoRouter {
 			};
 
 			document.dispatchEvent(new CustomEvent('eco:before-swap', { detail: beforeSwapEvent }));
+			if (isStaleNavigation()) return;
 
 			if (shouldReload) {
-				window.location.href = url.href;
+				if (isStaleNavigation()) return;
+				if (currentDocumentIsReactManaged && !newDocumentIsReactManaged) {
+					const navigationRuntime = getEcoNavigationRuntime(window);
+					navigationRuntime.setOwner('react-router');
+					await navigationRuntime.cleanupCurrentOwner();
+				}
+				this.reloadDocument(url);
 				return;
 			}
+
+			if (isStaleNavigation()) return;
 
 			if (this.options.updateHistory && direction === 'forward') {
 				window.history.pushState({}, '', url.href);
@@ -225,18 +282,30 @@ export class EcoRouter {
 
 			const useViewTransitions = this.options.viewTransitions;
 			await this.domSwapper.preloadStylesheets(newDocument);
+			if (isStaleNavigation()) return;
+
+			const commitSwap = () => {
+				if (isStaleNavigation()) return;
+
+				this.domSwapper.morphHead(newDocument);
+				if (useViewTransitions && !this.domSwapper.shouldReplaceBodyForRerunScripts()) {
+					this.domSwapper.morphBody(newDocument);
+				} else {
+					this.domSwapper.replaceBody(newDocument);
+				}
+				this.domSwapper.flushRerunScripts();
+				this.scrollManager.handleScroll(url, previousUrl);
+			};
 
 			if (useViewTransitions) {
-				await this.viewTransitionManager.transition(() => {
-					this.domSwapper.morphHead(newDocument);
-					this.domSwapper.morphBody(newDocument);
-					this.scrollManager.handleScroll(url, previousUrl);
-				});
+				await this.viewTransitionManager.transition(commitSwap);
 			} else {
-				this.domSwapper.morphHead(newDocument);
-				this.domSwapper.replaceBody(newDocument);
-				this.scrollManager.handleScroll(url, previousUrl);
+				commitSwap();
 			}
+
+			if (isStaleNavigation()) return;
+
+			this.setRouterOwnership(newDocument);
 
 			const afterSwapEvent: EcoAfterSwapEvent = {
 				url,
@@ -251,6 +320,8 @@ export class EcoRouter {
 			this.prefetchManager?.cacheVisitedPage(url.href, html);
 
 			requestAnimationFrame(() => {
+				if (isStaleNavigation()) return;
+
 				document.dispatchEvent(
 					new CustomEvent('eco:page-load', {
 						detail: { url, direction } as EcoNavigationEvent,
@@ -264,6 +335,10 @@ export class EcoRouter {
 
 			console.error('[ecopages] Navigation failed:', error);
 			window.location.href = url.href;
+		} finally {
+			if (this.abortController === abortController) {
+				this.abortController = null;
+			}
 		}
 	}
 

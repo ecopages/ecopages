@@ -4,6 +4,11 @@ import type { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher
 import type { FileSystemResponseMatcher } from './fs-server-response-matcher';
 import { appLogger } from '../../global/app-logger';
 import { HttpError } from '../../errors/http-error';
+import {
+	injectHmrRuntimeIntoHtmlResponse,
+	isHtmlResponse,
+	shouldInjectHmrHtmlResponse,
+} from './hmr-html-response';
 
 /**
  * Configuration parameters for ServerRouteHandler.
@@ -63,7 +68,7 @@ export class ServerRouteHandler {
 	 * @returns true if in watch mode and HMR manager is enabled
 	 */
 	shouldInjectHmrScript(): boolean {
-		return this.watch && this.hmrManager?.isEnabled() === true;
+		return shouldInjectHmrHtmlResponse(this.watch, this.hmrManager);
 	}
 
 	/**
@@ -73,8 +78,7 @@ export class ServerRouteHandler {
 	 * @returns true if Content-Type header starts with 'text/html'
 	 */
 	isHtmlResponse(response: Response): boolean {
-		const contentType = response.headers.get('Content-Type');
-		return contentType !== null && contentType.startsWith('text/html');
+		return isHtmlResponse(response);
 	}
 
 	/**
@@ -118,20 +122,7 @@ export class ServerRouteHandler {
 	 */
 	private async maybeInjectHmrScript(response: Response): Promise<Response> {
 		if (this.shouldInjectHmrScript() && this.isHtmlResponse(response)) {
-			const html = await response.text();
-
-			const hmrScript = `<script type="module">import '/_hmr_runtime.js';</script>`;
-
-			const updatedHtml = html.replace(/<\/html>/i, `${hmrScript}</html>`);
-
-			const headers = new Headers(response.headers);
-			headers.delete('Content-Length');
-
-			return new Response(updatedHtml, {
-				status: response.status,
-				statusText: response.statusText,
-				headers,
-			});
+			return injectHmrRuntimeIntoHtmlResponse(response);
 		}
 
 		return response;

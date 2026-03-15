@@ -4,6 +4,9 @@ import { useState, type ReactNode } from 'react';
 
 export const ReactCounter = eco.component<{}, ReactNode>({
 	integration: 'react',
+	dependencies: {
+		stylesheets: ['./integration-counter.css', './react-counter.css'],
+	},
 	render: () => {
 		const [count, setCount] = useState(0);
 

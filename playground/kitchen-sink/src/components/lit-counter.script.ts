@@ -1,5 +1,6 @@
-import { css, html, LitElement } from 'lit';
+import { html, LitElement, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import styles from './lit-counter.css';
 
 export type LitCounterProps = {
 	count?: number;
@@ -7,42 +8,7 @@ export type LitCounterProps = {
 
 @customElement('lit-counter')
 export class LitCounterElement extends LitElement {
-	static override styles = css`
-		:host {
-			display: inline-flex;
-		}
-
-		.wrapper {
-			display: inline-flex;
-			align-items: center;
-			gap: 0.75rem;
-			border: 1px solid var(--color-border);
-			background: var(--color-background-accent);
-			border-radius: 999px;
-			padding: 0.5rem 1rem;
-			color: var(--color-on-background-accent);
-			font-size: 0.875rem;
-		}
-
-		button {
-			display: inline-flex;
-			align-items: center;
-			justify-content: center;
-			width: 2rem;
-			height: 2rem;
-			border-radius: 999px;
-			border: 1px solid var(--color-border);
-			background: var(--color-background);
-			color: var(--color-on-background);
-			cursor: pointer;
-		}
-
-		span {
-			min-width: 1.5rem;
-			font-family: var(--font-mono);
-			text-align: center;
-		}
-	`;
+	static override styles = [unsafeCSS(styles)];
 
 	@property({ type: Number }) declare count: number;
 

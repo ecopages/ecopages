@@ -5,12 +5,11 @@ import { KitaShell } from '@/components/kita-shell.kita';
 import { LitCounter } from '@/components/lit-counter.lit';
 import { LitShell } from '@/components/lit-shell.lit';
 import { ReactCounter } from '@/components/react-counter.react';
-import { ReactMdxBlock } from '@/components/react-mdx-block.react';
 import { ReactShell } from '@/components/react-shell.react';
 
 export default eco.page({
 	dependencies: {
-		components: [BaseLayout, KitaShell, LitShell, ReactShell, KitaCounter, LitCounter, ReactCounter, ReactMdxBlock],
+		components: [BaseLayout, KitaShell, LitShell, ReactShell, KitaCounter, LitCounter, ReactCounter],
 		stylesheets: ['./integration-matrix.css'],
 	},
 	layout: BaseLayout,
@@ -55,19 +54,14 @@ export default eco.page({
 				<ReactShell id="react-root">react-root-child</ReactShell>
 			</section>
 
-			<section class="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-				<div class="card space-y-4">
-					<p class="text-xs uppercase tracking-[0.24em] text-muted">Counters across integrations</p>
-					<div class="flex flex-wrap gap-3">
-						<KitaCounter />
-						<LitCounter />
-						<ReactCounter />
-					</div>
+			<section class="card space-y-4">
+				<p class="text-xs uppercase tracking-[0.24em] text-muted">Counters across integrations</p>
+				<div class="flex flex-wrap gap-3">
+					<KitaCounter />
+					<LitCounter />
+					<ReactCounter />
 				</div>
-
-				<div class="card">
-					<ReactMdxBlock />
-				</div>
+				<a class="text-xs underline text-muted" href="/react-content">View React MDX page</a>
 			</section>
 		</div>
 	),

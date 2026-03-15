@@ -1,8 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import {
-	ECO_DOCUMENT_OWNER_ATTRIBUTE,
-	getEcoNavigationRuntime,
-} from '@ecopages/core/router/navigation-coordinator';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE, getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { createRouter, EcoRouter } from '../src/client/eco-router';
 
 type BrowserRouterTestWindow = Window &
@@ -205,12 +202,12 @@ describe('EcoRouter', () => {
 			router = createRouter({ viewTransitions: false });
 			const rerunHtml = [
 				'<html>',
-					'<head>',
-						'<script data-eco-rerun="true" data-eco-script-id="after-body-rerun">',
-							'document.body.setAttribute("data-rerun-target",document.querySelector("#content")?.textContent??"missing")',
-						'</script>',
-					'</head>',
-					'<body><div id="content">New Content</div></body>',
+				'<head>',
+				'<script data-eco-rerun="true" data-eco-script-id="after-body-rerun">',
+				'document.body.setAttribute("data-rerun-target",document.querySelector("#content")?.textContent??"missing")',
+				'</script>',
+				'</head>',
+				'<body><div id="content">New Content</div></body>',
 				'</html>',
 			].join('');
 			fetchSpy?.mockResolvedValueOnce({
@@ -229,10 +226,10 @@ describe('EcoRouter', () => {
 			router = createRouter({ viewTransitions: false });
 			const rerunHtml = [
 				'<html>',
-					'<head>',
-						'<script type="module" src="/assets/counter.js" data-eco-rerun="true"></script>',
-					'</head>',
-					'<body><div id="content">Counter Page</div></body>',
+				'<head>',
+				'<script type="module" src="/assets/counter.js" data-eco-rerun="true"></script>',
+				'</head>',
+				'<body><div id="content">Counter Page</div></body>',
 				'</html>',
 			].join('');
 
@@ -243,14 +240,12 @@ describe('EcoRouter', () => {
 
 			const observedSrcs: string[] = [];
 			const originalAppendChild = document.head.appendChild.bind(document.head);
-			const appendChildSpy = vi
-				.spyOn(document.head, 'appendChild')
-				.mockImplementation(((node: Node) => {
-					if (node instanceof HTMLScriptElement && node.getAttribute('data-eco-rerun') !== 'true') {
-						observedSrcs.push(node.getAttribute('src') ?? '');
-					}
-					return originalAppendChild(node);
-				}) as typeof document.head.appendChild);
+			const appendChildSpy = vi.spyOn(document.head, 'appendChild').mockImplementation(((node: Node) => {
+				if (node instanceof HTMLScriptElement && node.getAttribute('data-eco-rerun') !== 'true') {
+					observedSrcs.push(node.getAttribute('src') ?? '');
+				}
+				return originalAppendChild(node);
+			}) as typeof document.head.appendChild);
 
 			await router.navigate('/plain-counter');
 			await waitForNavigation();
@@ -653,10 +648,10 @@ describe('EcoRouter', () => {
 		it('should force a full navigation when document ownership changes', async () => {
 			router = createRouter();
 			const reactHtml = [
-					`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
-					'<head>',
-					'</head>',
-					'<body><main>React Route</main></body>',
+				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
+				'<head>',
+				'</head>',
+				'<body><main>React Route</main></body>',
 				'</html>',
 			].join('');
 			fetchSpy?.mockResolvedValueOnce({
@@ -687,8 +682,8 @@ describe('EcoRouter', () => {
 
 		it('should clean up the active React page root before reloading to a non-React route', async () => {
 			router = createRouter();
-				const originalDocumentOwner = document.documentElement.getAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
-				document.documentElement.setAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE, 'react-router');
+			const originalDocumentOwner = document.documentElement.getAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
+			document.documentElement.setAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE, 'react-router');
 			const cleanupSpy = vi.fn();
 			runtimeWindow.__ecopages_cleanup_page_root__ = cleanupSpy;
 			fetchSpy?.mockResolvedValueOnce({
@@ -709,11 +704,11 @@ describe('EcoRouter', () => {
 				expect(reloadSpy).toHaveBeenCalledWith(expect.any(URL));
 				expect(cleanupSpy.mock.invocationCallOrder[0]).toBeLessThan(reloadSpy.mock.invocationCallOrder[0]);
 			} finally {
-					if (originalDocumentOwner) {
-						document.documentElement.setAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE, originalDocumentOwner);
-					} else {
-						document.documentElement.removeAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
-					}
+				if (originalDocumentOwner) {
+					document.documentElement.setAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE, originalDocumentOwner);
+				} else {
+					document.documentElement.removeAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
+				}
 			}
 		});
 

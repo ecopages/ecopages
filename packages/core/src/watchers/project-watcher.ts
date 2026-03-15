@@ -289,7 +289,8 @@ export class ProjectWatcher {
 	 */
 	triggerRouterRefresh(changedPath: string) {
 		const resolvedPath = path.resolve(changedPath);
-		const isPageDir = resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir) && path.extname(resolvedPath) === '';
+		const isPageDir =
+			resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir) && path.extname(resolvedPath) === '';
 
 		if (isPageDir || this.isRouteSourceFile(resolvedPath)) {
 			this.refreshRouterRoutesCallback();

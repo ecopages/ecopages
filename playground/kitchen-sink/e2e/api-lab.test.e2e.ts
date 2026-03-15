@@ -19,7 +19,9 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 		await expect(page.locator('[data-response-body]')).toContainText('hello kitchen sink');
 
 		await clickHrefAndWait(page, '/integration-matrix');
-		await expect(page.getByRole('heading', { name: 'Render every integration through every other one.' })).toBeVisible();
+		await expect(
+			page.getByRole('heading', { name: 'Render every integration through every other one.' }),
+		).toBeVisible();
 
 		await clickHrefAndWait(page, '/api-lab');
 		await expect(page.getByRole('heading', { name: 'Handlers registered directly from app.ts' })).toBeVisible();

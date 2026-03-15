@@ -19,10 +19,7 @@ export function isHtmlResponse(response: Response): boolean {
  * responses flow through different layers, but both need identical injection
  * behavior in watch mode.
  */
-export function shouldInjectHmrHtmlResponse(
-	watch: boolean,
-	hmrManager?: Pick<IHmrManager, 'isEnabled'>,
-): boolean {
+export function shouldInjectHmrHtmlResponse(watch: boolean, hmrManager?: Pick<IHmrManager, 'isEnabled'>): boolean {
 	return watch && hmrManager?.isEnabled() === true;
 }
 

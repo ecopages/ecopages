@@ -83,7 +83,10 @@ export async function assertCounterInteractivity(root: Locator, expectations: Co
 }
 
 export function getSectionByHeading(page: Page, heading: string): Locator {
-	return page.locator('section').filter({ has: page.getByRole('heading', { name: heading, exact: true }) }).first();
+	return page
+		.locator('section')
+		.filter({ has: page.getByRole('heading', { name: heading, exact: true }) })
+		.first();
 }
 
 export function getSectionByText(page: Page, text: string): Locator {
@@ -102,10 +105,9 @@ export async function clickHrefAndWait(page: Page, href: string) {
 
 	try {
 		await Promise.all([
-			page.waitForURL(
-				(url) => url.pathname === targetUrl.pathname && url.search === targetUrl.search,
-				{ timeout: 5000 },
-			),
+			page.waitForURL((url) => url.pathname === targetUrl.pathname && url.search === targetUrl.search, {
+				timeout: 5000,
+			}),
 			link.click(),
 		]);
 	} catch {

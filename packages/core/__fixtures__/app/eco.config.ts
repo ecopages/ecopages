@@ -2,9 +2,8 @@ import { ConfigBuilder } from '../../src/config/config-builder';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-type FixtureProcessor = Awaited<ReturnType<ConfigBuilder['build']>>['processors'] extends Map<string, infer T>
-	? T
-	: never;
+type FixtureProcessor =
+	Awaited<ReturnType<ConfigBuilder['build']>>['processors'] extends Map<string, infer T> ? T : never;
 
 const builder = new ConfigBuilder().setRootDir(import.meta.dir);
 

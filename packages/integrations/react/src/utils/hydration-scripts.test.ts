@@ -46,7 +46,9 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('window.__ecopages_cleanup_page_root__=()=>{');
 		expect(script).toContain('a.unmount()');
 		expect(script).toContain('window.__ecopages_navigation__?.setOwner("none")');
-		expect(script).toContain('if(window.__ecopages_page_root__){root=window.__ecopages_page_root__;root.render(ct(P,pr));return}');
+		expect(script).toContain(
+			'if(window.__ecopages_page_root__){root=window.__ecopages_page_root__;root.render(ct(P,pr));return}',
+		);
 		expect(script).toContain('const lp=p?.locals?{locals:p.locals}:null;');
 		expect(script).toContain('return L?ce(L,lp,pe):pe');
 	});
@@ -67,7 +69,9 @@ describe('createHydrationScript', () => {
 
 		expect(script).toContain('window.__ecopages_cleanup_page_root__ = () => {');
 		expect(script).toContain('window.__ecopages_navigation__?.setOwner("react-router");');
-		expect(script).toContain('window.__ecopages_navigation__?.reloadCurrentPage?.({ clearCache: false, source: "react-router" });');
+		expect(script).toContain(
+			'window.__ecopages_navigation__?.reloadCurrentPage?.({ clearCache: false, source: "react-router" });',
+		);
 	});
 
 	test('production output passes serialized locals to layout hydration for non-router MDX pages', () => {

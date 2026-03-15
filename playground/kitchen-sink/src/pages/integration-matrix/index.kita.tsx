@@ -61,7 +61,9 @@ export default eco.page({
 					<LitCounter />
 					<ReactCounter />
 				</div>
-				<a class="text-xs underline text-muted" href="/react-content">View React MDX page</a>
+				<a class="text-xs underline text-muted" href="/react-content">
+					View React MDX page
+				</a>
 			</section>
 		</div>
 	),

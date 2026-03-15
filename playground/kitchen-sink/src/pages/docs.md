@@ -1,10 +1,10 @@
 import { BaseLayout } from '../layouts/base-layout/base-layout.kita';
 
 export const config = {
-	layout: BaseLayout,
-	dependencies: {
-		stylesheets: ['./docs.css'],
-	},
+layout: BaseLayout,
+dependencies: {
+stylesheets: ['./docs.css'],
+},
 };
 
 <div class="docs-page__prose">

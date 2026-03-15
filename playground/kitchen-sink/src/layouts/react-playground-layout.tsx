@@ -20,7 +20,9 @@ export const ReactPlaygroundLayout = eco.component<ReactPlaygroundLayoutProps, R
 				<header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
 					<div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
 						<div className="space-y-1">
-							<p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Kitchen sink</p>
+							<p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">
+								Kitchen sink
+							</p>
 							<h1 className="font-display text-2xl font-semibold tracking-tight">
 								React route lane with SPA navigation handoff
 							</h1>

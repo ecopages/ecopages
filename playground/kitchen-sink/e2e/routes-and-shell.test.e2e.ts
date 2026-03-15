@@ -8,7 +8,11 @@ test.describe('Kitchen Sink Playground Routes And Shell', () => {
 		await gotoAndWait(page, '/');
 
 		await expect(page.getByText('Kitchen sink app')).toBeVisible();
-		await expect(page.getByRole('heading', { name: 'One playground that exercises the runtime instead of just proving it boots.' })).toBeVisible();
+		await expect(
+			page.getByRole('heading', {
+				name: 'One playground that exercises the runtime instead of just proving it boots.',
+			}),
+		).toBeVisible();
 		await expect(page.getByRole('link', { name: 'Open the matrix' })).toBeVisible();
 		await expect(page.getByRole('link', { name: 'Inspect images' })).toBeVisible();
 		await expect(page.getByRole('link', { name: 'Explicit route', exact: true })).toBeVisible();

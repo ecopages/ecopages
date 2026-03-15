@@ -53,7 +53,11 @@ function createMultiLinkPage(name: string, links: Array<{ href: string; label: s
 			'div',
 			{ 'data-testid': `${name}-page` },
 			...links.map((link) =>
-				createElement('a', { key: link.href, href: link.href, 'data-testid': `${name}-${link.label}` }, link.label),
+				createElement(
+					'a',
+					{ key: link.href, href: link.href, 'data-testid': `${name}-${link.label}` },
+					link.label,
+				),
 			),
 		);
 	Component.displayName = name;
@@ -358,8 +362,12 @@ describe('EcoRouter HMR Integration', () => {
 			);
 
 			await new Promise((resolve) => setTimeout(resolve, 100));
-			const outsideLink = container.querySelector('[data-testid="FallbackRace-outside-link"]') as HTMLAnchorElement | null;
-			const fastLink = container.querySelector('[data-testid="FallbackRace-fast-link"]') as HTMLAnchorElement | null;
+			const outsideLink = container.querySelector(
+				'[data-testid="FallbackRace-outside-link"]',
+			) as HTMLAnchorElement | null;
+			const fastLink = container.querySelector(
+				'[data-testid="FallbackRace-fast-link"]',
+			) as HTMLAnchorElement | null;
 			expect(outsideLink).not.toBeNull();
 			expect(fastLink).not.toBeNull();
 

@@ -81,7 +81,8 @@ export default defineConfig({
 		},
 		{
 			name: 'kitchen-sink-e2e',
-			testMatch: 'e2e/tests/kitchen-sink/**/*.test.e2e.ts',
+			testMatch: 'playground/kitchen-sink/e2e/**/*.test.e2e.ts',
+			workers: 1,
 			use: {
 				...devices['Desktop Chrome'],
 				baseURL: 'http://localhost:4007',
@@ -154,8 +155,8 @@ export default defineConfig({
 			stderr: 'pipe',
 		},
 		{
-			command: 'NODE_ENV=production ECOPAGES_PORT=4007 bun run app.ts --preview',
-			cwd: 'e2e/fixtures/kitchen-sink-app',
+			command: 'NODE_ENV=development ECOPAGES_PORT=4007 pnpm dev',
+			cwd: 'playground/kitchen-sink',
 			port: 4007,
 			reuseExistingServer: !process.env.CI,
 			stdout: 'pipe',

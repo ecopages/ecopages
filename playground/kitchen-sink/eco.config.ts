@@ -7,6 +7,7 @@ import path from 'node:path';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { reactPlugin } from '@ecopages/react';
+import { ecoRouter } from '@ecopages/react-router';
 
 const appRoot = process.cwd();
 
@@ -16,8 +17,14 @@ const config = await new ConfigBuilder()
 	.setIntegrations([
 		kitajsPlugin(),
 		litPlugin(),
-		reactPlugin(),
+		reactPlugin({
+			router: ecoRouter(),
+			mdx: {
+				enabled: true,
+			},
+		}),
 		mdxPlugin({
+			extensions: ['.md'],
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
 			},

@@ -79,6 +79,13 @@ export default eco.page({
 						EcoImage component.
 					</li>
 					<li>
+						Open the{' '}
+						<a class="underline underline-offset-2 text-sky-600" href="/transitions">
+							transition lab
+						</a>{' '}
+						to see this image animate between a compact card and a wide hero layout.
+					</li>
+					<li>
 						Open{' '}
 						<a class="underline underline-offset-2 text-sky-600" href="/integration-matrix/react-entry">
 							the React entry

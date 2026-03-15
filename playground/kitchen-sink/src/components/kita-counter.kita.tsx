@@ -4,7 +4,15 @@ import type { EcoPagesElement } from '@ecopages/core';
 export const KitaCounter = eco.component<{}, EcoPagesElement>({
 	integration: 'kitajs',
 	dependencies: {
-		scripts: ['./kita-counter.script.ts'],
+		stylesheets: ['./integration-counter.css', './kita-counter.css'],
+		scripts: [
+			{
+				src: './kita-counter.script.ts',
+				attributes: {
+					'data-eco-rerun': 'true',
+				},
+			},
+		],
 	},
 	render: () => (
 		<div class="integration-counter" data-kita-counter>

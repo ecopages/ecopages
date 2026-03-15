@@ -1,21 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { LayoutProps } from '@ecopages/core';
 import { ThemeToggle } from '../../components/theme-toggle.kita';
-
-const primaryLinks = [
-	{ href: '/', label: 'Overview' },
-	{ href: '/integration-matrix', label: 'Matrix' },
-	{ href: '/integration-matrix/lit-entry', label: 'Lit entry' },
-	{ href: '/integration-matrix/react-entry', label: 'React entry' },
-	{ href: '/images', label: 'Images' },
-	{ href: '/patterns/middleware', label: 'Middleware' },
-	{ href: '/catalog/semantic-html', label: 'Catalog route' },
-	{ href: '/explicit/team', label: 'Explicit route' },
-	{ href: '/latest', label: 'ctx.render()' },
-	{ href: '/api-lab', label: 'API lab' },
-	{ href: '/docs', label: 'MDX' },
-	{ href: '/postcss', label: 'PostCSS test' },
-];
+import { primaryLinks } from '@/data/primary-links';
 
 export const BaseLayout = eco.layout({
 	dependencies: {

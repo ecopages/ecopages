@@ -63,7 +63,14 @@ const commands = [
 export default eco.page({
 	dependencies: {
 		components: [BaseLayout],
-		scripts: ['./api-lab.script.ts'],
+		scripts: [
+			{
+				src: './api-lab.script.ts',
+				attributes: {
+					'data-eco-rerun': 'true',
+				},
+			},
+		],
 		stylesheets: ['./api-lab.css'],
 	},
 	layout: BaseLayout,

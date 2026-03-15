@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { extractProps, extractComponentUrl, loadPageModule, shouldInterceptClick } from '../src/navigation';
 import { DEFAULT_OPTIONS } from '../src/types';
 
@@ -251,6 +252,16 @@ describe('loadPageModule', () => {
 
 		expect(result).toBeNull();
 		expect(consoleErrorSpy).not.toHaveBeenCalled();
+	});
+
+	it('should log when a marked react-router document is missing a component URL', async () => {
+		const mockHtml = `<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router"><body>No scripts</body></html>`;
+		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+
+		const result = await loadPageModule('/test');
+
+		expect(result).toBeNull();
+		expect(consoleErrorSpy).toHaveBeenCalledWith('[EcoRouter] Could not find component URL');
 	});
 
 	it('should handle fetch errors gracefully', async () => {

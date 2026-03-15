@@ -3,6 +3,7 @@ import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
 import { fileSystem } from '@ecopages/file-system';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import React, { type JSX } from 'react';
 import { ReactRenderer } from '../react-renderer';
 import { ErrorPage } from './fixture/error-page';
@@ -245,6 +246,24 @@ describe('ReactRenderer', () => {
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
 			const body = await response.text();
 			expect(body).toContain('<h1>Hello React</h1>');
+		});
+
+		it('should stamp router-backed documents with an explicit owner marker', async () => {
+			const testRenderer = createRenderer();
+			const MockView = ((props: { title: string }) => <h1>{props.title}</h1>) as unknown as EcoComponent<{
+				title: string;
+			}>;
+			const originalRouterAdapter = ReactRenderer.routerAdapter;
+			ReactRenderer.routerAdapter = mockRouterAdapter;
+
+			try {
+				const response = await testRenderer.renderToResponse(MockView, { title: 'Marked' }, {});
+				const body = await response.text();
+
+				expect(body).toContain(`<html lang="en" ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`);
+			} finally {
+				ReactRenderer.routerAdapter = originalRouterAdapter;
+			}
 		});
 
 		it('should render a partial view without full HTML wrapper', async () => {

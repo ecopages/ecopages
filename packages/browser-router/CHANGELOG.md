@@ -23,6 +23,7 @@ All notable changes to `@ecopages/browser-router` are documented here.
 - Prevented duplicate `/_hmr_runtime.js` injection when an HTML response passes through multiple development server layers.
 - Ignored stale browser-router swap results after a newer navigation starts, preventing mixed DOM state during rapid cross-router hops.
 - Detected real React page markers from fallback data and hydration assets so ownership boundaries reload instead of appending React bootstraps into an existing browser-router head.
+- Switched document ownership checks from React hydration sniffing to an explicit rendered document owner marker.
 - Replaced hydrated custom elements during body morphs so Lit component state resets from the incoming HTML instead of leaking across browser-router navigations.
 
 ### Refactoring

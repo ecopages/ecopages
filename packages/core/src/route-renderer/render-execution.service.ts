@@ -26,6 +26,7 @@ export interface RenderExecutionCallbacks<C> {
 	prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions<C>>;
 	render(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
 	getComponentRenderBoundaryContext(): ComponentRenderBoundaryContext;
+	getDocumentAttributes(renderOptions: IntegrationRendererRenderOptions<C>): Record<string, string> | undefined;
 	resolveMarkerGraphHtml(input: {
 		html: string;
 		componentsToResolve: EcoComponent[];
@@ -34,6 +35,7 @@ export interface RenderExecutionCallbacks<C> {
 	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
 	getProcessedDependencies(): ProcessedAsset[];
 	setProcessedDependencies(dependencies: ProcessedAsset[]): void;
+	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
 	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
 	transformHtml(html: string): Promise<RouteRendererBody>;
 }
@@ -108,6 +110,11 @@ export class RenderExecutionService {
 				renderedHtml,
 				renderOptions.componentRender?.rootAttributes as Record<string, string>,
 			);
+		}
+
+		const documentAttributes = callbacks.getDocumentAttributes(renderOptions);
+		if (documentAttributes && Object.keys(documentAttributes).length > 0) {
+			renderedHtml = callbacks.applyAttributesToHtmlElement(renderedHtml, documentAttributes);
 		}
 
 		const body = await callbacks.transformHtml(renderedHtml);

@@ -74,10 +74,13 @@ describe('RenderExecutionService', () => {
 				getComponentRenderBoundaryContext: () => ({
 					decideBoundaryRender: () => 'inline',
 				}),
+				getDocumentAttributes: () => ({ 'data-eco-document-owner': 'react-router' }),
 				resolveMarkerGraphHtml,
 				dedupeProcessedAssets,
 				getProcessedDependencies: () => [asset],
 				setProcessedDependencies,
+				applyAttributesToHtmlElement: (html, attributes) =>
+					html.replace('<html', `<html data-eco-document-owner="${attributes['data-eco-document-owner']}"`),
 				applyAttributesToFirstBodyElement: (html, attributes) =>
 					html.replace('<main', `<main data-eco-component-id="${attributes['data-eco-component-id']}"`),
 				transformHtml: async (html) => html,
@@ -85,6 +88,7 @@ describe('RenderExecutionService', () => {
 		);
 
 		expect(result.cacheStrategy).toEqual({ revalidate: 60 });
+			expect(result.body).toContain('<html data-eco-document-owner="react-router"><body>');
 		expect(result.body).toContain('<main data-eco-component-id="eco-page-root">Resolved</main>');
 		expect(setProcessedDependencies).toHaveBeenCalledWith([asset]);
 		expect(dedupeProcessedAssets).toHaveBeenCalled();

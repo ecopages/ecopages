@@ -66,6 +66,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 - Fixed HMR fallback entrypoint builds to honor integration-registered bare specifier mappings when rewriting browser-loaded fallback bundles, so unresolved runtime imports no longer leak through.
 - Fixed browser-side current-page reload coordination so HMR refreshes still target the active runtime even when the reload request originates from that same owner.
+- Fixed router handoff detection to use an explicit rendered document owner marker instead of hydration-script sniffing.
 
 ### Refactoring
 

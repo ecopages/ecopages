@@ -5,6 +5,7 @@
 
 /// <reference types="@ecopages/core/declarations" />
 
+import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinator';
 import { type ComponentType } from 'react';
 import type { EcoRouterOptions } from './types.ts';
 
@@ -140,14 +141,7 @@ export function extractProps(doc: Document): Record<string, any> {
 }
 
 function isReactRouteDocument(doc: Document): boolean {
-	return Array.from(doc.querySelectorAll('script')).some((script) => {
-		const content = script.textContent ?? '';
-		const src = script.getAttribute('src') ?? '';
-		return (
-			(content.includes('__ECO_PAGE__') && content.includes('hydrateRoot')) ||
-			isReactPageHydrationAsset(src)
-		);
-	});
+	return getEcoDocumentOwner(doc) === 'react-router';
 }
 
 /**

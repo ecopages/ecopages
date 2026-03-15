@@ -7,10 +7,12 @@ A unified API for defining components, pages, and page data in EcoPages.
 The `eco` namespace provides a consistent, type-safe interface for:
 
 1. **`eco.component()`** - Factory for defining reusable components with dependencies and optional lazy-loading
-2. **`eco.page()`** - Factory for defining page components with optional inline `staticPaths`, `staticProps`, and `metadata`
-3. **`eco.metadata()`** - Type-safe wrapper for page metadata (legacy pattern)
-4. **`eco.staticPaths()`** - Type-safe wrapper for dynamic route generation (legacy pattern)
-5. **`eco.staticProps()`** - Type-safe wrapper for static data fetching (legacy pattern)
+2. **`eco.html()`** - Semantic alias for the document shell component (the outermost HTML wrapper)
+3. **`eco.layout()`** - Semantic alias for route layout components (page-level wrappers)
+4. **`eco.page()`** - Factory for defining page components with optional inline `staticPaths`, `staticProps`, and `metadata`
+5. **`eco.metadata()`** - Type-safe wrapper for page metadata (legacy pattern)
+6. **`eco.staticPaths()`** - Type-safe wrapper for dynamic route generation (legacy pattern)
+7. **`eco.staticProps()`** - Type-safe wrapper for static data fetching (legacy pattern)
 
 ## Component Patterns
 
@@ -229,6 +231,55 @@ export default eco.page<typeof getStaticProps>({
 Both patterns work and can be mixed - the renderer checks for attached properties first, then falls back to named exports.
 
 ## API Reference
+
+### `eco.html()`
+
+Creates the document shell component — the outermost HTML wrapper rendered once per page. Semantically equivalent to `eco.component()` but signals intent to tooling and readers that this component owns the full document structure (`<html>`, `<head>`, `<body>`).
+
+```tsx
+import { eco } from '@ecopages/core';
+
+export const Document = eco.html({
+	dependencies: {
+		stylesheets: ['./document.css'],
+	},
+	render: ({ children, metadata }) => (
+		<html lang="en">
+			<head>
+				<title>{metadata?.title ?? 'EcoPages'}</title>
+			</head>
+			<body>{children}</body>
+		</html>
+	),
+});
+```
+
+### `eco.layout()`
+
+Creates a route layout component — a wrapper rendered around page content. Semantically equivalent to `eco.component()` but clearly communicates that the component is intended to be used as a `layout` in `eco.page()`.
+
+```tsx
+import { eco } from '@ecopages/core';
+
+export const BaseLayout = eco.layout({
+	dependencies: {
+		stylesheets: ['./base-layout.css'],
+		scripts: ['./base-layout.script.ts'],
+	},
+	render: ({ children }) => (
+		<main>{children}</main>
+	),
+});
+```
+
+Use `eco.layout()` components as the `layout` option in `eco.page()`:
+
+```tsx
+export default eco.page({
+	layout: BaseLayout,
+	render: () => <h1>Hello</h1>,
+});
+```
 
 ### `eco.component()`
 
@@ -515,11 +566,17 @@ interface EcoComponentDependencies {
 	components?: EcoComponent[];
 }
 
+// Shared base option shape used by component(), html(), and layout()
 interface ComponentOptions<P, E = EcoPagesElement> {
 	componentDir?: string;
 	dependencies?: EcoComponentDependencies;
 	render: (props: P) => E;
 }
+
+// html() and layout() accept the same options as component() but return
+// narrower types to signal intent (EcoHtmlComponent / EcoLayoutComponent).
+type HtmlOptions<E = EcoPagesElement> = ComponentOptions<Record<string, unknown>, E>;
+type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
 
 interface PageOptions<T, E = EcoPagesElement> {
 	componentDir?: string;
@@ -550,7 +607,7 @@ type PagePropsFor<T> =
 ```tsx
 import { eco } from '@ecopages/core';
 
-eco. // IDE shows: component, page, metadata, staticPaths, staticProps
+eco. // IDE shows: component, html, layout, page, metadata, staticPaths, staticProps
 ```
 
 ### 2. Type Safety

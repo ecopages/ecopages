@@ -40,12 +40,12 @@ Ecopages resolves `src/includes/html.*` automatically using the registered integ
 
 ### HTML Template
 
-The HTML template defines the overall structure of your pages:
+The HTML template defines the overall structure of your pages. Use `eco.html()` to clearly signal that this component owns the full document shell:
 
 ```typescript
 import { eco, html } from '@ecopages/core';
 
-const Html = eco.component<HtmlProps>({
+const Html = eco.html<HtmlProps>({
 	dependencies: {
 		stylesheets: ['./html.css'],
 	},

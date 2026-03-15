@@ -186,7 +186,7 @@ function useNavigationCoordinator(
 		if (typeof window === 'undefined') return;
 
 		const navigationRuntime = getEcoNavigationRuntime(window);
-		return navigationRuntime.register({
+		const unregister = navigationRuntime.register({
 			owner: 'react-router',
 			navigate: async (request) => {
 				await navigate(request.href, {
@@ -205,21 +205,14 @@ function useNavigationCoordinator(
 			},
 			cleanupBeforeHandoff: async () => {
 				window.__ecopages_cleanup_page_root__?.();
-				navigationRuntime.setOwner('none');
 			},
 		});
-	}, [navigate]);
-}
-
-function useRouterOwnershipFlag() {
-	useEffect(() => {
-		if (typeof window === 'undefined') return;
-		const navigationRuntime = getEcoNavigationRuntime(window);
-		navigationRuntime.setOwner('react-router');
+		navigationRuntime.claimOwnership('react-router');
 		return () => {
-			navigationRuntime.setOwner('none');
+			navigationRuntime.releaseOwnership('react-router');
+			unregister();
 		};
-	}, []);
+	}, [navigate]);
 }
 
 /**
@@ -313,8 +306,8 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	}, [currentPage, options.scrollBehavior, options.smoothScroll]);
 
 	const navigate = useCallback(
-		async (url: string, options: { isPopState?: boolean; pushHistory?: boolean } = {}) => {
-			const { isPopState = false, pushHistory = false } = options;
+		async (url: string, navigationOptions: { isPopState?: boolean; pushHistory?: boolean } = {}) => {
+			const { isPopState = false, pushHistory = false } = navigationOptions;
 			const navigationId = navigationSequenceRef.current + 1;
 			navigationSequenceRef.current = navigationId;
 			navigationAbortControllerRef.current?.abort();
@@ -455,7 +448,6 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	}, [navigate, options]);
 
 	useNavigationCoordinator(navigate);
-	useRouterOwnershipFlag();
 
 	return createElement(
 		RouterContext.Provider,

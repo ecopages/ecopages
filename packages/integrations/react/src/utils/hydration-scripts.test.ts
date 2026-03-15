@@ -18,7 +18,7 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('window.__ecopages_page_root__ = window.__ecopages_page_root__ || null;');
 		expect(script).toContain('window.__ecopages_cleanup_page_root__ = () => {');
 		expect(script).toContain('activeRoot.unmount();');
-		expect(script).toContain('window.__ecopages_navigation__?.setOwner("none");');
+		expect(script).toContain('window.__ecopages_navigation__?.releaseOwnership?.("react-router");');
 		expect(script).toContain('if (window.__ecopages_page_root__) {');
 		expect(script).toContain('root.render(createTree(Page, props));');
 		expect(script).toContain('const layoutProps = props?.locals ? { locals: props.locals } : null;');
@@ -45,7 +45,7 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('window.__ecopages_page_root__=window.__ecopages_page_root__||null;');
 		expect(script).toContain('window.__ecopages_cleanup_page_root__=()=>{');
 		expect(script).toContain('a.unmount()');
-		expect(script).toContain('window.__ecopages_navigation__?.setOwner("none")');
+		expect(script).toContain('window.__ecopages_navigation__?.releaseOwnership?.("react-router")');
 		expect(script).toContain(
 			'if(window.__ecopages_page_root__){root=window.__ecopages_page_root__;root.render(ct(P,pr));return}',
 		);
@@ -68,7 +68,8 @@ describe('createHydrationScript', () => {
 		});
 
 		expect(script).toContain('window.__ecopages_cleanup_page_root__ = () => {');
-		expect(script).toContain('window.__ecopages_navigation__?.setOwner("react-router");');
+		expect(script).toContain('window.__ecopages_navigation__?.register({');
+		expect(script).toContain('window.__ecopages_navigation__?.claimOwnership?.("react-router");');
 		expect(script).toContain(
 			'window.__ecopages_navigation__?.reloadCurrentPage?.({ clearCache: false, source: "react-router" });',
 		);

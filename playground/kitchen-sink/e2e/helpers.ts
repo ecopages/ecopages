@@ -117,3 +117,13 @@ export async function clickHrefAndWait(page: Page, href: string) {
 
 	await page.waitForLoadState('networkidle').catch(() => undefined);
 }
+
+export async function expectNavigationOwner(page: Page, owner: string) {
+	await expect
+		.poll(async () =>
+			page.evaluate(() => {
+				return window.__ecopages_navigation__?.getOwnerState?.().owner ?? 'none';
+			}),
+		)
+		.toBe(owner);
+}

@@ -271,8 +271,8 @@ describe('EcoRouter', () => {
 
 	describe('Link Interception', () => {
 		describe('Internal Links', () => {
-			it('should not intercept clicks while React router owns navigation', () => {
-				getEcoNavigationRuntime(window).setOwner('react-router');
+			it('should not intercept clicks while another runtime owns navigation', () => {
+				getEcoNavigationRuntime(window).claimOwnership('custom-router');
 				router = createRouter();
 				const link = createLink({ href: '/react-route', id: 'react-link' });
 				const pushStateSpy = vi.spyOn(window.history, 'pushState');
@@ -685,7 +685,11 @@ describe('EcoRouter', () => {
 			const originalDocumentOwner = document.documentElement.getAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
 			document.documentElement.setAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE, 'react-router');
 			const cleanupSpy = vi.fn();
-			runtimeWindow.__ecopages_cleanup_page_root__ = cleanupSpy;
+			const unregister = getEcoNavigationRuntime(window).register({
+				owner: 'react-router',
+				cleanupBeforeHandoff: cleanupSpy,
+			});
+			getEcoNavigationRuntime(window).claimOwnership('react-router');
 			fetchSpy?.mockResolvedValueOnce({
 				ok: true,
 				text: async () => '<html><body><main>Outside React</main></body></html>',
@@ -709,6 +713,7 @@ describe('EcoRouter', () => {
 				} else {
 					document.documentElement.removeAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
 				}
+				unregister();
 			}
 		});
 

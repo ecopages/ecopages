@@ -20,6 +20,21 @@ export type EcoNavigationOwnerState = {
 	canHandleSpaNavigation: boolean;
 };
 
+export type EcoNavigationRuntimeEvent =
+	| {
+			type: 'owner-change';
+			owner: EcoNavigationOwner;
+			previousOwner: EcoNavigationOwner;
+			reason: 'set' | 'claim' | 'release' | 'document' | 'unregister';
+	  }
+	| {
+			type: 'registration-change';
+			owner: EcoNavigationOwner;
+			status: 'registered' | 'unregistered';
+	  };
+
+export type EcoNavigationRuntimeListener = (event: EcoNavigationRuntimeEvent) => void;
+
 export type EcoNavigationRuntimeRegistration = {
 	owner: EcoNavigationOwner;
 	navigate?: (request: EcoNavigationRequest) => Promise<boolean | void>;
@@ -30,9 +45,16 @@ export type EcoNavigationRuntimeRegistration = {
 export interface EcoNavigationRuntime {
 	getOwnerState(): EcoNavigationOwnerState;
 	setOwner(owner: EcoNavigationOwner): void;
+	claimOwnership(owner: EcoNavigationOwner): void;
+	releaseOwnership(owner: EcoNavigationOwner): void;
+	resolveDocumentOwner(doc: Document, fallbackOwner?: EcoNavigationOwner): EcoNavigationOwner;
+	adoptDocumentOwner(doc: Document, fallbackOwner?: EcoNavigationOwner): EcoNavigationOwner;
+	isOwnedByAnotherRuntime(owner: EcoNavigationOwner): boolean;
+	subscribe(listener: EcoNavigationRuntimeListener): () => void;
 	register(runtime: EcoNavigationRuntimeRegistration): () => void;
 	requestNavigation(request: EcoNavigationRequest): Promise<boolean>;
 	reloadCurrentPage(request?: EcoReloadRequest): Promise<boolean>;
+	cleanupOwner(owner: EcoNavigationOwner): Promise<void>;
 	cleanupCurrentOwner(): Promise<void>;
 }
 
@@ -50,7 +72,6 @@ export function getEcoDocumentOwner(doc: Document): EcoNavigationOwner | null {
 type EcoNavigationWindow = Window &
 	typeof globalThis & {
 		__ecopages_navigation__?: EcoNavigationRuntime;
-		__ecopages_cleanup_page_root__?: () => void;
 	};
 
 function getCandidateOwners(
@@ -75,9 +96,34 @@ function getCandidateOwners(
 	return owners;
 }
 
-function createEcoNavigationRuntime(windowObject: EcoNavigationWindow): EcoNavigationRuntime {
+function createEcoNavigationRuntime(_windowObject: EcoNavigationWindow): EcoNavigationRuntime {
 	const registrations = new Map<EcoNavigationOwner, EcoNavigationRuntimeRegistration>();
+	const listeners = new Set<EcoNavigationRuntimeListener>();
 	let owner: EcoNavigationOwner = 'none';
+
+	const emit = (event: EcoNavigationRuntimeEvent) => {
+		for (const listener of listeners) {
+			listener(event);
+		}
+	};
+
+	const updateOwner = (
+		nextOwner: EcoNavigationOwner,
+		reason: Extract<EcoNavigationRuntimeEvent, { type: 'owner-change' }>['reason'],
+	) => {
+		if (owner === nextOwner) {
+			return;
+		}
+
+		const previousOwner = owner;
+		owner = nextOwner;
+		emit({
+			type: 'owner-change',
+			owner: nextOwner,
+			previousOwner,
+			reason,
+		});
+	};
 
 	const runtime: EcoNavigationRuntime = {
 		getOwnerState(): EcoNavigationOwnerState {
@@ -89,11 +135,49 @@ function createEcoNavigationRuntime(windowObject: EcoNavigationWindow): EcoNavig
 		},
 
 		setOwner(nextOwner: EcoNavigationOwner): void {
-			owner = nextOwner;
+			updateOwner(nextOwner, 'set');
+		},
+
+		claimOwnership(nextOwner: EcoNavigationOwner): void {
+			updateOwner(nextOwner, 'claim');
+		},
+
+		releaseOwnership(currentOwner: EcoNavigationOwner): void {
+			if (owner !== currentOwner) {
+				return;
+			}
+
+			updateOwner('none', 'release');
+		},
+
+		resolveDocumentOwner(doc: Document, fallbackOwner: EcoNavigationOwner = 'none'): EcoNavigationOwner {
+			return getEcoDocumentOwner(doc) ?? fallbackOwner;
+		},
+
+		adoptDocumentOwner(doc: Document, fallbackOwner: EcoNavigationOwner = 'none'): EcoNavigationOwner {
+			const nextOwner = runtime.resolveDocumentOwner(doc, fallbackOwner);
+			updateOwner(nextOwner, 'document');
+			return nextOwner;
+		},
+
+		isOwnedByAnotherRuntime(candidateOwner: EcoNavigationOwner): boolean {
+			return owner !== 'none' && owner !== candidateOwner;
+		},
+
+		subscribe(listener: EcoNavigationRuntimeListener): () => void {
+			listeners.add(listener);
+			return () => {
+				listeners.delete(listener);
+			};
 		},
 
 		register(registration: EcoNavigationRuntimeRegistration): () => void {
 			registrations.set(registration.owner, registration);
+			emit({
+				type: 'registration-change',
+				owner: registration.owner,
+				status: 'registered',
+			});
 
 			return () => {
 				const currentRegistration = registrations.get(registration.owner);
@@ -102,8 +186,13 @@ function createEcoNavigationRuntime(windowObject: EcoNavigationWindow): EcoNavig
 				}
 
 				registrations.delete(registration.owner);
+				emit({
+					type: 'registration-change',
+					owner: registration.owner,
+					status: 'unregistered',
+				});
 				if (owner === registration.owner) {
-					owner = 'none';
+					updateOwner('none', 'unregister');
 				}
 			};
 		},
@@ -138,16 +227,24 @@ function createEcoNavigationRuntime(windowObject: EcoNavigationWindow): EcoNavig
 			return false;
 		},
 
-		async cleanupCurrentOwner(): Promise<void> {
-			const registration = registrations.get(owner);
-			if (registration?.cleanupBeforeHandoff) {
-				await registration.cleanupBeforeHandoff();
+		async cleanupOwner(targetOwner: EcoNavigationOwner): Promise<void> {
+			if (targetOwner === 'none') {
 				return;
 			}
 
-			if (owner === 'react-router') {
-				windowObject.__ecopages_cleanup_page_root__?.();
+			const registration = registrations.get(targetOwner);
+			if (!registration?.cleanupBeforeHandoff) {
+				return;
 			}
+
+			await registration.cleanupBeforeHandoff();
+			if (owner === targetOwner) {
+				updateOwner('none', 'release');
+			}
+		},
+
+		async cleanupCurrentOwner(): Promise<void> {
+			await runtime.cleanupOwner(owner);
 		},
 	};
 

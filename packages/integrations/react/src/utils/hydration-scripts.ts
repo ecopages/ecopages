@@ -90,12 +90,12 @@ function getDevPageRootCleanupScript(): string {
   const activeRoot = window.__ecopages_page_root__ || root;
   if (!activeRoot) {
     window.__ecopages_page_root__ = null;
-    window.__ecopages_navigation__?.setOwner("none");
+	    window.__ecopages_navigation__?.releaseOwnership?.("react-router");
     delete window.__ECO_PAGE__;
     return;
   }
   window.__ecopages_page_root__ = null;
-  window.__ecopages_navigation__?.setOwner("none");
+	  window.__ecopages_navigation__?.releaseOwnership?.("react-router");
   delete window.__ECO_PAGE__;
   root = null;
   activeRoot.unmount();
@@ -109,7 +109,21 @@ function getDevPageRootCleanupScript(): string {
  * remain identical across environments while keeping the emitted payload small.
  */
 function getProdPageRootCleanupScript(): string {
-	return 'window.__ecopages_cleanup_page_root__=()=>{const a=window.__ecopages_page_root__||root;if(!a){window.__ecopages_page_root__=null;window.__ecopages_navigation__?.setOwner("none");delete window.__ECO_PAGE__;return}window.__ecopages_page_root__=null;window.__ecopages_navigation__?.setOwner("none");delete window.__ECO_PAGE__;root=null;a.unmount()};';
+	return 'window.__ecopages_cleanup_page_root__=()=>{const a=window.__ecopages_page_root__||root;if(!a){window.__ecopages_page_root__=null;window.__ecopages_navigation__?.releaseOwnership?.("react-router");delete window.__ECO_PAGE__;return}window.__ecopages_page_root__=null;window.__ecopages_navigation__?.releaseOwnership?.("react-router");delete window.__ECO_PAGE__;root=null;a.unmount()};';
+}
+
+function getDevRouterBootstrapRegistrationScript(): string {
+	return `window.__ecopages_navigation__?.register({
+  owner: "react-router",
+  cleanupBeforeHandoff: async () => {
+    window.__ecopages_cleanup_page_root__?.();
+  }
+});
+window.__ecopages_navigation__?.claimOwnership?.("react-router");`;
+}
+
+function getProdRouterBootstrapRegistrationScript(): string {
+	return 'window.__ecopages_navigation__?.register({owner:"react-router",cleanupBeforeHandoff:async()=>{window.__ecopages_cleanup_page_root__?.()}});window.__ecopages_navigation__?.claimOwnership?.("react-router");';
 }
 
 /**
@@ -145,6 +159,7 @@ window.__ecopages_hmr_handlers__ = window.__ecopages_hmr_handlers__ || {};
 window.__ecopages_page_root__ = window.__ecopages_page_root__ || null;
 let root = window.__ecopages_page_root__;
 ${getDevPageRootCleanupScript()}
+${getDevRouterBootstrapRegistrationScript()}
 
 const getPageData = () => {
   const el = document.getElementById("__ECO_PAGE_DATA__") || document.getElementById("__ECO_PAGE_DATA_FALLBACK__");
@@ -176,7 +191,6 @@ const mount = () => {
     });
     window.__ecopages_page_root__ = root;
   }
-  window.__ecopages_navigation__?.setOwner("react-router");
   window.__ecopages_hmr_handlers__["${importPath}"] = async (newUrl) => {
     if (window.__ecopages_navigation__?.getOwnerState().owner === "react-router") {
       await window.__ecopages_navigation__?.reloadCurrentPage?.({ clearCache: false, source: "react-router" });
@@ -296,10 +310,10 @@ function createProdScriptWithRouter(options: HydrationScriptOptions): string {
 	}
 
 	if (isMdx) {
-		return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{${components.router} as R,${components.pageContent} as PC}from"${routerImportPath}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;window.__ecopages_page_root__=window.__ecopages_page_root__||null;let root=window.__ecopages_page_root__;${getProdPageRootCleanupScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__")||document.getElementById("__ECO_PAGE_DATA_FALLBACK__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>{if(window.__ecopages_page_root__){root=window.__ecopages_page_root__;root.render(ct(P,pr));window.__ecopages_navigation__?.setOwner("react-router");return}root=hr(document,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ecopages_page_root__=root;window.__ecopages_navigation__?.setOwner("react-router")};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+		return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{${components.router} as R,${components.pageContent} as PC}from"${routerImportPath}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;window.__ecopages_page_root__=window.__ecopages_page_root__||null;let root=window.__ecopages_page_root__;${getProdPageRootCleanupScript()}${getProdRouterBootstrapRegistrationScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__")||document.getElementById("__ECO_PAGE_DATA_FALLBACK__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>{if(window.__ecopages_page_root__){root=window.__ecopages_page_root__;root.render(ct(P,pr));return}root=hr(document,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ecopages_page_root__=root};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 	}
 
-	return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{${components.router} as R,${components.pageContent} as PC}from"${routerImportPath}";import P from"${importPath}";window.__ecopages_page_root__=window.__ecopages_page_root__||null;let root=window.__ecopages_page_root__;${getProdPageRootCleanupScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__")||document.getElementById("__ECO_PAGE_DATA_FALLBACK__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>{if(window.__ecopages_page_root__){root=window.__ecopages_page_root__;root.render(ct(P,pr));window.__ecopages_navigation__?.setOwner("react-router");return}root=hr(document,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ecopages_page_root__=root;window.__ecopages_navigation__?.setOwner("react-router")};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+	return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{${components.router} as R,${components.pageContent} as PC}from"${routerImportPath}";import P from"${importPath}";window.__ecopages_page_root__=window.__ecopages_page_root__||null;let root=window.__ecopages_page_root__;${getProdPageRootCleanupScript()}${getProdRouterBootstrapRegistrationScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__")||document.getElementById("__ECO_PAGE_DATA_FALLBACK__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGE__={module:"${importPath}",props:pr};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>{if(window.__ecopages_page_root__){root=window.__ecopages_page_root__;root.render(ct(P,pr));return}root=hr(document,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ecopages_page_root__=root};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
 }
 
 /**

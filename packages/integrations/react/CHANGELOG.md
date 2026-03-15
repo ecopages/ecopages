@@ -10,6 +10,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 - Fixed React MDX `.md` opt-in routes compiling in plain-markdown mode. When `compilerOptions.mdExtensions` includes `.md`, those files are now parsed as MDX so top-level `import` and `export` statements work correctly.
 - Fixed `react-mdx-loader` incorrectly handling `.md` files by default, which caused `.md` pages intended for the standalone `mdxPlugin` (with `@kitajs/html` JSX runtime) to be compiled with React's JSX runtime. The React MDX loader now defaults to only `.mdx` extensions; use `compilerOptions.mdExtensions` to opt in to `.md` handling.
+- Fixed router-backed React bootstrap cleanup to register through the shared navigation coordinator so cross-router handoff no longer depends on a React-specific core fallback.
 
 ### Features
 

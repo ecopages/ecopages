@@ -23,7 +23,13 @@ import {
 } from 'react';
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
 import { RouterContext } from './context.ts';
-import { type PageState, getInterceptDecision, loadPageModule, shouldInterceptClick } from './navigation.ts';
+import {
+	type PageState,
+	fetchPageDocument,
+	getInterceptDecision,
+	loadPageModuleFromDocument,
+	shouldInterceptClick,
+} from './navigation.ts';
 import { morphHead } from './head-morpher.ts';
 import { applyViewTransitionNames } from './view-transition-utils.ts';
 import { manageScroll } from './manage-scroll.ts';
@@ -322,7 +328,18 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			};
 
 			setIsNavigating(true);
-			const result = await loadPageModule(url, { signal: abortController.signal });
+			const fetchedPage = await fetchPageDocument(url, { signal: abortController.signal });
+
+			if (isStale()) {
+				return;
+			}
+
+			if (!fetchedPage) {
+				window.location.href = url;
+				return;
+			}
+
+			const result = await loadPageModuleFromDocument(fetchedPage.doc, fetchedPage.finalPath);
 
 			if (isStale()) {
 				return;
@@ -389,24 +406,25 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 					return;
 				}
 
-				const handled = await getEcoNavigationRuntime(window).requestNavigation({
+				const handled = await getEcoNavigationRuntime(window).requestHandoff({
 					href: url,
+					finalHref: fetchedPage.finalPath,
 					direction: isPopState ? 'back' : pushHistory ? 'forward' : 'replace',
 					source: 'react-router',
+					targetOwner: 'browser-router',
+					document: fetchedPage.doc,
+					html: fetchedPage.html,
 				});
 
 				if (!handled) {
-					if (options.debug) {
-						console.error('[EcoRouter] Falling back to full page navigation:', url);
-					}
-					window.location.href = url;
+					window.location.assign(fetchedPage.finalPath);
 				}
 			}
 			if (!isStale()) {
 				setIsNavigating(false);
 			}
 		},
-		[options.viewTransitions, options.debug],
+		[options.viewTransitions],
 	);
 
 	useEffect(() => {

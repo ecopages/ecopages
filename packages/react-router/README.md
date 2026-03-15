@@ -11,6 +11,15 @@ Client-side SPA router for Ecopages React applications. Features single-page app
 - **Head sync**: Automatically updates document metadata `<head>` during navigation.
 - **View Transitions**: Built-in support for the browser View Transitions API.
 
+## Cross-Runtime Handoff
+
+`@ecopages/react-router` only performs SPA updates for React-managed documents. When a navigation resolves to a non-React document, it will:
+
+- hand the already-fetched HTML document to `@ecopages/browser-router` when browser-router is registered on the page
+- fall back to a normal document navigation when browser-router is not present
+
+This keeps React-router focused on React rendering while still allowing mixed React and non-React pages to transition without a second fetch when browser-router is active.
+
 ## Installation
 
 ```bash
@@ -35,6 +44,8 @@ export default config;
 ```
 
 SPA navigation is now enabled for all React pages in your project.
+
+If your site mixes React pages with non-React pages, you can also run `@ecopages/browser-router` on the non-React shell. React-router will hand off non-React navigations to browser-router when it is available.
 
 ## Usage
 

@@ -10,6 +10,13 @@ export type EcoNavigationRequest = {
 	source?: EcoNavigationOwner;
 };
 
+export type EcoNavigationHandoffRequest = EcoNavigationRequest & {
+	finalHref?: string;
+	targetOwner: EcoNavigationOwner;
+	document: Document;
+	html?: string;
+};
+
 export type EcoReloadRequest = {
 	clearCache?: boolean;
 	source?: EcoNavigationOwner;
@@ -38,6 +45,7 @@ export type EcoNavigationRuntimeListener = (event: EcoNavigationRuntimeEvent) =>
 export type EcoNavigationRuntimeRegistration = {
 	owner: EcoNavigationOwner;
 	navigate?: (request: EcoNavigationRequest) => Promise<boolean | void>;
+	handoffNavigation?: (request: EcoNavigationHandoffRequest) => Promise<boolean | void>;
 	reloadCurrentPage?: (request?: EcoReloadRequest) => Promise<void>;
 	cleanupBeforeHandoff?: () => void | Promise<void>;
 };
@@ -53,6 +61,7 @@ export interface EcoNavigationRuntime {
 	subscribe(listener: EcoNavigationRuntimeListener): () => void;
 	register(runtime: EcoNavigationRuntimeRegistration): () => void;
 	requestNavigation(request: EcoNavigationRequest): Promise<boolean>;
+	requestHandoff(request: EcoNavigationHandoffRequest): Promise<boolean>;
 	reloadCurrentPage(request?: EcoReloadRequest): Promise<boolean>;
 	cleanupOwner(owner: EcoNavigationOwner): Promise<void>;
 	cleanupCurrentOwner(): Promise<void>;
@@ -211,6 +220,24 @@ function createEcoNavigationRuntime(_windowObject: EcoNavigationWindow): EcoNavi
 			}
 
 			return false;
+		},
+
+		async requestHandoff(request: EcoNavigationHandoffRequest): Promise<boolean> {
+			if (request.targetOwner === 'none') {
+				return false;
+			}
+
+			const registration = registrations.get(request.targetOwner);
+			if (!registration?.handoffNavigation) {
+				return false;
+			}
+
+			if (owner !== 'none' && owner !== request.targetOwner) {
+				await runtime.cleanupOwner(owner);
+			}
+
+			const handled = await registration.handoffNavigation(request);
+			return handled !== false;
 		},
 
 		async reloadCurrentPage(request?: EcoReloadRequest): Promise<boolean> {

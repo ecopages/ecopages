@@ -645,7 +645,7 @@ describe('EcoRouter', () => {
 	});
 
 	describe('Lifecycle Events', () => {
-		it('should force a full navigation when document ownership changes', async () => {
+		it('should swap directly into a React-owned document when document ownership changes', async () => {
 			router = createRouter();
 			const reactHtml = [
 				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
@@ -671,16 +671,17 @@ describe('EcoRouter', () => {
 			try {
 				await router.navigate('/react-content');
 
-				expect(reloadSpy).toHaveBeenCalledWith(expect.any(URL));
-				expect(pushStateSpy).not.toHaveBeenCalled();
-				expect(afterSwapSpy).not.toHaveBeenCalled();
-				expect(document.body.innerHTML).not.toContain('React Route');
+				expect(reloadSpy).not.toHaveBeenCalled();
+				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining('/react-content'));
+				expect(afterSwapSpy).toHaveBeenCalled();
+				expect(document.body.innerHTML).toContain('React Route');
+				expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('react-router');
 			} finally {
 				document.removeEventListener('eco:after-swap', afterSwapSpy);
 			}
 		});
 
-		it('should clean up the active React page root before reloading to a non-React route', async () => {
+		it('should clean up the active React page root before accepting a delegated handoff to browser-router', async () => {
 			router = createRouter();
 			const originalDocumentOwner = document.documentElement.getAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
 			document.documentElement.setAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE, 'react-router');
@@ -690,10 +691,6 @@ describe('EcoRouter', () => {
 				cleanupBeforeHandoff: cleanupSpy,
 			});
 			getEcoNavigationRuntime(window).claimOwnership('react-router');
-			fetchSpy?.mockResolvedValueOnce({
-				ok: true,
-				text: async () => '<html><body><main>Outside React</main></body></html>',
-			} as Response);
 
 			const reloadSpy = vi.spyOn(
 				router as EcoRouter & { reloadDocument: (url: URL) => void },
@@ -702,11 +699,25 @@ describe('EcoRouter', () => {
 			reloadSpy.mockImplementation(() => undefined);
 
 			try {
-				await router.navigate('/outside-react');
+				const handoffDocument = new DOMParser().parseFromString(
+					'<html><body><main>Outside React</main></body></html>',
+					'text/html',
+				);
+
+				await getEcoNavigationRuntime(window).requestHandoff({
+					href: '/outside-react',
+					finalHref: '/outside-react',
+					direction: 'forward',
+					source: 'react-router',
+					targetOwner: 'browser-router',
+					document: handoffDocument,
+					html: '<html><body><main>Outside React</main></body></html>',
+				});
 
 				expect(cleanupSpy).toHaveBeenCalledTimes(1);
-				expect(reloadSpy).toHaveBeenCalledWith(expect.any(URL));
-				expect(cleanupSpy.mock.invocationCallOrder[0]).toBeLessThan(reloadSpy.mock.invocationCallOrder[0]);
+				expect(reloadSpy).not.toHaveBeenCalled();
+				expect(document.body.innerHTML).toContain('Outside React');
+				expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('browser-router');
 			} finally {
 				if (originalDocumentOwner) {
 					document.documentElement.setAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE, originalDocumentOwner);

@@ -6,6 +6,10 @@ All notable changes to `@ecopages/lit` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Bug Fixes
+
+- Stopped re-executing the global Lit hydrate-support bootstrap on every browser-router navigation, preventing duplicate module declaration errors during head swaps.
+
 ### Features
 
 - Aligned Lit renderer with full orchestration mode — removed legacy rendering path (`fc07bdb0`).

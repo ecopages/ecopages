@@ -58,6 +58,10 @@
 			"types": "./src/route-renderer/integration-renderer.ts",
 			"default": "./src/route-renderer/integration-renderer.ts"
 		},
+		"./router/navigation-coordinator": {
+			"types": "./src/router/navigation-coordinator.ts",
+			"default": "./src/router/navigation-coordinator.ts"
+		},
 		"./errors/locals-access-error": {
 			"types": "./src/errors/locals-access-error.ts",
 			"default": "./src/errors/locals-access-error.ts"

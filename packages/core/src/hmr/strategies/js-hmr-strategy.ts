@@ -191,7 +191,7 @@ export class JsHmrStrategy extends HmrStrategy {
 
 			const srcDir = this.context.getSrcDir();
 			const relativePath = path.relative(srcDir, entrypoint);
-			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?)$/, '.js');
+			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
 			const outputPath = path.join(this.context.getDistDir(), relativePathJs);
 
 			const result = await this.processOutput(outputPath, outputUrl);
@@ -234,6 +234,8 @@ export class JsHmrStrategy extends HmrStrategy {
 		entrypoints: string[],
 	): Promise<{ success: boolean; dependencies?: Map<string, string[]> }> {
 		try {
+			const externalSpecifiers = Array.from(this.context.getSpecifierMap().keys());
+
 			const result = await defaultBuildAdapter.build({
 				entrypoints,
 				outdir: this.context.getDistDir(),
@@ -242,7 +244,7 @@ export class JsHmrStrategy extends HmrStrategy {
 				...defaultBuildAdapter.getTranspileOptions('hmr-entrypoint'),
 				plugins: this.context.getPlugins(),
 				minify: false,
-				external: ['react', 'react-dom'],
+				external: externalSpecifiers,
 			});
 
 			if (!result.success) {

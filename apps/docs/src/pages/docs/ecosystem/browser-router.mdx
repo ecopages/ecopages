@@ -169,10 +169,19 @@ Add the `data-eco-persist` attribute with a unique ID:
 
 By default, scripts in the `<head>` are not re-executed during navigation if they already exist. However, some scripts (like hydration logic or analytics) need to run on every page load.
 
-To force a script to re-execute on navigation:
+To force a script to re-execute on navigation, add `data-eco-rerun="true"`:
 
-1. Add `data-eco-rerun="true"` to force execution.
-2. Add `data-eco-script-id="unique-id"` to identify the script (preventing duplicate downloads).
+```html
+<script 
+  type="module" 
+  data-eco-rerun="true" 
+>
+  // This runs on initial load AND every navigation
+  initAnalytics(window.location.pathname);
+</script>
+```
+
+Optionally, add `data-eco-script-id="unique-id"` to identify the script. When present, the router removes the previous instance before re-adding the new one, preventing accumulation of duplicate script tags in the head.
 
 ```html
 <script 
@@ -186,8 +195,8 @@ To force a script to re-execute on navigation:
 ```
 
 **How it works:**
-- If the script with `data-eco-script-id` already exists, it is **not** re-downloaded.
-- If it has `data-eco-rerun`, the router takes care of re-executing it.
+- Any script with `data-eco-rerun` is re-executed on every navigation.
+- If `data-eco-script-id` is also present, the previous instance is removed first to avoid accumulating duplicate tags.
 
 ### Prefetching
 

@@ -8,9 +8,27 @@
 import { type ComponentType } from 'react';
 import type { EcoRouterOptions } from './types.ts';
 
+const ROUTER_PROPS_SCRIPT_IDS = ['__ECO_PAGE_DATA__', '__ECO_PAGE_DATA_FALLBACK__'] as const;
+
+function isReactPageHydrationAsset(src: string): boolean {
+	return src.includes('ecopages-react-') && src.includes('hydration.js') && !src.includes('ecopages-react-island-');
+}
+
 export type PageState = {
 	Component: ComponentType<any>;
 	props: Record<string, any>;
+};
+
+export type LoadedPageModule = {
+	Component: ComponentType<any>;
+	props: Record<string, any>;
+	doc: Document;
+	finalPath: string;
+	moduleUrl: string;
+};
+
+type LoadPageModuleOptions = {
+	signal?: AbortSignal;
 };
 
 export type InterceptDecision =
@@ -108,7 +126,7 @@ export function extractProps(doc: Document): Record<string, any> {
 		return window.__ECO_PAGE__.props;
 	}
 
-	const propsScript = doc.getElementById('__ECO_PAGE_DATA__');
+	const propsScript = ROUTER_PROPS_SCRIPT_IDS.map((id) => doc.getElementById(id)).find(Boolean);
 	if (propsScript?.textContent) {
 		try {
 			return JSON.parse(propsScript.textContent);
@@ -119,6 +137,17 @@ export function extractProps(doc: Document): Record<string, any> {
 	}
 
 	return {};
+}
+
+function isReactRouteDocument(doc: Document): boolean {
+	return Array.from(doc.querySelectorAll('script')).some((script) => {
+		const content = script.textContent ?? '';
+		const src = script.getAttribute('src') ?? '';
+		return (
+			(content.includes('__ECO_PAGE__') && content.includes('hydrateRoot')) ||
+			isReactPageHydrationAsset(src)
+		);
+	});
 }
 
 /**
@@ -163,7 +192,7 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 		return extractModulePathFromCode(inlineHydrationScript.textContent);
 	}
 
-	const hydrationScript = scripts.find((s) => s.src?.includes('hydration.js') && s.src?.includes('ecopages-react'));
+	const hydrationScript = scripts.find((s) => isReactPageHydrationAsset(s.src ?? ''));
 	if (!hydrationScript?.src) return null;
 
 	try {
@@ -189,9 +218,10 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
  */
 export async function loadPageModule(
 	url: string,
-): Promise<{ Component: ComponentType<any>; props: Record<string, any>; doc: Document; finalPath: string } | null> {
+	options: LoadPageModuleOptions = {},
+): Promise<LoadedPageModule | null> {
 	try {
-		const res = await fetch(url);
+		const res = await fetch(url, { signal: options.signal });
 		const html = await res.text();
 
 		const finalUrl = new URL(res.url || url, window.location.origin);
@@ -203,7 +233,9 @@ export async function loadPageModule(
 		const componentUrl = await extractComponentUrl(doc);
 
 		if (!componentUrl) {
-			console.error('[EcoRouter] Could not find component URL');
+			if (isReactRouteDocument(doc)) {
+				console.error('[EcoRouter] Could not find component URL');
+			}
 			return null;
 		}
 
@@ -222,13 +254,11 @@ export async function loadPageModule(
 			rawComponent.config = config;
 		}
 
-		window.__ECO_PAGE__ = {
-			module: componentUrl,
-			props,
-		};
-
-		return { Component: rawComponent, props, doc, finalPath };
+		return { Component: rawComponent, props, doc, finalPath, moduleUrl: componentUrl };
 	} catch (e) {
+		if (e instanceof DOMException && e.name === 'AbortError') {
+			return null;
+		}
 		console.error('[EcoRouter] Navigation failed:', e);
 		return null;
 	}

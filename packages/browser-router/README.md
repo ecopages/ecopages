@@ -72,16 +72,16 @@ Mark elements to preserve across navigations. These elements are never recreated
 
 ## Script Re-execution
 
-To force a script to re-execute on every navigation (e.g., analytics), add `data-eco-rerun` and `data-eco-script-id`:
+To force a script to re-execute on every navigation (e.g., analytics), add `data-eco-rerun`:
 
 ```html
-<script data-eco-rerun="true" data-eco-script-id="analytics">
+<script data-eco-rerun="true">
 	trackPageview();
 </script>
 ```
 
 > [!NOTE]
-> For React islands, hydration scripts may need to run again after `eco:after-swap`. These bootstraps should carry stable `data-eco-script-id` metadata and use `data-eco-rerun` to execute safely during head reconciliation.
+> `data-eco-script-id` is optional. Use it when you want an explicit stable identity for a rerun script. Otherwise the router falls back to matching by original `src` and inline content.
 
 ## Force Full Reload
 

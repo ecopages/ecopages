@@ -1,5 +1,13 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { createRouter, EcoRouter } from '../src/client/eco-router';
+
+type BrowserRouterTestWindow = Window &
+	typeof globalThis & {
+		__ecopages_cleanup_page_root__?: () => void;
+	};
+
+const runtimeWindow = window as BrowserRouterTestWindow;
 
 function mockFetch(htmlContent: string) {
 	return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
@@ -37,6 +45,14 @@ async function waitForNavigation(eventName = 'eco:after-swap'): Promise<void> {
 	});
 }
 
+function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+	let resolve!: () => void;
+	const promise = new Promise<void>((innerResolve) => {
+		resolve = innerResolve;
+	});
+	return { promise, resolve };
+}
+
 describe('EcoRouter', () => {
 	let router: EcoRouter | null = null;
 	let fetchSpy: ReturnType<typeof vi.spyOn> | null = null;
@@ -51,6 +67,7 @@ describe('EcoRouter', () => {
 		router?.stop();
 		router = null;
 		fetchSpy?.mockRestore();
+		delete runtimeWindow.__ecopages_cleanup_page_root__;
 		vi.restoreAllMocks();
 	});
 
@@ -58,6 +75,23 @@ describe('EcoRouter', () => {
 		it('should create router instance', () => {
 			router = createRouter();
 			expect(router).toBeInstanceOf(EcoRouter);
+		});
+
+		it('should register and clean up browser-router navigation through the coordinator', () => {
+			router = new EcoRouter();
+			router.start();
+
+			expect(getEcoNavigationRuntime(window).getOwnerState()).toEqual({
+				owner: 'browser-router',
+				canHandleSpaNavigation: true,
+			});
+
+			router.stop();
+
+			expect(getEcoNavigationRuntime(window).getOwnerState()).toEqual({
+				owner: 'none',
+				canHandleSpaNavigation: false,
+			});
 		});
 
 		it('should start and stop without errors', () => {
@@ -118,10 +152,139 @@ describe('EcoRouter', () => {
 			expect(document.body.innerHTML).toContain('<main>Main</main>');
 			expect(document.body.innerHTML).toContain('<footer>Footer</footer>');
 		});
+
+		it('should replace hydrated shadow-DOM custom elements so incoming state wins', async () => {
+			if (!customElements.get('test-shadow-counter')) {
+				class TestShadowCounter extends HTMLElement {
+					static observedAttributes = ['count'];
+
+					constructor() {
+						super();
+						this.attachShadow({ mode: 'open' });
+					}
+
+					connectedCallback() {
+						this.render();
+					}
+
+					attributeChangedCallback() {
+						this.render();
+					}
+
+					private render() {
+						if (!this.shadowRoot) return;
+						this.shadowRoot.innerHTML = `<span data-shadow-count>${this.getAttribute('count') ?? '0'}</span>`;
+					}
+				}
+
+				customElements.define('test-shadow-counter', TestShadowCounter);
+			}
+
+			document.body.innerHTML = '<test-shadow-counter count="0"></test-shadow-counter>';
+			const currentCounter = document.querySelector('test-shadow-counter') as HTMLElement | null;
+			currentCounter?.setAttribute('count', '5');
+
+			router = createRouter();
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => '<html><body><test-shadow-counter count="0"></test-shadow-counter></body></html>',
+			} as Response);
+
+			await router.navigate('/shadow-reset');
+
+			const nextCounter = document.querySelector('test-shadow-counter') as HTMLElement | null;
+			expect(nextCounter).not.toBeNull();
+			expect(nextCounter).not.toBe(currentCounter);
+			expect(nextCounter?.shadowRoot?.querySelector('[data-shadow-count]')?.textContent).toBe('0');
+		});
+
+		it('should flush rerun scripts after the new body is in place', async () => {
+			router = createRouter({ viewTransitions: false });
+			const rerunHtml = [
+				'<html>',
+					'<head>',
+						'<script data-eco-rerun="true" data-eco-script-id="after-body-rerun">',
+							'document.body.setAttribute("data-rerun-target",document.querySelector("#content")?.textContent??"missing")',
+						'</script>',
+					'</head>',
+					'<body><div id="content">New Content</div></body>',
+				'</html>',
+			].join('');
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => rerunHtml,
+			} as Response);
+
+			await router.navigate('/rerun-after-body');
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(document.body.getAttribute('data-rerun-target')).toBe('New Content');
+			expect(document.querySelectorAll('script[data-eco-script-id="after-body-rerun"]')).toHaveLength(1);
+		});
+
+		it('should re-execute external module rerun scripts with a fresh URL', async () => {
+			router = createRouter({ viewTransitions: false });
+			const rerunHtml = [
+				'<html>',
+					'<head>',
+						'<script type="module" src="/assets/counter.js" data-eco-rerun="true"></script>',
+					'</head>',
+					'<body><div id="content">Counter Page</div></body>',
+				'</html>',
+			].join('');
+
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => rerunHtml,
+			} as Response);
+
+			const observedSrcs: string[] = [];
+			const originalAppendChild = document.head.appendChild.bind(document.head);
+			const appendChildSpy = vi
+				.spyOn(document.head, 'appendChild')
+				.mockImplementation(((node: Node) => {
+					if (node instanceof HTMLScriptElement && node.getAttribute('data-eco-rerun') !== 'true') {
+						observedSrcs.push(node.getAttribute('src') ?? '');
+					}
+					return originalAppendChild(node);
+				}) as typeof document.head.appendChild);
+
+			await router.navigate('/plain-counter');
+			await waitForNavigation();
+
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => rerunHtml,
+			} as Response);
+
+			await router.navigate('/plain-counter-again');
+			await waitForNavigation();
+
+			const finalScript = document.head.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]');
+
+			expect(observedSrcs[0]).toContain('__eco_rerun=1');
+			expect(finalScript).not.toBeNull();
+			expect(finalScript?.getAttribute('src')).toContain('__eco_rerun=2');
+			expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
+
+			appendChildSpy.mockRestore();
+		});
 	});
 
 	describe('Link Interception', () => {
 		describe('Internal Links', () => {
+			it('should not intercept clicks while React router owns navigation', () => {
+				getEcoNavigationRuntime(window).setOwner('react-router');
+				router = createRouter();
+				const link = createLink({ href: '/react-route', id: 'react-link' });
+				const pushStateSpy = vi.spyOn(window.history, 'pushState');
+				link.addEventListener('click', (e) => e.preventDefault());
+
+				simulateClick(link);
+
+				expect(pushStateSpy).not.toHaveBeenCalled();
+			});
+
 			it('should intercept clicks on internal links', async () => {
 				router = createRouter();
 				const link = createLink({ href: '/test-link', id: 'link' });
@@ -484,6 +647,74 @@ describe('EcoRouter', () => {
 	});
 
 	describe('Lifecycle Events', () => {
+		it('should force a full navigation when document ownership changes', async () => {
+			router = createRouter();
+			const reactHtml = [
+				'<html>',
+					'<head>',
+						'<script type="application/json" id="__ECO_PAGE_DATA_FALLBACK__">{}</script>',
+						'<script src="/assets/scripts/ecopages-react-123-hydration.js" type="module" defer=""></script>',
+					'</head>',
+					'<body><main>React Route</main></body>',
+				'</html>',
+			].join('');
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => reactHtml,
+			} as Response);
+
+			const reloadSpy = vi.spyOn(
+				router as EcoRouter & { reloadDocument: (url: URL) => void },
+				'reloadDocument',
+			) as ReturnType<typeof vi.spyOn>;
+			reloadSpy.mockImplementation(() => undefined);
+			const pushStateSpy = vi.spyOn(window.history, 'pushState');
+			const afterSwapSpy = vi.fn();
+			document.addEventListener('eco:after-swap', afterSwapSpy);
+
+			try {
+				await router.navigate('/react-content');
+
+				expect(reloadSpy).toHaveBeenCalledWith(expect.any(URL));
+				expect(pushStateSpy).not.toHaveBeenCalled();
+				expect(afterSwapSpy).not.toHaveBeenCalled();
+				expect(document.body.innerHTML).not.toContain('React Route');
+			} finally {
+				document.removeEventListener('eco:after-swap', afterSwapSpy);
+			}
+		});
+
+		it('should clean up the active React page root before reloading to a non-React route', async () => {
+			router = createRouter();
+			const originalHeadHtml = document.head.innerHTML;
+			document.head.innerHTML = [
+				'<script id="__ECO_PAGE_DATA_FALLBACK__" type="application/json">{}</script>',
+				'<script src="/assets/scripts/ecopages-react-123-hydration.js" type="module" defer=""></script>',
+			].join('');
+			const cleanupSpy = vi.fn();
+			runtimeWindow.__ecopages_cleanup_page_root__ = cleanupSpy;
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => '<html><body><main>Outside React</main></body></html>',
+			} as Response);
+
+			const reloadSpy = vi.spyOn(
+				router as EcoRouter & { reloadDocument: (url: URL) => void },
+				'reloadDocument',
+			) as ReturnType<typeof vi.spyOn>;
+			reloadSpy.mockImplementation(() => undefined);
+
+			try {
+				await router.navigate('/outside-react');
+
+				expect(cleanupSpy).toHaveBeenCalledTimes(1);
+				expect(reloadSpy).toHaveBeenCalledWith(expect.any(URL));
+				expect(cleanupSpy.mock.invocationCallOrder[0]).toBeLessThan(reloadSpy.mock.invocationCallOrder[0]);
+			} finally {
+				document.head.innerHTML = originalHeadHtml;
+			}
+		});
+
 		it('should dispatch eco:before-swap event', async () => {
 			router = createRouter();
 			const beforeSwapSpy = vi.fn();
@@ -664,6 +895,51 @@ describe('EcoRouter', () => {
 			await router.navigate('/second-page');
 
 			expect(abortSignal?.aborted).toBe(true);
+		});
+
+		it('should ignore stale DOM swaps when a newer navigation finishes first', async () => {
+			router = createRouter({ viewTransitions: false });
+			const slowStylesheets = createDeferred();
+			const afterSwapSpy = vi.fn();
+			document.addEventListener('eco:after-swap', afterSwapSpy);
+
+			fetchSpy?.mockImplementation((url: string | URL | Request) => {
+				if (url.toString().includes('/slow-page')) {
+					return Promise.resolve({
+						ok: true,
+						text: async () => '<html><body><div id="content">Slow Content</div></body></html>',
+					} as Response);
+				}
+
+				return Promise.resolve({
+					ok: true,
+					text: async () => '<html><body><div id="content">Fast Content</div></body></html>',
+				} as Response);
+			});
+
+			const routerWithInternals = router as unknown as {
+				domSwapper: { preloadStylesheets: (doc: Document) => Promise<void> };
+			};
+			const preloadSpy = vi.spyOn(routerWithInternals.domSwapper, 'preloadStylesheets');
+			preloadSpy.mockImplementation(async (doc: Document) => {
+				if (doc.body.textContent?.includes('Slow Content')) {
+					await slowStylesheets.promise;
+				}
+			});
+
+			const slowNavigation = router.navigate('/slow-page');
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			await router.navigate('/fast-page');
+			slowStylesheets.resolve();
+			await slowNavigation;
+
+			try {
+				expect(document.body.innerHTML).toContain('Fast Content');
+				expect(document.body.innerHTML).not.toContain('Slow Content');
+				expect(afterSwapSpy).toHaveBeenCalledTimes(1);
+			} finally {
+				document.removeEventListener('eco:after-swap', afterSwapSpy);
+			}
 		});
 	});
 });

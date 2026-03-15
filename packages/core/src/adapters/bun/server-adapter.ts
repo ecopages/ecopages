@@ -12,6 +12,11 @@ import { ApiResponseBuilder } from '../shared/api-response.ts';
 
 import { ServerRouteHandler, type ServerRouteHandlerParams } from '../shared/server-route-handler.ts';
 import { ServerStaticBuilder, type ServerStaticBuilderParams } from '../shared/server-static-builder';
+import {
+	injectHmrRuntimeIntoHtmlResponse,
+	isHtmlResponse,
+	shouldInjectHmrHtmlResponse,
+} from '../shared/hmr-html-response';
 import { ClientBridge } from './client-bridge';
 import { HmrManager } from './hmr-manager';
 import { ServerLifecycle } from './server-lifecycle.ts';
@@ -108,15 +113,14 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Only injects in watch mode when HMR manager is enabled.
 	 */
 	private shouldInjectHmrScript(): boolean {
-		return this.options?.watch === true && this.hmrManager?.isEnabled() === true;
+		return shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager);
 	}
 
 	/**
 	 * Checks if a response contains HTML content.
 	 */
 	private isHtmlResponse(response: Response): boolean {
-		const contentType = response.headers.get('Content-Type');
-		return contentType !== null && contentType.startsWith('text/html');
+		return isHtmlResponse(response);
 	}
 
 	/**
@@ -125,18 +129,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 */
 	private async maybeInjectHmrScript(response: Response): Promise<Response> {
 		if (this.shouldInjectHmrScript() && this.isHtmlResponse(response)) {
-			const html = await response.text();
-			const hmrScript = `<script type="module">import '/_hmr_runtime.js';</script>`;
-			const updatedHtml = html.replace(/<\/html>/i, `${hmrScript}</html>`);
-
-			const headers = new Headers(response.headers);
-			headers.delete('Content-Length');
-
-			return new Response(updatedHtml, {
-				status: response.status,
-				statusText: response.statusText,
-				headers,
-			});
+			return injectHmrRuntimeIntoHtmlResponse(response);
 		}
 		return response;
 	}
@@ -423,7 +416,9 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			hmrManager: this.hmrManager,
 		});
 
-		// Check if we need to manually inject HMR script since we're bypassing route level HMR wrapping
+		// Filesystem page responses are wrapped by ServerRouteHandler. This adapter-
+		// level pass only covers HTML returned by explicit API handlers, which bypass
+		// that route-layer wrapper and would otherwise miss the dev HMR runtime.
 		return await this.maybeInjectHmrScript(response);
 	}
 

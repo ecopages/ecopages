@@ -29,6 +29,7 @@ import { applyViewTransitionNames } from './view-transition-utils.ts';
 import { manageScroll } from './manage-scroll.ts';
 import { saveScrollPositions, restoreScrollPositions } from './scroll-persist.ts';
 import type { EcoInjectedMeta } from '@ecopages/core';
+import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 
 type PageContextValue = PageState | null;
 
@@ -172,27 +173,53 @@ function createDeferred<T>() {
 	return { promise, resolve };
 }
 
-function useHmrReload(navigate: (url: string) => Promise<void>) {
+type PendingRender = {
+	navigationId: number;
+	page: PageState;
+	resolve: () => void;
+};
+
+function useNavigationCoordinator(
+	navigate: (url: string, options?: { isPopState?: boolean; pushHistory?: boolean }) => Promise<void>,
+) {
 	useEffect(() => {
 		if (typeof window === 'undefined') return;
-		if (import.meta.env?.MODE === 'production' || import.meta.env?.PROD) return;
 
-		const windowWithHmr = window as typeof window & {
-			__ecopages_reload_current_page__?: (options?: { clearCache?: boolean }) => Promise<void>;
-		};
+		const navigationRuntime = getEcoNavigationRuntime(window);
+		return navigationRuntime.register({
+			owner: 'react-router',
+			navigate: async (request) => {
+				await navigate(request.href, {
+					isPopState: request.direction === 'back',
+					pushHistory: request.direction === 'forward',
+				});
+				return true;
+			},
+			reloadCurrentPage: async (request) => {
+				if (request?.clearCache) {
+					clearLayoutCache();
+				}
 
-		windowWithHmr.__ecopages_reload_current_page__ = async (options?: { clearCache?: boolean }) => {
-			if (options?.clearCache) {
-				clearLayoutCache();
-			}
-			const currentUrl = window.location.pathname + window.location.search;
-			await navigate(currentUrl);
-		};
-
-		return () => {
-			windowWithHmr.__ecopages_reload_current_page__ = undefined;
-		};
+				const currentUrl = window.location.pathname + window.location.search;
+				await navigate(currentUrl);
+			},
+			cleanupBeforeHandoff: async () => {
+				window.__ecopages_cleanup_page_root__?.();
+				navigationRuntime.setOwner('none');
+			},
+		});
 	}, [navigate]);
+}
+
+function useRouterOwnershipFlag() {
+	useEffect(() => {
+		if (typeof window === 'undefined') return;
+		const navigationRuntime = getEcoNavigationRuntime(window);
+		navigationRuntime.setOwner('react-router');
+		return () => {
+			navigationRuntime.setOwner('none');
+		};
+	}, []);
 }
 
 /**
@@ -230,8 +257,9 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	const options = useMemo(() => ({ ...DEFAULT_OPTIONS, ...userOptions }), [userOptions]);
 	const [currentPage, setCurrentPage] = useState<PageState>({ Component: page, props: pageProps });
 	const [isNavigating, setIsNavigating] = useState(false);
-	const [pendingPage, setPendingPage] = useState<PageState | null>(null);
-	const renderDfd = useRef<{ promise: Promise<void>; resolve: () => void } | null>(null);
+	const pendingRenderRef = useRef<PendingRender | null>(null);
+	const navigationSequenceRef = useRef(0);
+	const navigationAbortControllerRef = useRef<AbortController | null>(null);
 	const pendingScrollRestoreRef = useRef<{ url: string; isPopState: boolean } | null>(null);
 	const previousUrlRef = useRef<string>(typeof window !== 'undefined' ? window.location.href : '');
 
@@ -244,12 +272,24 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	}, [currentPage]);
 
 	useEffect(() => {
-		if (pendingPage && currentPage.Component === pendingPage.Component && renderDfd.current) {
-			renderDfd.current.resolve();
-			renderDfd.current = null;
-			setPendingPage(null);
+		const pendingRender = pendingRenderRef.current;
+		if (
+			pendingRender &&
+			currentPage.Component === pendingRender.page.Component &&
+			currentPage.props === pendingRender.page.props
+		) {
+			pendingRender.resolve();
+			pendingRenderRef.current = null;
 		}
-	}, [currentPage, pendingPage]);
+	}, [currentPage]);
+
+	useEffect(() => {
+		return () => {
+			navigationAbortControllerRef.current?.abort();
+			pendingRenderRef.current?.resolve();
+			pendingRenderRef.current = null;
+		};
+	}, []);
 
 	useEffect(() => {
 		if (typeof window === 'undefined') return;
@@ -273,17 +313,43 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	}, [currentPage, options.scrollBehavior, options.smoothScroll]);
 
 	const navigate = useCallback(
-		async (url: string, isPopState = false) => {
+		async (url: string, options: { isPopState?: boolean; pushHistory?: boolean } = {}) => {
+			const { isPopState = false, pushHistory = false } = options;
+			const navigationId = navigationSequenceRef.current + 1;
+			navigationSequenceRef.current = navigationId;
+			navigationAbortControllerRef.current?.abort();
+			const abortController = new AbortController();
+			navigationAbortControllerRef.current = abortController;
+			const isStale = () => abortController.signal.aborted || navigationId !== navigationSequenceRef.current;
+			const commitPageData = (moduleUrl: string, props: Record<string, unknown>) => {
+				window.__ECO_PAGE__ = {
+					module: moduleUrl,
+					props,
+				};
+			};
+
 			setIsNavigating(true);
-			const result = await loadPageModule(url);
+			const result = await loadPageModule(url, { signal: abortController.signal });
+
+			if (isStale()) {
+				return;
+			}
 
 			if (result) {
-				const { Component, props, doc, finalPath } = result;
+				const { Component, props, doc, finalPath, moduleUrl } = result;
 				const nextPage = { Component, props };
 				const cleanupHead = await morphHead(doc);
+
+				if (isStale()) {
+					cleanupHead();
+					return;
+				}
+
 				applyViewTransitionNames();
 
-				if (finalPath !== url) {
+				if (pushHistory) {
+					window.history.pushState(null, '', finalPath);
+				} else if (finalPath !== url) {
 					window.history.replaceState(null, '', finalPath);
 				}
 
@@ -291,29 +357,61 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 				pendingScrollRestoreRef.current = { url, isPopState };
 
 				if (options.viewTransitions && document.startViewTransition) {
-					renderDfd.current = createDeferred<void>();
-					setPendingPage(nextPage);
+					pendingRenderRef.current?.resolve();
+					const renderDfd = createDeferred<void>();
+					pendingRenderRef.current = {
+						navigationId,
+						page: nextPage,
+						resolve: renderDfd.resolve,
+					};
 
 					document.startViewTransition(async () => {
+						if (isStale()) {
+							if (pendingRenderRef.current?.navigationId === navigationId) {
+								pendingRenderRef.current.resolve();
+								pendingRenderRef.current = null;
+							}
+							cleanupHead();
+							return;
+						}
 						startTransition(() => {
+							commitPageData(moduleUrl, props);
 							setCurrentPage(nextPage);
 						});
-						await renderDfd.current?.promise;
+						await renderDfd.promise;
+						if (isStale()) {
+							return;
+						}
 						cleanupHead();
 						applyViewTransitionNames();
 					});
 				} else {
+					commitPageData(moduleUrl, props);
 					setCurrentPage(nextPage);
 					cleanupHead();
 					applyViewTransitionNames();
 				}
 			} else {
-				if (options.debug) {
-					console.error('[EcoRouter] Falling back to full page navigation:', url);
+					if (isStale()) {
+						return;
+					}
+
+				const handled = await getEcoNavigationRuntime(window).requestNavigation({
+					href: url,
+					direction: isPopState ? 'back' : pushHistory ? 'forward' : 'replace',
+					source: 'react-router',
+				});
+
+				if (!handled) {
+					if (options.debug) {
+						console.error('[EcoRouter] Falling back to full page navigation:', url);
+					}
+					window.location.href = url;
 				}
-				window.location.href = url;
 			}
-			setIsNavigating(false);
+			if (!isStale()) {
+				setIsNavigating(false);
+			}
 		},
 		[options.viewTransitions, options.debug],
 	);
@@ -340,12 +438,11 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 				console.debug('[EcoRouter] Intercepting navigation:', url.pathname + url.search);
 			}
 
-			window.history.pushState(null, '', url.href);
-			navigate(url.pathname + url.search);
+			navigate(url.pathname + url.search, { pushHistory: true });
 		};
 
 		const handlePopState = () => {
-			navigate(window.location.pathname + window.location.search, true);
+			navigate(window.location.pathname + window.location.search, { isPopState: true });
 		};
 
 		document.addEventListener('click', handleClick);
@@ -357,7 +454,8 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		};
 	}, [navigate, options]);
 
-	useHmrReload(navigate);
+	useNavigationCoordinator(navigate);
+	useRouterOwnershipFlag();
 
 	return createElement(
 		RouterContext.Provider,

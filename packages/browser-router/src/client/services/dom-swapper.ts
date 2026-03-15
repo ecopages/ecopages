@@ -8,6 +8,16 @@ import morphdom from 'morphdom';
 
 const DEFAULT_PERSIST_ATTR = 'data-eco-persist';
 
+type PendingRerunScript = {
+	parent: 'head' | 'body';
+	attributes: Array<[string, string]>;
+	textContent: string;
+	src: string | null;
+	scriptId: string | null;
+};
+
+const RERUN_SRC_ATTR = 'data-eco-rerun-src';
+
 /**
  * Checks if element has a persist attribute (custom or default).
  */
@@ -31,6 +41,8 @@ function isHydratedCustomElement(element: Element): boolean {
  */
 export class DomSwapper {
 	private persistAttribute: string;
+	private pendingRerunScripts: PendingRerunScript[] = [];
+	private rerunNonce = 0;
 
 	constructor(persistAttribute: string) {
 		this.persistAttribute = persistAttribute;
@@ -114,6 +126,8 @@ export class DomSwapper {
 	 * - Injects new scripts from the incoming page that are absent from the current head
 	 */
 	morphHead(newDocument: Document): void {
+		this.pendingRerunScripts = this.collectRerunScripts(newDocument);
+
 		/** Update the document title if it has changed. */
 		const newTitle = newDocument.head.querySelector('title');
 		if (newTitle && document.title !== newTitle.textContent) {
@@ -136,31 +150,6 @@ export class DomSwapper {
 				}
 			} else {
 				document.head.appendChild(newMeta.cloneNode(true));
-			}
-		}
-
-		/**
-		 * Re-execute scripts that are explicitly marked with `data-eco-rerun`.
-		 * Deduplication is performed via `data-eco-script-id` to prevent double execution.
-		 */
-		const existingScriptIds = new Set(
-			Array.from(document.head.querySelectorAll('script[data-eco-script-id]')).map((s) =>
-				s.getAttribute('data-eco-script-id'),
-			),
-		);
-
-		const rerunScripts = newDocument.head.querySelectorAll('script[data-eco-rerun]');
-		for (const script of rerunScripts) {
-			const scriptId = script.getAttribute('data-eco-script-id');
-			if (scriptId && !existingScriptIds.has(scriptId)) {
-				const newScript = document.createElement('script');
-				for (const attr of script.attributes) {
-					if (attr.name !== 'data-eco-rerun') {
-						newScript.setAttribute(attr.name, attr.value);
-					}
-				}
-				newScript.textContent = script.textContent;
-				document.head.appendChild(newScript);
 			}
 		}
 
@@ -215,12 +204,68 @@ export class DomSwapper {
 	}
 
 	/**
+	 * Replays queued `data-eco-rerun` scripts after the body swap completes.
+	 *
+	 * Scripts are intentionally flushed after the new body is in place so DOM-
+	 * dependent bootstraps bind against the incoming page rather than the page
+	 * being replaced.
+	 */
+	flushRerunScripts(): void {
+		for (const script of this.pendingRerunScripts) {
+			const targetParent = script.parent === 'body' ? document.body : document.head;
+			const replacement = document.createElement('script');
+			const shouldBustModuleSrc = this.isExternalModuleRerunScript(script);
+
+			for (const [name, value] of script.attributes) {
+				if (name === 'data-eco-rerun') {
+					continue;
+				}
+
+				if (name === 'src' && shouldBustModuleSrc) {
+					replacement.setAttribute(RERUN_SRC_ATTR, value);
+					replacement.setAttribute('src', this.createRerunScriptUrl(value));
+					continue;
+				}
+
+				replacement.setAttribute(name, value);
+			}
+
+			replacement.textContent = script.textContent;
+
+			const existingScript = this.findExistingRerunScript(targetParent, script);
+
+			if (existingScript) {
+				existingScript.replaceWith(replacement);
+				continue;
+			}
+
+			targetParent.appendChild(replacement);
+		}
+
+		this.pendingRerunScripts = [];
+	}
+
+	shouldReplaceBodyForRerunScripts(): boolean {
+		return this.pendingRerunScripts.some((script) => this.isExternalModuleRerunScript(script));
+	}
+
+	/**
 	 * Detects custom elements without shadow DOM (light-DOM custom elements).
 	 * These need full replacement rather than morphing, because morphdom would
 	 * strip JS-generated content from their light DOM children.
 	 */
 	private isLightDomCustomElement(element: Element): boolean {
 		return element.localName.includes('-') && element.shadowRoot === null;
+	}
+
+	private replaceCustomElement(fromEl: Element, toEl: Element): false {
+		const newEl = document.createElement(toEl.tagName);
+		for (const attr of toEl.attributes) {
+			newEl.setAttribute(attr.name, attr.value);
+		}
+		newEl.innerHTML = toEl.innerHTML;
+		fromEl.replaceWith(newEl);
+		return false;
 	}
 
 	/**
@@ -238,7 +283,7 @@ export class DomSwapper {
 					return false;
 				}
 				if (isHydratedCustomElement(fromEl)) {
-					return false;
+					return this.replaceCustomElement(fromEl, toEl);
 				}
 
 				/**
@@ -250,13 +295,7 @@ export class DomSwapper {
 				 * on the fresh one.
 				 */
 				if (this.isLightDomCustomElement(fromEl)) {
-					const newEl = document.createElement(toEl.tagName);
-					for (const attr of toEl.attributes) {
-						newEl.setAttribute(attr.name, attr.value);
-					}
-					newEl.innerHTML = toEl.innerHTML;
-					fromEl.replaceWith(newEl);
-					return false;
+					return this.replaceCustomElement(fromEl, toEl);
 				}
 
 				if (fromEl.isEqualNode(toEl)) {
@@ -299,6 +338,49 @@ export class DomSwapper {
 
 		document.body.replaceChildren(...newDocument.body.childNodes);
 		this.processDeclarativeShadowDOM(document.body);
+	}
+
+	private collectRerunScripts(newDocument: Document): PendingRerunScript[] {
+		return Array.from(newDocument.querySelectorAll<HTMLScriptElement>('script[data-eco-rerun]')).map((script) => ({
+			parent: script.closest('body') ? 'body' : 'head',
+			attributes: Array.from(script.attributes).map((attr) => [attr.name, attr.value]),
+			textContent: script.textContent ?? '',
+			src: script.getAttribute('src'),
+			scriptId: script.getAttribute('data-eco-script-id'),
+		}));
+	}
+
+	private findExistingRerunScript(
+		root: HTMLElement,
+		script: PendingRerunScript,
+	): HTMLScriptElement | null {
+		const scripts = Array.from(root.querySelectorAll<HTMLScriptElement>('script'));
+
+		if (script.scriptId) {
+			return scripts.find((candidate) => candidate.getAttribute('data-eco-script-id') === script.scriptId) ?? null;
+		}
+
+		return (
+			scripts.find(
+				(candidate) =>
+					(candidate.getAttribute(RERUN_SRC_ATTR) ?? candidate.getAttribute('src')) === script.src &&
+					(candidate.textContent ?? '') === script.textContent,
+			) ?? null
+		);
+	}
+
+	private isExternalModuleRerunScript(script: PendingRerunScript): boolean {
+		if (!script.src) {
+			return false;
+		}
+
+		return script.attributes.some(([name, value]) => name === 'type' && value === 'module');
+	}
+
+	private createRerunScriptUrl(src: string): string {
+		const url = new URL(src, document.baseURI);
+		url.searchParams.set('__eco_rerun', String(++this.rerunNonce));
+		return url.toString();
 	}
 
 	/**

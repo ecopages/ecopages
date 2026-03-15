@@ -28,7 +28,7 @@ export class HmrManager implements IHmrManager {
 	private watchers = new Map<string, fs.FSWatcher>();
 	/** entrypoint -> output path */
 	private watchedFiles = new Map<string, string>();
-	/** bare specifier -> runtime URL (e.g., 'react' -> '/assets/vendors/react.js') */
+	/** bare specifier -> runtime URL registered by integrations */
 	private specifierMap = new Map<string, string>();
 	private distDir: string;
 	private plugins: EcoBuildPlugin[] = [];
@@ -103,6 +103,21 @@ export class HmrManager implements IHmrManager {
 		for (const [specifier, url] of Object.entries(map)) {
 			this.specifierMap.set(specifier, url);
 		}
+	}
+
+	private rewriteBareSpecifiers(code: string): string {
+		if (this.specifierMap.size === 0) {
+			return code;
+		}
+
+		let result = code;
+		for (const [bareSpec, runtimeUrl] of this.specifierMap.entries()) {
+			const escaped = bareSpec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			result = result.replace(new RegExp(`from\\s*["']${escaped}["']`, 'g'), `from "${runtimeUrl}"`);
+			result = result.replace(new RegExp(`import\\(["']${escaped}["']\\)`, 'g'), `import("${runtimeUrl}")`);
+		}
+
+		return result;
 	}
 
 	public getWebSocketHandler(): BunSocketHandler {
@@ -240,6 +255,11 @@ export class HmrManager implements IHmrManager {
 
 		await this.handleFileChange(entrypointPath);
 
+		if (fileSystem.exists(outputPath)) {
+			const code = this.rewriteBareSpecifiers(await fileSystem.readFile(outputPath));
+			await fileSystem.writeAsync(outputPath, code);
+		}
+
 		if (!fileSystem.exists(outputPath)) {
 			const fallback = await defaultBuildAdapter.build({
 				entrypoints: [entrypointPath],
@@ -254,6 +274,11 @@ export class HmrManager implements IHmrManager {
 			if (!fallback.success) {
 				appLogger.error(`[HMR] Fallback build failed for ${entrypointPath}:`, fallback.logs);
 			}
+		}
+
+		if (fileSystem.exists(outputPath)) {
+			const code = this.rewriteBareSpecifiers(await fileSystem.readFile(outputPath));
+			await fileSystem.writeAsync(outputPath, code);
 		}
 
 		return outputUrl;

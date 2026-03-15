@@ -15,6 +15,12 @@ describe('createHydrationScript', () => {
 			isDevelopment: true,
 		});
 
+		expect(script).toContain('window.__ecopages_page_root__ = window.__ecopages_page_root__ || null;');
+		expect(script).toContain('window.__ecopages_cleanup_page_root__ = () => {');
+		expect(script).toContain('activeRoot.unmount();');
+		expect(script).toContain('window.__ecopages_navigation__?.setOwner("none");');
+		expect(script).toContain('if (window.__ecopages_page_root__) {');
+		expect(script).toContain('root.render(createTree(Page, props));');
 		expect(script).toContain('const layoutProps = props?.locals ? { locals: props.locals } : null;');
 		expect(script).toContain('return Layout ? createElement(Layout, layoutProps, pageElement) : pageElement;');
 	});
@@ -36,8 +42,32 @@ describe('createHydrationScript', () => {
 			isDevelopment: false,
 		});
 
+		expect(script).toContain('window.__ecopages_page_root__=window.__ecopages_page_root__||null;');
+		expect(script).toContain('window.__ecopages_cleanup_page_root__=()=>{');
+		expect(script).toContain('a.unmount()');
+		expect(script).toContain('window.__ecopages_navigation__?.setOwner("none")');
+		expect(script).toContain('if(window.__ecopages_page_root__){root=window.__ecopages_page_root__;root.render(ct(P,pr));return}');
 		expect(script).toContain('const lp=p?.locals?{locals:p.locals}:null;');
 		expect(script).toContain('return L?ce(L,lp,pe):pe');
+	});
+
+	test('router development output exposes page-root cleanup before reuse', () => {
+		const script = createHydrationScript({
+			...baseOptions,
+			isDevelopment: true,
+			router: {
+				name: 'eco-router',
+				bundle: { importPath: '/assets/router.js', outputName: 'router', externals: [] },
+				importMapKey: '@ecopages/react-router',
+				components: { router: 'EcoRouter', pageContent: 'PageContent' },
+				getRouterProps: (page: string, props: string) => `{ page: ${page}, pageProps: ${props} }`,
+			},
+			routerImportPath: '/assets/router.js',
+		});
+
+		expect(script).toContain('window.__ecopages_cleanup_page_root__ = () => {');
+		expect(script).toContain('window.__ecopages_navigation__?.setOwner("react-router");');
+		expect(script).toContain('window.__ecopages_navigation__?.reloadCurrentPage?.({ clearCache: false, source: "react-router" });');
 	});
 
 	test('production output passes serialized locals to layout hydration for non-router MDX pages', () => {
@@ -71,7 +101,7 @@ describe('createIslandHydrationScript', () => {
 
 		expect(script).toContain('document.addEventListener("eco:after-swap", mount);');
 		expect(script).toContain('document.createElement("eco-island")');
-		expect(script).toContain('container.style.display = "contents"');
+		expect(script).toContain('container.style.display = "block"');
 		expect(script).toContain('target.replaceWith(container)');
 		expect(script).toContain('JSON.parse(atob(target.getAttribute("data-eco-props")');
 		expect(script).toContain('document.addEventListener("DOMContentLoaded", mount, { once: true });');
@@ -85,7 +115,7 @@ describe('createIslandHydrationScript', () => {
 
 		expect(script).toContain('document.addEventListener("eco:after-swap",m)');
 		expect(script).toContain('createElement("eco-island")');
-		expect(script).toContain('style.display="contents"');
+		expect(script).toContain('style.display="block"');
 		expect(script).toContain('replaceWith(ct)');
 		expect(script).toContain('JSON.parse(atob(t.getAttribute("data-eco-props")');
 		expect(script).toContain('DOMContentLoaded",m,{once:true}');

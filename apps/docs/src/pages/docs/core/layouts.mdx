@@ -29,7 +29,7 @@ This file defines the overall HTML structure of your pages. Here's an example of
 ```typescript
 import { eco, html } from '@ecopages/core';
 
-export const Html = eco.component<{ children: string }>({
+export const Html = eco.html<{ children: string }>({
 	dependencies: {
 		stylesheets: ['./html.css'],
 	},
@@ -77,7 +77,7 @@ export type BaseLayoutProps = {
   class?: string;
 };
 
-export const BaseLayout = eco.component<BaseLayoutProps>({
+export const BaseLayout = eco.layout<BaseLayoutProps>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import {
+	ECO_DOCUMENT_OWNER_ATTRIBUTE,
+	getEcoNavigationRuntime,
+} from '@ecopages/core/router/navigation-coordinator';
 import { createRouter, EcoRouter } from '../src/client/eco-router';
 
 type BrowserRouterTestWindow = Window &
@@ -650,10 +653,8 @@ describe('EcoRouter', () => {
 		it('should force a full navigation when document ownership changes', async () => {
 			router = createRouter();
 			const reactHtml = [
-				'<html>',
+					`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
 					'<head>',
-						'<script type="application/json" id="__ECO_PAGE_DATA_FALLBACK__">{}</script>',
-						'<script src="/assets/scripts/ecopages-react-123-hydration.js" type="module" defer=""></script>',
 					'</head>',
 					'<body><main>React Route</main></body>',
 				'</html>',
@@ -686,11 +687,8 @@ describe('EcoRouter', () => {
 
 		it('should clean up the active React page root before reloading to a non-React route', async () => {
 			router = createRouter();
-			const originalHeadHtml = document.head.innerHTML;
-			document.head.innerHTML = [
-				'<script id="__ECO_PAGE_DATA_FALLBACK__" type="application/json">{}</script>',
-				'<script src="/assets/scripts/ecopages-react-123-hydration.js" type="module" defer=""></script>',
-			].join('');
+				const originalDocumentOwner = document.documentElement.getAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
+				document.documentElement.setAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE, 'react-router');
 			const cleanupSpy = vi.fn();
 			runtimeWindow.__ecopages_cleanup_page_root__ = cleanupSpy;
 			fetchSpy?.mockResolvedValueOnce({
@@ -711,7 +709,11 @@ describe('EcoRouter', () => {
 				expect(reloadSpy).toHaveBeenCalledWith(expect.any(URL));
 				expect(cleanupSpy.mock.invocationCallOrder[0]).toBeLessThan(reloadSpy.mock.invocationCallOrder[0]);
 			} finally {
-				document.head.innerHTML = originalHeadHtml;
+					if (originalDocumentOwner) {
+						document.documentElement.setAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE, originalDocumentOwner);
+					} else {
+						document.documentElement.removeAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
+					}
 			}
 		});
 

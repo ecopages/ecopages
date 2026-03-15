@@ -5,6 +5,14 @@ import { HtmlPostProcessingService } from './html-post-processing.service.ts';
 describe('HtmlPostProcessingService', () => {
 	const service = new HtmlPostProcessingService();
 
+	it('should apply attributes to the html element', () => {
+		const result = service.applyAttributesToHtmlElement('<!DOCTYPE html><html lang="en"><body>Hello</body></html>', {
+			'data-eco-document-owner': 'react-router',
+		});
+
+		expect(result).toContain('<html lang="en" data-eco-document-owner="react-router">');
+	});
+
 	it('should apply attributes to the first body child', () => {
 		const result = service.applyAttributesToFirstBodyElement(
 			'<html><body><main>Hello</main><footer>Footer</footer></body></html>',

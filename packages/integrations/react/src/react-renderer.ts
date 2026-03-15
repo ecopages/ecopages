@@ -23,6 +23,7 @@ import { LocalsAccessError } from '@ecopages/core/errors/locals-access-error';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { rapidhash } from '@ecopages/core/hash';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { createElement, type ReactNode } from 'react';
 import { renderToReadableStream, renderToString } from 'react-dom/server';
 import type { CompileOptions } from '@mdx-js/mdx';
@@ -187,6 +188,16 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	private buildRouterFallbackScript(pageProps: HtmlTemplateProps['pageProps'] | undefined): string {
 		const safeJson = JSON.stringify(pageProps || {}).replace(/</g, '\\u003c');
 		return `<script id="__ECO_PAGE_DATA_FALLBACK__" type="application/json">${safeJson}</script>`;
+	}
+
+	private getRouterDocumentAttributes(): Record<string, string> | undefined {
+		if (!ReactRenderer.routerAdapter) {
+			return undefined;
+		}
+
+		return {
+			[ECO_DOCUMENT_OWNER_ATTRIBUTE]: 'react-router',
+		};
 	}
 
 	/**
@@ -566,6 +577,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		}
 	}
 
+	protected override getDocumentAttributes(): Record<string, string> | undefined {
+		return this.getRouterDocumentAttributes();
+	}
+
 	/**
 	 * Safely extracts the declared subset of locals for client-side hydration.
 	 *
@@ -668,8 +683,16 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 					headers: { 'Content-Type': 'text/html' },
 				}),
 			);
+			let transformedHtml = await transformedResponse.text();
+			const documentAttributes = this.getRouterDocumentAttributes();
+			if (documentAttributes) {
+				transformedHtml = this.htmlPostProcessingService.applyAttributesToHtmlElement(
+					transformedHtml,
+					documentAttributes,
+				);
+			}
 
-			return this.createHtmlResponse(transformedResponse.body ?? '', ctx);
+			return this.createHtmlResponse(transformedHtml, ctx);
 		} catch (error) {
 			throw this.createRenderError('Failed to render view', error);
 		}

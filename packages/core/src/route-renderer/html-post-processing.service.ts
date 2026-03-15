@@ -6,6 +6,28 @@ import type { ProcessedAsset } from '../services/asset-processing-service/index.
  */
 export class HtmlPostProcessingService {
 	/**
+	 * Applies attributes to the document `<html>` element.
+	 *
+	 * @param html Full HTML document.
+	 * @param attributes Attribute map to inject.
+	 * @returns Updated HTML document.
+	 */
+	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string {
+		const htmlTagMatch = html.match(/<html\b[^>]*>/i);
+		if (!htmlTagMatch || htmlTagMatch.index === undefined) {
+			return html;
+		}
+
+		const attrs = this.buildAttributeString(attributes);
+		if (attrs.length === 0) {
+			return html;
+		}
+
+		const injectionOffset = htmlTagMatch.index + htmlTagMatch[0].length - 1;
+		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
+	}
+
+	/**
 	 * Applies attributes to the first element immediately inside the document
 	 * `<body>`.
 	 *

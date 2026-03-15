@@ -16,5 +16,6 @@ All notable changes to `@ecopages/react-router` are documented here.
 ### Refactoring
 
 - Routed browser handoff and current-page reloads through the shared internal navigation coordinator, reducing direct coupling with browser-router globals while preserving the existing public setup.
+- Switched React route document detection from hydration-script heuristics to an explicit server-rendered document owner marker.
 - Updated `package.json` dependencies to align with the new core adapter and esbuild build adapter versions.
 - Internal peer dependency declarations updated for React 18+ and the new `@ecopages/core` API surface.

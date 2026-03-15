@@ -480,9 +480,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					componentsToResolve: input.componentsToResolve,
 					graphContext: input.graphContext,
 				}),
+			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
 			dedupeProcessedAssets: (assets) => this.htmlPostProcessingService.dedupeProcessedAssets(assets),
 			getProcessedDependencies: () => this.htmlTransformer.getProcessedDependencies(),
 			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
+			applyAttributesToHtmlElement: (html, attributes) =>
+				this.htmlPostProcessingService.applyAttributesToHtmlElement(html, attributes),
 			applyAttributesToFirstBodyElement: (html, attributes) =>
 				this.htmlPostProcessingService.applyAttributesToFirstBodyElement(html, attributes),
 			transformHtml: async (html) => {
@@ -496,6 +499,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				return response.body as RouteRendererBody;
 			},
 		});
+	}
+
+	/**
+	 * Returns document-level attributes to stamp onto the rendered `<html>` tag.
+	 *
+	 * Integrations can override this to expose explicit document ownership or
+	 * other runtime coordination markers without relying on script sniffing.
+	 */
+	protected getDocumentAttributes(
+		_renderOptions: IntegrationRendererRenderOptions<C>,
+	): Record<string, string> | undefined {
+		return undefined;
 	}
 
 	/**

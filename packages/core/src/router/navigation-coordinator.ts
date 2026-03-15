@@ -1,5 +1,7 @@
 export type EcoNavigationOwner = 'none' | 'browser-router' | 'react-router' | (string & {});
 
+export const ECO_DOCUMENT_OWNER_ATTRIBUTE = 'data-eco-document-owner';
+
 export type EcoNavigationDirection = 'forward' | 'back' | 'replace';
 
 export type EcoNavigationRequest = {
@@ -32,6 +34,17 @@ export interface EcoNavigationRuntime {
 	requestNavigation(request: EcoNavigationRequest): Promise<boolean>;
 	reloadCurrentPage(request?: EcoReloadRequest): Promise<boolean>;
 	cleanupCurrentOwner(): Promise<void>;
+}
+
+/**
+ * Reads the explicit browser document owner marker from a rendered HTML document.
+ *
+ * Documents without a marker return `null`, allowing runtimes to fall back to
+ * their local default behavior without scanning hydration scripts.
+ */
+export function getEcoDocumentOwner(doc: Document): EcoNavigationOwner | null {
+	const owner = doc.documentElement.getAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
+	return owner && owner.length > 0 ? (owner as EcoNavigationOwner) : null;
 }
 
 type EcoNavigationWindow = Window &

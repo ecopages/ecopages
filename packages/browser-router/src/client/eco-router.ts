@@ -4,7 +4,7 @@
  */
 
 import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types.ts';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { getEcoDocumentOwner, getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { DEFAULT_OPTIONS } from './types.ts';
 import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services/index.ts';
 
@@ -46,21 +46,11 @@ export class EcoRouter {
 	}
 
 	private isReactManagedDocument(doc: Document): boolean {
-		return Array.from(doc.querySelectorAll('script')).some((script) => {
-			const content = script.textContent ?? '';
-			const src = script.getAttribute('src') ?? '';
-			return (
-				script.id === '__ECO_PAGE_DATA_FALLBACK__' ||
-				content.includes('__ECO_PAGE_DATA_FALLBACK__') ||
-				(src.includes('ecopages-react-') &&
-					src.includes('-hydration') &&
-					!src.includes('ecopages-react-island-'))
-			);
-		});
+		return getEcoDocumentOwner(doc) === 'react-router';
 	}
 
 	private setRouterOwnership(doc: Document): void {
-		const owner = this.isReactManagedDocument(doc) ? 'react-router' : 'browser-router';
+		const owner = getEcoDocumentOwner(doc) ?? 'browser-router';
 		getEcoNavigationRuntime(window).setOwner(owner);
 	}
 

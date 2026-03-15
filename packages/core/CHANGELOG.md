@@ -31,7 +31,6 @@ All notable changes to `@ecopages/core` are documented here.
 - **Full orchestration mode** — Legacy rendering mode branches removed; the engine always runs in unified orchestration mode (`f652fa0a`).
 - **Extracted render services** — The render pipeline is decomposed into focused services:
     - `RenderExecutionService`
-    - `HtmlPostProcessingService`
     - `RenderPreparationService`
     - `MarkerGraphResolver`
     - `FileRouteMiddlewarePipeline`
@@ -61,6 +60,7 @@ All notable changes to `@ecopages/core` are documented here.
 - **Shared matcher error constants** — Matcher error strings are now constants shared across test and source (`ff4db106`).
 - **App registration & fetch pipeline** — App creation and request handling consolidated into a single unified pipeline (`86e20a3d`).
 - **Adapter escape hatch surface** trimmed — Public adapter API is narrowed to reduce surface area (`1ec42c02`).
+- Consolidated final HTML attribute stamping and processed-asset deduplication into `HtmlTransformerService`, removing `HtmlPostProcessingService` from the render pipeline.
 
 ### Bug Fixes
 

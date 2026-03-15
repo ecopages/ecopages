@@ -30,7 +30,6 @@ import { invariant } from '../utils/invariant.ts';
 import { HttpError } from '../errors/http-error.ts';
 import { LocalsAccessError } from '../errors/locals-access-error.ts';
 import { DependencyResolverService } from './dependency-resolver.ts';
-import { HtmlPostProcessingService } from './html-post-processing.service.ts';
 import { PageModuleLoaderService } from './page-module-loader.ts';
 import { MarkerGraphResolver } from './marker-graph-resolver.ts';
 import { RenderExecutionService, type RenderExecutionGraphContext } from './render-execution.service.ts';
@@ -103,7 +102,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected markerGraphResolver: MarkerGraphResolver;
 	protected renderPreparationService: RenderPreparationService;
-	protected htmlPostProcessingService: HtmlPostProcessingService;
 	protected renderExecutionService: RenderExecutionService;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
@@ -164,7 +162,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async prepareViewDependencies(view: EcoComponent, layout?: EcoComponent): Promise<ProcessedAsset[]> {
 		const HtmlTemplate = await this.getHtmlTemplate();
 		const componentsToResolve = layout ? [HtmlTemplate, layout, view] : [HtmlTemplate, view];
-		const resolvedDependencies = this.htmlPostProcessingService.dedupeProcessedAssets(
+		const resolvedDependencies = this.htmlTransformer.dedupeProcessedAssets(
 			await this.resolveDependencies(componentsToResolve),
 		);
 		this.htmlTransformer.setProcessedDependencies(resolvedDependencies);
@@ -191,7 +189,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
 		this.markerGraphResolver = new MarkerGraphResolver();
 		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService);
-		this.htmlPostProcessingService = new HtmlPostProcessingService();
 		this.renderExecutionService = new RenderExecutionService();
 	}
 
@@ -394,7 +391,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				}),
 			getComponentRenderBoundaryContext: () => this.getComponentRenderBoundaryContext(),
 			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
-			dedupeProcessedAssets: (assets) => this.htmlPostProcessingService.dedupeProcessedAssets(assets),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 			createPageLocalsProxy: (filePath) =>
 				createLocalsProxy(filePath) as unknown as RouteRendererOptions['locals'],
 		});
@@ -481,13 +478,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					graphContext: input.graphContext,
 				}),
 			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
-			dedupeProcessedAssets: (assets) => this.htmlPostProcessingService.dedupeProcessedAssets(assets),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 			getProcessedDependencies: () => this.htmlTransformer.getProcessedDependencies(),
 			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
 			applyAttributesToHtmlElement: (html, attributes) =>
-				this.htmlPostProcessingService.applyAttributesToHtmlElement(html, attributes),
+				this.htmlTransformer.applyAttributesToHtmlElement(html, attributes),
 			applyAttributesToFirstBodyElement: (html, attributes) =>
-				this.htmlPostProcessingService.applyAttributesToFirstBodyElement(html, attributes),
+				this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes),
 			transformHtml: async (html) => {
 				const response = await this.htmlTransformer.transform(
 					new Response(html, {
@@ -549,7 +546,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			resolveRenderer: (integrationName) =>
 				this.getIntegrationRendererForName(integrationName, integrationRendererCache),
 			applyAttributesToFirstElement: (html, attributes) =>
-				this.htmlPostProcessingService.applyAttributesToFirstElement(html, attributes),
+				this.htmlTransformer.applyAttributesToFirstElement(html, attributes),
 		});
 	}
 

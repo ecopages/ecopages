@@ -160,6 +160,81 @@ export class HtmlTransformerService {
 		return this.processedDependencies;
 	}
 
+	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string {
+		const htmlTagMatch = html.match(/<html\b[^>]*>/i);
+		if (!htmlTagMatch || htmlTagMatch.index === undefined) {
+			return html;
+		}
+
+		const attrs = this.buildAttributeString(attributes);
+		if (attrs.length === 0) {
+			return html;
+		}
+
+		const injectionOffset = htmlTagMatch.index + htmlTagMatch[0].length - 1;
+		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
+	}
+
+	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string {
+		const bodyMatch = html.match(/<body\b[^>]*>/i);
+		if (!bodyMatch || bodyMatch.index === undefined) {
+			return html;
+		}
+
+		const bodyOpenEnd = bodyMatch.index + bodyMatch[0].length;
+		const afterBody = html.slice(bodyOpenEnd);
+		const firstTagMatch = afterBody.match(/^(\s*<)([a-zA-Z][a-zA-Z0-9:-]*)(\b[^>]*>)/);
+		if (!firstTagMatch || firstTagMatch.index === undefined) {
+			return html;
+		}
+
+		const attrs = this.buildAttributeString(attributes);
+		if (attrs.length === 0) {
+			return html;
+		}
+
+		const injectionOffset = bodyOpenEnd + firstTagMatch[1].length + firstTagMatch[2].length;
+		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
+	}
+
+	applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string {
+		const firstTagMatch = html.match(/^(\s*<)([a-zA-Z][a-zA-Z0-9:-]*)(\b[^>]*>)/);
+		if (!firstTagMatch || firstTagMatch.index === undefined) {
+			return html;
+		}
+
+		const attrs = this.buildAttributeString(attributes);
+		if (attrs.length === 0) {
+			return html;
+		}
+
+		const injectionOffset = firstTagMatch[1].length + firstTagMatch[2].length;
+		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
+	}
+
+	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
+		const unique = new Map<string, ProcessedAsset>();
+
+		for (const asset of assets) {
+			const key = [
+				asset.kind,
+				asset.position ?? '',
+				asset.srcUrl ?? '',
+				asset.filepath ?? '',
+				asset.content ?? '',
+				asset.inline ? 'inline' : 'external',
+				asset.excludeFromHtml ? 'excluded' : 'included',
+				JSON.stringify(asset.attributes ?? {}),
+			].join('|');
+
+			if (!unique.has(key)) {
+				unique.set(key, asset);
+			}
+		}
+
+		return [...unique.values()];
+	}
+
 	async transform(res: Response): Promise<Response> {
 		const { head, body } = this.groupDependenciesByPosition();
 		const htmlRewriter = await this.createHtmlRewriter();
@@ -213,5 +288,12 @@ export class HtmlTransformerService {
 			},
 			{ head: [], body: [] } as Record<AssetPosition, ProcessedAsset[]>,
 		);
+	}
+
+	private buildAttributeString(attributes: Record<string, string>): string {
+		return Object.entries(attributes)
+			.filter(([key, value]) => key.length > 0 && value.length > 0)
+			.map(([key, value]) => ` ${key}="${value}"`)
+			.join('');
 	}
 }

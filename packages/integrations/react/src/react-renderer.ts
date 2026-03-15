@@ -365,9 +365,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			);
 		}
 
-		const headContent = ReactRenderer.routerAdapter
-			? this.buildRouterFallbackScript(options.pageProps)
-			: undefined;
+		const headContent = ReactRenderer.routerAdapter ? this.buildRouterFallbackScript(options.pageProps) : undefined;
 
 		return this.renderNonReactShellComponent(
 			this.asNonReactShellComponent<NonReactHtmlTemplateProps>(options.HtmlTemplate),
@@ -686,7 +684,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			let transformedHtml = await transformedResponse.text();
 			const documentAttributes = this.getRouterDocumentAttributes();
 			if (documentAttributes) {
-				transformedHtml = this.htmlPostProcessingService.applyAttributesToHtmlElement(
+				transformedHtml = this.htmlTransformer.applyAttributesToHtmlElement(
 					transformedHtml,
 					documentAttributes,
 				);

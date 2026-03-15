@@ -18,6 +18,9 @@ This package is designed for MPA-style rendering where the server returns full H
 > **Not compatible with full React applications.**
 > If you are building a React application, use [@ecopages/react-router](../react-router/README.md) instead, as React manages its own virtual DOM and hydration lifecycle.
 
+> [!NOTE]
+> `@ecopages/browser-router` can still participate in mixed sites that contain both React-router pages and non-React pages. In that setup, browser-router remains responsible for DOM-swapping non-React documents, and React-router can hand off already-fetched non-React pages to it through the shared navigation coordinator.
+
 ## Installation
 
 ```bash
@@ -48,6 +51,8 @@ const router = createRouter({
 	scrollBehavior: 'auto',
 });
 ```
+
+Loading the router script is the opt-in point for browser-router-managed navigation on that page shell. Pages without the router script continue to use normal document navigation.
 
 ## Configuration
 

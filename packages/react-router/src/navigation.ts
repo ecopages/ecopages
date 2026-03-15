@@ -28,6 +28,12 @@ export type LoadedPageModule = {
 	moduleUrl: string;
 };
 
+export type FetchedPageDocument = {
+	doc: Document;
+	finalPath: string;
+	html: string;
+};
+
 type LoadPageModuleOptions = {
 	signal?: AbortSignal;
 };
@@ -214,6 +220,18 @@ export async function loadPageModule(
 	url: string,
 	options: LoadPageModuleOptions = {},
 ): Promise<LoadedPageModule | null> {
+	const fetchedPage = await fetchPageDocument(url, options);
+	if (!fetchedPage) {
+		return null;
+	}
+
+	return loadPageModuleFromDocument(fetchedPage.doc, fetchedPage.finalPath);
+}
+
+export async function fetchPageDocument(
+	url: string,
+	options: LoadPageModuleOptions = {},
+): Promise<FetchedPageDocument | null> {
 	try {
 		const res = await fetch(url, { signal: options.signal });
 		const html = await res.text();
@@ -223,32 +241,7 @@ export async function loadPageModule(
 
 		const doc = new DOMParser().parseFromString(html, 'text/html');
 
-		const props = extractProps(doc);
-		const componentUrl = await extractComponentUrl(doc);
-
-		if (!componentUrl) {
-			if (isReactRouteDocument(doc)) {
-				console.error('[EcoRouter] Could not find component URL');
-			}
-			return null;
-		}
-
-		const moduleUrl = addCacheBuster(componentUrl);
-		const module = await import(/* @vite-ignore */ moduleUrl);
-		const rawComponent = module.Content || module.default?.Content || module.default;
-
-		const config = module.config || rawComponent?.config;
-
-		if (!rawComponent) {
-			console.error('[EcoRouter] No component found in module');
-			return null;
-		}
-
-		if (config && !rawComponent.config) {
-			rawComponent.config = config;
-		}
-
-		return { Component: rawComponent, props, doc, finalPath, moduleUrl: componentUrl };
+		return { doc, finalPath, html };
 	} catch (e) {
 		if (e instanceof DOMException && e.name === 'AbortError') {
 			return null;
@@ -256,6 +249,34 @@ export async function loadPageModule(
 		console.error('[EcoRouter] Navigation failed:', e);
 		return null;
 	}
+}
+
+export async function loadPageModuleFromDocument(doc: Document, finalPath: string): Promise<LoadedPageModule | null> {
+	const props = extractProps(doc);
+	const componentUrl = await extractComponentUrl(doc);
+
+	if (!componentUrl) {
+		if (isReactRouteDocument(doc)) {
+			console.error('[EcoRouter] Could not find component URL');
+		}
+		return null;
+	}
+
+	const moduleUrl = addCacheBuster(componentUrl);
+	const module = await import(/* @vite-ignore */ moduleUrl);
+	const rawComponent = module.Content || module.default?.Content || module.default;
+	const config = module.config || rawComponent?.config;
+
+	if (!rawComponent) {
+		console.error('[EcoRouter] No component found in module');
+		return null;
+	}
+
+	if (config && !rawComponent.config) {
+		rawComponent.config = config;
+	}
+
+	return { Component: rawComponent, props, doc, finalPath, moduleUrl: componentUrl };
 }
 
 /**

@@ -65,6 +65,43 @@ describe('getEcoNavigationRuntime', () => {
 		});
 	});
 
+	it('delegates a fetched document handoff to the targeted runtime after cleaning up the current owner', async () => {
+		const windowLike = createWindowLike();
+		const runtime = getEcoNavigationRuntime(windowLike);
+		const cleanupSpy = vi.fn(async () => undefined);
+		const handoffSpy = vi.fn(async () => true);
+		const documentLike = {
+			documentElement: {
+				getAttribute: vi.fn(() => null),
+			},
+		} as unknown as Document;
+
+		runtime.register({ owner: 'react-router', cleanupBeforeHandoff: cleanupSpy });
+		runtime.register({ owner: 'browser-router', handoffNavigation: handoffSpy });
+		runtime.claimOwnership('react-router');
+
+		const handled = await runtime.requestHandoff({
+			href: '/docs',
+			finalHref: '/docs',
+			direction: 'forward',
+			source: 'react-router',
+			targetOwner: 'browser-router',
+			document: documentLike,
+		});
+
+		expect(handled).toBe(true);
+		expect(cleanupSpy).toHaveBeenCalledTimes(1);
+		expect(handoffSpy).toHaveBeenCalledWith({
+			href: '/docs',
+			finalHref: '/docs',
+			direction: 'forward',
+			source: 'react-router',
+			targetOwner: 'browser-router',
+			document: documentLike,
+		});
+		expect(cleanupSpy.mock.invocationCallOrder[0]).toBeLessThan(handoffSpy.mock.invocationCallOrder[0]);
+	});
+
 	it('reloads the current owner through its registration', async () => {
 		const windowLike = createWindowLike();
 		const runtime = getEcoNavigationRuntime(windowLike);

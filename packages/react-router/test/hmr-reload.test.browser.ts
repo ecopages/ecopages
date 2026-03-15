@@ -41,12 +41,6 @@ function createLayoutAwarePage(name: string) {
 	return Page;
 }
 
-function createLinkPage(name: string, href: string) {
-	const Component = () => createElement('a', { href, 'data-testid': `${name}-link` }, name);
-	Component.displayName = name;
-	return Component;
-}
-
 function createMultiLinkPage(name: string, links: Array<{ href: string; label: string }>) {
 	const Component = () =>
 		createElement(
@@ -92,6 +86,7 @@ describe('EcoRouter HMR Integration', () => {
 			createElement(EcoRouter, {
 				page: PageA,
 				pageProps: {},
+				// oxlint-disable-next-line no-children-prop
 				children: createElement(PageContent),
 			}),
 		);
@@ -221,17 +216,14 @@ describe('EcoRouter HMR Integration', () => {
 			expect(container.textContent).toContain('Andee');
 		});
 
-		it('delegates to browser-router without tearing down the current page first', async () => {
-			const Page = createLinkPage('LeaveReact', '/outside-react');
+		it('delegates non-React documents to browser-router when it is registered', async () => {
+			const Page = createMultiLinkPage('LeaveReact', [{ href: '/outside-react', label: 'outside-link' }]);
 			const cleanupSpy = vi.fn();
-			const browserNavigateSpy = vi.fn(async () => undefined);
+			const handoffSpy = vi.fn(async () => true);
 			window.__ecopages_cleanup_page_root__ = cleanupSpy;
 			const unregister = getEcoNavigationRuntime(window).register({
 				owner: 'browser-router',
-				navigate: async (request) => {
-					await browserNavigateSpy(request.href, { direction: request.direction });
-					return true;
-				},
+				handoffNavigation: handoffSpy,
 			});
 
 			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
@@ -250,14 +242,24 @@ describe('EcoRouter HMR Integration', () => {
 			);
 
 			await new Promise((resolve) => setTimeout(resolve, 100));
-			const link = container.querySelector('[data-testid="LeaveReact-link"]') as HTMLAnchorElement | null;
+			const link = container.querySelector('[data-testid="LeaveReact-outside-link"]') as HTMLAnchorElement | null;
 			expect(link).not.toBeNull();
 			link?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
 
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
-			expect(cleanupSpy).not.toHaveBeenCalled();
-			expect(browserNavigateSpy).toHaveBeenCalledWith('/outside-react', { direction: 'forward' });
+			expect(cleanupSpy).toHaveBeenCalledTimes(1);
+			expect(handoffSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					href: '/outside-react',
+					finalHref: '/outside-react',
+					direction: 'forward',
+					source: 'react-router',
+					targetOwner: 'browser-router',
+					document: expect.any(Document),
+					html: '<html><body><main>Outside React</main></body></html>',
+				}),
+			);
 			unregister();
 		});
 
@@ -294,6 +296,7 @@ describe('EcoRouter HMR Integration', () => {
 					page: Page,
 					pageProps: {},
 					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
 					children: createElement(PageContent),
 				}),
 			);
@@ -314,21 +317,18 @@ describe('EcoRouter HMR Integration', () => {
 			expect(window.__ECO_PAGE__?.props).toEqual({ label: 'fast' });
 		});
 
-		it('ignores stale browser-router delegation when a newer React route finishes first', async () => {
+		it('ignores stale browser-router handoff when a newer React route finishes first', async () => {
 			const Page = createMultiLinkPage('FallbackRace', [
 				{ href: '/outside-react', label: 'outside-link' },
 				{ href: '/fast', label: 'fast-link' },
 			]);
 			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
 			const cleanupSpy = vi.fn();
-			const browserNavigateSpy = vi.fn(async () => undefined);
+			const handoffSpy = vi.fn(async () => true);
 			window.__ecopages_cleanup_page_root__ = cleanupSpy;
 			const unregister = getEcoNavigationRuntime(window).register({
 				owner: 'browser-router',
-				navigate: async (request) => {
-					await browserNavigateSpy(request.href, { direction: request.direction });
-					return true;
-				},
+				handoffNavigation: handoffSpy,
 			});
 			const createHtml = (label: string) => `
 				<html>
@@ -357,6 +357,7 @@ describe('EcoRouter HMR Integration', () => {
 					page: Page,
 					pageProps: {},
 					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
 					children: createElement(PageContent),
 				}),
 			);
@@ -377,7 +378,7 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 160));
 
 			expect(cleanupSpy).not.toHaveBeenCalled();
-			expect(browserNavigateSpy).not.toHaveBeenCalled();
+			expect(handoffSpy).not.toHaveBeenCalled();
 			expect(container.textContent).toContain('fast');
 			expect(window.__ECO_PAGE__?.props).toEqual({ label: 'fast' });
 			unregister();

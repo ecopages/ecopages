@@ -68,6 +68,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Fixed browser-side current-page reload coordination so HMR refreshes still target the active runtime even when the reload request originates from that same owner.
 - Fixed router handoff detection to use an explicit rendered document owner marker instead of hydration-script sniffing.
 - Fixed router ownership handoff so external runtimes can integrate through the navigation coordinator without browser-router knowing specific peer router names.
+- Fixed cross-runtime navigation so runtimes can hand off already-fetched browser documents through the coordinator instead of forcing a reload or a second fetch.
 
 ### Refactoring
 

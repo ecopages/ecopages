@@ -12,6 +12,7 @@ All notable changes to `@ecopages/react-router` are documented here.
 - Cleaned up the active React page root before handing navigation back to browser-router so repeated React/non-React hops do not reuse a stale hydrated tree.
 - Ignored stale browser-router fallback delegations once a newer React navigation has already won, preventing cross-router handoff races during rapid repeated clicks.
 - Restored page-level HMR refreshes with persist layouts enabled by keeping current-page reloads targeted at the active React router owner.
+- Reused fetched non-React documents during React-to-browser handoff so cross-runtime navigation no longer needs a second fetch or a hard reload boundary.
 
 ### Refactoring
 

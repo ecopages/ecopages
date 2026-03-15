@@ -1,6 +1,13 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
-import { extractProps, extractComponentUrl, loadPageModule, shouldInterceptClick } from '../src/navigation';
+import {
+	extractProps,
+	extractComponentUrl,
+	fetchPageDocument,
+	loadPageModule,
+	loadPageModuleFromDocument,
+	shouldInterceptClick,
+} from '../src/navigation';
 import { DEFAULT_OPTIONS } from '../src/types';
 
 function createMockDocument(html: string): Document {
@@ -281,6 +288,42 @@ describe('loadPageModule', () => {
 
 		expect(result).toBeNull();
 		expect(consoleErrorSpy).not.toHaveBeenCalled();
+	});
+
+	it('should fetch and parse a navigation document without loading a module', async () => {
+		const mockHtml = '<html><body><main>Outside React</main></body></html>';
+		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+
+		const result = await fetchPageDocument('/docs');
+
+		expect(result).toEqual({
+			doc: expect.any(Document),
+			finalPath: '/docs',
+			html: mockHtml,
+		});
+		expect(result?.doc.body.innerHTML).toContain('Outside React');
+	});
+
+	it('should load a react page module from an already-fetched document', async () => {
+		const moduleUrl = '/packages/react-router/test/fixtures/test-page-module.ts';
+		const doc = createMockDocument(
+			[
+				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
+				'<body>',
+				'<script id="__ECO_PAGE_DATA__" type="application/json">{"message":"hello"}</script>',
+				`<script type="module">import Page from "${moduleUrl}"; window.__ECO_PAGE__={module:"${moduleUrl}",props:{message:"hello"}}; hydrateRoot(document, Page);</script>`,
+				'</body>',
+				'</html>',
+			].join(''),
+		);
+
+		const result = await loadPageModuleFromDocument(doc, '/test');
+
+		expect(result?.props).toEqual({ message: 'hello' });
+		expect(result?.doc).toBe(doc);
+		expect(result?.finalPath).toBe('/test');
+		expect(result?.moduleUrl).toBe(moduleUrl);
+		expect(typeof result?.Component).toBe('function');
 	});
 });
 

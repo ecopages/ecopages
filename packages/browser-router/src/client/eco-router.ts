@@ -57,6 +57,114 @@ export class EcoRouter {
 		window.location.assign(url.href);
 	}
 
+	private async commitDocumentNavigation(
+		url: URL,
+		direction: EcoNavigationEvent['direction'],
+		newDocument: Document,
+		options: {
+			html?: string;
+			isStaleNavigation?: () => boolean;
+		} = {},
+	): Promise<void> {
+		const previousUrl = new URL(window.location.href);
+		const navigationRuntime = getEcoNavigationRuntime(window);
+		const isStaleNavigation = options.isStaleNavigation ?? (() => false);
+		const currentDocumentOwner = navigationRuntime.resolveDocumentOwner(document, 'browser-router');
+		const newDocumentOwner = navigationRuntime.resolveDocumentOwner(newDocument, 'browser-router');
+		const activeOwner = navigationRuntime.getOwnerState().owner;
+		let shouldReload = false;
+		const beforeSwapEvent: EcoBeforeSwapEvent = {
+			url,
+			direction,
+			newDocument,
+			reload: () => {
+				shouldReload = true;
+			},
+		};
+
+		document.dispatchEvent(new CustomEvent('eco:before-swap', { detail: beforeSwapEvent }));
+		if (isStaleNavigation()) return;
+
+		if (shouldReload) {
+			if (
+				currentDocumentOwner !== newDocumentOwner &&
+				currentDocumentOwner !== 'browser-router' &&
+				activeOwner === currentDocumentOwner
+			) {
+				await navigationRuntime.cleanupOwner(currentDocumentOwner);
+			}
+			if (isStaleNavigation()) return;
+			this.reloadDocument(url);
+			return;
+		}
+
+		if (
+			currentDocumentOwner !== newDocumentOwner &&
+			currentDocumentOwner !== 'browser-router' &&
+			activeOwner === currentDocumentOwner
+		) {
+			await navigationRuntime.cleanupOwner(currentDocumentOwner);
+		}
+
+		if (isStaleNavigation()) return;
+
+		if (this.options.updateHistory && direction === 'forward') {
+			window.history.pushState({}, '', url.href);
+		} else if (direction === 'replace') {
+			window.history.replaceState({}, '', url.href);
+		}
+
+		const useViewTransitions = this.options.viewTransitions;
+		await this.domSwapper.preloadStylesheets(newDocument);
+		if (isStaleNavigation()) return;
+
+		const commitSwap = () => {
+			if (isStaleNavigation()) return;
+
+			this.domSwapper.morphHead(newDocument);
+			if (useViewTransitions && !this.domSwapper.shouldReplaceBodyForRerunScripts()) {
+				this.domSwapper.morphBody(newDocument);
+			} else {
+				this.domSwapper.replaceBody(newDocument);
+			}
+			this.domSwapper.flushRerunScripts();
+			this.scrollManager.handleScroll(url, previousUrl);
+		};
+
+		if (useViewTransitions) {
+			await this.viewTransitionManager.transition(commitSwap);
+		} else {
+			commitSwap();
+		}
+
+		if (isStaleNavigation()) return;
+
+		navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');
+
+		const afterSwapEvent: EcoAfterSwapEvent = {
+			url,
+			direction,
+		};
+
+		document.dispatchEvent(new CustomEvent('eco:after-swap', { detail: afterSwapEvent }));
+
+		this.prefetchManager?.observeNewLinks();
+
+		if (options.html) {
+			this.prefetchManager?.cacheVisitedPage(url.href, options.html);
+		}
+
+		requestAnimationFrame(() => {
+			if (isStaleNavigation()) return;
+
+			document.dispatchEvent(
+				new CustomEvent('eco:page-load', {
+					detail: { url, direction } as EcoNavigationEvent,
+				}),
+			);
+		});
+	}
+
 	/**
 	 * Starts the router and begins intercepting navigation.
 	 *
@@ -76,6 +184,15 @@ export class EcoRouter {
 				await this.performNavigation(
 					new URL(request.href, window.location.origin),
 					request.direction ?? 'forward',
+				);
+				return true;
+			},
+			handoffNavigation: async (request) => {
+				await this.commitDocumentNavigation(
+					new URL(request.finalHref ?? request.href, window.location.origin),
+					request.direction ?? 'forward',
+					request.document,
+					{ html: request.html },
 				);
 				return true;
 			},
@@ -219,7 +336,6 @@ export class EcoRouter {
 	 * @param direction - Navigation direction ('forward', 'back', or 'replace')
 	 */
 	private async performNavigation(url: URL, direction: EcoNavigationEvent['direction']): Promise<void> {
-		const previousUrl = new URL(window.location.href);
 		const navigationSequence = ++this.navigationSequence;
 
 		this.abortController?.abort();
@@ -229,92 +345,15 @@ export class EcoRouter {
 			this.navigationSequence !== navigationSequence || abortController.signal.aborted;
 
 		try {
-			const navigationRuntime = getEcoNavigationRuntime(window);
 			const html = await this.fetchPage(url, abortController.signal);
 			if (isStaleNavigation()) return;
 
 			const newDocument = this.domSwapper.parseHTML(html, url);
 			if (isStaleNavigation()) return;
 
-			const currentDocumentOwner = navigationRuntime.resolveDocumentOwner(document, 'browser-router');
-			const newDocumentOwner = navigationRuntime.resolveDocumentOwner(newDocument, 'browser-router');
-			let shouldReload = currentDocumentOwner !== newDocumentOwner;
-			const beforeSwapEvent: EcoBeforeSwapEvent = {
-				url,
-				direction,
-				newDocument,
-				reload: () => {
-					shouldReload = true;
-				},
-			};
-
-			document.dispatchEvent(new CustomEvent('eco:before-swap', { detail: beforeSwapEvent }));
-			if (isStaleNavigation()) return;
-
-			if (shouldReload) {
-				if (isStaleNavigation()) return;
-				if (currentDocumentOwner !== 'browser-router') {
-					await navigationRuntime.cleanupOwner(currentDocumentOwner);
-				}
-				this.reloadDocument(url);
-				return;
-			}
-
-			if (isStaleNavigation()) return;
-
-			if (this.options.updateHistory && direction === 'forward') {
-				window.history.pushState({}, '', url.href);
-			} else if (direction === 'replace') {
-				window.history.replaceState({}, '', url.href);
-			}
-
-			const useViewTransitions = this.options.viewTransitions;
-			await this.domSwapper.preloadStylesheets(newDocument);
-			if (isStaleNavigation()) return;
-
-			const commitSwap = () => {
-				if (isStaleNavigation()) return;
-
-				this.domSwapper.morphHead(newDocument);
-				if (useViewTransitions && !this.domSwapper.shouldReplaceBodyForRerunScripts()) {
-					this.domSwapper.morphBody(newDocument);
-				} else {
-					this.domSwapper.replaceBody(newDocument);
-				}
-				this.domSwapper.flushRerunScripts();
-				this.scrollManager.handleScroll(url, previousUrl);
-			};
-
-			if (useViewTransitions) {
-				await this.viewTransitionManager.transition(commitSwap);
-			} else {
-				commitSwap();
-			}
-
-			if (isStaleNavigation()) return;
-
-			navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');
-
-			const afterSwapEvent: EcoAfterSwapEvent = {
-				url,
-				direction,
-			};
-
-			document.dispatchEvent(new CustomEvent('eco:after-swap', { detail: afterSwapEvent }));
-
-			this.prefetchManager?.observeNewLinks();
-
-			// Cache the visited page for instant revisits (stale-while-revalidate)
-			this.prefetchManager?.cacheVisitedPage(url.href, html);
-
-			requestAnimationFrame(() => {
-				if (isStaleNavigation()) return;
-
-				document.dispatchEvent(
-					new CustomEvent('eco:page-load', {
-						detail: { url, direction } as EcoNavigationEvent,
-					}),
-				);
+			await this.commitDocumentNavigation(url, direction, newDocument, {
+				html,
+				isStaleNavigation,
 			});
 		} catch (error) {
 			if (error instanceof Error && error.name === 'AbortError') {

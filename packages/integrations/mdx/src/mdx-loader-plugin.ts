@@ -5,6 +5,28 @@ import { type CompileOptions, compile } from '@mdx-js/mdx';
 import { SourceMapGenerator } from 'source-map';
 import { VFile } from 'vfile';
 
+/**
+ * Resolves the MDX parser mode for a source file.
+ *
+ * Files with a `.md` extension must be forced into `mdx` mode when the caller
+ * explicitly opts them into the MDX pipeline. Leaving the compiler in `detect`
+ * mode would treat `.md` files as plain markdown, causing top-level ESM such as
+ * `import` and `export` to render as text instead of being compiled.
+ *
+ * @param filePath Absolute or relative source file path.
+ * @param compilerOptions User-provided MDX compiler options.
+ * @returns The compile format that should be passed to `@mdx-js/mdx`.
+ */
+function resolveCompileFormat(filePath: string, compilerOptions?: CompileOptions): CompileOptions['format'] {
+	const configuredFormat = compilerOptions?.format;
+
+	if (configuredFormat && configuredFormat !== 'detect') {
+		return configuredFormat;
+	}
+
+	return path.extname(filePath).toLowerCase() === '.md' ? 'mdx' : configuredFormat;
+}
+
 export function createMdxLoaderPlugin(compilerOptions?: CompileOptions): EcoBuildPlugin {
 	const mdxExtensions = compilerOptions?.mdxExtensions ?? ['.mdx'];
 	const mdExtensions = compilerOptions?.mdExtensions ?? ['.md'];
@@ -22,6 +44,7 @@ export function createMdxLoaderPlugin(compilerOptions?: CompileOptions): EcoBuil
 
 				const compiled = await compile(file, {
 					...compilerOptions,
+					format: resolveCompileFormat(filePath, compilerOptions),
 					SourceMapGenerator,
 				});
 

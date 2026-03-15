@@ -27,6 +27,31 @@ const defaultOptions: CompileOptions = {
 };
 
 /**
+ * Splits configured markdown extensions into the two buckets understood by the
+ * MDX loader.
+ *
+ * `.mdx` remains the native MDX extension list. `.md` is special: it is only
+ * treated as MDX when a caller explicitly opts it into the pipeline, so we keep
+ * it separate rather than hiding that behavior inside a pair of constructor
+ * filters.
+ */
+function splitMarkdownExtensions(extensions: string[]): Pick<CompileOptions, 'mdExtensions' | 'mdxExtensions'> {
+	const mdExtensions: string[] = [];
+	const mdxExtensions: string[] = [];
+
+	for (const extension of extensions) {
+		if (extension === '.md') {
+			mdExtensions.push(extension);
+			continue;
+		}
+
+		mdxExtensions.push(extension);
+	}
+
+	return { mdExtensions, mdxExtensions };
+}
+
+/**
  * The MDX plugin class
  * This plugin provides support for MDX components in Ecopages.
  *
@@ -46,7 +71,16 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 			...options,
 		});
 
-		const finalCompilerOptions = deepMerge({ ...defaultOptions }, compilerOptions);
+		const { mdExtensions, mdxExtensions } = splitMarkdownExtensions(this.extensions);
+
+		const finalCompilerOptions = deepMerge(
+			{
+				...defaultOptions,
+				mdxExtensions,
+				mdExtensions,
+			},
+			compilerOptions,
+		);
 		const jsxImportSource = finalCompilerOptions.jsxImportSource;
 
 		if (jsxImportSource === 'react' || (jsxImportSource?.startsWith('react/') ?? false)) {

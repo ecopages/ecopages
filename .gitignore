@@ -29,9 +29,10 @@ packages/**/dist
 **/*.bun
 **/__screenshots__
 
-# Playwright
+# Testing
 test-results/
 playwright-report/
+.vitest-attachments/
 
 # local improvement tracking (details in ~/.gemini artifacts)
 **/.improvements/

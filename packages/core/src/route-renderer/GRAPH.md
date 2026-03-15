@@ -136,7 +136,7 @@ flowchart TD
   K -- Yes --> L[buildGlobalInjectorAssets]
   K -- No --> M[continue]
   L --> M
-  M --> N[HtmlPostProcessingService dedupeProcessedAssets]
+  M --> N[HtmlTransformerService dedupeProcessedAssets]
   N --> O[htmlTransformer setProcessedDependencies]
   O --> P[return normalized render options]
 ```
@@ -155,11 +155,11 @@ flowchart TD
   F --> G{contains eco marker token?}
   G -- Yes --> H[resolveMarkerGraphHtml]
   G -- No --> I[skip graph resolution]
-  H --> J[HtmlPostProcessingService dedupeProcessedAssets]
+  H --> J[HtmlTransformerService dedupeProcessedAssets]
   J --> K[merge marker assets into transformer deps]
   I --> L{root attributes attachable?}
   K --> L
-  L -- Yes --> M[HtmlPostProcessingService applyAttributesToFirstBodyElement]
+  L -- Yes --> M[HtmlTransformerService applyAttributesToFirstBodyElement]
   L -- No --> N[leave html unchanged]
   M --> O[htmlTransformer transform]
   N --> O
@@ -190,16 +190,14 @@ flowchart LR
   A[IntegrationRenderer] --> B[RenderPreparationService]
   A --> C[RenderExecutionService]
   A --> D[MarkerGraphResolver]
-  A --> E[HtmlPostProcessingService]
   A --> F[PageModuleLoaderService]
   A --> G[DependencyResolverService]
   A --> H[HtmlTransformerService]
 
   B --> F
   B --> G
-  B --> E
+  B --> H
   C --> D
-  C --> E
   C --> H
 ```
 
@@ -348,7 +346,7 @@ For someone new to the rendering system, this is probably the most useful order 
 7. `render-preparation.service.ts`
 8. `render-execution.service.ts`
 9. `marker-graph-resolver.ts`
-10. `html-post-processing.service.ts`
+10. `html-transformer.service.ts`
 11. `page-module-loader.ts`
 12. `dependency-resolver.ts`
 13. `component-marker.ts`
@@ -356,7 +354,6 @@ For someone new to the rendering system, this is probably the most useful order 
 15. `component-graph-executor.ts`
 16. `eco.ts`
 17. `component-render-context.ts`
-18. `html-transformer.service.ts`
 
 ## 9) Key Files
 
@@ -371,7 +368,6 @@ For someone new to the rendering system, this is probably the most useful order 
 - `packages/core/src/route-renderer/integration-renderer.ts`
 - `packages/core/src/route-renderer/render-preparation.service.ts`
 - `packages/core/src/route-renderer/render-execution.service.ts`
-- `packages/core/src/route-renderer/html-post-processing.service.ts`
 - `packages/core/src/route-renderer/marker-graph-resolver.ts`
 - `packages/core/src/route-renderer/component-marker.ts`
 - `packages/core/src/route-renderer/component-graph.ts`

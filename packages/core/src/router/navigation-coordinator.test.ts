@@ -5,7 +5,6 @@ function createWindowLike() {
 	return {} as Window &
 		typeof globalThis & {
 			__ecopages_navigation__?: ReturnType<typeof getEcoNavigationRuntime>;
-			__ecopages_cleanup_page_root__?: () => void;
 		};
 }
 
@@ -18,16 +17,29 @@ describe('getEcoNavigationRuntime', () => {
 		expect(first).toBe(second);
 	});
 
-	it('tracks explicit owner changes', () => {
+	it('tracks explicit ownership claims', () => {
 		const windowLike = createWindowLike();
 		const runtime = getEcoNavigationRuntime(windowLike);
 
-		runtime.setOwner('react-router');
+		runtime.claimOwnership('react-router');
 
 		expect(runtime.getOwnerState()).toEqual({
 			owner: 'react-router',
 			canHandleSpaNavigation: false,
 		});
+	});
+
+	it('adopts ownership from the rendered document marker', () => {
+		const windowLike = createWindowLike();
+		const runtime = getEcoNavigationRuntime(windowLike);
+		const documentLike = {
+			documentElement: {
+				getAttribute: vi.fn(() => 'custom-router'),
+			},
+		} as unknown as Document;
+
+		expect(runtime.adoptDocumentOwner(documentLike, 'browser-router')).toBe('custom-router');
+		expect(runtime.getOwnerState().owner).toBe('custom-router');
 	});
 
 	it('delegates navigation to another registered runtime when the source cannot handle it', async () => {
@@ -37,7 +49,7 @@ describe('getEcoNavigationRuntime', () => {
 
 		runtime.register({ owner: 'browser-router', navigate: navigateSpy });
 		runtime.register({ owner: 'react-router', navigate: vi.fn(async () => true) });
-		runtime.setOwner('react-router');
+		runtime.claimOwnership('react-router');
 
 		const handled = await runtime.requestNavigation({
 			href: '/docs',
@@ -59,7 +71,7 @@ describe('getEcoNavigationRuntime', () => {
 		const reloadSpy = vi.fn(async () => undefined);
 
 		runtime.register({ owner: 'react-router', reloadCurrentPage: reloadSpy });
-		runtime.setOwner('react-router');
+		runtime.claimOwnership('react-router');
 
 		const handled = await runtime.reloadCurrentPage({ clearCache: true, source: 'browser-router' });
 
@@ -73,7 +85,7 @@ describe('getEcoNavigationRuntime', () => {
 		const reloadSpy = vi.fn(async () => undefined);
 
 		runtime.register({ owner: 'react-router', reloadCurrentPage: reloadSpy });
-		runtime.setOwner('react-router');
+		runtime.claimOwnership('react-router');
 
 		const handled = await runtime.reloadCurrentPage({ clearCache: false, source: 'react-router' });
 
@@ -81,16 +93,42 @@ describe('getEcoNavigationRuntime', () => {
 		expect(reloadSpy).toHaveBeenCalledWith({ clearCache: false, source: 'react-router' });
 	});
 
-	it('cleans up the current owner via its registration', async () => {
+	it('cleans up an explicit owner via its registration', async () => {
 		const windowLike = createWindowLike();
 		const runtime = getEcoNavigationRuntime(windowLike);
 		const cleanupSpy = vi.fn();
 
 		runtime.register({ owner: 'react-router', cleanupBeforeHandoff: cleanupSpy });
-		runtime.setOwner('react-router');
+		runtime.claimOwnership('react-router');
 
-		await runtime.cleanupCurrentOwner();
+		await runtime.cleanupOwner('react-router');
 
 		expect(cleanupSpy).toHaveBeenCalledTimes(1);
+		expect(runtime.getOwnerState().owner).toBe('none');
+	});
+
+	it('emits events for registrations and ownership changes', () => {
+		const windowLike = createWindowLike();
+		const runtime = getEcoNavigationRuntime(windowLike);
+		const listener = vi.fn();
+		const unsubscribe = runtime.subscribe(listener);
+
+		const unregister = runtime.register({ owner: 'custom-router' });
+		runtime.claimOwnership('custom-router');
+		runtime.releaseOwnership('custom-router');
+		unregister();
+		unsubscribe();
+
+		expect(listener).toHaveBeenCalledWith({
+			type: 'registration-change',
+			owner: 'custom-router',
+			status: 'registered',
+		});
+		expect(listener).toHaveBeenCalledWith({
+			type: 'owner-change',
+			owner: 'custom-router',
+			previousOwner: 'none',
+			reason: 'claim',
+		});
 	});
 });

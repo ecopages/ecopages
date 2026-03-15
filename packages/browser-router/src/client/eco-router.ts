@@ -4,7 +4,7 @@
  */
 
 import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types.ts';
-import { getEcoDocumentOwner, getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { DEFAULT_OPTIONS } from './types.ts';
 import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services/index.ts';
 
@@ -41,17 +41,16 @@ export class EcoRouter {
 		this.handlePopState = this.handlePopState.bind(this);
 	}
 
-	private isReactRouterActive(): boolean {
-		return getEcoNavigationRuntime(window).getOwnerState().owner === 'react-router';
+	private isAnotherNavigationRuntimeActive(): boolean {
+		return getEcoNavigationRuntime(window).isOwnedByAnotherRuntime('browser-router');
 	}
 
-	private isReactManagedDocument(doc: Document): boolean {
-		return getEcoDocumentOwner(doc) === 'react-router';
+	private getDocumentOwner(doc: Document) {
+		return getEcoNavigationRuntime(window).resolveDocumentOwner(doc, 'browser-router');
 	}
 
-	private setRouterOwnership(doc: Document): void {
-		const owner = getEcoDocumentOwner(doc) ?? 'browser-router';
-		getEcoNavigationRuntime(window).setOwner(owner);
+	private adoptDocumentOwner(doc: Document): void {
+		getEcoNavigationRuntime(window).adoptDocumentOwner(doc, 'browser-router');
 	}
 
 	private reloadDocument(url: URL): void {
@@ -90,7 +89,7 @@ export class EcoRouter {
 				await this.performNavigation(new URL(currentUrl, window.location.origin), 'replace');
 			},
 		});
-		this.setRouterOwnership(document);
+		this.adoptDocumentOwner(document);
 
 		// Cache the initial page for instant back-navigation
 		const initialHtml = document.documentElement.outerHTML;
@@ -149,7 +148,7 @@ export class EcoRouter {
 	 * Shadow DOM boundaries (Web Components).
 	 */
 	private handleClick(event: MouseEvent): void {
-		if (this.isReactRouterActive()) return;
+		if (this.isAnotherNavigationRuntimeActive()) return;
 
 		const link = event
 			.composedPath()
@@ -187,7 +186,7 @@ export class EcoRouter {
 	 * Triggered by the History API's popstate event.
 	 */
 	private handlePopState(_event: PopStateEvent): void {
-		if (this.isReactRouterActive()) return;
+		if (this.isAnotherNavigationRuntimeActive()) return;
 
 		const url = new URL(window.location.href);
 		this.performNavigation(url, 'back');
@@ -230,15 +229,16 @@ export class EcoRouter {
 			this.navigationSequence !== navigationSequence || abortController.signal.aborted;
 
 		try {
+			const navigationRuntime = getEcoNavigationRuntime(window);
 			const html = await this.fetchPage(url, abortController.signal);
 			if (isStaleNavigation()) return;
 
 			const newDocument = this.domSwapper.parseHTML(html, url);
 			if (isStaleNavigation()) return;
 
-			const currentDocumentIsReactManaged = this.isReactManagedDocument(document);
-			const newDocumentIsReactManaged = this.isReactManagedDocument(newDocument);
-			let shouldReload = currentDocumentIsReactManaged !== newDocumentIsReactManaged;
+			const currentDocumentOwner = navigationRuntime.resolveDocumentOwner(document, 'browser-router');
+			const newDocumentOwner = navigationRuntime.resolveDocumentOwner(newDocument, 'browser-router');
+			let shouldReload = currentDocumentOwner !== newDocumentOwner;
 			const beforeSwapEvent: EcoBeforeSwapEvent = {
 				url,
 				direction,
@@ -253,10 +253,8 @@ export class EcoRouter {
 
 			if (shouldReload) {
 				if (isStaleNavigation()) return;
-				if (currentDocumentIsReactManaged && !newDocumentIsReactManaged) {
-					const navigationRuntime = getEcoNavigationRuntime(window);
-					navigationRuntime.setOwner('react-router');
-					await navigationRuntime.cleanupCurrentOwner();
+				if (currentDocumentOwner !== 'browser-router') {
+					await navigationRuntime.cleanupOwner(currentDocumentOwner);
 				}
 				this.reloadDocument(url);
 				return;
@@ -295,7 +293,7 @@ export class EcoRouter {
 
 			if (isStaleNavigation()) return;
 
-			this.setRouterOwnership(newDocument);
+			navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');
 
 			const afterSwapEvent: EcoAfterSwapEvent = {
 				url,

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
 	assertCounterInteractivity,
 	clickHrefAndWait,
+	expectNavigationOwner,
 	getSectionByText,
 	gotoAndWait,
 	incrementCounter,
@@ -57,11 +58,31 @@ test.describe('Kitchen Sink Playground Integrations', () => {
 		runtime.assertClean();
 	});
 
+	test('hands off from React router to browser-router without leaving normal-page navigation stranded', async ({
+		page,
+	}) => {
+		const runtime = trackRuntimeErrors(page);
+
+		await gotoAndWait(page, '/react-content');
+		await expect(page.getByRole('heading', { name: 'React MDX' })).toBeVisible();
+		await expectNavigationOwner(page, 'react-router');
+
+		await clickHrefAndWait(page, '/docs');
+		await expect(page.getByRole('heading', { name: 'MDX Route' })).toBeVisible();
+		await expectNavigationOwner(page, 'browser-router');
+
+		await clickHrefAndWait(page, '/images');
+		await expect(page.getByRole('heading', { name: 'One local asset, multiple delivery modes.' })).toBeVisible();
+		await expectNavigationOwner(page, 'browser-router');
+		runtime.assertClean();
+	});
+
 	test('keeps React route handoff stable across a full React and non-React tour', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 
 		await gotoAndWait(page, '/react-content');
 		await expect(page.getByRole('heading', { name: 'React MDX' })).toBeVisible();
+		await expectNavigationOwner(page, 'react-router');
 		await expect(page.locator('[data-react-value]')).toHaveText('0');
 		await incrementCounter(page.locator('[data-react-inc]'), page.locator('[data-react-value]'), '1');
 		await expect(page.locator('[data-lit-value]').first()).toHaveText('1');
@@ -69,19 +90,23 @@ test.describe('Kitchen Sink Playground Integrations', () => {
 
 		await clickHrefAndWait(page, '/react-lab');
 		await expect(page.getByRole('heading', { name: 'React Page Route' })).toBeVisible();
+		await expectNavigationOwner(page, 'react-router');
 		await expect(page.locator('[data-react-value]')).toHaveText('0');
 		await incrementCounter(page.locator('[data-react-inc]'), page.locator('[data-react-value]'), '1');
 
 		await clickHrefAndWait(page, '/react-notes');
 		await expect(page.getByRole('heading', { name: 'React Notes' })).toBeVisible();
+		await expectNavigationOwner(page, 'react-router');
 		await expect(page.locator('[data-react-value]')).toHaveText('0');
 		await incrementCounter(page.locator('[data-react-inc]'), page.locator('[data-react-value]'), '1');
 
 		await clickHrefAndWait(page, '/docs');
 		await expect(page.getByRole('heading', { name: 'MDX Route' })).toBeVisible();
+		await expectNavigationOwner(page, 'browser-router');
 
 		await clickHrefAndWait(page, '/react-content');
 		await expect(page.getByRole('heading', { name: 'React MDX' })).toBeVisible();
+		await expectNavigationOwner(page, 'react-router');
 		await expect(page.locator('[data-react-value]')).toHaveText('0');
 		await expect(page.locator('[data-lit-value]').first()).toHaveText('1');
 		runtime.assertClean();

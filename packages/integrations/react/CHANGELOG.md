@@ -45,7 +45,6 @@ All notable changes to `@ecopages/react` are documented here.
 - **Fixed eco-island CSS regression** — Changed `eco-island` container from `display: contents` to `display: block`. With `display: contents`, the element has no layout box and CSS sibling selectors (e.g. Tailwind `space-y-*`) applied margins to a box-less element, producing no visual effect. With `display: block`, eco-island participates in layout as expected.
 - **Fixed island script prop collision** — Component props are now embedded in the SSR element as `data-eco-props` (base64-encoded JSON) and read from the DOM at mount time, rather than being hardcoded in the shared island script. This resolves incorrect props being applied when the same component appeared at the same position on multiple pages, because the script file was shared but overwritten during build.
 
-
 - Client graph boundaries and runtime dependency wiring corrected (`4b6cd32e`).
 - Updated test suite for esbuild adapter and Node.js runtime compatibility (`31a44458`).
 

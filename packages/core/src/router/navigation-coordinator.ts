@@ -158,7 +158,7 @@ function createEcoNavigationRuntime(windowObject: EcoNavigationWindow): EcoNavig
  * Returns the singleton browser-side navigation coordinator.
  *
  * The coordinator centralizes ownership, handoff, and current-page reload
-	 * requests across browser runtimes through one internal protocol.
+ * requests across browser runtimes through one internal protocol.
  */
 export function getEcoNavigationRuntime(windowObject: Window & typeof globalThis = window): EcoNavigationRuntime {
 	const runtimeWindow = windowObject as EcoNavigationWindow;

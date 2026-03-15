@@ -1,10 +1,6 @@
 :where([data-react-counter], [data-kita-counter]) {
 	--integration-counter-accent: oklch(0.74 0.16 82);
-	--integration-counter-border: color-mix(
-		in oklch,
-		var(--integration-counter-accent) 48%,
-		var(--color-border)
-	);
+	--integration-counter-border: color-mix(in oklch, var(--integration-counter-accent) 48%, var(--color-border));
 	--integration-counter-bg: color-mix(
 		in oklch,
 		var(--integration-counter-accent) 20%,

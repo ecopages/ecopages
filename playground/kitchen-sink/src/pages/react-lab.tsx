@@ -20,8 +20,8 @@ export default eco.page<{}, ReactNode>({
 			<section className="docs-page__prose">
 				<h1>React Page Route</h1>
 				<p>
-					This page is a normal React route wired through a React-owned layout so the client router can keep the
-					page shell stable while React pages swap underneath it.
+					This page is a normal React route wired through a React-owned layout so the client router can keep
+					the page shell stable while React pages swap underneath it.
 				</p>
 				<p>
 					Use the links below to move between the React MDX route, another React page, and the non-React docs
@@ -33,8 +33,8 @@ export default eco.page<{}, ReactNode>({
 				<ReactShell id="react-lab-counter">
 					<div className="space-y-4">
 						<p className="text-sm leading-7 text-muted">
-							This counter stays inside the React render lane and lets you verify hydration after navigating in
-							from another React page.
+							This counter stays inside the React render lane and lets you verify hydration after
+							navigating in from another React page.
 						</p>
 						<ReactCounter />
 					</div>

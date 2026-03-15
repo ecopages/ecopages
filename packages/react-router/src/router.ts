@@ -392,9 +392,9 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 					applyViewTransitionNames();
 				}
 			} else {
-					if (isStale()) {
-						return;
-					}
+				if (isStale()) {
+					return;
+				}
 
 				const handled = await getEcoNavigationRuntime(window).requestNavigation({
 					href: url,

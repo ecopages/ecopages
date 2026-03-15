@@ -350,14 +350,13 @@ export class DomSwapper {
 		}));
 	}
 
-	private findExistingRerunScript(
-		root: HTMLElement,
-		script: PendingRerunScript,
-	): HTMLScriptElement | null {
+	private findExistingRerunScript(root: HTMLElement, script: PendingRerunScript): HTMLScriptElement | null {
 		const scripts = Array.from(root.querySelectorAll<HTMLScriptElement>('script'));
 
 		if (script.scriptId) {
-			return scripts.find((candidate) => candidate.getAttribute('data-eco-script-id') === script.scriptId) ?? null;
+			return (
+				scripts.find((candidate) => candidate.getAttribute('data-eco-script-id') === script.scriptId) ?? null
+			);
 		}
 
 		return (

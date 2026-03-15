@@ -1,7 +1,5 @@
 import type { EcoPagesAppConfig } from './internal-types';
-import type {
-	EcoNavigationRuntime,
-} from './router/navigation-coordinator';
+import type { EcoNavigationRuntime } from './router/navigation-coordinator';
 
 type HMRHandler = (url: string) => Promise<void>;
 type CleanupPageRootFunction = () => void;

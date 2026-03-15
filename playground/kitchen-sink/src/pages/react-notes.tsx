@@ -41,7 +41,8 @@ export default eco.page<{}, ReactNode>({
 				<section className="card space-y-4">
 					<p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600">Interactive state</p>
 					<p className="text-sm leading-7 text-muted">
-						Use this counter after navigating in from another React route to confirm the page hydrated cleanly.
+						Use this counter after navigating in from another React route to confirm the page hydrated
+						cleanly.
 					</p>
 					<ReactCounter />
 					<div className="text-sm leading-7 text-muted">

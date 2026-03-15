@@ -266,9 +266,7 @@ export const BaseLayout = eco.layout({
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children }) => (
-		<main>{children}</main>
-	),
+	render: ({ children }) => <main>{children}</main>,
 });
 ```
 

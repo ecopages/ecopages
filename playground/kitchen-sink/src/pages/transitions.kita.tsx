@@ -16,11 +16,13 @@ export default eco.page({
 		<div class="space-y-8">
 			<section class="card space-y-4">
 				<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Transition lab</p>
-				<h1 class="font-display text-4xl font-semibold tracking-tight">Image handoff across browser-router routes</h1>
+				<h1 class="font-display text-4xl font-semibold tracking-tight">
+					Image handoff across browser-router routes
+				</h1>
 				<p class="max-w-3xl text-base leading-8 text-muted">
 					This route uses the same source asset and <span class="font-mono">data-view-transition</span> key as
-					the image processor page. Move between the two routes to confirm the browser router carries the image
-					through a shared-element transition.
+					the image processor page. Move between the two routes to confirm the browser router carries the
+					image through a shared-element transition.
 				</p>
 			</section>
 

@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
+import { getPrimaryLinkTestId, getRouteLinkTestId } from '../src/data/primary-links';
 
 type CounterExpectations = {
 	kita?: string;
@@ -6,6 +7,9 @@ type CounterExpectations = {
 	react?: string;
 };
 
+/**
+ * Captures page and console errors so E2E specs can assert that rapid navigation stays clean.
+ */
 export function trackRuntimeErrors(page: Page) {
 	const pageErrors: string[] = [];
 	const consoleErrors: string[] = [];
@@ -26,6 +30,7 @@ export function trackRuntimeErrors(page: Page) {
 		assertClean() {
 			const combinedErrors = `${pageErrors.join('\n')}\n${consoleErrors.join('\n')}`;
 			expect(combinedErrors).not.toMatch(/is not defined/i);
+			expect(combinedErrors).not.toMatch(/Cannot read properties of undefined/i);
 			expect(combinedErrors).not.toMatch(/Cannot set properties of null/i);
 			expect(combinedErrors).not.toMatch(/Missing props reference/i);
 			expect(combinedErrors).not.toMatch(/Failed to execute 'appendChild'/i);
@@ -94,12 +99,29 @@ export function getSectionByText(page: Page, text: string): Locator {
 }
 
 export async function gotoAndWait(page: Page, href: string) {
-	await page.goto(href);
+	try {
+		await page.goto(href);
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			(!error.message.includes('net::ERR_ABORTED') && !error.message.includes('frame was detached'))
+		) {
+			throw error;
+		}
+
+		await page.goto(href, { waitUntil: 'domcontentloaded' });
+	}
+
 	await page.waitForLoadState('networkidle');
 }
 
+/**
+ * Clicks a route link when available and falls back to direct navigation if the click misses.
+ */
 export async function clickHrefAndWait(page: Page, href: string) {
-	const link = page.locator(`a[href="${href}"]`).first();
+	const routeLink = page.getByTestId(getRouteLinkTestId(href)).first();
+	const primaryLink = page.getByTestId(getPrimaryLinkTestId(href)).first();
+	const link = (await primaryLink.isVisible().catch(() => false)) ? primaryLink : routeLink;
 	await expect(link).toBeVisible();
 	const targetUrl = new URL(href, page.url());
 
@@ -126,4 +148,54 @@ export async function expectNavigationOwner(page: Page, owner: string) {
 			}),
 		)
 		.toBe(owner);
+}
+
+/**
+ * Fetches the current page module source referenced by the client runtime.
+ */
+export async function fetchCurrentPageModule(page: Page) {
+	const pageModuleUrl = await page.evaluate(() => window.__ECO_PAGE__?.module ?? null);
+
+	if (!pageModuleUrl) {
+		throw new Error('Expected React page module URL to be available on window.__ECO_PAGE__.module');
+	}
+
+	const source = await page.evaluate(async (moduleUrl) => {
+		const response = await fetch(moduleUrl);
+		return response.text();
+	}, pageModuleUrl);
+
+	return {
+		url: pageModuleUrl,
+		source,
+	};
+}
+
+/**
+ * Extracts static and dynamic module specifiers from an ESM source string.
+ */
+export function collectModuleSpecifiers(source: string) {
+	const specifiers = new Set<string>();
+	const staticPattern =
+		/(?:^|[;\n\r])\s*(?:import\s+(?:type\s+)?(?:[^'"`;]+?\s+from\s+)?|export\s+(?:type\s+)?[^'"`;]+?\s+from\s+)(['"])([^'"\\]*(?:\\.[^'"\\]*)*)\1/gm;
+	const dynamicPattern = /import\s*\(\s*(['"])([^'"\\]*(?:\\.[^'"\\]*)*)\1\s*\)/gm;
+
+	for (const match of source.matchAll(staticPattern)) {
+		specifiers.add(match[2]);
+	}
+
+	for (const match of source.matchAll(dynamicPattern)) {
+		specifiers.add(match[2]);
+	}
+
+	return Array.from(specifiers).sort((left, right) => left.localeCompare(right));
+}
+
+export async function readHeaderNavigation(page: Page) {
+	return page.locator('header nav a').evaluateAll((links) =>
+		links.map((link) => ({
+			href: link.getAttribute('href') ?? '',
+			label: link.textContent?.trim() ?? '',
+		})),
+	);
 }

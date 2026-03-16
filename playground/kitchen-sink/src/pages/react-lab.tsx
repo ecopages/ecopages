@@ -2,6 +2,7 @@
 import { eco } from '@ecopages/core';
 import { ReactCounter } from '@/components/react-counter.react';
 import { ReactShell } from '@/components/react-shell.react';
+import { getRouteLinkTestId } from '@/data/primary-links';
 import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout';
 import type { ReactNode } from 'react';
 
@@ -16,7 +17,7 @@ export default eco.page<{}, ReactNode>({
 		description: 'React page route inside the kitchen sink using a React-owned layout.',
 	}),
 	render: () => (
-		<div className="space-y-8">
+		<div className="space-y-8" data-testid="page-react-lab">
 			<section className="docs-page__prose">
 				<h1>React Page Route</h1>
 				<p>
@@ -44,16 +45,34 @@ export default eco.page<{}, ReactNode>({
 					<p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600">Route checks</p>
 					<ul className="space-y-3 text-sm leading-7 text-muted">
 						<li>
-							<a href="/react-content">Open the React MDX companion route</a>
+							<a href="/react-content" data-testid={getRouteLinkTestId('/react-content')}>
+								Open the React MDX companion route
+							</a>
 						</li>
 						<li>
-							<a href="/react-notes">Open a second React page in the same layout set</a>
+							<a href="/react-notes" data-testid={getRouteLinkTestId('/react-notes')}>
+								Open a second React page in the same layout set
+							</a>
 						</li>
 						<li>
-							<a href="/docs">Return to the standalone Kita MDX page</a>
+							<a href="/react-server-files" data-testid={getRouteLinkTestId('/react-server-files')}>
+								Open the server-only filesystem tree route
+							</a>
 						</li>
 						<li>
-							<a href="/integration-matrix">Return to the integration matrix</a>
+							<a href="/react-server-metadata" data-testid={getRouteLinkTestId('/react-server-metadata')}>
+								Open the server-only metadata route
+							</a>
+						</li>
+						<li>
+							<a href="/docs" data-testid={getRouteLinkTestId('/docs')}>
+								Return to the standalone Kita MDX page
+							</a>
+						</li>
+						<li>
+							<a href="/integration-matrix" data-testid={getRouteLinkTestId('/integration-matrix')}>
+								Return to the integration matrix
+							</a>
 						</li>
 					</ul>
 				</section>

@@ -15,14 +15,20 @@ const HtmlTemplate = eco.html({
 					<meta name="theme-color" content="#0f172a" />
 					<Seo {...metadata} />
 					{headContent as 'safe'}
-					<script>
+					<script data-eco-rerun="true" data-eco-script-id="theme-bootstrap">
 						{`
-							const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-							if (theme === 'dark') {
-								document.documentElement.setAttribute('data-theme', 'dark');
-							} else {
+							(() => {
+								const theme =
+									localStorage.getItem('theme') ||
+									(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+								if (theme === 'dark') {
+									document.documentElement.setAttribute('data-theme', 'dark');
+									return;
+								}
+
 								document.documentElement.removeAttribute('data-theme');
-							}
+							})();
 						`}
 					</script>
 				</head>

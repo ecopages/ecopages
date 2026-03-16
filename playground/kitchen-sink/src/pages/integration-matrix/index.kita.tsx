@@ -18,7 +18,7 @@ export default eco.page({
 		description: 'Nested Kita, Lit, React, and MDX rendering inside the kitchen sink.',
 	}),
 	render: () => (
-		<div class="space-y-8">
+		<div class="space-y-8" data-testid="page-integration-matrix">
 			<section class="card space-y-4">
 				<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Cross integration matrix</p>
 				<h1 class="font-display text-4xl font-semibold tracking-tight">

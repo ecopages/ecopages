@@ -7,7 +7,7 @@ stylesheets: ['./docs.css'],
 },
 };
 
-<div class="docs-page__prose">
+<div class="docs-page__prose" data-testid="page-docs">
 
 # MDX Route
 

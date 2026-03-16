@@ -10,7 +10,7 @@ export const config = {
 	},
 };
 
-<div className="docs-page__prose">
+<div className="docs-page__prose" data-testid="page-react-content">
 
 # React MDX
 
@@ -30,9 +30,11 @@ This route is rendered through `@ecopages/react`, while the document shell stays
 
 ## Route handoff
 
-- [Open the companion React page](/react-lab)
-- [Open the second React page](/react-notes)
-- [Back to the Kita MDX page](/docs)
-- [Back to the integration matrix](/integration-matrix)
+<ul>
+	<li><a href="/react-lab" data-testid="route-link-react-lab">Open the companion React page</a></li>
+	<li><a href="/react-notes" data-testid="route-link-react-notes">Open the second React page</a></li>
+	<li><a href="/docs" data-testid="route-link-docs">Back to the Kita MDX page</a></li>
+	<li><a href="/integration-matrix" data-testid="route-link-integration-matrix">Back to the integration matrix</a></li>
+</ul>
 
 </div>

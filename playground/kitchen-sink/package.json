@@ -13,6 +13,7 @@
 		"@ecopages/browser-router": "workspace:*",
 		"ecopages": "workspace:*",
 		"@ecopages/core": "workspace:*",
+		"@ecopages/file-system": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lit": "workspace:*",

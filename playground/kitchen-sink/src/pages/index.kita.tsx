@@ -48,6 +48,18 @@ const featureMatrix = [
 		description: 'Narrative documentation sits beside runtime pages while using the same shell and layout.',
 		href: '/docs',
 	},
+	{
+		title: 'Server-only filesystem props',
+		description:
+			'A React route reads the pages tree through a .server helper and ships only the serialized result to the browser.',
+		href: '/react-server-files',
+	},
+	{
+		title: 'Server-only metadata',
+		description:
+			'A second React route imports the filesystem directly in metadata so the server can compute the document title without shipping the dependency client-side.',
+		href: '/react-server-metadata',
+	},
 ];
 
 export default eco.page({
@@ -149,6 +161,24 @@ export default eco.page({
 								</a>{' '}
 								to see an imperative handler call <span class="font-mono">ctx.render()</span> with a
 								normal EcoPages view.
+							</p>
+							<p>
+								Open{' '}
+								<a class="text-sky-600 underline underline-offset-2" href="/react-server-files">
+									/react-server-files
+								</a>{' '}
+								to inspect a page tree built by a <span class="font-mono">.server.ts</span> helper using{' '}
+								<span class="font-mono">@ecopages/file-system</span> without shipping that helper to the
+								browser.
+							</p>
+							<p>
+								Open{' '}
+								<a class="text-sky-600 underline underline-offset-2" href="/react-server-metadata">
+									/react-server-metadata
+								</a>{' '}
+								to inspect a second server-only pattern where page{' '}
+								<span class="font-mono">metadata</span> reads the filesystem directly while the browser
+								entry stays clean.
 							</p>
 							<p>
 								Send a POST to <span class="font-mono">/api/v1/admin/announcements</span> with the{' '}

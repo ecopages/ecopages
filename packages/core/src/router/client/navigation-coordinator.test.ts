@@ -29,6 +29,42 @@ describe('getEcoNavigationRuntime', () => {
 		});
 	});
 
+	it('shares one navigation transaction sequence across runtimes', () => {
+		const windowLike = createWindowLike();
+		const runtime = getEcoNavigationRuntime(windowLike);
+
+		const first = runtime.beginNavigationTransaction();
+		expect(runtime.hasPendingNavigationTransaction()).toBe(true);
+		expect(first.isCurrent()).toBe(true);
+		expect(first.signal.aborted).toBe(false);
+
+		const second = runtime.beginNavigationTransaction();
+
+		expect(first.isCurrent()).toBe(false);
+		expect(first.signal.aborted).toBe(true);
+		expect(second.isCurrent()).toBe(true);
+		expect(second.signal.aborted).toBe(false);
+		second.complete();
+		expect(runtime.hasPendingNavigationTransaction()).toBe(false);
+	});
+
+	it('cancels only the current navigation transaction', () => {
+		const windowLike = createWindowLike();
+		const runtime = getEcoNavigationRuntime(windowLike);
+
+		const first = runtime.beginNavigationTransaction();
+		const second = runtime.beginNavigationTransaction();
+
+		first.cancel();
+		expect(second.isCurrent()).toBe(true);
+		expect(second.signal.aborted).toBe(false);
+
+		second.cancel();
+		expect(second.isCurrent()).toBe(false);
+		expect(second.signal.aborted).toBe(true);
+		expect(runtime.hasPendingNavigationTransaction()).toBe(false);
+	});
+
 	it('adopts ownership from the rendered document marker', () => {
 		const windowLike = createWindowLike();
 		const runtime = getEcoNavigationRuntime(windowLike);

@@ -6,6 +6,46 @@
 
 const PRESERVE_SELECTORS = ['script[type="importmap"]', 'meta[charset]', '[data-eco-persist]'];
 
+function isNonExecutableHeadScript(el: Element): boolean {
+	if (el.tagName !== 'SCRIPT') {
+		return false;
+	}
+
+	const type = (el.getAttribute('type') ?? '').trim().toLowerCase();
+	if (!type) {
+		return false;
+	}
+
+	return ![
+		'application/javascript',
+		'application/ecmascript',
+		'module',
+		'text/ecmascript',
+		'text/javascript',
+	].includes(type);
+}
+
+function shouldPersistExecutableInlineHeadScript(el: Element): boolean {
+	if (el.tagName !== 'SCRIPT') {
+		return false;
+	}
+
+	const scriptId = el.getAttribute('data-eco-script-id') || el.getAttribute('id');
+	if (!scriptId) {
+		return false;
+	}
+
+	if (el.hasAttribute('data-eco-rerun')) {
+		return false;
+	}
+
+	if ((el as HTMLScriptElement).src) {
+		return false;
+	}
+
+	return !isNonExecutableHeadScript(el);
+}
+
 /**
  * Computes a unique key for a head element to enable diffing.
  * Elements with the same key are considered the same across navigations.
@@ -33,6 +73,8 @@ function getHeadElementKey(el: Element): string | null {
 
 		case 'script': {
 			if (el.getAttribute('type') === 'importmap') return 'importmap';
+			const scriptId = el.getAttribute('data-eco-script-id') || el.getAttribute('id');
+			if (scriptId) return `script-id:${scriptId}`;
 			const src = (el as HTMLScriptElement).src;
 			return src ? `script:${src}` : null;
 		}
@@ -122,6 +164,8 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 			currentHead.appendChild(cloned);
 		} else if (key === 'title' && currentEl.textContent !== newEl.textContent) {
 			currentEl.textContent = newEl.textContent;
+		} else if (isNonExecutableHeadScript(newEl) && currentEl.textContent !== newEl.textContent) {
+			currentEl.textContent = newEl.textContent;
 		} else if (key.startsWith('style:') && currentEl.textContent !== newEl.textContent) {
 			currentEl.textContent = newEl.textContent;
 		}
@@ -151,7 +195,7 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 	for (const [key, el] of currentElements) {
 		if (!newElements.has(key)) {
 			const shouldPreserve = PRESERVE_SELECTORS.some((sel) => el.matches(sel));
-			if (!shouldPreserve) {
+			if (!shouldPreserve && !shouldPersistExecutableInlineHeadScript(el)) {
 				elementsToRemove.push(el);
 			}
 		}

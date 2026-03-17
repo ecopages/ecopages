@@ -16,7 +16,11 @@ All notable changes to `@ecopages/browser-router` are documented here.
 
 ### Bug Fixes
 
+- Synced live `<html>` attributes during browser-router swaps so cross-router handoffs preserve document ownership markers for React page hydration.
+- Stopped re-executing already-present executable inline head scripts during swaps, preventing duplicate bootstrap failures on mixed React and Lit navigation tours.
 - Fixed `data-eco-rerun` scripts never re-executing after the first navigation — the router now unconditionally re-executes any script tagged with `data-eco-rerun` on every swap; `data-eco-script-id` prevents tag accumulation but no longer gates re-execution.
+- Cancelled in-flight browser-router navigations in favor of the latest queued click so rapid repeated taps reliably land on the final route instead of getting stuck on an earlier document.
+- Ignored stale dev navigation fetch failures when superseded requests surface as generic browser fetch errors instead of `AbortError`, avoiding noisy fallbacks during rapid cross-router hops.
 - Delayed `data-eco-rerun` script execution until after body replacement so DOM-dependent bootstraps rebind against the incoming page on browser-router navigations.
 - Forced external module rerun scripts to use a fresh URL on each browser-router swap so plain JS component bootstraps re-execute instead of getting stuck behind the browser module cache.
 - Published npm package metadata now includes validated declaration exports for generated dist entrypoints.
@@ -26,6 +30,8 @@ All notable changes to `@ecopages/browser-router` are documented here.
 - Detected real React page markers from fallback data and hydration assets so ownership boundaries reload instead of appending React bootstraps into an existing browser-router head.
 - Switched document ownership checks from React hydration sniffing to an explicit rendered document owner marker.
 - Replaced hydrated custom elements during body morphs so Lit component state resets from the incoming HTML instead of leaking across browser-router navigations.
+- Routed delegated handoff navigations through the same navigation-sequence and abort-controller transaction used by `performNavigation`, so a stale react-router handoff can no longer overwrite a newer in-flight navigation.
+- Stopped the previously active router instance before creating a new one in `createRouter`, preventing click-listener accumulation when `base-layout.script` re-executes via `data-eco-rerun` on each browser-router navigation.
 
 ### Refactoring
 

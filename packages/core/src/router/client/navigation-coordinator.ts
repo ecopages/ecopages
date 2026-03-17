@@ -1,15 +1,34 @@
+/**
+ * Shared browser-side navigation coordinator.
+ *
+ * This module is the client runtime contract used by browser-router,
+ * react-router, and HMR code to coordinate ownership, cross-runtime handoff,
+ * current-page reloads, and stale-navigation cancellation.
+ *
+ * The coordinator stays framework-agnostic: browser runtimes register their
+ * capabilities here, and the coordinator arbitrates which runtime currently
+ * owns the document and which navigation transaction is still current.
+ *
+ * @module
+ */
+
+/** Logical owner name for a browser navigation runtime. */
 export type EcoNavigationOwner = 'none' | 'browser-router' | 'react-router' | (string & {});
 
+/** HTML attribute used to persist the rendered document owner across navigations. */
 export const ECO_DOCUMENT_OWNER_ATTRIBUTE = 'data-eco-document-owner';
 
+/** High-level navigation direction understood by browser runtimes. */
 export type EcoNavigationDirection = 'forward' | 'back' | 'replace';
 
+/** Navigation request sent between browser runtimes. */
 export type EcoNavigationRequest = {
 	href: string;
 	direction?: EcoNavigationDirection;
 	source?: EcoNavigationOwner;
 };
 
+/** Navigation handoff request that includes a pre-fetched document. */
 export type EcoNavigationHandoffRequest = EcoNavigationRequest & {
 	finalHref?: string;
 	targetOwner: EcoNavigationOwner;
@@ -17,14 +36,30 @@ export type EcoNavigationHandoffRequest = EcoNavigationRequest & {
 	html?: string;
 };
 
+/** Request to reload the current page through the active runtime. */
 export type EcoReloadRequest = {
 	clearCache?: boolean;
 	source?: EcoNavigationOwner;
 };
 
+/** Snapshot of the coordinator's current runtime ownership state. */
 export type EcoNavigationOwnerState = {
 	owner: EcoNavigationOwner;
 	canHandleSpaNavigation: boolean;
+};
+
+/**
+ * Coordinator-managed navigation transaction.
+ *
+ * Runtimes use this to determine whether async work has become stale and to
+ * cancel or complete the active navigation sequence.
+ */
+export type EcoNavigationTransaction = {
+	id: number;
+	signal: AbortSignal;
+	isCurrent: () => boolean;
+	cancel: () => void;
+	complete: () => void;
 };
 
 export type EcoNavigationRuntimeEvent =
@@ -50,20 +85,41 @@ export type EcoNavigationRuntimeRegistration = {
 	cleanupBeforeHandoff?: () => void | Promise<void>;
 };
 
+/** Public browser-side navigation coordinator interface. */
 export interface EcoNavigationRuntime {
+	/** Returns the currently active runtime owner and whether it can handle SPA navigation. */
 	getOwnerState(): EcoNavigationOwnerState;
+	/** Starts a new navigation transaction, invalidating the previously active one. */
+	beginNavigationTransaction(): EcoNavigationTransaction;
+	/** Reports whether a navigation transaction is still in flight. */
+	hasPendingNavigationTransaction(): boolean;
+	/** Cancels the active navigation transaction, if one exists. */
+	cancelCurrentNavigationTransaction(): void;
+	/** Forces the current owner value without checking registrations. */
 	setOwner(owner: EcoNavigationOwner): void;
+	/** Claims ownership for a runtime that is ready to drive SPA navigation. */
 	claimOwnership(owner: EcoNavigationOwner): void;
+	/** Releases ownership when the given runtime no longer controls the document. */
 	releaseOwnership(owner: EcoNavigationOwner): void;
+	/** Resolves document ownership from the rendered owner marker or fallback. */
 	resolveDocumentOwner(doc: Document, fallbackOwner?: EcoNavigationOwner): EcoNavigationOwner;
+	/** Reads and adopts the rendered document owner as the active runtime owner. */
 	adoptDocumentOwner(doc: Document, fallbackOwner?: EcoNavigationOwner): EcoNavigationOwner;
+	/** Returns whether the active owner is some runtime other than the given owner. */
 	isOwnedByAnotherRuntime(owner: EcoNavigationOwner): boolean;
+	/** Subscribes to ownership and registration change events. */
 	subscribe(listener: EcoNavigationRuntimeListener): () => void;
+	/** Registers a runtime implementation with the coordinator. */
 	register(runtime: EcoNavigationRuntimeRegistration): () => void;
+	/** Requests navigation through another eligible registered runtime. */
 	requestNavigation(request: EcoNavigationRequest): Promise<boolean>;
+	/** Hands a pre-fetched document to the target runtime. */
 	requestHandoff(request: EcoNavigationHandoffRequest): Promise<boolean>;
+	/** Requests the active runtime to reload the current page. */
 	reloadCurrentPage(request?: EcoReloadRequest): Promise<boolean>;
+	/** Runs a target runtime's cleanup hook before handoff. */
 	cleanupOwner(owner: EcoNavigationOwner): Promise<void>;
+	/** Runs cleanup for whichever runtime currently owns the document. */
 	cleanupCurrentOwner(): Promise<void>;
 }
 
@@ -109,6 +165,8 @@ function createEcoNavigationRuntime(_windowObject: EcoNavigationWindow): EcoNavi
 	const registrations = new Map<EcoNavigationOwner, EcoNavigationRuntimeRegistration>();
 	const listeners = new Set<EcoNavigationRuntimeListener>();
 	let owner: EcoNavigationOwner = 'none';
+	let navigationSequence = 0;
+	let navigationAbortController: AbortController | null = null;
 
 	const emit = (event: EcoNavigationRuntimeEvent) => {
 		for (const listener of listeners) {
@@ -134,6 +192,24 @@ function createEcoNavigationRuntime(_windowObject: EcoNavigationWindow): EcoNavi
 		});
 	};
 
+	const cancelNavigationTransaction = (navigationId: number, abortController: AbortController): void => {
+		if (navigationSequence !== navigationId || navigationAbortController !== abortController) {
+			return;
+		}
+
+		navigationSequence += 1;
+		navigationAbortController = null;
+		abortController.abort();
+	};
+
+	const completeNavigationTransaction = (navigationId: number, abortController: AbortController): void => {
+		if (navigationSequence !== navigationId || navigationAbortController !== abortController) {
+			return;
+		}
+
+		navigationAbortController = null;
+	};
+
 	const runtime: EcoNavigationRuntime = {
 		getOwnerState(): EcoNavigationOwnerState {
 			const activeRuntime = registrations.get(owner);
@@ -141,6 +217,37 @@ function createEcoNavigationRuntime(_windowObject: EcoNavigationWindow): EcoNavi
 				owner,
 				canHandleSpaNavigation: typeof activeRuntime?.navigate === 'function',
 			};
+		},
+
+		hasPendingNavigationTransaction(): boolean {
+			return navigationAbortController !== null;
+		},
+
+		beginNavigationTransaction(): EcoNavigationTransaction {
+			navigationAbortController?.abort();
+			const abortController = new AbortController();
+			const navigationId = ++navigationSequence;
+			navigationAbortController = abortController;
+
+			return {
+				id: navigationId,
+				signal: abortController.signal,
+				isCurrent: () => navigationSequence === navigationId && navigationAbortController === abortController,
+				cancel: () => {
+					cancelNavigationTransaction(navigationId, abortController);
+				},
+				complete: () => {
+					completeNavigationTransaction(navigationId, abortController);
+				},
+			};
+		},
+
+		cancelCurrentNavigationTransaction(): void {
+			if (!navigationAbortController) {
+				return;
+			}
+
+			cancelNavigationTransaction(navigationSequence, navigationAbortController);
 		},
 
 		setOwner(nextOwner: EcoNavigationOwner): void {
@@ -283,6 +390,9 @@ function createEcoNavigationRuntime(_windowObject: EcoNavigationWindow): EcoNavi
  *
  * The coordinator centralizes ownership, handoff, and current-page reload
  * requests across browser runtimes through one internal protocol.
+ *
+ * @param windowObject - Window-like object that stores the singleton runtime.
+ * @returns The shared browser navigation coordinator.
  */
 export function getEcoNavigationRuntime(windowObject: Window & typeof globalThis = window): EcoNavigationRuntime {
 	const runtimeWindow = windowObject as EcoNavigationWindow;

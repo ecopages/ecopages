@@ -5,6 +5,11 @@
 
 import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types.ts';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import {
+	getAnchorFromNavigationEvent,
+	recoverPendingNavigationHref,
+	type EcoPendingNavigationIntent,
+} from '../../../core/src/router/client/link-intent.ts';
 import { DEFAULT_OPTIONS } from './types.ts';
 import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services/index.ts';
 
@@ -14,9 +19,12 @@ import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } fro
  */
 export class EcoRouter {
 	private options: Required<EcoRouterOptions>;
-	private abortController: AbortController | null = null;
-	private navigationSequence = 0;
 	private unregisterNavigationRuntime: (() => void) | null = null;
+	private started = false;
+	private pendingNavigations = 0;
+	private pendingPointerNavigation: EcoPendingNavigationIntent | null = null;
+	private pendingHoverNavigation: EcoPendingNavigationIntent | null = null;
+	private queuedNavigationHref: string | null = null;
 
 	private domSwapper: DomSwapper;
 	private scrollManager: ScrollManager;
@@ -38,11 +46,70 @@ export class EcoRouter {
 		}
 
 		this.handleClick = this.handleClick.bind(this);
+		this.handleHoverIntent = this.handleHoverIntent.bind(this);
+		this.handlePointerDown = this.handlePointerDown.bind(this);
 		this.handlePopState = this.handlePopState.bind(this);
 	}
 
+	private getLinkFromEvent(event: MouseEvent | PointerEvent): HTMLAnchorElement | null {
+		return getAnchorFromNavigationEvent(event, this.options.linkSelector);
+	}
+
+	private canInterceptLink(event: MouseEvent | PointerEvent, link: HTMLAnchorElement): string | null {
+		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
+		if (event.button !== 0) return null;
+
+		const target = link.getAttribute('target');
+		if (target && target !== '_self') return null;
+
+		if (link.hasAttribute(this.options.reloadAttribute)) return null;
+		if (link.hasAttribute('download')) return null;
+
+		const href = link.getAttribute('href');
+		if (!href) return null;
+
+		if (href.startsWith('#')) return null;
+		if (href.startsWith('javascript:')) return null;
+
+		const url = new URL(href, window.location.origin);
+		if (!this.isSameOrigin(url)) return null;
+
+		return href;
+	}
+
+	private getRecoveredPointerHref(): string | null {
+		const href = recoverPendingNavigationHref(
+			this.pendingPointerNavigation,
+			this.pendingNavigations > 0,
+			performance.now(),
+		);
+
+		if (!href) {
+			this.pendingPointerNavigation = null;
+		}
+
+		return href;
+	}
+
+	private getRecoveredHoverHref(): string | null {
+		const href = recoverPendingNavigationHref(
+			this.pendingHoverNavigation,
+			this.pendingNavigations > 0,
+			performance.now(),
+		);
+
+		if (!href) {
+			this.pendingHoverNavigation = null;
+		}
+
+		return href;
+	}
+
 	private isAnotherNavigationRuntimeActive(): boolean {
-		return getEcoNavigationRuntime(window).isOwnedByAnotherRuntime('browser-router');
+		const ownerState = getEcoNavigationRuntime(window).getOwnerState();
+		return (
+			ownerState.owner !== 'none' && ownerState.owner !== 'browser-router' && ownerState.canHandleSpaNavigation
+		);
 	}
 
 	private getDocumentOwner(doc: Document) {
@@ -51,6 +118,23 @@ export class EcoRouter {
 
 	private adoptDocumentOwner(doc: Document): void {
 		getEcoNavigationRuntime(window).adoptDocumentOwner(doc, 'browser-router');
+	}
+
+	private syncDocumentElementAttributes(newDocument: Document): void {
+		const currentHtml = document.documentElement;
+		const nextHtml = newDocument.documentElement;
+
+		for (const attribute of Array.from(currentHtml.attributes)) {
+			if (!nextHtml.hasAttribute(attribute.name)) {
+				currentHtml.removeAttribute(attribute.name);
+			}
+		}
+
+		for (const attribute of Array.from(nextHtml.attributes)) {
+			if (currentHtml.getAttribute(attribute.name) !== attribute.value) {
+				currentHtml.setAttribute(attribute.name, attribute.value);
+			}
+		}
 	}
 
 	private reloadDocument(url: URL): void {
@@ -108,12 +192,6 @@ export class EcoRouter {
 
 		if (isStaleNavigation()) return;
 
-		if (this.options.updateHistory && direction === 'forward') {
-			window.history.pushState({}, '', url.href);
-		} else if (direction === 'replace') {
-			window.history.replaceState({}, '', url.href);
-		}
-
 		const useViewTransitions = this.options.viewTransitions;
 		await this.domSwapper.preloadStylesheets(newDocument);
 		if (isStaleNavigation()) return;
@@ -121,6 +199,13 @@ export class EcoRouter {
 		const commitSwap = () => {
 			if (isStaleNavigation()) return;
 
+			if (this.options.updateHistory && direction === 'forward') {
+				window.history.pushState({}, '', url.href);
+			} else if (direction === 'replace') {
+				window.history.replaceState({}, '', url.href);
+			}
+
+			this.syncDocumentElementAttributes(newDocument);
 			this.domSwapper.morphHead(newDocument);
 			if (useViewTransitions && !this.domSwapper.shouldReplaceBodyForRerunScripts()) {
 				this.domSwapper.morphBody(newDocument);
@@ -172,9 +257,18 @@ export class EcoRouter {
 	 * back/forward buttons. Also starts the prefetch manager if configured.
 	 */
 	public start(): void {
+		if (this.started) {
+			return;
+		}
+
 		const navigationRuntime = getEcoNavigationRuntime(window);
 
-		document.addEventListener('click', this.handleClick);
+		document.addEventListener('mouseover', this.handleHoverIntent, true);
+		document.addEventListener('pointerover', this.handleHoverIntent, true);
+		document.addEventListener('mousemove', this.handleHoverIntent, true);
+		document.addEventListener('pointermove', this.handleHoverIntent, true);
+		document.addEventListener('pointerdown', this.handlePointerDown, true);
+		document.addEventListener('click', this.handleClick, true);
 		window.addEventListener('popstate', this.handlePopState);
 		this.prefetchManager?.start();
 		this.unregisterNavigationRuntime?.();
@@ -188,15 +282,23 @@ export class EcoRouter {
 				return true;
 			},
 			handoffNavigation: async (request) => {
-				await this.commitDocumentNavigation(
-					new URL(request.finalHref ?? request.href, window.location.origin),
-					request.direction ?? 'forward',
-					request.document,
-					{ html: request.html },
-				);
+				const { isStaleNavigation, complete } = this.beginNavigationTransaction();
+				if (isStaleNavigation()) return true;
+				try {
+					await this.commitDocumentNavigation(
+						new URL(request.finalHref ?? request.href, window.location.origin),
+						request.direction ?? 'forward',
+						request.document,
+						{ html: request.html, isStaleNavigation },
+					);
+				} finally {
+					complete();
+				}
 				return true;
 			},
 			reloadCurrentPage: async (request) => {
+				if (this.pendingNavigations > 0) return;
+
 				const currentUrl = window.location.pathname + window.location.search;
 
 				if (request?.clearCache) {
@@ -205,12 +307,16 @@ export class EcoRouter {
 
 				await this.performNavigation(new URL(currentUrl, window.location.origin), 'replace');
 			},
+			cleanupBeforeHandoff: async () => {
+				this.cancelNavigationTransaction();
+			},
 		});
 		this.adoptDocumentOwner(document);
 
 		// Cache the initial page for instant back-navigation
 		const initialHtml = document.documentElement.outerHTML;
 		this.prefetchManager?.cacheVisitedPage(window.location.href, initialHtml);
+		this.started = true;
 	}
 
 	/**
@@ -218,11 +324,30 @@ export class EcoRouter {
 	 * After calling this, navigation will fall back to full page reloads.
 	 */
 	public stop(): void {
-		document.removeEventListener('click', this.handleClick);
+		if (!this.started) {
+			return;
+		}
+
+		this.cancelNavigationTransaction();
+		document.removeEventListener('mouseover', this.handleHoverIntent, true);
+		document.removeEventListener('pointerover', this.handleHoverIntent, true);
+		document.removeEventListener('mousemove', this.handleHoverIntent, true);
+		document.removeEventListener('pointermove', this.handleHoverIntent, true);
+		document.removeEventListener('pointerdown', this.handlePointerDown, true);
+		document.removeEventListener('click', this.handleClick, true);
 		window.removeEventListener('popstate', this.handlePopState);
 		this.prefetchManager?.stop();
 		this.unregisterNavigationRuntime?.();
 		this.unregisterNavigationRuntime = null;
+		this.started = false;
+		this.pendingHoverNavigation = null;
+		this.pendingPointerNavigation = null;
+		this.queuedNavigationHref = null;
+
+		const win = window as RouterWindow;
+		if (win[ACTIVE_ROUTER_KEY] === this) {
+			delete win[ACTIVE_ROUTER_KEY];
+		}
 	}
 
 	/**
@@ -264,37 +389,77 @@ export class EcoRouter {
 	 * Uses `event.composedPath()` to correctly detect clicks on anchors inside
 	 * Shadow DOM boundaries (Web Components).
 	 */
+	private handlePointerDown(event: PointerEvent): void {
+		const link = this.getLinkFromEvent(event);
+		if (!link) {
+			this.pendingPointerNavigation = null;
+			return;
+		}
+
+		const href = this.canInterceptLink(event, link);
+		this.pendingPointerNavigation = href
+			? {
+					href,
+					timestamp: performance.now(),
+				}
+			: null;
+
+		if (href && this.pendingNavigations > 0) {
+			this.queuedNavigationHref = href;
+		}
+	}
+
+	private handleHoverIntent(event: MouseEvent | PointerEvent): void {
+		const link = this.getLinkFromEvent(event);
+		if (!link) {
+			return;
+		}
+
+		const href = this.canInterceptLink(event, link);
+		if (!href) {
+			return;
+		}
+
+		this.pendingHoverNavigation = {
+			href,
+			timestamp: performance.now(),
+		};
+
+		if (this.pendingNavigations > 0) {
+			this.queuedNavigationHref = href;
+		}
+	}
+
 	private handleClick(event: MouseEvent): void {
-		if (this.isAnotherNavigationRuntimeActive()) return;
-
-		const link = event
-			.composedPath()
-			.find(
-				(el) => el instanceof HTMLAnchorElement && el.matches(this.options.linkSelector),
-			) as HTMLAnchorElement | null;
-
-		if (!link) return;
-
-		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-		if (event.button !== 0) return;
-
-		const target = link.getAttribute('target');
-		if (target && target !== '_self') return;
-
-		if (link.hasAttribute(this.options.reloadAttribute)) return;
-		if (link.hasAttribute('download')) return;
-
-		const href = link.getAttribute('href');
+		const navigationRuntime = getEcoNavigationRuntime(window);
+		const link = this.getLinkFromEvent(event);
+		const href = link
+			? this.canInterceptLink(event, link)
+			: (this.getRecoveredPointerHref() ?? this.getRecoveredHoverHref());
+		this.pendingPointerNavigation = null;
+		this.pendingHoverNavigation = null;
 		if (!href) return;
+		this.queuedNavigationHref = null;
 
-		if (href.startsWith('#')) return;
-		if (href.startsWith('javascript:')) return;
+		if (this.isAnotherNavigationRuntimeActive()) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			void navigationRuntime.requestNavigation({
+				href,
+				direction: 'forward',
+				source: 'browser-router',
+			});
+			return;
+		}
 
 		const url = new URL(href, window.location.origin);
 
-		if (!this.isSameOrigin(url)) return;
-
 		event.preventDefault();
+		if (this.pendingNavigations > 0) {
+			this.queuedNavigationHref = href;
+			this.cancelNavigationTransaction();
+			return;
+		}
 		this.performNavigation(url, 'forward');
 	}
 
@@ -317,6 +482,23 @@ export class EcoRouter {
 		return url.origin === window.location.origin;
 	}
 
+	private cancelNavigationTransaction(): void {
+		getEcoNavigationRuntime(window).cancelCurrentNavigationTransaction();
+	}
+
+	private beginNavigationTransaction(): {
+		isStaleNavigation: () => boolean;
+		signal: AbortSignal;
+		complete: () => void;
+	} {
+		const transaction = getEcoNavigationRuntime(window).beginNavigationTransaction();
+		return {
+			isStaleNavigation: () => !transaction.isCurrent(),
+			signal: transaction.signal,
+			complete: () => transaction.complete(),
+		};
+	}
+
 	/**
 	 * Executes the core navigation flow.
 	 *
@@ -336,16 +518,12 @@ export class EcoRouter {
 	 * @param direction - Navigation direction ('forward', 'back', or 'replace')
 	 */
 	private async performNavigation(url: URL, direction: EcoNavigationEvent['direction']): Promise<void> {
-		const navigationSequence = ++this.navigationSequence;
-
-		this.abortController?.abort();
-		const abortController = new AbortController();
-		this.abortController = abortController;
-		const isStaleNavigation = () =>
-			this.navigationSequence !== navigationSequence || abortController.signal.aborted;
+		this.pendingNavigations++;
+		const { isStaleNavigation, signal, complete } = this.beginNavigationTransaction();
+		let queuedNavigationHref: string | null = null;
 
 		try {
-			const html = await this.fetchPage(url, abortController.signal);
+			const html = await this.fetchPage(url, signal);
 			if (isStaleNavigation()) return;
 
 			const newDocument = this.domSwapper.parseHTML(html, url);
@@ -356,6 +534,8 @@ export class EcoRouter {
 				isStaleNavigation,
 			});
 		} catch (error) {
+			if (isStaleNavigation()) return;
+
 			if (error instanceof Error && error.name === 'AbortError') {
 				return;
 			}
@@ -363,8 +543,31 @@ export class EcoRouter {
 			console.error('[ecopages] Navigation failed:', error);
 			window.location.href = url.href;
 		} finally {
-			if (this.abortController === abortController) {
-				this.abortController = null;
+			complete();
+			this.pendingNavigations--;
+
+			const navigationRuntime = getEcoNavigationRuntime(window);
+			if (!navigationRuntime.hasPendingNavigationTransaction()) {
+				queuedNavigationHref = this.queuedNavigationHref;
+				this.queuedNavigationHref = null;
+			}
+
+			if (queuedNavigationHref && queuedNavigationHref !== window.location.pathname + window.location.search) {
+				const ownerState = navigationRuntime.getOwnerState();
+
+				if (
+					ownerState.owner !== 'none' &&
+					ownerState.owner !== 'browser-router' &&
+					ownerState.canHandleSpaNavigation
+				) {
+					void navigationRuntime.requestNavigation({
+						href: queuedNavigationHref,
+						direction: 'forward',
+						source: 'browser-router',
+					});
+				} else {
+					void this.performNavigation(new URL(queuedNavigationHref, window.location.origin), 'forward');
+				}
 			}
 		}
 	}
@@ -398,13 +601,32 @@ export class EcoRouter {
 	}
 }
 
+const ACTIVE_ROUTER_KEY = '__ecopages_browser_router__';
+
+type RouterWindow = Window &
+	typeof globalThis & {
+		[ACTIVE_ROUTER_KEY]?: EcoRouter;
+	};
+
 /**
  * Creates and starts a router instance.
+ *
+ * Stops the previously active router (if any) before creating a new one so
+ * click listeners and coordinator registrations from earlier instances are
+ * cleaned up on re-execution (e.g. when the layout script is re-run via
+ * `data-eco-rerun` after a browser-router page commit).
+ *
  * @param options - Configuration options for the router
  * @returns A started EcoRouter instance
  */
 export function createRouter(options?: EcoRouterOptions): EcoRouter {
+	const win = window as RouterWindow;
+	const existingRouter = win[ACTIVE_ROUTER_KEY];
+	if (existingRouter) {
+		return existingRouter;
+	}
 	const router = new EcoRouter(options);
+	win[ACTIVE_ROUTER_KEY] = router;
 	router.start();
 	return router;
 }

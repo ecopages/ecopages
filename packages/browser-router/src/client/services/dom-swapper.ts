@@ -16,6 +16,14 @@ type PendingRerunScript = {
 	scriptId: string | null;
 };
 
+type PendingHeadScript = {
+	attributes: Array<[string, string]>;
+	textContent: string;
+	src: string | null;
+	scriptId: string | null;
+	replaceExisting: boolean;
+};
+
 const RERUN_SRC_ATTR = 'data-eco-rerun-src';
 
 /**
@@ -41,6 +49,7 @@ function isHydratedCustomElement(element: Element): boolean {
  */
 export class DomSwapper {
 	private persistAttribute: string;
+	private pendingHeadScripts: PendingHeadScript[] = [];
 	private pendingRerunScripts: PendingRerunScript[] = [];
 	private rerunNonce = 0;
 
@@ -126,7 +135,9 @@ export class DomSwapper {
 	 * - Injects new scripts from the incoming page that are absent from the current head
 	 */
 	morphHead(newDocument: Document): void {
+		this.pendingHeadScripts = [];
 		this.pendingRerunScripts = this.collectRerunScripts(newDocument);
+		this.removeStaleHeadScripts(newDocument);
 
 		/** Update the document title if it has changed. */
 		const newTitle = newDocument.head.querySelector('title');
@@ -178,26 +189,49 @@ export class DomSwapper {
 			if (script.hasAttribute('data-eco-rerun')) continue;
 
 			const src = script.getAttribute('src');
+			const scriptId = script.getAttribute('data-eco-script-id') || script.getAttribute('id');
+			const existingScript = this.findExistingHeadScript(script);
+
+			if (scriptId && existingScript) {
+				if (!this.isNonExecutableHeadScript(script)) {
+					continue;
+				}
+
+				if (this.areHeadScriptsEquivalent(script, existingScript)) {
+					continue;
+				}
+
+				this.pendingHeadScripts.push({
+					attributes: Array.from(script.attributes).map((attr) => [attr.name, attr.value]),
+					textContent: script.textContent ?? '',
+					src,
+					scriptId,
+					replaceExisting: true,
+				});
+				continue;
+			}
 
 			if (src) {
 				if (existingScriptSrcs.has(src)) continue;
-				/** New external script — append a freshly created element so the browser fetches and executes it. */
-				const newScript = document.createElement('script');
-				for (const attr of script.attributes) {
-					newScript.setAttribute(attr.name, attr.value);
-				}
-				document.head.appendChild(newScript);
+				this.pendingHeadScripts.push({
+					attributes: Array.from(script.attributes).map((attr) => [attr.name, attr.value]),
+					textContent: script.textContent ?? '',
+					src,
+					scriptId,
+					replaceExisting: false,
+				});
 				existingScriptSrcs.add(src);
 			} else {
 				/** Inline script — skip if identical content is already present to avoid re-running on every navigation. */
 				const content = (script.textContent ?? '').trim();
 				if (!content || existingInlineContents.has(content)) continue;
-				const newScript = document.createElement('script');
-				for (const attr of script.attributes) {
-					newScript.setAttribute(attr.name, attr.value);
-				}
-				newScript.textContent = script.textContent;
-				document.head.appendChild(newScript);
+				this.pendingHeadScripts.push({
+					attributes: Array.from(script.attributes).map((attr) => [attr.name, attr.value]),
+					textContent: script.textContent ?? '',
+					src: null,
+					scriptId,
+					replaceExisting: false,
+				});
 				existingInlineContents.add(content);
 			}
 		}
@@ -211,6 +245,26 @@ export class DomSwapper {
 	 * being replaced.
 	 */
 	flushRerunScripts(): void {
+		for (const script of this.pendingHeadScripts) {
+			const replacement = document.createElement('script');
+
+			for (const [name, value] of script.attributes) {
+				replacement.setAttribute(name, value);
+			}
+
+			replacement.textContent = script.textContent;
+
+			const existingScript = this.findExistingHeadScript(script);
+			if (script.replaceExisting && existingScript) {
+				existingScript.replaceWith(replacement);
+				continue;
+			}
+
+			document.head.appendChild(replacement);
+		}
+
+		this.pendingHeadScripts = [];
+
 		for (const script of this.pendingRerunScripts) {
 			const targetParent = script.parent === 'body' ? document.body : document.head;
 			const replacement = document.createElement('script');
@@ -246,7 +300,7 @@ export class DomSwapper {
 	}
 
 	shouldReplaceBodyForRerunScripts(): boolean {
-		return this.pendingRerunScripts.some((script) => this.isExternalModuleRerunScript(script));
+		return this.pendingRerunScripts.length > 0;
 	}
 
 	/**
@@ -348,6 +402,122 @@ export class DomSwapper {
 			src: script.getAttribute('src'),
 			scriptId: script.getAttribute('data-eco-script-id'),
 		}));
+	}
+
+	private removeStaleHeadScripts(newDocument: Document): void {
+		const nextScriptKeys = new Set(
+			Array.from(newDocument.head.querySelectorAll<HTMLScriptElement>('script'))
+				.map((script) => this.getHeadScriptKey(script))
+				.filter((key): key is string => key !== null),
+		);
+
+		for (const script of Array.from(document.head.querySelectorAll<HTMLScriptElement>('script'))) {
+			const key = this.getHeadScriptKey(script);
+			if (!key || nextScriptKeys.has(key)) {
+				continue;
+			}
+
+			if (this.shouldPersistExecutableInlineHeadScript(script)) {
+				continue;
+			}
+
+			script.remove();
+		}
+	}
+
+	private shouldPersistExecutableInlineHeadScript(script: HTMLScriptElement): boolean {
+		const scriptId = script.getAttribute('data-eco-script-id') || script.getAttribute('id');
+		if (!scriptId) {
+			return false;
+		}
+
+		if (script.hasAttribute('data-eco-rerun')) {
+			return false;
+		}
+
+		if (script.getAttribute(RERUN_SRC_ATTR) || script.getAttribute('src')) {
+			return false;
+		}
+
+		return !this.isNonExecutableHeadScript(script);
+	}
+
+	private isNonExecutableHeadScript(script: HTMLScriptElement): boolean {
+		const type = (script.getAttribute('type') ?? '').trim().toLowerCase();
+
+		if (!type) {
+			return false;
+		}
+
+		return ![
+			'application/javascript',
+			'application/ecmascript',
+			'module',
+			'text/ecmascript',
+			'text/javascript',
+		].includes(type);
+	}
+
+	private areHeadScriptsEquivalent(nextScript: HTMLScriptElement, currentScript: HTMLScriptElement): boolean {
+		if (this.getHeadScriptKey(nextScript) !== this.getHeadScriptKey(currentScript)) {
+			return false;
+		}
+
+		if ((nextScript.textContent ?? '') !== (currentScript.textContent ?? '')) {
+			return false;
+		}
+
+		const nextAttributes = Array.from(nextScript.attributes).map((attribute) => [attribute.name, attribute.value]);
+		const currentAttributes = Array.from(currentScript.attributes).map((attribute) => [
+			attribute.name,
+			attribute.value,
+		]);
+
+		if (nextAttributes.length !== currentAttributes.length) {
+			return false;
+		}
+
+		return nextAttributes.every(
+			([name, value], index) => currentAttributes[index]?.[0] === name && currentAttributes[index]?.[1] === value,
+		);
+	}
+
+	private getHeadScriptKey(
+		script: HTMLScriptElement | Pick<PendingHeadScript | PendingRerunScript, 'scriptId' | 'src' | 'textContent'>,
+	): string | null {
+		const scriptId =
+			script instanceof HTMLScriptElement
+				? script.getAttribute('data-eco-script-id') || script.getAttribute('id')
+				: script.scriptId;
+		if (scriptId) {
+			return `id:${scriptId}`;
+		}
+
+		const src =
+			script instanceof HTMLScriptElement
+				? script.getAttribute(RERUN_SRC_ATTR) || script.getAttribute('src')
+				: script.src;
+		if (src) {
+			return `src:${src}`;
+		}
+
+		const textContent = (script.textContent ?? '').trim();
+		return textContent ? `inline:${textContent}` : null;
+	}
+
+	private findExistingHeadScript(
+		script: HTMLScriptElement | Pick<PendingHeadScript | PendingRerunScript, 'scriptId' | 'src' | 'textContent'>,
+	): HTMLScriptElement | null {
+		const scriptKey = this.getHeadScriptKey(script);
+		if (!scriptKey) {
+			return null;
+		}
+
+		return (
+			Array.from(document.head.querySelectorAll<HTMLScriptElement>('script')).find(
+				(candidate) => this.getHeadScriptKey(candidate) === scriptKey,
+			) ?? null
+		);
 	}
 
 	private findExistingRerunScript(root: HTMLElement, script: PendingRerunScript): HTMLScriptElement | null {

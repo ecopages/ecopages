@@ -26,8 +26,14 @@ export class ViewTransitionManager {
 	/**
 	 * Execute a callback with view transition if available and enabled.
 	 * Falls back to direct execution if not supported.
+	 *
+	 * Navigation correctness depends on the DOM update callback completing, not on
+	 * the browser finishing the visual transition animation. Awaiting
+	 * `finished` here can leave router transactions artificially in-flight and
+	 * block later navigations during rapid repeated clicks, so the router waits
+	 * for `updateCallbackDone` and lets the animation finish in the background.
 	 * @param callback - The DOM update callback to execute
-	 * @returns Promise that resolves when the transition completes
+	 * @returns Promise that resolves when the DOM update has committed
 	 */
 	async transition(callback: () => void | Promise<void>): Promise<void> {
 		if (!this.enabled || !this.isSupported()) {
@@ -52,15 +58,15 @@ export class ViewTransitionManager {
 			applyViewTransitionNames();
 		});
 
-		try {
-			await transition.finished;
-		} finally {
+		void transition.finished.finally(() => {
 			/**
-			 * Cleanup view transition names and dynamic styles after transition completes.
-			 * This prevents style pollution.
+			 * Cleanup view transition names and dynamic styles after the browser's
+			 * animation lifecycle completes.
 			 */
 			clearViewTransitionNames();
-		}
+		});
+
+		await transition.updateCallbackDone;
 	}
 }
 

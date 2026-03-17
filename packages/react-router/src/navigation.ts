@@ -9,7 +9,7 @@ import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinato
 import { type ComponentType } from 'react';
 import type { EcoRouterOptions } from './types.ts';
 
-const ROUTER_PROPS_SCRIPT_IDS = ['__ECO_PAGE_DATA__', '__ECO_PAGE_DATA_FALLBACK__'] as const;
+const ROUTER_PROPS_SCRIPT_ID = '__ECO_PAGE_DATA__';
 
 function isReactPageHydrationAsset(src: string): boolean {
 	return src.includes('ecopages-react-') && src.includes('hydration.js') && !src.includes('ecopages-react-island-');
@@ -133,7 +133,7 @@ export function extractProps(doc: Document): Record<string, any> {
 		return window.__ECO_PAGE__.props;
 	}
 
-	const propsScript = ROUTER_PROPS_SCRIPT_IDS.map((id) => doc.getElementById(id)).find(Boolean);
+	const propsScript = doc.getElementById(ROUTER_PROPS_SCRIPT_ID);
 	if (propsScript?.textContent) {
 		try {
 			return JSON.parse(propsScript.textContent);

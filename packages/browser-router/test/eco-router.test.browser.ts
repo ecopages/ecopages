@@ -1,13 +1,31 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE, getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { createRouter, EcoRouter } from '../src/client/eco-router';
 
 type BrowserRouterTestWindow = Window &
 	typeof globalThis & {
 		__ecopages_cleanup_page_root__?: () => void;
+		__ecopages_navigation__?: unknown;
+		__ecopages_browser_router__?: EcoRouter;
 	};
 
 const runtimeWindow = window as BrowserRouterTestWindow;
+const initialUrl = `${window.location.origin}/`;
+
+function resetBrowserRuntimeState(): void {
+	runtimeWindow.__ecopages_cleanup_page_root__?.();
+	runtimeWindow.__ecopages_browser_router__?.stop();
+	delete runtimeWindow.__ecopages_browser_router__;
+	delete runtimeWindow.__ecopages_navigation__;
+	delete runtimeWindow.__ecopages_cleanup_page_root__;
+	delete (window as typeof window & { __ECO_PAGE__?: unknown }).__ECO_PAGE__;
+	document.head.innerHTML = '';
+	document.body.innerHTML = '';
+	document.title = '';
+	document.documentElement.removeAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
+	window.history.replaceState({}, '', initialUrl);
+}
 
 function mockFetch(htmlContent: string) {
 	return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
@@ -38,10 +56,18 @@ function simulateClick(element: HTMLElement, options: Partial<MouseEventInit> = 
 }
 
 async function waitForNavigation(eventName = 'eco:after-swap'): Promise<void> {
-	return new Promise((resolve) => {
-		document.addEventListener(eventName, () => resolve(), { once: true });
-		// Fallback for cases where the event might not fire (e.g. error or already handled)
-		setTimeout(resolve, 100);
+	return new Promise((resolve, reject) => {
+		const timeoutId = window.setTimeout(() => {
+			document.removeEventListener(eventName, handleNavigation);
+			reject(new Error(`Timed out waiting for ${eventName}`));
+		}, 1000);
+
+		const handleNavigation = () => {
+			window.clearTimeout(timeoutId);
+			resolve();
+		};
+
+		document.addEventListener(eventName, handleNavigation, { once: true });
 	});
 }
 
@@ -56,18 +82,20 @@ function createDeferred(): { promise: Promise<void>; resolve: () => void } {
 describe('EcoRouter', () => {
 	let router: EcoRouter | null = null;
 	let fetchSpy: ReturnType<typeof vi.spyOn> | null = null;
+	let user: ReturnType<typeof userEvent.setup>;
 	const mockHtml = '<html><head></head><body><div id="content">New Content</div></body></html>';
 
 	beforeEach(() => {
-		document.body.innerHTML = '';
+		resetBrowserRuntimeState();
 		fetchSpy = mockFetch(mockHtml);
+		user = userEvent.setup();
 	});
 
 	afterEach(() => {
 		router?.stop();
 		router = null;
 		fetchSpy?.mockRestore();
-		delete runtimeWindow.__ecopages_cleanup_page_root__;
+		resetBrowserRuntimeState();
 		vi.restoreAllMocks();
 	});
 
@@ -75,6 +103,14 @@ describe('EcoRouter', () => {
 		it('should create router instance', () => {
 			router = createRouter();
 			expect(router).toBeInstanceOf(EcoRouter);
+		});
+
+		it('should reuse the active router instance across repeated createRouter calls', () => {
+			const firstRouter = createRouter();
+			const secondRouter = createRouter();
+
+			router = firstRouter;
+			expect(secondRouter).toBe(firstRouter);
 		});
 
 		it('should register and clean up browser-router navigation through the coordinator', () => {
@@ -136,6 +172,45 @@ describe('EcoRouter', () => {
 
 			expect(document.title).toBe('New Title');
 			expect(document.body.innerHTML).toContain('New Content');
+		});
+
+		it('should remove head scripts that are absent from the incoming document', async () => {
+			document.head.innerHTML = [
+				'<script src="/old-script.js"></script>',
+				'<script data-eco-script-id="old-rerun" data-eco-rerun-src="/old-rerun.js" src="/old-rerun.js?__eco_rerun=1"></script>',
+			].join('');
+			router = createRouter();
+			const nextHtml = [
+				'<html><head>',
+				'<title>Fresh Title</title>',
+				'<script src="/next-script.js"></script>',
+				'</head><body><div>Fresh Content</div></body></html>',
+			].join('');
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => nextHtml,
+			} as Response);
+
+			await router.navigate('/fresh-head');
+
+			expect(document.head.querySelector('script[src="/old-script.js"]')).toBeNull();
+			expect(document.head.querySelector('[data-eco-rerun-src="/old-rerun.js"]')).toBeNull();
+			expect(document.head.querySelector('script[src="/next-script.js"]')).not.toBeNull();
+		});
+
+		it('should preserve keyed executable inline head support scripts when absent from the incoming document', async () => {
+			document.head.innerHTML =
+				'<script data-eco-script-id="lit-hydrate-support">window.__lit_support_runs__=(window.__lit_support_runs__||0)+1;</script>';
+			router = createRouter({ viewTransitions: false });
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () =>
+					'<html><head><title>Plain route</title></head><body><div>Fresh Content</div></body></html>',
+			} as Response);
+
+			await router.navigate('/plain-route');
+
+			expect(document.head.querySelectorAll('script[data-eco-script-id="lit-hydrate-support"]')).toHaveLength(1);
 		});
 
 		it('should preserve multiple body elements if using replaceBody', async () => {
@@ -222,6 +297,79 @@ describe('EcoRouter', () => {
 			expect(document.querySelectorAll('script[data-eco-script-id="after-body-rerun"]')).toHaveLength(1);
 		});
 
+		it('should execute newly injected head scripts after the new body is in place', async () => {
+			router = createRouter({ viewTransitions: false });
+			const headScriptHtml = [
+				'<html>',
+				'<head>',
+				'<script>',
+				'document.body.setAttribute("data-head-script-target",document.querySelector("#content")?.textContent??"missing")',
+				'</script>',
+				'</head>',
+				'<body><div id="content">New Content</div></body>',
+				'</html>',
+			].join('');
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => headScriptHtml,
+			} as Response);
+
+			await router.navigate('/head-script-after-body');
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(document.body.getAttribute('data-head-script-target')).toBe('New Content');
+		});
+
+		it('should replace existing __ECO_PAGE_DATA__ scripts before rerun hydration scripts execute', async () => {
+			router = createRouter({ viewTransitions: false });
+			document.head.innerHTML =
+				'<script id="__ECO_PAGE_DATA__" type="application/json">{"routeFiles":["old-route"]}</script>';
+			const headScriptHtml = [
+				'<html>',
+				'<head>',
+				'<script id="__ECO_PAGE_DATA__" type="application/json">{"routeFiles":["react-server-files/index.tsx","react-server-files/tree.server.ts"]}</script>',
+				'<script data-eco-rerun="true" data-eco-script-id="page-data-check">',
+				'document.body.setAttribute("data-route-files",JSON.parse(document.getElementById("__ECO_PAGE_DATA__")?.textContent ?? "{}").routeFiles?.join(",") ?? "missing")',
+				'</script>',
+				'</head>',
+				'<body><div id="content">New Content</div></body>',
+				'</html>',
+			].join('');
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => headScriptHtml,
+			} as Response);
+
+			await router.navigate('/react-server-files');
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(document.body.getAttribute('data-route-files')).toBe(
+				'react-server-files/index.tsx,react-server-files/tree.server.ts',
+			);
+			expect(document.head.querySelectorAll('script#__ECO_PAGE_DATA__')).toHaveLength(1);
+		});
+
+		it('should not re-execute executable inline head scripts that already exist', async () => {
+			router = createRouter({ viewTransitions: false });
+			document.head.innerHTML =
+				'<script data-eco-script-id="lit-hydrate-support">window.__head_script_runs__=(window.__head_script_runs__||0)+1;</script>';
+			(window as typeof window & { __head_script_runs__?: number }).__head_script_runs__ = 1;
+			const nextHtml = [
+				'<html><head>',
+				'<script data-eco-script-id="lit-hydrate-support">window.__head_script_runs__=(window.__head_script_runs__||0)+1;</script>',
+				'</head><body><div>Fresh Content</div></body></html>',
+			].join('');
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => nextHtml,
+			} as Response);
+
+			await router.navigate('/head-script-stable');
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect((window as typeof window & { __head_script_runs__?: number }).__head_script_runs__).toBe(1);
+		});
+
 		it('should re-execute external module rerun scripts with a fresh URL', async () => {
 			router = createRouter({ viewTransitions: false });
 			const rerunHtml = [
@@ -248,7 +396,6 @@ describe('EcoRouter', () => {
 			}) as typeof document.head.appendChild);
 
 			await router.navigate('/plain-counter');
-			await waitForNavigation();
 
 			fetchSpy?.mockResolvedValueOnce({
 				ok: true,
@@ -256,7 +403,6 @@ describe('EcoRouter', () => {
 			} as Response);
 
 			await router.navigate('/plain-counter-again');
-			await waitForNavigation();
 
 			const finalScript = document.head.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]');
 
@@ -283,12 +429,91 @@ describe('EcoRouter', () => {
 				expect(pushStateSpy).not.toHaveBeenCalled();
 			});
 
+			it('should delegate clicks to the active runtime instead of dropping them', async () => {
+				const navigateSpy = vi.fn(async () => true);
+				router = createRouter();
+				const unregister = getEcoNavigationRuntime(window).register({
+					owner: 'react-router',
+					navigate: navigateSpy,
+				});
+				getEcoNavigationRuntime(window).claimOwnership('react-router');
+				const link = createLink({ href: '/react-route', id: 'delegated-react-link' });
+				const pushStateSpy = vi.spyOn(window.history, 'pushState');
+
+				await user.click(link);
+				await vi.waitFor(() => {
+					expect(navigateSpy).toHaveBeenCalledWith({
+						href: '/react-route',
+						direction: 'forward',
+						source: 'browser-router',
+					});
+				});
+
+				expect(pushStateSpy).not.toHaveBeenCalled();
+				unregister();
+			});
+
+			it('should keep intercepting clicks while another document owner is pending but not yet registered', async () => {
+				router = createRouter();
+				getEcoNavigationRuntime(window).setOwner('react-router');
+				const link = createLink({ href: '/pending-react-route', id: 'pending-react-link' });
+				const pushStateSpy = vi.spyOn(window.history, 'pushState');
+
+				await user.click(link);
+				await waitForNavigation();
+
+				expect(pushStateSpy).toHaveBeenCalled();
+			});
+
+			it('should recover a rapid click from the last hovered link while navigation is in flight', async () => {
+				router = createRouter();
+				const firstFetch = createDeferred();
+				fetchSpy?.mockImplementationOnce(
+					(url: string | URL | Request, init?: RequestInit) =>
+						new Promise<Response>((resolve, reject) => {
+							const abortSignal = init?.signal;
+							const handleAbort = () => {
+								reject(new DOMException('Aborted', 'AbortError'));
+							};
+
+							abortSignal?.addEventListener('abort', handleAbort, { once: true });
+							firstFetch.promise.then(() => {
+								abortSignal?.removeEventListener('abort', handleAbort);
+								resolve({
+									ok: true,
+									text: async () =>
+										'<html><head></head><body><div id="content">First Content</div></body></html>',
+								} as Response);
+							});
+						}),
+				);
+				fetchSpy?.mockResolvedValueOnce({
+					ok: true,
+					text: async () =>
+						'<html><head></head><body><div id="content">Recovered Content</div></body></html>',
+				} as Response);
+
+				const firstLink = createLink({ href: '/first-route', id: 'first-link' });
+				const hoveredLink = createLink({ href: '/hover-recovered-route', id: 'hovered-link' });
+				const pushStateSpy = vi.spyOn(window.history, 'pushState');
+
+				await user.click(firstLink);
+				await user.hover(hoveredLink);
+				hoveredLink.remove();
+				await user.click(document.body);
+				firstFetch.resolve();
+				await waitForNavigation();
+
+				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining('/hover-recovered-route'));
+				expect(document.body.innerHTML).toContain('Recovered Content');
+			});
+
 			it('should intercept clicks on internal links', async () => {
 				router = createRouter();
 				const link = createLink({ href: '/test-link', id: 'link' });
 				const pushStateSpy = vi.spyOn(window.history, 'pushState');
 
-				simulateClick(link);
+				await user.click(link);
 				await waitForNavigation();
 
 				expect(pushStateSpy).toHaveBeenCalled();
@@ -674,6 +899,7 @@ describe('EcoRouter', () => {
 				expect(reloadSpy).not.toHaveBeenCalled();
 				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining('/react-content'));
 				expect(afterSwapSpy).toHaveBeenCalled();
+				expect(document.documentElement.getAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE)).toBe('react-router');
 				expect(document.body.innerHTML).toContain('React Route');
 				expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('react-router');
 			} finally {
@@ -757,14 +983,21 @@ describe('EcoRouter', () => {
 		it('should dispatch eco:page-load event after animation frame', async () => {
 			router = createRouter();
 			const pageLoadSpy = vi.fn();
+			const requestAnimationFrameSpy = vi
+				.spyOn(window, 'requestAnimationFrame')
+				.mockImplementation((callback: FrameRequestCallback): number => {
+					callback(performance.now());
+					return 1;
+				});
 			document.addEventListener('eco:page-load', pageLoadSpy);
 
 			try {
 				await router.navigate('/event-test');
-				await new Promise((resolve) => requestAnimationFrame(resolve));
-				expect(pageLoadSpy).toHaveBeenCalled();
+				expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+				expect(pageLoadSpy).toHaveBeenCalledTimes(1);
 			} finally {
 				document.removeEventListener('eco:page-load', pageLoadSpy);
+				requestAnimationFrameSpy.mockRestore();
 			}
 		});
 
@@ -881,6 +1114,34 @@ describe('EcoRouter', () => {
 			expect(consoleSpy).not.toHaveBeenCalled();
 			consoleSpy.mockRestore();
 		});
+
+		it('should silently ignore stale navigation failures that surface as generic fetch errors', async () => {
+			router = createRouter();
+			const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+			fetchSpy?.mockImplementation((url: string | URL | Request, init?: RequestInit) => {
+				if (url.toString().includes('/first-page')) {
+					return new Promise((_, reject) => {
+						init?.signal?.addEventListener('abort', () => reject(new TypeError('Failed to fetch')), {
+							once: true,
+						});
+					});
+				}
+
+				return Promise.resolve({
+					ok: true,
+					text: async () => '<html><body>Second</body></html>',
+				} as Response);
+			});
+
+			void router.navigate('/first-page');
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			await router.navigate('/second-page');
+
+			expect(consoleSpy).not.toHaveBeenCalled();
+			expect(document.body.innerHTML).toContain('Second');
+			consoleSpy.mockRestore();
+		});
 	});
 
 	describe('Navigation Abort', () => {
@@ -953,6 +1214,44 @@ describe('EcoRouter', () => {
 			} finally {
 				document.removeEventListener('eco:after-swap', afterSwapSpy);
 			}
+		});
+
+		it('should abort in-flight browser-router navigation when the coordinator cleans it up for handoff', async () => {
+			router = createRouter({ viewTransitions: false });
+			const slowPage = createDeferred();
+
+			fetchSpy?.mockImplementation((url: string | URL | Request, init?: RequestInit) => {
+				if (url.toString().includes('/slow-page')) {
+					return new Promise<Response>((resolve, reject) => {
+						init?.signal?.addEventListener(
+							'abort',
+							() => reject(new DOMException('Aborted', 'AbortError')),
+							{
+								once: true,
+							},
+						);
+						slowPage.promise.then(() => {
+							resolve({
+								ok: true,
+								text: async () => '<html><body><div id="content">Slow Content</div></body></html>',
+							} as Response);
+						});
+					});
+				}
+
+				return Promise.resolve({
+					ok: true,
+					text: async () => '<html><body><div id="content">Fast Content</div></body></html>',
+				} as Response);
+			});
+
+			const slowNavigation = router.navigate('/slow-page');
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			await getEcoNavigationRuntime(window).cleanupOwner('browser-router');
+			slowPage.resolve();
+			await slowNavigation;
+
+			expect(document.body.innerHTML).not.toContain('Slow Content');
 		});
 	});
 });

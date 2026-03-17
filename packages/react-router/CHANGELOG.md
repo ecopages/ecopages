@@ -8,6 +8,8 @@ All notable changes to `@ecopages/react-router` are documented here.
 
 ### Bug Fixes
 
+- Unregistered the active React router runtime during browser-router handoff cleanup so stale React click handlers cannot keep intercepting navigation after leaving a React page.
+- Standardized fetched React route props on the canonical `__ECO_PAGE_DATA__` script so router navigations no longer depend on a secondary fallback payload in mixed-shell documents.
 - Stopped treating React island hydration assets as full page-route markers, so navigation from React routes back to non-React pages now falls back cleanly without noisy client-side errors.
 - Cleaned up the active React page root before handing navigation back to browser-router so repeated React/non-React hops do not reuse a stale hydrated tree.
 - Ignored stale browser-router fallback delegations once a newer React navigation has already won, preventing cross-router handoff races during rapid repeated clicks.

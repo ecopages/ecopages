@@ -111,6 +111,19 @@ describe('extractProps', () => {
 		expect(props).toEqual({ params: { slug: 'test-post' }, query: {} });
 	});
 
+	it('should ignore legacy fallback props scripts for fetched documents', () => {
+		const html = `
+			<html>
+				<body>
+					<script id="__ECO_PAGE_DATA_FALLBACK__" type="application/json">{"params":{"slug":"legacy"}}</script>
+				</body>
+			</html>
+		`;
+		const doc = createMockDocument(html);
+		const props = extractProps(doc);
+		expect(props).toEqual({});
+	});
+
 	it('should handle complex nested props from JSON script', () => {
 		const html = `
 			<html>

@@ -10,8 +10,9 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { EcoComponentConfig, EcoPageFile } from '@ecopages/core';
+import type { BuildExecutor } from '@ecopages/core/build/build-adapter';
 import { rapidhash } from '@ecopages/core/hash';
-import { defaultBuildAdapter } from '@ecopages/core/build/build-adapter';
+import { build } from '@ecopages/core/build/build-adapter';
 import { fileSystem } from '@ecopages/file-system';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { collectDeclaredModulesInConfig } from '../utils/declared-modules.ts';
@@ -22,6 +23,7 @@ import { collectDeclaredModulesInConfig } from '../utils/declared-modules.ts';
 export interface ReactPageModuleServiceConfig {
 	rootDir: string;
 	distDir: string;
+	buildExecutor: BuildExecutor;
 	layoutsDir?: string;
 	componentsDir?: string;
 	mdxCompilerOptions?: CompileOptions;
@@ -68,19 +70,22 @@ export class ReactPageModuleService {
 		const cacheBuster = process?.env?.NODE_ENV === 'development' ? `-${Date.now()}` : '';
 		const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
 
-		const buildResult = await defaultBuildAdapter.build({
-			entrypoints: [filePath],
-			root: this.config.rootDir,
-			outdir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			treeshaking: false,
-			naming: outputFileName,
-			plugins: [mdxPlugin],
-		});
+		const buildResult = await build(
+			{
+				entrypoints: [filePath],
+				root: this.config.rootDir,
+				outdir,
+				target: 'node',
+				format: 'esm',
+				sourcemap: 'none',
+				splitting: false,
+				minify: false,
+				treeshaking: false,
+				naming: outputFileName,
+				plugins: [mdxPlugin],
+			},
+			this.config.buildExecutor,
+		);
 
 		if (!buildResult.success) {
 			const details = buildResult.logs.map((log) => log.message).join(' | ');

@@ -1,5 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { ApiResponseBuilder } from './adapters/shared/api-response.js';
+import type { BuildExecutor } from './build/build-adapter.ts';
 import type { EcoBuildPlugin } from './build/build-types.ts';
 import type { EcoPageComponent } from './eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
@@ -9,6 +10,8 @@ import type { CacheStats, CacheStrategy } from './services/cache/cache.types.ts'
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
 
 export type { EcoPageComponent } from './eco/eco.types.ts';
+export type { MarkerGraphContext } from './route-renderer/marker-graph-resolver.ts';
+export type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
 
 import type {
 	StandardSchema,
@@ -137,6 +140,11 @@ export interface DefaultHmrContext {
 	 * Used by plugins to identify page files for transformation.
 	 */
 	getPagesDir(): string;
+
+	/**
+	 * Build executor owned by the active app/runtime.
+	 */
+	getBuildExecutor(): BuildExecutor;
 }
 
 /**
@@ -180,9 +188,23 @@ export interface IClientBridge {
  */
 export interface IHmrManager {
 	/**
-	 * Registers a client entrypoint to be built and watched.
+	 * Registers an integration-owned client entrypoint to be built and watched.
+	 *
+	 * @remarks
+	 * This path is strict: the owning integration must emit the expected `_hmr`
+	 * bundle. Missing output is treated as a development pipeline failure.
 	 */
 	registerEntrypoint(entrypointPath: string): Promise<string>;
+
+	/**
+	 * Registers a generic script asset entrypoint to be built and watched.
+	 *
+	 * @remarks
+	 * This path exists for non-page script assets that are not owned by a
+	 * framework integration. Unlike `registerEntrypoint()`, it may use the generic
+	 * script bundling path.
+	 */
+	registerScriptEntrypoint(entrypointPath: string): Promise<string>;
 
 	/**
 	 * Registers mappings from bare specifiers to vendor URLs.

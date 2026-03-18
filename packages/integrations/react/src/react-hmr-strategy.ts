@@ -11,13 +11,13 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
-import { defaultBuildAdapter } from '@ecopages/core/build/build-adapter';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { FileNotFoundError, fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext, EcoComponentConfig } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { injectHmrHandler } from './utils/hmr-scripts.ts';
+import { createRuntimeSpecifierAliasPlugin } from './utils/runtime-specifier-alias-plugin.ts';
 import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
 import { collectPageDeclaredModules, collectPageDeclaredModulesFromModule } from './utils/declared-modules.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
@@ -33,7 +33,7 @@ const appLogger = new Logger('[ReactHmrStrategy]');
  * The processing steps are:
  * 1. Check if any React entrypoints are registered
  * 2. Rebuild all React entrypoints (the changed file could be a dependency)
- * 3. Replace bare specifiers with runtime URLs
+ * 3. Preserve integration runtime aliases during browser bundling
  * 4. Inject HMR acceptance handler
  * 5. Broadcast update events for each rebuilt entrypoint
  *
@@ -76,7 +76,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		const fileHash = fileSystem.hash(entrypointPath);
 		const outputFileName = `${fileBaseName}-${fileHash}.js`;
 
-		const buildResult = await defaultBuildAdapter.build({
+		const buildResult = await this.context.getBuildExecutor().build({
 			entrypoints: [entrypointPath],
 			root: rootDir,
 			outdir,
@@ -194,12 +194,15 @@ export class ReactHmrStrategy extends HmrStrategy {
 			...Array.from(this.context.getSpecifierMap().keys()),
 		];
 
+		const runtimeAliasPlugin = createRuntimeSpecifierAliasPlugin(this.context.getSpecifierMap());
+
 		return [
 			createClientGraphBoundaryPlugin({
 				absWorkingDir: path.dirname(this.context.getSrcDir()),
 				alwaysAllowSpecifiers: allowSpecifiers,
 				declaredModules,
 			}),
+			...(runtimeAliasPlugin ? [runtimeAliasPlugin] : []),
 			...this.context.getPlugins(),
 			this.createUseSyncExternalStoreShimPlugin(),
 		];
@@ -346,7 +349,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 				plugins.unshift(mdxPlugin);
 			}
 
-			const result = await defaultBuildAdapter.build({
+			const result = await this.context.getBuildExecutor().build({
 				entrypoints: [entrypointPath],
 				outdir: tempDir,
 				naming: `[name].[hash].tmp`,
@@ -355,7 +358,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 				sourcemap: 'none',
 				plugins,
 				minify: false,
-				external: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
 			});
 
 			if (!result.success) {
@@ -386,7 +388,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Processes bundled output by replacing specifiers and injecting HMR handler.
+	 * Processes bundled output and injects the React HMR handler.
 	 * Writes to temp file first, then renames atomically to avoid conflicts.
 	 *
 	 * @param tempPath - Path to the temporary bundled file
@@ -403,7 +405,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 		try {
 			let code = await fileSystem.readFile(tempPath);
 
-			code = this.replaceBareSpecifiers(code);
 			code = injectHmrHandler(code);
 
 			await fileSystem.writeAsync(finalPath, code);
@@ -426,30 +427,5 @@ export class ReactHmrStrategy extends HmrStrategy {
 			await fileSystem.removeAsync(tempPath).catch(() => {});
 			return false;
 		}
-	}
-
-	/**
-	 * Replaces bare specifiers with runtime URLs.
-	 *
-	 * Handles both static imports and dynamic imports.
-	 *
-	 * @param code - The bundled code to transform
-	 * @returns The transformed code with runtime URLs
-	 */
-	private replaceBareSpecifiers(code: string): string {
-		const specifierMap = this.context.getSpecifierMap();
-
-		if (specifierMap.size === 0) {
-			return code;
-		}
-
-		let result = code;
-		for (const [bareSpec, runtimeUrl] of specifierMap.entries()) {
-			const escaped = bareSpec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			result = result.replace(new RegExp(`from\\s*["']${escaped}["']`, 'g'), `from "${runtimeUrl}"`);
-			result = result.replace(new RegExp(`import\\(["']${escaped}["']\\)`, 'g'), `import("${runtimeUrl}")`);
-		}
-
-		return result;
 	}
 }

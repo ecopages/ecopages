@@ -3,7 +3,7 @@
  * Injected into the browser to handle Hot Module Replacement updates.
  */
 
-import { getEcoNavigationRuntime } from '../../router/navigation-coordinator.ts';
+import { getEcoNavigationRuntime } from '../../router/client/navigation-coordinator.ts';
 
 interface HMRPayload {
 	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update';
@@ -47,9 +47,11 @@ interface HMRPayload {
 
 		switch (payload.type) {
 			case 'reload':
+				await waitForNavigationToSettle(navigationRuntime);
 				location.reload();
 				break;
 			case 'layout-update': {
+				await waitForNavigationToSettle(navigationRuntime);
 				if (await navigationRuntime.reloadCurrentPage({ clearCache: true })) {
 				} else {
 					location.reload();
@@ -80,8 +82,9 @@ interface HMRPayload {
 	async function applyUpdate(path: string, timestamp?: number) {
 		try {
 			const url = path + '?t=' + (timestamp || Date.now());
-			const handlers = window.__ecopages_hmr_handlers__;
+			const handlers = window.__ECO_PAGES__?.hmrHandlers;
 			const navigationRuntime = getEcoNavigationRuntime(window);
+			await waitForNavigationToSettle(navigationRuntime);
 
 			if (handlers?.[path]) {
 				await handlers[path](url);
@@ -97,6 +100,33 @@ interface HMRPayload {
 		} catch (e) {
 			console.error('[ecopages] Failed to apply HMR update:', e);
 		}
+	}
+
+	async function waitForNavigationToSettle(navigationRuntime: ReturnType<typeof getEcoNavigationRuntime>) {
+		if (!navigationRuntime.hasPendingNavigationTransaction()) {
+			return;
+		}
+
+		await new Promise<void>((resolve) => {
+			const startedAt = performance.now();
+			const timeoutMs = 2000;
+
+			const poll = () => {
+				if (!navigationRuntime.hasPendingNavigationTransaction()) {
+					resolve();
+					return;
+				}
+
+				if (performance.now() - startedAt >= timeoutMs) {
+					resolve();
+					return;
+				}
+
+				requestAnimationFrame(poll);
+			};
+
+			requestAnimationFrame(poll);
+		});
 	}
 
 	/**

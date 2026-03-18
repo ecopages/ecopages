@@ -47,7 +47,7 @@ describe('FileScriptProcessor', () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
-				registerEntrypoint: async () => '/hmr/script.js',
+				registerScriptEntrypoint: async () => '/hmr/script.js',
 			} as unknown as IHmrManager;
 
 			expect(() => processor.setHmrManager(HmrManager)).not.toThrow();
@@ -59,7 +59,7 @@ describe('FileScriptProcessor', () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
-				registerEntrypoint: vi.fn(async () => '/hmr/script.js'),
+				registerScriptEntrypoint: vi.fn(async () => '/hmr/script.js'),
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
 
@@ -73,7 +73,7 @@ describe('FileScriptProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(HmrManager.registerEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
+			expect(HmrManager.registerScriptEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
 			expect(result.srcUrl).toBe('/hmr/script.js');
 			expect(result.inline).toBe(false);
 			expect(result.excludeFromHtml).toBe(true);
@@ -83,7 +83,7 @@ describe('FileScriptProcessor', () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
-				registerEntrypoint: vi.fn(async () => '/hmr/script.js'),
+				registerScriptEntrypoint: vi.fn(async () => '/hmr/script.js'),
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
 
@@ -97,7 +97,7 @@ describe('FileScriptProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(HmrManager.registerEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
+			expect(HmrManager.registerScriptEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
 			expect(result.srcUrl).toBe('/hmr/script.js');
 			expect(result.inline).toBe(false);
 			expect(result.excludeFromHtml).toBe(false);
@@ -107,7 +107,7 @@ describe('FileScriptProcessor', () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
-				registerEntrypoint: vi.fn(async () => '/hmr/script.js'),
+				registerScriptEntrypoint: vi.fn(async () => '/hmr/script.js'),
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
 
@@ -121,7 +121,7 @@ describe('FileScriptProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(HmrManager.registerEntrypoint).not.toHaveBeenCalled();
+			expect(HmrManager.registerScriptEntrypoint).not.toHaveBeenCalled();
 			expect(result.inline).toBe(true);
 			expect(result.content).toBeDefined();
 		});

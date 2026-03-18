@@ -17,7 +17,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		 * If HMR Manager is active, delegate build/watch to it.
 		 */
 		if (this.hmrManager?.isEnabled() && !dep.inline) {
-			const outputUrl = await this.hmrManager.registerEntrypoint(dep.filepath);
+			const outputUrl = await this.hmrManager.registerScriptEntrypoint(dep.filepath);
 			return {
 				filepath: dep.filepath,
 				srcUrl: outputUrl,

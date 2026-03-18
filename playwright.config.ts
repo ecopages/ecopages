@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const coreE2ePort = 43102;
+const corePostcssE2ePort = 43108;
+const reuseExistingServer = process.env.ECOPAGES_REUSE_TEST_SERVERS === 'true';
+
 export default defineConfig({
 	testDir: '.',
 	testMatch: '**/*.test.e2e.ts',
@@ -14,11 +18,11 @@ export default defineConfig({
 		{
 			name: 'core-e2e',
 			testMatch: 'packages/core/**/*.test.e2e.ts',
-			testIgnore: ['packages/core/**/*.postcss.test.e2e.ts'],
+			testIgnore: ['packages/core/**/*.postcss.test.e2e.ts', 'packages/core/dist/**/*.test.e2e.ts'],
 			workers: 1,
 			use: {
 				...devices['Desktop Chrome'],
-				baseURL: 'http://localhost:3002',
+				baseURL: `http://localhost:${coreE2ePort}`,
 			},
 		},
 		{
@@ -27,7 +31,7 @@ export default defineConfig({
 			workers: 1,
 			use: {
 				...devices['Desktop Chrome'],
-				baseURL: 'http://localhost:3008',
+				baseURL: `http://localhost:${corePostcssE2ePort}`,
 			},
 		},
 		{
@@ -91,18 +95,18 @@ export default defineConfig({
 	],
 	webServer: [
 		{
-			command: 'NODE_ENV=development ECOPAGES_PORT=3002 bun run app.ts --dev',
+			command: `NODE_ENV=development ECOPAGES_PORT=${coreE2ePort} bun run app.ts --dev`,
 			cwd: 'packages/core/__fixtures__/app',
-			port: 3002,
-			reuseExistingServer: !process.env.CI,
+			port: coreE2ePort,
+			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},
 		{
-			command: 'NODE_ENV=development ECOPAGES_USE_POSTCSS_PROCESSOR=true ECOPAGES_PORT=3008 bun run app.ts --dev',
+			command: `NODE_ENV=development ECOPAGES_USE_POSTCSS_PROCESSOR=true ECOPAGES_PORT=${corePostcssE2ePort} bun run app.ts --dev`,
 			cwd: 'packages/core/__fixtures__/app',
-			port: 3008,
-			reuseExistingServer: !process.env.CI,
+			port: corePostcssE2ePort,
+			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},
@@ -110,7 +114,7 @@ export default defineConfig({
 			command: 'NODE_ENV=production ECOPAGES_PORT=4005 bun run app.ts',
 			cwd: 'e2e/fixtures/cache-app',
 			port: 4005,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},
@@ -118,7 +122,7 @@ export default defineConfig({
 			command: 'NODE_ENV=production ECOPAGES_PORT=4002 bun run app.ts --preview',
 			cwd: 'e2e/fixtures/browser-router-app',
 			port: 4002,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},
@@ -126,7 +130,7 @@ export default defineConfig({
 			command: 'NODE_ENV=production ECOPAGES_PORT=4003 bun run app.ts --preview',
 			cwd: 'e2e/fixtures/react-router-app',
 			port: 4003,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},
@@ -134,7 +138,7 @@ export default defineConfig({
 			command: 'NODE_ENV=production ECOPAGES_PORT=4004 ECOPAGES_PERSIST_LAYOUTS=true bun run app.ts --preview',
 			cwd: 'e2e/fixtures/react-router-app',
 			port: 4004,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},
@@ -142,7 +146,7 @@ export default defineConfig({
 			command: 'NODE_ENV=development ECOPAGES_PORT=4006 ECOPAGES_PERSIST_LAYOUTS=true bun run app.ts --dev',
 			cwd: 'e2e/fixtures/react-router-app',
 			port: 4006,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},
@@ -150,7 +154,7 @@ export default defineConfig({
 			command: 'ECOPAGES_PORT=3001 pnpm --filter @ecopages/playground-react run dev',
 			cwd: '.',
 			port: 3001,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},
@@ -158,7 +162,7 @@ export default defineConfig({
 			command: 'NODE_ENV=development ECOPAGES_PORT=4007 pnpm dev',
 			cwd: 'playground/kitchen-sink',
 			port: 4007,
-			reuseExistingServer: !process.env.CI,
+			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},

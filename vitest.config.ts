@@ -1,5 +1,7 @@
 import { defineConfig, configDefaults } from 'vitest/config';
 
+const isBunRuntime = typeof process.versions.bun === 'string';
+
 export default defineConfig({
 	test: {
 		silent: 'passed-only',
@@ -22,13 +24,17 @@ export default defineConfig({
 					exclude: [...configDefaults.exclude, 'packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
 				},
 			},
-			{
-				test: {
-					name: 'bun-adapter',
-					environment: 'node',
-					include: ['packages/**/*.test.bun.ts'],
-				},
-			},
+			...(isBunRuntime
+				? [
+						{
+							test: {
+								name: 'bun-adapter',
+								environment: 'node',
+								include: ['packages/**/*.test.bun.ts'],
+							},
+						},
+					]
+				: []),
 		],
 	},
 });

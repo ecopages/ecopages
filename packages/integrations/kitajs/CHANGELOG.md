@@ -6,6 +6,10 @@ All notable changes to `@ecopages/kitajs` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Bug Fixes
+
+- Fixed explicit `ctx.render()` Kita views so deferred cross-integration layout components resolve through the marker pipeline instead of crashing during direct server rendering.
+
 ### Features
 
 - Aligned KitaJS renderer with full orchestration mode — removed legacy rendering path (`fc07bdb0`).

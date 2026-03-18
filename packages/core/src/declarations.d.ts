@@ -1,26 +1,27 @@
 import type { EcoPagesAppConfig } from './internal-types';
-import type { EcoNavigationRuntime } from './router/navigation-coordinator';
+import type { EcoNavigationRuntime } from './router/client/navigation-coordinator';
 
 type HMRHandler = (url: string) => Promise<void>;
 type CleanupPageRootFunction = () => void;
+type EcoPageRoot = { render: (node: unknown) => void; unmount: () => void };
+type EcoPageData = {
+	module: string;
+	props: Record<string, unknown>;
+};
+type EcoPagesWindowRuntime = {
+	hmrHandlers?: Record<string, HMRHandler>;
+	navigation?: EcoNavigationRuntime;
+	react?: {
+		cleanupPageRoot?: CleanupPageRootFunction;
+		pageRoot?: EcoPageRoot | null;
+	};
+	page?: EcoPageData;
+};
 
 declare global {
-	var ecoConfig: EcoPagesAppConfig;
-
 	interface Window {
-		/** Registered HMR handlers for specific module paths */
-		__ecopages_hmr_handlers__?: Record<string, HMRHandler>;
-		/** Shared navigation coordinator used by browser runtimes */
-		__ecopages_navigation__?: EcoNavigationRuntime;
-		/** Cleanup hook for the current React page root before handing off navigation */
-		__ecopages_cleanup_page_root__?: CleanupPageRootFunction;
-		/** Active React page root instance used by page-level hydration */
-		__ecopages_page_root__?: { render: (node: unknown) => void; unmount: () => void } | null;
-		/** Page data registry - contains module path and props for current page */
-		__ECO_PAGE__?: {
-			module: string;
-			props: Record<string, unknown>;
-		};
+		/** Shared Ecopages browser runtime state */
+		__ECO_PAGES__?: EcoPagesWindowRuntime;
 	}
 }
 

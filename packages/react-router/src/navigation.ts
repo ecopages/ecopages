@@ -90,13 +90,13 @@ export function getInterceptDecision(
 }
 
 /**
- * Extracts component module URL from window.__ECO_PAGE__.
+ * Extracts component module URL from window.__ECO_PAGES__.page.
  * For current document, returns the module path set by hydration script.
  * For fetched documents, parses the hydration script to extract the module path.
  */
 function extractComponentUrlFromMarker(doc: Document): string | null {
-	if (doc === document && window.__ECO_PAGE__?.module) {
-		return window.__ECO_PAGE__.module;
+	if (doc === document && window.__ECO_PAGES__?.page?.module) {
+		return window.__ECO_PAGES__.page.module;
 	}
 	return null;
 }
@@ -124,13 +124,13 @@ function extractModulePathFromCode(code: string): string | null {
 }
 
 /**
- * Extracts serialized page props from window.__ECO_PAGE__ or fetched document.
+ * Extracts serialized page props from window.__ECO_PAGES__.page or fetched document.
  * For current document, returns props set by hydration script.
  * For fetched documents, parses the JSON script tag directly.
  */
 export function extractProps(doc: Document): Record<string, any> {
-	if (doc === document && window.__ECO_PAGE__?.props) {
-		return window.__ECO_PAGE__.props;
+	if (doc === document && window.__ECO_PAGES__?.page?.props) {
+		return window.__ECO_PAGES__.page.props;
 	}
 
 	const propsScript = doc.getElementById(ROUTER_PROPS_SCRIPT_ID);
@@ -167,7 +167,7 @@ function addCacheBuster(url: string): string {
 /**
  * Extracts component module URL using multi-tier strategy.
  *
- * 1. Read from window.__ECO_PAGE__.module (for current document)
+ * 1. Read from window.__ECO_PAGES__.page.module (for current document)
  * 2. Parse inline hydration script with regex (for fetched documents)
  * 3. Fetch and parse external hydration script (final fallback)
  *
@@ -183,7 +183,7 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 		(s) =>
 			!s.src &&
 			!!s.textContent &&
-			s.textContent.includes('__ECO_PAGE__') &&
+			s.textContent.includes('__ECO_PAGES__') &&
 			s.textContent.includes('hydrateRoot') &&
 			s.textContent.includes('import'),
 	);
@@ -233,7 +233,12 @@ export async function fetchPageDocument(
 	options: LoadPageModuleOptions = {},
 ): Promise<FetchedPageDocument | null> {
 	try {
-		const res = await fetch(url, { signal: options.signal });
+		const res = await fetch(url, {
+			signal: options.signal,
+			headers: {
+				Accept: 'text/html',
+			},
+		});
 		const html = await res.text();
 
 		const finalUrl = new URL(res.url || url, window.location.origin);

@@ -16,6 +16,7 @@ All notable changes to `@ecopages/browser-router` are documented here.
 
 ### Bug Fixes
 
+- Deferred cross-runtime source cleanup until browser-router is ready to commit the incoming document, avoiding blank pages when a delegated handoff goes stale mid-flight.
 - Synced live `<html>` attributes during browser-router swaps so cross-router handoffs preserve document ownership markers for React page hydration.
 - Stopped re-executing already-present executable inline head scripts during swaps, preventing duplicate bootstrap failures on mixed React and Lit navigation tours.
 - Fixed `data-eco-rerun` scripts never re-executing after the first navigation — the router now unconditionally re-executes any script tagged with `data-eco-rerun` on every swap; `data-eco-script-id` prevents tag accumulation but no longer gates re-execution.

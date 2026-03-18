@@ -4,7 +4,7 @@ import { getEcoNavigationRuntime } from './navigation-coordinator.ts';
 function createWindowLike() {
 	return {} as Window &
 		typeof globalThis & {
-			__ecopages_navigation__?: ReturnType<typeof getEcoNavigationRuntime>;
+			__ECO_PAGES__?: { navigation?: ReturnType<typeof getEcoNavigationRuntime> };
 		};
 }
 
@@ -101,7 +101,7 @@ describe('getEcoNavigationRuntime', () => {
 		});
 	});
 
-	it('delegates a fetched document handoff to the targeted runtime after cleaning up the current owner', async () => {
+	it('delegates a fetched document handoff to the targeted runtime without forcing source cleanup first', async () => {
 		const windowLike = createWindowLike();
 		const runtime = getEcoNavigationRuntime(windowLike);
 		const cleanupSpy = vi.fn(async () => undefined);
@@ -126,7 +126,7 @@ describe('getEcoNavigationRuntime', () => {
 		});
 
 		expect(handled).toBe(true);
-		expect(cleanupSpy).toHaveBeenCalledTimes(1);
+		expect(cleanupSpy).not.toHaveBeenCalled();
 		expect(handoffSpy).toHaveBeenCalledWith({
 			href: '/docs',
 			finalHref: '/docs',
@@ -135,7 +135,37 @@ describe('getEcoNavigationRuntime', () => {
 			targetOwner: 'browser-router',
 			document: documentLike,
 		});
-		expect(cleanupSpy.mock.invocationCallOrder[0]).toBeLessThan(handoffSpy.mock.invocationCallOrder[0]);
+	});
+
+	it('ignores stale handoff requests before cleaning up the active owner', async () => {
+		const windowLike = createWindowLike();
+		const runtime = getEcoNavigationRuntime(windowLike);
+		const cleanupSpy = vi.fn(async () => undefined);
+		const handoffSpy = vi.fn(async () => true);
+		const documentLike = {
+			documentElement: {
+				getAttribute: vi.fn(() => null),
+			},
+		} as unknown as Document;
+
+		runtime.register({ owner: 'react-router', cleanupBeforeHandoff: cleanupSpy });
+		runtime.register({ owner: 'browser-router', handoffNavigation: handoffSpy });
+		runtime.claimOwnership('react-router');
+
+		const handled = await runtime.requestHandoff({
+			href: '/docs',
+			finalHref: '/docs',
+			direction: 'forward',
+			source: 'react-router',
+			targetOwner: 'browser-router',
+			document: documentLike,
+			isStaleSourceNavigation: () => true,
+		});
+
+		expect(handled).toBe(true);
+		expect(cleanupSpy).not.toHaveBeenCalled();
+		expect(handoffSpy).not.toHaveBeenCalled();
+		expect(runtime.getOwnerState().owner).toBe('react-router');
 	});
 
 	it('reloads the current owner through its registration', async () => {

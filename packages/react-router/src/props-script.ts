@@ -7,7 +7,7 @@ export interface EcoPropsScriptProps {
 
 /**
  * Serializes page props as JSON for SPA navigation.
- * The hydration script reads this and sets window.__ECO_PAGE__.
+ * The hydration script reads this and sets window.__ECO_PAGES__.page.
  * Using application/json allows direct parsing without regex.
  */
 export const EcoPropsScript: FC<EcoPropsScriptProps> = ({ data }) => {

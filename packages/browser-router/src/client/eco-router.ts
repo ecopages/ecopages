@@ -9,7 +9,7 @@ import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
-} from '../../../core/src/router/client/link-intent.ts';
+} from '@ecopages/core/router/link-intent';
 import { DEFAULT_OPTIONS } from './types.ts';
 import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services/index.ts';
 
@@ -141,6 +141,15 @@ export class EcoRouter {
 		window.location.assign(url.href);
 	}
 
+	/**
+	 * Commits a fully fetched document into the live page.
+	 *
+	 * When browser-router accepts a handoff from another runtime, it delays source
+	 * runtime cleanup until the incoming document has been prepared and is ready to
+	 * commit. That ordering avoids the blank-page window we previously hit when a
+	 * delegated navigation went stale after the source runtime had already torn
+	 * itself down.
+	 */
 	private async commitDocumentNavigation(
 		url: URL,
 		direction: EcoNavigationEvent['direction'],
@@ -156,6 +165,10 @@ export class EcoRouter {
 		const currentDocumentOwner = navigationRuntime.resolveDocumentOwner(document, 'browser-router');
 		const newDocumentOwner = navigationRuntime.resolveDocumentOwner(newDocument, 'browser-router');
 		const activeOwner = navigationRuntime.getOwnerState().owner;
+		const shouldCleanupCurrentOwner =
+			currentDocumentOwner !== newDocumentOwner &&
+			currentDocumentOwner !== 'browser-router' &&
+			activeOwner === currentDocumentOwner;
 		let shouldReload = false;
 		const beforeSwapEvent: EcoBeforeSwapEvent = {
 			url,
@@ -170,11 +183,7 @@ export class EcoRouter {
 		if (isStaleNavigation()) return;
 
 		if (shouldReload) {
-			if (
-				currentDocumentOwner !== newDocumentOwner &&
-				currentDocumentOwner !== 'browser-router' &&
-				activeOwner === currentDocumentOwner
-			) {
+			if (shouldCleanupCurrentOwner) {
 				await navigationRuntime.cleanupOwner(currentDocumentOwner);
 			}
 			if (isStaleNavigation()) return;
@@ -182,18 +191,15 @@ export class EcoRouter {
 			return;
 		}
 
-		if (
-			currentDocumentOwner !== newDocumentOwner &&
-			currentDocumentOwner !== 'browser-router' &&
-			activeOwner === currentDocumentOwner
-		) {
+		const useViewTransitions = this.options.viewTransitions;
+		await this.domSwapper.preloadStylesheets(newDocument);
+		if (isStaleNavigation()) return;
+
+		// Defer source-runtime cleanup until the incoming document is ready to win.
+		if (shouldCleanupCurrentOwner) {
 			await navigationRuntime.cleanupOwner(currentDocumentOwner);
 		}
 
-		if (isStaleNavigation()) return;
-
-		const useViewTransitions = this.options.viewTransitions;
-		await this.domSwapper.preloadStylesheets(newDocument);
 		if (isStaleNavigation()) return;
 
 		const commitSwap = () => {

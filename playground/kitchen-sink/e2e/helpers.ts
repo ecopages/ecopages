@@ -30,6 +30,8 @@ export function trackRuntimeErrors(page: Page) {
 		assertClean() {
 			const combinedErrors = `${pageErrors.join('\n')}\n${consoleErrors.join('\n')}`;
 			expect(combinedErrors).not.toMatch(/is not defined/i);
+			expect(combinedErrors).not.toMatch(/Invalid hook call/i);
+			expect(combinedErrors).not.toMatch(/Cannot read properties of null \(reading 'useState'\)/i);
 			expect(combinedErrors).not.toMatch(/Cannot read properties of undefined/i);
 			expect(combinedErrors).not.toMatch(/Cannot set properties of null/i);
 			expect(combinedErrors).not.toMatch(/Missing props reference/i);
@@ -144,7 +146,7 @@ export async function expectNavigationOwner(page: Page, owner: string) {
 	await expect
 		.poll(async () =>
 			page.evaluate(() => {
-				return window.__ecopages_navigation__?.getOwnerState?.().owner ?? 'none';
+				return window.__ECO_PAGES__?.navigation?.getOwnerState?.().owner ?? 'none';
 			}),
 		)
 		.toBe(owner);
@@ -154,10 +156,33 @@ export async function expectNavigationOwner(page: Page, owner: string) {
  * Fetches the current page module source referenced by the client runtime.
  */
 export async function fetchCurrentPageModule(page: Page) {
-	const pageModuleUrl = await page.evaluate(() => window.__ECO_PAGE__?.module ?? null);
+	let pageModuleUrl: string | null = null;
+
+	for (let attempt = 0; attempt < 20 && !pageModuleUrl; attempt += 1) {
+		pageModuleUrl = await page.evaluate(() => {
+			const runtimeModuleUrl = window.__ECO_PAGES__?.page?.module;
+			if (typeof runtimeModuleUrl === 'string' && runtimeModuleUrl.length > 0) {
+				return runtimeModuleUrl;
+			}
+
+			for (const script of Array.from(document.scripts)) {
+				const inlineCode = script.textContent ?? '';
+				const match = inlineCode.match(/window\.__ECO_PAGES__\.page\s*=\s*\{\s*module:\s*["']([^"']+)["']/);
+				if (match?.[1]) {
+					return match[1];
+				}
+			}
+
+			return null;
+		});
+
+		if (!pageModuleUrl) {
+			await page.waitForTimeout(50);
+		}
+	}
 
 	if (!pageModuleUrl) {
-		throw new Error('Expected React page module URL to be available on window.__ECO_PAGE__.module');
+		throw new Error('Expected React page module URL to be available on window.__ECO_PAGES__.page.module');
 	}
 
 	const source = await page.evaluate(async (moduleUrl) => {

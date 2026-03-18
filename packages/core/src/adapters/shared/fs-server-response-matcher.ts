@@ -1,6 +1,7 @@
 import path from 'node:path';
+import { getAppBuildExecutor } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import type { MatchResult } from '../../internal-types.ts';
+import type { EcoPagesAppConfig, MatchResult } from '../../internal-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../../router/fs-router.ts';
 import type { PageCacheService } from '../../services/cache/page-cache-service.ts';
@@ -21,6 +22,7 @@ export const FILE_SYSTEM_RESPONSE_MATCHER_ERRORS = {
 } as const;
 
 export interface FileSystemResponseMatcherOptions {
+	appConfig: EcoPagesAppConfig;
 	router: FSRouter;
 	routeRendererFactory: RouteRendererFactory;
 	fileSystemResponseFactory: FileSystemServerResponseFactory;
@@ -39,6 +41,7 @@ export interface FileSystemResponseMatcherOptions {
  * error translation.
  */
 export class FileSystemResponseMatcher {
+	private appConfig: EcoPagesAppConfig;
 	private router: FSRouter;
 	private routeRendererFactory: RouteRendererFactory;
 	private fileSystemResponseFactory: FileSystemServerResponseFactory;
@@ -47,12 +50,14 @@ export class FileSystemResponseMatcher {
 	private fileRouteMiddlewarePipeline: FileRouteMiddlewarePipeline;
 
 	constructor({
+		appConfig,
 		router,
 		routeRendererFactory,
 		fileSystemResponseFactory,
 		cacheService = null,
 		defaultCacheStrategy = 'static',
 	}: FileSystemResponseMatcherOptions) {
+		this.appConfig = appConfig;
 		this.router = router;
 		this.routeRendererFactory = routeRendererFactory;
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
@@ -174,7 +179,9 @@ export class FileSystemResponseMatcher {
 	 *
 	 * The matcher needs access to page-level metadata such as `cache` and
 	 * `middleware` before full rendering starts, so it uses the shared module
-	 * import service directly rather than going through route rendering.
+	 * import service directly rather than going through route rendering. The
+	 * app config is injected explicitly so build ownership stays at the adapter
+	 * boundary instead of leaking through nested router collaborators.
 	 *
 	 * @param filePath Absolute page module path.
 	 * @returns Imported page module.
@@ -184,6 +191,7 @@ export class FileSystemResponseMatcher {
 			filePath,
 			rootDir: path.dirname(this.router.assetPrefix),
 			outdir: path.join(this.router.assetPrefix, '.server-modules-meta'),
+			buildExecutor: getAppBuildExecutor(this.appConfig),
 			transpileErrorMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.transpilePageModuleFailed,
 			noOutputMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.noTranspiledOutputForPageModule,
 		});

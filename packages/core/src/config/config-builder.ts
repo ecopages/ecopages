@@ -5,6 +5,7 @@
 
 import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
+import { defaultBuildAdapter, setAppBuildExecutor } from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../internal-types.ts';
@@ -456,6 +457,7 @@ export class ConfigBuilder {
 
 		await this.initializeDefaultLoaders();
 		this.initializeProcessors();
+		setAppBuildExecutor(this.config, defaultBuildAdapter);
 
 		return this.config;
 	}

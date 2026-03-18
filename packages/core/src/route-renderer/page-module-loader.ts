@@ -1,3 +1,4 @@
+import { getAppBuildExecutor } from '../build/build-adapter.ts';
 import { invariant } from '../utils/invariant.ts';
 import type {
 	EcoPageFile,
@@ -34,6 +35,7 @@ export class PageModuleLoaderService {
 				filePath: file,
 				rootDir: this.appConfig.rootDir,
 				outdir: `${this.appConfig.absolutePaths.distDir}/.server-modules`,
+				buildExecutor: getAppBuildExecutor(this.appConfig),
 				transpileErrorMessage: (details) => `Error transpiling page file: ${details}`,
 				noOutputMessage: (targetFilePath) => `No transpiled output generated for page: ${targetFilePath}`,
 			});

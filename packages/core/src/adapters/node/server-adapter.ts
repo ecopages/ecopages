@@ -2,8 +2,9 @@ import { createServer, type IncomingMessage, type Server as NodeHttpServer, type
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import { defaultBuildAdapter } from '../../build/build-adapter.ts';
+import { defaultBuildAdapter, setAppBuildExecutor } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import { createAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
@@ -106,6 +107,14 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *    processors during their `setup()` calls.
 	 */
 	public async initialize(): Promise<void> {
+		setAppBuildExecutor(
+			this.appConfig,
+			createAppBuildExecutor({
+				development: this.options?.watch === true,
+				adapter: defaultBuildAdapter,
+			}),
+		);
+
 		this.setupLoaders();
 		this.copyPublicDir();
 		await this.initializePlugins();
@@ -511,7 +520,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			});
 
 			const loaderPlugins = Array.from(this.appConfig.loaders.values());
-			const hmrBuildPlugins = [...loaderPlugins, ...this.processorBuildPlugins];
+			const integrationBuildPlugins = this.appConfig.integrations.flatMap((integration) => integration.plugins);
+			const hmrBuildPlugins = [...loaderPlugins, ...this.processorBuildPlugins, ...integrationBuildPlugins];
 			this.hmrManager.setPlugins(hmrBuildPlugins);
 
 			for (const integration of this.appConfig.integrations) {

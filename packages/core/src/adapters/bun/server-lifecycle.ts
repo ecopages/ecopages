@@ -125,7 +125,8 @@ export class ServerLifecycle {
 			await Promise.all([...processorPromises, ...integrationPromises]);
 
 			const loaderPlugins = Array.from(this.appConfig.loaders.values());
-			const allBuildPlugins = [...loaderPlugins, ...processorBuildPlugins];
+			const integrationBuildPlugins = this.appConfig.integrations.flatMap((integration) => integration.plugins);
+			const allBuildPlugins = [...loaderPlugins, ...processorBuildPlugins, ...integrationBuildPlugins];
 			this.hmrManager.setPlugins(allBuildPlugins);
 			return allBuildPlugins;
 		} catch (error) {

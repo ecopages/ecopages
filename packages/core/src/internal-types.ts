@@ -1,4 +1,5 @@
 import type { EcoBuildPlugin } from './build/build-types.ts';
+import type { BuildExecutor } from './build/build-adapter.ts';
 import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
 import type { Processor } from './plugins/processor.ts';
 import type { PageMetadataProps } from './public-types.ts';
@@ -113,6 +114,16 @@ export type EcoPagesAppConfig = {
 	 * @default { store: 'memory', defaultStrategy: 'static', enabled: true }
 	 */
 	cache?: CacheConfig;
+	/**
+	 * Runtime-owned services attached after config construction.
+	 *
+	 * These values are internal implementation details used to thread per-app
+	 * executors and similar runtime state through the system without relying on
+	 * process-global registries.
+	 */
+	runtime?: {
+		buildExecutor?: BuildExecutor;
+	};
 	/**
 	 * Experimental features.
 	 */

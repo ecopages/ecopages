@@ -339,4 +339,63 @@ describe('createClientGraphBoundaryPlugin', () => {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
+
+	it('strips staticProps imports from .server helpers before shipping a page entry to the browser', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const filePath = join(tempDir, 'entry.tsx');
+
+		writeFileSync(
+			filePath,
+			[
+				"import { buildPagesTreeSnapshot } from './tree.server';",
+				'export default eco.page({',
+				'\tstaticProps: async () => ({ props: await buildPagesTreeSnapshot() }),',
+				'\trender: ({ tree }) => <pre>{tree}</pre>,',
+				'});',
+			].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const harness = createPluginTestHarness();
+			const transformed = await harness.transformFile(filePath);
+
+			expect(transformed).toBeDefined();
+			expect(transformed).not.toContain("import { buildPagesTreeSnapshot } from './tree.server';");
+			expect(transformed).not.toContain('buildPagesTreeSnapshot');
+			expect(transformed).not.toContain('staticProps:');
+			expect(transformed).toContain('render: ({ tree }) => <pre>{tree}</pre>');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('strips metadata that references direct filesystem imports, leaving import cleanup to downstream treeshaking', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const filePath = join(tempDir, 'entry.tsx');
+
+		writeFileSync(
+			filePath,
+			[
+				"import { fileSystem } from '@ecopages/file-system';",
+				'export default eco.page({',
+				"\tmetadata: async () => ({ title: String((await fileSystem.glob(['**/*.tsx'])).length) }),",
+				'\trender: () => <div>Metadata only</div>,',
+				'});',
+			].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const harness = createPluginTestHarness();
+			const transformed = await harness.transformFile(filePath);
+
+			expect(transformed).toBeDefined();
+			expect(transformed).toContain("import { fileSystem } from '@ecopages/file-system';");
+			expect(transformed).not.toContain('metadata:');
+			expect(transformed).toContain('render: () => <div>Metadata only</div>');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
 });

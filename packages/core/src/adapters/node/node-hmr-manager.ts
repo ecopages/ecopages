@@ -2,26 +2,46 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import { defaultBuildAdapter } from '../../build/build-adapter.ts';
+import { getAppBuildExecutor, getTranspileOptions } from '../../build/build-adapter.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager, IClientBridge } from '../../internal-types.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import type { HmrStrategy } from '../../hmr/hmr-strategy.ts';
+import { HmrStrategyType, type HmrStrategy } from '../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy.ts';
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { ClientBridgeEvent } from '../../public-types.ts';
+import { HmrEntrypointRegistrar } from '../shared/hmr-entrypoint-registrar.ts';
 
 export interface NodeHmrManagerParams {
 	appConfig: EcoPagesAppConfig;
 	bridge: IClientBridge;
 }
 
+type HandleFileChangeOptions = {
+	broadcast?: boolean;
+};
+
+/**
+ * Node development HMR manager.
+ *
+ * @remarks
+ * This manager owns three separate concerns:
+ * - runtime websocket event fanout
+ * - entrypoint registration and dedupe
+ * - strategy coordination for rebuilds and invalidation
+ *
+ * The strict page-entrypoint contract lives here: `registerEntrypoint()` is
+ * reserved for integration-owned page bundles, while generic script assets must
+ * go through `registerScriptEntrypoint()`.
+ */
 export class NodeHmrManager implements IHmrManager {
+	private static readonly entrypointRegistrationTimeoutMs = 4000;
 	public readonly appConfig: EcoPagesAppConfig;
 	private readonly bridge: IClientBridge;
 	private watchers = new Map<string, fs.FSWatcher>();
 	private watchedFiles = new Map<string, string>();
+	private entrypointRegistrations = new Map<string, Promise<string>>();
 	private specifierMap = new Map<string, string>();
 	/**
 	 * Node-only reverse invalidation index: dependency file -> affected entrypoints.
@@ -35,11 +55,20 @@ export class NodeHmrManager implements IHmrManager {
 	private plugins: EcoBuildPlugin[] = [];
 	private enabled = true;
 	private strategies: HmrStrategy[] = [];
+	private readonly entrypointRegistrar: HmrEntrypointRegistrar;
 
 	constructor({ appConfig, bridge }: NodeHmrManagerParams) {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
 		this.distDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, '_hmr');
+		this.entrypointRegistrar = new HmrEntrypointRegistrar({
+			srcDir: this.appConfig.absolutePaths.srcDir,
+			distDir: this.distDir,
+			entrypointRegistrations: this.entrypointRegistrations,
+			watchedFiles: this.watchedFiles,
+			clearFailedRegistration: (entrypointPath) => this.clearFailedEntrypointRegistration(entrypointPath),
+			registrationTimeoutMs: NodeHmrManager.entrypointRegistrationTimeoutMs,
+		});
 		this.cleanDistDir();
 		this.initializeStrategies();
 	}
@@ -54,6 +83,29 @@ export class NodeHmrManager implements IHmrManager {
 		fileSystem.ensureDir(this.distDir);
 	}
 
+	/**
+	 * Returns whether the generic JS strategy is allowed to rebuild an entrypoint.
+	 *
+	 * @remarks
+	 * Higher-priority integration strategies own framework page entrypoints. When
+	 * one of them matches, the generic JS strategy must stay out of the way so a
+	 * shared dependency invalidation does not overwrite framework-specific output.
+	 */
+	private shouldJsStrategyProcessEntrypoint(entrypointPath: string): boolean {
+		return !this.strategies.some((strategy) => {
+			if (strategy.type !== HmrStrategyType.INTEGRATION || strategy.priority <= HmrStrategyType.SCRIPT) {
+				return false;
+			}
+
+			try {
+				return strategy.matches(entrypointPath);
+			} catch (error) {
+				appLogger.error(error);
+				return false;
+			}
+		});
+	}
+
 	private initializeStrategies(): void {
 		const jsContext = {
 			getWatchedFiles: () => this.watchedFiles,
@@ -61,10 +113,12 @@ export class NodeHmrManager implements IHmrManager {
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
+			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
 			getDependencyEntrypoints: (filePath: string) =>
 				new Set(this.dependencyEntrypoints.get(path.resolve(filePath)) ?? []),
 			setEntrypointDependencies: (entrypointPath: string, dependencies: string[]) =>
 				this.setEntrypointDependencies(entrypointPath, dependencies),
+			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 		};
 
 		this.strategies = [new JsHmrStrategy(jsContext), new DefaultHmrStrategy()];
@@ -86,37 +140,30 @@ export class NodeHmrManager implements IHmrManager {
 		return this.enabled;
 	}
 
+	/**
+	 * Registers runtime bare-specifier mappings exposed by integrations.
+	 *
+	 * @remarks
+	 * These mappings are consumed by framework-owned HMR strategies such as the
+	 * React integration strategy when they rewrite browser bundles.
+	 */
 	public registerSpecifierMap(map: Record<string, string>): void {
 		for (const [specifier, url] of Object.entries(map)) {
 			this.specifierMap.set(specifier, url);
 		}
 	}
 
-	private rewriteBareSpecifiers(code: string): string {
-		if (this.specifierMap.size === 0) {
-			return code;
-		}
-
-		let result = code;
-		for (const [bareSpec, runtimeUrl] of this.specifierMap.entries()) {
-			const escaped = bareSpec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			result = result.replace(new RegExp(`from\\s*["']${escaped}["']`, 'g'), `from "${runtimeUrl}"`);
-			result = result.replace(new RegExp(`import\\(["']${escaped}["']\\)`, 'g'), `import("${runtimeUrl}")`);
-		}
-
-		return result;
-	}
-
 	public async buildRuntime(): Promise<void> {
 		const currentDir = path.dirname(fileURLToPath(import.meta.url));
 		const runtimeSource = path.resolve(currentDir, '../../hmr/client/hmr-runtime.ts');
+		const buildExecutor = getAppBuildExecutor(this.appConfig);
 
-		const result = await defaultBuildAdapter.build({
+		const result = await buildExecutor.build({
 			entrypoints: [runtimeSource],
 			outdir: this.distDir,
 			naming: '_hmr_runtime.js',
 			minify: false,
-			...defaultBuildAdapter.getTranspileOptions('hmr-runtime'),
+			...getTranspileOptions('hmr-runtime'),
 			plugins: this.plugins,
 		});
 
@@ -136,7 +183,7 @@ export class NodeHmrManager implements IHmrManager {
 		this.bridge.broadcast(event);
 	}
 
-	public async handleFileChange(filePath: string): Promise<void> {
+	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
 		const sorted = [...this.strategies].sort((a, b) => b.priority - a.priority);
 		const strategy = sorted.find((s) => {
 			try {
@@ -155,8 +202,9 @@ export class NodeHmrManager implements IHmrManager {
 		appLogger.debug(`[NodeHmrManager] Selected strategy: ${strategy.constructor.name}`);
 
 		const action = await strategy.process(filePath);
+		const shouldBroadcast = options.broadcast ?? true;
 
-		if (action.type === 'broadcast') {
+		if (shouldBroadcast && action.type === 'broadcast') {
 			if (action.events) {
 				for (const event of action.events) {
 					this.broadcast(event);
@@ -194,6 +242,7 @@ export class NodeHmrManager implements IHmrManager {
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
+			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
 		};
 	}
 
@@ -206,21 +255,8 @@ export class NodeHmrManager implements IHmrManager {
 	 */
 	private setEntrypointDependencies(entrypointPath: string, dependencies: string[]): void {
 		const normalizedEntrypoint = path.resolve(entrypointPath);
-		const previousDependencies = this.entrypointDependencies.get(normalizedEntrypoint);
 
-		if (previousDependencies) {
-			for (const dependencyPath of previousDependencies) {
-				const entrypoints = this.dependencyEntrypoints.get(dependencyPath);
-				if (!entrypoints) {
-					continue;
-				}
-
-				entrypoints.delete(normalizedEntrypoint);
-				if (entrypoints.size === 0) {
-					this.dependencyEntrypoints.delete(dependencyPath);
-				}
-			}
-		}
+		this.clearEntrypointDependencies(normalizedEntrypoint);
 
 		const normalizedDependencies = new Set<string>([
 			normalizedEntrypoint,
@@ -236,61 +272,135 @@ export class NodeHmrManager implements IHmrManager {
 		}
 	}
 
-	public async registerEntrypoint(entrypointPath: string): Promise<string> {
-		if (this.watchedFiles.has(entrypointPath)) {
-			return this.watchedFiles.get(entrypointPath)!;
+	private clearEntrypointDependencies(entrypointPath: string): void {
+		const previousDependencies = this.entrypointDependencies.get(entrypointPath);
+
+		if (!previousDependencies) {
+			return;
 		}
 
-		const srcDir = this.appConfig.absolutePaths.srcDir;
-		const relativePath = path.relative(srcDir, entrypointPath);
-		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-		const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
+		for (const dependencyPath of previousDependencies) {
+			const entrypoints = this.dependencyEntrypoints.get(dependencyPath);
+			if (!entrypoints) {
+				continue;
+			}
 
-		const urlPath = encodedPathJs.split(path.sep).join('/');
-		const outputUrl = `/${path.join(RESOLVED_ASSETS_DIR, '_hmr', urlPath)}`;
-		const outputPath = path.join(this.distDir, urlPath);
-
-		this.watchedFiles.set(entrypointPath, outputUrl);
-
-		await this.handleFileChange(entrypointPath);
-
-		if (fileSystem.exists(outputPath)) {
-			const code = this.rewriteBareSpecifiers(await fileSystem.readFile(outputPath));
-			await fileSystem.writeAsync(outputPath, code);
-		}
-
-		if (!fileSystem.exists(outputPath)) {
-			const fallback = await defaultBuildAdapter.build({
-				entrypoints: [entrypointPath],
-				outdir: this.distDir,
-				naming: encodedPathJs,
-				minify: false,
-				external: Array.from(this.specifierMap.keys()),
-				...defaultBuildAdapter.getTranspileOptions('hmr-entrypoint'),
-				plugins: this.plugins,
-			});
-
-			if (!fallback.success) {
-				appLogger.error(`[HMR] Fallback build failed for ${entrypointPath}:`, fallback.logs);
+			entrypoints.delete(entrypointPath);
+			if (entrypoints.size === 0) {
+				this.dependencyEntrypoints.delete(dependencyPath);
 			}
 		}
 
-		if (fileSystem.exists(outputPath)) {
-			const code = this.rewriteBareSpecifiers(await fileSystem.readFile(outputPath));
-			await fileSystem.writeAsync(outputPath, code);
+		this.entrypointDependencies.delete(entrypointPath);
+	}
+
+	private clearFailedEntrypointRegistration(entrypointPath: string): void {
+		this.watchedFiles.delete(entrypointPath);
+		this.clearEntrypointDependencies(entrypointPath);
+	}
+
+	/**
+	 * Registers one integration-owned page entrypoint.
+	 *
+	 * @remarks
+	 * Concurrent callers share one in-flight registration. The registration is
+	 * removed from the dedupe map once it resolves or fails so later requests do
+	 * not inherit stale state.
+	 */
+	public async registerEntrypoint(entrypointPath: string): Promise<string> {
+		return await this.entrypointRegistrar.registerEntrypoint(entrypointPath, {
+			emit: async (normalizedEntrypoint, outputPath) =>
+				await this.emitStrictEntrypoint(normalizedEntrypoint, outputPath),
+			getMissingOutputError: (normalizedEntrypoint, outputPath) =>
+				new Error(
+					`[HMR] Integration failed to emit entrypoint ${normalizedEntrypoint} to ${outputPath}. Page entrypoints must be produced by their owning integration.`,
+				),
+		});
+	}
+
+	/**
+	 * Registers one generic script entrypoint.
+	 *
+	 * @remarks
+	 * This path is intentionally separate from page entrypoints so non-framework
+	 * scripts can still use the generic build fallback without weakening the page
+	 * ownership contract.
+	 */
+	public async registerScriptEntrypoint(entrypointPath: string): Promise<string> {
+		return await this.entrypointRegistrar.registerEntrypoint(entrypointPath, {
+			emit: async (normalizedEntrypoint, outputPath) =>
+				await this.emitScriptEntrypoint(normalizedEntrypoint, outputPath),
+			getMissingOutputError: (normalizedEntrypoint) =>
+				new Error(`[HMR] Failed to register script entrypoint: ${normalizedEntrypoint}`),
+		});
+	}
+
+	/**
+	 * Performs strict integration-owned entrypoint registration for one normalized source path.
+	 *
+	 * @remarks
+	 * The flow is:
+	 * 1. Reserve the output URL in the watched map.
+	 * 2. Remove any stale emitted file from an earlier process or failed build.
+	 * 3. Let the strategy chain try to emit the entrypoint without broadcasting.
+	 * 4. Fail if the owning integration did not emit the expected output.
+	 */
+	private async emitStrictEntrypoint(entrypointPath: string, _outputPath: string): Promise<void> {
+		await this.handleFileChange(entrypointPath, { broadcast: false });
+	}
+
+	/**
+	 * Performs registration for a generic script asset.
+	 *
+	 * @remarks
+	 * The manager first gives registered strategies a chance to emit the file so
+	 * processor-owned or integration-owned behavior can still participate. Only
+	 * when no output exists does it issue the generic build.
+	 */
+	private async emitScriptEntrypoint(entrypointPath: string, outputPath: string): Promise<void> {
+		const naming = path.relative(this.distDir, outputPath).split(path.sep).join('/');
+		const buildExecutor = getAppBuildExecutor(this.appConfig);
+
+		await this.handleFileChange(entrypointPath, { broadcast: false });
+
+		if (!fileSystem.exists(outputPath)) {
+			const buildResult = await buildExecutor.build({
+				entrypoints: [entrypointPath],
+				outdir: this.distDir,
+				naming,
+				minify: false,
+				...getTranspileOptions('hmr-entrypoint'),
+				plugins: this.plugins,
+			});
+
+			if (!buildResult.success) {
+				appLogger.error(
+					`[HMR] Generic script entrypoint build failed for ${entrypointPath}:`,
+					buildResult.logs,
+				);
+			}
 		}
-
-		return outputUrl;
 	}
 
-	private encodeDynamicSegments(filepath: string): string {
-		return filepath.replace(/\[([^\]]+)\]/g, '_$1_');
-	}
-
+	/**
+	 * Stops active watchers and releases retained registration state.
+	 *
+	 * @remarks
+	 * The manager intentionally does not remove emitted `_hmr` files from disk
+	 * because multiple app processes may share the same dist directory during test
+	 * runs. It does clear in-memory indexes so old entrypoints, dependencies, and
+	 * specifier maps cannot leak across a reused manager instance.
+	 */
 	public stop() {
+		this.entrypointRegistrations.clear();
 		for (const watcher of this.watchers.values()) {
 			watcher.close();
 		}
 		this.watchers.clear();
+		this.watchedFiles.clear();
+		this.specifierMap.clear();
+		this.dependencyEntrypoints.clear();
+		this.entrypointDependencies.clear();
+		this.plugins = [];
 	}
 }

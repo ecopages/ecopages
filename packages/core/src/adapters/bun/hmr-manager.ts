@@ -2,16 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ServerWebSocket, WebSocketHandler } from 'bun';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
-import { defaultBuildAdapter } from '../../build/build-adapter.ts';
+import { getAppBuildExecutor, getTranspileOptions } from '../../build/build-adapter.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../internal-types';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import type { HmrStrategy } from '../../hmr/hmr-strategy';
+import { HmrStrategyType, type HmrStrategy } from '../../hmr/hmr-strategy';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy';
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy';
 import { appLogger } from '../../global/app-logger';
 import type { ClientBridge } from './client-bridge';
 import type { ClientBridgeEvent } from '../../public-types';
+import { HmrEntrypointRegistrar } from '../shared/hmr-entrypoint-registrar.ts';
 
 type BunSocket = ServerWebSocket<unknown>;
 type BunSocketHandler = WebSocketHandler<unknown>;
@@ -21,19 +22,34 @@ export interface HmrManagerParams {
 	bridge: ClientBridge;
 }
 
+type HandleFileChangeOptions = {
+	broadcast?: boolean;
+};
+
+/**
+ * Bun development HMR manager.
+ *
+ * @remarks
+ * Bun shares the same public contract as the Node manager: page entrypoints are
+ * strict integration-owned registrations, while generic script assets use their
+ * own explicit registration path.
+ */
 export class HmrManager implements IHmrManager {
+	private static readonly entrypointRegistrationTimeoutMs = 4000;
 	public readonly appConfig: EcoPagesAppConfig;
 	private readonly bridge: ClientBridge;
 	/** Keep track of watchers */
 	private watchers = new Map<string, fs.FSWatcher>();
 	/** entrypoint -> output path */
 	private watchedFiles = new Map<string, string>();
+	private entrypointRegistrations = new Map<string, Promise<string>>();
 	/** bare specifier -> runtime URL registered by integrations */
 	private specifierMap = new Map<string, string>();
 	private distDir: string;
 	private plugins: EcoBuildPlugin[] = [];
 	private enabled = true;
 	private strategies: HmrStrategy[] = [];
+	private readonly entrypointRegistrar: HmrEntrypointRegistrar;
 	private wsHandler!: {
 		open: (ws: BunSocket) => void;
 		close: (ws: BunSocket) => void;
@@ -43,6 +59,14 @@ export class HmrManager implements IHmrManager {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
 		this.distDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, '_hmr');
+		this.entrypointRegistrar = new HmrEntrypointRegistrar({
+			srcDir: this.appConfig.absolutePaths.srcDir,
+			distDir: this.distDir,
+			entrypointRegistrations: this.entrypointRegistrations,
+			watchedFiles: this.watchedFiles,
+			clearFailedRegistration: (entrypointPath) => this.clearFailedEntrypointRegistration(entrypointPath),
+			registrationTimeoutMs: HmrManager.entrypointRegistrationTimeoutMs,
+		});
 		this.cleanDistDir();
 		this.initializeStrategies();
 	}
@@ -58,6 +82,29 @@ export class HmrManager implements IHmrManager {
 	}
 
 	/**
+	 * Returns whether the generic JS strategy may rebuild an entrypoint.
+	 *
+	 * @remarks
+	 * Integration-owned page entrypoints are excluded so a shared dependency
+	 * invalidation cannot replace framework-owned browser output with a generic JS
+	 * rebuild.
+	 */
+	private shouldJsStrategyProcessEntrypoint(entrypointPath: string): boolean {
+		return !this.strategies.some((strategy) => {
+			if (strategy.type !== HmrStrategyType.INTEGRATION || strategy.priority <= HmrStrategyType.SCRIPT) {
+				return false;
+			}
+
+			try {
+				return strategy.matches(entrypointPath);
+			} catch (error) {
+				appLogger.error(error);
+				return false;
+			}
+		});
+	}
+
+	/**
 	 * Initializes core HMR strategies.
 	 * Strategies are evaluated in priority order (highest first).
 	 */
@@ -68,6 +115,8 @@ export class HmrManager implements IHmrManager {
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
+			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
+			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 		};
 
 		this.strategies = [new JsHmrStrategy(jsContext), new DefaultHmrStrategy()];
@@ -95,29 +144,16 @@ export class HmrManager implements IHmrManager {
 	}
 
 	/**
-	 * Registers a mapping from bare specifiers to vendor URLs.
-	 * Used by integrations to provide their module resolution mappings.
-	 * @param map - Object mapping bare specifiers to vendor URLs
+	 * Registers runtime bare-specifier mappings exposed by integrations.
+	 *
+	 * @remarks
+	 * These mappings are consumed by framework-owned HMR strategies that preserve
+	 * shared runtime imports in browser bundles.
 	 */
 	public registerSpecifierMap(map: Record<string, string>): void {
 		for (const [specifier, url] of Object.entries(map)) {
 			this.specifierMap.set(specifier, url);
 		}
-	}
-
-	private rewriteBareSpecifiers(code: string): string {
-		if (this.specifierMap.size === 0) {
-			return code;
-		}
-
-		let result = code;
-		for (const [bareSpec, runtimeUrl] of this.specifierMap.entries()) {
-			const escaped = bareSpec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			result = result.replace(new RegExp(`from\\s*["']${escaped}["']`, 'g'), `from "${runtimeUrl}"`);
-			result = result.replace(new RegExp(`import\\(["']${escaped}["']\\)`, 'g'), `import("${runtimeUrl}")`);
-		}
-
-		return result;
 	}
 
 	public getWebSocketHandler(): BunSocketHandler {
@@ -147,13 +183,14 @@ export class HmrManager implements IHmrManager {
 	 */
 	public async buildRuntime(): Promise<void> {
 		const runtimeSource = path.resolve(import.meta.dirname, '../../hmr/client/hmr-runtime.ts');
+		const buildExecutor = getAppBuildExecutor(this.appConfig);
 
-		const result = await defaultBuildAdapter.build({
+		const result = await buildExecutor.build({
 			entrypoints: [runtimeSource],
 			outdir: this.distDir,
 			naming: '_hmr_runtime.js',
 			minify: false,
-			...defaultBuildAdapter.getTranspileOptions('hmr-runtime'),
+			...getTranspileOptions('hmr-runtime'),
 			plugins: this.plugins,
 		});
 
@@ -173,7 +210,7 @@ export class HmrManager implements IHmrManager {
 		this.bridge.broadcast(event);
 	}
 
-	public async handleFileChange(filePath: string): Promise<void> {
+	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
 		const sorted = [...this.strategies].sort((a, b) => b.priority - a.priority);
 		const strategy = sorted.find((s) => {
 			try {
@@ -192,8 +229,9 @@ export class HmrManager implements IHmrManager {
 		appLogger.debug(`[HmrManager] Selected strategy: ${strategy.constructor.name}`);
 
 		const action = await strategy.process(filePath);
+		const shouldBroadcast = options.broadcast ?? true;
 
-		if (action.type === 'broadcast') {
+		if (shouldBroadcast && action.type === 'broadcast') {
 			if (action.events) {
 				for (const event of action.events) {
 					this.broadcast(event);
@@ -202,9 +240,6 @@ export class HmrManager implements IHmrManager {
 		}
 	}
 
-	/**
-	 * Registers a client entrypoint to be built and watched by Bun.
-	 */
 	public getOutputUrl(entrypointPath: string): string | undefined {
 		return this.watchedFiles.get(entrypointPath);
 	}
@@ -234,68 +269,110 @@ export class HmrManager implements IHmrManager {
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
+			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
 		};
 	}
 
-	public async registerEntrypoint(entrypointPath: string): Promise<string> {
-		if (this.watchedFiles.has(entrypointPath)) {
-			return this.watchedFiles.get(entrypointPath)!;
-		}
-
-		const srcDir = this.appConfig.absolutePaths.srcDir;
-		const relativePath = path.relative(srcDir, entrypointPath);
-		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-		const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
-
-		const urlPath = encodedPathJs.split(path.sep).join('/');
-		const outputUrl = `/${path.join(RESOLVED_ASSETS_DIR, '_hmr', urlPath)}`;
-		const outputPath = path.join(this.distDir, urlPath);
-
-		this.watchedFiles.set(entrypointPath, outputUrl);
-
-		await this.handleFileChange(entrypointPath);
-
-		if (fileSystem.exists(outputPath)) {
-			const code = this.rewriteBareSpecifiers(await fileSystem.readFile(outputPath));
-			await fileSystem.writeAsync(outputPath, code);
-		}
-
-		if (!fileSystem.exists(outputPath)) {
-			const fallback = await defaultBuildAdapter.build({
-				entrypoints: [entrypointPath],
-				outdir: this.distDir,
-				naming: encodedPathJs,
-				minify: false,
-				external: Array.from(this.specifierMap.keys()),
-				...defaultBuildAdapter.getTranspileOptions('hmr-entrypoint'),
-				plugins: this.plugins,
-			});
-
-			if (!fallback.success) {
-				appLogger.error(`[HMR] Fallback build failed for ${entrypointPath}:`, fallback.logs);
-			}
-		}
-
-		if (fileSystem.exists(outputPath)) {
-			const code = this.rewriteBareSpecifiers(await fileSystem.readFile(outputPath));
-			await fileSystem.writeAsync(outputPath, code);
-		}
-
-		return outputUrl;
+	private clearFailedEntrypointRegistration(entrypointPath: string): void {
+		this.watchedFiles.delete(entrypointPath);
 	}
 
 	/**
-	 * Encodes dynamic route segments (brackets) in file paths.
-	 * Converts `[slug]` to `_slug_` to avoid filesystem/URL issues.
+	 * Registers one integration-owned page entrypoint.
+	 *
+	 * @remarks
+	 * Concurrent callers share one in-flight registration. The registration is
+	 * cleared from the dedupe map when it settles so later callers cannot inherit a
+	 * stale promise.
 	 */
-	private encodeDynamicSegments(filepath: string): string {
-		return filepath.replace(/\[([^\]]+)\]/g, '_$1_');
+	public async registerEntrypoint(entrypointPath: string): Promise<string> {
+		return await this.entrypointRegistrar.registerEntrypoint(entrypointPath, {
+			emit: async (normalizedEntrypoint, outputPath) =>
+				await this.emitStrictEntrypoint(normalizedEntrypoint, outputPath),
+			getMissingOutputError: (normalizedEntrypoint, outputPath) =>
+				new Error(
+					`[HMR] Integration failed to emit entrypoint ${normalizedEntrypoint} to ${outputPath}. Page entrypoints must be produced by their owning integration.`,
+				),
+		});
 	}
 
+	/**
+	 * Registers one generic script entrypoint.
+	 *
+	 * @remarks
+	 * This explicit path keeps the page-entrypoint contract strict while still
+	 * allowing generic script assets to use the fallback build path.
+	 */
+	public async registerScriptEntrypoint(entrypointPath: string): Promise<string> {
+		return await this.entrypointRegistrar.registerEntrypoint(entrypointPath, {
+			emit: async (normalizedEntrypoint, outputPath) =>
+				await this.emitScriptEntrypoint(normalizedEntrypoint, outputPath),
+			getMissingOutputError: (normalizedEntrypoint) =>
+				new Error(`[HMR] Failed to register script entrypoint: ${normalizedEntrypoint}`),
+		});
+	}
+
+	/**
+	 * Performs strict integration-owned registration for one normalized path.
+	 *
+	 * @remarks
+	 * The manager reserves the output URL, removes any stale emitted file, runs
+	 * strategy processing without broadcasting, and then verifies that the owning
+	 * integration emitted the expected file.
+	 */
+	private async emitStrictEntrypoint(entrypointPath: string, _outputPath: string): Promise<void> {
+		await this.handleFileChange(entrypointPath, { broadcast: false });
+	}
+
+	/**
+	 * Performs registration for a generic script asset.
+	 *
+	 * @remarks
+	 * Strategies get the first chance to emit output. If no output exists after
+	 * that pass, Bun falls back to the generic browser build for this explicit
+	 * script-only path.
+	 */
+	private async emitScriptEntrypoint(entrypointPath: string, outputPath: string): Promise<void> {
+		const naming = path.relative(this.distDir, outputPath).split(path.sep).join('/');
+		const buildExecutor = getAppBuildExecutor(this.appConfig);
+
+		await this.handleFileChange(entrypointPath, { broadcast: false });
+
+		if (!fileSystem.exists(outputPath)) {
+			const buildResult = await buildExecutor.build({
+				entrypoints: [entrypointPath],
+				outdir: this.distDir,
+				naming,
+				minify: false,
+				...getTranspileOptions('hmr-entrypoint'),
+				plugins: this.plugins,
+			});
+
+			if (!buildResult.success) {
+				appLogger.error(
+					`[HMR] Generic script entrypoint build failed for ${entrypointPath}:`,
+					buildResult.logs,
+				);
+			}
+		}
+	}
+
+	/**
+	 * Stops active watchers and releases retained registration state.
+	 *
+	 * @remarks
+	 * Emitted `_hmr` files remain on disk because parallel app processes may share
+	 * the same dist directory. The in-memory indexes are cleared so stale
+	 * entrypoints and specifier maps cannot leak through a reused manager object.
+	 */
 	public stop() {
+		this.entrypointRegistrations.clear();
 		for (const watcher of this.watchers.values()) {
 			watcher.close();
 		}
 		this.watchers.clear();
+		this.watchedFiles.clear();
+		this.specifierMap.clear();
+		this.plugins = [];
 	}
 }

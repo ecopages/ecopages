@@ -17,6 +17,9 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 		getDistDir: () => TMP_DIR,
 		getPlugins: () => [],
 		getSrcDir: () => SRC_DIR,
+		getBuildExecutor: () => ({
+			build: async () => ({ success: true, logs: [], outputs: [] }),
+		}),
 		...overrides,
 	};
 }
@@ -254,36 +257,50 @@ describe('JsHmrStrategy', () => {
 				],
 			});
 		});
-	});
 
-	describe('specifier rewriting', () => {
-		it('rewrites registered bare specifiers to vendor URLs', () => {
+		it('skips watched entrypoints owned by higher-priority integration strategies', async () => {
+			const reactEntrypoint = path.join(SRC_DIR, 'react-page.tsx');
+			const scriptEntrypoint = path.join(SRC_DIR, 'widget.script.ts');
+			const changedFile = path.join(SRC_DIR, 'shared.ts');
+			let batchedEntrypoints: string[] = [];
+
 			const context = createMockContext({
-				getSpecifierMap: () =>
+				getWatchedFiles: () =>
 					new Map([
-						['framework-runtime', '/assets/vendors/framework-runtime.js'],
-						['framework-runtime/jsx-runtime', '/assets/vendors/framework-runtime.js'],
-						['ui-runtime/client', '/assets/vendors/ui-runtime.js'],
+						[reactEntrypoint, '/_hmr/react-page.js'],
+						[scriptEntrypoint, '/_hmr/widget.script.js'],
 					]),
+				getDependencyEntrypoints: () => new Set([reactEntrypoint, scriptEntrypoint]),
+				shouldProcessEntrypoint: (entrypointPath: string) => entrypointPath !== reactEntrypoint,
 			});
+
 			const strategy = new JsHmrStrategy(context) as unknown as {
-				replaceBareSpecifiers: (code: string) => string;
+				process: (filePath: string) => Promise<{ type: string; events?: unknown[] }>;
+				[key: string]: unknown;
 			};
 
-			const rewritten = strategy.replaceBareSpecifiers(`
-				import { createSignal } from 'framework-runtime';
-				import { jsx } from 'framework-runtime/jsx-runtime';
-				const loadClient = () => import('ui-runtime/client');
-				const untouched = () => import('./local-module.js');
-			`);
+			strategy.bundleEntrypoints = async (entrypoints: string[]) => {
+				batchedEntrypoints = entrypoints;
+				return { success: true, dependencies: new Map([[path.resolve(scriptEntrypoint), [scriptEntrypoint]]]) };
+			};
 
-			expect(rewritten).toContain(`from "/assets/vendors/framework-runtime.js"`);
-			expect(rewritten).toContain(`from "/assets/vendors/framework-runtime.js"`);
-			expect(rewritten).toContain(`import("/assets/vendors/ui-runtime.js")`);
-			expect(rewritten).toContain(`import('./local-module.js')`);
-			expect(rewritten).not.toContain(`from 'framework-runtime'`);
-			expect(rewritten).not.toContain(`from 'framework-runtime/jsx-runtime'`);
-			expect(rewritten).not.toContain(`import('ui-runtime/client')`);
+			strategy.processOutput = async () => {
+				return { success: true, requiresReload: false };
+			};
+
+			const action = await strategy.process(changedFile);
+
+			expect(batchedEntrypoints).toEqual([scriptEntrypoint]);
+			expect(action).toEqual({
+				type: 'broadcast',
+				events: [
+					{
+						type: 'update',
+						path: '/_hmr/widget.script.js',
+						timestamp: expect.any(Number),
+					},
+				],
+			});
 		});
 	});
 });

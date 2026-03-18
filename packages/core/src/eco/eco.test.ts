@@ -218,7 +218,7 @@ describe('eco namespace', () => {
 			expect(execution.value).toContain('data-eco-component-ref="react-button"');
 		});
 
-		test('should throw a clear error when React marker emission is missing component metadata', async () => {
+		test('should emit a runtime fallback reference when React marker metadata is missing', async () => {
 			const require = createRequire(import.meta.url);
 			const React = require('react') as {
 				createElement: (tag: string, props: Record<string, unknown>, children: string) => unknown;
@@ -229,18 +229,19 @@ describe('eco namespace', () => {
 				render: () => React.createElement('button', { type: 'button' }, 'Click'),
 			});
 
-			await expect(
-				runWithComponentRenderContext(
-					{
-						currentIntegration: 'lit',
-						boundaryContext: {
-							decideBoundaryRender: ({ targetIntegration }) =>
-								targetIntegration === 'react' ? 'defer' : 'inline',
-						},
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					boundaryContext: {
+						decideBoundaryRender: ({ targetIntegration }) =>
+							targetIntegration === 'react' ? 'defer' : 'inline',
 					},
-					async () => ReactButton({}),
-				),
-			).rejects.toThrow('Missing component reference metadata for cross-integration marker emission');
+				},
+				async () => ReactButton({}),
+			);
+
+			expect(execution.value).toContain('<eco-marker');
+			expect(execution.value).toContain('data-eco-component-ref="eco-runtime-component-');
 		});
 
 		test('should render inline when boundary context returns inline for a React component', async () => {

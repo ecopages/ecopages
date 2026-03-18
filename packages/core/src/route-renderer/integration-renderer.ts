@@ -36,6 +36,17 @@ import { RenderExecutionService, type RenderExecutionGraphContext } from './rend
 import { RenderPreparationService } from './render-preparation.service.ts';
 import type { BoundaryRenderDecisionInput, ComponentRenderBoundaryContext } from '../eco/component-render-context.ts';
 
+export interface FinalizeCapturedHtmlRenderOptions {
+	html: string;
+	componentsToResolve: EcoComponent[];
+	graphContext: RenderExecutionGraphContext;
+	partial?: boolean;
+	componentRootAttributes?: Record<string, string>;
+	documentAttributes?: Record<string, string>;
+	mergeAssets?: boolean;
+	transformHtml?: boolean;
+}
+
 /**
  * Creates a Proxy that throws LocalsAccessError on any property access.
  * Used to protect static pages from accidentally accessing request locals.
@@ -496,6 +507,71 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				return response.body as RouteRendererBody;
 			},
 		});
+	}
+
+	/**
+	 * Captures a render pass as immutable HTML along with the graph context needed
+	 * for deferred marker resolution.
+	 *
+	 * This is the shared entry point for direct `renderToResponse()` flows that
+	 * need the same component graph capture semantics as route execution without
+	 * going through `prepareRenderOptions()`.
+	 */
+	protected async captureHtmlRender(render: () => Promise<RouteRendererBody>): Promise<{
+		html: string;
+		graphContext: RenderExecutionGraphContext;
+	}> {
+		return this.renderExecutionService.captureHtmlRender(
+			this.name,
+			this.getComponentRenderBoundaryContext(),
+			render,
+		);
+	}
+
+	/**
+	 * Finalizes previously captured HTML by resolving deferred markers, merging
+	 * any emitted assets, stamping optional attributes, and optionally running the
+	 * HTML transformer for full-document flows.
+	 */
+	protected async finalizeCapturedHtmlRender(options: FinalizeCapturedHtmlRenderOptions): Promise<string> {
+		const finalization = await this.renderExecutionService.finalizeHtmlRender(
+			{
+				html: options.html,
+				graphContext: options.graphContext,
+				componentsToResolve: options.componentsToResolve,
+				componentRootAttributes: options.componentRootAttributes,
+				documentAttributes: options.documentAttributes,
+				mergeAssets: options.mergeAssets ?? !options.partial,
+			},
+			{
+				resolveMarkerGraphHtml: (input) =>
+					this.resolveMarkerGraphHtml({
+						html: input.html,
+						componentsToResolve: input.componentsToResolve,
+						graphContext: input.graphContext,
+					}),
+				dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+				getProcessedDependencies: () => this.htmlTransformer.getProcessedDependencies(),
+				setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
+				applyAttributesToHtmlElement: (html, attributes) =>
+					this.htmlTransformer.applyAttributesToHtmlElement(html, attributes),
+				applyAttributesToFirstBodyElement: (html, attributes) =>
+					this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes),
+			},
+		);
+
+		const shouldTransform = options.transformHtml ?? !options.partial;
+		if (!shouldTransform) {
+			return finalization.html;
+		}
+
+		const transformedResponse = await this.htmlTransformer.transform(
+			new Response(finalization.html, {
+				headers: { 'Content-Type': 'text/html' },
+			}),
+		);
+
+		return await transformedResponse.text();
 	}
 
 	/**

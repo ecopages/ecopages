@@ -48,6 +48,13 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps, JSX.Element> = ({ headConten
 	</html>
 );
 
+const NonReactHtmlTemplate = ({ headContent, children }: HtmlTemplateProps) =>
+	`<html lang="en"><head>${headContent ?? ''}</head><body>${children}</body></html>`;
+
+NonReactHtmlTemplate.config = {
+	integration: 'html',
+};
+
 const pageFilePath = path.resolve(__dirname, 'fixture/test-page.tsx');
 const errorPageFile = path.resolve(__dirname, 'fixture/error-page.tsx');
 
@@ -209,6 +216,38 @@ describe('ReactRenderer', () => {
 
 		const text = await new Response(body as BodyInit).text();
 		expect(text).toContain('<div>Hello World</div>');
+	});
+
+	it('should emit canonical page data for router-backed pages inside non-react html templates', async () => {
+		const testRenderer = createRenderer();
+		const originalRouterAdapter = ReactRenderer.routerAdapter;
+		ReactRenderer.routerAdapter = mockRouterAdapter;
+
+		try {
+			const body = await testRenderer.render({
+				params: {},
+				query: {},
+				props: { routeFiles: ['a.tsx'] },
+				resolvedDependencies: [],
+				file: pageFilePath,
+				metadata: {
+					title: 'Test Page',
+					description: 'Test Description',
+				},
+				dependencies: {
+					scripts: [],
+					stylesheets: [],
+				},
+				Page,
+				HtmlTemplate: NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps, JSX.Element>,
+			});
+
+			const text = await new Response(body as BodyInit).text();
+			expect(text).toContain('<script id="__ECO_PAGE_DATA__" type="application/json">');
+			expect(text).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
+		} finally {
+			ReactRenderer.routerAdapter = originalRouterAdapter;
+		}
 	});
 
 	it('should throw an error if the page fails to render', async () => {

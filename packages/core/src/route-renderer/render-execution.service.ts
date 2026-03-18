@@ -1,8 +1,4 @@
-import {
-	runWithComponentRenderContext,
-	type ComponentRenderBoundaryContext,
-	type ComponentGraphContext as CapturedComponentGraphContext,
-} from '../eco/component-render-context.ts';
+import { runWithComponentRenderContext, type ComponentRenderBoundaryContext } from '../eco/component-render-context.ts';
 import type {
 	EcoComponent,
 	IntegrationRendererRenderOptions,
@@ -22,6 +18,20 @@ export type RenderExecutionGraphContext = {
 	slotChildrenByRef?: MarkerGraphContext['slotChildrenByRef'];
 };
 
+export interface CapturedHtmlRenderResult {
+	html: string;
+	graphContext: RenderExecutionGraphContext;
+}
+
+export interface FinalizeHtmlRenderOptions {
+	html: string;
+	graphContext: RenderExecutionGraphContext;
+	componentsToResolve: EcoComponent[];
+	componentRootAttributes?: Record<string, string>;
+	documentAttributes?: Record<string, string>;
+	mergeAssets?: boolean;
+}
+
 export interface RenderExecutionCallbacks<C> {
 	prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions<C>>;
 	render(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
@@ -40,6 +50,19 @@ export interface RenderExecutionCallbacks<C> {
 	transformHtml(html: string): Promise<RouteRendererBody>;
 }
 
+export interface FinalizeHtmlRenderCallbacks {
+	resolveMarkerGraphHtml(input: {
+		html: string;
+		componentsToResolve: EcoComponent[];
+		graphContext: RenderExecutionGraphContext;
+	}): Promise<{ html: string; assets: ProcessedAsset[] }>;
+	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
+	getProcessedDependencies(): ProcessedAsset[];
+	setProcessedDependencies(dependencies: ProcessedAsset[]): void;
+	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
+	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
+}
+
 /**
  * Executes the main post-preparation rendering flow for integration renderers.
  *
@@ -49,6 +72,25 @@ export interface RenderExecutionCallbacks<C> {
  * transformation into a response body stream.
  */
 export class RenderExecutionService {
+	async captureHtmlRender(
+		currentIntegrationName: string,
+		boundaryContext: ComponentRenderBoundaryContext,
+		render: () => Promise<RouteRendererBody>,
+	): Promise<CapturedHtmlRenderResult> {
+		const renderExecution = await runWithComponentRenderContext(
+			{
+				currentIntegration: currentIntegrationName,
+				boundaryContext,
+			},
+			render,
+		);
+
+		return {
+			html: await new Response(renderExecution.value as BodyInit).text(),
+			graphContext: renderExecution.graphContext,
+		};
+	}
+
 	/**
 	 * Executes one integration render pass and returns the final route render
 	 * result.
@@ -70,15 +112,12 @@ export class RenderExecutionService {
 			renderOptions.componentRender.rootAttributes &&
 			Object.keys(renderOptions.componentRender.rootAttributes).length > 0;
 
-		const renderExecution = await runWithComponentRenderContext(
-			{
-				currentIntegration: currentIntegrationName,
-				boundaryContext: callbacks.getComponentRenderBoundaryContext(),
-			},
+		const renderExecution = await this.captureHtmlRender(
+			currentIntegrationName,
+			callbacks.getComponentRenderBoundaryContext(),
 			async () => callbacks.render(renderOptions),
 		);
 
-		let renderedHtml = await new Response(renderExecution.value as BodyInit).text();
 		const componentGraphContext = this.mergeGraphContext(
 			renderExecution.graphContext,
 			(
@@ -87,37 +126,21 @@ export class RenderExecutionService {
 				}
 			).componentGraphContext,
 		);
-
-		if (renderedHtml.includes('<eco-marker')) {
-			const markerResolution = await callbacks.resolveMarkerGraphHtml({
-				html: renderedHtml,
-				componentsToResolve: this.getComponentsToResolve(renderOptions),
+		const finalization = await this.finalizeHtmlRender(
+			{
+				html: renderExecution.html,
 				graphContext: componentGraphContext,
-			});
-			renderedHtml = markerResolution.html;
+				componentsToResolve: this.getComponentsToResolve(renderOptions),
+				componentRootAttributes: shouldApplyComponentRootAttributes
+					? (renderOptions.componentRender?.rootAttributes as Record<string, string>)
+					: undefined,
+				documentAttributes: callbacks.getDocumentAttributes(renderOptions),
+				mergeAssets: true,
+			},
+			callbacks,
+		);
 
-			if (markerResolution.assets.length > 0) {
-				const mergedDependencies = callbacks.dedupeProcessedAssets([
-					...callbacks.getProcessedDependencies(),
-					...markerResolution.assets,
-				]);
-				callbacks.setProcessedDependencies(mergedDependencies);
-			}
-		}
-
-		if (shouldApplyComponentRootAttributes) {
-			renderedHtml = callbacks.applyAttributesToFirstBodyElement(
-				renderedHtml,
-				renderOptions.componentRender?.rootAttributes as Record<string, string>,
-			);
-		}
-
-		const documentAttributes = callbacks.getDocumentAttributes(renderOptions);
-		if (documentAttributes && Object.keys(documentAttributes).length > 0) {
-			renderedHtml = callbacks.applyAttributesToHtmlElement(renderedHtml, documentAttributes);
-		}
-
-		const body = await callbacks.transformHtml(renderedHtml);
+		const body = await callbacks.transformHtml(finalization.html);
 
 		return {
 			body,
@@ -133,8 +156,8 @@ export class RenderExecutionService {
 	 * @param explicitGraphContext Optional page-module graph metadata.
 	 * @returns Merged graph context used during marker resolution.
 	 */
-	private mergeGraphContext(
-		capturedGraphContext: CapturedComponentGraphContext,
+	mergeGraphContext(
+		capturedGraphContext: RenderExecutionGraphContext,
 		explicitGraphContext?: RenderExecutionGraphContext,
 	): RenderExecutionGraphContext {
 		return {
@@ -146,6 +169,45 @@ export class RenderExecutionService {
 				...(capturedGraphContext.slotChildrenByRef ?? {}),
 				...(explicitGraphContext?.slotChildrenByRef ?? {}),
 			},
+		};
+	}
+
+	async finalizeHtmlRender(
+		options: FinalizeHtmlRenderOptions,
+		callbacks: FinalizeHtmlRenderCallbacks,
+	): Promise<{ html: string; assets: ProcessedAsset[] }> {
+		let renderedHtml = options.html;
+		let markerAssets: ProcessedAsset[] = [];
+
+		if (renderedHtml.includes('<eco-marker')) {
+			const markerResolution = await callbacks.resolveMarkerGraphHtml({
+				html: renderedHtml,
+				componentsToResolve: options.componentsToResolve,
+				graphContext: options.graphContext,
+			});
+			renderedHtml = markerResolution.html;
+			markerAssets = markerResolution.assets;
+
+			if (options.mergeAssets !== false && markerResolution.assets.length > 0) {
+				const mergedDependencies = callbacks.dedupeProcessedAssets([
+					...callbacks.getProcessedDependencies(),
+					...markerResolution.assets,
+				]);
+				callbacks.setProcessedDependencies(mergedDependencies);
+			}
+		}
+
+		if (options.componentRootAttributes && Object.keys(options.componentRootAttributes).length > 0) {
+			renderedHtml = callbacks.applyAttributesToFirstBodyElement(renderedHtml, options.componentRootAttributes);
+		}
+
+		if (options.documentAttributes && Object.keys(options.documentAttributes).length > 0) {
+			renderedHtml = callbacks.applyAttributesToHtmlElement(renderedHtml, options.documentAttributes);
+		}
+
+		return {
+			html: renderedHtml,
+			assets: markerAssets,
 		};
 	}
 

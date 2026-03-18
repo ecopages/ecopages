@@ -31,6 +31,7 @@ export const BaseLayout = eco.layout({
 								<span class="badge">Static request context</span>
 							)}
 							<span class="badge">role: {viewerRole ?? 'viewer'}</span>
+							{/* @ts-expect-error - jsx mismatch */}
 							<ThemeToggleReact />
 						</div>
 					</div>

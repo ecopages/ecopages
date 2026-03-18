@@ -6,6 +6,7 @@ import type {
 } from 'esbuild';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import type {
 	EcoBuildOnLoadResult,
@@ -22,6 +23,8 @@ import type {
 	BuildTranspileOptions,
 	BuildTranspileProfile,
 } from './build-adapter.ts';
+
+const esbuildRequire = createRequire(import.meta.url);
 
 /**
  * Provides common transpile output defaults shared across build profiles.
@@ -286,14 +289,128 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		};
 	}
 
-	private async loadEsbuildModule(): Promise<typeof import('esbuild')> {
-		const esbuildModule = (await import('esbuild')) as typeof import('esbuild');
+	private async loadEsbuildModule(moduleGeneration = 0): Promise<typeof import('esbuild')> {
+		const importedModule = await import('esbuild');
+		const esbuildModule = (
+			typeof (importedModule as typeof import('esbuild')).build === 'function'
+				? importedModule
+				: ((importedModule as { default?: typeof import('esbuild') }).default ?? importedModule)
+		) as typeof import('esbuild');
+
+		if (moduleGeneration > 0 && !this.isMockedEsbuildModule(esbuildModule)) {
+			const freshModule = await import(
+				`${pathToFileURL(esbuildRequire.resolve('esbuild')).href}?ecopages_esbuild=${moduleGeneration}`
+			);
+			const normalizedFreshModule = (
+				typeof (freshModule as typeof import('esbuild')).build === 'function'
+					? freshModule
+					: ((freshModule as { default?: typeof import('esbuild') }).default ?? freshModule)
+			) as typeof import('esbuild');
+
+			if (typeof normalizedFreshModule.build === 'function') {
+				return normalizedFreshModule;
+			}
+		}
 
 		if (typeof esbuildModule.build !== 'function') {
 			throw new Error('esbuild is not available. Install esbuild to use Node bundling.');
 		}
 
 		return esbuildModule;
+	}
+
+	private isMockedEsbuildModule(esbuildModule: typeof import('esbuild')): boolean {
+		const build = esbuildModule.build as { mock?: unknown } | undefined;
+		const stop = esbuildModule.stop as { mock?: unknown } | undefined;
+		return typeof build?.mock === 'object' || typeof stop?.mock === 'object';
+	}
+
+	/**
+	 * Detects the subset of runtime faults that indicate esbuild's worker
+	 * protocol is corrupted rather than a normal build error.
+	 */
+	isEsbuildProtocolError(error: unknown): boolean {
+		if (!(error instanceof Error)) {
+			return false;
+		}
+
+		return ['Unexpected end of JSON input', 'Unexpected EOF', 'parseJSON', 'buildResponseToResult'].some(
+			(fragment) => error.message.includes(fragment) || error.stack?.includes(fragment),
+		);
+	}
+
+	async stopEsbuildService(moduleGeneration = 0): Promise<void> {
+		const esbuild = await this.loadEsbuildModule(moduleGeneration);
+		if (typeof esbuild.stop === 'function') {
+			esbuild.stop();
+		}
+	}
+
+	async buildOrThrow(options: BuildOptions, moduleGeneration = 0): Promise<BuildResult> {
+		const esbuild = await this.loadEsbuildModule(moduleGeneration);
+		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+		const outdir = path.resolve(options.outdir ?? '.eco/assets');
+		const tsconfigPath = path.join(contextRoot, 'tsconfig.json');
+		const tsconfigExists = fileSystem.exists(tsconfigPath);
+
+		const plugins = this.getPluginsForBuild(options.plugins);
+		const esbuildPlugins: EsbuildPlugin[] = [
+			...(plugins.length > 0 ? [this.createEcoPluginBridge(plugins, contextRoot)] : []),
+		];
+		const transpileTarget = 'es2022';
+
+		const usesTemplatedNaming = this.hasTemplateTokens(options.naming);
+		const outfile = options.naming && !usesTemplatedNaming ? path.join(outdir, options.naming) : undefined;
+		if (outfile) {
+			fileSystem.ensureDir(path.dirname(outfile));
+		}
+
+		const outputOptions = outfile
+			? { outfile }
+			: {
+					outdir,
+					...(options.outbase ? { outbase: path.resolve(options.outbase) } : {}),
+					entryNames: usesTemplatedNaming ? this.toEntryNamePattern(options.naming) : '[name]',
+					chunkNames: '[name]-[hash]',
+					assetNames: '[name]-[hash]',
+				};
+
+		const result = await esbuild.build({
+			absWorkingDir: contextRoot,
+			entryPoints: options.entrypoints,
+			bundle: options.bundle ?? true,
+			...outputOptions,
+			format: this.mapEsbuildFormat(options.format),
+			platform: (options.target === 'browser' ? 'browser' : 'node') as 'browser' | 'node',
+			sourcemap: this.mapEsbuildSourcemap(options.sourcemap),
+			splitting: outfile ? false : !!options.splitting,
+			minify: !!options.minify,
+			...(typeof options.treeshaking === 'boolean' ? { treeShaking: options.treeshaking } : {}),
+			external: options.external,
+			...(options.target !== 'browser' && options.externalPackages !== false
+				? { packages: 'external' as const }
+				: {}),
+			target: transpileTarget,
+			metafile: true,
+			write: true,
+			plugins: esbuildPlugins,
+			jsx: 'automatic',
+			tsconfig: tsconfigExists ? tsconfigPath : undefined,
+			logLevel: 'silent',
+		});
+
+		const outputs = Object.keys(result.metafile.outputs).map((outputPath) => ({
+			path: path.isAbsolute(outputPath) ? outputPath : path.join(contextRoot, outputPath),
+		}));
+		const logs = result.warnings.map((warning) => ({ message: warning.text }));
+		const dependencyGraph = this.extractDependencyGraph(result.metafile, contextRoot);
+
+		return {
+			success: true,
+			logs,
+			outputs,
+			dependencyGraph,
+		};
 	}
 
 	private mapEsbuildSourcemap(value: string | undefined): false | 'linked' | 'inline' | 'external' | 'both' {
@@ -407,81 +524,22 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		return [{ message: 'Unknown esbuild error' }];
 	}
 
+	createFailureResult(error: unknown): BuildResult {
+		return {
+			success: false,
+			logs: this.toBuildLogs(error),
+			outputs: [],
+		};
+	}
+
 	/**
 	 * Bundles entrypoints using esbuild for Node runtime builds.
 	 */
 	async build(options: BuildOptions): Promise<BuildResult> {
-		const esbuild = await this.loadEsbuildModule();
-		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
-		const outdir = path.resolve(options.outdir ?? '.eco/assets');
-		const tsconfigPath = path.join(contextRoot, 'tsconfig.json');
-		const tsconfigExists = fileSystem.exists(tsconfigPath);
-
-		const plugins = this.getPluginsForBuild(options.plugins);
-		const esbuildPlugins: EsbuildPlugin[] = [
-			...(plugins.length > 0 ? [this.createEcoPluginBridge(plugins, contextRoot)] : []),
-		];
-		const transpileTarget = 'es2022';
-
-		const usesTemplatedNaming = this.hasTemplateTokens(options.naming);
-		const outfile = options.naming && !usesTemplatedNaming ? path.join(outdir, options.naming) : undefined;
-		if (outfile) {
-			fileSystem.ensureDir(path.dirname(outfile));
-		}
-
-		const outputOptions = outfile
-			? { outfile }
-			: {
-					outdir,
-					...(options.outbase ? { outbase: path.resolve(options.outbase) } : {}),
-					entryNames: usesTemplatedNaming ? this.toEntryNamePattern(options.naming) : '[name]',
-					chunkNames: '[name]-[hash]',
-					assetNames: '[name]-[hash]',
-				};
-
 		try {
-			const result = await esbuild.build({
-				absWorkingDir: contextRoot,
-				entryPoints: options.entrypoints,
-				bundle: options.bundle ?? true,
-				...outputOptions,
-				format: this.mapEsbuildFormat(options.format),
-				platform: (options.target === 'browser' ? 'browser' : 'node') as 'browser' | 'node',
-				sourcemap: this.mapEsbuildSourcemap(options.sourcemap),
-				splitting: outfile ? false : !!options.splitting,
-				minify: !!options.minify,
-				...(typeof options.treeshaking === 'boolean' ? { treeShaking: options.treeshaking } : {}),
-				external: options.external,
-				...(options.target !== 'browser' && options.externalPackages !== false
-					? { packages: 'external' as const }
-					: {}),
-				target: transpileTarget,
-				metafile: true,
-				write: true,
-				plugins: esbuildPlugins,
-				jsx: 'automatic',
-				tsconfig: tsconfigExists ? tsconfigPath : undefined,
-				logLevel: 'silent',
-			});
-
-			const outputs = Object.keys(result.metafile.outputs).map((outputPath) => ({
-				path: path.isAbsolute(outputPath) ? outputPath : path.join(contextRoot, outputPath),
-			}));
-			const logs = result.warnings.map((warning) => ({ message: warning.text }));
-			const dependencyGraph = this.extractDependencyGraph(result.metafile, contextRoot);
-
-			return {
-				success: true,
-				logs,
-				outputs,
-				dependencyGraph,
-			};
+			return await this.buildOrThrow(options);
 		} catch (error) {
-			return {
-				success: false,
-				logs: this.toBuildLogs(error),
-				outputs: [],
-			};
+			return this.createFailureResult(error);
 		}
 	}
 

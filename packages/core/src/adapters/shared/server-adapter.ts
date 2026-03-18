@@ -108,6 +108,7 @@ export abstract class SharedServerAdapter<
 		}
 
 		this.fileSystemResponseMatcher = new FileSystemResponseMatcher({
+			appConfig: this.appConfig,
 			router: this.router,
 			routeRendererFactory: this.routeRendererFactory,
 			fileSystemResponseFactory,

@@ -15,6 +15,7 @@ vi.mock('@ecopages/file-system', () => ({
 }));
 
 vi.mock('../build/build-adapter.ts', () => ({
+	build: mocks.build,
 	defaultBuildAdapter: {
 		build: mocks.build,
 	},
@@ -56,6 +57,7 @@ describe('PageModuleImportService', () => {
 					outdir: tempDir,
 					naming: 'page-hash123.js',
 				}),
+				undefined,
 			);
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
@@ -103,7 +105,40 @@ describe('PageModuleImportService', () => {
 			expect(mocks.build).toHaveBeenCalledWith(
 				expect.objectContaining({
 					naming: 'page-hash123.js',
+					externalPackages: true,
 				}),
+				undefined,
+			);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should allow callers to opt back into bundled node imports explicitly', async () => {
+		process.env.NODE_ENV = 'development';
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-bundled-'));
+		const compiledOutput = join(tempDir, 'page-hash123.js');
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		mocks.build.mockResolvedValue({
+			success: true,
+			logs: [],
+			outputs: [{ path: compiledOutput }],
+		});
+
+		try {
+			const service = new PageModuleImportService();
+			await service.importModule({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+				externalPackages: false,
+			});
+
+			expect(mocks.build).toHaveBeenCalledWith(
+				expect.objectContaining({
+					externalPackages: false,
+				}),
+				undefined,
 			);
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
@@ -138,6 +173,43 @@ describe('PageModuleImportService', () => {
 			expect(first.default).toEqual({ ok: true });
 			expect(second.default).toEqual({ ok: true });
 			expect(mocks.build).toHaveBeenCalledTimes(1);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should reload the same node module path after development graph invalidation', async () => {
+		process.env.NODE_ENV = 'development';
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-'));
+		const compiledOutput = join(tempDir, 'page-hash123.js');
+		writeFileSync(compiledOutput, 'export const version = 1; export default { ok: true };', 'utf8');
+		mocks.build.mockResolvedValue({
+			success: true,
+			logs: [],
+			outputs: [{ path: compiledOutput }],
+		});
+
+		try {
+			const service = new PageModuleImportService();
+
+			const first = await service.importModule<{ version: number }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+
+			writeFileSync(compiledOutput, 'export const version = 2; export default { ok: true };', 'utf8');
+			PageModuleImportService.invalidateDevelopmentGraph();
+
+			const second = await service.importModule<{ version: number }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+
+			expect(first.version).toBe(1);
+			expect(second.version).toBe(2);
+			expect(mocks.build).toHaveBeenCalledTimes(2);
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}

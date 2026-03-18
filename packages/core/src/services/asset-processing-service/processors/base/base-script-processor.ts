@@ -1,6 +1,6 @@
 import { appLogger } from '../../../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
-import { defaultBuildAdapter } from '../../../../build/build-adapter.ts';
+import { getAppBuildExecutor, getTranspileOptions } from '../../../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
@@ -49,26 +49,27 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 	} & ScriptAsset['bundleOptions']): Promise<string> {
 		const buildPlugins = this.collectBuildPlugins();
 		const allPlugins = additionalPlugins ? [...additionalPlugins, ...buildPlugins] : buildPlugins;
+		const buildExecutor = getAppBuildExecutor(this.appConfig);
 
-		const build = await defaultBuildAdapter.build({
+		const buildResult = await buildExecutor.build({
 			entrypoints: [entrypoint],
 			outdir,
 			root: this.appConfig.rootDir,
-			...defaultBuildAdapter.getTranspileOptions('browser-script'),
+			...getTranspileOptions('browser-script'),
 			splitting: true,
 			naming: '[name]-[hash].[ext]',
 			plugins: allPlugins,
 			...rest,
 		});
 
-		if (!build.success) {
-			for (const log of build.logs) {
+		if (!buildResult.success) {
+			for (const log of buildResult.logs) {
 				appLogger.debug(log.message, log);
 			}
 		}
 
 		const entryBaseName = path.parse(entrypoint).name;
-		const entryOutput = build.outputs
+		const entryOutput = buildResult.outputs
 			.map((output) => output.path)
 			.find((outputPath) => path.basename(outputPath) === `${entryBaseName}.js`);
 
@@ -76,7 +77,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			return entryOutput;
 		}
 
-		const nonVendorOutput = build.outputs
+		const nonVendorOutput = buildResult.outputs
 			.map((output) => output.path)
 			.find((outputPath) => !path.basename(outputPath).startsWith('vendors'));
 
@@ -84,7 +85,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			return nonVendorOutput;
 		}
 
-		const primaryOutput = build.outputs[0]?.path;
+		const primaryOutput = buildResult.outputs[0]?.path;
 		if (primaryOutput) {
 			return primaryOutput;
 		}
@@ -99,7 +100,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			return fallbackOutput;
 		}
 
-		const logMessage = build.logs.map((log) => log.message).join(' | ');
+		const logMessage = buildResult.logs.map((log) => log.message).join(' | ');
 		throw new Error(`No build output generated for ${entrypoint}${logMessage ? `: ${logMessage}` : ''}`);
 	}
 }

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { getAppBuildExecutor } from '../build/build-adapter.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, RouteKind, Routes } from '../internal-types.ts';
 import type { EcoPageFile, GetStaticPaths } from '../public-types.ts';
@@ -33,7 +34,7 @@ export class FSRouterScanner {
 	private origin = '';
 	private templatesExt: string[];
 	private options: FSRouterScannerOptions;
-	private appConfig: EcoPagesAppConfig;
+	readonly appConfig: EcoPagesAppConfig;
 	routes: Routes = {};
 	private pageModuleImportService = new PageModuleImportService();
 
@@ -147,6 +148,7 @@ export class FSRouterScanner {
 			filePath,
 			rootDir: this.appConfig.rootDir,
 			outdir: path.join(this.appConfig.absolutePaths.distDir, '.server-route-modules'),
+			buildExecutor: getAppBuildExecutor(this.appConfig),
 			externalPackages: false,
 			transpileErrorMessage: (details) => `Error transpiling route module: ${details}`,
 			noOutputMessage: (targetFilePath) => `No transpiled output generated for route module: ${targetFilePath}`,

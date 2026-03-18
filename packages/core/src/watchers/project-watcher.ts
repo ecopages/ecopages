@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../internal-types.ts';
 import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
+import { PageModuleImportService } from '../services/page-module-import.service.ts';
 
 /**
  * Configuration options for the ProjectWatcher
@@ -94,6 +95,20 @@ export class ProjectWatcher {
 		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
 	}
 
+	private isIncludeSourceFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+
+		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.includesDir)) {
+			return false;
+		}
+
+		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
+			return true;
+		}
+
+		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+	}
+
 	/**
 	 * Handles public directory file changes by copying only the changed file.
 	 * @param filePath - Absolute path of the changed file
@@ -127,11 +142,12 @@ export class ProjectWatcher {
 
 	/**
 	 * Handles file changes by uncaching modules, refreshing routes, and delegating appropriately.
-	 * Follows 4-rule priority:
+	 * Follows 5-rule priority:
 	 * 0. Public directory match? -> copy file and reload
 	 * 1. additionalWatchPaths match? -> reload
-	 * 2. Processor-owned asset? -> processor already handled it via notification, skip HMR
-	 * 3. Otherwise -> HMR strategies
+	 * 2. Include template source? -> reload after processor notifications
+	 * 3. Processor-owned asset? -> processor already handled it via notification, skip HMR
+	 * 4. Otherwise -> HMR strategies
 	 *
 	 * Processors that watch a file extension as a dependency (e.g. PostCSS watching
 	 * .tsx for Tailwind class scanning) are always notified first, but do not
@@ -158,6 +174,7 @@ export class ProjectWatcher {
 			}
 
 			this.uncacheModules();
+			PageModuleImportService.invalidateDevelopmentGraph();
 			const isPageFile = this.isRouteSourceFile(filePath);
 
 			if (isPageFile) {
@@ -170,6 +187,11 @@ export class ProjectWatcher {
 			}
 
 			await this.notifyProcessors(filePath, event);
+
+			if (this.isIncludeSourceFile(filePath)) {
+				this.bridge.reload();
+				return;
+			}
 
 			if (this.isHandledByProcessor(filePath)) {
 				return;

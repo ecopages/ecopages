@@ -50,6 +50,7 @@ const fileSystemResponseFactory = new FileSystemServerResponseFactory({
 describe('FileSystemResponseMatcher', () => {
 	describe('without cache service', () => {
 		const matcherWithoutCache = new FileSystemResponseMatcher({
+			appConfig,
 			router,
 			routeRendererFactory,
 			fileSystemResponseFactory,
@@ -88,6 +89,7 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		const matcherWithCache = new FileSystemResponseMatcher({
+			appConfig,
 			router,
 			routeRendererFactory,
 			fileSystemResponseFactory,
@@ -186,6 +188,7 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		const dynamicMatcher = new FileSystemResponseMatcher({
+			appConfig,
 			router,
 			routeRendererFactory,
 			fileSystemResponseFactory,
@@ -213,6 +216,7 @@ describe('FileSystemResponseMatcher', () => {
 
 	describe('handleNoMatch content type behavior', () => {
 		const matcher = new FileSystemResponseMatcher({
+			appConfig,
 			router,
 			routeRendererFactory,
 			fileSystemResponseFactory,

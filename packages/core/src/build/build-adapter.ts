@@ -2,6 +2,7 @@ import type { BunPlugin } from 'bun';
 import type { EcoBuildPlugin } from './build-types.ts';
 import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 import { getRequiredBunRuntime } from '../utils/runtime.ts';
+import type { EcoPagesAppConfig } from '../internal-types.ts';
 
 export { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 
@@ -70,10 +71,33 @@ export interface BuildTranspileOptions {
 }
 
 export interface BuildAdapter {
+	/**
+	 * Executes one concrete backend build.
+	 *
+	 * @remarks
+	 * `BuildAdapter` is the low-level backend contract. The default adapter is
+	 * `EsbuildBuildAdapter`, but alternate adapters may satisfy the same shape.
+	 */
 	build(options: BuildOptions): Promise<BuildResult>;
 	resolve(importPath: string, rootDir: string): string;
 	registerPlugin(plugin: EcoBuildPlugin): void;
 	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions;
+}
+
+/**
+ * Runtime-owned facade for issuing builds.
+ *
+ * @remarks
+ * This is intentionally narrower than `BuildAdapter`. A build executor answers
+ * only the question "how should this app execute a build right now?".
+ *
+ * In production and non-watch flows the executor is usually the adapter itself,
+ * which today means `EsbuildBuildAdapter`. In development watch flows the
+ * executor is typically `DevBuildCoordinator`, which wraps the shared esbuild
+ * adapter to serialize callers and recover from known worker faults.
+ */
+export interface BuildExecutor {
+	build(options: BuildOptions): Promise<BuildResult>;
 }
 
 function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
@@ -131,3 +155,41 @@ export class BunBuildAdapter implements BuildAdapter {
 }
 
 export const defaultBuildAdapter: BuildAdapter = new EsbuildBuildAdapter();
+
+/**
+ * Returns the executor owned by an app/runtime instance.
+ *
+ * @remarks
+ * The config builder seeds this with the shared default adapter. Runtime
+ * adapters may replace it with a coordinator that still delegates to the same
+ * backend while adding development policy.
+ */
+export function getAppBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
+	return appConfig.runtime?.buildExecutor ?? defaultBuildAdapter;
+}
+
+/**
+ * Installs the executor that should serve future builds for one app instance.
+ */
+export function setAppBuildExecutor(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): void {
+	appConfig.runtime = {
+		...(appConfig.runtime ?? {}),
+		buildExecutor,
+	};
+}
+
+/**
+ * Runs a build through the active pipeline.
+ *
+ * @remarks
+ * Callers can pass an explicit executor when builds should be routed through an
+ * app-owned development coordinator. Without one, the shared default adapter is
+ * used directly.
+ */
+export function build(options: BuildOptions, executor: BuildExecutor = defaultBuildAdapter): Promise<BuildResult> {
+	return executor.build(options);
+}
+
+export function getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
+	return defaultBuildAdapter.getTranspileOptions(profile);
+}

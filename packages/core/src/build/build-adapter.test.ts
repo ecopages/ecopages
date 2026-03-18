@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { test } from 'vitest';
-import { defaultBuildAdapter, EsbuildBuildAdapter } from './build-adapter.ts';
+import { test, vi } from 'vitest';
+import { build, defaultBuildAdapter, EsbuildBuildAdapter } from './build-adapter.ts';
 import type { EcoBuildPluginBuilder } from './build-types.ts';
 
 const tempRoots: string[] = [];
@@ -26,6 +26,61 @@ function clearNodeCssBridge(): void {
 
 test('defaultBuildAdapter uses EsbuildBuildAdapter on Node runtime', () => {
 	assert.ok(defaultBuildAdapter instanceof EsbuildBuildAdapter);
+});
+
+test('build helper accepts an explicit executor across package and relative build-adapter imports', async () => {
+	const packageBuildAdapter = await import('@ecopages/core/build/build-adapter');
+	const executor = {
+		build: vi.fn(async () => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/shared.js' }],
+		})),
+	};
+
+	const result = await packageBuildAdapter.build(
+		{
+			entrypoints: ['/tmp/shared.ts'],
+			root: '/tmp',
+			outdir: '/tmp/out',
+			target: 'node',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: false,
+			minify: false,
+		},
+		executor,
+	);
+
+	assert.equal(result.success, true);
+	assert.deepEqual(result.outputs, [{ path: '/tmp/shared.js' }]);
+	assert.equal(executor.build.mock.calls.length, 1);
+});
+
+test('build helper uses the shared adapter when no executor is provided', async () => {
+	const executor = {
+		build: vi.fn(async () => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/direct.js' }],
+		})),
+	};
+	const adapterSpy = vi.spyOn(defaultBuildAdapter, 'build').mockImplementation(executor.build);
+
+	const result = await build({
+		entrypoints: ['/tmp/direct.ts'],
+		root: '/tmp',
+		outdir: '/tmp/out',
+		target: 'node',
+		format: 'esm',
+		sourcemap: 'none',
+		splitting: false,
+		minify: false,
+	});
+
+	assert.equal(result.success, true);
+	assert.deepEqual(result.outputs, [{ path: '/tmp/direct.js' }]);
+	assert.equal(adapterSpy.mock.calls.length, 1);
 });
 
 test('EsbuildBuildAdapter supports module virtual modules', async () => {

@@ -9,6 +9,7 @@ export const createMockHmrManager = (): IHmrManager =>
 		setEnabled: vi.fn(() => {}),
 		setPlugins: vi.fn(() => {}),
 		registerEntrypoint: vi.fn(async () => ''),
+		registerScriptEntrypoint: vi.fn(async () => ''),
 		registerSpecifierMap: vi.fn(() => {}),
 		registerStrategy: vi.fn(() => {}),
 		isEnabled: vi.fn(() => true),

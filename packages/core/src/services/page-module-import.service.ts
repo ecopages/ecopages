@@ -1,12 +1,13 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { defaultBuildAdapter } from '../build/build-adapter.ts';
+import { build, type BuildExecutor } from '../build/build-adapter.ts';
 
 export interface PageModuleImportOptions {
 	filePath: string;
 	rootDir: string;
 	outdir: string;
+	buildExecutor?: BuildExecutor;
 	externalPackages?: boolean;
 	transpileErrorMessage?: (details: string) => string;
 	noOutputMessage?: (filePath: string) => string;
@@ -25,9 +26,24 @@ export interface PageModuleImportOptions {
  */
 export class PageModuleImportService {
 	private static readonly importCache = new Map<string, Promise<unknown>>();
+	private static developmentInvalidationVersion = 0;
 
 	static clearImportCache(): void {
 		this.importCache.clear();
+	}
+
+	/**
+	 * Invalidates all previously imported modules in development by clearing the
+	 * import cache and incrementing the invalidation version included in cache keys.
+	 *
+	 * This forces all modules to be reloaded on the next import, even if their
+	 * source content hasn't changed. This is necessary to ensure that changes to
+	 * non-content aspects of modules (e.g. dependencies, transpilation output)
+	 * are picked up during development.
+	 */
+	static invalidateDevelopmentGraph(): void {
+		this.clearImportCache();
+		this.developmentInvalidationVersion += 1;
 	}
 
 	/**
@@ -47,7 +63,14 @@ export class PageModuleImportService {
 
 		const fileHash = fileSystem.hash(filePath);
 		const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node';
-		const cacheKey = [runtime, filePath, rootDir, externalPackages ?? 'default', fileHash].join('::');
+		const cacheKey = [
+			runtime,
+			filePath,
+			rootDir,
+			externalPackages ?? 'default',
+			fileHash,
+			PageModuleImportService.developmentInvalidationVersion,
+		].join('::');
 		const cachedModule = PageModuleImportService.importCache.get(cacheKey);
 
 		if (cachedModule) {
@@ -88,7 +111,10 @@ export class PageModuleImportService {
 			const moduleUrl = pathToFileURL(filePath);
 
 			if (process.env.NODE_ENV === 'development') {
-				moduleUrl.searchParams.set('update', fileHash);
+				moduleUrl.searchParams.set(
+					'update',
+					`${fileHash}-${PageModuleImportService.developmentInvalidationVersion}`,
+				);
 			}
 
 			return (await import(moduleUrl.href)) as T;
@@ -97,18 +123,22 @@ export class PageModuleImportService {
 		const fileBaseName = path.basename(filePath, path.extname(filePath));
 		const outputFileName = `${fileBaseName}-${fileHash}.js`;
 
-		const buildResult = await defaultBuildAdapter.build({
-			entrypoints: [filePath],
-			root: rootDir,
-			outdir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			naming: outputFileName,
-			...(externalPackages !== undefined ? { externalPackages } : {}),
-		});
+		const buildResult = await build(
+			{
+				entrypoints: [filePath],
+				root: rootDir,
+				outdir,
+				target: 'node',
+				format: 'esm',
+				sourcemap: 'none',
+				splitting: false,
+				minify: false,
+				naming: outputFileName,
+				externalPackages: true,
+				...(externalPackages !== undefined ? { externalPackages } : {}),
+			},
+			options.buildExecutor,
+		);
 
 		if (!buildResult.success) {
 			const details = buildResult.logs.map((log) => log.message).join(' | ');
@@ -124,6 +154,15 @@ export class PageModuleImportService {
 			throw new Error(noOutputMessage(filePath));
 		}
 
-		return (await import(pathToFileURL(compiledOutput).href)) as T;
+		const compiledOutputUrl = pathToFileURL(compiledOutput);
+
+		if (process.env.NODE_ENV === 'development') {
+			compiledOutputUrl.searchParams.set(
+				'update',
+				`${fileHash}-${PageModuleImportService.developmentInvalidationVersion}`,
+			);
+		}
+
+		return (await import(compiledOutputUrl.href)) as T;
 	}
 }

@@ -178,6 +178,43 @@ describe('ProjectWatcher - File Change Handling', () => {
 		});
 	});
 
+	describe('include files', () => {
+		test('should reload for include template changes', async () => {
+			const includeFilePath = path.join(Config.absolutePaths.includesDir, 'seo.kita.tsx');
+
+			await (watcher as any).handleFileChange(includeFilePath);
+
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(RefreshCallback).not.toHaveBeenCalled();
+		});
+
+		test('should notify processors before reloading include template changes', async () => {
+			const onChange = vi.fn(async () => {});
+			const Processor = {
+				getWatchConfig: vi.fn(() => ({
+					paths: ['/test/project/src'],
+					extensions: ['.css', '.tsx'],
+					onChange,
+				})),
+				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
+				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
+					return kind === 'stylesheet' && filepath?.endsWith('.css');
+				}),
+				matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
+			};
+			Config.processors.set('css', Processor as any);
+
+			const includeFilePath = path.join(Config.absolutePaths.includesDir, 'seo.kita.tsx');
+
+			await (watcher as any).handleFileChange(includeFilePath);
+
+			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(includeFilePath), bridge: Bridge });
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+		});
+	});
+
 	describe('additionalWatchPaths', () => {
 		test('should reload for files matching additionalWatchPaths pattern', async () => {
 			Config.additionalWatchPaths = ['**/*.config.ts'];
@@ -485,6 +522,20 @@ describe('ProjectWatcher - Helper Methods', () => {
 		test('should return false when additionalWatchPaths is empty', () => {
 			Config.additionalWatchPaths = [];
 			const result = (watcher as any).matchesAdditionalWatchPaths('/test/app.tsx');
+			expect(result).toBe(false);
+		});
+	});
+
+	describe('isIncludeSourceFile', () => {
+		test('should return true for files in includes directory', () => {
+			const includeFile = path.join(Config.absolutePaths.includesDir, 'seo.kita.tsx');
+			const result = (watcher as any).isIncludeSourceFile(includeFile);
+			expect(result).toBe(true);
+		});
+
+		test('should return false for files outside includes directory', () => {
+			const srcFile = path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx');
+			const result = (watcher as any).isIncludeSourceFile(srcFile);
 			expect(result).toBe(false);
 		});
 	});

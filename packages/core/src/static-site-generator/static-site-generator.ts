@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { getAppBuildExecutor } from '../build/build-adapter.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { EcoPageComponent, StaticRoute } from '../public-types.ts';
@@ -42,6 +43,7 @@ export class StaticSiteGenerator {
 			filePath,
 			rootDir: this.appConfig.rootDir,
 			outdir: this.getStaticPageModuleOutdir(),
+			buildExecutor: getAppBuildExecutor(this.appConfig),
 			externalPackages: false,
 			transpileErrorMessage: (details) => `Error transpiling static page module: ${details}`,
 			noOutputMessage: (targetFilePath) =>

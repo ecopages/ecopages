@@ -8,9 +8,13 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
+- Hydrated full React pages against `document.body` instead of the whole document so browser-router handoffs no longer leave React page controls inert.
+- Fixed React island rerun bootstraps to remount immediately when their `data-eco-rerun` scripts execute, eliminating stale `eco:after-swap` listeners that could mount the wrong island after browser-router navigations.
+- Fixed router-backed React pages rendered inside non-React HTML shells to emit the canonical `__ECO_PAGE_DATA__` payload instead of a separate fallback marker, preventing hydration and handoff state from drifting during rapid navigation.
 - Fixed React MDX `.md` opt-in routes compiling in plain-markdown mode. When `compilerOptions.mdExtensions` includes `.md`, those files are now parsed as MDX so top-level `import` and `export` statements work correctly.
 - Fixed `react-mdx-loader` incorrectly handling `.md` files by default, which caused `.md` pages intended for the standalone `mdxPlugin` (with `@kitajs/html` JSX runtime) to be compiled with React's JSX runtime. The React MDX loader now defaults to only `.mdx` extensions; use `compilerOptions.mdExtensions` to opt in to `.md` handling.
 - Fixed router-backed React bootstrap cleanup to register through the shared navigation coordinator so cross-router handoff no longer depends on a React-specific core fallback.
+- Consolidated emitted React hydration state under `window.__ECO_PAGES__`, so cleanup hooks, shared roots, HMR handlers, and page metadata use one browser runtime bag.
 
 ### Features
 

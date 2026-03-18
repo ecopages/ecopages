@@ -9,6 +9,11 @@ All notable changes to `@ecopages/core` are documented here.
 ### Features
 
 - Added `eco.html()` and `eco.layout()` as Phase 1 semantic factories over the existing component pipeline, along with exported `EcoHtmlComponent`, `EcoLayoutComponent`, and `LayoutProps` types.
+- Exposed `ProcessedAsset` and `MarkerGraphContext` through the core public type surface so integrations can type deferred-render helpers without internal imports.
+
+### Refactoring
+
+- Added shared captured-HTML orchestration helpers to `IntegrationRenderer` so direct renderer paths can reuse core deferred marker resolution, asset merging, and final HTML finalization.
 
 #### Node.js Runtime Support
 
@@ -54,6 +59,9 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Refactoring
 
+- Moved the shared client-side navigation coordinator into `router/client` and kept the legacy core router export path mapped to that canonical client runtime.
+- Simplified `DevBuildCoordinator` to use explicit per-app build executors instead of monkey-patching or process-global startup installation. Build callers now receive app-owned executors through config/runtime context, while process-level fault handlers, `onRecovery`, and the `install-dev-build-runtime.ts` indirection layer remain removed.
+- Injected `appConfig` directly into `FileSystemResponseMatcher` and confined React runtime-specifier aliasing to the React integration so generic core HMR no longer owns a React-specific workaround.
 - **Bun adapter isolation** — Bun-specific types (`serve` options, file reads, env access, argv/hash helpers) are routed through dedicated helpers, making the remaining adapter code portable (`73668f52`, `0c90ced1`, `73fb904a`, `5eb0957b`, `4bdc74a9`, `e9ce163c`, `22f9de4a`, `f7b3d95e`).
 - **Shared server adapter** — Common server adapter logic extracted to `adapters/shared/application-adapter.ts` and `adapters/shared/server-adapter.ts`, shared between Bun and Node adapters (`5a872eda`).
 - **Route assets isolation** — Route-level assets are now isolated per-request, hardening dependency processing (`3fd76a12`).
@@ -64,7 +72,19 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
-- Fixed HMR fallback entrypoint builds to honor integration-registered bare specifier mappings when rewriting browser-loaded fallback bundles, so unresolved runtime imports no longer leak through.
+- Split strict integration-owned HMR entrypoint registration from generic script-asset registration so page bundles now fail fast when their owning integration does not emit output, instead of silently falling back to a wrong generic build.
+- Stopped generic JS HMR rebuilds from overwriting integration-owned entrypoints, so React route bundles keep their framework-specific output after shared script invalidations.
+- Invalidated stale `_hmr` entrypoint files before fresh registration so broken bundles cannot be reused across restarts.
+- Fixed esbuild recovery and serialization tests to keep mocked `esbuild` modules compatible with fresh-service reload logic during protocol fault handling.
+- Added stable runtime fallback component refs for deferred cross-integration rendering so explicit source-imported views can resolve markers without build-time metadata.
+- Moved development build coordination off process-global state and onto explicit app-owned executors so mixed runtime build paths share recovery logic without hidden global installation.
+- Fixed request-time Node page-module imports to externalize packages by default in development, preventing duplicate React instances during server-rendered route loads.
+- Stopped first-time dev HMR entrypoint registration from broadcasting live update or reload events, so navigating to a new route no longer triggers spurious page refreshes mid-navigation.
+- Serialized shared esbuild adapter builds in development to avoid intermittent process crashes while multiple startup or HMR bundling requests overlap.
+- Consolidated browser runtime globals under `window.__ECO_PAGES__` and removed the unused ambient `ecoConfig` declaration.
+- Recycled the shared esbuild service before subsequent serialized Node development builds and recover known esbuild protocol faults so stale sessions do not take down the dev server.
+- Deduplicated concurrent dev HMR entrypoint registrations so repeated hydration asset requests share one in-flight build instead of racing through duplicate setup work.
+- Fixed dev watching for `src/includes` template changes so shared server-rendered shell updates trigger a browser reload instead of being treated like client-only HMR work.
 - Fixed browser-side current-page reload coordination so HMR refreshes still target the active runtime even when the reload request originates from that same owner.
 - Fixed router handoff detection to use an explicit rendered document owner marker instead of hydration-script sniffing.
 - Fixed router ownership handoff so external runtimes can integrate through the navigation coordinator without browser-router knowing specific peer router names.
@@ -103,6 +123,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Documentation
 
+- Added build-layer architecture documentation for the shared adapter and `DevBuildCoordinator`, including the development orchestration and recovery flow.
 - Updated rendering graph documentation to cover extracted rendering services (`8bfcfd21`).
 - Refreshed server handler and module dependency guidance (`3494f44d`).
 

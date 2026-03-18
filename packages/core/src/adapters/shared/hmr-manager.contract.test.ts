@@ -46,28 +46,34 @@ const runtimes = [
 		name: 'node',
 		async create(rootDir: string): Promise<SharedHmrManager> {
 			const config = await new ConfigBuilder().setRootDir(rootDir).build();
-			return withRuntimeName(new NodeHmrManager({
-				appConfig: config,
-				bridge: {
-					subscriberCount: 0,
-					broadcast: () => {},
-				} as any,
-			}), 'node');
+			return withRuntimeName(
+				new NodeHmrManager({
+					appConfig: config,
+					bridge: {
+						subscriberCount: 0,
+						broadcast: () => {},
+					} as any,
+				}),
+				'node',
+			);
 		},
 	},
 	{
 		name: 'bun',
 		async create(rootDir: string): Promise<SharedHmrManager> {
 			const config = await new ConfigBuilder().setRootDir(rootDir).build();
-			return withRuntimeName(new BunHmrManager({
-				appConfig: config,
-				bridge: {
-					subscriberCount: 0,
-					broadcast: () => {},
-					subscribe: () => {},
-					unsubscribe: () => {},
-				} as any,
-			}), 'bun');
+			return withRuntimeName(
+				new BunHmrManager({
+					appConfig: config,
+					bridge: {
+						subscriberCount: 0,
+						broadcast: () => {},
+						subscribe: () => {},
+						unsubscribe: () => {},
+					} as any,
+				}),
+				'bun',
+			);
 		},
 	},
 ] as const;

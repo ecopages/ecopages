@@ -87,42 +87,54 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 	): Promise<Response> {
 		try {
 			const Layout = view.config?.layout as KitaLayoutFn | undefined;
+			const HtmlTemplate = ctx.partial ? undefined : await this.getHtmlTemplate();
+			const metadata =
+				ctx.partial || !HtmlTemplate
+					? undefined
+					: view.metadata
+						? await view.metadata({
+								params: {},
+								query: {},
+								props: props as Record<string, unknown>,
+								appConfig: this.appConfig,
+							})
+						: this.appConfig.defaultMetadata;
 
-			const viewFn = view as KitaViewFn<P>;
-			const pageContent = await viewFn(props);
-
-			if (ctx.partial) {
-				return this.createHtmlResponse(pageContent, ctx);
+			if (!ctx.partial) {
+				await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
 			}
 
-			const children = Layout ? await Layout({ children: pageContent }) : pageContent;
+			const viewFn = view as KitaViewFn<P>;
+			const renderExecution = await this.captureHtmlRender(async () => {
+				const pageContent = await viewFn(props);
 
-			const HtmlTemplate = await this.getHtmlTemplate();
-			const metadata = view.metadata
-				? await view.metadata({
-						params: {},
-						query: {},
-						props: props as Record<string, unknown>,
-						appConfig: this.appConfig,
-					})
-				: this.appConfig.defaultMetadata;
-			await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
+				if (ctx.partial) {
+					return pageContent;
+				}
 
-			const html =
-				this.DOC_TYPE +
-				(await HtmlTemplate({
-					metadata,
-					pageProps: props as Record<string, unknown>,
-					children: children ?? '',
-				}));
+				const children = Layout ? await Layout({ children: pageContent }) : pageContent;
 
-			const transformedResponse = await this.htmlTransformer.transform(
-				new Response(html, {
-					headers: { 'Content-Type': 'text/html' },
-				}),
-			);
+				return (
+					this.DOC_TYPE +
+					(await HtmlTemplate!({
+						metadata: metadata ?? this.appConfig.defaultMetadata,
+						pageProps: (props as Record<string, unknown>) ?? {},
+						children: children ?? '',
+					}))
+				);
+			});
 
-			return this.createHtmlResponse(transformedResponse.body ?? '', ctx);
+			const componentsToResolve = ctx.partial
+				? [view]
+				: ([HtmlTemplate, Layout, view].filter(Boolean) as EcoComponent[]);
+			const body = await this.finalizeCapturedHtmlRender({
+				html: renderExecution.html,
+				componentsToResolve,
+				graphContext: renderExecution.graphContext,
+				partial: ctx.partial,
+			});
+
+			return this.createHtmlResponse(body, ctx);
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
 		}

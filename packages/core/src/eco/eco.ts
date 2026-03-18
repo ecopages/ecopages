@@ -30,6 +30,7 @@ import type {
 } from './eco.types.ts';
 import { createNodeId, createPropsRef, createSlotRef, getComponentRenderContext } from './component-render-context.ts';
 import { createComponentMarker, parseComponentMarkers } from '../route-renderer/component-marker.ts';
+import { getComponentReference } from '../route-renderer/component-reference.ts';
 import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './eco.utils.ts';
 
 /**
@@ -61,13 +62,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 		if (shouldEmitMarker && renderContext) {
 			const nodeId = createNodeId(renderContext);
 			const propsRef = createPropsRef(renderContext);
-			const componentRef = comp.config?.__eco?.id ?? comp.config?.__eco?.file;
-
-			if (!componentRef) {
-				throw new Error(
-					'[ecopages] Missing component reference metadata for cross-integration marker emission.',
-				);
-			}
+			const componentRef = getComponentReference(comp);
 
 			const componentProps = (props ?? {}) as Record<string, unknown>;
 			renderContext.propsByRef[propsRef] = componentProps;

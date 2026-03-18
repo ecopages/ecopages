@@ -21,6 +21,7 @@ import type {
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { LocalsAccessError } from '@ecopages/core/errors/locals-access-error';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
+import { getAppBuildExecutor } from '@ecopages/core/build/build-adapter';
 import { rapidhash } from '@ecopages/core/hash';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
@@ -132,6 +133,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		this.pageModuleService = new ReactPageModuleService({
 			rootDir: this.appConfig.rootDir,
 			distDir: this.appConfig.absolutePaths.distDir,
+			buildExecutor: getAppBuildExecutor(this.appConfig),
 			layoutsDir: this.appConfig.absolutePaths.layoutsDir,
 			componentsDir: this.appConfig.absolutePaths.componentsDir,
 			mdxCompilerOptions: ReactRenderer.mdxCompilerOptions,
@@ -177,17 +179,15 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	/**
-	 * Creates the fallback page-props payload used when a React page is rendered
-	 * inside a non-React HTML shell.
+	 * Creates the canonical page-props payload used by router hydration.
 	 *
-	 * browser-router can only inspect the final HTML document. When the HTML shell
-	 * is owned by another integration, the normal React page-data script may not be
-	 * the easiest marker to detect, so we emit a stable fallback payload in the
-	 * document head for router handoff and hydration recovery.
+	 * React pages embedded in a non-React HTML shell still need to expose the same
+	 * page-data contract as fully React-owned documents so navigation and hydration
+	 * can read one marker consistently.
 	 */
-	private buildRouterFallbackScript(pageProps: HtmlTemplateProps['pageProps'] | undefined): string {
+	private buildRouterPageDataScript(pageProps: HtmlTemplateProps['pageProps'] | undefined): string {
 		const safeJson = JSON.stringify(pageProps || {}).replace(/</g, '\\u003c');
-		return `<script id="__ECO_PAGE_DATA_FALLBACK__" type="application/json">${safeJson}</script>`;
+		return `<script id="__ECO_PAGE_DATA__" type="application/json">${safeJson}</script>`;
 	}
 
 	private getRouterDocumentAttributes(): Record<string, string> | undefined {
@@ -342,8 +342,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * Wraps composed page content in the final document template.
 	 *
 	 * React-owned HTML templates stream directly. Non-React templates receive
-	 * pre-rendered page HTML plus an optional React router fallback payload so the
-	 * client runtime can still recover page data after cross-integration handoff.
+	 * pre-rendered page HTML plus the canonical React page-data payload so the
+	 * client runtime can recover page data after cross-integration handoff.
 	 */
 	private async renderDocument(options: {
 		HtmlTemplate: EcoHtmlComponent<ReactNode>;
@@ -365,7 +365,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			);
 		}
 
-		const headContent = ReactRenderer.routerAdapter ? this.buildRouterFallbackScript(options.pageProps) : undefined;
+		const headContent = ReactRenderer.routerAdapter ? this.buildRouterPageDataScript(options.pageProps) : undefined;
 
 		return this.renderNonReactShellComponent(
 			this.asNonReactShellComponent<NonReactHtmlTemplateProps>(options.HtmlTemplate),

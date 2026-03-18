@@ -1,6 +1,7 @@
 import type { ComponentRenderInput, ComponentRenderResult, EcoComponent } from '../public-types.ts';
 import type { ProcessedAsset } from '../services/asset-processing-service/index.ts';
 import type { MarkerNodeId } from './component-marker.ts';
+import { getComponentReference } from './component-reference.ts';
 import { extractComponentGraph } from './component-graph.ts';
 import { resolveComponentGraph } from './component-graph-executor.ts';
 
@@ -121,9 +122,10 @@ export class MarkerGraphResolver {
 	 * Builds a reference registry from the root component set and all nested
 	 * declared component dependencies.
 	 *
-	 * Component refs are keyed by `__eco.id` when available, falling back to
-	 * `__eco.file`. Traversal is depth-first and deduplicated by component
-	 * identity to remain stable in shared dependency graphs.
+	 * Component refs are keyed by build metadata when available, falling back to a
+	 * stable runtime reference for source-imported components. Traversal is depth-
+	 * first and deduplicated by component identity to remain stable in shared
+	 * dependency graphs.
 	 *
 	 * @param components Root components participating in resolution.
 	 * @returns Lookup table from component ref to component definition.
@@ -140,10 +142,7 @@ export class MarkerGraphResolver {
 			}
 			seen.add(current);
 
-			const ref = current.config?.__eco?.id ?? current.config?.__eco?.file;
-			if (ref) {
-				registry.set(ref, current);
-			}
+			registry.set(getComponentReference(current), current);
 
 			const nested = current.config?.dependencies?.components ?? [];
 			for (const component of nested) {

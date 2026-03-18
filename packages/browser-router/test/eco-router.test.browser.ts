@@ -5,8 +5,13 @@ import { createRouter, EcoRouter } from '../src/client/eco-router';
 
 type BrowserRouterTestWindow = Window &
 	typeof globalThis & {
-		__ecopages_cleanup_page_root__?: () => void;
-		__ecopages_navigation__?: unknown;
+		__ECO_PAGES__?: {
+			navigation?: unknown;
+			react?: {
+				cleanupPageRoot?: () => void;
+			};
+			page?: unknown;
+		};
 		__ecopages_browser_router__?: EcoRouter;
 	};
 
@@ -14,12 +19,16 @@ const runtimeWindow = window as BrowserRouterTestWindow;
 const initialUrl = `${window.location.origin}/`;
 
 function resetBrowserRuntimeState(): void {
-	runtimeWindow.__ecopages_cleanup_page_root__?.();
+	runtimeWindow.__ECO_PAGES__?.react?.cleanupPageRoot?.();
 	runtimeWindow.__ecopages_browser_router__?.stop();
 	delete runtimeWindow.__ecopages_browser_router__;
-	delete runtimeWindow.__ecopages_navigation__;
-	delete runtimeWindow.__ecopages_cleanup_page_root__;
-	delete (window as typeof window & { __ECO_PAGE__?: unknown }).__ECO_PAGE__;
+	if (runtimeWindow.__ECO_PAGES__) {
+		delete runtimeWindow.__ECO_PAGES__.navigation;
+		if (runtimeWindow.__ECO_PAGES__.react) {
+			delete runtimeWindow.__ECO_PAGES__.react.cleanupPageRoot;
+		}
+		delete runtimeWindow.__ECO_PAGES__.page;
+	}
 	document.head.innerHTML = '';
 	document.body.innerHTML = '';
 	document.title = '';
@@ -459,8 +468,7 @@ describe('EcoRouter', () => {
 				const link = createLink({ href: '/pending-react-route', id: 'pending-react-link' });
 				const pushStateSpy = vi.spyOn(window.history, 'pushState');
 
-				await user.click(link);
-				await waitForNavigation();
+				await Promise.all([waitForNavigation(), user.click(link)]);
 
 				expect(pushStateSpy).toHaveBeenCalled();
 			});
@@ -500,9 +508,10 @@ describe('EcoRouter', () => {
 				await user.click(firstLink);
 				await user.hover(hoveredLink);
 				hoveredLink.remove();
+				const navigation = waitForNavigation();
 				await user.click(document.body);
 				firstFetch.resolve();
-				await waitForNavigation();
+				await navigation;
 
 				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining('/hover-recovered-route'));
 				expect(document.body.innerHTML).toContain('Recovered Content');
@@ -513,8 +522,7 @@ describe('EcoRouter', () => {
 				const link = createLink({ href: '/test-link', id: 'link' });
 				const pushStateSpy = vi.spyOn(window.history, 'pushState');
 
-				await user.click(link);
-				await waitForNavigation();
+				await Promise.all([waitForNavigation(), user.click(link)]);
 
 				expect(pushStateSpy).toHaveBeenCalled();
 			});

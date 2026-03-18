@@ -5,12 +5,6 @@ import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { EcoRouter, PageContent } from '../src/router';
 
-declare global {
-	interface Window {
-		__ecopages_cleanup_page_root__?: () => void;
-	}
-}
-
 function createMockPageComponent(name: string) {
 	const Component = () => createElement('div', { 'data-testid': name }, `Page: ${name}`);
 	Component.displayName = name;
@@ -86,7 +80,7 @@ describe('EcoRouter HMR Integration', () => {
 			container.parentNode.removeChild(container);
 		}
 		vi.restoreAllMocks();
-		delete window.__ecopages_cleanup_page_root__;
+		delete window.__ECO_PAGES__;
 	});
 
 	it('sets and clears the router ownership flag', async () => {
@@ -164,7 +158,7 @@ describe('EcoRouter HMR Integration', () => {
 				<html>
 					<body>
 						<script id="__ECO_PAGE_DATA__" type="application/json">{}</script>
-						<script type="module">import Page from '${moduleUrl}'; window.__ECO_PAGE__={module:'${moduleUrl}',props:{}}; hydrateRoot(document, Page);</script>
+						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:{}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
 					</body>
 				</html>
 			`;
@@ -267,7 +261,13 @@ describe('EcoRouter HMR Integration', () => {
 			const Page = createMultiLinkPage('LeaveReact', [{ href: '/outside-react', label: 'outside-link' }]);
 			const cleanupSpy = vi.fn();
 			const handoffSpy = vi.fn(async () => true);
-			window.__ecopages_cleanup_page_root__ = cleanupSpy;
+			window.__ECO_PAGES__ = {
+				...window.__ECO_PAGES__,
+				react: {
+					...window.__ECO_PAGES__?.react,
+					cleanupPageRoot: cleanupSpy,
+				},
+			};
 			const unregister = getEcoNavigationRuntime(window).register({
 				owner: 'browser-router',
 				handoffNavigation: handoffSpy,
@@ -295,7 +295,7 @@ describe('EcoRouter HMR Integration', () => {
 
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
-			expect(cleanupSpy).toHaveBeenCalledTimes(1);
+			expect(cleanupSpy).not.toHaveBeenCalled();
 			expect(handoffSpy).toHaveBeenCalledWith(
 				expect.objectContaining({
 					href: '/outside-react',
@@ -393,7 +393,7 @@ describe('EcoRouter HMR Integration', () => {
 				<html>
 					<body>
 						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
-						<script type="module">import Page from '${moduleUrl}'; window.__ECO_PAGE__={module:'${moduleUrl}',props:${JSON.stringify({ label })}}; hydrateRoot(document, Page);</script>
+						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
 					</body>
 				</html>
 			`;
@@ -424,7 +424,7 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
 			expect(container.textContent).toContain('fast');
-			expect(window.__ECO_PAGE__?.props).toEqual({ label: 'fast' });
+			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 		});
 
 		it('recovers a rapid click from the last hovered link while a React navigation is in flight', async () => {
@@ -437,7 +437,7 @@ describe('EcoRouter HMR Integration', () => {
 				<html>
 					<body>
 						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
-						<script type="module">import Page from '${moduleUrl}'; window.__ECO_PAGE__={module:'${moduleUrl}',props:${JSON.stringify({ label })}}; hydrateRoot(document, Page);</script>
+						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
 					</body>
 				</html>
 			`;
@@ -495,7 +495,7 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 160));
 
 			expect(container.textContent).toContain('fast');
-			expect(window.__ECO_PAGE__?.props).toEqual({ label: 'fast' });
+			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 		});
 
 		it('ignores stale navigation results when a newer route finishes first', async () => {
@@ -508,7 +508,7 @@ describe('EcoRouter HMR Integration', () => {
 				<html>
 					<body>
 						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
-						<script type="module">import Page from '${moduleUrl}'; window.__ECO_PAGE__={module:'${moduleUrl}',props:${JSON.stringify({ label })}}; hydrateRoot(document, Page);</script>
+						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
 					</body>
 				</html>
 			`;
@@ -549,7 +549,7 @@ describe('EcoRouter HMR Integration', () => {
 
 			expect(container.textContent).toContain('fast');
 			expect(container.textContent).not.toContain('slow');
-			expect(window.__ECO_PAGE__?.props).toEqual({ label: 'fast' });
+			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 		});
 
 		it('ignores stale browser-router handoff when a newer React route finishes first', async () => {
@@ -560,7 +560,13 @@ describe('EcoRouter HMR Integration', () => {
 			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
 			const cleanupSpy = vi.fn();
 			const handoffSpy = vi.fn(async () => true);
-			window.__ecopages_cleanup_page_root__ = cleanupSpy;
+			window.__ECO_PAGES__ = {
+				...window.__ECO_PAGES__,
+				react: {
+					...window.__ECO_PAGES__?.react,
+					cleanupPageRoot: cleanupSpy,
+				},
+			};
 			const unregister = getEcoNavigationRuntime(window).register({
 				owner: 'browser-router',
 				handoffNavigation: handoffSpy,
@@ -569,7 +575,7 @@ describe('EcoRouter HMR Integration', () => {
 				<html>
 					<body>
 						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
-						<script type="module">import Page from '${moduleUrl}'; window.__ECO_PAGE__={module:'${moduleUrl}',props:${JSON.stringify({ label })}}; hydrateRoot(document, Page);</script>
+						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
 					</body>
 				</html>
 			`;
@@ -615,7 +621,7 @@ describe('EcoRouter HMR Integration', () => {
 			expect(cleanupSpy).not.toHaveBeenCalled();
 			expect(handoffSpy).not.toHaveBeenCalled();
 			expect(container.textContent).toContain('fast');
-			expect(window.__ECO_PAGE__?.props).toEqual({ label: 'fast' });
+			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 			unregister();
 		});
 	});

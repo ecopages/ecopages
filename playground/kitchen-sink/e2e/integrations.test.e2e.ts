@@ -125,6 +125,150 @@ test.describe('Kitchen Sink Playground Integrations', () => {
 		runtime.assertClean();
 	});
 
+	test('keeps mixed router navigation stable across a rapid MDX and React tour', async ({ page }) => {
+		const runtime = trackRuntimeErrors(page);
+
+		await gotoAndWait(page, '/docs');
+		await expect(page.locator('[data-testid="page-docs"]')).toBeVisible();
+		await expectNavigationOwner(page, 'browser-router');
+
+		await clickHrefAndWait(page, '/react-content');
+		await expect(page.locator('[data-testid="page-react-content"]')).toBeVisible();
+		await expectNavigationOwner(page, 'react-router');
+
+		await clickHrefAndWait(page, '/react-lab');
+		await expect(page.locator('[data-testid="page-react-lab"]')).toBeVisible();
+		await expectNavigationOwner(page, 'react-router');
+
+		await clickHrefAndWait(page, '/integration-matrix');
+		await expect(page.locator('[data-testid="page-integration-matrix"]')).toBeVisible();
+		await expectNavigationOwner(page, 'browser-router');
+
+		await clickHrefAndWait(page, '/docs');
+		await expect(page.locator('[data-testid="page-docs"]')).toBeVisible();
+		await expectNavigationOwner(page, 'browser-router');
+
+		await clickHrefAndWait(page, '/images');
+		await expect(page.getByRole('heading', { name: 'One local asset, multiple delivery modes.' })).toBeVisible();
+		await expectNavigationOwner(page, 'browser-router');
+
+		await clickHrefAndWait(page, '/react-content');
+		await expect(page.locator('[data-testid="page-react-content"]')).toBeVisible();
+		await expectNavigationOwner(page, 'react-router');
+
+		const { source } = await fetchCurrentPageModule(page);
+		const specifiers = collectModuleSpecifiers(source);
+
+		expect(specifiers).not.toContain('react');
+		expect(specifiers).not.toContain('react/jsx-runtime');
+		expect(specifiers).not.toContain('react/jsx-dev-runtime');
+		expect(source).not.toMatch(/react\.development/i);
+		expect(source).not.toMatch(/react-jsx-dev-runtime/i);
+
+		runtime.assertClean();
+	});
+
+	test('keeps the latest React route when a slower React navigation loses the race', async ({ page }) => {
+		test.slow();
+		const runtime = trackRuntimeErrors(page);
+
+		for (let attempt = 0; attempt < 3; attempt += 1) {
+			let resolveDelayedReactNotesRequest!: () => void;
+			const delayedReactNotesRequestHandled = new Promise<void>((resolve) => {
+				resolveDelayedReactNotesRequest = resolve;
+			});
+
+			await gotoAndWait(page, '/react-content');
+			await expect(page.locator('[data-testid="page-react-content"]')).toBeVisible({ timeout: 15000 });
+			await expectNavigationOwner(page, 'react-router');
+
+			await page.route(
+				'**/react-notes',
+				async (route) => {
+					const request = route.request();
+					const acceptsHtml = (await request.headerValue('accept'))?.includes('text/html');
+
+					if (request.method() === 'GET' && acceptsHtml) {
+						await new Promise((resolve) => setTimeout(resolve, 300));
+					}
+
+					await route.continue();
+					resolveDelayedReactNotesRequest();
+				},
+				{ times: 1 },
+			);
+
+			const slowLink = page.getByTestId('route-link-react-notes');
+			const fastLink = page.getByTestId('route-link-react-lab');
+
+			await expect(slowLink).toBeVisible();
+			await expect(fastLink).toBeVisible();
+
+			await slowLink.click();
+			await page.waitForTimeout(25);
+			await fastLink.click();
+
+			await expect(page.getByRole('heading', { name: 'React Page Route' })).toBeVisible();
+			await expect(page).toHaveURL(/\/react-lab$/);
+			await expectNavigationOwner(page, 'react-router');
+			await expect(page.locator('[data-testid="page-react-lab"]')).toBeVisible();
+			await expect(page.locator('[data-react-value]')).toHaveText('0');
+			await delayedReactNotesRequestHandled;
+		}
+
+		runtime.assertClean();
+	});
+
+	test('ignores a stale browser-router handoff when a newer React navigation finishes first', async ({ page }) => {
+		test.slow();
+		const runtime = trackRuntimeErrors(page);
+
+		for (let attempt = 0; attempt < 3; attempt += 1) {
+			let resolveDelayedDocsRequest!: () => void;
+			const delayedDocsRequestHandled = new Promise<void>((resolve) => {
+				resolveDelayedDocsRequest = resolve;
+			});
+
+			await gotoAndWait(page, '/react-content');
+			await expect(page.locator('[data-testid="page-react-content"]')).toBeVisible({ timeout: 15000 });
+			await expectNavigationOwner(page, 'react-router');
+
+			await page.route(
+				'**/docs',
+				async (route) => {
+					const request = route.request();
+					const acceptsHtml = (await request.headerValue('accept'))?.includes('text/html');
+
+					if (request.method() === 'GET' && acceptsHtml) {
+						await new Promise((resolve) => setTimeout(resolve, 300));
+					}
+
+					await route.continue();
+					resolveDelayedDocsRequest();
+				},
+				{ times: 1 },
+			);
+
+			const slowLink = page.getByTestId('route-link-docs');
+			const fastLink = page.getByTestId('route-link-react-lab');
+
+			await expect(slowLink).toBeVisible();
+			await expect(fastLink).toBeVisible();
+
+			await slowLink.click();
+			await page.waitForTimeout(25);
+			await fastLink.click();
+
+			await expect(page.getByRole('heading', { name: 'React Page Route' })).toBeVisible();
+			await expect(page).toHaveURL(/\/react-lab$/);
+			await expectNavigationOwner(page, 'react-router');
+			await expect(page.locator('[data-testid="page-react-lab"]')).toBeVisible();
+			await delayedDocsRequestHandled;
+		}
+
+		runtime.assertClean();
+	});
+
 	test('keeps server-only filesystem helpers out of the React page module shipped to the browser', async ({
 		page,
 	}) => {

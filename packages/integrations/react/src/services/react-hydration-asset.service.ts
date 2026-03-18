@@ -104,7 +104,7 @@ export class ReactHydrationAssetService {
 			dependencies.push(
 				AssetFactory.createContentScript({
 					position: 'head',
-					content: `window.__ECO_PAGE__={module:"${importPath}",props:${JSON.stringify(props)}};`,
+					content: `window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:"${importPath}",props:${JSON.stringify(props)}};`,
 					name: `${componentName}-props`,
 					bundle: false,
 					attributes: {

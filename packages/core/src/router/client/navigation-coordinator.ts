@@ -34,6 +34,14 @@ export type EcoNavigationHandoffRequest = EcoNavigationRequest & {
 	targetOwner: EcoNavigationOwner;
 	document: Document;
 	html?: string;
+	/**
+	 * Reports whether the source runtime's original navigation has already been
+	 * superseded.
+	 *
+	 * Target runtimes use this to ignore handoff work that arrives after a newer
+	 * navigation has already claimed ownership.
+	 */
+	isStaleSourceNavigation?: () => boolean;
 };
 
 /** Request to reload the current page through the active runtime. */
@@ -82,6 +90,14 @@ export type EcoNavigationRuntimeRegistration = {
 	navigate?: (request: EcoNavigationRequest) => Promise<boolean | void>;
 	handoffNavigation?: (request: EcoNavigationHandoffRequest) => Promise<boolean | void>;
 	reloadCurrentPage?: (request?: EcoReloadRequest) => Promise<void>;
+	/**
+	 * Releases runtime-owned client state before another runtime commits a new
+	 * document.
+	 *
+	 * This hook intentionally does not run as part of `requestHandoff()`. The
+	 * accepting runtime decides when cleanup is safe so cross-runtime handoffs do
+	 * not blank the current page before the incoming document is ready.
+	 */
 	cleanupBeforeHandoff?: () => void | Promise<void>;
 };
 
@@ -113,7 +129,13 @@ export interface EcoNavigationRuntime {
 	register(runtime: EcoNavigationRuntimeRegistration): () => void;
 	/** Requests navigation through another eligible registered runtime. */
 	requestNavigation(request: EcoNavigationRequest): Promise<boolean>;
-	/** Hands a pre-fetched document to the target runtime. */
+	/**
+	 * Hands a pre-fetched document to the target runtime.
+	 *
+	 * The coordinator delegates the document but does not clean up the current
+	 * owner first. Cleanup timing belongs to the accepting runtime so a stale or
+	 * superseded handoff cannot tear down the current page prematurely.
+	 */
 	requestHandoff(request: EcoNavigationHandoffRequest): Promise<boolean>;
 	/** Requests the active runtime to reload the current page. */
 	reloadCurrentPage(request?: EcoReloadRequest): Promise<boolean>;
@@ -136,7 +158,9 @@ export function getEcoDocumentOwner(doc: Document): EcoNavigationOwner | null {
 
 type EcoNavigationWindow = Window &
 	typeof globalThis & {
-		__ecopages_navigation__?: EcoNavigationRuntime;
+		__ECO_PAGES__?: {
+			navigation?: EcoNavigationRuntime;
+		};
 	};
 
 function getCandidateOwners(
@@ -334,13 +358,17 @@ function createEcoNavigationRuntime(_windowObject: EcoNavigationWindow): EcoNavi
 				return false;
 			}
 
+			if (request.isStaleSourceNavigation?.()) {
+				return true;
+			}
+
 			const registration = registrations.get(request.targetOwner);
 			if (!registration?.handoffNavigation) {
 				return false;
 			}
 
-			if (owner !== 'none' && owner !== request.targetOwner) {
-				await runtime.cleanupOwner(owner);
+			if (request.isStaleSourceNavigation?.()) {
+				return true;
 			}
 
 			const handled = await registration.handoffNavigation(request);
@@ -396,9 +424,10 @@ function createEcoNavigationRuntime(_windowObject: EcoNavigationWindow): EcoNavi
  */
 export function getEcoNavigationRuntime(windowObject: Window & typeof globalThis = window): EcoNavigationRuntime {
 	const runtimeWindow = windowObject as EcoNavigationWindow;
-	if (!runtimeWindow.__ecopages_navigation__) {
-		runtimeWindow.__ecopages_navigation__ = createEcoNavigationRuntime(runtimeWindow);
+	runtimeWindow.__ECO_PAGES__ = runtimeWindow.__ECO_PAGES__ || {};
+	if (!runtimeWindow.__ECO_PAGES__.navigation) {
+		runtimeWindow.__ECO_PAGES__.navigation = createEcoNavigationRuntime(runtimeWindow);
 	}
 
-	return runtimeWindow.__ecopages_navigation__;
+	return runtimeWindow.__ECO_PAGES__.navigation;
 }

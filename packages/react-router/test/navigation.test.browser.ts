@@ -36,16 +36,19 @@ function createMouseEvent(overrides: Partial<MouseEventInit> = {}): MouseEvent {
 describe('extractProps', () => {
 	beforeEach(() => {
 		if (typeof window !== 'undefined') {
-			delete window.__ECO_PAGE__;
+			delete window.__ECO_PAGES__;
 		}
 	});
 
-	it('should extract props from window.__ECO_PAGE__ for current document', () => {
+	it('should extract props from window.__ECO_PAGES__.page for current document', () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: '/page.js',
-			props: { title: 'Test Page', count: 42 },
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: '/page.js',
+				props: { title: 'Test Page', count: 42 },
+			},
 		};
 
 		const props = extractProps(document);
@@ -55,12 +58,15 @@ describe('extractProps', () => {
 	it('should handle nested props correctly', () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: '/page.js',
-			props: {
-				user: { name: 'John', age: 30 },
-				items: [1, 2, 3],
-				metadata: { tags: ['a', 'b'] },
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: '/page.js',
+				props: {
+					user: { name: 'John', age: 30 },
+					items: [1, 2, 3],
+					metadata: { tags: ['a', 'b'] },
+				},
 			},
 		};
 
@@ -72,19 +78,22 @@ describe('extractProps', () => {
 		});
 	});
 
-	it('should return empty object when window.__ECO_PAGE__ is undefined', () => {
+	it('should return empty object when window.__ECO_PAGES__.page is undefined', () => {
 		if (typeof window === 'undefined') return;
 
 		const props = extractProps(document);
 		expect(props).toEqual({});
 	});
 
-	it('should return empty object when window.__ECO_PAGE__.props is undefined', () => {
+	it('should return empty object when window.__ECO_PAGES__.page.props is undefined', () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: '/page.js',
-			props: undefined as any,
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: '/page.js',
+				props: undefined as any,
+			},
 		};
 
 		const props = extractProps(document);
@@ -157,16 +166,19 @@ describe('extractProps', () => {
 describe('extractComponentUrl', () => {
 	beforeEach(() => {
 		if (typeof window !== 'undefined') {
-			delete (window as any).__ECO_PAGE__;
+			delete window.__ECO_PAGES__;
 		}
 	});
 
-	it('should extract component URL from window.__ECO_PAGE__ for current document', async () => {
+	it('should extract component URL from window.__ECO_PAGES__.page for current document', async () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: '/_hmr/pages/about.js',
-			props: {},
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: '/_hmr/pages/about.js',
+				props: {},
+			},
 		};
 
 		const url = await extractComponentUrl(document);
@@ -176,28 +188,34 @@ describe('extractComponentUrl', () => {
 	it('should handle component URLs with query parameters', async () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: '/_hmr/pages/about.js?version=1',
-			props: {},
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: '/_hmr/pages/about.js?version=1',
+				props: {},
+			},
 		};
 
 		const url = await extractComponentUrl(document);
 		expect(url).toBe('/_hmr/pages/about.js?version=1');
 	});
 
-	it('should return null when window.__ECO_PAGE__ is missing', async () => {
+	it('should return null when window.__ECO_PAGES__.page is missing', async () => {
 		if (typeof window === 'undefined') return;
 
 		const url = await extractComponentUrl(document);
 		expect(url).toBeNull();
 	});
 
-	it('should return null when window.__ECO_PAGE__.module is missing', async () => {
+	it('should return null when window.__ECO_PAGES__.page.module is missing', async () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: undefined as any,
-			props: {},
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: undefined as any,
+				props: {},
+			},
 		};
 
 		const url = await extractComponentUrl(document);
@@ -256,7 +274,7 @@ describe('loadPageModule', () => {
 		fetchSpy = vi.spyOn(globalThis, 'fetch');
 		consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		if (typeof window !== 'undefined') {
-			delete window.__ECO_PAGE__;
+			delete window.__ECO_PAGES__;
 		}
 	});
 
@@ -317,6 +335,20 @@ describe('loadPageModule', () => {
 		expect(result?.doc.body.innerHTML).toContain('Outside React');
 	});
 
+	it('should request navigation documents as HTML', async () => {
+		const mockHtml = '<html><body><main>Docs</main></body></html>';
+		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+
+		await fetchPageDocument('/docs');
+
+		expect(fetchSpy).toHaveBeenCalledWith('/docs', {
+			signal: undefined,
+			headers: {
+				Accept: 'text/html',
+			},
+		});
+	});
+
 	it('should load a react page module from an already-fetched document', async () => {
 		const moduleUrl = '/packages/react-router/test/fixtures/test-page-module.ts';
 		const doc = createMockDocument(
@@ -324,7 +356,7 @@ describe('loadPageModule', () => {
 				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
 				'<body>',
 				'<script id="__ECO_PAGE_DATA__" type="application/json">{"message":"hello"}</script>',
-				`<script type="module">import Page from "${moduleUrl}"; window.__ECO_PAGE__={module:"${moduleUrl}",props:{message:"hello"}}; hydrateRoot(document, Page);</script>`,
+				`<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:"${moduleUrl}",props:{message:"hello"}};import Page from "${moduleUrl}"; hydrateRoot(document, Page);</script>`,
 				'</body>',
 				'</html>',
 			].join(''),

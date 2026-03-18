@@ -15,11 +15,12 @@ describe('createHydrationScript', () => {
 			isDevelopment: true,
 		});
 
-		expect(script).toContain('window.__ecopages_page_root__ = window.__ecopages_page_root__ || null;');
-		expect(script).toContain('window.__ecopages_cleanup_page_root__ = () => {');
+		expect(script).toContain('window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};');
+		expect(script).toContain('window.__ECO_PAGES__.react.pageRoot = window.__ECO_PAGES__.react.pageRoot || null;');
+		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot = () => {');
 		expect(script).toContain('activeRoot.unmount();');
-		expect(script).toContain('window.__ecopages_navigation__?.releaseOwnership?.("react-router");');
-		expect(script).toContain('if (window.__ecopages_page_root__) {');
+		expect(script).toContain('window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");');
+		expect(script).toContain('if (window.__ECO_PAGES__.react?.pageRoot) {');
 		expect(script).toContain('root.render(createTree(Page, props));');
 		expect(script).toContain('const layoutProps = props?.locals ? { locals: props.locals } : null;');
 		expect(script).toContain('return Layout ? createElement(Layout, layoutProps, pageElement) : pageElement;');
@@ -42,12 +43,13 @@ describe('createHydrationScript', () => {
 			isDevelopment: false,
 		});
 
-		expect(script).toContain('window.__ecopages_page_root__=window.__ecopages_page_root__||null;');
-		expect(script).toContain('window.__ecopages_cleanup_page_root__=()=>{');
+		expect(script).toContain('window.__ECO_PAGES__=window.__ECO_PAGES__||{};');
+		expect(script).toContain('window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;');
+		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot=()=>{');
 		expect(script).toContain('a.unmount()');
-		expect(script).toContain('window.__ecopages_navigation__?.releaseOwnership?.("react-router")');
+		expect(script).toContain('window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router")');
 		expect(script).toContain(
-			'if(window.__ecopages_page_root__){root=window.__ecopages_page_root__;root.render(ct(P,pr));return}',
+			'if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}',
 		);
 		expect(script).toContain('const lp=p?.locals?{locals:p.locals}:null;');
 		expect(script).toContain('return L?ce(L,lp,pe):pe');
@@ -67,12 +69,14 @@ describe('createHydrationScript', () => {
 			routerImportPath: '/assets/router.js',
 		});
 
-		expect(script).toContain('window.__ecopages_cleanup_page_root__ = () => {');
-		expect(script).toContain('window.__ecopages_navigation__?.register({');
-		expect(script).toContain('window.__ecopages_navigation__?.claimOwnership?.("react-router");');
+		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot = () => {');
+		expect(script).toContain('window.__ECO_PAGES__?.navigation?.register({');
+		expect(script).toContain('window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router");');
 		expect(script).toContain(
-			'window.__ecopages_navigation__?.reloadCurrentPage?.({ clearCache: false, source: "react-router" });',
+			'window.__ECO_PAGES__?.navigation?.reloadCurrentPage?.({ clearCache: false, source: "react-router" });',
 		);
+		expect(script).toContain('document.getElementById("__ECO_PAGE_DATA__")');
+		expect(script).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});
 
 	test('production output passes serialized locals to layout hydration for non-router MDX pages', () => {
@@ -104,7 +108,7 @@ describe('createIslandHydrationScript', () => {
 			isDevelopment: true,
 		});
 
-		expect(script).toContain('document.addEventListener("eco:after-swap", mount);');
+		expect(script).not.toContain('eco:after-swap');
 		expect(script).toContain('document.createElement("eco-island")');
 		expect(script).toContain('container.style.display = "block"');
 		expect(script).toContain('target.replaceWith(container)');
@@ -118,7 +122,7 @@ describe('createIslandHydrationScript', () => {
 			isDevelopment: false,
 		});
 
-		expect(script).toContain('document.addEventListener("eco:after-swap",m)');
+		expect(script).not.toContain('eco:after-swap');
 		expect(script).toContain('createElement("eco-island")');
 		expect(script).toContain('style.display="block"');
 		expect(script).toContain('replaceWith(ct)');

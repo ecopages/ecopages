@@ -41,7 +41,7 @@ import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
-} from '../../core/src/router/client/link-intent.ts';
+} from '@ecopages/core/router/link-intent';
 
 type PageContextValue = PageState | null;
 
@@ -229,10 +229,9 @@ function useNavigationCoordinator(
 			},
 			cleanupBeforeHandoff: async () => {
 				runtimeActiveRef.current = false;
-				activeNavigationRef.current?.cancel();
 				unregisterRuntime?.();
 				unregisterRuntime = null;
-				window.__ecopages_cleanup_page_root__?.();
+				window.__ECO_PAGES__?.react?.cleanupPageRoot?.();
 			},
 		});
 		unregisterRuntime = unregister;
@@ -358,7 +357,8 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			const navigationId = navigation.id;
 			const isStale = () => !navigation.isCurrent();
 			const commitPageData = (moduleUrl: string, props: Record<string, unknown>) => {
-				window.__ECO_PAGE__ = {
+				window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
+				window.__ECO_PAGES__.page = {
 					module: moduleUrl,
 					props,
 				};
@@ -454,6 +454,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 						targetOwner: 'browser-router',
 						document: fetchedPage.doc,
 						html: fetchedPage.html,
+						isStaleSourceNavigation: isStale,
 					});
 
 					if (!handled) {
@@ -473,11 +474,28 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 
 				if (
 					queuedNavigationHref &&
-					runtimeActiveRef.current &&
 					queuedNavigationHref !== window.location.pathname + window.location.search
 				) {
 					queuedNavigationHrefRef.current = null;
-					void navigate(queuedNavigationHref, { pushHistory: true });
+
+					if (runtimeActiveRef.current) {
+						void navigate(queuedNavigationHref, { pushHistory: true });
+					} else {
+						// React may finish after control has already moved to another runtime.
+						// In that case replay the queued click through the shared coordinator
+						// so the newest navigation still lands on its intended owner.
+						void navigationRuntime
+							.requestNavigation({
+								href: queuedNavigationHref,
+								direction: 'forward',
+								source: 'react-router',
+							})
+							.then((handled) => {
+								if (!handled) {
+									window.location.assign(queuedNavigationHref);
+								}
+							});
+					}
 				}
 			}
 		},

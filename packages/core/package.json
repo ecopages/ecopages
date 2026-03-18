@@ -59,8 +59,16 @@
 			"default": "./src/route-renderer/integration-renderer.ts"
 		},
 		"./router/navigation-coordinator": {
-			"types": "./src/router/navigation-coordinator.ts",
-			"default": "./src/router/navigation-coordinator.ts"
+			"types": "./src/router/client/navigation-coordinator.ts",
+			"default": "./src/router/client/navigation-coordinator.ts"
+		},
+		"./router/link-intent": {
+			"types": "./src/router/client/link-intent.ts",
+			"default": "./src/router/client/link-intent.ts"
+		},
+		"./router/client/navigation-coordinator": {
+			"types": "./src/router/client/navigation-coordinator.ts",
+			"default": "./src/router/client/navigation-coordinator.ts"
 		},
 		"./errors/locals-access-error": {
 			"types": "./src/errors/locals-access-error.ts",

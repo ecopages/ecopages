@@ -14,6 +14,8 @@ export default defineConfig({
 					include: [
 						'packages/core/src/**/*.test.ts',
 						'packages/core/src/**/*.test.tsx',
+						'packages/ecopages/**/*.test.ts',
+						'packages/ecopages/**/*.test.js',
 						'packages/plugins/**/*.test.ts',
 						'packages/processors/**/*.test.ts',
 						'packages/integrations/**/*.test.ts',

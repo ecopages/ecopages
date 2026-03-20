@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import tiged from 'tiged';
 import { Logger } from '@ecopages/logger';
+import { createLaunchPlan, launchPlanRequiresExistingEntryFile } from './launch-plan.js';
 
 const logger = new Logger('[ecopages:cli]');
 
@@ -56,107 +57,6 @@ program
 	.option('--repo <repo>', 'GitHub repo (user/repo)', 'ecopages/ecopages')
 	.action(handleInit);
 
-/**
- * Build environment variables from CLI options
- */
-function buildEnvOverrides(options) {
-	const env = {};
-	if (options.port) env.ECOPAGES_PORT = String(options.port);
-	if (options.hostname) env.ECOPAGES_HOSTNAME = options.hostname;
-	if (options.baseUrl) env.ECOPAGES_BASE_URL = options.baseUrl;
-	if (options.debug) env.ECOPAGES_LOGGER_DEBUG = 'true';
-	if (options.nodeEnv) env.NODE_ENV = options.nodeEnv;
-	return env;
-}
-
-function detectRuntime(options = {}) {
-	if (options.runtime === 'bun' || options.runtime === 'node') {
-		return options.runtime;
-	}
-
-	const userAgent = process.env.npm_config_user_agent || '';
-
-	/**
-	 * If explicitly launched via bun (e.g., `bun run ...`)
-	 */
-	if (userAgent.startsWith('bun/')) {
-		return 'bun';
-	}
-
-	/**
-	 * Catch when CLI is run directly by Bun without a package manager command
-	 */
-	if (typeof Bun !== 'undefined') {
-		return 'bun';
-	}
-
-	/**
-	 * Default to node for npm, pnpm, yarn, or direct execution
-	 */
-	return 'node';
-}
-
-function buildBunArgs(args, options, entryFile, hasConfig) {
-	const bunArgs = [];
-
-	if (options.watch) bunArgs.push('--watch');
-	if (options.hot) bunArgs.push('--hot');
-
-	bunArgs.push('run');
-
-	if (hasConfig) {
-		bunArgs.push('--preload', 'eco.config.ts');
-	}
-
-	bunArgs.push(entryFile, ...args);
-
-	if (options.reactFastRefresh) {
-		bunArgs.push('--react-fast-refresh');
-	}
-
-	return bunArgs;
-}
-
-function buildNodeArgs(args, options, entryFile) {
-	const tsxArgs = [];
-
-	if (options.watch) tsxArgs.push('watch');
-
-	tsxArgs.push(entryFile, ...args);
-
-	if (options.reactFastRefresh) {
-		tsxArgs.push('--react-fast-refresh');
-	}
-
-	return tsxArgs;
-}
-
-function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
-	const hasConfig = existsSync('eco.config.ts');
-	const envOverrides = buildEnvOverrides(options);
-	const runtime = detectRuntime(options);
-
-	if (runtime === 'node') {
-		return {
-			runtime,
-			executionStrategy: 'tsx',
-			command: 'tsx',
-			commandArgs: buildNodeArgs(args, options, entryFile),
-			envOverrides,
-			env: { ...process.env, ...envOverrides },
-		};
-	}
-
-	return {
-		runtime,
-		executionStrategy: 'direct-runtime',
-		command: 'bun',
-		commandArgs: buildBunArgs(args, options, entryFile, hasConfig),
-		envOverrides,
-		env: { ...process.env, ...envOverrides },
-	};
-}
-
 function runLaunchPlan(launchPlan) {
 	if (Object.keys(launchPlan.envOverrides).length > 0) {
 		logger.info(`Environment overrides: ${JSON.stringify(launchPlan.envOverrides)}`);
@@ -175,7 +75,7 @@ function runLaunchPlan(launchPlan) {
 			const hint =
 				launchPlan.command === 'bun'
 					? 'Install Bun from https://bun.sh to continue.'
-					: 'Install tsx (`npm i -g tsx` or add it as a devDependency) to continue.';
+					: 'Install Node.js and ensure the `node` command is available to continue.';
 			logger.error(`Command not found: ${launchPlan.command}. ${hint}`);
 			process.exit(1);
 		}
@@ -196,13 +96,14 @@ function runLaunchPlan(launchPlan) {
  * @param {object} options - CLI options (watch, hot, port, hostname, etc.)
  * @param {string} entryFile - Entry file to run
  */
-function runBunCommand(args, options = {}, entryFile = 'app.ts') {
-	if (!existsSync(entryFile)) {
+async function runBunCommand(args, options = {}, entryFile = 'app.ts') {
+	const launchPlan = await createLaunchPlan(args, options, entryFile);
+
+	if (launchPlanRequiresExistingEntryFile(launchPlan) && !existsSync(entryFile)) {
 		logger.error(`Error: Entry file "${entryFile}" not found in the current directory.`);
 		process.exit(1);
 	}
 
-	const launchPlan = createLaunchPlan(args, options, entryFile);
 	runLaunchPlan(launchPlan);
 }
 
@@ -218,12 +119,12 @@ const serverOptions = (cmd) =>
 		.option('-b, --base-url <url>', 'Override ECOPAGES_BASE_URL')
 		.option('-d, --debug', 'Enable debug logging (ECOPAGES_LOGGER_DEBUG=true)')
 		.option('-r, --react-fast-refresh', 'Enable React Fast Refresh for HMR')
-		.option('--runtime <runtime>', 'Force a specific runtime (bun or node)');
+		.option('--runtime <runtime>', 'Force a specific runtime (bun, node, or node-experimental)');
 
 serverOptions(
 	program.command('dev').description('Start the development server').argument('[entry]', 'Entry file', 'app.ts'),
-).action((entry, opts) => {
-	runBunCommand(['--dev'], { ...opts, nodeEnv: 'development' }, entry);
+).action(async (entry, opts) => {
+	await runBunCommand(['--dev'], { ...opts, nodeEnv: 'development' }, entry);
 });
 
 serverOptions(
@@ -231,8 +132,8 @@ serverOptions(
 		.command('dev:watch')
 		.description('Start the development server with watch mode (restarts on file changes)')
 		.argument('[entry]', 'Entry file', 'app.ts'),
-).action((entry, opts) => {
-	runBunCommand(['--dev'], { ...opts, watch: true, nodeEnv: 'development' }, entry);
+).action(async (entry, opts) => {
+	await runBunCommand(['--dev'], { ...opts, watch: true, nodeEnv: 'development' }, entry);
 });
 
 serverOptions(
@@ -240,29 +141,29 @@ serverOptions(
 		.command('dev:hot')
 		.description('Start the development server with hot reload (HMR without restart)')
 		.argument('[entry]', 'Entry file', 'app.ts'),
-).action((entry, opts) => {
-	runBunCommand(['--dev'], { ...opts, hot: true, nodeEnv: 'development' }, entry);
+).action(async (entry, opts) => {
+	await runBunCommand(['--dev'], { ...opts, hot: true, nodeEnv: 'development' }, entry);
 });
 
 program
 	.command('build')
 	.description('Build the project for production')
 	.argument('[entry]', 'Entry file', 'app.ts')
-	.option('--runtime <runtime>', 'Force a specific runtime (bun or node)')
-	.action((entry, opts) => {
-		runBunCommand(['--build'], { nodeEnv: 'production', ...opts }, entry);
+	.option('--runtime <runtime>', 'Force a specific runtime (bun, node, or node-experimental)')
+	.action(async (entry, opts) => {
+		await runBunCommand(['--build'], { nodeEnv: 'production', ...opts }, entry);
 	});
 
 serverOptions(
 	program.command('start').description('Start the production server').argument('[entry]', 'Entry file', 'app.ts'),
-).action((entry, opts) => {
-	runBunCommand([], { ...opts, nodeEnv: 'production' }, entry);
+).action(async (entry, opts) => {
+	await runBunCommand([], { ...opts, nodeEnv: 'production' }, entry);
 });
 
 serverOptions(
 	program.command('preview').description('Preview the production build').argument('[entry]', 'Entry file', 'app.ts'),
-).action((entry, opts) => {
-	runBunCommand(['--preview'], { ...opts, nodeEnv: 'production' }, entry);
+).action(async (entry, opts) => {
+	await runBunCommand(['--preview'], { ...opts, nodeEnv: 'production' }, entry);
 });
 
 program.parse();

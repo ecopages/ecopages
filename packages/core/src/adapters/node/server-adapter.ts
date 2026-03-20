@@ -2,9 +2,16 @@ import { createServer, type IncomingMessage, type Server as NodeHttpServer, type
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import { defaultBuildAdapter, setAppBuildExecutor } from '../../build/build-adapter.ts';
+import {
+	getAppBuildAdapter,
+	getAppBuildExecutor,
+	getAppBrowserBuildPlugins,
+	getAppServerBuildPlugins,
+	setAppBuildExecutor,
+	setupAppRuntimePlugins,
+} from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import { createAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
+import { createOrReuseAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
@@ -84,7 +91,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private previewServer: NodeStaticContentServer | null = null;
 	private bridge: NodeClientBridge | null = null;
 	private hmrManager: NodeHmrManager | null = null;
-	private processorBuildPlugins: EcoBuildPlugin[] = [];
 
 	constructor(options: NodeServerAdapterParams) {
 		super(options);
@@ -107,11 +113,15 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *    processors during their `setup()` calls.
 	 */
 	public async initialize(): Promise<void> {
+		const buildAdapter = getAppBuildAdapter(this.appConfig);
+
 		setAppBuildExecutor(
 			this.appConfig,
-			createAppBuildExecutor({
+			createOrReuseAppBuildExecutor({
 				development: this.options?.watch === true,
-				adapter: defaultBuildAdapter,
+				adapter: buildAdapter,
+				currentExecutor: getAppBuildExecutor(this.appConfig),
+				getPlugins: () => getAppServerBuildPlugins(this.appConfig),
 			}),
 		);
 
@@ -131,18 +141,16 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	}
 
 	/**
-	 * Registers every configured file loader as a build plugin on the shared
-	 * `defaultBuildAdapter`.
+	 * Registers every configured file loader as a build plugin on the app-owned
+	 * build adapter.
 	 *
-	 * Loaders are registered on the *shared* adapter (not on a per-build instance)
-	 * because they must be available globally to both the SSR build and any dynamic
-	 * transpile passes that happen outside of a top-level `build()` call (e.g. HMR
-	 * incremental rebuilds).
+	 * Loaders are registered on the per-app adapter because they must be available
+	 * to both the SSR build and any dynamic transpile passes that happen outside of
+	 * a top-level `build()` call (e.g. HMR incremental rebuilds) without leaking
+	 * across app instances.
 	 */
 	private setupLoaders(): void {
-		for (const loader of this.appConfig.loaders.values()) {
-			defaultBuildAdapter.registerPlugin(loader);
-		}
+		return;
 	}
 
 	private copyPublicDir(): void {
@@ -163,7 +171,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * plugin lists:
 	 * - `plugins` — transform plugins used during SSR rendering (e.g. PostCSS).
 	 * - `buildPlugins` — esbuild plugins used during the client bundle step.
-	 * Both are registered on `defaultBuildAdapter` so later build calls pick them up.
+	 * Both are registered on the app-owned build adapter so later build calls pick them up.
 	 *
 	 * **Phase 2 — Integrations:**
 	 * Integrations receive the fully-resolved app config, the runtime origin, and
@@ -172,38 +180,11 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * may have mutated during phase 1.
 	 */
 	private async initializePlugins(): Promise<void> {
-		const processorBuildPlugins: EcoBuildPlugin[] = [];
-
-		for (const processor of this.appConfig.processors.values()) {
-			await processor.setup();
-
-			if (processor.plugins) {
-				for (const plugin of processor.plugins) {
-					defaultBuildAdapter.registerPlugin(plugin);
-				}
-			}
-			if (processor.buildPlugins) {
-				processorBuildPlugins.push(...processor.buildPlugins);
-				for (const plugin of processor.buildPlugins) {
-					defaultBuildAdapter.registerPlugin(plugin);
-				}
-			}
-		}
-
-		for (const integration of this.appConfig.integrations) {
-			integration.setConfig(this.appConfig);
-			integration.setRuntimeOrigin(this.runtimeOrigin);
-			if (this.hmrManager) {
-				integration.setHmrManager(this.hmrManager);
-			}
-			await integration.setup();
-
-			for (const plugin of integration.plugins) {
-				defaultBuildAdapter.registerPlugin(plugin);
-			}
-		}
-
-		this.processorBuildPlugins = processorBuildPlugins;
+		await setupAppRuntimePlugins({
+			appConfig: this.appConfig,
+			runtimeOrigin: this.runtimeOrigin,
+			hmrManager: this.hmrManager ?? undefined,
+		});
 	}
 
 	public getServerOptions(): NodeServeAdapterServerOptions {
@@ -498,31 +479,34 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.serverInstance = _server;
 
 		if (this.options?.watch) {
+			const thinHostRuntime = Boolean(process.env.ECOPAGES_NODE_RUNTIME_MANIFEST_PATH);
 			const { WebSocketServer } = await import('ws');
 			const wss = new WebSocketServer({ noServer: true });
 			this.bridge = new NodeClientBridge();
 			this.hmrManager = new NodeHmrManager({ appConfig: this.appConfig, bridge: this.bridge });
 			this.hmrManager.setEnabled(true);
 
-			await this.hmrManager.buildRuntime();
+			if (thinHostRuntime) {
+				this.hmrManager.setEnabled(false);
+				appLogger.warn('[HMR] Disabled for the Node thin-host runtime during startup.');
+			} else {
+				await this.hmrManager.buildRuntime();
 
-			_server.on('upgrade', (req, socket, head) => {
-				const url = new URL(req.url ?? '/', this.runtimeOrigin);
-				if (url.pathname === '/_hmr') {
-					wss.handleUpgrade(req, socket, head, (ws) => {
-						this.bridge!.subscribe(ws);
-						ws.on('close', () => this.bridge!.unsubscribe(ws));
-						ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
-					});
-				} else {
-					socket.destroy();
-				}
-			});
+				_server.on('upgrade', (req, socket, head) => {
+					const url = new URL(req.url ?? '/', this.runtimeOrigin);
+					if (url.pathname === '/_hmr') {
+						wss.handleUpgrade(req, socket, head, (ws) => {
+							this.bridge!.subscribe(ws);
+							ws.on('close', () => this.bridge!.unsubscribe(ws));
+							ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
+						});
+					} else {
+						socket.destroy();
+					}
+				});
+			}
 
-			const loaderPlugins = Array.from(this.appConfig.loaders.values());
-			const integrationBuildPlugins = this.appConfig.integrations.flatMap((integration) => integration.plugins);
-			const hmrBuildPlugins = [...loaderPlugins, ...this.processorBuildPlugins, ...integrationBuildPlugins];
-			this.hmrManager.setPlugins(hmrBuildPlugins);
+			this.hmrManager.setPlugins(getAppBrowserBuildPlugins(this.appConfig));
 
 			for (const integration of this.appConfig.integrations) {
 				integration.setHmrManager(this.hmrManager);

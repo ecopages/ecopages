@@ -1,10 +1,10 @@
 # Build Layer
 
-This directory contains the runtime-neutral build contract used across Ecopages and the esbuild-backed implementation that currently powers the shared default adapter.
+This directory contains the runtime-neutral build contract used across Ecopages and the esbuild-backed implementation that currently powers the default fallback adapter.
 
 ## Files
 
-- `build-adapter.ts`: shared build interfaces, result types, the exported `defaultBuildAdapter` singleton, and the top-level `build()` / `getTranspileOptions()` pipeline functions.
+- `build-adapter.ts`: shared build interfaces, result types, app-owned adapter/executor helpers, the exported `defaultBuildAdapter` fallback, and the top-level `build()` / `getTranspileOptions()` pipeline functions.
 - `build-types.ts`: plugin bridge types used by integrations and processors.
 - `esbuild-build-adapter.ts`: the concrete esbuild backend.
 - `dev-build-coordinator.ts`: development-only orchestration around the shared esbuild backend.
@@ -44,9 +44,11 @@ Those callers must not race each other against one long-lived esbuild worker. Th
 
 ## Default Flow
 
-Each `EcoPagesAppConfig` owns a `buildExecutor` in `appConfig.runtime`. The config builder initializes that executor to the plain shared adapter by default.
+Each `EcoPagesAppConfig` owns a build adapter, build manifest, and `buildExecutor` in `appConfig.runtime`. `ConfigBuilder.build()` now creates that app-owned build state up front so later runtime startup can reuse it rather than mutating a shared adapter.
 
 When a Node or Bun server adapter starts in watch mode, it replaces that executor with a per-app `DevBuildCoordinator`. Build consumers then either call the executor directly or pass it explicitly to the top-level `build()` helper.
+
+Plugins are part of app-owned manifest or per-build input now. The source build contract no longer exposes adapter-level plugin registration, which keeps build composition scoped to an app/runtime instance instead of leaking across instances.
 
 HMR callers follow the same ownership model. Integration-specific runtime aliasing stays with the integration that owns those specifiers, rather than in generic core HMR bundling.
 
@@ -54,7 +56,7 @@ HMR callers follow the same ownership model. Integration-specific runtime aliasi
 
 ```mermaid
 flowchart TD
-    Config["ConfigBuilder.build()"] --> DefaultExec["appConfig.runtime.buildExecutor = defaultBuildAdapter"]
+    Config["ConfigBuilder.build()"] --> DefaultExec["appConfig.runtime.buildExecutor = createAppBuildExecutor(app adapter, manifest)"]
     Adapter["Server adapter initialize() in watch mode"] --> DevExec["appConfig.runtime.buildExecutor = DevBuildCoordinator"]
     Caller["Any build caller with app/runtime context"] --> Build["executor.build(options) or build(options, executor)"]
     Build --> Executor["BuildExecutor"]

@@ -10,9 +10,44 @@ All notable changes to `@ecopages/core` are documented here.
 
 - Added `eco.html()` and `eco.layout()` as Phase 1 semantic factories over the existing component pipeline, along with exported `EcoHtmlComponent`, `EcoLayoutComponent`, and `LayoutProps` types.
 - Exposed `ProcessedAsset` and `MarkerGraphContext` through the core public type surface so integrations can type deferred-render helpers without internal imports.
+- Added an app-owned Node runtime manifest shape so the future thin-host prototype can consume resolved config/runtime bootstrap metadata without host-side source inspection.
+- Added a first `NodeRuntimeAdapter` boundary for the experimental Node thin host so launcher handoff can be exercised before the bundler-backed runtime is implemented.
 
 ### Refactoring
 
+- Made the experimental Node thin-host handoff explicit through a documented start-options contract and loader-derived runtime session output, so host startup stays transport-oriented while the adapter owns real bootstrap state.
+- Started Phase 2 server-loading ownership work by routing the experimental Node runtime bootstrap through `ServerModuleTranspiler`, narrowing the transpiler to explicit caller-provided `rootDir` and `buildExecutor` input, centralizing app build-manifest rewrites behind one helper, and extracting shared runtime plugin contribution collection for Node and Bun startup.
+- Split build contribution discovery from runtime plugin setup so app-owned build manifests are finalized during `ConfigBuilder.build()` and Node/Bun startup no longer rewrites them.
+- Introduced a named `TranspilerServerLoader` boundary so the experimental Node runtime now coordinates config loading, app-entry loading, and loader lifecycle through one core-owned service.
+- Removed adapter-level build plugin registration from the source build contract so plugin composition now stays in app-owned manifests and per-build executor input.
+- Kept Node CLI launches under the framework-owned `node` process by switching the Ecopages Node path from the `tsx` binary to `node --import tsx`, while preserving the current TypeScript execution bridge.
+- Reused existing development build coordinators when runtime startup rewraps app executors so experimental thin-host bootstrap and server initialization keep one serialized esbuild queue.
+- Extracted the experimental Node bootstrap dependency-resolution policy into a dedicated helper with focused tests so the runtime adapter now owns orchestration instead of inline bootstrap resolver details.
+
+### Bug Fixes
+
+- Routed React HMR browser entry rebuilds through the shared `BrowserBundleService`, so React no longer bypasses the app-owned browser bundle boundary for that path.
+- Routed React HMR page-metadata module loading through the shared HMR server-module loading seam, so React no longer owns a separate executor-backed server import path for that metadata step.
+- Rewrote project-owned re-export barrels during experimental Node bootstrap bundling so thin-host app-entry loads await async module initialization before `eco.page()` captures layout metadata.
+- Moved component render context storage onto a process-global singleton so duplicated Node dev route bundles still defer cross-integration component boundaries instead of leaking raw foreign JSX objects into Kita renders.
+- Ignored undefined component entries while resolving page dependency graphs so explicit static routes and other direct renderer paths no longer crash when a dependency-components list contains sparse or transiently missing values.
+- Preserved `import.meta.dirname` and `import.meta.filename` semantics during experimental Node config and entry bootstrap transpilation, so `node-experimental` keeps app root and absolute source paths stable for apps whose runtime config depends on ESM path helpers.
+- Resolved experimental Node bootstrap peer and app-owned third-party dependencies from the consuming app boundary instead of workspace package source locations, so playgrounds such as `with-react-better-auth` can reach runtime bootstrap without losing `react` and similar app-installed packages.
+- Added an explicit Bun-builtin guard to the experimental Node bootstrap resolver so directly intercepted `bun:*` imports can fail with actionable unsupported-runtime diagnostics instead of falling through generic resolution.
+- Switched the worker-tools HTML rewriter fallback import to the package's real `base64.js` subpath so Node ESM runtime sessions can load it from the app-local runtime `node_modules` tree instead of always falling back to string injection.
+- Updated explicit static route rendering to accept `eco.page()` integration metadata from `view.config.integration` as well as the older nested `view.config.__eco.integration`, so Node experimental routes like `playground/explicit-routes` no longer fail at the matcher boundary for valid page components.
+- Narrowed experimental `import.meta` rewriting to the declared config/app bootstrap files so downstream project modules still flow through app loader plugins such as `eco-component-meta-plugin` during Node runtime bundling.
+- Removed unsupported TypeScript parameter-property syntax from the experimental Node invalidation path so `node-experimental` no longer fails immediately when Node evaluates `DevelopmentInvalidationService` in strip-only mode.
+- Moved development server-module invalidation onto the app-owned dev graph and centralized watcher invalidation policy in `DevelopmentInvalidationService`, so server import caches, watcher routing, and experimental Node runtime invalidation now use one framework-owned version source.
+- Hardened delegated link detection for text-node and nested-element click targets so browser-router and react-router no longer miss same-origin navigations when the click originates inside the anchor content.
+- Disabled startup-time Node HMR runtime bootstrapping for the experimental thin-host path so node-experimental dev startup no longer aborts on the remaining esbuild protocol fault.
+- Introduced explicit `ServerModuleTranspiler` and `BrowserBundleService` boundaries so server-side module loading and browser-oriented bundling no longer depend on duplicated inline build wiring.
+- Replaced flat runtime build plugin arrays with an app-owned build manifest and moved Node HMR dependency indexing into an explicit dev-graph service.
+- Extracted shared runtime-specifier alias plugin creation into the core build layer so React page bundling, runtime vendor bundles, and React HMR reuse one aliasing policy.
+- Moved runtime specifier registration into an app-owned registry service so Node and Bun HMR managers no longer own separate specifier-map state.
+- Extracted browser runtime vendor asset declaration helpers into the shared asset-processing layer so integrations no longer own the hidden-head module/defer vendor bundle policy directly.
+- Added a shared browser runtime entry-module helper so integrations can generate vendor/runtime re-export entrypoints without owning duplicate temp-file assembly logic.
+- Separated runtime-entry generation from integration-specific interop rewriting so shared browser-runtime assembly stays in core while framework-specific patch plugins remain isolated.
 - Added shared captured-HTML orchestration helpers to `IntegrationRenderer` so direct renderer paths can reuse core deferred marker resolution, asset merging, and final HTML finalization.
 
 #### Node.js Runtime Support
@@ -72,6 +107,12 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Routed the experimental Node thin-host bootstrap through explicit development build executors so config and app-entry transpilation now share esbuild serialization and protocol-fault recovery.
+- Replaced the experimental Node runtime adapter placeholder failure with real config and app-entry bootstrap through the existing core module-loading services, so node-experimental now fails on genuine bootstrap problems instead of the stub message.
+- Bundled the experimental Node runtime config and app-entry bootstrap imports through the core module-loading services so node-experimental no longer depends on direct Node execution of workspace package source during startup.
+- Preserved app-local `@/...` alias resolution during experimental Node bootstrap so app-entry bundles no longer misclassify tsconfig-style aliases as third-party packages.
+- Added a file-based experimental Node runtime manifest handoff so the thin host now consumes core-owned config/build state through a bundled JS prep boundary instead of launcher-built placeholder JSON.
+- Moved loader, processor, integration, and node-module resolution build state onto per-app runtime adapter/plugin state so one app's runtime registration no longer mutates the shared default adapter for every other app.
 - Split strict integration-owned HMR entrypoint registration from generic script-asset registration so page bundles now fail fast when their owning integration does not emit output, instead of silently falling back to a wrong generic build.
 - Stopped generic JS HMR rebuilds from overwriting integration-owned entrypoints, so React route bundles keep their framework-specific output after shared script invalidations.
 - Invalidated stale `_hmr` entrypoint files before fresh registration so broken bundles cannot be reused across restarts.

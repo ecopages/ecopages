@@ -154,8 +154,8 @@ Examples:
 The bump script also supports direct usage for previews:
 
 ```bash
-pnpm exec tsx scripts/bump-version.ts prerelease alpha minor --dry-run
-pnpm exec tsx scripts/bump-version.ts --help
+node --experimental-strip-types scripts/bump-version.ts prerelease alpha minor --dry-run
+node --experimental-strip-types scripts/bump-version.ts --help
 ```
 
 After bumping, sync the package versions if your chosen root script did not already do it:

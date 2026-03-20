@@ -39,7 +39,11 @@ export interface ReactHydrationAssetServiceConfig {
  * Manages the creation of client-side hydration assets for React pages and component islands.
  */
 export class ReactHydrationAssetService {
-	constructor(private readonly config: ReactHydrationAssetServiceConfig) {}
+	private readonly config: ReactHydrationAssetServiceConfig;
+
+	constructor(config: ReactHydrationAssetServiceConfig) {
+		this.config = config;
+	}
 
 	/**
 	 * Resolves the import path for the bundled page component.

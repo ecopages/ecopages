@@ -8,6 +8,8 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 ### Bug Fixes
 
+- Use Node-compatible `source-map` interop in the MDX loader so native Node host startup does not fail.
+
 - Fixed standalone MDX `.md` routes compiling in plain-markdown mode when `extensions: ['.md']` is enabled. Opted-in `.md` files are now parsed as MDX, so top-level `import` and `export` statements work as expected.
 - Fixed standalone MDX loader registration to respect configured extensions, so `mdxPlugin({ extensions: ['.md'] })` no longer hijacks React `.mdx` page bundles during shared dev/HMR builds.
 

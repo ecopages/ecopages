@@ -16,7 +16,9 @@ function getManifestInput(): string | undefined {
 async function main(): Promise<void> {
 	const manifestInput = getManifestInput();
 	if (!manifestInput) {
-		throw new Error('Usage: tsx scripts/check-npm-package-published.ts <package-dir-or-package-json>');
+		throw new Error(
+			'Usage: node --experimental-strip-types scripts/check-npm-package-published.ts <package-dir-or-package-json>',
+		);
 	}
 
 	const { manifest, manifestPath } = readPackageManifest(manifestInput);

@@ -65,6 +65,8 @@ class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
 }
 
 class TestKitaRenderer extends KitaRenderer {
+	PageModules = new Map<string, { default: EcoComponent<any> }>();
+
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return HtmlTemplate;
 	}
@@ -254,4 +256,5 @@ describe('KitaRenderer', () => {
 		expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
 		expect(body).not.toContain('<eco-marker');
 	});
+
 });

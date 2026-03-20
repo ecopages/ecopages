@@ -1,7 +1,17 @@
 import path from 'node:path';
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
-import rootPackage from '../package.json';
+
+type RootPackage = {
+	version?: string;
+};
+
+function readRootPackage(): RootPackage {
+	const rootPackageJsonPath = path.resolve(import.meta.dirname, '../package.json');
+	return JSON.parse(readFileSync(rootPackageJsonPath, 'utf-8')) as RootPackage;
+}
+
+const rootPackage = readRootPackage();
 
 const CHANGELOG_PLACEHOLDER = '## [UNRELEASED] — TBD';
 

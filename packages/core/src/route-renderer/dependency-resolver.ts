@@ -243,10 +243,16 @@ function buildResolvedLazyTriggers(
 }
 
 export class DependencyResolverService {
+	private appConfig: EcoPagesAppConfig;
+	private assetProcessingService: AssetProcessingService;
+
 	constructor(
-		private appConfig: EcoPagesAppConfig,
-		private assetProcessingService: AssetProcessingService,
-	) {}
+		appConfig: EcoPagesAppConfig,
+		assetProcessingService: AssetProcessingService,
+	) {
+		this.appConfig = appConfig;
+		this.assetProcessingService = assetProcessingService;
+	}
 
 	resolveDependencyPath(componentDir: string, pathUrl: string): string {
 		return resolveDependencyPath(componentDir, pathUrl);
@@ -282,6 +288,8 @@ export class DependencyResolverService {
 		const lazyDependencyKeys = new Set<string>();
 
 		for (const component of components) {
+			if (!component) continue;
+
 			const componentFile = component.config?.__eco?.file;
 			if (!componentFile) continue;
 
@@ -511,7 +519,7 @@ export class DependencyResolverService {
 
 				if (dependenciesConfig?.components) {
 					for (const nestedComponent of dependenciesConfig.components) {
-						if (nestedComponent.config) {
+						if (nestedComponent?.config) {
 							collect(nestedComponent.config);
 						}
 					}

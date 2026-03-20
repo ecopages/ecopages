@@ -1,8 +1,19 @@
 import path from 'node:path';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
-import rootPackage from '../package.json';
+type RootPackage = {
+	version?: string;
+};
+
+const rootPackageJsonPath = path.resolve(import.meta.dirname, '../package.json');
+
+function readRootPackage(): RootPackage {
+	return JSON.parse(readFileSync(rootPackageJsonPath, 'utf-8')) as RootPackage;
+}
+
+const rootPackage = readRootPackage();
+
 
 type BumpType = 'major' | 'minor' | 'patch';
 type PrereleaseChannel = 'alpha' | 'beta';
@@ -42,9 +53,8 @@ function computeNextVersion(current: string, bump: BumpType): string {
  * Updates the root package.json with the new version.
  */
 function writeRootVersion(version: string): void {
-	const packageJsonPath = path.resolve(import.meta.dirname, '../package.json');
 	rootPackage.version = version;
-	writeFileSync(packageJsonPath, JSON.stringify(rootPackage, null, 2) + '\n', 'utf-8');
+	writeFileSync(rootPackageJsonPath, JSON.stringify(rootPackage, null, 2) + '\n', 'utf-8');
 }
 
 function parseVersion(version: string): ParsedVersion {
@@ -113,8 +123,8 @@ function isPrereleaseChannel(value: string | undefined): value is PrereleaseChan
 
 function printUsage(): void {
 	console.log(`Usage:
-  tsx scripts/bump-version.ts [patch|minor|major]
-  tsx scripts/bump-version.ts prerelease <alpha|beta> [patch|minor|major]
+	node --experimental-strip-types scripts/bump-version.ts [patch|minor|major]
+	node --experimental-strip-types scripts/bump-version.ts prerelease <alpha|beta> [patch|minor|major]
 
 Options:
   --channel <alpha|beta>

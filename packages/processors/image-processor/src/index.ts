@@ -1,3 +1,3 @@
-export * from './image-processor';
-export * from './plugin';
-export * from './types';
+export * from './image-processor.ts';
+export * from './plugin.ts';
+export * from './types.ts';

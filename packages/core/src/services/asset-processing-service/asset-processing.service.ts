@@ -20,8 +20,11 @@ export class AssetProcessingService {
 	private registry = new ProcessorRegistry();
 	private hmrManager?: IHmrManager;
 	private cache = new Map<string, { asset: ProcessedAsset }>();
+	private readonly config: EcoPagesAppConfig;
 
-	constructor(private readonly config: EcoPagesAppConfig) {}
+	constructor(config: EcoPagesAppConfig) {
+		this.config = config;
+	}
 
 	/**
 	 * Set the HMR manager for the asset processing service.

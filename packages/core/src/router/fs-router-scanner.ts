@@ -1,12 +1,13 @@
 import path from 'node:path';
-import { getAppBuildExecutor } from '../build/build-adapter.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, RouteKind, Routes } from '../internal-types.ts';
 import type { EcoPageFile, GetStaticPaths } from '../public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { invariant } from '../utils/invariant.ts';
 import { existsSync } from 'node:fs';
-import { PageModuleImportService } from '../services/page-module-import.service.ts';
+import { getAppBuildExecutor } from '../build/build-adapter.ts';
+import { DevelopmentInvalidationService } from '../services/development-invalidation.service.ts';
+import { ServerModuleTranspiler } from '../services/server-module-transpiler.service.ts';
 
 type CreateRouteArgs = {
 	routePath: string;
@@ -36,7 +37,7 @@ export class FSRouterScanner {
 	private options: FSRouterScannerOptions;
 	readonly appConfig: EcoPagesAppConfig;
 	routes: Routes = {};
-	private pageModuleImportService = new PageModuleImportService();
+	private serverModuleTranspiler: ServerModuleTranspiler;
 
 	constructor({
 		dir,
@@ -56,6 +57,13 @@ export class FSRouterScanner {
 		this.templatesExt = templatesExt;
 		this.options = options;
 		this.appConfig = appConfig;
+		const invalidationService = new DevelopmentInvalidationService(appConfig);
+		this.serverModuleTranspiler = new ServerModuleTranspiler({
+			rootDir: appConfig.rootDir,
+			buildExecutor: getAppBuildExecutor(appConfig),
+			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
+			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
+		});
 	}
 
 	private getRoutePath(path: string): string {
@@ -144,11 +152,9 @@ export class FSRouterScanner {
 	}
 
 	private async importPageModule(filePath: string): Promise<unknown> {
-		return this.pageModuleImportService.importModule({
+		return this.serverModuleTranspiler.importModule({
 			filePath,
-			rootDir: this.appConfig.rootDir,
 			outdir: path.join(this.appConfig.absolutePaths.distDir, '.server-route-modules'),
-			buildExecutor: getAppBuildExecutor(this.appConfig),
 			externalPackages: false,
 			transpileErrorMessage: (details) => `Error transpiling route module: ${details}`,
 			noOutputMessage: (targetFilePath) => `No transpiled output generated for route module: ${targetFilePath}`,

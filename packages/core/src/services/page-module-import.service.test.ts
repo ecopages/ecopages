@@ -55,6 +55,7 @@ describe('PageModuleImportService', () => {
 					entrypoints: ['/app/pages/page.tsx'],
 					root: '/app',
 					outdir: tempDir,
+					splitting: true,
 					naming: 'page-hash123.js',
 				}),
 				undefined,
@@ -105,6 +106,7 @@ describe('PageModuleImportService', () => {
 			expect(mocks.build).toHaveBeenCalledWith(
 				expect.objectContaining({
 					naming: 'page-hash123.js',
+					splitting: true,
 					externalPackages: true,
 				}),
 				undefined,

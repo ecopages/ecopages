@@ -1,15 +1,19 @@
 import { appLogger } from '../../../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../../../internal-types';
-import { getAppBuildExecutor, getTranspileOptions } from '../../../../build/build-adapter.ts';
+import { getAppBrowserBuildPlugins } from '../../../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
 import type { ScriptAsset } from '../../assets.types';
 import { BaseProcessor } from './base-processor';
+import { BrowserBundleService } from '../../../browser-bundle.service.ts';
 
 export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BaseProcessor<T> {
+	private readonly browserBundleService: BrowserBundleService;
+
 	constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
 		super({ appConfig });
+		this.browserBundleService = new BrowserBundleService(appConfig);
 	}
 
 	protected shouldBundle(dep: T): boolean {
@@ -21,21 +25,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 	}
 
 	protected collectBuildPlugins(): EcoBuildPlugin[] {
-		const plugins: EcoBuildPlugin[] = [];
-
-		if (this.appConfig.processors?.size) {
-			for (const processor of this.appConfig.processors.values()) {
-				if (processor.buildPlugins) {
-					plugins.push(...processor.buildPlugins);
-				}
-			}
-		}
-
-		if (this.appConfig.loaders?.size) {
-			plugins.push(...this.appConfig.loaders.values());
-		}
-
-		return plugins;
+		return getAppBrowserBuildPlugins(this.appConfig);
 	}
 
 	protected async bundleScript({
@@ -49,13 +39,12 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 	} & ScriptAsset['bundleOptions']): Promise<string> {
 		const buildPlugins = this.collectBuildPlugins();
 		const allPlugins = additionalPlugins ? [...additionalPlugins, ...buildPlugins] : buildPlugins;
-		const buildExecutor = getAppBuildExecutor(this.appConfig);
 
-		const buildResult = await buildExecutor.build({
+		const buildResult = await this.browserBundleService.bundle({
+			profile: 'browser-script',
 			entrypoints: [entrypoint],
 			outdir,
 			root: this.appConfig.rootDir,
-			...getTranspileOptions('browser-script'),
 			splitting: true,
 			naming: '[name]-[hash].[ext]',
 			plugins: allPlugins,

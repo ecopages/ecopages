@@ -103,8 +103,30 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 		return [];
 	}
 
-	override async setup(): Promise<void> {
+	/**
+	 * Materializes the MDX loader once so config-time sealing and runtime setup
+	 * can share the same loader instance.
+	 */
+	private ensureLoaderPlugin(): void {
+		if (this.mdxLoaderPlugin) {
+			return;
+		}
+
 		this.mdxLoaderPlugin = createMdxLoaderPlugin(this.compilerOptions);
+	}
+
+	/**
+	 * Prepares the MDX loader contribution before config build seals the manifest.
+	 */
+	override async prepareBuildContributions(): Promise<void> {
+		this.ensureLoaderPlugin();
+	}
+
+	/**
+	 * Runs runtime-only MDX setup after build contributions are already prepared.
+	 */
+	override async setup(): Promise<void> {
+		this.ensureLoaderPlugin();
 		await super.setup();
 	}
 }

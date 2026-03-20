@@ -1,8 +1,15 @@
 import type { BunPlugin } from 'bun';
 import type { EcoBuildPlugin } from './build-types.ts';
+import {
+	createAppBuildManifest,
+	getBrowserBuildPlugins,
+	getServerBuildPlugins,
+	type AppBuildManifest,
+} from './build-manifest.ts';
 import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 import { getRequiredBunRuntime } from '../utils/runtime.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { IHmrManager } from '../public-types.ts';
 
 export { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 
@@ -80,7 +87,6 @@ export interface BuildAdapter {
 	 */
 	build(options: BuildOptions): Promise<BuildResult>;
 	resolve(importPath: string, rootDir: string): string;
-	registerPlugin(plugin: EcoBuildPlugin): void;
 	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions;
 }
 
@@ -98,6 +104,10 @@ export interface BuildAdapter {
  */
 export interface BuildExecutor {
 	build(options: BuildOptions): Promise<BuildResult>;
+}
+
+export function createBuildAdapter(): BuildAdapter {
+	return new EsbuildBuildAdapter();
 }
 
 function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
@@ -145,16 +155,170 @@ export class BunBuildAdapter implements BuildAdapter {
 		return getRequiredBunRuntime().resolveSync(importPath, rootDir);
 	}
 
-	registerPlugin(plugin: EcoBuildPlugin): void {
-		getRequiredBunRuntime().plugin(plugin as BunPlugin);
-	}
-
 	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
 		return transpileProfileToOptions(profile);
 	}
 }
 
-export const defaultBuildAdapter: BuildAdapter = new EsbuildBuildAdapter();
+export const defaultBuildAdapter: BuildAdapter = createBuildAdapter();
+
+/**
+ * Returns the adapter owned by an app/runtime instance.
+ *
+ * @remarks
+ * The config builder installs a dedicated adapter per app. The shared default
+ * adapter remains only as a compatibility fallback for older tests and helpers
+ * that do not yet thread app runtime state explicitly.
+ */
+export function getAppBuildAdapter(appConfig: EcoPagesAppConfig): BuildAdapter {
+	return appConfig.runtime?.buildAdapter ?? defaultBuildAdapter;
+}
+
+/**
+ * Installs the adapter that should serve future builds for one app instance.
+ */
+export function setAppBuildAdapter(appConfig: EcoPagesAppConfig, buildAdapter: BuildAdapter): void {
+	appConfig.runtime = {
+		...(appConfig.runtime ?? {}),
+		buildAdapter,
+	};
+}
+
+/**
+	 * Returns the build manifest owned by an app/runtime instance.
+ */
+export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManifest {
+	return (
+		appConfig.runtime?.buildManifest ??
+		createAppBuildManifest({
+			loaderPlugins: Array.from(appConfig.loaders.values()),
+		})
+	);
+}
+
+/**
+	 * Installs the build manifest that should be visible to one app instance.
+ */
+export function setAppBuildManifest(appConfig: EcoPagesAppConfig, buildManifest: AppBuildManifest): void {
+	appConfig.runtime = {
+		...(appConfig.runtime ?? {}),
+		buildManifest,
+	};
+}
+
+/**
+ * Rebuilds an app-owned manifest from config-owned loaders plus explicit
+ * runtime/browser contribution input.
+ *
+ * @remarks
+ * This keeps loader ownership with config finalization while still letting a
+ * caller supply the non-loader plugin buckets that were discovered elsewhere.
+ */
+export function createConfiguredAppBuildManifest(
+	appConfig: EcoPagesAppConfig,
+	input?: Partial<AppBuildManifest>,
+): AppBuildManifest {
+	return createAppBuildManifest({
+		loaderPlugins: input?.loaderPlugins ?? Array.from(appConfig.loaders.values()),
+		runtimePlugins: input?.runtimePlugins,
+		browserBundlePlugins: input?.browserBundlePlugins,
+	});
+}
+
+/**
+ * Replaces the app-owned manifest using config-owned loaders and explicit
+ * contribution input.
+ */
+export function updateAppBuildManifest(appConfig: EcoPagesAppConfig, input?: Partial<AppBuildManifest>): void {
+	setAppBuildManifest(appConfig, createConfiguredAppBuildManifest(appConfig, input));
+}
+
+/**
+ * Collects the build-facing processor and integration contributions that should
+ * be sealed into the app manifest during config finalization.
+ *
+ * @remarks
+ * This runs `prepareBuildContributions()` only. Runtime-only side effects such
+ * as HMR registration, cache prewarming, and runtime-origin wiring belong to
+ * the startup path and must not be triggered here.
+ */
+export async function collectConfiguredAppBuildManifestContributions(
+	appConfig: EcoPagesAppConfig,
+): Promise<Pick<AppBuildManifest, 'runtimePlugins' | 'browserBundlePlugins'>> {
+	const runtimePlugins: EcoBuildPlugin[] = [];
+	const browserBundlePlugins: EcoBuildPlugin[] = [];
+
+	for (const processor of appConfig.processors.values()) {
+		await processor.prepareBuildContributions();
+
+		if (processor.plugins) {
+			runtimePlugins.push(...processor.plugins);
+		}
+
+		if (processor.buildPlugins) {
+			browserBundlePlugins.push(...processor.buildPlugins);
+		}
+	}
+
+	for (const integration of appConfig.integrations) {
+		integration.setConfig(appConfig);
+		await integration.prepareBuildContributions();
+		runtimePlugins.push(...integration.plugins);
+	}
+
+	return {
+		runtimePlugins,
+		browserBundlePlugins,
+	};
+}
+
+/**
+ * Runs runtime-only processor and integration setup against an already sealed
+ * app manifest.
+ *
+ * @remarks
+ * Startup paths call this after config build has finalized manifest
+ * contributions. The manifest is reused as-is; this helper only performs the
+ * runtime side effects that still need live startup context.
+ */
+export async function setupAppRuntimePlugins(options: {
+	appConfig: EcoPagesAppConfig;
+	runtimeOrigin: string;
+	hmrManager?: IHmrManager;
+	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
+}): Promise<void> {
+	for (const processor of options.appConfig.processors.values()) {
+		await processor.setup();
+
+		if (processor.plugins) {
+			for (const plugin of processor.plugins) {
+				options.onRuntimePlugin?.(plugin);
+			}
+		}
+	}
+
+	for (const integration of options.appConfig.integrations) {
+		integration.setConfig(options.appConfig);
+		integration.setRuntimeOrigin(options.runtimeOrigin);
+		if (options.hmrManager) {
+			integration.setHmrManager(options.hmrManager);
+		}
+
+		await integration.setup();
+
+		for (const plugin of integration.plugins) {
+			options.onRuntimePlugin?.(plugin);
+		}
+	}
+}
+
+export function getAppServerBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
+	return getServerBuildPlugins(getAppBuildManifest(appConfig));
+}
+
+export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
+	return getBrowserBuildPlugins(getAppBuildManifest(appConfig));
+}
 
 /**
  * Returns the executor owned by an app/runtime instance.
@@ -165,7 +329,7 @@ export const defaultBuildAdapter: BuildAdapter = new EsbuildBuildAdapter();
  * backend while adding development policy.
  */
 export function getAppBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
-	return appConfig.runtime?.buildExecutor ?? defaultBuildAdapter;
+	return appConfig.runtime?.buildExecutor ?? getAppBuildAdapter(appConfig);
 }
 
 /**

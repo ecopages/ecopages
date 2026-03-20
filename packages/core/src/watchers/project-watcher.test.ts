@@ -1,9 +1,12 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import path from 'node:path';
+import chokidar from 'chokidar';
+import { fileSystem } from '@ecopages/file-system';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types';
 import type { ClientBridge } from '../adapters/bun/client-bridge';
 import { ConfigBuilder } from '../config/config-builder';
+import { InMemoryDevGraphService, setAppDevGraphService } from '../services/dev-graph.service';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
 
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
@@ -19,6 +22,7 @@ describe('ProjectWatcher', () => {
 
 	beforeEach(async () => {
 		Config = await createMockConfig();
+		setAppDevGraphService(Config, new InMemoryDevGraphService());
 		HmrManager = createMockHmrManager();
 		Bridge = createMockBridge();
 		RefreshCallback = vi.fn(() => {});
@@ -97,6 +101,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 	beforeEach(async () => {
 		Config = await createMockConfig();
+		setAppDevGraphService(Config, new InMemoryDevGraphService());
 		HmrManager = createMockHmrManager();
 		Bridge = createMockBridge();
 		RefreshCallback = vi.fn(() => {});
@@ -111,6 +116,30 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 	afterEach(() => {
 		vi.restoreAllMocks();
+	});
+
+	test('should only invalidate server modules for route and server source changes', async () => {
+		const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'about.tsx');
+		const cssFilePath = path.join(Config.absolutePaths.srcDir, 'styles', 'main.css');
+		const devGraphService = Config.runtime?.devGraphService as InMemoryDevGraphService;
+
+		Config.processors.set('css', {
+			getWatchConfig: vi.fn(() => ({
+				paths: ['/test/project/src'],
+				extensions: ['.css'],
+			})),
+			getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
+			canProcessAsset: vi.fn((kind: string, filepath?: string) => kind === 'stylesheet' && filepath?.endsWith('.css')),
+			matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
+		} as never);
+
+		expect(devGraphService.getServerInvalidationVersion()).toBe(0);
+
+		await (watcher as any).handleFileChange(pageFilePath);
+		expect(devGraphService.getServerInvalidationVersion()).toBe(1);
+
+		await (watcher as any).handleFileChange(cssFilePath);
+		expect(devGraphService.getServerInvalidationVersion()).toBe(1);
 	});
 
 	describe('public directory files', () => {
@@ -379,6 +408,7 @@ describe('ProjectWatcher - Priority Rules', () => {
 
 	beforeEach(async () => {
 		Config = await createMockConfig();
+		setAppDevGraphService(Config, new InMemoryDevGraphService());
 		HmrManager = createMockHmrManager();
 		Bridge = createMockBridge();
 
@@ -477,6 +507,7 @@ describe('ProjectWatcher - Helper Methods', () => {
 
 	beforeEach(async () => {
 		Config = await createMockConfig();
+		setAppDevGraphService(Config, new InMemoryDevGraphService());
 		watcher = new ProjectWatcher({
 			config: Config as EcoPagesAppConfig,
 			refreshRouterRoutesCallback: vi.fn(() => {}),
@@ -589,5 +620,59 @@ describe('ProjectWatcher - Helper Methods', () => {
 			const result = (watcher as any).isHandledByProcessor('/test/app.tsx');
 			expect(result).toBe(false);
 		});
+	});
+});
+
+describe('ProjectWatcher - Watch Subscriptions', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	test('should watch includes and src directories alongside pages and processor paths', async () => {
+		const Config = await createMockConfig();
+		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		const HmrManager = createMockHmrManager();
+		const Bridge = createMockBridge();
+		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
+			[
+				Config.absolutePaths.includesDir,
+				Config.absolutePaths.srcDir,
+				Config.absolutePaths.pagesDir,
+			].includes(String(targetPath))
+		);
+		const watcherHandle = {
+			add: vi.fn(),
+			on: vi.fn().mockReturnThis(),
+			close: vi.fn(),
+		};
+		const chokidarWatch = vi.fn(() => watcherHandle);
+
+		vi.spyOn(chokidar, 'watch').mockImplementation(chokidarWatch as never);
+
+		Config.processors.set('css', {
+			getWatchConfig: vi.fn(() => ({
+				paths: ['/test/project/custom-watch'],
+				extensions: ['.css'],
+			})),
+		} as never);
+
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(() => {}),
+			hmrManager: HmrManager,
+			bridge: Bridge,
+		});
+
+		await watcher.createWatcherSubscription();
+
+		expect(chokidarWatch).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				'/test/project/custom-watch',
+				Config.absolutePaths.includesDir,
+				Config.absolutePaths.pagesDir,
+			]),
+			expect.any(Object),
+		);
+		expect(watcherHandle.add).toHaveBeenCalledWith(Config.absolutePaths.srcDir);
 	});
 });

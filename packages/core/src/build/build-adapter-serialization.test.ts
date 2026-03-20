@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
-import { DevBuildCoordinator } from './dev-build-coordinator.ts';
+import { createAppBuildExecutor, createOrReuseAppBuildExecutor, DevBuildCoordinator } from './dev-build-coordinator.ts';
 import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 
 function createBuildResult(entryPoint: string) {
@@ -214,4 +214,55 @@ test('DevBuildCoordinator recovery clears a wedged serialized build queue', asyn
 	await assert.doesNotReject(async () => {
 		await coordinator.getBuildQueueForTests();
 	});
+});
+
+test('createOrReuseAppBuildExecutor preserves serialization when rewrapping a dev executor', async () => {
+	let activeBuilds = 0;
+	let maxActiveBuilds = 0;
+	const adapter = new EsbuildBuildAdapter();
+	vi.spyOn(adapter, 'buildOrThrow').mockImplementation(async (options) => {
+		activeBuilds += 1;
+		maxActiveBuilds = Math.max(maxActiveBuilds, activeBuilds);
+
+		await new Promise((resolve) => setTimeout(resolve, 25));
+
+		activeBuilds -= 1;
+		return createBuildResult(options.entrypoints[0] ?? 'unknown');
+	});
+
+	const bootstrapExecutor = createAppBuildExecutor({
+		development: true,
+		adapter,
+	});
+	const runtimeExecutor = createOrReuseAppBuildExecutor({
+		development: true,
+		adapter,
+		currentExecutor: bootstrapExecutor,
+		getPlugins: () => [],
+	});
+
+	await Promise.all([
+		bootstrapExecutor.build({
+			entrypoints: ['/tmp/bootstrap.ts'],
+			root: '/tmp',
+			outdir: '/tmp/out',
+			target: 'node',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: false,
+			minify: false,
+		}),
+		runtimeExecutor.build({
+			entrypoints: ['/tmp/runtime.ts'],
+			root: '/tmp',
+			outdir: '/tmp/out',
+			target: 'node',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: false,
+			minify: false,
+		}),
+	]);
+
+	assert.equal(maxActiveBuilds, 1);
 });

@@ -4,7 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../internal-types.ts';
 import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
-import { PageModuleImportService } from '../services/page-module-import.service.ts';
+import { DevelopmentInvalidationService } from '../services/development-invalidation.service.ts';
 
 /**
  * Configuration options for the ProjectWatcher
@@ -49,6 +49,7 @@ export class ProjectWatcher {
 	private refreshRouterRoutesCallback: () => void;
 	private hmrManager: IHmrManager;
 	private bridge: IClientBridge;
+	private readonly invalidationService: DevelopmentInvalidationService;
 	private watcher: FSWatcher | null = null;
 	private lastHandledChange = new Map<string, number>();
 	private changeQueue: Promise<void> = Promise.resolve();
@@ -58,6 +59,7 @@ export class ProjectWatcher {
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;
 		this.bridge = bridge;
+		this.invalidationService = new DevelopmentInvalidationService(config);
 		this.triggerRouterRefresh = this.triggerRouterRefresh.bind(this);
 		this.handleError = this.handleError.bind(this);
 		this.handleFileChange = this.handleFileChange.bind(this);
@@ -82,31 +84,11 @@ export class ProjectWatcher {
 	}
 
 	private isRouteSourceFile(filePath: string): boolean {
-		const resolvedPath = path.resolve(filePath);
-
-		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir)) {
-			return false;
-		}
-
-		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
-			return true;
-		}
-
-		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+		return this.invalidationService.isRouteSourceFile(filePath);
 	}
 
 	private isIncludeSourceFile(filePath: string): boolean {
-		const resolvedPath = path.resolve(filePath);
-
-		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.includesDir)) {
-			return false;
-		}
-
-		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
-			return true;
-		}
-
-		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+		return this.invalidationService.isIncludeSourceFile(filePath);
 	}
 
 	/**
@@ -168,36 +150,41 @@ export class ProjectWatcher {
 		this.lastHandledChange.set(filePath, now);
 
 		try {
-			if (this.isPublicDirFile(filePath)) {
+			const plan = this.invalidationService.planFileChange(filePath);
+
+			if (plan.category === 'public-asset') {
 				await this.handlePublicDirFileChange(filePath);
 				return;
 			}
 
 			this.uncacheModules();
-			PageModuleImportService.invalidateDevelopmentGraph();
-			const isPageFile = this.isRouteSourceFile(filePath);
+			if (plan.invalidateServerModules) {
+				this.invalidationService.invalidateServerModules([filePath]);
+			}
 
-			if (isPageFile) {
+			if (plan.refreshRoutes) {
 				this.refreshRouterRoutesCallback();
 			}
 
-			if (this.matchesAdditionalWatchPaths(filePath)) {
+			if (plan.category === 'additional-watch') {
 				this.bridge.reload();
 				return;
 			}
 
 			await this.notifyProcessors(filePath, event);
 
-			if (this.isIncludeSourceFile(filePath)) {
+			if (plan.category === 'include-source') {
 				this.bridge.reload();
 				return;
 			}
 
-			if (this.isHandledByProcessor(filePath)) {
+			if (plan.processorHandledAsset) {
 				return;
 			}
 
-			await this.hmrManager.handleFileChange(filePath);
+			if (plan.delegateToHmr) {
+				await this.hmrManager.handleFileChange(filePath);
+			}
 		} catch (error) {
 			if (error instanceof Error) {
 				this.bridge.error(error.message);
@@ -249,25 +236,14 @@ export class ProjectWatcher {
 	 * Checks if a file is in the public directory.
 	 */
 	private isPublicDirFile(filePath: string): boolean {
-		return filePath.startsWith(this.appConfig.absolutePaths.publicDir);
+		return this.invalidationService.isPublicDirFile(filePath);
 	}
 
 	/**
 	 * Checks if file path matches any additionalWatchPaths patterns.
 	 */
 	private matchesAdditionalWatchPaths(filePath: string): boolean {
-		const patterns = this.appConfig.additionalWatchPaths;
-		if (!patterns.length) return false;
-
-		for (const pattern of patterns) {
-			if (pattern.includes('*')) {
-				const ext = pattern.replace(/\*\*?\/\*/, '');
-				if (filePath.endsWith(ext)) return true;
-			} else {
-				if (filePath.endsWith(pattern) || filePath === path.resolve(pattern)) return true;
-			}
-		}
-		return false;
+		return this.invalidationService.matchesAdditionalWatchPaths(filePath);
 	}
 
 	/**
@@ -276,31 +252,7 @@ export class ProjectWatcher {
 	 * Processors without capabilities fall back to checking watch extensions.
 	 */
 	private isHandledByProcessor(filePath: string): boolean {
-		for (const processor of this.appConfig.processors.values()) {
-			const capabilities = processor.getAssetCapabilities?.() ?? [];
-			if (capabilities.length > 0) {
-				const matchesConfiguredAsset =
-					typeof processor.matchesFileFilter !== 'function' || processor.matchesFileFilter(filePath);
-
-				if (
-					matchesConfiguredAsset &&
-					capabilities.some((capability) => processor.canProcessAsset?.(capability.kind, filePath))
-				) {
-					return true;
-				}
-
-				continue;
-			}
-
-			const watchConfig = processor.getWatchConfig();
-			if (!watchConfig) continue;
-
-			const { extensions = [] } = watchConfig;
-			if (extensions.length && extensions.some((ext) => filePath.endsWith(ext))) {
-				return true;
-			}
-		}
-		return false;
+		return this.invalidationService.isProcessorOwnedAsset(filePath);
 	}
 
 	/**
@@ -351,6 +303,14 @@ export class ProjectWatcher {
 				const watchConfig = processor.getWatchConfig();
 				if (!watchConfig) continue;
 				processorPaths.push(...watchConfig.paths);
+			}
+
+			if (fileSystem.exists(this.appConfig.absolutePaths.includesDir)) {
+				processorPaths.push(this.appConfig.absolutePaths.includesDir);
+			}
+
+			if (fileSystem.exists(this.appConfig.absolutePaths.srcDir)) {
+				processorPaths.push(this.appConfig.absolutePaths.srcDir);
 			}
 
 			if (fileSystem.exists(this.appConfig.absolutePaths.pagesDir)) {

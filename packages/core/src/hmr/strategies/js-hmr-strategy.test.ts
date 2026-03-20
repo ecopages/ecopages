@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { JsHmrStrategy, type JsHmrContext } from './js-hmr-strategy';
 import { HmrStrategyType } from '../hmr-strategy';
+import { InMemoryDevGraphService, NoopDevGraphService } from '../../services/dev-graph.service.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -12,13 +13,12 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 	return {
 		getWatchedFiles: () => new Map(),
 		getSpecifierMap: () => new Map(),
-		getDependencyEntrypoints: () => new Set(),
-		setEntrypointDependencies: () => {},
+		getDevGraphService: () => new NoopDevGraphService(),
 		getDistDir: () => TMP_DIR,
 		getPlugins: () => [],
 		getSrcDir: () => SRC_DIR,
-		getBuildExecutor: () => ({
-			build: async () => ({ success: true, logs: [], outputs: [] }),
+		getBrowserBundleService: () => ({
+			bundle: async () => ({ success: true, logs: [], outputs: [] }),
 		}),
 		...overrides,
 	};
@@ -58,9 +58,10 @@ describe('JsHmrStrategy', () => {
 		});
 
 		it('returns false for unrelated .ts files when dependency graph support is available', () => {
+			const devGraphService = new InMemoryDevGraphService();
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
-				getDependencyEntrypoints: () => new Set<string>(),
+				getDevGraphService: () => devGraphService,
 			});
 			const strategy = new JsHmrStrategy(context);
 
@@ -69,10 +70,11 @@ describe('JsHmrStrategy', () => {
 
 		it('returns true for dependency-connected .tsx files in src directory', () => {
 			const changedFile = path.join(SRC_DIR, 'component.tsx');
+			const devGraphService = new InMemoryDevGraphService();
+			devGraphService.setEntrypointDependencies(path.join(SRC_DIR, 'entry.ts'), [changedFile]);
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
-				getDependencyEntrypoints: (filePath: string) =>
-					filePath === changedFile ? new Set([path.join(SRC_DIR, 'entry.ts')]) : new Set<string>(),
+				getDevGraphService: () => devGraphService,
 			});
 			const strategy = new JsHmrStrategy(context);
 
@@ -81,9 +83,10 @@ describe('JsHmrStrategy', () => {
 
 		it('returns true for registered entrypoints even without dependency graph hits', () => {
 			const entrypoint = path.join(SRC_DIR, 'entry.tsx');
+			const devGraphService = new InMemoryDevGraphService();
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[entrypoint, '/output.js']]),
-				getDependencyEntrypoints: () => new Set<string>(),
+				getDevGraphService: () => devGraphService,
 			});
 			const strategy = new JsHmrStrategy(context);
 
@@ -93,7 +96,6 @@ describe('JsHmrStrategy', () => {
 		it('returns true for .js files in src directory', () => {
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
-				getDependencyEntrypoints: undefined,
 			});
 			const strategy = new JsHmrStrategy(context);
 
@@ -103,7 +105,6 @@ describe('JsHmrStrategy', () => {
 		it('returns true for .jsx files in src directory', () => {
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
-				getDependencyEntrypoints: undefined,
 			});
 			const strategy = new JsHmrStrategy(context);
 
@@ -157,6 +158,9 @@ describe('JsHmrStrategy', () => {
 			const depA = path.join(SRC_DIR, 'shared-a.ts');
 			const setEntrypointDependenciesCalls: Array<{ entrypointPath: string; dependencies: string[] }> = [];
 			let batchedEntrypoints: string[] = [];
+			const devGraphService = new InMemoryDevGraphService();
+			devGraphService.setEntrypointDependencies(entryA, [depA]);
+			devGraphService.setEntrypointDependencies(entryB, [entryB]);
 
 			const context = createMockContext({
 				getWatchedFiles: () =>
@@ -164,11 +168,17 @@ describe('JsHmrStrategy', () => {
 						[entryA, '/_hmr/entry-a.js'],
 						[entryB, '/_hmr/entry-b.js'],
 					]),
-				getDependencyEntrypoints: (filePath: string) =>
-					filePath === depA ? new Set([entryA]) : new Set<string>(),
-				setEntrypointDependencies: (entrypointPath: string, dependencies: string[]) => {
-					setEntrypointDependenciesCalls.push({ entrypointPath, dependencies });
-				},
+				getDevGraphService: () => ({
+					supportsSelectiveInvalidation: () => devGraphService.supportsSelectiveInvalidation(),
+					getDependencyEntrypoints: (filePath: string) => devGraphService.getDependencyEntrypoints(filePath),
+					setEntrypointDependencies: (entrypointPath: string, dependencies: string[]) => {
+						setEntrypointDependenciesCalls.push({ entrypointPath, dependencies });
+						devGraphService.setEntrypointDependencies(entrypointPath, dependencies);
+					},
+					clearEntrypointDependencies: (entrypointPath: string) =>
+						devGraphService.clearEntrypointDependencies(entrypointPath),
+					reset: () => devGraphService.reset(),
+				}),
 			});
 
 			const strategy = new JsHmrStrategy(context) as unknown as {
@@ -217,7 +227,7 @@ describe('JsHmrStrategy', () => {
 						[entryA, '/_hmr/entry-a.js'],
 						[entryB, '/_hmr/entry-b.js'],
 					]),
-				getDependencyEntrypoints: () => new Set<string>(),
+				getDevGraphService: () => new NoopDevGraphService(),
 			});
 
 			const strategy = new JsHmrStrategy(context) as unknown as {
@@ -263,6 +273,9 @@ describe('JsHmrStrategy', () => {
 			const scriptEntrypoint = path.join(SRC_DIR, 'widget.script.ts');
 			const changedFile = path.join(SRC_DIR, 'shared.ts');
 			let batchedEntrypoints: string[] = [];
+			const devGraphService = new InMemoryDevGraphService();
+			devGraphService.setEntrypointDependencies(reactEntrypoint, [changedFile]);
+			devGraphService.setEntrypointDependencies(scriptEntrypoint, [changedFile]);
 
 			const context = createMockContext({
 				getWatchedFiles: () =>
@@ -270,7 +283,7 @@ describe('JsHmrStrategy', () => {
 						[reactEntrypoint, '/_hmr/react-page.js'],
 						[scriptEntrypoint, '/_hmr/widget.script.js'],
 					]),
-				getDependencyEntrypoints: () => new Set([reactEntrypoint, scriptEntrypoint]),
+				getDevGraphService: () => devGraphService,
 				shouldProcessEntrypoint: (entrypointPath: string) => entrypointPath !== reactEntrypoint,
 			});
 

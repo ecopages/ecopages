@@ -109,6 +109,16 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 		};
 	}
 
+	/**
+	 * Prepares build-facing processor contributions before config finalization.
+	 *
+	 * @remarks
+	 * Override this when a processor must compute runtime/build plugins or other
+	 * manifest-owned state before startup. Runtime-only work such as cache
+	 * warming or watcher registration should stay in `setup()`.
+	 */
+	async prepareBuildContributions(): Promise<void> {}
+
 	abstract setup(): Promise<void>;
 	abstract teardown(): Promise<void>;
 	abstract process(input: unknown, filePath?: string): Promise<unknown>;

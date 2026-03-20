@@ -5,8 +5,16 @@
 
 import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
-import { defaultBuildAdapter, setAppBuildExecutor } from '../build/build-adapter.ts';
+import {
+	collectConfiguredAppBuildManifestContributions,
+	createBuildAdapter,
+	getAppServerBuildPlugins,
+	setAppBuildAdapter,
+	setAppBuildExecutor,
+	updateAppBuildManifest,
+} from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
+import { createAppBuildExecutor } from '../build/dev-build-coordinator.ts';
 import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../internal-types.ts';
 import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
@@ -14,6 +22,9 @@ import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { PageMetadataProps } from '../public-types.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
+import { NoopDevGraphService, setAppDevGraphService } from '../services/dev-graph.service.ts';
+import { createNodeRuntimeManifest, setAppNodeRuntimeManifest } from '../services/node-runtime-manifest.service.ts';
+import { InMemoryRuntimeSpecifierRegistry, setAppRuntimeSpecifierRegistry } from '../services/runtime-specifier-registry.service.ts';
 import { invariant } from '../utils/invariant.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -457,7 +468,20 @@ export class ConfigBuilder {
 
 		await this.initializeDefaultLoaders();
 		this.initializeProcessors();
-		setAppBuildExecutor(this.config, defaultBuildAdapter);
+		const buildAdapter = createBuildAdapter();
+		setAppBuildAdapter(this.config, buildAdapter);
+		updateAppBuildManifest(this.config, await collectConfiguredAppBuildManifestContributions(this.config));
+		setAppDevGraphService(this.config, new NoopDevGraphService());
+		setAppRuntimeSpecifierRegistry(this.config, new InMemoryRuntimeSpecifierRegistry());
+		setAppBuildExecutor(
+			this.config,
+			createAppBuildExecutor({
+				development: false,
+				adapter: buildAdapter,
+				getPlugins: () => getAppServerBuildPlugins(this.config),
+			}),
+		);
+		setAppNodeRuntimeManifest(this.config, createNodeRuntimeManifest(this.config));
 
 		return this.config;
 	}

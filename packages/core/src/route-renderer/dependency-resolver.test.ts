@@ -295,4 +295,49 @@ describe('DependencyResolverService', () => {
 			/^\/assets\/lazy\/content-\d+\.js$/,
 		);
 	});
+
+	it('should ignore undefined component entries when collecting nested dependencies', async () => {
+		let capturedDeps: AssetDefinition[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const nestedComponent = ((_) => '<button></button>') as EcoComponent<Record<string, unknown>>;
+		nestedComponent.config = {
+			__eco: {
+				id: 'theme-toggle',
+				integration: 'react',
+				file: '/app/components/theme-toggle.tsx',
+			},
+			dependencies: {
+				scripts: ['./theme-toggle.client.ts'],
+			},
+		};
+
+		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'page',
+				integration: 'kitajs',
+				file: '/app/views/page.tsx',
+			},
+			dependencies: {
+				components: [undefined, nestedComponent],
+			},
+		};
+
+		await expect(service.processComponentDependencies([undefined as unknown as EcoComponent, component], 'kitajs')).resolves.toEqual([]);
+
+		expect(capturedDeps).toEqual([
+			expect.objectContaining({
+				kind: 'script',
+				source: 'file',
+				filepath: '/app/components/theme-toggle.client.ts',
+			}),
+		]);
+	});
 });

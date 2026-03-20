@@ -3,9 +3,9 @@
  * @module
  */
 
-import { DEFAULT_LAYOUT } from './constants';
-import { ImageUtils } from './image-utils';
-import type { ImageSpecifications, ImageVariant } from './types';
+import { DEFAULT_LAYOUT } from './constants.ts';
+import { ImageUtils } from './image-utils.ts';
+import type { ImageSpecifications, ImageVariant } from './types.ts';
 
 /**
  * Image layout options

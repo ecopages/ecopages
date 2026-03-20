@@ -4,7 +4,7 @@
  */
 
 import { createElement, type JSX } from 'react';
-import { type EcoImageProps, renderer } from '../image-renderer';
+import { type EcoImageProps, renderer } from '../image-renderer.ts';
 
 /**
  * EcoImage

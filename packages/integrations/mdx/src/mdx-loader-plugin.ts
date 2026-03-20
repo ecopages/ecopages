@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { type CompileOptions, compile } from '@mdx-js/mdx';
-import { SourceMapGenerator } from 'source-map';
+import sourceMap from 'source-map';
 import { VFile } from 'vfile';
 
 /**
@@ -45,15 +45,15 @@ export function createMdxLoaderPlugin(compilerOptions?: CompileOptions): EcoBuil
 				const compiled = await compile(file, {
 					...compilerOptions,
 					format: resolveCompileFormat(filePath, compilerOptions),
-					SourceMapGenerator,
+					SourceMapGenerator: sourceMap.SourceMapGenerator,
 				});
 
-				const sourceMap = compiled.map
+				const inlineSourceMap = compiled.map
 					? `\n//# sourceMappingURL=data:application/json;base64,${Buffer.from(JSON.stringify(compiled.map)).toString('base64')}\n`
 					: '';
 
 				return {
-					contents: `${String(compiled.value)}${sourceMap}`,
+					contents: `${String(compiled.value)}${inlineSourceMap}`,
 					loader: compilerOptions?.jsx ? 'jsx' : 'js',
 					resolveDir: path.dirname(args.path),
 				};

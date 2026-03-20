@@ -72,10 +72,16 @@ export interface RenderPreparationCallbacks {
  * locals policy.
  */
 export class RenderPreparationService {
+	private appConfig: EcoPagesAppConfig;
+	private assetProcessingService: AssetProcessingService;
+
 	constructor(
-		private appConfig: EcoPagesAppConfig,
-		private assetProcessingService: AssetProcessingService,
-	) {}
+		appConfig: EcoPagesAppConfig,
+		assetProcessingService: AssetProcessingService,
+	) {
+		this.appConfig = appConfig;
+		this.assetProcessingService = assetProcessingService;
+	}
 
 	/**
 	 * Builds the final render options object used by the integration-specific

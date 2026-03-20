@@ -37,7 +37,11 @@ export interface ReactPageModuleServiceConfig {
  * resolution, and hydration analysis for React pages.
  */
 export class ReactPageModuleService {
-	constructor(private readonly config: ReactPageModuleServiceConfig) {}
+	private readonly config: ReactPageModuleServiceConfig;
+
+	constructor(config: ReactPageModuleServiceConfig) {
+		this.config = config;
+	}
 
 	/**
 	 * Checks if the given file path corresponds to an MDX file based on configured extensions.

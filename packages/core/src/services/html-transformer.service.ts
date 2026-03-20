@@ -55,6 +55,26 @@ export class HtmlTransformerService {
 		return RuntimeHtmlRewriter ? new RuntimeHtmlRewriter() : null;
 	}
 
+	private async loadWorkerToolsHtmlRewriter(): Promise<HtmlRewriterConstructor | null> {
+		try {
+			const module = await import('@worker-tools/html-rewriter/base64');
+			return module.HTMLRewriter as HtmlRewriterConstructor;
+		} catch (primaryError) {
+			try {
+				const runtimeLocalModule = await import(
+					new URL('../node_modules/@worker-tools/html-rewriter/base64.js', import.meta.url).href,
+				);
+				return runtimeLocalModule.HTMLRewriter as HtmlRewriterConstructor;
+			} catch {
+				const message = primaryError instanceof Error ? primaryError.message : String(primaryError);
+				appLogger.warn(
+					`[HtmlTransformerService] Failed to load @worker-tools/html-rewriter/base64, falling back to string injection: ${message}`,
+				);
+				return null;
+			}
+		}
+	}
+
 	/**
 	 * Resolves the constructor used for HTML rewriting.
 	 *
@@ -82,15 +102,7 @@ export class HtmlTransformerService {
 			} else if (mode === 'auto' && RuntimeHtmlRewriter) {
 				this.htmlRewriterConstructorPromise = Promise.resolve(RuntimeHtmlRewriter);
 			} else {
-				this.htmlRewriterConstructorPromise = import('@worker-tools/html-rewriter/base64')
-					.then((module) => module.HTMLRewriter as HtmlRewriterConstructor)
-					.catch((error: unknown) => {
-						const message = error instanceof Error ? error.message : String(error);
-						appLogger.warn(
-							`[HtmlTransformerService] Failed to load @worker-tools/html-rewriter/base64, falling back to string injection: ${message}`,
-						);
-						return null;
-					});
+				this.htmlRewriterConstructorPromise = this.loadWorkerToolsHtmlRewriter();
 			}
 		}
 

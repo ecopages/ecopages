@@ -11,10 +11,16 @@ type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
  * body normalization for cache storage, and final cache header generation.
  */
 export class PageRequestCacheCoordinator {
+	private cacheService: PageCacheService | null;
+	private defaultCacheStrategy: CacheStrategy;
+
 	constructor(
-		private cacheService: PageCacheService | null,
-		private defaultCacheStrategy: CacheStrategy,
-	) {}
+		cacheService: PageCacheService | null,
+		defaultCacheStrategy: CacheStrategy,
+	) {
+		this.cacheService = cacheService;
+		this.defaultCacheStrategy = defaultCacheStrategy;
+	}
 
 	/**
 	 * Builds the cache key used for page lookups.

@@ -2,6 +2,13 @@
 	"name": "with-react-better-auth",
 	"private": true,
 	"type": "module",
+	"engines": {
+		"bun": ">=1.0.0"
+	},
+	"ecopages": {
+		"runtime": "bun-only",
+		"runtimeNote": "Uses bun:sqlite via Better Auth and Drizzle, so this playground is intentionally Bun-only."
+	},
 	"scripts": {
 		"start": "ecopages start",
 		"dev": "ecopages dev -r",

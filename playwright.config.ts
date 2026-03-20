@@ -159,7 +159,7 @@ export default defineConfig({
 			stderr: 'pipe',
 		},
 		{
-			command: 'NODE_ENV=development ECOPAGES_PORT=4007 pnpm dev',
+			command: 'NODE_ENV=development ECOPAGES_PORT=4007 pnpm exec ecopages dev --runtime bun',
 			cwd: 'playground/kitchen-sink',
 			port: 4007,
 			reuseExistingServer,

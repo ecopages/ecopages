@@ -1,4 +1,4 @@
-import type { ImageLayout } from './image-renderer';
+import type { ImageLayout } from './image-renderer.ts';
 
 /**
  * Default image layout

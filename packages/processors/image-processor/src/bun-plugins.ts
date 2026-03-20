@@ -4,8 +4,8 @@
  */
 
 import type { EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/build/build-types';
-import type { ImageMap } from './plugin';
-import { anyCaseToCamelCase } from './utils';
+import type { ImageMap } from './plugin.ts';
+import { anyCaseToCamelCase } from './utils.ts';
 
 /**
  * This function creates the plugin result for the image specifications.

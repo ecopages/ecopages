@@ -3,9 +3,9 @@ import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
-import { ImageUtils } from './image-utils';
-import type { ImageMap, ImageProcessorConfig } from './plugin';
-import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types';
+import { ImageUtils } from './image-utils.ts';
+import type { ImageMap, ImageProcessorConfig } from './plugin.ts';
+import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types.ts';
 
 const appLogger = new Logger('[@ecopages/image-processor]', {
 	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',

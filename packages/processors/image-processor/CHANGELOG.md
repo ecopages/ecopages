@@ -6,6 +6,11 @@ All notable changes to `@ecopages/image-processor` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Bug Fixes
+
+- Switched the package's public source imports to explicit relative ESM specifiers so Node thin-host production builds and previews can externalize `@ecopages/image-processor` without hitting `ERR_MODULE_NOT_FOUND` on internal runtime imports.
+- Inlined the generated `ecopages:images` declaration source so bundled Node runtime bootstrap output no longer depends on a sibling `types.ts` file at runtime.
+
 ### Features
 
 - **`image-plugins.ts`** — New file extracting image processing plugin logic for reuse across build adapters (`image-plugins.ts`).

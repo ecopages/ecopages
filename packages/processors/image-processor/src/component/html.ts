@@ -3,7 +3,7 @@
  * @module @ecopages/image-processor/component/html
  */
 
-import { type EcoImageProps, renderer } from '../image-renderer';
+import { type EcoImageProps, renderer } from '../image-renderer.ts';
 
 /**
  * EcoImage

@@ -143,6 +143,10 @@
 			"types": "./src/build/build-adapter.ts",
 			"default": "./src/build/build-adapter.ts"
 		},
+		"./build/runtime-specifier-alias-plugin": {
+			"types": "./src/build/runtime-specifier-alias-plugin.ts",
+			"default": "./src/build/runtime-specifier-alias-plugin.ts"
+		},
 		"./adapters/bun/client-bridge": {
 			"types": "./src/adapters/bun/client-bridge.ts",
 			"default": "./src/adapters/bun/client-bridge.ts"
@@ -158,6 +162,10 @@
 		"./node/create-app": {
 			"types": "./src/adapters/node/create-app.ts",
 			"default": "./src/adapters/node/create-app.ts"
+		},
+		"./node/runtime-adapter": {
+			"types": "./src/adapters/node/runtime-adapter.ts",
+			"default": "./src/adapters/node/runtime-adapter.ts"
 		},
 		"./html": {
 			"import": "./src/utils/html.ts",

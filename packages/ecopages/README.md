@@ -2,7 +2,7 @@
 
 The official CLI for the Ecopages framework.
 
-It provides scaffolding and development commands to streamline your workflow. It natively wraps your execution environment (Bun or Node/tsx) and automatically detects your `eco.config.ts`.
+It provides scaffolding and development commands to streamline your workflow. It natively wraps your execution environment (Bun or Node) and automatically detects your `eco.config.ts`.
 
 ## Quick Start
 
@@ -17,15 +17,15 @@ bun dev
 
 ## Commands
 
-| Command                      | Description                                | Equivalent (Bun)                | Equivalent (Node/tsx)     |
-| :--------------------------- | :----------------------------------------- | :------------------------------ | :------------------------ |
-| `ecopages init <dir>`        | Scaffolds a new project                    | N/A                             | N/A                       |
-| `ecopages dev [entry]`       | Starts the dev server                      | `bun run [entry] --dev`         | `tsx [entry] --dev`       |
-| `ecopages dev:watch [entry]` | Dev server + hard restarts on file changes | `bun --watch run [entry] --dev` | `tsx watch [entry] --dev` |
-| `ecopages dev:hot [entry]`   | Dev server + HMR (no hard restarts)        | `bun --hot run [entry] --dev`   | N/A                       |
-| `ecopages build [entry]`     | Creates a production build                 | `bun run [entry] --build`       | `tsx [entry] --build`     |
-| `ecopages start [entry]`     | Starts the production server               | `bun run [entry]`               | `tsx [entry]`             |
-| `ecopages preview [entry]`   | Previews the production build locally      | `bun run [entry] --preview`     | `tsx [entry] --preview`   |
+| Command                      | Description                                | Equivalent (Bun)                | Equivalent (Node)                         |
+| :--------------------------- | :----------------------------------------- | :------------------------------ | :---------------------------------------- |
+| `ecopages init <dir>`        | Scaffolds a new project                    | N/A                             | N/A                                       |
+| `ecopages dev [entry]`       | Starts the dev server                      | `bun run [entry] --dev`         | `node [ecopages thin host] [entry] --dev` |
+| `ecopages dev:watch [entry]` | Dev server + hard restarts on file changes | `bun --watch run [entry] --dev` | `node --watch [ecopages thin host] ...`   |
+| `ecopages dev:hot [entry]`   | Dev server + HMR (no hard restarts)        | `bun --hot run [entry] --dev`   | N/A                                       |
+| `ecopages build [entry]`     | Creates a production build                 | `bun run [entry] --build`       | `node [ecopages thin host] [entry] --build` |
+| `ecopages start [entry]`     | Starts the production server               | `bun run [entry]`               | `node [ecopages thin host] [entry]`       |
+| `ecopages preview [entry]`   | Previews the production build locally      | `bun run [entry] --preview`     | `node [ecopages thin host] [entry] --preview` |
 
 > [!NOTE]
 > `[entry]` defaults to `app.ts` if not provided.
@@ -41,17 +41,20 @@ Server and build commands accept the following options. They automatically map t
 | `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string                         |
 | `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug-level logging             |
 | `-r, --react-fast-refresh` |                         | Enables React Fast Refresh              |
-| `--runtime <runtime>`      |                         | Force execution via `bun` or `node/tsx` |
+| `--runtime <runtime>`      |                         | Force execution via `bun`, `node`, or `node-experimental` |
 
 ### Runtime Detection
 
-The CLI automatically detects your runtime environments by inspecting the package manager (`npm_config_user_agent`) or whether the `Bun` global exists. If neither is forcing Bun, it gracefully degrades to executing your app using `tsx` (Node).
+The CLI automatically detects your runtime environments by inspecting the package manager (`npm_config_user_agent`) or whether the `Bun` global exists. If neither is forcing Bun, it executes your app through the Ecopages-owned Node thin host.
+
+Both `node` and `node-experimental` now launch through the thin-host boundary and hand off the same serialized Node runtime manifest. `node-experimental` remains available as an explicit verification alias while the unified Node host path continues to settle.
 
 You can explicitly force the engine using the `--runtime` flag:
 
 ```bash
 ecopages dev --runtime node
 ecopages build --runtime bun
+ecopages dev --runtime node-experimental
 ```
 
 ### Example Usage

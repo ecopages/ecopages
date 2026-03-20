@@ -5,6 +5,7 @@ import { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
 function createMockView(integration = 'ghtml'): EcoPageComponent<any> {
 	const view = (() => '<div>Test</div>') as EcoPageComponent<any>;
 	view.config = {
+		integration,
 		__eco: { id: 'test', file: '/test/-view.ts', integration },
 	};
 	return view;
@@ -233,6 +234,32 @@ describe('ExplicitStaticRouteMatcher', () => {
 	});
 
 	describe('handleMatch', () => {
+		test('should accept integration metadata from view.config.integration', async () => {
+			const view = (() => '<div>Test</div>') as EcoPageComponent<any>;
+			view.config = {
+				integration: 'ghtml',
+				__eco: { id: 'test', file: '/test/-view.ts' },
+			};
+
+			const mockResponse = new Response('<html>Test</html>');
+			const renderToResponse = vi.fn(() => mockResponse);
+			const matcher = new ExplicitStaticRouteMatcher({
+				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				routeRendererFactory: {
+					getRendererByIntegration: vi.fn(() => ({
+						renderToResponse,
+					})),
+				} as any,
+				staticRoutes: [createMockRoute('/about', view)],
+			});
+
+			const match = matcher.match('http://localhost:3000/about');
+			const response = await matcher.handleMatch(match!);
+
+			expect(response).toBe(mockResponse);
+			expect(renderToResponse).toHaveBeenCalledWith(view, {}, {});
+		});
+
 		test('should throw error when view is missing __eco.integration', async () => {
 			const viewWithoutIntegration = (() => '<div>Test</div>') as EcoPageComponent<any>;
 			viewWithoutIntegration.config = {

@@ -34,6 +34,26 @@ export function getAnchorFromNavigationEvent(
 	event: MouseEvent | PointerEvent,
 	linkSelector: string,
 ): HTMLAnchorElement | null {
+	const eventTarget = event.target;
+
+	if (eventTarget instanceof HTMLAnchorElement && eventTarget.matches(linkSelector)) {
+		return eventTarget;
+	}
+
+	if (eventTarget instanceof Element) {
+		const closestAnchor = eventTarget.closest(linkSelector);
+		if (closestAnchor instanceof HTMLAnchorElement) {
+			return closestAnchor;
+		}
+	}
+
+	if (eventTarget instanceof Text) {
+		const parentAnchor = eventTarget.parentElement?.closest(linkSelector);
+		if (parentAnchor instanceof HTMLAnchorElement) {
+			return parentAnchor;
+		}
+	}
+
 	return event
 		.composedPath()
 		.find(

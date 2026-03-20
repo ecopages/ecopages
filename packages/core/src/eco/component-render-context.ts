@@ -70,9 +70,27 @@ type ContextStorage = {
 	run<T>(store: ComponentRenderContext, callback: () => Promise<T>): Promise<T>;
 };
 
-const contextStack: ComponentRenderContext[] = [];
-let nodeContextStorage: ContextStorage | null = null;
-let nodeContextStorageLoader: Promise<ContextStorage | null> | null = null;
+type ComponentRenderContextState = {
+	contextStack: ComponentRenderContext[];
+	nodeContextStorage: ContextStorage | null;
+	nodeContextStorageLoader: Promise<ContextStorage | null> | null;
+};
+
+const GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY = '__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__';
+
+function getComponentRenderContextState(): ComponentRenderContextState {
+	const globalScope = globalThis as typeof globalThis & {
+		__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__?: ComponentRenderContextState;
+	};
+
+	globalScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY] ??= {
+		contextStack: [],
+		nodeContextStorage: null,
+		nodeContextStorageLoader: null,
+	};
+
+	return globalScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY];
+}
 
 /**
  * Lazily initializes async context storage for Node runtimes.
@@ -82,32 +100,34 @@ let nodeContextStorageLoader: Promise<ContextStorage | null> | null = null;
  * @returns Async context storage when available; otherwise `null`.
  */
 async function getContextStorage(): Promise<ContextStorage | null> {
-	if (nodeContextStorage) {
-		return nodeContextStorage;
+	const state = getComponentRenderContextState();
+
+	if (state.nodeContextStorage) {
+		return state.nodeContextStorage;
 	}
 
-	if (nodeContextStorageLoader) {
-		return nodeContextStorageLoader;
+	if (state.nodeContextStorageLoader) {
+		return state.nodeContextStorageLoader;
 	}
 
-	nodeContextStorageLoader = import('node:async_hooks')
+	state.nodeContextStorageLoader = import('node:async_hooks')
 		.then((module) => {
 			const storage = new module.AsyncLocalStorage<ComponentRenderContext>();
-			nodeContextStorage = {
+			state.nodeContextStorage = {
 				getStore: () => storage.getStore(),
 				run: (store, callback) => storage.run(store, callback),
 			};
-			return nodeContextStorage;
+			return state.nodeContextStorage;
 		})
 		.catch(() => {
-			nodeContextStorage = null;
+			state.nodeContextStorage = null;
 			return null;
 		})
 		.finally(() => {
-			nodeContextStorageLoader = null;
+			state.nodeContextStorageLoader = null;
 		});
 
-	return nodeContextStorageLoader;
+	return state.nodeContextStorageLoader;
 }
 
 /**
@@ -116,7 +136,8 @@ async function getContextStorage(): Promise<ContextStorage | null> {
  * @returns Active render context or `undefined` outside render execution.
  */
 export function getComponentRenderContext(): ComponentRenderContext | undefined {
-	return nodeContextStorage?.getStore() ?? contextStack[contextStack.length - 1];
+	const state = getComponentRenderContextState();
+	return state.nodeContextStorage?.getStore() ?? state.contextStack[state.contextStack.length - 1];
 }
 
 /**
@@ -184,11 +205,12 @@ export async function runWithComponentRenderContext<T>(
 	if (storage) {
 		value = await storage.run(context, render);
 	} else {
-		contextStack.push(context);
+		const state = getComponentRenderContextState();
+		state.contextStack.push(context);
 		try {
 			value = await render();
 		} finally {
-			contextStack.pop();
+			state.contextStack.pop();
 		}
 	}
 

@@ -6,8 +6,9 @@ import type { RouteRendererFactory } from '../../route-renderer/route-renderer.t
 import type { FSRouter } from '../../router/fs-router.ts';
 import type { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from '../../services/cache/cache.types.ts';
-import { PageModuleImportService } from '../../services/page-module-import.service.ts';
 import { PageRequestCacheCoordinator } from '../../services/page-request-cache-coordinator.service.ts';
+import { DevelopmentInvalidationService } from '../../services/development-invalidation.service.ts';
+import { ServerModuleTranspiler } from '../../services/server-module-transpiler.service.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
 import type { Middleware, RequestLocals } from '../../public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
@@ -45,7 +46,7 @@ export class FileSystemResponseMatcher {
 	private router: FSRouter;
 	private routeRendererFactory: RouteRendererFactory;
 	private fileSystemResponseFactory: FileSystemServerResponseFactory;
-	private pageModuleImportService: PageModuleImportService;
+	private serverModuleTranspiler: ServerModuleTranspiler;
 	private pageRequestCacheCoordinator: PageRequestCacheCoordinator;
 	private fileRouteMiddlewarePipeline: FileRouteMiddlewarePipeline;
 
@@ -61,7 +62,13 @@ export class FileSystemResponseMatcher {
 		this.router = router;
 		this.routeRendererFactory = routeRendererFactory;
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
-		this.pageModuleImportService = new PageModuleImportService();
+		const invalidationService = new DevelopmentInvalidationService(appConfig);
+		this.serverModuleTranspiler = new ServerModuleTranspiler({
+			rootDir: appConfig.rootDir,
+			buildExecutor: getAppBuildExecutor(appConfig),
+			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
+			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
+		});
 		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy);
 		this.fileRouteMiddlewarePipeline = new FileRouteMiddlewarePipeline(cacheService);
 	}
@@ -187,11 +194,9 @@ export class FileSystemResponseMatcher {
 	 * @returns Imported page module.
 	 */
 	private async importPageModule(filePath: string): Promise<unknown> {
-		return this.pageModuleImportService.importModule({
+		return this.serverModuleTranspiler.importModule({
 			filePath,
-			rootDir: path.dirname(this.router.assetPrefix),
 			outdir: path.join(this.router.assetPrefix, '.server-modules-meta'),
-			buildExecutor: getAppBuildExecutor(this.appConfig),
 			transpileErrorMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.transpilePageModuleFailed,
 			noOutputMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.noTranspiledOutputForPageModule,
 		});

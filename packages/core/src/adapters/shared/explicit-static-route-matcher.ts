@@ -9,6 +9,10 @@ export const EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS = {
 	noRendererForIntegration: (integrationName: string) => `No renderer found for integration: ${integrationName}`,
 } as const;
 
+function getViewIntegrationName(view: { config?: { integration?: string; __eco?: { integration?: string } } }): string | undefined {
+	return view.config?.integration ?? view.config?.__eco?.integration;
+}
+
 export interface ExplicitStaticRouteMatcherOptions {
 	appConfig: EcoPagesAppConfig;
 	routeRendererFactory: RouteRendererFactory;
@@ -102,7 +106,7 @@ export class ExplicitStaticRouteMatcher {
 			const mod = await route.loader();
 			const view = mod.default;
 
-			const integrationName = view.config?.__eco?.integration;
+			const integrationName = getViewIntegrationName(view);
 			if (!integrationName) {
 				throw new Error(EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS.missingIntegration(route.path));
 			}

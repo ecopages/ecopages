@@ -1,6 +1,6 @@
 import { eco } from '@ecopages/core';
-import { BaseLayout } from '@/layouts/base-layout';
 import { studioCrew } from '@/data/demo-data';
+import { BaseLayout } from '@/layouts/base-layout';
 
 export default eco.page({
 	dependencies: {
@@ -11,20 +11,20 @@ export default eco.page({
 	metadata: () => ({
 		title: 'Explicit team route',
 		description:
-			'A page registered through app.static() while still using the normal EcoPages layout and HTML shell.',
+			'A page registered directly in app.ts while still using the normal EcoPages layout and HTML shell.',
 	}),
 	render: () => {
 		return (
 			<section class="space-y-6 rounded-[1.75rem] border border-border bg-background p-8">
 				<div class="space-y-3">
-					<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">app.static()</p>
+					<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">app.get()</p>
 					<h1 class="font-display text-4xl font-semibold tracking-tight">
 						Explicit routes can still feel native.
 					</h1>
 					<p class="max-w-3xl text-base leading-8 text-muted">
 						This page is not discovered from the filesystem router. It is registered directly in{' '}
-						<span class="font-mono">app.ts</span>, yet it renders through the same layout, metadata, and
-						dependency system as normal pages.
+						<span class="font-mono">app.ts</span> through an explicit handler, yet it renders through the same
+						layout, metadata, and dependency system as normal pages.
 					</p>
 				</div>
 				<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

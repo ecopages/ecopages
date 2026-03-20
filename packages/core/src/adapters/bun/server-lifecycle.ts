@@ -1,7 +1,10 @@
 import path from 'node:path';
 import { getBunRuntime } from '../../utils/runtime.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
-import { defaultBuildAdapter } from '../../build/build-adapter.ts';
+import {
+	getAppBrowserBuildPlugins,
+	setupAppRuntimePlugins,
+} from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
@@ -60,7 +63,6 @@ export class ServerLifecycle {
 	setupLoaders(): void {
 		const loaders = this.appConfig.loaders;
 		for (const loader of loaders.values()) {
-			defaultBuildAdapter.registerPlugin(loader);
 			getBunRuntime()?.plugin(loader as any);
 		}
 	}
@@ -95,38 +97,16 @@ export class ServerLifecycle {
 			const hmrEnabled = !!options?.watch;
 			this.hmrManager.setEnabled(hmrEnabled);
 
-			const processorBuildPlugins: EcoBuildPlugin[] = [];
-
-			const processorPromises = Array.from(this.appConfig.processors.values()).map(async (processor) => {
-				await processor.setup();
-				if (processor.plugins) {
-					for (const plugin of processor.plugins) {
-						defaultBuildAdapter.registerPlugin(plugin);
-						getBunRuntime()?.plugin(plugin as any);
-					}
-				}
-				if (processor.buildPlugins) {
-					processorBuildPlugins.push(...processor.buildPlugins);
-				}
-			});
-
-			const integrationPromises = this.appConfig.integrations.map(async (integration) => {
-				integration.setConfig(this.appConfig);
-				integration.setRuntimeOrigin(this.runtimeOrigin);
-				integration.setHmrManager(this.hmrManager);
-				await integration.setup();
-
-				for (const plugin of integration.plugins) {
-					defaultBuildAdapter.registerPlugin(plugin);
+			await setupAppRuntimePlugins({
+				appConfig: this.appConfig,
+				runtimeOrigin: this.runtimeOrigin,
+				hmrManager: this.hmrManager,
+				onRuntimePlugin: (plugin) => {
 					getBunRuntime()?.plugin(plugin as any);
-				}
+				},
 			});
 
-			await Promise.all([...processorPromises, ...integrationPromises]);
-
-			const loaderPlugins = Array.from(this.appConfig.loaders.values());
-			const integrationBuildPlugins = this.appConfig.integrations.flatMap((integration) => integration.plugins);
-			const allBuildPlugins = [...loaderPlugins, ...processorBuildPlugins, ...integrationBuildPlugins];
+			const allBuildPlugins = getAppBrowserBuildPlugins(this.appConfig);
 			this.hmrManager.setPlugins(allBuildPlugins);
 			return allBuildPlugins;
 		} catch (error) {

@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { eco } from './eco.ts';
 import type { EcoComponent, GetMetadataContext, HtmlTemplateProps, LayoutProps, StaticPath } from '../public-types.ts';
 import type { EcoPagesAppConfig } from 'src/internal-types.ts';
-import { runWithComponentRenderContext } from './component-render-context.ts';
+import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
 
 const mockAppConfig = {} as EcoPagesAppConfig;
 
@@ -269,6 +269,26 @@ describe('eco namespace', () => {
 			expect(execution.value).not.toContain('<eco-marker');
 			expect(execution.graphContext.propsByRef).toEqual({});
 			expect(execution.graphContext.slotChildrenByRef).toEqual({});
+		});
+
+		test('should share render context across duplicated module instances', async () => {
+			const duplicateModule = (await import('./component-render-context.ts?duplicate-instance')) as typeof import('./component-render-context.ts');
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'kitajs',
+					boundaryContext: {
+						decideBoundaryRender: () => 'inline',
+					},
+				},
+				async () => {
+					expect(getComponentRenderContext()?.currentIntegration).toBe('kitajs');
+					expect(duplicateModule.getComponentRenderContext()?.currentIntegration).toBe('kitajs');
+					return 'shared-context';
+				},
+			);
+
+			expect(execution.value).toBe('shared-context');
 		});
 	});
 

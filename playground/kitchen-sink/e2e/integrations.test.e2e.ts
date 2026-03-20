@@ -12,6 +12,15 @@ import {
 	trackRuntimeErrors,
 } from './helpers';
 
+function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+	let resolve!: () => void;
+	const promise = new Promise<void>((nextResolve) => {
+		resolve = nextResolve;
+	});
+
+	return { promise, resolve };
+}
+
 test.describe('Kitchen Sink Playground Integrations', () => {
 	test('renders the full integration matrix and cross-integration children', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
@@ -173,47 +182,54 @@ test.describe('Kitchen Sink Playground Integrations', () => {
 		const runtime = trackRuntimeErrors(page);
 
 		for (let attempt = 0; attempt < 3; attempt += 1) {
-			let resolveDelayedReactNotesRequest!: () => void;
-			const delayedReactNotesRequestHandled = new Promise<void>((resolve) => {
-				resolveDelayedReactNotesRequest = resolve;
-			});
+			const delayedReactNotesRequestStarted = createDeferred();
+			const releaseDelayedReactNotesRequest = createDeferred();
+			const delayedReactNotesRequestHandled = createDeferred();
+			let interceptedReactNotesRequest = false;
+			const delayedReactNotesRoute = async (route: Parameters<Parameters<typeof page.route>[1]>[0]) => {
+				const request = route.request();
+				const acceptsHtml = (await request.headerValue('accept'))?.includes('text/html');
+
+				if (request.method() === 'GET' && acceptsHtml) {
+					interceptedReactNotesRequest = true;
+					delayedReactNotesRequestStarted.resolve();
+					await releaseDelayedReactNotesRequest.promise;
+				}
+
+				await route.continue();
+				delayedReactNotesRequestHandled.resolve();
+			};
 
 			await gotoAndWait(page, '/react-content');
 			await expect(page.locator('[data-testid="page-react-content"]')).toBeVisible({ timeout: 15000 });
 			await expectNavigationOwner(page, 'react-router');
 
-			await page.route(
-				'**/react-notes',
-				async (route) => {
-					const request = route.request();
-					const acceptsHtml = (await request.headerValue('accept'))?.includes('text/html');
-
-					if (request.method() === 'GET' && acceptsHtml) {
-						await new Promise((resolve) => setTimeout(resolve, 300));
-					}
-
-					await route.continue();
-					resolveDelayedReactNotesRequest();
-				},
-				{ times: 1 },
-			);
+			await page.route('**/react-notes', delayedReactNotesRoute, { times: 1 });
 
 			const slowLink = page.getByTestId('route-link-react-notes');
 			const fastLink = page.getByTestId('route-link-react-lab');
 
-			await expect(slowLink).toBeVisible();
-			await expect(fastLink).toBeVisible();
+			try {
+				await expect(slowLink).toBeVisible();
+				await expect(fastLink).toBeVisible();
 
-			await slowLink.click();
-			await page.waitForTimeout(25);
-			await fastLink.click();
+				const slowClick = slowLink.click();
+				await delayedReactNotesRequestStarted.promise;
+				await fastLink.click();
+				await slowClick;
 
-			await expect(page.getByRole('heading', { name: 'React Page Route' })).toBeVisible();
-			await expect(page).toHaveURL(/\/react-lab$/);
-			await expectNavigationOwner(page, 'react-router');
-			await expect(page.locator('[data-testid="page-react-lab"]')).toBeVisible();
-			await expect(page.locator('[data-react-value]')).toHaveText('0');
-			await delayedReactNotesRequestHandled;
+				await expect(page.getByRole('heading', { name: 'React Page Route' })).toBeVisible();
+				await expect(page).toHaveURL(/\/react-lab$/);
+				await expectNavigationOwner(page, 'react-router');
+				await expect(page.locator('[data-testid="page-react-lab"]')).toBeVisible();
+				await expect(page.locator('[data-react-value]')).toHaveText('0');
+			} finally {
+				releaseDelayedReactNotesRequest.resolve();
+				if (interceptedReactNotesRequest) {
+					await delayedReactNotesRequestHandled.promise;
+				}
+				await page.unroute('**/react-notes', delayedReactNotesRoute);
+			}
 		}
 
 		runtime.assertClean();
@@ -224,46 +240,53 @@ test.describe('Kitchen Sink Playground Integrations', () => {
 		const runtime = trackRuntimeErrors(page);
 
 		for (let attempt = 0; attempt < 3; attempt += 1) {
-			let resolveDelayedDocsRequest!: () => void;
-			const delayedDocsRequestHandled = new Promise<void>((resolve) => {
-				resolveDelayedDocsRequest = resolve;
-			});
+			const delayedDocsRequestStarted = createDeferred();
+			const releaseDelayedDocsRequest = createDeferred();
+			const delayedDocsRequestHandled = createDeferred();
+			let interceptedDocsRequest = false;
+			const delayedDocsRoute = async (route: Parameters<Parameters<typeof page.route>[1]>[0]) => {
+				const request = route.request();
+				const acceptsHtml = (await request.headerValue('accept'))?.includes('text/html');
+
+				if (request.method() === 'GET' && acceptsHtml) {
+					interceptedDocsRequest = true;
+					delayedDocsRequestStarted.resolve();
+					await releaseDelayedDocsRequest.promise;
+				}
+
+				await route.continue();
+				delayedDocsRequestHandled.resolve();
+			};
 
 			await gotoAndWait(page, '/react-content');
 			await expect(page.locator('[data-testid="page-react-content"]')).toBeVisible({ timeout: 15000 });
 			await expectNavigationOwner(page, 'react-router');
 
-			await page.route(
-				'**/docs',
-				async (route) => {
-					const request = route.request();
-					const acceptsHtml = (await request.headerValue('accept'))?.includes('text/html');
-
-					if (request.method() === 'GET' && acceptsHtml) {
-						await new Promise((resolve) => setTimeout(resolve, 300));
-					}
-
-					await route.continue();
-					resolveDelayedDocsRequest();
-				},
-				{ times: 1 },
-			);
+			await page.route('**/docs', delayedDocsRoute, { times: 1 });
 
 			const slowLink = page.getByTestId('route-link-docs');
 			const fastLink = page.getByTestId('route-link-react-lab');
 
-			await expect(slowLink).toBeVisible();
-			await expect(fastLink).toBeVisible();
+			try {
+				await expect(slowLink).toBeVisible();
+				await expect(fastLink).toBeVisible();
 
-			await slowLink.click();
-			await page.waitForTimeout(25);
-			await fastLink.click();
+				const slowClick = slowLink.click();
+				await delayedDocsRequestStarted.promise;
+				await fastLink.click();
+				await slowClick;
 
-			await expect(page.getByRole('heading', { name: 'React Page Route' })).toBeVisible();
-			await expect(page).toHaveURL(/\/react-lab$/);
-			await expectNavigationOwner(page, 'react-router');
-			await expect(page.locator('[data-testid="page-react-lab"]')).toBeVisible();
-			await delayedDocsRequestHandled;
+				await expect(page.getByRole('heading', { name: 'React Page Route' })).toBeVisible();
+				await expect(page).toHaveURL(/\/react-lab$/);
+				await expectNavigationOwner(page, 'react-router');
+				await expect(page.locator('[data-testid="page-react-lab"]')).toBeVisible();
+			} finally {
+				releaseDelayedDocsRequest.resolve();
+				if (interceptedDocsRequest) {
+					await delayedDocsRequestHandled.promise;
+				}
+				await page.unroute('**/docs', delayedDocsRoute);
+			}
 		}
 
 		runtime.assertClean();
@@ -276,7 +299,7 @@ test.describe('Kitchen Sink Playground Integrations', () => {
 
 		await gotoAndWait(page, '/react-server-files');
 		await expect(page.getByRole('heading', { name: 'Server-only file tree' })).toBeVisible();
-		await expect(page.getByText('tree.server.ts')).toBeVisible();
+		await expect(page.getByText('tree.server.ts', { exact: true })).toBeVisible();
 		await expectNavigationOwner(page, 'react-router');
 
 		const { source } = await fetchCurrentPageModule(page);

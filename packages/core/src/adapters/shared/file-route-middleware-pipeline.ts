@@ -20,7 +20,11 @@ export const FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS = {
  * request-time dynamic rendering.
  */
 export class FileRouteMiddlewarePipeline {
-	constructor(private cacheService: PageCacheService | null) {}
+	private cacheService: PageCacheService | null;
+
+	constructor(cacheService: PageCacheService | null) {
+		this.cacheService = cacheService;
+	}
 
 	/**
 	 * Enforces the current middleware contract for file-routed pages.

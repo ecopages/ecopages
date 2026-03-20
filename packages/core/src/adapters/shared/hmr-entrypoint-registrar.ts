@@ -45,7 +45,11 @@ export interface HmrEntrypointRegistrationOptions {
  * this shared registration flow.
  */
 export class HmrEntrypointRegistrar {
-	constructor(private readonly options: HmrEntrypointRegistrarOptions) {}
+	private readonly options: HmrEntrypointRegistrarOptions;
+
+	constructor(options: HmrEntrypointRegistrarOptions) {
+		this.options = options;
+	}
 
 	/**
 	 * Registers a single source entrypoint and returns the browser URL for its emitted HMR module.

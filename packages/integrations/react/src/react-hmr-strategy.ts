@@ -8,18 +8,19 @@
  */
 
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import { FileNotFoundError, fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
-import type { DefaultHmrContext, EcoComponentConfig } from '@ecopages/core';
+import type { DefaultHmrContext } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { injectHmrHandler } from './utils/hmr-scripts.ts';
-import { createRuntimeSpecifierAliasPlugin } from './utils/runtime-specifier-alias-plugin.ts';
 import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
 import { collectPageDeclaredModules, collectPageDeclaredModulesFromModule } from './utils/declared-modules.ts';
+import { getReactClientGraphAllowSpecifiers } from './utils/react-runtime-specifier-map.ts';
+import { createUseSyncExternalStoreShimPlugin } from './utils/use-sync-external-store-shim-plugin.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
@@ -33,9 +34,11 @@ const appLogger = new Logger('[ReactHmrStrategy]');
  * The processing steps are:
  * 1. Check if any React entrypoints are registered
  * 2. Rebuild all React entrypoints (the changed file could be a dependency)
- * 3. Preserve integration runtime aliases during browser bundling
- * 4. Inject HMR acceptance handler
- * 5. Broadcast update events for each rebuilt entrypoint
+	 * 3. Rebuild browser output through the shared browser bundle service while
+	 *    preserving React-specific runtime aliases and graph policy
+	 * 4. Read page config metadata through the shared server-module loading path
+	 * 5. Inject HMR acceptance handler
+	 * 6. Broadcast update events for each rebuilt entrypoint
  *
  * @remarks
  * This strategy has higher priority than generic JsHmrStrategy, allowing it
@@ -64,94 +67,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
 	private mdxCompilerOptions?: CompileOptions;
 	private readonly knownEntrypoints = new Set<string>();
-
 	private async importNodePageModule(entrypointPath: string): Promise<{
-		default?: { config?: EcoComponentConfig };
-		config?: EcoComponentConfig;
+		default?: { config?: Record<string, unknown> };
+		config?: Record<string, unknown>;
 	}> {
-		const srcDir = this.context.getSrcDir();
-		const rootDir = path.dirname(srcDir);
-		const outdir = path.join(path.resolve(this.context.getDistDir(), '..', '..'), '.server-modules');
-		const fileBaseName = path.basename(entrypointPath, path.extname(entrypointPath));
-		const fileHash = fileSystem.hash(entrypointPath);
-		const outputFileName = `${fileBaseName}-${fileHash}.js`;
-
-		const buildResult = await this.context.getBuildExecutor().build({
-			entrypoints: [entrypointPath],
-			root: rootDir,
-			outdir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			naming: outputFileName,
-		});
-
-		if (!buildResult.success) {
-			const details = buildResult.logs.map((log) => log.message).join(' | ');
-			throw new Error(`Error transpiling React HMR page module: ${details}`);
-		}
-
-		const preferredOutputPath = path.join(outdir, outputFileName);
-		const compiledOutput =
-			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
-			buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
-
-		if (!compiledOutput) {
-			throw new Error(`No transpiled output generated for React HMR page module: ${entrypointPath}`);
-		}
-
-		return (await import(pathToFileURL(compiledOutput).href)) as {
-			default?: { config?: EcoComponentConfig };
-			config?: EcoComponentConfig;
-		};
-	}
-
-	/**
-	 * Redirects `use-sync-external-store/shim` imports to React's built-in
-	 * `useSyncExternalStore`.
-	 *
-	 * Libraries like React Aria still list `use-sync-external-store` as a
-	 * dependency to support React 16/17. On React 18+ the `/shim` export is
-	 * already a pass-through, but without this plugin esbuild would bundle
-	 * the full CJS shim (including `process.env` branching) into the browser
-	 * bundle. The plugin short-circuits the resolution so only a single clean
-	 * ESM re-export is emitted.
-	 */
-	private createUseSyncExternalStoreShimPlugin(): EcoBuildPlugin {
-		return {
-			name: 'react-hmr-use-sync-external-store-shim',
-			setup(build) {
-				build.onResolve({ filter: /^use-sync-external-store\/shim(?:\/index\.js)?$/ }, () => ({
-					path: 'use-sync-external-store/shim',
-					namespace: 'ecopages-react-hmr-shim',
-				}));
-
-				build.onLoad(
-					{ filter: /^use-sync-external-store\/shim$/, namespace: 'ecopages-react-hmr-shim' },
-					() => ({
-						contents: "export { useSyncExternalStore } from 'react';",
-						loader: 'js',
-					}),
-				);
-
-				build.onLoad({ filter: /[\\/]use-sync-external-store[\\/]shim[\\/]index\.js$/ }, () => ({
-					contents: "export { useSyncExternalStore } from 'react';",
-					loader: 'js',
-				}));
-
-				build.onLoad(
-					{
-						filter: /[\\/]use-sync-external-store[\\/]cjs[\\/]use-sync-external-store-shim\.development\.js$/,
-					},
-					() => ({
-						contents: "export { useSyncExternalStore } from 'react';",
-						loader: 'js',
-					}),
-				);
-			},
-		};
+		return await this.context.importServerModule(entrypointPath);
 	}
 
 	/**
@@ -167,13 +87,20 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * @param explicitGraphEnabled - Enables explicit graph mode for React HMR bundling.
 	 * In explicit mode, HMR builds omit AST server-only stripping plugins in React paths.
 	 */
+	private context: DefaultHmrContext;
+	private pageMetadataCache: ReactHmrPageMetadataCache;
+	private explicitGraphEnabled: boolean;
+
 	constructor(
-		private context: DefaultHmrContext,
-		private pageMetadataCache: ReactHmrPageMetadataCache,
+		context: DefaultHmrContext,
+		pageMetadataCache: ReactHmrPageMetadataCache,
 		mdxCompilerOptions?: CompileOptions,
-		private explicitGraphEnabled = false,
+		explicitGraphEnabled = false,
 	) {
 		super();
+		this.context = context;
+		this.pageMetadataCache = pageMetadataCache;
+		this.explicitGraphEnabled = explicitGraphEnabled;
 		this.mdxCompilerOptions = mdxCompilerOptions;
 	}
 
@@ -184,17 +111,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * (including `node:*`) from breaking the browser bundle.
 	 */
 	private getBuildPlugins(declaredModules?: string[]): EcoBuildPlugin[] {
-		const allowSpecifiers = [
-			'@ecopages/core',
-			'react',
-			'react-dom',
-			'react/jsx-runtime',
-			'react/jsx-dev-runtime',
-			'react-dom/client',
-			...Array.from(this.context.getSpecifierMap().keys()),
-		];
+		const allowSpecifiers = getReactClientGraphAllowSpecifiers(this.context.getSpecifierMap().keys());
 
-		const runtimeAliasPlugin = createRuntimeSpecifierAliasPlugin(this.context.getSpecifierMap());
+		const runtimeAliasPlugin = createRuntimeSpecifierAliasPlugin(this.context.getSpecifierMap(), {
+			name: 'react-hmr-runtime-specifier-alias',
+		});
 
 		return [
 			createClientGraphBoundaryPlugin({
@@ -204,7 +125,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 			}),
 			...(runtimeAliasPlugin ? [runtimeAliasPlugin] : []),
 			...this.context.getPlugins(),
-			this.createUseSyncExternalStoreShimPlugin(),
+			createUseSyncExternalStoreShimPlugin({
+				name: 'react-hmr-use-sync-external-store-shim',
+				namespace: 'ecopages-react-hmr-shim',
+			}),
 		];
 	}
 
@@ -349,13 +273,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 				plugins.unshift(mdxPlugin);
 			}
 
-			const result = await this.context.getBuildExecutor().build({
+			const result = await this.context.getBrowserBundleService().bundle({
+				profile: 'hmr-entrypoint',
 				entrypoints: [entrypointPath],
 				outdir: tempDir,
 				naming: `[name].[hash].tmp`,
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
 				plugins,
 				minify: false,
 			});

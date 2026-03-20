@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ServerWebSocket, WebSocketHandler } from 'bun';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
-import { getAppBuildExecutor, getTranspileOptions } from '../../build/build-adapter.ts';
+import { getAppBuildExecutor } from '../../build/build-adapter.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../internal-types';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -13,6 +13,11 @@ import { appLogger } from '../../global/app-logger';
 import type { ClientBridge } from './client-bridge';
 import type { ClientBridgeEvent } from '../../public-types';
 import { HmrEntrypointRegistrar } from '../shared/hmr-entrypoint-registrar.ts';
+import { BrowserBundleService } from '../../services/browser-bundle.service.ts';
+import { DevelopmentInvalidationService } from '../../services/development-invalidation.service.ts';
+import { getAppDevGraphService, NoopDevGraphService, setAppDevGraphService } from '../../services/dev-graph.service.ts';
+import { getAppRuntimeSpecifierRegistry } from '../../services/runtime-specifier-registry.service.ts';
+import { ServerModuleTranspiler } from '../../services/server-module-transpiler.service.ts';
 
 type BunSocket = ServerWebSocket<unknown>;
 type BunSocketHandler = WebSocketHandler<unknown>;
@@ -43,13 +48,15 @@ export class HmrManager implements IHmrManager {
 	/** entrypoint -> output path */
 	private watchedFiles = new Map<string, string>();
 	private entrypointRegistrations = new Map<string, Promise<string>>();
-	/** bare specifier -> runtime URL registered by integrations */
-	private specifierMap = new Map<string, string>();
 	private distDir: string;
 	private plugins: EcoBuildPlugin[] = [];
 	private enabled = true;
 	private strategies: HmrStrategy[] = [];
 	private readonly entrypointRegistrar: HmrEntrypointRegistrar;
+	private readonly browserBundleService: BrowserBundleService;
+	private readonly devGraphService: ReturnType<typeof getAppDevGraphService>;
+	private readonly runtimeSpecifierRegistry: ReturnType<typeof getAppRuntimeSpecifierRegistry>;
+	private readonly serverModuleTranspiler: ServerModuleTranspiler;
 	private wsHandler!: {
 		open: (ws: BunSocket) => void;
 		close: (ws: BunSocket) => void;
@@ -66,6 +73,21 @@ export class HmrManager implements IHmrManager {
 			watchedFiles: this.watchedFiles,
 			clearFailedRegistration: (entrypointPath) => this.clearFailedEntrypointRegistration(entrypointPath),
 			registrationTimeoutMs: HmrManager.entrypointRegistrationTimeoutMs,
+		});
+		this.browserBundleService = new BrowserBundleService(appConfig);
+		const existingDevGraphService = getAppDevGraphService(appConfig);
+		this.devGraphService =
+			existingDevGraphService instanceof NoopDevGraphService
+				? existingDevGraphService
+				: new NoopDevGraphService();
+		setAppDevGraphService(this.appConfig, this.devGraphService);
+		this.runtimeSpecifierRegistry = getAppRuntimeSpecifierRegistry(this.appConfig);
+		const invalidationService = new DevelopmentInvalidationService(this.appConfig);
+		this.serverModuleTranspiler = new ServerModuleTranspiler({
+			rootDir: this.appConfig.rootDir,
+			buildExecutor: getAppBuildExecutor(this.appConfig),
+			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
+			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
 		});
 		this.cleanDistDir();
 		this.initializeStrategies();
@@ -111,11 +133,12 @@ export class HmrManager implements IHmrManager {
 	private initializeStrategies(): void {
 		const jsContext = {
 			getWatchedFiles: () => this.watchedFiles,
-			getSpecifierMap: () => this.specifierMap,
+			getSpecifierMap: () => this.runtimeSpecifierRegistry.getAll(),
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
-			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
+			getBrowserBundleService: () => this.browserBundleService,
+			getDevGraphService: () => this.devGraphService,
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 		};
 
@@ -151,9 +174,7 @@ export class HmrManager implements IHmrManager {
 	 * shared runtime imports in browser bundles.
 	 */
 	public registerSpecifierMap(map: Record<string, string>): void {
-		for (const [specifier, url] of Object.entries(map)) {
-			this.specifierMap.set(specifier, url);
-		}
+		this.runtimeSpecifierRegistry.register(map);
 	}
 
 	public getWebSocketHandler(): BunSocketHandler {
@@ -183,14 +204,13 @@ export class HmrManager implements IHmrManager {
 	 */
 	public async buildRuntime(): Promise<void> {
 		const runtimeSource = path.resolve(import.meta.dirname, '../../hmr/client/hmr-runtime.ts');
-		const buildExecutor = getAppBuildExecutor(this.appConfig);
 
-		const result = await buildExecutor.build({
+		const result = await this.browserBundleService.bundle({
+			profile: 'hmr-runtime',
 			entrypoints: [runtimeSource],
 			outdir: this.distDir,
 			naming: '_hmr_runtime.js',
 			minify: false,
-			...getTranspileOptions('hmr-runtime'),
 			plugins: this.plugins,
 		});
 
@@ -249,7 +269,7 @@ export class HmrManager implements IHmrManager {
 	}
 
 	public getSpecifierMap(): Map<string, string> {
-		return this.specifierMap;
+		return this.runtimeSpecifierRegistry.getAll();
 	}
 
 	public getDistDir(): string {
@@ -263,13 +283,20 @@ export class HmrManager implements IHmrManager {
 	public getDefaultContext(): DefaultHmrContext {
 		return {
 			getWatchedFiles: () => this.watchedFiles,
-			getSpecifierMap: () => this.specifierMap,
+			getSpecifierMap: () => this.runtimeSpecifierRegistry.getAll(),
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
 			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
+			getBrowserBundleService: () => this.browserBundleService,
+			importServerModule: async <T>(filePath: string) =>
+				await this.serverModuleTranspiler.importModule<T>({
+					filePath,
+					outdir: path.join(this.appConfig.absolutePaths.distDir, '.server-modules'),
+					externalPackages: true,
+				}),
 		};
 	}
 
@@ -334,17 +361,16 @@ export class HmrManager implements IHmrManager {
 	 */
 	private async emitScriptEntrypoint(entrypointPath: string, outputPath: string): Promise<void> {
 		const naming = path.relative(this.distDir, outputPath).split(path.sep).join('/');
-		const buildExecutor = getAppBuildExecutor(this.appConfig);
 
 		await this.handleFileChange(entrypointPath, { broadcast: false });
 
 		if (!fileSystem.exists(outputPath)) {
-			const buildResult = await buildExecutor.build({
+			const buildResult = await this.browserBundleService.bundle({
+				profile: 'hmr-entrypoint',
 				entrypoints: [entrypointPath],
 				outdir: this.distDir,
 				naming,
 				minify: false,
-				...getTranspileOptions('hmr-entrypoint'),
 				plugins: this.plugins,
 			});
 
@@ -372,7 +398,8 @@ export class HmrManager implements IHmrManager {
 		}
 		this.watchers.clear();
 		this.watchedFiles.clear();
-		this.specifierMap.clear();
+		this.runtimeSpecifierRegistry.clear();
+		this.devGraphService.reset();
 		this.plugins = [];
 	}
 }

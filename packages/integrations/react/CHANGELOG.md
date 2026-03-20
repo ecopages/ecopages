@@ -6,6 +6,12 @@ All notable changes to `@ecopages/react` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Refactoring
+
+- Centralized the canonical React runtime specifier allowlist and external-specifier policy so page bundles and React HMR stop duplicating runtime dependency wiring.
+- Reused shared browser runtime entry and `use-sync-external-store` shim helpers so React runtime bundles, page bundles, and React HMR no longer carry duplicate bundling glue.
+- Extracted React DOM runtime interop rewriting and runtime-specifier map construction into focused React utilities so the runtime bundle service is reduced to dependency assembly.
+
 ### Bug Fixes
 
 - Hydrated full React pages against `document.body` instead of the whole document so browser-router handoffs no longer leave React page controls inert.
@@ -45,6 +51,8 @@ All notable changes to `@ecopages/react` are documented here.
 - **`hydration-scripts.ts`** — Expanded with new helpers for generating and injecting hydration entry scripts.
 
 ### Bug Fixes
+
+- Use Node-compatible `source-map` interop in the React MDX loader so native Node host startup does not fail.
 
 - **Fixed React island duplicate DOM** — Island bootstrap now creates an `eco-island` container with `display: block` and calls `createRoot` on it, replacing the SSR element rather than mounting React inside it. This prevents the component root element from being duplicated on client mount.
 - **Fixed eco-island CSS regression** — Changed `eco-island` container from `display: contents` to `display: block`. With `display: contents`, the element has no layout box and CSS sibling selectors (e.g. Tailwind `space-y-*`) applied margins to a box-less element, producing no visual effect. With `display: block`, eco-island participates in layout as expected.

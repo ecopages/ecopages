@@ -229,6 +229,28 @@ test('NodeHmrManager uses the generic build path for script entrypoints when no 
 	manager.stop();
 });
 
+test('NodeHmrManager disables HMR instead of throwing when runtime bundle generation crashes', async () => {
+	const rootDir = createTempRoot('ecopages-node-hmr-runtime-failure');
+	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const manager = new NodeHmrManager({
+		appConfig: config,
+		bridge: {
+			subscriberCount: 0,
+			broadcast: () => {},
+		} as any,
+	});
+	const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+	vi.spyOn((manager as unknown as { browserBundleService: { bundle: () => Promise<unknown> } }).browserBundleService, 'bundle')
+		.mockRejectedValueOnce(new Error('Unexpected end of JSON input'));
+
+	await assert.doesNotReject(() => manager.buildRuntime());
+	assert.equal(manager.isEnabled(), false);
+
+	manager.stop();
+	errorSpy.mockRestore();
+});
+
 test('NodeHmrManager stop clears retained registration state', async () => {
 	const rootDir = createTempRoot('ecopages-node-hmr-stop-cleanup');
 	const srcDir = path.join(rootDir, 'src');
@@ -265,12 +287,5 @@ test('NodeHmrManager stop clears retained registration state', async () => {
 
 	assert.equal(manager.getWatchedFiles().size, 0);
 	assert.equal(manager.getSpecifierMap().size, 0);
-	assert.equal(
-		(manager as unknown as { entrypointDependencies: Map<string, Set<string>> }).entrypointDependencies.size,
-		0,
-	);
-	assert.equal(
-		(manager as unknown as { dependencyEntrypoints: Map<string, Set<string>> }).dependencyEntrypoints.size,
-		0,
-	);
+	assert.equal(config.runtime?.devGraphService?.getDependencyEntrypoints(entrypointPath).size, 0);
 });

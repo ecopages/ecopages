@@ -8,6 +8,13 @@
  */
 
 import { createClientGraphBoundaryPlugin } from '../utils/client-graph-boundary-plugin.ts';
+import {
+	buildReactRuntimeSpecifierMap,
+	getReactClientGraphAllowSpecifiers,
+	getReactRuntimeExternalSpecifiers,
+} from '../utils/react-runtime-specifier-map.ts';
+import { createUseSyncExternalStoreShimPlugin } from '../utils/use-sync-external-store-shim-plugin.ts';
+import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { ReactRuntimeBundleService, type ReactRuntimeImports } from './react-runtime-bundle.service.ts';
@@ -26,8 +33,10 @@ export interface ReactBundleServiceConfig {
  */
 export class ReactBundleService {
 	private readonly runtimeBundleService: ReactRuntimeBundleService;
+	private readonly config: ReactBundleServiceConfig;
 
-	constructor(private readonly config: ReactBundleServiceConfig) {
+	constructor(config: ReactBundleServiceConfig) {
+		this.config = config;
 		this.runtimeBundleService = new ReactRuntimeBundleService({
 			routerAdapter: config.routerAdapter,
 		});
@@ -54,8 +63,9 @@ export class ReactBundleService {
 		declaredModules: string[],
 	): Promise<Record<string, unknown>> {
 		const runtimeImports = this.getRuntimeImports();
+		const runtimeSpecifierMap = buildReactRuntimeSpecifierMap(runtimeImports, this.config.routerAdapter);
 		const options: Record<string, unknown> = {
-			external: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
+			external: getReactRuntimeExternalSpecifiers(),
 			mainFields: ['module', 'browser', 'main'],
 			naming: `${componentName}.[ext]`,
 			...(import.meta.env?.NODE_ENV === 'production' && {
@@ -68,19 +78,14 @@ export class ReactBundleService {
 		const graphBoundaryPlugin = createClientGraphBoundaryPlugin({
 			absWorkingDir: this.config.rootDir,
 			declaredModules,
-			alwaysAllowSpecifiers: [
-				'@ecopages/core',
-				'react',
-				'react-dom',
-				'react/jsx-runtime',
-				'react/jsx-dev-runtime',
-				'react-dom/client',
-				...(this.config.routerAdapter ? [this.config.routerAdapter.importMapKey] : []),
-			],
+			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers([], this.config.routerAdapter),
 		});
 
-		const runtimeAliasPlugin = this.createRuntimeAliasPlugin(runtimeImports);
-		const useSyncExternalStoreShimPlugin = this.createSyncExternalStorePlugin();
+		const runtimeAliasPlugin = this.createRuntimeAliasPlugin(runtimeSpecifierMap);
+		const useSyncExternalStoreShimPlugin = createUseSyncExternalStoreShimPlugin({
+			name: 'react-renderer-use-sync-external-store-shim',
+			namespace: 'ecopages-react-renderer-shim',
+		});
 
 		if (isMdx && this.config.mdxCompilerOptions) {
 			const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
@@ -97,121 +102,7 @@ export class ReactBundleService {
 	 * Creates the esbuild plugin that rewrites bare React specifiers
 	 * to their runtime asset URLs.
 	 */
-	createRuntimeAliasPlugin(runtimeImports: ReactRuntimeImports) {
-		const aliases = new Map<string, string>([
-			['react', runtimeImports.react],
-			['react-dom/client', runtimeImports.reactDomClient],
-			['react/jsx-runtime', runtimeImports.reactJsxRuntime],
-			['react/jsx-dev-runtime', runtimeImports.reactJsxDevRuntime],
-			['react-dom', runtimeImports.reactDom],
-		]);
-
-		if (this.config.routerAdapter && runtimeImports.router) {
-			aliases.set(this.config.routerAdapter.importMapKey, runtimeImports.router);
-		}
-
-		const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		const pattern = new RegExp(
-			`^(${Array.from(aliases.keys())
-				.map((key) => escapeRegExp(key))
-				.join('|')})$`,
-		);
-
-		return {
-			name: 'react-runtime-import-alias',
-			setup(build: {
-				onResolve: (
-					options: { filter: RegExp; namespace?: string },
-					callback: (args: {
-						path: string;
-						importer: string;
-						namespace: string;
-					}) => { path?: string; namespace?: string; external?: boolean } | undefined,
-				) => void;
-			}) {
-				build.onResolve({ filter: pattern }, (args) => {
-					const mappedPath = aliases.get(args.path);
-					if (!mappedPath) {
-						return undefined;
-					}
-					return {
-						path: mappedPath,
-						external: true,
-					};
-				});
-			},
-		};
-	}
-
-	/**
-	 * Redirects `use-sync-external-store/shim` imports to React's built-in
-	 * `useSyncExternalStore`.
-	 *
-	 * Libraries like React Aria still list `use-sync-external-store` as a
-	 * dependency to support React 16/17. On React 18+ the `/shim` export is
-	 * already a pass-through, but without this plugin esbuild would bundle
-	 * the full CJS shim (including `process.env` branching) into the browser
-	 * bundle. The plugin short-circuits the resolution so only a single clean
-	 * ESM re-export is emitted.
-	 */
-	private createSyncExternalStorePlugin() {
-		return {
-			name: 'react-renderer-use-sync-external-store-shim',
-			setup(build: {
-				onResolve: (
-					options: { filter: RegExp; namespace?: string },
-					callback: (args: {
-						path: string;
-						importer: string;
-						namespace: string;
-					}) => { path?: string; namespace?: string } | undefined,
-				) => void;
-				onLoad: (
-					options: { filter: RegExp; namespace?: string },
-					callback: (args: {
-						path: string;
-						namespace: string;
-					}) => { contents?: string; loader?: 'js' } | undefined,
-				) => void;
-			}) {
-				build.onResolve({ filter: /^use-sync-external-store\/shim(?:\/index\.js)?$/ }, () => ({
-					path: 'use-sync-external-store/shim',
-					namespace: 'ecopages-react-renderer-shim',
-				}));
-
-				build.onLoad(
-					{ filter: /^use-sync-external-store\/shim$/, namespace: 'ecopages-react-renderer-shim' },
-					() => ({
-						contents: "export { useSyncExternalStore } from 'react';",
-						loader: 'js',
-					}),
-				);
-
-				build.onLoad({ filter: /[\\/]use-sync-external-store[\\/]shim[\\/]index\.js$/ }, () => ({
-					contents: "export { useSyncExternalStore } from 'react';",
-					loader: 'js',
-				}));
-
-				build.onLoad(
-					{
-						filter: /[\\/]use-sync-external-store[\\/]cjs[\\/]use-sync-external-store-shim\.development\.js$/,
-					},
-					() => ({
-						contents: "export { useSyncExternalStore } from 'react';",
-						loader: 'js',
-					}),
-				);
-
-				build.onLoad(
-					{
-						filter: /[\\/]use-sync-external-store[\\/]cjs[\\/]use-sync-external-store-shim\.production\.js$/,
-					},
-					() => ({
-						contents: "export { useSyncExternalStore } from 'react';",
-						loader: 'js',
-					}),
-				);
-			},
-		};
+	createRuntimeAliasPlugin(runtimeSpecifierMap: Record<string, string>) {
+		return createRuntimeSpecifierAliasPlugin(runtimeSpecifierMap, { name: 'react-runtime-import-alias' });
 	}
 }

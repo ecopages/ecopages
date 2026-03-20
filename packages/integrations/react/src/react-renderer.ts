@@ -81,12 +81,15 @@ export class ReactRenderError extends Error {
  * Error thrown when an error occurs while bundling a React component.
  */
 export class BundleError extends Error {
+	public readonly logs: string[];
+
 	constructor(
 		message: string,
-		public readonly logs: string[],
+		logs: string[],
 	) {
 		super(message);
 		this.name = 'BundleError';
+		this.logs = logs;
 	}
 }
 

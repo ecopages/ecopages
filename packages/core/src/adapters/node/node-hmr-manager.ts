@@ -12,6 +12,16 @@ import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { ClientBridgeEvent } from '../../public-types.ts';
 import { HmrEntrypointRegistrar } from '../shared/hmr-entrypoint-registrar.ts';
+import { BrowserBundleService } from '../../services/browser-bundle.service.ts';
+import { DevelopmentInvalidationService } from '../../services/development-invalidation.service.ts';
+import {
+	getAppDevGraphService,
+	InMemoryDevGraphService,
+	setAppDevGraphService,
+	type DevGraphService,
+} from '../../services/dev-graph.service.ts';
+import { getAppRuntimeSpecifierRegistry } from '../../services/runtime-specifier-registry.service.ts';
+import { ServerModuleTranspiler } from '../../services/server-module-transpiler.service.ts';
 
 export interface NodeHmrManagerParams {
 	appConfig: EcoPagesAppConfig;
@@ -42,20 +52,15 @@ export class NodeHmrManager implements IHmrManager {
 	private watchers = new Map<string, fs.FSWatcher>();
 	private watchedFiles = new Map<string, string>();
 	private entrypointRegistrations = new Map<string, Promise<string>>();
-	private specifierMap = new Map<string, string>();
-	/**
-	 * Node-only reverse invalidation index: dependency file -> affected entrypoints.
-	 */
-	private dependencyEntrypoints = new Map<string, Set<string>>();
-	/**
-	 * Node-only forward index: entrypoint -> latest dependency set.
-	 */
-	private entrypointDependencies = new Map<string, Set<string>>();
 	private distDir: string;
 	private plugins: EcoBuildPlugin[] = [];
 	private enabled = true;
 	private strategies: HmrStrategy[] = [];
 	private readonly entrypointRegistrar: HmrEntrypointRegistrar;
+	private readonly browserBundleService: BrowserBundleService;
+	private readonly devGraphService: DevGraphService;
+	private readonly runtimeSpecifierRegistry: ReturnType<typeof getAppRuntimeSpecifierRegistry>;
+	private readonly serverModuleTranspiler: ServerModuleTranspiler;
 
 	constructor({ appConfig, bridge }: NodeHmrManagerParams) {
 		this.appConfig = appConfig;
@@ -68,6 +73,21 @@ export class NodeHmrManager implements IHmrManager {
 			watchedFiles: this.watchedFiles,
 			clearFailedRegistration: (entrypointPath) => this.clearFailedEntrypointRegistration(entrypointPath),
 			registrationTimeoutMs: NodeHmrManager.entrypointRegistrationTimeoutMs,
+		});
+		this.browserBundleService = new BrowserBundleService(appConfig);
+		const existingDevGraphService = getAppDevGraphService(appConfig);
+		this.devGraphService =
+			existingDevGraphService instanceof InMemoryDevGraphService
+				? existingDevGraphService
+				: new InMemoryDevGraphService();
+		setAppDevGraphService(this.appConfig, this.devGraphService);
+		this.runtimeSpecifierRegistry = getAppRuntimeSpecifierRegistry(this.appConfig);
+		const invalidationService = new DevelopmentInvalidationService(this.appConfig);
+		this.serverModuleTranspiler = new ServerModuleTranspiler({
+			rootDir: this.appConfig.rootDir,
+			buildExecutor: getAppBuildExecutor(this.appConfig),
+			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
+			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
 		});
 		this.cleanDistDir();
 		this.initializeStrategies();
@@ -109,15 +129,12 @@ export class NodeHmrManager implements IHmrManager {
 	private initializeStrategies(): void {
 		const jsContext = {
 			getWatchedFiles: () => this.watchedFiles,
-			getSpecifierMap: () => this.specifierMap,
+			getSpecifierMap: () => this.runtimeSpecifierRegistry.getAll(),
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
-			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
-			getDependencyEntrypoints: (filePath: string) =>
-				new Set(this.dependencyEntrypoints.get(path.resolve(filePath)) ?? []),
-			setEntrypointDependencies: (entrypointPath: string, dependencies: string[]) =>
-				this.setEntrypointDependencies(entrypointPath, dependencies),
+			getBrowserBundleService: () => this.browserBundleService,
+			getDevGraphService: () => this.devGraphService,
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 		};
 
@@ -148,27 +165,30 @@ export class NodeHmrManager implements IHmrManager {
 	 * React integration strategy when they rewrite browser bundles.
 	 */
 	public registerSpecifierMap(map: Record<string, string>): void {
-		for (const [specifier, url] of Object.entries(map)) {
-			this.specifierMap.set(specifier, url);
-		}
+		this.runtimeSpecifierRegistry.register(map);
 	}
 
 	public async buildRuntime(): Promise<void> {
 		const currentDir = path.dirname(fileURLToPath(import.meta.url));
 		const runtimeSource = path.resolve(currentDir, '../../hmr/client/hmr-runtime.ts');
-		const buildExecutor = getAppBuildExecutor(this.appConfig);
 
-		const result = await buildExecutor.build({
-			entrypoints: [runtimeSource],
-			outdir: this.distDir,
-			naming: '_hmr_runtime.js',
-			minify: false,
-			...getTranspileOptions('hmr-runtime'),
-			plugins: this.plugins,
-		});
+		try {
+			const result = await this.browserBundleService.bundle({
+				profile: 'hmr-runtime',
+				entrypoints: [runtimeSource],
+				outdir: this.distDir,
+				naming: '_hmr_runtime.js',
+				minify: false,
+				plugins: this.plugins,
+			});
 
-		if (!result.success) {
-			appLogger.error('[HMR] Failed to build runtime script:', result.logs);
+			if (!result.success) {
+				this.enabled = false;
+				appLogger.error('[HMR] Failed to build runtime script; continuing with HMR disabled.', result.logs);
+			}
+		} catch (error) {
+			this.enabled = false;
+			appLogger.error('[HMR] Failed to build runtime script; continuing with HMR disabled.', error);
 		}
 	}
 
@@ -222,7 +242,7 @@ export class NodeHmrManager implements IHmrManager {
 	}
 
 	public getSpecifierMap(): Map<string, string> {
-		return this.specifierMap;
+		return this.runtimeSpecifierRegistry.getAll();
 	}
 
 	public getDistDir(): string {
@@ -236,67 +256,26 @@ export class NodeHmrManager implements IHmrManager {
 	public getDefaultContext(): DefaultHmrContext {
 		return {
 			getWatchedFiles: () => this.watchedFiles,
-			getSpecifierMap: () => this.specifierMap,
+			getSpecifierMap: () => this.runtimeSpecifierRegistry.getAll(),
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
 			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
+			getBrowserBundleService: () => this.browserBundleService,
+			importServerModule: async <T>(filePath: string) =>
+				await this.serverModuleTranspiler.importModule<T>({
+					filePath,
+					outdir: path.join(this.appConfig.absolutePaths.distDir, '.server-modules'),
+					externalPackages: true,
+				}),
 		};
-	}
-
-	/**
-	 * Updates Node HMR dependency indexes for selective invalidation.
-	 *
-	 * @remarks
-	 * Graph data comes from Node/esbuild build metadata and does not affect Bun
-	 * HMR behavior.
-	 */
-	private setEntrypointDependencies(entrypointPath: string, dependencies: string[]): void {
-		const normalizedEntrypoint = path.resolve(entrypointPath);
-
-		this.clearEntrypointDependencies(normalizedEntrypoint);
-
-		const normalizedDependencies = new Set<string>([
-			normalizedEntrypoint,
-			...dependencies.map((dependencyPath) => path.resolve(dependencyPath)),
-		]);
-
-		this.entrypointDependencies.set(normalizedEntrypoint, normalizedDependencies);
-
-		for (const dependencyPath of normalizedDependencies) {
-			const entrypoints = this.dependencyEntrypoints.get(dependencyPath) ?? new Set<string>();
-			entrypoints.add(normalizedEntrypoint);
-			this.dependencyEntrypoints.set(dependencyPath, entrypoints);
-		}
-	}
-
-	private clearEntrypointDependencies(entrypointPath: string): void {
-		const previousDependencies = this.entrypointDependencies.get(entrypointPath);
-
-		if (!previousDependencies) {
-			return;
-		}
-
-		for (const dependencyPath of previousDependencies) {
-			const entrypoints = this.dependencyEntrypoints.get(dependencyPath);
-			if (!entrypoints) {
-				continue;
-			}
-
-			entrypoints.delete(entrypointPath);
-			if (entrypoints.size === 0) {
-				this.dependencyEntrypoints.delete(dependencyPath);
-			}
-		}
-
-		this.entrypointDependencies.delete(entrypointPath);
 	}
 
 	private clearFailedEntrypointRegistration(entrypointPath: string): void {
 		this.watchedFiles.delete(entrypointPath);
-		this.clearEntrypointDependencies(entrypointPath);
+		this.devGraphService.clearEntrypointDependencies(entrypointPath);
 	}
 
 	/**
@@ -359,17 +338,16 @@ export class NodeHmrManager implements IHmrManager {
 	 */
 	private async emitScriptEntrypoint(entrypointPath: string, outputPath: string): Promise<void> {
 		const naming = path.relative(this.distDir, outputPath).split(path.sep).join('/');
-		const buildExecutor = getAppBuildExecutor(this.appConfig);
 
 		await this.handleFileChange(entrypointPath, { broadcast: false });
 
 		if (!fileSystem.exists(outputPath)) {
-			const buildResult = await buildExecutor.build({
+			const buildResult = await this.browserBundleService.bundle({
+				profile: 'hmr-entrypoint',
 				entrypoints: [entrypointPath],
 				outdir: this.distDir,
 				naming,
 				minify: false,
-				...getTranspileOptions('hmr-entrypoint'),
 				plugins: this.plugins,
 			});
 
@@ -398,9 +376,8 @@ export class NodeHmrManager implements IHmrManager {
 		}
 		this.watchers.clear();
 		this.watchedFiles.clear();
-		this.specifierMap.clear();
-		this.dependencyEntrypoints.clear();
-		this.entrypointDependencies.clear();
+		this.runtimeSpecifierRegistry.clear();
+		this.devGraphService.reset();
 		this.plugins = [];
 	}
 }

@@ -5,6 +5,7 @@ import type { EcoBuildPlugin } from './build/build-types.ts';
 import type { EcoPageComponent } from './eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from './hmr/hmr-strategy.ts';
+import type { BrowserBundleService } from './services/browser-bundle.service.ts';
 import type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from './services/cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
@@ -145,6 +146,15 @@ export interface DefaultHmrContext {
 	 * Build executor owned by the active app/runtime.
 	 */
 	getBuildExecutor(): BuildExecutor;
+
+	/**
+	 * Browser bundler owned by the active app/runtime.
+	 */
+	getBrowserBundleService(): BrowserBundleService;
+	/**
+	 * Server-side module loader owned by the active app/runtime.
+	 */
+	importServerModule<T = unknown>(filePath: string): Promise<T>;
 }
 
 /**
@@ -809,7 +819,7 @@ export interface RenderContext {
 	 * @param props - Props to pass to the view
 	 * @param options - Optional status code and headers
 	 */
-	render<P = Record<string, unknown>>(view: EcoComponent<P>, props: P, options?: RenderOptions): Promise<Response>;
+	render<P = Record<string, unknown>>(view: EcoComponent<P>, props?: P, options?: RenderOptions): Promise<Response>;
 
 	/**
 	 * Render an eco.page view without layout (for partials/fragments).

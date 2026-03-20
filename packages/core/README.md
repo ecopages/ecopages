@@ -11,6 +11,69 @@ Ecopages is an extensible static site generator (SSG) built for universal execut
 - **Framework agnostic**: First-class support for KitaJS, Lit, React, and MDX via official integration plugins.
 - **Extensible**: Hook into the build process with custom processors or rendering integrations.
 
+## Current Architecture
+
+The current core package is organized around app-owned runtime state and explicit service boundaries.
+
+The important ownership rules are:
+
+- `ConfigBuilder.build()` finalizes app-owned build and runtime services.
+- browser bundling and server module loading are explicit, separate paths.
+- runtime hosts stay thin and delegate framework work into core services.
+- HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
+
+### Bootstrap And Runtime Ownership
+
+```mermaid
+flowchart TD
+	A[eco.config.ts] --> B[ConfigBuilder.build]
+	B --> C[App build adapter]
+	B --> D[App build manifest]
+	B --> E[Build executor]
+	B --> F[Dev graph service]
+	B --> G[Runtime specifier registry]
+	B --> H[Node runtime manifest]
+	H --> I[CLI launch plan]
+	I --> J[Node thin host]
+	J --> K[Node runtime adapter]
+	K --> L[TranspilerServerLoader]
+	L --> M[ServerModuleTranspiler]
+	M --> N[PageModuleImportService]
+	K --> O[Loaded app runtime]
+	D --> P[BrowserBundleService]
+	E --> M
+	E --> P
+```
+
+### Development Invalidation And HMR Flow
+
+```mermaid
+flowchart TD
+	A[File change] --> B[ProjectWatcher]
+	B --> C[DevelopmentInvalidationService]
+	C --> D{Change kind}
+	D -->|Route or server source| E[Invalidate server modules]
+	D -->|Public or include| F[Reload browser]
+	D -->|Processor-owned asset| G[Notify processor only]
+	D -->|HMR-eligible source| H[HMR manager]
+	H --> I[Strategy selection]
+	I --> J[JsHmrStrategy]
+	I --> K[ReactHmrStrategy]
+	J --> L[BrowserBundleService]
+	K --> L
+	K --> M[importServerModule]
+	M --> N[ServerModuleTranspiler]
+	L --> O[Updated browser bundle]
+	O --> P[Client bridge broadcast]
+```
+
+### Practical Summary
+
+- `ConfigBuilder` now seeds one app-owned build adapter, manifest, executor, dev graph, and runtime registry.
+- `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths.
+- `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
+- the Node thin-host path exists to keep startup framework-owned without putting source parsing or tsconfig ownership into the host itself.
+
 ## Installation
 
 ```bash

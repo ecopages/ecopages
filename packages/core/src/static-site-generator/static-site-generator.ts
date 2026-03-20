@@ -6,8 +6,9 @@ import type { EcoPageComponent, StaticRoute } from '../public-types.ts';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../router/fs-router.ts';
 import { fileSystem } from '@ecopages/file-system';
+import { DevelopmentInvalidationService } from '../services/development-invalidation.service.ts';
 import { PathUtils } from '../utils/path-utils.module.ts';
-import { PageModuleImportService } from '../services/page-module-import.service.ts';
+import { ServerModuleTranspiler } from '../services/server-module-transpiler.service.ts';
 
 export const STATIC_SITE_GENERATOR_ERRORS = {
 	ROUTE_RENDERER_FACTORY_REQUIRED: 'RouteRendererFactory is required for render strategy',
@@ -21,10 +22,17 @@ export const STATIC_SITE_GENERATOR_ERRORS = {
 
 export class StaticSiteGenerator {
 	appConfig: EcoPagesAppConfig;
-	private pageModuleImportService = new PageModuleImportService();
+	private serverModuleTranspiler: ServerModuleTranspiler;
 
 	constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
 		this.appConfig = appConfig;
+		const invalidationService = new DevelopmentInvalidationService(appConfig);
+		this.serverModuleTranspiler = new ServerModuleTranspiler({
+			rootDir: appConfig.rootDir,
+			buildExecutor: getAppBuildExecutor(appConfig),
+			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
+			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
+		});
 	}
 
 	private getStaticPageModuleOutdir(): string {
@@ -39,11 +47,9 @@ export class StaticSiteGenerator {
 	}
 
 	private async shouldSkipStaticPageFile(filePath: string): Promise<boolean> {
-		const module = (await this.pageModuleImportService.importModule({
+		const module = (await this.serverModuleTranspiler.importModule({
 			filePath,
-			rootDir: this.appConfig.rootDir,
 			outdir: this.getStaticPageModuleOutdir(),
-			buildExecutor: getAppBuildExecutor(this.appConfig),
 			externalPackages: false,
 			transpileErrorMessage: (details) => `Error transpiling static page module: ${details}`,
 			noOutputMessage: (targetFilePath) =>

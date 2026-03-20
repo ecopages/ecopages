@@ -1,10 +1,14 @@
 import type { EcoBuildPlugin } from './build/build-types.ts';
-import type { BuildExecutor } from './build/build-adapter.ts';
+import type { AppBuildManifest } from './build/build-manifest.ts';
+import type { BuildAdapter, BuildExecutor } from './build/build-adapter.ts';
 import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
 import type { Processor } from './plugins/processor.ts';
 import type { PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from './router/fs-router.ts';
 import type { CacheConfig } from './services/cache/cache.types.ts';
+import type { DevGraphService } from './services/dev-graph.service.ts';
+import type { NodeRuntimeManifest } from './services/node-runtime-manifest.service.ts';
+import type { RuntimeSpecifierRegistry } from './services/runtime-specifier-registry.service.ts';
 
 export interface RobotsPreference {
 	/**
@@ -122,7 +126,12 @@ export type EcoPagesAppConfig = {
 	 * process-global registries.
 	 */
 	runtime?: {
+		buildAdapter?: BuildAdapter;
+		buildManifest?: AppBuildManifest;
 		buildExecutor?: BuildExecutor;
+		devGraphService?: DevGraphService;
+		nodeRuntimeManifest?: NodeRuntimeManifest;
+		runtimeSpecifierRegistry?: RuntimeSpecifierRegistry;
 	};
 	/**
 	 * Experimental features.

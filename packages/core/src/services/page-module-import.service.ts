@@ -2,13 +2,16 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { build, type BuildExecutor } from '../build/build-adapter.ts';
+import type { EcoBuildPlugin } from '../build/build-types.ts';
 
 export interface PageModuleImportOptions {
 	filePath: string;
 	rootDir: string;
 	outdir: string;
 	buildExecutor?: BuildExecutor;
+	invalidationVersion?: number;
 	externalPackages?: boolean;
+	plugins?: EcoBuildPlugin[];
 	transpileErrorMessage?: (details: string) => string;
 	noOutputMessage?: (filePath: string) => string;
 }
@@ -60,6 +63,7 @@ export class PageModuleImportService {
 	 */
 	async importModule<T = unknown>(options: PageModuleImportOptions): Promise<T> {
 		const { filePath, rootDir, externalPackages } = options;
+		const invalidationVersion = options.invalidationVersion ?? PageModuleImportService.developmentInvalidationVersion;
 
 		const fileHash = fileSystem.hash(filePath);
 		const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node';
@@ -69,7 +73,7 @@ export class PageModuleImportService {
 			rootDir,
 			externalPackages ?? 'default',
 			fileHash,
-			PageModuleImportService.developmentInvalidationVersion,
+			invalidationVersion,
 		].join('::');
 		const cachedModule = PageModuleImportService.importCache.get(cacheKey);
 
@@ -101,6 +105,7 @@ export class PageModuleImportService {
 			filePath,
 			rootDir,
 			outdir,
+			invalidationVersion = PageModuleImportService.developmentInvalidationVersion,
 			externalPackages,
 			transpileErrorMessage = (details) => `Error transpiling page module: ${details}`,
 			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
@@ -113,7 +118,7 @@ export class PageModuleImportService {
 			if (process.env.NODE_ENV === 'development') {
 				moduleUrl.searchParams.set(
 					'update',
-					`${fileHash}-${PageModuleImportService.developmentInvalidationVersion}`,
+					`${fileHash}-${invalidationVersion}`,
 				);
 			}
 
@@ -131,10 +136,11 @@ export class PageModuleImportService {
 				target: 'node',
 				format: 'esm',
 				sourcemap: 'none',
-				splitting: false,
+				splitting: true,
 				minify: false,
 				naming: outputFileName,
 				externalPackages: true,
+				plugins: options.plugins,
 				...(externalPackages !== undefined ? { externalPackages } : {}),
 			},
 			options.buildExecutor,
@@ -159,7 +165,7 @@ export class PageModuleImportService {
 		if (process.env.NODE_ENV === 'development') {
 			compiledOutputUrl.searchParams.set(
 				'update',
-				`${fileHash}-${PageModuleImportService.developmentInvalidationVersion}`,
+				`${fileHash}-${invalidationVersion}`,
 			);
 		}
 

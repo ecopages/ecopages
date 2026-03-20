@@ -12,9 +12,9 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy';
 import { appLogger } from '../../global/app-logger';
-import { getTranspileOptions } from '../../build/build-adapter.ts';
-import type { BuildExecutor } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import type { BrowserBundleService } from '../../services/browser-bundle.service.ts';
+import type { DevGraphService } from '../../services/dev-graph.service.ts';
 
 /**
  * Context interface providing access to HmrManager state.
@@ -31,24 +31,7 @@ export interface JsHmrContext {
 	 */
 	getSpecifierMap(): Map<string, string>;
 
-	/**
-	 * Returns entrypoints impacted by a changed dependency path.
-	 *
-	 * @remarks
-	 * This hook is currently provided by the Node HMR manager where dependency
-	 * graph metadata is extracted from the Node/esbuild build adapter.
-	 */
-	getDependencyEntrypoints?(filePath: string): Set<string>;
-
-	/**
-	 * Stores latest dependency set for an entrypoint.
-	 *
-	 * @remarks
-	 * This hook is currently used only by the Node HMR manager to maintain a
-	 * reverse invalidation index. Runtimes that do not provide it keep rebuild-all
-	 * fallback semantics.
-	 */
-	setEntrypointDependencies?(entrypointPath: string, dependencies: string[]): void;
+	getDevGraphService(): DevGraphService;
 
 	/**
 	 * Directory where HMR bundles are written.
@@ -66,9 +49,9 @@ export interface JsHmrContext {
 	getSrcDir(): string;
 
 	/**
-	 * Build executor used to bundle changed entrypoints.
+	 * Browser bundler used to rebuild changed entrypoints.
 	 */
-	getBuildExecutor(): BuildExecutor;
+	getBrowserBundleService(): BrowserBundleService;
 
 	/**
 	 * Returns whether a watched entrypoint should be rebuilt by the generic JS strategy.
@@ -113,9 +96,11 @@ export interface JsHmrContext {
  */
 export class JsHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.SCRIPT;
+	private context: JsHmrContext;
 
-	constructor(private context: JsHmrContext) {
+	constructor(context: JsHmrContext) {
 		super();
+		this.context = context;
 	}
 
 	/**
@@ -145,8 +130,9 @@ export class JsHmrStrategy extends HmrStrategy {
 			return true;
 		}
 
-		if (this.context.getDependencyEntrypoints) {
-			return this.context.getDependencyEntrypoints(filePath).size > 0;
+		const devGraphService = this.context.getDevGraphService();
+		if (devGraphService.supportsSelectiveInvalidation()) {
+			return devGraphService.getDependencyEntrypoints(filePath).size > 0;
 		}
 
 		return true;
@@ -173,7 +159,7 @@ export class JsHmrStrategy extends HmrStrategy {
 			return { type: 'none' };
 		}
 
-		const dependencyHits = this.context.getDependencyEntrypoints?.(filePath) ?? new Set<string>();
+		const dependencyHits = this.context.getDevGraphService().getDependencyEntrypoints(filePath);
 		const hasDependencyHit = dependencyHits.size > 0;
 		const impactedEntrypoints = hasDependencyHit
 			? Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(entrypoint))
@@ -203,9 +189,9 @@ export class JsHmrStrategy extends HmrStrategy {
 			const outputUrl = watchedFiles.get(entrypoint);
 			if (!outputUrl) continue;
 
-			if (buildResult.dependencies && this.context.setEntrypointDependencies) {
+			if (buildResult.dependencies) {
 				const entrypointDeps = buildResult.dependencies.get(path.resolve(entrypoint)) ?? [];
-				this.context.setEntrypointDependencies(entrypoint, entrypointDeps);
+				this.context.getDevGraphService().setEntrypointDependencies(entrypoint, entrypointDeps);
 			}
 
 			const srcDir = this.context.getSrcDir();
@@ -253,12 +239,12 @@ export class JsHmrStrategy extends HmrStrategy {
 		entrypoints: string[],
 	): Promise<{ success: boolean; dependencies?: Map<string, string[]> }> {
 		try {
-			const result = await this.context.getBuildExecutor().build({
+			const result = await this.context.getBrowserBundleService().bundle({
+				profile: 'hmr-entrypoint',
 				entrypoints,
 				outdir: this.context.getDistDir(),
 				outbase: this.context.getSrcDir(),
 				naming: '[dir]/[name]',
-				...getTranspileOptions('hmr-entrypoint'),
 				plugins: this.context.getPlugins(),
 				minify: false,
 			});

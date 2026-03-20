@@ -1,4 +1,3 @@
-import { getAppBuildExecutor } from '../build/build-adapter.ts';
 import { invariant } from '../utils/invariant.ts';
 import type {
 	EcoPageFile,
@@ -9,20 +8,32 @@ import type {
 	RouteRendererOptions,
 	EcoPageComponent,
 } from '../public-types.ts';
+import { getAppBuildExecutor } from '../build/build-adapter.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
-import { PageModuleImportService } from '../services/page-module-import.service.ts';
+import { DevelopmentInvalidationService } from '../services/development-invalidation.service.ts';
+import { ServerModuleTranspiler } from '../services/server-module-transpiler.service.ts';
 
 /**
  * Handles page module loading plus static props/metadata resolution.
  */
 export class PageModuleLoaderService {
-	private pageModuleImportService: PageModuleImportService;
+	private serverModuleTranspiler: ServerModuleTranspiler;
+	private appConfig: EcoPagesAppConfig;
+	private runtimeOrigin: string;
 
 	constructor(
-		private appConfig: EcoPagesAppConfig,
-		private runtimeOrigin: string,
+		appConfig: EcoPagesAppConfig,
+		runtimeOrigin: string,
 	) {
-		this.pageModuleImportService = new PageModuleImportService();
+		this.appConfig = appConfig;
+		this.runtimeOrigin = runtimeOrigin;
+		const invalidationService = new DevelopmentInvalidationService(appConfig);
+		this.serverModuleTranspiler = new ServerModuleTranspiler({
+			rootDir: appConfig.rootDir,
+			buildExecutor: getAppBuildExecutor(appConfig),
+			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
+			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
+		});
 	}
 
 	/**
@@ -31,11 +42,9 @@ export class PageModuleLoaderService {
 	 */
 	async importPageFile(file: string): Promise<EcoPageFile> {
 		try {
-			return await this.pageModuleImportService.importModule<EcoPageFile>({
+			return await this.serverModuleTranspiler.importModule<EcoPageFile>({
 				filePath: file,
-				rootDir: this.appConfig.rootDir,
 				outdir: `${this.appConfig.absolutePaths.distDir}/.server-modules`,
-				buildExecutor: getAppBuildExecutor(this.appConfig),
 				transpileErrorMessage: (details) => `Error transpiling page file: ${details}`,
 				noOutputMessage: (targetFilePath) => `No transpiled output generated for page: ${targetFilePath}`,
 			});

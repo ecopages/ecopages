@@ -3,8 +3,25 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test, vi } from 'vitest';
-import { build, defaultBuildAdapter, EsbuildBuildAdapter } from './build-adapter.ts';
+import {
+	build,
+	collectConfiguredAppBuildManifestContributions,
+	createConfiguredAppBuildManifest,
+	defaultBuildAdapter,
+	EsbuildBuildAdapter,
+	getAppBuildAdapter,
+	getAppBuildManifest,
+	getAppBrowserBuildPlugins,
+	getAppBuildExecutor,
+	getAppServerBuildPlugins,
+	setAppBuildAdapter,
+	setAppBuildManifest,
+	setupAppRuntimePlugins,
+	updateAppBuildManifest,
+} from './build-adapter.ts';
+import { createAppBuildManifest } from './build-manifest.ts';
 import type { EcoBuildPluginBuilder } from './build-types.ts';
+import { createAppBuildExecutor } from './dev-build-coordinator.ts';
 
 const tempRoots: string[] = [];
 
@@ -83,6 +100,202 @@ test('build helper uses the shared adapter when no executor is provided', async 
 	assert.equal(adapterSpy.mock.calls.length, 1);
 });
 
+test('getAppBuildExecutor falls back to the app-owned adapter before the shared default adapter', async () => {
+	const appConfig = {
+		runtime: {},
+		loaders: new Map(),
+	} as any;
+	const appAdapter = new EsbuildBuildAdapter();
+
+	setAppBuildAdapter(appConfig, appAdapter);
+
+	assert.equal(getAppBuildAdapter(appConfig), appAdapter);
+	assert.equal(getAppBuildExecutor(appConfig), appAdapter);
+	assert.notEqual(getAppBuildAdapter(appConfig), defaultBuildAdapter);
+});
+
+test('createAppBuildExecutor injects app-owned plugins into builds', async () => {
+	const plugin = {
+		name: 'app-owned-plugin',
+		setup() {},
+	};
+	const adapter = {
+		build: vi.fn(async (options) => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: options.outdir ? `${options.outdir}/entry.js` : '/tmp/entry.js' }],
+		})),
+		resolve: vi.fn(),
+		registerPlugin: vi.fn(),
+		getTranspileOptions: vi.fn(),
+	};
+	const appConfig = {
+		loaders: new Map(),
+		runtime: {},
+	} as any;
+
+	setAppBuildManifest(
+		appConfig,
+		createAppBuildManifest({
+			runtimePlugins: [plugin],
+		}),
+	);
+	const executor = createAppBuildExecutor({
+		development: false,
+		adapter,
+		getPlugins: () => getAppServerBuildPlugins(appConfig),
+	});
+
+	await executor.build({
+		entrypoints: ['/tmp/entry.ts'],
+		root: '/tmp',
+		outdir: '/tmp/out',
+		target: 'node',
+		format: 'esm',
+		sourcemap: 'none',
+		splitting: false,
+		minify: false,
+	});
+
+	assert.equal(adapter.build.mock.calls.length, 1);
+	assert.deepEqual(adapter.build.mock.calls[0][0].plugins, [plugin]);
+	assert.equal(adapter.registerPlugin.mock.calls.length, 0);
+});
+
+test('build manifest separates server and browser plugin sets', () => {
+	const loaderPlugin = { name: 'loader-plugin', setup() {} };
+	const runtimePlugin = { name: 'runtime-plugin', setup() {} };
+	const browserPlugin = { name: 'browser-plugin', setup() {} };
+	const appConfig = {
+		loaders: new Map(),
+		runtime: {},
+	} as any;
+
+	setAppBuildManifest(
+		appConfig,
+		createAppBuildManifest({
+			loaderPlugins: [loaderPlugin],
+			runtimePlugins: [runtimePlugin],
+			browserBundlePlugins: [browserPlugin],
+		}),
+	);
+
+	assert.deepEqual(getAppBuildManifest(appConfig).loaderPlugins, [loaderPlugin]);
+	assert.deepEqual(getAppServerBuildPlugins(appConfig), [loaderPlugin, runtimePlugin]);
+	assert.deepEqual(getAppBrowserBuildPlugins(appConfig), [loaderPlugin, runtimePlugin, browserPlugin]);
+});
+
+test('createConfiguredAppBuildManifest defaults loader plugins from app config', () => {
+	const loaderPlugin = { name: 'loader-plugin', setup() {} };
+	const runtimePlugin = { name: 'runtime-plugin', setup() {} };
+	const appConfig = {
+		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
+		runtime: {},
+	} as any;
+
+	const manifest = createConfiguredAppBuildManifest(appConfig, {
+		runtimePlugins: [runtimePlugin],
+	});
+
+	assert.deepEqual(manifest.loaderPlugins, [loaderPlugin]);
+	assert.deepEqual(manifest.runtimePlugins, [runtimePlugin]);
+	assert.deepEqual(manifest.browserBundlePlugins, []);
+});
+
+test('updateAppBuildManifest rebuilds the app manifest from config-owned loaders and explicit runtime plugins', () => {
+	const loaderPlugin = { name: 'loader-plugin', setup() {} };
+	const runtimePlugin = { name: 'runtime-plugin', setup() {} };
+	const browserPlugin = { name: 'browser-plugin', setup() {} };
+	const appConfig = {
+		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
+		runtime: {},
+	} as any;
+
+	updateAppBuildManifest(appConfig, {
+		runtimePlugins: [runtimePlugin],
+		browserBundlePlugins: [browserPlugin],
+	});
+
+	assert.deepEqual(getAppBuildManifest(appConfig).loaderPlugins, [loaderPlugin]);
+	assert.deepEqual(getAppServerBuildPlugins(appConfig), [loaderPlugin, runtimePlugin]);
+	assert.deepEqual(getAppBrowserBuildPlugins(appConfig), [loaderPlugin, runtimePlugin, browserPlugin]);
+});
+
+test('collectConfiguredAppBuildManifestContributions gathers processor and integration contributions during config build', async () => {
+	const contributionOrder: string[] = [];
+	const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
+	const processorBrowserPlugin = { name: 'processor-browser-plugin', setup() {} };
+	const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
+	const processor = {
+		plugins: [processorRuntimePlugin],
+		buildPlugins: [processorBrowserPlugin],
+		prepareBuildContributions: vi.fn(async () => {
+			contributionOrder.push('processor-prepare');
+		}),
+	};
+	const integration = {
+		plugins: [integrationRuntimePlugin],
+		setConfig: vi.fn(() => contributionOrder.push('integration-config')),
+		prepareBuildContributions: vi.fn(async () => {
+			contributionOrder.push('integration-prepare');
+		}),
+	};
+
+	const contributions = await collectConfiguredAppBuildManifestContributions({
+		processors: new Map([['processor', processor]]),
+		integrations: [integration],
+	} as any);
+
+	assert.deepEqual(contributionOrder, [
+		'processor-prepare',
+		'integration-config',
+		'integration-prepare',
+	]);
+	assert.deepEqual(contributions.runtimePlugins, [processorRuntimePlugin, integrationRuntimePlugin]);
+	assert.deepEqual(contributions.browserBundlePlugins, [processorBrowserPlugin]);
+});
+
+test('setupAppRuntimePlugins runs runtime setup without recomposing manifest contributions', async () => {
+	const contributionOrder: string[] = [];
+	const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
+	const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
+	const processor = {
+		plugins: [processorRuntimePlugin],
+		setup: vi.fn(async () => {
+			contributionOrder.push('processor-setup');
+		}),
+	};
+	const integration = {
+		plugins: [integrationRuntimePlugin],
+		setConfig: vi.fn(() => contributionOrder.push('integration-config')),
+		setRuntimeOrigin: vi.fn(() => contributionOrder.push('integration-origin')),
+		setHmrManager: vi.fn(() => contributionOrder.push('integration-hmr')),
+		setup: vi.fn(async () => {
+			contributionOrder.push('integration-setup');
+		}),
+	};
+	const observedRuntimePlugins: string[] = [];
+
+	await setupAppRuntimePlugins({
+		appConfig: {
+			processors: new Map([['processor', processor]]),
+			integrations: [integration],
+		} as any,
+		runtimeOrigin: 'http://localhost:3000',
+		hmrManager: {} as any,
+		onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
+	});
+
+	assert.deepEqual(contributionOrder, [
+		'processor-setup',
+		'integration-config',
+		'integration-origin',
+		'integration-hmr',
+		'integration-setup',
+	]);
+	assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin', 'integration-runtime-plugin']);
+});
+
 test('EsbuildBuildAdapter supports module virtual modules', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-virtual-module');
@@ -94,17 +307,6 @@ test('EsbuildBuildAdapter supports module virtual modules', async () => {
 		fs.writeFileSync(entryPath, "import answer from 'virtual:answer';\nexport const value = answer;");
 
 		const adapter = new EsbuildBuildAdapter();
-		adapter.registerPlugin({
-			name: 'virtual-module-test',
-			setup(build: EcoBuildPluginBuilder) {
-				build.module('virtual:answer', () => ({
-					loader: 'object',
-					exports: {
-						default: 42,
-					},
-				}));
-			},
-		});
 
 		const result = await adapter.build({
 			entrypoints: [entryPath],
@@ -115,6 +317,19 @@ test('EsbuildBuildAdapter supports module virtual modules', async () => {
 			sourcemap: 'none',
 			splitting: false,
 			minify: false,
+			plugins: [
+				{
+					name: 'virtual-module-test',
+					setup(build: EcoBuildPluginBuilder) {
+						build.module('virtual:answer', () => ({
+							loader: 'object',
+							exports: {
+								default: 42,
+							},
+						}));
+					},
+				},
+			],
 		});
 
 		assert.equal(result.success, true);
@@ -129,7 +344,7 @@ test('EsbuildBuildAdapter supports module virtual modules', async () => {
 	}
 });
 
-test('EsbuildBuildAdapter applies registered plugin CSS transforms to imported CSS strings', async () => {
+	test('EsbuildBuildAdapter applies build plugin CSS transforms to imported CSS strings', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-css');
 		const srcDir = path.join(root, 'src');
@@ -143,20 +358,6 @@ test('EsbuildBuildAdapter applies registered plugin CSS transforms to imported C
 		fs.writeFileSync(entryPath, "import styles from './styles.css';\nexport const cssText = styles;");
 
 		const adapter = new EsbuildBuildAdapter();
-		adapter.registerPlugin({
-			name: 'css-bridge-replacement-test',
-			setup(build) {
-				build.onLoad({ filter: /\.css$/ }, async (args) => {
-					const contents = fs.readFileSync(args.path, 'utf-8');
-					return {
-						loader: 'object',
-						exports: {
-							default: `/* transformed */\n${contents}`,
-						},
-					};
-				});
-			},
-		});
 
 		const result = await adapter.build({
 			entrypoints: [entryPath],
@@ -167,6 +368,22 @@ test('EsbuildBuildAdapter applies registered plugin CSS transforms to imported C
 			sourcemap: 'none',
 			splitting: false,
 			minify: false,
+				plugins: [
+					{
+						name: 'css-bridge-replacement-test',
+						setup(build) {
+							build.onLoad({ filter: /\.css$/ }, async (args) => {
+								const contents = fs.readFileSync(args.path, 'utf-8');
+								return {
+									loader: 'object',
+									exports: {
+										default: `/* transformed */\n${contents}`,
+									},
+								};
+							});
+						},
+					},
+				],
 		});
 
 		assert.equal(result.success, true);
@@ -377,20 +594,6 @@ test('EsbuildBuildAdapter applies plugin CSS transforms for CSS imported in TS m
 		fs.writeFileSync(entryPath, "import styles from './styles.css';\nexport const cssText = styles;");
 
 		const adapter = new EsbuildBuildAdapter();
-		adapter.registerPlugin({
-			name: 'css-transform-test-plugin',
-			setup(build) {
-				build.onLoad({ filter: /\.css$/ }, async (args) => {
-					const contents = fs.readFileSync(args.path, 'utf-8');
-					return {
-						loader: 'object',
-						exports: {
-							default: `/* postprocessed */\n${contents}`,
-						},
-					};
-				});
-			},
-		});
 
 		const result = await adapter.build({
 			entrypoints: [entryPath],
@@ -401,6 +604,22 @@ test('EsbuildBuildAdapter applies plugin CSS transforms for CSS imported in TS m
 			sourcemap: 'none',
 			splitting: false,
 			minify: false,
+				plugins: [
+					{
+						name: 'css-transform-test-plugin',
+						setup(build) {
+							build.onLoad({ filter: /\.css$/ }, async (args) => {
+								const contents = fs.readFileSync(args.path, 'utf-8');
+								return {
+									loader: 'object',
+									exports: {
+										default: `/* postprocessed */\n${contents}`,
+									},
+								};
+							});
+						},
+					},
+				],
 		});
 
 		assert.equal(result.success, true);
@@ -458,7 +677,7 @@ test('EsbuildBuildAdapter returns dependency graph entrypoint mapping', async ()
 	}
 });
 
-test('EsbuildBuildAdapter prioritizes per-build plugins over registered plugins', async () => {
+	test('EsbuildBuildAdapter honors first-match plugin precedence within one build', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-plugin-precedence');
 		const srcDir = path.join(root, 'src');
@@ -472,19 +691,6 @@ test('EsbuildBuildAdapter prioritizes per-build plugins over registered plugins'
 		fs.writeFileSync(entryPath, "import styles from './styles.css';\nexport const cssText = styles;");
 
 		const adapter = new EsbuildBuildAdapter();
-		adapter.registerPlugin({
-			name: 'registered-css-plugin',
-			setup(build) {
-				build.onLoad({ filter: /\.css$/ }, async () => {
-					return {
-						loader: 'object',
-						exports: {
-							default: 'registered-css',
-						},
-					};
-				});
-			},
-		});
 
 		const result = await adapter.build({
 			entrypoints: [entryPath],
@@ -497,13 +703,26 @@ test('EsbuildBuildAdapter prioritizes per-build plugins over registered plugins'
 			minify: false,
 			plugins: [
 				{
-					name: 'build-css-plugin',
+						name: 'first-css-plugin',
+						setup(build) {
+							build.onLoad({ filter: /\.css$/ }, async () => {
+								return {
+									loader: 'object',
+									exports: {
+										default: 'first-css',
+									},
+								};
+							});
+						},
+					},
+					{
+						name: 'second-css-plugin',
 					setup(build) {
 						build.onLoad({ filter: /\.css$/ }, async () => {
 							return {
 								loader: 'object',
 								exports: {
-									default: 'build-css',
+										default: 'second-css',
 								},
 							};
 						});
@@ -518,8 +737,8 @@ test('EsbuildBuildAdapter prioritizes per-build plugins over registered plugins'
 		assert.ok(outputPath);
 
 		const outputSource = fs.readFileSync(outputPath, 'utf-8');
-		assert.match(outputSource, /build-css/);
-		assert.doesNotMatch(outputSource, /registered-css/);
+			assert.match(outputSource, /first-css/);
+			assert.doesNotMatch(outputSource, /second-css/);
 	} finally {
 		cleanupTempRoots();
 		clearNodeCssBridge();

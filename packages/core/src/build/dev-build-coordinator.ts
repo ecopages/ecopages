@@ -7,6 +7,51 @@ import {
 	type BuildResult,
 	EsbuildBuildAdapter,
 } from './build-adapter.ts';
+import { mergeEcoBuildPlugins } from './build-manifest.ts';
+import type { EcoBuildPlugin } from './build-types.ts';
+
+function mergeBuildPlugins(options: BuildOptions, appPlugins: EcoBuildPlugin[]): BuildOptions {
+	if (appPlugins.length === 0) {
+		return options;
+	}
+
+	return {
+		...options,
+		plugins: mergeEcoBuildPlugins(options.plugins, appPlugins),
+	};
+}
+
+class BuildExecutorWithPlugins implements BuildExecutor {
+	private readonly executor: BuildExecutor;
+	private readonly getPlugins: () => EcoBuildPlugin[];
+
+	constructor(
+		executor: BuildExecutor,
+		getPlugins: () => EcoBuildPlugin[],
+	) {
+		this.executor = executor;
+		this.getPlugins = getPlugins;
+	}
+
+	async build(options: BuildOptions): Promise<BuildResult> {
+		return await this.executor.build(mergeBuildPlugins(options, this.getPlugins()));
+	}
+}
+
+function unwrapBuildExecutor(executor: BuildExecutor): BuildExecutor {
+	if (executor instanceof BuildExecutorWithPlugins) {
+		return unwrapBuildExecutor(executor.executor);
+	}
+
+	return executor;
+}
+
+export function withBuildExecutorPlugins(
+	executor: BuildExecutor,
+	getPlugins: () => EcoBuildPlugin[],
+): BuildExecutor {
+	return new BuildExecutorWithPlugins(executor, getPlugins);
+}
 
 /**
  * Serialized development build coordinator for the shared esbuild adapter.
@@ -27,8 +72,11 @@ export class DevBuildCoordinator implements BuildExecutor {
 	private buildQueue: Promise<void> = Promise.resolve();
 	private esbuildSessionWarm = false;
 	private esbuildModuleGeneration = 0;
+	private readonly adapter: EsbuildBuildAdapter;
 
-	constructor(private readonly adapter: EsbuildBuildAdapter) {}
+	constructor(adapter: EsbuildBuildAdapter) {
+		this.adapter = adapter;
+	}
 
 	/**
 	 * Executes a build through the serialized development queue.
@@ -135,12 +183,41 @@ export class DevBuildCoordinator implements BuildExecutor {
  * Development runtimes get a dedicated coordinator around the shared esbuild
  * adapter. Non-development runtimes use the adapter directly.
  */
-export function createAppBuildExecutor(options: { development: boolean; adapter?: BuildAdapter }): BuildExecutor {
+export function createAppBuildExecutor(options: {
+	development: boolean;
+	adapter?: BuildAdapter;
+	getPlugins?: () => EcoBuildPlugin[];
+}): BuildExecutor {
 	const adapter = options.adapter ?? defaultBuildAdapter;
+	const baseExecutor = !options.development || !(adapter instanceof EsbuildBuildAdapter)
+		? adapter
+		: new DevBuildCoordinator(adapter);
 
-	if (!options.development || !(adapter instanceof EsbuildBuildAdapter)) {
-		return adapter;
+	if (!options.getPlugins) {
+		return baseExecutor;
 	}
 
-	return new DevBuildCoordinator(adapter);
+	return new BuildExecutorWithPlugins(baseExecutor, options.getPlugins);
+}
+
+export function createOrReuseAppBuildExecutor(options: {
+	development: boolean;
+	adapter?: BuildAdapter;
+	currentExecutor?: BuildExecutor;
+	getPlugins?: () => EcoBuildPlugin[];
+}): BuildExecutor {
+	const adapter = options.adapter ?? defaultBuildAdapter;
+	const currentBaseExecutor = options.currentExecutor ? unwrapBuildExecutor(options.currentExecutor) : undefined;
+	const baseExecutor = options.development && currentBaseExecutor instanceof DevBuildCoordinator
+		? currentBaseExecutor
+		: createAppBuildExecutor({
+			development: options.development,
+			adapter,
+		});
+
+	if (!options.getPlugins) {
+		return baseExecutor;
+	}
+
+	return withBuildExecutorPlugins(baseExecutor, options.getPlugins);
 }

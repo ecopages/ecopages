@@ -80,6 +80,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		filter: /\.css$/,
 	};
 
+	private buildContributionsPrepared = false;
 	private postcssPlugins: postcss.AcceptedPlugin[] = [];
 	private pluginFactories?: PluginFactoryRecord;
 	private readonly runtimeCssCache = new Map<string, string>();
@@ -360,10 +361,26 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	/**
-	 * Setup the PostCSS processor.
+	 * Resolves the configured PostCSS plugin list before config build seals the
+	 * app manifest.
+	 *
+	 * @remarks
+	 * Runtime setup reuses this prepared list and only performs cache prewarming.
+	 */
+	override async prepareBuildContributions(): Promise<void> {
+		if (this.buildContributionsPrepared) {
+			return;
+		}
+
+		await this.collectPostcssPlugins();
+		this.buildContributionsPrepared = true;
+	}
+
+	/**
+	 * Performs runtime-only PostCSS setup after build contributions are ready.
 	 */
 	async setup(): Promise<void> {
-		await this.collectPostcssPlugins();
+		await this.prepareBuildContributions();
 		await this.prewarmRuntimeCssCache();
 	}
 

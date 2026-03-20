@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { defaultBuildAdapter, getAppBuildAdapter, getAppBrowserBuildPlugins, getAppBuildManifest } from '../build/build-adapter.ts';
+import { getAppNodeRuntimeManifest } from '../services/node-runtime-manifest.service.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
+import { Processor } from '../plugins/processor.ts';
 import { CONFIG_BUILDER_ERRORS, ConfigBuilder } from './config-builder.ts';
 import { fileSystem } from '@ecopages/file-system';
 
@@ -35,6 +40,73 @@ describe('EcoConfigBuilder', () => {
 	test('should set default baseUrl it is not set', async () => {
 		const config = await builder.setRootDir('/project').build();
 		expect(config.baseUrl).toBe(`http://${DEFAULT_ECOPAGES_HOSTNAME}:${DEFAULT_ECOPAGES_PORT}`);
+	});
+
+	test('should create a dedicated build adapter and executor per app config', async () => {
+		const config = await builder.setRootDir('/project').build();
+
+		expect(config.runtime?.buildExecutor).toBeDefined();
+		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
+		expect(config.runtime?.buildExecutor).not.toBe(defaultBuildAdapter);
+		expect(getAppBuildManifest(config).loaderPlugins.length).toBeGreaterThan(0);
+		expect(getAppBrowserBuildPlugins(config).length).toBeGreaterThan(0);
+		expect(config.runtime?.devGraphService).toBeDefined();
+		expect(config.runtime?.nodeRuntimeManifest).toBeDefined();
+		expect(config.runtime?.runtimeSpecifierRegistry).toBeDefined();
+		expect(getAppNodeRuntimeManifest(config)).toMatchObject({
+			runtime: 'node',
+			appRootDir: '/project',
+			modulePaths: {
+				config: path.join('/project', 'eco.config.ts'),
+			},
+			bootstrap: {
+				devGraphStrategy: 'noop',
+				runtimeSpecifierRegistry: 'in-memory',
+			},
+		});
+	});
+
+	test('should finalize processor and integration manifest contributions during config build', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-config-builder-'));
+		const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
+		const processorBrowserPlugin = { name: 'processor-browser-plugin', setup() {} };
+		const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
+
+		const processor = new (class extends Processor {
+			buildPlugins = [processorBrowserPlugin];
+			plugins = [processorRuntimePlugin];
+			override async prepareBuildContributions(): Promise<void> {}
+			override async setup(): Promise<void> {}
+			override async teardown(): Promise<void> {}
+			override async process(): Promise<unknown> {
+				return undefined;
+			}
+		})({ name: 'test-processor' });
+
+		const integration = new (class extends IntegrationPlugin {
+			renderer = vi.fn() as any;
+			override get plugins() {
+				return [integrationRuntimePlugin];
+			}
+			override async prepareBuildContributions(): Promise<void> {}
+		})({ name: 'test-integration', extensions: ['.test'] });
+
+		try {
+			const config = await builder
+				.setBaseUrl('https://example.com')
+				.setRootDir(rootDir)
+				.setProcessors([processor])
+				.setIntegrations([integration])
+				.build();
+
+			expect(getAppBuildManifest(config).runtimePlugins).toEqual([
+				processorRuntimePlugin,
+				integrationRuntimePlugin,
+			]);
+			expect(getAppBuildManifest(config).browserBundlePlugins).toEqual([processorBrowserPlugin]);
+		} finally {
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
 	});
 
 	test('should set custom directories', async () => {

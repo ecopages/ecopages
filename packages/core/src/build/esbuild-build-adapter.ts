@@ -59,17 +59,14 @@ function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspi
  * and `module`) while delegating bundling and TypeScript/decorator transforms to esbuild.
  */
 export class EsbuildBuildAdapter implements BuildAdapter {
-	private registeredPlugins: EcoBuildPlugin[] = [];
-
 	private escapeRegExp(value: string): string {
 		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 	}
 
 	private getPluginsForBuild(additionalPlugins?: EcoBuildPlugin[]): EcoBuildPlugin[] {
-		const merged = [...(additionalPlugins ?? []), ...this.registeredPlugins];
 		const byName = new Map<string, EcoBuildPlugin>();
 
-		for (const plugin of merged) {
+		for (const plugin of additionalPlugins ?? []) {
 			if (!byName.has(plugin.name)) {
 				byName.set(plugin.name, plugin);
 			}
@@ -549,15 +546,6 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 	resolve(importPath: string, rootDir: string): string {
 		const localRequire = createRequire(path.join(rootDir, 'package.json'));
 		return localRequire.resolve(importPath);
-	}
-
-	/**
-	 * Registers a build plugin once by plugin name.
-	 */
-	registerPlugin(plugin: EcoBuildPlugin): void {
-		if (!this.registeredPlugins.find((registered) => registered.name === plugin.name)) {
-			this.registeredPlugins.push(plugin);
-		}
 	}
 
 	/**

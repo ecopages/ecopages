@@ -176,11 +176,33 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		return [];
 	}
 
-	override async setup(): Promise<void> {
-		if (this.mdxEnabled && this.mdxCompilerOptions) {
-			const { createReactMdxLoaderPlugin } = await import('./utils/react-mdx-loader-plugin.ts');
-			this.mdxLoaderPlugin = createReactMdxLoaderPlugin(this.mdxCompilerOptions);
+	/**
+	 * Ensures the optional React MDX loader exists before either config-time
+	 * manifest sealing or runtime setup needs it.
+	 */
+	private async ensureMdxLoaderPlugin(): Promise<void> {
+		if (!this.mdxEnabled || !this.mdxCompilerOptions || this.mdxLoaderPlugin) {
+			return;
 		}
+
+		const { createReactMdxLoaderPlugin } = await import('./utils/react-mdx-loader-plugin.ts');
+		this.mdxLoaderPlugin = createReactMdxLoaderPlugin(this.mdxCompilerOptions);
+	}
+
+	/**
+	 * Prepares React's build-facing loader contributions before config build seals
+	 * the app manifest.
+	 */
+	override async prepareBuildContributions(): Promise<void> {
+		await this.ensureMdxLoaderPlugin();
+	}
+
+	/**
+	 * Performs runtime-only React setup after build contributions are already
+	 * materialized.
+	 */
+	override async setup(): Promise<void> {
+		await this.ensureMdxLoaderPlugin();
 		await super.setup();
 	}
 

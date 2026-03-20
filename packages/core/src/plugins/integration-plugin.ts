@@ -169,6 +169,20 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		return false;
 	}
 
+	/**
+	 * Prepares build-facing contributions before the app build manifest is sealed.
+	 *
+	 * @remarks
+	 * Override this when an integration needs to materialize runtime/build plugin
+	 * declarations ahead of runtime startup. Keep runtime-only side effects out of
+	 * this hook; they belong in `setup()`.
+	 */
+	async prepareBuildContributions(): Promise<void> {}
+
+	/**
+	 * Performs runtime-only integration setup after config build has already
+	 * sealed manifest contributions.
+	 */
 	async setup(): Promise<void> {
 		if (this.integrationDependencies.length === 0) return;
 		if (!this.assetProcessingService) throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_ASSET_SERVICE);

@@ -29,10 +29,43 @@ constructor() {
 	super({
 		name: 'custom-integration',
 		extensions: ['.custom'], 
+		runtimeCapability: {
+			tags: ['node-compatible'],
+		},
 	});
 	}
 }
 ```
+
+## Declaring Runtime Requirements
+
+If your integration depends on a specific runtime, declare that in `runtimeCapability` so Ecopages can fail during config finalization instead of during startup.
+
+```typescript
+class CustomIntegration extends IntegrationPlugin {
+	renderer = CustomRenderer;
+
+	constructor() {
+		super({
+			name: 'custom-integration',
+			extensions: ['.custom'],
+			runtimeCapability: {
+				tags: ['node-compatible'],
+				minRuntimeVersion: '20.0.0',
+			},
+		});
+	}
+}
+```
+
+Available tags:
+
+1. `node-compatible`
+2. `requires-node-builtins`
+3. `bun-only`
+4. `requires-native-bun-api`
+
+Use the smallest declaration that matches reality. For example, an integration that only needs standard Node-compatible APIs should not declare Bun-only requirements.
 
 ## Creating a Custom Renderer
 
@@ -159,15 +192,16 @@ class CustomIntegration extends IntegrationPlugin {
 		return new CustomHmrStrategy(this.hmrManager.getDefaultContext());
 	}
 
-	// You can also register specifier mappings for the browser
-	override setHmrManager(hmrManager: IHmrManager) {
-		super.setHmrManager(hmrManager);
-		hmrManager.registerSpecifierMap({
+	// You can also declare browser runtime bare-specifier mappings.
+	override getRuntimeSpecifierMap() {
+		return {
 			'custom-pkg': '/assets/vendors/custom-pkg-esm.js',
-		});
+		};
 	}
 }
 ```
+
+	If you override `getRuntimeSpecifierMap()`, Ecopages registers those mappings automatically when the integration is attached to the active HMR manager. Today they are used by the development runtime and browser bundle aliasing path, but the registry is intentionally generic enough to support broader import-map-style behavior later. Avoid overriding `setHmrManager()` unless you need behavior beyond the shared registration and strategy setup path.
 
 ## Setup and Teardown
 

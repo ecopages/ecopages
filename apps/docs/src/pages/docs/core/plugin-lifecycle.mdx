@@ -1,0 +1,90 @@
+import { DocsLayout } from '@/layouts/docs-layout';
+
+export const config = {
+	layout: DocsLayout,
+};
+
+export const getMetadata = () => ({
+	title: 'Docs | Plugin Lifecycle',
+	description: 'How integrations, processors, and core lifecycle phases are ordered in Ecopages',
+});
+
+# Plugin Lifecycle
+
+Ecopages keeps lifecycle ordering in core. Integrations and processors declare contributions, but they do not decide startup order or manifest assembly themselves.
+
+## Phase 1: Config Finalization
+
+`ConfigBuilder.build()` is the app-owned finalization boundary.
+
+During this phase Ecopages:
+
+1. validates integration names and extensions
+2. validates processor names
+3. derives absolute paths and semantic template paths
+4. installs required default loaders
+5. initializes processor context
+6. validates runtime capability declarations
+7. creates the app-owned build adapter, build executor, dev graph service, runtime specifier registry, and Node runtime manifest
+
+This is where app-owned build/runtime state becomes stable.
+
+## Phase 2: Build Contribution Preparation
+
+Build-facing contributions are collected before the app starts handling requests.
+
+The current ordering is stable:
+
+1. processors run `prepareBuildContributions()` first
+2. processor `plugins` are collected into runtime plugin contributions
+3. processor `buildPlugins` are collected into browser bundle contributions
+4. integrations then run `prepareBuildContributions()`
+5. integration `plugins` are collected into runtime plugin contributions
+
+This ordering is core-owned because processors often provide generic asset capabilities that integrations depend on indirectly.
+
+## Phase 3: App Startup Setup
+
+Runtime-only setup happens after the build manifest has already been sealed.
+
+The current ordering is:
+
+1. processors run `setup()` first
+2. processor runtime plugins are exposed to the active runtime startup path
+3. integrations receive app config, runtime origin, and HMR manager context
+4. integrations register runtime specifier maps and HMR strategies through the shared integration setup path
+5. integrations run `setup()`
+
+At this point Ecopages has enough live runtime context to resolve integration dependencies, initialize renderers, and register development behavior.
+
+## Phase 4: Request-Time Rendering
+
+For each request, core owns routing and dispatch:
+
+1. route resolution picks the matching page or API handler
+2. the owning integration is selected from the file extension
+3. the integration renderer handles framework-specific rendering
+4. shared HTML/document finalization runs before the response is returned
+
+Integrations own rendering semantics here. Core still owns orchestration and shared post-processing.
+
+## Phase 5: Development Invalidation And HMR
+
+Development invalidation is classified in core and then routed to the appropriate participant.
+
+The main model is:
+
+1. core classifies file changes through `DevelopmentInvalidationService`
+2. processor-owned watch paths are handled through processor watch configuration
+3. integration-owned HMR behavior runs through registered HMR strategies
+4. full reloads remain a core decision when the change category requires it
+
+This keeps generic invalidation policy out of individual integrations.
+
+## Ownership Summary
+
+Use this rule when deciding where new behavior belongs:
+
+1. put it in core when it affects orchestration, lifecycle ordering, server loading, browser bundling coordination, or invalidation policy
+2. put it in an integration when it affects rendering semantics, hydration behavior, framework-specific HMR, or cross-integration boundary behavior
+3. put it in a processor when it affects asset transformation, emitted assets, asset-specific caching, or watch behavior for owned files

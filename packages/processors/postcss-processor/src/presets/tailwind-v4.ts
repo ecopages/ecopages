@@ -68,7 +68,7 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 	const pluginFactories: PluginFactoryRecord = {
 		'postcss-import': () => postcssImport(),
 		'postcss-nested': () => postcssNested(),
-		'@tailwindcss/postcss': () => tailwindcss(),
+		'@tailwindcss/postcss': () => tailwindcss({ optimize: false }),
 		autoprefixer: () => autoprefixer(autoprefixerOptions),
 		cssnano: () => cssnano(),
 	};

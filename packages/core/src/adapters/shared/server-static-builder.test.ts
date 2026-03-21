@@ -25,9 +25,28 @@ function createMockDependencies() {
 		run: vi.fn(() => Promise.resolve()),
 	} as unknown as StaticSiteGenerator;
 
+	const mockIntegration = {
+		setup: vi.fn(async () => {}),
+	} as any;
+
+	const mockProcessor = {
+		setup: vi.fn(async () => {
+			fs.mkdirSync(path.join(TMP_DIR, 'dist', 'images'), { recursive: true });
+			fs.writeFileSync(path.join(TMP_DIR, 'dist', 'images', 'processor.webp'), 'processor-output');
+		}),
+	} as any;
+
 	const AppConfig = {
 		rootDir: TMP_DIR,
+		srcDir: 'src',
+		publicDir: 'public',
 		distDir: 'dist',
+		integrations: [mockIntegration],
+		processors: new Map([['image-processor', mockProcessor]]),
+		absolutePaths: {
+			distDir: path.join(TMP_DIR, 'dist'),
+			workDir: path.join(TMP_DIR, '.eco'),
+		} as EcoPagesAppConfig['absolutePaths'],
 	} as unknown as EcoPagesAppConfig;
 
 	const ServeOptions: ServeOptions = {
@@ -41,6 +60,8 @@ function createMockDependencies() {
 	return {
 		StaticSiteGenerator,
 		AppConfig,
+		mockIntegration,
+		mockProcessor,
 		ServeOptions,
 		Router,
 		RouteRendererFactory,
@@ -166,6 +187,71 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				options: { port: 3000 },
 			});
+		});
+
+		it('should rebuild integration runtime assets after resetting the export directory', async () => {
+			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, mockIntegration } =
+				createMockDependencies();
+
+			const builder = new ServerStaticBuilder({
+				appConfig: AppConfig,
+				staticSiteGenerator: StaticSiteGenerator,
+				serveOptions: ServeOptions,
+			});
+
+			await builder.build(undefined, {
+				router: Router,
+				routeRendererFactory: RouteRendererFactory,
+			});
+
+			expect(mockIntegration.setup).toHaveBeenCalledTimes(1);
+		});
+
+		it('should rebuild processor-owned assets after resetting the export directory', async () => {
+			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, mockProcessor } =
+				createMockDependencies();
+
+			const builder = new ServerStaticBuilder({
+				appConfig: AppConfig,
+				staticSiteGenerator: StaticSiteGenerator,
+				serveOptions: ServeOptions,
+			});
+
+			await builder.build(undefined, {
+				router: Router,
+				routeRendererFactory: RouteRendererFactory,
+			});
+
+			expect(mockProcessor.setup).toHaveBeenCalledTimes(1);
+			expect(fs.readFileSync(path.join(TMP_DIR, 'dist', 'images', 'processor.webp'), 'utf8')).toBe(
+				'processor-output',
+			);
+		});
+
+		it('should reset stale export contents before regenerating the public output', async () => {
+			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory } =
+				createMockDependencies();
+
+			const publicDir = path.join(TMP_DIR, 'src', 'public');
+			const distDir = AppConfig.absolutePaths.distDir;
+			fs.mkdirSync(publicDir, { recursive: true });
+			fs.mkdirSync(path.join(distDir, '.server-modules-meta'), { recursive: true });
+			fs.writeFileSync(path.join(publicDir, 'site.css'), 'body { color: red; }');
+			fs.writeFileSync(path.join(distDir, '.server-modules-meta', 'stale.js'), 'stale');
+
+			const builder = new ServerStaticBuilder({
+				appConfig: AppConfig,
+				staticSiteGenerator: StaticSiteGenerator,
+				serveOptions: ServeOptions,
+			});
+
+			await builder.build(undefined, {
+				router: Router,
+				routeRendererFactory: RouteRendererFactory,
+			});
+
+			expect(fs.existsSync(path.join(distDir, '.server-modules-meta'))).toBe(false);
+			expect(fs.readFileSync(path.join(distDir, 'site.css'), 'utf8')).toBe('body { color: red; }');
 		});
 	});
 });

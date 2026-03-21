@@ -8,7 +8,7 @@ import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v
 
 export const imageProcessorConfig: ImageProcessorConfig = {
 	sourceDir: path.resolve(import.meta.dirname, 'src/images'),
-	outputDir: path.resolve(import.meta.dirname, '.eco/images'),
+	outputDir: path.resolve(import.meta.dirname, 'dist/images'),
 	publicPath: '/images',
 	acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 	quality: 80,

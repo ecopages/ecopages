@@ -4,7 +4,6 @@
  */
 
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { fileSystem } from '@ecopages/file-system';
@@ -113,6 +112,7 @@ export type ImageMap = Record<string, ImageSpecifications>;
 export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	declare private processor: ImageProcessor;
 	private buildContributionsPrepared = false;
+	private resolvedConfig?: ImageProcessorConfig;
 	public processedImages: Record<string, ImageSpecifications> = {};
 
 	constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>) {
@@ -193,6 +193,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		};
 
 		const config = this.options ? deepMerge(defaultConfig, this.options) : defaultConfig;
+		this.resolvedConfig = config;
 
 		this.processor = new ImageProcessor(config, {
 			readCache: (key) => this.readCache(key),
@@ -208,6 +209,58 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		this.dependencies = this.generateDependencies();
 		this.generateTypes();
 		this.buildContributionsPrepared = true;
+	}
+
+	private getRuntimeVirtualModulePath(): string {
+		if (!this.context) {
+			throw new Error('ImageProcessor requires context to be set');
+		}
+
+		return resolveGeneratedPath('cache', {
+			root: this.context.distDir,
+			module: this.name,
+			subPath: 'virtual-module.ts',
+		});
+	}
+
+	private getGeneratedOutputPath(src: string): string {
+		if (!this.resolvedConfig) {
+			throw new Error('ImageProcessor not initialized');
+		}
+
+		return path.join(this.resolvedConfig.outputDir, path.basename(src));
+	}
+
+	private hasGeneratedOutputs(): boolean {
+		if (!this.resolvedConfig) {
+			return false;
+		}
+
+		if (
+			!fileSystem.exists(this.resolvedConfig.outputDir) ||
+			!fileSystem.exists(this.getRuntimeVirtualModulePath())
+		) {
+			return false;
+		}
+
+		return Object.values(this.processedImages).every((image) => {
+			const outputPaths = [image.attributes.src, ...image.variants.map((variant) => variant.src)];
+			return outputPaths.every((src) => fileSystem.exists(this.getGeneratedOutputPath(src)));
+		});
+	}
+
+	private async rehydrateGeneratedOutputs(): Promise<void> {
+		if (!this.processor) {
+			throw new Error('ImageProcessor not initialized');
+		}
+
+		if (this.hasGeneratedOutputs()) {
+			return;
+		}
+
+		this.replaceProcessedImages(await this.processor.processDirectory());
+		this.dependencies = this.generateDependencies();
+		this.generateTypes();
 	}
 
 	/**
@@ -242,6 +295,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	 */
 	async setup(): Promise<void> {
 		await this.prepareBuildContributions();
+		await this.rehydrateGeneratedOutputs();
 	}
 
 	/**

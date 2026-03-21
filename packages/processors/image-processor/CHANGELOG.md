@@ -14,6 +14,7 @@ All notable changes to `@ecopages/image-processor` are documented here.
 
 - Switched public internal imports to explicit relative ESM specifiers so Node thin-host builds can externalize the package without `ERR_MODULE_NOT_FOUND`.
 - Inlined the generated `ecopages:images` declaration source so bundled runtime bootstrap no longer depends on a sibling `types` module at runtime.
+- Re-emitted generated image outputs after static export cleanup so routes that reference `/images/...` keep their optimized files inside `dist`.
 
 ### Refactoring
 

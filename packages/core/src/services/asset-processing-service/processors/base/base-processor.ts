@@ -4,6 +4,7 @@ import type { EcoPagesAppConfig } from '../../../../internal-types.ts';
 import { rapidhash } from '../../../../utils/hash.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from '../../../../utils/runtime.ts';
 import type { BaseAsset, ProcessedAsset } from '../../assets.types.ts';
+import { fileSystem } from '@ecopages/file-system';
 
 export abstract class BaseProcessor<T extends BaseAsset> {
 	protected appConfig: EcoPagesAppConfig;
@@ -59,7 +60,12 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 		processFn: () => ProcessedAsset | Promise<ProcessedAsset>,
 	): Promise<ProcessedAsset> {
 		if (this.hasCacheFile(cacheKey)) {
-			return Promise.resolve(this.getCacheFile(cacheKey) as ProcessedAsset);
+			const cached = this.getCacheFile(cacheKey) as ProcessedAsset;
+			if (!cached.filepath || fileSystem.exists(cached.filepath)) {
+				return Promise.resolve(cached);
+			}
+
+			this.cache.delete(cacheKey);
 		}
 
 		const result = processFn();

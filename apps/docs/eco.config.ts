@@ -52,7 +52,7 @@ const config = await new ConfigBuilder()
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(import.meta.dir, 'src/images'),
-				outputDir: path.resolve(import.meta.dir, '.eco/images'),
+				outputDir: path.resolve(import.meta.dir, 'dist/images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 				quality: 80,

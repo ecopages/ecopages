@@ -5,7 +5,6 @@
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
-import type { IHmrManager } from '@ecopages/core/internal-types';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
@@ -230,12 +229,8 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		);
 	}
 
-	/**
-	 * Override to register React-specific specifier mappings for HMR.
-	 */
-	override setHmrManager(hmrManager: IHmrManager): void {
-		super.setHmrManager(hmrManager);
-		hmrManager.registerSpecifierMap(this.runtimeBundleService.getSpecifierMap());
+	override getRuntimeSpecifierMap(): Record<string, string> {
+		return this.runtimeBundleService.getSpecifierMap();
 	}
 
 	/**

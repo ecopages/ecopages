@@ -8,6 +8,8 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Refactoring
 
+- Moved runtime specifier registration onto the shared integration lifecycle hook so React no longer needs a custom HMR-manager override just to expose browser runtime alias mappings.
+- Switched React runtime bundle dependencies to the shared core browser runtime module-asset helper so React no longer owns the entry-file assembly path for those vendor runtime bundles.
 - Centralized the canonical React runtime specifier allowlist and external-specifier policy so page bundles and React HMR stop duplicating runtime dependency wiring.
 - Reused shared browser runtime entry and `use-sync-external-store` shim helpers so React runtime bundles, page bundles, and React HMR no longer carry duplicate bundling glue.
 - Extracted React DOM runtime interop rewriting and runtime-specifier map construction into focused React utilities so the runtime bundle service is reduced to dependency assembly.

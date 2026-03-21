@@ -6,10 +6,9 @@ import { createRuntimeSpecifierAliasPlugin } from './runtime-specifier-alias-plu
 test('createRuntimeSpecifierAliasPlugin resolves mapped specifiers as externals', async () => {
 	const registrations: Array<{
 		filter: RegExp;
-		callback: (args: { path: string }) =>
-			| EcoBuildOnResolveResult
-			| undefined
-			| Promise<EcoBuildOnResolveResult | undefined>;
+		callback: (args: {
+			path: string;
+		}) => EcoBuildOnResolveResult | undefined | Promise<EcoBuildOnResolveResult | undefined>;
 	}> = [];
 	const plugin = createRuntimeSpecifierAliasPlugin(
 		{

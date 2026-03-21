@@ -15,7 +15,7 @@ import type {
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { render } from '@lit-labs/ssr';
 import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable.js';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { html as staticHtml, unsafeStatic } from 'lit/static-html.js';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import { PLUGIN_NAME } from './lit.plugin.ts';
 
@@ -24,6 +24,18 @@ import { PLUGIN_NAME } from './lit.plugin.ts';
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = PLUGIN_NAME;
+
+	private createRenderableMarkup(markup: string) {
+		return staticHtml`${unsafeStatic(markup)}`;
+	}
+
+	private async renderMarkupToString(markup: string): Promise<string> {
+		let renderedHtml = '';
+		for (const chunk of render(this.createRenderableMarkup(markup))) {
+			renderedHtml += chunk;
+		}
+		return renderedHtml;
+	}
 
 	/**
 	 * Renders a Lit component boundary for component-level orchestration.
@@ -36,7 +48,8 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		) => Promise<EcoPagesElement> | EcoPagesElement;
 		const props = input.children === undefined ? input.props : { ...input.props, children: input.children };
 		const content = await component(props);
-		const html = String(content);
+		const markup = String(content);
+		const html = await this.renderMarkupToString(markup);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
 		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
 		const assets =
@@ -47,7 +60,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return {
 			html,
 			canAttachAttributes: true,
-			rootTag: this.getRootTagName(html),
+			rootTag: this.getRootTagName(markup),
 			integrationName: this.name,
 			assets,
 		};
@@ -132,7 +145,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			function* streamBody() {
 				yield DOC_TYPE;
 				yield templateStart;
-				yield* render(unsafeHTML(children));
+				yield* render(staticHtml`${unsafeStatic(children)}`);
 				yield templateEnd;
 			}
 
@@ -160,7 +173,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 
 			if (ctx.partial) {
 				function* streamBody() {
-					yield* render(unsafeHTML(pageContent));
+					yield* render(staticHtml`${unsafeStatic(pageContent)}`);
 				}
 				const readable = new RenderResultReadable(streamBody());
 				return this.createHtmlResponse(readable as unknown as BodyInit, ctx);
@@ -192,7 +205,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			function* streamBody() {
 				yield DOC_TYPE;
 				yield templateStart;
-				yield* render(unsafeHTML(children));
+				yield* render(staticHtml`${unsafeStatic(children)}`);
 				yield templateEnd;
 			}
 			const stream = new RenderResultReadable(streamBody());

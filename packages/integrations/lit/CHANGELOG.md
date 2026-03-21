@@ -13,6 +13,7 @@ All notable changes to `@ecopages/lit` are documented here.
 ### Bug Fixes
 
 - Prevented the shared Lit hydrate-support bootstrap from re-running on every browser-router navigation.
+- Routed Lit renderer output through Lit's static SSR template pipeline so registered custom elements render declarative shadow DOM during SSR instead of staying as bare host tags.
 
 ### Refactoring
 

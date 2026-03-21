@@ -50,9 +50,11 @@ import { litPlugin } from '@ecopages/lit';
 2. Add the `litPlugin` to your configuration:
 
 ```typescript
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([litPlugin()])
 	.build();
 
@@ -167,9 +169,11 @@ import { ConfigBuilder } from '@ecopages/core';
 import { litPlugin } from '@ecopages/lit';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([litPlugin(), kitajsPlugin()])
 	.build();
 

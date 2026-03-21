@@ -8,7 +8,7 @@ export const config = {
 
 export const getMetadata = () => ({
   title: 'Docs | ecopages CLI',
-  description: 'Use the official npm ecopages CLI to scaffold and run Ecopages projects with Bun',
+  description: 'Use the official ecopages CLI to scaffold and run Ecopages projects',
 });
 
 # ecopages CLI
@@ -18,7 +18,7 @@ The `ecopages` npm package is the official and preferred command-line tool for s
 It is best when you want:
 
 - **Fast project creation** from templates
-- **Consistent Bun commands** (`dev`, `build`, `preview`, `start`)
+- **Consistent app lifecycle commands** (`dev`, `build`, `preview`, `start`)
 - **A single entrypoint** for common local workflows
 
 <Banner type="warning">
@@ -70,24 +70,24 @@ bun add ecopages
 
 ## Initialize Projects
 
-### Interactive Init
+### Init Command
 
-Use the base init command when you want to pick options interactively:
+Use the init command with a target directory, then optionally select a template:
 
 <CodeSnippetTabs>
   <CodeTab name="pnpm">
 ```bash
-pnpm dlx ecopages init
+pnpm dlx ecopages init my-app
 ```
   </CodeTab>
   <CodeTab name="npm">
 ```bash
-npx ecopages init
+npx ecopages init my-app
 ```
   </CodeTab>
   <CodeTab name="bun">
 ```bash
-bunx ecopages init
+bunx ecopages init my-app
 ```
   </CodeTab>
 </CodeSnippetTabs>
@@ -101,12 +101,12 @@ Use these when you want a full bootstrap in one command chain.
 <CodeSnippetTabs>
   <CodeTab name="pnpm">
 ```bash
-pnpm dlx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev
+pnpm dlx ecopages init ecopages-app && cd ecopages-app && pnpm install && pnpm run dev
 ```
   </CodeTab>
   <CodeTab name="npm">
 ```bash
-npx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev
+npx ecopages init ecopages-app && cd ecopages-app && npm install && npm run dev
 ```
   </CodeTab>
   <CodeTab name="bun">
@@ -121,12 +121,12 @@ bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev
 <CodeSnippetTabs>
   <CodeTab name="pnpm">
 ```bash
-pnpm dlx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install && bun dev
+pnpm dlx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && pnpm install && pnpm run dev
 ```
   </CodeTab>
   <CodeTab name="npm">
 ```bash
-npx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install && bun dev
+npx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && npm install && npm run dev
 ```
   </CodeTab>
   <CodeTab name="bun">
@@ -141,12 +141,12 @@ bunx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install &&
 <CodeSnippetTabs>
   <CodeTab name="pnpm">
 ```bash
-pnpm dlx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev
+pnpm dlx ecopages init blog-react --template blog-react && cd blog-react && pnpm install && pnpm run dev
 ```
   </CodeTab>
   <CodeTab name="npm">
 ```bash
-npx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev
+npx ecopages init blog-react --template blog-react && cd blog-react && npm install && npm run dev
 ```
   </CodeTab>
   <CodeTab name="bun">
@@ -161,12 +161,12 @@ bunx ecopages init blog-react --template blog-react && cd blog-react && bun inst
 <CodeSnippetTabs>
   <CodeTab name="pnpm">
 ```bash
-pnpm dlx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
+pnpm dlx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && pnpm install && pnpm run db:generate && pnpm run db:migrate && pnpm run dev
 ```
   </CodeTab>
   <CodeTab name="npm">
 ```bash
-npx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
+npx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && npm install && npm run db:generate && npm run db:migrate && npm run dev
 ```
   </CodeTab>
   <CodeTab name="bun">
@@ -299,6 +299,10 @@ bun dev
 ```
   </CodeTab>
 </CodeSnippetTabs>
+
+## Runtime Notes
+
+The CLI auto-detects Bun when launched from Bun tooling and otherwise defaults to the Node thin-host path. You can override that explicitly with `--runtime bun`, `--runtime node`, or `--runtime node-experimental` on the lifecycle commands.
 
 ## Command Details
 

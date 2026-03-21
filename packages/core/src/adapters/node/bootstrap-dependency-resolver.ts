@@ -12,6 +12,9 @@ export function getNodeRuntimeNodeModulesDir(manifest: NodeRuntimeManifest): str
 	return path.join(manifest.distDir, 'node_modules');
 }
 
+/**
+ * Derives the package root segment from a bare specifier.
+ */
 function getPackageNameFromSpecifier(specifier: string): string {
 	if (specifier.startsWith('@')) {
 		const [scope, name] = specifier.split('/');
@@ -21,6 +24,9 @@ function getPackageNameFromSpecifier(specifier: string): string {
 	return specifier.split('/')[0] ?? specifier;
 }
 
+/**
+ * Walks upward from a resolved file until it finds the owning package root.
+ */
 function findPackageRoot(resolvedPath: string): string {
 	let currentPath = path.dirname(resolvedPath);
 
@@ -39,6 +45,15 @@ function findPackageRoot(resolvedPath: string): string {
 	}
 }
 
+/**
+ * Creates a runtime-local symlink for one external dependency package.
+ *
+ * @remarks
+ * Node thin-host bootstrap bundles externalize third-party packages but still
+ * need those packages to resolve from a deterministic runtime-local
+ * `node_modules` directory. Symlinking the package root preserves that lookup
+ * without copying package contents into the app cache.
+ */
 function ensureRuntimePackageLink(nodeModulesDir: string, specifier: string, resolvedPath: string): void {
 	const packageName = getPackageNameFromSpecifier(specifier);
 	const packageRoot = findPackageRoot(resolvedPath);
@@ -58,14 +73,26 @@ export interface NodeBootstrapResolutionOptions {
 	preserveImportMetaPaths?: string[];
 }
 
+/**
+ * Builds the user-facing error for Bun-native imports that cannot run on the
+ * Node thin-host bootstrap path.
+ */
 export function getNodeUnsupportedBuiltinError(specifier: string, importer?: string): string {
 	return `Node thin-host bootstrap does not support Bun builtin specifier ${JSON.stringify(specifier)}${importer ? ` imported from ${importer}` : ''}.`;
 }
 
+/**
+ * Returns whether a dependency should be resolved relative to the importing
+ * package instead of the app root.
+ */
 function shouldResolveFromImporter(importer: string | undefined): importer is string {
 	return Boolean(importer && importer.includes(`${path.sep}node_modules${path.sep}`));
 }
 
+/**
+ * Selects the build loader used when bootstrap-time source rewriting emits a
+ * synthetic in-memory file.
+ */
 function getBootstrapBuildLoaderForPath(filePath: string): 'js' | 'jsx' | 'json' | 'ts' | 'tsx' {
 	switch (path.extname(filePath).toLowerCase()) {
 		case '.ts':
@@ -83,8 +110,16 @@ function getBootstrapBuildLoaderForPath(filePath: string): 'js' | 'jsx' | 'json'
 	}
 }
 
-const REEXPORT_FROM_STATEMENT_PATTERN = /^\s*export\s+(?!type\b)(?:\*|\{[\s\S]*?\})\s+from\s+(['"][^'"]+['"])\s*;?\s*$/gm;
+const REEXPORT_FROM_STATEMENT_PATTERN =
+	/^\s*export\s+(?!type\b)(?:\*|\{[\s\S]*?\})\s+from\s+(['"][^'"]+['"])\s*;?\s*$/gm;
 
+/**
+ * Prepends side-effect imports for re-export barrels during bootstrap bundling.
+ *
+ * @remarks
+ * This keeps async module initialization observable even when the bootstrap
+ * bundle only referenced the file through re-export syntax.
+ */
 function injectBootstrapReexportImports(source: string): string {
 	const sideEffectImports: string[] = [];
 	const importedSpecifiers = new Set<string>();
@@ -105,11 +140,21 @@ function injectBootstrapReexportImports(source: string): string {
 	return `${sideEffectImports.join('\n')}\n${rewrittenSource}`;
 }
 
+/**
+ * Returns whether bootstrap source rewriting is allowed for the given file.
+ *
+ * @remarks
+ * Re-export and `import.meta` rewrites are limited to project-owned sources so
+ * third-party packages keep their original semantics.
+ */
 function shouldRewriteBootstrapSource(filePath: string, projectDir: string): boolean {
 	const normalizedPath = path.resolve(filePath);
 	const normalizedProjectDir = path.resolve(projectDir);
 
-	return normalizedPath.startsWith(`${normalizedProjectDir}${path.sep}`) && !normalizedPath.includes(`${path.sep}node_modules${path.sep}`);
+	return (
+		normalizedPath.startsWith(`${normalizedProjectDir}${path.sep}`) &&
+		!normalizedPath.includes(`${path.sep}node_modules${path.sep}`)
+	);
 }
 
 /**
@@ -161,9 +206,7 @@ export function resolveNodeBootstrapDependency(
  * Creates the bootstrap-time resolver plugin used by the Node thin-host
  * adapter for config and entry module loading.
  */
-export function createNodeBootstrapPlugin(
-	options: NodeBootstrapResolutionOptions,
-): EcoBuildPlugin {
+export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOptions): EcoBuildPlugin {
 	const projectDir = path.resolve(options.projectDir);
 	const importMetaRewritePaths = new Set(
 		(options.preserveImportMetaPaths ?? []).map((filePath) => path.resolve(filePath)),

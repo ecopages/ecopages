@@ -12,7 +12,7 @@ export const getMetadata = () => ({
 
 # Architecture Overview
 
-Ecopages is designed to be modular, leveraging the speed of [Bun](https://bun.sh/) and the flexibility of multiple rendering engines. This guide provides a brief overview of how things connect under the hood.
+Ecopages is designed to be modular, with thin runtime hosts, app-owned core services, and multiple rendering engines. This guide provides a brief overview of how things connect under the hood.
 
 ## Ownership Model
 
@@ -21,6 +21,7 @@ Ecopages is structured around three main ownership boundaries:
 1. **Core owns orchestration**: config finalization, build manifest assembly, server loading, browser bundling coordination, and development invalidation policy.
 2. **Integrations own framework semantics**: rendering, hydration behavior, framework-specific HMR, and cross-integration boundary policy.
 3. **Processors own asset semantics**: asset transformation, emitted files, asset-specific caching, and processor-specific watch behavior.
+4. **Adapters own transport**: Bun and Node hosts receive requests, wire runtime-specific server details, and delegate into the shared core pipeline.
 
 Packages declare contributions. Core decides lifecycle ordering and assembles the app-owned runtime/build state.
 
@@ -28,7 +29,7 @@ Packages declare contributions. Core decides lifecycle ordering and assembles th
 
 When a request hits your Ecopages application, it follows this simplified flow:
 
-1. **Bun.serve**: Bun receives the HTTP request and passes it to the Ecopages adapter.
+1. **Runtime Host**: the active Bun or Node adapter receives the HTTP request and passes it into the shared core request pipeline.
 2. **Router**: The router matching logic identifies if the path corresponds to a static file, an API route, or a page file in `src/pages`.
 3. **Route Resolver**: If it's a page, Ecopages determines which integration handles the file extension (e.g., KitaJS for `.kita.tsx`).
 4. **Integration Renderer**: The specific renderer (React, Lit, etc.) is invoked with the page component and props.
@@ -51,7 +52,7 @@ See the dedicated [Plugin Lifecycle](/docs/core/plugin-lifecycle) guide for the 
 
 For those wishing to dive deeper, we recommend exploring the source code:
 
-- **[`EcopagesApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/bun/create-app.ts)**: The main entry point and orchestrator.
+- **[`EcopagesApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/create-app.ts)**: The runtime-neutral application entry point that selects the active adapter.
 - **[`SharedServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/shared/server-adapter.ts)**: The core server logic shared across environments.
 - **[`BunServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/bun/server-adapter.ts)**: Handles the low-level Bun server interface.
 - **[`NodeServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/server-adapter.ts)**: Handles the low-level Node server interface.

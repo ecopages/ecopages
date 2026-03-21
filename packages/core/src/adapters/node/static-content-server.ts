@@ -10,11 +10,22 @@ type NodeStaticContentServerOptions = {
 	port?: number;
 };
 
+/**
+ * Serves prebuilt static Ecopages output through Node's HTTP server.
+ *
+ * @remarks
+ * This server is used by the Node preview/build path once the app has already
+ * emitted its static output. It intentionally stays small: path sanitization,
+ * content-type selection, optional gzip serving, and 404 handling.
+ */
 export class NodeStaticContentServer {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly options: NodeStaticContentServerOptions;
 	private server: NodeHttpServer | null = null;
 
+	/**
+	 * Creates the Node static-content server for one built app output directory.
+	 */
 	constructor({ appConfig, options }: { appConfig: EcoPagesAppConfig; options?: NodeStaticContentServerOptions }) {
 		this.appConfig = appConfig;
 		this.options = {
@@ -23,10 +34,17 @@ export class NodeStaticContentServer {
 		};
 	}
 
+	/**
+	 * Returns whether the given content type should be served from a pre-gzipped
+	 * companion file when available.
+	 */
 	private shouldServeGzip(contentType: string): boolean {
 		return ['text/javascript', 'text/css'].includes(contentType);
 	}
 
+	/**
+	 * Normalizes a request pathname and rejects directory traversal attempts.
+	 */
 	private sanitizePath(pathname: string): string | null {
 		const withoutLeadingSlash = pathname.replace(/^\/+/, '');
 		const normalizedPath = normalize(withoutLeadingSlash);
@@ -38,6 +56,9 @@ export class NodeStaticContentServer {
 		return normalizedPath;
 	}
 
+	/**
+	 * Writes one HTTP response with the provided headers and optional body.
+	 */
 	private sendResponse(res: ServerResponse, status: number, headers: Record<string, string>, body?: Buffer): void {
 		res.statusCode = status;
 		for (const [key, value] of Object.entries(headers)) {
@@ -52,6 +73,9 @@ export class NodeStaticContentServer {
 		res.end(body);
 	}
 
+	/**
+	 * Serves the generated 404 page when present, or a plain-text fallback.
+	 */
 	private sendNotFoundPage(req: IncomingMessage, res: ServerResponse): void {
 		const error404TemplatePath = join(this.appConfig.absolutePaths.distDir, '404.html');
 		const isHead = (req.method ?? 'GET').toUpperCase() === 'HEAD';
@@ -70,6 +94,9 @@ export class NodeStaticContentServer {
 		this.sendResponse(res, 404, { 'Content-Type': 'text/html' }, isHead ? undefined : file);
 	}
 
+	/**
+	 * Serves one concrete file path, honoring gzip and HEAD semantics.
+	 */
 	private serveFile(req: IncomingMessage, res: ServerResponse, filePath: string, status = 200): void {
 		const contentType = ServerUtils.getContentType(extname(filePath));
 		const acceptsGzip = req.headers['accept-encoding']?.includes('gzip');
@@ -102,6 +129,9 @@ export class NodeStaticContentServer {
 		this.sendResponse(res, status, { 'Content-Type': contentType }, isHead ? undefined : file);
 	}
 
+	/**
+	 * Handles one incoming Node HTTP request against the built static output tree.
+	 */
 	private handleRequest(req: IncomingMessage, res: ServerResponse): void {
 		const method = (req.method ?? 'GET').toUpperCase();
 		const isHead = method === 'HEAD';
@@ -161,6 +191,9 @@ export class NodeStaticContentServer {
 		this.sendNotFoundPage(req, res);
 	}
 
+	/**
+	 * Starts the static preview server.
+	 */
 	public async start(): Promise<NodeHttpServer> {
 		if (this.server) {
 			return this.server;
@@ -177,6 +210,9 @@ export class NodeStaticContentServer {
 		return this.server;
 	}
 
+	/**
+	 * Stops the static preview server and optionally closes active connections.
+	 */
 	public async stop(force = true): Promise<void> {
 		if (!this.server) {
 			return;

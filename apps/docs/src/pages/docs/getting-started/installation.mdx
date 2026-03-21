@@ -55,8 +55,10 @@ import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
+  .setRootDir(appRoot)
 	// Optional: Set the canonical base URL for your site.
 	// Used for generating absolute URLs in production builds.
 	// If omitted, it defaults to http://localhost:3000 during development.
@@ -126,7 +128,7 @@ Create an entry point file (e.g., `app.ts`) to initialize and run Ecopages:
 
 ```typescript
 // filepath: app.ts
-import { EcopagesApp } from '@ecopages/core/bun/create-app';
+import { EcopagesApp } from '@ecopages/core';
 import config from './eco.config.ts';
 
 const app = new EcopagesApp({ appConfig: config });
@@ -138,21 +140,21 @@ Add the following scripts to your `package.json`:
 ```json
 {
 	"scripts": {
-		"build": "NODE_ENV=production bun run app.ts --build",
-		"dev": "bun run app.ts --dev",
-		"preview": "NODE_ENV=production bun run app.ts --preview",
-		"start": "NODE_ENV=production bun run app.ts --start",
-		"watch:dev": "bun --watch run app.ts --dev" 
+    "build": "ecopages build",
+    "dev": "ecopages dev",
+    "preview": "ecopages preview",
+    "start": "ecopages start",
+    "watch:dev": "ecopages dev:watch"
 	}
 }
 ```
 
 Now you can use these commands:
 
-- `pnpm run dev` (or `bun run dev`): Starts the development server (with HMR). You can override the host/port with environment variables.
-- `pnpm run build` (or `bun run build`): Builds your project for production into the `.eco` directory. Uses the configured `baseUrl`.
-- `pnpm run start` (or `bun run start`): Serves the production build from the `.eco` directory. Uses the configured `baseUrl`.
-- `pnpm run preview` (or `bun run preview`): Builds and serves the production build locally for previewing.
+- `pnpm run dev` (or `bun run dev`): Starts the development server. You can override the host, port, base URL, and runtime with CLI flags or environment variables.
+- `pnpm run build` (or `bun run build`): Builds your project for production into the `.eco` directory.
+- `pnpm run start` (or `bun run start`): Starts the production server from the existing build output.
+- `pnpm run preview` (or `bun run preview`): Builds and then serves the production build locally for verification.
 
 ## Next Steps
 

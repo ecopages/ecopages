@@ -104,11 +104,13 @@ import { ConfigBuilder } from '@ecopages/core';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
   .setProcessors([
     postcssProcessorPlugin(tailwindV4Preset({
       // Path to your main CSS file containing `@import "tailwindcss";`
-      referencePath: path.resolve(import.meta.dir, 'src/styles/app.css'),
+      referencePath: path.resolve(appRoot, 'src/styles/app.css'),
     }))
   ])
   .build();
@@ -201,11 +203,11 @@ const config = await new ConfigBuilder()
 export default config;
 ```
 
-## Using with Bun
+## Using CSS Imports
 
 To enable CSS imports in your TypeScript/JavaScript files (e.g., `import styles from './styles.css'`), you **must** add the `postcssProcessorPlugin` to your `eco.config.ts` as shown above.
 
-This plugin automatically registers a Bun loader that processes your CSS files on import.
+This plugin registers the build-time CSS handling Ecopages uses when those imports are loaded.
 
 ```typescript
 // Component.ts

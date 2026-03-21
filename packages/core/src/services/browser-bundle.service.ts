@@ -18,10 +18,21 @@ export type BrowserBundleOptions = Omit<BuildOptions, 'target' | 'format' | 'sou
 export class BrowserBundleService {
 	private readonly appConfig: EcoPagesAppConfig;
 
+	/**
+	 * Creates the browser bundle boundary for one finalized app instance.
+	 */
 	constructor(appConfig: EcoPagesAppConfig) {
 		this.appConfig = appConfig;
 	}
 
+	/**
+	 * Runs one browser-targeted build through the app-owned executor.
+	 *
+	 * @remarks
+	 * Browser defaults and app-owned browser build plugins are applied here so HMR
+	 * and runtime asset generation do not have to recreate that policy at each call
+	 * site.
+	 */
 	async bundle(options: BrowserBundleOptions): Promise<BuildResult> {
 		const { profile, ...buildOptions } = options;
 

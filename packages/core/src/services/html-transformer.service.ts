@@ -62,7 +62,7 @@ export class HtmlTransformerService {
 		} catch (primaryError) {
 			try {
 				const runtimeLocalModule = await import(
-					new URL('../node_modules/@worker-tools/html-rewriter/base64.js', import.meta.url).href,
+					new URL('../node_modules/@worker-tools/html-rewriter/base64.js', import.meta.url).href
 				);
 				return runtimeLocalModule.HTMLRewriter as HtmlRewriterConstructor;
 			} catch {
@@ -144,6 +144,10 @@ export class HtmlTransformerService {
 			.join('');
 	}
 
+	/**
+	 * Injects generated markup immediately before the closing HTML tag when it is
+	 * present, or appends/prepends a fallback insertion otherwise.
+	 */
 	private injectBeforeClosingTag(html: string, tag: 'head' | 'body', content: string): string {
 		if (!content) {
 			return html;
@@ -164,14 +168,23 @@ export class HtmlTransformerService {
 		return `${html}${content}`;
 	}
 
+	/**
+	 * Replaces the current processed dependency set used during HTML finalization.
+	 */
 	setProcessedDependencies(processedDependencies: ProcessedAsset[]) {
 		this.processedDependencies = processedDependencies;
 	}
 
+	/**
+	 * Returns the processed dependencies queued for the next transform pass.
+	 */
 	getProcessedDependencies(): ProcessedAsset[] {
 		return this.processedDependencies;
 	}
 
+	/**
+	 * Applies attributes to the opening `<html>` tag when present.
+	 */
 	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string {
 		const htmlTagMatch = html.match(/<html\b[^>]*>/i);
 		if (!htmlTagMatch || htmlTagMatch.index === undefined) {
@@ -187,6 +200,9 @@ export class HtmlTransformerService {
 		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
 	}
 
+	/**
+	 * Applies attributes to the first element nested directly under `<body>`.
+	 */
 	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string {
 		const bodyMatch = html.match(/<body\b[^>]*>/i);
 		if (!bodyMatch || bodyMatch.index === undefined) {
@@ -209,6 +225,10 @@ export class HtmlTransformerService {
 		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
 	}
 
+	/**
+	 * Applies attributes to the first element in a fragment or full-document HTML
+	 * string.
+	 */
 	applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string {
 		const firstTagMatch = html.match(/^(\s*<)([a-zA-Z][a-zA-Z0-9:-]*)(\b[^>]*>)/);
 		if (!firstTagMatch || firstTagMatch.index === undefined) {
@@ -224,6 +244,14 @@ export class HtmlTransformerService {
 		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
 	}
 
+	/**
+	 * Removes duplicate processed assets while preserving first-seen order.
+	 *
+	 * @remarks
+	 * Dedupe keys include structural asset fields and HTML attributes so repeated
+	 * orchestration passes can merge assets safely without collapsing distinct tag
+	 * variants.
+	 */
 	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
 		const unique = new Map<string, ProcessedAsset>();
 
@@ -247,6 +275,14 @@ export class HtmlTransformerService {
 		return [...unique.values()];
 	}
 
+	/**
+	 * Injects the currently processed dependencies into an HTML response.
+	 *
+	 * @remarks
+	 * Native or worker-tools HTML rewriter support is preferred when available. A
+	 * string-based fallback remains in place for runtimes that cannot provide one
+	 * of those rewriter implementations.
+	 */
 	async transform(res: Response): Promise<Response> {
 		const { head, body } = this.groupDependenciesByPosition();
 		const htmlRewriter = await this.createHtmlRewriter();
@@ -286,6 +322,9 @@ export class HtmlTransformerService {
 		});
 	}
 
+	/**
+	 * Splits processed assets into head and body injection groups.
+	 */
 	private groupDependenciesByPosition() {
 		return this.processedDependencies.reduce(
 			(acc, dep) => {
@@ -302,6 +341,9 @@ export class HtmlTransformerService {
 		);
 	}
 
+	/**
+	 * Builds a serialized HTML attribute string from an attribute object.
+	 */
 	private buildAttributeString(attributes: Record<string, string>): string {
 		return Object.entries(attributes)
 			.filter(([key, value]) => key.length > 0 && value.length > 0)

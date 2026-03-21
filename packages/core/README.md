@@ -74,6 +74,29 @@ flowchart TD
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
 - the Node thin-host path exists to keep startup framework-owned without putting source parsing or tsconfig ownership into the host itself.
 
+## Documentation Map
+
+Use this package README as the top-level map, then drill into the focused subsystem READMEs:
+
+- `src/config/README.md`: config finalization and app-owned runtime/build state
+- `src/plugins/README.md`: integration and processor authoring contracts
+- `src/build/README.md`: build adapter, executor, and development build coordination
+- `src/services/README.md`: cross-cutting runtime services and orchestration helpers
+- `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
+- `src/hmr/README.md`: HMR strategy and update-layer ownership
+- `src/router/README.md`: route discovery, matching, and browser navigation coordination
+- `src/route-renderer/README.md`: rendering orchestration and dependency resolution
+- `src/static-site-generator/README.md`: static build execution path
+- `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components
+
+The intended reading order is:
+
+1. this file for the big-picture architecture
+2. `src/config/README.md` for config and lifecycle ownership
+3. `src/plugins/README.md` and `src/build/README.md` for contribution contracts
+4. `src/services/README.md` and `src/adapters/README.md` for runtime execution
+5. `src/router/README.md` and `src/route-renderer/README.md` for request-time flow
+
 ## Installation
 
 ```bash

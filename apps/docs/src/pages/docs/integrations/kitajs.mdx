@@ -53,9 +53,11 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 2. Add the `kitajsPlugin` to your configuration:
 
 ```typescript
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([kitajsPlugin()])
 	.build();
 ```
@@ -113,9 +115,11 @@ import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([
 		kitajsPlugin(), 
 		mdxPlugin({

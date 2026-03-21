@@ -43,9 +43,11 @@ To start using MDX, add the `mdxPlugin` to your Ecopages configuration.
 import { ConfigBuilder } from '@ecopages/core';
 import { mdxPlugin } from '@ecopages/mdx';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+  .setRootDir(appRoot)
+  .setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([mdxPlugin()])
 	.build();
 

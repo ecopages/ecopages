@@ -45,9 +45,11 @@ To enable React support, add the `reactPlugin` to your Ecopages configuration.
 import { ConfigBuilder } from '@ecopages/core';
 import { reactPlugin } from '@ecopages/react';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([reactPlugin()])
 	.build();
 
@@ -84,7 +86,7 @@ export const Counter = eco.component({
 
 ### Plain React Components
 
-Thanks to Bun's automatic bundling, you can also write standard React components just like in any other React framework.
+You can also write standard React components directly when they only need React runtime behavior and do not need Ecopages-managed dependency declarations.
 
 **This is especially useful if you are using Tailwind CSS**, as you do not need to attach specific stylesheets or declare dependencies.
 
@@ -171,9 +173,11 @@ import { ConfigBuilder } from '@ecopages/core';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([
 		reactPlugin({
 			router: ecoRouter(),

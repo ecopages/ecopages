@@ -246,14 +246,22 @@ export class DependencyResolverService {
 	private appConfig: EcoPagesAppConfig;
 	private assetProcessingService: AssetProcessingService;
 
-	constructor(
-		appConfig: EcoPagesAppConfig,
-		assetProcessingService: AssetProcessingService,
-	) {
+	/**
+	 * Creates the dependency resolver used by route and component rendering.
+	 *
+	 * @remarks
+	 * The resolver stays intentionally separate from HTML rendering so component
+	 * dependency collection, lazy trigger grouping, and processed-asset generation
+	 * can evolve without changing renderer implementations.
+	 */
+	constructor(appConfig: EcoPagesAppConfig, assetProcessingService: AssetProcessingService) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 	}
 
+	/**
+	 * Resolves one dependency path relative to the component that declared it.
+	 */
 	resolveDependencyPath(componentDir: string, pathUrl: string): string {
 		return resolveDependencyPath(componentDir, pathUrl);
 	}

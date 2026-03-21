@@ -1,10 +1,7 @@
 import path from 'node:path';
 import { getBunRuntime } from '../../utils/runtime.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants';
-import {
-	getAppBrowserBuildPlugins,
-	setupAppRuntimePlugins,
-} from '../../build/build-adapter.ts';
+import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
@@ -26,7 +23,13 @@ export interface ServerLifecycleParams {
 }
 
 /**
- * Handles server lifecycle: initialization, plugins, loaders, and file watching.
+ * Coordinates Bun-runtime server startup side effects for one app instance.
+ *
+ * @remarks
+ * This class keeps runtime-only concerns together: build-runtime bootstrapping,
+ * Bun loader registration, public asset preparation, plugin setup, and file
+ * watching. Core config/build state is expected to already be finalized before
+ * this lifecycle runs.
  */
 export class ServerLifecycle {
 	private readonly appConfig: EcoPagesAppConfig;
@@ -43,8 +46,9 @@ export class ServerLifecycle {
 	}
 
 	/**
-	 * Initializes the server's core components.
-	 * @returns The static site generator instance for use by other components
+	 * Initializes the runtime services that Bun startup depends on.
+	 *
+	 * @returns The static-site generator instance reused by the adapter.
 	 */
 	async initialize(): Promise<StaticSiteGenerator> {
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
@@ -57,8 +61,11 @@ export class ServerLifecycle {
 	}
 
 	/**
-	 * Sets up Bun loaders from config.
-	 * Note: This will be abstracted to a LoaderStrategy interface in #4 Runtime Abstraction.
+	 * Registers config-owned build loaders with Bun's runtime plugin API.
+	 *
+	 * @remarks
+	 * Bun remains responsible only for transport-level plugin registration here.
+	 * Loader ownership and composition were already finalized during config build.
 	 */
 	setupLoaders(): void {
 		const loaders = this.appConfig.loaders;
@@ -68,8 +75,12 @@ export class ServerLifecycle {
 	}
 
 	/**
-	 * Copies public directory contents to dist root.
-	 * Static files are served from root (e.g., /favicon.ico, /robots.txt).
+	 * Copies public assets into the runtime dist directory and ensures the
+	 * resolved-assets directory exists.
+	 *
+	 * @remarks
+	 * Bun serves static files from the built dist root, so public files must be in
+	 * place before request handling begins.
 	 */
 	copyPublicDir(): void {
 		try {
@@ -89,8 +100,10 @@ export class ServerLifecycle {
 	}
 
 	/**
-	 * Initializes processors and integrations.
-	 * @param options.watch - Whether watch mode is enabled
+	 * Runs runtime-only processor and integration setup for this Bun app session.
+	 *
+	 * @param options.watch Whether watch mode is enabled.
+	 * @returns The browser build plugins visible to HMR after runtime setup.
 	 */
 	async initializePlugins(options?: { watch?: boolean }): Promise<EcoBuildPlugin[]> {
 		try {
@@ -116,7 +129,8 @@ export class ServerLifecycle {
 	}
 
 	/**
-	 * Starts file watching for HMR.
+	 * Starts file watching and wires change events back into the adapter refresh
+	 * callback.
 	 */
 	async startWatching(callbacks: WatcherCallbacks): Promise<void> {
 		const watcherInstance = new ProjectWatcher({
@@ -129,6 +143,9 @@ export class ServerLifecycle {
 		await watcherInstance.createWatcherSubscription();
 	}
 
+	/**
+	 * Returns the static-site generator created during initialization.
+	 */
 	getStaticSiteGenerator(): StaticSiteGenerator {
 		return this.staticSiteGenerator;
 	}

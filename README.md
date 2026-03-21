@@ -31,6 +31,26 @@ As an early-stage project, Ecopages is evolving. Feedback welcome via [GitHub](h
 
 ## Current Features
 
+## Architecture And Docs Map
+
+The workspace now has a more explicit documentation map so architecture notes live close to the code that owns them.
+
+Start here for package-level architecture:
+
+- `packages/core/README.md`: overall core architecture and ownership model
+- `packages/core/src/config/README.md`: config build and finalized app-owned runtime state
+- `packages/core/src/plugins/README.md`: integration and processor contracts
+- `packages/core/src/build/README.md`: build adapter, executor, and dev-build coordination
+- `packages/core/src/services/README.md`: shared runtime services, dev graph, invalidation, and browser/server seams
+- `packages/core/src/adapters/README.md`: Bun and Node adapter boundaries
+- `packages/core/src/hmr/README.md`: HMR strategy layer
+- `packages/core/src/router/README.md`: route matching and browser navigation coordination
+- `packages/core/src/route-renderer/README.md`: route rendering orchestration
+- `packages/core/src/static-site-generator/README.md`: static generation flow
+- `packages/core/src/eco/README.md`: `eco` authoring primitives
+
+Architecture RFC and direction docs live under `docs/` and explain the current direction and why the core seams are shaped the way they are.
+
 ### Static Site Generation
 
 Build fast, SEO-friendly static sites with ease.
@@ -114,6 +134,8 @@ If you are iterating on examples and already rebuilt the local npm packages, pas
 
 Learn more about using Ecopages:
 `pnpm run dev:docs`
+
+For repository-local architecture notes and subsystem maps, start with the files listed in the architecture map above.
 
 ### Testing
 

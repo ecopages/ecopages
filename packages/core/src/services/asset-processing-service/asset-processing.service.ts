@@ -15,6 +15,15 @@ import {
 	NodeModuleScriptProcessor,
 } from './processors';
 
+/**
+ * Processes declared component and page asset dependencies for one app instance.
+ *
+ * @remarks
+ * This service is the shared bridge between dependency declarations and emitted
+ * runtime-ready assets. It owns deduplication, processor dispatch, cache reuse,
+ * output URL normalization, and production gzip preparation so route rendering
+ * and HMR flows do not need to understand processor-specific behavior.
+ */
 export class AssetProcessingService {
 	static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
 	private registry = new ProcessorRegistry();
@@ -22,6 +31,9 @@ export class AssetProcessingService {
 	private cache = new Map<string, { asset: ProcessedAsset }>();
 	private readonly config: EcoPagesAppConfig;
 
+	/**
+	 * Creates the asset-processing service bound to one finalized app config.
+	 */
 	constructor(config: EcoPagesAppConfig) {
 		this.config = config;
 	}
@@ -57,6 +69,14 @@ export class AssetProcessingService {
 		this.registry.register(kind, variant, processor);
 	}
 
+	/**
+	 * Processes one dependency list into normalized emitted assets.
+	 *
+	 * @remarks
+	 * Dependencies are deduplicated before processor execution so repeated
+	 * declarations across the render tree reuse the same emitted outputs and cache
+	 * entries.
+	 */
 	async processDependencies(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
 		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
 		fileSystem.ensureDir(depsDir);
@@ -68,6 +88,9 @@ export class AssetProcessingService {
 		return results;
 	}
 
+	/**
+	 * Removes duplicate dependency declarations while preserving first-seen order.
+	 */
 	private deduplicateDependencies(deps: AssetDefinition[]): AssetDefinition[] {
 		const seen = new Map<string, AssetDefinition>();
 
@@ -81,6 +104,10 @@ export class AssetProcessingService {
 		return Array.from(seen.values());
 	}
 
+	/**
+	 * Builds the cache signature fragment for script dependencies that can vary by
+	 * bundling policy.
+	 */
 	private getScriptDependencyBuildSignature(dep: AssetDefinition): string | undefined {
 		if (dep.kind !== 'script') {
 			return undefined;
@@ -100,6 +127,9 @@ export class AssetProcessingService {
 		return this.generateHash(JSON.stringify(signature));
 	}
 
+	/**
+	 * Derives the stable cache key for one dependency declaration.
+	 */
 	private getDependencyKey(dep: AssetDefinition): string {
 		const parts: string[] = [dep.kind, dep.source];
 
@@ -123,10 +153,21 @@ export class AssetProcessingService {
 		return parts.join(':');
 	}
 
+	/**
+	 * Hashes content used in dependency cache and signature keys.
+	 */
 	private generateHash(content: string): string {
 		return rapidhash(content).toString();
 	}
 
+	/**
+	 * Processes deduplicated dependencies grouped by processor type.
+	 *
+	 * @remarks
+	 * Grouping keeps cache and processor behavior isolated by asset kind/source
+	 * pair, while still allowing the overall dependency set to resolve in
+	 * parallel.
+	 */
 	private async processDependenciesParallel(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
 		const grouped = this.groupDependenciesByType(deps);
 
@@ -185,6 +226,9 @@ export class AssetProcessingService {
 		return allTypeResults.flat();
 	}
 
+	/**
+	 * Groups dependencies by processor bucket.
+	 */
 	private groupDependenciesByType(deps: AssetDefinition[]): Record<string, AssetDefinition[]> {
 		return deps.reduce(
 			(acc, dep) => {
@@ -197,6 +241,9 @@ export class AssetProcessingService {
 		);
 	}
 
+	/**
+	 * Converts a dist-local file path into its public URL.
+	 */
 	private getSrcUrl(filepath: string): string | undefined {
 		const distDir = this.config.absolutePaths.distDir;
 		if (!filepath.startsWith(distDir)) return undefined;
@@ -206,6 +253,9 @@ export class AssetProcessingService {
 		return urlPath.replace(/\\/g, '/');
 	}
 
+	/**
+	 * Normalizes the public source URL for one processed asset.
+	 */
 	private resolveProcessedAssetSrcUrl(processed: ProcessedAsset): string | undefined {
 		if (processed.srcUrl) {
 			if (this.isFilesystemPath(processed.srcUrl)) {
@@ -223,6 +273,10 @@ export class AssetProcessingService {
 		return undefined;
 	}
 
+	/**
+	 * Returns whether a value should be interpreted as a filesystem path instead
+	 * of an already-public URL.
+	 */
 	private isFilesystemPath(value: string): boolean {
 		if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('//')) {
 			return false;
@@ -240,6 +294,13 @@ export class AssetProcessingService {
 		return /^[A-Za-z]:\\/.test(value);
 	}
 
+	/**
+	 * Applies post-processing for emitted production assets.
+	 *
+	 * @remarks
+	 * Current optimization is intentionally conservative: only generated CSS and
+	 * JavaScript files inside the app dist directory are gzipped.
+	 */
 	private async optimizeDependencies(processedAssets: ProcessedAsset[]): Promise<void> {
 		if (process.env.NODE_ENV !== 'production') {
 			return;
@@ -269,19 +330,31 @@ export class AssetProcessingService {
 		}
 	}
 
+	/**
+	 * Returns the cached processed asset for a dependency key when available.
+	 */
 	private getCachedAsset(dep: AssetDefinition, depKey: string): ProcessedAsset | null {
 		const cached = this.cache.get(depKey);
 		return cached?.asset ?? null;
 	}
 
+	/**
+	 * Stores one processed asset in the dependency cache.
+	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
 		this.cache.set(depKey, { asset });
 	}
 
+	/**
+	 * Clears all cached processed assets.
+	 */
 	clearCache(): void {
 		this.cache.clear();
 	}
 
+	/**
+	 * Removes cached assets that were produced from the given file path.
+	 */
 	invalidateCacheForFile(filepath: string): void {
 		for (const [key, value] of this.cache.entries()) {
 			if (value.asset.filepath === filepath) {
@@ -290,6 +363,9 @@ export class AssetProcessingService {
 		}
 	}
 
+	/**
+	 * Creates a service prewired with the default core processors.
+	 */
 	static createWithDefaultProcessors(appConfig: EcoPagesAppConfig): AssetProcessingService {
 		const service = new AssetProcessingService(appConfig);
 
@@ -303,6 +379,9 @@ export class AssetProcessingService {
 		return service;
 	}
 
+	/**
+	 * Returns the processor registry owned by this service.
+	 */
 	getRegistry(): ProcessorRegistry {
 		return this.registry;
 	}

@@ -14,10 +14,7 @@ export class PageRequestCacheCoordinator {
 	private cacheService: PageCacheService | null;
 	private defaultCacheStrategy: CacheStrategy;
 
-	constructor(
-		cacheService: PageCacheService | null,
-		defaultCacheStrategy: CacheStrategy,
-	) {
+	constructor(cacheService: PageCacheService | null, defaultCacheStrategy: CacheStrategy) {
 		this.cacheService = cacheService;
 		this.defaultCacheStrategy = defaultCacheStrategy;
 	}

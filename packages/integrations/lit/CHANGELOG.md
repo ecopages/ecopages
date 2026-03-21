@@ -6,20 +6,18 @@ All notable changes to `@ecopages/lit` are documented here.
 
 ## [UNRELEASED] — TBD
 
-### Bug Fixes
-
-- Stopped re-executing the global Lit hydrate-support bootstrap on every browser-router navigation, preventing duplicate module declaration errors during head swaps.
-
 ### Features
 
-- Aligned Lit renderer with full orchestration mode — removed legacy rendering path (`fc07bdb0`).
-- Integration updated to work with the new lazy dependency map and global injector rendering mode.
+- Aligned Lit with the unified orchestration pipeline and the shared lazy dependency and global injector flow.
+
+### Bug Fixes
+
+- Prevented the shared Lit hydrate-support bootstrap from re-running on every browser-router navigation.
 
 ### Refactoring
 
-- Ambient module declarations cleaned up (`5f46ecc5`).
-- Updated test suite for esbuild adapter and Node.js runtime compatibility (`31a44458`).
+- Cleaned up ambient module declarations.
 
 ### Tests
 
-- Updated integration tests to the new orchestration model.
+- Updated integration coverage for the orchestration pipeline and Node and esbuild compatibility.

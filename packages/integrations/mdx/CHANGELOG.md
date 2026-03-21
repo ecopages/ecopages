@@ -6,33 +6,28 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 ## [UNRELEASED] — TBD
 
-### Bug Fixes
-
-- Use Node-compatible `source-map` interop in the MDX loader so native Node host startup does not fail.
-
-- Fixed standalone MDX `.md` routes compiling in plain-markdown mode when `extensions: ['.md']` is enabled. Opted-in `.md` files are now parsed as MDX, so top-level `import` and `export` statements work as expected.
-- Fixed standalone MDX loader registration to respect configured extensions, so `mdxPlugin({ extensions: ['.md'] })` no longer hijacks React `.mdx` page bundles during shared dev/HMR builds.
-
 ### Features
 
-- **Decoupled from React** — The MDX integration now works as a standalone, runtime-agnostic integration. React dependencies have been removed; MDX routes are server-rendered without requiring the React integration (`4d5474a4`).
-- **Async MDX compilation** — The MDX loader plugin now compiles MDX files asynchronously, improving compatibility with async remark/rehype plugins (`9e879dbe`).
-- **Updated type definitions** — Plugin options are more precisely typed to clarify server-rendered MDX route configuration.
+- Made the MDX integration standalone so MDX routes can server-render without requiring the React integration.
+- Switched MDX compilation to the async pipeline for async remark and rehype plugin support.
+
+### Bug Fixes
+
+- Fixed configured `.md` extensions to compile as MDX instead of plain markdown so top-level `import` and `export` statements work when `.md` is opted in.
+- Fixed loader registration to respect configured extensions so standalone MDX no longer hijacks React `.mdx` pages during shared development and build flows.
+- Fixed native Node startup compatibility by using Node-safe `source-map` interop.
 
 ### Refactoring
 
-- Removed unused HMR strategy and renderer files that were React-specific.
-- README updated to document standalone MDX usage without React.
-- Ambient module declarations cleaned up (`5f46ecc5`).
-- Aligned with full orchestration mode (`fc07bdb0`).
+- Removed the React-specific renderer and HMR code from the package and aligned MDX with the unified orchestration pipeline.
 
 ### Documentation
 
-- README updated to clarify the integration is now usable without the React integration.
+- Updated the README for standalone MDX registration and the current integration setup.
 
 ---
 
 ## Migration Notes
 
-- If you were using `@ecopages/mdx` together with `@ecopages/react` for MDX routes, the two integrations must now be registered separately. MDX handles server rendering; React handles client hydration.
-- The `useReact` option and React-specific HMR hooks have been removed.
+- Register `@ecopages/mdx` and `@ecopages/react` separately when you want MDX server rendering together with React client hydration.
+- The previous React-specific MDX path, including `useReact` and the React-specific HMR hooks, has been removed.

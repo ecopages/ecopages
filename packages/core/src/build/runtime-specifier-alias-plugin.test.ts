@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
+import type { EcoBuildOnResolveResult } from './build-types.ts';
 import { createRuntimeSpecifierAliasPlugin } from './runtime-specifier-alias-plugin.ts';
 
 test('createRuntimeSpecifierAliasPlugin resolves mapped specifiers as externals', async () => {
 	const registrations: Array<{
 		filter: RegExp;
-		callback: (args: { path: string }) => { path?: string; external?: boolean } | undefined;
+		callback: (args: { path: string }) =>
+			| EcoBuildOnResolveResult
+			| undefined
+			| Promise<EcoBuildOnResolveResult | undefined>;
 	}> = [];
 	const plugin = createRuntimeSpecifierAliasPlugin(
 		{
@@ -28,11 +32,11 @@ test('createRuntimeSpecifierAliasPlugin resolves mapped specifiers as externals'
 
 	assert.equal(registrations.length, 1);
 	assert.equal(registrations[0]?.filter.test('react'), true);
-	assert.deepEqual(registrations[0]?.callback({ path: 'react' }), {
+	assert.deepEqual(await registrations[0]?.callback({ path: 'react' }), {
 		path: '/assets/vendors/react.js',
 		external: true,
 	});
-	assert.equal(registrations[0]?.callback({ path: 'unknown' }), undefined);
+	assert.equal(await registrations[0]?.callback({ path: 'unknown' }), undefined);
 });
 
 test('createRuntimeSpecifierAliasPlugin returns null for an empty specifier map', () => {

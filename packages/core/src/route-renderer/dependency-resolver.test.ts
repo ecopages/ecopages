@@ -326,7 +326,7 @@ describe('DependencyResolverService', () => {
 				file: '/app/views/page.tsx',
 			},
 			dependencies: {
-				components: [undefined, nestedComponent],
+				components: [undefined, nestedComponent] as unknown as EcoComponent[],
 			},
 		};
 

@@ -273,7 +273,7 @@ describe('eco namespace', () => {
 
 		test('should share render context across duplicated module instances', async () => {
 			const duplicateModule =
-				(await import('./component-render-context.ts?duplicate-instance')) as typeof import('./component-render-context.ts');
+				(await import('./component-render-context.ts?duplicate-instance' as string)) as typeof import('./component-render-context.ts');
 
 			const execution = await runWithComponentRenderContext(
 				{

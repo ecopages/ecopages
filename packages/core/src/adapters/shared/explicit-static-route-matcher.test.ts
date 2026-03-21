@@ -238,7 +238,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const view = (() => '<div>Test</div>') as EcoPageComponent<any>;
 			view.config = {
 				integration: 'ghtml',
-				__eco: { id: 'test', file: '/test/-view.ts' },
+				__eco: { id: 'test', file: '/test/-view.ts', integration: 'ghtml' },
 			};
 
 			const mockResponse = new Response('<html>Test</html>');

@@ -13,7 +13,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy';
 import { appLogger } from '../../global/app-logger';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import type { BrowserBundleService } from '../../services/browser-bundle.service.ts';
+import type { BrowserBundleExecutor } from '../../services/browser-bundle.service.ts';
 import type { DevGraphService } from '../../services/dev-graph.service.ts';
 
 /**
@@ -51,7 +51,7 @@ export interface JsHmrContext {
 	/**
 	 * Browser bundler used to rebuild changed entrypoints.
 	 */
-	getBrowserBundleService(): BrowserBundleService;
+	getBrowserBundleService(): BrowserBundleExecutor;
 
 	/**
 	 * Returns whether a watched entrypoint should be rebuilt by the generic JS strategy.

@@ -177,6 +177,9 @@ describe('JsHmrStrategy', () => {
 					},
 					clearEntrypointDependencies: (entrypointPath: string) =>
 						devGraphService.clearEntrypointDependencies(entrypointPath),
+					getServerInvalidationVersion: () => devGraphService.getServerInvalidationVersion(),
+					invalidateServerModules: (changedFiles?: string[]) =>
+						devGraphService.invalidateServerModules(changedFiles),
 					reset: () => devGraphService.reset(),
 				}),
 			});

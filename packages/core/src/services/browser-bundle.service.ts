@@ -1,4 +1,5 @@
 import type { BuildOptions, BuildResult, BuildTranspileProfile } from '../build/build-adapter.ts';
+import type { EcoBuildPlugin } from '../build/build-types.ts';
 import { getAppBrowserBuildPlugins, getAppBuildExecutor, getTranspileOptions } from '../build/build-adapter.ts';
 import { mergeEcoBuildPlugins } from '../build/build-manifest.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
@@ -6,6 +7,10 @@ import type { EcoPagesAppConfig } from '../internal-types.ts';
 export type BrowserBundleOptions = Omit<BuildOptions, 'target' | 'format' | 'sourcemap'> & {
 	profile: BuildTranspileProfile;
 };
+
+export interface BrowserBundleExecutor {
+	bundle(options: BrowserBundleOptions): Promise<BuildResult>;
+}
 
 /**
  * App-owned boundary for browser-oriented bundle work.
@@ -15,7 +20,7 @@ export type BrowserBundleOptions = Omit<BuildOptions, 'target' | 'format' | 'sou
  * builds always run through the app-owned executor rather than direct backend
  * calls scattered across HMR and asset processing paths.
  */
-export class BrowserBundleService {
+export class BrowserBundleService implements BrowserBundleExecutor {
 	private readonly appConfig: EcoPagesAppConfig;
 
 	/**
@@ -34,12 +39,15 @@ export class BrowserBundleService {
 	 * site.
 	 */
 	async bundle(options: BrowserBundleOptions): Promise<BuildResult> {
-		const { profile, ...buildOptions } = options;
-
-		return await getAppBuildExecutor(this.appConfig).build({
+		const { profile, ...rawBuildOptions } = options;
+		const buildOptions = rawBuildOptions as Omit<BuildOptions, 'target' | 'format' | 'sourcemap'>;
+		const plugins = buildOptions.plugins as EcoBuildPlugin[] | undefined;
+		const request = {
 			...buildOptions,
 			...getTranspileOptions(profile),
-			plugins: mergeEcoBuildPlugins(buildOptions.plugins, getAppBrowserBuildPlugins(this.appConfig)),
-		});
+			plugins: mergeEcoBuildPlugins(plugins, getAppBrowserBuildPlugins(this.appConfig)),
+		} as BuildOptions;
+
+		return await getAppBuildExecutor(this.appConfig).build(request);
 	}
 }

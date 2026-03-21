@@ -279,7 +279,7 @@ export class DependencyResolverService {
 	 * Lazy dependencies are always resolved into global-injector trigger maps.
 	 */
 	async processComponentDependencies(
-		components: (EcoComponent | Partial<EcoComponent>)[],
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 	): Promise<ProcessedAsset[]> {
 		if (!this.assetProcessingService?.processDependencies) return [];

@@ -10,7 +10,6 @@ import {
 	setAppBuildExecutor,
 	setupAppRuntimePlugins,
 } from '../../build/build-adapter.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { createOrReuseAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';

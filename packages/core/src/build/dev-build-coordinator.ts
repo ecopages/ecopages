@@ -33,11 +33,15 @@ class BuildExecutorWithPlugins implements BuildExecutor {
 	async build(options: BuildOptions): Promise<BuildResult> {
 		return await this.executor.build(mergeBuildPlugins(options, this.getPlugins()));
 	}
+
+	unwrap(): BuildExecutor {
+		return this.executor;
+	}
 }
 
 function unwrapBuildExecutor(executor: BuildExecutor): BuildExecutor {
 	if (executor instanceof BuildExecutorWithPlugins) {
-		return unwrapBuildExecutor(executor.executor);
+		return unwrapBuildExecutor(executor.unwrap());
 	}
 
 	return executor;

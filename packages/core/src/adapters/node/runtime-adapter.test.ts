@@ -1044,7 +1044,8 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 		});
 	} finally {
 		if (session) {
-			await assert.doesNotReject(() => session.dispose());
+			const activeSession = session;
+			await assert.doesNotReject(() => activeSession.dispose());
 		}
 		fs.rmSync(projectDir, { recursive: true, force: true });
 	}

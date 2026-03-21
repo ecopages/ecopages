@@ -51,10 +51,15 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 		return integration.initializeRenderer();
 	};
 
-	return {
-		async render<P>(view: EcoComponent<P>, props: P, renderOptions?: RenderOptions): Promise<Response> {
+	const renderContext: RenderContext = {
+		async render<P>(
+			this: { locals?: Record<string, unknown> } | undefined,
+			view: EcoComponent<P>,
+			props?: P,
+			renderOptions?: RenderOptions,
+		): Promise<Response> {
 			const locals = (this as { locals?: Record<string, unknown> } | undefined)?.locals;
-			const mergedProps = mergePropsWithLocals(props, locals);
+			const mergedProps = mergePropsWithLocals<P>(props ?? ({} as P), locals);
 
 			const renderer = getRendererForView(view);
 			const ctx: RenderToResponseContext = {
@@ -65,9 +70,14 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 			return renderer.renderToResponse(view, mergedProps, ctx);
 		},
 
-		async renderPartial<P>(view: EcoComponent<P>, props: P, renderOptions?: RenderOptions): Promise<Response> {
+		async renderPartial<P>(
+			this: { locals?: Record<string, unknown> } | undefined,
+			view: EcoComponent<P>,
+			props: P,
+			renderOptions?: RenderOptions,
+		): Promise<Response> {
 			const locals = (this as { locals?: Record<string, unknown> } | undefined)?.locals;
-			const mergedProps = mergePropsWithLocals(props, locals);
+			const mergedProps = mergePropsWithLocals<P>(props, locals);
 
 			const renderer = getRendererForView(view);
 			const ctx: RenderToResponseContext = {
@@ -102,4 +112,6 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 			});
 		},
 	};
+
+	return renderContext;
 }

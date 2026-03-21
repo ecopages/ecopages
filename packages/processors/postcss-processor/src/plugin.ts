@@ -446,14 +446,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		} else if (loadedPlugins) {
 			this.pluginFactories = undefined;
 			this.postcssPlugins = loadedPlugins;
-		} else if (this.options?.pluginFactories) {
-			logger.debug('Using PostCSS plugin factories provided in processor options.');
-			this.pluginFactories = this.options.pluginFactories;
-			this.postcssPlugins = this.materializePluginFactories(this.options.pluginFactories);
-		} else if (this.options?.plugins) {
-			logger.debug('Using PostCSS plugins provided in processor options.');
-			this.pluginFactories = undefined;
-			this.postcssPlugins = Object.values(this.options.plugins);
+		} else if (this.options?.pluginFactories || this.options?.plugins) {
+			this.pluginFactories = this.options?.pluginFactories;
+
+			if (this.options?.plugins) {
+				logger.debug('Using PostCSS plugins provided in processor options.');
+				this.postcssPlugins = Object.values(this.options.plugins);
+			} else if (this.options?.pluginFactories) {
+				logger.debug('Using PostCSS plugin factories provided in processor options.');
+				this.postcssPlugins = this.materializePluginFactories(this.options.pluginFactories);
+			}
 		} else {
 			logger.warn(
 				'No PostCSS plugins configured. Use a preset like tailwindV3Preset() or tailwindV4Preset(), ' +
@@ -476,7 +478,12 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 * @returns Processed CSS
 	 */
 	async process(fileAsString: string, filePath?: string): Promise<string> {
-		return await PostCssProcessor.processStringOrBuffer(fileAsString, {
+		const input =
+			this.options?.transformInput && filePath
+				? await this.options.transformInput(fileAsString, filePath)
+				: fileAsString;
+
+		return await PostCssProcessor.processStringOrBuffer(input, {
 			filePath,
 			plugins: this.postcssPlugins,
 			transformOutput: this.options?.transformOutput,
@@ -484,7 +491,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	processSync(fileAsString: string, filePath?: string): string {
-		return PostCssProcessor.processStringOrBufferSync(fileAsString, {
+		const input =
+			this.options?.transformInput && filePath
+				? this.options.transformInput(fileAsString, filePath)
+				: fileAsString;
+
+		if (input instanceof Promise) {
+			throw new Error('transformInput must be synchronous when used with processSync');
+		}
+
+		return PostCssProcessor.processStringOrBufferSync(input, {
 			filePath,
 			plugins: this.postcssPlugins,
 			transformOutput: this.options?.transformOutput,

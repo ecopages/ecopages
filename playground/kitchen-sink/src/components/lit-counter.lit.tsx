@@ -5,7 +5,13 @@ import type { LitCounterProps } from './lit-counter.script';
 export const LitCounter = eco.component<LitCounterProps, EcoPagesElement>({
 	integration: 'lit',
 	dependencies: {
-		scripts: ['./lit-counter.script.ts'],
+		scripts: [
+			{
+				lazy: { 'on:interaction': 'click,mouseenter,focusin' },
+				src: './lit-counter.script.ts',
+				ssr: true,
+			},
+		],
 	},
 	render: ({ count = 0 }) => <lit-counter count={count}></lit-counter>,
 });

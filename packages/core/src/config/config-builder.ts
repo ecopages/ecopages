@@ -4,7 +4,12 @@
  */
 
 import path from 'node:path';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
+import {
+	DEFAULT_ECOPAGES_DIST_DIR,
+	DEFAULT_ECOPAGES_HOSTNAME,
+	DEFAULT_ECOPAGES_PORT,
+	DEFAULT_ECOPAGES_WORK_DIR,
+} from '../constants.ts';
 import {
 	collectConfiguredAppBuildManifestContributions,
 	createBuildAdapter,
@@ -120,7 +125,7 @@ export class ConfigBuilder {
 		},
 		integrations: [],
 		integrationsDependencies: [],
-		distDir: '.eco',
+		distDir: DEFAULT_ECOPAGES_DIST_DIR,
 		defaultMetadata: {
 			title: 'Ecopages',
 			description: 'This is a static site generated with Ecopages',
@@ -131,6 +136,7 @@ export class ConfigBuilder {
 			config: '',
 			componentsDir: '',
 			distDir: '',
+			workDir: '',
 			includesDir: '',
 			layoutsDir: '',
 			pagesDir: '',
@@ -142,6 +148,7 @@ export class ConfigBuilder {
 		},
 		processors: new Map(),
 		loaders: new Map(),
+		workDir: DEFAULT_ECOPAGES_WORK_DIR,
 	};
 
 	/**
@@ -267,11 +274,27 @@ export class ConfigBuilder {
 	/**
 	 * Sets the output directory for the built application.
 	 *
-	 * @param distDir - The distribution directory name (default: '.eco')
+	 * @param distDir - The distribution directory name (default: 'dist')
 	 * @returns The ConfigBuilder instance for method chaining
 	 */
 	setDistDir(distDir: string): this {
 		this.config.distDir = distDir;
+		return this;
+	}
+
+	/**
+	 * Sets the internal work directory for runtime-only artifacts.
+	 *
+	 * @remarks
+	 * Use this when deployable output should stay clean while Ecopages still
+	 * needs a separate workspace for server transpilation caches, runtime
+	 * manifests, and other internal build products.
+	 *
+	 * @param workDir - The internal work directory name
+	 * @returns The ConfigBuilder instance for method chaining
+	 */
+	setWorkDir(workDir: string): this {
+		this.config.workDir = workDir;
 		return this;
 	}
 
@@ -379,12 +402,13 @@ export class ConfigBuilder {
 	}
 
 	private createAbsolutePaths(config: EcoPagesAppConfig): this {
-		const { srcDir, componentsDir, includesDir, layoutsDir, pagesDir, publicDir, distDir } = config;
+		const { srcDir, componentsDir, includesDir, layoutsDir, pagesDir, publicDir, distDir, workDir } = config;
 
 		const projectDir = config.rootDir;
 
 		const absoluteSrcDir = path.resolve(projectDir, srcDir);
 		const absoluteDistDir = path.resolve(projectDir, distDir);
+		const absoluteWorkDir = path.resolve(projectDir, workDir);
 
 		const absoluteIncludesDir = path.join(absoluteSrcDir, includesDir);
 		const absolutePagesDir = path.join(absoluteSrcDir, pagesDir);
@@ -394,6 +418,7 @@ export class ConfigBuilder {
 			projectDir: projectDir,
 			srcDir: absoluteSrcDir,
 			distDir: absoluteDistDir,
+			workDir: absoluteWorkDir,
 			componentsDir: path.join(absoluteSrcDir, componentsDir),
 			includesDir: absoluteIncludesDir,
 			layoutsDir: path.join(absoluteSrcDir, layoutsDir),

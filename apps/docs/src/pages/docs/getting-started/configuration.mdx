@@ -83,8 +83,13 @@ Ecopages now discovers the document shell and 404 page semantically:
 
 No template filename setter is required in `eco.config.ts`.
 
-<ApiField name="distDir" type="string" defaultValue=".eco" setter="setDistDir">
+
+<ApiField name="distDir" type="string" defaultValue="dist" setter="setDistDir">
 	The output directory for the built files.
+</ApiField>
+
+<ApiField name="workDir" type="string" defaultValue=".eco" setter="setWorkDir">
+	The internal workspace used for development and runtime-only artifacts. This directory is not intended for deployment.
 </ApiField>
 
 <ApiField name="componentsDir" type="string" defaultValue="components" setter="setComponentsDir">

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { getAppBuildExecutor } from '../../build/build-adapter.ts';
+import { createNodeBootstrapPlugin } from '../node/bootstrap-dependency-resolver.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, MatchResult } from '../../internal-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
@@ -9,6 +10,7 @@ import type { CacheStrategy, RenderResult } from '../../services/cache/cache.typ
 import { PageRequestCacheCoordinator } from '../../services/page-request-cache-coordinator.service.ts';
 import { DevelopmentInvalidationService } from '../../services/development-invalidation.service.ts';
 import { ServerModuleTranspiler } from '../../services/server-module-transpiler.service.ts';
+import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
 import type { Middleware, RequestLocals } from '../../public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
@@ -196,7 +198,19 @@ export class FileSystemResponseMatcher {
 	private async importPageModule(filePath: string): Promise<unknown> {
 		return this.serverModuleTranspiler.importModule({
 			filePath,
-			outdir: path.join(this.router.assetPrefix, '.server-modules-meta'),
+			outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules-meta'),
+			plugins:
+				typeof Bun === 'undefined'
+					? [
+							createNodeBootstrapPlugin({
+								projectDir: this.appConfig.rootDir,
+								runtimeNodeModulesDir: path.join(
+									resolveInternalExecutionDir(this.appConfig),
+									'node_modules',
+								),
+							}),
+						]
+					: undefined,
 			transpileErrorMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.transpilePageModuleFailed,
 			noOutputMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.noTranspiledOutputForPageModule,
 		});

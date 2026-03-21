@@ -26,7 +26,8 @@ describe('node-thin-host', () => {
 					runtime: 'node',
 					appRootDir: '/repo',
 					sourceRootDir: '/repo/src',
-					distDir: '/repo/.eco',
+					distDir: '/repo/dist',
+					workDir: '/repo/.eco',
 					modulePaths: {
 						config: '/repo/eco.config.ts',
 						entry: '/repo/app.ts',
@@ -45,7 +46,7 @@ describe('node-thin-host', () => {
 						externalPackages: true,
 					},
 					browserBundles: {
-						outputDir: '/repo/.eco/assets',
+						outputDir: '/repo/dist/assets',
 						publicBaseUrl: '/assets',
 						vendorBaseUrl: '/assets/vendors',
 					},
@@ -74,7 +75,8 @@ describe('node-thin-host', () => {
 			runtime: 'node',
 			appRootDir: '/repo',
 			sourceRootDir: '/repo/src',
-			distDir: '/repo/.eco',
+			distDir: '/repo/dist',
+			workDir: '/repo/.eco',
 			modulePaths: {
 				config: '/repo/eco.config.ts',
 				entry: '/repo/app.ts',
@@ -93,7 +95,7 @@ describe('node-thin-host', () => {
 				externalPackages: true,
 			},
 			browserBundles: {
-				outputDir: '/repo/.eco/assets',
+				outputDir: '/repo/dist/assets',
 				publicBaseUrl: '/assets',
 				vendorBaseUrl: '/assets/vendors',
 			},
@@ -134,7 +136,8 @@ describe('node-thin-host', () => {
 			runtime: 'node',
 			appRootDir: '/repo',
 			sourceRootDir: '/repo/src',
-			distDir: '/repo/.eco',
+			distDir: '/repo/dist',
+			workDir: '/repo/.eco',
 			modulePaths: {
 				config: '/repo/eco.config.ts',
 				entry: '/repo/app.ts',
@@ -153,7 +156,7 @@ describe('node-thin-host', () => {
 				externalPackages: true,
 			},
 			browserBundles: {
-				outputDir: '/repo/.eco/assets',
+				outputDir: '/repo/dist/assets',
 				publicBaseUrl: '/assets',
 				vendorBaseUrl: '/assets/vendors',
 			},
@@ -201,7 +204,8 @@ describe('node-thin-host', () => {
 			runtime: 'node',
 			appRootDir: '/repo',
 			sourceRootDir: '/repo/src',
-			distDir: '/repo/.eco',
+			distDir: '/repo/dist',
+			workDir: '/repo/.eco',
 			modulePaths: {
 				config: '/repo/eco.config.ts',
 				entry: '/repo/app.ts',
@@ -220,7 +224,7 @@ describe('node-thin-host', () => {
 				externalPackages: true,
 			},
 			browserBundles: {
-				outputDir: '/repo/.eco/assets',
+				outputDir: '/repo/dist/assets',
 				publicBaseUrl: '/assets',
 				vendorBaseUrl: '/assets/vendors',
 			},

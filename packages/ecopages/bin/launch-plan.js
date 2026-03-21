@@ -10,6 +10,7 @@ const NODE_THIN_HOST_PATH = fileURLToPath(new URL('./node-thin-host.js', import.
 const NODE_RUNTIME_MANIFEST_WRITER_PATH = fileURLToPath(
 	new URL('../../core/src/adapters/node/write-runtime-manifest.ts', import.meta.url),
 );
+const DEFAULT_INTERNAL_WORK_DIR = '.eco';
 
 export function buildEnvOverrides(options) {
 	const env = {};
@@ -75,11 +76,16 @@ export function buildNodeArgs(args, options, entryFile) {
 }
 
 export function resolveNodeRuntimeManifestPath(projectDir = process.cwd()) {
-	return path.join(path.resolve(projectDir), '.eco', 'runtime', 'node-runtime-manifest.json');
+	return path.join(path.resolve(projectDir), DEFAULT_INTERNAL_WORK_DIR, 'runtime', 'node-runtime-manifest.json');
 }
 
 export function resolveNodeRuntimeManifestWriterBundlePath(projectDir = process.cwd()) {
-	return path.join(path.resolve(projectDir), '.eco', 'runtime', 'node-runtime-manifest-writer.mjs');
+	return path.join(
+		path.resolve(projectDir),
+		DEFAULT_INTERNAL_WORK_DIR,
+		'runtime',
+		'node-runtime-manifest-writer.mjs',
+	);
 }
 
 function getEsbuildLoaderForPath(filePath) {

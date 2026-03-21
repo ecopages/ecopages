@@ -3,13 +3,24 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import type { EcoBuildOnResolveArgs, EcoBuildOnResolveResult, EcoBuildPlugin } from '../../build/build-types.ts';
 import type { NodeRuntimeManifest } from '../../services/node-runtime-manifest.service.ts';
+import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
 /**
  * Returns the runtime-local node_modules directory used by the Node thin-host
  * bootstrap output.
  */
 export function getNodeRuntimeNodeModulesDir(manifest: NodeRuntimeManifest): string {
-	return path.join(manifest.distDir, 'node_modules');
+	return path.join(
+		resolveInternalExecutionDir({
+			rootDir: manifest.appRootDir,
+			workDir: manifest.workDir,
+			absolutePaths: {
+				workDir: manifest.workDir,
+				distDir: manifest.distDir,
+			},
+		}),
+		'node_modules',
+	);
 }
 
 /**
@@ -123,11 +134,14 @@ const REEXPORT_FROM_STATEMENT_PATTERN =
 function injectBootstrapReexportImports(source: string): string {
 	const sideEffectImports: string[] = [];
 	const importedSpecifiers = new Set<string>();
+	let importIndex = 0;
 
 	const rewrittenSource = source.replace(REEXPORT_FROM_STATEMENT_PATTERN, (statement, specifierLiteral: string) => {
 		if (!importedSpecifiers.has(specifierLiteral)) {
 			importedSpecifiers.add(specifierLiteral);
-			sideEffectImports.push(`import ${specifierLiteral};`);
+			const importBinding = `__eco_bootstrap_reexport_${importIndex++}`;
+			sideEffectImports.push(`import * as ${importBinding} from ${specifierLiteral};`);
+			sideEffectImports.push(`void ${importBinding};`);
 		}
 
 		return statement;

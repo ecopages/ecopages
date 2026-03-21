@@ -10,6 +10,7 @@ export interface PageModuleImportOptions {
 	outdir: string;
 	buildExecutor?: BuildExecutor;
 	invalidationVersion?: number;
+	splitting?: boolean;
 	externalPackages?: boolean;
 	plugins?: EcoBuildPlugin[];
 	transpileErrorMessage?: (details: string) => string;
@@ -65,7 +66,7 @@ export class PageModuleImportService {
 	 * @returns The loaded module.
 	 */
 	async importModule<T = unknown>(options: PageModuleImportOptions): Promise<T> {
-		const { filePath, rootDir, externalPackages } = options;
+		const { filePath, rootDir, externalPackages, splitting } = options;
 		const invalidationVersion =
 			options.invalidationVersion ?? PageModuleImportService.developmentInvalidationVersion;
 
@@ -75,6 +76,7 @@ export class PageModuleImportService {
 			runtime,
 			filePath,
 			rootDir,
+			splitting ?? 'default',
 			externalPackages ?? 'default',
 			fileHash,
 			invalidationVersion,
@@ -115,6 +117,7 @@ export class PageModuleImportService {
 			rootDir,
 			outdir,
 			invalidationVersion = PageModuleImportService.developmentInvalidationVersion,
+			splitting,
 			externalPackages,
 			transpileErrorMessage = (details) => `Error transpiling page module: ${details}`,
 			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
@@ -142,7 +145,7 @@ export class PageModuleImportService {
 				target: 'node',
 				format: 'esm',
 				sourcemap: 'none',
-				splitting: true,
+				splitting: splitting ?? true,
 				minify: false,
 				naming: outputFileName,
 				externalPackages: true,

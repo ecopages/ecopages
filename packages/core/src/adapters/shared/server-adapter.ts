@@ -18,6 +18,7 @@ import { createRequire } from '../../utils/locals-utils.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { ApiResponseBuilder } from './api-response.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import { fileSystem } from '@ecopages/file-system';
 import type {
 	ApiHandler,
 	ApiHandlerContext,
@@ -419,9 +420,19 @@ export abstract class SharedServerAdapter<
 
 		if (url.pathname === '/_hmr_runtime.js' && context.hmrManager) {
 			const runtimePath = context.hmrManager.getRuntimePath();
-			const fileSystem = (await import('@ecopages/file-system')).fileSystem;
 			if (fileSystem.exists(runtimePath)) {
 				return new Response(fileSystem.readFileAsBuffer(runtimePath) as BodyInit, {
+					headers: { 'Content-Type': 'application/javascript' },
+				});
+			}
+		}
+
+		if (url.pathname.startsWith('/assets/_hmr/') && context.hmrManager) {
+			const relativePath = url.pathname.slice('/assets/_hmr/'.length);
+			const assetPath = path.join(context.hmrManager.getDistDir(), relativePath);
+
+			if (fileSystem.exists(assetPath)) {
+				return new Response(fileSystem.readFileAsBuffer(assetPath) as BodyInit, {
 					headers: { 'Content-Type': 'application/javascript' },
 				});
 			}

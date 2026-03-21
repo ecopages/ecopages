@@ -46,6 +46,10 @@ describe('EcoConfigBuilder', () => {
 	test('should set default baseUrl it is not set', async () => {
 		const config = await builder.setRootDir('/project').build();
 		expect(config.baseUrl).toBe(`http://${DEFAULT_ECOPAGES_HOSTNAME}:${DEFAULT_ECOPAGES_PORT}`);
+		expect(config.distDir).toBe('dist');
+		expect(config.workDir).toBe('.eco');
+		expect(config.absolutePaths.distDir).toBe(path.join('/project', 'dist'));
+		expect(config.absolutePaths.workDir).toBe(path.join('/project', '.eco'));
 	});
 
 	test('should create a dedicated build adapter and executor per app config', async () => {
@@ -207,6 +211,7 @@ describe('EcoConfigBuilder', () => {
 			.setLayoutsDir('custom-layouts')
 			.setPublicDir('custom-public')
 			.setDistDir('custom-dist')
+			.setWorkDir('custom-work')
 			.build();
 
 		expect(config.srcDir).toBe('custom-src');
@@ -216,6 +221,8 @@ describe('EcoConfigBuilder', () => {
 		expect(config.layoutsDir).toBe('custom-layouts');
 		expect(config.publicDir).toBe('custom-public');
 		expect(config.distDir).toBe('custom-dist');
+		expect(config.workDir).toBe('custom-work');
+		expect(config.absolutePaths.workDir).toBe(path.join('/project', 'custom-work'));
 	});
 
 	test('should derive semantic html and 404 template paths', async () => {

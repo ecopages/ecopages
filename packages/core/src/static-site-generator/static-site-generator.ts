@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { getAppBuildExecutor } from '../build/build-adapter.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { EcoPageComponent, StaticRoute } from '../public-types.ts';
@@ -51,7 +52,14 @@ export class StaticSiteGenerator {
 	 * Returns the transpiler output directory used for static page-module probes.
 	 */
 	private getStaticPageModuleOutdir(): string {
-		return path.join(this.appConfig.rootDir, this.appConfig.distDir, '.server-static-page-modules');
+		const workDir =
+			this.appConfig.absolutePaths?.workDir ??
+			path.join(this.appConfig.rootDir, this.appConfig.workDir ?? DEFAULT_ECOPAGES_WORK_DIR);
+		return path.join(workDir, '.server-static-page-modules');
+	}
+
+	private getExportDir(): string {
+		return this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
 	}
 
 	/**
@@ -114,8 +122,8 @@ export class StaticSiteGenerator {
 			data += '\n';
 		}
 
-		fileSystem.ensureDir(this.appConfig.distDir);
-		fileSystem.write(`${this.appConfig.distDir}/robots.txt`, data);
+		fileSystem.ensureDir(this.getExportDir());
+		fileSystem.write(path.join(this.getExportDir(), 'robots.txt'), data);
 	}
 
 	/**
@@ -184,7 +192,7 @@ export class StaticSiteGenerator {
 		const directories = this.getDirectories(routes);
 
 		for (const directory of directories) {
-			fileSystem.ensureDir(path.join(this.appConfig.rootDir, this.appConfig.distDir, directory));
+			fileSystem.ensureDir(path.join(this.getExportDir(), directory));
 		}
 
 		for (const route of routes) {
@@ -259,7 +267,7 @@ export class StaticSiteGenerator {
 					pathname += '.html';
 				}
 
-				const outputPath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname);
+				const outputPath = path.join(this.getExportDir(), pathname);
 				fileSystem.write(outputPath, contents);
 			} catch (error) {
 				appLogger.error(
@@ -449,7 +457,7 @@ export class StaticSiteGenerator {
 			outputName = `${routePath}.html`;
 		}
 
-		return path.join(this.appConfig.rootDir, this.appConfig.distDir, outputName);
+		return path.join(this.getExportDir(), outputName);
 	}
 }
 

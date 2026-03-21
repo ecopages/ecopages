@@ -232,11 +232,15 @@ test('createNodeBootstrapPlugin injects side-effect imports for project re-expor
 				? String((result as { contents: string }).contents)
 				: '';
 
-		assert.match(contents, /^import '\.\/base-layout\.kita';/m);
+		assert.match(contents, /^import \* as __eco_bootstrap_reexport_0 from '\.\/base-layout\.kita';/m);
+		assert.match(contents, /^void __eco_bootstrap_reexport_0;$/m);
 		assert.match(contents, /export \* from '\.\/base-layout\.kita';/);
 		assert.match(contents, /export \{ BaseLayout \} from '\.\/base-layout\.kita';/);
 		assert.match(contents, /export type \{ BaseLayoutProps \} from '\.\/base-layout\.kita';/);
-		assert.equal(contents.match(/import '\.\/base-layout\.kita';/g)?.length, 1);
+		assert.equal(
+			contents.match(/import \* as __eco_bootstrap_reexport_0 from '\.\/base-layout\.kita';/g)?.length,
+			1,
+		);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}

@@ -18,6 +18,7 @@ import { DevelopmentInvalidationService } from '../../services/development-inval
 import { getAppDevGraphService, NoopDevGraphService, setAppDevGraphService } from '../../services/dev-graph.service.ts';
 import { getAppRuntimeSpecifierRegistry } from '../../services/runtime-specifier-registry.service.ts';
 import { ServerModuleTranspiler } from '../../services/server-module-transpiler.service.ts';
+import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 
 type BunSocket = ServerWebSocket<unknown>;
 type BunSocketHandler = WebSocketHandler<unknown>;
@@ -65,7 +66,7 @@ export class HmrManager implements IHmrManager {
 	constructor({ appConfig, bridge }: HmrManagerParams) {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
-		this.distDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, '_hmr');
+		this.distDir = path.join(resolveInternalWorkDir(this.appConfig), RESOLVED_ASSETS_DIR, '_hmr');
 		this.entrypointRegistrar = new HmrEntrypointRegistrar({
 			srcDir: this.appConfig.absolutePaths.srcDir,
 			distDir: this.distDir,
@@ -296,7 +297,7 @@ export class HmrManager implements IHmrManager {
 			importServerModule: async <T>(filePath: string) =>
 				await this.serverModuleTranspiler.importModule<T>({
 					filePath,
-					outdir: path.join(this.appConfig.absolutePaths.distDir, '.server-modules'),
+					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
 					externalPackages: true,
 				}),
 		};

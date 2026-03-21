@@ -113,7 +113,6 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 				}
 
 				const children = Layout ? await Layout({ children: pageContent }) : pageContent;
-
 				return (
 					this.DOC_TYPE +
 					(await HtmlTemplate!({

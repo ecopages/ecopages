@@ -13,6 +13,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Added `ServerLoader` and `TranspilerServerLoader` boundaries so config and app entry loading go through a dedicated core service.
 - Added shared browser runtime asset and entry factories plus runtime specifier registry support so integrations can declare browser runtime modules through core-owned helpers.
 - Added `eco.html()` and `eco.layout()` semantic factories, related public types, and exported marker-graph types for integration authors.
+- Added a dedicated `workDir` app config path for internal runtime artifacts so `distDir` can stay a clean export directory.
 
 ### Refactoring
 
@@ -28,10 +29,20 @@ All notable changes to `@ecopages/core` are documented here.
 - Moved development invalidation and server-module cache invalidation onto the app-owned dev graph so watcher routing and experimental Node invalidation share one policy.
 - Hardened cross-integration rendering and explicit static route handling so sparse dependency graphs, direct renderer paths, and foreign JSX boundaries no longer crash.
 - Hardened delegated link detection and current-page reload coordination for mixed-router development navigation flows.
+- Set `dist` as the default export directory, kept `.eco` as the internal work directory, and ensured static builds reset only the deployable output before regeneration.
+- Moved request-time page metadata transpilation into the internal work directory so static exports no longer leak `.server-modules-meta` into `distDir`.
+- Kept runtime-executed server modules and Node thin-host bootstrap output under `.eco` so request-time imports keep resolving app and workspace dependencies correctly without polluting `dist`.
+- Fixed Node alias resolution for simple barrel imports such as `@/layouts/base-layout` so experimental runtime metadata and bootstrap loads resolve the concrete module file.
+- Moved development-only HMR browser bundles and HMR server-module transpiles behind internal runtime paths so preview/export cleanup no longer deletes active dev assets.
+- Re-emitted integration-owned runtime assets after static export cleanup so preview and build keep React vendor bundles like `/assets/vendors/react.js` and `/assets/vendors/react-dom.js` available.
+- Re-ran processor runtime setup after static export cleanup so processor-owned outputs such as optimized images are restored into `dist` before pages are generated.
+- Made `preview` rebuild and then serve `dist` so production verification always runs against the actual deployable output.
 
 ### Tests
 
 - Added regression coverage for `eco.html()` and `eco.layout()`, shared browser bundle and server loader services, and experimental Node bootstrap paths.
+- Added alias-resolver regression coverage for simple barrel imports that re-export compound-extension modules such as `.kita.tsx`.
+- Added regression coverage for HMR internal output paths so dev runtime assets stay isolated from preview/export output.
 
 ### Documentation
 

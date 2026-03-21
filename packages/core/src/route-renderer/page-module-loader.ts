@@ -10,8 +10,10 @@ import type {
 } from '../public-types.ts';
 import { getAppBuildExecutor } from '../build/build-adapter.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
+import { createNodeBootstrapPlugin } from '../adapters/node/bootstrap-dependency-resolver.ts';
 import { DevelopmentInvalidationService } from '../services/development-invalidation.service.ts';
 import { ServerModuleTranspiler } from '../services/server-module-transpiler.service.ts';
+import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 
 /**
  * Loads route page modules and normalizes their data hooks for rendering.
@@ -56,7 +58,16 @@ export class PageModuleLoaderService {
 		try {
 			return await this.serverModuleTranspiler.importModule<EcoPageFile>({
 				filePath: file,
-				outdir: `${this.appConfig.absolutePaths.distDir}/.server-modules`,
+				outdir: `${resolveInternalExecutionDir(this.appConfig)}/.server-modules`,
+				plugins:
+					typeof Bun === 'undefined'
+						? [
+								createNodeBootstrapPlugin({
+									projectDir: this.appConfig.rootDir,
+									runtimeNodeModulesDir: `${resolveInternalExecutionDir(this.appConfig)}/node_modules`,
+								}),
+							]
+						: undefined,
 				transpileErrorMessage: (details) => `Error transpiling page file: ${details}`,
 				noOutputMessage: (targetFilePath) => `No transpiled output generated for page: ${targetFilePath}`,
 			});

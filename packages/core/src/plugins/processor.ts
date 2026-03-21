@@ -3,6 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../internal-types';
 import type { AssetDefinition } from '../services/asset-processing-service';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { GENERATED_BASE_PATHS } from '../constants';
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
@@ -99,8 +100,11 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	}
 
 	setContext(appConfig: EcoPagesAppConfig): void {
+		const workDir =
+			appConfig.absolutePaths.workDir ??
+			path.join(appConfig.rootDir, appConfig.workDir ?? DEFAULT_ECOPAGES_WORK_DIR);
 		const cachePath = resolveGeneratedPath('cache', {
-			root: appConfig.absolutePaths.distDir,
+			root: workDir,
 			module: this.name,
 		});
 

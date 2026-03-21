@@ -11,7 +11,7 @@ test('assertNodeRuntimeManifest accepts the current runtime manifest shape', () 
 		runtime: 'node',
 		appRootDir: '/repo',
 		sourceRootDir: '/repo/src',
-		distDir: '/repo/.eco',
+		distDir: '/repo/dist',
 		modulePaths: {
 			config: '/repo/eco.config.ts',
 			entry: '/repo/app.ts',
@@ -30,7 +30,7 @@ test('assertNodeRuntimeManifest accepts the current runtime manifest shape', () 
 			externalPackages: true,
 		},
 		browserBundles: {
-			outputDir: '/repo/.eco/assets',
+			outputDir: '/repo/dist/assets',
 			publicBaseUrl: '/assets',
 			vendorBaseUrl: '/assets/vendors',
 		},
@@ -67,7 +67,7 @@ test('node runtime adapter loads the config module and app entry through core-ow
 				"\tpagesDir: 'pages',",
 				"\tincludesDir: 'includes',",
 				"\tlayoutsDir: 'layouts',",
-				"\tdistDir: '.eco',",
+				"\tdistDir: 'dist',",
 				'\ttemplatesExt: [],',
 				"\tcomponentsDir: 'components',",
 				"\trobotsTxt: { preferences: { '*': [] } },",
@@ -78,7 +78,7 @@ test('node runtime adapter loads the config module and app entry through core-ow
 				'\tabsolutePaths: {',
 				'\t\tconfig: `${rootDir}/eco.config.ts`,',
 				'\t\tcomponentsDir: `${rootDir}/src/components`,',
-				'\t\tdistDir: `${rootDir}/.eco`,',
+				'\t\tdistDir: `${rootDir}/dist`,',
 				'\t\tincludesDir: `${rootDir}/src/includes`,',
 				'\t\tlayoutsDir: `${rootDir}/src/layouts`,',
 				'\t\tpagesDir: `${rootDir}/src/pages`,',
@@ -112,7 +112,7 @@ test('node runtime adapter loads the config module and app entry through core-ow
 			runtime: 'node',
 			appRootDir: projectDir,
 			sourceRootDir: path.join(projectDir, 'src'),
-			distDir: path.join(projectDir, '.eco'),
+			distDir: path.join(projectDir, 'dist'),
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
@@ -131,7 +131,7 @@ test('node runtime adapter loads the config module and app entry through core-ow
 				externalPackages: true,
 			},
 			browserBundles: {
-				outputDir: path.join(projectDir, '.eco', 'assets'),
+				outputDir: path.join(projectDir, 'dist', 'assets'),
 				publicBaseUrl: '/assets',
 				vendorBaseUrl: '/assets/vendors',
 			},
@@ -169,7 +169,7 @@ test('node runtime adapter fails on real bootstrap problems instead of the place
 		runtime: 'node',
 		appRootDir: '/repo',
 		sourceRootDir: '/repo/src',
-		distDir: '/repo/.eco',
+		distDir: '/repo/dist',
 		modulePaths: {
 			config: '/repo/eco.config.ts',
 			entry: '/repo/app.ts',
@@ -188,7 +188,7 @@ test('node runtime adapter fails on real bootstrap problems instead of the place
 			externalPackages: true,
 		},
 		browserBundles: {
-			outputDir: '/repo/.eco/assets',
+			outputDir: '/repo/dist/assets',
 			publicBaseUrl: '/assets',
 			vendorBaseUrl: '/assets/vendors',
 		},
@@ -223,7 +223,7 @@ test('node runtime adapter routes config and entry bootstrap imports through the
 			absolutePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				srcDir: path.join(projectDir, 'src'),
-				distDir: path.join(projectDir, '.eco'),
+				distDir: path.join(projectDir, 'dist'),
 			},
 			loaders: new Map(),
 			runtime: {},
@@ -240,7 +240,7 @@ test('node runtime adapter routes config and entry bootstrap imports through the
 			runtime: 'node',
 			appRootDir: projectDir,
 			sourceRootDir: path.join(projectDir, 'src'),
-			distDir: path.join(projectDir, '.eco'),
+			distDir: path.join(projectDir, 'dist'),
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
@@ -259,7 +259,7 @@ test('node runtime adapter routes config and entry bootstrap imports through the
 				externalPackages: true,
 			},
 			browserBundles: {
-				outputDir: path.join(projectDir, '.eco', 'assets'),
+				outputDir: path.join(projectDir, 'dist', 'assets'),
 				publicBaseUrl: '/assets',
 				vendorBaseUrl: '/assets/vendors',
 			},
@@ -302,7 +302,7 @@ test('node runtime adapter caches the loaded runtime until invalidation requests
 			absolutePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				srcDir: path.join(projectDir, 'src'),
-				distDir: path.join(projectDir, '.eco'),
+				distDir: path.join(projectDir, 'dist'),
 				publicDir: path.join(projectDir, 'public'),
 				includesDir: path.join(projectDir, 'src', 'includes'),
 				pagesDir: path.join(projectDir, 'src', 'pages'),
@@ -322,7 +322,7 @@ test('node runtime adapter caches the loaded runtime until invalidation requests
 			runtime: 'node',
 			appRootDir: projectDir,
 			sourceRootDir: path.join(projectDir, 'src'),
-			distDir: path.join(projectDir, '.eco'),
+			distDir: path.join(projectDir, 'dist'),
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
@@ -341,7 +341,7 @@ test('node runtime adapter caches the loaded runtime until invalidation requests
 				externalPackages: true,
 			},
 			browserBundles: {
-				outputDir: path.join(projectDir, '.eco', 'assets'),
+				outputDir: path.join(projectDir, 'dist', 'assets'),
 				publicBaseUrl: '/assets',
 				vendorBaseUrl: '/assets/vendors',
 			},
@@ -403,7 +403,7 @@ test('node runtime adapter bootstraps an app entry that imports core runtime cod
 				"\tpagesDir: 'pages',",
 				"\tincludesDir: 'includes',",
 				"\tlayoutsDir: 'layouts',",
-				"\tdistDir: '.eco',",
+				"\tdistDir: 'dist',",
 				'\ttemplatesExt: [],',
 				"\tcomponentsDir: 'components',",
 				"\trobotsTxt: { preferences: { '*': [] } },",
@@ -414,7 +414,7 @@ test('node runtime adapter bootstraps an app entry that imports core runtime cod
 				'\tabsolutePaths: {',
 				'\t\tconfig: `${rootDir}/eco.config.ts`,',
 				'\t\tcomponentsDir: `${rootDir}/src/components`,',
-				'\t\tdistDir: `${rootDir}/.eco`,',
+				'\t\tdistDir: `${rootDir}/dist`,',
 				'\t\tincludesDir: `${rootDir}/src/includes`,',
 				'\t\tlayoutsDir: `${rootDir}/src/layouts`,',
 				'\t\tpagesDir: `${rootDir}/src/pages`,',
@@ -450,7 +450,7 @@ test('node runtime adapter bootstraps an app entry that imports core runtime cod
 			runtime: 'node',
 			appRootDir: projectDir,
 			sourceRootDir: path.join(projectDir, 'src'),
-			distDir: path.join(projectDir, '.eco'),
+			distDir: path.join(projectDir, 'dist'),
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
@@ -469,7 +469,7 @@ test('node runtime adapter bootstraps an app entry that imports core runtime cod
 				externalPackages: true,
 			},
 			browserBundles: {
-				outputDir: path.join(projectDir, '.eco', 'assets'),
+				outputDir: path.join(projectDir, 'dist', 'assets'),
 				publicBaseUrl: '/assets',
 				vendorBaseUrl: '/assets/vendors',
 			},
@@ -523,7 +523,7 @@ test('node runtime adapter preserves config import.meta.dirname semantics during
 				"\tpagesDir: 'pages',",
 				"\tincludesDir: 'includes',",
 				"\tlayoutsDir: 'layouts',",
-				"\tdistDir: '.eco',",
+				"\tdistDir: 'dist',",
 				"\ttemplatesExt: ['.kita.tsx'],",
 				"\tcomponentsDir: 'components',",
 				"\trobotsTxt: { preferences: { '*': [] } },",
@@ -534,7 +534,7 @@ test('node runtime adapter preserves config import.meta.dirname semantics during
 				'\tabsolutePaths: {',
 				'\t\tconfig: `${rootDir}/eco.config.ts`,',
 				'\t\tcomponentsDir: `${rootDir}/src/components`,',
-				'\t\tdistDir: `${rootDir}/.eco`,',
+				'\t\tdistDir: `${rootDir}/dist`,',
 				'\t\tincludesDir: `${rootDir}/src/includes`,',
 				'\t\tlayoutsDir: `${rootDir}/src/layouts`,',
 				'\t\tpagesDir: `${rootDir}/src/pages`,',
@@ -569,7 +569,7 @@ test('node runtime adapter preserves config import.meta.dirname semantics during
 			runtime: 'node',
 			appRootDir: projectDir,
 			sourceRootDir: path.join(projectDir, 'src'),
-			distDir: path.join(projectDir, '.eco'),
+			distDir: path.join(projectDir, 'dist'),
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
@@ -588,7 +588,7 @@ test('node runtime adapter preserves config import.meta.dirname semantics during
 				externalPackages: true,
 			},
 			browserBundles: {
-				outputDir: path.join(projectDir, '.eco', 'assets'),
+				outputDir: path.join(projectDir, 'dist', 'assets'),
 				publicBaseUrl: '/assets',
 				vendorBaseUrl: '/assets/vendors',
 			},
@@ -624,8 +624,7 @@ test('node runtime adapter preserves config import.meta.dirname semantics during
 
 test('node runtime adapter preserves layout metadata for explicit ctx.render routes', async () => {
 	const workspaceRoot = process.cwd();
-	const kitchenSinkRoot = path.join(workspaceRoot, 'playground', 'kitchen-sink');
-	const projectDir = fs.mkdtempSync(path.join(kitchenSinkRoot, '.tmp-node-runtime-adapter-explicit-render-'));
+	const projectDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-node-runtime-adapter-explicit-render-'));
 	const runtimeMarker = globalThis as typeof globalThis & {
 		__ecoNodeRuntimeExplicitRender?: {
 			explicitHasLayout?: boolean;
@@ -638,6 +637,23 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 		fs.mkdirSync(path.join(projectDir, 'src', 'includes'), { recursive: true });
 		fs.mkdirSync(path.join(projectDir, 'src', 'layouts'), { recursive: true });
 		fs.mkdirSync(path.join(projectDir, 'src', 'views'), { recursive: true });
+		fs.writeFileSync(
+			path.join(projectDir, 'tsconfig.json'),
+			JSON.stringify(
+				{
+					compilerOptions: {
+						baseUrl: '.',
+						jsx: 'react-jsx',
+						jsxImportSource: '@kitajs/html',
+						module: 'ESNext',
+						moduleResolution: 'Bundler',
+					},
+				},
+				null,
+				2,
+			),
+			'utf8',
+		);
 		if (fs.existsSync(workspaceNodeModulesDir)) {
 			fs.symlinkSync(workspaceNodeModulesDir, path.join(projectDir, 'node_modules'), 'dir');
 		}
@@ -646,7 +662,7 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 			[
 				"import { ConfigBuilder } from '@ecopages/core/config-builder';",
 				"import { kitajsPlugin } from '@ecopages/kitajs';",
-				'const appRoot = import.meta.dirname;',
+				`const appRoot = ${JSON.stringify(projectDir)};`,
 				'const config = await new ConfigBuilder()',
 				'\t.setRootDir(appRoot)',
 				"\t.setBaseUrl('http://localhost:3000')",
@@ -749,7 +765,7 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 			runtime: 'node',
 			appRootDir: projectDir,
 			sourceRootDir: path.join(projectDir, 'src'),
-			distDir: path.join(projectDir, '.eco'),
+			distDir: path.join(projectDir, 'dist'),
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
@@ -768,7 +784,7 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 				externalPackages: true,
 			},
 			browserBundles: {
-				outputDir: path.join(projectDir, '.eco', 'assets'),
+				outputDir: path.join(projectDir, 'dist', 'assets'),
 				publicBaseUrl: '/assets',
 				vendorBaseUrl: '/assets/vendors',
 			},
@@ -812,8 +828,7 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 
 test('node runtime adapter preserves explicit-route view metadata before renderer recovery', async () => {
 	const workspaceRoot = process.cwd();
-	const kitchenSinkRoot = path.join(workspaceRoot, 'playground', 'kitchen-sink');
-	const projectDir = fs.mkdtempSync(path.join(kitchenSinkRoot, '.tmp-node-runtime-adapter-direct-view-metadata-'));
+	const projectDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-node-runtime-adapter-direct-view-metadata-'));
 	let session: Awaited<ReturnType<ReturnType<typeof createNodeRuntimeAdapter>['start']>> | undefined;
 
 	try {
@@ -851,7 +866,7 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 			[
 				"import { ConfigBuilder } from '@ecopages/core/config-builder';",
 				"import { kitajsPlugin } from '@ecopages/kitajs';",
-				'const appRoot = import.meta.dirname;',
+				`const appRoot = ${JSON.stringify(projectDir)};`,
 				'const config = await new ConfigBuilder()',
 				'\t.setRootDir(appRoot)',
 				"\t.setBaseUrl('http://localhost:3000')",
@@ -982,7 +997,7 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 			runtime: 'node',
 			appRootDir: projectDir,
 			sourceRootDir: path.join(projectDir, 'src'),
-			distDir: path.join(projectDir, '.eco'),
+			distDir: path.join(projectDir, 'dist'),
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
@@ -1001,7 +1016,7 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 				externalPackages: true,
 			},
 			browserBundles: {
-				outputDir: path.join(projectDir, '.eco', 'assets'),
+				outputDir: path.join(projectDir, 'dist', 'assets'),
 				publicBaseUrl: '/assets',
 				vendorBaseUrl: '/assets/vendors',
 			},

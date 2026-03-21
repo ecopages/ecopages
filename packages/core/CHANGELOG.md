@@ -168,6 +168,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Documentation
 
+- Added a documentation map for the core package and new focused READMEs for config, plugins, services, adapters, HMR, router, and static-generation architecture.
 - Added build-layer architecture documentation for the shared adapter and `DevBuildCoordinator`, including the development orchestration and recovery flow.
 - Updated rendering graph documentation to cover extracted rendering services (`8bfcfd21`).
 - Refreshed server handler and module dependency guidance (`3494f44d`).

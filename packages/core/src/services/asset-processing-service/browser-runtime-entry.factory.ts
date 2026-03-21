@@ -7,6 +7,16 @@ export type BrowserRuntimeEntryModuleConfig = {
 	defaultExport?: boolean;
 };
 
+/**
+ * Creates a generated ESM entry module that re-exports runtime modules through
+ * one stable file.
+ *
+ * @remarks
+ * Integrations use this helper when they need a browser runtime asset composed
+ * from multiple bare specifiers but do not want to own temporary file assembly
+ * logic themselves. The generated file lives under a cache directory inside the
+ * consuming app root so repeated runs can reuse the same location.
+ */
 export function createBrowserRuntimeEntryModule(options: {
 	modules: BrowserRuntimeEntryModuleConfig[];
 	fileName: string;
@@ -49,6 +59,15 @@ export function createBrowserRuntimeEntryModule(options: {
 	return filePath;
 }
 
+/**
+ * Reads the named runtime exports that should be re-exported from a generated
+ * runtime entry module.
+ *
+ * @remarks
+ * Default exports are handled separately because generated runtime entry files
+ * need to emit a synthetic default binding only when the caller explicitly asks
+ * for it.
+ */
 function getModuleExportNames(specifier: string, requireFromRoot: ReturnType<typeof createRequire>): string[] {
 	const moduleExports = requireFromRoot(specifier);
 

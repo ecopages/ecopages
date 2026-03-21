@@ -61,8 +61,10 @@ import { ConfigBuilder } from '@ecopages/core';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-  .setRootDir(import.meta.dir)
+  .setRootDir(appRoot)
   .setIntegrations([
     reactPlugin({ router: ecoRouter() }),
   ])

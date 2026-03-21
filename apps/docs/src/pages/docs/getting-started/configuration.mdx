@@ -21,9 +21,11 @@ import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([kitajsPlugin(), mdxPlugin()])
 	.setDefaultMetadata({
 		title: 'Your Site Title',
@@ -111,8 +113,8 @@ No template filename setter is required in `eco.config.ts`.
 	An array of processors to handle file transformations (e.g., PostCSS, Images).
 </ApiField>
 
-<ApiField name="loaders" type="BunPlugin[]" defaultValue="[]" setter="setLoaders">
-	An array of Bun plugins to use as loaders for custom file types.
+<ApiField name="loaders" type="EcoBuildPlugin[]" defaultValue="[]" setter="setLoaders">
+	An array of build plugins to use as loaders for custom file types.
 </ApiField>
 
 ## Integrations
@@ -131,9 +133,11 @@ import { ConfigBuilder } from '@ecopages/core';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
+const appRoot = process.cwd();
+
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([kitajsPlugin(), mdxPlugin()])
 	.build();
 

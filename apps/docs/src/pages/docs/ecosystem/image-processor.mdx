@@ -47,12 +47,14 @@ import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
 import { ImageProcessorPlugin } from '@ecopages/image-processor';
 
+const appRoot = process.cwd();
+
 const imageProcessor = new ImageProcessorPlugin({
 	name: 'ecopages-image-processor',
 	type: 'image',
 	options: {
-		sourceDir: path.resolve(import.meta.dir, 'src/images'),
-		outputDir: path.resolve(import.meta.dir, '.eco/images'),
+		sourceDir: path.resolve(appRoot, 'src/images'),
+		outputDir: path.resolve(appRoot, '.eco/images'),
 		publicPath: '/images',
 		acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 		quality: 80,
@@ -67,8 +69,8 @@ const imageProcessor = new ImageProcessorPlugin({
 });
 
 export default await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setProcessors([imageProcessor])
 	.build();
 ```

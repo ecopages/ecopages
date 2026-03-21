@@ -75,10 +75,14 @@ export class RenderPreparationService {
 	private appConfig: EcoPagesAppConfig;
 	private assetProcessingService: AssetProcessingService;
 
-	constructor(
-		appConfig: EcoPagesAppConfig,
-		assetProcessingService: AssetProcessingService,
-	) {
+	/**
+	 * Creates the render-preparation orchestrator for one app instance.
+	 *
+	 * @remarks
+	 * The service is app-scoped because it depends on finalized config defaults and
+	 * the app-owned asset-processing pipeline while remaining renderer-agnostic.
+	 */
+	constructor(appConfig: EcoPagesAppConfig, assetProcessingService: AssetProcessingService) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 	}

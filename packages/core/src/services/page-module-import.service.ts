@@ -31,6 +31,9 @@ export class PageModuleImportService {
 	private static readonly importCache = new Map<string, Promise<unknown>>();
 	private static developmentInvalidationVersion = 0;
 
+	/**
+	 * Clears the shared import cache used by framework-owned page-module loads.
+	 */
 	static clearImportCache(): void {
 		this.importCache.clear();
 	}
@@ -63,7 +66,8 @@ export class PageModuleImportService {
 	 */
 	async importModule<T = unknown>(options: PageModuleImportOptions): Promise<T> {
 		const { filePath, rootDir, externalPackages } = options;
-		const invalidationVersion = options.invalidationVersion ?? PageModuleImportService.developmentInvalidationVersion;
+		const invalidationVersion =
+			options.invalidationVersion ?? PageModuleImportService.developmentInvalidationVersion;
 
 		const fileHash = fileSystem.hash(filePath);
 		const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node';
@@ -101,6 +105,11 @@ export class PageModuleImportService {
 			fileHash: string;
 		},
 	): Promise<T> {
+		/**
+		 * Runtime-specific module loading stays centralized here so callers can share
+		 * one cache-key and invalidation model while still diverging between Bun's
+		 * direct source imports and Node's transpile-then-import path.
+		 */
 		const {
 			filePath,
 			rootDir,
@@ -116,10 +125,7 @@ export class PageModuleImportService {
 			const moduleUrl = pathToFileURL(filePath);
 
 			if (process.env.NODE_ENV === 'development') {
-				moduleUrl.searchParams.set(
-					'update',
-					`${fileHash}-${invalidationVersion}`,
-				);
+				moduleUrl.searchParams.set('update', `${fileHash}-${invalidationVersion}`);
 			}
 
 			return (await import(moduleUrl.href)) as T;
@@ -163,10 +169,7 @@ export class PageModuleImportService {
 		const compiledOutputUrl = pathToFileURL(compiledOutput);
 
 		if (process.env.NODE_ENV === 'development') {
-			compiledOutputUrl.searchParams.set(
-				'update',
-				`${fileHash}-${invalidationVersion}`,
-			);
+			compiledOutputUrl.searchParams.set('update', `${fileHash}-${invalidationVersion}`);
 		}
 
 		return (await import(compiledOutputUrl.href)) as T;

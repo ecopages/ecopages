@@ -14,17 +14,26 @@ import { DevelopmentInvalidationService } from '../services/development-invalida
 import { ServerModuleTranspiler } from '../services/server-module-transpiler.service.ts';
 
 /**
- * Handles page module loading plus static props/metadata resolution.
+ * Loads route page modules and normalizes their data hooks for rendering.
+ *
+ * @remarks
+ * This service keeps the render pipeline from depending directly on raw module
+ * imports. It owns the shared server-module transpiler setup, the precedence
+ * rules between component statics and module exports, and the normalization of
+ * page props and metadata into one renderer-facing shape.
  */
 export class PageModuleLoaderService {
 	private serverModuleTranspiler: ServerModuleTranspiler;
 	private appConfig: EcoPagesAppConfig;
 	private runtimeOrigin: string;
 
-	constructor(
-		appConfig: EcoPagesAppConfig,
-		runtimeOrigin: string,
-	) {
+	/**
+	 * Creates the page-module loader for one app/runtime instance.
+	 *
+	 * @param appConfig Finalized app config that owns build and invalidation state.
+	 * @param runtimeOrigin Runtime origin exposed to page data hooks.
+	 */
+	constructor(appConfig: EcoPagesAppConfig, runtimeOrigin: string) {
 		this.appConfig = appConfig;
 		this.runtimeOrigin = runtimeOrigin;
 		const invalidationService = new DevelopmentInvalidationService(appConfig);
@@ -37,8 +46,11 @@ export class PageModuleLoaderService {
 	}
 
 	/**
-	 * Imports a page module from source.
-	 * Uses direct dynamic import in Bun and transpile+import fallback for other runtimes.
+	 * Imports one page module through the shared server-side module loading path.
+	 *
+	 * @remarks
+	 * The underlying transpiler keeps Bun and Node aligned on one framework-owned
+	 * loading contract even though the runtime-specific execution transport differs.
 	 */
 	async importPageFile(file: string): Promise<EcoPageFile> {
 		try {
@@ -54,8 +66,11 @@ export class PageModuleLoaderService {
 	}
 
 	/**
-	 * Executes `getStaticProps` with Ecopages runtime context.
-	 * Returns an empty props object when no static props function is defined.
+	 * Executes the page's static-props hook with Ecopages runtime context.
+	 *
+	 * @remarks
+	 * Pages without a static-props hook still return a normalized empty props
+	 * object so downstream render preparation does not branch on hook presence.
 	 */
 	async getStaticPropsForPage(options: {
 		getStaticProps?: GetStaticProps<Record<string, unknown>>;
@@ -82,8 +97,11 @@ export class PageModuleLoaderService {
 	}
 
 	/**
-	 * Builds final page metadata using app-level defaults as a baseline.
-	 * If `getMetadata` exists, its result overlays defaults so page-level fields take precedence.
+	 * Builds the final page metadata object for one render request.
+	 *
+	 * @remarks
+	 * App-level default metadata forms the baseline, then page-level metadata is
+	 * overlaid so route-specific fields win without dropping global defaults.
 	 */
 	async getMetadataPropsForPage(options: {
 		getMetadata: GetMetadata | undefined;
@@ -133,7 +151,12 @@ export class PageModuleLoaderService {
 	}
 
 	/**
-	 * Resolves render-time page data in order: static props first, then metadata derived from those props.
+	 * Resolves the page data needed by the render pipeline.
+	 *
+	 * @remarks
+	 * Static props are resolved first because page metadata may depend on those
+	 * props. This preserves the same ordering whether data hooks are declared as
+	 * component statics or module exports.
 	 */
 	async resolvePageData(options: {
 		pageModule: {

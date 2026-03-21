@@ -20,10 +20,22 @@ export const STATIC_SITE_GENERATOR_ERRORS = {
 		`Dynamic route ${routePath} requires staticPaths to be defined on the view.`,
 } as const;
 
+/**
+ * Generates static output files from the finalized app config and route graph.
+ *
+ * @remarks
+ * This class intentionally reuses the same routing, renderer, and server-module
+ * loading seams used by runtime rendering. Static generation should be a build
+ * loop over the normal app model, not a parallel rendering stack with different
+ * semantics.
+ */
 export class StaticSiteGenerator {
 	appConfig: EcoPagesAppConfig;
 	private serverModuleTranspiler: ServerModuleTranspiler;
 
+	/**
+	 * Creates the static-site generator for one app config.
+	 */
 	constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
 		this.appConfig = appConfig;
 		const invalidationService = new DevelopmentInvalidationService(appConfig);
@@ -35,10 +47,16 @@ export class StaticSiteGenerator {
 		});
 	}
 
+	/**
+	 * Returns the transpiler output directory used for static page-module probes.
+	 */
 	private getStaticPageModuleOutdir(): string {
 		return path.join(this.appConfig.rootDir, this.appConfig.distDir, '.server-static-page-modules');
 	}
 
+	/**
+	 * Logs the standardized warning emitted when a dynamic-cache page is skipped.
+	 */
 	private warnDynamicPageSkipped(filePath: string): void {
 		appLogger.warn(
 			"Pages with cache: 'dynamic' are not supported in static generation or preview, so they will be skipped\n",
@@ -46,6 +64,10 @@ export class StaticSiteGenerator {
 		);
 	}
 
+	/**
+	 * Determines whether one filesystem-discovered page should be excluded from
+	 * static generation.
+	 */
 	private async shouldSkipStaticPageFile(filePath: string): Promise<boolean> {
 		const module = (await this.serverModuleTranspiler.importModule({
 			filePath,
@@ -64,6 +86,10 @@ export class StaticSiteGenerator {
 		return true;
 	}
 
+	/**
+	 * Determines whether one explicit static route view should be excluded from
+	 * static generation.
+	 */
 	private shouldSkipStaticView(routePath: string, view: EcoPageComponent<any>): boolean {
 		if (view.cache !== 'dynamic') {
 			return false;
@@ -73,6 +99,9 @@ export class StaticSiteGenerator {
 		return true;
 	}
 
+	/**
+	 * Writes the robots.txt file declared by the app config.
+	 */
 	generateRobotsTxt(): void {
 		let data = '';
 		const preferences = this.appConfig.robotsTxt.preferences;
@@ -89,11 +118,17 @@ export class StaticSiteGenerator {
 		fileSystem.write(`${this.appConfig.distDir}/robots.txt`, data);
 	}
 
+	/**
+	 * Returns whether the input path points at the root directory.
+	 */
 	isRootDir(path: string) {
 		const slashes = path.match(/\//g);
 		return slashes && slashes.length === 1;
 	}
 
+	/**
+	 * Collects parent directories that must exist for the generated route set.
+	 */
 	getDirectories(routes: string[]) {
 		const directories = new Set<string>();
 
@@ -133,6 +168,14 @@ export class StaticSiteGenerator {
 		return params;
 	}
 
+	/**
+	 * Generates static output for all filesystem-discovered routes.
+	 *
+	 * @remarks
+	 * Routes whose integrations opt into fetch-based static builds are rendered by
+	 * issuing a request against the running server origin. Render-strategy routes
+	 * go through the normal route renderer directly.
+	 */
 	async generateStaticPages(router: FSRouter, baseUrl: string, routeRendererFactory?: RouteRendererFactory) {
 		const routes = Object.keys(router.routes).filter((route) => !route.includes('['));
 
@@ -227,6 +270,9 @@ export class StaticSiteGenerator {
 		}
 	}
 
+	/**
+	 * Executes the full static-generation workflow for one app run.
+	 */
 	async run({
 		router,
 		baseUrl,

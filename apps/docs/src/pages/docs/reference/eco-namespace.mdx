@@ -91,7 +91,7 @@ export function Card({ children, className }: PropsWithChildren<{ className?: st
 
 ### Plain React Components (Integration)
 
-When using Bun, you can use standard React components directly if they only rely on hooks (`useState`, `useEffect`) and Tailwind CSS. This is useful for migrating existing React code or when you need complex state management that doesn't require the full `eco` lifecycle.
+You can use standard React components directly if they only rely on hooks (`useState`, `useEffect`) and local styling patterns such as Tailwind CSS. This is useful for migrating existing React code or when you need complex state management that doesn't require the full `eco` lifecycle.
 
 Powered by [`@ecopages/react`](https://github.com/ecopages/react).
 
@@ -126,7 +126,7 @@ export function Counter() {
 
 ### Comparison
 
-| Aspect | Simple JSX | Plain React (Bun) | `eco.component()` |
+| Aspect | Simple JSX | Plain React | `eco.component()` |
 | :--- | :--- | :--- | :--- |
 | React hooks | No | Yes | Yes |
 | Scripts/Stylesheets | No | No | Yes |

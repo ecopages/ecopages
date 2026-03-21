@@ -86,10 +86,20 @@ export default defineConfig({
 		{
 			name: 'kitchen-sink-e2e',
 			testMatch: 'playground/kitchen-sink/e2e/**/*.test.e2e.ts',
+			testIgnore: ['playground/kitchen-sink/e2e/**/*.preview.test.e2e.ts'],
 			workers: 1,
 			use: {
 				...devices['Desktop Chrome'],
 				baseURL: 'http://localhost:4007',
+			},
+		},
+		{
+			name: 'kitchen-sink-preview-e2e',
+			testMatch: 'playground/kitchen-sink/e2e/**/*.preview.test.e2e.ts',
+			workers: 1,
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:4008',
 			},
 		},
 	],
@@ -162,6 +172,14 @@ export default defineConfig({
 			command: 'NODE_ENV=development ECOPAGES_PORT=4007 pnpm exec ecopages dev --runtime bun',
 			cwd: 'playground/kitchen-sink',
 			port: 4007,
+			reuseExistingServer,
+			stdout: 'pipe',
+			stderr: 'pipe',
+		},
+		{
+			command: 'NODE_ENV=production ECOPAGES_PORT=4008 pnpm run preview',
+			cwd: 'playground/kitchen-sink',
+			port: 4008,
 			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',

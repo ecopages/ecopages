@@ -14,6 +14,16 @@ export const getMetadata = () => ({
 
 Ecopages is designed to be modular, leveraging the speed of [Bun](https://bun.sh/) and the flexibility of multiple rendering engines. This guide provides a brief overview of how things connect under the hood.
 
+## Ownership Model
+
+Ecopages is structured around three main ownership boundaries:
+
+1. **Core owns orchestration**: config finalization, build manifest assembly, server loading, browser bundling coordination, and development invalidation policy.
+2. **Integrations own framework semantics**: rendering, hydration behavior, framework-specific HMR, and cross-integration boundary policy.
+3. **Processors own asset semantics**: asset transformation, emitted files, asset-specific caching, and processor-specific watch behavior.
+
+Packages declare contributions. Core decides lifecycle ordering and assembles the app-owned runtime/build state.
+
 ## Request Lifecycle
 
 When a request hits your Ecopages application, it follows this simplified flow:
@@ -25,6 +35,18 @@ When a request hits your Ecopages application, it follows this simplified flow:
 5. **Template Composition**: The page content is wrapped in the specified `HtmlTemplate`, `Head`, and `Seo` includes.
 6. **Response**: The final HTML (or JSON for APIs) is sent back to the client.
 
+## Plugin Lifecycle
+
+The integration and processor lifecycle is split into stable framework-owned phases.
+
+1. **Config finalization**: `ConfigBuilder.build()` validates registrations, initializes processor context, validates runtime capability declarations, collects build contributions, and seals the app-owned build manifest.
+2. **Build contribution preparation**: processors run `prepareBuildContributions()` before integrations so asset-side contributions are collected before framework-specific additions.
+3. **App startup setup**: processors run `setup()` before integrations, and integrations receive runtime origin and HMR manager context before request handling begins.
+4. **Request-time rendering**: core selects the route and owning integration, then the integration renderer produces the response body.
+5. **Development invalidation and HMR**: core classifies file changes, processors handle owned watch paths, and integrations participate through HMR strategies.
+
+See the dedicated [Plugin Lifecycle](/docs/core/plugin-lifecycle) guide for the exact ordering and boundaries.
+
 ## Core Modules
 
 For those wishing to dive deeper, we recommend exploring the source code:
@@ -34,7 +56,12 @@ For those wishing to dive deeper, we recommend exploring the source code:
 - **[`BunServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/bun/server-adapter.ts)**: Handles the low-level Bun server interface.
 - **[`NodeServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/server-adapter.ts)**: Handles the low-level Node server interface.
 - **[`IntegrationPlugin`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/plugins/integration-plugin.ts)**: The base class for all templating integrations.
+- **[`Processor`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/plugins/processor.ts)**: The asset-processing boundary for file capabilities, transformation, and watch behavior.
 - **[`ConfigBuilder`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/config/config-builder.ts)**: Validates and constructs your application state.
+
+## Server Loading Boundary
+
+Server startup and server-side module execution are owned by core through the `ServerLoader` boundary, not by individual integrations or runtime hosts. Runtime hosts stay transport-oriented: they hand off startup, while core owns config loading, app loading, and invalidation behavior behind the server loader implementation.
 
 ## Design Philosophy
 

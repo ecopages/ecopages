@@ -31,6 +31,9 @@ class CustomProcessor extends Processor {
 	constructor(config: ProcessorConfig) {
 		super({
 			name: 'custom-processor',
+			runtimeCapability: {
+				tags: ['node-compatible'],
+			},
 			watch: {
 				paths: ['src/custom'],
 				extensions: ['.custom'],
@@ -53,6 +56,33 @@ class CustomProcessor extends Processor {
 	}
 }
 ```
+
+## Declaring Runtime Requirements
+
+Processors can declare runtime assumptions through `runtimeCapability`. Ecopages validates this during `ConfigBuilder.build()`, which means incompatible processors fail before startup proceeds.
+
+```typescript
+class CustomProcessor extends Processor {
+	constructor() {
+		super({
+			name: 'custom-processor',
+			runtimeCapability: {
+				tags: ['requires-node-builtins'],
+				minRuntimeVersion: '20.0.0',
+			},
+		});
+	}
+}
+```
+
+Available tags:
+
+1. `node-compatible`
+2. `requires-node-builtins`
+3. `bun-only`
+4. `requires-native-bun-api`
+
+Prefer the narrowest declaration that matches the processor's actual runtime needs.
 
 ## Processor Lifecycle
 

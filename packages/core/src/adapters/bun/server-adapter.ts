@@ -1,5 +1,10 @@
 import type { Server, WebSocketHandler } from 'bun';
-import { getAppBuildAdapter, getAppBuildExecutor, getAppServerBuildPlugins, setAppBuildExecutor } from '../../build/build-adapter.ts';
+import {
+	getAppBuildAdapter,
+	getAppBuildExecutor,
+	getAppServerBuildPlugins,
+	setAppBuildExecutor,
+} from '../../build/build-adapter.ts';
 import { createOrReuseAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';

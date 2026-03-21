@@ -14,7 +14,6 @@ function readRootPackage(): RootPackage {
 
 const rootPackage = readRootPackage();
 
-
 type BumpType = 'major' | 'minor' | 'patch';
 type PrereleaseChannel = 'alpha' | 'beta';
 type Command = BumpType | 'prerelease';

@@ -153,10 +153,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => EcoPagesElement)
 				| undefined;
 
-			await this.preloadSsrLazyScripts([
-				view as unknown as EcoComponent,
-				Layout as unknown as EcoComponent,
-			]);
+			await this.preloadSsrLazyScripts([view as unknown as EcoComponent, Layout as unknown as EcoComponent]);
 
 			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
 			const pageContent = await viewFn(props);

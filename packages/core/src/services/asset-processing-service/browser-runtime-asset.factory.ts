@@ -1,6 +1,10 @@
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { AssetFactory } from './asset.factory.ts';
 import type { AssetDefinition } from './assets.types.ts';
+import {
+	createBrowserRuntimeEntryModule,
+	type BrowserRuntimeEntryModuleConfig,
+} from './browser-runtime-entry.factory.ts';
 
 export const BROWSER_RUNTIME_SCRIPT_ATTRIBUTES = {
 	type: 'module',
@@ -36,5 +40,35 @@ export function createBrowserRuntimeScriptAsset(options: {
 			...BROWSER_RUNTIME_SCRIPT_ATTRIBUTES,
 			...(options.attributes ?? {}),
 		},
+	});
+}
+
+export function createBrowserRuntimeModuleAsset(options: {
+	modules: BrowserRuntimeEntryModuleConfig[];
+	name: string;
+	fileName: string;
+	cacheDirName?: string;
+	rootDir?: string;
+	bundleOptions?: {
+		minify?: boolean;
+		external?: string[];
+		naming?: string;
+		plugins?: EcoBuildPlugin[];
+	};
+	attributes?: Record<string, string>;
+}): AssetDefinition {
+	const importPath = createBrowserRuntimeEntryModule({
+		modules: options.modules,
+		fileName: `${options.name}-entry.mjs`,
+		rootDir: options.rootDir,
+		cacheDirName: options.cacheDirName,
+	});
+
+	return createBrowserRuntimeScriptAsset({
+		importPath,
+		name: options.name,
+		fileName: options.fileName,
+		bundleOptions: options.bundleOptions,
+		attributes: options.attributes,
 	});
 }

@@ -50,14 +50,14 @@ export interface ReactRouterAdapter {
 
 		/**
 		 * Packages to externalize when bundling.
-		 * These should be available via import map.
+		 * These should be available through the runtime bare-specifier map.
 		 * @example ['react', 'react-dom', 'react/jsx-runtime']
 		 */
 		externals: string[];
 	};
 
 	/**
-	 * Bare specifier for the import map entry.
+	 * Bare specifier for the runtime mapping entry.
 	 * This is what the hydration script will import from.
 	 * @example '@ecopages/react-router'
 	 */

@@ -11,7 +11,7 @@ import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import {
 	buildBrowserRuntimeAssetUrl,
-	createBrowserRuntimeEntryModule,
+	createBrowserRuntimeModuleAsset,
 	createBrowserRuntimeScriptAsset,
 	type AssetDefinition,
 } from '@ecopages/core/services/asset-processing-service';
@@ -72,29 +72,22 @@ export class ReactRuntimeBundleService {
 			(plugin): plugin is EcoBuildPlugin => plugin !== null,
 		);
 
-		const reactEntry = this.createRuntimeEntry(
-			[
-				{ specifier: 'react', defaultExport: true },
-				{ specifier: 'react/jsx-runtime' },
-				{ specifier: 'react/jsx-dev-runtime' },
-			],
-			'react-entry.mjs',
-		);
-		const reactDomEntry = this.createRuntimeEntry(
-			[{ specifier: 'react-dom', defaultExport: true }, { specifier: 'react-dom/client' }],
-			'react-dom-entry.mjs',
-		);
-
 		const dependencies: AssetDefinition[] = [
-			createBrowserRuntimeScriptAsset({
-				importPath: reactEntry,
+			createBrowserRuntimeModuleAsset({
+				modules: [
+					{ specifier: 'react', defaultExport: true },
+					{ specifier: 'react/jsx-runtime' },
+					{ specifier: 'react/jsx-dev-runtime' },
+				],
 				name: 'react',
 				fileName: 'react.js',
+				cacheDirName: 'ecopages-react-runtime',
 			}),
-			createBrowserRuntimeScriptAsset({
-				importPath: reactDomEntry,
+			createBrowserRuntimeModuleAsset({
+				modules: [{ specifier: 'react-dom', defaultExport: true }, { specifier: 'react-dom/client' }],
 				name: 'react-dom',
 				fileName: 'react-dom.js',
+				cacheDirName: 'ecopages-react-runtime',
 				bundleOptions: {
 					plugins: reactDomBundlePlugins,
 				},
@@ -128,16 +121,5 @@ export class ReactRuntimeBundleService {
 		return createRuntimeSpecifierAliasPlugin(this.getSpecifierMap(), {
 			name: 'react-plugin-runtime-alias',
 		})!;
-	}
-
-	private createRuntimeEntry(
-		modules: Parameters<typeof createBrowserRuntimeEntryModule>[0]['modules'],
-		fileName: string,
-	): string {
-		return createBrowserRuntimeEntryModule({
-			modules,
-			fileName,
-			cacheDirName: 'ecopages-react-runtime',
-		});
 	}
 }

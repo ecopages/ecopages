@@ -55,6 +55,8 @@ export interface BuildOptions {
 	outdir?: string;
 	outbase?: string;
 	naming?: string;
+	conditions?: string[];
+	define?: Record<string, string>;
 	minify?: boolean;
 	treeshaking?: boolean;
 	target?: string;

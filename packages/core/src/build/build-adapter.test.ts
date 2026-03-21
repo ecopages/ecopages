@@ -774,3 +774,42 @@ test('EsbuildBuildAdapter resolves templated naming patterns to concrete output 
 		clearNodeCssBridge();
 	}
 });
+
+test('EsbuildBuildAdapter forwards define replacements into bundled runtime modules', async () => {
+	try {
+		const root = createTempRoot('ecopages-esbuild-define-runtime');
+		const srcDir = path.join(root, 'src');
+		const outDir = path.join(root, 'dist');
+		fs.mkdirSync(srcDir, { recursive: true });
+
+		const entryPath = path.join(srcDir, 'entry.js');
+		fs.writeFileSync(entryPath, 'export const mode = process.env.NODE_ENV;\n');
+
+		const adapter = new EsbuildBuildAdapter();
+		const result = await adapter.build({
+			entrypoints: [entryPath],
+			root,
+			outdir: outDir,
+			target: 'browser',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: false,
+			minify: false,
+			define: {
+				'process.env.NODE_ENV': '"development"',
+			},
+		});
+
+		assert.equal(result.success, true);
+
+		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
+		assert.ok(outputPath);
+
+		const outputSource = fs.readFileSync(outputPath, 'utf-8');
+		assert.match(outputSource, /development/);
+		assert.doesNotMatch(outputSource, /production/);
+	} finally {
+		cleanupTempRoots();
+		clearNodeCssBridge();
+	}
+});

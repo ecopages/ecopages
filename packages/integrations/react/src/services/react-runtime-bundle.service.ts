@@ -32,6 +32,8 @@ export interface ReactRuntimeBundleServiceConfig {
 	routerAdapter?: ReactRouterAdapter;
 }
 
+type RuntimeMode = 'development' | 'production';
+
 export class ReactRuntimeBundleService {
 	private readonly config: ReactRuntimeBundleServiceConfig;
 
@@ -39,87 +41,132 @@ export class ReactRuntimeBundleService {
 		this.config = config;
 	}
 
-	getRuntimeImports(): ReactRuntimeImports {
+	private get isDevelopment(): boolean {
+		return process.env.NODE_ENV === 'development';
+	}
+
+	private getCurrentRuntimeMode(): RuntimeMode {
+		return this.isDevelopment ? 'development' : 'production';
+	}
+
+	private createRuntimeDefines(mode: RuntimeMode): Record<string, string> {
+		const nodeEnv = JSON.stringify(mode);
+
+		return {
+			'process.env.NODE_ENV': nodeEnv,
+			'import.meta.env.NODE_ENV': nodeEnv,
+		};
+	}
+
+	private getReactVendorFileName(mode: RuntimeMode): string {
+		return mode === 'development' ? 'react.development.js' : 'react.js';
+	}
+
+	private getReactDomVendorFileName(mode: RuntimeMode): string {
+		return mode === 'development' ? 'react-dom.development.js' : 'react-dom.js';
+	}
+
+	private getRouterVendorFileName(mode: RuntimeMode): string {
+		if (!this.config.routerAdapter) {
+			return '';
+		}
+
+		return mode === 'development'
+			? `${this.config.routerAdapter.bundle.outputName}.development.js`
+			: `${this.config.routerAdapter.bundle.outputName}.js`;
+	}
+
+	getRuntimeImports(mode = this.getCurrentRuntimeMode()): ReactRuntimeImports {
+		const reactVendorFileName = this.getReactVendorFileName(mode);
+		const reactDomVendorFileName = this.getReactDomVendorFileName(mode);
 		const runtimeImports: ReactRuntimeImports = {
-			react: buildBrowserRuntimeAssetUrl('react.js'),
-			reactDomClient: buildBrowserRuntimeAssetUrl('react-dom.js'),
-			reactJsxRuntime: buildBrowserRuntimeAssetUrl('react.js'),
-			reactJsxDevRuntime: buildBrowserRuntimeAssetUrl('react.js'),
-			reactDom: buildBrowserRuntimeAssetUrl('react-dom.js'),
+			react: buildBrowserRuntimeAssetUrl(reactVendorFileName),
+			reactDomClient: buildBrowserRuntimeAssetUrl(reactDomVendorFileName),
+			reactJsxRuntime: buildBrowserRuntimeAssetUrl(reactVendorFileName),
+			reactJsxDevRuntime: buildBrowserRuntimeAssetUrl(reactVendorFileName),
+			reactDom: buildBrowserRuntimeAssetUrl(reactDomVendorFileName),
 		};
 
 		if (this.config.routerAdapter) {
-			runtimeImports.router = buildBrowserRuntimeAssetUrl(`${this.config.routerAdapter.bundle.outputName}.js`);
+			runtimeImports.router = buildBrowserRuntimeAssetUrl(this.getRouterVendorFileName(mode));
 		}
 
 		return runtimeImports;
 	}
 
-	getSpecifierMap(): Record<string, string> {
-		return buildReactRuntimeSpecifierMap(this.getRuntimeImports(), this.config.routerAdapter);
+	getSpecifierMap(mode = this.getCurrentRuntimeMode()): Record<string, string> {
+		return buildReactRuntimeSpecifierMap(this.getRuntimeImports(mode), this.config.routerAdapter);
 	}
 
 	getDependencies(): AssetDefinition[] {
-		const runtimeImports = this.getRuntimeImports();
-		const reactRuntimeAliasPlugin = createRuntimeSpecifierAliasPlugin(
-			{
-				react: runtimeImports.react,
-			},
-			{ name: 'react-plugin-runtime-specifier-alias' },
-		);
 		const reactDomRuntimeInteropPlugin = createReactDomRuntimeInteropPlugin();
-		const reactDomBundlePlugins = [reactRuntimeAliasPlugin, reactDomRuntimeInteropPlugin].filter(
-			(plugin): plugin is EcoBuildPlugin => plugin !== null,
-		);
+		const dependencies: AssetDefinition[] = [];
 
-		const dependencies: AssetDefinition[] = [
-			createBrowserRuntimeModuleAsset({
-				modules: [
-					{ specifier: 'react', defaultExport: true },
-					{ specifier: 'react/jsx-runtime' },
-					{ specifier: 'react/jsx-dev-runtime' },
-				],
-				name: 'react',
-				fileName: 'react.js',
-				cacheDirName: 'ecopages-react-runtime',
-			}),
-			createBrowserRuntimeModuleAsset({
-				modules: [{ specifier: 'react-dom', defaultExport: true }, { specifier: 'react-dom/client' }],
-				name: 'react-dom',
-				fileName: 'react-dom.js',
-				cacheDirName: 'ecopages-react-runtime',
-				bundleOptions: {
-					plugins: reactDomBundlePlugins,
+		for (const mode of ['production', 'development'] as const) {
+			const reactRuntimeAliasPlugin = createRuntimeSpecifierAliasPlugin(
+				{
+					react: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
 				},
-			}),
-		];
-
-		if (this.config.routerAdapter) {
-			const runtimeAliasPlugin = this.createRuntimeAliasPlugin();
-			const mappedSpecifiers = new Set(Object.keys(this.getSpecifierMap()));
-			const unresolvedExternals = this.config.routerAdapter.bundle.externals.filter(
-				(external) => !mappedSpecifiers.has(external),
+				{ name: `react-plugin-runtime-specifier-alias-${mode}` },
 			);
+			const reactDomBundlePlugins = [reactRuntimeAliasPlugin, reactDomRuntimeInteropPlugin].filter(
+				(plugin): plugin is EcoBuildPlugin => plugin !== null,
+			);
+			const runtimeAliasPlugin = this.createRuntimeAliasPlugin(mode);
+			const mappedSpecifiers = new Set(Object.keys(this.getSpecifierMap(mode)));
 
 			dependencies.push(
-				createBrowserRuntimeScriptAsset({
-					importPath: this.config.routerAdapter.bundle.importPath,
-					name: this.config.routerAdapter.bundle.outputName,
-					fileName: `${this.config.routerAdapter.bundle.outputName}.js`,
+				createBrowserRuntimeModuleAsset({
+					modules: [
+						{ specifier: 'react', defaultExport: true },
+						{ specifier: 'react/jsx-runtime' },
+						{ specifier: 'react/jsx-dev-runtime' },
+					],
+					name: 'react',
+					fileName: this.getReactVendorFileName(mode),
+					cacheDirName: `ecopages-react-runtime-${mode}`,
 					bundleOptions: {
-						external: unresolvedExternals,
-						plugins: [runtimeAliasPlugin],
+						define: this.createRuntimeDefines(mode),
+					},
+				}),
+				createBrowserRuntimeModuleAsset({
+					modules: [{ specifier: 'react-dom', defaultExport: true }, { specifier: 'react-dom/client' }],
+					name: 'react-dom',
+					fileName: this.getReactDomVendorFileName(mode),
+					cacheDirName: `ecopages-react-runtime-${mode}`,
+					bundleOptions: {
+						define: this.createRuntimeDefines(mode),
+						plugins: reactDomBundlePlugins,
 					},
 				}),
 			);
+
+			if (this.config.routerAdapter) {
+				const unresolvedExternals = this.config.routerAdapter.bundle.externals.filter(
+					(external) => !mappedSpecifiers.has(external),
+				);
+
+				dependencies.push(
+					createBrowserRuntimeScriptAsset({
+						importPath: this.config.routerAdapter.bundle.importPath,
+						name: this.config.routerAdapter.bundle.outputName,
+						fileName: this.getRouterVendorFileName(mode),
+						bundleOptions: {
+							define: this.createRuntimeDefines(mode),
+							external: unresolvedExternals,
+							plugins: [runtimeAliasPlugin],
+						},
+					}),
+				);
+			}
 		}
 
 		return dependencies;
 	}
 
-	createRuntimeAliasPlugin(): EcoBuildPlugin {
-		return createRuntimeSpecifierAliasPlugin(this.getSpecifierMap(), {
-			name: 'react-plugin-runtime-alias',
+	createRuntimeAliasPlugin(mode = this.getCurrentRuntimeMode()): EcoBuildPlugin {
+		return createRuntimeSpecifierAliasPlugin(this.getSpecifierMap(mode), {
+			name: `react-plugin-runtime-alias-${mode}`,
 		})!;
 	}
 }

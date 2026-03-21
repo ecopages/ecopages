@@ -94,6 +94,10 @@ const createRendererWithAssets = () => {
 
 describe('ReactRenderer', () => {
 	describe('renderComponent', () => {
+		it('should configure the page module service to use the work directory for internal outputs', () => {
+			expect((renderer.pageModuleService as any).config.workDir).toBe(Config.absolutePaths.workDir);
+		});
+
 		it('should render a single React component with structured output', async () => {
 			const testRenderer = createRenderer();
 			const Component = ((props: { title: string }) => <h2>{props.title}</h2>) as unknown as EcoComponent<{
@@ -186,6 +190,83 @@ describe('ReactRenderer', () => {
 			} finally {
 				ReactRenderer.routerAdapter = originalRouterAdapter;
 			}
+		});
+
+		it('should eagerly emit SSR-marked lazy scripts for declared MDX component dependencies', async () => {
+			const assetProcessingService = {
+				getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+				processDependencies: vi.fn(async (dependencies: Array<Record<string, unknown>>) =>
+					dependencies.map((dependency) => ({
+						kind: dependency.kind as 'script' | 'stylesheet',
+						filepath: dependency.source === 'file' ? (dependency.filepath as string) : undefined,
+						attributes: dependency.attributes as Record<string, string> | undefined,
+						excludeFromHtml: dependency.excludeFromHtml as boolean | undefined,
+					})),
+				),
+			};
+
+			const testRenderer = new ReactRenderer({
+				appConfig: Config,
+				assetProcessingService: assetProcessingService as any,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const declaredLitComponent = (() => null) as unknown as EcoComponent<object>;
+			declaredLitComponent.config = {
+				__eco: {
+					id: 'declared-lit-counter',
+					file: path.resolve(__dirname, 'fixture/declared-lit-counter.lit.tsx'),
+					integration: 'lit',
+				},
+				dependencies: {
+					scripts: [
+						{
+							src: './declared-lit-counter.script.ts',
+							lazy: { 'on:interaction': 'click' },
+							ssr: true,
+						},
+					],
+				},
+			};
+
+			vi.spyOn(testRenderer as any, 'importPageFile').mockResolvedValue({
+				config: {
+					dependencies: {
+						components: [declaredLitComponent],
+					},
+				},
+			});
+
+			const assets = await (testRenderer as any).processMdxConfigDependencies(
+				path.resolve(__dirname, 'fixture/react-content.mdx'),
+			);
+
+			expect(assetProcessingService.processDependencies).toHaveBeenCalledTimes(2);
+			expect(assetProcessingService.processDependencies).toHaveBeenNthCalledWith(
+				2,
+				[
+					expect.objectContaining({
+						kind: 'script',
+						source: 'file',
+						filepath: path.resolve(__dirname, 'fixture/declared-lit-counter.script.ts'),
+						position: 'head',
+						attributes: {
+							type: 'module',
+							defer: '',
+						},
+					}),
+				],
+				`react-mdx-ssr-lazy:${path.resolve(__dirname, 'fixture/react-content.mdx')}`,
+			);
+			expect(assets).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						filepath: path.resolve(__dirname, 'fixture/declared-lit-counter.script.ts'),
+						excludeFromHtml: undefined,
+					}),
+				]),
+			);
 		});
 	});
 

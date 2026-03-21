@@ -23,6 +23,7 @@ import { collectDeclaredModulesInConfig } from '../utils/declared-modules.ts';
 export interface ReactPageModuleServiceConfig {
 	rootDir: string;
 	distDir: string;
+	workDir: string;
 	buildExecutor: BuildExecutor;
 	layoutsDir?: string;
 	componentsDir?: string;
@@ -68,7 +69,7 @@ export class ReactPageModuleService {
 			},
 		);
 
-		const outdir = path.join(this.config.distDir, '.server-modules-react-mdx');
+		const outdir = path.join(this.config.workDir, '.server-modules-react-mdx');
 		const fileBaseName = path.basename(filePath, path.extname(filePath));
 		const fileHash = fileSystem.hash(filePath);
 		const cacheBuster = process?.env?.NODE_ENV === 'development' ? `-${Date.now()}` : '';

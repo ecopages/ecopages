@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { EcoComponent, EcoPageComponent, HtmlTemplateProps, RouteRendererOptions } from '../public-types.ts';
-import type { AssetProcessingService, ProcessedAsset } from '../services/asset-processing-service/index.ts';
+import type { AssetDefinition, AssetProcessingService, ProcessedAsset } from '../services/asset-processing-service/index.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
 
 declare module '../public-types.ts' {
@@ -157,5 +157,75 @@ describe('RenderPreparationService', () => {
 		expect(result.pageLocals).toEqual({ guarded: true });
 		expect(result.componentRender).toBeUndefined();
 		expect(renderPageComponent).not.toHaveBeenCalled();
+	});
+
+	it('eagerly emits lazy SSR component scripts for shared non-owning routes', async () => {
+		const eagerSsrLazyAsset = {
+			kind: 'script',
+			srcUrl: '/assets/components/lit-counter.script.js',
+			position: 'head',
+		} as ProcessedAsset;
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (dependencies: AssetDefinition[]) => {
+				const hasEagerSsrLazyDependency = dependencies.some((dependency) => {
+					if (dependency.kind !== 'script' || dependency.source !== 'file') {
+						return false;
+					}
+
+					return String(dependency.filepath).endsWith('/lit-counter.script.ts');
+				});
+
+				return hasEagerSsrLazyDependency ? [eagerSsrLazyAsset] : [];
+			}),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const LitCounter = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
+		LitCounter.config = {
+			__eco: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
+			dependencies: {
+				scripts: [{ src: './lit-counter.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
+			},
+		};
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+		Page.config = {
+			dependencies: {
+				components: [LitCounter],
+			},
+		};
+
+		const setProcessedDependencies = vi.fn();
+
+		await service.prepare(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			'ghtml',
+			{
+				resolvePageModule: async () => ({
+					Page,
+					integrationSpecificProps: {},
+				}),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: 'Static page', description: 'Static page description' },
+				}),
+				resolveDependencies: async () => [],
+				buildRouteRenderAssets: async () => [],
+				shouldRenderPageComponent: () => false,
+				renderPageComponent: vi.fn(),
+				getComponentRenderBoundaryContext: () => ({
+					decideBoundaryRender: () => 'inline',
+				}),
+				setProcessedDependencies,
+				dedupeProcessedAssets: (assets) => assets,
+				createPageLocalsProxy: () => ({}),
+			},
+		);
+
+		expect(setProcessedDependencies).toHaveBeenCalledWith([eagerSsrLazyAsset]);
 	});
 });

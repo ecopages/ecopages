@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { fileSystem } from '@ecopages/file-system';
@@ -22,6 +22,11 @@ const getExtensions = (plugin: ReactPlugin) => (plugin as any).extensions;
 
 describe('ReactPlugin & ReactRenderer Extensions', () => {
 	const originalExtensions = ReactRenderer.mdxExtensions;
+	const originalNodeEnv = process.env.NODE_ENV;
+
+	afterEach(() => {
+		process.env.NODE_ENV = originalNodeEnv;
+	});
 
 	afterAll(() => {
 		if (fileSystem.exists(testDir)) {
@@ -100,5 +105,35 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		expect(renderer.isMdxFile('component.story.mdx')).toBe(true);
 		expect(renderer.isMdxFile('component.tsx')).toBe(false);
 		expect(renderer.isMdxFile('file.mdx')).toBe(false);
+	});
+
+	it('should seal both production and development runtime vendor dependencies during setup preparation', async () => {
+		process.env.NODE_ENV = 'production';
+		const plugin = reactPlugin({});
+
+		expect((plugin as any).integrationDependencies).toEqual([]);
+
+		await plugin.prepareBuildContributions();
+
+		expect((plugin as any).integrationDependencies).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: 'react',
+					bundleOptions: expect.objectContaining({ naming: 'react.js' }),
+				}),
+				expect.objectContaining({
+					name: 'react',
+					bundleOptions: expect.objectContaining({ naming: 'react.development.js' }),
+				}),
+				expect.objectContaining({
+					name: 'react-dom',
+					bundleOptions: expect.objectContaining({ naming: 'react-dom.js' }),
+				}),
+				expect.objectContaining({
+					name: 'react-dom',
+					bundleOptions: expect.objectContaining({ naming: 'react-dom.development.js' }),
+				}),
+			]),
+		);
 	});
 });

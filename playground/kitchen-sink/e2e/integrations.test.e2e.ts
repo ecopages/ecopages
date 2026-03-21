@@ -171,8 +171,9 @@ test.describe('Kitchen Sink Playground Integrations', () => {
 		expect(specifiers).not.toContain('react');
 		expect(specifiers).not.toContain('react/jsx-runtime');
 		expect(specifiers).not.toContain('react/jsx-dev-runtime');
-		expect(source).not.toMatch(/react\.development/i);
-		expect(source).not.toMatch(/react-jsx-dev-runtime/i);
+		expect(source).toMatch(/\/assets\/vendors\/react(?:\.development)?\.js/i);
+		expect(source).not.toMatch(/from\s+["']react["']/i);
+		expect(source).not.toMatch(/from\s+["']react\/jsx-dev-runtime["']/i);
 
 		runtime.assertClean();
 	});

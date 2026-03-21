@@ -346,7 +346,7 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 	async buildOrThrow(options: BuildOptions, moduleGeneration = 0): Promise<BuildResult> {
 		const esbuild = await this.loadEsbuildModule(moduleGeneration);
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
-		const outdir = path.resolve(options.outdir ?? '.eco/assets');
+		const outdir = path.resolve(options.outdir ?? 'dist/assets');
 		const tsconfigPath = path.join(contextRoot, 'tsconfig.json');
 		const tsconfigExists = fileSystem.exists(tsconfigPath);
 
@@ -377,6 +377,8 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 			entryPoints: options.entrypoints,
 			bundle: options.bundle ?? true,
 			...outputOptions,
+			...(options.conditions ? { conditions: options.conditions } : {}),
+			...(options.define ? { define: options.define } : {}),
 			format: this.mapEsbuildFormat(options.format),
 			platform: (options.target === 'browser' ? 'browser' : 'node') as 'browser' | 'node',
 			sourcemap: this.mapEsbuildSourcemap(options.sourcemap),

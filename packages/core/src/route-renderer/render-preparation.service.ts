@@ -3,6 +3,8 @@ import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type {
 	ComponentRenderResult,
 	EcoComponent,
+	EcoComponentConfig,
+	DependencyAttributes,
 	EcoPageComponent,
 	EcoPageFile,
 	EcoPagesElement,
@@ -140,6 +142,11 @@ export class RenderPreparationService {
 		if (triggers.length > 0) {
 			const globalAssets = await this.buildGlobalInjectorAssets(triggers, currentIntegrationName);
 			allDependencies.push(...globalAssets);
+		}
+
+		const eagerSsrLazyAssets = await this.buildEagerSsrLazyAssets(componentsToResolve, currentIntegrationName);
+		if (eagerSsrLazyAssets.length > 0) {
+			allDependencies.push(...eagerSsrLazyAssets);
 		}
 
 		callbacks.setProcessedDependencies(callbacks.dedupeProcessedAssets(allDependencies));
@@ -364,5 +371,103 @@ export class RenderPreparationService {
 			[mapScript, bootstrapScript, globalInjectorRuntimeAsset],
 			currentIntegrationName,
 		);
+	}
+
+	private async buildEagerSsrLazyAssets(
+		components: (EcoComponent | Partial<EcoComponent>)[],
+		currentIntegrationName: string,
+	): Promise<ProcessedAsset[]> {
+		const dependencies = this.collectEagerSsrLazyDependencies(components);
+		if (dependencies.length === 0) {
+			return [];
+		}
+
+		return this.assetProcessingService.processDependencies(dependencies, `${currentIntegrationName}:ssr-lazy`);
+	}
+
+	private collectEagerSsrLazyDependencies(
+		components: (EcoComponent | Partial<EcoComponent>)[],
+	): ReturnType<AssetProcessingService['processDependencies']> extends Promise<infer _>
+		? Parameters<AssetProcessingService['processDependencies']>[0]
+		: never {
+		const dependencies = [] as Parameters<AssetProcessingService['processDependencies']>[0];
+		const visitedConfigs = new Set<EcoComponentConfig>();
+		const seenKeys = new Set<string>();
+
+		const normalizeAttributes = (attributes?: DependencyAttributes) => ({
+			type: 'module',
+			defer: '',
+			...(attributes ?? {}),
+		});
+
+		const collect = (config?: EcoComponentConfig) => {
+			if (!config || visitedConfigs.has(config)) {
+				return;
+			}
+
+			visitedConfigs.add(config);
+
+			const componentFile = config.__eco?.file;
+			if (componentFile) {
+				const componentDir = coreRequire('node:path').dirname(componentFile);
+				for (const script of config.dependencies?.scripts ?? []) {
+					if (typeof script === 'string' || !script.lazy || script.ssr !== true) {
+						continue;
+					}
+
+					const attributes = normalizeAttributes(script.attributes);
+
+					if (script.content) {
+						const key = `content:${script.content}:${JSON.stringify(attributes)}`;
+						if (seenKeys.has(key)) {
+							continue;
+						}
+
+						seenKeys.add(key);
+						dependencies.push(
+							AssetFactory.createContentScript({
+								position: 'head',
+								content: script.content,
+								attributes,
+							}),
+						);
+						continue;
+					}
+
+					if (!script.src) {
+						continue;
+					}
+
+					const resolvedPath = coreRequire('node:path').resolve(componentDir, script.src);
+					const key = `file:${resolvedPath}:${JSON.stringify(attributes)}`;
+					if (seenKeys.has(key)) {
+						continue;
+					}
+
+					seenKeys.add(key);
+					dependencies.push(
+						AssetFactory.createFileScript({
+							filepath: resolvedPath,
+							position: 'head',
+							attributes,
+						}),
+					);
+				}
+			}
+
+			if (config.layout?.config) {
+				collect(config.layout.config);
+			}
+
+			for (const nestedComponent of config.dependencies?.components ?? []) {
+				collect(nestedComponent?.config);
+			}
+		};
+
+		for (const component of components) {
+			collect(component.config);
+		}
+
+		return dependencies;
 	}
 }

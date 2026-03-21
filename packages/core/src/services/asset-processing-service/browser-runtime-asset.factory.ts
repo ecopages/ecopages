@@ -31,6 +31,7 @@ export function createBrowserRuntimeScriptAsset(options: {
 	name: string;
 	fileName: string;
 	bundleOptions?: {
+		define?: Record<string, string>;
 		minify?: boolean;
 		external?: string[];
 		naming?: string;
@@ -69,6 +70,7 @@ export function createBrowserRuntimeModuleAsset(options: {
 	cacheDirName?: string;
 	rootDir?: string;
 	bundleOptions?: {
+		define?: Record<string, string>;
 		minify?: boolean;
 		external?: string[];
 		naming?: string;

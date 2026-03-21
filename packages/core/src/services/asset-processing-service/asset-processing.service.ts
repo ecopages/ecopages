@@ -335,7 +335,16 @@ export class AssetProcessingService {
 	 */
 	private getCachedAsset(dep: AssetDefinition, depKey: string): ProcessedAsset | null {
 		const cached = this.cache.get(depKey);
-		return cached?.asset ?? null;
+		if (!cached) {
+			return null;
+		}
+
+		if (cached.asset.filepath && !fileSystem.exists(cached.asset.filepath)) {
+			this.cache.delete(depKey);
+			return null;
+		}
+
+		return cached.asset;
 	}
 
 	/**

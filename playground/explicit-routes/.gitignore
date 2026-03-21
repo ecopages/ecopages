@@ -6,6 +6,7 @@
 
 # build
 public/js
+dist
 
 # misc
 .DS_Store

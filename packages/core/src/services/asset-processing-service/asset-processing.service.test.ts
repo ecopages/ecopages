@@ -267,6 +267,32 @@ test('AssetProcessingService - caching returns cached asset without reprocessing
 	expect(results2[0].srcUrl).toBe('/assets/cached.js');
 });
 
+test('AssetProcessingService - stale cached emitted files are rebuilt when output is missing', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	const existsMock = vi
+		.fn()
+		.mockImplementationOnce(() => true)
+		.mockImplementationOnce(() => false)
+		.mockImplementation(() => true);
+	fileSystem.exists = existsMock;
+
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/stale.js',
+		kind: 'script',
+		inline: false,
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/stale.js' };
+
+	await service.processDependencies([dependency], 'key1');
+	await service.processDependencies([dependency], 'key2');
+
+	expect(processMock).toHaveBeenCalledTimes(2);
+});
+
 test('AssetProcessingService - deduplication processes duplicate deps only once', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});

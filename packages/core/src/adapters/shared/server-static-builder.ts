@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { StaticContentServer } from '../../dev/sc-server';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
@@ -56,6 +58,31 @@ export class ServerStaticBuilder {
 		);
 	}
 
+	private prepareExportDirectory(): void {
+		const exportDir =
+			this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
+		fileSystem.ensureDir(exportDir, true);
+
+		const srcPublicDir = path.join(
+			this.appConfig.rootDir,
+			this.appConfig.srcDir ?? 'src',
+			this.appConfig.publicDir ?? 'public',
+		);
+		if (fileSystem.exists(srcPublicDir)) {
+			fileSystem.copyDir(srcPublicDir, exportDir);
+		}
+	}
+
+	private async refreshRuntimeAssets(): Promise<void> {
+		for (const processor of this.appConfig.processors.values()) {
+			await processor.setup();
+		}
+
+		for (const integration of this.appConfig.integrations) {
+			await integration.setup();
+		}
+	}
+
 	/**
 	 * Generates a static build of the site for deployment.
 	 * @param options.preview - If true, starts a preview server after build
@@ -75,6 +102,8 @@ export class ServerStaticBuilder {
 
 		const baseUrl = `http://${this.serveOptions.hostname || 'localhost'}:${this.serveOptions.port || 3000}`;
 		this.warnApiHandlersUnavailableInStaticMode();
+		this.prepareExportDirectory();
+		await this.refreshRuntimeAssets();
 
 		await this.staticSiteGenerator.run({
 			router: dependencies.router,

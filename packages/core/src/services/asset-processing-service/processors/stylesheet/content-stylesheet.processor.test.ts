@@ -5,6 +5,7 @@ import type { EcoPagesAppConfig } from '../../../../internal-types';
 import type { ContentStylesheetAsset } from '../../assets.types';
 
 const originalWrite = fileSystem.write;
+const originalExists = fileSystem.exists;
 
 const createMockConfig = (): EcoPagesAppConfig =>
 	({
@@ -23,10 +24,12 @@ describe('ContentStylesheetProcessor', () => {
 	beforeEach(() => {
 		writeMock = vi.fn(() => {});
 		fileSystem.write = writeMock;
+		fileSystem.exists = vi.fn(() => true);
 	});
 
 	afterEach(() => {
 		fileSystem.write = originalWrite;
+		fileSystem.exists = originalExists;
 		vi.restoreAllMocks();
 	});
 

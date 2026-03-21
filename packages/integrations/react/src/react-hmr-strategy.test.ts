@@ -4,6 +4,14 @@ import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { DefaultHmrContext } from '@ecopages/core';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 
+function createImportServerModuleMock(result: {
+	config: Record<string, unknown>;
+}): DefaultHmrContext['importServerModule'] {
+	return vi.fn(
+		(async (_filePath: string) => result) as DefaultHmrContext['importServerModule'],
+	) as unknown as DefaultHmrContext['importServerModule'];
+}
+
 function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultHmrContext {
 	return {
 		getWatchedFiles: () => new Map(),
@@ -27,7 +35,7 @@ function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultH
 				outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp' }],
 			})),
 		}),
-		importServerModule: vi.fn(async () => ({ config: {} })),
+		importServerModule: createImportServerModuleMock({ config: {} }),
 		...overrides,
 	};
 }
@@ -79,11 +87,11 @@ describe('ReactHmrStrategy', () => {
 	});
 
 	it('loads server-side page metadata through the shared HMR server-module path', async () => {
-		const importServerModule = vi.fn(async () => ({
+		const importServerModule = createImportServerModuleMock({
 			config: {
 				requires: ['react', './client-entry.ts'],
 			},
-		}));
+		});
 		const bundle = vi.fn(async () => ({
 			success: true,
 			logs: [],

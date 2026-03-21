@@ -1,10 +1,26 @@
 import { describe, expect, it } from 'vitest';
+import type { ReactRouterAdapter } from '../router-adapter.ts';
 import {
 	buildReactRuntimeSpecifierMap,
 	getReactClientGraphAllowSpecifiers,
 	getReactRuntimeExternalSpecifiers,
 	REACT_RUNTIME_SPECIFIERS,
 } from './react-runtime-specifier-map.ts';
+
+const reactRouterAdapter: ReactRouterAdapter = {
+	name: 'react-router',
+	importMapKey: 'react-router',
+	bundle: {
+		outputName: 'router',
+		importPath: '/router.ts',
+		externals: [],
+	},
+	components: {
+		router: 'Router',
+		pageContent: 'PageContent',
+	},
+	getRouterProps: (page, props) => `{ page: ${page}, pageProps: ${props} }`,
+};
 
 describe('buildReactRuntimeSpecifierMap', () => {
 	it('builds the canonical React runtime specifier map', () => {
@@ -36,10 +52,7 @@ describe('buildReactRuntimeSpecifierMap', () => {
 					reactDom: '/assets/vendors/react-dom.js',
 					router: '/assets/vendors/router.js',
 				},
-				{
-					importMapKey: 'react-router',
-					bundle: { outputName: 'router', importPath: '/router.ts', externals: [] },
-				},
+				reactRouterAdapter,
 			),
 		).toMatchObject({
 			'react-router': '/assets/vendors/router.js',
@@ -52,14 +65,7 @@ describe('buildReactRuntimeSpecifierMap', () => {
 
 	it('builds the canonical allowlist for client graph boundaries', () => {
 		expect(
-			getReactClientGraphAllowSpecifiers(['virtual:runtime-a', 'virtual:runtime-b'], {
-				importMapKey: 'react-router',
-				bundle: {
-					outputName: 'router',
-					importPath: '/router.ts',
-					externals: [],
-				},
-			}),
+			getReactClientGraphAllowSpecifiers(['virtual:runtime-a', 'virtual:runtime-b'], reactRouterAdapter),
 		).toEqual([
 			'@ecopages/core',
 			'react',

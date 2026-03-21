@@ -47,97 +47,95 @@
 	&__commands {
 		@apply mt-5 space-y-3;
 	}
+}
 
-	&__command {
-		@apply block w-full rounded-md border border-border bg-background p-4 text-left text-on-background transition outline-none;
+.api-lab__command {
+	@apply block w-full rounded-md border border-border bg-background p-4 text-left text-on-background transition outline-none;
 
-		&:hover,
-		&:focus-visible,
-		&--selected {
-			@apply border-sky-300 shadow-[0_8px_30px_rgba(14,165,233,0.08)];
-		}
-
-		&:focus-visible {
-			@apply ring-2 ring-sky-200;
-		}
-
-		&:hover .api-lab__command-cta,
-		&--selected .api-lab__command-cta {
-			@apply border-sky-300;
-		}
+	&:hover,
+	&:focus-visible,
+	&.api-lab__command--selected {
+		@apply border-sky-300 shadow-[0_8px_30px_rgba(14,165,233,0.08)];
 	}
 
-	&__command-header {
-		@apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
+	&:focus-visible {
+		@apply ring-2 ring-sky-200;
 	}
 
-	&__command-method {
-		@apply text-xs font-semibold uppercase tracking-[0.24em] text-sky-600;
-	}
-
-	&__command-title {
-		@apply mt-2 font-display text-xl font-semibold tracking-tight sm:text-2xl;
-	}
-
-	&__command-cta {
-		@apply inline-flex w-fit items-center rounded-full border border-border bg-background-accent px-3 py-1 text-xs text-on-background-accent transition;
-	}
-
-	&__command-description {
-		@apply mt-3 text-sm leading-7 text-muted;
-	}
-
-	&__command-code,
-	&__viewer-code {
-		@apply mt-3 overflow-x-auto rounded-md border border-border bg-background p-3 text-xs text-on-background;
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
-	}
-
-	&__viewer {
-		@apply rounded-md border border-border bg-background p-4 text-on-background;
-	}
-
-	&__viewer-header {
-		@apply flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between;
-	}
-
-	&__viewer-title {
-		@apply mt-2 font-display text-xl font-semibold tracking-tight sm:text-2xl;
-	}
-
-	&__viewer-badges {
-		@apply flex flex-wrap gap-2 text-xs;
-	}
-
-	&__viewer-badge {
-		@apply rounded-full border border-border bg-background-accent px-3 py-1 text-on-background-accent;
-	}
-
-	&__viewer-sections {
-		@apply mt-4 space-y-4 text-sm;
-	}
-
-	&__viewer-code--body {
-		@apply min-h-64 overflow-auto;
+	&:hover .api-lab__command-cta,
+	&.api-lab__command--selected .api-lab__command-cta {
+		@apply border-sky-300;
 	}
 }
 
+.api-lab__command-header {
+	@apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
+}
+
+.api-lab__command-method {
+	@apply text-xs font-semibold uppercase tracking-[0.24em] text-sky-600;
+}
+
+.api-lab__command-title {
+	@apply mt-2 font-display text-xl font-semibold tracking-tight sm:text-2xl;
+}
+
+.api-lab__command-cta {
+	@apply inline-flex w-fit items-center rounded-full border border-border bg-background-accent px-3 py-1 text-xs text-on-background-accent transition;
+}
+
+.api-lab__command-description {
+	@apply mt-3 text-sm leading-7 text-muted;
+}
+
+.api-lab__command-code,
+.api-lab__viewer-code {
+	@apply mt-3 overflow-x-auto rounded-md border border-border bg-background p-3 text-xs text-on-background;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.api-lab__viewer {
+	@apply rounded-md border border-border bg-background p-4 text-on-background;
+}
+
+.api-lab__viewer-header {
+	@apply flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between;
+}
+
+.api-lab__viewer-title {
+	@apply mt-2 font-display text-xl font-semibold tracking-tight sm:text-2xl;
+}
+
+.api-lab__viewer-badges {
+	@apply flex flex-wrap gap-2 text-xs;
+}
+
+.api-lab__viewer-badge {
+	@apply rounded-full border border-border bg-background-accent px-3 py-1 text-on-background-accent;
+}
+
+.api-lab__viewer-sections {
+	@apply mt-4 space-y-4 text-sm;
+}
+
+.api-lab__viewer-code--body {
+	@apply min-h-64 overflow-auto;
+}
+
 @media (max-width: 40rem) {
-	.api-lab {
-		&__workspace,
-		&__intro,
-		&__viewer,
-		&__command {
-			@apply p-4;
-		}
+	.api-lab__workspace,
+	.api-lab__intro,
+	.api-lab__viewer,
+	.api-lab__command {
+		@apply p-4;
+	}
 
-		&__summary {
-			@apply text-sm leading-7;
-		}
+	.api-lab__summary {
+		@apply text-sm leading-7;
+	}
 
-		&__route-list {
-			@apply text-sm;
-		}
+	.api-lab__route-list {
+		@apply text-sm;
 	}
 }

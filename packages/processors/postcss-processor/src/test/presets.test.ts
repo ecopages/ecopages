@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { PostCssProcessor } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
@@ -52,6 +53,7 @@ describe('Presets Verification', () => {
 			.parent {
 				& .child { color: blue; }
 				&__element { color: green; }
+				&--active { color: red; }
 			}
 		`;
 
@@ -62,6 +64,7 @@ describe('Presets Verification', () => {
 
 		expect(result).toContain('.parent .child{color:blue}');
 		expect(result).toContain('.parent__element{color:green}');
+		expect(result).toContain('.parent--active{color:red}');
 	});
 
 	test('Tailwind v4 preset should add vendor prefixes (via Lightning CSS)', async () => {
@@ -115,7 +118,7 @@ describe('Presets Verification', () => {
 
 test('Tailwind v4 preset should support nesting', async () => {
 	const preset = tailwindV4Preset({
-		referencePath: path.resolve(__dirname, '../fixtures/tailwind.css'),
+		referencePath: path.resolve(__dirname, 'css/tailwind-reference.css'),
 	});
 
 	const cssWithNesting = `
@@ -127,6 +130,9 @@ test('Tailwind v4 preset should support nesting', async () => {
 				&__element {
 					color: green;
 				}
+				&--active {
+					color: black;
+				}
 			}
 		`;
 
@@ -137,4 +143,59 @@ test('Tailwind v4 preset should support nesting', async () => {
 
 	expect(result).toContain('.parent .child{color:blue}');
 	expect(result).toContain('.parent__element{color:green}');
+	expect(result).toContain('.parent--active{color:#000}');
+});
+
+test('Tailwind v4 preset should expand BEM modifiers inside @layer blocks', async () => {
+	const preset = tailwindV4Preset({
+		referencePath: path.resolve(__dirname, 'css/tailwind-reference.css'),
+	});
+
+	const cssWithLayeredBem = `
+		@layer components {
+			.button {
+				&--primary {
+					color: blue;
+				}
+			}
+		}
+	`;
+
+	const result = await PostCssProcessor.processStringOrBuffer(cssWithLayeredBem, {
+		plugins: preset.plugins ? Object.values(preset.plugins) : [],
+		filePath: path.resolve(__dirname, 'style.css'),
+	});
+
+	expect(result).toContain('.button--primary{color:blue}');
+	expect(result).not.toContain('--primary.button');
+});
+
+test('Tailwind v4 preset should preserve nested BEM selectors with @apply in production', async () => {
+	const originalNodeEnv = process.env.NODE_ENV;
+	process.env.NODE_ENV = 'production';
+
+	try {
+		const kitchenSinkTailwindPath = path.resolve(
+			__dirname,
+			'../../../../../playground/kitchen-sink/src/styles/tailwind.css',
+		);
+		const preset = tailwindV4Preset({
+			referencePath: kitchenSinkTailwindPath,
+		});
+		const css = await readFile(kitchenSinkTailwindPath, 'utf-8');
+
+		const result = await PostCssProcessor.processStringOrBuffer(css, {
+			plugins: preset.plugins ? Object.values(preset.plugins) : [],
+			filePath: kitchenSinkTailwindPath,
+		});
+
+		expect(result).toContain('.button--primary');
+		expect(result).not.toContain('--primary.button');
+	} finally {
+		if (originalNodeEnv === undefined) {
+			delete process.env.NODE_ENV;
+		} else {
+			process.env.NODE_ENV = originalNodeEnv;
+		}
+	}
 });

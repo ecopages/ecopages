@@ -36,9 +36,9 @@ describe('launch-plan', () => {
 				'\trootDir,',
 				'\tloaders: new Map(),',
 				'\tabsolutePaths: {',
-				"\t\tconfig: `${rootDir}/eco.config.ts`,",
-				"\t\tsrcDir: `${rootDir}/src`,",
-				"\t\tdistDir: `${rootDir}/.eco`,",
+				'\t\tconfig: `${rootDir}/eco.config.ts`,',
+				'\t\tsrcDir: `${rootDir}/src`,',
+				'\t\tdistDir: `${rootDir}/.eco`,',
 				'\t},',
 				'\truntime: {},',
 				'};',
@@ -268,7 +268,9 @@ describe('launch-plan', () => {
 			expect(bundlePath).toBe(resolveNodeRuntimeManifestWriterBundlePath(tempDir));
 			expect(fs.existsSync(bundlePath)).toBe(true);
 			expect(path.extname(bundlePath)).toBe('.mjs');
-			expect(bundlePath).toBe(path.join(path.resolve(tempDir), '.eco', 'runtime', 'node-runtime-manifest-writer.mjs'));
+			expect(bundlePath).toBe(
+				path.join(path.resolve(tempDir), '.eco', 'runtime', 'node-runtime-manifest-writer.mjs'),
+			);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -280,7 +282,11 @@ describe('launch-plan', () => {
 			process.chdir(tempDir);
 			writeExperimentalRuntimeConfig(tempDir);
 			const resolvedTempDir = fs.realpathSync(tempDir);
-			const plan = await createLaunchPlan(['--dev'], { runtime: 'node-experimental', nodeEnv: 'development' }, 'app.ts');
+			const plan = await createLaunchPlan(
+				['--dev'],
+				{ runtime: 'node-experimental', nodeEnv: 'development' },
+				'app.ts',
+			);
 
 			expect(plan).toMatchObject({
 				runtime: 'node-experimental',
@@ -288,14 +294,8 @@ describe('launch-plan', () => {
 				command: 'node',
 				envOverrides: { NODE_ENV: 'development' },
 			});
-			expect(plan.commandArgs).toEqual([
-				expect.stringMatching(/node-thin-host\.js$/),
-				'app.ts',
-				'--dev',
-			]);
-			expect(plan.env.ECOPAGES_NODE_RUNTIME_MANIFEST_PATH).toBe(
-				resolveNodeRuntimeManifestPath(resolvedTempDir),
-			);
+			expect(plan.commandArgs).toEqual([expect.stringMatching(/node-thin-host\.js$/), 'app.ts', '--dev']);
+			expect(plan.env.ECOPAGES_NODE_RUNTIME_MANIFEST_PATH).toBe(resolveNodeRuntimeManifestPath(resolvedTempDir));
 			expect(JSON.parse(fs.readFileSync(plan.env.ECOPAGES_NODE_RUNTIME_MANIFEST_PATH, 'utf8'))).toMatchObject({
 				runtime: 'node',
 				modulePaths: {

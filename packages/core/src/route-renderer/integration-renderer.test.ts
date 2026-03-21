@@ -110,7 +110,6 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}) {
 		return this.shouldDeferComponentBoundary(input);
 	}
-
 }
 
 describe('IntegrationRenderer', () => {

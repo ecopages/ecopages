@@ -105,7 +105,10 @@ describe('ReactHmrStrategy', () => {
 
 		(strategy as any).processOutput = vi.fn(async () => true);
 
-		const success = await (strategy as any).bundleReactEntrypoint('/tmp/src/pages/index.tsx', '/_hmr/pages/index.js');
+		const success = await (strategy as any).bundleReactEntrypoint(
+			'/tmp/src/pages/index.tsx',
+			'/_hmr/pages/index.js',
+		);
 
 		expect(success).toBe(true);
 		expect(importServerModule).toHaveBeenCalledWith('/tmp/src/pages/index.tsx');

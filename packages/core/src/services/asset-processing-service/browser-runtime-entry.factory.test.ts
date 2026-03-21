@@ -14,10 +14,7 @@ test('createBrowserRuntimeEntryModule writes a shared runtime entry file', () =>
 			rootDir,
 			cacheDirName: 'ecopages-react-runtime-test',
 			fileName: 'runtime-entry.mjs',
-			modules: [
-				{ specifier: 'node:path' },
-				{ specifier: 'node:fs' },
-			],
+			modules: [{ specifier: 'node:path' }, { specifier: 'node:fs' }],
 		});
 
 		assert.equal(path.basename(filePath), 'runtime-entry.mjs');
@@ -55,10 +52,7 @@ test('createBrowserRuntimeEntryModule preserves a default export and deduplicate
 			rootDir,
 			cacheDirName: 'ecopages-react-runtime-test',
 			fileName: 'runtime-entry.mjs',
-			modules: [
-				{ specifier: 'runtime-a', defaultExport: true },
-				{ specifier: 'runtime-b' },
-			],
+			modules: [{ specifier: 'runtime-a', defaultExport: true }, { specifier: 'runtime-b' }],
 		});
 
 		const contents = fs.readFileSync(filePath, 'utf8');

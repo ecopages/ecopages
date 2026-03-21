@@ -86,7 +86,9 @@ describe('createUseSyncExternalStoreShimPlugin', () => {
 			'/workspace/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.development.js',
 			'/workspace/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js',
 		]) {
-			const variantRegistration = harness.onLoadRegistrations.find(({ options }) => options.filter.test(variantPath));
+			const variantRegistration = harness.onLoadRegistrations.find(({ options }) =>
+				options.filter.test(variantPath),
+			);
 			expect(variantRegistration).toBeDefined();
 			const variantResult = await variantRegistration?.callback({ path: variantPath, namespace: 'file' });
 			expect(variantResult).toEqual({

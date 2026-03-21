@@ -83,10 +83,7 @@ export class ReactRenderError extends Error {
 export class BundleError extends Error {
 	public readonly logs: string[];
 
-	constructor(
-		message: string,
-		logs: string[],
-	) {
+	constructor(message: string, logs: string[]) {
 		super(message);
 		this.name = 'BundleError';
 		this.logs = logs;

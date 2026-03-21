@@ -9,7 +9,9 @@ export const EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS = {
 	noRendererForIntegration: (integrationName: string) => `No renderer found for integration: ${integrationName}`,
 } as const;
 
-function getViewIntegrationName(view: { config?: { integration?: string; __eco?: { integration?: string } } }): string | undefined {
+function getViewIntegrationName(view: {
+	config?: { integration?: string; __eco?: { integration?: string } };
+}): string | undefined {
 	return view.config?.integration ?? view.config?.__eco?.integration;
 }
 

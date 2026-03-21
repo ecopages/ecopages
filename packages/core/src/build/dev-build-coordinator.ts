@@ -25,10 +25,7 @@ class BuildExecutorWithPlugins implements BuildExecutor {
 	private readonly executor: BuildExecutor;
 	private readonly getPlugins: () => EcoBuildPlugin[];
 
-	constructor(
-		executor: BuildExecutor,
-		getPlugins: () => EcoBuildPlugin[],
-	) {
+	constructor(executor: BuildExecutor, getPlugins: () => EcoBuildPlugin[]) {
 		this.executor = executor;
 		this.getPlugins = getPlugins;
 	}
@@ -46,10 +43,7 @@ function unwrapBuildExecutor(executor: BuildExecutor): BuildExecutor {
 	return executor;
 }
 
-export function withBuildExecutorPlugins(
-	executor: BuildExecutor,
-	getPlugins: () => EcoBuildPlugin[],
-): BuildExecutor {
+export function withBuildExecutorPlugins(executor: BuildExecutor, getPlugins: () => EcoBuildPlugin[]): BuildExecutor {
 	return new BuildExecutorWithPlugins(executor, getPlugins);
 }
 
@@ -189,9 +183,8 @@ export function createAppBuildExecutor(options: {
 	getPlugins?: () => EcoBuildPlugin[];
 }): BuildExecutor {
 	const adapter = options.adapter ?? defaultBuildAdapter;
-	const baseExecutor = !options.development || !(adapter instanceof EsbuildBuildAdapter)
-		? adapter
-		: new DevBuildCoordinator(adapter);
+	const baseExecutor =
+		!options.development || !(adapter instanceof EsbuildBuildAdapter) ? adapter : new DevBuildCoordinator(adapter);
 
 	if (!options.getPlugins) {
 		return baseExecutor;
@@ -208,12 +201,13 @@ export function createOrReuseAppBuildExecutor(options: {
 }): BuildExecutor {
 	const adapter = options.adapter ?? defaultBuildAdapter;
 	const currentBaseExecutor = options.currentExecutor ? unwrapBuildExecutor(options.currentExecutor) : undefined;
-	const baseExecutor = options.development && currentBaseExecutor instanceof DevBuildCoordinator
-		? currentBaseExecutor
-		: createAppBuildExecutor({
-			development: options.development,
-			adapter,
-		});
+	const baseExecutor =
+		options.development && currentBaseExecutor instanceof DevBuildCoordinator
+			? currentBaseExecutor
+			: createAppBuildExecutor({
+					development: options.development,
+					adapter,
+				});
 
 	if (!options.getPlugins) {
 		return baseExecutor;

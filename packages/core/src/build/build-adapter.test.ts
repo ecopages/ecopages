@@ -246,11 +246,7 @@ test('collectConfiguredAppBuildManifestContributions gathers processor and integ
 		integrations: [integration],
 	} as any);
 
-	assert.deepEqual(contributionOrder, [
-		'processor-prepare',
-		'integration-config',
-		'integration-prepare',
-	]);
+	assert.deepEqual(contributionOrder, ['processor-prepare', 'integration-config', 'integration-prepare']);
 	assert.deepEqual(contributions.runtimePlugins, [processorRuntimePlugin, integrationRuntimePlugin]);
 	assert.deepEqual(contributions.browserBundlePlugins, [processorBrowserPlugin]);
 });
@@ -344,7 +340,7 @@ test('EsbuildBuildAdapter supports module virtual modules', async () => {
 	}
 });
 
-	test('EsbuildBuildAdapter applies build plugin CSS transforms to imported CSS strings', async () => {
+test('EsbuildBuildAdapter applies build plugin CSS transforms to imported CSS strings', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-css');
 		const srcDir = path.join(root, 'src');
@@ -368,22 +364,22 @@ test('EsbuildBuildAdapter supports module virtual modules', async () => {
 			sourcemap: 'none',
 			splitting: false,
 			minify: false,
-				plugins: [
-					{
-						name: 'css-bridge-replacement-test',
-						setup(build) {
-							build.onLoad({ filter: /\.css$/ }, async (args) => {
-								const contents = fs.readFileSync(args.path, 'utf-8');
-								return {
-									loader: 'object',
-									exports: {
-										default: `/* transformed */\n${contents}`,
-									},
-								};
-							});
-						},
+			plugins: [
+				{
+					name: 'css-bridge-replacement-test',
+					setup(build) {
+						build.onLoad({ filter: /\.css$/ }, async (args) => {
+							const contents = fs.readFileSync(args.path, 'utf-8');
+							return {
+								loader: 'object',
+								exports: {
+									default: `/* transformed */\n${contents}`,
+								},
+							};
+						});
 					},
-				],
+				},
+			],
 		});
 
 		assert.equal(result.success, true);
@@ -604,22 +600,22 @@ test('EsbuildBuildAdapter applies plugin CSS transforms for CSS imported in TS m
 			sourcemap: 'none',
 			splitting: false,
 			minify: false,
-				plugins: [
-					{
-						name: 'css-transform-test-plugin',
-						setup(build) {
-							build.onLoad({ filter: /\.css$/ }, async (args) => {
-								const contents = fs.readFileSync(args.path, 'utf-8');
-								return {
-									loader: 'object',
-									exports: {
-										default: `/* postprocessed */\n${contents}`,
-									},
-								};
-							});
-						},
+			plugins: [
+				{
+					name: 'css-transform-test-plugin',
+					setup(build) {
+						build.onLoad({ filter: /\.css$/ }, async (args) => {
+							const contents = fs.readFileSync(args.path, 'utf-8');
+							return {
+								loader: 'object',
+								exports: {
+									default: `/* postprocessed */\n${contents}`,
+								},
+							};
+						});
 					},
-				],
+				},
+			],
 		});
 
 		assert.equal(result.success, true);
@@ -677,7 +673,7 @@ test('EsbuildBuildAdapter returns dependency graph entrypoint mapping', async ()
 	}
 });
 
-	test('EsbuildBuildAdapter honors first-match plugin precedence within one build', async () => {
+test('EsbuildBuildAdapter honors first-match plugin precedence within one build', async () => {
 	try {
 		const root = createTempRoot('ecopages-esbuild-plugin-precedence');
 		const srcDir = path.join(root, 'src');
@@ -703,26 +699,26 @@ test('EsbuildBuildAdapter returns dependency graph entrypoint mapping', async ()
 			minify: false,
 			plugins: [
 				{
-						name: 'first-css-plugin',
-						setup(build) {
-							build.onLoad({ filter: /\.css$/ }, async () => {
-								return {
-									loader: 'object',
-									exports: {
-										default: 'first-css',
-									},
-								};
-							});
-						},
-					},
-					{
-						name: 'second-css-plugin',
+					name: 'first-css-plugin',
 					setup(build) {
 						build.onLoad({ filter: /\.css$/ }, async () => {
 							return {
 								loader: 'object',
 								exports: {
-										default: 'second-css',
+									default: 'first-css',
+								},
+							};
+						});
+					},
+				},
+				{
+					name: 'second-css-plugin',
+					setup(build) {
+						build.onLoad({ filter: /\.css$/ }, async () => {
+							return {
+								loader: 'object',
+								exports: {
+									default: 'second-css',
 								},
 							};
 						});
@@ -737,8 +733,8 @@ test('EsbuildBuildAdapter returns dependency graph entrypoint mapping', async ()
 		assert.ok(outputPath);
 
 		const outputSource = fs.readFileSync(outputPath, 'utf-8');
-			assert.match(outputSource, /first-css/);
-			assert.doesNotMatch(outputSource, /second-css/);
+		assert.match(outputSource, /first-css/);
+		assert.doesNotMatch(outputSource, /second-css/);
 	} finally {
 		cleanupTempRoots();
 		clearNodeCssBridge();

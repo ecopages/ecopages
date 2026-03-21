@@ -330,7 +330,9 @@ describe('DependencyResolverService', () => {
 			},
 		};
 
-		await expect(service.processComponentDependencies([undefined as unknown as EcoComponent, component], 'kitajs')).resolves.toEqual([]);
+		await expect(
+			service.processComponentDependencies([undefined as unknown as EcoComponent, component], 'kitajs'),
+		).resolves.toEqual([]);
 
 		expect(capturedDeps).toEqual([
 			expect.objectContaining({

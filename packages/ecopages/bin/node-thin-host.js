@@ -76,7 +76,9 @@ export function readRuntimeManifest() {
 	try {
 		parsedManifest = JSON.parse(serializedManifest);
 	} catch (error) {
-		throw new Error(`Invalid Node runtime manifest JSON: ${error instanceof Error ? error.message : String(error)}`);
+		throw new Error(
+			`Invalid Node runtime manifest JSON: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	}
 
 	return assertNodeRuntimeManifest(parsedManifest);

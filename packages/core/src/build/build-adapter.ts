@@ -185,7 +185,7 @@ export function setAppBuildAdapter(appConfig: EcoPagesAppConfig, buildAdapter: B
 }
 
 /**
-	 * Returns the build manifest owned by an app/runtime instance.
+ * Returns the build manifest owned by an app/runtime instance.
  */
 export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManifest {
 	return (
@@ -197,7 +197,7 @@ export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManif
 }
 
 /**
-	 * Installs the build manifest that should be visible to one app instance.
+ * Installs the build manifest that should be visible to one app instance.
  */
 export function setAppBuildManifest(appConfig: EcoPagesAppConfig, buildManifest: AppBuildManifest): void {
 	appConfig.runtime = {

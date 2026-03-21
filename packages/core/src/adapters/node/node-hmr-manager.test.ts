@@ -241,8 +241,10 @@ test('NodeHmrManager disables HMR instead of throwing when runtime bundle genera
 	});
 	const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-	vi.spyOn((manager as unknown as { browserBundleService: { bundle: () => Promise<unknown> } }).browserBundleService, 'bundle')
-		.mockRejectedValueOnce(new Error('Unexpected end of JSON input'));
+	vi.spyOn(
+		(manager as unknown as { browserBundleService: { bundle: () => Promise<unknown> } }).browserBundleService,
+		'bundle',
+	).mockRejectedValueOnce(new Error('Unexpected end of JSON input'));
 
 	await assert.doesNotReject(() => manager.buildRuntime());
 	assert.equal(manager.isEnabled(), false);

@@ -1,12 +1,16 @@
 import path from 'node:path';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import { createBuildAdapter, getAppBuildAdapter, getAppServerBuildPlugins, setAppBuildExecutor, type BuildAdapter, type BuildExecutor } from '../../build/build-adapter.ts';
-import { createAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
 import {
-	createNodeBootstrapPlugin,
-	getNodeRuntimeNodeModulesDir,
-} from './bootstrap-dependency-resolver.ts';
+	createBuildAdapter,
+	getAppBuildAdapter,
+	getAppServerBuildPlugins,
+	setAppBuildExecutor,
+	type BuildAdapter,
+	type BuildExecutor,
+} from '../../build/build-adapter.ts';
+import { createAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
+import { createNodeBootstrapPlugin, getNodeRuntimeNodeModulesDir } from './bootstrap-dependency-resolver.ts';
 import { setAppNodeRuntimeManifest, type NodeRuntimeManifest } from '../../services/node-runtime-manifest.service.ts';
 import { DevelopmentInvalidationService } from '../../services/development-invalidation.service.ts';
 import { TranspilerServerLoader } from '../../services/server-loader.service.ts';
@@ -178,16 +182,14 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 
 	constructor(options: NodeRuntimeStartOptions) {
 		this.options = options;
-		this.bootstrapBundlePlugin = createNodeBootstrapPlugin(
-			{
-				projectDir: options.manifest.appRootDir,
-				runtimeNodeModulesDir: getNodeRuntimeNodeModulesDir(options.manifest),
-				preserveImportMetaPaths: [
-					options.manifest.modulePaths.config,
-					...(options.manifest.modulePaths.entry ? [options.manifest.modulePaths.entry] : []),
-				],
-			},
-		);
+		this.bootstrapBundlePlugin = createNodeBootstrapPlugin({
+			projectDir: options.manifest.appRootDir,
+			runtimeNodeModulesDir: getNodeRuntimeNodeModulesDir(options.manifest),
+			preserveImportMetaPaths: [
+				options.manifest.modulePaths.config,
+				...(options.manifest.modulePaths.entry ? [options.manifest.modulePaths.entry] : []),
+			],
+		});
 		this.bootstrapBuildAdapter = createBuildAdapter();
 		this.bootstrapBuildExecutor = createAppBuildExecutor({
 			development: this.isDevelopmentMode(),
@@ -247,9 +249,12 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 		let importedConfigModule;
 
 		try {
-			importedConfigModule = await this.serverLoader.loadConfig<{
-				default?: unknown;
-			} | EcoPagesAppConfig>({
+			importedConfigModule = await this.serverLoader.loadConfig<
+				| {
+						default?: unknown;
+				  }
+				| EcoPagesAppConfig
+			>({
 				filePath: this.manifest.modulePaths.config,
 				outdir: getRuntimeOutdir(this.manifest, NODE_RUNTIME_CONFIG_OUTDIR),
 				externalPackages: false,
@@ -275,7 +280,8 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 		this.serverLoader.rebindAppContext({
 			rootDir: appConfig.rootDir,
 			buildExecutor: this.entryBootstrapBuildExecutor,
-			getInvalidationVersion: () => new DevelopmentInvalidationService(appConfig).getServerModuleInvalidationVersion(),
+			getInvalidationVersion: () =>
+				new DevelopmentInvalidationService(appConfig).getServerModuleInvalidationVersion(),
 			invalidateModules: (changedFiles) =>
 				new DevelopmentInvalidationService(appConfig).invalidateServerModules(changedFiles),
 		});
@@ -308,7 +314,8 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 				externalPackages: false,
 				plugins: [this.bootstrapBundlePlugin],
 				transpileErrorMessage: (details) => `Failed to transpile Ecopages app entry module: ${details}`,
-				noOutputMessage: (filePath) => `No transpiled output generated for Ecopages app entry module: ${filePath}`,
+				noOutputMessage: (filePath) =>
+					`No transpiled output generated for Ecopages app entry module: ${filePath}`,
 			});
 		} catch (error) {
 			throw new Error(

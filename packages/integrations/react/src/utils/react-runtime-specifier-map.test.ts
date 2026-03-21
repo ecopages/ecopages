@@ -36,7 +36,10 @@ describe('buildReactRuntimeSpecifierMap', () => {
 					reactDom: '/assets/vendors/react-dom.js',
 					router: '/assets/vendors/router.js',
 				},
-				{ importMapKey: 'react-router', bundle: { outputName: 'router', importPath: '/router.ts', externals: [] } },
+				{
+					importMapKey: 'react-router',
+					bundle: { outputName: 'router', importPath: '/router.ts', externals: [] },
+				},
 			),
 		).toMatchObject({
 			'react-router': '/assets/vendors/router.js',

@@ -112,10 +112,7 @@ test('resolveNodeBootstrapDependency resolves nested third-party dependencies fr
 		);
 
 		assert.deepEqual(result, { path: 'dep-b', external: true });
-		assert.equal(
-			fs.realpathSync(path.join(runtimeNodeModulesDir, 'dep-b')),
-			fs.realpathSync(nestedDependencyDir),
-		);
+		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'dep-b')), fs.realpathSync(nestedDependencyDir));
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
@@ -132,9 +129,7 @@ test('createNodeBootstrapPlugin wires the shared resolution policy into an Eco b
 			runtimeNodeModulesDir: path.join(rootDir, '.eco', 'node_modules'),
 		});
 
-		let onResolveCallback:
-			| ((args: { path: string; importer?: string; namespace?: string }) => unknown)
-			| undefined;
+		let onResolveCallback: ((args: { path: string; importer?: string; namespace?: string }) => unknown) | undefined;
 
 		await plugin.setup({
 			onResolve(_options, callback) {
@@ -170,9 +165,7 @@ test('createNodeBootstrapPlugin rewrites import.meta only for declared bootstrap
 			preserveImportMetaPaths: [bootstrapFile],
 		});
 
-		let onLoadCallback:
-			| ((args: { path: string; namespace?: string }) => Promise<unknown> | unknown)
-			| undefined;
+		let onLoadCallback: ((args: { path: string; namespace?: string }) => Promise<unknown> | unknown) | undefined;
 
 		await plugin.setup({
 			onResolve() {},
@@ -187,7 +180,14 @@ test('createNodeBootstrapPlugin rewrites import.meta only for declared bootstrap
 		const regularResult = await onLoadCallback?.({ path: regularFile });
 
 		assert.equal(typeof (bootstrapResult as { contents?: string } | undefined)?.contents, 'string');
-		assert.equal(bootstrapResult && typeof bootstrapResult === 'object' && 'contents' in bootstrapResult ? String((bootstrapResult as { contents: string }).contents).includes(JSON.stringify(path.dirname(bootstrapFile))) : false, true);
+		assert.equal(
+			bootstrapResult && typeof bootstrapResult === 'object' && 'contents' in bootstrapResult
+				? String((bootstrapResult as { contents: string }).contents).includes(
+						JSON.stringify(path.dirname(bootstrapFile)),
+					)
+				: false,
+			true,
+		);
 		assert.equal(regularResult, undefined);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
@@ -215,9 +215,7 @@ test('createNodeBootstrapPlugin injects side-effect imports for project re-expor
 			runtimeNodeModulesDir: path.join(rootDir, '.eco', 'node_modules'),
 		});
 
-		let onLoadCallback:
-			| ((args: { path: string; namespace?: string }) => Promise<unknown> | unknown)
-			| undefined;
+		let onLoadCallback: ((args: { path: string; namespace?: string }) => Promise<unknown> | unknown) | undefined;
 
 		await plugin.setup({
 			onResolve() {},
@@ -229,7 +227,10 @@ test('createNodeBootstrapPlugin injects side-effect imports for project re-expor
 
 		assert.ok(onLoadCallback);
 		const result = await onLoadCallback?.({ path: barrelFile });
-		const contents = result && typeof result === 'object' && 'contents' in result ? String((result as { contents: string }).contents) : '';
+		const contents =
+			result && typeof result === 'object' && 'contents' in result
+				? String((result as { contents: string }).contents)
+				: '';
 
 		assert.match(contents, /^import '\.\/base-layout\.kita';/m);
 		assert.match(contents, /export \* from '\.\/base-layout\.kita';/);
@@ -252,9 +253,7 @@ test('createNodeBootstrapPlugin fails fast on Bun-only builtins', async () => {
 			runtimeNodeModulesDir: path.join(rootDir, '.eco', 'node_modules'),
 		});
 
-		let onResolveCallback:
-			| ((args: { path: string; importer?: string; namespace?: string }) => unknown)
-			| undefined;
+		let onResolveCallback: ((args: { path: string; importer?: string; namespace?: string }) => unknown) | undefined;
 
 		await plugin.setup({
 			onResolve(options, callback) {

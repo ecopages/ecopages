@@ -1,9 +1,6 @@
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 
-export function createUseSyncExternalStoreShimPlugin(options?: {
-	name?: string;
-	namespace?: string;
-}): EcoBuildPlugin {
+export function createUseSyncExternalStoreShimPlugin(options?: { name?: string; namespace?: string }): EcoBuildPlugin {
 	const namespace = options?.namespace ?? 'ecopages-react-use-sync-external-store-shim';
 
 	return {

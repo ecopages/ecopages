@@ -34,11 +34,11 @@ const appLogger = new Logger('[ReactHmrStrategy]');
  * The processing steps are:
  * 1. Check if any React entrypoints are registered
  * 2. Rebuild all React entrypoints (the changed file could be a dependency)
-	 * 3. Rebuild browser output through the shared browser bundle service while
-	 *    preserving React-specific runtime aliases and graph policy
-	 * 4. Read page config metadata through the shared server-module loading path
-	 * 5. Inject HMR acceptance handler
-	 * 6. Broadcast update events for each rebuilt entrypoint
+ * 3. Rebuild browser output through the shared browser bundle service while
+ *    preserving React-specific runtime aliases and graph policy
+ * 4. Read page config metadata through the shared server-module loading path
+ * 5. Inject HMR acceptance handler
+ * 6. Broadcast update events for each rebuilt entrypoint
  *
  * @remarks
  * This strategy has higher priority than generic JsHmrStrategy, allowing it

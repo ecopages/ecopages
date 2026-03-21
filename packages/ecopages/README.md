@@ -17,14 +17,14 @@ bun dev
 
 ## Commands
 
-| Command                      | Description                                | Equivalent (Bun)                | Equivalent (Node)                         |
-| :--------------------------- | :----------------------------------------- | :------------------------------ | :---------------------------------------- |
-| `ecopages init <dir>`        | Scaffolds a new project                    | N/A                             | N/A                                       |
-| `ecopages dev [entry]`       | Starts the dev server                      | `bun run [entry] --dev`         | `node [ecopages thin host] [entry] --dev` |
-| `ecopages dev:watch [entry]` | Dev server + hard restarts on file changes | `bun --watch run [entry] --dev` | `node --watch [ecopages thin host] ...`   |
-| `ecopages dev:hot [entry]`   | Dev server + HMR (no hard restarts)        | `bun --hot run [entry] --dev`   | N/A                                       |
-| `ecopages build [entry]`     | Creates a production build                 | `bun run [entry] --build`       | `node [ecopages thin host] [entry] --build` |
-| `ecopages start [entry]`     | Starts the production server               | `bun run [entry]`               | `node [ecopages thin host] [entry]`       |
+| Command                      | Description                                | Equivalent (Bun)                | Equivalent (Node)                             |
+| :--------------------------- | :----------------------------------------- | :------------------------------ | :-------------------------------------------- |
+| `ecopages init <dir>`        | Scaffolds a new project                    | N/A                             | N/A                                           |
+| `ecopages dev [entry]`       | Starts the dev server                      | `bun run [entry] --dev`         | `node [ecopages thin host] [entry] --dev`     |
+| `ecopages dev:watch [entry]` | Dev server + hard restarts on file changes | `bun --watch run [entry] --dev` | `node --watch [ecopages thin host] ...`       |
+| `ecopages dev:hot [entry]`   | Dev server + HMR (no hard restarts)        | `bun --hot run [entry] --dev`   | N/A                                           |
+| `ecopages build [entry]`     | Creates a production build                 | `bun run [entry] --build`       | `node [ecopages thin host] [entry] --build`   |
+| `ecopages start [entry]`     | Starts the production server               | `bun run [entry]`               | `node [ecopages thin host] [entry]`           |
 | `ecopages preview [entry]`   | Previews the production build locally      | `bun run [entry] --preview`     | `node [ecopages thin host] [entry] --preview` |
 
 > [!NOTE]
@@ -34,13 +34,13 @@ bun dev
 
 Server and build commands accept the following options. They automatically map to the equivalent environment variables for the underlying process:
 
-| Option                     | Env Var                 | Description                             |
-| :------------------------- | :---------------------- | :-------------------------------------- |
-| `-p, --port <port>`        | `ECOPAGES_PORT`         | Server port (default 3000)              |
-| `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname                         |
-| `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string                         |
-| `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug-level logging             |
-| `-r, --react-fast-refresh` |                         | Enables React Fast Refresh              |
+| Option                     | Env Var                 | Description                                               |
+| :------------------------- | :---------------------- | :-------------------------------------------------------- |
+| `-p, --port <port>`        | `ECOPAGES_PORT`         | Server port (default 3000)                                |
+| `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname                                           |
+| `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string                                           |
+| `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug-level logging                               |
+| `-r, --react-fast-refresh` |                         | Enables React Fast Refresh                                |
 | `--runtime <runtime>`      |                         | Force execution via `bun`, `node`, or `node-experimental` |
 
 ### Runtime Detection

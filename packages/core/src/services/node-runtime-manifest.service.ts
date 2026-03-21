@@ -46,11 +46,7 @@ export interface NodeRuntimeManifest {
  * Returns the default file handoff location for the Node runtime manifest.
  */
 export function getNodeRuntimeManifestPath(appConfig: EcoPagesAppConfig): string {
-	return path.join(
-		appConfig.absolutePaths.distDir,
-		NODE_RUNTIME_MANIFEST_DIRNAME,
-		NODE_RUNTIME_MANIFEST_FILENAME,
-	);
+	return path.join(appConfig.absolutePaths.distDir, NODE_RUNTIME_MANIFEST_DIRNAME, NODE_RUNTIME_MANIFEST_FILENAME);
 }
 
 function getRuntimeBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManifest {
@@ -74,7 +70,8 @@ export function createNodeRuntimeManifest(
 ): NodeRuntimeManifest {
 	const buildManifest = getRuntimeBuildManifest(appConfig);
 	const devGraphService = appConfig.runtime?.devGraphService ?? new NoopDevGraphService();
-	const runtimeSpecifierRegistry = appConfig.runtime?.runtimeSpecifierRegistry ?? new InMemoryRuntimeSpecifierRegistry();
+	const runtimeSpecifierRegistry =
+		appConfig.runtime?.runtimeSpecifierRegistry ?? new InMemoryRuntimeSpecifierRegistry();
 
 	return {
 		runtime: 'node',
@@ -121,7 +118,7 @@ export function writeNodeRuntimeManifestFile(manifest: NodeRuntimeManifest, mani
 }
 
 /**
-	 * Derives the app-owned Node manifest and writes it to the runtime handoff path.
+ * Derives the app-owned Node manifest and writes it to the runtime handoff path.
  */
 export function writeAppNodeRuntimeManifest(
 	appConfig: EcoPagesAppConfig,
@@ -151,7 +148,10 @@ export function getAppNodeRuntimeManifest(appConfig: EcoPagesAppConfig): NodeRun
 	return appConfig.runtime?.nodeRuntimeManifest ?? createNodeRuntimeManifest(appConfig);
 }
 
-export function setAppNodeRuntimeManifest(appConfig: EcoPagesAppConfig, nodeRuntimeManifest: NodeRuntimeManifest): void {
+export function setAppNodeRuntimeManifest(
+	appConfig: EcoPagesAppConfig,
+	nodeRuntimeManifest: NodeRuntimeManifest,
+): void {
 	appConfig.runtime = {
 		...(appConfig.runtime ?? {}),
 		nodeRuntimeManifest,

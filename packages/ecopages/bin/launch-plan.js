@@ -197,19 +197,11 @@ export async function createNodeRuntimeManifestFile(
 	}
 	const bundlePath = await bundleNodeRuntimeManifestWriter(configPath, projectDir);
 
-	const result = spawnSync(
-		'node',
-		[
-			bundlePath,
-			path.resolve(projectDir, entryFile),
-			manifestFilePath,
-		],
-		{
-			cwd: projectDir,
-			env: options.env ?? process.env,
-			encoding: 'utf8',
-		},
-	);
+	const result = spawnSync('node', [bundlePath, path.resolve(projectDir, entryFile), manifestFilePath], {
+		cwd: projectDir,
+		env: options.env ?? process.env,
+		encoding: 'utf8',
+	});
 
 	if (result.error) {
 		throw result.error;

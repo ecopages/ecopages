@@ -129,7 +129,9 @@ describe('ProjectWatcher - File Change Handling', () => {
 				extensions: ['.css'],
 			})),
 			getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
-			canProcessAsset: vi.fn((kind: string, filepath?: string) => kind === 'stylesheet' && filepath?.endsWith('.css')),
+			canProcessAsset: vi.fn(
+				(kind: string, filepath?: string) => kind === 'stylesheet' && filepath?.endsWith('.css'),
+			),
 			matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
 		} as never);
 
@@ -634,11 +636,9 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		const HmrManager = createMockHmrManager();
 		const Bridge = createMockBridge();
 		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
-			[
-				Config.absolutePaths.includesDir,
-				Config.absolutePaths.srcDir,
-				Config.absolutePaths.pagesDir,
-			].includes(String(targetPath))
+			[Config.absolutePaths.includesDir, Config.absolutePaths.srcDir, Config.absolutePaths.pagesDir].includes(
+				String(targetPath),
+			),
 		);
 		const watcherHandle = {
 			add: vi.fn(),

@@ -20,11 +20,15 @@ import type { EcoPagesAppConfig, RobotsPreference } from '../internal-types.ts';
 import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
+import type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from '../plugins/runtime-capability.ts';
 import type { PageMetadataProps } from '../public-types.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import { NoopDevGraphService, setAppDevGraphService } from '../services/dev-graph.service.ts';
 import { createNodeRuntimeManifest, setAppNodeRuntimeManifest } from '../services/node-runtime-manifest.service.ts';
-import { InMemoryRuntimeSpecifierRegistry, setAppRuntimeSpecifierRegistry } from '../services/runtime-specifier-registry.service.ts';
+import {
+	InMemoryRuntimeSpecifierRegistry,
+	setAppRuntimeSpecifierRegistry,
+} from '../services/runtime-specifier-registry.service.ts';
 import { invariant } from '../utils/invariant.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -38,7 +42,36 @@ export const CONFIG_BUILDER_ERRORS = {
 	duplicateLoaderName: (name: string) => `Loader with name "${name}" already exists`,
 	duplicateSemanticTemplate: (kind: 'html' | '404', matches: string[]) =>
 		`Multiple ${kind} templates found: ${matches.join(', ')}`,
+	incompatibleRuntimeCapability: (
+		kind: 'integration' | 'processor',
+		name: string,
+		runtime: RuntimeKind,
+		reason: string,
+	) => `Cannot enable ${kind} "${name}" on ${runtime}: ${reason}`,
+	unsupportedRuntimeVersion: (
+		kind: 'integration' | 'processor',
+		name: string,
+		runtime: RuntimeKind,
+		current: string,
+		min: string,
+	) => `Cannot enable ${kind} "${name}" on ${runtime} ${current}: requires runtime version ${min} or newer`,
+	invalidRuntimeVersion: (kind: 'integration' | 'processor', name: string, version: string) =>
+		`Cannot validate ${kind} "${name}" runtimeCapability.minRuntimeVersion "${version}" because it is not a dot-separated numeric version`,
 } as const;
+
+type RuntimeKind = 'node' | 'bun';
+
+type RuntimeEnvironment = {
+	runtime: RuntimeKind;
+	version: string;
+	supportedTags: Set<RuntimeCapabilityTag>;
+};
+
+type RuntimeCapabilityOwner = {
+	kind: 'integration' | 'processor';
+	name: string;
+	runtimeCapability?: RuntimeCapabilityDeclaration;
+};
 
 /**
  * A builder class for creating and configuring EcoPages application configuration.
@@ -423,6 +456,154 @@ export class ConfigBuilder {
 		}
 	}
 
+	private validateRuntimeCapabilities(): void {
+		const runtimeEnvironment = this.detectRuntimeEnvironment();
+		const contributors: RuntimeCapabilityOwner[] = [
+			...this.config.integrations.map((integration) => ({
+				kind: 'integration' as const,
+				name: integration.name,
+				runtimeCapability: integration.runtimeCapability,
+			})),
+			...Array.from(this.config.processors.values(), (processor) => ({
+				kind: 'processor' as const,
+				name: processor.name,
+				runtimeCapability: processor.runtimeCapability,
+			})),
+		];
+
+		for (const contributor of contributors) {
+			this.validateRuntimeCapability(contributor, runtimeEnvironment);
+		}
+	}
+
+	private validateRuntimeCapability(contributor: RuntimeCapabilityOwner, environment: RuntimeEnvironment): void {
+		const declaration = contributor.runtimeCapability;
+		if (!declaration) {
+			return;
+		}
+
+		for (const tag of declaration.tags) {
+			if (environment.supportedTags.has(tag)) {
+				continue;
+			}
+
+			throw new Error(
+				CONFIG_BUILDER_ERRORS.incompatibleRuntimeCapability(
+					contributor.kind,
+					contributor.name,
+					environment.runtime,
+					this.describeUnsupportedRuntimeTag(tag),
+				),
+			);
+		}
+
+		if (!declaration.minRuntimeVersion) {
+			return;
+		}
+
+		const minVersion = this.parseVersion(declaration.minRuntimeVersion);
+		if (!minVersion) {
+			throw new Error(
+				CONFIG_BUILDER_ERRORS.invalidRuntimeVersion(
+					contributor.kind,
+					contributor.name,
+					declaration.minRuntimeVersion,
+				),
+			);
+		}
+
+		const currentVersion = this.parseVersion(environment.version);
+		if (!currentVersion) {
+			return;
+		}
+
+		if (this.compareVersions(currentVersion, minVersion) >= 0) {
+			return;
+		}
+
+		throw new Error(
+			CONFIG_BUILDER_ERRORS.unsupportedRuntimeVersion(
+				contributor.kind,
+				contributor.name,
+				environment.runtime,
+				environment.version,
+				declaration.minRuntimeVersion,
+			),
+		);
+	}
+
+	private detectRuntimeEnvironment(): RuntimeEnvironment {
+		const bunVersion = this.getBunVersion();
+		if (bunVersion) {
+			return {
+				runtime: 'bun',
+				version: bunVersion,
+				supportedTags: new Set<RuntimeCapabilityTag>([
+					'bun-only',
+					'node-compatible',
+					'requires-native-bun-api',
+					'requires-node-builtins',
+				]),
+			};
+		}
+
+		return {
+			runtime: 'node',
+			version: process.versions.node,
+			supportedTags: new Set<RuntimeCapabilityTag>(['node-compatible', 'requires-node-builtins']),
+		};
+	}
+
+	private getBunVersion(): string | undefined {
+		const bun = globalThis as typeof globalThis & {
+			Bun?: {
+				version?: string;
+			};
+		};
+
+		return typeof bun.Bun?.version === 'string' ? bun.Bun.version : undefined;
+	}
+
+	private describeUnsupportedRuntimeTag(tag: RuntimeCapabilityTag): string {
+		switch (tag) {
+			case 'bun-only':
+				return 'it is Bun-only';
+			case 'requires-native-bun-api':
+				return 'it requires the native Bun API';
+			case 'requires-node-builtins':
+				return 'it requires Node builtins';
+			case 'node-compatible':
+				return 'it requires a Node-compatible runtime';
+		}
+	}
+
+	private parseVersion(version: string): number[] | undefined {
+		const normalized = version.trim().replace(/^v/i, '');
+		if (!/^\d+(?:\.\d+)*$/.test(normalized)) {
+			return undefined;
+		}
+
+		return normalized.split('.').map((segment) => Number(segment));
+	}
+
+	private compareVersions(left: number[], right: number[]): number {
+		const maxLength = Math.max(left.length, right.length);
+		for (let index = 0; index < maxLength; index += 1) {
+			const leftValue = left[index] ?? 0;
+			const rightValue = right[index] ?? 0;
+
+			if (leftValue > rightValue) {
+				return 1;
+			}
+
+			if (leftValue < rightValue) {
+				return -1;
+			}
+		}
+
+		return 0;
+	}
+
 	/**
 	 * Initializes default loaders that are required for EcoPages to function.
 	 * This includes the eco-component-meta-plugin which auto-injects __eco metadata into component configs.
@@ -468,6 +649,7 @@ export class ConfigBuilder {
 
 		await this.initializeDefaultLoaders();
 		this.initializeProcessors();
+		this.validateRuntimeCapabilities();
 		const buildAdapter = createBuildAdapter();
 		setAppBuildAdapter(this.config, buildAdapter);
 		updateAppBuildManifest(this.config, await collectConfiguredAppBuildManifestContributions(this.config));

@@ -162,7 +162,9 @@ export class NodeHmrManager implements IHmrManager {
 	 *
 	 * @remarks
 	 * These mappings are consumed by framework-owned HMR strategies such as the
-	 * React integration strategy when they rewrite browser bundles.
+	 * React integration strategy when they rewrite browser bundles. The registry
+	 * stays generic so the same mappings can support broader import-map-style
+	 * runtime features later without moving integration semantics into core.
 	 */
 	public registerSpecifierMap(map: Record<string, string>): void {
 		this.runtimeSpecifierRegistry.register(map);

@@ -58,6 +58,21 @@ describe('Processor', () => {
 		expect(processor.getName()).toBe('test-processor');
 	});
 
+	test('should retain runtime capability declarations', () => {
+		const runtimeProcessor = new TestProcessor({
+			name: 'runtime-processor',
+			runtimeCapability: {
+				tags: ['requires-node-builtins'],
+				minRuntimeVersion: '18.0.0',
+			},
+		});
+
+		expect(runtimeProcessor.runtimeCapability).toEqual({
+			tags: ['requires-node-builtins'],
+			minRuntimeVersion: '18.0.0',
+		});
+	});
+
 	test('should return watch config', () => {
 		expect(processor.getWatchConfig()).toEqual({
 			paths: ['/test'],

@@ -55,10 +55,10 @@ flowchart TD
 	D -->|Route or server source| E[Invalidate server modules]
 	D -->|Public or include| F[Reload browser]
 	D -->|Processor-owned asset| G[Notify processor only]
-	D -->|HMR-eligible source| H[HMR manager]
+	D -->|HMR-eligible source| H[Core HMR manager]
 	H --> I[Strategy selection]
-	I --> J[JsHmrStrategy]
-	I --> K[ReactHmrStrategy]
+	I --> J[Core JsHmrStrategy]
+	I --> K[Integration strategy e.g. ReactHmrStrategy]
 	J --> L[BrowserBundleService]
 	K --> L
 	K --> M[importServerModule]
@@ -66,6 +66,8 @@ flowchart TD
 	L --> O[Updated browser bundle]
 	O --> P[Client bridge broadcast]
 ```
+
+The manager/orchestration layer is core-owned, but framework-specific strategies such as React HMR are contributed by integrations and registered with the shared HMR manager.
 
 ### Practical Summary
 

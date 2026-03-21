@@ -63,6 +63,17 @@ export type EcoPagesAppConfig = {
 	 */
 	distDir: string;
 	/**
+	 * The directory where internal runtime and build artifacts are stored.
+	 *
+	 * @remarks
+	 * This directory is not intended for deployment. It owns transpiled server
+	 * modules, runtime manifests, and processor caches so `distDir` can remain a
+	 * clean export tree.
+	 *
+	 * @default ".eco"
+	 */
+	workDir: string;
+	/**
 	 * The templates extensions based on the integrations
 	 */
 	templatesExt: string[];
@@ -96,6 +107,7 @@ export type EcoPagesAppConfig = {
 		config: string;
 		componentsDir: string;
 		distDir: string;
+		workDir: string;
 		includesDir: string;
 		layoutsDir: string;
 		pagesDir: string;

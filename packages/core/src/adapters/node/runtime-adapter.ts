@@ -13,7 +13,9 @@ import { createAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
 import { createNodeBootstrapPlugin, getNodeRuntimeNodeModulesDir } from './bootstrap-dependency-resolver.ts';
 import { setAppNodeRuntimeManifest, type NodeRuntimeManifest } from '../../services/node-runtime-manifest.service.ts';
 import { DevelopmentInvalidationService } from '../../services/development-invalidation.service.ts';
+import { createAliasResolverPlugin } from '../../plugins/alias-resolver-plugin.ts';
 import { TranspilerServerLoader } from '../../services/server-loader.service.ts';
+import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
 /**
  * Host-to-adapter handoff contract for the Node thin-host runtime.
@@ -142,7 +144,17 @@ function getRuntimeOutdir(
 	manifest: NodeRuntimeManifest,
 	kind: typeof NODE_RUNTIME_CONFIG_OUTDIR | typeof NODE_RUNTIME_ENTRY_OUTDIR,
 ): string {
-	return path.join(manifest.distDir, kind);
+	return path.join(
+		resolveInternalExecutionDir({
+			rootDir: manifest.appRootDir,
+			workDir: manifest.workDir,
+			absolutePaths: {
+				workDir: manifest.workDir,
+				distDir: manifest.distDir,
+			},
+		}),
+		kind,
+	);
 }
 
 /**
@@ -192,7 +204,7 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 		});
 		this.bootstrapBuildAdapter = createBuildAdapter();
 		this.bootstrapBuildExecutor = createAppBuildExecutor({
-			development: this.isDevelopmentMode(),
+			development: false,
 			adapter: this.bootstrapBuildAdapter,
 		});
 		this.serverLoader = new TranspilerServerLoader({
@@ -231,7 +243,7 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 
 	private createEntryBootstrapBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
 		return createAppBuildExecutor({
-			development: this.isDevelopmentMode(),
+			development: false,
 			adapter: this.bootstrapBuildAdapter,
 			getPlugins: () => getAppServerBuildPlugins(appConfig),
 		});
@@ -257,8 +269,9 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 			>({
 				filePath: this.manifest.modulePaths.config,
 				outdir: getRuntimeOutdir(this.manifest, NODE_RUNTIME_CONFIG_OUTDIR),
+				splitting: this.manifest.serverTranspile.splitting,
 				externalPackages: false,
-				plugins: [this.bootstrapBundlePlugin],
+				plugins: [createAliasResolverPlugin(this.manifest.sourceRootDir), this.bootstrapBundlePlugin],
 				transpileErrorMessage: (details) => `Failed to transpile Ecopages config module: ${details}`,
 				noOutputMessage: (filePath) => `No transpiled output generated for Ecopages config module: ${filePath}`,
 			});
@@ -311,8 +324,9 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 			loadedEntryModule = await this.serverLoader.loadApp({
 				filePath: entryModulePath,
 				outdir: getRuntimeOutdir(this.manifest, NODE_RUNTIME_ENTRY_OUTDIR),
+				splitting: this.manifest.serverTranspile.splitting,
 				externalPackages: false,
-				plugins: [this.bootstrapBundlePlugin],
+				plugins: [createAliasResolverPlugin(appConfig.absolutePaths.srcDir), this.bootstrapBundlePlugin],
 				transpileErrorMessage: (details) => `Failed to transpile Ecopages app entry module: ${details}`,
 				noOutputMessage: (filePath) =>
 					`No transpiled output generated for Ecopages app entry module: ${filePath}`,

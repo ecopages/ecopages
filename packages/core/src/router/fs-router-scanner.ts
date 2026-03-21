@@ -8,6 +8,7 @@ import { existsSync } from 'node:fs';
 import { getAppBuildExecutor } from '../build/build-adapter.ts';
 import { DevelopmentInvalidationService } from '../services/development-invalidation.service.ts';
 import { ServerModuleTranspiler } from '../services/server-module-transpiler.service.ts';
+import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 
 type CreateRouteArgs = {
 	routePath: string;
@@ -154,7 +155,7 @@ export class FSRouterScanner {
 	private async importPageModule(filePath: string): Promise<unknown> {
 		return this.serverModuleTranspiler.importModule({
 			filePath,
-			outdir: path.join(this.appConfig.absolutePaths.distDir, '.server-route-modules'),
+			outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-route-modules'),
 			externalPackages: false,
 			transpileErrorMessage: (details) => `Error transpiling route module: ${details}`,
 			noOutputMessage: (targetFilePath) => `No transpiled output generated for route module: ${targetFilePath}`,

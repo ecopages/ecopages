@@ -37,3 +37,18 @@ export const GENERATED_BASE_PATHS = {
 export const DEFAULT_ECOPAGES_PORT = 3000;
 
 export const DEFAULT_ECOPAGES_HOSTNAME = 'localhost';
+
+/**
+ * Default directory used for deployable output.
+ */
+export const DEFAULT_ECOPAGES_DIST_DIR = 'dist';
+
+/**
+ * Default internal working directory used for runtime-only artifacts.
+ *
+ * @remarks
+ * This directory is a local tool workspace and is not intended for deployment.
+ * It owns transpiled server modules, runtime manifests, and processor caches
+ * so the export directory can remain a clean deployable tree.
+ */
+export const DEFAULT_ECOPAGES_WORK_DIR = '.eco';

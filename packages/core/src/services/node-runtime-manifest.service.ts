@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createAppBuildManifest, type AppBuildManifest } from '../build/build-manifest.ts';
-import { RESOLVED_ASSETS_DIR, RESOLVED_ASSETS_VENDORS_DIR } from '../constants.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR, RESOLVED_ASSETS_DIR, RESOLVED_ASSETS_VENDORS_DIR } from '../constants.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import { NoopDevGraphService } from './dev-graph.service.ts';
 import { InMemoryRuntimeSpecifierRegistry } from './runtime-specifier-registry.service.ts';
@@ -14,6 +14,7 @@ export interface NodeRuntimeManifest {
 	appRootDir: string;
 	sourceRootDir: string;
 	distDir: string;
+	workDir?: string;
 	modulePaths: {
 		config: string;
 		entry?: string;
@@ -46,7 +47,13 @@ export interface NodeRuntimeManifest {
  * Returns the default file handoff location for the Node runtime manifest.
  */
 export function getNodeRuntimeManifestPath(appConfig: EcoPagesAppConfig): string {
-	return path.join(appConfig.absolutePaths.distDir, NODE_RUNTIME_MANIFEST_DIRNAME, NODE_RUNTIME_MANIFEST_FILENAME);
+	return path.join(resolveWorkDir(appConfig), NODE_RUNTIME_MANIFEST_DIRNAME, NODE_RUNTIME_MANIFEST_FILENAME);
+}
+
+function resolveWorkDir(appConfig: Pick<EcoPagesAppConfig, 'rootDir' | 'workDir' | 'absolutePaths'>): string {
+	return (
+		appConfig.absolutePaths?.workDir ?? path.join(appConfig.rootDir, appConfig.workDir ?? DEFAULT_ECOPAGES_WORK_DIR)
+	);
 }
 
 function getRuntimeBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManifest {
@@ -78,6 +85,7 @@ export function createNodeRuntimeManifest(
 		appRootDir: appConfig.rootDir,
 		sourceRootDir: appConfig.absolutePaths.srcDir,
 		distDir: appConfig.absolutePaths.distDir,
+		workDir: resolveWorkDir(appConfig),
 		modulePaths: {
 			config: appConfig.absolutePaths.config,
 			...(options?.entryModulePath ? { entry: options.entryModulePath } : {}),

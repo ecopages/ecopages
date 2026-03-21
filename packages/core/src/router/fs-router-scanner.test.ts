@@ -15,7 +15,8 @@ test('FSRouterScanner scans dynamic routes in Node when module graph needs trans
 	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-fs-router-scanner-node-'));
 	const pagesDir = path.join(rootDir, 'src', 'pages');
 	const dynamicDir = path.join(pagesDir, 'dynamic');
-	const distDir = path.join(rootDir, '.eco');
+	const distDir = path.join(rootDir, 'dist');
+	const workDir = path.join(rootDir, '.eco');
 
 	try {
 		fs.mkdirSync(dynamicDir, { recursive: true });
@@ -58,8 +59,10 @@ test('FSRouterScanner scans dynamic routes in Node when module graph needs trans
 			},
 			appConfig: {
 				rootDir,
+				workDir: '.eco',
 				absolutePaths: {
 					distDir,
+					workDir,
 				},
 			} as unknown as EcoPagesAppConfig,
 		});
@@ -69,7 +72,7 @@ test('FSRouterScanner scans dynamic routes in Node when module graph needs trans
 		assert.equal(routes['http://localhost:3000/dynamic/hello-world']?.kind, 'dynamic');
 		assert.equal(routes['http://localhost:3000/dynamic/hello-world']?.pathname, '/dynamic/[slug]');
 
-		const transpiledModulesDir = path.join(distDir, '.server-route-modules');
+		const transpiledModulesDir = path.join(workDir, '.server-route-modules');
 		assert.equal(fs.existsSync(transpiledModulesDir), true);
 
 		const transpiledFiles = fs.readdirSync(transpiledModulesDir).filter((file) => file.endsWith('.js'));

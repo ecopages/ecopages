@@ -147,6 +147,36 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
+	it('should allow callers to disable code splitting explicitly', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-unsplit-'));
+		const compiledOutput = join(tempDir, 'page-hash123.js');
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		mocks.build.mockResolvedValue({
+			success: true,
+			logs: [],
+			outputs: [{ path: compiledOutput }],
+		});
+
+		try {
+			const service = new PageModuleImportService();
+			await service.importModule({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+				splitting: false,
+			});
+
+			expect(mocks.build).toHaveBeenCalledWith(
+				expect.objectContaining({
+					splitting: false,
+				}),
+				undefined,
+			);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('should reuse cached node modules across different output directories', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-cache-'));
 		const compiledOutput = join(tempDir, 'page-hash123.js');

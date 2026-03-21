@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import { getAppBuildExecutor, getTranspileOptions } from '../../build/build-adapter.ts';
+import { getAppBuildExecutor } from '../../build/build-adapter.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager, IClientBridge } from '../../internal-types.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -22,6 +22,7 @@ import {
 } from '../../services/dev-graph.service.ts';
 import { getAppRuntimeSpecifierRegistry } from '../../services/runtime-specifier-registry.service.ts';
 import { ServerModuleTranspiler } from '../../services/server-module-transpiler.service.ts';
+import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 
 export interface NodeHmrManagerParams {
 	appConfig: EcoPagesAppConfig;
@@ -65,7 +66,7 @@ export class NodeHmrManager implements IHmrManager {
 	constructor({ appConfig, bridge }: NodeHmrManagerParams) {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
-		this.distDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, '_hmr');
+		this.distDir = path.join(resolveInternalWorkDir(this.appConfig), RESOLVED_ASSETS_DIR, '_hmr');
 		this.entrypointRegistrar = new HmrEntrypointRegistrar({
 			srcDir: this.appConfig.absolutePaths.srcDir,
 			distDir: this.distDir,
@@ -269,7 +270,7 @@ export class NodeHmrManager implements IHmrManager {
 			importServerModule: async <T>(filePath: string) =>
 				await this.serverModuleTranspiler.importModule<T>({
 					filePath,
-					outdir: path.join(this.appConfig.absolutePaths.distDir, '.server-modules'),
+					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
 					externalPackages: true,
 				}),
 		};

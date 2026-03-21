@@ -16,6 +16,7 @@ export function writeBundledNodeRuntimeManifest(
 			config: string;
 			srcDir: string;
 			distDir: string;
+			workDir?: string;
 		};
 		loaders: Map<string, unknown>;
 		runtime?: {

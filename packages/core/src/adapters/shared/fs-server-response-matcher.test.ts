@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../../config/config-builder.ts';
@@ -8,6 +8,7 @@ import { FSRouter } from '../../router/fs-router.ts';
 import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
+import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 
@@ -255,6 +256,32 @@ describe('FileSystemResponseMatcher', () => {
 			const response = await matcher.handleNoMatch('/non-existent.txt');
 			const body = await response.text();
 			expect(body).toContain('<h1>404 - Page Not Found</h1>');
+		});
+	});
+
+	describe('internal transpile output', () => {
+		it('should write page metadata modules to the execution directory', async () => {
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				router,
+				routeRendererFactory,
+				fileSystemResponseFactory,
+			});
+
+			const importModule = vi.fn(async () => ({}));
+			(matcher as any).serverModuleTranspiler = {
+				importModule,
+			};
+
+			await (matcher as any).importPageModule(INDEX_TEMPLATE_FILE);
+
+			expect(importModule).toHaveBeenCalledWith(
+				expect.objectContaining({
+					filePath: INDEX_TEMPLATE_FILE,
+					outdir: path.join(resolveInternalExecutionDir(appConfig), '.server-modules-meta'),
+					plugins: [expect.objectContaining({ name: 'node-thin-host-bundle-workspace-packages' })],
+				}),
+			);
 		});
 	});
 });

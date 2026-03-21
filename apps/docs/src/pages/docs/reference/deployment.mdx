@@ -16,7 +16,7 @@ Deploying an Ecopages application depends on whether you are using only static f
 
 ## Production Build
 
-Before deploying, you must create a production build. This processes your assets, pre-renders static pages, and prepares the `.eco` directory.
+Before deploying, you must create a production build. This processes your assets, pre-renders static pages, and prepares the `dist` directory.
 
 ```bash
 pnpm run build
@@ -24,7 +24,7 @@ pnpm run build
 
 This command will:
 1. Set `NODE_ENV=production`.
-2. Clean the `.eco` directory.
+2. Clean the `dist` directory.
 3. Generate static HTML for all files in `src/pages`.
 4. Process images and CSS.
 5. Collect all necessary server-side files.
@@ -33,9 +33,9 @@ This command will:
 
 ## Static Hosting
 
-If your site **does not** use API routes or programmatic server logic, you can host the contents of the `.eco/public` (or similar output) directory on any static provider.
+If your site **does not** use API routes or programmatic server logic, you can host the contents of the `dist` directory on any static provider.
 
-- **Vercel / Netlify**: Connect your repository and set the build command to `pnpm run build`. Set the output directory to `.eco`.
+- **Vercel / Netlify**: Connect your repository and set the build command to `pnpm run build`. Set the output directory to `dist`.
 - **GitHub Pages**: Use a GitHub Action to run `pnpm run build` and deploy the output directory.
 
 <Banner type="info">

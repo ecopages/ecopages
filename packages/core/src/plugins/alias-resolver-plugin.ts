@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 
@@ -6,7 +6,9 @@ const RESOLVABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.m
 
 function findResolvablePath(candidate: string): string | undefined {
 	if (path.extname(candidate)) {
-		return existsSync(candidate) ? candidate : undefined;
+		if (existsSync(candidate)) {
+			return candidate;
+		}
 	}
 
 	for (const extension of RESOLVABLE_EXTENSIONS) {
@@ -26,6 +28,22 @@ function findResolvablePath(candidate: string): string | undefined {
 	return undefined;
 }
 
+function resolveAliasedBarrelTarget(resolvedPath: string): string {
+	if (!path.basename(resolvedPath).startsWith('index.')) {
+		return resolvedPath;
+	}
+
+	const source = readFileSync(resolvedPath, 'utf8').trim();
+	const match = source.match(/^export\s+\*\s+from\s+['"]([^'"]+)['"]\s*;?$/);
+
+	if (!match?.[1]?.startsWith('.')) {
+		return resolvedPath;
+	}
+
+	const target = findResolvablePath(path.resolve(path.dirname(resolvedPath), match[1]));
+	return target ?? resolvedPath;
+}
+
 export function createAliasResolverPlugin(srcDir: string): EcoBuildPlugin {
 	return {
 		name: 'ecopages-alias-resolver',
@@ -35,7 +53,7 @@ export function createAliasResolverPlugin(srcDir: string): EcoBuildPlugin {
 				const resolved = findResolvablePath(candidate);
 
 				if (resolved) {
-					return { path: resolved };
+					return { path: resolveAliasedBarrelTarget(resolved) };
 				}
 
 				return {};

@@ -6,6 +6,7 @@ import type { FSRouter } from '../router/fs-router';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer';
 import { appLogger } from '../global/app-logger.ts';
 import { PageModuleImportService } from '../services/page-module-import.service.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 
 const originalEnsureDir = fileSystem.ensureDir;
 const originalWrite = fileSystem.write;
@@ -13,7 +14,8 @@ const originalWrite = fileSystem.write;
 const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesAppConfig =>
 	({
 		rootDir: '/test/project',
-		distDir: '.eco',
+		distDir: 'dist',
+		workDir: DEFAULT_ECOPAGES_WORK_DIR,
 		srcDir: 'src',
 		robotsTxt: {
 			preferences: {
@@ -21,6 +23,10 @@ const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesA
 				Googlebot: ['/no-google'],
 			},
 		},
+		absolutePaths: {
+			distDir: '/test/project/dist',
+			workDir: '/test/project/.eco',
+		} as EcoPagesAppConfig['absolutePaths'],
 		integrations: [],
 		...overrides,
 	}) as EcoPagesAppConfig;
@@ -116,8 +122,8 @@ describe('StaticSiteGenerator', () => {
 
 			ssg.generateRobotsTxt();
 
-			expect(ensureDirMock).toHaveBeenCalledWith('.eco');
-			expect(writeMock).toHaveBeenCalledWith('.eco/robots.txt', expect.any(String));
+			expect(ensureDirMock).toHaveBeenCalledWith('/test/project/dist');
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/robots.txt', expect.any(String));
 
 			const writtenContent = writeMock.mock.calls[0][1] as string;
 			expect(writtenContent).toContain('user-agent: *');
@@ -135,7 +141,7 @@ describe('StaticSiteGenerator', () => {
 
 			ssg.generateRobotsTxt();
 
-			expect(writeMock).toHaveBeenCalledWith('.eco/robots.txt', '');
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/robots.txt', '');
 		});
 	});
 
@@ -268,7 +274,7 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			expect(ensureDirMock).toHaveBeenCalled();
-			expect(writeMock).toHaveBeenCalledWith('.eco/robots.txt', expect.any(String));
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/robots.txt', expect.any(String));
 		});
 
 		test('should skip explicit static routes backed by cache dynamic views', async () => {

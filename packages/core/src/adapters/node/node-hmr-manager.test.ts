@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
 import { ConfigBuilder } from '../../config/config-builder.ts';
+import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
 
 const tempRoots: string[] = [];
@@ -43,7 +44,7 @@ test('NodeHmrManager shares one in-flight entrypoint registration across concurr
 		.relative(config.absolutePaths.srcDir, entrypointPath)
 		.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
 	const encodedPathJs = relativePathJs.replace(/\[([^\]]+)\]/g, '_$1_');
-	const outputPath = path.join(config.absolutePaths.distDir, 'assets', '_hmr', encodedPathJs);
+	const outputPath = path.join(resolveInternalWorkDir(config), 'assets', '_hmr', encodedPathJs);
 
 	const handleFileChange = vi.spyOn(manager, 'handleFileChange').mockImplementation(async () => {
 		await new Promise((resolve) => setTimeout(resolve, 25));
@@ -87,7 +88,7 @@ test('NodeHmrManager does not broadcast HMR events for initial entrypoint regist
 		.relative(config.absolutePaths.srcDir, entrypointPath)
 		.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
 	const encodedPathJs = relativePathJs.replace(/\[([^\]]+)\]/g, '_$1_');
-	const outputPath = path.join(config.absolutePaths.distDir, 'assets', '_hmr', encodedPathJs);
+	const outputPath = path.join(resolveInternalWorkDir(config), 'assets', '_hmr', encodedPathJs);
 
 	vi.spyOn(manager, 'handleFileChange').mockImplementation(async (_filePath, _options) => {
 		fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -141,7 +142,7 @@ test('NodeHmrManager clears timed-out entrypoint registrations so later requests
 				.relative(config.absolutePaths.srcDir, entrypointPath)
 				.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
 			const encodedPathJs = relativePathJs.replace(/\[([^\]]+)\]/g, '_$1_');
-			const outputPath = path.join(config.absolutePaths.distDir, 'assets', '_hmr', encodedPathJs);
+			const outputPath = path.join(resolveInternalWorkDir(config), 'assets', '_hmr', encodedPathJs);
 			fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 			fs.writeFileSync(outputPath, 'export default 2;', 'utf8');
 		});
@@ -201,7 +202,7 @@ test('NodeHmrManager uses the generic build path for script entrypoints when no 
 	const relativePathJs = path
 		.relative(config.absolutePaths.srcDir, entrypointPath)
 		.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-	const outputPath = path.join(config.absolutePaths.distDir, 'assets', '_hmr', relativePathJs);
+	const outputPath = path.join(resolveInternalWorkDir(config), 'assets', '_hmr', relativePathJs);
 
 	const buildCalls: string[] = [];
 	config.runtime!.buildExecutor = {
@@ -275,7 +276,7 @@ test('NodeHmrManager stop clears retained registration state', async () => {
 		.relative(config.absolutePaths.srcDir, entrypointPath)
 		.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
 	const encodedPathJs = relativePathJs.replace(/\[([^\]]+)\]/g, '_$1_');
-	const outputPath = path.join(config.absolutePaths.distDir, 'assets', '_hmr', encodedPathJs);
+	const outputPath = path.join(resolveInternalWorkDir(config), 'assets', '_hmr', encodedPathJs);
 
 	vi.spyOn(manager, 'handleFileChange').mockImplementation(async () => {
 		fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -290,4 +291,32 @@ test('NodeHmrManager stop clears retained registration state', async () => {
 	assert.equal(manager.getWatchedFiles().size, 0);
 	assert.equal(manager.getSpecifierMap().size, 0);
 	assert.equal(config.runtime?.devGraphService?.getDependencyEntrypoints(entrypointPath).size, 0);
+});
+
+test('NodeHmrManager keeps internal browser and server-module outputs out of distDir', async () => {
+	const rootDir = createTempRoot('ecopages-node-hmr-internal-paths');
+	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const manager = new NodeHmrManager({
+		appConfig: config,
+		bridge: {
+			subscriberCount: 0,
+			broadcast: () => {},
+		} as any,
+	});
+
+	assert.equal(manager.getDistDir(), path.join(resolveInternalWorkDir(config), 'assets', '_hmr'));
+
+	const importModule = vi.fn(async (_options: { outdir: string }) => ({}));
+	(manager as unknown as { serverModuleTranspiler: { importModule: typeof importModule } }).serverModuleTranspiler = {
+		importModule,
+	};
+
+	await manager.getDefaultContext().importServerModule(path.join(config.absolutePaths.srcDir, 'pages', 'index.tsx'));
+
+	assert.equal(
+		importModule.mock.calls[0]?.[0]?.outdir,
+		path.join(resolveInternalExecutionDir(config), '.server-modules'),
+	);
+
+	manager.stop();
 });

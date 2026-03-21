@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test, vi } from 'vitest';
 import { ConfigBuilder } from '../../config/config-builder.ts';
+import { resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 import { NodeHmrManager } from '../node/node-hmr-manager.ts';
 import { HmrManager as BunHmrManager } from '../bun/hmr-manager.ts';
 
@@ -83,7 +84,7 @@ function getEntrypointOutputPath(manager: SharedHmrManager, entrypointPath: stri
 		.relative(manager.appConfig.absolutePaths.srcDir, entrypointPath)
 		.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
 	const encodedPathJs = relativePathJs.replace(/\[([^\]]+)\]/g, '_$1_');
-	return path.join(manager.appConfig.absolutePaths.distDir, 'assets', '_hmr', encodedPathJs);
+	return path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', encodedPathJs);
 }
 
 describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
@@ -142,7 +143,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		fs.writeFileSync(entrypointPath, 'console.log("hello");', 'utf8');
 
 		const manager = await create(rootDir);
-		const outputPath = path.join(manager.appConfig.absolutePaths.distDir, 'assets', '_hmr', 'script.js');
+		const outputPath = path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', 'script.js');
 		const buildCalls: string[] = [];
 		manager.appConfig.runtime!.buildExecutor = {
 			build: vi.fn(async (options) => {

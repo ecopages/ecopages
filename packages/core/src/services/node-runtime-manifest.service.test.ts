@@ -23,7 +23,8 @@ test('createNodeRuntimeManifest summarizes app-owned runtime bootstrap state', (
 		absolutePaths: {
 			config: '/repo/eco.config.ts',
 			srcDir: '/repo/src',
-			distDir: '/repo/.eco',
+			distDir: '/repo/dist',
+			workDir: '/repo/.eco',
 		},
 		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
 		runtime: {
@@ -45,7 +46,8 @@ test('createNodeRuntimeManifest summarizes app-owned runtime bootstrap state', (
 		runtime: 'node',
 		appRootDir: '/repo',
 		sourceRootDir: '/repo/src',
-		distDir: '/repo/.eco',
+		distDir: '/repo/dist',
+		workDir: '/repo/.eco',
 		modulePaths: {
 			config: '/repo/eco.config.ts',
 			entry: '/repo/app.ts',
@@ -64,7 +66,7 @@ test('createNodeRuntimeManifest summarizes app-owned runtime bootstrap state', (
 			externalPackages: true,
 		},
 		browserBundles: {
-			outputDir: path.join('/repo/.eco', 'assets'),
+			outputDir: path.join('/repo/dist', 'assets'),
 			publicBaseUrl: '/assets',
 			vendorBaseUrl: '/assets/vendors',
 		},
@@ -82,7 +84,8 @@ test('getAppNodeRuntimeManifest falls back to a derived manifest and can be over
 		absolutePaths: {
 			config: '/repo/eco.config.ts',
 			srcDir: '/repo/src',
-			distDir: '/repo/.eco',
+			distDir: '/repo/dist',
+			workDir: '/repo/.eco',
 		},
 		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
 		runtime: {
@@ -111,7 +114,8 @@ test('writeAppNodeRuntimeManifest persists the app-owned manifest to the runtime
 		absolutePaths: {
 			config: path.join(rootDir, 'eco.config.ts'),
 			srcDir: path.join(rootDir, 'src'),
-			distDir: path.join(rootDir, '.eco'),
+			distDir: path.join(rootDir, 'dist'),
+			workDir: path.join(rootDir, '.eco'),
 		},
 		loaders: new Map(),
 		runtime: {

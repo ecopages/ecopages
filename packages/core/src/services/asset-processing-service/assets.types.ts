@@ -16,6 +16,7 @@ export interface ScriptAsset extends BaseAsset {
 	inline?: boolean;
 	bundle?: boolean;
 	bundleOptions?: {
+		define?: Record<string, string>;
 		minify?: boolean;
 		external?: string[];
 		naming?: string;

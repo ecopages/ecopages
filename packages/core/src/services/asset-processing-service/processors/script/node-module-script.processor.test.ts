@@ -165,6 +165,36 @@ describe('NodeModuleScriptProcessor', () => {
 			expect(result).toBeDefined();
 			expect(result.inline).toBe(true);
 		});
+
+		test('should preserve explicit bundle naming when provided', async () => {
+			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
+			const bundleScriptSpy = vi
+				.spyOn(
+					processor as unknown as { bundleScript: (options: Record<string, unknown>) => Promise<string> },
+					'bundleScript',
+				)
+				.mockResolvedValue('/test/project/.eco/public/assets/vendors/react.development.js');
+
+			const dep: NodeModuleScriptAsset = {
+				kind: 'script',
+				source: 'node-module',
+				importPath: 'react',
+				name: 'react',
+				inline: false,
+				bundleOptions: {
+					naming: 'react.development.js',
+				},
+			};
+
+			const result = await processor.process(dep);
+
+			expect(bundleScriptSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					naming: 'react.development.js',
+				}),
+			);
+			expect(result.filepath).toBe('/test/project/.eco/public/assets/vendors/react.development.js');
+		});
 	});
 
 	describe('resolveModulePath with real dependencies', () => {

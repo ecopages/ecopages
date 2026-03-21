@@ -28,13 +28,14 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 			}
 
 			const outdir = path.join(this.getAssetsDir(), 'vendors');
+			const bundlerOptions = this.getBundlerOptions(dep);
 
 			const filePath = await this.bundleScript({
 				entrypoint: modulePath,
 				outdir: outdir,
 				minify: this.isProduction,
-				naming: dep.name ? `${dep.name}-[hash].[ext]` : '[name]-[hash].[ext]',
-				...this.getBundlerOptions(dep),
+				naming: bundlerOptions.naming ?? (dep.name ? `${dep.name}-[hash].[ext]` : '[name]-[hash].[ext]'),
+				...bundlerOptions,
 			});
 
 			return {

@@ -19,6 +19,9 @@ All notable changes to `@ecopages/react` are documented here.
 - Fixed React page hydration and handoff cleanup to use `document.body`, shared navigation coordination, preserved request locals, and stable root reuse across route handoffs.
 - Fixed React MDX extension handling so `.md` stays opt-in and shared builds no longer let standalone MDX configuration hijack React `.mdx` routes.
 - Fixed client graph boundary wiring so client-reachable server-only re-exports fail fast and page-entry bundles strip unreachable server-only `eco.page()` options.
+- Moved React MDX page-module transpilation into the internal work directory so static exports no longer leak `.server-modules-react-mdx` into `distDir`.
+- Fixed development React runtime vendor asset naming so concurrent preview/export builds no longer overwrite dev-only JSX runtime helpers such as `jsxDEV`.
+- Fixed React MDX declared component dependencies to eagerly emit SSR-marked lazy custom-element scripts so mixed React and Lit pages keep declared custom elements interactive.
 
 ### Refactoring
 
@@ -32,6 +35,7 @@ All notable changes to `@ecopages/react` are documented here.
 ### Tests
 
 - Added coverage for client graph reachability, hydration boundary utilities, and the router-backed component-render regression that prevents implicit island hydration.
+- Added regression coverage for development React runtime vendor asset naming so dev and preview React bundles stay isolated.
 
 ---
 

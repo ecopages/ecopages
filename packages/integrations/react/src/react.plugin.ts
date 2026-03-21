@@ -115,6 +115,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
 	private runtimeBundleService: ReactRuntimeBundleService;
 	private readonly hmrPageMetadataCache = new ReactHmrPageMetadataCache();
+	private runtimeDependenciesInitialized = false;
 	/**
 	 * Indicates whether React explicit graph mode is enabled for renderer/HMR behavior.
 	 */
@@ -165,7 +166,15 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		ReactRenderer.mdxExtensions = this.mdxExtensions;
 		ReactRenderer.explicitGraphEnabled = this.explicitGraphEnabled;
 		ReactRenderer.hmrPageMetadataCache = this.hmrPageMetadataCache;
+	}
+
+	private ensureRuntimeDependencies(): void {
+		if (this.runtimeDependenciesInitialized) {
+			return;
+		}
+
 		this.integrationDependencies.unshift(...this.runtimeBundleService.getDependencies());
+		this.runtimeDependenciesInitialized = true;
 	}
 
 	override get plugins(): EcoBuildPlugin[] {
@@ -193,6 +202,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	 * the app manifest.
 	 */
 	override async prepareBuildContributions(): Promise<void> {
+		this.ensureRuntimeDependencies();
 		await this.ensureMdxLoaderPlugin();
 	}
 
@@ -201,6 +211,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	 * materialized.
 	 */
 	override async setup(): Promise<void> {
+		this.ensureRuntimeDependencies();
 		await this.ensureMdxLoaderPlugin();
 		await super.setup();
 	}

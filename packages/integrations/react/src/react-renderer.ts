@@ -4,6 +4,7 @@
  */
 
 import type {
+	DependencyAttributes,
 	ComponentRenderInput,
 	ComponentRenderResult,
 	EcoComponent,
@@ -24,7 +25,9 @@ import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { getAppBuildExecutor } from '@ecopages/core/build/build-adapter';
 import { rapidhash } from '@ecopages/core/hash';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import { AssetFactory, type AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import path from 'node:path';
 import { createElement, type ReactNode } from 'react';
 import { renderToReadableStream, renderToString } from 'react-dom/server';
 import type { CompileOptions } from '@mdx-js/mdx';
@@ -133,6 +136,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		this.pageModuleService = new ReactPageModuleService({
 			rootDir: this.appConfig.rootDir,
 			distDir: this.appConfig.absolutePaths.distDir,
+			workDir: this.appConfig.absolutePaths.workDir,
 			buildExecutor: getAppBuildExecutor(this.appConfig),
 			layoutsDir: this.appConfig.absolutePaths.layoutsDir,
 			componentsDir: this.appConfig.absolutePaths.componentsDir,
@@ -463,7 +467,108 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			components.push({ config: configWithMeta });
 		}
 
-		return this.processComponentDependencies(components);
+		const processedDependencies = await this.processComponentDependencies(components);
+		const eagerSsrLazyDependencies = await this.processDeclaredMdxSsrLazyDependencies(components, pagePath);
+
+		return [...processedDependencies, ...eagerSsrLazyDependencies];
+	}
+
+	private async processDeclaredMdxSsrLazyDependencies(
+		components: Partial<EcoComponent>[],
+		pagePath: string,
+	): Promise<ProcessedAsset[]> {
+		if (!this.assetProcessingService?.processDependencies) {
+			return [];
+		}
+
+		const dependencies = this.collectDeclaredMdxSsrLazyDependencies(components);
+		if (dependencies.length === 0) {
+			return [];
+		}
+
+		return this.assetProcessingService.processDependencies(dependencies, `react-mdx-ssr-lazy:${pagePath}`);
+	}
+
+	private collectDeclaredMdxSsrLazyDependencies(components: Partial<EcoComponent>[]): AssetDefinition[] {
+		const dependencies: AssetDefinition[] = [];
+		const visitedConfigs = new Set<EcoComponentConfig>();
+		const seenKeys = new Set<string>();
+
+		const normalizeAttributes = (attributes?: DependencyAttributes) => ({
+			type: 'module',
+			defer: '',
+			...(attributes ?? {}),
+		});
+
+		const collect = (config?: EcoComponentConfig) => {
+			if (!config || visitedConfigs.has(config)) {
+				return;
+			}
+
+			visitedConfigs.add(config);
+
+			const componentFile = config.__eco?.file;
+			if (componentFile) {
+				const componentDir = path.dirname(componentFile);
+				for (const script of config.dependencies?.scripts ?? []) {
+					if (typeof script === 'string' || !script.lazy || script.ssr !== true) {
+						continue;
+					}
+
+					const attributes = normalizeAttributes(script.attributes);
+
+					if (script.content) {
+						const key = `content:${script.content}:${JSON.stringify(attributes)}`;
+						if (seenKeys.has(key)) {
+							continue;
+						}
+
+						seenKeys.add(key);
+						dependencies.push(
+							AssetFactory.createContentScript({
+								position: 'head',
+								content: script.content,
+								attributes,
+							}),
+						);
+						continue;
+					}
+
+					if (!script.src) {
+						continue;
+					}
+
+					const resolvedPath = path.resolve(componentDir, script.src);
+					const key = `file:${resolvedPath}:${JSON.stringify(attributes)}`;
+					if (seenKeys.has(key)) {
+						continue;
+					}
+
+					seenKeys.add(key);
+					dependencies.push(
+						AssetFactory.createFileScript({
+							filepath: resolvedPath,
+							position: 'head',
+							attributes,
+						}),
+					);
+				}
+			}
+
+			if (config.layout?.config) {
+				collect(config.layout.config);
+			}
+
+			for (const nestedComponent of config.dependencies?.components ?? []) {
+				collect(nestedComponent?.config);
+			}
+		};
+
+		for (const component of components) {
+			collect(component.config);
+		}
+
+		return dependencies;
 	}
 
 	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {

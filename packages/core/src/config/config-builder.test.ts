@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { defaultBuildAdapter, getAppBuildAdapter, getAppBrowserBuildPlugins, getAppBuildManifest } from '../build/build-adapter.ts';
+import {
+	defaultBuildAdapter,
+	getAppBuildAdapter,
+	getAppBrowserBuildPlugins,
+	getAppBuildManifest,
+} from '../build/build-adapter.ts';
 import { getAppNodeRuntimeManifest } from '../services/node-runtime-manifest.service.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
 import { appLogger } from '../global/app-logger.ts';
@@ -28,6 +33,7 @@ describe('EcoConfigBuilder', () => {
 	beforeEach(() => {
 		builder = new ConfigBuilder();
 		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
 	});
 
 	test('should set baseUrl and rootDir', async () => {
@@ -107,6 +113,87 @@ describe('EcoConfigBuilder', () => {
 		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}
+	});
+
+	test('should reject integrations that require Bun on Node runtime', async () => {
+		const integration = new (class extends IntegrationPlugin {
+			renderer = vi.fn() as any;
+		})({
+			name: 'bun-only-integration',
+			extensions: ['.bun'],
+			runtimeCapability: {
+				tags: ['bun-only'],
+			},
+		});
+
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations([integration]).build(),
+		).rejects.toThrow('Cannot enable integration "bun-only-integration" on node: it is Bun-only');
+	});
+
+	test('should reject processors with incompatible minimum runtime version', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-capability-'));
+		const processor = new (class extends Processor {
+			buildPlugins = [];
+			plugins = [];
+			override async setup(): Promise<void> {}
+			override async teardown(): Promise<void> {}
+			override async process(): Promise<unknown> {
+				return undefined;
+			}
+		})({
+			name: 'future-node-processor',
+			runtimeCapability: {
+				tags: ['node-compatible'],
+				minRuntimeVersion: '999.0.0',
+			},
+		});
+
+		try {
+			await expect(
+				builder.setBaseUrl('https://example.com').setRootDir(rootDir).setProcessors([processor]).build(),
+			).rejects.toThrow('Cannot enable processor "future-node-processor" on node');
+		} finally {
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	test('should reject invalid minimum runtime version declarations', async () => {
+		const integration = new (class extends IntegrationPlugin {
+			renderer = vi.fn() as any;
+		})({
+			name: 'invalid-version-integration',
+			extensions: ['.test'],
+			runtimeCapability: {
+				tags: ['node-compatible'],
+				minRuntimeVersion: '18.x',
+			},
+		});
+
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations([integration]).build(),
+		).rejects.toThrow(
+			'Cannot validate integration "invalid-version-integration" runtimeCapability.minRuntimeVersion "18.x"',
+		);
+	});
+
+	test('should allow Bun-only integrations when Bun runtime is available', async () => {
+		vi.stubGlobal('Bun', { version: '1.3.0' });
+
+		const integration = new (class extends IntegrationPlugin {
+			renderer = vi.fn() as any;
+		})({
+			name: 'bun-runtime-integration',
+			extensions: ['.bun'],
+			runtimeCapability: {
+				tags: ['bun-only'],
+				minRuntimeVersion: '1.0.0',
+			},
+		});
+
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations([integration]).build(),
+		).resolves.toBeDefined();
 	});
 
 	test('should set custom directories', async () => {

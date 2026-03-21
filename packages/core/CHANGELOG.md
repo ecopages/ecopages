@@ -8,6 +8,9 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Features
 
+- Added runtime capability declarations to integration and processor configs, with config-build validation for runtime tags and minimum runtime versions.
+- Added a shared integration runtime-specifier registration hook so browser runtime alias maps can be registered through the base integration lifecycle instead of package-specific HMR setup overrides.
+- Added a shared browser runtime module-asset helper so integrations can declare runtime entry modules through core without owning their own entry-file assembly path.
 - Added `eco.html()` and `eco.layout()` as Phase 1 semantic factories over the existing component pipeline, along with exported `EcoHtmlComponent`, `EcoLayoutComponent`, and `LayoutProps` types.
 - Exposed `ProcessedAsset` and `MarkerGraphContext` through the core public type surface so integrations can type deferred-render helpers without internal imports.
 - Added an app-owned Node runtime manifest shape so the future thin-host prototype can consume resolved config/runtime bootstrap metadata without host-side source inspection.
@@ -15,6 +18,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Refactoring
 
+- Documented the stable plugin lifecycle phases and ordering in the docs app so config finalization, build contribution preparation, runtime setup, and invalidation ownership are explicit.
 - Made the experimental Node thin-host handoff explicit through a documented start-options contract and loader-derived runtime session output, so host startup stays transport-oriented while the adapter owns real bootstrap state.
 - Started Phase 2 server-loading ownership work by routing the experimental Node runtime bootstrap through `ServerModuleTranspiler`, narrowing the transpiler to explicit caller-provided `rootDir` and `buildExecutor` input, centralizing app build-manifest rewrites behind one helper, and extracting shared runtime plugin contribution collection for Node and Bun startup.
 - Split build contribution discovery from runtime plugin setup so app-owned build manifests are finalized during `ConfigBuilder.build()` and Node/Bun startup no longer rewrites them.

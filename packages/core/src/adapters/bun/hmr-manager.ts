@@ -171,7 +171,9 @@ export class HmrManager implements IHmrManager {
 	 *
 	 * @remarks
 	 * These mappings are consumed by framework-owned HMR strategies that preserve
-	 * shared runtime imports in browser bundles.
+	 * shared runtime imports in browser bundles. The registry stays generic so
+	 * these mappings can later support broader import-map-style runtime features
+	 * without moving integration semantics into core.
 	 */
 	public registerSpecifierMap(map: Record<string, string>): void {
 		this.runtimeSpecifierRegistry.register(map);

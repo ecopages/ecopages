@@ -4,6 +4,9 @@ import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../internal-types';
 import type { AssetDefinition } from '../services/asset-processing-service';
 import { GENERATED_BASE_PATHS } from '../constants';
+import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
+
+export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
 
 export const PROCESSOR_ERRORS = {
 	CACHE_DIRECTORY_NOT_SET: 'Cache directory not set in context',
@@ -56,6 +59,7 @@ export interface ProcessorConfig<TOptions = Record<string, unknown>> {
 	options?: TOptions;
 	watch?: ProcessorWatchConfig;
 	capabilities?: ProcessorAssetCapability[];
+	runtimeCapability?: RuntimeCapabilityDeclaration;
 }
 export interface ProcessorContext {
 	config: EcoPagesAppConfig;
@@ -78,6 +82,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	protected options?: TOptions;
 	protected watchConfig?: ProcessorWatchConfig;
 	protected capabilities: ProcessorAssetCapability[] = [];
+	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 
 	/** Plugins that are only used during the build process */
 	abstract buildPlugins?: EcoBuildPlugin[];
@@ -90,6 +95,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 		this.options = config.options;
 		this.watchConfig = config.watch;
 		this.capabilities = config.capabilities ?? [];
+		this.runtimeCapability = config.runtimeCapability;
 	}
 
 	setContext(appConfig: EcoPagesAppConfig): void {

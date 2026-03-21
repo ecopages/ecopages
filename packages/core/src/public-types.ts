@@ -102,7 +102,7 @@ export interface CacheInvalidator {
 
 /**
  * Context interface for HMR strategies.
- * Provides access to watched files, specifier mappings, and build configuration.
+ * Provides access to watched files, registered bare-specifier mappings, and build configuration.
  */
 export interface DefaultHmrContext {
 	/**
@@ -111,7 +111,7 @@ export interface DefaultHmrContext {
 	getWatchedFiles(): Map<string, string>;
 
 	/**
-	 * Map of bare specifiers to vendor URLs for import resolution.
+	 * Map of bare specifiers to runtime URLs for browser import resolution.
 	 */
 	getSpecifierMap(): Map<string, string>;
 
@@ -217,7 +217,12 @@ export interface IHmrManager {
 	registerScriptEntrypoint(entrypointPath: string): Promise<string>;
 
 	/**
-	 * Registers mappings from bare specifiers to vendor URLs.
+	 * Registers mappings from bare specifiers to runtime URLs.
+	 *
+	 * @remarks
+	 * This is the shared registration seam for integration-owned runtime alias
+	 * maps. The registry may later back a broader import-map-style facility, but
+	 * the mappings themselves remain integration-owned.
 	 */
 	registerSpecifierMap(map: Record<string, string>): void;
 
@@ -257,7 +262,7 @@ export interface IHmrManager {
 	getWatchedFiles(): Map<string, string>;
 
 	/**
-	 * Gets the specifier map.
+	 * Gets the registered bare-specifier map.
 	 */
 	getSpecifierMap(): Map<string, string>;
 

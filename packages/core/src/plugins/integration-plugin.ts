@@ -5,6 +5,9 @@ import type { EcoComponent, EcoPagesElement } from '../public-types';
 import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
 import { AssetProcessingService } from '../services/asset-processing-service/asset-processing.service';
 import type { AssetDefinition, ProcessedAsset } from '../services/asset-processing-service/assets.types';
+import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
+
+export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
 
 export const INTEGRATION_PLUGIN_ERRORS = {
 	NOT_INITIALIZED_WITH_APP_CONFIG: 'Plugin not initialized with app config',
@@ -33,6 +36,11 @@ export interface IntegrationPluginConfig {
 	 * @default 'render'
 	 */
 	staticBuildStep?: 'render' | 'fetch';
+	/**
+	 * Declares runtime-specific requirements that must be satisfied before the
+	 * app can start with this integration enabled.
+	 */
+	runtimeCapability?: RuntimeCapabilityDeclaration;
 }
 
 /**
@@ -59,6 +67,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly extensions: string[];
 	abstract renderer: RendererClass<C>;
 	readonly staticBuildStep: 'render' | 'fetch';
+	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
@@ -77,6 +86,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.extensions = config.extensions;
 		this.integrationDependencies = config.integrationDependencies || [];
 		this.staticBuildStep = config.staticBuildStep || 'render';
+		this.runtimeCapability = config.runtimeCapability;
 	}
 
 	setConfig(appConfig: EcoPagesAppConfig): void {
@@ -104,8 +114,26 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 */
 	getHmrStrategy?(): HmrStrategy | undefined;
 
+	/**
+	 * Returns bare-specifier mappings that should be registered in the active
+	 * runtime specifier registry.
+	 *
+	 * @remarks
+	 * Override this when the integration owns browser runtime bundles that must
+	 * be addressable from client-side imports through stable bare specifiers.
+	 *
+	 * Today these mappings are consumed by the development runtime and browser
+	 * bundle aliasing path. They are intentionally generic enough to grow into a
+	 * broader import-map-style facility later without moving framework-specific
+	 * map contents into core.
+	 */
+	getRuntimeSpecifierMap(): Record<string, string> {
+		return {};
+	}
+
 	setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
+		hmrManager.registerSpecifierMap(this.getRuntimeSpecifierMap());
 
 		const strategy = this.getHmrStrategy?.();
 		if (strategy) {

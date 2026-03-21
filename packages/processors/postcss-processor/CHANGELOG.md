@@ -6,21 +6,18 @@ All notable changes to `@ecopages/postcss-processor` are documented here.
 
 ## [UNRELEASED] — TBD
 
-### Bug Fixes
-
-- Rebuilt tracked stylesheets from fresh PostCSS plugin instances on non-CSS source changes so Tailwind utility generation updates without stale caches or forced reloads.
-
 ### Features
 
-- **Runtime CSS loaders** — Added `css-loader-plugin.ts`, `css-loader.bun.ts`, and `css-runtime-contract.ts` to support runtime CSS loading. CSS is now cached at runtime to avoid redundant processing during HMR (`cbaafea4`, `e7653c9b`).
-- **`PostcssProcessor` class** — New `postcss-processor.ts` exposes a programmatic API for the processor separate from the plugin DSL.
+- Added runtime CSS loader support and a `PostcssProcessor` class so PostCSS processing can be reused outside the plugin DSL.
+
+### Bug Fixes
+
+- Rebuilt tracked stylesheets from fresh PostCSS plugin instances on non-CSS source changes so Tailwind-style utility generation picks up template edits without stale caches.
 
 ### Refactoring
 
-- `plugin.ts` significantly overhauled to integrate with the new build adapter and support build dependency graph registration (`e7653c9b`).
-- Test suite updated for esbuild adapter and Node runtime compatibility (`31a44458`).
-- Removed unused `@types/postcss` dev dependency.
+- Updated the processor plugin to register with the esbuild build adapter and dependency graph.
 
 ### Tests
 
-- Updated `plugin.test.ts`, `postcss-processor.test.ts`, and `presets.test.ts` for new plugin contract.
+- Updated processor and preset coverage for the runtime CSS loader and build adapter flow.

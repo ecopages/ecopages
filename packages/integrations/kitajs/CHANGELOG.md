@@ -8,18 +8,16 @@ All notable changes to `@ecopages/kitajs` are documented here.
 
 ### Bug Fixes
 
-- Fixed explicit `ctx.render()` Kita views so deferred cross-integration layout components resolve through the marker pipeline instead of crashing during direct server rendering.
+- Fixed explicit `ctx.render()` flows so deferred cross-integration layout components resolve through the marker pipeline instead of crashing during direct server rendering.
 
 ### Features
 
-- Aligned KitaJS renderer with full orchestration mode — removed legacy rendering path (`fc07bdb0`).
+- Aligned KitaJS with the unified orchestration pipeline.
 
 ### Refactoring
 
-- **Type safety improvements** — Enhanced type safety for component signatures; test component creation helpers are now more accurately typed (`574657eb`).
-- Ambient module declarations cleaned up (`5f46ecc5`).
-- Updated test suite for esbuild adapter and Node.js runtime compatibility (`31a44458`).
+- Tightened Kita component typing and cleaned up ambient module declarations.
 
 ### Tests
 
-- Updated integration tests to align with the new orchestration model.
+- Updated integration coverage for the orchestration pipeline and Node and esbuild compatibility.

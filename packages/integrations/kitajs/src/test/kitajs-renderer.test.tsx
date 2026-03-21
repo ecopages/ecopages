@@ -256,5 +256,4 @@ describe('KitaRenderer', () => {
 		expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
 		expect(body).not.toContain('<eco-marker');
 	});
-
 });

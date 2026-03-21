@@ -23,8 +23,8 @@ export default eco.page({
 					</h1>
 					<p class="max-w-3xl text-base leading-8 text-muted">
 						This page is not discovered from the filesystem router. It is registered directly in{' '}
-						<span class="font-mono">app.ts</span> through an explicit handler, yet it renders through the same
-						layout, metadata, and dependency system as normal pages.
+						<span class="font-mono">app.ts</span> through an explicit handler, yet it renders through the
+						same layout, metadata, and dependency system as normal pages.
 					</p>
 				</div>
 				<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

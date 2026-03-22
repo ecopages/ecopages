@@ -5,10 +5,13 @@ import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
-import { ProjectWatcher } from '../../watchers/project-watcher';
 import type { ClientBridge } from './client-bridge';
 import type { HmrManager } from './hmr-manager';
-import { initializeSharedRuntimePlugins, prepareSharedRuntimePublicDir } from '../shared/runtime-bootstrap.ts';
+import {
+	initializeSharedRuntimePlugins,
+	prepareSharedRuntimePublicDir,
+	startSharedProjectWatching,
+} from '../shared/runtime-bootstrap.ts';
 
 export interface WatcherCallbacks {
 	refreshRouterRoutesCallback: () => Promise<void>;
@@ -107,14 +110,12 @@ export class ServerLifecycle {
 	 * callback.
 	 */
 	async startWatching(callbacks: WatcherCallbacks): Promise<void> {
-		const watcherInstance = new ProjectWatcher({
-			config: this.appConfig,
+		await startSharedProjectWatching({
+			appConfig: this.appConfig,
 			refreshRouterRoutesCallback: callbacks.refreshRouterRoutesCallback,
 			hmrManager: this.hmrManager,
 			bridge: this.bridge,
 		});
-
-		await watcherInstance.createWatcherSubscription();
 	}
 
 	/**

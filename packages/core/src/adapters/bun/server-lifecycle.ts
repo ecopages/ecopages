@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { getBunRuntime } from '../../utils/runtime.ts';
-import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
@@ -8,6 +7,7 @@ import { StaticSiteGenerator } from '../../static-site-generator/static-site-gen
 import type { ClientBridge } from './client-bridge';
 import type { HmrManager } from './hmr-manager';
 import {
+	bindSharedRuntimeHmrManager,
 	initializeSharedRuntimePlugins,
 	prepareSharedRuntimePublicDir,
 	startSharedProjectWatching,
@@ -96,9 +96,7 @@ export class ServerLifecycle {
 				},
 			});
 
-			const allBuildPlugins = getAppBrowserBuildPlugins(this.appConfig);
-			this.hmrManager.setPlugins(allBuildPlugins);
-			return allBuildPlugins;
+			return bindSharedRuntimeHmrManager(this.appConfig, this.hmrManager);
 		} catch (error) {
 			appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);
 			throw error;

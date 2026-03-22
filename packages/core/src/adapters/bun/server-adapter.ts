@@ -345,8 +345,10 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 */
 	public async buildStatic(options?: { preview?: boolean }): Promise<void> {
 		if (!this.fullyInitialized) {
-			await this.initSharedRouter();
-			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
+			await this.initializeSharedRouteHandling({
+				staticRoutes: this.staticRoutes,
+				hmrManager: this.hmrManager,
+			});
 		}
 
 		await this.staticBuilder.build(options, {

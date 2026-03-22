@@ -24,6 +24,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Extracted shared runtime bootstrap helpers for executor installation, public-dir preparation, and runtime plugin setup so Node and Bun startup paths reuse one adapter-owned flow while keeping host-specific HMR and transport hooks.
 - Moved route initialization plus response-handler wiring behind shared adapter startup hooks and normalized Node/Bun watch-mode route refresh callbacks to one shared adapter-level contract.
 - Centralized watcher subscription startup behind shared runtime bootstrap helpers so Node and Bun no longer construct `ProjectWatcher` directly in runtime-specific adapter code.
+- Centralized HMR manager binding to browser build plugins and integration runtime handoff behind shared runtime bootstrap helpers so Node and Bun no longer duplicate plugin/integration propagation.
 - Routed runtime specifier registration through shared integration lifecycle hooks and centralized browser bundle assembly behind `BrowserBundleService`.
 - Consolidated server-module loading around one shared app-owned transpiler, app-scoped import caches, and one app-owned invalidation path so runtime subsystems no longer coordinate through duplicated loader state.
 - Allowed `ServerModuleTranspiler` to accept an injected module-import dependency so runtime tests can use explicit fakes instead of module-level mocking.

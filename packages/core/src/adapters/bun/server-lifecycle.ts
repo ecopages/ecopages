@@ -1,15 +1,14 @@
 import path from 'node:path';
 import { getBunRuntime } from '../../utils/runtime.ts';
-import { RESOLVED_ASSETS_DIR } from '../../constants';
-import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import { fileSystem } from '@ecopages/file-system';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
 import { ProjectWatcher } from '../../watchers/project-watcher';
 import type { ClientBridge } from './client-bridge';
 import type { HmrManager } from './hmr-manager';
+import { initializeSharedRuntimePlugins, prepareSharedRuntimePublicDir } from '../shared/runtime-bootstrap.ts';
 
 export interface WatcherCallbacks {
 	refreshRouterRoutesCallback: () => Promise<void>;
@@ -55,7 +54,7 @@ export class ServerLifecycle {
 		await this.hmrManager.buildRuntime();
 
 		this.setupLoaders();
-		this.copyPublicDir();
+		prepareSharedRuntimePublicDir(this.appConfig);
 
 		return this.staticSiteGenerator;
 	}
@@ -75,31 +74,6 @@ export class ServerLifecycle {
 	}
 
 	/**
-	 * Copies public assets into the runtime dist directory and ensures the
-	 * resolved-assets directory exists.
-	 *
-	 * @remarks
-	 * Bun serves static files from the built dist root, so public files must be in
-	 * place before request handling begins.
-	 */
-	copyPublicDir(): void {
-		try {
-			const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
-
-			if (fileSystem.exists(srcPublicDir)) {
-				fileSystem.copyDir(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
-			}
-
-			fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
-		} catch (error) {
-			appLogger.error(
-				`Failed to copy public directory: ${error instanceof Error ? error.message : String(error)}`,
-			);
-			throw error;
-		}
-	}
-
-	/**
 	 * Runs runtime-only processor and integration setup for this Bun app session.
 	 *
 	 * @param options.watch Whether watch mode is enabled.
@@ -110,7 +84,7 @@ export class ServerLifecycle {
 			const hmrEnabled = !!options?.watch;
 			this.hmrManager.setEnabled(hmrEnabled);
 
-			await setupAppRuntimePlugins({
+			await initializeSharedRuntimePlugins({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
 				hmrManager: this.hmrManager,

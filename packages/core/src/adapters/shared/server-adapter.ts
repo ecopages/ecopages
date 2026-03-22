@@ -40,6 +40,41 @@ export abstract class SharedServerAdapter<
 	protected staticBuilder!: ServerStaticBuilder;
 	protected readonly schemaValidator = new SchemaValidationService();
 
+	protected async initializeSharedRouteHandling(options: {
+		staticRoutes: StaticRoute[];
+		hmrManager?: any;
+	}): Promise<void> {
+		await this.initSharedRouter();
+		this.configureSharedResponseHandlers(options.staticRoutes, options.hmrManager);
+	}
+
+	protected createSharedWatchRefreshCallback(options: {
+		staticRoutes: StaticRoute[];
+		hmrManager?: any;
+		onRoutesReady?: () => Promise<void> | void;
+		onError?: (error: Error) => Promise<void> | void;
+	}): () => Promise<void> {
+		return async () => {
+			try {
+				await this.initializeSharedRouteHandling({
+					staticRoutes: options.staticRoutes,
+					hmrManager: options.hmrManager,
+				});
+
+				if (options.onRoutesReady) {
+					await options.onRoutesReady();
+				}
+			} catch (error) {
+				if (options.onError) {
+					await options.onError(error instanceof Error ? error : new Error(String(error)));
+					return;
+				}
+
+				throw error;
+			}
+		};
+	}
+
 	/**
 	 * Scans the filesystem and dynamically constructs the universal router map.
 	 *

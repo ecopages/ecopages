@@ -224,10 +224,6 @@ describe('launch-plan', () => {
 					config: path.join(resolvedTempDir, 'eco.config.ts'),
 					entry: path.join(resolvedTempDir, 'app.ts'),
 				},
-				bootstrap: {
-					devGraphStrategy: 'noop',
-					runtimeSpecifierRegistry: 'in-memory',
-				},
 			});
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });

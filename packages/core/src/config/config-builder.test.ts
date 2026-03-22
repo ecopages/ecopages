@@ -70,10 +70,6 @@ describe('EcoConfigBuilder', () => {
 			modulePaths: {
 				config: path.join('/project', 'eco.config.ts'),
 			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
-			},
 		});
 	});
 

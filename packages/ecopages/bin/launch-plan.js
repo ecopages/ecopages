@@ -97,20 +97,6 @@ export async function createNodeRuntimeManifestFile(
 			config: configPath,
 			entry: path.resolve(projectDir, entryFile),
 		},
-		buildPlugins: {
-			loaderPluginNames: [],
-			runtimePluginNames: [],
-			browserBundlePluginNames: [],
-		},
-		browserBundles: {
-			outputDir: path.join(projectDir, 'dist', 'assets'),
-			publicBaseUrl: '/assets',
-			vendorBaseUrl: '/assets/vendors',
-		},
-		bootstrap: {
-			devGraphStrategy: 'noop',
-			runtimeSpecifierRegistry: 'in-memory',
-		},
 	};
 
 	mkdirSync(path.dirname(manifestFilePath), { recursive: true });

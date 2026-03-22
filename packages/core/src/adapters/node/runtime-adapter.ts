@@ -161,10 +161,6 @@ function createRuntimeConfigBridgePlugin(configModulePath: string): EcoBuildPlug
 	};
 }
 
-function isStringArray(value: unknown): value is string[] {
-	return Array.isArray(value) && value.every((item) => typeof item === 'string');
-}
-
 /**
  * Validates and narrows the persisted Node runtime manifest used by the thin
  * host handoff.
@@ -176,9 +172,6 @@ export function assertNodeRuntimeManifest(manifest: unknown): NodeRuntimeManifes
 
 	const candidate = manifest as Record<string, unknown>;
 	const modulePaths = candidate.modulePaths as Record<string, unknown> | undefined;
-	const buildPlugins = candidate.buildPlugins as Record<string, unknown> | undefined;
-	const browserBundles = candidate.browserBundles as Record<string, unknown> | undefined;
-	const bootstrap = candidate.bootstrap as Record<string, unknown> | undefined;
 
 	if (candidate.runtime !== 'node') {
 		throw new Error('Invalid Node runtime manifest: runtime must be "node".');
@@ -194,32 +187,6 @@ export function assertNodeRuntimeManifest(manifest: unknown): NodeRuntimeManifes
 
 	if (!modulePaths || typeof modulePaths.config !== 'string') {
 		throw new Error('Invalid Node runtime manifest: modulePaths.config must be present.');
-	}
-
-	if (
-		!buildPlugins ||
-		!isStringArray(buildPlugins.loaderPluginNames) ||
-		!isStringArray(buildPlugins.runtimePluginNames) ||
-		!isStringArray(buildPlugins.browserBundlePluginNames)
-	) {
-		throw new Error('Invalid Node runtime manifest: build plugin name lists must be arrays of strings.');
-	}
-
-	if (
-		!browserBundles ||
-		typeof browserBundles.outputDir !== 'string' ||
-		typeof browserBundles.publicBaseUrl !== 'string' ||
-		typeof browserBundles.vendorBaseUrl !== 'string'
-	) {
-		throw new Error('Invalid Node runtime manifest: browser bundle metadata is incomplete.');
-	}
-
-	if (
-		!bootstrap ||
-		(bootstrap.devGraphStrategy !== 'noop' && bootstrap.devGraphStrategy !== 'selective') ||
-		(bootstrap.runtimeSpecifierRegistry !== 'in-memory' && bootstrap.runtimeSpecifierRegistry !== 'custom')
-	) {
-		throw new Error('Invalid Node runtime manifest: bootstrap metadata is incomplete.');
 	}
 
 	return candidate as unknown as NodeRuntimeManifest;

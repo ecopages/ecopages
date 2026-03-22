@@ -55,8 +55,8 @@
 			"default": "./src/create-app.ts"
 		},
 		"./route-renderer/integration-renderer": {
-			"types": "./src/route-renderer/integration-renderer.ts",
-			"default": "./src/route-renderer/integration-renderer.ts"
+			"types": "./src/route-renderer/orchestration/integration-renderer.ts",
+			"default": "./src/route-renderer/orchestration/integration-renderer.ts"
 		},
 		"./router/navigation-coordinator": {
 			"types": "./src/router/client/navigation-coordinator.ts",
@@ -112,8 +112,8 @@
 			"types": "./src/internal-types.ts"
 		},
 		"./services/asset-processing-service": {
-			"types": "./src/services/asset-processing-service/index.ts",
-			"default": "./src/services/asset-processing-service/index.ts"
+			"types": "./src/services/assets/asset-processing-service/index.ts",
+			"default": "./src/services/assets/asset-processing-service/index.ts"
 		},
 		"./utils/deep-merge": {
 			"types": "./src/utils/deep-merge.ts",

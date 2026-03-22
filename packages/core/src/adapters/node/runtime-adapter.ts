@@ -4,13 +4,10 @@ import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import {
 	createBuildAdapter,
 	getAppBuildExecutor,
-	getAppBuildAdapter,
-	getAppServerBuildPlugins,
-	setAppBuildExecutor,
 	type BuildAdapter,
 	type BuildExecutor,
 } from '../../build/build-adapter.ts';
-import { createAppBuildExecutor, createOrReuseAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
+import { createAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
 import { createNodeBootstrapPlugin, getNodeRuntimeNodeModulesDir } from './bootstrap-dependency-resolver.ts';
 import {
 	setAppNodeRuntimeManifest,
@@ -24,6 +21,7 @@ import {
 	type ServerLoaderAppContext,
 } from '../../services/module-loading/server-loader.service.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
+import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
 
 /**
  * Host-to-adapter handoff contract for the Node thin-host runtime.
@@ -254,6 +252,7 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 	private readonly bootstrapBundlePlugin: EcoBuildPlugin;
 	private readonly bootstrapBuildAdapter: BuildAdapter;
 	private readonly bootstrapBuildExecutor: BuildExecutor;
+	private invalidationService: DevelopmentInvalidationService | null = null;
 	private appConfig: EcoPagesAppConfig | null = null;
 	private loadedAppRuntime: LoadedAppRuntime | null = null;
 
@@ -298,13 +297,11 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 		return entryModulePath;
 	}
 
-	private getAppInvalidationService(appConfig: EcoPagesAppConfig): DevelopmentInvalidationService {
-		return new DevelopmentInvalidationService(appConfig);
-	}
-
-	private createAppLoaderContext(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): ServerLoaderAppContext {
-		const invalidationService = this.getAppInvalidationService(appConfig);
-
+	private createAppLoaderContext(
+		appConfig: EcoPagesAppConfig,
+		buildExecutor: BuildExecutor,
+		invalidationService: DevelopmentInvalidationService,
+	): ServerLoaderAppContext {
 		return {
 			rootDir: appConfig.rootDir,
 			getBuildExecutor: () => buildExecutor,
@@ -314,18 +311,12 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 	}
 
 	/**
-	 * Installs the app-owned executor once per loaded app config and preserves an
-	 * existing development coordinator when one is already present.
+	 * Installs and returns the app-owned runtime build executor.
 	 */
 	private installAppBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
-		const appBuildExecutor = createOrReuseAppBuildExecutor({
+		const appBuildExecutor = installAppRuntimeBuildExecutor(appConfig, {
 			development: this.isDevelopmentMode(),
-			adapter: getAppBuildAdapter(appConfig),
-			currentExecutor: getAppBuildExecutor(appConfig),
-			getPlugins: () => getAppServerBuildPlugins(appConfig),
 		});
-
-		setAppBuildExecutor(appConfig, appBuildExecutor);
 		return appBuildExecutor;
 	}
 
@@ -333,11 +324,18 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 	 * Rebinds app-phase server loading to the installed app-owned executor.
 	 */
 	private bindAppServerLoader(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): void {
-		this.serverLoader.rebindAppContext(this.createAppLoaderContext(appConfig, buildExecutor));
+		if (!this.invalidationService) {
+			throw new Error('Node runtime invalidation service is not initialized.');
+		}
+
+		this.serverLoader.rebindAppContext(
+			this.createAppLoaderContext(appConfig, buildExecutor, this.invalidationService),
+		);
 	}
 
 	private initializeAppRuntime(appConfig: EcoPagesAppConfig): EcoPagesAppConfig {
 		setAppNodeRuntimeManifest(appConfig, this.manifest);
+		this.invalidationService = new DevelopmentInvalidationService(appConfig);
 		const appBuildExecutor = this.installAppBuildExecutor(appConfig);
 		this.bindAppServerLoader(appConfig, appBuildExecutor);
 		this.appConfig = appConfig;
@@ -438,8 +436,8 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 	 */
 	async invalidate(_changedFiles: string[]): Promise<void> {
 		this.serverLoader.invalidate(_changedFiles);
-		if (this.appConfig) {
-			this.getAppInvalidationService(this.appConfig).resetRuntimeState(_changedFiles);
+		if (this.invalidationService) {
+			this.invalidationService.resetRuntimeState(_changedFiles);
 		}
 		this.loadedAppRuntime = null;
 		if (this.appConfig) {
@@ -456,6 +454,7 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 		if (this.appConfig) {
 			getAppEntrypointDependencyGraph(this.appConfig).reset();
 		}
+		this.invalidationService = null;
 	}
 }
 

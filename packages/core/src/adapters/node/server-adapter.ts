@@ -2,15 +2,8 @@ import { createServer, type IncomingMessage, type Server as NodeHttpServer, type
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import {
-	getAppBuildAdapter,
-	getAppBuildExecutor,
-	getAppBrowserBuildPlugins,
-	getAppServerBuildPlugins,
-	setAppBuildExecutor,
-	setupAppRuntimePlugins,
-} from '../../build/build-adapter.ts';
-import { createOrReuseAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
+import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
@@ -112,17 +105,9 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *    processors during their `setup()` calls.
 	 */
 	public async initialize(): Promise<void> {
-		const buildAdapter = getAppBuildAdapter(this.appConfig);
-
-		setAppBuildExecutor(
-			this.appConfig,
-			createOrReuseAppBuildExecutor({
-				development: this.options?.watch === true,
-				adapter: buildAdapter,
-				currentExecutor: getAppBuildExecutor(this.appConfig),
-				getPlugins: () => getAppServerBuildPlugins(this.appConfig),
-			}),
-		);
+		installAppRuntimeBuildExecutor(this.appConfig, {
+			development: this.options?.watch === true,
+		});
 
 		this.setupLoaders();
 		this.copyPublicDir();

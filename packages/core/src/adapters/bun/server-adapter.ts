@@ -1,11 +1,5 @@
 import type { Server, WebSocketHandler } from 'bun';
-import {
-	getAppBuildAdapter,
-	getAppBuildExecutor,
-	getAppServerBuildPlugins,
-	setAppBuildExecutor,
-} from '../../build/build-adapter.ts';
-import { createOrReuseAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
+import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { ApiHandler, ApiHandlerContext, ErrorHandler, StaticRoute } from '../../public-types.ts';
@@ -146,17 +140,9 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Delegates to ServerLifecycle for setup.
 	 */
 	public async initialize(): Promise<void> {
-		const buildAdapter = getAppBuildAdapter(this.appConfig);
-
-		setAppBuildExecutor(
-			this.appConfig,
-			createOrReuseAppBuildExecutor({
-				development: this.options?.watch === true,
-				adapter: buildAdapter,
-				currentExecutor: getAppBuildExecutor(this.appConfig),
-				getPlugins: () => getAppServerBuildPlugins(this.appConfig),
-			}),
-		);
+		installAppRuntimeBuildExecutor(this.appConfig, {
+			development: this.options?.watch === true,
+		});
 
 		this.bridge = this.bridgeFactory ?? new ClientBridge();
 		this.hmrManager = this.hmrManagerFactory ?? new HmrManager({ appConfig: this.appConfig, bridge: this.bridge });

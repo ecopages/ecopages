@@ -6,13 +6,11 @@ import {
 	buildEnvOverrides,
 	buildNodeArgs,
 	buildBunArgs,
-	bundleNodeRuntimeManifestWriter,
 	createNodeRuntimeManifestFile,
 	createLaunchPlan,
 	detectRuntime,
 	launchPlanRequiresExistingEntryFile,
 	resolveNodeRuntimeManifestPath,
-	resolveNodeRuntimeManifestWriterBundlePath,
 } from './launch-plan.js';
 
 const originalUserAgent = process.env.npm_config_user_agent;
@@ -236,7 +234,7 @@ describe('launch-plan', () => {
 		}
 	});
 
-	it('createNodeRuntimeManifestFile preserves import.meta.dirname semantics in bundled config bootstrap', async () => {
+	it('createNodeRuntimeManifestFile does not evaluate eco.config.ts while writing the manifest', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
 			process.chdir(tempDir);
@@ -256,25 +254,6 @@ describe('launch-plan', () => {
 					entry: path.join(resolvedTempDir, 'app.ts'),
 				},
 			});
-		} finally {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	it('bundleNodeRuntimeManifestWriter emits a bundled JS writer artifact', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		try {
-			process.chdir(tempDir);
-			writeExperimentalRuntimeConfig(tempDir);
-
-			const bundlePath = await bundleNodeRuntimeManifestWriter(path.join(tempDir, 'eco.config.ts'), tempDir);
-
-			expect(bundlePath).toBe(resolveNodeRuntimeManifestWriterBundlePath(tempDir));
-			expect(fs.existsSync(bundlePath)).toBe(true);
-			expect(path.extname(bundlePath)).toBe('.mjs');
-			expect(bundlePath).toBe(
-				path.join(path.resolve(tempDir), '.eco', 'runtime', 'node-runtime-manifest-writer.mjs'),
-			);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}

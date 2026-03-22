@@ -1,15 +1,8 @@
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const require = createRequire(import.meta.url);
-const esbuild = require('esbuild');
 const NODE_THIN_HOST_PATH = fileURLToPath(new URL('./node-thin-host.js', import.meta.url));
-const NODE_RUNTIME_MANIFEST_WRITER_PATH = fileURLToPath(
-	new URL('../../core/src/adapters/node/write-runtime-manifest.ts', import.meta.url),
-);
 const DEFAULT_INTERNAL_WORK_DIR = '.eco';
 
 export function buildEnvOverrides(options) {
@@ -79,114 +72,6 @@ export function resolveNodeRuntimeManifestPath(projectDir = process.cwd()) {
 	return path.join(path.resolve(projectDir), DEFAULT_INTERNAL_WORK_DIR, 'runtime', 'node-runtime-manifest.json');
 }
 
-export function resolveNodeRuntimeManifestWriterBundlePath(projectDir = process.cwd()) {
-	return path.join(
-		path.resolve(projectDir),
-		DEFAULT_INTERNAL_WORK_DIR,
-		'runtime',
-		'node-runtime-manifest-writer.mjs',
-	);
-}
-
-function getEsbuildLoaderForPath(filePath) {
-	const extension = path.extname(filePath).toLowerCase();
-
-	switch (extension) {
-		case '.ts':
-		case '.mts':
-		case '.cts':
-			return 'ts';
-		case '.tsx':
-			return 'tsx';
-		case '.jsx':
-			return 'jsx';
-		case '.json':
-			return 'json';
-		default:
-			return 'js';
-	}
-}
-
-export async function bundleNodeRuntimeManifestWriter(configPath, projectDir = process.cwd()) {
-	const bundlePath = resolveNodeRuntimeManifestWriterBundlePath(projectDir);
-	const tsconfigPath = path.join(projectDir, 'tsconfig.json');
-	const requireFromProject = createRequire(path.join(projectDir, 'package.json'));
-	mkdirSync(path.dirname(bundlePath), { recursive: true });
-
-	await esbuild.build({
-		absWorkingDir: projectDir,
-		bundle: true,
-		format: 'esm',
-		platform: 'node',
-		target: 'es2022',
-		outfile: bundlePath,
-		logLevel: 'silent',
-		write: true,
-		tsconfig: existsSync(tsconfigPath) ? tsconfigPath : undefined,
-		plugins: [
-			{
-				name: 'preserve-import-meta-paths',
-				setup(build) {
-					build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async (args) => {
-						if (!args.path.startsWith(projectDir)) {
-							return undefined;
-						}
-
-						const source = readFileSync(args.path, 'utf8')
-							.replaceAll('import.meta.dirname', JSON.stringify(path.dirname(args.path)))
-							.replaceAll('import.meta.filename', JSON.stringify(args.path));
-
-						return {
-							contents: source,
-							loader: getEsbuildLoaderForPath(args.path),
-						};
-					});
-				},
-			},
-			{
-				name: 'resolve-third-party-runtime-files',
-				setup(build) {
-					build.onResolve({ filter: /^[@A-Za-z0-9][^:]*$/ }, (args) => {
-						if (
-							args.path.startsWith('./') ||
-							args.path.startsWith('../') ||
-							args.path.startsWith('/') ||
-							args.path.startsWith('node:')
-						) {
-							return undefined;
-						}
-
-						if (args.path.startsWith('@ecopages/')) {
-							return undefined;
-						}
-
-						return {
-							path: requireFromProject.resolve(args.path),
-							external: true,
-						};
-					});
-				},
-			},
-		],
-		stdin: {
-			contents: [
-				`import appConfig from ${JSON.stringify(path.resolve(configPath))};`,
-				`import { writeBundledNodeRuntimeManifest } from ${JSON.stringify(NODE_RUNTIME_MANIFEST_WRITER_PATH)};`,
-				'',
-				'writeBundledNodeRuntimeManifest(appConfig, {',
-				'\tentryModulePath: process.argv[2],',
-				'\tmanifestFilePath: process.argv[3],',
-				'});',
-			].join('\n'),
-			loader: 'ts',
-			resolveDir: projectDir,
-			sourcefile: 'node-runtime-manifest-entry.ts',
-		},
-	});
-
-	return bundlePath;
-}
-
 export async function createNodeRuntimeManifestFile(
 	entryFile,
 	options = {
@@ -201,22 +86,35 @@ export async function createNodeRuntimeManifestFile(
 	if (!existsSync(configPath)) {
 		throw new Error('The Node thin-host runtime requires eco.config.ts in the current project root.');
 	}
-	const bundlePath = await bundleNodeRuntimeManifestWriter(configPath, projectDir);
 
-	const result = spawnSync('node', [bundlePath, path.resolve(projectDir, entryFile), manifestFilePath], {
-		cwd: projectDir,
-		env: options.env ?? process.env,
-		encoding: 'utf8',
-	});
+	const manifest = {
+		runtime: 'node',
+		appRootDir: projectDir,
+		sourceRootDir: path.join(projectDir, 'src'),
+		distDir: path.join(projectDir, 'dist'),
+		workDir: path.join(projectDir, DEFAULT_INTERNAL_WORK_DIR),
+		modulePaths: {
+			config: configPath,
+			entry: path.resolve(projectDir, entryFile),
+		},
+		buildPlugins: {
+			loaderPluginNames: [],
+			runtimePluginNames: [],
+			browserBundlePluginNames: [],
+		},
+		browserBundles: {
+			outputDir: path.join(projectDir, 'dist', 'assets'),
+			publicBaseUrl: '/assets',
+			vendorBaseUrl: '/assets/vendors',
+		},
+		bootstrap: {
+			devGraphStrategy: 'noop',
+			runtimeSpecifierRegistry: 'in-memory',
+		},
+	};
 
-	if (result.error) {
-		throw result.error;
-	}
-
-	if (result.status !== 0) {
-		const details = [result.stderr, result.stdout].filter(Boolean).join('\n').trim();
-		throw new Error(`Failed to prepare the Node runtime manifest.${details ? `\n${details}` : ''}`);
-	}
+	mkdirSync(path.dirname(manifestFilePath), { recursive: true });
+	writeFileSync(manifestFilePath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
 	return manifestFilePath;
 }

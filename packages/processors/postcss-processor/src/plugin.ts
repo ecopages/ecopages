@@ -377,7 +377,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	/**
-	 * Performs runtime-only PostCSS setup after build contributions are ready.
+	 * Prepares build contributions if not already done and prewarms the runtime CSS cache.
 	 */
 	async setup(): Promise<void> {
 		await this.prepareBuildContributions();

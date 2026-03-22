@@ -8,7 +8,8 @@ All notable changes to `@ecopages/image-processor` are documented here.
 
 ### Features
 
-- Extracted shared image plugin creation into `image-plugins.ts` so the processor can target multiple build adapters.
+- Added `image-plugins.ts` with shared image plugin creation so the processor can target multiple build adapters.
+- Added `bun-plugins.ts` with Bun-specific build adapter helpers aligned with the shared image plugin layer.
 
 ### Bug Fixes
 
@@ -16,10 +17,6 @@ All notable changes to `@ecopages/image-processor` are documented here.
 - Inlined the generated `ecopages:images` declaration source so bundled runtime bootstrap no longer depends on a sibling `types` module at runtime.
 - Re-emitted generated image outputs after static export cleanup so routes that reference `/images/...` keep their optimized files inside `dist`.
 
-### Refactoring
-
-- Moved Bun-specific helpers into `bun-plugins.ts` and aligned the plugin implementation with the shared image plugin layer.
-
 ### Tests
 
-- Updated image processor and renderer coverage for the current build pipeline.
+- Added image processor and renderer coverage for the current build pipeline.

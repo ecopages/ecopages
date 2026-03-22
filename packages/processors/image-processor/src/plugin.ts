@@ -290,8 +290,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	}
 
 	/**
-	 * Performs runtime-only image-processor setup after manifest contributions are
-	 * already prepared.
+	 * Prepares build contributions if not already done and rehydrates previously generated image outputs.
 	 */
 	async setup(): Promise<void> {
 		await this.prepareBuildContributions();

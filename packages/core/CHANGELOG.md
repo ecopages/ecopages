@@ -18,6 +18,7 @@ All notable changes to `@ecopages/core` are documented here.
 ### Refactoring
 
 - Finalized app-owned build manifests during `ConfigBuilder.build()` and split build contribution collection from runtime startup.
+- Consolidated Node thin-host app bootstrap to reuse one app-owned build executor for app-entry loading and invalidation rebinds instead of creating duplicate app-phase executors.
 - Routed runtime specifier registration through shared integration lifecycle hooks and centralized browser bundle assembly behind `BrowserBundleService`.
 - Consolidated server-module loading around one shared app-owned transpiler, app-scoped import caches, and one app-owned invalidation path so runtime subsystems no longer coordinate through duplicated loader state.
 - Allowed `ServerModuleTranspiler` to accept an injected module-import dependency so runtime tests can use explicit fakes instead of module-level mocking.
@@ -31,6 +32,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Stopped loading `eco.config.ts` in a separate Node thin-host bootstrap pass so app-entry loading can be the single runtime config evaluation path.
 - Routed React HMR browser entry rebuilds and page-metadata module loading through shared browser bundling and server-loading services.
 - Fixed Node bootstrap resolution so app-local aliases, third-party dependencies, `import.meta.dirname`, `import.meta.filename`, and `bun:*` diagnostics behave correctly during experimental Node startup.
 - Moved development invalidation and server-module cache invalidation onto the app-owned dev graph so watcher routing and experimental Node invalidation share one policy.

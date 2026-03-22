@@ -21,6 +21,8 @@ All notable changes to `@ecopages/core` are documented here.
 - Consolidated Node thin-host app bootstrap to reuse one app-owned build executor for app-entry loading and invalidation rebinds instead of creating duplicate app-phase executors.
 - Added one shared runtime build-executor installer boundary so Node and Bun adapters use the same app-owned executor ownership path, and made Node thin-host session invalidation state explicitly owned by one session-scoped invalidation service.
 - Narrowed `NodeRuntimeManifest` to path and module-path fields only; removed `buildPlugins`, `browserBundles`, and `bootstrap` sections that were written as static constants and never consumed after validation.
+- Extracted shared runtime bootstrap helpers for executor installation, public-dir preparation, and runtime plugin setup so Node and Bun startup paths reuse one adapter-owned flow while keeping host-specific HMR and transport hooks.
+- Moved route initialization plus response-handler wiring behind shared adapter startup hooks and normalized Node/Bun watch-mode route refresh callbacks to one shared adapter-level contract.
 - Routed runtime specifier registration through shared integration lifecycle hooks and centralized browser bundle assembly behind `BrowserBundleService`.
 - Consolidated server-module loading around one shared app-owned transpiler, app-scoped import caches, and one app-owned invalidation path so runtime subsystems no longer coordinate through duplicated loader state.
 - Allowed `ServerModuleTranspiler` to accept an injected module-import dependency so runtime tests can use explicit fakes instead of module-level mocking.

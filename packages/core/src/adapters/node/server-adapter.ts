@@ -1,9 +1,6 @@
 import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
 import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
-import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
-import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
+import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
@@ -15,6 +12,11 @@ import { StaticSiteGenerator } from '../../static-site-generator/static-site-gen
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
 import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
+import {
+	initializeSharedRuntimePlugins,
+	installSharedRuntimeBuildExecutor,
+	prepareSharedRuntimePublicDir,
+} from '../shared/runtime-bootstrap.ts';
 
 import { NodeStaticContentServer } from './static-content-server.ts';
 
@@ -105,15 +107,20 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *    processors during their `setup()` calls.
 	 */
 	public async initialize(): Promise<void> {
-		installAppRuntimeBuildExecutor(this.appConfig, {
+		installSharedRuntimeBuildExecutor(this.appConfig, {
 			development: this.options?.watch === true,
 		});
 
-		this.setupLoaders();
-		this.copyPublicDir();
-		await this.initializePlugins();
-		await this.initSharedRouter();
-		this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager ?? undefined);
+		prepareSharedRuntimePublicDir(this.appConfig);
+		await initializeSharedRuntimePlugins({
+			appConfig: this.appConfig,
+			runtimeOrigin: this.runtimeOrigin,
+			hmrManager: this.hmrManager ?? undefined,
+		});
+		await this.initializeSharedRouteHandling({
+			staticRoutes: this.staticRoutes,
+			hmrManager: this.hmrManager ?? undefined,
+		});
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 		this.staticBuilder = new ServerStaticBuilder({
 			appConfig: this.appConfig,
@@ -122,53 +129,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			apiHandlers: this.apiHandlers,
 		});
 		this.initialized = true;
-	}
-
-	/**
-	 * Registers every configured file loader as a build plugin on the app-owned
-	 * build adapter.
-	 *
-	 * Loaders are registered on the per-app adapter because they must be available
-	 * to both the SSR build and any dynamic transpile passes that happen outside of
-	 * a top-level `build()` call (e.g. HMR incremental rebuilds) without leaking
-	 * across app instances.
-	 */
-	private setupLoaders(): void {
-		return;
-	}
-
-	private copyPublicDir(): void {
-		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
-
-		if (fileSystem.exists(srcPublicDir)) {
-			fileSystem.copyDir(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
-		}
-
-		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
-	}
-
-	/**
-	 * Sets up all configured processors and integrations in two distinct phases.
-	 *
-	 * **Phase 1 — Processors:**
-	 * Each processor's `setup()` is called first. A processor may expose two
-	 * plugin lists:
-	 * - `plugins` — transform plugins used during SSR rendering (e.g. PostCSS).
-	 * - `buildPlugins` — esbuild plugins used during the client bundle step.
-	 * Both are registered on the app-owned build adapter so later build calls pick them up.
-	 *
-	 * **Phase 2 — Integrations:**
-	 * Integrations receive the fully-resolved app config, the runtime origin, and
-	 * (if already initialised) the HMR manager before their own `setup()` is called.
-	 * This ordering ensures integrations can query config values that processors
-	 * may have mutated during phase 1.
-	 */
-	private async initializePlugins(): Promise<void> {
-		await setupAppRuntimePlugins({
-			appConfig: this.appConfig,
-			runtimeOrigin: this.runtimeOrigin,
-			hmrManager: this.hmrManager ?? undefined,
-		});
 	}
 
 	public getServerOptions(): NodeServeAdapterServerOptions {
@@ -500,10 +460,10 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 			const watcher = new ProjectWatcher({
 				config: this.appConfig,
-				refreshRouterRoutesCallback: async () => {
-					await this.initSharedRouter();
-					this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
-				},
+				refreshRouterRoutesCallback: this.createSharedWatchRefreshCallback({
+					staticRoutes: this.staticRoutes,
+					hmrManager: this.hmrManager,
+				}),
 				hmrManager: this.hmrManager,
 				bridge: this.bridge,
 			});

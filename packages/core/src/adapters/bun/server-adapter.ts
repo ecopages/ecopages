@@ -1,5 +1,4 @@
 import type { Server, WebSocketHandler } from 'bun';
-import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { ApiHandler, ApiHandlerContext, ErrorHandler, StaticRoute } from '../../public-types.ts';
@@ -10,6 +9,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
 import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ApiResponseBuilder } from '../shared/api-response.ts';
+import { installSharedRuntimeBuildExecutor } from '../shared/runtime-bootstrap.ts';
 
 import { ServerRouteHandler, type ServerRouteHandlerParams } from '../shared/server-route-handler.ts';
 import { ServerStaticBuilder, type ServerStaticBuilderParams } from '../shared/server-static-builder';
@@ -140,7 +140,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Delegates to ServerLifecycle for setup.
 	 */
 	public async initialize(): Promise<void> {
-		installAppRuntimeBuildExecutor(this.appConfig, {
+		installSharedRuntimeBuildExecutor(this.appConfig, {
 			development: this.options?.watch === true,
 		});
 
@@ -175,22 +175,24 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Refreshes the router routes during watch mode.
 	 */
 	private async refreshRouterRoutes(): Promise<void> {
-		if (this.serverInstance && typeof this.serverInstance.reload === 'function') {
-			try {
-				await this.initSharedRouter();
-				this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
-				const options = this.getServerOptions({ enableHmr: true });
-				this.serverInstance.reload(options as BunNativeServeOptions);
-				appLogger.debug('Server routes updated with dynamic routes');
-			} catch (error) {
-				if (error instanceof Error) {
-					this.hmrManager.broadcast({ type: 'error', message: error.message });
-					appLogger.error('Failed to refresh router routes:', error);
-				}
-			}
-		} else {
+		if (!this.serverInstance || typeof this.serverInstance.reload !== 'function') {
 			appLogger.error('Server instance is not available for reloading');
+			return;
 		}
+
+		await this.createSharedWatchRefreshCallback({
+			staticRoutes: this.staticRoutes,
+			hmrManager: this.hmrManager,
+			onRoutesReady: () => {
+				const options = this.getServerOptions({ enableHmr: true });
+				this.serverInstance!.reload(options as BunNativeServeOptions);
+				appLogger.debug('Server routes updated with dynamic routes');
+			},
+			onError: (error) => {
+				this.hmrManager.broadcast({ type: 'error', message: error.message });
+				appLogger.error('Failed to refresh router routes:', error);
+			},
+		})();
 	}
 
 	private async watch(): Promise<void> {
@@ -381,8 +383,10 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		this.serverInstance = server;
 		appLogger.debug('Completing server initialization with dynamic routes');
 
-		await this.initSharedRouter();
-		this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
+		await this.initializeSharedRouteHandling({
+			staticRoutes: this.staticRoutes,
+			hmrManager: this.hmrManager,
+		});
 
 		this.fullyInitialized = true;
 

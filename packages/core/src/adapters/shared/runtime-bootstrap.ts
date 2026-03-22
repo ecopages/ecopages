@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { setupAppRuntimePlugins, type BuildExecutor } from '../../build/build-adapter.ts';
+import { getAppBrowserBuildPlugins, setupAppRuntimePlugins, type BuildExecutor } from '../../build/build-adapter.ts';
+import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import type { EcoPagesAppConfig, IClientBridge, IHmrManager } from '../../internal-types.ts';
@@ -61,4 +62,18 @@ export async function startSharedProjectWatching(options: {
 	});
 
 	await watcher.createWatcherSubscription();
+}
+
+/**
+ * Binds a runtime HMR manager to app-owned plugin and integration state.
+ */
+export function bindSharedRuntimeHmrManager(appConfig: EcoPagesAppConfig, hmrManager: IHmrManager): EcoBuildPlugin[] {
+	const browserBuildPlugins = getAppBrowserBuildPlugins(appConfig);
+	hmrManager.setPlugins(browserBuildPlugins);
+
+	for (const integration of appConfig.integrations) {
+		integration.setHmrManager(hmrManager);
+	}
+
+	return browserBuildPlugins;
 }

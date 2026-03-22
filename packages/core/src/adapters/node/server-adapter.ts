@@ -1,6 +1,5 @@
 import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
 import path from 'node:path';
-import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
@@ -12,6 +11,7 @@ import { SharedServerAdapter } from '../shared/server-adapter.ts';
 import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
 import {
+	bindSharedRuntimeHmrManager,
 	initializeSharedRuntimePlugins,
 	installSharedRuntimeBuildExecutor,
 	prepareSharedRuntimePublicDir,
@@ -450,11 +450,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				});
 			}
 
-			this.hmrManager.setPlugins(getAppBrowserBuildPlugins(this.appConfig));
-
-			for (const integration of this.appConfig.integrations) {
-				integration.setHmrManager(this.hmrManager);
-			}
+			bindSharedRuntimeHmrManager(this.appConfig, this.hmrManager);
 
 			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 

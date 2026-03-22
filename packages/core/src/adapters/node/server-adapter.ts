@@ -3,7 +3,6 @@ import path from 'node:path';
 import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
 import type { ApiHandler, ErrorHandler, StaticRoute } from '../../public-types.ts';
@@ -16,6 +15,7 @@ import {
 	initializeSharedRuntimePlugins,
 	installSharedRuntimeBuildExecutor,
 	prepareSharedRuntimePublicDir,
+	startSharedProjectWatching,
 } from '../shared/runtime-bootstrap.ts';
 
 import { NodeStaticContentServer } from './static-content-server.ts';
@@ -413,8 +413,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *   broadcast + heartbeat cleanup.
 	 * - `NodeHmrManager` watches the filesystem and triggers incremental esbuild
 	 *   rebuilds, notifying connected clients via the bridge.
-	 * - `ProjectWatcher` listens for route-level file changes and refreshes the
-	 *   router and response handlers when pages are added or removed.
+	 * - Shared watcher bootstrapping listens for route-level file changes and
+	 *   refreshes the router and response handlers when pages are added or removed.
 	 *
 	 * WebSocket upgrade requests that do not target `/_hmr` are rejected with an
 	 * immediate socket destroy to prevent unhandled upgrade leaks.
@@ -458,8 +458,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 
-			const watcher = new ProjectWatcher({
-				config: this.appConfig,
+			await startSharedProjectWatching({
+				appConfig: this.appConfig,
 				refreshRouterRoutesCallback: this.createSharedWatchRefreshCallback({
 					staticRoutes: this.staticRoutes,
 					hmrManager: this.hmrManager,
@@ -467,7 +467,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				hmrManager: this.hmrManager,
 				bridge: this.bridge,
 			});
-			await watcher.createWatcherSubscription();
 		}
 
 		appLogger.debug('Node server adapter initialization completed', {

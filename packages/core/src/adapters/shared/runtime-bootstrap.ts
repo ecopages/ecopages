@@ -3,7 +3,8 @@ import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins, type BuildExecutor } from '../../build/build-adapter.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '../../internal-types.ts';
+import type { EcoPagesAppConfig, IClientBridge, IHmrManager } from '../../internal-types.ts';
+import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 
 /**
  * Installs and returns the app-owned runtime build executor used by adapter
@@ -41,4 +42,23 @@ export async function initializeSharedRuntimePlugins(options: {
 	onRuntimePlugin?: (plugin: unknown) => void;
 }): Promise<void> {
 	await setupAppRuntimePlugins(options);
+}
+
+/**
+ * Starts shared project watching for runtime adapters.
+ */
+export async function startSharedProjectWatching(options: {
+	appConfig: EcoPagesAppConfig;
+	refreshRouterRoutesCallback: () => Promise<void>;
+	hmrManager: IHmrManager;
+	bridge: IClientBridge;
+}): Promise<void> {
+	const watcher = new ProjectWatcher({
+		config: options.appConfig,
+		refreshRouterRoutesCallback: options.refreshRouterRoutesCallback,
+		hmrManager: options.hmrManager,
+		bridge: options.bridge,
+	});
+
+	await watcher.createWatcherSubscription();
 }

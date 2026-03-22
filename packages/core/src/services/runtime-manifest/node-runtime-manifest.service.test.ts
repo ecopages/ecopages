@@ -3,11 +3,6 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'vitest';
-import { createAppBuildManifest } from '../../build/build-manifest.ts';
-import {
-	InMemoryEntrypointDependencyGraph,
-	NoopEntrypointDependencyGraph,
-} from '../runtime-state/entrypoint-dependency-graph.service.ts';
 import {
 	createNodeRuntimeManifest,
 	getNodeRuntimeManifestPath,
@@ -15,12 +10,8 @@ import {
 	setAppNodeRuntimeManifest,
 	writeAppNodeRuntimeManifest,
 } from './node-runtime-manifest.service.ts';
-import { InMemoryRuntimeSpecifierRegistry } from '../runtime-state/runtime-specifier-registry.service.ts';
 
 test('createNodeRuntimeManifest summarizes app-owned runtime bootstrap state', () => {
-	const loaderPlugin = { name: 'loader-plugin', setup() {} };
-	const runtimePlugin = { name: 'runtime-plugin', setup() {} };
-	const browserPlugin = { name: 'browser-plugin', setup() {} };
 	const appConfig = {
 		rootDir: '/repo',
 		absolutePaths: {
@@ -29,16 +20,8 @@ test('createNodeRuntimeManifest summarizes app-owned runtime bootstrap state', (
 			distDir: '/repo/dist',
 			workDir: '/repo/.eco',
 		},
-		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
-		runtime: {
-			buildManifest: createAppBuildManifest({
-				loaderPlugins: [loaderPlugin],
-				runtimePlugins: [runtimePlugin],
-				browserBundlePlugins: [browserPlugin],
-			}),
-			entrypointDependencyGraph: new InMemoryEntrypointDependencyGraph(),
-			runtimeSpecifierRegistry: new InMemoryRuntimeSpecifierRegistry(),
-		},
+		loaders: new Map(),
+		runtime: {},
 	} as any;
 
 	const manifest = createNodeRuntimeManifest(appConfig, {
@@ -55,25 +38,10 @@ test('createNodeRuntimeManifest summarizes app-owned runtime bootstrap state', (
 			config: '/repo/eco.config.ts',
 			entry: '/repo/app.ts',
 		},
-		buildPlugins: {
-			loaderPluginNames: ['loader-plugin'],
-			runtimePluginNames: ['runtime-plugin'],
-			browserBundlePluginNames: ['browser-plugin'],
-		},
-		browserBundles: {
-			outputDir: path.join('/repo/dist', 'assets'),
-			publicBaseUrl: '/assets',
-			vendorBaseUrl: '/assets/vendors',
-		},
-		bootstrap: {
-			devGraphStrategy: 'selective',
-			runtimeSpecifierRegistry: 'in-memory',
-		},
 	});
 });
 
 test('getAppNodeRuntimeManifest falls back to a derived manifest and can be overridden', () => {
-	const loaderPlugin = { name: 'loader-plugin', setup() {} };
 	const appConfig = {
 		rootDir: '/repo',
 		absolutePaths: {
@@ -82,17 +50,13 @@ test('getAppNodeRuntimeManifest falls back to a derived manifest and can be over
 			distDir: '/repo/dist',
 			workDir: '/repo/.eco',
 		},
-		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
-		runtime: {
-			entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
-			runtimeSpecifierRegistry: new InMemoryRuntimeSpecifierRegistry(),
-		},
+		loaders: new Map(),
+		runtime: {},
 	} as any;
 
 	const derivedManifest = getAppNodeRuntimeManifest(appConfig);
 	assert.equal(derivedManifest.modulePaths.config, '/repo/eco.config.ts');
 	assert.equal(derivedManifest.modulePaths.entry, undefined);
-	assert.equal(derivedManifest.bootstrap.devGraphStrategy, 'noop');
 
 	const overriddenManifest = createNodeRuntimeManifest(appConfig, {
 		entryModulePath: '/repo/custom-entry.ts',
@@ -113,10 +77,7 @@ test('writeAppNodeRuntimeManifest persists the app-owned manifest to the runtime
 			workDir: path.join(rootDir, '.eco'),
 		},
 		loaders: new Map(),
-		runtime: {
-			entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
-			runtimeSpecifierRegistry: new InMemoryRuntimeSpecifierRegistry(),
-		},
+		runtime: {},
 	} as any;
 
 	try {

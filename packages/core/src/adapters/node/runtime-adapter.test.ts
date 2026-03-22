@@ -16,24 +16,9 @@ test('assertNodeRuntimeManifest accepts the current runtime manifest shape', () 
 			config: '/repo/eco.config.ts',
 			entry: '/repo/app.ts',
 		},
-		buildPlugins: {
-			loaderPluginNames: ['loader-plugin'],
-			runtimePluginNames: ['runtime-plugin'],
-			browserBundlePluginNames: ['browser-plugin'],
-		},
-		browserBundles: {
-			outputDir: '/repo/dist/assets',
-			publicBaseUrl: '/assets',
-			vendorBaseUrl: '/assets/vendors',
-		},
-		bootstrap: {
-			devGraphStrategy: 'noop',
-			runtimeSpecifierRegistry: 'in-memory',
-		},
 	});
 
 	assert.equal(manifest.modulePaths.entry, '/repo/app.ts');
-	assert.deepEqual(manifest.buildPlugins.loaderPluginNames, ['loader-plugin']);
 });
 
 test('node runtime adapter loads the config module and app entry through core-owned services', async () => {
@@ -109,20 +94,6 @@ test('node runtime adapter loads the config module and app entry through core-ow
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
 			},
-			buildPlugins: {
-				loaderPluginNames: [],
-				runtimePluginNames: [],
-				browserBundlePluginNames: [],
-			},
-			browserBundles: {
-				outputDir: path.join(projectDir, 'dist', 'assets'),
-				publicBaseUrl: '/assets',
-				vendorBaseUrl: '/assets/vendors',
-			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
-			},
 		});
 
 		const session = await adapter.start({
@@ -157,20 +128,6 @@ test('node runtime adapter fails on real bootstrap problems instead of the place
 		modulePaths: {
 			config: '/repo/eco.config.ts',
 			entry: '/repo/app.ts',
-		},
-		buildPlugins: {
-			loaderPluginNames: [],
-			runtimePluginNames: [],
-			browserBundlePluginNames: [],
-		},
-		browserBundles: {
-			outputDir: '/repo/dist/assets',
-			publicBaseUrl: '/assets',
-			vendorBaseUrl: '/assets/vendors',
-		},
-		bootstrap: {
-			devGraphStrategy: 'noop',
-			runtimeSpecifierRegistry: 'in-memory',
 		},
 	});
 
@@ -220,20 +177,6 @@ test('node runtime adapter routes config and entry bootstrap imports through the
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
-			},
-			buildPlugins: {
-				loaderPluginNames: [],
-				runtimePluginNames: [],
-				browserBundlePluginNames: [],
-			},
-			browserBundles: {
-				outputDir: path.join(projectDir, 'dist', 'assets'),
-				publicBaseUrl: '/assets',
-				vendorBaseUrl: '/assets/vendors',
-			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
 			},
 		});
 
@@ -294,20 +237,6 @@ test('node runtime adapter caches the loaded runtime until invalidation requests
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
-			},
-			buildPlugins: {
-				loaderPluginNames: [],
-				runtimePluginNames: [],
-				browserBundlePluginNames: [],
-			},
-			browserBundles: {
-				outputDir: path.join(projectDir, 'dist', 'assets'),
-				publicBaseUrl: '/assets',
-				vendorBaseUrl: '/assets/vendors',
-			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
 			},
 		});
 
@@ -415,20 +344,6 @@ test('node runtime adapter bootstraps an app entry that imports core runtime cod
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
 			},
-			buildPlugins: {
-				loaderPluginNames: [],
-				runtimePluginNames: [],
-				browserBundlePluginNames: [],
-			},
-			browserBundles: {
-				outputDir: path.join(projectDir, 'dist', 'assets'),
-				publicBaseUrl: '/assets',
-				vendorBaseUrl: '/assets/vendors',
-			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
-			},
 		});
 
 		const session = await adapter.start({
@@ -525,20 +440,6 @@ test('node runtime adapter preserves config import.meta.dirname semantics during
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
-			},
-			buildPlugins: {
-				loaderPluginNames: [],
-				runtimePluginNames: [],
-				browserBundlePluginNames: [],
-			},
-			browserBundles: {
-				outputDir: path.join(projectDir, 'dist', 'assets'),
-				publicBaseUrl: '/assets',
-				vendorBaseUrl: '/assets/vendors',
-			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
 			},
 		});
 
@@ -713,20 +614,6 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
-			},
-			buildPlugins: {
-				loaderPluginNames: [],
-				runtimePluginNames: [],
-				browserBundlePluginNames: [],
-			},
-			browserBundles: {
-				outputDir: path.join(projectDir, 'dist', 'assets'),
-				publicBaseUrl: '/assets',
-				vendorBaseUrl: '/assets/vendors',
-			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
 			},
 		});
 
@@ -937,20 +824,6 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 			modulePaths: {
 				config: path.join(projectDir, 'eco.config.ts'),
 				entry: path.join(projectDir, 'app.ts'),
-			},
-			buildPlugins: {
-				loaderPluginNames: [],
-				runtimePluginNames: [],
-				browserBundlePluginNames: [],
-			},
-			browserBundles: {
-				outputDir: path.join(projectDir, 'dist', 'assets'),
-				publicBaseUrl: '/assets',
-				vendorBaseUrl: '/assets/vendors',
-			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
 			},
 		});
 

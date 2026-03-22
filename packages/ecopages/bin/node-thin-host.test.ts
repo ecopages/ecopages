@@ -32,28 +32,6 @@ describe('node-thin-host', () => {
 						config: '/repo/eco.config.ts',
 						entry: '/repo/app.ts',
 					},
-					buildPlugins: {
-						loaderPluginNames: ['loader-plugin'],
-						runtimePluginNames: [],
-						browserBundlePluginNames: [],
-					},
-					serverTranspile: {
-						target: 'node',
-						format: 'esm',
-						sourcemap: 'none',
-						splitting: false,
-						minify: false,
-						externalPackages: true,
-					},
-					browserBundles: {
-						outputDir: '/repo/dist/assets',
-						publicBaseUrl: '/assets',
-						vendorBaseUrl: '/assets/vendors',
-					},
-					bootstrap: {
-						devGraphStrategy: 'noop',
-						runtimeSpecifierRegistry: 'in-memory',
-					},
 				}),
 				'utf8',
 			);
@@ -80,28 +58,6 @@ describe('node-thin-host', () => {
 			modulePaths: {
 				config: '/repo/eco.config.ts',
 				entry: '/repo/app.ts',
-			},
-			buildPlugins: {
-				loaderPluginNames: [],
-				runtimePluginNames: [],
-				browserBundlePluginNames: [],
-			},
-			serverTranspile: {
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				externalPackages: true,
-			},
-			browserBundles: {
-				outputDir: '/repo/dist/assets',
-				publicBaseUrl: '/assets',
-				vendorBaseUrl: '/assets/vendors',
-			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
 			},
 		};
 
@@ -141,28 +97,6 @@ describe('node-thin-host', () => {
 			modulePaths: {
 				config: '/repo/eco.config.ts',
 				entry: '/repo/app.ts',
-			},
-			buildPlugins: {
-				loaderPluginNames: [],
-				runtimePluginNames: [],
-				browserBundlePluginNames: [],
-			},
-			serverTranspile: {
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				externalPackages: true,
-			},
-			browserBundles: {
-				outputDir: '/repo/dist/assets',
-				publicBaseUrl: '/assets',
-				vendorBaseUrl: '/assets/vendors',
-			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
 			},
 		};
 
@@ -209,28 +143,6 @@ describe('node-thin-host', () => {
 			modulePaths: {
 				config: '/repo/eco.config.ts',
 				entry: '/repo/app.ts',
-			},
-			buildPlugins: {
-				loaderPluginNames: [],
-				runtimePluginNames: [],
-				browserBundlePluginNames: [],
-			},
-			serverTranspile: {
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				externalPackages: true,
-			},
-			browserBundles: {
-				outputDir: '/repo/dist/assets',
-				publicBaseUrl: '/assets',
-				vendorBaseUrl: '/assets/vendors',
-			},
-			bootstrap: {
-				devGraphStrategy: 'noop',
-				runtimeSpecifierRegistry: 'in-memory',
 			},
 		};
 

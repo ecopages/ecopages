@@ -19,15 +19,13 @@ The route renderer layer is responsible for:
 - `RouteRendererFactory` chooses integration renderers based on route file extension.
 - `RouteRenderer` delegates route execution to the selected integration renderer.
 
-### `integration-renderer.ts`
+### `orchestration/`
 
-Abstract base class that coordinates end-to-end route rendering:
+Framework-owned orchestration services and renderer base class:
 
-1. Resolve page module and page data.
-2. Resolve and process component dependencies.
-3. Add route-level assets and orchestration assets.
-4. Render HTML via integration-specific `render()`.
-5. Inject processed assets into final HTML through `HtmlTransformerService`.
+- `integration-renderer.ts`: abstract base class that coordinates end-to-end route rendering.
+- `render-preparation.service.ts`: page module/data/dependency preparation before render.
+- `render-execution.service.ts`: render capture, marker-graph resolution, and finalization.
 
 It also provides:
 
@@ -35,34 +33,23 @@ It also provides:
 - `renderComponent()` contract for component-level orchestration and artifact reporting.
 - marker graph resolution for nested cross-integration component boundaries.
 
-### `component-marker.ts`
+### `component-graph/`
 
-Defines marker token contract for component-level orchestration:
+Component marker contracts and graph resolution:
 
 - `createComponentMarker()` for canonical `<eco-marker ...></eco-marker>` generation.
 - `parseComponentMarkers()` for marker extraction from rendered HTML.
-
-### `component-graph.ts`
-
-Builds a deterministic DAG from marker nodes:
-
 - node collection by marker id.
 - parent/child edges from slot reference registry.
 - topological levels for bottom-up execution.
 
-### `component-graph-executor.ts`
-
-Resolves graph levels in reverse order (leaf to root) and replaces markers with rendered HTML via integration `renderComponent()`.
-
-### `page-module-loader.ts`
+### `page-loading/`
 
 Service for loading page modules and deriving page data:
 
 - `importPageFile()` runtime-aware loading.
 - `resolvePageModule()` normalizes exports and statics.
 - `resolvePageData()` resolves static props then metadata.
-
-### `dependency-resolver.ts`
 
 Builds processed assets from component dependency declarations:
 

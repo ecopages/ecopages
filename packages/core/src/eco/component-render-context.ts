@@ -1,5 +1,5 @@
 import type { EcoComponent } from '../public-types.ts';
-import type { MarkerNodeId } from '../route-renderer/component-marker.ts';
+import type { MarkerNodeId } from '../route-renderer/component-graph/component-marker.ts';
 
 /**
  * Outcome returned by boundary policy during one component render pass.

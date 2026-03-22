@@ -3,14 +3,14 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { DEPENDENCY_ERRORS, DependencyResolverService } from './dependency-resolver.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
 	ProcessedAsset,
 	ContentScriptAsset,
-} from '../services/asset-processing-service/index.ts';
-import type { EcoComponent } from '../public-types.ts';
+} from '../../services/assets/asset-processing-service/index.ts';
+import type { EcoComponent } from '../../public-types.ts';
 
 describe('DependencyResolverService', () => {
 	const appConfig = {

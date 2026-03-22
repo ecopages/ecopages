@@ -1,5 +1,8 @@
 import type { EcoComponent, RenderContext, RenderOptions, ResponseOptions } from '../../public-types.ts';
-import type { IntegrationRenderer, RenderToResponseContext } from '../../route-renderer/integration-renderer.ts';
+import type {
+	IntegrationRenderer,
+	RenderToResponseContext,
+} from '../../route-renderer/orchestration/integration-renderer.ts';
 import type { IntegrationPlugin } from '../../plugins/integration-plugin.ts';
 import { invariant } from '../../utils/invariant.ts';
 

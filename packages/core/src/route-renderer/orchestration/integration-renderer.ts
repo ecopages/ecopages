@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../../internal-types.ts';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
@@ -23,18 +23,24 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
-} from '../public-types.ts';
-import { type AssetProcessingService, type ProcessedAsset } from '../services/asset-processing-service/index.ts';
-import { HtmlTransformerService } from '../services/html-transformer.service.ts';
-import { invariant } from '../utils/invariant.ts';
-import { HttpError } from '../errors/http-error.ts';
-import { LocalsAccessError } from '../errors/locals-access-error.ts';
-import { DependencyResolverService } from './dependency-resolver.ts';
-import { PageModuleLoaderService } from './page-module-loader.ts';
-import { MarkerGraphResolver } from './marker-graph-resolver.ts';
+} from '../../public-types.ts';
+import {
+	type AssetProcessingService,
+	type ProcessedAsset,
+} from '../../services/assets/asset-processing-service/index.ts';
+import { HtmlTransformerService } from '../../services/html/html-transformer.service.ts';
+import { invariant } from '../../utils/invariant.ts';
+import { HttpError } from '../../errors/http-error.ts';
+import { LocalsAccessError } from '../../errors/locals-access-error.ts';
+import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
+import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
+import { MarkerGraphResolver } from '../component-graph/marker-graph-resolver.ts';
 import { RenderExecutionService, type RenderExecutionGraphContext } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
-import type { BoundaryRenderDecisionInput, ComponentRenderBoundaryContext } from '../eco/component-render-context.ts';
+import type {
+	BoundaryRenderDecisionInput,
+	ComponentRenderBoundaryContext,
+} from '../../eco/component-render-context.ts';
 
 export interface FinalizeCapturedHtmlRenderOptions {
 	html: string;

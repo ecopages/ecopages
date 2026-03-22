@@ -6,16 +6,16 @@ import type {
 	EcoComponentScriptEntry,
 	LazyTriggerRule,
 	ResolvedLazyTrigger,
-} from '../public-types.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
+} from '../../public-types.ts';
+import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
 	ProcessedAsset,
-} from '../services/asset-processing-service/index.ts';
-import { rapidhash } from '../utils/hash.ts';
-import { AssetFactory } from '../services/asset-processing-service/index.ts';
-import { normalizeModuleDeclarations } from '../eco/module-dependencies.ts';
+} from '../../services/assets/asset-processing-service/index.ts';
+import { rapidhash } from '../../utils/hash.ts';
+import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
+import { normalizeModuleDeclarations } from '../../eco/module-dependencies.ts';
 import { parseSync } from 'oxc-parser';
 
 export const DEPENDENCY_ERRORS = {

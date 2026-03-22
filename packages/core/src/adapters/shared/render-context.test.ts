@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createRenderContext } from './render-context.ts';
 import type { IntegrationPlugin } from '../../plugins/integration-plugin.ts';
-import type { IntegrationRenderer } from '../../route-renderer/integration-renderer.ts';
+import type { IntegrationRenderer } from '../../route-renderer/orchestration/integration-renderer.ts';
 import type { EcoFunctionComponent } from '../../public-types.ts';
 
 describe('createRenderContext', () => {

@@ -1,5 +1,5 @@
-import { appLogger } from '../global/app-logger.ts';
-import type { MatchResult, Route, Routes } from '../internal-types.ts';
+import { appLogger } from '../../global/app-logger.js';
+import type { MatchResult, Route, Routes } from '../../internal-types.js';
 import type { FSRouterScanner } from './fs-router-scanner.ts';
 
 /**

@@ -3,7 +3,7 @@ import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { RouteRenderResult, RouteRendererOptions } from '../public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 import { PathUtils } from '../utils/path-utils.module.ts';
-import type { IntegrationRenderer } from './integration-renderer.ts';
+import type { IntegrationRenderer } from './orchestration/integration-renderer.ts';
 
 /**
  * Thin wrapper around one initialized integration renderer.

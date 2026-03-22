@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type {
 	ComponentRenderResult,
 	EcoComponent,
@@ -16,14 +16,17 @@ import type {
 	PageMetadataProps,
 	ResolvedLazyTrigger,
 	RouteRendererOptions,
-} from '../public-types.ts';
+} from '../../public-types.ts';
 import {
 	type AssetProcessingService,
 	AssetFactory,
 	type ProcessedAsset,
-} from '../services/asset-processing-service/index.ts';
-import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../eco/global-injector-map.ts';
-import { runWithComponentRenderContext, type ComponentRenderBoundaryContext } from '../eco/component-render-context.ts';
+} from '../../services/assets/asset-processing-service/index.ts';
+import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../eco/global-injector-map.ts';
+import {
+	runWithComponentRenderContext,
+	type ComponentRenderBoundaryContext,
+} from '../../eco/component-render-context.ts';
 
 const coreRequire = createRequire(import.meta.url);
 

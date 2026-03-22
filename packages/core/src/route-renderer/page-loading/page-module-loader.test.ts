@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PageModuleLoaderService } from './page-module-loader.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { EcoPageFile } from '../public-types.ts';
-import type { EcoPageComponent } from '../eco/eco.types.ts';
+import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPageFile } from '../../public-types.ts';
+import type { EcoPageComponent } from '../../eco/eco.types.ts';
 
 describe('PageModuleLoaderService', () => {
 	const appConfig = {

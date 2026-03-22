@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getComponentRenderContext } from '../eco/component-render-context.ts';
-import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererOptions } from '../public-types.ts';
-import type { ProcessedAsset } from '../services/asset-processing-service/index.ts';
-import { createComponentMarker } from './component-marker.ts';
+import { getComponentRenderContext } from '../../eco/component-render-context.ts';
+import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererOptions } from '../../public-types.ts';
+import type { ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
+import { createComponentMarker } from '../component-graph/component-marker.ts';
 import { RenderExecutionService } from './render-execution.service.ts';
 
 describe('RenderExecutionService', () => {

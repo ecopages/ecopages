@@ -10,7 +10,10 @@ import type {
 	PageMetadataProps,
 	RouteRendererBody,
 } from '../../public-types.ts';
-import { IntegrationRenderer, type RenderToResponseContext } from '../../route-renderer/integration-renderer.ts';
+import {
+	IntegrationRenderer,
+	type RenderToResponseContext,
+} from '../../route-renderer/orchestration/integration-renderer.ts';
 import { GHTML_PLUGIN_NAME } from './ghtml.plugin.ts';
 
 /**

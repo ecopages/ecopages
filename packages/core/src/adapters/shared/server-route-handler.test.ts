@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ServerRouteHandler } from './server-route-handler';
-import type { FSRouter } from '../../router/fs-router';
+import type { FSRouter } from '../../router/server/fs-router';
 import type { FileSystemResponseMatcher } from './fs-server-response-matcher';
 import type { IHmrManager } from '../../public-types';
 

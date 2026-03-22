@@ -1,4 +1,4 @@
-import { invariant } from '../utils/invariant.ts';
+import { invariant } from '../../utils/invariant.ts';
 import type {
 	EcoPageFile,
 	GetMetadata,
@@ -7,13 +7,12 @@ import type {
 	PageMetadataProps,
 	RouteRendererOptions,
 	EcoPageComponent,
-} from '../public-types.ts';
-import { getAppBuildExecutor } from '../build/build-adapter.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
-import { createNodeBootstrapPlugin } from '../adapters/node/bootstrap-dependency-resolver.ts';
-import { DevelopmentInvalidationService } from '../services/development-invalidation.service.ts';
-import { ServerModuleTranspiler } from '../services/server-module-transpiler.service.ts';
-import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
+} from '../../public-types.ts';
+import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import { createAppNodeBootstrapPlugin } from '../../adapters/node/bootstrap-dependency-resolver.ts';
+import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
+import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
 /**
  * Loads route page modules and normalizes their data hooks for rendering.
@@ -38,13 +37,7 @@ export class PageModuleLoaderService {
 	constructor(appConfig: EcoPagesAppConfig, runtimeOrigin: string) {
 		this.appConfig = appConfig;
 		this.runtimeOrigin = runtimeOrigin;
-		const invalidationService = new DevelopmentInvalidationService(appConfig);
-		this.serverModuleTranspiler = new ServerModuleTranspiler({
-			rootDir: appConfig.rootDir,
-			buildExecutor: getAppBuildExecutor(appConfig),
-			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
-			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
-		});
+		this.serverModuleTranspiler = getAppServerModuleTranspiler(appConfig);
 	}
 
 	/**
@@ -59,15 +52,7 @@ export class PageModuleLoaderService {
 			return await this.serverModuleTranspiler.importModule<EcoPageFile>({
 				filePath: file,
 				outdir: `${resolveInternalExecutionDir(this.appConfig)}/.server-modules`,
-				plugins:
-					typeof Bun === 'undefined'
-						? [
-								createNodeBootstrapPlugin({
-									projectDir: this.appConfig.rootDir,
-									runtimeNodeModulesDir: `${resolveInternalExecutionDir(this.appConfig)}/node_modules`,
-								}),
-							]
-						: undefined,
+				plugins: typeof Bun === 'undefined' ? [createAppNodeBootstrapPlugin(this.appConfig)] : undefined,
 				transpileErrorMessage: (details) => `Error transpiling page file: ${details}`,
 				noOutputMessage: (targetFilePath) => `No transpiled output generated for page: ${targetFilePath}`,
 			});

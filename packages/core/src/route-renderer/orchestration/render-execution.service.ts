@@ -1,13 +1,16 @@
-import { runWithComponentRenderContext, type ComponentRenderBoundaryContext } from '../eco/component-render-context.ts';
+import {
+	runWithComponentRenderContext,
+	type ComponentRenderBoundaryContext,
+} from '../../eco/component-render-context.ts';
 import type {
 	EcoComponent,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
-} from '../public-types.ts';
-import type { ProcessedAsset } from '../services/asset-processing-service/index.ts';
-import type { MarkerGraphContext } from './marker-graph-resolver.ts';
+} from '../../public-types.ts';
+import type { ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
+import type { MarkerGraphContext } from '../component-graph/marker-graph-resolver.ts';
 
 /**
  * Serializable graph context merged from render-time captured references and

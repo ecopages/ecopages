@@ -1,5 +1,5 @@
 import type { IHmrManager } from '../../public-types';
-import type { FSRouter } from '../../router/fs-router';
+import type { FSRouter } from '../../router/server/fs-router';
 import type { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher';
 import type { FileSystemResponseMatcher } from './fs-server-response-matcher';
 import { appLogger } from '../../global/app-logger';

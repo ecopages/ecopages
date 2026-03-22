@@ -29,8 +29,8 @@ import type {
 	PageRequires,
 } from './eco.types.ts';
 import { createNodeId, createPropsRef, createSlotRef, getComponentRenderContext } from './component-render-context.ts';
-import { createComponentMarker, parseComponentMarkers } from '../route-renderer/component-marker.ts';
-import { getComponentReference } from '../route-renderer/component-reference.ts';
+import { createComponentMarker, parseComponentMarkers } from '../route-renderer/component-graph/component-marker.ts';
+import { getComponentReference } from '../route-renderer/component-graph/component-reference.ts';
 import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './eco.utils.ts';
 
 /**

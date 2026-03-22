@@ -1,14 +1,13 @@
 import path from 'node:path';
-import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig, RouteKind, Routes } from '../internal-types.ts';
-import type { EcoPageFile, GetStaticPaths } from '../public-types.ts';
+import { appLogger } from '../../global/app-logger.js';
+import type { EcoPagesAppConfig, RouteKind, Routes } from '../../internal-types.js';
+import type { EcoPageFile, GetStaticPaths } from '../../public-types.js';
 import { fileSystem } from '@ecopages/file-system';
-import { invariant } from '../utils/invariant.ts';
+import { invariant } from '../../utils/invariant.js';
 import { existsSync } from 'node:fs';
-import { getAppBuildExecutor } from '../build/build-adapter.ts';
-import { DevelopmentInvalidationService } from '../services/development-invalidation.service.ts';
-import { ServerModuleTranspiler } from '../services/server-module-transpiler.service.ts';
-import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
+import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
+import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.js';
 
 type CreateRouteArgs = {
 	routePath: string;
@@ -58,13 +57,7 @@ export class FSRouterScanner {
 		this.templatesExt = templatesExt;
 		this.options = options;
 		this.appConfig = appConfig;
-		const invalidationService = new DevelopmentInvalidationService(appConfig);
-		this.serverModuleTranspiler = new ServerModuleTranspiler({
-			rootDir: appConfig.rootDir,
-			buildExecutor: getAppBuildExecutor(appConfig),
-			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
-			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
-		});
+		this.serverModuleTranspiler = getAppServerModuleTranspiler(appConfig);
 	}
 
 	private getRoutePath(path: string): string {

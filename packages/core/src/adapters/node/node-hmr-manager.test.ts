@@ -290,7 +290,7 @@ test('NodeHmrManager stop clears retained registration state', async () => {
 
 	assert.equal(manager.getWatchedFiles().size, 0);
 	assert.equal(manager.getSpecifierMap().size, 0);
-	assert.equal(config.runtime?.devGraphService?.getDependencyEntrypoints(entrypointPath).size, 0);
+	assert.equal(config.runtime?.entrypointDependencyGraph?.getDependencyEntrypoints(entrypointPath).size, 0);
 });
 
 test('NodeHmrManager keeps internal browser and server-module outputs out of distDir', async () => {

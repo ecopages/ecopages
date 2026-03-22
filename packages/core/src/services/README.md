@@ -12,19 +12,17 @@ Typical responsibilities include:
 - browser bundle coordination
 - asset processing and runtime asset declaration helpers
 - runtime specifier registry management
-- dev-graph and invalidation state
+- server invalidation state and entrypoint dependency graphs
 - HTML finalization and dependency injection
 
 ## Main Areas
 
-- `server-loader.service.ts`: framework-owned config/app bootstrap loading
-- `server-module-transpiler.service.ts`: server-side source loading seam
-- `browser-bundle.service.ts`: shared browser build coordination
-- `development-invalidation.service.ts`: file-change classification and invalidation policy
-- `dev-graph.service.ts`: app-owned dependency graph and invalidation generation state
-- `runtime-specifier-registry.service.ts`: app-owned bare-specifier registry
-- `asset-processing-service/`: processed asset pipelines plus shared runtime asset helpers
-- `html-transformer.service.ts`: final HTML dependency injection and attribute stamping
+- `module-loading/`: framework-owned config/app bootstrap loading and server-side source loading
+- `assets/`: shared browser build coordination and processed asset pipelines
+- `invalidation/`: file-change classification and invalidation policy
+- `runtime-state/`: app-owned invalidation state, dependency graphs, and runtime specifier registry
+- `runtime-manifest/`: node runtime manifest derivation and persistence
+- `html/`: final HTML dependency injection and rewriter selection
 
 ## Design Rule
 

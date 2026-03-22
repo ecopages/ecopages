@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { JsHmrStrategy, type JsHmrContext } from './js-hmr-strategy';
 import { HmrStrategyType } from '../hmr-strategy';
-import { InMemoryDevGraphService, NoopDevGraphService } from '../../services/dev-graph.service.ts';
+import { InMemoryDevGraphService, NoopDevGraphService } from '../../services/runtime-state/dev-graph.service.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -13,7 +13,7 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 	return {
 		getWatchedFiles: () => new Map(),
 		getSpecifierMap: () => new Map(),
-		getDevGraphService: () => new NoopDevGraphService(),
+		getEntrypointDependencyGraph: () => new NoopDevGraphService(),
 		getDistDir: () => TMP_DIR,
 		getPlugins: () => [],
 		getSrcDir: () => SRC_DIR,
@@ -61,7 +61,7 @@ describe('JsHmrStrategy', () => {
 			const devGraphService = new InMemoryDevGraphService();
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
-				getDevGraphService: () => devGraphService,
+				getEntrypointDependencyGraph: () => devGraphService,
 			});
 			const strategy = new JsHmrStrategy(context);
 
@@ -74,7 +74,7 @@ describe('JsHmrStrategy', () => {
 			devGraphService.setEntrypointDependencies(path.join(SRC_DIR, 'entry.ts'), [changedFile]);
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
-				getDevGraphService: () => devGraphService,
+				getEntrypointDependencyGraph: () => devGraphService,
 			});
 			const strategy = new JsHmrStrategy(context);
 
@@ -86,7 +86,7 @@ describe('JsHmrStrategy', () => {
 			const devGraphService = new InMemoryDevGraphService();
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[entrypoint, '/output.js']]),
-				getDevGraphService: () => devGraphService,
+				getEntrypointDependencyGraph: () => devGraphService,
 			});
 			const strategy = new JsHmrStrategy(context);
 
@@ -168,7 +168,7 @@ describe('JsHmrStrategy', () => {
 						[entryA, '/_hmr/entry-a.js'],
 						[entryB, '/_hmr/entry-b.js'],
 					]),
-				getDevGraphService: () => ({
+				getEntrypointDependencyGraph: () => ({
 					supportsSelectiveInvalidation: () => devGraphService.supportsSelectiveInvalidation(),
 					getDependencyEntrypoints: (filePath: string) => devGraphService.getDependencyEntrypoints(filePath),
 					setEntrypointDependencies: (entrypointPath: string, dependencies: string[]) => {
@@ -177,9 +177,6 @@ describe('JsHmrStrategy', () => {
 					},
 					clearEntrypointDependencies: (entrypointPath: string) =>
 						devGraphService.clearEntrypointDependencies(entrypointPath),
-					getServerInvalidationVersion: () => devGraphService.getServerInvalidationVersion(),
-					invalidateServerModules: (changedFiles?: string[]) =>
-						devGraphService.invalidateServerModules(changedFiles),
 					reset: () => devGraphService.reset(),
 				}),
 			});
@@ -230,7 +227,7 @@ describe('JsHmrStrategy', () => {
 						[entryA, '/_hmr/entry-a.js'],
 						[entryB, '/_hmr/entry-b.js'],
 					]),
-				getDevGraphService: () => new NoopDevGraphService(),
+				getEntrypointDependencyGraph: () => new NoopDevGraphService(),
 			});
 
 			const strategy = new JsHmrStrategy(context) as unknown as {
@@ -286,7 +283,7 @@ describe('JsHmrStrategy', () => {
 						[reactEntrypoint, '/_hmr/react-page.js'],
 						[scriptEntrypoint, '/_hmr/widget.script.js'],
 					]),
-				getDevGraphService: () => devGraphService,
+				getEntrypointDependencyGraph: () => devGraphService,
 				shouldProcessEntrypoint: (entrypointPath: string) => entrypointPath !== reactEntrypoint,
 			});
 

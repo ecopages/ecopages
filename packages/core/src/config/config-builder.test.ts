@@ -8,7 +8,7 @@ import {
 	getAppBrowserBuildPlugins,
 	getAppBuildManifest,
 } from '../build/build-adapter.ts';
-import { getAppNodeRuntimeManifest } from '../services/node-runtime-manifest.service.ts';
+import { getAppNodeRuntimeManifest } from '../services/runtime-manifest/node-runtime-manifest.service.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
@@ -60,7 +60,8 @@ describe('EcoConfigBuilder', () => {
 		expect(config.runtime?.buildExecutor).not.toBe(defaultBuildAdapter);
 		expect(getAppBuildManifest(config).loaderPlugins.length).toBeGreaterThan(0);
 		expect(getAppBrowserBuildPlugins(config).length).toBeGreaterThan(0);
-		expect(config.runtime?.devGraphService).toBeDefined();
+		expect(config.runtime?.serverInvalidationState).toBeDefined();
+		expect(config.runtime?.entrypointDependencyGraph).toBeDefined();
 		expect(config.runtime?.nodeRuntimeManifest).toBeDefined();
 		expect(config.runtime?.runtimeSpecifierRegistry).toBeDefined();
 		expect(getAppNodeRuntimeManifest(config)).toMatchObject({

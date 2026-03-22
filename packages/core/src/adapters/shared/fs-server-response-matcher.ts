@@ -1,15 +1,14 @@
 import path from 'node:path';
-import { getAppBuildExecutor } from '../../build/build-adapter.ts';
-import { createNodeBootstrapPlugin } from '../node/bootstrap-dependency-resolver.ts';
+import { createAppNodeBootstrapPlugin } from '../node/bootstrap-dependency-resolver.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, MatchResult } from '../../internal-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
-import type { FSRouter } from '../../router/fs-router.ts';
+import type { FSRouter } from '../../router/server/fs-router.ts';
 import type { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from '../../services/cache/cache.types.ts';
-import { PageRequestCacheCoordinator } from '../../services/page-request-cache-coordinator.service.ts';
-import { DevelopmentInvalidationService } from '../../services/development-invalidation.service.ts';
-import { ServerModuleTranspiler } from '../../services/server-module-transpiler.service.ts';
+import { PageRequestCacheCoordinator } from '../../services/cache/page-request-cache-coordinator.service.ts';
+import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
 import type { Middleware, RequestLocals } from '../../public-types.ts';
@@ -64,13 +63,7 @@ export class FileSystemResponseMatcher {
 		this.router = router;
 		this.routeRendererFactory = routeRendererFactory;
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
-		const invalidationService = new DevelopmentInvalidationService(appConfig);
-		this.serverModuleTranspiler = new ServerModuleTranspiler({
-			rootDir: appConfig.rootDir,
-			buildExecutor: getAppBuildExecutor(appConfig),
-			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
-			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
-		});
+		this.serverModuleTranspiler = getAppServerModuleTranspiler(appConfig);
 		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy);
 		this.fileRouteMiddlewarePipeline = new FileRouteMiddlewarePipeline(cacheService);
 	}
@@ -199,18 +192,7 @@ export class FileSystemResponseMatcher {
 		return this.serverModuleTranspiler.importModule({
 			filePath,
 			outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules-meta'),
-			plugins:
-				typeof Bun === 'undefined'
-					? [
-							createNodeBootstrapPlugin({
-								projectDir: this.appConfig.rootDir,
-								runtimeNodeModulesDir: path.join(
-									resolveInternalExecutionDir(this.appConfig),
-									'node_modules',
-								),
-							}),
-						]
-					: undefined,
+			plugins: typeof Bun === 'undefined' ? [createAppNodeBootstrapPlugin(this.appConfig)] : undefined,
 			transpileErrorMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.transpilePageModuleFailed,
 			noOutputMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.noTranspiledOutputForPageModule,
 		});

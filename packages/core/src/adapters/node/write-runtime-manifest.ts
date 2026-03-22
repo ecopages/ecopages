@@ -1,4 +1,7 @@
-import { writeAppNodeRuntimeManifest, type NodeRuntimeManifest } from '../../services/node-runtime-manifest.service.ts';
+import {
+	writeAppNodeRuntimeManifest,
+	type NodeRuntimeManifest,
+} from '../../services/runtime-manifest/node-runtime-manifest.service.ts';
 
 /**
  * Writes the app-owned Node runtime manifest from a bundled manifest-writer
@@ -28,10 +31,6 @@ export function writeBundledNodeRuntimeManifest(
 		manifestFilePath: string;
 	},
 ): void {
-	if (!appConfig || typeof appConfig !== 'object') {
-		throw new Error('Invalid Ecopages app config export for bundled runtime manifest generation.');
-	}
-
 	writeAppNodeRuntimeManifest(appConfig as never, {
 		entryModulePath: options.entryModulePath,
 		manifestFilePath: options.manifestFilePath,

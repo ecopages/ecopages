@@ -4,7 +4,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { test, vi } from 'vitest';
 import { assertNodeRuntimeManifest, createNodeRuntimeAdapter } from './runtime-adapter.ts';
-import { TranspilerServerLoader } from '../../services/server-loader.service.ts';
+import { TranspilerServerLoader } from '../../services/module-loading/server-loader.service.ts';
 
 test('assertNodeRuntimeManifest accepts the current runtime manifest shape', () => {
 	const manifest = assertNodeRuntimeManifest({
@@ -20,14 +20,6 @@ test('assertNodeRuntimeManifest accepts the current runtime manifest shape', () 
 			loaderPluginNames: ['loader-plugin'],
 			runtimePluginNames: ['runtime-plugin'],
 			browserBundlePluginNames: ['browser-plugin'],
-		},
-		serverTranspile: {
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			externalPackages: true,
 		},
 		browserBundles: {
 			outputDir: '/repo/dist/assets',
@@ -122,14 +114,6 @@ test('node runtime adapter loads the config module and app entry through core-ow
 				runtimePluginNames: [],
 				browserBundlePluginNames: [],
 			},
-			serverTranspile: {
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				externalPackages: true,
-			},
 			browserBundles: {
 				outputDir: path.join(projectDir, 'dist', 'assets'),
 				publicBaseUrl: '/assets',
@@ -178,14 +162,6 @@ test('node runtime adapter fails on real bootstrap problems instead of the place
 			loaderPluginNames: [],
 			runtimePluginNames: [],
 			browserBundlePluginNames: [],
-		},
-		serverTranspile: {
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			externalPackages: true,
 		},
 		browserBundles: {
 			outputDir: '/repo/dist/assets',
@@ -249,14 +225,6 @@ test('node runtime adapter routes config and entry bootstrap imports through the
 				loaderPluginNames: [],
 				runtimePluginNames: [],
 				browserBundlePluginNames: [],
-			},
-			serverTranspile: {
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				externalPackages: true,
 			},
 			browserBundles: {
 				outputDir: path.join(projectDir, 'dist', 'assets'),
@@ -331,14 +299,6 @@ test('node runtime adapter caches the loaded runtime until invalidation requests
 				loaderPluginNames: [],
 				runtimePluginNames: [],
 				browserBundlePluginNames: [],
-			},
-			serverTranspile: {
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				externalPackages: true,
 			},
 			browserBundles: {
 				outputDir: path.join(projectDir, 'dist', 'assets'),
@@ -460,14 +420,6 @@ test('node runtime adapter bootstraps an app entry that imports core runtime cod
 				runtimePluginNames: [],
 				browserBundlePluginNames: [],
 			},
-			serverTranspile: {
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				externalPackages: true,
-			},
 			browserBundles: {
 				outputDir: path.join(projectDir, 'dist', 'assets'),
 				publicBaseUrl: '/assets',
@@ -578,14 +530,6 @@ test('node runtime adapter preserves config import.meta.dirname semantics during
 				loaderPluginNames: [],
 				runtimePluginNames: [],
 				browserBundlePluginNames: [],
-			},
-			serverTranspile: {
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				externalPackages: true,
 			},
 			browserBundles: {
 				outputDir: path.join(projectDir, 'dist', 'assets'),
@@ -774,14 +718,6 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 				loaderPluginNames: [],
 				runtimePluginNames: [],
 				browserBundlePluginNames: [],
-			},
-			serverTranspile: {
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				externalPackages: true,
 			},
 			browserBundles: {
 				outputDir: path.join(projectDir, 'dist', 'assets'),
@@ -1006,14 +942,6 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 				loaderPluginNames: [],
 				runtimePluginNames: [],
 				browserBundlePluginNames: [],
-			},
-			serverTranspile: {
-				target: 'node',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				externalPackages: true,
 			},
 			browserBundles: {
 				outputDir: path.join(projectDir, 'dist', 'assets'),

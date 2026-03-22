@@ -3,8 +3,8 @@
  */
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
-import { PageCacheService, getCacheControlHeader } from './page-cache-service.ts';
-import { MemoryCacheStore } from './memory-cache-store.ts';
+import { PageCacheService, getCacheControlHeader } from './page-cache-service.js';
+import { MemoryCacheStore } from './memory-cache-store.js';
 
 describe('PageCacheService', () => {
 	let service: PageCacheService;

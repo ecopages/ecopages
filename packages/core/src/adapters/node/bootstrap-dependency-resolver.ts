@@ -2,7 +2,8 @@ import path from 'node:path';
 import { existsSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import type { EcoBuildOnResolveArgs, EcoBuildOnResolveResult, EcoBuildPlugin } from '../../build/build-types.ts';
-import type { NodeRuntimeManifest } from '../../services/node-runtime-manifest.service.ts';
+import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { NodeRuntimeManifest } from '../../services/runtime-manifest/node-runtime-manifest.service.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
 /**
@@ -21,6 +22,16 @@ export function getNodeRuntimeNodeModulesDir(manifest: NodeRuntimeManifest): str
 		}),
 		'node_modules',
 	);
+}
+
+/**
+ * Returns the app-local node_modules directory used by framework-owned Node
+ * bootstrap loads outside the thin-host manifest path.
+ */
+export function getAppRuntimeNodeModulesDir(
+	appConfig: Pick<EcoPagesAppConfig, 'rootDir' | 'workDir' | 'absolutePaths'>,
+): string {
+	return path.join(resolveInternalExecutionDir(appConfig), 'node_modules');
 }
 
 /**
@@ -271,4 +282,20 @@ export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOption
 			});
 		},
 	};
+}
+
+/**
+ * Creates the standard Node bootstrap plugin for one finalized app config.
+ */
+export function createAppNodeBootstrapPlugin(
+	appConfig: Pick<EcoPagesAppConfig, 'rootDir' | 'workDir' | 'absolutePaths'>,
+	options?: {
+		preserveImportMetaPaths?: string[];
+	},
+): EcoBuildPlugin {
+	return createNodeBootstrapPlugin({
+		projectDir: appConfig.rootDir,
+		runtimeNodeModulesDir: getAppRuntimeNodeModulesDir(appConfig),
+		preserveImportMetaPaths: options?.preserveImportMetaPaths,
+	});
 }

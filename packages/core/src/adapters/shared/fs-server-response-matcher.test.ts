@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
-import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../__fixtures__/constants.js';
+import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../__fixtures__/constants.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import type { MatchResult } from '../../internal-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
-import { FSRouter } from '../../router/fs-router.ts';
-import { FSRouterScanner } from '../../router/fs-router-scanner.ts';
+import { FSRouter } from '../../router/server/fs-router.ts';
+import { FSRouterScanner } from '../../router/server/fs-router-scanner.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';

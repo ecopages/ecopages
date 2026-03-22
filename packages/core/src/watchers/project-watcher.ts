@@ -4,7 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../internal-types.ts';
 import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
-import { DevelopmentInvalidationService } from '../services/development-invalidation.service.ts';
+import { DevelopmentInvalidationService } from '../services/invalidation/development-invalidation.service.ts';
 
 /**
  * Configuration options for the ProjectWatcher

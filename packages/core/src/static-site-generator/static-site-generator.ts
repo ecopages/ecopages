@@ -1,15 +1,14 @@
 import path from 'node:path';
-import { getAppBuildExecutor } from '../build/build-adapter.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { EcoPageComponent, StaticRoute } from '../public-types.ts';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
-import type { FSRouter } from '../router/fs-router.ts';
+import type { FSRouter } from '../router/server/fs-router.js';
 import { fileSystem } from '@ecopages/file-system';
-import { DevelopmentInvalidationService } from '../services/development-invalidation.service.ts';
 import { PathUtils } from '../utils/path-utils.module.ts';
-import { ServerModuleTranspiler } from '../services/server-module-transpiler.service.ts';
+import { getAppServerModuleTranspiler } from '../services/module-loading/app-server-module-transpiler.service.ts';
+import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
 
 export const STATIC_SITE_GENERATOR_ERRORS = {
 	ROUTE_RENDERER_FACTORY_REQUIRED: 'RouteRendererFactory is required for render strategy',
@@ -39,13 +38,7 @@ export class StaticSiteGenerator {
 	 */
 	constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
 		this.appConfig = appConfig;
-		const invalidationService = new DevelopmentInvalidationService(appConfig);
-		this.serverModuleTranspiler = new ServerModuleTranspiler({
-			rootDir: appConfig.rootDir,
-			buildExecutor: getAppBuildExecutor(appConfig),
-			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
-			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
-		});
+		this.serverModuleTranspiler = getAppServerModuleTranspiler(appConfig);
 	}
 
 	/**

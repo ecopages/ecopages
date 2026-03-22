@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { CacheEntry, CacheStats, CacheStore } from './cache.types.ts';
+import type { CacheEntry, CacheStats, CacheStore } from './cache.types.js';
 
 export interface MemoryCacheStoreOptions {
 	/** Maximum number of entries before LRU eviction. @default 1000 */

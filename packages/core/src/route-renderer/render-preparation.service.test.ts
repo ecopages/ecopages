@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { EcoComponent, EcoPageComponent, HtmlTemplateProps, RouteRendererOptions } from '../public-types.ts';
-import type { AssetDefinition, AssetProcessingService, ProcessedAsset } from '../services/asset-processing-service/index.ts';
+import type {
+	AssetDefinition,
+	AssetProcessingService,
+	ProcessedAsset,
+} from '../services/asset-processing-service/index.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
 
 declare module '../public-types.ts' {

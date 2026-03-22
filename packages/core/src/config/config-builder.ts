@@ -28,12 +28,22 @@ import type { Processor } from '../plugins/processor.ts';
 import type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from '../plugins/runtime-capability.ts';
 import type { PageMetadataProps } from '../public-types.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
-import { NoopDevGraphService, setAppDevGraphService } from '../services/dev-graph.service.ts';
-import { createNodeRuntimeManifest, setAppNodeRuntimeManifest } from '../services/node-runtime-manifest.service.ts';
+import {
+	NoopEntrypointDependencyGraph,
+	setAppEntrypointDependencyGraph,
+} from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import {
+	createNodeRuntimeManifest,
+	setAppNodeRuntimeManifest,
+} from '../services/runtime-manifest/node-runtime-manifest.service.ts';
 import {
 	InMemoryRuntimeSpecifierRegistry,
 	setAppRuntimeSpecifierRegistry,
-} from '../services/runtime-specifier-registry.service.ts';
+} from '../services/runtime-state/runtime-specifier-registry.service.ts';
+import {
+	CounterServerInvalidationState,
+	setAppServerInvalidationState,
+} from '../services/runtime-state/server-invalidation-state.service.ts';
 import { invariant } from '../utils/invariant.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -678,7 +688,8 @@ export class ConfigBuilder {
 		const buildAdapter = createBuildAdapter();
 		setAppBuildAdapter(this.config, buildAdapter);
 		updateAppBuildManifest(this.config, await collectConfiguredAppBuildManifestContributions(this.config));
-		setAppDevGraphService(this.config, new NoopDevGraphService());
+		setAppServerInvalidationState(this.config, new CounterServerInvalidationState());
+		setAppEntrypointDependencyGraph(this.config, new NoopEntrypointDependencyGraph());
 		setAppRuntimeSpecifierRegistry(this.config, new InMemoryRuntimeSpecifierRegistry());
 		setAppBuildExecutor(
 			this.config,

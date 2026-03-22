@@ -4,11 +4,14 @@ import type { BuildAdapter, BuildExecutor } from './build/build-adapter.ts';
 import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
 import type { Processor } from './plugins/processor.ts';
 import type { PageMetadataProps } from './public-types.ts';
-import type { FSRouter } from './router/fs-router.ts';
+import type { FSRouter } from './router/server/fs-router.ts';
 import type { CacheConfig } from './services/cache/cache.types.ts';
-import type { DevGraphService } from './services/dev-graph.service.ts';
-import type { NodeRuntimeManifest } from './services/node-runtime-manifest.service.ts';
-import type { RuntimeSpecifierRegistry } from './services/runtime-specifier-registry.service.ts';
+import type { DevGraphService } from './services/runtime-state/dev-graph.service.ts';
+import type { EntrypointDependencyGraph } from './services/runtime-state/entrypoint-dependency-graph.service.ts';
+import type { NodeRuntimeManifest } from './services/runtime-manifest/node-runtime-manifest.service.ts';
+import type { RuntimeSpecifierRegistry } from './services/runtime-state/runtime-specifier-registry.service.ts';
+import type { ServerInvalidationState } from './services/runtime-state/server-invalidation-state.service.ts';
+import type { ServerModuleTranspiler } from './services/module-loading/server-module-transpiler.service.ts';
 
 export interface RobotsPreference {
 	/**
@@ -142,8 +145,11 @@ export type EcoPagesAppConfig = {
 		buildManifest?: AppBuildManifest;
 		buildExecutor?: BuildExecutor;
 		devGraphService?: DevGraphService;
+		entrypointDependencyGraph?: EntrypointDependencyGraph;
 		nodeRuntimeManifest?: NodeRuntimeManifest;
 		runtimeSpecifierRegistry?: RuntimeSpecifierRegistry;
+		serverInvalidationState?: ServerInvalidationState;
+		serverModuleTranspiler?: ServerModuleTranspiler;
 	};
 	/**
 	 * Experimental features.

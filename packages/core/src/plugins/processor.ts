@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../internal-types';
-import type { AssetDefinition } from '../services/asset-processing-service';
+import type { AssetDefinition } from '../services/assets/asset-processing-service';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { GENERATED_BASE_PATHS } from '../constants';
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';

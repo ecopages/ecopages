@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IntegrationPlugin, type IntegrationPluginConfig } from './integration-plugin';
 import type { IHmrManager } from '../public-types';
-import type { AssetDefinition } from '../services/asset-processing-service';
+import type { AssetDefinition } from '../services/assets/asset-processing-service';
 
 class TestIntegrationPlugin extends IntegrationPlugin {
 	renderer = vi.fn() as any;

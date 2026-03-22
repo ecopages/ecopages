@@ -19,6 +19,13 @@ All notable changes to `@ecopages/core` are documented here.
 
 - Finalized app-owned build manifests during `ConfigBuilder.build()` and split build contribution collection from runtime startup.
 - Routed runtime specifier registration through shared integration lifecycle hooks and centralized browser bundle assembly behind `BrowserBundleService`.
+- Consolidated server-module loading around one shared app-owned transpiler, app-scoped import caches, and one app-owned invalidation path so runtime subsystems no longer coordinate through duplicated loader state.
+- Allowed `ServerModuleTranspiler` to accept an injected module-import dependency so runtime tests can use explicit fakes instead of module-level mocking.
+- Allowed `TranspilerServerLoader` to accept an injected transpiler factory so bootstrap loader tests can use explicit doubles instead of module-level mocking.
+- Allowed `PageModuleImportService` and `ServerStaticBuilder` to accept narrow runtime dependencies so their tests can use explicit fakes instead of module-level mocking and logger spies.
+- Moved HTML rewriter runtime selection into a dedicated provider so `HtmlTransformerService` stays focused on HTML transformation and its tests no longer need module-level mocking.
+- Split app-owned server invalidation state from entrypoint dependency graphs so runtime invalidation, browser rebuild targeting, and HMR coordination each use their own dedicated runtime owner.
+- Standardized Node runtime bootstrap wiring behind shared app-owned bootstrap helpers and one runtime-adapter loader rebind path so page metadata probes, request-time imports, and thin-host startup follow the same internal flow.
 - Removed legacy template filename config in favor of semantic `html` and `404` template detection from registered integration extensions.
 - Documented the plugin lifecycle and aligned build, HMR, and invalidation services around the shared dev graph and build executor flow.
 

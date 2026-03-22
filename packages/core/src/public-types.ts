@@ -1,18 +1,18 @@
 import type { Readable } from 'node:stream';
-import type { ApiResponseBuilder } from './adapters/shared/api-response.js';
+import type { ApiResponseBuilder } from './adapters/shared/api-response.ts';
 import type { BuildExecutor } from './build/build-adapter.ts';
 import type { EcoBuildPlugin } from './build/build-types.ts';
 import type { EcoPageComponent } from './eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from './hmr/hmr-strategy.ts';
-import type { BrowserBundleExecutor } from './services/browser-bundle.service.ts';
-import type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
+import type { BrowserBundleExecutor } from './services/assets/browser-bundle.service.ts';
+import type { ProcessedAsset } from './services/assets/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from './services/cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
 
 export type { EcoPageComponent } from './eco/eco.types.ts';
-export type { MarkerGraphContext } from './route-renderer/marker-graph-resolver.ts';
-export type { ProcessedAsset } from './services/asset-processing-service/assets.types.ts';
+export type { MarkerGraphContext } from './route-renderer/component-graph/marker-graph-resolver.ts';
+export type { ProcessedAsset } from './services/assets/asset-processing-service/assets.types.ts';
 
 import type {
 	StandardSchema,

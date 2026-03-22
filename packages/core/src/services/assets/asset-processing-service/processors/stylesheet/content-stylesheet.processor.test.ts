@@ -1,0 +1,199 @@
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
+import { fileSystem } from '@ecopages/file-system';
+import { ContentStylesheetProcessor } from './content-stylesheet.processor';
+import type { EcoPagesAppConfig } from '../../../../../internal-types';
+import type { ContentStylesheetAsset } from '../../assets.types';
+
+const originalWrite = fileSystem.write;
+const originalExists = fileSystem.exists;
+
+const createMockConfig = (): EcoPagesAppConfig =>
+	({
+		rootDir: '/test/project',
+		srcDir: 'src',
+		distDir: '.eco/public',
+		absolutePaths: {
+			distDir: '/test/project/.eco/public',
+			srcDir: '/test/project/src',
+		},
+	}) as unknown as EcoPagesAppConfig;
+
+describe('ContentStylesheetProcessor', () => {
+	let writeMock: any;
+
+	beforeEach(() => {
+		writeMock = vi.fn(() => {});
+		fileSystem.write = writeMock;
+		fileSystem.exists = vi.fn(() => true);
+	});
+
+	afterEach(() => {
+		fileSystem.write = originalWrite;
+		fileSystem.exists = originalExists;
+		vi.restoreAllMocks();
+	});
+
+	describe('process - file-based stylesheet', () => {
+		test('should write stylesheet file when not inline', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+
+			const dep: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: 'body { color: red; }',
+				inline: false,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(writeMock).toHaveBeenCalled();
+			expect(result.filepath).toBeDefined();
+			expect(result.filepath).toContain('style-');
+			expect(result.filepath).toContain('.css');
+			expect(result.kind).toBe('stylesheet');
+			expect(result.inline).toBe(false);
+			expect(result.content).toBeUndefined();
+		});
+
+		test('should include hash in filename', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+
+			const dep: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: 'body { color: blue; }',
+				inline: false,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(result.filepath).toMatch(/style-\d+\.css$/);
+		});
+	});
+
+	describe('process - inline stylesheet', () => {
+		test('should return content without writing file when inline', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+
+			const dep: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.inline { display: flex; }',
+				inline: true,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(writeMock).not.toHaveBeenCalled();
+			expect(result.inline).toBe(true);
+			expect(result.content).toBe('.inline { display: flex; }');
+			expect(result.filepath).toBeUndefined();
+		});
+	});
+
+	describe('process - caching', () => {
+		test('should return cached result on subsequent calls', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+
+			const dep: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.cached { margin: 0; }',
+				inline: false,
+			};
+
+			const result1 = await processor.process(dep);
+			const result2 = await processor.process(dep);
+
+			expect(writeMock.mock.calls.length).toBe(1);
+			expect(result1).toEqual(result2);
+		});
+
+		test('should use different cache keys for different content', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+
+			const dep1: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.first { padding: 10px; }',
+				inline: false,
+			};
+
+			const dep2: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.second { padding: 20px; }',
+				inline: false,
+			};
+
+			await processor.process(dep1);
+			await processor.process(dep2);
+
+			expect(writeMock.mock.calls.length).toBe(2);
+		});
+	});
+
+	describe('process - attributes and position', () => {
+		test('should preserve attributes from dependency', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+
+			const dep: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.styled { color: green; }',
+				inline: true,
+				attributes: { 'data-theme': 'dark' },
+			};
+
+			const result = await processor.process(dep);
+
+			expect(result.attributes).toEqual({ 'data-theme': 'dark' });
+		});
+
+		test('should preserve position from dependency', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+
+			const dep: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.head-style { font-size: 16px; }',
+				inline: true,
+				position: 'head',
+			};
+
+			const result = await processor.process(dep);
+
+			expect(result.position).toBe('head');
+		});
+
+		test('should return updated attributes when cached asset is retrieved with different attributes', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+
+			const depWithMedia: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.cached-style { color: red; }',
+				inline: false,
+				attributes: { media: 'screen' },
+				position: 'head',
+			};
+
+			const depWithPrint: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.cached-style { color: red; }',
+				inline: false,
+				attributes: { media: 'print' },
+				position: 'body',
+			};
+
+			const result1 = await processor.process(depWithMedia);
+			const result2 = await processor.process(depWithPrint);
+
+			expect(result1.attributes).toEqual({ media: 'screen' });
+			expect(result1.position).toBe('head');
+			expect(result2.attributes).toEqual({ media: 'print' });
+			expect(result2.position).toBe('body');
+		});
+	});
+});

@@ -13,8 +13,8 @@ import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy';
 import { appLogger } from '../../global/app-logger';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import type { BrowserBundleExecutor } from '../../services/browser-bundle.service.ts';
-import type { DevGraphService } from '../../services/dev-graph.service.ts';
+import type { BrowserBundleExecutor } from '../../services/assets/browser-bundle.service.ts';
+import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 
 /**
  * Context interface providing access to HmrManager state.
@@ -31,7 +31,7 @@ export interface JsHmrContext {
 	 */
 	getSpecifierMap(): Map<string, string>;
 
-	getDevGraphService(): DevGraphService;
+	getEntrypointDependencyGraph(): EntrypointDependencyGraph;
 
 	/**
 	 * Directory where HMR bundles are written.
@@ -130,9 +130,9 @@ export class JsHmrStrategy extends HmrStrategy {
 			return true;
 		}
 
-		const devGraphService = this.context.getDevGraphService();
-		if (devGraphService.supportsSelectiveInvalidation()) {
-			return devGraphService.getDependencyEntrypoints(filePath).size > 0;
+		const entrypointDependencyGraph = this.context.getEntrypointDependencyGraph();
+		if (entrypointDependencyGraph.supportsSelectiveInvalidation()) {
+			return entrypointDependencyGraph.getDependencyEntrypoints(filePath).size > 0;
 		}
 
 		return true;
@@ -159,7 +159,7 @@ export class JsHmrStrategy extends HmrStrategy {
 			return { type: 'none' };
 		}
 
-		const dependencyHits = this.context.getDevGraphService().getDependencyEntrypoints(filePath);
+		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(filePath);
 		const hasDependencyHit = dependencyHits.size > 0;
 		const impactedEntrypoints = hasDependencyHit
 			? Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(entrypoint))
@@ -191,7 +191,7 @@ export class JsHmrStrategy extends HmrStrategy {
 
 			if (buildResult.dependencies) {
 				const entrypointDeps = buildResult.dependencies.get(path.resolve(entrypoint)) ?? [];
-				this.context.getDevGraphService().setEntrypointDependencies(entrypoint, entrypointDeps);
+				this.context.getEntrypointDependencyGraph().setEntrypointDependencies(entrypoint, entrypointDeps);
 			}
 
 			const srcDir = this.context.getSrcDir();

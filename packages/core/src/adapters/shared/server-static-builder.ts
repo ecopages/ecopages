@@ -5,7 +5,7 @@ import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';
 import type { ApiHandler, StaticRoute } from '../../public-types';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer';
-import type { FSRouter } from '../../router/fs-router';
+import type { FSRouter } from '../../router/server/fs-router';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
 
 export interface StaticBuildOptions {
@@ -22,6 +22,28 @@ export interface ServerStaticBuilderParams {
 	staticSiteGenerator: StaticSiteGenerator;
 	serveOptions: ServeOptions;
 	apiHandlers?: ApiHandler[];
+	logger?: ServerStaticBuilderLogger;
+	previewServerFactory?: ServerStaticPreviewServerFactory;
+}
+
+/**
+ * Minimal logger dependency used by the static builder.
+ */
+export interface ServerStaticBuilderLogger {
+	warn(message: string, detail?: string): unknown;
+	info(message: string): unknown;
+	error(message: string): unknown;
+}
+
+/**
+ * Preview server factory dependency used when static preview mode is enabled.
+ */
+export interface ServerStaticPreviewServerFactory {
+	createServer(args: { appConfig: EcoPagesAppConfig; options: { port: number } }): {
+		server?: {
+			port?: number;
+		} | null;
+	};
 }
 
 /**
@@ -32,12 +54,23 @@ export class ServerStaticBuilder {
 	private readonly staticSiteGenerator: StaticSiteGenerator;
 	private readonly serveOptions: ServeOptions;
 	private readonly apiHandlers: ApiHandler[];
+	private readonly logger: ServerStaticBuilderLogger;
+	private readonly previewServerFactory: ServerStaticPreviewServerFactory;
 
-	constructor({ appConfig, staticSiteGenerator, serveOptions, apiHandlers }: ServerStaticBuilderParams) {
+	constructor({
+		appConfig,
+		staticSiteGenerator,
+		serveOptions,
+		apiHandlers,
+		logger,
+		previewServerFactory,
+	}: ServerStaticBuilderParams) {
 		this.appConfig = appConfig;
 		this.staticSiteGenerator = staticSiteGenerator;
 		this.serveOptions = serveOptions;
 		this.apiHandlers = apiHandlers ?? [];
+		this.logger = logger ?? appLogger;
+		this.previewServerFactory = previewServerFactory ?? StaticContentServer;
 	}
 
 	private warnApiHandlersUnavailableInStaticMode(): void {
@@ -52,7 +85,7 @@ export class ServerStaticBuilder {
 		const remainingCount = uniqueHandlers.length - Math.min(uniqueHandlers.length, 5);
 		const summary = remainingCount > 0 ? `${visibleHandlers}, +${remainingCount} more` : visibleHandlers;
 
-		appLogger.warn(
+		this.logger.warn(
 			'Registered API endpoints are not available in static build or preview modes because no server runtime is started. They are excluded from the generated output.\n',
 			`➤ ${summary}`,
 		);
@@ -113,21 +146,21 @@ export class ServerStaticBuilder {
 		});
 
 		if (!preview) {
-			appLogger.info('Build completed');
+			this.logger.info('Build completed');
 			return;
 		}
 
 		const previewPort = this.serveOptions.port || 3000;
 
-		const { server } = StaticContentServer.createServer({
+		const { server } = this.previewServerFactory.createServer({
 			appConfig: this.appConfig,
 			options: { port: Number(previewPort) },
 		});
 
-		if (server) {
-			appLogger.info(`Preview running at http://localhost:${server.port}`);
+		if (server?.port) {
+			this.logger.info(`Preview running at http://localhost:${server.port}`);
 		} else {
-			appLogger.error('Failed to start preview server');
+			this.logger.error('Failed to start preview server');
 		}
 	}
 }

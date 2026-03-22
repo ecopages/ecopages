@@ -2,9 +2,9 @@ import type { EcoBuildPlugin } from '../build/build-types';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types';
 import type { HmrStrategy } from '../hmr/hmr-strategy';
 import type { EcoComponent, EcoPagesElement } from '../public-types';
-import type { IntegrationRenderer } from '../route-renderer/integration-renderer';
-import { AssetProcessingService } from '../services/asset-processing-service/asset-processing.service';
-import type { AssetDefinition, ProcessedAsset } from '../services/asset-processing-service/assets.types';
+import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer';
+import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service';
+import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types';
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
 export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';

@@ -13,11 +13,15 @@ import { appLogger } from '../../global/app-logger';
 import type { ClientBridge } from './client-bridge';
 import type { ClientBridgeEvent } from '../../public-types';
 import { HmrEntrypointRegistrar } from '../shared/hmr-entrypoint-registrar.ts';
-import { BrowserBundleService } from '../../services/browser-bundle.service.ts';
-import { DevelopmentInvalidationService } from '../../services/development-invalidation.service.ts';
-import { getAppDevGraphService, NoopDevGraphService, setAppDevGraphService } from '../../services/dev-graph.service.ts';
-import { getAppRuntimeSpecifierRegistry } from '../../services/runtime-specifier-registry.service.ts';
-import { ServerModuleTranspiler } from '../../services/server-module-transpiler.service.ts';
+import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
+import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service';
+import {
+	getAppEntrypointDependencyGraph,
+	NoopEntrypointDependencyGraph,
+	setAppEntrypointDependencyGraph,
+} from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import { getAppRuntimeSpecifierRegistry } from '../../services/runtime-state/runtime-specifier-registry.service.ts';
+import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 
 type BunSocket = ServerWebSocket<unknown>;
@@ -55,7 +59,7 @@ export class HmrManager implements IHmrManager {
 	private strategies: HmrStrategy[] = [];
 	private readonly entrypointRegistrar: HmrEntrypointRegistrar;
 	private readonly browserBundleService: BrowserBundleService;
-	private readonly devGraphService: ReturnType<typeof getAppDevGraphService>;
+	private readonly entrypointDependencyGraph: ReturnType<typeof getAppEntrypointDependencyGraph>;
 	private readonly runtimeSpecifierRegistry: ReturnType<typeof getAppRuntimeSpecifierRegistry>;
 	private readonly serverModuleTranspiler: ServerModuleTranspiler;
 	private wsHandler!: {
@@ -76,20 +80,14 @@ export class HmrManager implements IHmrManager {
 			registrationTimeoutMs: HmrManager.entrypointRegistrationTimeoutMs,
 		});
 		this.browserBundleService = new BrowserBundleService(appConfig);
-		const existingDevGraphService = getAppDevGraphService(appConfig);
-		this.devGraphService =
-			existingDevGraphService instanceof NoopDevGraphService
-				? existingDevGraphService
-				: new NoopDevGraphService();
-		setAppDevGraphService(this.appConfig, this.devGraphService);
+		const existingEntrypointDependencyGraph = getAppEntrypointDependencyGraph(appConfig);
+		this.entrypointDependencyGraph =
+			existingEntrypointDependencyGraph instanceof NoopEntrypointDependencyGraph
+				? existingEntrypointDependencyGraph
+				: new NoopEntrypointDependencyGraph();
+		setAppEntrypointDependencyGraph(this.appConfig, this.entrypointDependencyGraph);
 		this.runtimeSpecifierRegistry = getAppRuntimeSpecifierRegistry(this.appConfig);
-		const invalidationService = new DevelopmentInvalidationService(this.appConfig);
-		this.serverModuleTranspiler = new ServerModuleTranspiler({
-			rootDir: this.appConfig.rootDir,
-			buildExecutor: getAppBuildExecutor(this.appConfig),
-			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
-			invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
-		});
+		this.serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
 		this.cleanDistDir();
 		this.initializeStrategies();
 	}
@@ -139,7 +137,7 @@ export class HmrManager implements IHmrManager {
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getBrowserBundleService: () => this.browserBundleService,
-			getDevGraphService: () => this.devGraphService,
+			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 		};
 
@@ -402,7 +400,7 @@ export class HmrManager implements IHmrManager {
 		this.watchers.clear();
 		this.watchedFiles.clear();
 		this.runtimeSpecifierRegistry.clear();
-		this.devGraphService.reset();
+		this.entrypointDependencyGraph.reset();
 		this.plugins = [];
 	}
 }

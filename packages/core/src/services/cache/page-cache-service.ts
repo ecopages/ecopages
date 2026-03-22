@@ -4,9 +4,9 @@
  * @module
  */
 
-import { appLogger } from '../../global/app-logger.ts';
-import type { CacheEntry, CacheResult, CacheStore, CacheStrategy, RenderResult } from './cache.types.ts';
-import { MemoryCacheStore } from './memory-cache-store.ts';
+import { appLogger } from '../../global/app-logger.js';
+import type { CacheEntry, CacheResult, CacheStore, CacheStrategy, RenderResult } from './cache.types.js';
+import { MemoryCacheStore } from './memory-cache-store.js';
 
 export interface PageCacheServiceOptions {
 	store?: CacheStore;

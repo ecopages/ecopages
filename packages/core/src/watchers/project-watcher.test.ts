@@ -6,7 +6,7 @@ import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig, IHmrManager } from '../internal-types';
 import type { ClientBridge } from '../adapters/bun/client-bridge';
 import { ConfigBuilder } from '../config/config-builder';
-import { InMemoryDevGraphService, setAppDevGraphService } from '../services/dev-graph.service';
+import { InMemoryDevGraphService, setAppDevGraphService } from '../services/runtime-state/dev-graph.service';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
 
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
@@ -121,7 +121,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 	test('should only invalidate server modules for route and server source changes', async () => {
 		const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'about.tsx');
 		const cssFilePath = path.join(Config.absolutePaths.srcDir, 'styles', 'main.css');
-		const devGraphService = Config.runtime?.devGraphService as InMemoryDevGraphService;
+		const serverInvalidationState = Config.runtime?.serverInvalidationState as InMemoryDevGraphService;
 
 		Config.processors.set('css', {
 			getWatchConfig: vi.fn(() => ({
@@ -135,13 +135,13 @@ describe('ProjectWatcher - File Change Handling', () => {
 			matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
 		} as never);
 
-		expect(devGraphService.getServerInvalidationVersion()).toBe(0);
+		expect(serverInvalidationState.getServerInvalidationVersion()).toBe(0);
 
 		await (watcher as any).handleFileChange(pageFilePath);
-		expect(devGraphService.getServerInvalidationVersion()).toBe(1);
+		expect(serverInvalidationState.getServerInvalidationVersion()).toBe(1);
 
 		await (watcher as any).handleFileChange(cssFilePath);
-		expect(devGraphService.getServerInvalidationVersion()).toBe(1);
+		expect(serverInvalidationState.getServerInvalidationVersion()).toBe(1);
 	});
 
 	describe('public directory files', () => {

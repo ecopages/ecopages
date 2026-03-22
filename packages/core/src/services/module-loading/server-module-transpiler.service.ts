@@ -1,4 +1,5 @@
 import type { BuildExecutor } from '../../build/build-adapter.js';
+import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { PageModuleImportService, type PageModuleImportOptions } from './page-module-import.service.ts';
 
 export type ServerModuleTranspilerOptions = Omit<PageModuleImportOptions, 'rootDir' | 'buildExecutor'>;
@@ -29,6 +30,8 @@ export type ServerModuleTranspilerBootstrapArgs = {
 	getInvalidationVersion?: () => number;
 	invalidateModules?: (changedFiles?: string[]) => void;
 	pageModuleImportService?: ServerModuleImportDependency;
+	/** Factory evaluated on each importModule call to produce plugins applied to every load. */
+	getDefaultPlugins?: () => EcoBuildPlugin[];
 };
 
 /**
@@ -44,6 +47,7 @@ export class ServerModuleTranspiler {
 	private readonly getBuildExecutor: () => BuildExecutor | undefined;
 	private readonly getInvalidationVersion: () => number | undefined;
 	private readonly invalidateModules: (changedFiles?: string[]) => void;
+	private readonly getDefaultPlugins: () => EcoBuildPlugin[];
 
 	/**
 	 * Creates one explicit server-transpiler boundary for a given execution
@@ -54,6 +58,7 @@ export class ServerModuleTranspiler {
 		this.getRootDir = () => args.rootDir;
 		this.getBuildExecutor = args.getBuildExecutor;
 		this.getInvalidationVersion = () => args.getInvalidationVersion?.();
+		this.getDefaultPlugins = args.getDefaultPlugins ?? (() => []);
 		this.invalidateModules = (changedFiles) => {
 			if (args.invalidateModules) {
 				args.invalidateModules(changedFiles);
@@ -69,8 +74,11 @@ export class ServerModuleTranspiler {
 	 * context.
 	 */
 	async importModule<T = unknown>(options: ServerModuleTranspilerOptions): Promise<T> {
+		const mergedPlugins = [...this.getDefaultPlugins(), ...(options.plugins ?? [])];
+		const { plugins: _plugins, ...baseOptions } = options;
 		return await this.pageModuleImportService.importModule<T>({
-			...options,
+			...baseOptions,
+			...(mergedPlugins.length > 0 ? { plugins: mergedPlugins } : {}),
 			rootDir: this.getRootDir(),
 			buildExecutor: this.getBuildExecutor(),
 			invalidationVersion: this.getInvalidationVersion(),

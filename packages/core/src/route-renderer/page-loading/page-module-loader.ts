@@ -9,7 +9,6 @@ import type {
 	EcoPageComponent,
 } from '../../public-types.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import { createAppNodeBootstrapPlugin } from '../../adapters/node/bootstrap-dependency-resolver.ts';
 import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
@@ -52,7 +51,6 @@ export class PageModuleLoaderService {
 			return await this.serverModuleTranspiler.importModule<EcoPageFile>({
 				filePath: file,
 				outdir: `${resolveInternalExecutionDir(this.appConfig)}/.server-modules`,
-				plugins: typeof Bun === 'undefined' ? [createAppNodeBootstrapPlugin(this.appConfig)] : undefined,
 				transpileErrorMessage: (details) => `Error transpiling page file: ${details}`,
 				noOutputMessage: (targetFilePath) => `No transpiled output generated for page: ${targetFilePath}`,
 			});

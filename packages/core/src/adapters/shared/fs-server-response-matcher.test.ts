@@ -279,7 +279,6 @@ describe('FileSystemResponseMatcher', () => {
 				expect.objectContaining({
 					filePath: INDEX_TEMPLATE_FILE,
 					outdir: path.join(resolveInternalExecutionDir(appConfig), '.server-modules-meta'),
-					plugins: [expect.objectContaining({ name: 'node-thin-host-bundle-workspace-packages' })],
 				}),
 			);
 		});

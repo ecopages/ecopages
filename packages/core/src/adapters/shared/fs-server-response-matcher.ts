@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { createAppNodeBootstrapPlugin } from '../node/bootstrap-dependency-resolver.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, MatchResult } from '../../internal-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
@@ -192,7 +191,6 @@ export class FileSystemResponseMatcher {
 		return this.serverModuleTranspiler.importModule({
 			filePath,
 			outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules-meta'),
-			plugins: typeof Bun === 'undefined' ? [createAppNodeBootstrapPlugin(this.appConfig)] : undefined,
 			transpileErrorMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.transpilePageModuleFailed,
 			noOutputMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.noTranspiledOutputForPageModule,
 		});

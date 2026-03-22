@@ -1,5 +1,6 @@
 import { getAppBuildExecutor } from '../../build/build-adapter.js';
 import type { EcoPagesAppConfig } from '../../internal-types.js';
+import { createAppNodeBootstrapPlugin } from '../../adapters/node/bootstrap-dependency-resolver.ts';
 import { DevelopmentInvalidationService } from '../invalidation/development-invalidation.service.ts';
 import { ServerModuleTranspiler } from './server-module-transpiler.service.ts';
 
@@ -15,6 +16,10 @@ export function createAppServerModuleTranspiler(appConfig: EcoPagesAppConfig): S
 		getBuildExecutor: () => getAppBuildExecutor(appConfig),
 		getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
 		invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
+		getDefaultPlugins:
+			typeof Bun === 'undefined' && appConfig.rootDir
+				? () => [createAppNodeBootstrapPlugin(appConfig)]
+				: undefined,
 	});
 }
 

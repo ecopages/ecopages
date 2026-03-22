@@ -282,6 +282,95 @@ describe('EcoRouter', () => {
 			expect(nextCounter?.shadowRoot?.querySelector('[data-shadow-count]')?.textContent).toBe('0');
 		});
 
+		it('should replace light-DOM web components and keep them interactive after navigation', async () => {
+			if (!customElements.get('test-light-dom-counter')) {
+				class TestLightDomCounter extends HTMLElement {
+					static observedAttributes = ['count'];
+
+					connectedCallback() {
+						this.querySelector('[data-ref="decrement"]')?.addEventListener('click', this.decrement);
+						this.querySelector('[data-ref="increment"]')?.addEventListener('click', this.increment);
+						this.updateCount();
+					}
+
+					disconnectedCallback() {
+						this.querySelector('[data-ref="decrement"]')?.removeEventListener('click', this.decrement);
+						this.querySelector('[data-ref="increment"]')?.removeEventListener('click', this.increment);
+					}
+
+					attributeChangedCallback(name: string) {
+						if (name === 'count') {
+							this.updateCount();
+						}
+					}
+
+					get count(): number {
+						return Number(this.getAttribute('count') ?? 0);
+					}
+
+					set count(value: number) {
+						this.setAttribute('count', String(value));
+					}
+
+					private decrement = () => {
+						if (this.count > 0) {
+							this.count -= 1;
+						}
+					};
+
+					private increment = () => {
+						this.count += 1;
+					};
+
+					private updateCount() {
+						const countText = this.querySelector('[data-ref="count"]');
+						if (!countText) {
+							return;
+						}
+
+						countText.textContent = String(this.count);
+					}
+				}
+
+				customElements.define('test-light-dom-counter', TestLightDomCounter);
+			}
+
+			document.body.innerHTML = [
+				'<test-light-dom-counter count="0">',
+				'<button type="button" data-ref="decrement">-</button>',
+				'<span data-ref="count">0</span>',
+				'<button type="button" data-ref="increment">+</button>',
+				'</test-light-dom-counter>',
+			].join('');
+			const currentCounter = document.querySelector('test-light-dom-counter') as HTMLElement | null;
+			currentCounter?.setAttribute('count', '5');
+
+			router = createRouter();
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () =>
+					[
+						'<html><body>',
+						'<test-light-dom-counter count="0">',
+						'<button type="button" data-ref="decrement">-</button>',
+						'<span data-ref="count">0</span>',
+						'<button type="button" data-ref="increment">+</button>',
+						'</test-light-dom-counter>',
+						'</body></html>',
+					].join(''),
+			} as Response);
+
+			await router.navigate('/light-dom-reset');
+
+			const nextCounter = document.querySelector('test-light-dom-counter') as HTMLElement | null;
+			expect(nextCounter).not.toBeNull();
+			expect(nextCounter).not.toBe(currentCounter);
+			expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('0');
+
+			await user.click(nextCounter?.querySelector('[data-ref="increment"]') as HTMLButtonElement);
+			expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('1');
+		});
+
 		it('should flush rerun scripts after the new body is in place', async () => {
 			router = createRouter({ viewTransitions: false });
 			const rerunHtml = [

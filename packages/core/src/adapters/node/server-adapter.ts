@@ -1,5 +1,4 @@
 import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
-import path from 'node:path';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
@@ -423,32 +422,26 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.serverInstance = _server;
 
 		if (this.options?.watch) {
-			const thinHostRuntime = Boolean(process.env.ECOPAGES_NODE_RUNTIME_MANIFEST_PATH);
 			const { WebSocketServer } = await import('ws');
 			const wss = new WebSocketServer({ noServer: true });
 			this.bridge = new NodeClientBridge();
 			this.hmrManager = new NodeHmrManager({ appConfig: this.appConfig, bridge: this.bridge });
 			this.hmrManager.setEnabled(true);
 
-			if (thinHostRuntime) {
-				this.hmrManager.setEnabled(false);
-				appLogger.warn('[HMR] Disabled for the Node thin-host runtime during startup.');
-			} else {
-				await this.hmrManager.buildRuntime();
+			await this.hmrManager.buildRuntime();
 
-				_server.on('upgrade', (req, socket, head) => {
-					const url = new URL(req.url ?? '/', this.runtimeOrigin);
-					if (url.pathname === '/_hmr') {
-						wss.handleUpgrade(req, socket, head, (ws) => {
-							this.bridge!.subscribe(ws);
-							ws.on('close', () => this.bridge!.unsubscribe(ws));
-							ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
-						});
-					} else {
-						socket.destroy();
-					}
-				});
-			}
+			_server.on('upgrade', (req, socket, head) => {
+				const url = new URL(req.url ?? '/', this.runtimeOrigin);
+				if (url.pathname === '/_hmr') {
+					wss.handleUpgrade(req, socket, head, (ws) => {
+						this.bridge!.subscribe(ws);
+						ws.on('close', () => this.bridge!.unsubscribe(ws));
+						ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
+					});
+				} else {
+					socket.destroy();
+				}
+			});
 
 			bindSharedRuntimeHmrManager(this.appConfig, this.hmrManager);
 

@@ -28,6 +28,8 @@ All notable changes to `@ecopages/core` are documented here.
 - Routed runtime specifier registration through shared integration lifecycle hooks and centralized browser bundle assembly behind `BrowserBundleService`.
 - Consolidated server-module loading around one shared app-owned transpiler, app-scoped import caches, and one app-owned invalidation path so runtime subsystems no longer coordinate through duplicated loader state.
 - Allowed `ServerModuleTranspiler` to accept an injected module-import dependency so runtime tests can use explicit fakes instead of module-level mocking.
+- Moved `defineApiHandler` and `defineGroupHandler` from the package root and the Bun-specific adapter into a single shared adapter module so both runtimes export one universal definition helper.
+- Centralized Node bootstrap plugin injection into `ServerModuleTranspiler` via a `defaultPlugins` factory-arg so shared modules no longer carry runtime-detection guards or Node-specific imports.
 - Allowed `TranspilerServerLoader` to accept an injected transpiler factory so bootstrap loader tests can use explicit doubles instead of module-level mocking.
 - Allowed `PageModuleImportService` and `ServerStaticBuilder` to accept narrow runtime dependencies so their tests can use explicit fakes instead of module-level mocking and logger spies.
 - Moved HTML rewriter runtime selection into a dedicated provider so `HtmlTransformerService` stays focused on HTML transformation and its tests no longer need module-level mocking.
@@ -52,12 +54,15 @@ All notable changes to `@ecopages/core` are documented here.
 - Re-emitted integration-owned runtime assets after static export cleanup so preview and build keep React vendor bundles like `/assets/vendors/react.js` and `/assets/vendors/react-dom.js` available.
 - Re-ran processor runtime setup after static export cleanup so processor-owned outputs such as optimized images are restored into `dist` before pages are generated.
 - Made `preview` rebuild and then serve `dist` so production verification always runs against the actual deployable output.
+- Prevented generic JS HMR from claiming integration-owned page/layout template files so non-React template edits no longer emit unrelated React update events.
+- Fixed stale asset cache for file-based stylesheets in development mode: `AssetProcessingService` now bypasses its outer path-keyed cache for file stylesheets so that CSS edits on disk are reflected in the next page render without a manual restart. The processor-level content-hash cache still prevents redundant re-processing when the file has not actually changed.
 
 ### Tests
 
 - Added regression coverage for `eco.html()` and `eco.layout()`, shared browser bundle and server loader services, and experimental Node bootstrap paths.
 - Added alias-resolver regression coverage for simple barrel imports that re-export compound-extension modules such as `.kita.tsx`.
 - Added regression coverage for HMR internal output paths so dev runtime assets stay isolated from preview/export output.
+- Added cross-runtime `handleFileChange` dispatch tests covering CSS, HTML, and TS file routing through DefaultHmrStrategy; broadcast suppression via `broadcast:false`; `{type:'none'}` action suppression; INTEGRATION strategy priority ordering; and multi-event fanout.
 
 ### Documentation
 

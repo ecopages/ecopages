@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { getBunRuntime } from '../../utils/runtime.ts';
 import { appLogger } from '../../global/app-logger';
 import type { EcoPagesAppConfig } from '../../internal-types';

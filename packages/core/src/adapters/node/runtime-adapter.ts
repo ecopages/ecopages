@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import {
@@ -70,6 +71,7 @@ const NODE_RUNTIME_ENTRY_OUTDIR = '.node-runtime-entry';
 const NODE_RUNTIME_BOOTSTRAP_SPLITTING = false;
 const NODE_RUNTIME_CONFIG_NAMESPACE = 'ecopages-runtime-config';
 const NODE_RUNTIME_CONFIG_GLOBAL_KEY = '__ecopagesNodeRuntimeConfig';
+const NODE_HMR_MANAGER_SOURCE_PATH = fileURLToPath(new URL('./node-hmr-manager.ts', import.meta.url));
 
 /**
  * Resolves a relative import path to an absolute path given its importer.
@@ -231,6 +233,7 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 			preserveImportMetaPaths: [
 				options.manifest.modulePaths.config,
 				...(options.manifest.modulePaths.entry ? [options.manifest.modulePaths.entry] : []),
+				NODE_HMR_MANAGER_SOURCE_PATH,
 			],
 		});
 		this.bootstrapBuildAdapter = createBuildAdapter();

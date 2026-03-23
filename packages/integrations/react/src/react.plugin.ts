@@ -122,11 +122,16 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	private explicitGraphEnabled: boolean;
 
 	constructor(options?: Omit<ReactPluginOptions, 'name'>) {
-		const extensions = ['.tsx'];
+		const { extensions: _ignoredExtensions, ...restOptions } = options ?? {};
+		const extensions = [...(options?.extensions ?? ['.tsx'])];
 		const mdxExtensions = options?.mdx?.extensions ?? ['.mdx'];
 
 		if (options?.mdx?.enabled) {
-			extensions.push(...mdxExtensions);
+			for (const extension of mdxExtensions) {
+				if (!extensions.includes(extension)) {
+					extensions.push(extension);
+				}
+			}
 		} else if (options?.mdx?.extensions?.length) {
 			appLogger.warn(
 				'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
@@ -136,7 +141,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		super({
 			name: PLUGIN_NAME,
 			extensions,
-			...options,
+			...restOptions,
 		});
 
 		this.mdxEnabled = options?.mdx?.enabled ?? false;
@@ -236,6 +241,8 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 			context,
 			this.hmrPageMetadataCache,
 			this.mdxCompilerOptions,
+			this.extensions,
+			this.appConfig.templatesExt,
 			this.explicitGraphEnabled,
 		);
 	}

@@ -66,7 +66,8 @@ const appLogger = new Logger('[ReactHmrStrategy]');
 export class ReactHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
 	private mdxCompilerOptions?: CompileOptions;
-	private readonly knownEntrypoints = new Set<string>();
+	private readonly ownedTemplateExtensions: Set<string>;
+	private readonly allTemplateExtensions: string[];
 	private async importNodePageModule(entrypointPath: string): Promise<{
 		default?: { config?: Record<string, unknown> };
 		config?: Record<string, unknown>;
@@ -95,6 +96,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 		context: DefaultHmrContext,
 		pageMetadataCache: ReactHmrPageMetadataCache,
 		mdxCompilerOptions?: CompileOptions,
+		ownedTemplateExtensions: string[] = ['.tsx'],
+		allTemplateExtensions: string[] = ['.tsx'],
 		explicitGraphEnabled = false,
 	) {
 		super();
@@ -102,6 +105,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.pageMetadataCache = pageMetadataCache;
 		this.explicitGraphEnabled = explicitGraphEnabled;
 		this.mdxCompilerOptions = mdxCompilerOptions;
+		this.ownedTemplateExtensions = new Set(ownedTemplateExtensions);
+		this.allTemplateExtensions = [...allTemplateExtensions].sort((a, b) => b.length - a.length);
 	}
 
 	/**
@@ -133,11 +138,40 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private isReactEntrypoint(filePath: string): boolean {
-		if (filePath.endsWith('.tsx')) {
+		if (filePath.endsWith('.mdx')) {
+			return this.mdxCompilerOptions !== undefined;
+		}
+
+		if (!filePath.endsWith('.tsx')) {
+			return false;
+		}
+
+		if (!this.isRouteTemplate(filePath)) {
 			return true;
 		}
 
-		return filePath.endsWith('.mdx') && this.mdxCompilerOptions !== undefined;
+		const templateExtension = this.resolveTemplateExtension(filePath);
+		if (!templateExtension) {
+			return false;
+		}
+
+		return this.ownedTemplateExtensions.has(templateExtension);
+	}
+
+	/**
+	 * Returns true when a route file uses a compound extension like `page.foo.tsx`.
+	 *
+	 * @remarks
+	 * React integration owns plain `.tsx` route templates. Compound extensions in
+	 * pages/layouts are integration-specific route templates and should not be
+	 * claimed by React HMR strategy.
+	 */
+	private isRouteTemplate(filePath: string): boolean {
+		return filePath.startsWith(this.context.getPagesDir()) || filePath.startsWith(this.context.getLayoutsDir());
+	}
+
+	private resolveTemplateExtension(filePath: string): string | undefined {
+		return this.allTemplateExtensions.find((extension) => filePath.endsWith(extension));
 	}
 
 	/**
@@ -196,11 +230,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 			appLogger.debug(`Detected layout file change: ${_filePath}`);
 		}
 
-		const entrypointsToBuild =
-			!this.knownEntrypoints.has(_filePath) && watchedFiles.has(_filePath)
-				? [[_filePath, watchedFiles.get(_filePath)!]]
-				: watchedFiles.entries();
-		this.knownEntrypoints.add(_filePath);
+		const changedEntrypointOutput = watchedFiles.get(_filePath);
+		const entrypointsToBuild = changedEntrypointOutput
+			? [[_filePath, changedEntrypointOutput]]
+			: watchedFiles.entries();
 
 		const updates: string[] = [];
 		for (const [entrypoint, outputUrl] of entrypointsToBuild) {

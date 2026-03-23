@@ -65,6 +65,19 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		expect(ReactRenderer.mdxExtensions).toEqual(customExtensions);
 	});
 
+	it('should preserve custom React route extensions when MDX is enabled', () => {
+		const plugin = reactPlugin({
+			extensions: ['.react.tsx'],
+			mdx: {
+				enabled: true,
+				extensions: ['.mdx'],
+			},
+		});
+
+		expect(getExtensions(plugin)).toEqual(['.react.tsx', '.mdx']);
+		expect(ReactRenderer.mdxExtensions).toEqual(['.mdx']);
+	});
+
 	it('should warn when extensions are provided but MDX is disabled', () => {
 		const warnSpy = vi.spyOn(Logger.prototype, 'warn');
 

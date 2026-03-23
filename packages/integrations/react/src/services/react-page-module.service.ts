@@ -148,7 +148,7 @@ export class ReactPageModuleService {
 				if (fileSystem.exists(resolvedDependency)) {
 					return {
 						...config,
-						__eco: buildEcoMeta(resolvedDependency),
+						__eco: buildEcoMeta(path.join(candidateDir, path.basename(pagePath))),
 					};
 				}
 			}

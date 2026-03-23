@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.2.0-alpha.5",
+	"version": "0.2.0-alpha.7",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -99,10 +99,6 @@
 		"./bun/create-app": {
 			"types": "./src/adapters/bun/create-app.ts",
 			"default": "./src/adapters/bun/create-app.ts"
-		},
-		"./bun/define-api-handler": {
-			"types": "./src/adapters/bun/define-api-handler.ts",
-			"default": "./src/adapters/bun/define-api-handler.ts"
 		},
 		"./hmr/hmr-strategy": {
 			"types": "./src/hmr/hmr-strategy.ts",

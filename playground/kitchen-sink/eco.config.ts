@@ -19,6 +19,7 @@ const config = await new ConfigBuilder()
 		litPlugin(),
 		reactPlugin({
 			router: ecoRouter(),
+			extensions: ['.react.tsx'],
 			mdx: {
 				enabled: true,
 			},

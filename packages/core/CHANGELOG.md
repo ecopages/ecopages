@@ -40,6 +40,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Removed the stale Bun `define-api-handler` package subpath from publish manifests so npm dist validation no longer points at a deleted source entry.
 - Stopped loading `eco.config.ts` in a separate Node thin-host bootstrap pass so app-entry loading can be the single runtime config evaluation path.
 - Routed React HMR browser entry rebuilds and page-metadata module loading through shared browser bundling and server-loading services.
 - Fixed Node bootstrap resolution so app-local aliases, third-party dependencies, `import.meta.dirname`, `import.meta.filename`, and `bun:*` diagnostics behave correctly during experimental Node startup.

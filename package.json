@@ -1,12 +1,12 @@
 {
 	"name": "@ecopages/ecopages",
 	"private": true,
-	"version": "0.2.0-alpha.5",
+	"version": "0.2.0-alpha.7",
 	"scripts": {
 		"dev:docs": "pnpm --filter @ecopages/docs run dev",
 		"build:docs": "pnpm --filter @ecopages/docs run build",
 		"build:npm": "node --experimental-strip-types scripts/build-npm-packages.ts",
-		"build:npm:package": "node --experimental-strip-types scripts/build-npm-packages.ts",
+		"build:npm:packages": "node --experimental-strip-types scripts/build-npm-packages.ts",
 		"release:check:versions": "node --experimental-strip-types scripts/check-release-versions.ts",
 		"release:check:npm-package": "node --experimental-strip-types scripts/check-npm-package-published.ts",
 		"release:npm": "node --experimental-strip-types scripts/release-npm-package.ts",

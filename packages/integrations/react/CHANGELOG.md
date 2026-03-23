@@ -6,38 +6,18 @@ All notable changes to `@ecopages/react` are documented here.
 
 ## [UNRELEASED] — TBD
 
-### Features
+### Features & Performance
 
-- Added Phase 1 client render graph analysis to track client-reachable exports and enforce explicit React hydration boundaries.
-- Split React browser and runtime work into focused services for runtime bundles, hydration assets, page modules, and browser bundling.
-- Inlined the React MDX loader so React apps can enable MDX without installing `@ecopages/mdx` separately.
+- **Performance Hydration**: Introduced static reachability analysis to enforce explicit hydration boundaries and optimized HMR via metadata caching.
+- **Service-Oriented Internals**: Refactored the integration into focused core-backed services for bundling, hydration, and page-module loading.
+- **React MDX**: Inlined MDX support directly into the React integration for a zero-config setup, including Node-native compatibility for experimental startup.
 
-### Bug Fixes
+### Bug Fixes & Refactoring
 
-- Fixed React island bootstrapping to replace SSR nodes with a block-level `eco-island` container and per-element `data-eco-props` payloads, preventing duplicate DOM and prop collisions.
-- Fixed router-backed React pages to emit the canonical `__ECO_PAGE_DATA__` payload and explicit document owner markers so mixed React and non-React navigation and hydration stay aligned.
-- Fixed React page hydration and handoff cleanup to use `document.body`, shared navigation coordination, preserved request locals, and stable root reuse across route handoffs.
-- Fixed React MDX extension handling so `.md` stays opt-in and shared builds no longer let standalone MDX configuration hijack React `.mdx` routes.
-- Fixed client graph boundary wiring so client-reachable server-only re-exports fail fast and page-entry bundles strip unreachable server-only `eco.page()` options.
-- Moved React MDX page-module transpilation into the internal work directory so static exports no longer leak `.server-modules-react-mdx` into `distDir`.
-- Fixed development React runtime vendor asset naming so concurrent preview/export builds no longer overwrite dev-only JSX runtime helpers such as `jsxDEV`.
-- Fixed React MDX declared component dependencies to eagerly emit SSR-marked lazy custom-element scripts so mixed React and Lit pages keep declared custom elements interactive.
-- Fixed mixed-integration HMR matching so React strategy now uses configured route-template extension ownership (including explicit overrides such as `.react.tsx`) instead of generic `.tsx` matching for all page/layout templates.
-- Fixed React MDX layout metadata fallback so inferred `__eco.file` anchors to the owning layout/component directory instead of a dependency file path, preventing double-nested relative script resolution.
+- **Handoff Stability**: Standardized router-backed page payloads and document owner markers for mixed-router stability during navigation.
+- **Hydration Hardening**: Fixed island remount races, prop collisions, and layout metadata resolution during development and route handoffs.
+- **Architecture**: Centralized runtime specifiers and consolidated browser-side integration state under `window.__ECO_PAGES__`.
 
-### Refactoring
-
-- Moved runtime specifier registration onto the shared integration lifecycle and reused core browser runtime asset and entry helpers instead of React-owned temp entry assembly.
-- Centralized React runtime specifier policy and consolidated browser runtime state under `window.__ECO_PAGES__`.
-
-### Documentation
-
-- Expanded the README for client graph boundaries, shared-module rules, AST rewrite order, and hydration `locals`.
-
-### Tests
-
-- Added coverage for client graph reachability, hydration boundary utilities, and the router-backed component-render regression that prevents implicit island hydration.
-- Added regression coverage for development React runtime vendor asset naming so dev and preview React bundles stay isolated.
 
 ---
 

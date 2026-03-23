@@ -334,6 +334,10 @@ export class AssetProcessingService {
 	 * Returns the cached processed asset for a dependency key when available.
 	 */
 	private getCachedAsset(dep: AssetDefinition, depKey: string): ProcessedAsset | null {
+		if (process.env.NODE_ENV !== 'production' && dep.source === 'file' && dep.kind === 'stylesheet') {
+			return null;
+		}
+
 		const cached = this.cache.get(depKey);
 		if (!cached) {
 			return null;

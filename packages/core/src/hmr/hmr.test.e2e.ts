@@ -23,21 +23,15 @@ test.describe('HMR E2E', () => {
 	});
 
 	test('should connect to HMR WebSocket', async ({ page }) => {
-		await page.goto('/');
-
-		const connected = await page.evaluate(async () => {
-			return new Promise<boolean>((resolve) => {
-				const ws = new WebSocket(`ws://${location.host}/_hmr`);
-				ws.onopen = () => {
-					ws.close();
-					resolve(true);
-				};
-				ws.onerror = () => resolve(false);
-				setTimeout(() => resolve(false), 5000);
-			});
+		const socketPromise = page.waitForEvent('websocket', {
+			predicate: (socket) => socket.url().endsWith('/_hmr'),
+			timeout: 10000,
 		});
 
-		expect(connected).toBe(true);
+		await page.goto('/', { waitUntil: 'networkidle' });
+		const socket = await socketPromise;
+
+		expect(socket.url()).toMatch(/\/_hmr$/);
 	});
 
 	test('should fall back to a full page reload when raw CSS file changes', async ({ page }) => {

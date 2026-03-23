@@ -17,6 +17,9 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 		getDistDir: () => TMP_DIR,
 		getPlugins: () => [],
 		getSrcDir: () => SRC_DIR,
+		getPagesDir: () => path.join(SRC_DIR, 'pages'),
+		getLayoutsDir: () => path.join(SRC_DIR, 'layouts'),
+		getTemplateExtensions: () => ['.tsx'],
 		getBrowserBundleService: () => ({
 			bundle: async () => ({ success: true, logs: [], outputs: [] }),
 		}),
@@ -127,6 +130,19 @@ describe('JsHmrStrategy', () => {
 			const strategy = new JsHmrStrategy(context);
 
 			expect(strategy.matches('/other/path/file.ts')).toBe(false);
+		});
+
+		it('returns false for integration-owned route template files', () => {
+			const pagesDir = path.join(SRC_DIR, 'pages');
+			const context = createMockContext({
+				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
+				getPagesDir: () => pagesDir,
+				getTemplateExtensions: () => ['.kita.tsx', '.react.tsx'],
+			});
+			const strategy = new JsHmrStrategy(context);
+
+			expect(strategy.matches(path.join(pagesDir, 'index.kita.tsx'))).toBe(false);
+			expect(strategy.matches(path.join(pagesDir, 'home.react.tsx'))).toBe(false);
 		});
 
 		it('returns false for non-extension matches', () => {

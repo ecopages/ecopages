@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { getAppBuildExecutor } from '../../build/build-adapter.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager, IClientBridge } from '../../internal-types.ts';
@@ -128,6 +127,9 @@ export class NodeHmrManager implements IHmrManager {
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
+			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
+			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
+			getTemplateExtensions: () => this.appConfig.templatesExt,
 			getBrowserBundleService: () => this.browserBundleService,
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
@@ -166,8 +168,7 @@ export class NodeHmrManager implements IHmrManager {
 	}
 
 	public async buildRuntime(): Promise<void> {
-		const currentDir = path.dirname(fileURLToPath(import.meta.url));
-		const runtimeSource = path.resolve(currentDir, '../../hmr/client/hmr-runtime.ts');
+		const runtimeSource = path.resolve(import.meta.dirname, '../../hmr/client/hmr-runtime.ts');
 
 		try {
 			const result = await this.browserBundleService.bundle({

@@ -22,6 +22,8 @@ All notable changes to `@ecopages/react` are documented here.
 - Moved React MDX page-module transpilation into the internal work directory so static exports no longer leak `.server-modules-react-mdx` into `distDir`.
 - Fixed development React runtime vendor asset naming so concurrent preview/export builds no longer overwrite dev-only JSX runtime helpers such as `jsxDEV`.
 - Fixed React MDX declared component dependencies to eagerly emit SSR-marked lazy custom-element scripts so mixed React and Lit pages keep declared custom elements interactive.
+- Fixed mixed-integration HMR matching so React strategy now uses configured route-template extension ownership (including explicit overrides such as `.react.tsx`) instead of generic `.tsx` matching for all page/layout templates.
+- Fixed React MDX layout metadata fallback so inferred `__eco.file` anchors to the owning layout/component directory instead of a dependency file path, preventing double-nested relative script resolution.
 
 ### Refactoring
 

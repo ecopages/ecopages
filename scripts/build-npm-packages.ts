@@ -66,7 +66,7 @@ function isPublishablePackageManifest(packageJsonPath: string): boolean {
 	}
 
 	const manifest = readJsonFile<PackageManifest>(packageJsonPath);
-	return !manifest.private && manifest.scripts?.['release:jsr'] === 'bunx jsr publish';
+	return !manifest.private;
 }
 
 function findPublishablePackageDirs(dir: string): string[] {
@@ -707,12 +707,6 @@ function copyMetadataFiles(packageDir: string, distDir: string): void {
 	}
 }
 
-function copySourceFilesToDist(packageDir: string, codeFiles: string[], distDir: string): void {
-	for (const filePath of codeFiles) {
-		copyFileToDist(filePath, packageDir, distDir);
-	}
-}
-
 function matchesRequestedPackage(packageDir: string, manifest: PackageManifest, filters: Set<string>): boolean {
 	if (filters.size === 0) {
 		return true;
@@ -734,7 +728,6 @@ async function buildPackage(packageDir: string, version: string): Promise<void> 
 
 	await buildJavaScript(packageDir, codeFiles, distDir);
 	emitDeclarations(packageDir, codeFiles, declarationFiles, distDir);
-	copySourceFilesToDist(packageDir, codeFiles, distDir);
 
 	for (const filePath of declarationFiles) {
 		copyFileToDist(filePath, packageDir, distDir, true);

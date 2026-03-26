@@ -55,6 +55,7 @@ jobs:
                   path: |
                       packages/browser-router/dist
                       packages/core/dist
+                      packages/ecopages/dist
                       packages/file-system/dist
                       packages/integrations/kitajs/dist
                       packages/integrations/lit/dist
@@ -179,4 +180,4 @@ jobs:
               run: pnpm run release:npm -- packages/react-router/dist
 
             - name: Publish npm package ecopages
-              run: pnpm run release:npm -- packages/ecopages
+              run: pnpm run release:npm -- packages/ecopages/dist

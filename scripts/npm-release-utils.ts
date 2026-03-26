@@ -6,6 +6,10 @@ export type PackageManifest = {
 	version?: string;
 };
 
+export type VersionedPackageManifest = PackageManifest & {
+	version: string;
+};
+
 type RegistryPackageMetadata = {
 	versions?: Record<string, unknown>;
 };
@@ -34,7 +38,7 @@ export function setGithubOutput(name: string, value: string): void {
 	appendFileSync(githubOutputPath, `${name}=${value}\n`, 'utf-8');
 }
 
-export function readPackageManifest(inputPath: string): { manifest: PackageManifest; manifestPath: string } {
+export function readPackageManifest(inputPath: string): { manifest: VersionedPackageManifest; manifestPath: string } {
 	const manifestPath = resolveManifestPath(inputPath);
 	const manifest = readJsonFile<PackageManifest>(manifestPath);
 
@@ -42,7 +46,7 @@ export function readPackageManifest(inputPath: string): { manifest: PackageManif
 		throw new Error(`Missing version in ${manifestPath}`);
 	}
 
-	return { manifest, manifestPath };
+	return { manifest: manifest as VersionedPackageManifest, manifestPath };
 }
 
 export function getDistTag(version: string): string {

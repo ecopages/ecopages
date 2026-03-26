@@ -4,13 +4,14 @@
  */
 
 import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types.ts';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE, getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
 } from '@ecopages/core/router/link-intent';
-import { DEFAULT_OPTIONS } from './types.ts';
+import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './types.ts';
+import { syncDocumentElementAttributes } from './document-element-sync.ts';
 import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services/index.ts';
 
 /**
@@ -32,7 +33,13 @@ export class EcoRouter {
 	private prefetchManager: PrefetchManager | null = null;
 
 	constructor(options: EcoRouterOptions = {}) {
-		this.options = { ...DEFAULT_OPTIONS, ...options };
+		this.options = {
+			...DEFAULT_OPTIONS,
+			...options,
+			documentElementAttributesToSync: [
+				...(options.documentElementAttributesToSync ?? DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC),
+			],
+		};
 
 		this.domSwapper = new DomSwapper(this.options.persistAttribute);
 		this.scrollManager = new ScrollManager(this.options.scrollBehavior, this.options.smoothScroll);
@@ -121,20 +128,7 @@ export class EcoRouter {
 	}
 
 	private syncDocumentElementAttributes(newDocument: Document): void {
-		const currentHtml = document.documentElement;
-		const nextHtml = newDocument.documentElement;
-
-		for (const attribute of Array.from(currentHtml.attributes)) {
-			if (!nextHtml.hasAttribute(attribute.name)) {
-				currentHtml.removeAttribute(attribute.name);
-			}
-		}
-
-		for (const attribute of Array.from(nextHtml.attributes)) {
-			if (currentHtml.getAttribute(attribute.name) !== attribute.value) {
-				currentHtml.setAttribute(attribute.name, attribute.value);
-			}
-		}
+		syncDocumentElementAttributes(document, newDocument, this.options.documentElementAttributesToSync);
 	}
 
 	private reloadDocument(url: URL): void {

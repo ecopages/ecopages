@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE, getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { createRouter, EcoRouter } from '../src/client/eco-router';
+import { defaultDocumentElementAttributesToSync, syncDocumentElementAttributes } from '../src/index';
 
 type BrowserRouterTestWindow = Window &
 	typeof globalThis & {
@@ -33,6 +34,10 @@ function resetBrowserRuntimeState(): void {
 	document.body.innerHTML = '';
 	document.title = '';
 	document.documentElement.removeAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
+	document.documentElement.removeAttribute('data-theme');
+	document.documentElement.removeAttribute('lang');
+	document.documentElement.removeAttribute('dir');
+	document.documentElement.className = '';
 	window.history.replaceState({}, '', initialUrl);
 }
 
@@ -168,6 +173,22 @@ describe('EcoRouter', () => {
 	});
 
 	describe('DOM Updates', () => {
+		it('should expose document element sync tooling with the same default attribute policy', () => {
+			document.documentElement.setAttribute('data-theme', 'dark');
+			document.documentElement.classList.add('dark');
+
+			const newDocument = new DOMParser().parseFromString(
+				'<html lang="fr" data-theme="light"><head></head><body></body></html>',
+				'text/html',
+			);
+
+			syncDocumentElementAttributes(document, newDocument, defaultDocumentElementAttributesToSync);
+
+			expect(document.documentElement.getAttribute('lang')).toBe('fr');
+			expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+			expect(document.documentElement.classList.contains('dark')).toBe(true);
+		});
+
 		it('should update both head and body content', async () => {
 			router = createRouter();
 			const fullMockHtml =
@@ -181,6 +202,43 @@ describe('EcoRouter', () => {
 
 			expect(document.title).toBe('New Title');
 			expect(document.body.innerHTML).toContain('New Content');
+		});
+
+		it('should preserve client-managed html attributes while syncing document metadata', async () => {
+			document.documentElement.setAttribute('data-theme', 'dark');
+			document.documentElement.classList.add('dark');
+			router = createRouter();
+			const fullMockHtml =
+				'<html lang="fr"><head><title>New Title</title></head><body><div id="content">New Content</div></body></html>';
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => fullMockHtml,
+			} as Response);
+
+			await router.navigate('/preserve-html-state');
+
+			expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+			expect(document.documentElement.classList.contains('dark')).toBe(true);
+			expect(document.documentElement.getAttribute('lang')).toBe('fr');
+			expect(document.body.innerHTML).toContain('New Content');
+		});
+
+		it('should allow custom html attributes to sync when configured', async () => {
+			document.documentElement.setAttribute('data-theme', 'dark');
+			router = createRouter({
+				documentElementAttributesToSync: ['lang', 'data-theme'],
+			});
+			const fullMockHtml =
+				'<html lang="fr" data-theme="light"><head><title>New Title</title></head><body><div id="content">New Content</div></body></html>';
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => fullMockHtml,
+			} as Response);
+
+			await router.navigate('/custom-html-sync');
+
+			expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+			expect(document.documentElement.getAttribute('lang')).toBe('fr');
 		});
 
 		it('should remove head scripts that are absent from the incoming document', async () => {

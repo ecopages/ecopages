@@ -12,7 +12,11 @@ export type {
 	EcoRouterEventMap,
 } from './types.ts';
 
-export { DEFAULT_OPTIONS } from './types.ts';
+export { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './types.ts';
+export {
+	defaultDocumentElementAttributesToSync,
+	syncDocumentElementAttributes,
+} from './client/document-element-sync.ts';
 
 export { EcoRouter, createRouter } from './client/eco-router.ts';
 

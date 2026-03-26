@@ -18,7 +18,6 @@ All notable changes to `@ecopages/react` are documented here.
 - **Hydration Hardening**: Fixed island remount races, prop collisions, and layout metadata resolution during development and route handoffs.
 - **Architecture**: Centralized runtime specifiers and consolidated browser-side integration state under `window.__ECO_PAGES__`.
 
-
 ---
 
 ## Migration Notes

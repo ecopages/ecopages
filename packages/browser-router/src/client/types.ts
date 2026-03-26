@@ -1,3 +1,5 @@
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+
 /**
  * Shared types for the EcoPages transitions package
  * @module
@@ -41,6 +43,13 @@ export interface PrefetchConfig {
 export interface EcoRouterOptions {
 	/** Selector for links to intercept. @default 'a[href]' */
 	linkSelector?: string;
+	/**
+	 * Document-level `<html>` attributes to sync from the incoming document during navigation.
+	 * Attributes not listed here are preserved on the live document element so client-managed
+	 * state such as theme classes or data attributes is not clobbered during swaps.
+	 * @default ['lang', 'dir', 'data-eco-document-owner']
+	 */
+	documentElementAttributesToSync?: string[];
 	/** Attribute to mark elements for DOM persistence. @default 'data-eco-persist' */
 	persistAttribute?: string;
 	/** Attribute to force full page reload. @default 'data-eco-reload' */
@@ -100,9 +109,13 @@ const DEFAULT_PREFETCH_CONFIG: Required<PrefetchConfig> = {
 	respectDataSaver: true,
 };
 
+/** Default document-level `<html>` attributes synchronized during navigation swaps. */
+export const DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC = ['lang', 'dir', ECO_DOCUMENT_OWNER_ATTRIBUTE];
+
 /** Default configuration options */
 export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	linkSelector: 'a[href]',
+	documentElementAttributesToSync: DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
 	persistAttribute: 'data-eco-persist',
 	reloadAttribute: 'data-eco-reload',
 	updateHistory: true,

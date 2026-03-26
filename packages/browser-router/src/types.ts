@@ -7,7 +7,7 @@ import type { EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from '
 
 export type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './client/types';
 
-export { DEFAULT_OPTIONS } from './client/types';
+export { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './client/types';
 
 /**
  * Custom event map for navigation lifecycle

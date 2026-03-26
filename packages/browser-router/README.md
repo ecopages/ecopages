@@ -49,6 +49,28 @@ import { createRouter } from '@ecopages/browser-router/client';
 const router = createRouter({
 	viewTransitions: true,
 	scrollBehavior: 'auto',
+	documentElementAttributesToSync: ['lang', 'dir', 'data-theme'],
+});
+```
+
+By default, browser-router only syncs root `<html>` metadata it owns. Client-managed attributes and classes such as theme state are preserved unless you explicitly include them in `documentElementAttributesToSync`.
+
+For advanced cases, browser-router also exports low-level document sync tooling without changing the router instance API:
+
+```ts
+import {
+	createRouter,
+	defaultDocumentElementAttributesToSync,
+	syncDocumentElementAttributes,
+} from '@ecopages/browser-router';
+
+const router = createRouter();
+
+document.addEventListener('eco:before-swap', (event) => {
+	syncDocumentElementAttributes(document, event.detail.newDocument, [
+		...defaultDocumentElementAttributesToSync,
+		'data-theme',
+	]);
 });
 ```
 
@@ -59,6 +81,7 @@ Loading the router script is the opt-in point for browser-router-managed navigat
 | Option             | Type                            | Default              | Description                                    |
 | :----------------- | :------------------------------ | :------------------- | :--------------------------------------------- |
 | `linkSelector`     | `string`                        | `'a[href]'`          | Selector for links to intercept                |
+| `documentElementAttributesToSync` | `string[]`         | `['lang', 'dir', 'data-eco-document-owner']` | `<html>` attributes to sync from the incoming document; other root attributes are preserved |
 | `persistAttribute` | `string`                        | `'data-eco-persist'` | Attribute to mark elements for DOM persistence |
 | `reloadAttribute`  | `string`                        | `'data-eco-reload'`  | Attribute to force full page reload            |
 | `updateHistory`    | `boolean`                       | `true`               | Whether to update browser history              |

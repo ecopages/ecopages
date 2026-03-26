@@ -84,6 +84,7 @@ You can customize the router behavior by passing an options object:
 | Option | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `linkSelector` | `string` | `'a[href]'` | Selector for links to intercept. |
+| `documentElementAttributesToSync` | `string[]` | `['lang', 'dir', 'data-eco-document-owner']` | `<html>` attributes to sync from the incoming document. Attributes not listed here are preserved on the live page. |
 | `persistAttribute` | `string` | `'data-eco-persist'` | Attribute to mark elements that should persist across navigations. |
 | `reloadAttribute` | `string` | `'data-eco-reload'` | Attribute (on link or element) to force a full hard reload. |
 | `scrollBehavior` | `'top' \| 'preserve' \| 'auto'` | `'top'` | Controls scroll behavior after navigation. |
@@ -141,6 +142,28 @@ const router = createRouter({
   viewTransitions: true,
   scrollBehavior: 'preserve',
   linkSelector: 'a:not([data-no-route])',
+  documentElementAttributesToSync: ['lang', 'dir', 'data-theme'],
+});
+```
+
+Use `documentElementAttributesToSync` to formalize ownership of root `<html>` attributes. The default keeps navigation metadata in sync while preserving client-managed state such as theme classes or data attributes.
+
+If you need lower-level control without overriding the router pipeline, import the document sync helpers directly:
+
+```typescript
+import {
+  createRouter,
+  defaultDocumentElementAttributesToSync,
+  syncDocumentElementAttributes,
+} from '@ecopages/browser-router';
+
+const router = createRouter();
+
+document.addEventListener('eco:before-swap', (event) => {
+  syncDocumentElementAttributes(document, event.detail.newDocument, [
+    ...defaultDocumentElementAttributesToSync,
+    'data-theme',
+  ]);
 });
 ```
 

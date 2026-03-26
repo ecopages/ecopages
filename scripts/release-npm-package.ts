@@ -6,12 +6,47 @@ import { getDistTag, isVersionPublished, readPackageManifest, repoRoot } from '.
 
 const appLogger = new Logger('[NPM Release]');
 
+type PublishManifest = {
+	name: string;
+	version: string;
+	dependencies?: Record<string, string>;
+	peerDependencies?: Record<string, string>;
+	optionalDependencies?: Record<string, string>;
+	overrides?: Record<string, string>;
+};
+
 function getManifestInput(): string | undefined {
 	const { positionals } = parseArgs({
 		allowPositionals: true,
 	});
 
 	return positionals[0];
+}
+
+function findWorkspaceRanges(manifest: PublishManifest): string[] {
+	const dependencyFields = [
+		['dependencies', manifest.dependencies],
+		['peerDependencies', manifest.peerDependencies],
+		['optionalDependencies', manifest.optionalDependencies],
+		['overrides', manifest.overrides],
+	] as const;
+
+	return dependencyFields.flatMap(([field, record]) =>
+		Object.entries(record ?? {})
+			.filter(([, range]) => range.startsWith('workspace:'))
+			.map(([name, range]) => `${field}.${name}=${range}`),
+	);
+}
+
+function assertPublishableManifest(manifest: PublishManifest, manifestPath: string): void {
+	const workspaceRanges = findWorkspaceRanges(manifest);
+	if (workspaceRanges.length === 0) {
+		return;
+	}
+
+	throw new Error(
+		`Refusing to publish ${manifest.name}@${manifest.version} from ${manifestPath}; unresolved workspace ranges remain: ${workspaceRanges.join(', ')}`,
+	);
 }
 
 async function main(): Promise<void> {
@@ -23,6 +58,7 @@ async function main(): Promise<void> {
 	}
 
 	const { manifest, manifestPath } = readPackageManifest(manifestInput);
+	assertPublishableManifest(manifest as PublishManifest, manifestPath);
 	const packageDir = path.dirname(manifestPath);
 	const relativePath = path.relative(repoRoot, manifestPath);
 

@@ -6,6 +6,11 @@ All notable changes to `@ecopages/core` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Bug Fixes
+
+- Fixed npm release packaging to publish rewritten internal dependency versions instead of unresolved `workspace:*` ranges.
+- Fixed published npm packaging to exclude raw TypeScript sources from tarballs so consumers resolve the built JavaScript and declaration outputs consistently.
+
 ### Features & Architecture
 
 - **Experimental Node.js Support**: Introduced a framework-owned thin-host bootstrap and runtime manifest flow for Node.js, providing cross-runtime parity while keeping the core agnostic.

@@ -89,7 +89,7 @@ function collectVersionMismatches(expectedVersion: string): VersionMismatch[] {
 		}
 	}
 
-	const cliManifestPath = path.join(repoRoot, 'npm', 'ecopages', 'package.json');
+	const cliManifestPath = path.join(repoRoot, 'packages', 'ecopages', 'package.json');
 	const cliManifest = readJsonFile<PackageManifest>(cliManifestPath);
 	if (cliManifest.version !== expectedVersion) {
 		mismatches.push({

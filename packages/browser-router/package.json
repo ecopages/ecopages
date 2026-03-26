@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/browser-router",
-	"version": "0.2.0-alpha.7",
+	"version": "0.2.0-alpha.10",
 	"description": "Client-side router for Ecopages with view transitions support",
 	"keywords": [
 		"ecopages",
@@ -29,7 +29,9 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"dependencies": {
-		"@ecopages/core": "workspace:*",
 		"morphdom": "^2.7.8"
+	},
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*"
 	}
 }

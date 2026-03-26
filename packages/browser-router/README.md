@@ -78,16 +78,16 @@ Loading the router script is the opt-in point for browser-router-managed navigat
 
 ## Configuration
 
-| Option             | Type                            | Default              | Description                                    |
-| :----------------- | :------------------------------ | :------------------- | :--------------------------------------------- |
-| `linkSelector`     | `string`                        | `'a[href]'`          | Selector for links to intercept                |
-| `documentElementAttributesToSync` | `string[]`         | `['lang', 'dir', 'data-eco-document-owner']` | `<html>` attributes to sync from the incoming document; other root attributes are preserved |
-| `persistAttribute` | `string`                        | `'data-eco-persist'` | Attribute to mark elements for DOM persistence |
-| `reloadAttribute`  | `string`                        | `'data-eco-reload'`  | Attribute to force full page reload            |
-| `updateHistory`    | `boolean`                       | `true`               | Whether to update browser history              |
-| `scrollBehavior`   | `'top' \| 'preserve' \| 'auto'` | `'top'`              | Scroll behavior after navigation               |
-| `viewTransitions`  | `boolean`                       | `false`              | Use View Transition API for animations         |
-| `smoothScroll`     | `boolean`                       | `false`              | Use smooth scrolling during navigation         |
+| Option                            | Type                            | Default                                      | Description                                                                                 |
+| :-------------------------------- | :------------------------------ | :------------------------------------------- | :------------------------------------------------------------------------------------------ |
+| `linkSelector`                    | `string`                        | `'a[href]'`                                  | Selector for links to intercept                                                             |
+| `documentElementAttributesToSync` | `string[]`                      | `['lang', 'dir', 'data-eco-document-owner']` | `<html>` attributes to sync from the incoming document; other root attributes are preserved |
+| `persistAttribute`                | `string`                        | `'data-eco-persist'`                         | Attribute to mark elements for DOM persistence                                              |
+| `reloadAttribute`                 | `string`                        | `'data-eco-reload'`                          | Attribute to force full page reload                                                         |
+| `updateHistory`                   | `boolean`                       | `true`                                       | Whether to update browser history                                                           |
+| `scrollBehavior`                  | `'top' \| 'preserve' \| 'auto'` | `'top'`                                      | Scroll behavior after navigation                                                            |
+| `viewTransitions`                 | `boolean`                       | `false`                                      | Use View Transition API for animations                                                      |
+| `smoothScroll`                    | `boolean`                       | `false`                                      | Use smooth scrolling during navigation                                                      |
 
 ## Persistence
 

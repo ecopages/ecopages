@@ -30,7 +30,7 @@ const DocsNavigation = () => {
 										: `${docsConfig.settings.rootDir}/${page.slug}`;
 									return (
 										<li>
-											<a href={href} data-nav-link safe>
+											<a href={href} data-nav-link data-testid={`docs-nav-link:${href}`} safe>
 												{page.title}
 											</a>
 										</li>
@@ -49,7 +49,11 @@ export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children, class: cla
 	return (
 		<BaseLayout class={`docs-layout prose ${className ?? ''}`.trim()}>
 			<>
-				<radiant-navigation class="docs-layout__aside hidden md:block">
+				<radiant-navigation
+					class="docs-layout__aside hidden md:block"
+					data-eco-persist="docs-sidebar"
+					data-testid="docs-sidebar"
+				>
 					<DocsNavigation />
 				</radiant-navigation>
 				<div class="docs-layout__content">{children}</div>

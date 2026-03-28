@@ -429,6 +429,49 @@ describe('EcoRouter', () => {
 			expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('1');
 		});
 
+		it('should preserve persisted light-DOM web components across navigation', async () => {
+			document.body.innerHTML = [
+				'<test-light-dom-counter data-eco-persist="docs-sidebar" count="0">',
+				'<button type="button" data-ref="decrement">-</button>',
+				'<span data-ref="count">0</span>',
+				'<button type="button" data-ref="increment">+</button>',
+				'</test-light-dom-counter>',
+			].join('');
+			const currentCounter = document.querySelector('test-light-dom-counter') as HTMLElement | null;
+			currentCounter?.setAttribute('count', '5');
+			if (currentCounter) {
+				(currentCounter as HTMLElement & { marker?: string }).marker = 'kept';
+			}
+
+			router = createRouter();
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () =>
+					[
+						'<html><body>',
+						'<test-light-dom-counter data-eco-persist="docs-sidebar" count="0">',
+						'<button type="button" data-ref="decrement">-</button>',
+						'<span data-ref="count">0</span>',
+						'<button type="button" data-ref="increment">+</button>',
+						'</test-light-dom-counter>',
+						'</body></html>',
+					].join(''),
+			} as Response);
+
+			await router.navigate('/light-dom-persist');
+
+			const nextCounter = document.querySelector('test-light-dom-counter') as
+				| (HTMLElement & { marker?: string })
+				| null;
+			expect(nextCounter).not.toBeNull();
+			expect(nextCounter).toBe(currentCounter);
+			expect(nextCounter?.marker).toBe('kept');
+			expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('5');
+
+			await user.click(nextCounter?.querySelector('[data-ref="increment"]') as HTMLButtonElement);
+			expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('6');
+		});
+
 		it('should flush rerun scripts after the new body is in place', async () => {
 			router = createRouter({ viewTransitions: false });
 			const rerunHtml = [

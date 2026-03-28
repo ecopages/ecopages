@@ -43,6 +43,14 @@ export default defineConfig({
 			},
 		},
 		{
+			name: 'docs-e2e',
+			testMatch: 'e2e/tests/docs/**/*.test.e2e.ts',
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:4009',
+			},
+		},
+		{
 			name: 'react-router-e2e',
 			testMatch: 'e2e/tests/react-router/**/*.test.e2e.ts',
 			testIgnore: ['**/persist-layouts.test.e2e.ts', '**/*hmr*.test.e2e.ts'],
@@ -132,6 +140,14 @@ export default defineConfig({
 			command: 'NODE_ENV=production ECOPAGES_PORT=4002 bun run app.ts --preview',
 			cwd: 'e2e/fixtures/browser-router-app',
 			port: 4002,
+			reuseExistingServer,
+			stdout: 'pipe',
+			stderr: 'pipe',
+		},
+		{
+			command: 'NODE_ENV=production ECOPAGES_PORT=4009 pnpm --filter @ecopages/docs run preview',
+			cwd: '.',
+			port: 4009,
 			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',

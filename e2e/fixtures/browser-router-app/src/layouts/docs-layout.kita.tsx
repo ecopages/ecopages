@@ -22,19 +22,24 @@ const sidebarItems = [
 export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
 	return (
 		<div class="docs-layout" data-testid="docs-layout">
-			<aside id="docs-sidebar" class="docs-sidebar" data-testid="docs-sidebar">
-				<nav>
-					<ul>
+			<fixture-docs-sidebar
+				id="docs-sidebar"
+				class="docs-sidebar"
+				data-eco-persist="docs-sidebar"
+				data-testid="docs-sidebar"
+			>
+				<nav aria-label="Fixture docs navigation">
+					<ul data-testid="docs-sidebar-list">
 						{sidebarItems.map((item) => (
 							<li>
-								<a href={item.href} data-testid="docs-nav-link">
+								<a href={item.href} data-nav-link data-testid={`docs-nav-link:${item.href}`}>
 									{item.label}
 								</a>
 							</li>
 						))}
 					</ul>
 				</nav>
-			</aside>
+			</fixture-docs-sidebar>
 			<main class="docs-content">{children as 'safe'}</main>
 		</div>
 	);
@@ -43,6 +48,6 @@ export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
 DocsLayout.config = {
 	dependencies: {
 		stylesheets: ['./docs.css'],
-		scripts: ['./base-layout.script.ts'],
+		scripts: ['./base-layout.script.ts', './docs-layout.script.ts'],
 	},
 };

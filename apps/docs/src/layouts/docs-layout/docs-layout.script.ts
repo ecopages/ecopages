@@ -7,7 +7,7 @@ import { BurgerEvents } from '@/components/burger/burger.events';
 export class RadiantCounter extends RadiantElement {
 	override connectedCallback(): void {
 		super.connectedCallback();
-		this.highlightActiveLink();
+		this.highlightActiveLink({ scrollToActiveLink: true });
 	}
 
 	@onEvent({ document: true, type: 'eco:page-load' })
@@ -15,14 +15,22 @@ export class RadiantCounter extends RadiantElement {
 		this.highlightActiveLink();
 	}
 
-	highlightActiveLink(): void {
+	@onEvent({ document: true, type: 'eco:after-swap' })
+	onAfterSwap(): void {
+		this.highlightActiveLink();
+	}
+
+	highlightActiveLink(options?: { scrollToActiveLink?: boolean }): void {
 		const links = this.querySelectorAll<HTMLAnchorElement>('[data-nav-link]');
 		const currentPath = window.location.pathname;
+		const shouldScroll = options?.scrollToActiveLink ?? false;
 
 		links.forEach((link) => {
 			if (link.pathname === currentPath) {
 				link.classList.add('active');
-				link.scrollIntoView({ block: 'nearest' });
+				if (shouldScroll) {
+					link.scrollIntoView({ block: 'nearest' });
+				}
 			} else {
 				link.classList.remove('active');
 			}

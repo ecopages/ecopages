@@ -8,16 +8,17 @@ test.describe('Browser Router Scroll Position', () => {
 		await page.goto('/docs');
 		await page.waitForLoadState('networkidle');
 
-		// Verify we're on the docs page
 		await expect(page.locator('[data-testid="docs-page"]')).toBeVisible();
 
-		// Get the sidebar element
 		const sidebar = page.locator('[data-testid="docs-sidebar"]');
 		await expect(sidebar).toBeVisible();
 
-		// Scroll the sidebar down
+		const activeLinkBefore = page.locator('[data-testid="docs-nav-link:/docs"]');
+		await expect(activeLinkBefore).toHaveClass(/active/);
+
 		await sidebar.evaluate((el) => {
 			el.scrollTop = 100;
+			(el as HTMLElement & { fixtureMarker?: string }).fixtureMarker = 'kept';
 		});
 
 		// Verify scroll position was set
@@ -29,7 +30,14 @@ test.describe('Browser Router Scroll Position', () => {
 		await page.waitForURL('**/docs/getting-started');
 		await expect(page.locator('[data-testid="docs-getting-started"]')).toBeVisible();
 
-		// Verify sidebar scroll position is preserved (morphdom preserves the element)
+		const activeLinkAfter = page.locator('[data-testid="docs-nav-link:/docs/getting-started"]');
+		await expect(activeLinkAfter).toHaveClass(/active/);
+
+		const markerAfter = await sidebar.evaluate(
+			(el) => (el as HTMLElement & { fixtureMarker?: string }).fixtureMarker,
+		);
+		expect(markerAfter).toBe('kept');
+
 		const scrollTopAfter = await sidebar.evaluate((el) => el.scrollTop);
 		expect(scrollTopAfter).toBe(100);
 	});
@@ -40,20 +48,16 @@ test.describe('Browser Router Scroll Position', () => {
 
 		const sidebar = page.locator('[data-testid="docs-sidebar"]');
 
-		// Scroll the sidebar
 		await sidebar.evaluate((el) => {
 			el.scrollTop = 75;
 		});
 
-		// Navigate forward
 		await page.click('[data-testid="link-getting-started"]');
 		await page.waitForURL('**/docs/getting-started');
 
-		// Navigate back
 		await page.goBack();
 		await page.waitForURL('**/docs');
 
-		// Verify scroll position
 		const scrollTop = await sidebar.evaluate((el) => el.scrollTop);
 		expect(scrollTop).toBe(75);
 	});

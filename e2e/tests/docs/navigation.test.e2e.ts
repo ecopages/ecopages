@@ -1,0 +1,133 @@
+import { expect, test } from '@playwright/test';
+
+/**
+ * E2E tests for Docs left-side navigation (radiant-navigation).
+ *
+ * Covers:
+ *  - Active link is highlighted on initial load
+ *  - Clicking nav links performs SPA navigation (no full reload)
+ *  - Active link updates correctly after each navigation
+ *  - Rapid successive clicks all resolve correctly (no stuck / broken state)
+ *  - Nav links remain functional after multiple navigations
+ *  - TOC clicking does not break subsequent nav link interactions
+ */
+test.describe('Docs Sidebar Navigation', () => {
+	const SIDEBAR = '[data-testid="docs-sidebar"]';
+
+	test.beforeEach(async ({ page }) => {
+		await page.goto('/docs/getting-started/introduction');
+		await page.waitForLoadState('networkidle');
+		await page.waitForFunction(() => !!(window as any).__ecopages_browser_router__);
+	});
+
+	test('highlights the active nav link on initial load', async ({ page }) => {
+		const link = page.locator('[data-testid="docs-nav-link:/docs/getting-started/introduction"]');
+		await expect(link).toHaveClass(/active/);
+	});
+
+	test('navigates via sidebar link without a full-page reload', async ({ page }) => {
+		const reloads: string[] = [];
+		page.on('request', (req) => {
+			if (req.resourceType() === 'document') reloads.push(req.url());
+		});
+
+		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
+		await page.waitForURL('**/docs/getting-started/configuration');
+		await page.waitForLoadState('networkidle');
+
+		const extraReloads = reloads.filter((u) => !u.includes('introduction'));
+		expect(extraReloads).toHaveLength(0);
+	});
+
+	test('active nav link updates after SPA navigation', async ({ page }) => {
+		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
+		await page.waitForURL('**/docs/getting-started/configuration');
+		await page.waitForLoadState('networkidle');
+
+		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/configuration"]')).toHaveClass(
+			/active/,
+		);
+		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/introduction"]')).not.toHaveClass(
+			/active/,
+		);
+	});
+
+	test('navigation chain: multiple sequential links all work correctly', async ({ page }) => {
+		const steps = [
+			{ testId: 'docs-nav-link:/docs/getting-started/installation', url: 'installation' },
+			{ testId: 'docs-nav-link:/docs/getting-started/configuration', url: 'configuration' },
+			{ testId: 'docs-nav-link:/docs/ecosystem/browser-router', url: 'browser-router' },
+			{ testId: 'docs-nav-link:/docs/getting-started/introduction', url: 'introduction' },
+		];
+
+		for (const step of steps) {
+			await page.click(`[data-testid="${step.testId}"]`);
+			await page.waitForURL(`**/${step.url}`);
+			await page.waitForLoadState('networkidle');
+
+			await expect(page.locator(`[data-testid="${step.testId}"]`)).toHaveClass(/active/);
+			await expect(page.locator(SIDEBAR)).toBeVisible();
+		}
+	});
+
+	test('nav links remain clickable after interacting with TOC', async ({ page }) => {
+		await page.click('[data-testid="docs-nav-link:/docs/ecosystem/browser-router"]');
+		await page.waitForURL('**/docs/ecosystem/browser-router');
+		await page.waitForLoadState('networkidle');
+
+		const tocLink = page.locator('radiant-toc a[data-toc-link]').first();
+		await tocLink.click();
+		await page.waitForTimeout(300);
+
+		await page.click('[data-testid="docs-nav-link:/docs/getting-started/introduction"]');
+		await page.waitForURL('**/docs/getting-started/introduction');
+		await page.waitForLoadState('networkidle');
+
+		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/introduction"]')).toHaveClass(
+			/active/,
+		);
+	});
+
+	test('browser back navigation restores correct active link', async ({ page }) => {
+		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
+		await page.waitForURL('**/docs/getting-started/configuration');
+		await page.waitForLoadState('networkidle');
+
+		await page.goBack();
+		await page.waitForURL('**/docs/getting-started/introduction');
+		await page.waitForLoadState('networkidle');
+
+		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/introduction"]')).toHaveClass(
+			/active/,
+		);
+	});
+
+	test('rapid successive nav clicks resolve to the last clicked destination', async ({ page }) => {
+		const configLink = page.locator('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
+		const installLink = page.locator('[data-testid="docs-nav-link:/docs/getting-started/installation"]');
+
+		await configLink.click();
+		await installLink.click();
+
+		await page.waitForURL('**/docs/getting-started/installation', { timeout: 5000 });
+		await page.waitForLoadState('networkidle');
+
+		await expect(installLink).toHaveClass(/active/);
+	});
+
+	test('pagination next/prev links navigate correctly', async ({ page }) => {
+		const pagination = page.locator('radiant-docs-pagination');
+		await expect(pagination).toBeVisible();
+
+		const nextLink = pagination.locator('a.next');
+		await expect(nextLink).toBeVisible();
+
+		const nextHref = await nextLink.getAttribute('href');
+		await nextLink.click();
+		await page.waitForURL(`**${nextHref}`);
+		await page.waitForLoadState('networkidle');
+
+		const activeLink = page.locator('[data-nav-link].active');
+		await expect(activeLink).toHaveCount(1);
+	});
+});

@@ -31,7 +31,7 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 
 		fs.writeFileSync(SEO_INCLUDE_FILE, patchSeoTitle(originalSeoInclude, SEO_SUFFIX), 'utf-8');
 
-		await expect.poll(async () => page.title(), { timeout: 10000 }).toBe(`${initialTitle} ${SEO_SUFFIX}`);
+		await expect(page).toHaveTitle(`${initialTitle} ${SEO_SUFFIX}`, { timeout: 10000 });
 		runtime.assertClean();
 	});
 });

@@ -81,6 +81,14 @@ export class EcoRouter {
 		const url = new URL(href, window.location.origin);
 		if (!this.isSameOrigin(url)) return null;
 
+		/**
+		 * Skip same-page anchor navigation — let the browser handle it natively.
+		 * This covers full-path hash links like "/docs/page#section" when already on that page.
+		 */
+		if (url.hash && url.pathname === window.location.pathname && url.search === window.location.search) {
+			return null;
+		}
+
 		return href;
 	}
 

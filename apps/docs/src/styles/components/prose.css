@@ -1,65 +1,107 @@
 .prose {
+	@apply text-on-background/90 text-base leading-[1.65];
+
 	h1 {
-		@apply text-4xl font-bold text-on-background-accent my-6 font-heading;
+		@apply text-4xl leading-tight font-extrabold text-on-background-accent mt-12 mb-6 font-heading tracking-tight;
 	}
 
 	h2 {
-		@apply text-3xl font-bold text-on-background-accent my-6 font-heading;
+		@apply text-3xl leading-tight font-bold text-on-background-accent mt-10 mb-5 font-heading tracking-tight;
+		scroll-margin-top: 7.5rem;
 	}
 
 	h3 {
-		@apply text-2xl font-bold text-on-background-accent my-5 font-heading;
+		@apply text-2xl leading-snug font-bold text-on-background-accent mt-8 mb-4 font-heading tracking-tight;
+		scroll-margin-top: 7.5rem;
 	}
 
 	h4 {
-		@apply text-xl font-bold text-on-background-accent my-5 font-heading;
+		@apply text-xl leading-snug font-bold text-on-background-accent mt-6 mb-4 font-heading tracking-tight;
 	}
 
 	h5 {
-		@apply text-lg font-bold text-on-background-accent my-4 font-heading;
+		@apply text-lg leading-snug font-bold text-on-background-accent mt-6 mb-4 font-heading;
 	}
 
 	h6 {
-		@apply text-base font-bold text-on-background-accent my-4 font-heading;
+		@apply text-base leading-snug font-bold text-on-background-accent mt-6 mb-4 font-heading;
 	}
 
 	p {
-		@apply text-base text-on-background my-4;
+		@apply mt-2 mb-7;
 	}
 
 	a {
-		@apply text-link underline;
+		@apply text-link font-medium underline underline-offset-4 decoration-link/30 hover:decoration-link transition-colors duration-200;
+	}
+
+	strong {
+		@apply font-semibold text-on-background-accent;
 	}
 
 	ul,
 	ol {
-		@apply list-disc pl-8 my-4;
-	}
+		@apply pl-6 my-6 text-on-background;
 
-	code {
-		@apply bg-background-code text-on-background-code rounded-md font-mono;
-	}
-
-	pre {
-		code {
-			@apply bg-transparent text-inherit rounded-md;
+		li {
+			@apply my-2 pl-2;
 		}
 	}
 
+	ul {
+		@apply list-disc;
+
+		li::marker {
+			@apply text-on-background/40;
+		}
+	}
+
+	ol {
+		@apply list-decimal;
+
+		li::marker {
+			@apply text-on-background/60 font-medium;
+		}
+	}
+
+	blockquote {
+		@apply border-l-[3px] border-primary/50 pl-5 py-2 my-8 font-serif italic text-on-background/80 bg-primary/5 rounded-r-xl;
+
+		p {
+			@apply my-0;
+		}
+	}
+
+	code {
+		@apply font-mono text-[0.875em] bg-background-accent/30 text-on-background-accent px-1.5 py-0.5 rounded-md border border-border/30;
+	}
+
+	pre {
+		@apply my-8 rounded-xl bg-background-accent/10 border border-border/40 overflow-x-auto p-5 shadow-sm;
+
+		code {
+			@apply bg-transparent text-inherit p-0 rounded-none border-none text-[0.875em] leading-relaxed;
+		}
+	}
+
+	hr {
+		@apply border-t border-border/40 my-10;
+	}
+
 	table {
-		@apply w-full text-left border-collapse my-8 text-sm;
+		@apply w-full text-left border-collapse my-8 text-sm overflow-hidden rounded-xl border border-border/30 block md:table ring-1 ring-border/20;
 
 		thead {
-			@apply border-b border-border bg-background-accent/50;
+			@apply border-b border-border/50 bg-background-accent/20;
 
 			th {
-				@apply py-3 px-4 font-semibold text-on-background-accent whitespace-nowrap md:whitespace-normal;
+				@apply py-3 px-4 font-semibold text-on-background-accent whitespace-nowrap;
 			}
 		}
 
 		tbody {
 			tr {
-				@apply border-b border-border/50 transition-colors hover:bg-background-accent/30;
+				@apply border-b border-border/30 transition-colors hover:bg-background-accent/10;
 
 				td {
 					@apply py-3 px-4 text-on-background align-top;
@@ -73,14 +115,6 @@
 					@apply border-0;
 				}
 			}
-		}
-	}
-
-	.table-wrapper {
-		@apply w-full overflow-x-auto my-8 lg:overflow-x-visible;
-
-		table {
-			@apply my-0;
 		}
 	}
 }

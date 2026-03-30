@@ -3,7 +3,7 @@
 	@apply bg-background-accent border-b border-border;
 
 	&__inner {
-		@apply h-16 px-4 py-3 container mx-auto flex items-center justify-between;
+		@apply h-16 px-6 md:px-8 py-3 max-w-7xl w-full mx-auto flex items-center justify-between;
 
 		&-left {
 			@apply flex items-center gap-4;

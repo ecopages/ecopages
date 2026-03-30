@@ -47,7 +47,7 @@ const DocsNavigation = () => {
 
 export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children, class: className }) => {
 	return (
-		<BaseLayout class={`docs-layout prose ${className ?? ''}`.trim()}>
+		<BaseLayout class={`docs-layout ${className ?? ''}`.trim()}>
 			<>
 				<radiant-navigation
 					class="docs-layout__aside hidden md:block"
@@ -56,7 +56,11 @@ export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children, class: cla
 				>
 					<DocsNavigation />
 				</radiant-navigation>
-				<div class="docs-layout__content">{children}</div>
+				<div class="docs-layout__content">
+					<div class="prose">{children}</div>
+					<radiant-docs-pagination class="docs-layout__pagination"></radiant-docs-pagination>
+				</div>
+				<radiant-toc class="docs-layout__toc"></radiant-toc>
 			</>
 		</BaseLayout>
 	);

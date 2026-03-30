@@ -12,8 +12,8 @@ import { transformerEscapeHtml } from './src/plugins/transformer-escape-html';
 import { remarkEscapeInlineCodeHtml } from '@/plugins/remark-escape-inline-code-html';
 
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setRootDir(import.meta.dirname)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
 	.setIntegrations([
 		kitajsPlugin(),
 		mdxPlugin({
@@ -46,13 +46,13 @@ const config = await new ConfigBuilder()
 	.setProcessors([
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dir, 'src/styles/tailwind.css'),
+				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
 			}),
 		),
 		imageProcessorPlugin({
 			options: {
-				sourceDir: path.resolve(import.meta.dir, 'src/images'),
-				outputDir: path.resolve(import.meta.dir, 'dist/images'),
+				sourceDir: path.resolve(import.meta.dirname, 'src/images'),
+				outputDir: path.resolve(import.meta.dirname, 'dist/images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 				quality: 80,

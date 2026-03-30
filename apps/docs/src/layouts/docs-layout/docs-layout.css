@@ -1,13 +1,13 @@
 .docs-layout {
-	@apply md:grid md:grid-cols-[250px_1fr] min-h-screen relative;
+	@apply md:grid md:grid-cols-[250px_1fr] xl:grid-cols-[250px_minmax(0,1fr)_250px] xl:max-w-7xl xl:mx-auto min-h-screen relative;
 
 	.docs-layout__aside {
 		@apply fixed inset-0 z-40 md:z-0 md:relative md:block;
 		@apply h-svh md:h-[calc(100svh_-_4rem)] md:sticky md:top-16 overflow-y-auto;
-		@apply bg-background border-r border-border;
+		@apply bg-background/80 md:bg-transparent backdrop-blur-md md:backdrop-blur-none border-r border-border/60;
 
 		nav {
-			@apply p-4 pt-20 md:pt-8;
+			@apply p-6 pt-20 md:p-8;
 		}
 
 		ul {
@@ -15,34 +15,93 @@
 		}
 
 		.docs-layout__nav-group {
-			@apply flex items-center mb-2 mt-6 first:mt-0 font-heading gap-2;
-			@apply text-[11px] font-bold uppercase tracking-wider text-on-background/70;
+			@apply flex items-center mb-1.5 mt-8 first:mt-0 font-mono gap-1.5;
+			@apply text-[10px] font-semibold uppercase tracking-widest text-on-background/50;
 
 			&-icon {
-				@apply text-on-background/50;
+				@apply text-on-background/40 w-3 h-3 flex items-center justify-center;
 			}
 		}
 
 		.docs-layout__nav-separator {
-			@apply h-px bg-border my-6 mx-3;
+			@apply h-px bg-border/40 my-4 mx-2;
 		}
 
 		.docs-layout__nav-group-list {
-			@apply space-y-0.5 mb-4;
+			@apply space-y-px mb-6 border-l border-border/30 ml-1.5 pl-3;
 
 			li a {
-				@apply block px-3 py-1.5 rounded-md text-[13px] transition-colors duration-150 font-sans;
-				@apply text-on-background/80 hover:text-on-background hover:bg-background-accent;
-				@apply no-underline font-medium;
+				@apply flex items-center px-2 py-1.5 rounded-sm text-[13px] transition-colors duration-200 font-sans relative;
+				@apply text-on-background/70 hover:text-on-background hover:bg-background-accent/80;
+				@apply no-underline font-normal;
 
 				&.active {
-					@apply text-on-primary-container bg-primary-container font-semibold;
+					@apply text-primary font-medium bg-transparent;
+				}
+
+				&.active::before {
+					content: '';
+					@apply absolute -left-[13px] top-1/2 -translate-y-1/2 w-0.5 h-3 bg-primary rounded-r-sm;
 				}
 			}
 		}
 	}
 
 	.docs-layout__content {
-		@apply px-6 py-4 md:px-8 md:py-8 max-w-[800px] mx-auto w-full min-w-0 bg-background;
+		@apply px-6 py-4 md:px-8 md:py-8 max-w-[800px] xl:max-w-none mx-auto w-full min-w-0 bg-background relative;
+	}
+
+	.docs-layout__toc {
+		@apply hidden xl:block sticky top-16 h-[calc(100svh_-_4rem)] overflow-y-auto px-6 py-8 border-l border-border/60;
+
+		h3 {
+			@apply text-[10px] font-semibold uppercase tracking-widest text-on-background/50 mb-3 font-mono m-0;
+		}
+
+		ul {
+			@apply list-none p-0 m-0 space-y-2 border-l border-border/30 ml-1 pl-3;
+		}
+
+		li a {
+			@apply block text-[13px] text-on-background/60 hover:text-on-background transition-colors duration-200 no-underline font-sans relative;
+
+			&.toc-active {
+				@apply text-primary;
+				/* text-shadow fakes bold weight without changing glyph metrics — no reflow, no line-wrap */
+				text-shadow: 0 0 0.5px currentColor;
+			}
+			&.toc-active::before {
+				content: '';
+				@apply absolute -left-[13px] top-1/2 -translate-y-1/2 w-0.5 h-3 bg-primary rounded-r-sm transition-all duration-300;
+			}
+		}
+
+		.toc-depth-3 {
+			@apply ml-3 text-[12px];
+		}
+	}
+
+	.docs-layout__pagination {
+		@apply mt-16 pt-8 border-t border-border/40 flex flex-col sm:flex-row gap-4 justify-between;
+
+		a {
+			@apply flex-1 flex flex-col gap-1 p-4 rounded-lg border border-border/40 bg-background-accent/10 hover:bg-background-accent/40 hover:border-border/80 transition-all duration-200 no-underline;
+
+			.pagination-label {
+				@apply text-[10px] font-mono uppercase tracking-widest text-on-background/50 group-hover:text-on-background/70 transition-colors;
+			}
+
+			.pagination-title {
+				@apply text-sm font-medium text-on-background;
+			}
+
+			&.prev {
+				@apply items-start text-left;
+			}
+
+			&.next {
+				@apply items-end text-right;
+			}
+		}
 	}
 }

@@ -35,9 +35,8 @@
 	],
 	"dependencies": {
 		"@ecopages/core": "workspace:*",
-		"esbuild": "^0.27.3",
-		"commander": "^12.1.0",
-		"tiged": "^2.12.7",
+		"citty": "^0.1.6",
+		"giget": "^2.0.0",
 		"@ecopages/logger": "^0.2.2"
 	},
 	"peerDependencies": {

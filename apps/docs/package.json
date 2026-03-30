@@ -1,15 +1,17 @@
 {
 	"name": "@ecopages/docs",
+	"type": "module",
 	"private": true,
 	"scripts": {
-		"start": "bun run app.ts",
+		"start": "ecopages start",
 		"generate:llms": "bun run scripts/generate-llm-docs.ts",
-		"dev": "bun run generate:llms && bun run app.ts --dev",
-		"build": "bun run generate:llms && bun run app.ts --build",
-		"preview": "bun run app.ts --preview",
+		"dev": "bun run generate:llms && ecopages dev",
+		"build": "bun run generate:llms && ecopages build",
+		"preview": "ecopages preview",
 		"watch:dev": "bun --watch run app.ts --dev"
 	},
 	"devDependencies": {
+		"ecopages": "workspace:*",
 		"@ecopages/browser-router": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
@@ -17,8 +19,9 @@
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@ecopages/radiant": "latest",
-		"@mdx-js/mdx": "^3.1.1",
 		"@kitajs/html": "^4.2.13",
+		"@kitajs/ts-html-plugin": "^4.1.4",
+		"@mdx-js/mdx": "^3.1.1",
 		"@rehype-pretty/transformers": "^0.13.2",
 		"@tailwindcss/postcss": "^4.0.0",
 		"@types/hast": "^3.0.4",

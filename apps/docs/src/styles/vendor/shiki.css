@@ -1,5 +1,5 @@
 figure[data-rehype-pretty-code-figure] {
-	@apply border border-border rounded-md overflow-hidden;
+	@apply my-8;
 }
 
 figure[data-rehype-pretty-code-figure] pre {

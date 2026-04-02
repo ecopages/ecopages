@@ -5,6 +5,13 @@
 	overflow: hidden;
 	background-color: var(--shiki-light-bg, #ffffff);
 	border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+
+	figure[data-rehype-pretty-code-figure] {
+		@apply my-0 rounded-none;
+		pre {
+			@apply rounded-none;
+		}
+	}
 }
 
 [data-theme='dark'] .code-snippet-tabs {

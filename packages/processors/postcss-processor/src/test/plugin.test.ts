@@ -236,6 +236,161 @@ describe('PostCssProcessorPlugin HMR', () => {
 		expect(result).toContain('.foo { color: red; }');
 	});
 
+	test('imported CSS dependency change re-processes parent entry and broadcasts for parent path', async () => {
+		const stylesDir = path.join(SRC_DIR, 'styles_dep_test');
+		const vendorDir = path.join(stylesDir, 'vendor');
+		fs.mkdirSync(vendorDir, { recursive: true });
+
+		const entryFile = path.join(stylesDir, 'main.css');
+		const importedFile = path.join(vendorDir, 'component.css');
+
+		fs.writeFileSync(importedFile, '.component { color: red; }');
+		fs.writeFileSync(entryFile, `@import './vendor/component.css';\n.root { display: flex; }`);
+
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /\.css$/,
+			},
+		});
+
+		const config = await new ConfigBuilder()
+			.setRootDir(TMP_DIR)
+			.setSrcDir('src')
+			.setDistDir('dist')
+			.setBaseUrl('http://localhost:3000')
+			.build();
+
+		plugin.setContext(config);
+		await plugin.setup();
+
+		const Bridge = {
+			cssUpdate: () => {},
+			error: (msg: string) => {
+				throw new Error(msg);
+			},
+			reload: () => {},
+		} as unknown as ClientBridge;
+
+		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
+
+		// Modify the imported file
+		fs.writeFileSync(importedFile, '.component { color: blue; }');
+
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChange) {
+			throw new Error('Plugin does not have watch handler');
+		}
+
+		await watchConfig.onChange({ path: importedFile, bridge: Bridge });
+
+		// css-update should be broadcast for the ENTRY file, not the imported file
+		expect(bridgeSpy).toHaveBeenCalledWith(entryFile);
+		expect(bridgeSpy).not.toHaveBeenCalledWith(importedFile);
+	});
+
+	test('nested transitive imports resolve to the root entry file', async () => {
+		const stylesDir = path.join(SRC_DIR, 'styles_nested_test');
+		const vendorDir = path.join(stylesDir, 'vendor');
+		const deepDir = path.join(vendorDir, 'deep');
+		fs.mkdirSync(deepDir, { recursive: true });
+
+		const entryFile = path.join(stylesDir, 'main.css');
+		const midFile = path.join(vendorDir, 'mid.css');
+		const deepFile = path.join(deepDir, 'deep.css');
+
+		fs.writeFileSync(deepFile, '.deep { color: green; }');
+		fs.writeFileSync(midFile, `@import './deep/deep.css';\n.mid { color: blue; }`);
+		fs.writeFileSync(entryFile, `@import './vendor/mid.css';\n.root { display: grid; }`);
+
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /\.css$/,
+			},
+		});
+
+		const config = await new ConfigBuilder()
+			.setRootDir(TMP_DIR)
+			.setSrcDir('src')
+			.setDistDir('dist')
+			.setBaseUrl('http://localhost:3000')
+			.build();
+
+		plugin.setContext(config);
+		await plugin.setup();
+
+		const Bridge = {
+			cssUpdate: () => {},
+			error: (msg: string) => {
+				throw new Error(msg);
+			},
+			reload: () => {},
+		} as unknown as ClientBridge;
+
+		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
+
+		// Modify the deeply nested file
+		fs.writeFileSync(deepFile, '.deep { color: purple; }');
+
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChange) {
+			throw new Error('Plugin does not have watch handler');
+		}
+
+		await watchConfig.onChange({ path: deepFile, bridge: Bridge });
+
+		// css-update should be broadcast for the ancestor entry files, not the leaf dependency
+		expect(bridgeSpy).toHaveBeenCalledWith(entryFile);
+		expect(bridgeSpy).not.toHaveBeenCalledWith(deepFile);
+		// midFile is ALSO a tracked entry that imports deep.css, so it correctly gets a broadcast too
+		expect(bridgeSpy).toHaveBeenCalledWith(midFile);
+	});
+
+	test('entry file without imports should still HMR directly', async () => {
+		const stylesDir = path.join(SRC_DIR, 'styles_direct_test');
+		fs.mkdirSync(stylesDir, { recursive: true });
+
+		const standaloneFile = path.join(stylesDir, 'standalone.css');
+		fs.writeFileSync(standaloneFile, '.standalone { color: red; }');
+
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /\.css$/,
+			},
+		});
+
+		const config = await new ConfigBuilder()
+			.setRootDir(TMP_DIR)
+			.setSrcDir('src')
+			.setDistDir('dist')
+			.setBaseUrl('http://localhost:3000')
+			.build();
+
+		plugin.setContext(config);
+		await plugin.setup();
+
+		const Bridge = {
+			cssUpdate: () => {},
+			error: (msg: string) => {
+				throw new Error(msg);
+			},
+			reload: () => {},
+		} as unknown as ClientBridge;
+
+		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
+
+		fs.writeFileSync(standaloneFile, '.standalone { color: blue; }');
+
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChange) {
+			throw new Error('Plugin does not have watch handler');
+		}
+
+		await watchConfig.onChange({ path: standaloneFile, bridge: Bridge });
+
+		// css-update should be broadcast directly for the standalone file
+		expect(bridgeSpy).toHaveBeenCalledWith(standaloneFile);
+	});
+
 	test('process should preserve BEM selectors with nesting plugins during direct asset-pipeline calls', async () => {
 		const pagesDir = path.join(SRC_DIR, 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });

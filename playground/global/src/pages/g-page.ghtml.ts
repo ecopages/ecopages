@@ -1,6 +1,6 @@
 import { eco } from '@ecopages/core';
 import { html } from '@ecopages/core/html';
-import { css } from '@ecopages/core/css';
+
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 
@@ -32,9 +32,6 @@ const AsyncComponent = async () => {
 	</p>`;
 };
 
-const BLUE = '#2563EB';
-const property = 'border-color';
-
 export default eco.page({
 	dependencies: {
 		components: [RadiantCounter],
@@ -46,13 +43,18 @@ export default eco.page({
 		return html`
 			<body>
 				<style>
-					<!-- @todo?: This is not working now due the fact we removed PostCssProcessor as a dependency -->
-						${await css`
-						.gradient-text {
-							@apply inline-block bg-gradient-to-b from-blue-600 via-green-500 to-indigo-400 bg-clip-text text-7xl text-transparent;
-							@apply border-4 rounded-xl p-4;
-							${property}: ${BLUE};
-						}`}
+					.gradient-text {
+						display: inline-block;
+						background: linear-gradient(to bottom, #2563eb, #22c55e, #818cf8);
+						-webkit-background-clip: text;
+						background-clip: text;
+						color: transparent;
+						font-size: 4.5rem;
+						line-height: 1;
+						border: 4px solid #2563eb;
+						border-radius: 0.75rem;
+						padding: 1rem;
+					}
 				</style>
 				<main class="container p-4">
 					<div class="flex flex-col gap-4">

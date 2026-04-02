@@ -87,6 +87,12 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	private readonly trackedCssFiles = new Set<string>();
 	private watchQueue: Promise<void> = Promise.resolve();
 
+	/**
+	 * Maps an imported CSS file path → set of tracked CSS entry files that import it.
+	 * Used to resolve which parent entry files need re-processing when a dependency changes.
+	 */
+	private readonly cssDependencyMap = new Map<string, Set<string>>();
+
 	private getCssFilter(): RegExp {
 		return this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
 	}
@@ -151,6 +157,85 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			this.runtimeCssCache.set(filePath, processed);
 			await this.persistProcessedCss(filePath, processed);
 		}
+
+		this.buildCssDependencyMap();
+	}
+
+	/**
+	 * Regex to match CSS @import statements and extract the path.
+	 * Handles: @import './foo.css'; @import "./foo.css"; @import url('./foo.css');
+	 */
+	private static readonly CSS_IMPORT_REGEX = /@import\s+(?:url\(\s*)?['"]([^'"]+\.css)['"](?:\s*\))?\s*;/gm;
+
+	/**
+	 * Builds the CSS dependency map by scanning tracked CSS files for @import directives.
+	 * Maps each imported file to the set of tracked entry files that import it (directly or transitively).
+	 */
+	private buildCssDependencyMap(): void {
+		this.cssDependencyMap.clear();
+
+		for (const entryFile of this.trackedCssFiles) {
+			if (!fileSystem.exists(entryFile)) continue;
+
+			const rawContents = fileSystem.readFileAsBuffer(entryFile).toString('utf-8');
+			const imports = this.extractCssImports(rawContents, entryFile);
+
+			for (const importedFile of imports) {
+				if (!this.cssDependencyMap.has(importedFile)) {
+					this.cssDependencyMap.set(importedFile, new Set());
+				}
+				this.cssDependencyMap.get(importedFile)!.add(entryFile);
+			}
+		}
+	}
+
+	/**
+	 * Extracts resolved absolute paths of CSS files imported via @import in the given CSS content.
+	 * Recursively follows imports to capture transitive dependencies.
+	 * It skips bare module imports like @import 'tailwindcss'.
+	 * It recursively follows imports to capture transitive dependencies.
+	 */
+	private extractCssImports(cssContent: string, fromFile: string, visited = new Set<string>()): string[] {
+		const dir = path.dirname(fromFile);
+		const imports: string[] = [];
+
+		let match: RegExpExecArray | null;
+		const regex = new RegExp(PostCssProcessorPlugin.CSS_IMPORT_REGEX.source, 'gm');
+
+		while ((match = regex.exec(cssContent)) !== null) {
+			const importPath = match[1];
+
+			if (!importPath.startsWith('.') && !importPath.startsWith('/')) {
+				continue;
+			}
+
+			const resolvedPath = path.resolve(dir, importPath);
+
+			if (visited.has(resolvedPath)) continue;
+			visited.add(resolvedPath);
+
+			imports.push(resolvedPath);
+
+			if (fileSystem.exists(resolvedPath)) {
+				const nestedContent = fileSystem.readFileAsBuffer(resolvedPath).toString('utf-8');
+				const nestedImports = this.extractCssImports(nestedContent, resolvedPath, visited);
+				imports.push(...nestedImports);
+			}
+		}
+
+		return imports;
+	}
+
+	/**
+	 * Resolves a changed CSS file to its parent entry file(s) if it is an @import dependency.
+	 * Returns an empty array if the file is not an import dependency (i.e., it's an entry file itself).
+	 */
+	private resolveEntryFiles(filePath: string): string[] {
+		const entries = this.cssDependencyMap.get(filePath);
+		if (!entries || entries.size === 0) {
+			return [];
+		}
+		return Array.from(entries);
 	}
 
 	private transformCssSync(input: CssTransformInput): string {
@@ -276,6 +361,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 				onCreate: async ({ path, bridge }) => {
 					await this.enqueueWatchTask(async () => {
 						if (this.matchesFileFilter(path)) {
+							this.trackedCssFiles.add(path);
+							this.buildCssDependencyMap();
 							await this.handleCssChange(path, bridge);
 							return;
 						}
@@ -288,6 +375,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 						if (this.matchesFileFilter(path)) {
 							this.runtimeCssCache.delete(path);
 							this.trackedCssFiles.delete(path);
+							this.cssDependencyMap.delete(path);
+							this.buildCssDependencyMap();
 							return;
 						}
 
@@ -301,9 +390,35 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 	/**
 	 * Handles CSS file changes during development.
-	 * Processes the file and broadcasts a css-update event for hot reloading.
+	 * If the file is an @import dependency, re-processes the parent entry file(s) instead.
+	 * Broadcasts a css-update event for hot reloading.
 	 */
 	private async handleCssChange(filePath: string, bridge: IClientBridge, refreshPlugins = true): Promise<void> {
+		if (!this.context) return;
+		if (!fileSystem.exists(filePath)) return;
+
+		// Check if this file is imported by parent entry files
+		const entryFiles = this.resolveEntryFiles(filePath);
+		if (entryFiles.length > 0) {
+			logger.debug(`CSS dependency changed: ${filePath}, re-processing ${entryFiles.length} parent(s)`);
+			for (const entryFile of entryFiles) {
+				// Invalidate the parent's cache so the broadcast is not skipped.
+				// Even when postcss-import inlines different content for the parent,
+				// defensive invalidation guarantees the css-update event fires.
+				this.runtimeCssCache.delete(entryFile);
+				await this.processAndBroadcast(entryFile, bridge, refreshPlugins);
+			}
+			return;
+		}
+
+		await this.processAndBroadcast(filePath, bridge, refreshPlugins);
+	}
+
+	/**
+	 * Processes a CSS file and broadcasts a css-update event.
+	 * Skips broadcast if the processed output hasn't changed.
+	 */
+	private async processAndBroadcast(filePath: string, bridge: IClientBridge, refreshPlugins = true): Promise<void> {
 		if (!this.context) return;
 		if (!fileSystem.exists(filePath)) return;
 

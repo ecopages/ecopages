@@ -89,10 +89,10 @@
 	}
 
 	table {
-		@apply w-full text-left border-collapse my-8 text-sm overflow-hidden rounded-xl border border-border/30 block md:table ring-1 ring-border/20;
+		@apply w-full text-left border-separate border-spacing-0 my-8 text-sm overflow-hidden rounded-lg border border-border border-solid block md:table;
 
 		thead {
-			@apply border-b border-border/50 bg-background-accent/20;
+			@apply border-b border-border/50 bg-background-accent;
 
 			th {
 				@apply py-3 px-4 font-semibold text-on-background-accent whitespace-nowrap;
@@ -101,7 +101,7 @@
 
 		tbody {
 			tr {
-				@apply border-b border-border/30 transition-colors hover:bg-background-accent/10;
+				@apply border-b border-border transition-colors hover:bg-background-accent/10;
 
 				td {
 					@apply py-3 px-4 text-on-background align-top;

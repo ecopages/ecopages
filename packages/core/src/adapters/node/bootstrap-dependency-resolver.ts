@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { existsSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { EcoBuildOnResolveArgs, EcoBuildOnResolveResult, EcoBuildPlugin } from '../../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { NodeRuntimeManifest } from '../../services/runtime-manifest/node-runtime-manifest.service.ts';
@@ -111,6 +112,22 @@ function shouldResolveFromImporter(importer: string | undefined): importer is st
 	return Boolean(importer && importer.includes(`${path.sep}node_modules${path.sep}`));
 }
 
+function resolveSpecifier(specifier: string, parentPath: string): string {
+	try {
+		return createRequire(parentPath).resolve(specifier);
+	} catch {
+		return fileURLToPath(import.meta.resolve(specifier, pathToFileURL(parentPath).href));
+	}
+}
+
+/**
+ * Resolves specifiers using the resolver module's own context.
+ * Used for `@ecopages/*` workspace packages reachable from `@ecopages/core`.
+ */
+function resolveFromCore(specifier: string): string {
+	return createRequire(import.meta.url).resolve(specifier);
+}
+
 /**
  * Selects the build loader used when bootstrap-time source rewriting emits a
  * synthetic in-memory file.
@@ -205,20 +222,31 @@ export function resolveNodeBootstrapDependency(
 		return undefined;
 	}
 
-	const projectRequire = createRequire(path.join(options.projectDir, 'package.json'));
-	const requireFromImporter =
+	const resolveParent =
 		args.importer && path.isAbsolute(args.importer) && shouldResolveFromImporter(args.importer)
-			? createRequire(args.importer)
-			: projectRequire;
+			? args.importer
+			: path.join(options.projectDir, 'package.json');
 
 	if (args.path.startsWith('@ecopages/')) {
-		return {
-			path: requireFromImporter.resolve(args.path),
-		};
+		let resolvedPath: string;
+		try {
+			resolvedPath = resolveFromCore(args.path);
+		} catch {
+			resolvedPath = resolveSpecifier(args.path, resolveParent);
+		}
+
+		if (resolvedPath.includes(`${path.sep}node_modules${path.sep}`)) {
+			ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, resolvedPath);
+			return {
+				path: args.path,
+				external: true,
+			};
+		}
+
+		return { path: resolvedPath };
 	}
 
-	const resolvedPath = requireFromImporter.resolve(args.path);
-
+	const resolvedPath = resolveSpecifier(args.path, resolveParent);
 	ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, resolvedPath);
 
 	return {

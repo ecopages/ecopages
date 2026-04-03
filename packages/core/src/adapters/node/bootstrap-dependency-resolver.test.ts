@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import {
 	createNodeBootstrapPlugin,
@@ -38,7 +39,7 @@ test('resolveNodeBootstrapDependency keeps relative, node, and workspace specifi
 		assert.equal(resolveNodeBootstrapDependency({ path: 'node:path' }, options), undefined);
 		assert.equal(resolveNodeBootstrapDependency({ path: '@/data/demo-data' }, options), undefined);
 		assert.deepEqual(resolveNodeBootstrapDependency({ path: '@ecopages/core' }, options), {
-			path: require.resolve('@ecopages/core'),
+			path: fileURLToPath(import.meta.resolve('@ecopages/core')),
 		});
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });

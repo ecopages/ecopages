@@ -11,7 +11,7 @@ export const ReactShell = eco.component<ReactShellProps, ReactNode>({
 	integration: 'react',
 	render: ({ id, children }) => (
 		<section data-react-shell={id}>
-			<span data-react-shell-child>{children}</span>
+			<div data-react-shell-child>{children}</div>
 		</section>
 	),
 });

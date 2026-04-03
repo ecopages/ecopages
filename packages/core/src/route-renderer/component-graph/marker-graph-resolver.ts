@@ -66,7 +66,11 @@ export class MarkerGraphResolver {
 	 */
 	async resolve(options: MarkerGraphResolverOptions): Promise<{ html: string; assets: ProcessedAsset[] }> {
 		const registry = this.buildComponentRefRegistry(options.componentsToResolve);
-		const graph = extractComponentGraph(options.html, options.graphContext.slotChildrenByRef ?? {});
+		const graph = extractComponentGraph(
+			options.html,
+			options.graphContext.slotChildrenByRef ?? {},
+			options.graphContext.propsByRef ?? {},
+		);
 		const resolvedNodeHtml = new Map<MarkerNodeId, string>();
 		const assets: ProcessedAsset[] = [];
 

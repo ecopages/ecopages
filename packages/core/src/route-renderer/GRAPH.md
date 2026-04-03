@@ -143,7 +143,7 @@ flowchart TD
 
 ### 4.2 Main execute flow via `RenderExecutionService`
 
-Important nuance: this phase does not always run marker graph resolution. It only does that when the first render pass actually produced `eco-marker` placeholders. In practice today, that usually means a non-React renderer crossed into React component rendering and deferred those nodes for the second pass.
+Important nuance: this phase does not always run marker graph resolution. It only does that when the first render pass actually produced `eco-marker` placeholders. In practice today, that usually means a non-owning renderer crossed into a React or Lit component boundary and deferred those nodes for the second pass.
 
 ```mermaid
 flowchart TD
@@ -268,7 +268,7 @@ flowchart TD
 
 ### 5.2 Marker graph execution
 
-Once markers exist in the HTML, the second pass is integration-agnostic at execution time. Each marker carries its target integration name, so the resolver can ask the right renderer to render that specific node. Even though marker emission is currently React-focused, the resolution phase itself is generic and works off the marker payload plus renderer lookup.
+Once markers exist in the HTML, the second pass is integration-agnostic at execution time. Each marker carries its target integration name, so the resolver can ask the right renderer to render that specific node. Even though marker emission is still intentionally selective, the resolution phase itself is generic and works off the marker payload plus renderer lookup.
 
 This means the marker itself is not interpreted by the integration renderer. Core interprets the marker and reconstructs render input; the integration renderer only performs the final component render.
 

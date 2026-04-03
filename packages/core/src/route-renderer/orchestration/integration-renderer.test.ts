@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { IntegrationRenderer, type RenderToResponseContext } from './integration-renderer.ts';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
+import { createComponentMarker } from '../component-graph/component-marker.ts';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
@@ -861,6 +862,165 @@ describe('IntegrationRenderer', () => {
 
 			const processedDeps = (renderer as any).htmlTransformer.getProcessedDependencies();
 			expect(processedDeps.some((dep: ProcessedAsset) => dep.srcUrl === '/assets/nested-render.js')).toBe(true);
+		});
+
+		it('should resolve deep multi-level marker graphs through the full execute path', async () => {
+			const renderOrder: string[] = [];
+			const explicitRenderer = {
+				renderComponent: vi.fn(async (input: ComponentRenderInput) => {
+					const componentId = input.component.config?.__eco?.id;
+					renderOrder.push(componentId as string);
+
+					if (componentId === 'leaf-component') {
+						return {
+							html: '<span>Leaf Render</span>',
+							canAttachAttributes: true,
+							rootTag: 'span',
+							integrationName: 'explicit-renderer',
+						};
+					}
+
+					if (componentId === 'parent-component') {
+						return {
+							html: `<section>${input.children ?? ''}</section>`,
+							canAttachAttributes: true,
+							rootTag: 'section',
+							integrationName: 'explicit-renderer',
+						};
+					}
+
+					return {
+						html: `<article>${input.children ?? ''}</article>`,
+						canAttachAttributes: true,
+						rootTag: 'article',
+						integrationName: 'explicit-renderer',
+						rootAttributes: { 'data-eco-component-id': 'root-node' },
+					};
+				}),
+			} as unknown as IntegrationRenderer;
+
+			const appConfig = {
+				...AppConfig,
+				integrations: [
+					{
+						name: 'explicit-renderer',
+						initializeRenderer: () => explicitRenderer,
+					},
+				],
+			} as unknown as EcoPagesAppConfig;
+
+			const renderer = new TestIntegrationRenderer({
+				appConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			const parentMarker = createComponentMarker({
+				nodeId: 'n_2',
+				integration: 'explicit-renderer',
+				componentRef: 'parent-component',
+				propsRef: 'props-parent',
+				slotRef: 'slot-parent',
+			});
+			const leafMarker = createComponentMarker({
+				nodeId: 'n_3',
+				integration: 'explicit-renderer',
+				componentRef: 'leaf-component',
+				propsRef: 'props-leaf',
+			});
+
+			renderer.RenderedBody = `<html><body><main>${createComponentMarker({
+				nodeId: 'n_1',
+				integration: 'explicit-renderer',
+				componentRef: 'root-component',
+				propsRef: 'props-root',
+				slotRef: 'slot-root',
+			})}</main></body></html>`;
+			renderer.MockComponentRenderResult = {
+				html: '<main>Test Page</main>',
+				canAttachAttributes: true,
+				rootTag: 'main',
+				integrationName: 'test-renderer',
+			};
+
+			const RootComponent = (() => '<article>Root</article>') as EcoComponent<Record<string, unknown>>;
+			RootComponent.config = {
+				integration: 'explicit-renderer',
+				__eco: {
+					id: 'root-component',
+					file: '/app/components/root-component.ts',
+					integration: 'explicit-renderer',
+				},
+			};
+
+			const ParentComponent = (() => '<section>Parent</section>') as EcoComponent<Record<string, unknown>>;
+			ParentComponent.config = {
+				integration: 'explicit-renderer',
+				__eco: {
+					id: 'parent-component',
+					file: '/app/components/parent-component.ts',
+					integration: 'explicit-renderer',
+				},
+			};
+
+			const LeafComponent = (() => '<span>Leaf</span>') as EcoComponent<Record<string, unknown>>;
+			LeafComponent.config = {
+				integration: 'explicit-renderer',
+				__eco: {
+					id: 'leaf-component',
+					file: '/app/components/leaf-component.ts',
+					integration: 'explicit-renderer',
+				},
+			};
+
+			const Page = (() => '<main>Test Page</main>') as unknown as EcoPageComponent<any>;
+			Page.config = {
+				dependencies: {
+					components: [RootComponent, ParentComponent, LeafComponent],
+				},
+			};
+
+			renderer.PageModule = {
+				default: Page,
+				componentGraphContext: {
+					propsByRef: {
+						'props-root': { id: 'root', children: parentMarker },
+						'props-parent': { id: 'parent', children: leafMarker },
+						'props-leaf': { id: 'leaf', children: 'leaf-text' },
+					},
+					slotChildrenByRef: {
+						'slot-root': ['n_2'],
+						'slot-parent': ['n_3'],
+					},
+				},
+			} as unknown as EcoPageFile;
+			renderer.HtmlTemplate = (() =>
+				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
+
+			const result = await renderer.execute({
+				file: '/app/pages/index.ts',
+				params: {},
+				query: {},
+			});
+
+			const body = await new Response(result.body as BodyInit).text();
+			expect(renderOrder).toEqual(['leaf-component', 'parent-component', 'root-component']);
+			expect(body).toContain(
+				'<article data-eco-component-id="root-node"><section><span>Leaf Render</span></section></article>',
+			);
+			expect(body).not.toContain('<eco-marker');
+			expect((explicitRenderer.renderComponent as any).mock.calls[1][0]).toEqual(
+				expect.objectContaining({
+					component: ParentComponent,
+					children: '<span>Leaf Render</span>',
+				}),
+			);
+			expect((explicitRenderer.renderComponent as any).mock.calls[2][0]).toEqual(
+				expect.objectContaining({
+					component: RootComponent,
+					children: '<section><span>Leaf Render</span></section>',
+				}),
+			);
 		});
 
 		it('should fail marker resolution when props reference is missing', async () => {

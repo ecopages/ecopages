@@ -132,4 +132,121 @@ describe('MarkerGraphResolver', () => {
 			}),
 		).rejects.toThrow('[ecopages] Missing props reference for marker: missing');
 	});
+
+	it('should stitch deep multi-level slot children bottom-up before rendering parents', async () => {
+		const service = new MarkerGraphResolver();
+		const Leaf = (() => '<span>Leaf</span>') as EcoComponent<Record<string, unknown>>;
+		Leaf.config = {
+			integration: 'react',
+			__eco: {
+				id: 'leaf-component',
+				file: '/app/components/leaf-component.tsx',
+				integration: 'react',
+			},
+		};
+		const Parent = (() => '<section>Parent</section>') as EcoComponent<Record<string, unknown>>;
+		Parent.config = {
+			integration: 'react',
+			__eco: {
+				id: 'parent-component',
+				file: '/app/components/parent-component.tsx',
+				integration: 'react',
+			},
+		};
+		const Root = (() => '<article>Root</article>') as EcoComponent<Record<string, unknown>>;
+		Root.config = {
+			integration: 'react',
+			__eco: {
+				id: 'root-component',
+				file: '/app/components/root-component.tsx',
+				integration: 'react',
+			},
+		};
+		const renderOrder: string[] = [];
+		const renderComponent = vi.fn(async (input: { component: EcoComponent; children?: string }) => {
+			const componentId = input.component.config?.__eco?.id;
+			renderOrder.push(componentId as string);
+
+			if (componentId === 'leaf-component') {
+				return {
+					html: '<span>leaf</span>',
+					canAttachAttributes: true,
+					rootTag: 'span',
+					integrationName: 'react',
+				};
+			}
+
+			if (componentId === 'parent-component') {
+				return {
+					html: `<section>${input.children ?? ''}</section>`,
+					canAttachAttributes: true,
+					rootTag: 'section',
+					integrationName: 'react',
+				};
+			}
+
+			return {
+				html: `<article>${input.children ?? ''}</article>`,
+				canAttachAttributes: true,
+				rootTag: 'article',
+				integrationName: 'react',
+			};
+		});
+
+		const parentMarker = createComponentMarker({
+			nodeId: 'n_2',
+			integration: 'react',
+			componentRef: 'parent-component',
+			propsRef: 'p_2',
+			slotRef: 's_2',
+		});
+		const leafMarker = createComponentMarker({
+			nodeId: 'n_3',
+			integration: 'react',
+			componentRef: 'leaf-component',
+			propsRef: 'p_3',
+		});
+		const html = `<main>${createComponentMarker({
+			nodeId: 'n_1',
+			integration: 'react',
+			componentRef: 'root-component',
+			propsRef: 'p_1',
+			slotRef: 's_1',
+		})}</main>`;
+
+		const result = await service.resolve({
+			html,
+			componentsToResolve: [Root, Parent, Leaf],
+			graphContext: {
+				propsByRef: {
+					p_1: { id: 'root', children: parentMarker },
+					p_2: { id: 'parent', children: leafMarker },
+					p_3: { id: 'leaf', children: 'leaf-text' },
+				},
+				slotChildrenByRef: {
+					s_1: ['n_2'],
+					s_2: ['n_3'],
+				},
+			},
+			resolveRenderer: () => ({ renderComponent }),
+			applyAttributesToFirstElement: (fragment) => fragment,
+		});
+
+		expect(renderOrder).toEqual(['leaf-component', 'parent-component', 'root-component']);
+		expect(result.html).toContain('<article><section><span>leaf</span></section></article>');
+		expect(renderComponent).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				component: Parent,
+				children: '<span>leaf</span>',
+			}),
+		);
+		expect(renderComponent).toHaveBeenNthCalledWith(
+			3,
+			expect.objectContaining({
+				component: Root,
+				children: '<section><span>leaf</span></section>',
+			}),
+		);
+	});
 });

@@ -55,6 +55,19 @@ export default eco.page({
 			</section>
 
 			<section class="card space-y-4">
+				<p class="text-xs uppercase tracking-[0.24em] text-muted">Deep deferred React graph</p>
+				<p class="max-w-3xl text-sm leading-7 text-muted">
+					This chain keeps the page entry in Kita while forcing three nested React-owned boundaries through
+					the marker graph before the final HTML is assembled.
+				</p>
+				<ReactShell id="react-deep-root">
+					<ReactShell id="react-deep-middle">
+						<ReactShell id="react-deep-leaf">react-deep-child</ReactShell>
+					</ReactShell>
+				</ReactShell>
+			</section>
+
+			<section class="card space-y-4">
 				<p class="text-xs uppercase tracking-[0.24em] text-muted">Counters across integrations</p>
 				<div class="flex flex-wrap gap-3">
 					<KitaCounter />

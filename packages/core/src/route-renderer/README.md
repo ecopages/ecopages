@@ -89,7 +89,7 @@ Current base orchestration behavior:
 
 When rendered output contains `eco-marker` nodes:
 
-- builds marker graph using `componentGraphContext` (`propsByRef`, `slotChildrenByRef`) from integration-specific page module exports.
+- builds marker graph using `componentGraphContext` (`propsByRef`, `slotChildrenByRef`) from integration-specific page module exports, including nested deferred child markers captured inside serialized `children` props.
 - resolves markers bottom-up through integration-specific `renderComponent()` calls.
 - fails fast when marker component refs or props refs are missing.
 - merges marker-rendered assets back into the dependency pipeline with deduplication.
@@ -115,8 +115,10 @@ This enables island-style hydration assets (for example React/Lit/Kita integrati
 6. HTML transformer injects head/body dependencies.
 7. Route result returns body + metadata + cache strategy.
 
-## Notes for Future Work
+## Current Limits And Near-Term Work
 
-- Expand integration-side marker emission so more nested trees are resolved through graph mode by default.
-- Add broader fixtures/e2e for deep multi-level slot graphs.
-- Add optional batching by integration per graph level to reduce repeated renderer invocations.
+If you are reading this file to understand today's contract, you can stop at the output pipeline above. The items below describe areas still evolving rather than required behavior.
+
+- Deep multi-level slot graphs now have dedicated unit, orchestration, and kitchen-sink coverage, and built-in marker emission covers the cross-integration React and Lit boundaries exercised by the current test matrix.
+- Integration-side marker emission is still conservative, so not every nested cross-integration tree resolves through graph mode by default.
+- Graph execution still resolves nodes one boundary at a time; batching by integration per level remains a possible follow-up if repeated renderer calls become a measurable cost.

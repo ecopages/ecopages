@@ -9,6 +9,15 @@ import { parseComponentMarkers } from './component-marker.ts';
 export type SlotChildrenRegistry = Record<string, MarkerNodeId[]>;
 
 /**
+ * Serializable props captured for deferred marker nodes.
+ *
+ * The graph builder reads this registry to discover child markers that were not
+ * emitted into the outer HTML stream because they were captured inside a
+ * deferred parent's serialized `children` prop.
+ */
+export type PropsRegistry = Record<string, Record<string, unknown>>;
+
+/**
  * Graph node enriched with source-order information for deterministic traversal.
  */
 export type ComponentGraphNode = ComponentMarker & {
@@ -26,6 +35,27 @@ export type ComponentGraph = {
 	reverseEdges: Map<MarkerNodeId, Set<MarkerNodeId>>;
 	levels: MarkerNodeId[][];
 };
+
+/**
+ * Reads nested marker tokens captured inside a deferred node's serialized
+ * `children` prop.
+ *
+ * These child markers do not appear in the outer HTML buffer during the first
+ * pass, so graph extraction must recover them from the props registry before it
+ * can compute the full parent-child dependency chain.
+ *
+ * @param marker Marker whose serialized props may contain nested child markers.
+ * @param propsRegistry Captured props keyed by marker props reference.
+ * @returns Nested child markers discovered in serialized children.
+ */
+function readNestedChildMarkers(marker: ComponentMarker, propsRegistry: PropsRegistry): ComponentMarker[] {
+	const children = propsRegistry[marker.propsRef]?.children;
+	if (typeof children !== 'string' || !children.includes('<eco-marker')) {
+		return [];
+	}
+
+	return parseComponentMarkers(children);
+}
 
 /**
  * Ensures adjacency maps are initialized and registers one directed edge.
@@ -118,7 +148,8 @@ function computeLevels(
  *
  * Algorithm summary:
  * 1. Parse markers from HTML in source order.
- * 2. Create nodes and derive edges from `slotChildrenRegistry`.
+ * 2. Discover nested child markers captured inside serialized `children` props.
+ * 3. Create nodes and derive edges from `slotChildrenRegistry`.
  * 3. Compute deterministic topological levels.
  *
  * Unknown child node ids in `slotChildrenRegistry` are ignored to keep the
@@ -126,22 +157,46 @@ function computeLevels(
  *
  * @param html Rendered HTML containing `eco-marker` tokens.
  * @param slotChildrenRegistry Optional slot -> child linkage map.
+ * @param propsRegistry Optional props registry used to discover nested markers
+ * captured inside deferred parent `children` props.
  * @returns Component graph structure with levels ready for execution.
  */
-export function extractComponentGraph(html: string, slotChildrenRegistry: SlotChildrenRegistry = {}): ComponentGraph {
+export function extractComponentGraph(
+	html: string,
+	slotChildrenRegistry: SlotChildrenRegistry = {},
+	propsRegistry: PropsRegistry = {},
+): ComponentGraph {
 	const markers = parseComponentMarkers(html);
 	const nodes = new Map<MarkerNodeId, ComponentGraphNode>();
 	const edges = new Map<MarkerNodeId, Set<MarkerNodeId>>();
 	const reverseEdges = new Map<MarkerNodeId, Set<MarkerNodeId>>();
+	const discoveredMarkers: ComponentMarker[] = [];
 
-	markers.forEach((marker, index) => {
+	const registerMarker = (marker: ComponentMarker): boolean => {
+		if (nodes.has(marker.nodeId)) {
+			return false;
+		}
+
+		discoveredMarkers.push(marker);
 		nodes.set(marker.nodeId, {
 			...marker,
-			order: index,
+			order: discoveredMarkers.length - 1,
 		});
-	});
+		return true;
+	};
 
 	for (const marker of markers) {
+		registerMarker(marker);
+	}
+
+	for (let index = 0; index < discoveredMarkers.length; index += 1) {
+		const marker = discoveredMarkers[index];
+		for (const nestedMarker of readNestedChildMarkers(marker, propsRegistry)) {
+			registerMarker(nestedMarker);
+		}
+	}
+
+	for (const marker of discoveredMarkers) {
 		if (!marker.slotRef) {
 			continue;
 		}

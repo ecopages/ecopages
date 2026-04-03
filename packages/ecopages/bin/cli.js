@@ -8,17 +8,17 @@ import { join } from 'node:path';
 import { Logger } from '@ecopages/logger';
 import { createLaunchPlan, launchPlanRequiresExistingEntryFile } from './launch-plan.js';
 
-const logger = new Logger('[ecopages:cli]');
+const logger = new Logger('[ecopages:cli]', { debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true' });
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 
 function runLaunchPlan(launchPlan) {
 	if (Object.keys(launchPlan.envOverrides).length > 0) {
-		logger.info(`Environment overrides: ${JSON.stringify(launchPlan.envOverrides)}`);
+		logger.debug(`Environment overrides: ${JSON.stringify(launchPlan.envOverrides)}`);
 	}
 
-	logger.info(`Runtime: ${launchPlan.runtime}`);
-	logger.info(`Running: ${launchPlan.command} ${launchPlan.commandArgs.join(' ')}`);
+	logger.debug(`Runtime: ${launchPlan.runtime}`);
+	logger.debug(`Running: ${launchPlan.command} ${launchPlan.commandArgs.join(' ')}`);
 
 	const child = spawn(launchPlan.command, launchPlan.commandArgs, {
 		stdio: 'inherit',

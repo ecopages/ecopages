@@ -32,7 +32,9 @@ vi.mock('node:child_process', () => ({
 vi.mock('@ecopages/logger', () => ({
 	Logger: class {
 		info = vi.fn();
+		warn = vi.fn();
 		error = vi.fn();
+		debug = vi.fn();
 	},
 }));
 

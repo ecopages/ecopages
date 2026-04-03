@@ -132,7 +132,7 @@ describe('launch-plan', () => {
 			fs.writeFileSync(
 				path.join(tempDir, 'app.ts'),
 				[
-					"import { EcopagesApp } from '@ecopages/core';",
+					"import { EcopagesApp } from '@ecopages/core/create-app';",
 					"import appConfig from './eco.config';",
 					'const app = new EcopagesApp({ appConfig });',
 					'await app.start();',

@@ -1,5 +1,5 @@
 import appConfig from './eco.config';
-import { EcopagesApp } from '@ecopages/core';
+import { EcopagesApp } from '@ecopages/core/create-app';
 import * as auth from './src/handlers/auth';
 import * as blog from './src/handlers/blog';
 import { adminGroup } from './src/handlers/admin';

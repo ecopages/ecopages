@@ -1,4 +1,4 @@
-import { createApp } from '@ecopages/core';
+import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import appConfig from './eco.config';
 import * as api from './src/handlers/api';

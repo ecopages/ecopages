@@ -1,4 +1,4 @@
-import { EcopagesApp } from '@ecopages/core';
+import { EcopagesApp } from '@ecopages/core/create-app';
 import appConfig from './eco.config';
 import * as auth from './src/handlers/auth.server';
 

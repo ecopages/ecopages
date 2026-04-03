@@ -323,7 +323,7 @@ test('node runtime adapter bootstraps an app entry that imports core runtime cod
 		fs.writeFileSync(
 			path.join(projectDir, 'app.ts'),
 			[
-				"import { createApp } from '@ecopages/core';",
+				"import { createApp } from '@ecopages/core/create-app';",
 				"import appConfig from './eco.config';",
 				'const runtimeMarker = globalThis as typeof globalThis & { __ecoNodeRuntimeEntryBootstrap?: { hasCreateApp: boolean; rootDir: string } };',
 				'runtimeMarker.__ecoNodeRuntimeEntryBootstrap = {',
@@ -575,7 +575,7 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 		fs.writeFileSync(
 			path.join(projectDir, 'app.ts'),
 			[
-				"import { createApp } from '@ecopages/core';",
+				"import { createApp } from '@ecopages/core/create-app';",
 				"import appConfig from './eco.config';",
 				'const app = await createApp({ appConfig });',
 				'const runtimeMarker = globalThis as typeof globalThis & {',
@@ -787,7 +787,7 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 		fs.writeFileSync(
 			path.join(projectDir, 'app.ts'),
 			[
-				"import { createApp } from '@ecopages/core';",
+				"import { createApp } from '@ecopages/core/create-app';",
 				"import appConfig from './eco.config';",
 				'const app = await createApp({ appConfig });',
 				"app.get('/metadata', async (ctx) => {",

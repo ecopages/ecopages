@@ -96,6 +96,8 @@ describe('launch-plan', () => {
 	it('buildNodeArgs preserves watch mode and fast refresh flags', () => {
 		expect(buildNodeArgs(['--dev'], { watch: true, reactFastRefresh: true }, 'app.ts')).toEqual([
 			'--watch',
+			'--require',
+			expect.stringMatching(/ecopages-loader-hooks\.cjs$/),
 			expect.stringMatching(/node-thin-host\.js$/),
 			'app.ts',
 			'--dev',
@@ -106,6 +108,8 @@ describe('launch-plan', () => {
 	it('buildNodeArgs routes stable Node through the thin launcher', () => {
 		expect(buildNodeArgs(['--dev'], { watch: true }, 'app.ts')).toEqual([
 			'--watch',
+			'--require',
+			expect.stringMatching(/ecopages-loader-hooks\.cjs$/),
 			expect.stringMatching(/node-thin-host\.js$/),
 			'app.ts',
 			'--dev',
@@ -149,6 +153,8 @@ describe('launch-plan', () => {
 			});
 			expect(plan.commandArgs).toEqual([
 				'--watch',
+				'--require',
+				expect.stringMatching(/ecopages-loader-hooks\.cjs$/),
 				expect.stringMatching(/node-thin-host\.js$/),
 				'app.ts',
 				'--dev',
@@ -175,6 +181,8 @@ describe('launch-plan', () => {
 			});
 			expect(plan.commandArgs).toEqual([
 				'--watch',
+				'--require',
+				expect.stringMatching(/ecopages-loader-hooks\.cjs$/),
 				expect.stringMatching(/node-thin-host\.js$/),
 				'server.ts',
 				'--dev',
@@ -273,7 +281,13 @@ describe('launch-plan', () => {
 				command: 'node',
 				envOverrides: { NODE_ENV: 'development' },
 			});
-			expect(plan.commandArgs).toEqual([expect.stringMatching(/node-thin-host\.js$/), 'app.ts', '--dev']);
+			expect(plan.commandArgs).toEqual([
+				'--require',
+				expect.stringMatching(/ecopages-loader-hooks\.cjs$/),
+				expect.stringMatching(/node-thin-host\.js$/),
+				'app.ts',
+				'--dev',
+			]);
 			expect(plan.env.ECOPAGES_NODE_RUNTIME_MANIFEST_PATH).toBe(resolveNodeRuntimeManifestPath(resolvedTempDir));
 			expect(JSON.parse(fs.readFileSync(plan.env.ECOPAGES_NODE_RUNTIME_MANIFEST_PATH, 'utf8'))).toMatchObject({
 				runtime: 'node',

@@ -78,6 +78,35 @@ describe('LitRenderer', () => {
 			expect(result.html).toContain('<section>Lit Component</section>');
 		});
 
+		it('should preload SSR lazy scripts before component-level renders', async () => {
+			const testRenderer = createRenderer();
+			const preloadSpy = vi.spyOn(testRenderer as any, 'preloadSsrLazyScripts').mockResolvedValue(undefined);
+			const Component = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
+			Component.config = {
+				__eco: {
+					id: 'lit-counter',
+					file: '/project/src/components/lit-counter.lit.tsx',
+					integration: 'lit',
+				},
+				dependencies: {
+					scripts: [
+						{
+							src: './lit-counter.script.ts',
+							lazy: { 'on:interaction': 'click' },
+							ssr: true,
+						},
+					],
+				},
+			};
+
+			await testRenderer.renderComponent({
+				component: Component,
+				props: {},
+			});
+
+			expect(preloadSpy).toHaveBeenCalledWith([Component]);
+		});
+
 		it('should include component assets when dependencies are declared', async () => {
 			const { renderer, assetProcessingService } = createRendererWithAssets();
 			const Component = (async (props: { label: string }) =>

@@ -1,0 +1,12 @@
+.ecopages-logo {
+	@apply flex gap-2 items-center text-3xl md:text-9xl;
+}
+
+.ecopages-logo__text {
+	font-weight: 600;
+	color: var(--color-on-background);
+	font-family: 'Montserrat', sans-serif;
+	letter-spacing: -0.02em;
+	margin: 0;
+	line-height: 1;
+}

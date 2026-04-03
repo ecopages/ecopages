@@ -5,8 +5,7 @@ import type {
 	Plugin as EsbuildPlugin,
 } from 'esbuild';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import type {
 	EcoBuildOnLoadResult,
@@ -24,7 +23,7 @@ import type {
 	BuildTranspileProfile,
 } from './build-adapter.ts';
 
-const esbuildRequire = createRequire(import.meta.url);
+const esbuildPath = fileURLToPath(import.meta.resolve('esbuild'));
 
 /**
  * Provides common transpile output defaults shared across build profiles.
@@ -58,7 +57,11 @@ function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspi
  * This adapter keeps Ecopages build plugin compatibility (`onResolve`, `onLoad`,
  * and `module`) while delegating bundling and TypeScript/decorator transforms to esbuild.
  */
+export const ESBUILD_ADAPTER_BRAND: unique symbol = Symbol.for('EsbuildBuildAdapter');
+
 export class EsbuildBuildAdapter implements BuildAdapter {
+	readonly [ESBUILD_ADAPTER_BRAND] = true;
+
 	private escapeRegExp(value: string): string {
 		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 	}
@@ -295,9 +298,7 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		) as typeof import('esbuild');
 
 		if (moduleGeneration > 0 && !this.isMockedEsbuildModule(esbuildModule)) {
-			const freshModule = await import(
-				`${pathToFileURL(esbuildRequire.resolve('esbuild')).href}?ecopages_esbuild=${moduleGeneration}`
-			);
+			const freshModule = await import(`${pathToFileURL(esbuildPath).href}?ecopages_esbuild=${moduleGeneration}`);
 			const normalizedFreshModule = (
 				typeof (freshModule as typeof import('esbuild')).build === 'function'
 					? freshModule
@@ -546,8 +547,7 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 	 * Resolves module specifiers from a project root.
 	 */
 	resolve(importPath: string, rootDir: string): string {
-		const localRequire = createRequire(path.join(rootDir, 'package.json'));
-		return localRequire.resolve(importPath);
+		return fileURLToPath(import.meta.resolve(importPath, pathToFileURL(path.join(rootDir, 'package.json')).href));
 	}
 
 	/**

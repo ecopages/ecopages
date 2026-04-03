@@ -6,6 +6,12 @@ All notable changes to `@ecopages/core` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Refactoring
+
+- Simplified Node runtime adapter to use direct `import()` calls instead of the multi-layer bootstrap pipeline (`TranspilerServerLoader`, config bridge, `AppBuildExecutor`), reducing ~250 lines of orchestration code.
+- Removed `TranspilerServerLoader` service and its tests (`server-loader.service.ts`) — no longer needed now that Node loader hooks handle TypeScript transpilation.
+- Removed unused `writeBundledNodeRuntimeManifest` helper (`write-runtime-manifest.ts`).
+
 ### Bug Fixes
 
 - Fixed deferred marker graph resolution to discover deep child markers captured inside serialized `children` props, restoring multi-level cross-integration SSR assembly.

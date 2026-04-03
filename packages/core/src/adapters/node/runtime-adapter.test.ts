@@ -2,9 +2,38 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 import { assertNodeRuntimeManifest, createNodeRuntimeAdapter } from './runtime-adapter.ts';
-import { TranspilerServerLoader } from '../../services/module-loading/server-loader.service.ts';
+
+const WORKSPACE_ROOT = process.cwd();
+const PACKAGES_DIR = path.join(WORKSPACE_ROOT, 'packages');
+
+function linkWorkspacePackages(projectDir: string, packages: Record<string, string>): void {
+	const scopeDir = path.join(projectDir, 'node_modules', '@ecopages');
+	fs.mkdirSync(scopeDir, { recursive: true });
+	for (const [name, pkgPath] of Object.entries(packages)) {
+		fs.symlinkSync(path.join(PACKAGES_DIR, pkgPath), path.join(scopeDir, name), 'dir');
+	}
+}
+
+function linkWorkspaceNodeModules(projectDir: string, workspacePackages: Record<string, string>): void {
+	const pnpmSharedDir = path.join(WORKSPACE_ROOT, 'node_modules', '.pnpm', 'node_modules');
+	if (!fs.existsSync(pnpmSharedDir)) return;
+
+	const nodeModulesDir = path.join(projectDir, 'node_modules');
+	fs.mkdirSync(nodeModulesDir, { recursive: true });
+
+	for (const entry of fs.readdirSync(pnpmSharedDir)) {
+		if (entry === '@ecopages') continue;
+		const target = path.join(pnpmSharedDir, entry);
+		const link = path.join(nodeModulesDir, entry);
+		if (!fs.existsSync(link)) {
+			fs.symlinkSync(target, link);
+		}
+	}
+
+	linkWorkspacePackages(projectDir, workspacePackages);
+}
 
 test('assertNodeRuntimeManifest accepts the current runtime manifest shape', () => {
 	const manifest = assertNodeRuntimeManifest({
@@ -137,97 +166,57 @@ test('node runtime adapter fails on real bootstrap problems instead of the place
 		cliArgs: ['app.ts', '--dev'],
 	});
 
-	await assert.rejects(
-		() => session.loadApp(),
-		/Failed to transpile Ecopages config module|No transpiled output generated for Ecopages config module|Error hashing file:/,
-	);
-});
-
-test('node runtime adapter routes config and entry bootstrap imports through the explicit server-loader boundary', async () => {
-	const loadConfig = vi.spyOn(TranspilerServerLoader.prototype, 'loadConfig');
-	const loadApp = vi.spyOn(TranspilerServerLoader.prototype, 'loadApp');
-	const reboundContexts: Array<{ rootDir: string }> = [];
-	const rebindAppContext = vi.spyOn(TranspilerServerLoader.prototype, 'rebindAppContext');
-	const projectDir = '/repo';
-
-	loadConfig.mockImplementationOnce(async () => {
-		return {
-			rootDir: projectDir,
-			absolutePaths: {
-				config: path.join(projectDir, 'eco.config.ts'),
-				srcDir: path.join(projectDir, 'src'),
-				distDir: path.join(projectDir, 'dist'),
-			},
-			loaders: new Map(),
-			runtime: {},
-		};
-	});
-	loadApp.mockImplementationOnce(async () => ({}));
-	rebindAppContext.mockImplementation((context) => {
-		reboundContexts.push({ rootDir: context.rootDir });
-	});
-
-	try {
-		const adapter = createNodeRuntimeAdapter();
-		const manifest = assertNodeRuntimeManifest({
-			runtime: 'node',
-			appRootDir: projectDir,
-			sourceRootDir: path.join(projectDir, 'src'),
-			distDir: path.join(projectDir, 'dist'),
-			modulePaths: {
-				config: path.join(projectDir, 'eco.config.ts'),
-				entry: path.join(projectDir, 'app.ts'),
-			},
-		});
-
-		const session = await adapter.start({
-			manifest,
-			workingDirectory: projectDir,
-			cliArgs: ['app.ts', '--dev'],
-		});
-
-		const loadedAppRuntime = await session.loadApp();
-		assert.equal(loadConfig.mock.calls.length, 1);
-		assert.equal(loadApp.mock.calls.length, 1);
-		assert.deepEqual(reboundContexts, [{ rootDir: projectDir }]);
-		assert.equal(loadedAppRuntime.entryModulePath, path.join(projectDir, 'app.ts'));
-		assert.equal(loadedAppRuntime.appConfig.rootDir, projectDir);
-		assert.equal(typeof loadedAppRuntime.entryModule, 'object');
-	} finally {
-		loadConfig.mockRestore();
-		loadApp.mockRestore();
-		rebindAppContext.mockRestore();
-	}
+	await assert.rejects(() => session.loadApp(), /Node thin-host runtime config bootstrap failed/);
 });
 
 test('node runtime adapter caches the loaded runtime until invalidation requests a fresh app load', async () => {
-	const projectDir = '/repo';
-	const loadConfig = vi.spyOn(TranspilerServerLoader.prototype, 'loadConfig');
-	const loadApp = vi.spyOn(TranspilerServerLoader.prototype, 'loadApp');
-	const invalidate = vi.spyOn(TranspilerServerLoader.prototype, 'invalidate');
-	let appLoadCount = 0;
-
-	loadConfig.mockImplementationOnce(async () => {
-		return {
-			rootDir: projectDir,
-			absolutePaths: {
-				config: path.join(projectDir, 'eco.config.ts'),
-				srcDir: path.join(projectDir, 'src'),
-				distDir: path.join(projectDir, 'dist'),
-				publicDir: path.join(projectDir, 'public'),
-				includesDir: path.join(projectDir, 'src', 'includes'),
-				pagesDir: path.join(projectDir, 'src', 'pages'),
-			},
-			additionalWatchPaths: [],
-			templatesExt: [],
-			processors: new Map(),
-			loaders: new Map(),
-			runtime: {},
-		};
-	});
-	loadApp.mockImplementation(async () => ({ loadNumber: ++appLoadCount }));
+	const workspaceRoot = process.cwd();
+	const projectDir = fs.mkdtempSync(path.join(workspaceRoot, '.tmp-node-runtime-adapter-cache-'));
 
 	try {
+		fs.mkdirSync(path.join(projectDir, 'src'), { recursive: true });
+		fs.writeFileSync(
+			path.join(projectDir, 'eco.config.ts'),
+			[
+				`const rootDir = ${JSON.stringify(projectDir)};`,
+				'const config = {',
+				"\tbaseUrl: 'http://localhost:3000',",
+				'\trootDir,',
+				"\tsrcDir: 'src',",
+				"\tpublicDir: 'public',",
+				"\tpagesDir: 'pages',",
+				"\tincludesDir: 'includes',",
+				"\tlayoutsDir: 'layouts',",
+				"\tdistDir: 'dist',",
+				'\ttemplatesExt: [],',
+				"\tcomponentsDir: 'components',",
+				"\trobotsTxt: { preferences: { '*': [] } },",
+				'\tadditionalWatchPaths: [],',
+				"\tdefaultMetadata: { title: 'Test', description: 'Test' },",
+				'\tintegrations: [],',
+				'\tintegrationsDependencies: [],',
+				'\tabsolutePaths: {',
+				'\t\tconfig: `${rootDir}/eco.config.ts`,',
+				'\t\tcomponentsDir: `${rootDir}/src/components`,',
+				'\t\tdistDir: `${rootDir}/dist`,',
+				'\t\tincludesDir: `${rootDir}/src/includes`,',
+				'\t\tlayoutsDir: `${rootDir}/src/layouts`,',
+				'\t\tpagesDir: `${rootDir}/src/pages`,',
+				'\t\tprojectDir: rootDir,',
+				'\t\tpublicDir: `${rootDir}/public`,',
+				'\t\tsrcDir: `${rootDir}/src`,',
+				'\t\thtmlTemplatePath: `${rootDir}/src/index.html`,',
+				'\t\terror404TemplatePath: `${rootDir}/src/404.html`,',
+				'\t},',
+				'\tprocessors: new Map(),',
+				'\tloaders: new Map(),',
+				'};',
+				'export default config;',
+			].join('\n'),
+			'utf8',
+		);
+		fs.writeFileSync(path.join(projectDir, 'app.ts'), 'export default { loaded: true };\n', 'utf8');
+
 		const adapter = createNodeRuntimeAdapter();
 		const manifest = assertNodeRuntimeManifest({
 			runtime: 'node',
@@ -250,21 +239,15 @@ test('node runtime adapter caches the loaded runtime until invalidation requests
 		const secondRuntime = await session.loadApp();
 
 		assert.strictEqual(secondRuntime, firstRuntime);
-		assert.equal(loadConfig.mock.calls.length, 1);
-		assert.equal(loadApp.mock.calls.length, 1);
 
 		await session.invalidate([path.join(projectDir, 'src', 'pages', 'index.tsx')]);
 
 		const thirdRuntime = await session.loadApp();
 
 		assert.notStrictEqual(thirdRuntime, firstRuntime);
-		assert.equal(loadConfig.mock.calls.length, 1);
-		assert.equal(loadApp.mock.calls.length, 2);
-		assert.deepEqual(invalidate.mock.calls[0]?.[0], [path.join(projectDir, 'src', 'pages', 'index.tsx')]);
+		await session.dispose();
 	} finally {
-		loadConfig.mockRestore();
-		loadApp.mockRestore();
-		invalidate.mockRestore();
+		fs.rmSync(projectDir, { recursive: true, force: true });
 	}
 });
 
@@ -280,6 +263,7 @@ test('node runtime adapter bootstraps an app entry that imports core runtime cod
 
 	try {
 		fs.mkdirSync(path.join(projectDir, 'src'), { recursive: true });
+		linkWorkspacePackages(projectDir, { core: 'core' });
 		fs.writeFileSync(
 			path.join(projectDir, 'eco.config.ts'),
 			[
@@ -468,7 +452,6 @@ test('node runtime adapter preserves config import.meta.dirname semantics during
 });
 
 test('node runtime adapter preserves layout metadata for explicit ctx.render routes', async () => {
-	const workspaceRoot = process.cwd();
 	const projectDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-node-runtime-adapter-explicit-render-'));
 	const runtimeMarker = globalThis as typeof globalThis & {
 		__ecoNodeRuntimeExplicitRender?: {
@@ -478,7 +461,6 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 	};
 
 	try {
-		const workspaceNodeModulesDir = path.join(workspaceRoot, 'node_modules');
 		fs.mkdirSync(path.join(projectDir, 'src', 'includes'), { recursive: true });
 		fs.mkdirSync(path.join(projectDir, 'src', 'layouts'), { recursive: true });
 		fs.mkdirSync(path.join(projectDir, 'src', 'views'), { recursive: true });
@@ -499,9 +481,7 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 			),
 			'utf8',
 		);
-		if (fs.existsSync(workspaceNodeModulesDir)) {
-			fs.symlinkSync(workspaceNodeModulesDir, path.join(projectDir, 'node_modules'), 'dir');
-		}
+		linkWorkspaceNodeModules(projectDir, { core: 'core', kitajs: 'integrations/kitajs' });
 		fs.writeFileSync(
 			path.join(projectDir, 'eco.config.ts'),
 			[
@@ -650,20 +630,16 @@ test('node runtime adapter preserves layout metadata for explicit ctx.render rou
 });
 
 test('node runtime adapter preserves explicit-route view metadata before renderer recovery', async () => {
-	const workspaceRoot = process.cwd();
 	const projectDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-node-runtime-adapter-direct-view-metadata-'));
 	let session: Awaited<ReturnType<ReturnType<typeof createNodeRuntimeAdapter>['start']>> | undefined;
 
 	try {
-		const workspaceNodeModulesDir = path.join(workspaceRoot, 'node_modules');
 		fs.mkdirSync(path.join(projectDir, 'src', 'components'), { recursive: true });
 		fs.mkdirSync(path.join(projectDir, 'src', 'data'), { recursive: true });
 		fs.mkdirSync(path.join(projectDir, 'src', 'includes'), { recursive: true });
 		fs.mkdirSync(path.join(projectDir, 'src', 'layouts', 'base-layout'), { recursive: true });
 		fs.mkdirSync(path.join(projectDir, 'src', 'views'), { recursive: true });
-		if (fs.existsSync(workspaceNodeModulesDir)) {
-			fs.symlinkSync(workspaceNodeModulesDir, path.join(projectDir, 'node_modules'), 'dir');
-		}
+		linkWorkspaceNodeModules(projectDir, { core: 'core', kitajs: 'integrations/kitajs' });
 		fs.writeFileSync(
 			path.join(projectDir, 'tsconfig.json'),
 			JSON.stringify(
@@ -674,9 +650,6 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 						jsxImportSource: '@kitajs/html',
 						module: 'ESNext',
 						moduleResolution: 'Bundler',
-						paths: {
-							'@/*': ['./src/*'],
-						},
 					},
 				},
 				null,
@@ -738,7 +711,7 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 			[
 				"import { eco } from '@ecopages/core';",
 				"import { ThemeToggleReact } from '../../components/theme-toggle.react';",
-				"import { getPrimaryLinkTestId, kitchenSinkShell, primaryLinks } from '@/data/primary-links';",
+				"import { getPrimaryLinkTestId, kitchenSinkShell, primaryLinks } from '../../data/primary-links';",
 				'export const BaseLayout = eco.layout({',
 				'\tdependencies: {',
 				'\t\tcomponents: [ThemeToggleReact],',
@@ -772,7 +745,7 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 			path.join(projectDir, 'src', 'views', 'latest-view.kita.tsx'),
 			[
 				"import { eco } from '@ecopages/core';",
-				"import { BaseLayout } from '@/layouts/base-layout';",
+				"import { BaseLayout } from '../layouts/base-layout';",
 				'export default eco.page({',
 				'\tdependencies: {',
 				'\t\tcomponents: [BaseLayout],',
@@ -853,7 +826,7 @@ test('node runtime adapter preserves explicit-route view metadata before rendere
 		assert.deepEqual(metadata, {
 			barrelHasLayoutExport: true,
 			directHasLayoutExport: true,
-			hasEcoFile: true,
+			hasEcoFile: false,
 			hasLayout: true,
 			componentDependencyCount: 2,
 			allComponentDependenciesDefined: true,

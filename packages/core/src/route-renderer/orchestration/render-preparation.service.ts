@@ -1,4 +1,5 @@
-import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
 import type {
 	ComponentRenderResult,
@@ -27,8 +28,6 @@ import {
 	runWithComponentRenderContext,
 	type ComponentRenderBoundaryContext,
 } from '../../eco/component-render-context.ts';
-
-const coreRequire = createRequire(import.meta.url);
 
 type ResolvedPageModule = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
@@ -337,7 +336,7 @@ export class RenderPreparationService {
 		triggers: ResolvedLazyTrigger[],
 		currentIntegrationName: string,
 	): Promise<ProcessedAsset[]> {
-		const globalInjectorImportPath = coreRequire.resolve('@ecopages/scripts-injector/global');
+		const globalInjectorImportPath = fileURLToPath(import.meta.resolve('@ecopages/scripts-injector/global'));
 		const globalInjectorRuntimeAsset = AssetFactory.createNodeModuleScript({
 			position: 'head',
 			name: 'ecopages-scripts-injector-global',
@@ -412,7 +411,7 @@ export class RenderPreparationService {
 
 			const componentFile = config.__eco?.file;
 			if (componentFile) {
-				const componentDir = coreRequire('node:path').dirname(componentFile);
+				const componentDir = path.dirname(componentFile);
 				for (const script of config.dependencies?.scripts ?? []) {
 					if (typeof script === 'string' || !script.lazy || script.ssr !== true) {
 						continue;
@@ -441,7 +440,7 @@ export class RenderPreparationService {
 						continue;
 					}
 
-					const resolvedPath = coreRequire('node:path').resolve(componentDir, script.src);
+					const resolvedPath = path.resolve(componentDir, script.src);
 					const key = `file:${resolvedPath}:${JSON.stringify(attributes)}`;
 					if (seenKeys.has(key)) {
 						continue;

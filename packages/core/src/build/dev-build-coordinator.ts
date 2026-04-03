@@ -5,10 +5,19 @@ import {
 	type BuildExecutor,
 	type BuildOptions,
 	type BuildResult,
-	EsbuildBuildAdapter,
 } from './build-adapter.ts';
+import { EsbuildBuildAdapter, ESBUILD_ADAPTER_BRAND } from './esbuild-build-adapter.ts';
 import { mergeEcoBuildPlugins } from './build-manifest.ts';
 import type { EcoBuildPlugin } from './build-types.ts';
+
+function isEsbuildBuildAdapter(adapter: unknown): adapter is EsbuildBuildAdapter {
+	return (
+		adapter instanceof EsbuildBuildAdapter ||
+		(typeof adapter === 'object' &&
+			adapter !== null &&
+			(adapter as Record<symbol, unknown>)[ESBUILD_ADAPTER_BRAND] === true)
+	);
+}
 
 function mergeBuildPlugins(options: BuildOptions, appPlugins: EcoBuildPlugin[]): BuildOptions {
 	if (appPlugins.length === 0) {
@@ -188,7 +197,9 @@ export function createAppBuildExecutor(options: {
 }): BuildExecutor {
 	const adapter = options.adapter ?? defaultBuildAdapter;
 	const baseExecutor =
-		!options.development || !(adapter instanceof EsbuildBuildAdapter) ? adapter : new DevBuildCoordinator(adapter);
+		!options.development || !isEsbuildBuildAdapter(adapter)
+			? adapter
+			: new DevBuildCoordinator(adapter as EsbuildBuildAdapter);
 
 	if (!options.getPlugins) {
 		return baseExecutor;

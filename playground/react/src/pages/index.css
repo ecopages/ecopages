@@ -3,5 +3,18 @@
 }
 
 .main-content {
-	@apply flex flex-col gap-4;
+	@apply flex flex-col gap-8 justify-center items-center text-center;
+}
+
+.ecopages-logo {
+	@apply flex gap-2  items-center text-3xl md:text-3xl;
+}
+
+.ecopages-logo__text {
+	font-weight: 600;
+	color: var(--color-on-background);
+	font-family: 'Montserrat', sans-serif;
+	letter-spacing: -0.02em;
+	margin: 0;
+	line-height: 1;
 }

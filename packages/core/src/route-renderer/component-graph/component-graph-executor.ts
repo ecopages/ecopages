@@ -1,5 +1,4 @@
 import type { ComponentMarker, MarkerNodeId } from './component-marker.ts';
-import { parseComponentMarkers } from './component-marker.ts';
 import type { ComponentGraph } from './component-graph.ts';
 
 /**
@@ -49,8 +48,9 @@ function replaceMarkerByNodeId(html: string, nodeId: MarkerNodeId, replacement: 
  * Child nodes are resolved first so parent slot content can consume already
  * resolved child HTML in subsequent resolver invocations.
  *
- * If a node id exists in `graph.levels` but no marker is present in `inputHtml`,
- * that node is skipped.
+ * Nodes discovered from serialized props may not exist as literal marker tokens in
+ * `inputHtml`. They still resolve so parent nodes can consume their stitched child
+ * HTML, while replacement in the outer HTML buffer remains a no-op.
  *
  * @param inputHtml HTML containing marker tokens.
  * @param graph Precomputed marker graph with topological levels.
@@ -64,8 +64,8 @@ export async function resolveComponentGraph(
 ): Promise<string> {
 	let html = inputHtml;
 	const markersById = new Map<MarkerNodeId, ComponentMarker>();
-	for (const marker of parseComponentMarkers(inputHtml)) {
-		markersById.set(marker.nodeId, marker);
+	for (const node of graph.nodes.values()) {
+		markersById.set(node.nodeId, node);
 	}
 
 	const levels = [...graph.levels].reverse();

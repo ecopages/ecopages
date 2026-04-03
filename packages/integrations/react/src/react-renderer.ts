@@ -305,6 +305,30 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	/**
+	 * Renders one React component boundary for marker-graph orchestration.
+	 *
+	 * When the marker resolver has already stitched child HTML for this boundary,
+	 * the child payload must remain raw SSR output rather than a React string
+	 * child, otherwise React would escape it. This helper renders a unique token
+	 * through React and swaps that token back to the stitched HTML afterward.
+	 *
+	 * @param input Component render input reconstructed from marker metadata.
+	 * @param context React-specific render context for stable token generation.
+	 * @returns Serialized component HTML with stitched child markup preserved.
+	 */
+	private renderComponentHtml(input: ComponentRenderInput, context: ReactComponentRenderContext): string {
+		if (input.children === undefined) {
+			return renderToString(createElement(this.asReactComponent(input.component), input.props));
+		}
+
+		const rawChildrenToken = `__ECO_RAW_HTML_CHILD_${context.componentInstanceId ?? 'component'}__`;
+		const html = renderToString(
+			createElement(this.asReactComponent(input.component), input.props, rawChildrenToken),
+		);
+		return html.split(rawChildrenToken).join(input.children);
+	}
+
+	/**
 	 * Produces the page body before the final HTML template is applied.
 	 *
 	 * This method owns the React/non-React layout split. React-managed layouts stay
@@ -391,27 +415,31 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * - When an explicit component instance id is provided, a stable
 	 *   `data-eco-component-id` attribute is attached so island hydration can target it.
 	 * - Without an explicit instance id, component renders remain plain SSR output.
+	 * - When stitched child HTML is provided, that boundary is treated as a pure SSR
+	 *   composition step and does not emit hydration assets for the parent wrapper.
 	 *
 	 * This preserves DOM shape for global CSS/layout selectors while keeping a
 	 * deterministic mount target per component instance.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		const Component = this.asReactComponent(input.component);
 		const componentConfig = input.component.config;
-		const element =
-			input.children === undefined
-				? createElement(Component, input.props)
-				: createElement(Component, input.props, input.children);
-		let html = renderToString(element);
+		const context = (input.integrationContext as ReactComponentRenderContext | undefined) ?? {};
+		const hasResolvedChildHtml = input.children !== undefined;
+		let html = this.renderComponentHtml(input, context);
 		let canAttachAttributes = hasSingleRootElement(html);
 		let rootTag = this.getRootTagName(html);
 		const componentFile = componentConfig?.__eco?.file;
-		const context = (input.integrationContext as ReactComponentRenderContext | undefined) ?? {};
 
 		let rootAttributes: Record<string, string> | undefined;
 		let assets: ProcessedAsset[] | undefined;
 
-		if (canAttachAttributes && componentFile && context.componentInstanceId && this.assetProcessingService) {
+		if (
+			canAttachAttributes &&
+			componentFile &&
+			context.componentInstanceId &&
+			this.assetProcessingService &&
+			!hasResolvedChildHtml
+		) {
 			const componentInstanceId = context.componentInstanceId;
 			assets = await this.hydrationAssetService.buildComponentRenderAssets(
 				componentFile,

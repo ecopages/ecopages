@@ -35,6 +35,15 @@ export default eco.page({
 				<ReactShell id="react-root">react-root-child</ReactShell>
 
 				<section>
+					<h2>Deep React Graph</h2>
+					<ReactShell id="react-deep-root">
+						<ReactShell id="react-deep-middle">
+							<ReactShell id="react-deep-leaf">react-deep-child</ReactShell>
+						</ReactShell>
+					</ReactShell>
+				</section>
+
+				<section>
 					<h2>Counters</h2>
 					<KitaCounter />
 					<LitCounter />

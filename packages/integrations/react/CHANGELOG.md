@@ -16,6 +16,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 - **Handoff Stability**: Standardized router-backed page payloads and document owner markers for mixed-router stability during navigation.
 - **Hydration Hardening**: Fixed island remount races, prop collisions, and layout metadata resolution during development and route handoffs.
+- **SSR Composition**: Preserved stitched child HTML during marker-graph React renders and skipped parent island hydration for pure SSR composition boundaries.
 - **Architecture**: Centralized runtime specifiers and consolidated browser-side integration state under `window.__ECO_PAGES__`.
 
 ---

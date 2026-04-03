@@ -192,6 +192,39 @@ describe('ReactRenderer', () => {
 			}
 		});
 
+		it('should preserve stitched child html without escaping and skip parent island hydration', async () => {
+			const { testRenderer, assetProcessingService } = createRendererWithAssets();
+			const Component = (({ title, children }: { title: string; children?: React.ReactNode }) => (
+				<section>
+					<h3>{title}</h3>
+					<div data-slot>{children}</div>
+				</section>
+			)) as unknown as EcoComponent<{
+				title: string;
+				children?: React.ReactNode;
+			}>;
+			Component.config = {
+				__eco: {
+					id: 'component-id',
+					file: pageFilePath,
+					integration: 'react',
+				},
+			};
+
+			const result = await testRenderer.renderComponent({
+				component: Component,
+				props: { title: 'Parent' },
+				children: '<span data-child="true">Nested child</span>',
+				integrationContext: { componentInstanceId: 'island-1' },
+			});
+
+			expect(result.html).toContain('<div data-slot="true"><span data-child="true">Nested child</span></div>');
+			expect(result.html).not.toContain('&lt;span');
+			expect(result.rootAttributes).toBeUndefined();
+			expect(result.assets).toBeUndefined();
+			expect(assetProcessingService.processDependencies).not.toHaveBeenCalled();
+		});
+
 		it('should eagerly emit SSR-marked lazy scripts for declared MDX component dependencies', async () => {
 			const assetProcessingService = {
 				getHmrManager: vi.fn(() => ({ isEnabled: () => false })),

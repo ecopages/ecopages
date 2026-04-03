@@ -22,6 +22,39 @@ function createDeferred(): { promise: Promise<void>; resolve: () => void } {
 }
 
 test.describe('Kitchen Sink Playground Integrations', () => {
+	test('keeps Lit and mixed shell markup in raw SSR across entry routes', async ({ request }) => {
+		const matrixHtml = await (await request.get('/integration-matrix')).text();
+		expect(matrixHtml).toContain('data-lit-value');
+		expect(matrixHtml).toContain('data-react-shell="react-root"');
+
+		const litEntryHtml = await (await request.get('/integration-matrix/lit-entry')).text();
+		expect(litEntryHtml).toContain('data-lit-value');
+		expect(litEntryHtml).toContain('data-react-shell="lit-entry-react-child"');
+
+		const reactEntryHtml = await (await request.get('/integration-matrix/react-entry')).text();
+		expect(reactEntryHtml).toContain('data-lit-value');
+		expect(reactEntryHtml).toContain('data-react-shell="react-entry-root"');
+	});
+
+	test('keeps React SSR explicit for React-owned routes and embedded React shells', async ({ request }) => {
+		const reactContentHtml = await (await request.get('/react-content')).text();
+		expect(reactContentHtml).toContain('data-testid="page-react-content"');
+		expect(reactContentHtml).toContain('data-react-value="true">0</span>');
+		expect(reactContentHtml).not.toContain('<eco-marker');
+
+		const reactLabHtml = await (await request.get('/react-lab')).text();
+		expect(reactLabHtml).toContain('data-testid="page-react-lab"');
+		expect(reactLabHtml).toContain('data-react-shell="react-lab-counter"');
+		expect(reactLabHtml).toContain('data-react-value="true">0</span>');
+		expect(reactLabHtml).not.toContain('<eco-marker');
+
+		const reactEntryHtml = await (await request.get('/integration-matrix/react-entry')).text();
+		expect(reactEntryHtml).toContain('data-react-shell="react-entry-root"');
+		expect(reactEntryHtml).toContain('data-react-value="true">0</span>');
+		expect(reactEntryHtml).toContain('The React boundary can anchor the route without owning the whole page.');
+		expect(reactEntryHtml).not.toContain('<eco-marker');
+	});
+
 	test('renders the full integration matrix and cross-integration children', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 
@@ -34,6 +67,11 @@ test.describe('Kitchen Sink Playground Integrations', () => {
 		await expect(page.locator('[data-cross-child="lit-root"]')).toHaveText('lit-root-child');
 		await expect(page.locator('[data-react-shell="react-root"] [data-react-shell-child]')).toHaveText(
 			'react-root-child',
+		);
+		await expect(page.locator('[data-react-shell="react-deep-root"]')).toBeVisible();
+		await expect(page.locator('[data-react-shell="react-deep-middle"]')).toBeVisible();
+		await expect(page.locator('[data-react-shell="react-deep-leaf"] [data-react-shell-child]')).toHaveText(
+			'react-deep-child',
 		);
 		await expect(page.locator('[data-kita-shell="kita-root"] [data-lit-shell="kita-lit-child"]')).toBeVisible();
 		await expect(page.locator('[data-lit-shell="lit-root"] [data-kita-shell="lit-kita-child"]')).toBeVisible();
@@ -66,6 +104,9 @@ test.describe('Kitchen Sink Playground Integrations', () => {
 		await expect(
 			page.getByRole('heading', { name: 'Render every integration through every other one.' }),
 		).toBeVisible();
+		await expect(page.locator('[data-react-shell="react-deep-leaf"] [data-react-shell-child]')).toHaveText(
+			'react-deep-child',
+		);
 		await assertCounterInteractivity(getSectionByText(page, 'Counters across integrations'));
 		runtime.assertClean();
 	});

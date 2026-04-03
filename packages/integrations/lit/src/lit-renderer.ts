@@ -40,9 +40,15 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	/**
 	 * Renders a Lit component boundary for component-level orchestration.
 	 *
+	 * SSR-eligible lazy scripts are preloaded first so custom elements registered
+	 * by the component can render their server markup even when the Lit renderer is
+	 * entered through cross-integration marker resolution.
+	 *
 	 * Includes component-scoped dependency assets when declared.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		await this.preloadSsrLazyScripts([input.component]);
+
 		const component = input.component as (
 			props: Record<string, unknown>,
 		) => Promise<EcoPagesElement> | EcoPagesElement;

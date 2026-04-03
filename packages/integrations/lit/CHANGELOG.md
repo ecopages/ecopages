@@ -14,6 +14,7 @@ All notable changes to `@ecopages/lit` are documented here.
 
 - Prevented the shared Lit hydrate-support bootstrap from re-running on every browser-router navigation.
 - Routed Lit renderer output through Lit's static SSR template pipeline so registered custom elements render declarative shadow DOM during SSR instead of staying as bare host tags.
+- Fixed cross-integration Lit SSR to defer Lit boundaries into marker-graph resolution and preload `ssr: true` lazy scripts during component-level renders, so custom elements like the kitchen-sink counter render their server markup outside Lit-owned page entry routes.
 
 ### Refactoring
 

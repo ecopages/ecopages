@@ -331,6 +331,7 @@ export class RadiantToc extends RadiantElement {
 			takeRecords: () => [],
 			root: null,
 			rootMargin: '',
+			scrollMargin: '',
 			thresholds: [],
 		} satisfies IntersectionObserver;
 

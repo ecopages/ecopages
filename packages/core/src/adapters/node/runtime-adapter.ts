@@ -1,27 +1,11 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import { pathToFileURL } from 'node:url';
 import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import {
-	createBuildAdapter,
-	getAppBuildExecutor,
-	type BuildAdapter,
-	type BuildExecutor,
-} from '../../build/build-adapter.ts';
-import { createAppBuildExecutor } from '../../build/dev-build-coordinator.ts';
-import { createNodeBootstrapPlugin, getNodeRuntimeNodeModulesDir } from './bootstrap-dependency-resolver.ts';
 import {
 	setAppNodeRuntimeManifest,
 	type NodeRuntimeManifest,
 } from '../../services/runtime-manifest/node-runtime-manifest.service.ts';
 import { DevelopmentInvalidationService } from '../../services/invalidation/development-invalidation.service.ts';
 import { getAppEntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import { createAliasResolverPlugin } from '../../plugins/alias-resolver-plugin.ts';
-import {
-	TranspilerServerLoader,
-	type ServerLoaderAppContext,
-} from '../../services/module-loading/server-loader.service.ts';
-import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
 
 /**
@@ -66,103 +50,6 @@ export interface NodeRuntimeAdapter {
 	start(options: NodeRuntimeStartOptions): Promise<NodeRuntimeSession>;
 }
 
-const NODE_RUNTIME_CONFIG_OUTDIR = '.node-runtime-config';
-const NODE_RUNTIME_ENTRY_OUTDIR = '.node-runtime-entry';
-const NODE_RUNTIME_BOOTSTRAP_SPLITTING = false;
-const NODE_RUNTIME_CONFIG_NAMESPACE = 'ecopages-runtime-config';
-const NODE_RUNTIME_CONFIG_GLOBAL_KEY = '__ecopagesNodeRuntimeConfig';
-const NODE_HMR_MANAGER_SOURCE_PATH = fileURLToPath(new URL('./node-hmr-manager.ts', import.meta.url));
-
-/**
- * Resolves a relative import path to an absolute path given its importer.
- * Returns undefined for bare specifiers or when resolution is not possible.
- */
-function resolveConfigImportPath(importPath: string, importer?: string): string | undefined {
-	if (!importPath) {
-		return undefined;
-	}
-
-	if (path.isAbsolute(importPath)) {
-		return importPath;
-	}
-
-	if (!importPath.startsWith('.')) {
-		return undefined;
-	}
-
-	if (!importer) {
-		return undefined;
-	}
-
-	return path.resolve(path.dirname(importer), importPath);
-}
-
-/**
- * Returns true if the given esbuild resolve args refer to the app's eco.config
- * module, by matching against the absolute config path (with or without
- * extension) or the well-known relative form `./eco.config`.
- */
-function doesImportReferenceConfig(args: { path: string; importer?: string }, configModulePath: string): boolean {
-	if (args.path === configModulePath) {
-		return true;
-	}
-
-	if (args.path === './eco.config' || args.path === './eco.config.ts') {
-		return true;
-	}
-
-	const resolvedImportPath = resolveConfigImportPath(args.path, args.importer);
-	if (!resolvedImportPath) {
-		return false;
-	}
-
-	if (resolvedImportPath === configModulePath) {
-		return true;
-	}
-
-	const configPathWithoutExtension = configModulePath.replace(/\.[cm]?[jt]sx?$/i, '');
-	const resolvedPathWithoutExtension = resolvedImportPath.replace(/\.[cm]?[jt]sx?$/i, '');
-	return resolvedPathWithoutExtension === configPathWithoutExtension;
-}
-
-/**
- * Creates an esbuild plugin that intercepts any import of the app's eco.config
- * module during app-entry transpilation and redirects it to a synthetic module
- * that reads the pre-loaded config from `globalThis`. This prevents eco.config
- * from being re-executed as a side effect of bundling the app-entry module.
- */
-function createRuntimeConfigBridgePlugin(configModulePath: string): EcoBuildPlugin {
-	return {
-		name: 'node-runtime-config-bridge',
-		setup(build) {
-			build.onResolve({ filter: /.*/ }, (args) => {
-				if (!doesImportReferenceConfig(args, configModulePath)) {
-					return undefined;
-				}
-
-				return {
-					path: NODE_RUNTIME_CONFIG_GLOBAL_KEY,
-					namespace: NODE_RUNTIME_CONFIG_NAMESPACE,
-				};
-			});
-
-			build.onLoad({ filter: /.*/, namespace: NODE_RUNTIME_CONFIG_NAMESPACE }, () => {
-				return {
-					loader: 'js',
-					contents: [
-						`const key = ${JSON.stringify(NODE_RUNTIME_CONFIG_GLOBAL_KEY)};`,
-						'const appConfig = globalThis[key];',
-						'if (!appConfig) {',
-						"throw new Error('Node runtime config bridge expected a loaded app config before app-entry evaluation.');",
-						'}',
-						'export default appConfig;',
-					].join('\n'),
-				};
-			});
-		},
-	};
-}
-
 /**
  * Validates and narrows the persisted Node runtime manifest used by the thin
  * host handoff.
@@ -194,57 +81,15 @@ export function assertNodeRuntimeManifest(manifest: unknown): NodeRuntimeManifes
 	return candidate as unknown as NodeRuntimeManifest;
 }
 
-/**
- * Resolves the runtime-specific output directory used for bootstrap module
- * transpilation.
- */
-function getRuntimeOutdir(
-	manifest: NodeRuntimeManifest,
-	kind: typeof NODE_RUNTIME_CONFIG_OUTDIR | typeof NODE_RUNTIME_ENTRY_OUTDIR,
-): string {
-	return path.join(
-		resolveInternalExecutionDir({
-			rootDir: manifest.appRootDir,
-			workDir: manifest.workDir,
-			absolutePaths: {
-				workDir: manifest.workDir,
-				distDir: manifest.distDir,
-			},
-		}),
-		kind,
-	);
-}
-
 class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 	private readonly options: NodeRuntimeStartOptions;
-	private readonly serverLoader: TranspilerServerLoader;
-	private readonly bootstrapBundlePlugin: EcoBuildPlugin;
-	private readonly bootstrapBuildAdapter: BuildAdapter;
-	private readonly bootstrapBuildExecutor: BuildExecutor;
 	private invalidationService: DevelopmentInvalidationService | null = null;
 	private appConfig: EcoPagesAppConfig | null = null;
 	private loadedAppRuntime: LoadedAppRuntime | null = null;
+	private importGeneration = 0;
 
 	constructor(options: NodeRuntimeStartOptions) {
 		this.options = options;
-		this.bootstrapBundlePlugin = createNodeBootstrapPlugin({
-			projectDir: options.manifest.appRootDir,
-			runtimeNodeModulesDir: getNodeRuntimeNodeModulesDir(options.manifest),
-			preserveImportMetaPaths: [
-				options.manifest.modulePaths.config,
-				...(options.manifest.modulePaths.entry ? [options.manifest.modulePaths.entry] : []),
-				NODE_HMR_MANAGER_SOURCE_PATH,
-			],
-		});
-		this.bootstrapBuildAdapter = createBuildAdapter();
-		this.bootstrapBuildExecutor = createAppBuildExecutor({
-			development: false,
-			adapter: this.bootstrapBuildAdapter,
-		});
-		this.serverLoader = new TranspilerServerLoader({
-			rootDir: options.manifest.appRootDir,
-			getBuildExecutor: () => this.bootstrapBuildExecutor,
-		});
 	}
 
 	private isDevelopmentMode(): boolean {
@@ -267,55 +112,28 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 		return entryModulePath;
 	}
 
-	private createAppLoaderContext(
-		appConfig: EcoPagesAppConfig,
-		buildExecutor: BuildExecutor,
-		invalidationService: DevelopmentInvalidationService,
-	): ServerLoaderAppContext {
-		return {
-			rootDir: appConfig.rootDir,
-			getBuildExecutor: () => buildExecutor,
-			getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
-			invalidateModules: (changedFiles?: string[]) => invalidationService.invalidateServerModules(changedFiles),
-		};
-	}
-
 	/**
-	 * Installs and returns the app-owned runtime build executor.
+	 * Imports a module by file path, using a generation-based query parameter
+	 * for cache busting after invalidation.
 	 */
-	private installAppBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
-		const appBuildExecutor = installAppRuntimeBuildExecutor(appConfig, {
-			development: this.isDevelopmentMode(),
-		});
-		return appBuildExecutor;
-	}
-
-	/**
-	 * Rebinds app-phase server loading to the installed app-owned executor.
-	 */
-	private bindAppServerLoader(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): void {
-		if (!this.invalidationService) {
-			throw new Error('Node runtime invalidation service is not initialized.');
+	private async importModule(modulePath: string): Promise<unknown> {
+		const moduleUrl = pathToFileURL(modulePath);
+		if (this.importGeneration > 0) {
+			moduleUrl.searchParams.set('v', String(this.importGeneration));
 		}
-
-		this.serverLoader.rebindAppContext(
-			this.createAppLoaderContext(appConfig, buildExecutor, this.invalidationService),
-		);
+		return await import(moduleUrl.href);
 	}
 
 	private initializeAppRuntime(appConfig: EcoPagesAppConfig): EcoPagesAppConfig {
 		setAppNodeRuntimeManifest(appConfig, this.manifest);
 		this.invalidationService = new DevelopmentInvalidationService(appConfig);
-		const appBuildExecutor = this.installAppBuildExecutor(appConfig);
-		this.bindAppServerLoader(appConfig, appBuildExecutor);
+		installAppRuntimeBuildExecutor(appConfig, {
+			development: this.isDevelopmentMode(),
+		});
 		this.appConfig = appConfig;
 		return appConfig;
 	}
 
-	/**
-	 * Loads and validates the built app config through the framework-owned server
-	 * loader.
-	 */
 	private async loadAppConfig(): Promise<EcoPagesAppConfig> {
 		if (this.appConfig) {
 			return this.appConfig;
@@ -324,20 +142,9 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 		let importedConfigModule;
 
 		try {
-			importedConfigModule = await this.serverLoader.loadConfig<
-				| {
-						default: EcoPagesAppConfig;
-				  }
-				| EcoPagesAppConfig
-			>({
-				filePath: this.manifest.modulePaths.config,
-				outdir: getRuntimeOutdir(this.manifest, NODE_RUNTIME_CONFIG_OUTDIR),
-				splitting: NODE_RUNTIME_BOOTSTRAP_SPLITTING,
-				externalPackages: false,
-				plugins: [createAliasResolverPlugin(this.manifest.sourceRootDir), this.bootstrapBundlePlugin],
-				transpileErrorMessage: (details) => `Failed to transpile Ecopages config module: ${details}`,
-				noOutputMessage: (filePath) => `No transpiled output generated for Ecopages config module: ${filePath}`,
-			});
+			importedConfigModule = (await this.importModule(this.manifest.modulePaths.config)) as
+				| { default: EcoPagesAppConfig }
+				| EcoPagesAppConfig;
 		} catch (error) {
 			throw new Error(
 				`Node thin-host runtime config bootstrap failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -348,10 +155,6 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 		return this.initializeAppRuntime(exportedConfig);
 	}
 
-	/**
-	 * Loads the application entry through the framework-owned server loader after
-	 * config bootstrap has established app-owned runtime/build services.
-	 */
 	async loadApp(): Promise<LoadedAppRuntime> {
 		if (this.loadedAppRuntime) {
 			return this.loadedAppRuntime;
@@ -360,33 +163,13 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 		const appConfig = await this.loadAppConfig();
 		const entryModulePath = this.getEntryModulePath();
 		let loadedEntryModule;
-		const runtimeGlobal = globalThis as typeof globalThis & {
-			[NODE_RUNTIME_CONFIG_GLOBAL_KEY]?: EcoPagesAppConfig;
-		};
-
-		runtimeGlobal[NODE_RUNTIME_CONFIG_GLOBAL_KEY] = appConfig;
 
 		try {
-			loadedEntryModule = await this.serverLoader.loadApp({
-				filePath: entryModulePath,
-				outdir: getRuntimeOutdir(this.manifest, NODE_RUNTIME_ENTRY_OUTDIR),
-				splitting: NODE_RUNTIME_BOOTSTRAP_SPLITTING,
-				externalPackages: false,
-				plugins: [
-					createRuntimeConfigBridgePlugin(this.manifest.modulePaths.config),
-					createAliasResolverPlugin(appConfig.absolutePaths.srcDir),
-					this.bootstrapBundlePlugin,
-				],
-				transpileErrorMessage: (details) => `Failed to transpile Ecopages app entry module: ${details}`,
-				noOutputMessage: (filePath) =>
-					`No transpiled output generated for Ecopages app entry module: ${filePath}`,
-			});
+			loadedEntryModule = await this.importModule(entryModulePath);
 		} catch (error) {
 			throw new Error(
 				`Node thin-host runtime app-entry bootstrap failed: ${error instanceof Error ? error.message : String(error)}`,
 			);
-		} finally {
-			delete runtimeGlobal[NODE_RUNTIME_CONFIG_GLOBAL_KEY];
 		}
 
 		this.loadedAppRuntime = {
@@ -400,27 +183,16 @@ class NodeRuntimeAdapterSession implements NodeRuntimeSession {
 		return this.loadedAppRuntime;
 	}
 
-	/**
-	 * Invalidates server-loader and app dev-graph state before the next bootstrap
-	 * cycle.
-	 */
 	async invalidate(_changedFiles: string[]): Promise<void> {
-		this.serverLoader.invalidate(_changedFiles);
 		if (this.invalidationService) {
 			this.invalidationService.resetRuntimeState(_changedFiles);
 		}
 		this.loadedAppRuntime = null;
-		if (this.appConfig) {
-			this.bindAppServerLoader(this.appConfig, getAppBuildExecutor(this.appConfig));
-			return;
-		}
+		this.appConfig = null;
+		this.importGeneration++;
 	}
 
-	/**
-	 * Disposes loader-owned resources for the current runtime session.
-	 */
 	async dispose(): Promise<void> {
-		await this.serverLoader.dispose();
 		if (this.appConfig) {
 			getAppEntrypointDependencyGraph(this.appConfig).reset();
 		}

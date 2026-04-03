@@ -6,6 +6,11 @@ All notable changes to `ecopages` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Features & Improvements
+
+- Added `ecopages-loader-hooks.cjs` using Node.js `module.registerHooks()` and esbuild `transformSync` to transparently transpile TypeScript at runtime, replacing the complex bootstrap build pipeline.
+- Updated `launch-plan.js` to register loader hooks via `--require` before the thin-host entry point.
+
 ### Bug Fixes
 
 - Fixed npm release packaging so the CLI publishes its built manifest instead of source `workspace:*` dependency ranges.

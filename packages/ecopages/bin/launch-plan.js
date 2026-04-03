@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const NODE_THIN_HOST_PATH = fileURLToPath(new URL('./node-thin-host.js', import.meta.url));
+const LOADER_HOOKS_PATH = fileURLToPath(new URL('./ecopages-loader-hooks.cjs', import.meta.url));
 const DEFAULT_INTERNAL_WORK_DIR = '.eco';
 
 export function buildEnvOverrides(options) {
@@ -59,7 +60,7 @@ export function buildNodeArgs(args, options, entryFile) {
 
 	if (options.watch) nodeArgs.push('--watch');
 
-	nodeArgs.push(NODE_THIN_HOST_PATH, entryFile, ...args);
+	nodeArgs.push('--require', LOADER_HOOKS_PATH, NODE_THIN_HOST_PATH, entryFile, ...args);
 
 	if (options.reactFastRefresh) {
 		nodeArgs.push('--react-fast-refresh');

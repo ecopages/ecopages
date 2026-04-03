@@ -115,10 +115,7 @@ export const Logo = ({
 		<div className="ecopages-logo">
 			<svg width="1.5em" height="1.5em" viewBox="-10 -20 200 220" fill="none" xmlns="http://www.w3.org/2000/svg">
 				<defs>
-					<path
-						id={`${idPrefix}-leaf`}
-						d="M93.4369 13.7461C9.08728 -35.8626 -0.000109112 64.7566 -0.000109112 64.7566C-0.000109112 64.7566 19.6444 24.2069 71.8524 57.5082C160.014 113.743 164.406 17.3765 164.406 17.3765C164.406 17.3765 157.355 51.3381 93.4369 13.7461Z"
-					/>
+					<path id={`${idPrefix}-leaf`} d={LEAF_PATH} />
 
 					<clipPath id={`${idPrefix}-above-midrib`}>
 						<path d="M-20,65 L0,64.756 C35,-58 120,118 164.406,17.376 L220,17 L220,-50 L-20,-50 Z" />
@@ -225,7 +222,7 @@ export const Logo = ({
 								fill="none"
 							/>
 							<path
-								d="M0,64.756 C35,-58 120,118 164.406,17.376"
+								d={MIDRIB_PATH}
 								stroke={config.backBot[1]}
 								strokeWidth="0.75"
 								strokeOpacity="0.15"
@@ -258,7 +255,7 @@ export const Logo = ({
 								fill="none"
 							/>
 							<path
-								d="M0,64.756 C35,-58 120,118 164.406,17.376"
+								d={MIDRIB_PATH}
 								stroke={config.midBot[1]}
 								strokeWidth="0.75"
 								strokeOpacity="0.2"
@@ -291,7 +288,7 @@ export const Logo = ({
 								fill="none"
 							/>
 							<path
-								d="M0,64.756 C35,-58 120,118 164.406,17.376"
+								d={MIDRIB_PATH}
 								stroke={config.frontBot[1]}
 								strokeWidth="0.75"
 								strokeOpacity="0.2"
@@ -302,6 +299,147 @@ export const Logo = ({
 				</g>
 			</svg>
 			<span className="ecopages-logo__text">{children}</span>
+		</div>
+	);
+};
+
+const LEAF_PATH =
+	'M93.4369 13.7461C9.08728 -35.8626 -0.000109112 64.7566 -0.000109112 64.7566C-0.000109112 64.7566 19.6444 24.2069 71.8524 57.5082C160.014 113.743 164.406 17.3765 164.406 17.3765C164.406 17.3765 157.355 51.3381 93.4369 13.7461Z';
+const MIDRIB_PATH = 'M0,64.756 C35,-58 120,118 164.406,17.376';
+
+const BADGE_CONFIG = createLeafConfig('gray', [50, 100, 100], [200, 300, 300], [400, 500, 500]);
+
+export const LogoBadge = ({
+	name = 'logo-badge',
+	variant = 'gradient',
+	config = BADGE_CONFIG,
+	children,
+}: {
+	name?: string;
+	variant?: LogoVariant;
+	config?: ReturnType<typeof createLeafConfig>;
+	children?: ReactNode;
+}) => {
+	const p = name;
+	const c = config;
+
+	return (
+		<div className="ecopages-logo">
+			<div
+				style={{
+					width: '1.2em',
+					height: '1.2em',
+					background: '#09090B',
+					borderRadius: '30%',
+					...({ cornerShape: 'squircle' } as React.CSSProperties),
+					overflow: 'hidden',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+				}}
+			>
+				<svg width="100%" height="100%" viewBox="-20 -4 205 205" fill="none" xmlns="http://www.w3.org/2000/svg">
+					<defs>
+						{variant === 'gradient' && (
+							<>
+								<linearGradient id={`${p}-back`} x1="0" y1="0" x2="0" y2="1">
+									<stop offset="0%" stopColor={c.backGradient[0]} />
+									<stop offset="50%" stopColor={c.backGradient[1]} />
+									<stop offset="100%" stopColor={c.backGradient[2]} />
+								</linearGradient>
+								<linearGradient id={`${p}-mid`} x1="0" y1="0" x2="0" y2="1">
+									<stop offset="0%" stopColor={c.midGradient[0]} />
+									<stop offset="50%" stopColor={c.midGradient[1]} />
+									<stop offset="100%" stopColor={c.midGradient[2]} />
+								</linearGradient>
+								<linearGradient id={`${p}-front`} x1="0" y1="0" x2="0" y2="1">
+									<stop offset="0%" stopColor={c.frontGradient[0]} />
+									<stop offset="50%" stopColor={c.frontGradient[1]} />
+									<stop offset="100%" stopColor={c.frontGradient[2]} />
+								</linearGradient>
+							</>
+						)}
+						{variant === 'detailed' && (
+							<>
+								<clipPath id={`${p}-above`}>
+									<path d="M-20,65 L0,64.756 C35,-58 120,118 164.406,17.376 L220,17 L220,-50 L-20,-50 Z" />
+								</clipPath>
+								<linearGradient id={`${p}-back-bot`} x1="0" y1="0" x2="0.5" y2="1">
+									<stop offset="0%" stopColor={c.backBot[0]} />
+									<stop offset="100%" stopColor={c.backBot[1]} />
+								</linearGradient>
+								<linearGradient id={`${p}-back-top`} x1="0" y1="0" x2="0.5" y2="1">
+									<stop offset="0%" stopColor={c.backTop[0]} />
+									<stop offset="100%" stopColor={c.backTop[1]} />
+								</linearGradient>
+								<linearGradient id={`${p}-mid-bot`} x1="0" y1="0" x2="0.5" y2="1">
+									<stop offset="0%" stopColor={c.midBot[0]} />
+									<stop offset="100%" stopColor={c.midBot[1]} />
+								</linearGradient>
+								<linearGradient id={`${p}-mid-top`} x1="0" y1="0" x2="0.5" y2="1">
+									<stop offset="0%" stopColor={c.midTop[0]} />
+									<stop offset="100%" stopColor={c.midTop[1]} />
+								</linearGradient>
+								<linearGradient id={`${p}-front-bot`} x1="0" y1="0" x2="0.5" y2="1">
+									<stop offset="0%" stopColor={c.frontBot[0]} />
+									<stop offset="100%" stopColor={c.frontBot[1]} />
+								</linearGradient>
+								<linearGradient id={`${p}-front-top`} x1="0" y1="0" x2="0.5" y2="1">
+									<stop offset="0%" stopColor={c.frontTop[0]} />
+									<stop offset="100%" stopColor={c.frontTop[1]} />
+								</linearGradient>
+							</>
+						)}
+					</defs>
+
+					<g transform="translate(0, 100)">
+						{variant === 'flat' && (
+							<path d={LEAF_PATH} fill={c.back} stroke="#09090B" strokeWidth="6" paintOrder="stroke fill" />
+						)}
+						{variant === 'gradient' && (
+							<path d={LEAF_PATH} fill={`url(#${p}-back)`} stroke="#09090B" strokeWidth="6" paintOrder="stroke fill" />
+						)}
+						{variant === 'detailed' && (
+							<>
+								<path d={LEAF_PATH} fill={`url(#${p}-back-bot)`} stroke="#09090B" strokeWidth="6" paintOrder="stroke fill" />
+								<path d={LEAF_PATH} fill={`url(#${p}-back-top)`} clipPath={`url(#${p}-above)`} />
+								<path d={MIDRIB_PATH} fill="none" stroke={c.backBot[1]} strokeWidth="1" strokeOpacity="0.5" />
+							</>
+						)}
+					</g>
+					<g transform="translate(0, 60)">
+						{variant === 'flat' && (
+							<path d={LEAF_PATH} fill={c.mid} stroke="#09090B" strokeWidth="6" paintOrder="stroke fill" />
+						)}
+						{variant === 'gradient' && (
+							<path d={LEAF_PATH} fill={`url(#${p}-mid)`} stroke="#09090B" strokeWidth="6" paintOrder="stroke fill" />
+						)}
+						{variant === 'detailed' && (
+							<>
+								<path d={LEAF_PATH} fill={`url(#${p}-mid-bot)`} stroke="#09090B" strokeWidth="6" paintOrder="stroke fill" />
+								<path d={LEAF_PATH} fill={`url(#${p}-mid-top)`} clipPath={`url(#${p}-above)`} />
+								<path d={MIDRIB_PATH} fill="none" stroke={c.midBot[1]} strokeWidth="1" strokeOpacity="0.5" />
+							</>
+						)}
+					</g>
+					<g transform="translate(0, 20)">
+						{variant === 'flat' && (
+							<path d={LEAF_PATH} fill={c.front} stroke="#09090B" strokeWidth="6" paintOrder="stroke fill" />
+						)}
+						{variant === 'gradient' && (
+							<path d={LEAF_PATH} fill={`url(#${p}-front)`} stroke="#09090B" strokeWidth="6" paintOrder="stroke fill" />
+						)}
+						{variant === 'detailed' && (
+							<>
+								<path d={LEAF_PATH} fill={`url(#${p}-front-bot)`} stroke="#09090B" strokeWidth="6" paintOrder="stroke fill" />
+								<path d={LEAF_PATH} fill={`url(#${p}-front-top)`} clipPath={`url(#${p}-above)`} />
+								<path d={MIDRIB_PATH} fill="none" stroke={c.frontBot[1]} strokeWidth="1" strokeOpacity="0.5" />
+							</>
+						)}
+					</g>
+				</svg>
+			</div>
+			{children && <span className="ecopages-logo__text">{children}</span>}
 		</div>
 	);
 };
@@ -350,6 +488,9 @@ export default eco.page<{}, ReactNode>({
 	render: () => {
 		return (
 			<BaseLayout className="main-content">
+				<LogoBadge name="badge-flat" variant="flat">ecopages</LogoBadge>
+				<LogoBadge name="badge-gradient" variant="gradient">ecopages</LogoBadge>
+				<LogoBadge name="badge-detailed" variant="detailed">ecopages</LogoBadge>
 				<Logos variant="flat" />
 				<Logos variant="gradient" />
 				<Logos variant="detailed" />

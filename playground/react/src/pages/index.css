@@ -7,7 +7,7 @@
 }
 
 .ecopages-logo {
-	@apply flex gap-2  items-center text-3xl md:text-3xl;
+	@apply flex gap-2 items-center text-3xl md:text-9xl;
 }
 
 .ecopages-logo__text {

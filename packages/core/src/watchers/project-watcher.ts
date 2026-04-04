@@ -10,13 +10,13 @@ import { DevelopmentInvalidationService } from '../services/invalidation/develop
  * Configuration options for the ProjectWatcher
  * @interface ProjectWatcherConfig
  * @property {EcoPagesAppConfig} config - The application configuration
- * @property {() => void} refreshRouterRoutesCallback - Callback to refresh router routes
+ * @property {() => Promise<void>} refreshRouterRoutesCallback - Callback to refresh router routes
  * @property {IHmrManager} hmrManager - The HMR manager instance
  * @property {ClientBridge} bridge - The client bridge instance
  */
 export interface ProjectWatcherConfig {
 	config: EcoPagesAppConfig;
-	refreshRouterRoutesCallback: () => void;
+	refreshRouterRoutesCallback: () => Promise<void>;
 	hmrManager: IHmrManager;
 	bridge: IClientBridge;
 }
@@ -46,7 +46,7 @@ export class ProjectWatcher {
 	 */
 	private static readonly duplicateChangeWindowMs = 150;
 	private appConfig: EcoPagesAppConfig;
-	private refreshRouterRoutesCallback: () => void;
+	private refreshRouterRoutesCallback: () => Promise<void>;
 	private hmrManager: IHmrManager;
 	private bridge: IClientBridge;
 	private readonly invalidationService: DevelopmentInvalidationService;
@@ -163,7 +163,7 @@ export class ProjectWatcher {
 			}
 
 			if (plan.refreshRoutes) {
-				this.refreshRouterRoutesCallback();
+				await this.refreshRouterRoutesCallback();
 			}
 
 			if (plan.category === 'additional-watch') {
@@ -261,13 +261,13 @@ export class ProjectWatcher {
 	 *
 	 * @param {string} path - Path of the changed directory
 	 */
-	triggerRouterRefresh(changedPath: string) {
+	async triggerRouterRefresh(changedPath: string): Promise<void> {
 		const resolvedPath = path.resolve(changedPath);
 		const isPageDir =
 			resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir) && path.extname(resolvedPath) === '';
 
 		if (isPageDir || this.isRouteSourceFile(resolvedPath)) {
-			this.refreshRouterRoutesCallback();
+			await this.refreshRouterRoutesCallback();
 		}
 	}
 
@@ -339,16 +339,10 @@ export class ProjectWatcher {
 
 		this.watcher
 			.on('change', (p) => this.enqueueChange(() => this.handleFileChange(p, 'change')))
-			.on('add', (p) => {
-				this.enqueueChange(() => this.handleFileChange(p, 'add'));
-				this.triggerRouterRefresh(p);
-			})
-			.on('addDir', (p) => this.triggerRouterRefresh(p))
-			.on('unlink', (p) => {
-				this.enqueueChange(() => this.handleFileChange(p, 'unlink'));
-				this.triggerRouterRefresh(p);
-			})
-			.on('unlinkDir', (p) => this.triggerRouterRefresh(p))
+			.on('add', (p) => this.enqueueChange(() => this.handleFileChange(p, 'add')))
+			.on('addDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
+			.on('unlink', (p) => this.enqueueChange(() => this.handleFileChange(p, 'unlink')))
+			.on('unlinkDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
 			.on('error', (error) => this.handleError(error));
 
 		for (const processor of this.appConfig.processors.values()) {

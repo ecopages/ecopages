@@ -25,7 +25,7 @@ describe('ProjectWatcher', () => {
 		setAppDevGraphService(Config, new InMemoryDevGraphService());
 		HmrManager = createMockHmrManager();
 		Bridge = createMockBridge();
-		RefreshCallback = vi.fn(() => {});
+		RefreshCallback = vi.fn(async () => {});
 
 		watcher = new ProjectWatcher({
 			config: Config,
@@ -51,23 +51,23 @@ describe('ProjectWatcher', () => {
 	});
 
 	describe('triggerRouterRefresh', () => {
-		test('should call refresh callback for page directory changes', () => {
+		test('should call refresh callback for page directory changes', async () => {
 			const pagePath = path.join(Config.absolutePaths.pagesDir, 'index.tsx');
-			watcher.triggerRouterRefresh(pagePath);
+			await watcher.triggerRouterRefresh(pagePath);
 
 			expect(RefreshCallback).toHaveBeenCalled();
 		});
 
-		test('should not call refresh callback for stylesheet assets inside the pages directory', () => {
+		test('should not call refresh callback for stylesheet assets inside the pages directory', async () => {
 			const stylesheetPath = path.join(Config.absolutePaths.pagesDir, 'index.css');
-			watcher.triggerRouterRefresh(stylesheetPath);
+			await watcher.triggerRouterRefresh(stylesheetPath);
 
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
 
-		test('should not call refresh callback for non-page directory changes', () => {
+		test('should not call refresh callback for non-page directory changes', async () => {
 			const nonPagePath = '/test/project/src/components/Button.tsx';
-			watcher.triggerRouterRefresh(nonPagePath);
+			await watcher.triggerRouterRefresh(nonPagePath);
 
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
@@ -104,7 +104,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 		setAppDevGraphService(Config, new InMemoryDevGraphService());
 		HmrManager = createMockHmrManager();
 		Bridge = createMockBridge();
-		RefreshCallback = vi.fn(() => {});
+		RefreshCallback = vi.fn(async () => {});
 
 		watcher = new ProjectWatcher({
 			config: Config as EcoPagesAppConfig,
@@ -184,6 +184,35 @@ describe('ProjectWatcher - File Change Handling', () => {
 			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'contact.tsx');
 
 			await (watcher as any).handleFileChange(pageFilePath);
+
+			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(pageFilePath));
+		});
+
+		test('should await route refresh before delegating page file changes to HMR', async () => {
+			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'contact.tsx');
+			let releaseRefresh!: () => void;
+			const refreshGate = new Promise<void>((resolve) => {
+				releaseRefresh = resolve;
+			});
+			const asyncRefreshCallback = vi.fn(async () => {
+				await refreshGate;
+			});
+
+			watcher = new ProjectWatcher({
+				config: Config as EcoPagesAppConfig,
+				refreshRouterRoutesCallback: asyncRefreshCallback,
+				hmrManager: HmrManager,
+				bridge: Bridge,
+			});
+
+			const pendingChange = (watcher as any).handleFileChange(pageFilePath, 'add');
+			await Promise.resolve();
+
+			expect(asyncRefreshCallback).toHaveBeenCalledTimes(1);
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+
+			releaseRefresh();
+			await pendingChange;
 
 			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(pageFilePath));
 		});
@@ -416,7 +445,7 @@ describe('ProjectWatcher - Priority Rules', () => {
 
 		watcher = new ProjectWatcher({
 			config: Config as EcoPagesAppConfig,
-			refreshRouterRoutesCallback: vi.fn(() => {}),
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
 			hmrManager: HmrManager,
 			bridge: Bridge,
 		});
@@ -512,7 +541,7 @@ describe('ProjectWatcher - Helper Methods', () => {
 		setAppDevGraphService(Config, new InMemoryDevGraphService());
 		watcher = new ProjectWatcher({
 			config: Config as EcoPagesAppConfig,
-			refreshRouterRoutesCallback: vi.fn(() => {}),
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
 			hmrManager: createMockHmrManager(),
 			bridge: createMockBridge(),
 		});
@@ -658,7 +687,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 
 		const watcher = new ProjectWatcher({
 			config: Config,
-			refreshRouterRoutesCallback: vi.fn(() => {}),
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
 			hmrManager: HmrManager,
 			bridge: Bridge,
 		});
@@ -674,5 +703,38 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 			expect.any(Object),
 		);
 		expect(watcherHandle.add).toHaveBeenCalledWith(Config.absolutePaths.srcDir);
+	});
+
+	test('should refresh routes once for added page files', async () => {
+		const Config = await createMockConfig();
+		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		const HmrManager = createMockHmrManager();
+		const Bridge = createMockBridge();
+		const eventHandlers = new Map<string, (path: string) => void>();
+		const refreshRouterRoutesCallback = vi.fn(async () => {});
+		const watcherHandle = {
+			add: vi.fn(),
+			on: vi.fn((event: string, handler: (path: string) => void) => {
+				eventHandlers.set(event, handler);
+				return watcherHandle;
+			}),
+			close: vi.fn(),
+		};
+
+		vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherHandle as never);
+
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback,
+			hmrManager: HmrManager,
+			bridge: Bridge,
+		});
+
+		await watcher.createWatcherSubscription();
+
+		eventHandlers.get('add')?.(path.join(Config.absolutePaths.pagesDir, 'new-page.tsx'));
+		await (watcher as any).changeQueue;
+
+		expect(refreshRouterRoutesCallback).toHaveBeenCalledTimes(1);
 	});
 });

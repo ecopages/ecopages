@@ -55,7 +55,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: vi.fn(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -82,7 +82,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: vi.fn(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -110,7 +110,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: vi.fn(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -143,7 +143,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: vi.fn(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -171,7 +171,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: vi.fn(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -195,7 +195,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: vi.fn(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -220,7 +220,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: vi.fn(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -248,7 +248,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: vi.fn(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -277,7 +277,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: vi.fn(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -310,7 +310,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: vi.fn(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});

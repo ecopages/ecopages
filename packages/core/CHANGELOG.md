@@ -15,6 +15,7 @@ All notable changes to `@ecopages/core` are documented here.
 ### Bug Fixes
 
 - Fixed deferred marker graph resolution to discover deep child markers captured inside serialized `children` props, restoring multi-level cross-integration SSR assembly.
+- Fixed watch-mode route refresh to await and deduplicate page add/remove rebuilds so newly created pages resolve without restarting the dev server.
 
 - Fixed npm release packaging to publish rewritten internal dependency versions instead of unresolved `workspace:*` ranges.
 - Fixed published npm packaging to exclude raw TypeScript sources from tarballs so consumers resolve the built JavaScript and declaration outputs consistently.

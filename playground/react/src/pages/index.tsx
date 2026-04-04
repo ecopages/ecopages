@@ -32,6 +32,9 @@ export default eco.page<{}, ReactNode>({
 				<a href="/mdx-test" className="text-blue-700 underline block mb-6">
 					Test MDX
 				</a>
+				<a href="/logo" className="text-blue-700 underline block mb-6">
+					Test Logo
+				</a>
 
 				<h2 className="text-xl font-bold mt-4 mb-2">Reachability Examples (RFC 0001)</h2>
 				<a href="/reachability-node-hydration" className="text-blue-700 underline block mb-2">

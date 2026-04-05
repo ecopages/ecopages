@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { RESOLVED_ASSETS_DIR } from '../../../../../constants.ts';
-import type { EcoPagesAppConfig } from '../../../../../internal-types.ts';
+import { RESOLVED_ASSETS_DIR } from '../../../../../config/constants.ts';
+import type { EcoPagesAppConfig } from '../../../../../types/internal-types.ts';
 import { rapidhash } from '../../../../../utils/hash.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from '../../../../../utils/runtime.ts';
 import type { BaseAsset, ProcessedAsset } from '../../assets.types.ts';

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { buildInjectorMapScript } from './lazy-injector-map.ts';
 import type { InjectorMapConfig } from '@ecopages/scripts-injector/types';
-import type { ResolvedLazyScriptGroup } from '../public-types.ts';
+import type { ResolvedLazyScriptGroup } from '../types/public-types.ts';
 
 describe('buildInjectorMapScript', () => {
 	test('builds injector map for mixed lazy triggers', () => {

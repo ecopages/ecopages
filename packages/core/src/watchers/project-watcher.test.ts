@@ -3,11 +3,11 @@ import path from 'node:path';
 import chokidar from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
 import { ProjectWatcher } from './project-watcher';
-import type { EcoPagesAppConfig, IHmrManager } from '../internal-types';
-import type { ClientBridge } from '../adapters/bun/client-bridge';
-import { ConfigBuilder } from '../config/config-builder';
-import { InMemoryDevGraphService, setAppDevGraphService } from '../services/runtime-state/dev-graph.service';
-import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
+import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
+import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
+import { ConfigBuilder } from '../config/config-builder.ts';
+import { InMemoryDevGraphService, setAppDevGraphService } from '../services/runtime-state/dev-graph.service.ts';
+import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers.ts';
 
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
 	return await new ConfigBuilder().setRootDir(rootDir).build();

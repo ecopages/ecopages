@@ -1,4 +1,4 @@
-import type { EcoComponent, RenderContext, RenderOptions, ResponseOptions } from '../../public-types.ts';
+import type { EcoComponent, RenderContext, RenderOptions, ResponseOptions } from '../../types/public-types.ts';
 import type {
 	IntegrationRenderer,
 	RenderToResponseContext,

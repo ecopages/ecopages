@@ -1,15 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { getAppBuildExecutor } from '../../build/build-adapter.ts';
-import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager, IClientBridge } from '../../internal-types.ts';
+import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager, IClientBridge } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategyType, type HmrStrategy } from '../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy.ts';
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import type { ClientBridgeEvent } from '../../public-types.ts';
+import type { ClientBridgeEvent } from '../../types/public-types.ts';
 import { HmrEntrypointRegistrar } from '../shared/hmr-entrypoint-registrar.ts';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';

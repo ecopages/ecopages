@@ -1,12 +1,12 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { StaticSiteGenerator } from './static-site-generator';
-import type { EcoPagesAppConfig } from '../internal-types';
+import type { EcoPagesAppConfig } from '../types/internal-types';
 import type { FSRouter } from '../router/server/fs-router';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer';
 import { appLogger } from '../global/app-logger.ts';
 import { PageModuleImportService } from '../services/module-loading/page-module-import.service';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 
 const originalEnsureDir = fileSystem.ensureDir;
 const originalWrite = fileSystem.write;

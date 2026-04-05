@@ -1,6 +1,6 @@
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { StaticRoute } from '../../public-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { StaticRoute } from '../../types/public-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 
 export const EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS = {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from './global-injector-map.ts';
-import type { ResolvedLazyTrigger } from '../public-types.ts';
+import type { ResolvedLazyTrigger } from '../types/public-types.ts';
 
 describe('buildGlobalInjectorMapScript', () => {
 	test('builds merged map by trigger id and escapes script closing tags', () => {

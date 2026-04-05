@@ -26,7 +26,7 @@ import type {
 	ErrorHandler,
 	RenderContext,
 	StaticRoute,
-} from '../../public-types.ts';
+} from '../../types/public-types.ts';
 
 export abstract class SharedServerAdapter<
 	TOptions extends ServerAdapterOptions,

@@ -7,8 +7,8 @@
  * @module ServerAdapter
  */
 
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler } from '../../public-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { ApiHandler } from '../../types/public-types.ts';
 
 /**
  * Configuration options for all server adapters

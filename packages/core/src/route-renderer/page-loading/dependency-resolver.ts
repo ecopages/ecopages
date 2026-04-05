@@ -6,8 +6,8 @@ import type {
 	EcoComponentScriptEntry,
 	LazyTriggerRule,
 	ResolvedLazyTrigger,
-} from '../../public-types.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+} from '../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,

@@ -1,7 +1,7 @@
-import { STATUS_MESSAGE } from '../../constants.ts';
+import { STATUS_MESSAGE } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig, FileSystemServerOptions } from '../../internal-types.ts';
-import type { RouteRendererBody } from '../../public-types.ts';
+import type { EcoPagesAppConfig, FileSystemServerOptions } from '../../types/internal-types.ts';
+import type { RouteRendererBody } from '../../types/public-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { fileSystem } from '@ecopages/file-system';
 

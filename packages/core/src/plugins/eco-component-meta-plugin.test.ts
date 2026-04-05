@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createEcoComponentMetaPlugin } from './eco-component-meta-plugin';
-import type { EcoPagesAppConfig } from '../internal-types';
+import type { EcoPagesAppConfig } from '../types/internal-types';
 import { fileSystem } from '@ecopages/file-system';
 
 /**

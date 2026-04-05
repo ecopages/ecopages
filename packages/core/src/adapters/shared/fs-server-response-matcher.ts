@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig, MatchResult } from '../../internal-types.ts';
+import type { EcoPagesAppConfig, MatchResult } from '../../types/internal-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../../router/server/fs-router.ts';
 import type { PageCacheService } from '../../services/cache/page-cache-service.ts';
@@ -10,7 +10,7 @@ import { getAppServerModuleTranspiler } from '../../services/module-loading/app-
 import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
-import type { Middleware, RequestLocals } from '../../public-types.ts';
+import type { Middleware, RequestLocals } from '../../types/public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';

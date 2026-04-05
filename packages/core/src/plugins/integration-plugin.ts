@@ -1,10 +1,10 @@
-import type { EcoBuildPlugin } from '../build/build-types';
-import type { EcoPagesAppConfig, IHmrManager } from '../internal-types';
-import type { HmrStrategy } from '../hmr/hmr-strategy';
-import type { EcoComponent, EcoPagesElement } from '../public-types';
-import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer';
-import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service';
-import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types';
+import type { EcoBuildPlugin } from '../build/build-types.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
+import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
+import type { EcoComponent, EcoPagesElement } from '../types/public-types.ts';
+import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
+import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
+import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
 export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';

@@ -1,10 +1,10 @@
 import { getBunRuntime } from '../../utils/runtime.ts';
-import { appLogger } from '../../global/app-logger';
-import type { EcoPagesAppConfig } from '../../internal-types';
+import { appLogger } from '../../global/app-logger.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
-import type { ClientBridge } from './client-bridge';
-import type { HmrManager } from './hmr-manager';
+import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
+import type { ClientBridge } from './client-bridge.ts';
+import type { HmrManager } from './hmr-manager.ts';
 import {
 	bindSharedRuntimeHmrManager,
 	initializeSharedRuntimePlugins,

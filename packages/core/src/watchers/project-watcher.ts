@@ -2,7 +2,7 @@ import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../types/internal-types.ts';
 import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
 import { DevelopmentInvalidationService } from '../services/invalidation/development-invalidation.service.ts';
 

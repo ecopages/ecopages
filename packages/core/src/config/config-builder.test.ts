@@ -9,7 +9,7 @@ import {
 	getAppBuildManifest,
 } from '../build/build-adapter.ts';
 import { getAppNodeRuntimeManifest } from '../services/runtime-manifest/node-runtime-manifest.service.ts';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { Processor } from '../plugins/processor.ts';

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	ComponentRenderResult,
 	EcoComponent,
@@ -17,7 +17,7 @@ import type {
 	PageMetadataProps,
 	ResolvedLazyTrigger,
 	RouteRendererOptions,
-} from '../../public-types.ts';
+} from '../../types/public-types.ts';
 import {
 	type AssetProcessingService,
 	AssetFactory,

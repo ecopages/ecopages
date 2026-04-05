@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ServerRouteHandler } from './server-route-handler';
-import type { FSRouter } from '../../router/server/fs-router';
-import type { FileSystemResponseMatcher } from './fs-server-response-matcher';
-import type { IHmrManager } from '../../public-types';
+import type { FSRouter } from '../../router/server/fs-router.ts';
+import type { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
+import type { IHmrManager } from '../../types/public-types.ts';
 
 function createMockDependencies() {
 	const Router = {

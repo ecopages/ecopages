@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { EcoPagesAppConfig, IHmrManager } from '../../internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.ts';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
@@ -23,7 +23,7 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
-} from '../../public-types.ts';
+} from '../../types/public-types.ts';
 import {
 	type AssetProcessingService,
 	type ProcessedAsset,

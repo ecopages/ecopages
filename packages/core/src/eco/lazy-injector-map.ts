@@ -1,5 +1,5 @@
 import type { InjectorMapConfig } from '@ecopages/scripts-injector/types';
-import type { ResolvedLazyScriptGroup } from '../public-types.ts';
+import type { ResolvedLazyScriptGroup } from '../types/public-types.ts';
 
 /**
  * Normalizes a comma-separated scripts string into absolute script URLs.

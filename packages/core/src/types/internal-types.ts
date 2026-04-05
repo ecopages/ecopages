@@ -1,17 +1,17 @@
-import type { EcoBuildPlugin } from './build/build-types.ts';
-import type { AppBuildManifest } from './build/build-manifest.ts';
-import type { BuildAdapter, BuildExecutor } from './build/build-adapter.ts';
-import type { IntegrationPlugin } from './plugins/integration-plugin.ts';
-import type { Processor } from './plugins/processor.ts';
+import type { EcoBuildPlugin } from '../build/build-types.ts';
+import type { AppBuildManifest } from '../build/build-manifest.ts';
+import type { BuildAdapter, BuildExecutor } from '../build/build-adapter.ts';
+import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
+import type { Processor } from '../plugins/processor.ts';
 import type { PageMetadataProps } from './public-types.ts';
-import type { FSRouter } from './router/server/fs-router.ts';
-import type { CacheConfig } from './services/cache/cache.types.ts';
-import type { DevGraphService } from './services/runtime-state/dev-graph.service.ts';
-import type { EntrypointDependencyGraph } from './services/runtime-state/entrypoint-dependency-graph.service.ts';
-import type { NodeRuntimeManifest } from './services/runtime-manifest/node-runtime-manifest.service.ts';
-import type { RuntimeSpecifierRegistry } from './services/runtime-state/runtime-specifier-registry.service.ts';
-import type { ServerInvalidationState } from './services/runtime-state/server-invalidation-state.service.ts';
-import type { ServerModuleTranspiler } from './services/module-loading/server-module-transpiler.service.ts';
+import type { FSRouter } from '../router/server/fs-router.ts';
+import type { CacheConfig } from '../services/cache/cache.types.ts';
+import type { DevGraphService } from '../services/runtime-state/dev-graph.service.ts';
+import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import type { NodeRuntimeManifest } from '../services/runtime-manifest/node-runtime-manifest.service.ts';
+import type { RuntimeSpecifierRegistry } from '../services/runtime-state/runtime-specifier-registry.service.ts';
+import type { ServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
+import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
 
 export interface RobotsPreference {
 	/**

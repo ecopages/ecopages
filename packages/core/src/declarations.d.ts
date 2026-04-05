@@ -1,4 +1,4 @@
-import type { EcoPagesAppConfig } from './internal-types';
+import type { EcoPagesAppConfig } from './types/internal-types';
 import type { EcoNavigationRuntime } from './router/client/navigation-coordinator';
 
 type HMRHandler = (url: string) => Promise<void>;

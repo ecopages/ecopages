@@ -1,10 +1,10 @@
-import { appLogger } from '../../../../../global/app-logger';
-import type { EcoPagesAppConfig } from '../../../../../internal-types';
+import { appLogger } from '../../../../../global/app-logger.ts';
+import type { EcoPagesAppConfig } from '../../../../../types/internal-types.ts';
 import { getAppBrowserBuildPlugins } from '../../../../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../../../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
-import type { ScriptAsset } from '../../assets.types';
+import type { ScriptAsset } from '../../assets.types.ts';
 import { BaseProcessor } from './base-processor';
 import { BrowserBundleService } from '../../../browser-bundle.service.ts';
 

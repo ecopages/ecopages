@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../../constants.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../../config/constants.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 const NODE_RUNTIME_MANIFEST_DIRNAME = 'runtime';
 const NODE_RUNTIME_MANIFEST_FILENAME = 'node-runtime-manifest.json';

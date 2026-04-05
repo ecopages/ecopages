@@ -1,4 +1,4 @@
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 /**
  * Stores runtime-visible bare-specifier mappings for one app instance.

@@ -1,5 +1,5 @@
-import type { IHmrManager } from '../../../internal-types';
-import type { AssetDefinition, ProcessedAsset } from './assets.types';
+import type { IHmrManager } from '../../../types/internal-types.ts';
+import type { AssetDefinition, ProcessedAsset } from './assets.types.ts';
 
 /**
  * Base interface for asset processors.

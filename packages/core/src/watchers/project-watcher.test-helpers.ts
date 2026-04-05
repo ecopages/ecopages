@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
-import type { IHmrManager } from '../internal-types';
-import type { ClientBridge } from '../adapters/bun/client-bridge';
+import type { IHmrManager } from '../types/internal-types.ts';
+import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
 
 export const createMockHmrManager = (): IHmrManager =>
 	({

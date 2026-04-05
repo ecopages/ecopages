@@ -1,5 +1,5 @@
 import { createRequire } from '../../utils/locals-utils.ts';
-import type { Middleware, ApiHandlerContext, RequestLocals } from '../../public-types.ts';
+import type { Middleware, ApiHandlerContext, RequestLocals } from '../../types/public-types.ts';
 import type { PageCacheService } from '../../services/cache/page-cache-service.js';
 import { ApiResponseBuilder } from './api-response.js';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';

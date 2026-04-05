@@ -1,27 +1,27 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ServerWebSocket, WebSocketHandler } from 'bun';
-import { RESOLVED_ASSETS_DIR } from '../../constants';
+import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { getAppBuildExecutor } from '../../build/build-adapter.ts';
-import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../internal-types';
+import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { HmrStrategyType, type HmrStrategy } from '../../hmr/hmr-strategy';
-import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy';
-import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy';
-import { appLogger } from '../../global/app-logger';
-import type { ClientBridge } from './client-bridge';
-import type { ClientBridgeEvent } from '../../public-types';
+import { HmrStrategyType, type HmrStrategy } from '../../hmr/hmr-strategy.ts';
+import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy.ts';
+import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import type { ClientBridge } from './client-bridge.ts';
+import type { ClientBridgeEvent } from '../../types/public-types.ts';
 import { HmrEntrypointRegistrar } from '../shared/hmr-entrypoint-registrar.ts';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
-import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service';
+import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import {
 	getAppEntrypointDependencyGraph,
 	NoopEntrypointDependencyGraph,
 	setAppEntrypointDependencyGraph,
 } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { getAppRuntimeSpecifierRegistry } from '../../services/runtime-state/runtime-specifier-registry.service.ts';
-import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service';
+import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 
 type BunSocket = ServerWebSocket<unknown>;

@@ -1,4 +1,4 @@
-import type { ClientBridgeEvent } from '../public-types';
+import type { ClientBridgeEvent } from '../types/public-types.ts';
 
 /**
  * HMR Strategy Pattern

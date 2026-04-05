@@ -1,5 +1,5 @@
 import { getAppBuildExecutor } from '../../build/build-adapter.js';
-import type { EcoPagesAppConfig } from '../../internal-types.js';
+import type { EcoPagesAppConfig } from '../../types/internal-types.js';
 import { createAppNodeBootstrapPlugin } from '../../adapters/node/bootstrap-dependency-resolver.ts';
 import { DevelopmentInvalidationService } from '../invalidation/development-invalidation.service.ts';
 import { ServerModuleTranspiler } from './server-module-transpiler.service.ts';

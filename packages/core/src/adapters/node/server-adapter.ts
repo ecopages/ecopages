@@ -1,9 +1,9 @@
 import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
-import type { ApiHandler, ErrorHandler, StaticRoute } from '../../public-types.ts';
+import type { ApiHandler, ErrorHandler, StaticRoute } from '../../types/public-types.ts';
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';

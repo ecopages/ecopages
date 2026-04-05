@@ -8,7 +8,7 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
-} from '../../public-types.ts';
+} from '../../types/public-types.ts';
 import type { ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type { MarkerGraphContext } from '../component-graph/marker-graph-resolver.ts';
 

@@ -3,8 +3,8 @@ import { fileSystem } from '@ecopages/file-system';
 import { getAppBrowserBuildPlugins, setupAppRuntimePlugins, type BuildExecutor } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
-import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import type { EcoPagesAppConfig, IClientBridge, IHmrManager } from '../../internal-types.ts';
+import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
+import type { EcoPagesAppConfig, IClientBridge, IHmrManager } from '../../types/internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 
 /**

@@ -7,7 +7,7 @@
  * @module RouterAdapter
  */
 
-import type { Routes } from '../../internal-types.ts';
+import type { Routes } from '../../types/internal-types.ts';
 
 /**
  * Abstract base class for router adapters across different runtimes

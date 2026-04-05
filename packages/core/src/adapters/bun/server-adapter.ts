@@ -1,7 +1,7 @@
 import type { Server, WebSocketHandler } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler, ApiHandlerContext, ErrorHandler, StaticRoute } from '../../public-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { ApiHandler, ApiHandlerContext, ErrorHandler, StaticRoute } from '../../types/public-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
 

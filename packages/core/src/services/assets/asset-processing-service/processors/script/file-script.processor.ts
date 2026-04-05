@@ -1,9 +1,9 @@
 import path from 'node:path';
-import { RESOLVED_ASSETS_DIR } from '../../../../../constants';
+import { RESOLVED_ASSETS_DIR } from '../../../../../config/constants.ts';
 import { fileSystem } from '@ecopages/file-system';
-import type { IHmrManager } from '../../../../../internal-types';
-import type { FileScriptAsset, ProcessedAsset } from '../../assets.types';
-import { BaseScriptProcessor } from '../base/base-script-processor';
+import type { IHmrManager } from '../../../../../types/internal-types.ts';
+import type { FileScriptAsset, ProcessedAsset } from '../../assets.types.ts';
+import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	private hmrManager?: IHmrManager;

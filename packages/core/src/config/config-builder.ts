@@ -9,7 +9,7 @@ import {
 	DEFAULT_ECOPAGES_HOSTNAME,
 	DEFAULT_ECOPAGES_PORT,
 	DEFAULT_ECOPAGES_WORK_DIR,
-} from '../constants.ts';
+} from '../config/constants.ts';
 import {
 	collectConfiguredAppBuildManifestContributions,
 	createBuildAdapter,
@@ -21,12 +21,12 @@ import {
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import { createAppBuildExecutor } from '../build/dev-build-coordinator.ts';
 import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
-import type { EcoPagesAppConfig, RobotsPreference } from '../internal-types.ts';
+import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
 import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from '../plugins/runtime-capability.ts';
-import type { PageMetadataProps } from '../public-types.ts';
+import type { PageMetadataProps } from '../types/public-types.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import {
 	NoopEntrypointDependencyGraph,

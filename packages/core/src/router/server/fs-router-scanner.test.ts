@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'vitest';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { FSRouterScanner } from './fs-router-scanner.ts';
 
 test('FSRouterScanner scans dynamic routes in Node when module graph needs transpilation', async () => {

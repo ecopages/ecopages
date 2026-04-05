@@ -29,7 +29,7 @@
 import path from 'node:path';
 import { parseSync } from 'oxc-parser';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { rapidhash } from '../utils/hash.ts';
 

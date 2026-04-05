@@ -1,5 +1,5 @@
 import { pathToFileURL } from 'node:url';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import {
 	setAppNodeRuntimeManifest,
 	type NodeRuntimeManifest,

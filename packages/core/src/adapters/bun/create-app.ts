@@ -9,11 +9,11 @@
  */
 
 import type { Server } from 'bun';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { getBunRuntime } from '../../utils/runtime.ts';
-import type { ApiHandlerContext, RouteGroupBuilder } from '../../public-types.ts';
+import type { ApiHandlerContext, RouteGroupBuilder } from '../../types/public-types.ts';
 import { type ApplicationAdapterOptions } from '../abstract/application-adapter.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';

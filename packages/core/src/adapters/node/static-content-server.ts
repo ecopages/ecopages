@@ -1,8 +1,8 @@
 import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, STATUS_MESSAGE } from '../../constants.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, STATUS_MESSAGE } from '../../config/constants.ts';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
 
 type NodeStaticContentServerOptions = {

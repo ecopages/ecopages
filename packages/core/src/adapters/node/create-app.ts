@@ -1,9 +1,9 @@
 import { createServer, type IncomingMessage, type Server as NodeServerInstance, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { StaticRoute } from '../../public-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { StaticRoute } from '../../types/public-types.ts';
 import { type ApplicationAdapterOptions } from '../abstract/application-adapter.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
 import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';

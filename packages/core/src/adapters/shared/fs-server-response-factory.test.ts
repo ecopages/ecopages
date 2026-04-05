@@ -6,7 +6,7 @@ import {
 } from '../../../__fixtures__/constants.js';
 import { appLogger } from '../../global/app-logger.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
-import { STATUS_MESSAGE } from '../../constants.ts';
+import { STATUS_MESSAGE } from '../../config/constants.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 

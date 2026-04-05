@@ -7,8 +7,8 @@ import type {
 	PageMetadataProps,
 	RouteRendererOptions,
 	EcoPageComponent,
-} from '../../public-types.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+} from '../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';

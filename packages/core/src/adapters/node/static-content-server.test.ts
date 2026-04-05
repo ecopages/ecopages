@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { NodeStaticContentServer } from './static-content-server.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 const TMP_DIR = path.join(os.tmpdir(), 'node-static-content-server-test');
 

@@ -1,9 +1,9 @@
-import type { IHmrManager } from '../../public-types';
-import type { FSRouter } from '../../router/server/fs-router';
-import type { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher';
-import type { FileSystemResponseMatcher } from './fs-server-response-matcher';
-import { appLogger } from '../../global/app-logger';
-import { HttpError } from '../../errors/http-error';
+import type { IHmrManager } from '../../types/public-types.ts';
+import type { FSRouter } from '../../router/server/fs-router.ts';
+import type { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
+import type { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import { HttpError } from '../../errors/http-error.ts';
 import { injectHmrRuntimeIntoHtmlResponse, isHtmlResponse, shouldInjectHmrHtmlResponse } from './hmr-html-response';
 
 /**

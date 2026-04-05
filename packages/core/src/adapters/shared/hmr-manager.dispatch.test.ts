@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, test } from 'vitest';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../hmr/hmr-strategy.ts';
-import type { ClientBridgeEvent } from '../../public-types.ts';
+import type { ClientBridgeEvent } from '../../types/public-types.ts';
 import { HmrManager as BunHmrManager } from '../bun/hmr-manager.ts';
 import { NodeHmrManager } from '../node/node-hmr-manager.ts';
 

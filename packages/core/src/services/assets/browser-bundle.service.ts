@@ -2,7 +2,7 @@ import type { BuildOptions, BuildResult, BuildTranspileProfile } from '../../bui
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { getAppBrowserBuildPlugins, getAppBuildExecutor, getTranspileOptions } from '../../build/build-adapter.ts';
 import { mergeEcoBuildPlugins } from '../../build/build-manifest.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 export type BrowserBundleOptions = Omit<BuildOptions, 'target' | 'format' | 'sourcemap'> & {
 	profile: BuildTranspileProfile;

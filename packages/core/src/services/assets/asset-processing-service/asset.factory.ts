@@ -1,5 +1,5 @@
-import { RESOLVED_ASSETS_DIR, RESOLVED_ASSETS_VENDORS_DIR } from '../../../constants';
-import { deepMerge } from '../../../utils/deep-merge';
+import { RESOLVED_ASSETS_DIR, RESOLVED_ASSETS_VENDORS_DIR } from '../../../config/constants.ts';
+import { deepMerge } from '../../../utils/deep-merge.ts';
 import type {
 	ContentScriptAsset,
 	ContentStylesheetAsset,

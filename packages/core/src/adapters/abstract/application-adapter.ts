@@ -8,7 +8,7 @@
  */
 
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
 import type {
 	ApiHandler,
@@ -18,7 +18,7 @@ import type {
 	RouteOptions,
 	StaticRoute,
 	ViewLoader,
-} from '../../public-types.ts';
+} from '../../types/public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 

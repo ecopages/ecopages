@@ -1,4 +1,4 @@
-import type { ResolvedLazyTrigger } from '../public-types.ts';
+import type { ResolvedLazyTrigger } from '../types/public-types.ts';
 
 type GlobalInjectorEntry = {
 	'on:idle'?: { scripts: string[] };

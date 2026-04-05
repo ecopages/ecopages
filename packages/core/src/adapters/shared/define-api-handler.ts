@@ -4,7 +4,7 @@ import type {
 	Middleware,
 	RouteSchema,
 	TypedGroupHandlerContext,
-} from '../../public-types.ts';
+} from '../../types/public-types.ts';
 
 type UniversalContext = ApiHandlerContext<Request, unknown>;
 

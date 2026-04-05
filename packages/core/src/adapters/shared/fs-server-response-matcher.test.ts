@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../__fixtures__/constants.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
-import type { MatchResult } from '../../internal-types.ts';
+import type { MatchResult } from '../../types/internal-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FSRouter } from '../../router/server/fs-router.ts';
 import { FSRouterScanner } from '../../router/server/fs-router-scanner.ts';

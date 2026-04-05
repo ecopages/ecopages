@@ -1,4 +1,4 @@
-import type { EcoComponent } from '../public-types.ts';
+import type { EcoComponent } from '../types/public-types.ts';
 import { buildInjectorMapScript } from './lazy-injector-map.ts';
 
 /**

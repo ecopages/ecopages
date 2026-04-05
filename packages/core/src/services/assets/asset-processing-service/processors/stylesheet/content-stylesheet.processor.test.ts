@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { ContentStylesheetProcessor } from './content-stylesheet.processor';
-import type { EcoPagesAppConfig } from '../../../../../internal-types';
+import type { EcoPagesAppConfig } from '../../../../../types/internal-types';
 import type { ContentStylesheetAsset } from '../../assets.types';
 
 const originalWrite = fileSystem.write;

@@ -1,10 +1,10 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
-import type { EcoPagesAppConfig, IClientBridge } from '../internal-types';
-import type { AssetDefinition } from '../services/assets/asset-processing-service';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
-import { GENERATED_BASE_PATHS } from '../constants';
+import type { EcoPagesAppConfig, IClientBridge } from '../types/internal-types.ts';
+import type { AssetDefinition } from '../services/assets/asset-processing-service/assets.types.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
+import { GENERATED_BASE_PATHS } from '../config/constants.ts';
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
 export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';

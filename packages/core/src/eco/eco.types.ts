@@ -20,7 +20,7 @@ import type {
 	Middleware,
 	RequestLocals,
 	RequestPageContext,
-} from '../public-types.ts';
+} from '../types/public-types.ts';
 import type { CacheStrategy } from '../services/cache/cache.types.ts';
 
 type WithRequiredLocals<K extends keyof RequestLocals> = Omit<RequestLocals, K> & {

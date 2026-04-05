@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 
 type InternalPathConfig = {
 	rootDir?: string;

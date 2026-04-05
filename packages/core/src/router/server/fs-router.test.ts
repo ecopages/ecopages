@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.js';
 import { ConfigBuilder } from '../../config/config-builder.js';
-import type { Route, Routes } from '../../internal-types.js';
+import type { Route, Routes } from '../../types/internal-types.js';
 import { FSRouter } from './fs-router.ts';
 import { FSRouterScanner } from './fs-router-scanner.ts';
 

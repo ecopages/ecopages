@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { EcoPageComponent, StaticRoute, ViewLoader } from '../../public-types.ts';
+import type { EcoPageComponent, StaticRoute, ViewLoader } from '../../types/public-types.ts';
 import { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
 
 function createMockView(integration = 'ghtml'): EcoPageComponent<any> {

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node
 import path from 'node:path';
 import os from 'node:os';
 import { ProjectWatcher } from './project-watcher';
-import type { EcoPagesAppConfig } from '../internal-types';
+import type { EcoPagesAppConfig } from '../types/internal-types';
 import { ConfigBuilder } from '../config/config-builder';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
 

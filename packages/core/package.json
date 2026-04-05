@@ -51,8 +51,8 @@
 			"types": "./src/index.ts"
 		},
 		"./create-app": {
-			"types": "./src/create-app.ts",
-			"default": "./src/create-app.ts"
+			"types": "./src/adapters/create-app.ts",
+			"default": "./src/adapters/create-app.ts"
 		},
 		"./route-renderer/integration-renderer": {
 			"types": "./src/route-renderer/orchestration/integration-renderer.ts",
@@ -89,8 +89,8 @@
 			"default": "./src/config/config-builder.ts"
 		},
 		"./constants": {
-			"types": "./src/constants.ts",
-			"default": "./src/constants.ts"
+			"types": "./src/config/constants.ts",
+			"default": "./src/config/constants.ts"
 		},
 		"./bun": {
 			"types": "./src/adapters/bun/index.ts",
@@ -105,7 +105,7 @@
 			"default": "./src/hmr/hmr-strategy.ts"
 		},
 		"./internal-types": {
-			"types": "./src/internal-types.ts"
+			"types": "./src/types/internal-types.ts"
 		},
 		"./services/asset-processing-service": {
 			"types": "./src/services/assets/asset-processing-service/index.ts",

@@ -1,4 +1,4 @@
-import type { EcoComponent } from '../public-types.ts';
+import type { EcoComponent } from '../types/public-types.ts';
 import type { MarkerNodeId } from '../route-renderer/component-graph/component-marker.ts';
 
 /**

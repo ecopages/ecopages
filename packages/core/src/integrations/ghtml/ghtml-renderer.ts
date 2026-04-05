@@ -9,7 +9,7 @@ import type {
 	IntegrationRendererRenderOptions,
 	PageMetadataProps,
 	RouteRendererBody,
-} from '../../public-types.ts';
+} from '../../types/public-types.ts';
 import {
 	IntegrationRenderer,
 	type RenderToResponseContext,

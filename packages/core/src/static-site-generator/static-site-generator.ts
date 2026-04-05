@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { EcoPageComponent, StaticRoute } from '../public-types.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPageComponent, StaticRoute } from '../types/public-types.ts';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../router/server/fs-router.js';
 import { fileSystem } from '@ecopages/file-system';

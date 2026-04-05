@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { FileScriptProcessor } from './file-script.processor';
-import type { EcoPagesAppConfig, IHmrManager } from '../../../../../internal-types';
+import type { EcoPagesAppConfig, IHmrManager } from '../../../../../types/internal-types';
 import type { FileScriptAsset } from '../../assets.types';
 
 const originalReadFileSync = fileSystem.readFileSync;

@@ -1,4 +1,4 @@
-import type { ComponentRenderInput, ComponentRenderResult, EcoComponent } from '../../public-types.ts';
+import type { ComponentRenderInput, ComponentRenderResult, EcoComponent } from '../../types/public-types.ts';
 import type { ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type { MarkerNodeId } from './component-marker.ts';
 import { getComponentReference } from './component-reference.ts';

@@ -1,5 +1,5 @@
 import type { ServerWebSocket } from 'bun';
-import type { ClientBridgeEvent, IClientBridge } from '../../public-types';
+import type { ClientBridgeEvent, IClientBridge } from '../../types/public-types.ts';
 
 type BunSocket = ServerWebSocket<unknown>;
 

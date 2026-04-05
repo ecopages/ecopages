@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { EcoComponent, EcoPageComponent, HtmlTemplateProps, RouteRendererOptions } from '../../public-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type {
+	EcoComponent,
+	EcoPageComponent,
+	HtmlTemplateProps,
+	RouteRendererOptions,
+} from '../../types/public-types.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
@@ -8,7 +13,7 @@ import type {
 } from '../../services/assets/asset-processing-service/index.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
 
-declare module '../../public-types.ts' {
+declare module '../../types/public-types.ts' {
 	interface RequestLocals {
 		user?: string;
 		guarded?: boolean;

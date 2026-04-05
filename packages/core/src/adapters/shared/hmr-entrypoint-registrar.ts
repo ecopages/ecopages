@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
-import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 
 /**
  * Shared runtime state used while registering HMR-owned entrypoints.

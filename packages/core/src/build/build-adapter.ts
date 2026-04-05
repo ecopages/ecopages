@@ -8,8 +8,8 @@ import {
 } from './build-manifest.ts';
 import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 import { getRequiredBunRuntime } from '../utils/runtime.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { IHmrManager } from '../public-types.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { IHmrManager } from '../types/public-types.ts';
 
 export { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 

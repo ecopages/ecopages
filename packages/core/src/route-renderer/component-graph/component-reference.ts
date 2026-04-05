@@ -1,4 +1,4 @@
-import type { EcoComponent } from '../../public-types.ts';
+import type { EcoComponent } from '../../types/public-types.ts';
 
 const runtimeComponentRefs = new WeakMap<EcoComponent, string>();
 let nextRuntimeComponentRef = 0;

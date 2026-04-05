@@ -5,8 +5,14 @@
 import { describe, expect, test } from 'vitest';
 import { createRequire } from 'node:module';
 import { eco } from './eco.ts';
-import type { EcoComponent, GetMetadataContext, HtmlTemplateProps, LayoutProps, StaticPath } from '../public-types.ts';
-import type { EcoPagesAppConfig } from 'src/internal-types.ts';
+import type {
+	EcoComponent,
+	GetMetadataContext,
+	HtmlTemplateProps,
+	LayoutProps,
+	StaticPath,
+} from '../types/public-types.ts';
+import type { EcoPagesAppConfig } from 'src/types/internal-types.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
 
 const mockAppConfig = {} as EcoPagesAppConfig;

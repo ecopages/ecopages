@@ -1,6 +1,6 @@
-import type { EcoPagesAppConfig } from '../internal-types.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
-import type { RouteRenderResult, RouteRendererOptions } from '../public-types.ts';
+import type { RouteRenderResult, RouteRendererOptions } from '../types/public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 import { PathUtils } from '../utils/path-utils.module.ts';
 import type { IntegrationRenderer } from './orchestration/integration-renderer.ts';

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoComponent } from '../../public-types.ts';
+import type { EcoComponent } from '../../types/public-types.ts';
 import type { ProcessedAsset } from '../../services/assets/asset-processing-service';
 import { createComponentMarker } from './component-marker.ts';
 import { MarkerGraphResolver } from './marker-graph-resolver.ts';

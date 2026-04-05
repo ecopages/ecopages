@@ -6,7 +6,7 @@ import {
 	type ServerStaticBuilderLogger,
 	type ServerStaticPreviewServerFactory,
 } from './server-static-builder';
-import type { EcoPagesAppConfig } from '../../internal-types';
+import type { EcoPagesAppConfig } from '../../types/internal-types';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
 import type { FSRouter } from '../../router/server/fs-router';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer';

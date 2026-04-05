@@ -5,7 +5,7 @@ import type {
 	RouteGroupBuilder,
 	RouteOptions,
 	RouteSchema,
-} from '../../public-types.ts';
+} from '../../types/public-types.ts';
 import {
 	AbstractApplicationAdapter,
 	type ApplicationAdapterOptions,

@@ -1,10 +1,10 @@
 import path from 'node:path';
-import { RESOLVED_ASSETS_DIR } from '../../../constants';
-import { appLogger } from '../../../global/app-logger';
-import type { EcoPagesAppConfig, IHmrManager } from '../../../internal-types';
-import { rapidhash } from '../../../utils/hash';
+import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
+import { appLogger } from '../../../global/app-logger.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
+import { rapidhash } from '../../../utils/hash.ts';
 import { fileSystem } from '@ecopages/file-system';
-import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types';
+import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types.ts';
 import { isHmrAware } from './processor.interface';
 import { ProcessorRegistry } from './processor.registry';
 import {

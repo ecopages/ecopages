@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { DevGraphService } from './dev-graph.service.ts';
 
 /**

@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { ClientBridgeEvent, IClientBridge } from '../../public-types.ts';
+import type { ClientBridgeEvent, IClientBridge } from '../../types/public-types.ts';
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 

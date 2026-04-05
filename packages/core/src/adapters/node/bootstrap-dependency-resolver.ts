@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { EcoBuildOnResolveArgs, EcoBuildOnResolveResult, EcoBuildPlugin } from '../../build/build-types.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { NodeRuntimeManifest } from '../../services/runtime-manifest/node-runtime-manifest.service.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 

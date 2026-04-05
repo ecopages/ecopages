@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { appLogger } from '../../global/app-logger.js';
-import type { EcoPagesAppConfig, RouteKind, Routes } from '../../internal-types.js';
-import type { EcoPageFile, GetStaticPaths } from '../../public-types.js';
+import type { EcoPagesAppConfig, RouteKind, Routes } from '../../types/internal-types.js';
+import type { EcoPageFile, GetStaticPaths } from '../../types/public-types.js';
 import { fileSystem } from '@ecopages/file-system';
 import { invariant } from '../../utils/invariant.js';
 import { existsSync } from 'node:fs';

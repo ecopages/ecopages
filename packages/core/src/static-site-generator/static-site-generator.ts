@@ -4,7 +4,7 @@ import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoPageComponent, StaticRoute } from '../types/public-types.ts';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
-import type { FSRouter } from '../router/server/fs-router.js';
+import type { FSRouter } from '../router/server/fs-router.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { PathUtils } from '../utils/path-utils.module.ts';
 import { getAppServerModuleTranspiler } from '../services/module-loading/app-server-module-transpiler.service.ts';

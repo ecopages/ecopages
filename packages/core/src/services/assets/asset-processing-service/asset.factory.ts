@@ -10,7 +10,7 @@ import type {
 	InlineFileScriptAsset,
 	JsonScriptAsset,
 	NodeModuleScriptAsset,
-} from './assets.types';
+} from './assets.types.ts';
 
 type CreateAssetOptions<T> = Omit<T, 'kind' | 'source' | 'inline'>;
 

@@ -4,7 +4,7 @@ import type { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher
 import type { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { HttpError } from '../../errors/http-error.ts';
-import { injectHmrRuntimeIntoHtmlResponse, isHtmlResponse, shouldInjectHmrHtmlResponse } from './hmr-html-response';
+import { injectHmrRuntimeIntoHtmlResponse, isHtmlResponse, shouldInjectHmrHtmlResponse } from './hmr-html-response.ts';
 
 /**
  * Configuration parameters for ServerRouteHandler.

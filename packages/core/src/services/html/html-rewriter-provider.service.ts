@@ -1,4 +1,4 @@
-import { appLogger } from '../../global/app-logger.js';
+import { appLogger } from '../../global/app-logger.ts';
 
 export type HtmlRewriterElement = {
 	append(content: string, options?: { html?: boolean }): void;

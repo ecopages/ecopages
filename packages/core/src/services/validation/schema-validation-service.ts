@@ -1,4 +1,4 @@
-import type { StandardSchema, StandardSchemaIssue } from './standard-schema.types.js';
+import type { StandardSchema, StandardSchemaIssue } from './standard-schema.types.ts';
 
 export interface ValidationResult<T = unknown> {
 	success: boolean;

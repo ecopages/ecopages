@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../../types/internal-types.js';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 
 export type DevelopmentInvalidationCategory =

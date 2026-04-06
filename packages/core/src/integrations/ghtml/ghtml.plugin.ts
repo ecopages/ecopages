@@ -1,5 +1,5 @@
-import { IntegrationPlugin, type IntegrationPluginConfig } from '../../plugins/integration-plugin';
-import { GhtmlRenderer } from './ghtml-renderer';
+import { IntegrationPlugin, type IntegrationPluginConfig } from '../../plugins/integration-plugin.ts';
+import { GhtmlRenderer } from './ghtml-renderer.ts';
 
 /**
  * The name of the ghtml plugin

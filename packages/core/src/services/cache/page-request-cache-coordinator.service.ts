@@ -1,5 +1,5 @@
-import { getCacheControlHeader, type PageCacheService } from './page-cache-service.js';
-import type { CacheStrategy, RenderResult } from './cache.types.js';
+import { getCacheControlHeader, type PageCacheService } from './page-cache-service.ts';
+import type { CacheStrategy, RenderResult } from './cache.types.ts';
 
 type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
 

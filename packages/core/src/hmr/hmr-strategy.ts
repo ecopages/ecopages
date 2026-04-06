@@ -31,31 +31,33 @@ import type { ClientBridgeEvent } from '../types/public-types.ts';
  * The numeric values represent base priorities. Strategies can fine-tune their priority
  * using the `priorityOffset` property.
  */
-export enum HmrStrategyType {
+export const HmrStrategyType = {
 	/**
 	 * Integration-specific strategies (React, Lit, etc.)
 	 * Highest priority to allow framework-specific HMR handling.
 	 */
-	INTEGRATION = 100,
+	INTEGRATION: 100,
 
 	/**
 	 * Asset processing strategies (CSS, images, etc.)
 	 * High priority for specialized asset handling.
 	 */
-	ASSET = 50,
+	ASSET: 50,
 
 	/**
 	 * Generic script bundling strategies (JS/TS)
 	 * Medium priority for standard script processing.
 	 */
-	SCRIPT = 25,
+	SCRIPT: 25,
 
 	/**
 	 * Fallback strategy for unhandled file types.
 	 * Lowest priority, triggers full page reload.
 	 */
-	FALLBACK = 0,
-}
+	FALLBACK: 0,
+} as const;
+
+export type HmrStrategyType = (typeof HmrStrategyType)[keyof typeof HmrStrategyType];
 
 /**
  * Represents an action to be taken after processing a file change.

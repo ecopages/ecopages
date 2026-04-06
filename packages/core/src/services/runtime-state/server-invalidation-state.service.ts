@@ -1,4 +1,4 @@
-import type { EcoPagesAppConfig } from '../../types/internal-types.js';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { DevGraphService } from './dev-graph.service.ts';
 
 /**

@@ -11,8 +11,8 @@ export type {
 	CacheStore,
 	CacheStrategy,
 	RenderResult,
-} from './cache.types.js';
+} from './cache.types.ts';
 
-export { MemoryCacheStore, type MemoryCacheStoreOptions } from './memory-cache-store.js';
+export { MemoryCacheStore, type MemoryCacheStoreOptions } from './memory-cache-store.ts';
 
-export { getCacheControlHeader, PageCacheService, type PageCacheServiceOptions } from './page-cache-service.js';
+export { getCacheControlHeader, PageCacheService, type PageCacheServiceOptions } from './page-cache-service.ts';

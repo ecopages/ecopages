@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { FileStylesheetAsset, ProcessedAsset } from '../../assets.types';
-import { BaseProcessor } from '../base/base-processor';
+import type { FileStylesheetAsset, ProcessedAsset } from '../../assets.types.ts';
+import { BaseProcessor } from '../base/base-processor.ts';
 
 export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> {
 	private static readonly PROCESSABLE_STYLESHEET_EXTENSIONS = new Set(['.css', '.scss', '.sass', '.less']);

@@ -1,4 +1,4 @@
-import type { BuildExecutor } from '../../build/build-adapter.js';
+import type { BuildExecutor } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { PageModuleImportService, type PageModuleImportOptions } from './page-module-import.service.ts';
 

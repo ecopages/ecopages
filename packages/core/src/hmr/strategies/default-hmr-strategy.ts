@@ -7,7 +7,7 @@
  * @module
  */
 
-import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy';
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy.ts';
 
 /**
  * Default fallback strategy for unhandled file types.

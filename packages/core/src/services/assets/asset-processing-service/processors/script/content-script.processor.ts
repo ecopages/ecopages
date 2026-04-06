@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types';
-import { BaseScriptProcessor } from '../base/base-script-processor';
+import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types.ts';
+import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 
 export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAsset> {
 	async process(dep: ContentScriptAsset): Promise<ProcessedAsset> {

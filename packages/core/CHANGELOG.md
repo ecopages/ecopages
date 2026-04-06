@@ -14,6 +14,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Fixed core runtime source-path compatibility for Vite and Nitro server runners by normalizing direct source imports and removing unsupported runtime enum syntax from the HMR strategy path.
 - Fixed deferred marker graph resolution to discover deep child markers captured inside serialized `children` props, restoring multi-level cross-integration SSR assembly.
 - Fixed watch-mode route refresh to await and deduplicate page add/remove rebuilds so newly created pages resolve without restarting the dev server.
 

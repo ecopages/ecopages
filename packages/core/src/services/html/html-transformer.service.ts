@@ -1,10 +1,10 @@
-import type { AssetPosition, ProcessedAsset, ScriptAsset } from '../assets/asset-processing-service/assets.types';
+import type { AssetPosition, ProcessedAsset, ScriptAsset } from '../assets/asset-processing-service/assets.types.ts';
 import {
 	DefaultHtmlRewriterProvider,
 	type HtmlRewriterElement,
 	type HtmlRewriterMode,
 	type HtmlRewriterProvider,
-} from './html-rewriter-provider.service';
+} from './html-rewriter-provider.service.ts';
 
 export interface HtmlTransformerServiceOptions {
 	htmlRewriterMode?: HtmlRewriterMode;

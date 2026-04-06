@@ -1,13 +1,13 @@
 import path from 'node:path';
-import { appLogger } from '../../global/app-logger.js';
-import type { EcoPagesAppConfig, RouteKind, Routes } from '../../types/internal-types.js';
-import type { EcoPageFile, GetStaticPaths } from '../../types/public-types.js';
+import { appLogger } from '../../global/app-logger.ts';
+import type { EcoPagesAppConfig, RouteKind, Routes } from '../../types/internal-types.ts';
+import type { EcoPageFile, GetStaticPaths } from '../../types/public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { invariant } from '../../utils/invariant.js';
+import { invariant } from '../../utils/invariant.ts';
 import { existsSync } from 'node:fs';
 import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
-import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.js';
+import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
 type CreateRouteArgs = {
 	routePath: string;

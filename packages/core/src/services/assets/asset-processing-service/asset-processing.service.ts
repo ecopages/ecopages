@@ -5,15 +5,15 @@ import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-typ
 import { rapidhash } from '../../../utils/hash.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types.ts';
-import { isHmrAware } from './processor.interface';
-import { ProcessorRegistry } from './processor.registry';
+import { isHmrAware } from './processor.interface.ts';
+import { ProcessorRegistry } from './processor.registry.ts';
 import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
 	FileScriptProcessor,
 	FileStylesheetProcessor,
 	NodeModuleScriptProcessor,
-} from './processors';
+} from './processors/index.ts';
 
 /**
  * Processes declared component and page asset dependencies for one app instance.

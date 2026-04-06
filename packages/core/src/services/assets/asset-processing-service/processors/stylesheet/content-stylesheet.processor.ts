@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { ContentStylesheetAsset, ProcessedAsset } from '../../assets.types';
-import { BaseProcessor } from '../base/base-processor';
+import type { ContentStylesheetAsset, ProcessedAsset } from '../../assets.types.ts';
+import { BaseProcessor } from '../base/base-processor.ts';
 
 export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetAsset> {
 	async process(dep: ContentStylesheetAsset): Promise<ProcessedAsset> {

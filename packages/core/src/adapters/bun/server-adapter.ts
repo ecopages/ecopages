@@ -12,14 +12,14 @@ import { ApiResponseBuilder } from '../shared/api-response.ts';
 import { installSharedRuntimeBuildExecutor } from '../shared/runtime-bootstrap.ts';
 
 import { ServerRouteHandler, type ServerRouteHandlerParams } from '../shared/server-route-handler.ts';
-import { ServerStaticBuilder, type ServerStaticBuilderParams } from '../shared/server-static-builder';
+import { ServerStaticBuilder, type ServerStaticBuilderParams } from '../shared/server-static-builder.ts';
 import {
 	injectHmrRuntimeIntoHtmlResponse,
 	isHtmlResponse,
 	shouldInjectHmrHtmlResponse,
-} from '../shared/hmr-html-response';
-import { ClientBridge } from './client-bridge';
-import { HmrManager } from './hmr-manager';
+} from '../shared/hmr-html-response.ts';
+import { ClientBridge } from './client-bridge.ts';
+import { HmrManager } from './hmr-manager.ts';
 import { ServerLifecycle } from './server-lifecycle.ts';
 
 type BunServerInstance = Server<unknown>;

@@ -10,8 +10,8 @@
 
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy';
-import { appLogger } from '../../global/app-logger';
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy.ts';
+import { appLogger } from '../../global/app-logger.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { BrowserBundleExecutor } from '../../services/assets/browser-bundle.service.ts';
 import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';

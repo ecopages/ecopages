@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBuildAdapter } from '../../../../../build/build-adapter.ts';
-import type { NodeModuleScriptAsset } from '../../assets.types';
-import { BaseScriptProcessor } from '../base/base-script-processor';
+import type { NodeModuleScriptAsset } from '../../assets.types.ts';
+import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 
 export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScriptAsset> {
 	async process(dep: NodeModuleScriptAsset) {

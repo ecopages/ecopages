@@ -5,7 +5,7 @@ import type { EcoBuildPlugin } from '../../../../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
 import type { ScriptAsset } from '../../assets.types.ts';
-import { BaseProcessor } from './base-processor';
+import { BaseProcessor } from './base-processor.ts';
 import { BrowserBundleService } from '../../../browser-bundle.service.ts';
 
 export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BaseProcessor<T> {

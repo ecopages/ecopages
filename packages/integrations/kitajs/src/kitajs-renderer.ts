@@ -18,7 +18,9 @@ import { PLUGIN_NAME } from './kitajs.plugin.ts';
 type KitaViewFn<P> = (props: P) => Promise<EcoPagesElement> | EcoPagesElement;
 
 /** KitaJS layout function signature. */
-type KitaLayoutFn = (props: { children: EcoPagesElement } & Record<string, unknown>) => Promise<EcoPagesElement>;
+type KitaLayoutFn = (
+	props: { children: string } & Record<string, unknown>,
+) => Promise<EcoPagesElement> | EcoPagesElement;
 
 /**
  * A renderer for the Kita.js integration.
@@ -66,8 +68,9 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
 			const pageContent = await Page({ params, query, ...props, locals: pageLocals });
+			const pageHtml = String(pageContent);
 			const children =
-				Layout && typeof Layout === 'function' ? await Layout({ children: pageContent, locals }) : pageContent;
+				Layout && typeof Layout === 'function' ? await Layout({ children: pageHtml, locals }) : pageHtml;
 			const body = await HtmlTemplate({
 				metadata,
 				pageProps: props ?? {},
@@ -107,12 +110,13 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 			const viewFn = view as KitaViewFn<P>;
 			const renderExecution = await this.captureHtmlRender(async () => {
 				const pageContent = await viewFn(props);
+				const pageHtml = String(pageContent);
 
 				if (ctx.partial) {
-					return pageContent;
+					return pageHtml;
 				}
 
-				const children = Layout ? await Layout({ children: pageContent }) : pageContent;
+				const children = Layout ? await Layout({ children: pageHtml }) : pageHtml;
 				return (
 					this.DOC_TYPE +
 					(await HtmlTemplate!({

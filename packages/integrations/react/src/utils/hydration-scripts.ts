@@ -115,17 +115,20 @@ function getProdPageRootCleanupScript(): string {
 }
 
 function getDevRouterBootstrapRegistrationScript(): string {
-	return `window.__ECO_PAGES__?.navigation?.register({
+	return `const currentOwnerState = window.__ECO_PAGES__?.navigation?.getOwnerState?.();
+if (!(currentOwnerState?.owner === "react-router" && currentOwnerState.canHandleSpaNavigation)) {
+window.__ECO_PAGES__?.navigation?.register({
   owner: "react-router",
   cleanupBeforeHandoff: async () => {
     window.__ECO_PAGES__?.react?.cleanupPageRoot?.();
   }
 });
-window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router");`;
+window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router");
+}`;
 }
 
 function getProdRouterBootstrapRegistrationScript(): string {
-	return 'window.__ECO_PAGES__?.navigation?.register({owner:"react-router",cleanupBeforeHandoff:async()=>{window.__ECO_PAGES__?.react?.cleanupPageRoot?.()}});window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router");';
+	return 'const o=window.__ECO_PAGES__?.navigation?.getOwnerState?.();if(!(o?.owner==="react-router"&&o.canHandleSpaNavigation)){window.__ECO_PAGES__?.navigation?.register({owner:"react-router",cleanupBeforeHandoff:async()=>{window.__ECO_PAGES__?.react?.cleanupPageRoot?.()}});window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router")}';
 }
 
 /**
@@ -196,16 +199,20 @@ const mount = () => {
     window.__ECO_PAGES__.react.pageRoot = root;
   }
   window.__ECO_PAGES__.hmrHandlers["${importPath}"] = async (newUrl) => {
-    if (window.__ECO_PAGES__?.navigation?.getOwnerState().owner === "react-router") {
-      await window.__ECO_PAGES__?.navigation?.reloadCurrentPage?.({ clearCache: false, source: "react-router" });
-      console.log("[ecopages] ${getComponentType(isMdx)} component updated via router");
-      return;
-    }
     try {
       const newModule = await import(newUrl);
+      const nextProps = getPageData();
       ${getHmrImportStatement(isMdx)}
-      root.render(createTree(NewPage, props));
-      console.log("[ecopages] ${getComponentType(isMdx)} component updated");
+      window.__ECO_PAGES__.page = {
+        module: "${importPath}",
+        props: nextProps
+      };
+      root.render(createTree(NewPage, nextProps));
+      if (window.__ECO_PAGES__?.navigation?.getOwnerState().owner === "react-router") {
+        console.log("[ecopages] ${getComponentType(isMdx)} component updated via router");
+      } else {
+        console.log("[ecopages] ${getComponentType(isMdx)} component updated");
+      }
     } catch (e) {
       console.error("[ecopages] Failed to hot-reload ${getComponentType(isMdx)} component:", e);
     }

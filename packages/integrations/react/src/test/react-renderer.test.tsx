@@ -76,6 +76,12 @@ const createRenderer = () => {
 	return testRenderer;
 };
 
+class ImportTestReactRenderer extends ReactRenderer {
+	public async importForTest(file: string) {
+		return this.importPageFile(file);
+	}
+}
+
 const createRendererWithAssets = () => {
 	const assetProcessingService = {
 		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
@@ -301,6 +307,38 @@ describe('ReactRenderer', () => {
 				]),
 			);
 		});
+
+		it('should omit guarded locals from hydrated component props', async () => {
+			const { testRenderer } = createRendererWithAssets();
+			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
+				title: string;
+				locals?: unknown;
+			}>;
+			Component.config = {
+				__eco: {
+					id: 'component-id',
+					file: pageFilePath,
+					integration: 'react',
+				},
+			};
+
+			const guardedLocals = new Proxy(
+				{},
+				{
+					ownKeys: () => {
+						throw new Error('guarded locals');
+					},
+				},
+			);
+
+			const result = await testRenderer.renderComponent({
+				component: Component,
+				props: { title: 'Island', locals: guardedLocals },
+				integrationContext: { componentInstanceId: 'island-1' },
+			});
+
+			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
+		});
 	});
 
 	afterAll(() => {
@@ -330,6 +368,34 @@ describe('ReactRenderer', () => {
 
 		const text = await new Response(body as BodyInit).text();
 		expect(text).toContain('<div>Hello World</div>');
+	});
+
+	it('should keep emitting route hydration assets in development', async () => {
+		const testRenderer = createRenderer();
+		const originalNodeEnv = process.env.NODE_ENV;
+		const hydrationAssets = [
+			{
+				kind: 'script',
+				filepath: '/virtual/react-hydration.js',
+			},
+		] as any;
+
+		vi.spyOn(testRenderer as any, 'importPageFile').mockResolvedValue({
+			default: Page,
+			config: {},
+		});
+		vi.spyOn(testRenderer.pageModuleService, 'shouldHydratePage').mockReturnValue(true);
+		vi.spyOn(testRenderer.pageModuleService, 'isMdxFile').mockReturnValue(false);
+		vi.spyOn(testRenderer.pageModuleService, 'collectPageDeclaredModules').mockReturnValue([]);
+		vi.spyOn(testRenderer.hydrationAssetService, 'buildRouteRenderAssets').mockResolvedValue(hydrationAssets);
+
+		try {
+			process.env.NODE_ENV = 'development';
+
+			await expect(testRenderer.buildRouteRenderAssets(pageFilePath)).resolves.toEqual(hydrationAssets);
+		} finally {
+			process.env.NODE_ENV = originalNodeEnv;
+		}
 	});
 
 	it('should emit canonical page data for router-backed pages inside non-react html templates', async () => {
@@ -362,6 +428,63 @@ describe('ReactRenderer', () => {
 		} finally {
 			ReactRenderer.routerAdapter = originalRouterAdapter;
 		}
+	});
+
+	it('should preserve raw eco markers through non-react html templates', async () => {
+		const testRenderer = createRenderer();
+		const MarkerPage = (() =>
+			'<eco-marker data-eco-node-id="n_1" data-eco-integration="lit" data-eco-component-ref="cmp" data-eco-props-ref="p_1"></eco-marker>') as unknown as EcoComponent<object>;
+
+		const body = await testRenderer.render({
+			params: {},
+			query: {},
+			props: {},
+			resolvedDependencies: [],
+			file: pageFilePath,
+			metadata: {
+				title: 'Marker Page',
+				description: 'Marker Description',
+			},
+			dependencies: {
+				scripts: [],
+				stylesheets: [],
+			},
+			Page: MarkerPage,
+			HtmlTemplate: NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps, JSX.Element>,
+		});
+
+		const text = await new Response(body as BodyInit).text();
+		expect(text).toContain('<eco-marker data-eco-node-id="n_1"');
+		expect(text).not.toContain('&lt;eco-marker');
+		expect(text).not.toContain('&amp;lt;eco-marker');
+	});
+
+	it('should preserve raw eco markers through react html templates', async () => {
+		const testRenderer = createRenderer();
+		const MarkerPage = (() =>
+			'<eco-marker data-eco-node-id="n_1" data-eco-integration="lit" data-eco-component-ref="cmp" data-eco-props-ref="p_1"></eco-marker>') as unknown as EcoComponent<object>;
+
+		const body = await testRenderer.render({
+			params: {},
+			query: {},
+			props: {},
+			resolvedDependencies: [],
+			file: pageFilePath,
+			metadata: {
+				title: 'Marker Page',
+				description: 'Marker Description',
+			},
+			dependencies: {
+				scripts: [],
+				stylesheets: [],
+			},
+			Page: MarkerPage,
+			HtmlTemplate,
+		});
+
+		const text = await new Response(body as BodyInit).text();
+		expect(text).toContain('<eco-marker data-eco-node-id="n_1"');
+		expect(text).not.toContain('&lt;eco-marker');
 	});
 
 	it('should throw an error if the page fails to render', async () => {
@@ -484,6 +607,34 @@ describe('ReactRenderer', () => {
 			}) as unknown as EcoComponent<object>;
 
 			await expect(testRenderer.renderToResponse(MockView, {}, {})).rejects.toThrow('Failed to render view');
+		});
+	});
+
+	describe('page importing', () => {
+		it('uses the integration-specific importer only for MDX files and normalizes config onto the page component', async () => {
+			const testRenderer = new ImportTestReactRenderer({
+				appConfig: Config,
+				assetProcessingService: {} as any,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+			const pageComponent = (() => null) as unknown as typeof Page;
+			const mdxConfig = { title: 'mdx-config' } as any;
+			const importMdxPageFile = vi
+				.spyOn(testRenderer.pageModuleService, 'importMdxPageFile')
+				.mockResolvedValue({ default: pageComponent, config: mdxConfig });
+			const baseImporter = vi
+				.spyOn((testRenderer as any).pageModuleLoaderService, 'importPageFile')
+				.mockResolvedValue({ default: Page });
+
+			const mdxModule = await testRenderer.importForTest('/tmp/page.mdx');
+			const tsxModule = await testRenderer.importForTest('/tmp/page.tsx');
+
+			expect(importMdxPageFile).toHaveBeenCalledWith('/tmp/page.mdx');
+			expect(baseImporter).toHaveBeenCalledWith('/tmp/page.tsx', { bypassCache: false });
+			expect(mdxModule.default).toBe(pageComponent);
+			expect((mdxModule.default as typeof pageComponent).config).toBe(mdxConfig);
+			expect(tsxModule.default).toBe(Page);
 		});
 	});
 });

@@ -12,6 +12,7 @@ type ProcessDependencies = (
 export interface LitSsrLazyPreloaderOptions {
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	processDependencies?: ProcessDependencies;
+	preferSourceImports?: boolean;
 }
 
 /**
@@ -24,13 +25,15 @@ export interface LitSsrLazyPreloaderOptions {
 export class LitSsrLazyPreloader {
 	private readonly resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	private readonly processDependencies?: ProcessDependencies;
+	private readonly preferSourceImports: boolean;
 	private readonly ssrPreloadedScripts = new Set<string>();
 	private readonly ssrPreloadFailedScripts = new Set<string>();
 	private readonly ssrPreloadEntrypointCache = new Map<string, string>();
 
-	constructor({ resolveDependencyPath, processDependencies }: LitSsrLazyPreloaderOptions) {
+	constructor({ resolveDependencyPath, processDependencies, preferSourceImports }: LitSsrLazyPreloaderOptions) {
 		this.resolveDependencyPath = resolveDependencyPath;
 		this.processDependencies = processDependencies;
+		this.preferSourceImports = preferSourceImports ?? typeof Bun !== 'undefined';
 	}
 
 	/**
@@ -136,7 +139,7 @@ export class LitSsrLazyPreloader {
 					}
 
 					try {
-						await import(pathToFileURL(preloadEntrypoint).href);
+						await import(/* @vite-ignore */ pathToFileURL(preloadEntrypoint).href);
 						this.ssrPreloadedScripts.add(scriptPath);
 					} catch (error) {
 						this.ssrPreloadFailedScripts.add(scriptPath);
@@ -165,7 +168,13 @@ export class LitSsrLazyPreloader {
 			return cachedEntrypoint;
 		}
 
+		if (this.preferSourceImports) {
+			this.ssrPreloadEntrypointCache.set(scriptPath, scriptPath);
+			return scriptPath;
+		}
+
 		if (!this.processDependencies) {
+			this.ssrPreloadEntrypointCache.set(scriptPath, scriptPath);
 			return scriptPath;
 		}
 
@@ -196,6 +205,7 @@ export class LitSsrLazyPreloader {
 			if (process.env.ECOPAGES_DEBUG === 'true') {
 				console.warn(`[ecopages][lit] Failed to resolve SSR preload entrypoint for: ${scriptPath}`, error);
 			}
+			this.ssrPreloadEntrypointCache.set(scriptPath, scriptPath);
 			return scriptPath;
 		}
 	}

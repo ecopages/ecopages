@@ -4,7 +4,7 @@
  */
 
 import '@lit-labs/ssr/lib/install-global-dom-shim.js';
-import './console';
+import './console.ts';
 import {
 	IntegrationPlugin,
 	type ComponentBoundaryPolicyInput,

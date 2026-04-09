@@ -70,11 +70,15 @@ describe('createHydrationScript', () => {
 		});
 
 		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot = () => {');
+		expect(script).toContain('const currentOwnerState = window.__ECO_PAGES__?.navigation?.getOwnerState?.();');
+		expect(script).toContain(
+			'if (!(currentOwnerState?.owner === "react-router" && currentOwnerState.canHandleSpaNavigation)) {',
+		);
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.register({');
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router");');
-		expect(script).toContain(
-			'window.__ECO_PAGES__?.navigation?.reloadCurrentPage?.({ clearCache: false, source: "react-router" });',
-		);
+		expect(script).toContain('const nextProps = getPageData();');
+		expect(script).toContain('root.render(createTree(NewPage, nextProps));');
+		expect(script).toContain('console.log("[ecopages] React component updated via router");');
 		expect(script).toContain('document.getElementById("__ECO_PAGE_DATA__")');
 		expect(script).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoComponent, HtmlTemplateProps, EcoPagesElement } from '@ecopages/core';
+import type { EcoComponent, EcoPageFile, HtmlTemplateProps, EcoPagesElement } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { MDXRenderer } from '../mdx-renderer.ts';
 
@@ -39,7 +39,42 @@ const renderer = new MDXRenderer({
 	resolvedIntegrationDependencies: [],
 });
 
+class ImportTestMdxRenderer extends MDXRenderer {
+	public normalizeForTest(module: Parameters<MDXRenderer['normalizeImportedPageFile']>[1]) {
+		return this.normalizeImportedPageFile('/tmp/page.mdx', module as never);
+	}
+}
+
 describe('MDXRenderer', () => {
+	describe('page importing', () => {
+		it('normalizes imported MDX modules without overriding the base import path', () => {
+			const testRenderer = new ImportTestMdxRenderer({
+				appConfig: Config,
+				assetProcessingService: {} as any,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+			const Layout = (async ({ children }: { children: EcoPagesElement }) => children) as EcoComponent<{
+				children: EcoPagesElement;
+			}>;
+			const Page = (async () => '<article>content</article>') as unknown as EcoComponent;
+			const config = { layout: Layout } as never;
+
+			const result = testRenderer.normalizeForTest({
+				default: Page,
+				config,
+				getMetadata: async () => ({
+					title: 'Hello',
+					description: 'Hello',
+				}),
+			} as never) as EcoPageFile & { layout?: unknown };
+
+			expect(result.default).toBe(Page);
+			expect(result.layout).toBe(Layout);
+			expect((result.default as typeof Page).config).toBe(config);
+		});
+	});
+
 	describe('render', () => {
 		it('should render the page', async () => {
 			const body = await renderer.render({

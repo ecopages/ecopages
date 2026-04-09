@@ -4,10 +4,10 @@ The foundational engine for the Ecopages framework. It provides the core build p
 
 ## Overview
 
-Ecopages is an extensible static site generator (SSG) built for universal execution across Bun and Node.js. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
+Ecopages is an extensible static site generator (SSG) built around a Bun-native core and a Vite-hosted compatibility story. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
 
-- **Universal Support**: First-class, optimized execution on both **Bun** and **Node.js** runtimes, powered by a unified `createApp` factory.
-- **Fast by default**: Uses native ESM, optimized file watching, and esbuild for high-performance bundling and server-side rendering.
+- **Runtime Boundary**: Direct Ecopages execution is Bun-only. Cross-runtime support belongs to the Vite host path rather than a framework-owned Node runtime.
+- **Build Ownership**: Bun-native execution keeps a core-owned build path. Vite and Nitro own host-side transforms, module graph behavior, and deployment-oriented builds.
 - **Framework agnostic**: First-class support for KitaJS, Lit, React, and MDX via official integration plugins.
 - **Extensible**: Hook into the build process with custom processors or rendering integrations.
 
@@ -71,10 +71,11 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 
 ### Practical Summary
 
-- `ConfigBuilder` now seeds one app-owned build adapter, manifest, executor, dev graph, and runtime registry.
+- `ConfigBuilder` now seeds one app-owned build ownership path, adapter, manifest, executor, dev graph, and runtime registry.
 - `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths.
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
-- the Node thin-host path exists to keep startup framework-owned without putting source parsing or tsconfig ownership into the host itself.
+- direct Ecopages runtime ownership stops at Bun; cross-runtime execution belongs to Vite-hosted integrations.
+- esbuild remains only as a temporary Bun-path implementation detail and is not a strategic core dependency.
 
 ## Documentation Map
 
@@ -134,7 +135,7 @@ export default config;
 
 ### 2. Application Entry (`app.ts`)
 
-Start the application using the universal `createApp` factory. It automatically detects your runtime and applies the correct adapter.
+Start the application using `createApp` when running on Bun. Cross-runtime execution should happen through a Vite host integration instead of direct Node execution of the core entrypoint.
 
 ```typescript
 import { createApp } from '@ecopages/core';
@@ -216,18 +217,17 @@ See the [official documentation](https://ecopages.app) for advanced usage, API h
 
 ## Import Structure
 
-Use the root package exports for standard authoring. The framework automatically detects your runtime and uses the optimal internal adapter:
+Use the root package exports for standard authoring in Bun-native flows:
 
 ```ts
 import { createApp, defineApiHandler, defineGroupHandler, eco } from '@ecopages/core';
 ```
 
 > [!NOTE]
-> `createApp` is now the recommended universal entrypoint over `EcopagesApp`.
+> `createApp` is the recommended Bun-native entrypoint over `EcopagesApp`.
 
 ### Runtime Escape Hatches
 
-Use runtime-specific subpaths only when you explicitly need Bun-native or Node-native APIs that bypass the universal abstractions:
+Use runtime-specific subpaths only when you explicitly need Bun-native APIs that bypass the universal abstractions:
 
 - `@ecopages/core/bun`
-- `@ecopages/core/node`

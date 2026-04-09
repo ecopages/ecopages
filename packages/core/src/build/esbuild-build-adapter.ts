@@ -4,8 +4,10 @@ import type {
 	OnResolveResult as EsbuildOnResolveResult,
 	Plugin as EsbuildPlugin,
 } from 'esbuild';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import type {
 	EcoBuildOnLoadResult,
@@ -22,8 +24,11 @@ import type {
 	BuildTranspileOptions,
 	BuildTranspileProfile,
 } from './build-adapter.ts';
+import { collectRuntimeSpecifierAliasMap, rewriteRuntimeSpecifierAliases } from './runtime-specifier-aliases.ts';
 
-const esbuildPath = fileURLToPath(import.meta.resolve('esbuild'));
+const moduleRequire = createRequire(import.meta.url);
+const esbuildPath = moduleRequire.resolve('esbuild');
+const workspaceNodePathsCache = new Map<string, string[]>();
 
 /**
  * Provides common transpile output defaults shared across build profiles.
@@ -60,7 +65,96 @@ function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspi
 export const ESBUILD_ADAPTER_BRAND: unique symbol = Symbol.for('EsbuildBuildAdapter');
 
 export class EsbuildBuildAdapter implements BuildAdapter {
+	readonly ownership = 'bun-native' as const;
 	readonly [ESBUILD_ADAPTER_BRAND] = true;
+
+	private collectWorkspaceNodePaths(scanRoot: string, maxDepth = 3): string[] {
+		const normalizedRoot = path.resolve(scanRoot);
+		const cached = workspaceNodePathsCache.get(normalizedRoot);
+		if (cached) {
+			return cached;
+		}
+
+		const nodePaths = new Set<string>();
+		const skippedDirectoryNames = new Set(['.git', '.turbo', 'dist', 'node_modules', 'test-results']);
+
+		const visit = (dirPath: string, depth: number): void => {
+			if (depth > maxDepth) {
+				return;
+			}
+
+			const packageJsonPath = path.join(dirPath, 'package.json');
+			const nodeModulesPath = path.join(dirPath, 'node_modules');
+
+			if (fileSystem.exists(packageJsonPath) && fileSystem.exists(nodeModulesPath)) {
+				nodePaths.add(nodeModulesPath);
+			}
+
+			if (depth === maxDepth) {
+				return;
+			}
+
+			for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
+				if (!entry.isDirectory()) {
+					continue;
+				}
+
+				if (skippedDirectoryNames.has(entry.name) || entry.name.startsWith('.')) {
+					continue;
+				}
+
+				visit(path.join(dirPath, entry.name), depth + 1);
+			}
+		};
+
+		if (fileSystem.exists(normalizedRoot) && fileSystem.isDirectory(normalizedRoot)) {
+			visit(normalizedRoot, 0);
+		}
+
+		const resolvedNodePaths = Array.from(nodePaths);
+		workspaceNodePathsCache.set(normalizedRoot, resolvedNodePaths);
+		return resolvedNodePaths;
+	}
+
+	private getFallbackNodePaths(contextRoot: string): string[] {
+		const nodePaths = new Set<string>();
+
+		const contextNodeModulesPath = path.join(contextRoot, 'node_modules');
+		if (fileSystem.exists(contextNodeModulesPath)) {
+			nodePaths.add(contextNodeModulesPath);
+		}
+
+		for (const workspaceNodePath of this.collectWorkspaceNodePaths(process.cwd())) {
+			nodePaths.add(workspaceNodePath);
+		}
+
+		return Array.from(nodePaths);
+	}
+
+	private rewriteAliasedRuntimeSpecifiers(result: BuildResult, plugins: EcoBuildPlugin[]): BuildResult {
+		if (!result.success || result.outputs.length === 0) {
+			return result;
+		}
+
+		const aliasMap = collectRuntimeSpecifierAliasMap(plugins);
+		if (aliasMap.size === 0) {
+			return result;
+		}
+
+		for (const output of result.outputs) {
+			if (!/\.(?:[cm]?js)$/u.test(output.path)) {
+				continue;
+			}
+
+			const code = readFileSync(output.path, 'utf-8');
+			const rewritten = rewriteRuntimeSpecifierAliases(code, aliasMap);
+			if (rewritten !== code) {
+				writeFileSync(output.path, rewritten);
+			}
+		}
+
+		return result;
+	}
 
 	private escapeRegExp(value: string): string {
 		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -298,7 +392,9 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		) as typeof import('esbuild');
 
 		if (moduleGeneration > 0 && !this.isMockedEsbuildModule(esbuildModule)) {
-			const freshModule = await import(`${pathToFileURL(esbuildPath).href}?ecopages_esbuild=${moduleGeneration}`);
+			const freshModule = await import(
+				/* @vite-ignore */ `${pathToFileURL(esbuildPath).href}?ecopages_esbuild=${moduleGeneration}`
+			);
 			const normalizedFreshModule = (
 				typeof (freshModule as typeof import('esbuild')).build === 'function'
 					? freshModule
@@ -350,6 +446,7 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
 		const tsconfigPath = path.join(contextRoot, 'tsconfig.json');
 		const tsconfigExists = fileSystem.exists(tsconfigPath);
+		const nodePaths = this.getFallbackNodePaths(contextRoot);
 
 		const plugins = this.getPluginsForBuild(options.plugins);
 		const esbuildPlugins: EsbuildPlugin[] = [
@@ -375,6 +472,7 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 
 		const result = await esbuild.build({
 			absWorkingDir: contextRoot,
+			...(nodePaths.length > 0 ? { nodePaths } : {}),
 			entryPoints: options.entrypoints,
 			bundle: options.bundle ?? true,
 			...outputOptions,
@@ -405,12 +503,15 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		const logs = result.warnings.map((warning) => ({ message: warning.text }));
 		const dependencyGraph = this.extractDependencyGraph(result.metafile, contextRoot);
 
-		return {
-			success: true,
-			logs,
-			outputs,
-			dependencyGraph,
-		};
+		return this.rewriteAliasedRuntimeSpecifiers(
+			{
+				success: true,
+				logs,
+				outputs,
+				dependencyGraph,
+			},
+			plugins,
+		);
 	}
 
 	private mapEsbuildSourcemap(value: string | undefined): false | 'linked' | 'inline' | 'external' | 'both' {
@@ -547,7 +648,7 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 	 * Resolves module specifiers from a project root.
 	 */
 	resolve(importPath: string, rootDir: string): string {
-		return fileURLToPath(import.meta.resolve(importPath, pathToFileURL(path.join(rootDir, 'package.json')).href));
+		return moduleRequire.resolve(importPath, { paths: [rootDir] });
 	}
 
 	/**

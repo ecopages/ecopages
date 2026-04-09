@@ -21,6 +21,7 @@ All notable changes to `@ecopages/browser-router` are documented here.
 - Preserved client-managed `<html>` state such as theme classes and data attributes while still syncing router-owned document metadata during swaps.
 - Prevented duplicate head-script execution, duplicate `/_hmr_runtime.js` injection, and listener accumulation across repeated navigations.
 - Reset hydrated custom elements from incoming HTML and ignored superseded navigation fetch failures so cross-runtime handoffs no longer leave blank or mixed DOM state behind.
+- Preserved `data-eco-persist` head scripts during stale head cleanup so browser-router navigations keep persistent client modules loaded across page swaps.
 
 ### Refactoring
 

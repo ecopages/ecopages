@@ -299,6 +299,10 @@ export class DomSwapper {
 		this.pendingRerunScripts = [];
 	}
 
+	/**
+	 * Returns whether pending rerun scripts require a full body replacement
+	 * instead of morphing, so DOM-dependent bootstraps bind against fresh markup.
+	 */
 	shouldReplaceBodyForRerunScripts(): boolean {
 		return this.pendingRerunScripts.length > 0;
 	}
@@ -312,14 +316,43 @@ export class DomSwapper {
 		return element.localName.includes('-') && element.shadowRoot === null;
 	}
 
-	private replaceCustomElement(fromEl: Element, toEl: Element): false {
-		const newEl = document.createElement(toEl.tagName);
-		for (const attr of toEl.attributes) {
-			newEl.setAttribute(attr.name, attr.value);
-		}
-		newEl.innerHTML = toEl.innerHTML;
-		fromEl.replaceWith(newEl);
+	/**
+	 * Queues a custom element for deferred replacement instead of replacing it
+	 * inline during the morphdom walk.
+	 *
+	 * Replacing elements during morphdom traversal mutates the live DOM tree,
+	 * which can cause morphdom to skip siblings or process stale nodes.
+	 * Deferring the replacement until after morphdom finishes avoids this.
+	 *
+	 * @returns Always `false` to tell morphdom to skip updating this element.
+	 */
+	private replaceCustomElement(
+		fromEl: Element,
+		toEl: Element,
+		deferred: Array<{ from: Element; to: Element }>,
+	): false {
+		deferred.push({ from: fromEl, to: toEl });
 		return false;
+	}
+
+	/**
+	 * Replaces all deferred custom elements after morphdom has finished traversing.
+	 *
+	 * Each element is recreated via `document.createElement` so the browser fires
+	 * the full custom element lifecycle (`disconnectedCallback` on the old instance,
+	 * `connectedCallback` on the new one). Elements that were already removed during
+	 * the morph pass are skipped via the `isConnected` guard.
+	 */
+	private flushDeferredCustomElementReplacements(deferred: Array<{ from: Element; to: Element }>): void {
+		for (const { from, to } of deferred) {
+			if (!from.isConnected) continue;
+			const newEl = document.createElement(to.tagName);
+			for (const attr of to.attributes) {
+				newEl.setAttribute(attr.name, attr.value);
+			}
+			newEl.innerHTML = to.innerHTML;
+			from.replaceWith(newEl);
+		}
 	}
 
 	/**
@@ -330,6 +363,7 @@ export class DomSwapper {
 	 */
 	morphBody(newDocument: Document): void {
 		const persistAttr = this.persistAttribute;
+		const deferredReplacements: Array<{ from: Element; to: Element }> = [];
 
 		morphdom(document.body, newDocument.body, {
 			onBeforeElUpdated: (fromEl, toEl) => {
@@ -337,19 +371,11 @@ export class DomSwapper {
 					return false;
 				}
 				if (isHydratedCustomElement(fromEl)) {
-					return this.replaceCustomElement(fromEl, toEl);
+					return this.replaceCustomElement(fromEl, toEl, deferredReplacements);
 				}
 
-				/**
-				 * Light-DOM custom elements (e.g. <radiant-code-tabs>) often
-				 * generate DOM in connectedCallback that doesn't exist in the
-				 * server-rendered HTML. Morphdom would diff those children away.
-				 * Instead, replace the element entirely so the browser fires
-				 * disconnectedCallback on the old instance and connectedCallback
-				 * on the fresh one.
-				 */
 				if (this.isLightDomCustomElement(fromEl)) {
-					return this.replaceCustomElement(fromEl, toEl);
+					return this.replaceCustomElement(fromEl, toEl, deferredReplacements);
 				}
 
 				if (fromEl.isEqualNode(toEl)) {
@@ -360,6 +386,7 @@ export class DomSwapper {
 			},
 		});
 
+		this.flushDeferredCustomElementReplacements(deferredReplacements);
 		this.processDeclarativeShadowDOM(document.body);
 	}
 
@@ -390,10 +417,16 @@ export class DomSwapper {
 			}
 		}
 
-		document.body.replaceChildren(...newDocument.body.childNodes);
+		document.body.replaceChildren(...Array.from(newDocument.body.childNodes));
 		this.processDeclarativeShadowDOM(document.body);
 	}
 
+	/**
+	 * Collects all `data-eco-rerun` scripts from the incoming document.
+	 *
+	 * These scripts are re-executed after each navigation so their side-effects
+	 * (event listeners, DOM bootstraps) bind against the new page content.
+	 */
 	private collectRerunScripts(newDocument: Document): PendingRerunScript[] {
 		return Array.from(newDocument.querySelectorAll<HTMLScriptElement>('script[data-eco-rerun]')).map((script) => ({
 			parent: script.closest('body') ? 'body' : 'head',
@@ -404,6 +437,12 @@ export class DomSwapper {
 		}));
 	}
 
+	/**
+	 * Removes head scripts that are no longer present in the incoming document.
+	 *
+	 * Persisted scripts and executable inline scripts with stable identifiers
+	 * are kept to avoid breaking long-lived runtime state.
+	 */
 	private removeStaleHeadScripts(newDocument: Document): void {
 		const nextScriptKeys = new Set(
 			Array.from(newDocument.head.querySelectorAll<HTMLScriptElement>('script'))
@@ -417,6 +456,10 @@ export class DomSwapper {
 				continue;
 			}
 
+			if (isPersisted(script, this.persistAttribute)) {
+				continue;
+			}
+
 			if (this.shouldPersistExecutableInlineHeadScript(script)) {
 				continue;
 			}
@@ -425,6 +468,13 @@ export class DomSwapper {
 		}
 	}
 
+	/**
+	 * Determines whether an inline head script should survive navigation.
+	 *
+	 * Only identified (`data-eco-script-id` or `id`), executable inline scripts
+	 * are persisted. External scripts and rerun scripts are never persisted here
+	 * because they have their own lifecycle management.
+	 */
 	private shouldPersistExecutableInlineHeadScript(script: HTMLScriptElement): boolean {
 		const scriptId = script.getAttribute('data-eco-script-id') || script.getAttribute('id');
 		if (!scriptId) {
@@ -442,6 +492,13 @@ export class DomSwapper {
 		return !this.isNonExecutableHeadScript(script);
 	}
 
+	/**
+	 * Returns whether a script is non-executable (e.g. `type="application/json"`).
+	 *
+	 * Non-executable scripts are data carriers (JSON-LD, page data) that can be
+	 * safely replaced without side-effects, unlike executable scripts that would
+	 * re-run their bootstrap logic.
+	 */
 	private isNonExecutableHeadScript(script: HTMLScriptElement): boolean {
 		const type = (script.getAttribute('type') ?? '').trim().toLowerCase();
 
@@ -458,6 +515,12 @@ export class DomSwapper {
 		].includes(type);
 	}
 
+	/**
+	 * Compares two head scripts for structural equality (key, content, attributes).
+	 *
+	 * Used to skip replacing non-executable data scripts when their content
+	 * has not changed between navigations.
+	 */
 	private areHeadScriptsEquivalent(nextScript: HTMLScriptElement, currentScript: HTMLScriptElement): boolean {
 		if (this.getHeadScriptKey(nextScript) !== this.getHeadScriptKey(currentScript)) {
 			return false;
@@ -482,6 +545,12 @@ export class DomSwapper {
 		);
 	}
 
+	/**
+	 * Derives a stable identity key for a head script.
+	 *
+	 * Priority: `data-eco-script-id` / `id` > `src` > trimmed inline content.
+	 * Returns `null` for empty anonymous inline scripts that cannot be tracked.
+	 */
 	private getHeadScriptKey(
 		script: HTMLScriptElement | Pick<PendingHeadScript | PendingRerunScript, 'scriptId' | 'src' | 'textContent'>,
 	): string | null {
@@ -505,6 +574,9 @@ export class DomSwapper {
 		return textContent ? `inline:${textContent}` : null;
 	}
 
+	/**
+	 * Finds an existing head script that matches the given script's identity key.
+	 */
 	private findExistingHeadScript(
 		script: HTMLScriptElement | Pick<PendingHeadScript | PendingRerunScript, 'scriptId' | 'src' | 'textContent'>,
 	): HTMLScriptElement | null {
@@ -520,6 +592,10 @@ export class DomSwapper {
 		);
 	}
 
+	/**
+	 * Finds an existing rerun script in the given root by `data-eco-script-id` or
+	 * by matching `src` and `textContent`.
+	 */
 	private findExistingRerunScript(root: HTMLElement, script: PendingRerunScript): HTMLScriptElement | null {
 		const scripts = Array.from(root.querySelectorAll<HTMLScriptElement>('script'));
 
@@ -538,6 +614,12 @@ export class DomSwapper {
 		);
 	}
 
+	/**
+	 * Returns whether a rerun script is an external ES module (`type="module"` with `src`).
+	 *
+	 * Module scripts are cached by URL, so re-execution requires cache-busting
+	 * via a query parameter nonce.
+	 */
 	private isExternalModuleRerunScript(script: PendingRerunScript): boolean {
 		if (!script.src) {
 			return false;
@@ -546,6 +628,10 @@ export class DomSwapper {
 		return script.attributes.some(([name, value]) => name === 'type' && value === 'module');
 	}
 
+	/**
+	 * Appends a nonce query parameter to a script URL to bust the browser's
+	 * module cache and force re-execution on navigation.
+	 */
 	private createRerunScriptUrl(src: string): string {
 		const url = new URL(src, document.baseURI);
 		url.searchParams.set('__eco_rerun', String(++this.rerunNonce));

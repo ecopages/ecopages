@@ -569,6 +569,23 @@ describe('EcoRouter', () => {
 			expect((window as typeof window & { __head_script_runs__?: number }).__head_script_runs__).toBe(1);
 		});
 
+		it('should preserve persistent external head scripts that are absent from the next page', async () => {
+			router = createRouter({ viewTransitions: false });
+			document.head.innerHTML =
+				'<script type="module" src="/assets/radiant-counter.js" data-eco-persist="true"></script>';
+			const nextHtml = '<html><head></head><body><div>Fresh Content</div></body></html>';
+			fetchSpy?.mockResolvedValueOnce({
+				ok: true,
+				text: async () => nextHtml,
+			} as Response);
+
+			await router.navigate('/head-script-persist');
+
+			expect(
+				document.head.querySelector('script[src="/assets/radiant-counter.js"][data-eco-persist="true"]'),
+			).not.toBeNull();
+		});
+
 		it('should re-execute external module rerun scripts with a fresh URL', async () => {
 			router = createRouter({ viewTransitions: false });
 			const rerunHtml = [

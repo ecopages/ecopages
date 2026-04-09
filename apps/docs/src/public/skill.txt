@@ -208,7 +208,7 @@ export default config;
 Create `app.ts`:
 
 ```typescript
-import { EcopagesApp } from "@ecopages/core/bun/create-app";
+import { EcopagesApp } from "@ecopages/core/create-app";
 import appConfig from "./eco.config";
 
 const app = new EcopagesApp({ appConfig });
@@ -954,7 +954,7 @@ export const authHandler = async (ctx: ApiHandlerContext) => {
 In `app.ts`:
 
 ```typescript
-import { EcopagesApp } from "@ecopages/core/bun/create-app";
+import { EcopagesApp } from "@ecopages/core/create-app";
 import appConfig from "./eco.config";
 import * as auth from "./src/handlers/auth";
 

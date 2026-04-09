@@ -28,7 +28,7 @@ For architectural patterns and code organization examples, see [Routing Patterns
 Define routes using HTTP method functions on your `EcopagesApp` instance:
 
 ```typescript
-import { EcopagesApp } from '@ecopages/core/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/create-app';
 import appConfig from './eco.config';
 
 const app = new EcopagesApp({ appConfig });
@@ -145,7 +145,7 @@ const logMiddleware: Middleware = async (ctx, next) => {
 Middleware can extend the request context with additional properties (like session data, user info, etc.). Use the `BunMiddleware` helper type to define middleware that adds properties to the context:
 
 ```typescript
-import type { BunMiddleware } from '@ecopages/core/bun/create-app';
+import type { BunMiddleware } from '@ecopages/core/create-app';
 
 // Define middleware that extends context with session data
 const authMiddleware: BunMiddleware<{ session: Session }> = async (ctx, next) => {
@@ -449,12 +449,12 @@ await app.start();
 ## Complete Example
 
 ```typescript
-import { EcopagesApp } from '@ecopages/core/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
 import appConfig from './eco.config';
 import { PostView, PostListView } from './src/views';
-import type { BunMiddleware } from '@ecopages/core/bun/create-app';
+import type { BunMiddleware } from '@ecopages/core/create-app';
 
 const app = new EcopagesApp({ appConfig });
 

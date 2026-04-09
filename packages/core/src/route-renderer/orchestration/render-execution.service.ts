@@ -22,6 +22,7 @@ export type RenderExecutionGraphContext = {
 };
 
 export interface CapturedHtmlRenderResult {
+	body: RouteRendererBody;
 	html: string;
 	graphContext: RenderExecutionGraphContext;
 }
@@ -50,7 +51,7 @@ export interface RenderExecutionCallbacks<C> {
 	setProcessedDependencies(dependencies: ProcessedAsset[]): void;
 	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
 	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
-	transformHtml(html: string): Promise<RouteRendererBody>;
+	transformResponse(response: Response): Promise<RouteRendererBody>;
 }
 
 export interface FinalizeHtmlRenderCallbacks {
@@ -65,6 +66,33 @@ export interface FinalizeHtmlRenderCallbacks {
 	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
 	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
 }
+
+function decodeHtmlEntities(value: string): string {
+	let decoded = value;
+	let previous: string | undefined;
+
+	do {
+		previous = decoded;
+		decoded = decoded
+			.replaceAll('&quot;', '"')
+			.replaceAll('&#39;', "'")
+			.replaceAll('&#x27;', "'")
+			.replaceAll('&lt;', '<')
+			.replaceAll('&gt;', '>')
+			.replaceAll('&amp;', '&');
+	} while (decoded !== previous);
+
+	return decoded;
+}
+
+function restoreEscapedComponentMarkers(html: string): string {
+	return html.replace(
+		/&(?:amp;)?lt;eco-marker\b[\s\S]*?&(?:amp;)?gt;&(?:amp;)?lt;\/eco-marker&(?:amp;)?gt;/g,
+		(marker) => decodeHtmlEntities(marker),
+	);
+}
+
+const MAX_MARKER_RESOLUTION_PASSES = 10;
 
 /**
  * Executes the main post-preparation rendering flow for integration renderers.
@@ -85,11 +113,15 @@ export class RenderExecutionService {
 				currentIntegration: currentIntegrationName,
 				boundaryContext,
 			},
-			render,
+			async () => {
+				const renderedBody = await render();
+				return await this.captureRenderedBody(renderedBody);
+			},
 		);
 
 		return {
-			html: await new Response(renderExecution.value as BodyInit).text(),
+			body: renderExecution.value.body,
+			html: renderExecution.value.html,
 			graphContext: renderExecution.graphContext,
 		};
 	}
@@ -120,6 +152,27 @@ export class RenderExecutionService {
 			callbacks.getComponentRenderBoundaryContext(),
 			async () => callbacks.render(renderOptions),
 		);
+		const normalizedCapturedHtml = restoreEscapedComponentMarkers(renderExecution.html);
+		const documentAttributes = callbacks.getDocumentAttributes(renderOptions);
+		const canReuseCapturedBody =
+			!normalizedCapturedHtml.includes('<eco-marker') &&
+			!shouldApplyComponentRootAttributes &&
+			!(documentAttributes && Object.keys(documentAttributes).length > 0);
+
+		if (canReuseCapturedBody) {
+			const body = await callbacks.transformResponse(
+				new Response(renderExecution.body as BodyInit, {
+					headers: {
+						'Content-Type': 'text/html',
+					},
+				}),
+			);
+
+			return {
+				body,
+				cacheStrategy: renderOptions.cacheStrategy,
+			};
+		}
 
 		const componentGraphContext = this.mergeGraphContext(
 			renderExecution.graphContext,
@@ -131,23 +184,54 @@ export class RenderExecutionService {
 		);
 		const finalization = await this.finalizeHtmlRender(
 			{
-				html: renderExecution.html,
+				html: normalizedCapturedHtml,
 				graphContext: componentGraphContext,
 				componentsToResolve: this.getComponentsToResolve(renderOptions),
 				componentRootAttributes: shouldApplyComponentRootAttributes
 					? (renderOptions.componentRender?.rootAttributes as Record<string, string>)
 					: undefined,
-				documentAttributes: callbacks.getDocumentAttributes(renderOptions),
+				documentAttributes,
 				mergeAssets: true,
 			},
 			callbacks,
 		);
 
-		const body = await callbacks.transformHtml(finalization.html);
+		const body = await callbacks.transformResponse(
+			new Response(finalization.html, {
+				headers: {
+					'Content-Type': 'text/html',
+				},
+			}),
+		);
 
 		return {
 			body,
 			cacheStrategy: renderOptions.cacheStrategy,
+		};
+	}
+
+	private async captureRenderedBody(body: RouteRendererBody): Promise<{ body: RouteRendererBody; html: string }> {
+		const response = new Response(body as BodyInit);
+
+		if (typeof body === 'string') {
+			return {
+				body,
+				html: await response.text(),
+			};
+		}
+
+		if (!response.body) {
+			return {
+				body,
+				html: await response.text(),
+			};
+		}
+
+		const [capturedBody, replayBody] = response.body.tee();
+
+		return {
+			body: replayBody,
+			html: await new Response(capturedBody).text(),
 		};
 	}
 
@@ -179,17 +263,21 @@ export class RenderExecutionService {
 		options: FinalizeHtmlRenderOptions,
 		callbacks: FinalizeHtmlRenderCallbacks,
 	): Promise<{ html: string; assets: ProcessedAsset[] }> {
-		let renderedHtml = options.html;
+		let renderedHtml = restoreEscapedComponentMarkers(options.html);
 		let markerAssets: ProcessedAsset[] = [];
 
-		if (renderedHtml.includes('<eco-marker')) {
+		for (let pass = 0; pass < MAX_MARKER_RESOLUTION_PASSES; pass += 1) {
+			if (!renderedHtml.includes('<eco-marker')) {
+				break;
+			}
+
 			const markerResolution = await callbacks.resolveMarkerGraphHtml({
 				html: renderedHtml,
 				componentsToResolve: options.componentsToResolve,
 				graphContext: options.graphContext,
 			});
-			renderedHtml = markerResolution.html;
-			markerAssets = markerResolution.assets;
+			const resolvedHtml = restoreEscapedComponentMarkers(markerResolution.html);
+			markerAssets = callbacks.dedupeProcessedAssets([...markerAssets, ...markerResolution.assets]);
 
 			if (options.mergeAssets !== false && markerResolution.assets.length > 0) {
 				const mergedDependencies = callbacks.dedupeProcessedAssets([
@@ -198,6 +286,13 @@ export class RenderExecutionService {
 				]);
 				callbacks.setProcessedDependencies(mergedDependencies);
 			}
+
+			if (resolvedHtml === renderedHtml) {
+				renderedHtml = resolvedHtml;
+				break;
+			}
+
+			renderedHtml = resolvedHtml;
 		}
 
 		if (options.componentRootAttributes && Object.keys(options.componentRootAttributes).length > 0) {

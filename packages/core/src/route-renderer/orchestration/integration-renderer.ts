@@ -41,6 +41,7 @@ import type {
 	BoundaryRenderDecisionInput,
 	ComponentRenderBoundaryContext,
 } from '../../eco/component-render-context.ts';
+import { runWithComponentRenderContext } from '../../eco/component-render-context.ts';
 
 export interface FinalizeCapturedHtmlRenderOptions {
 	html: string;
@@ -113,6 +114,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected htmlTransformer: HtmlTransformerService;
 	protected hmrManager?: IHmrManager;
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
+	protected rendererModules?: unknown;
 	declare protected options: Required<IntegrationRendererRenderOptions>;
 	protected runtimeOrigin: string;
 	protected dependencyResolverService: DependencyResolverService;
@@ -122,6 +124,44 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected renderExecutionService: RenderExecutionService;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
+
+	protected getRendererModuleValue(key: string): unknown {
+		if (!this.rendererModules || typeof this.rendererModules !== 'object') {
+			return undefined;
+		}
+
+		return (this.rendererModules as Record<string, unknown>)[key];
+	}
+
+	protected getRendererModuleString(key: string): string | undefined {
+		const value = this.getRendererModuleValue(key);
+		return typeof value === 'string' && value.length > 0 ? value : undefined;
+	}
+
+	protected getRendererBootstrapDependencies(partial = false): ProcessedAsset[] {
+		if (partial) {
+			return [];
+		}
+
+		const islandClientModuleId = this.getRendererModuleString('islandClientModuleId');
+		if (!islandClientModuleId) {
+			return [];
+		}
+
+		return [
+			{
+				attributes: {
+					crossorigin: 'anonymous',
+					'data-ecopages-runtime': 'islands',
+					type: 'module',
+				},
+				content: `import ${JSON.stringify(islandClientModuleId)};`,
+				inline: true,
+				kind: 'script',
+				position: 'body',
+			},
+		];
+	}
 
 	public setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
@@ -190,17 +230,20 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		appConfig,
 		assetProcessingService,
 		resolvedIntegrationDependencies,
+		rendererModules,
 		runtimeOrigin,
 	}: {
 		appConfig: EcoPagesAppConfig;
 		assetProcessingService: AssetProcessingService;
 		resolvedIntegrationDependencies?: ProcessedAsset[];
+		rendererModules?: unknown;
 		runtimeOrigin: string;
 	}) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 		this.htmlTransformer = new HtmlTransformerService();
 		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
+		this.rendererModules = rendererModules ?? appConfig.runtime?.rendererModuleContext;
 		this.runtimeOrigin = runtimeOrigin;
 		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
@@ -234,9 +277,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The HTML template component.
 	 */
 	protected async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
-		const { absolutePaths } = this.appConfig;
+		const htmlTemplatePath =
+			this.getRendererModuleString('htmlTemplateModulePath') ?? this.appConfig.absolutePaths.htmlTemplatePath;
 		try {
-			const { default: HtmlTemplate } = await this.importPageFile(absolutePaths.htmlTemplatePath);
+			const { default: HtmlTemplate } = await this.importPageFile(htmlTemplatePath);
 			return HtmlTemplate as EcoComponent<HtmlTemplateProps>;
 		} catch (error) {
 			invariant(false, `Error importing HtmlTemplate: ${error}`);
@@ -282,6 +326,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		});
 	}
 
+	protected usesIntegrationPageImporter(_file: string): boolean {
+		return false;
+	}
+
+	protected async importIntegrationPageFile(_file: string): Promise<EcoPageFile> {
+		invariant(false, 'Integration page importer must be implemented when enabled');
+	}
+
+	protected normalizeImportedPageFile<TPageModule extends EcoPageFile>(
+		_file: string,
+		pageModule: TPageModule,
+	): TPageModule {
+		return pageModule;
+	}
+
 	/**
 	 * Imports the page file from the specified path.
 	 * It uses dynamic import to load the file and returns the imported module.
@@ -290,7 +349,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The imported module.
 	 */
 	protected async importPageFile(file: string): Promise<EcoPageFile> {
-		return this.pageModuleLoaderService.importPageFile(file);
+		const bypassCache = typeof Bun !== 'undefined' && process.env.NODE_ENV === 'development';
+		const pageModule = this.usesIntegrationPageImporter(file)
+			? await this.importIntegrationPageFile(file)
+			: await this.pageModuleLoaderService.importPageFile(file, { bypassCache });
+
+		return this.normalizeImportedPageFile(file, pageModule);
 	}
 
 	/**
@@ -502,15 +566,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				this.htmlTransformer.applyAttributesToHtmlElement(html, attributes),
 			applyAttributesToFirstBodyElement: (html, attributes) =>
 				this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes),
-			transformHtml: async (html) => {
-				const response = await this.htmlTransformer.transform(
-					new Response(html, {
-						headers: {
-							'Content-Type': 'text/html',
-						},
-					}),
-				);
-				return response.body as RouteRendererBody;
+			transformResponse: async (response) => {
+				const transformedResponse = await this.htmlTransformer.transform(response);
+				return transformedResponse.body as RouteRendererBody;
 			},
 		});
 	}
@@ -540,6 +598,16 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * HTML transformer for full-document flows.
 	 */
 	protected async finalizeCapturedHtmlRender(options: FinalizeCapturedHtmlRenderOptions): Promise<string> {
+		const rendererBootstrapDependencies = this.getRendererBootstrapDependencies(options.partial);
+		if (rendererBootstrapDependencies.length > 0) {
+			this.htmlTransformer.setProcessedDependencies(
+				this.htmlTransformer.dedupeProcessedAssets([
+					...this.htmlTransformer.getProcessedDependencies(),
+					...rendererBootstrapDependencies,
+				]),
+			);
+		}
+
 		const finalization = await this.renderExecutionService.finalizeHtmlRender(
 			{
 				html: options.html,
@@ -619,12 +687,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		html: string;
 		componentsToResolve: EcoComponent[];
 		graphContext: RenderExecutionGraphContext;
+		instanceIdScope?: string;
 	}): Promise<{ html: string; assets: ProcessedAsset[] }> {
 		const integrationRendererCache = new Map<string, IntegrationRenderer>();
 		return this.markerGraphResolver.resolve({
 			html: options.html,
 			componentsToResolve: options.componentsToResolve,
 			graphContext: options.graphContext,
+			instanceIdScope: options.instanceIdScope,
 			resolveRenderer: (integrationName) =>
 				this.getIntegrationRendererForName(integrationName, integrationRendererCache),
 			applyAttributesToFirstElement: (html, attributes) =>
@@ -659,7 +729,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			(integration) => integration.name === integrationName,
 		);
 		invariant(!!integrationPlugin, `[ecopages] Integration not found for marker: ${integrationName}`);
-		const renderer = integrationPlugin.initializeRenderer();
+		const renderer = integrationPlugin.initializeRenderer({
+			rendererModules: this.appConfig.runtime?.rendererModuleContext,
+		});
 		cache.set(integrationName, renderer);
 		return renderer;
 	}
@@ -672,6 +744,81 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The rendered body.
 	 */
 	abstract render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
+
+	/**
+	 * Renders one deferred marker-graph node under this integration's boundary
+	 * context so nested cross-integration children can continue to defer while the
+	 * graph is being resolved bottom-up.
+	 *
+	 * Without this wrapper, resolving a deferred React or Kita node would render
+	 * any nested foreign components with no active render context, causing them to
+	 * fall back to inline escaped HTML instead of emitting the next marker layer.
+	 */
+	async renderComponentForMarkerGraph(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		if (!this.shouldWrapMarkerGraphComponent(input.component)) {
+			return this.renderComponent(input);
+		}
+
+		const execution = await runWithComponentRenderContext(
+			{
+				currentIntegration: this.name,
+				boundaryContext: this.getComponentRenderBoundaryContext(),
+			},
+			async () => this.renderComponent(input),
+		);
+
+		if (!execution.value.html.includes('<eco-marker')) {
+			return execution.value;
+		}
+
+		const hasCapturedNestedGraph =
+			Object.keys(execution.graphContext.propsByRef ?? {}).length > 0 ||
+			Object.keys(execution.graphContext.slotChildrenByRef ?? {}).length > 0;
+
+		if (!hasCapturedNestedGraph) {
+			return execution.value;
+		}
+
+		const parentInstanceId = (input.integrationContext as { componentInstanceId?: string } | undefined)
+			?.componentInstanceId;
+		const nestedResolution = await this.resolveMarkerGraphHtml({
+			html: execution.value.html,
+			componentsToResolve: [input.component],
+			graphContext: execution.graphContext,
+			instanceIdScope: parentInstanceId,
+		});
+
+		return {
+			...execution.value,
+			html: nestedResolution.html,
+			assets: this.htmlTransformer.dedupeProcessedAssets([
+				...(execution.value.assets ?? []),
+				...nestedResolution.assets,
+			]),
+		};
+	}
+
+	protected shouldWrapMarkerGraphComponent(component: EcoComponent): boolean {
+		const stack = [component];
+		const seen = new Set<EcoComponent>();
+
+		while (stack.length > 0) {
+			const current = stack.pop();
+			if (!current || seen.has(current)) {
+				continue;
+			}
+
+			seen.add(current);
+			const integrationName = current.config?.integration ?? current.config?.__eco?.integration;
+			if (integrationName && integrationName !== this.name) {
+				return true;
+			}
+
+			stack.push(...(current.config?.dependencies?.components ?? []));
+		}
+
+		return false;
+	}
 
 	/**
 	 * Render a view directly to a Response object.
@@ -727,7 +874,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns Root tag name when present; otherwise `undefined`.
 	 */
 	protected getRootTagName(html: string): string | undefined {
-		const rootTag = html.match(/^\s*<([a-zA-Z][a-zA-Z0-9:-]*)\b/);
+		const rootTag = html.match(/^(?:\s|<!--[\s\S]*?-->)*<([a-zA-Z][a-zA-Z0-9:-]*)\b/);
 		return rootTag?.[1];
 	}
 

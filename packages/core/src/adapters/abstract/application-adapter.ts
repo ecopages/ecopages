@@ -8,6 +8,12 @@
  */
 
 import { appLogger } from '../../global/app-logger.ts';
+import {
+	getAppModuleLoader,
+	setAppHostModuleLoader,
+} from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import { getViteEnvironmentHostModuleLoader } from '../../services/module-loading/vite-environment-host-module-loader.service.ts';
+import type { SourceModuleLoader } from '../../services/module-loading/module-loading-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
 import type {
@@ -22,12 +28,47 @@ import type {
 import { fileSystem } from '@ecopages/file-system';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 
+function resolveRuntimeHostModuleLoader(
+	hostModuleLoader: ApplicationRuntimeOptions['hostModuleLoader'],
+): SourceModuleLoader | undefined {
+	if (!hostModuleLoader) {
+		return undefined;
+	}
+
+	if (hostModuleLoader === 'vite-environment') {
+		return getViteEnvironmentHostModuleLoader();
+	}
+
+	return hostModuleLoader;
+}
+
+/**
+ * Runtime bootstrap options layered on top of the app config.
+ *
+ * These options let a host runtime embed Ecopages without mutating process
+ * globals or app runtime state before calling `createApp()`.
+ */
+export interface ApplicationRuntimeOptions {
+	/**
+	 * Forces the app into the embedded-runtime CLI mode used by Vite/Nitro hosts.
+	 */
+	embedded?: boolean;
+	/**
+	 * Selects how request-time source modules should be loaded.
+	 *
+	 * Use `'vite-environment'` for Vite/Nitro hosts so Ecopages can import
+	 * runtime-owned modules through the active server-side Vite environment.
+	 */
+	hostModuleLoader?: SourceModuleLoader | 'vite-environment';
+}
+
 /**
  * Configuration options for application adapters
  */
 export interface ApplicationAdapterOptions {
 	appConfig: EcoPagesAppConfig;
 	serverOptions?: Record<string, any>;
+	runtime?: ApplicationRuntimeOptions;
 	/**
 	 * Options for clearing the output directory before starting the server
 	 * @default false
@@ -68,6 +109,7 @@ export abstract class AbstractApplicationAdapter<
 	protected appConfig: EcoPagesAppConfig;
 	protected serverOptions: Record<string, any>;
 	protected cliArgs: ReturnParseCliArgs;
+	protected runtimeOptions: ApplicationRuntimeOptions;
 	protected apiHandlers: ApiHandler[] = [];
 	protected staticRoutes: StaticRoute[] = [];
 	protected errorHandler?: ErrorHandler;
@@ -75,7 +117,17 @@ export abstract class AbstractApplicationAdapter<
 	constructor(options: TOptions) {
 		this.appConfig = options.appConfig;
 		this.serverOptions = options.serverOptions || {};
-		this.cliArgs = parseCliArgs();
+		this.runtimeOptions = options.runtime ?? {};
+		this.cliArgs = parseCliArgs({ embeddedRuntime: this.runtimeOptions.embedded });
+
+		if (Object.prototype.hasOwnProperty.call(this.runtimeOptions, 'hostModuleLoader')) {
+			setAppHostModuleLoader(
+				this.appConfig,
+				resolveRuntimeHostModuleLoader(this.runtimeOptions.hostModuleLoader),
+			);
+		}
+
+		getAppModuleLoader(this.appConfig);
 
 		if (options.clearOutput) {
 			this.clearDistFolder().catch((error) => {
@@ -84,7 +136,7 @@ export abstract class AbstractApplicationAdapter<
 		}
 	}
 
-	private async clearDistFolder(_filter: string[] = []): Promise<void> {
+	private async clearDistFolder(): Promise<void> {
 		const distPath = this.appConfig.absolutePaths.distDir;
 		const distExists = fileSystem.exists(distPath);
 

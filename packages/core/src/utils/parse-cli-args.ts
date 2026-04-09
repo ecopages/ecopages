@@ -1,6 +1,20 @@
 import { parseArgs } from 'node:util';
 import { getRuntimeArgv } from './runtime.ts';
 
+function getEmbeddedRuntimeCommandOptions(): ReturnParseCliArgs {
+	const isDevelopment = process.env.NODE_ENV === 'development';
+
+	return {
+		preview: false,
+		build: false,
+		start: !isDevelopment,
+		dev: isDevelopment,
+		port: undefined,
+		hostname: undefined,
+		reactFastRefresh: undefined,
+	};
+}
+
 /**
  * Parsed command line arguments for the Ecopages server.
  * @property preview - Whether to run in preview mode
@@ -25,11 +39,19 @@ const ECOPAGES_BIN_FILES = ['ecopages.ts', 'ecopages.js', 'cli.js'];
 
 const ECOPAGES_AVAILABLE_COMMANDS = ['dev', 'build', 'start', 'preview'];
 
+export type ParseCliArgsOptions = {
+	embeddedRuntime?: boolean;
+};
+
 /**
  * Parses command line arguments for the server.
  * It returns {@link ReturnParseCliArgs}
  */
-export function parseCliArgs(): ReturnParseCliArgs {
+export function parseCliArgs(options: ParseCliArgsOptions = {}): ReturnParseCliArgs {
+	if (options.embeddedRuntime || process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME === 'true') {
+		return getEmbeddedRuntimeCommandOptions();
+	}
+
 	const runtimeArgv = getRuntimeArgv();
 
 	const { values } = parseArgs({

@@ -1,6 +1,7 @@
 import type { BuildExecutor } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { PageModuleImportService, type PageModuleImportOptions } from './page-module-import.service.ts';
+import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 
 export type ServerModuleTranspilerOptions = Omit<PageModuleImportOptions, 'rootDir' | 'buildExecutor'>;
 
@@ -27,6 +28,8 @@ export interface ServerModuleImportDependency {
 export type ServerModuleTranspilerBootstrapArgs = {
 	rootDir: string;
 	getBuildExecutor: () => BuildExecutor | undefined;
+	canLoadSourceModuleFromHost?: (filePath: string) => boolean;
+	getHostModuleLoader?: SourceModuleLoaderFactory;
 	getInvalidationVersion?: () => number;
 	invalidateModules?: (changedFiles?: string[]) => void;
 	pageModuleImportService?: ServerModuleImportDependency;
@@ -54,7 +57,12 @@ export class ServerModuleTranspiler {
 	 * context.
 	 */
 	constructor(args: ServerModuleTranspilerBootstrapArgs) {
-		this.pageModuleImportService = args.pageModuleImportService ?? new PageModuleImportService();
+		this.pageModuleImportService =
+			args.pageModuleImportService ??
+			new PageModuleImportService({
+				canLoadSourceModuleFromHost: args.canLoadSourceModuleFromHost,
+				getHostModuleLoader: args.getHostModuleLoader,
+			});
 		this.getRootDir = () => args.rootDir;
 		this.getBuildExecutor = args.getBuildExecutor;
 		this.getInvalidationVersion = () => args.getInvalidationVersion?.();

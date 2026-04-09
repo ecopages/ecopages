@@ -45,6 +45,12 @@ function createFakeDependencies(): {
 				calls.buildModule.push({ options, buildExecutor });
 				return nextBuildResult;
 			},
+			canLoadSourceModuleFromHost(filePath: string): boolean {
+				return !filePath.endsWith('.mdx');
+			},
+			getHostModuleLoader(): undefined {
+				return undefined;
+			},
 		},
 		calls,
 		setNextBuildResult(result: BuildResult): void {
@@ -65,6 +71,7 @@ describe('PageModuleImportService', () => {
 	afterEach(() => {
 		service.clearImportCache();
 		delete process.env.NODE_ENV;
+		delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
 	});
 
 	it('should import the transpiled output in node runtimes', async () => {
@@ -144,6 +151,149 @@ describe('PageModuleImportService', () => {
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123.js');
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.splitting, true);
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.externalPackages, true);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should import source modules through the host loader in node development when available', async () => {
+		process.env.NODE_ENV = 'development';
+		const hostLoaderCalls: string[] = [];
+		service = new PageModuleImportService({
+			...fakeDependencies.dependencies,
+			getHostModuleLoader: () => async (id: string) => {
+				hostLoaderCalls.push(id);
+				return { default: { ok: true }, value: 42 };
+			},
+		});
+
+		const result = await service.importModule<{ default: { ok: boolean }; value: number }>({
+			filePath: '/app/pages/page.tsx',
+			rootDir: '/app',
+			outdir: '/tmp/out',
+		});
+
+		assert.deepEqual(result.default, { ok: true });
+		assert.equal(result.value, 42);
+		assert.deepEqual(hostLoaderCalls, ['file:///app/pages/page.tsx?update=hash123-0']);
+		assert.equal(fakeDependencies.calls.buildModule.length, 0);
+	});
+
+	it('should delegate every host-loader import to the host without service-level caching', async () => {
+		process.env.NODE_ENV = 'development';
+		const hostLoaderCalls: string[] = [];
+		service = new PageModuleImportService({
+			...fakeDependencies.dependencies,
+			getHostModuleLoader: () => async (id: string) => {
+				hostLoaderCalls.push(id);
+				return { default: { ok: true } };
+			},
+		});
+
+		const first = await service.importModule<{ default: { ok: boolean } }>({
+			filePath: '/app/pages/page.tsx',
+			rootDir: '/app',
+			outdir: '/tmp/meta',
+		});
+
+		const second = await service.importModule<{ default: { ok: boolean } }>({
+			filePath: '/app/pages/page.tsx',
+			rootDir: '/app',
+			outdir: '/tmp/render',
+		});
+
+		assert.deepEqual(first.default, { ok: true });
+		assert.deepEqual(second.default, { ok: true });
+		assert.deepEqual(hostLoaderCalls, [
+			'file:///app/pages/page.tsx?update=hash123-0',
+			'file:///app/pages/page.tsx?update=hash123-0',
+		]);
+		assert.equal(fakeDependencies.calls.buildModule.length, 0);
+	});
+
+	it('should bypass the service cache when requested for bundled module imports', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-bypass-'));
+		const compiledOutput = join(tempDir, 'page-hash123.js');
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
+
+		try {
+			await service.importModule({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+				bypassCache: true,
+			});
+
+			await service.importModule({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+				bypassCache: true,
+			});
+
+			assert.equal(fakeDependencies.calls.buildModule.length, 2);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should fall back to the build adapter when the host-loader policy rejects a source module', async () => {
+		process.env.NODE_ENV = 'development';
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-host-policy-'));
+		const compiledOutput = join(tempDir, 'page-hash123.js');
+		const hostLoaderCalls: string[] = [];
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
+		service = new PageModuleImportService({
+			...fakeDependencies.dependencies,
+			canLoadSourceModuleFromHost: () => false,
+			getHostModuleLoader: () => async (id: string) => {
+				hostLoaderCalls.push(id);
+				return { default: { ok: false } };
+			},
+		});
+
+		try {
+			const result = await service.importModule<{ default: { ok: boolean } }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+
+			assert.deepEqual(result.default, { ok: true });
+			assert.deepEqual(hostLoaderCalls, []);
+			assert.equal(fakeDependencies.calls.buildModule.length, 1);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should fall back to the build adapter for source types the host loader cannot import directly', async () => {
+		process.env.NODE_ENV = 'development';
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-mdx-'));
+		const compiledOutput = join(tempDir, 'page-hash123.js');
+		const hostLoaderCalls: string[] = [];
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
+		service = new PageModuleImportService({
+			...fakeDependencies.dependencies,
+			getHostModuleLoader: () => async (id: string) => {
+				hostLoaderCalls.push(id);
+				return { default: { ok: false } };
+			},
+		});
+
+		try {
+			const result = await service.importModule<{ default: { ok: boolean } }>({
+				filePath: '/app/pages/page.mdx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+
+			assert.deepEqual(result.default, { ok: true });
+			assert.deepEqual(hostLoaderCalls, []);
+			assert.equal(fakeDependencies.calls.buildModule.length, 1);
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -249,5 +399,56 @@ describe('PageModuleImportService', () => {
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
+	});
+
+	it('should invalidate the host-loader module identity in development', async () => {
+		process.env.NODE_ENV = 'development';
+		const hostLoaderCalls: string[] = [];
+		service = new PageModuleImportService({
+			...fakeDependencies.dependencies,
+			getHostModuleLoader: () => async (id: string) => {
+				hostLoaderCalls.push(id);
+				return { version: hostLoaderCalls.length };
+			},
+		});
+
+		const first = await service.importModule<{ version: number }>({
+			filePath: '/app/pages/page.tsx',
+			rootDir: '/app',
+			outdir: '/tmp/out',
+		});
+
+		service.invalidateDevelopmentGraph();
+
+		const second = await service.importModule<{ version: number }>({
+			filePath: '/app/pages/page.tsx',
+			rootDir: '/app',
+			outdir: '/tmp/out',
+		});
+
+		assert.equal(first.version, 1);
+		assert.equal(second.version, 2);
+		assert.deepEqual(hostLoaderCalls, [
+			'file:///app/pages/page.tsx?update=hash123-0',
+			'file:///app/pages/page.tsx?update=hash123-1',
+		]);
+		assert.equal(fakeDependencies.calls.buildModule.length, 0);
+	});
+
+	it('should use direct source imports for Bun development builds', async () => {
+		process.env.NODE_ENV = 'development';
+		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {};
+
+		try {
+			await service.importModule<unknown>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: '/tmp/out',
+			});
+		} catch {
+			// import will fail for the fake path, but we only care about the code path
+		}
+
+		assert.equal(fakeDependencies.calls.buildModule.length, 0);
 	});
 });

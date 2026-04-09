@@ -1,10 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const NODE_THIN_HOST_PATH = fileURLToPath(new URL('./node-thin-host.js', import.meta.url));
-const LOADER_HOOKS_PATH = fileURLToPath(new URL('./ecopages-loader-hooks.cjs', import.meta.url));
-const DEFAULT_INTERNAL_WORK_DIR = '.eco';
+import { existsSync } from 'node:fs';
 
 export function buildEnvOverrides(options) {
 	const env = {};
@@ -17,7 +11,7 @@ export function buildEnvOverrides(options) {
 }
 
 export function detectRuntime(options = {}) {
-	if (options.runtime === 'bun' || options.runtime === 'node' || options.runtime === 'node-experimental') {
+	if (options.runtime === 'bun' || options.runtime === 'node') {
 		return options.runtime;
 	}
 
@@ -43,7 +37,7 @@ export function buildBunArgs(args, options, entryFile, hasConfig) {
 	bunArgs.push('run');
 
 	if (hasConfig) {
-		bunArgs.push('--preload', 'eco.config.ts');
+		bunArgs.push('--preload', './eco.config.ts');
 	}
 
 	bunArgs.push(entryFile, ...args);
@@ -55,12 +49,14 @@ export function buildBunArgs(args, options, entryFile, hasConfig) {
 	return bunArgs;
 }
 
-export function buildNodeArgs(args, options, entryFile) {
+export function buildNodeArgs(args, options, entryFile, hasConfig) {
 	const nodeArgs = [];
 
-	if (options.watch) nodeArgs.push('--watch');
+	if (hasConfig) {
+		nodeArgs.push('--import', './eco.config.ts');
+	}
 
-	nodeArgs.push('--require', LOADER_HOOKS_PATH, NODE_THIN_HOST_PATH, entryFile, ...args);
+	nodeArgs.push(entryFile, ...args);
 
 	if (options.reactFastRefresh) {
 		nodeArgs.push('--react-fast-refresh');
@@ -69,62 +65,20 @@ export function buildNodeArgs(args, options, entryFile) {
 	return nodeArgs;
 }
 
-export function resolveNodeRuntimeManifestPath(projectDir = process.cwd()) {
-	return path.join(path.resolve(projectDir), DEFAULT_INTERNAL_WORK_DIR, 'runtime', 'node-runtime-manifest.json');
-}
-
-export async function createNodeRuntimeManifestFile(
-	entryFile,
-	options = {
-		cwd: process.cwd(),
-		env: process.env,
-	},
-) {
-	const projectDir = path.resolve(options.cwd ?? process.cwd());
-	const configPath = path.join(projectDir, 'eco.config.ts');
-	const manifestFilePath = options.manifestFilePath ?? resolveNodeRuntimeManifestPath(projectDir);
-
-	if (!existsSync(configPath)) {
-		throw new Error('The Node thin-host runtime requires eco.config.ts in the current project root.');
-	}
-
-	const manifest = {
-		runtime: 'node',
-		appRootDir: projectDir,
-		sourceRootDir: path.join(projectDir, 'src'),
-		distDir: path.join(projectDir, 'dist'),
-		workDir: path.join(projectDir, DEFAULT_INTERNAL_WORK_DIR),
-		modulePaths: {
-			config: configPath,
-			entry: path.resolve(projectDir, entryFile),
-		},
-	};
-
-	mkdirSync(path.dirname(manifestFilePath), { recursive: true });
-	writeFileSync(manifestFilePath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-
-	return manifestFilePath;
-}
-
 export async function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
 	const hasConfig = existsSync('eco.config.ts');
 	const envOverrides = buildEnvOverrides(options);
 	const runtime = detectRuntime(options);
 	const env = { ...process.env, ...envOverrides };
 
-	if (runtime === 'node' || runtime === 'node-experimental') {
-		const manifestFilePath = await createNodeRuntimeManifestFile(entryFile, { env });
-
+	if (runtime === 'node') {
 		return {
 			runtime,
-			executionStrategy: 'node-thin-host',
-			command: 'node',
-			commandArgs: buildNodeArgs(args, options, entryFile),
+			executionStrategy: 'direct-runtime',
+			command: 'tsx',
+			commandArgs: buildNodeArgs(args, options, entryFile, hasConfig),
 			envOverrides,
-			env: {
-				...env,
-				ECOPAGES_NODE_RUNTIME_MANIFEST_PATH: manifestFilePath,
-			},
+			env,
 		};
 	}
 

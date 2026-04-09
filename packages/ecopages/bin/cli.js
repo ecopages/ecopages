@@ -30,7 +30,7 @@ function runLaunchPlan(launchPlan) {
 			const hint =
 				launchPlan.command === 'bun'
 					? 'Install Bun from https://bun.sh to continue.'
-					: 'Install Node.js and ensure the `node` command is available to continue.';
+					: 'Install tsx (`npm install -g tsx`) to run ecopages on Node.js.';
 			logger.error(`Command not found: ${launchPlan.command}. ${hint}`);
 			process.exit(1);
 		}
@@ -96,7 +96,7 @@ const serverArgs = {
 	},
 	runtime: {
 		type: 'string',
-		description: 'Force a specific runtime (bun, node, or node-experimental)',
+		description: 'Force a specific runtime (bun or node)',
 	},
 };
 
@@ -200,7 +200,7 @@ const buildCommand = defineCommand({
 		},
 		runtime: {
 			type: 'string',
-			description: 'Force a specific runtime (bun, node, or node-experimental)',
+			description: 'Force a specific runtime (bun or node)',
 		},
 	},
 	async run({ args }) {

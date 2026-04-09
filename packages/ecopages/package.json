@@ -37,7 +37,6 @@
 		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "^0.2.2",
 		"citty": "^0.1.6",
-		"esbuild": "^0.27.3",
 		"giget": "^2.0.0"
 	},
 	"peerDependencies": {

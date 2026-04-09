@@ -34,10 +34,10 @@ Walks the pages directory and builds a `Routes` map keyed by route pathname.
 
 File patterns determine route kind:
 
-| Pattern | Kind | Example |
-|---|---|---|
-| `page.tsx` | `exact` | `/about` |
-| `[slug].tsx` | `dynamic` | `/blog/[slug]` |
+| Pattern         | Kind        | Example           |
+| --------------- | ----------- | ----------------- |
+| `page.tsx`      | `exact`     | `/about`          |
+| `[slug].tsx`    | `dynamic`   | `/blog/[slug]`    |
 | `[...slug].tsx` | `catch-all` | `/docs/[...slug]` |
 
 For `dynamic` routes, the scanner checks whether the page module exports `getStaticPaths`. If present, every returned path is expanded into a concrete `exact`-style route at scan time. In build mode, both `getStaticPaths` and `getStaticProps` are required or an invariant is thrown.

@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -336,7 +337,7 @@ export class RenderPreparationService {
 		triggers: ResolvedLazyTrigger[],
 		currentIntegrationName: string,
 	): Promise<ProcessedAsset[]> {
-		const globalInjectorImportPath = fileURLToPath(import.meta.resolve('@ecopages/scripts-injector/global'));
+		const globalInjectorImportPath = createRequire(import.meta.url).resolve('@ecopages/scripts-injector/global');
 		const globalInjectorRuntimeAsset = AssetFactory.createNodeModuleScript({
 			position: 'head',
 			name: 'ecopages-scripts-injector-global',

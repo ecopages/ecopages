@@ -28,6 +28,7 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	HtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
 	RenderedBody: RouteRendererBody = '<html><body>Test Page</body></html>';
 	MockComponentRenderResult: ComponentRenderResult | null = null;
+	ImportedFiles: string[] = [];
 
 	async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
 		return this.RenderedBody;
@@ -71,6 +72,7 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * Override protected methods to return data.
 	 */
 	protected override async importPageFile(_file: string): Promise<EcoPageFile> {
+		this.ImportedFiles.push(_file);
 		if (!this.PageModule) throw new Error('Mock page module not set');
 		return this.PageModule;
 	}
@@ -110,6 +112,31 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		component: EcoComponent;
 	}) {
 		return this.shouldDeferComponentBoundary(input);
+	}
+
+	public testShouldWrapMarkerGraphComponent(component: EcoComponent) {
+		return this.shouldWrapMarkerGraphComponent(component);
+	}
+
+	public async testGetHtmlTemplate() {
+		return this.getHtmlTemplate();
+	}
+
+	public async testBaseGetHtmlTemplate() {
+		return super.getHtmlTemplate();
+	}
+
+	public testGetRendererBootstrapDependencies(partial = false) {
+		return this.getRendererBootstrapDependencies(partial);
+	}
+
+	public async testFinalizeCapturedHtmlRender(options: { html: string; partial?: boolean }) {
+		return this.finalizeCapturedHtmlRender({
+			html: options.html,
+			graphContext: {},
+			componentsToResolve: [],
+			partial: options.partial,
+		});
 	}
 }
 
@@ -215,6 +242,81 @@ describe('IntegrationRenderer', () => {
 
 		expect(result.props).toEqual({ title: 'Dynamic Title' });
 		expect(result.metadata?.title).toBe('Dynamic Title');
+	});
+
+	it('should prefer renderer module html template path when provided', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: {
+				...AppConfig,
+				runtime: {
+					rendererModuleContext: {
+						htmlTemplateModulePath: '/virtual/includes/html.kita.tsx',
+					},
+				},
+			} as EcoPagesAppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		renderer.PageModule = {
+			default: (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>,
+		};
+
+		await renderer.testBaseGetHtmlTemplate();
+
+		expect(renderer.ImportedFiles).toContain('/virtual/includes/html.kita.tsx');
+	});
+
+	it('should expose island bootstrap dependencies from renderer modules', () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: {
+				...AppConfig,
+				runtime: {
+					rendererModuleContext: {
+						islandClientModuleId: 'virtual:ecopages/island-client.ts',
+					},
+				},
+			} as EcoPagesAppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		expect(renderer.testGetRendererBootstrapDependencies()).toEqual([
+			{
+				attributes: {
+					crossorigin: 'anonymous',
+					'data-ecopages-runtime': 'islands',
+					type: 'module',
+				},
+				content: 'import "virtual:ecopages/island-client.ts";',
+				inline: true,
+				kind: 'script',
+				position: 'body',
+			},
+		]);
+		expect(renderer.testGetRendererBootstrapDependencies(true)).toEqual([]);
+	});
+
+	it('should inject the island client bootstrap into finalized full-document HTML', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: {
+				...AppConfig,
+				runtime: {
+					rendererModuleContext: {
+						islandClientModuleId: 'virtual:ecopages/island-client.ts',
+					},
+				},
+			} as EcoPagesAppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const html = await renderer.testFinalizeCapturedHtmlRender({
+			html: '<!DOCTYPE html><html><body><main>hello</main></body></html>',
+		});
+
+		expect(html).toContain('data-ecopages-runtime="islands"');
+		expect(html).toContain('import "virtual:ecopages/island-client.ts";');
 	});
 
 	it('should keep layout locals safe and page locals guarded on static pages', async () => {
@@ -643,6 +745,9 @@ describe('IntegrationRenderer', () => {
 					rootTag: 'aside',
 					integrationName: 'explicit-renderer',
 				})),
+				renderComponentForMarkerGraph: vi.fn(async (input: ComponentRenderInput) =>
+					explicitRenderer.renderComponent(input),
+				),
 			} as unknown as IntegrationRenderer;
 
 			const appConfig = {
@@ -793,6 +898,9 @@ describe('IntegrationRenderer', () => {
 						} as ProcessedAsset,
 					],
 				})),
+				renderComponentForMarkerGraph: vi.fn(async (input: ComponentRenderInput) =>
+					explicitRenderer.renderComponent(input),
+				),
 			} as unknown as IntegrationRenderer;
 
 			const appConfig = {
@@ -897,6 +1005,9 @@ describe('IntegrationRenderer', () => {
 						rootAttributes: { 'data-eco-component-id': 'root-node' },
 					};
 				}),
+				renderComponentForMarkerGraph: vi.fn(async (input: ComponentRenderInput) =>
+					explicitRenderer.renderComponent(input),
+				),
 			} as unknown as IntegrationRenderer;
 
 			const appConfig = {
@@ -1031,6 +1142,9 @@ describe('IntegrationRenderer', () => {
 					rootTag: 'aside',
 					integrationName: 'explicit-renderer',
 				})),
+				renderComponentForMarkerGraph: vi.fn(async (input: ComponentRenderInput) =>
+					explicitRenderer.renderComponent(input),
+				),
 			} as unknown as IntegrationRenderer;
 
 			const appConfig = {
@@ -1091,6 +1205,105 @@ describe('IntegrationRenderer', () => {
 					query: {},
 				}),
 			).rejects.toThrow('Missing props reference for marker: props-missing');
+		});
+
+		it('should not recursively resolve markers that were only passed through stitched children', async () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: AppConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			renderer.MockComponentRenderResult = {
+				html: '<section><eco-marker data-eco-node-id="n_2" data-eco-integration="test-renderer" data-eco-component-ref="nested-component" data-eco-props-ref="p_2"></eco-marker></section>',
+				canAttachAttributes: true,
+				rootTag: 'section',
+				integrationName: 'test-renderer',
+			};
+
+			const Component = (() => '<section />') as EcoComponent<Record<string, unknown>>;
+			Component.config = {
+				integration: 'test-renderer',
+				__eco: {
+					id: 'component',
+					file: '/app/components/component.ts',
+					integration: 'test-renderer',
+				},
+			};
+
+			await expect(
+				renderer.renderComponentForMarkerGraph({
+					component: Component,
+					props: {},
+					children: '<aside>already resolved child html</aside>',
+				}),
+			).resolves.toEqual(
+				expect.objectContaining({
+					html: '<section><eco-marker data-eco-node-id="n_2" data-eco-integration="test-renderer" data-eco-component-ref="nested-component" data-eco-props-ref="p_2"></eco-marker></section>',
+				}),
+			);
+		});
+
+		it('should skip marker-graph wrapping for pure same-integration component trees', () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: AppConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			const Child = (() => '<span>Child</span>') as EcoComponent<Record<string, unknown>>;
+			Child.config = {
+				integration: 'test-renderer',
+				__eco: {
+					id: 'child-component',
+					file: '/app/components/child-component.ts',
+					integration: 'test-renderer',
+				},
+			};
+
+			const Root = (() => '<section>Root</section>') as EcoComponent<Record<string, unknown>>;
+			Root.config = {
+				integration: 'test-renderer',
+				__eco: {
+					id: 'root-component',
+					file: '/app/components/root-component.ts',
+					integration: 'test-renderer',
+				},
+				dependencies: { components: [Child] },
+			};
+
+			expect(renderer.testShouldWrapMarkerGraphComponent(Root)).toBe(false);
+		});
+
+		it('should keep marker-graph wrapping when nested cross-integration components are present', () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: AppConfig,
+				assetProcessingService: AssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			const ForeignChild = (() => '<span>Child</span>') as EcoComponent<Record<string, unknown>>;
+			ForeignChild.config = {
+				integration: 'react',
+				__eco: {
+					id: 'foreign-child-component',
+					file: '/app/components/foreign-child-component.tsx',
+					integration: 'react',
+				},
+			};
+
+			const Root = (() => '<section>Root</section>') as EcoComponent<Record<string, unknown>>;
+			Root.config = {
+				integration: 'test-renderer',
+				__eco: {
+					id: 'root-component',
+					file: '/app/components/root-component.ts',
+					integration: 'test-renderer',
+				},
+				dependencies: { components: [ForeignChild] },
+			};
+
+			expect(renderer.testShouldWrapMarkerGraphComponent(Root)).toBe(true);
 		});
 	});
 });

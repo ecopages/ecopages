@@ -24,7 +24,7 @@ export type MarkerGraphContext = {
  * capabilities, not on the full integration renderer abstraction.
  */
 export interface MarkerGraphComponentRenderer {
-	renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult>;
+	renderComponentForMarkerGraph(input: ComponentRenderInput): Promise<ComponentRenderResult>;
 }
 
 export interface MarkerGraphResolverOptions {
@@ -33,6 +33,7 @@ export interface MarkerGraphResolverOptions {
 	graphContext: MarkerGraphContext;
 	resolveRenderer: (integrationName: string) => MarkerGraphComponentRenderer;
 	applyAttributesToFirstElement: (html: string, attributes: Record<string, string>) => string;
+	instanceIdScope?: string;
 }
 
 /**
@@ -49,6 +50,30 @@ export interface MarkerGraphResolverOptions {
  *   `renderComponent()` once the marker has been decoded into component input
  */
 export class MarkerGraphResolver {
+	private restoreSerializedChildren(
+		serializedChildren: string,
+		childNodeIds: MarkerNodeId[],
+		resolvedNodeHtml: Map<MarkerNodeId, string>,
+	): string {
+		let restoredChildren = serializedChildren;
+
+		for (const childNodeId of childNodeIds) {
+			const resolvedChildHtml = resolvedNodeHtml.get(childNodeId);
+			if (!resolvedChildHtml) {
+				continue;
+			}
+
+			const markerRegex = new RegExp(
+				`<eco-marker\\b(?=[^>]*data-eco-node-id="${childNodeId}")[^>]*><\\/eco-marker>`,
+				'g',
+			);
+
+			restoredChildren = restoredChildren.replace(markerRegex, resolvedChildHtml);
+		}
+
+		return restoredChildren;
+	}
+
 	/**
 	 * Resolves every marker in the supplied HTML and returns the final HTML plus
 	 * any assets produced by nested component renders.
@@ -84,22 +109,30 @@ export class MarkerGraphResolver {
 			if (!props) {
 				throw new Error(`[ecopages] Missing props reference for marker: ${marker.propsRef}`);
 			}
+			const normalizedProps = { ...props };
 
 			let children: string | undefined;
 			if (marker.slotRef) {
 				const childNodeIds = options.graphContext.slotChildrenByRef?.[marker.slotRef] ?? [];
 				if (childNodeIds.length > 0) {
-					children = childNodeIds.map((childNodeId) => resolvedNodeHtml.get(childNodeId) ?? '').join('');
+					const serializedChildren = normalizedProps.children;
+					children =
+						typeof serializedChildren === 'string'
+							? this.restoreSerializedChildren(serializedChildren, childNodeIds, resolvedNodeHtml)
+							: childNodeIds.map((childNodeId) => resolvedNodeHtml.get(childNodeId) ?? '').join('');
 				}
 			}
 
 			const renderer = options.resolveRenderer(marker.integration);
-			const componentRender = await renderer.renderComponent({
+			const componentInstanceId = options.instanceIdScope
+				? `${options.instanceIdScope}_${marker.nodeId}`
+				: marker.nodeId;
+			const componentRender = await renderer.renderComponentForMarkerGraph({
 				component,
-				props,
+				props: normalizedProps,
 				children,
 				integrationContext: {
-					componentInstanceId: marker.nodeId,
+					componentInstanceId,
 				},
 			});
 

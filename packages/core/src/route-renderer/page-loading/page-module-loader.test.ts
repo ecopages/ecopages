@@ -3,13 +3,16 @@ import { PageModuleLoaderService } from './page-module-loader.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoPageFile } from '../../types/public-types.ts';
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
+import type { AppModuleLoader } from '../../services/module-loading/app-module-loader.service.ts';
 
 describe('PageModuleLoaderService', () => {
 	const appConfig = {
+		rootDir: '/app',
 		defaultMetadata: {
 			title: 'Default title',
 			description: 'Default description',
 		},
+		runtime: {},
 	} as EcoPagesAppConfig;
 
 	it('should resolve static props via getStaticPropsForPage', async () => {
@@ -92,5 +95,43 @@ describe('PageModuleLoaderService', () => {
 			props: { title: 'From props' },
 			metadata: { title: 'From props', description: 'From metadata' },
 		});
+	});
+
+	it('should import page files through the app-owned module loader', async () => {
+		const calls: Array<unknown> = [];
+		const expectedModule = {
+			default: (() => 'ok') as EcoPageComponent<any>,
+		} as EcoPageFile;
+		const service = new PageModuleLoaderService(
+			{
+				...appConfig,
+				runtime: {
+					appModuleLoader: {
+						owner: 'bun',
+						async importModule<T = unknown>(options: unknown): Promise<T> {
+							calls.push(options);
+							return expectedModule as T;
+						},
+						invalidateDevelopmentGraph(): void {
+							return;
+						},
+					} satisfies AppModuleLoader,
+				},
+			} as EcoPagesAppConfig,
+			'http://localhost:3000',
+		);
+
+		const result = await service.importPageFile('/app/src/pages/index.tsx');
+
+		expect(result).toBe(expectedModule);
+		expect(calls).toEqual([
+			{
+				filePath: '/app/src/pages/index.tsx',
+				rootDir: '/app',
+				outdir: '/app/.eco/.server-modules',
+				transpileErrorMessage: expect.any(Function),
+				noOutputMessage: expect.any(Function),
+			},
+		]);
 	});
 });

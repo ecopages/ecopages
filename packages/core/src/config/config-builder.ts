@@ -13,6 +13,7 @@ import {
 import {
 	collectConfiguredAppBuildManifestContributions,
 	createBuildAdapter,
+	type BuildOwnership,
 	getAppServerBuildPlugins,
 	setAppBuildAdapter,
 	setAppBuildExecutor,
@@ -23,8 +24,10 @@ import { createAppBuildExecutor } from '../build/dev-build-coordinator.ts';
 import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
 import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
+import { createEcoComponentMetaTransform } from '../plugins/eco-component-meta-plugin.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
+import type { EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from '../plugins/runtime-capability.ts';
 import type { PageMetadataProps } from '../types/public-types.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
@@ -32,10 +35,6 @@ import {
 	NoopEntrypointDependencyGraph,
 	setAppEntrypointDependencyGraph,
 } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import {
-	createNodeRuntimeManifest,
-	setAppNodeRuntimeManifest,
-} from '../services/runtime-manifest/node-runtime-manifest.service.ts';
 import {
 	InMemoryRuntimeSpecifierRegistry,
 	setAppRuntimeSpecifierRegistry,
@@ -119,6 +118,8 @@ type RuntimeCapabilityOwner = {
  * @throws {Error} When adding duplicate processors or loaders
  */
 export class ConfigBuilder {
+	private buildOwnership: BuildOwnership = 'bun-native';
+
 	public config: EcoPagesAppConfig = {
 		baseUrl: '',
 		rootDir: '.',
@@ -158,6 +159,7 @@ export class ConfigBuilder {
 		},
 		processors: new Map(),
 		loaders: new Map(),
+		sourceTransforms: new Map(),
 		workDir: DEFAULT_ECOPAGES_WORK_DIR,
 	};
 
@@ -182,6 +184,19 @@ export class ConfigBuilder {
 	 */
 	setRootDir(rootDir: string): this {
 		this.config.rootDir = rootDir;
+		return this;
+	}
+
+	/**
+	 * Sets which runtime path owns build execution for the finalized app config.
+	 *
+	 * @remarks
+	 * Bun-native remains the default. Vite-host ownership should be selected only
+	 * for host-driven compatibility flows where core must not silently fall back to
+	 * Bun build execution.
+	 */
+	setBuildOwnership(buildOwnership: BuildOwnership): this {
+		this.buildOwnership = buildOwnership;
 		return this;
 	}
 
@@ -380,6 +395,18 @@ export class ConfigBuilder {
 	}
 
 	/**
+	 * Sets the source transforms to use for transform-first bundlers such as Vite.
+	 * This replaces any existing source transforms.
+	 */
+	setSourceTransforms(sourceTransforms: EcoSourceTransform[]): this {
+		this.config.sourceTransforms.clear();
+		for (const sourceTransform of sourceTransforms) {
+			this.addSourceTransform(sourceTransform.name, sourceTransform);
+		}
+		return this;
+	}
+
+	/**
 	 * Adds a loader to the application.
 	 *
 	 * @param name - The name of the loader
@@ -392,6 +419,19 @@ export class ConfigBuilder {
 			throw new Error(CONFIG_BUILDER_ERRORS.duplicateLoaderName(name));
 		}
 		this.config.loaders.set(name, loader);
+		return this;
+	}
+
+	/**
+	 * Adds a source transform to the application.
+	 *
+	 * @throws Error if a source transform with the same name already exists.
+	 */
+	addSourceTransform(name: string, sourceTransform: EcoSourceTransform): this {
+		if (this.config.sourceTransforms.has(name)) {
+			throw new Error(CONFIG_BUILDER_ERRORS.duplicateLoaderName(name));
+		}
+		this.config.sourceTransforms.set(name, sourceTransform);
 		return this;
 	}
 
@@ -644,6 +684,11 @@ export class ConfigBuilder {
 	 * This includes the eco-component-meta-plugin which auto-injects __eco metadata into component configs.
 	 */
 	private async initializeDefaultLoaders(): Promise<void> {
+		const componentMetaTransform = createEcoComponentMetaTransform({ config: this.config });
+		if (!this.config.sourceTransforms.has(componentMetaTransform.name)) {
+			this.config.sourceTransforms.set(componentMetaTransform.name, componentMetaTransform);
+		}
+
 		const componentMetaPlugin = createEcoComponentMetaPlugin({ config: this.config });
 		if (!this.config.loaders.has(componentMetaPlugin.name)) {
 			this.config.loaders.set(componentMetaPlugin.name, componentMetaPlugin);
@@ -685,7 +730,7 @@ export class ConfigBuilder {
 		await this.initializeDefaultLoaders();
 		this.initializeProcessors();
 		this.validateRuntimeCapabilities();
-		const buildAdapter = createBuildAdapter();
+		const buildAdapter = createBuildAdapter({ ownership: this.buildOwnership });
 		setAppBuildAdapter(this.config, buildAdapter);
 		updateAppBuildManifest(this.config, await collectConfiguredAppBuildManifestContributions(this.config));
 		setAppServerInvalidationState(this.config, new CounterServerInvalidationState());
@@ -699,7 +744,6 @@ export class ConfigBuilder {
 				getPlugins: () => getAppServerBuildPlugins(this.config),
 			}),
 		);
-		setAppNodeRuntimeManifest(this.config, createNodeRuntimeManifest(this.config));
 
 		return this.config;
 	}

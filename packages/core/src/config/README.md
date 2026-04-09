@@ -12,8 +12,9 @@ It is responsible for:
 
 - validating integration, processor, and loader registration
 - resolving semantic paths such as `html` and `404` templates
-- creating app-owned runtime state such as the build adapter, build executor, build manifest, dev graph service, runtime specifier registry, and Node runtime manifest
+- selecting explicit build ownership and creating app-owned runtime state such as the build adapter, build executor, build manifest, dev graph service, runtime specifier registry, and remaining compatibility-only runtime state
 - enforcing runtime capability requirements before startup
+- carrying host-injected runtime dependencies only through abstract slots such as host module loaders, never through bundler-specific core defaults
 
 ## Main Files
 
@@ -23,8 +24,10 @@ It is responsible for:
 ## Ownership Rules
 
 - Integrations and processors declare contributions.
-- `ConfigBuilder.build()` decides ordering and validates compatibility.
+- `ConfigBuilder.build()` decides ordering, validates compatibility, and seals build ownership for the finalized app config.
 - Runtime startup reuses finalized config/build state; it should not recompute manifest ownership.
+
+Bun-native is the default ownership path. Vite-host ownership is explicit and should be selected during config construction when a host-driven compatibility flow must avoid silently falling back to Bun build execution.
 
 ## Output
 

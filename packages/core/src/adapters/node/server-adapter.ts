@@ -2,8 +2,8 @@ import { createServer, type IncomingMessage, type Server as NodeHttpServer, type
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
-import { NodeHmrManager } from './node-hmr-manager.ts';
 import type { ApiHandler, ErrorHandler, StaticRoute } from '../../types/public-types.ts';
+import type { NodeHmrManager } from './node-hmr-manager.ts';
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
@@ -18,6 +18,7 @@ import {
 } from '../shared/runtime-bootstrap.ts';
 
 import { NodeStaticContentServer } from './static-content-server.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 
 /**
  * Sentinel error thrown when the client closes the connection before the
@@ -168,13 +169,13 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			appConfig: this.appConfig,
 			options: {
 				hostname: this.serveOptions.hostname,
-				port: Number(this.serveOptions.port || 3000),
+				port: Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT),
 			},
 		});
 
 		await this.previewServer.start();
-		const previewHostname = this.serveOptions.hostname || 'localhost';
-		const previewPort = this.serveOptions.port || 3000;
+		const previewHostname = this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME;
+		const previewPort = this.serveOptions.port || DEFAULT_ECOPAGES_PORT;
 		appLogger.info(`Preview running at http://${previewHostname}:${previewPort}`);
 	}
 
@@ -294,8 +295,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * `stopBuildRuntimeServer`, so it never overlaps with the actual dev/prod server.
 	 */
 	private async startBuildRuntimeServer(): Promise<NodeHttpServer> {
-		const hostname = String(this.serveOptions.hostname || 'localhost');
-		const port = Number(this.serveOptions.port || 3000);
+		const hostname = String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME);
+		const port = Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT);
 
 		const server = createServer(async (req, res) => {
 			try {
@@ -422,6 +423,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.serverInstance = _server;
 
 		if (this.options?.watch) {
+			const { NodeHmrManager } = await import('./node-hmr-manager.ts');
 			const { WebSocketServer } = await import('ws');
 			const wss = new WebSocketServer({ noServer: true });
 			this.bridge = new NodeClientBridge();
@@ -477,7 +479,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 export async function createNodeServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapterResult> {
 	const runtimeOrigin =
 		params.runtimeOrigin ??
-		`http://${params.serveOptions.hostname || 'localhost'}:${params.serveOptions.port || 3000}`;
+		`http://${params.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${params.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
 
 	const adapter = new NodeServerAdapter({
 		...params,

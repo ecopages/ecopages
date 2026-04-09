@@ -4,7 +4,7 @@ This directory contains the runtime-host integration layer for Ecopages.
 
 ## Purpose
 
-Adapters translate app-owned core services into concrete runtime behavior on Bun and Node.
+Adapters translate app-owned core services into concrete runtime behavior at the host boundary. Bun remains the direct core runtime, while Node compatibility is driven by the Ecopages CLI thin-host path and reuses internal adapter pieces here.
 
 They are responsible for:
 
@@ -23,7 +23,7 @@ They are not responsible for:
 ## Main Areas
 
 - `bun/`: Bun server adapter, lifecycle coordination, bridge, and HMR transport
-- `node/`: Node server adapter plus thin-host runtime bootstrap path
+- `node/`: internal Node compatibility adapter pieces used by the CLI thin-host path
 - `shared/`: runtime-neutral adapter helpers used by both hosts
 
 ## Ownership Boundary

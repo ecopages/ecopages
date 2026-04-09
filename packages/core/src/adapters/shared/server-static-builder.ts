@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -133,7 +134,7 @@ export class ServerStaticBuilder {
 	): Promise<void> {
 		const { preview = false } = options ?? {};
 
-		const baseUrl = `http://${this.serveOptions.hostname || 'localhost'}:${this.serveOptions.port || 3000}`;
+		const baseUrl = `http://${this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
 		this.warnApiHandlersUnavailableInStaticMode();
 		this.prepareExportDirectory();
 		await this.refreshRuntimeAssets();
@@ -150,7 +151,7 @@ export class ServerStaticBuilder {
 			return;
 		}
 
-		const previewPort = this.serveOptions.port || 3000;
+		const previewPort = this.serveOptions.port || DEFAULT_ECOPAGES_PORT;
 
 		const { server } = this.previewServerFactory.createServer({
 			appConfig: this.appConfig,

@@ -49,7 +49,9 @@ Start here for package-level architecture:
 - `packages/core/src/static-site-generator/README.md`: static generation flow
 - `packages/core/src/eco/README.md`: `eco` authoring primitives
 
-Architecture RFC and direction docs live under `docs/` and explain the current direction and why the core seams are shaped the way they are.
+Architecture RFC and direction docs live under `refactor/` and explain the current direction and why the core seams are shaped the way they are.
+
+The current direction is explicit: Bun is the only core-owned runtime path, Vite and Nitro own host-side build and dev behavior, and esbuild is no longer a strategic core dependency.
 
 ### Static Site Generation
 
@@ -69,7 +71,7 @@ Use root imports by default:
 import { createApp, defineApiHandler, defineGroupHandler } from '@ecopages/core';
 ```
 
-Treat `@ecopages/core/bun` and `@ecopages/core/node` as advanced escape hatches for runtime-specific APIs.
+Treat `@ecopages/core/bun` as an advanced escape hatch for Bun-native APIs.
 
 ### AI-Ready Documentation
 

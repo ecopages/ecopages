@@ -73,7 +73,7 @@ Register handlers directly with HTTP method functions:
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/create-app';
 import * as blog from './handlers/blog';
 
 const app = new EcopagesApp({ appConfig });
@@ -187,7 +187,7 @@ Register the entire group with `app.group()`:
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/create-app';
 import { adminGroup } from './handlers/admin';
 import appConfig from './eco.config';
 
@@ -359,7 +359,7 @@ export const protectedGroup = defineGroupHandler({
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/bun/create-app';
+import { EcopagesApp } from '@ecopages/core/create-app';
 import * as blog from './handlers/blog';
 
 const app = new EcopagesApp({ appConfig });

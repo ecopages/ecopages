@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const coreE2ePort = 43102;
 const corePostcssE2ePort = 43108;
+const reactPlaygroundE2ePort = 43101;
 const reuseExistingServer = process.env.ECOPAGES_REUSE_TEST_SERVERS === 'true';
 
 export default defineConfig({
@@ -88,7 +89,7 @@ export default defineConfig({
 			testMatch: 'e2e/tests/react-playground/**/*.test.e2e.ts',
 			use: {
 				...devices['Desktop Chrome'],
-				baseURL: 'http://localhost:3001',
+				baseURL: `http://localhost:${reactPlaygroundE2ePort}`,
 			},
 		},
 		{
@@ -108,6 +109,16 @@ export default defineConfig({
 			use: {
 				...devices['Desktop Chrome'],
 				baseURL: 'http://localhost:4008',
+			},
+		},
+		{
+			name: 'kitchen-sink-nitro-e2e',
+			testMatch: 'playground/kitchen-sink-nitro/e2e/**/*.test.e2e.ts',
+			testIgnore: ['playground/kitchen-sink-nitro/e2e/**/*.preview.test.e2e.ts'],
+			workers: 1,
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:4010',
 			},
 		},
 	],
@@ -177,9 +188,9 @@ export default defineConfig({
 			stderr: 'pipe',
 		},
 		{
-			command: 'ECOPAGES_PORT=3001 pnpm --filter @ecopages/playground-react run dev',
+			command: `ECOPAGES_PORT=${reactPlaygroundE2ePort} pnpm --filter @ecopages/playground-react run dev`,
 			cwd: '.',
-			port: 3001,
+			port: reactPlaygroundE2ePort,
 			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',
@@ -196,6 +207,14 @@ export default defineConfig({
 			command: 'NODE_ENV=production ECOPAGES_PORT=4008 pnpm run preview',
 			cwd: 'playground/kitchen-sink',
 			port: 4008,
+			reuseExistingServer,
+			stdout: 'pipe',
+			stderr: 'pipe',
+		},
+		{
+			command: 'pnpm exec vite dev --port 4010',
+			cwd: 'playground/kitchen-sink-nitro',
+			port: 4010,
 			reuseExistingServer,
 			stdout: 'pipe',
 			stderr: 'pipe',

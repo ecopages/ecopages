@@ -1,4 +1,3 @@
-import type { BunPlugin } from 'bun';
 import type { EcoBuildPlugin } from './build-types.ts';
 import {
 	createAppBuildManifest,
@@ -7,11 +6,16 @@ import {
 	type AppBuildManifest,
 } from './build-manifest.ts';
 import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
-import { getRequiredBunRuntime } from '../utils/runtime.ts';
+import { collectRuntimeSpecifierAliasMap, rewriteRuntimeSpecifierAliases } from './runtime-specifier-aliases.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IHmrManager } from '../types/public-types.ts';
+import { getBunRuntime } from '../utils/runtime.ts';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
+
+export type BuildOwnership = 'bun-native' | 'vite-host';
 
 export interface BuildLog {
 	message: string;
@@ -80,12 +84,14 @@ export interface BuildTranspileOptions {
 }
 
 export interface BuildAdapter {
+	readonly ownership?: BuildOwnership;
 	/**
 	 * Executes one concrete backend build.
 	 *
 	 * @remarks
-	 * `BuildAdapter` is the low-level backend contract. The default adapter is
-	 * `EsbuildBuildAdapter`, but alternate adapters may satisfy the same shape.
+	 * `BuildAdapter` is the low-level backend contract. Bun-native execution owns
+	 * one adapter directly; Vite-hosted execution is represented as an explicit
+	 * host-owned compatibility path rather than an implicit esbuild default.
 	 */
 	build(options: BuildOptions): Promise<BuildResult>;
 	resolve(importPath: string, rootDir: string): string;
@@ -99,18 +105,43 @@ export interface BuildAdapter {
  * This is intentionally narrower than `BuildAdapter`. A build executor answers
  * only the question "how should this app execute a build right now?".
  *
- * In production and non-watch flows the executor is usually the adapter itself,
- * which today means `EsbuildBuildAdapter`. In development watch flows the
- * executor is typically `DevBuildCoordinator`, which wraps the shared esbuild
- * adapter to serialize callers and recover from known worker faults.
+ * In Bun-native production and non-watch flows the executor is usually the
+ * adapter itself. In development watch flows the executor may be a
+ * compatibility coordinator around the Bun-native adapter while the Vite host
+ * path continues migrating toward host-owned execution.
  */
 export interface BuildExecutor {
 	build(options: BuildOptions): Promise<BuildResult>;
 }
 
-export function createBuildAdapter(): BuildAdapter {
-	return new EsbuildBuildAdapter();
-}
+type RuntimeBun = NonNullable<ReturnType<typeof getBunRuntime>>;
+
+type BunPluginBuilder = {
+	config?: {
+		external?: string[];
+	};
+	onResolve(
+		options: { filter: RegExp; namespace?: string },
+		callback: (args: {
+			path: string;
+			importer: string;
+			namespace?: string;
+		}) =>
+			| { path?: string; namespace?: string; external?: boolean }
+			| undefined
+			| Promise<{ path?: string; namespace?: string; external?: boolean } | undefined>,
+	): void;
+	onLoad(
+		options: { filter: RegExp; namespace?: string },
+		callback: (args: {
+			path: string;
+			namespace?: string;
+		}) =>
+			| { contents?: string | Uint8Array; loader?: string; resolveDir?: string }
+			| undefined
+			| Promise<{ contents?: string | Uint8Array; loader?: string; resolveDir?: string } | undefined>,
+	): void;
+};
 
 function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
 	switch (profile) {
@@ -135,26 +166,411 @@ function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspi
 	}
 }
 
-/**
- * @deprecated Use EsbuildBuildAdapter instead. Bun native build is missing some dependency graph features.
- */
 export class BunBuildAdapter implements BuildAdapter {
-	async build(options: BuildOptions): Promise<BuildResult> {
-		const bun = getRequiredBunRuntime();
-		const result = await bun.build({
-			...options,
-			plugins: options.plugins as BunPlugin[] | undefined,
-		} as Bun.BuildConfig);
+	readonly ownership = 'bun-native' as const;
+	private readonly fallbackAdapter = new EsbuildBuildAdapter();
+
+	private getPluginsForBuild(additionalPlugins?: EcoBuildPlugin[]): EcoBuildPlugin[] {
+		const byName = new Map<string, EcoBuildPlugin>();
+
+		for (const plugin of additionalPlugins ?? []) {
+			if (!byName.has(plugin.name)) {
+				byName.set(plugin.name, plugin);
+			}
+		}
+
+		return Array.from(byName.values());
+	}
+
+	private escapeRegExp(value: string): string {
+		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	}
+
+	private resolvePluginPath(value: string, importer: string, contextRoot: string): string {
+		if (path.isAbsolute(value)) {
+			return value;
+		}
+
+		if (value.startsWith('.') || value.startsWith('..')) {
+			const baseDir = importer ? path.dirname(importer) : contextRoot;
+			return path.resolve(baseDir, value);
+		}
+
+		return value;
+	}
+
+	private inferLoaderFromPath(filePath: string): string {
+		const extension = path.extname(filePath).toLowerCase();
+
+		switch (extension) {
+			case '.ts':
+				return 'ts';
+			case '.tsx':
+				return 'tsx';
+			case '.jsx':
+				return 'jsx';
+			case '.json':
+				return 'json';
+			case '.css':
+				return 'css';
+			default:
+				return 'js';
+		}
+	}
+
+	private normalizeBunLoader(loader: unknown): string | undefined {
+		switch (loader) {
+			case 'js':
+			case 'jsx':
+			case 'ts':
+			case 'tsx':
+			case 'json':
+			case 'toml':
+			case 'text':
+			case 'file':
+			case 'css':
+				return loader;
+			case 'global-css':
+			case 'local-css':
+				return 'css';
+			default:
+				return undefined;
+		}
+	}
+
+	private convertLoadResultToModuleSource(result: unknown): string | undefined {
+		if (!result || typeof result !== 'object') {
+			return undefined;
+		}
+
+		const candidate = result as {
+			contents?: string;
+			loader?: unknown;
+			exports?: Record<string, unknown>;
+		};
+
+		if (typeof candidate.contents === 'string') {
+			return candidate.contents;
+		}
+
+		if (candidate.loader === 'object' && candidate.exports && typeof candidate.exports === 'object') {
+			return Object.entries(candidate.exports)
+				.map(([key, value]) =>
+					key === 'default'
+						? `export default ${JSON.stringify(value)};`
+						: `export const ${key} = ${JSON.stringify(value)};`,
+				)
+				.join('\n');
+		}
+
+		return undefined;
+	}
+
+	private convertPluginOnLoadResult(
+		args: { path: string },
+		result: unknown,
+	): { contents?: string | Uint8Array; loader?: string; resolveDir?: string } | undefined {
+		if (!result || typeof result !== 'object') {
+			return undefined;
+		}
+
+		const candidate = result as {
+			contents?: string | Uint8Array;
+			loader?: unknown;
+			exports?: Record<string, unknown>;
+			resolveDir?: unknown;
+		};
+
+		const sourceFromExports =
+			candidate.loader === 'object' && candidate.exports && typeof candidate.exports === 'object'
+				? this.convertLoadResultToModuleSource(candidate)
+				: undefined;
+
+		if (sourceFromExports) {
+			return {
+				contents: sourceFromExports,
+				loader: 'js',
+				...(typeof candidate.resolveDir === 'string' ? { resolveDir: candidate.resolveDir } : {}),
+			};
+		}
+
+		if (typeof candidate.contents === 'string' || candidate.contents instanceof Uint8Array) {
+			return {
+				contents: candidate.contents,
+				loader: this.normalizeBunLoader(candidate.loader) ?? this.inferLoaderFromPath(args.path),
+				...(typeof candidate.resolveDir === 'string' ? { resolveDir: candidate.resolveDir } : {}),
+			};
+		}
+
+		return undefined;
+	}
+
+	private createEcoPluginBridge(
+		plugins: EcoBuildPlugin[],
+		contextRoot: string,
+	): RuntimeBun['plugin'] extends (...args: infer A) => unknown ? A[0] : never {
+		return {
+			name: 'ecopages-plugin-bridge',
+			setup: async (build: BunPluginBuilder) => {
+				let moduleCounter = 0;
+
+				const bridge = {
+					onResolve: (options, callback) => {
+						build.onResolve(options, async (args) => {
+							const result = await callback({
+								path: args.path,
+								importer: args.importer,
+								namespace: args.namespace,
+							});
+
+							if (!result || typeof result !== 'object') {
+								return undefined;
+							}
+
+							return {
+								...(typeof result.path === 'string'
+									? { path: this.resolvePluginPath(result.path, args.importer, contextRoot) }
+									: {}),
+								...(typeof result.namespace === 'string' ? { namespace: result.namespace } : {}),
+								...(typeof result.external === 'boolean' ? { external: result.external } : {}),
+							};
+						});
+					},
+					onLoad: (options, callback) => {
+						build.onLoad(options, async (args) =>
+							this.convertPluginOnLoadResult(
+								{ path: args.path },
+								await callback({
+									path: args.path,
+									namespace: args.namespace,
+								}),
+							),
+						);
+					},
+					module: (specifier, callback) => {
+						const namespace = `ecopages-module-${moduleCounter}`;
+						moduleCounter += 1;
+						const filter = new RegExp(`^${this.escapeRegExp(specifier)}$`);
+
+						build.onResolve({ filter }, async () => ({
+							path: specifier,
+							namespace,
+						}));
+
+						build.onLoad({ filter, namespace }, async () =>
+							this.convertPluginOnLoadResult({ path: specifier }, await callback()),
+						);
+					},
+				} satisfies import('./build-types.ts').EcoBuildPluginBuilder;
+
+				for (const plugin of plugins) {
+					await plugin.setup(bridge);
+				}
+			},
+		} as RuntimeBun['plugin'] extends (...args: infer A) => unknown ? A[0] : never;
+	}
+
+	private toBuildLogs(error: unknown): BuildLog[] {
+		if (error instanceof Error) {
+			return [{ message: error.message }];
+		}
+
+		return [{ message: 'Unknown Bun build error' }];
+	}
+
+	private mapBunTarget(value: string | undefined): 'browser' | 'bun' {
+		return value === 'browser' ? 'browser' : 'bun';
+	}
+
+	private mapBunFormat(value: string | undefined): 'esm' | 'cjs' | undefined {
+		switch (value) {
+			case 'cjs':
+				return 'cjs';
+			case 'esm':
+			default:
+				return 'esm';
+		}
+	}
+
+	private getOutputExtension(options: BuildOptions, entrypointPath: string): string {
+		const entryExtension = path.extname(entrypointPath).toLowerCase();
+
+		if (entryExtension === '.css') {
+			return '.css';
+		}
+
+		if (entryExtension === '.json') {
+			return '.json';
+		}
+
+		if (entryExtension === '.toml') {
+			return '.toml';
+		}
+
+		return options.format === 'cjs' || options.format === 'esm' ? '.js' : '.js';
+	}
+
+	private resolveTemplatedOutputPath(options: BuildOptions, entrypointPath: string): string | undefined {
+		if (!options.outdir) {
+			return undefined;
+		}
+
+		const template = typeof options.naming === 'string' ? options.naming : '[dir]/[name]';
+		const outdir = path.resolve(options.outdir);
+		const outputExtension = this.getOutputExtension(options, entrypointPath);
+		const relativeBase = path.resolve(options.outbase ?? options.root ?? process.cwd());
+		const relativeEntrypoint = path.relative(relativeBase, entrypointPath);
+		const relativeDir = path.dirname(relativeEntrypoint);
+		const dirToken = relativeDir === '.' ? '' : relativeDir.split(path.sep).join('/');
+		const nameToken = path.basename(relativeEntrypoint, path.extname(relativeEntrypoint));
+		const extToken = outputExtension.replace(/^\./, '');
+
+		let resolvedPath = template
+			.replaceAll('[dir]', dirToken)
+			.replaceAll('[name]', nameToken)
+			.replaceAll('[ext]', extToken);
+
+		if (outputExtension && !resolvedPath.endsWith(outputExtension)) {
+			resolvedPath += outputExtension;
+		}
+
+		resolvedPath = resolvedPath.replace(/^\.\//, '');
+		return path.join(outdir, resolvedPath);
+	}
+
+	private relocateOutputFile(currentPath: string, targetPath: string): string {
+		if (currentPath === targetPath || !fs.existsSync(currentPath)) {
+			return fs.existsSync(targetPath) ? targetPath : currentPath;
+		}
+
+		fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+		fs.rmSync(targetPath, { force: true });
+		fs.renameSync(currentPath, targetPath);
+		return targetPath;
+	}
+
+	private normalizeBunOutputs(result: BuildResult, options: BuildOptions): BuildResult {
+		if (!result.success || result.outputs.length === 0) {
+			return result;
+		}
+
+		const normalizedOutputs = [...result.outputs];
+		const canMapEntrypointsByIndex = options.entrypoints.length === normalizedOutputs.length;
+
+		if (canMapEntrypointsByIndex) {
+			for (const [index, entrypointPath] of options.entrypoints.entries()) {
+				const expectedOutputPath = this.resolveTemplatedOutputPath(options, entrypointPath);
+				if (!expectedOutputPath) {
+					continue;
+				}
+
+				normalizedOutputs[index] = {
+					path: this.relocateOutputFile(normalizedOutputs[index]!.path, expectedOutputPath),
+				};
+			}
+
+			return {
+				...result,
+				outputs: normalizedOutputs,
+			};
+		}
 
 		return {
-			success: result.success,
-			logs: result.logs.map((log) => ({ message: log.message })),
-			outputs: result.outputs.map((output) => ({ path: output.path })),
+			...result,
+			outputs: normalizedOutputs.map((output) => {
+				if (path.extname(output.path) !== '') {
+					return output;
+				}
+
+				const normalizedPath = `${output.path}.js`;
+				return {
+					path: this.relocateOutputFile(output.path, normalizedPath),
+				};
+			}),
 		};
 	}
 
+	private rewriteAliasedRuntimeSpecifiers(result: BuildResult, plugins: EcoBuildPlugin[]): BuildResult {
+		if (!result.success || result.outputs.length === 0) {
+			return result;
+		}
+
+		const aliasMap = collectRuntimeSpecifierAliasMap(plugins);
+		if (aliasMap.size === 0) {
+			return result;
+		}
+
+		for (const output of result.outputs) {
+			if (!/\.(?:[cm]?js)$/u.test(output.path) || !fs.existsSync(output.path)) {
+				continue;
+			}
+
+			const code = fs.readFileSync(output.path, 'utf-8');
+			const rewritten = rewriteRuntimeSpecifierAliases(code, aliasMap);
+
+			if (rewritten !== code) {
+				fs.writeFileSync(output.path, rewritten);
+			}
+		}
+
+		return result;
+	}
+
+	async build(options: BuildOptions): Promise<BuildResult> {
+		const bun = getBunRuntime();
+
+		if (!bun) {
+			return this.fallbackAdapter.build(options);
+		}
+
+		try {
+			const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+			const outdir = path.resolve(options.outdir ?? 'dist/assets');
+			const plugins = this.getPluginsForBuild(options.plugins);
+			const result = await bun.build({
+				entrypoints: options.entrypoints,
+				outdir,
+				root: contextRoot,
+				naming: typeof options.naming === 'string' ? options.naming : undefined,
+				define: options.define,
+				external: options.external,
+				format: this.mapBunFormat(options.format),
+				target: this.mapBunTarget(options.target),
+				sourcemap: options.sourcemap as 'none' | 'external' | 'linked' | 'inline' | undefined,
+				splitting: !!options.splitting,
+				minify: !!options.minify,
+				packages: options.target !== 'browser' && options.externalPackages !== false ? 'external' : undefined,
+				plugins: plugins.length > 0 ? [this.createEcoPluginBridge(plugins, contextRoot)] : undefined,
+			});
+
+			return this.rewriteAliasedRuntimeSpecifiers(
+				this.normalizeBunOutputs(
+					{
+						success: result.success,
+						logs: result.logs.map((log) => ({ message: log.message })),
+						outputs: result.outputs.map((output) => ({ path: output.path })),
+					},
+					options,
+				),
+				plugins,
+			);
+		} catch (error) {
+			return {
+				success: false,
+				logs: this.toBuildLogs(error),
+				outputs: [],
+			};
+		}
+	}
+
 	resolve(importPath: string, rootDir: string): string {
-		return getRequiredBunRuntime().resolveSync(importPath, rootDir);
+		const bun = getBunRuntime();
+
+		if (!bun) {
+			return this.fallbackAdapter.resolve(importPath, rootDir);
+		}
+
+		return bun.resolveSync(importPath, rootDir);
 	}
 
 	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
@@ -162,18 +578,84 @@ export class BunBuildAdapter implements BuildAdapter {
 	}
 }
 
-export const defaultBuildAdapter: BuildAdapter = createBuildAdapter();
+function createHostOwnedBuildError(methodName: string): Error {
+	return new Error(
+		`Vite-hosted builds are owned by the host runtime. Core cannot ${methodName} through the host-owned compatibility adapter.`,
+	);
+}
+
+export class ViteHostBuildAdapter implements BuildAdapter {
+	readonly ownership = 'vite-host' as const;
+
+	async build(_options: BuildOptions): Promise<BuildResult> {
+		throw createHostOwnedBuildError('build');
+	}
+
+	resolve(_importPath: string, _rootDir: string): string {
+		throw createHostOwnedBuildError('resolve imports');
+	}
+
+	getTranspileOptions(_profile: BuildTranspileProfile): BuildTranspileOptions {
+		throw createHostOwnedBuildError('derive transpile options');
+	}
+}
+
+export function createBunBuildAdapter(): BuildAdapter {
+	return new BunBuildAdapter();
+}
+
+export function createViteHostBuildAdapter(): BuildAdapter {
+	return new ViteHostBuildAdapter();
+}
+
+export function createBuildAdapter(options?: { ownership?: BuildOwnership }): BuildAdapter {
+	switch (options?.ownership ?? 'bun-native') {
+		case 'vite-host':
+			return createViteHostBuildAdapter();
+		case 'bun-native':
+		default:
+			return createBunBuildAdapter();
+	}
+}
+
+export const defaultBunBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'bun-native' });
+export const defaultViteHostBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'vite-host' });
+/**
+ * @deprecated Prefer app-owned build state via `getAppBuildAdapter()`.
+ * This Bun-native fallback remains only for compatibility with older helpers
+ * and tests that do not yet thread app runtime state explicitly.
+ */
+export const defaultBuildAdapter: BuildAdapter = defaultBunBuildAdapter;
+
+export function getDefaultBuildAdapter(ownership: BuildOwnership = 'bun-native'): BuildAdapter {
+	return ownership === 'vite-host' ? defaultViteHostBuildAdapter : defaultBunBuildAdapter;
+}
+
+export function getBuildAdapterOwnership(buildAdapter: BuildAdapter | undefined): BuildOwnership {
+	return buildAdapter?.ownership ?? 'bun-native';
+}
+
+export function getAppBuildOwnership(appConfig: EcoPagesAppConfig): BuildOwnership {
+	return appConfig.runtime?.buildOwnership ?? getBuildAdapterOwnership(appConfig.runtime?.buildAdapter);
+}
+
+export function setAppBuildOwnership(appConfig: EcoPagesAppConfig, buildOwnership: BuildOwnership): void {
+	appConfig.runtime = {
+		...(appConfig.runtime ?? {}),
+		buildOwnership,
+	};
+}
 
 /**
  * Returns the adapter owned by an app/runtime instance.
  *
  * @remarks
- * The config builder installs a dedicated adapter per app. The shared default
- * adapter remains only as a compatibility fallback for older tests and helpers
- * that do not yet thread app runtime state explicitly.
+ * The config builder installs an explicit adapter per app. The Bun-native
+ * fallback remains only as compatibility scaffolding for helpers that do not
+ * yet thread app runtime state explicitly.
  */
 export function getAppBuildAdapter(appConfig: EcoPagesAppConfig): BuildAdapter {
-	return appConfig.runtime?.buildAdapter ?? defaultBuildAdapter;
+	return appConfig.runtime?.buildAdapter ?? getDefaultBuildAdapter(getAppBuildOwnership(appConfig));
 }
 
 /**
@@ -182,6 +664,7 @@ export function getAppBuildAdapter(appConfig: EcoPagesAppConfig): BuildAdapter {
 export function setAppBuildAdapter(appConfig: EcoPagesAppConfig, buildAdapter: BuildAdapter): void {
 	appConfig.runtime = {
 		...(appConfig.runtime ?? {}),
+		buildOwnership: getBuildAdapterOwnership(buildAdapter),
 		buildAdapter,
 	};
 }
@@ -326,9 +809,9 @@ export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuil
  * Returns the executor owned by an app/runtime instance.
  *
  * @remarks
- * The config builder seeds this with the shared default adapter. Runtime
- * adapters may replace it with a coordinator that still delegates to the same
- * backend while adding development policy.
+ * The config builder seeds this with the app-owned adapter. Runtime adapters
+ * may replace it with a compatibility coordinator while keeping ownership tied
+ * to the same Bun-native backend.
  */
 export function getAppBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
 	return appConfig.runtime?.buildExecutor ?? getAppBuildAdapter(appConfig);
@@ -349,13 +832,25 @@ export function setAppBuildExecutor(appConfig: EcoPagesAppConfig, buildExecutor:
  *
  * @remarks
  * Callers can pass an explicit executor when builds should be routed through an
- * app-owned development coordinator. Without one, the shared default adapter is
- * used directly.
+ * app-owned development coordinator. Without one, the Bun-native default
+ * adapter is used directly.
  */
-export function build(options: BuildOptions, executor: BuildExecutor = defaultBuildAdapter): Promise<BuildResult> {
+export function build(options: BuildOptions, executor: BuildExecutor = defaultBunBuildAdapter): Promise<BuildResult> {
 	return executor.build(options);
 }
 
+/**
+ * @deprecated Prefer `getAppTranspileOptions()` for finalized app/runtime work.
+ * This helper exists only for compatibility with Bun-native callsites that do
+ * not yet have app context available.
+ */
 export function getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
-	return defaultBuildAdapter.getTranspileOptions(profile);
+	return defaultBunBuildAdapter.getTranspileOptions(profile);
+}
+
+export function getAppTranspileOptions(
+	appConfig: EcoPagesAppConfig,
+	profile: BuildTranspileProfile,
+): BuildTranspileOptions {
+	return getAppBuildAdapter(appConfig).getTranspileOptions(profile);
 }

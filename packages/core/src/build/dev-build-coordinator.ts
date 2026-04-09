@@ -1,6 +1,6 @@
 import { appLogger } from '../global/app-logger.ts';
 import {
-	defaultBuildAdapter,
+	defaultBunBuildAdapter,
 	type BuildAdapter,
 	type BuildExecutor,
 	type BuildOptions,
@@ -61,19 +61,18 @@ export function withBuildExecutorPlugins(executor: BuildExecutor, getPlugins: ()
 }
 
 /**
- * Serialized development build coordinator for the shared esbuild adapter.
+ * Serialized build coordinator for the shared esbuild adapter.
  *
  * The underlying adapter remains responsible for plain build execution. This
- * coordinator owns the policy that must be shared across callers in dev mode:
+ * coordinator owns the policy that must be shared across callers while Bun-native
+ * execution still uses the shared esbuild compatibility backend:
  *
  * - serialized access to the shared esbuild service
- * - warm-service recycling for Node-target builds
  * - recovery from known esbuild worker protocol faults
  *
  * Unlike the previous design, the coordinator does not monkey-patch the adapter
  * or install process-level fault handlers. The owning app/runtime passes this
- * executor explicitly to build consumers that need coordinated development
- * builds.
+ * executor explicitly to build consumers that need coordinated builds.
  */
 export class DevBuildCoordinator implements BuildExecutor {
 	private buildQueue: Promise<void> = Promise.resolve();
@@ -88,9 +87,6 @@ export class DevBuildCoordinator implements BuildExecutor {
 	/**
 	 * Executes a build through the serialized development queue.
 	 *
-	 * Node-target builds recycle the warmed esbuild service between requests to
-	 * avoid stale worker state accumulating across long-lived dev sessions.
-	 *
 	 * If an esbuild protocol fault is detected, the coordinator resets the queue,
 	 * stops the corrupted service, increments the module generation, and retries
 	 * the build once.
@@ -98,11 +94,6 @@ export class DevBuildCoordinator implements BuildExecutor {
 	async build(options: BuildOptions): Promise<BuildResult> {
 		return this.runSerialized(async () => {
 			try {
-				if (this.shouldRecycleEsbuildService(options)) {
-					await this.adapter.stopEsbuildService(this.esbuildModuleGeneration);
-					this.esbuildSessionWarm = false;
-				}
-
 				const result = await this.adapter.buildOrThrow(options, this.esbuildModuleGeneration);
 				this.esbuildSessionWarm = true;
 				return result;
@@ -162,10 +153,6 @@ export class DevBuildCoordinator implements BuildExecutor {
 		return this.buildQueue;
 	}
 
-	private shouldRecycleEsbuildService(options: BuildOptions): boolean {
-		return process.env.NODE_ENV === 'development' && options.target !== 'browser' && this.esbuildSessionWarm;
-	}
-
 	private async runSerialized<T>(operation: () => Promise<T>): Promise<T> {
 		let releaseBuild: (() => void) | undefined;
 		const currentBuild = new Promise<void>((resolve) => {
@@ -187,19 +174,20 @@ export class DevBuildCoordinator implements BuildExecutor {
 /**
  * Creates the appropriate build executor for one app/runtime instance.
  *
- * Development runtimes get a dedicated coordinator around the shared esbuild
- * adapter. Non-development runtimes use the adapter directly.
+ * Bun-native esbuild execution always uses the compatibility coordinator so
+ * preview/static generation and development flows share the same serialized
+ * access and protocol-fault recovery policy. Host-owned execution stays on the
+ * plain adapter boundary.
  */
 export function createAppBuildExecutor(options: {
 	development: boolean;
 	adapter?: BuildAdapter;
 	getPlugins?: () => EcoBuildPlugin[];
 }): BuildExecutor {
-	const adapter = options.adapter ?? defaultBuildAdapter;
-	const baseExecutor =
-		!options.development || !isEsbuildBuildAdapter(adapter)
-			? adapter
-			: new DevBuildCoordinator(adapter as EsbuildBuildAdapter);
+	const adapter = options.adapter ?? defaultBunBuildAdapter;
+	const baseExecutor = isEsbuildBuildAdapter(adapter)
+		? new DevBuildCoordinator(adapter as EsbuildBuildAdapter)
+		: adapter;
 
 	if (!options.getPlugins) {
 		return baseExecutor;
@@ -214,7 +202,7 @@ export function createOrReuseAppBuildExecutor(options: {
 	currentExecutor?: BuildExecutor;
 	getPlugins?: () => EcoBuildPlugin[];
 }): BuildExecutor {
-	const adapter = options.adapter ?? defaultBuildAdapter;
+	const adapter = options.adapter ?? defaultBunBuildAdapter;
 	const currentBaseExecutor = options.currentExecutor ? unwrapBuildExecutor(options.currentExecutor) : undefined;
 	const baseExecutor =
 		options.development && currentBaseExecutor instanceof DevBuildCoordinator

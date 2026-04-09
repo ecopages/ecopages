@@ -7,17 +7,24 @@ import {
 	build,
 	collectConfiguredAppBuildManifestContributions,
 	createConfiguredAppBuildManifest,
+	createBuildAdapter,
+	createBunBuildAdapter,
+	defaultBunBuildAdapter,
 	defaultBuildAdapter,
 	EsbuildBuildAdapter,
+	getAppBuildOwnership,
 	getAppBuildAdapter,
 	getAppBuildManifest,
 	getAppBrowserBuildPlugins,
 	getAppBuildExecutor,
+	getDefaultBuildAdapter,
 	getAppServerBuildPlugins,
 	setAppBuildAdapter,
+	setAppBuildOwnership,
 	setAppBuildManifest,
 	setupAppRuntimePlugins,
 	updateAppBuildManifest,
+	ViteHostBuildAdapter,
 } from './build-adapter.ts';
 import { createAppBuildManifest } from './build-manifest.ts';
 import type { EcoBuildPluginBuilder } from './build-types.ts';
@@ -41,8 +48,46 @@ function clearNodeCssBridge(): void {
 	return;
 }
 
-test('defaultBuildAdapter uses EsbuildBuildAdapter on Node runtime', () => {
-	assert.ok(defaultBuildAdapter instanceof EsbuildBuildAdapter);
+test('defaultBuildAdapter remains the Bun-native fallback backed by the Bun adapter', () => {
+	assert.equal(defaultBuildAdapter, defaultBunBuildAdapter);
+	assert.ok(!(defaultBuildAdapter instanceof EsbuildBuildAdapter));
+	assert.equal(defaultBuildAdapter.ownership, 'bun-native');
+});
+
+test('createBuildAdapter makes Bun-native and Vite-host ownership explicit', () => {
+	const bunAdapter = createBuildAdapter({ ownership: 'bun-native' });
+	const viteAdapter = createBuildAdapter({ ownership: 'vite-host' });
+	const defaultViteAdapter = getDefaultBuildAdapter('vite-host');
+
+	assert.ok(!(bunAdapter instanceof EsbuildBuildAdapter));
+	assert.equal(bunAdapter.ownership, 'bun-native');
+	assert.ok(viteAdapter instanceof ViteHostBuildAdapter);
+	assert.equal(viteAdapter.ownership, 'vite-host');
+	assert.ok(defaultViteAdapter instanceof ViteHostBuildAdapter);
+	assert.equal(defaultViteAdapter.ownership, 'vite-host');
+});
+
+test('ViteHostBuildAdapter rejects core-owned execution attempts', async () => {
+	const adapter = new ViteHostBuildAdapter();
+
+	await assert.rejects(
+		adapter.build({
+			entrypoints: ['/tmp/entry.ts'],
+			root: '/tmp',
+			outdir: '/tmp/out',
+			target: 'browser',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: false,
+			minify: false,
+		}),
+		/Vite-hosted builds are owned by the host runtime/,
+	);
+	assert.throws(() => adapter.resolve('react', '/tmp'), /Vite-hosted builds are owned by the host runtime/);
+	assert.throws(
+		() => adapter.getTranspileOptions('browser-script'),
+		/Vite-hosted builds are owned by the host runtime/,
+	);
 });
 
 test('build helper accepts an explicit executor across package and relative build-adapter imports', async () => {
@@ -100,6 +145,48 @@ test('build helper uses the shared adapter when no executor is provided', async 
 	assert.equal(adapterSpy.mock.calls.length, 1);
 });
 
+test('BunBuildAdapter bundles entrypoints by default to keep transitive app imports in the emitted server module', async () => {
+	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+	const buildCalls: Array<Record<string, unknown>> = [];
+
+	(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
+		build: vi.fn(async (options: Record<string, unknown>) => {
+			buildCalls.push(options);
+			return {
+				success: true,
+				logs: [],
+				outputs: [{ path: '/tmp/out/entry.js' }],
+			};
+		}),
+		hash: vi.fn(() => 1),
+		resolveSync: vi.fn((importPath: string) => importPath),
+	};
+
+	try {
+		const freshAdapter = createBunBuildAdapter();
+		const result = await freshAdapter.build({
+			entrypoints: ['/tmp/entry.ts'],
+			root: '/tmp',
+			outdir: '/tmp/out',
+			target: 'node',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: true,
+			minify: false,
+		});
+
+		assert.equal(result.success, true);
+		assert.equal(buildCalls.length, 1);
+		assert.equal(buildCalls[0]?.bundle, undefined);
+	} finally {
+		if (originalBun === undefined) {
+			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+		} else {
+			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
+		}
+	}
+});
+
 test('getAppBuildExecutor falls back to the app-owned adapter before the shared default adapter', async () => {
 	const appConfig = {
 		runtime: {},
@@ -111,7 +198,20 @@ test('getAppBuildExecutor falls back to the app-owned adapter before the shared 
 
 	assert.equal(getAppBuildAdapter(appConfig), appAdapter);
 	assert.equal(getAppBuildExecutor(appConfig), appAdapter);
+	assert.equal(getAppBuildOwnership(appConfig), 'bun-native');
 	assert.notEqual(getAppBuildAdapter(appConfig), defaultBuildAdapter);
+});
+
+test('getAppBuildAdapter falls back to the explicit Vite-host adapter when ownership is host-owned', () => {
+	const appConfig = {
+		runtime: {},
+		loaders: new Map(),
+	} as any;
+
+	setAppBuildOwnership(appConfig, 'vite-host');
+
+	assert.equal(getAppBuildOwnership(appConfig), 'vite-host');
+	assert.ok(getAppBuildAdapter(appConfig) instanceof ViteHostBuildAdapter);
 });
 
 test('createAppBuildExecutor injects app-owned plugins into builds', async () => {
@@ -626,6 +726,59 @@ test('EsbuildBuildAdapter applies plugin CSS transforms for CSS imported in TS m
 		const outputSource = fs.readFileSync(outputPath, 'utf-8');
 		assert.match(outputSource, /\/\* postprocessed \*\//);
 		assert.match(outputSource, /\.counter \{ color: red; \}/);
+	} finally {
+		cleanupTempRoots();
+		clearNodeCssBridge();
+	}
+});
+
+test('EsbuildBuildAdapter supports synchronous onLoad transforms for entrypoints', async () => {
+	try {
+		const root = createTempRoot('ecopages-esbuild-entrypoint-onload');
+		const srcDir = path.join(root, 'src');
+		const outDir = path.join(root, 'dist');
+		fs.mkdirSync(srcDir, { recursive: true });
+
+		const entryPath = path.join(srcDir, 'entry.tsx');
+		fs.writeFileSync(
+			entryPath,
+			[
+				"import { jsx as _jsx } from 'react/jsx-runtime';",
+				"export const view = () => _jsx('button', { children: 'ok' });",
+			].join('\n'),
+		);
+
+		const adapter = new EsbuildBuildAdapter();
+		const result = await adapter.build({
+			entrypoints: [entryPath],
+			root,
+			outdir: outDir,
+			target: 'browser',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: false,
+			minify: false,
+			plugins: [
+				{
+					name: 'entrypoint-onload-test-plugin',
+					setup(build) {
+						build.onLoad({ filter: /entry\.tsx$/ }, (args) => ({
+							contents: fs.readFileSync(args.path, 'utf-8'),
+							loader: 'tsx',
+							resolveDir: path.dirname(args.path),
+						}));
+					},
+				},
+			],
+		});
+
+		assert.equal(result.success, true);
+
+		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
+		assert.ok(outputPath);
+
+		const outputSource = fs.readFileSync(outputPath, 'utf-8');
+		assert.match(outputSource, /button/);
 	} finally {
 		cleanupTempRoots();
 		clearNodeCssBridge();

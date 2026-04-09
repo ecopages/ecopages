@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
+import { ViteHostBuildAdapter } from './build-adapter.ts';
 import { createAppBuildExecutor, createOrReuseAppBuildExecutor, DevBuildCoordinator } from './dev-build-coordinator.ts';
 import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 
@@ -94,7 +95,7 @@ test('DevBuildCoordinator resets and retries after an esbuild protocol failure',
 	assert.deepEqual(result.outputs, [{ path: '/tmp/out/recovered.js' }]);
 });
 
-test('DevBuildCoordinator recycles the esbuild service before the next serialized development build', async () => {
+test('DevBuildCoordinator keeps the esbuild service running across serialized development builds', async () => {
 	const adapter = new EsbuildBuildAdapter();
 	const buildOrThrow = vi
 		.spyOn(adapter, 'buildOrThrow')
@@ -132,7 +133,7 @@ test('DevBuildCoordinator recycles the esbuild service before the next serialize
 		assert.equal(firstBuild.success, true);
 		assert.equal(secondBuild.success, true);
 		assert.equal(buildOrThrow.mock.calls.length, 2);
-		assert.equal(stopEsbuildService.mock.calls.length, 1);
+		assert.equal(stopEsbuildService.mock.calls.length, 0);
 	} finally {
 		process.env.NODE_ENV = previousNodeEnv;
 	}
@@ -265,4 +266,16 @@ test('createOrReuseAppBuildExecutor preserves serialization when rewrapping a de
 	]);
 
 	assert.equal(maxActiveBuilds, 1);
+});
+
+test('createAppBuildExecutor leaves the Vite-host ownership path unwrapped in development', () => {
+	const adapter = new ViteHostBuildAdapter();
+
+	const executor = createAppBuildExecutor({
+		development: true,
+		adapter,
+	});
+
+	assert.equal(executor, adapter);
+	assert.ok(!(executor instanceof DevBuildCoordinator));
 });

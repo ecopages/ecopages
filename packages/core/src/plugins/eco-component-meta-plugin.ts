@@ -30,8 +30,13 @@ import path from 'node:path';
 import { parseSync } from 'oxc-parser';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { fileSystem } from '@ecopages/file-system';
 import { rapidhash } from '../utils/hash.ts';
+import {
+	createEcoBuildPluginFromSourceTransform,
+	createVitePluginFromSourceTransform,
+	type EcoSourceTransform,
+	type EcoViteCompatiblePlugin,
+} from './source-transform.ts';
 
 /**
  * Pattern to match regex special characters that need escaping.
@@ -151,6 +156,35 @@ export interface EcoComponentDirPluginOptions {
 }
 
 /**
+ * Creates the bundler-neutral metadata transform used by Ecopages loaders and
+ * Vite-compatible adapters.
+ */
+export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOptions): EcoSourceTransform {
+	const allExtensions = options.config.integrations
+		.flatMap((integration) => integration.extensions)
+		.filter(hasValidLoaderExtension);
+
+	if (allExtensions.length === 0) {
+		throw new Error('[eco-component-meta-plugin] No extensions configured. At least one integration is required.');
+	}
+
+	const extensionPattern = createExtensionPattern(allExtensions);
+	const extensionToIntegration = buildExtensionToIntegrationMap(options.config.integrations);
+
+	return {
+		name: 'eco-component-meta-plugin',
+		enforce: 'pre',
+		filter: extensionPattern,
+		transform(code, id) {
+			const integration = detectIntegration(id, extensionToIntegration);
+			return {
+				code: injectEcoMeta(code, id, integration),
+			};
+		},
+	};
+}
+
+/**
  * Creates a build plugin that auto-injects `__eco` metadata into EcoComponent config objects.
  *
  * This plugin intercepts file loading for all integration-compatible files and:
@@ -181,35 +215,15 @@ export interface EcoComponentDirPluginOptions {
  * ```
  */
 export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {
-	return {
-		name: 'eco-component-meta-plugin',
-		setup(build) {
-			const allExtensions = options.config.integrations
-				.flatMap((integration) => integration.extensions)
-				.filter(hasValidLoaderExtension);
+	return createEcoBuildPluginFromSourceTransform(createEcoComponentMetaTransform(options));
+}
 
-			if (allExtensions.length === 0) {
-				return;
-			}
-
-			const extensionPattern = createExtensionPattern(allExtensions);
-			const extensionToIntegration = buildExtensionToIntegrationMap(options.config.integrations);
-
-			build.onLoad({ filter: extensionPattern }, (args) => {
-				const filePath = args.path.split('?')[0];
-				const contents = fileSystem.readFileSync(filePath);
-				const integration = detectIntegration(filePath, extensionToIntegration);
-				const transformedContents = injectEcoMeta(contents, filePath, integration);
-
-				const ext = path.extname(filePath).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';
-
-				return {
-					contents: transformedContents,
-					loader: ext || 'ts',
-				};
-			});
-		},
-	};
+/**
+ * Creates a Vite-compatible metadata injection plugin from the shared
+ * Ecopages source-transform primitive.
+ */
+export function createEcoComponentMetaVitePlugin(options: EcoComponentDirPluginOptions): EcoViteCompatiblePlugin {
+	return createVitePluginFromSourceTransform(createEcoComponentMetaTransform(options));
 }
 
 /**

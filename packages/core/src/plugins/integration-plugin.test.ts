@@ -2,6 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IntegrationPlugin, type IntegrationPluginConfig } from './integration-plugin.ts';
 import type { IHmrManager } from '../types/public-types.ts';
 import type { AssetDefinition } from '../services/assets/asset-processing-service';
+import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../types/public-types.ts';
+import {
+	IntegrationRenderer,
+	type RenderToResponseContext,
+} from '../route-renderer/orchestration/integration-renderer.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+
+class NamelessRenderer extends IntegrationRenderer {
+	declare name: string;
+
+	async render(_options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+		return '<div>ok</div>';
+	}
+
+	async renderToResponse(_view: never, _props: never, _ctx: RenderToResponseContext): Promise<Response> {
+		return new Response('<div>ok</div>');
+	}
+}
 
 class TestIntegrationPlugin extends IntegrationPlugin {
 	renderer = vi.fn() as any;
@@ -107,5 +125,18 @@ describe('IntegrationPlugin', () => {
 		expect(registerSpecifierMap).toHaveBeenCalledWith({
 			'test-runtime': '/assets/vendors/test-runtime.js',
 		});
+	});
+
+	it('should stamp the plugin integration name onto initialized renderers', () => {
+		const pluginWithRenderer = new (class extends TestIntegrationPlugin {
+			override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
+		})(config);
+
+		(pluginWithRenderer as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
+			{} as EcoPagesAppConfig;
+		pluginWithRenderer.runtimeOrigin = 'http://localhost:3000';
+
+		const renderer = pluginWithRenderer.initializeRenderer();
+		expect(renderer.name).toBe('test-plugin');
 	});
 });

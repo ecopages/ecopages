@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { getPrimaryLinkTestId, getRouteLinkTestId, primaryLinks } from '../src/data/primary-links';
-import { gotoAndWait, trackRuntimeErrors } from './helpers';
+import { clickHrefAndWait, gotoAndWait, settleOnRoute, trackRuntimeErrors } from './helpers';
 
 const primaryRoutePool = primaryLinks.map(({ href }) => href);
 const randomSequenceCount = 4;
@@ -201,11 +201,12 @@ test.describe('Rapid navigation stress', () => {
 		}
 		await rapidClickHref(page, hops[hops.length - 1], ['route', 'primary'], { requireMatch: true });
 
-		await page.waitForLoadState('networkidle');
-		await expect(page.getByTestId('page-react-notes')).toBeVisible({
-			timeout: 8000,
+		await settleOnRoute({
+			page,
+			href: '/react-notes',
+			content: page.getByTestId('page-react-notes'),
+			navigate: () => rapidClickHref(page, '/react-notes', ['route', 'primary'], { requireMatch: true }),
 		});
-		await expect(page).toHaveURL(/\/react-notes/);
 		runtime.assertClean();
 	});
 

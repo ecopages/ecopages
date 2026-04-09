@@ -18,16 +18,50 @@ const HtmlTemplate = eco.html({
 					<script data-eco-rerun="true" data-eco-script-id="theme-bootstrap">
 						{`
 							(() => {
-								const theme =
+								const runtime = globalThis;
+								const applyTheme = (theme) => {
+									if (theme === 'dark') {
+										document.documentElement.setAttribute('data-theme', 'dark');
+										return;
+									}
+
+									document.documentElement.removeAttribute('data-theme');
+								};
+								const resolveTheme = () =>
 									localStorage.getItem('theme') ||
 									(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+								const toggleTheme = () => {
+									const nextTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+									localStorage.setItem('theme', nextTheme);
+									applyTheme(nextTheme);
+								};
 
-								if (theme === 'dark') {
-									document.documentElement.setAttribute('data-theme', 'dark');
-									return;
-								}
+								runtime.__ecopagesThemeToggleCleanup__?.();
+								const abortController = new AbortController();
+								runtime.__ecopagesThemeToggleCleanup__ = () => {
+									abortController.abort();
+								};
 
-								document.documentElement.removeAttribute('data-theme');
+								applyTheme(resolveTheme());
+
+								document.addEventListener(
+									'click',
+									(event) => {
+										const target = event.target;
+										if (!(target instanceof Element)) {
+											return;
+										}
+
+										const toggle = target.closest('[data-theme-toggle-runtime="dom"]#theme-toggle');
+										if (!toggle) {
+											return;
+										}
+
+										event.preventDefault();
+										toggleTheme();
+									},
+									{ signal: abortController.signal },
+								);
 							})();
 						`}
 					</script>

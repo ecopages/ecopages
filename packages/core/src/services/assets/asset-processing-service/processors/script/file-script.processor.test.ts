@@ -60,6 +60,7 @@ describe('FileScriptProcessor', () => {
 			const HmrManager = {
 				isEnabled: () => true,
 				registerScriptEntrypoint: vi.fn(async () => '/hmr/script.js'),
+				getDistDir: () => '/test/project/.eco/public/assets/_hmr',
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
 
@@ -75,6 +76,7 @@ describe('FileScriptProcessor', () => {
 
 			expect(HmrManager.registerScriptEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
 			expect(result.srcUrl).toBe('/hmr/script.js');
+			expect(result.filepath).toBe('/test/project/.eco/public/assets/_hmr/script.js');
 			expect(result.inline).toBe(false);
 			expect(result.excludeFromHtml).toBe(true);
 		});
@@ -101,6 +103,26 @@ describe('FileScriptProcessor', () => {
 			expect(result.srcUrl).toBe('/hmr/script.js');
 			expect(result.inline).toBe(false);
 			expect(result.excludeFromHtml).toBe(false);
+		});
+
+		test('should fall back to the source filepath when the HMR manager does not expose a dist directory', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const HmrManager = {
+				isEnabled: () => true,
+				registerScriptEntrypoint: vi.fn(async () => '/hmr/script.js'),
+			} as unknown as IHmrManager;
+			processor.setHmrManager(HmrManager);
+
+			const dep: FileScriptAsset = {
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/script.ts',
+				inline: false,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(result.filepath).toBe('/test/project/src/script.ts');
 		});
 
 		test('should not use HMR when inline is true', async () => {

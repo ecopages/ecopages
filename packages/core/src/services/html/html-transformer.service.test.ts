@@ -68,6 +68,29 @@ class TestHtmlRewriterProvider implements HtmlRewriterProvider {
 	}
 }
 
+class PassthroughHtmlRewriter {
+	public seenResponse: Response | undefined;
+
+	on(): PassthroughHtmlRewriter {
+		return this;
+	}
+
+	transform(response: Response): Response {
+		this.seenResponse = response;
+		return response;
+	}
+}
+
+class PassthroughHtmlRewriterProvider implements HtmlRewriterProvider {
+	public readonly htmlRewriter = new PassthroughHtmlRewriter();
+
+	setMode(): void {}
+
+	async createHtmlRewriter(): Promise<HtmlRewriterRuntime | null> {
+		return this.htmlRewriter as unknown as HtmlRewriterRuntime;
+	}
+}
+
 type HtmlRewriterModeScenario = {
 	label: string;
 	html: string;
@@ -217,6 +240,27 @@ describe('HtmlTransformerService', () => {
 		const html = await result.text();
 
 		expect(html).toContain('<link rel="stylesheet" href="/test.css" media="screen">');
+	});
+
+	it('passes the original response through to the html rewriter so stream bodies remain available', async () => {
+		const htmlRewriterProvider = new PassthroughHtmlRewriterProvider();
+		const transformer = new HtmlTransformerService({ htmlRewriterProvider });
+		const response = new Response(
+			new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(
+						new TextEncoder().encode('<html><head></head><body><main>Streaming</main></body></html>'),
+					);
+					controller.close();
+				},
+			}),
+			{ headers: { 'Content-Type': 'text/html' } },
+		);
+
+		const result = await transformer.transform(response);
+
+		expect(htmlRewriterProvider.htmlRewriter.seenResponse).toBe(response);
+		expect(await result.text()).toContain('<main>Streaming</main>');
 	});
 
 	it('should handle both inline and src dependencies', async () => {

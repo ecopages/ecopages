@@ -1,6 +1,6 @@
 import type { BuildOptions, BuildResult, BuildTranspileProfile } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import { getAppBrowserBuildPlugins, getAppBuildExecutor, getTranspileOptions } from '../../build/build-adapter.ts';
+import { getAppBrowserBuildPlugins, getAppBuildExecutor, getAppTranspileOptions } from '../../build/build-adapter.ts';
 import { mergeEcoBuildPlugins } from '../../build/build-manifest.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
@@ -44,7 +44,7 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 		const plugins = buildOptions.plugins as EcoBuildPlugin[] | undefined;
 		const request = {
 			...buildOptions,
-			...getTranspileOptions(profile),
+			...getAppTranspileOptions(this.appConfig, profile),
 			plugins: mergeEcoBuildPlugins(plugins, getAppBrowserBuildPlugins(this.appConfig)),
 		} as BuildOptions;
 

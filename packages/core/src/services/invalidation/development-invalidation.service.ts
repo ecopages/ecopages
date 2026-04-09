@@ -58,6 +58,7 @@ export class DevelopmentInvalidationService {
 	 */
 	invalidateServerModules(changedFiles?: string[]): void {
 		getAppServerInvalidationState(this.appConfig).invalidateServerModules(changedFiles);
+		this.appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
 	}
 
 	/**

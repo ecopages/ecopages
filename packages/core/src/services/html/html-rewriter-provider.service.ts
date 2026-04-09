@@ -89,7 +89,8 @@ async function loadWorkerToolsHtmlRewriter(): Promise<HtmlRewriterConstructor | 
 	} catch (primaryError) {
 		try {
 			const runtimeLocalModule = await import(
-				new URL('../node_modules/@worker-tools/html-rewriter/base64.js', import.meta.url).href
+				/* @vite-ignore */ new URL('../node_modules/@worker-tools/html-rewriter/base64.js', import.meta.url)
+					.href
 			);
 			return runtimeLocalModule.HTMLRewriter as HtmlRewriterConstructor;
 		} catch {

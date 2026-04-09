@@ -1,0 +1,40 @@
+{
+	"name": "@ecopages/vite-plugin",
+	"version": "0.2.0-alpha.1",
+	"description": "Vite plugin for Ecopages",
+	"keywords": [
+		"ecopages",
+		"vite",
+		"vite-plugin",
+		"ssg",
+		"ssr"
+	],
+	"license": "MIT",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./nitro": "./src/nitro/index.ts",
+		"./nitro/runtime": "./src/nitro/nitro-html.ts"
+	},
+	"files": [
+		"src"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/vite-plugin"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*",
+		"nitro": ">=3.0.0",
+		"vite": ">=8.0.0"
+	},
+	"peerDependenciesMeta": {
+		"nitro": {
+			"optional": true
+		}
+	}
+}

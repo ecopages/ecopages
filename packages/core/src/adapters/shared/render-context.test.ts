@@ -6,6 +6,9 @@ import type { EcoFunctionComponent } from '../../types/public-types.ts';
 
 describe('createRenderContext', () => {
 	const RenderToResponse = vi.fn(() => Promise.resolve(new Response('rendered')));
+	const rendererModules = {
+		integrationManifestModuleId: 'virtual:ecopages/integration-manifest.ts',
+	};
 
 	const Renderer = {
 		name: '-renderer',
@@ -45,6 +48,7 @@ describe('createRenderContext', () => {
 
 	const renderContext = createRenderContext({
 		integrations: [Plugin, ExplicitPlugin],
+		rendererModules,
 	});
 
 	it('should create a render context with methods', () => {
@@ -64,7 +68,7 @@ describe('createRenderContext', () => {
 
 			const response = await renderContext.render(ViewFn, props, options);
 
-			expect(InitializeRenderer).toHaveBeenCalled();
+			expect(InitializeRenderer).toHaveBeenCalledWith({ rendererModules });
 			expect(RenderToResponse).toHaveBeenCalledWith(ViewFn, props, {
 				partial: false,
 				status: 201,

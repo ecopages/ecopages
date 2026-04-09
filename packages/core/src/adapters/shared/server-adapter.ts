@@ -120,6 +120,7 @@ export abstract class SharedServerAdapter<
 	protected configureSharedResponseHandlers(staticRoutes: StaticRoute[], hmrManager?: any): void {
 		this.routeRendererFactory = new RouteRendererFactory({
 			appConfig: this.appConfig,
+			rendererModules: this.appConfig.runtime?.rendererModuleContext,
 			runtimeOrigin: this.runtimeOrigin,
 		});
 
@@ -175,7 +176,10 @@ export abstract class SharedServerAdapter<
 	}
 
 	protected getRenderContext(): RenderContext {
-		return createRenderContext({ integrations: this.appConfig.integrations });
+		return createRenderContext({
+			integrations: this.appConfig.integrations,
+			rendererModules: this.appConfig.runtime?.rendererModuleContext,
+		});
 	}
 
 	/**

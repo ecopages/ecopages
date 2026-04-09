@@ -8,6 +8,7 @@ import { invariant } from '../../utils/invariant.ts';
 
 export interface CreateRenderContextOptions {
 	integrations: IntegrationPlugin[];
+	rendererModules?: unknown;
 }
 
 /**
@@ -51,7 +52,9 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 		const integration = integrations.find((i) => i.name === integrationName);
 		invariant(!!integration, `No integration found for: ${integrationName}`);
 
-		return integration.initializeRenderer();
+		return integration.initializeRenderer({
+			rendererModules: options.rendererModules,
+		});
 	};
 
 	const renderContext: RenderContext = {

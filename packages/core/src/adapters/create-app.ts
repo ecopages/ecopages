@@ -1,22 +1,26 @@
-import type { EcopagesAppOptions as BunOptions } from './bun/create-app.ts';
-import type { EcopagesAppOptions as NodeOptions } from './node/create-app.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { AbstractApplicationAdapter } from './abstract/application-adapter.ts';
 import type { ApiHandler } from '../types/public-types.ts';
+import type { ApplicationAdapterOptions } from './abstract/application-adapter.ts';
 import { SharedApplicationAdapter } from './shared/application-adapter.ts';
 
-export type EcopagesAppOptions = BunOptions | NodeOptions;
-export type UniversalEcopagesApp = AbstractApplicationAdapter<EcopagesAppOptions, any, Request>;
+export interface EcopagesAppOptions extends ApplicationAdapterOptions {
+	appConfig: EcoPagesAppConfig;
+	serverOptions?: Record<string, any>;
+}
+
+export type UniversalEcopagesApp = AbstractApplicationAdapter<EcopagesAppOptions, unknown, Request>;
 
 async function createRuntimeApp<WebSocketData = undefined>(options: EcopagesAppOptions): Promise<UniversalEcopagesApp> {
 	const bun = (globalThis as { Bun?: unknown }).Bun;
 
 	if (bun) {
 		const { createApp: createBunApp } = await import('./bun/create-app.ts');
-		return (await createBunApp<WebSocketData>(options as BunOptions)) as unknown as UniversalEcopagesApp;
+		return (await createBunApp<WebSocketData>(options)) as unknown as UniversalEcopagesApp;
 	}
 
-	const { createNodeApp } = await import('./node/create-app.ts');
-	return (await createNodeApp(options as NodeOptions)) as unknown as UniversalEcopagesApp;
+	const { createApp: createNodeApp } = await import('./node/create-app.ts');
+	return (await createNodeApp(options)) as unknown as UniversalEcopagesApp;
 }
 
 export async function createApp<WebSocketData = undefined>(options: EcopagesAppOptions): Promise<UniversalEcopagesApp> {

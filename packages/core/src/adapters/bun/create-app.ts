@@ -11,20 +11,11 @@
 import type { Server } from 'bun';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { getBunRuntime } from '../../utils/runtime.ts';
 import type { ApiHandlerContext, RouteGroupBuilder } from '../../types/public-types.ts';
-import { type ApplicationAdapterOptions } from '../abstract/application-adapter.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
+import type { EcopagesAppOptions } from '../create-app.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
-
-/**
- * Configuration options for the Bun application adapter
- */
-export interface EcopagesAppOptions extends ApplicationAdapterOptions {
-	appConfig: EcoPagesAppConfig;
-	serverOptions?: Record<string, any>;
-}
 
 /**
  * Bun-specific route group builder that properly infers route params from path patterns.
@@ -48,7 +39,7 @@ export type BunRouteGroupBuilder<
  * and provides methods for handling HTTP requests and managing the server.
  */
 
-export class EcopagesApp<WebSocketData = undefined> extends SharedApplicationAdapter<
+export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplicationAdapter<
 	EcopagesAppOptions,
 	Server<WebSocketData>,
 	Request
@@ -184,6 +175,6 @@ export class EcopagesApp<WebSocketData = undefined> extends SharedApplicationAda
  */
 export async function createApp<WebSocketData = undefined>(
 	options: EcopagesAppOptions,
-): Promise<EcopagesApp<WebSocketData>> {
-	return new EcopagesApp(options);
+): Promise<BunEcopagesApp<WebSocketData>> {
+	return new BunEcopagesApp(options);
 }

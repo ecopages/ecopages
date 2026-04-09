@@ -2,21 +2,21 @@ import { createServer, type IncomingMessage, type Server as NodeServerInstance, 
 import { Readable } from 'node:stream';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { StaticRoute } from '../../types/public-types.ts';
-import { type ApplicationAdapterOptions } from '../abstract/application-adapter.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
+import type { EcopagesAppOptions } from '../create-app.ts';
 import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';
 
-export interface EcopagesAppOptions extends ApplicationAdapterOptions {
-	appConfig: EcoPagesAppConfig;
-	serverOptions?: Record<string, any>;
-}
-
-export class EcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, NodeServerInstance, Request> {
+export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, NodeServerInstance, Request> {
 	serverAdapter: NodeServerAdapterResult | undefined;
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
+
+	protected createServerAdapter(
+		params: Parameters<typeof createNodeServerAdapter>[0],
+	): Promise<NodeServerAdapterResult> {
+		return createNodeServerAdapter(params);
+	}
 
 	public async stop(force = true): Promise<void> {
 		if (!this.server) {
@@ -53,7 +53,7 @@ export class EcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, No
 		const preferredHostname = cliHostname ?? envHostname ?? DEFAULT_ECOPAGES_HOSTNAME;
 		this.runtimeOrigin = `http://${preferredHostname}:${preferredPort}`;
 
-		return createNodeServerAdapter({
+		return this.createServerAdapter({
 			runtimeOrigin: this.runtimeOrigin,
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
@@ -174,6 +174,10 @@ export class EcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, No
 	}
 }
 
-export async function createNodeApp(options: EcopagesAppOptions): Promise<EcopagesApp> {
-	return new EcopagesApp(options);
+export async function createNodeApp(options: EcopagesAppOptions): Promise<NodeEcopagesApp> {
+	return new NodeEcopagesApp(options);
+}
+
+export async function createApp(options: EcopagesAppOptions): Promise<NodeEcopagesApp> {
+	return createNodeApp(options);
 }

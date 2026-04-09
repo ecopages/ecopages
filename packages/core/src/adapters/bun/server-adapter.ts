@@ -1,4 +1,5 @@
 import type { Server, WebSocketHandler } from 'bun';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { ApiHandler, ApiHandlerContext, ErrorHandler, StaticRoute } from '../../types/public-types.ts';
@@ -472,7 +473,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 export async function createBunServerAdapter(params: BunServerAdapterParams): Promise<BunServerAdapterResult> {
 	const runtimeOrigin =
 		params.runtimeOrigin ??
-		`http://${params.serveOptions.hostname || 'localhost'}:${params.serveOptions.port || 3000}`;
+		`http://${params.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${params.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
 
 	const bridge = params.bridge ?? new ClientBridge();
 	const hmrManager = params.hmrManager ?? new HmrManager({ appConfig: params.appConfig, bridge });

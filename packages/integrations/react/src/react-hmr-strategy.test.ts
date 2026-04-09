@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { DefaultHmrContext } from '@ecopages/core';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
+import { fileSystem } from '@ecopages/file-system';
 
 function createImportServerModuleMock(result: {
 	config: Record<string, unknown>;
@@ -142,6 +143,48 @@ describe('ReactHmrStrategy', () => {
 		expect(success).toBe(true);
 		expect(importServerModule).toHaveBeenCalledWith('/tmp/src/pages/index.tsx');
 		expect(build).not.toHaveBeenCalled();
+	});
+
+	it('resolves hashed temp outputs when the bundle result returns a placeholder path', async () => {
+		const bundle = vi.fn(async () => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.[hash].tmp.js' }],
+		}));
+		const strategy = new ReactHmrStrategy(
+			createMockContext({
+				getBrowserBundleService: () => ({ bundle }) as any,
+			}),
+			{
+				getDeclaredModules: () => [],
+			} as any,
+		);
+
+		const existsSpy = vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath: string) => {
+			return targetPath === '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js';
+		});
+		const globSpy = vi
+			.spyOn(fileSystem, 'glob')
+			.mockResolvedValue(['/tmp/.eco/assets/_hmr/pages/index.123.tmp.js']);
+		(strategy as any).processOutput = vi.fn(async () => true);
+
+		const success = await (strategy as any).bundleReactEntrypoint(
+			'/tmp/src/pages/index.tsx',
+			'/_hmr/pages/index.js',
+		);
+
+		expect(success).toBe(true);
+		expect(globSpy).toHaveBeenCalledWith(['index.*.tmp.js'], {
+			cwd: '/tmp/.eco/assets/_hmr/pages',
+		});
+		expect((strategy as any).processOutput).toHaveBeenCalledWith(
+			'/tmp/.eco/assets/_hmr/pages/index.123.tmp.js',
+			'/tmp/.eco/assets/_hmr/pages/index.js',
+			'/_hmr/pages/index.js',
+		);
+
+		existsSpy.mockRestore();
+		globSpy.mockRestore();
 	});
 
 	it('process only broadcasts the changed watched entrypoint update', async () => {

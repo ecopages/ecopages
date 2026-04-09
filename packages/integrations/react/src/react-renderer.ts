@@ -70,6 +70,31 @@ type RequiresAwareComponent = {
 	requires?: string | readonly string[];
 };
 
+function decodeHtmlEntities(value: string): string {
+	let decoded = value;
+	let previous: string | undefined;
+
+	do {
+		previous = decoded;
+		decoded = decoded
+			.replaceAll('&quot;', '"')
+			.replaceAll('&#39;', "'")
+			.replaceAll('&#x27;', "'")
+			.replaceAll('&lt;', '<')
+			.replaceAll('&gt;', '>')
+			.replaceAll('&amp;', '&');
+	} while (decoded !== previous);
+
+	return decoded;
+}
+
+function restoreEscapedComponentMarkers(html: string): string {
+	return html.replace(
+		/&(?:amp;)?lt;eco-marker\b[\s\S]*?&(?:amp;)?gt;&(?:amp;)?lt;\/eco-marker&(?:amp;)?gt;/g,
+		(marker) => decodeHtmlEntities(marker),
+	);
+}
+
 /**
  * Error thrown when an error occurs while rendering a React component.
  */
@@ -131,6 +156,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			rootDir: this.appConfig.rootDir,
 			routerAdapter: ReactRenderer.routerAdapter,
 			mdxCompilerOptions: ReactRenderer.mdxCompilerOptions,
+			jsxImportSource: (this.appConfig.integrations ?? []).find((integration) => integration.name === this.name)
+				?.jsxImportSource,
+			nonReactExtensions: (this.appConfig.integrations ?? [])
+				.filter((integration) => integration.name !== this.name)
+				.flatMap((integration) => integration.extensions),
 		});
 
 		this.pageModuleService = new ReactPageModuleService({
@@ -318,14 +348,25 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 */
 	private renderComponentHtml(input: ComponentRenderInput, context: ReactComponentRenderContext): string {
 		if (input.children === undefined) {
-			return renderToString(createElement(this.asReactComponent(input.component), input.props));
+			return restoreEscapedComponentMarkers(
+				renderToString(createElement(this.asReactComponent(input.component), input.props)),
+			);
 		}
 
 		const rawChildrenToken = `__ECO_RAW_HTML_CHILD_${context.componentInstanceId ?? 'component'}__`;
 		const html = renderToString(
 			createElement(this.asReactComponent(input.component), input.props, rawChildrenToken),
 		);
-		return html.split(rawChildrenToken).join(input.children);
+		return restoreEscapedComponentMarkers(html.split(rawChildrenToken).join(input.children));
+	}
+
+	private buildHydrationProps(props: SerializableProps | undefined): SerializableProps {
+		if (!props || !Object.prototype.hasOwnProperty.call(props, 'locals')) {
+			return props ?? {};
+		}
+
+		const { locals: _locals, ...hydrationProps } = props as SerializableProps & { locals?: unknown };
+		return hydrationProps;
 	}
 
 	/**
@@ -342,7 +383,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		locals?: RequestLocals;
 	}): Promise<{ contentNode: ReactNode; contentHtml: string }> {
 		const pageElement = createElement(options.Page, options.pageProps);
-		const pageHtml = renderToString(pageElement);
+		const pageHtml = restoreEscapedComponentMarkers(renderToString(pageElement));
 		const layoutProps = options.locals ? { locals: options.locals } : {};
 
 		if (!options.Layout) {
@@ -353,7 +394,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			const layoutElement = createElement(this.asReactComponent(options.Layout), layoutProps, pageElement);
 			return {
 				contentNode: layoutElement,
-				contentHtml: renderToString(layoutElement),
+				contentHtml: restoreEscapedComponentMarkers(renderToString(layoutElement)),
 			};
 		}
 
@@ -381,16 +422,21 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		contentHtml: string;
 	}): Promise<RouteRendererBody> {
 		if (this.isReactManagedComponent(options.HtmlTemplate)) {
-			return renderToReadableStream(
-				createElement(
-					this.asReactComponent(options.HtmlTemplate),
-					{
-						metadata: options.metadata,
-						pageProps: options.pageProps,
-					},
-					options.contentNode,
+			const rawChildrenToken = '__ECO_RAW_HTML_DOCUMENT_CHILD__';
+			const html = restoreEscapedComponentMarkers(
+				renderToString(
+					createElement(
+						this.asReactComponent(options.HtmlTemplate),
+						{
+							metadata: options.metadata,
+							pageProps: options.pageProps,
+						},
+						rawChildrenToken,
+					),
 				),
 			);
+
+			return html.split(rawChildrenToken).join(options.contentHtml);
 		}
 
 		const headContent = ReactRenderer.routerAdapter ? this.buildRouterPageDataScript(options.pageProps) : undefined;
@@ -444,12 +490,12 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			assets = await this.hydrationAssetService.buildComponentRenderAssets(
 				componentFile,
 				componentInstanceId,
-				input.props,
+				this.buildHydrationProps(input.props),
 				componentConfig,
 			);
 			rootAttributes = {
 				'data-eco-component-id': componentInstanceId,
-				'data-eco-props': btoa(JSON.stringify(input.props ?? {})),
+				'data-eco-props': btoa(JSON.stringify(this.buildHydrationProps(input.props))),
 			};
 		}
 
@@ -472,13 +518,41 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return this.pageModuleService.isMdxFile(filePath);
 	}
 
+	protected override usesIntegrationPageImporter(file: string): boolean {
+		return this.pageModuleService.isMdxFile(file);
+	}
+
+	protected override async importIntegrationPageFile(file: string): Promise<EcoPageFile> {
+		return (await this.pageModuleService.importMdxPageFile(file)) as EcoPageFile;
+	}
+
+	protected override normalizeImportedPageFile<TPageModule extends EcoPageFile>(
+		file: string,
+		pageModule: TPageModule,
+	): TPageModule {
+		const reactModule = pageModule as TPageModule & { config?: EcoComponentConfig };
+		const { default: Page, getMetadata, config } = reactModule;
+
+		if (this.pageModuleService.isMdxFile(file) && config) {
+			Page.config = config;
+		}
+
+		return {
+			...pageModule,
+			default: Page,
+			getMetadata,
+			config,
+		} as TPageModule;
+	}
+
 	/**
 	 * Processes MDX-specific configuration dependencies including layout dependencies.
 	 * @param pagePath - Absolute path to the MDX page file
 	 * @returns Processed assets for MDX configuration dependencies
 	 */
 	private async processMdxConfigDependencies(pagePath: string): Promise<ProcessedAsset[]> {
-		const { config } = await this.importPageFile(pagePath);
+		const pageModule = await this.importPageFile(pagePath);
+		const config = (pageModule as EcoPageFile & { config?: EcoComponentConfig }).config;
 		const resolvedLayout = config?.layout;
 		const components: Partial<EcoComponent>[] = [];
 
@@ -632,33 +706,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				`Failed to generate hydration script: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
-	}
-
-	/**
-	 * Imports a page module while normalizing React MDX modules to the same shape
-	 * as ordinary React page files.
-	 *
-	 * MDX page imports can expose `config` separately from the default export. The
-	 * React renderer reattaches that config to the page component so downstream
-	 * layout, dependency, and hydration logic can treat MDX and TSX pages the same.
-	 */
-	protected override async importPageFile(file: string): Promise<ReactPageModule> {
-		const module = (
-			this.pageModuleService.isMdxFile(file)
-				? await this.pageModuleService.importMdxPageFile(file)
-				: await super.importPageFile(file)
-		) as ReactPageModule;
-		const { default: Page, getMetadata, config } = module;
-
-		if (this.pageModuleService.isMdxFile(file) && config) {
-			Page.config = config;
-		}
-
-		return {
-			default: Page,
-			getMetadata,
-			config,
-		};
 	}
 
 	/**

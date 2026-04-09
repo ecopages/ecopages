@@ -14,16 +14,21 @@ import type {
 } from '@ecopages/core';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { render } from '@lit-labs/ssr';
-import { RenderResultReadable } from '@lit-labs/ssr/lib/render-result-readable.js';
 import { html as staticHtml, unsafeStatic } from 'lit/static-html.js';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import { PLUGIN_NAME } from './lit.plugin.ts';
+
+const HTML_TEMPLATE_SLOT_MARKER = '<--content-->';
 
 /**
  * A renderer for the Lit integration.
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = PLUGIN_NAME;
+
+	protected override shouldRenderPageComponent(): boolean {
+		return false;
+	}
 
 	private createRenderableMarkup(markup: string) {
 		return staticHtml`${unsafeStatic(markup)}`;
@@ -35,6 +40,64 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			renderedHtml += chunk;
 		}
 		return renderedHtml;
+	}
+
+	private async renderValueToString(value: unknown): Promise<string> {
+		if (typeof value === 'string') {
+			return await this.renderMarkupToString(value);
+		}
+
+		let renderedHtml = '';
+		for (const chunk of render(value as Parameters<typeof render>[0])) {
+			renderedHtml += chunk;
+		}
+		return renderedHtml;
+	}
+
+	private isLitManagedComponent(component: EcoComponent | undefined): boolean {
+		return component?.config?.integration === this.name || component?.config?.__eco?.integration === this.name;
+	}
+
+	private injectRenderedChildren(template: string, renderedChildren: string): string {
+		if (template.includes(HTML_TEMPLATE_SLOT_MARKER)) {
+			return template.replace(HTML_TEMPLATE_SLOT_MARKER, renderedChildren);
+		}
+
+		if (template.includes('</body>')) {
+			return template.replace('</body>', `${renderedChildren}</body>`);
+		}
+
+		if (template.includes('</html>')) {
+			return template.replace('</html>', `${renderedChildren}</html>`);
+		}
+
+		return `${template}${renderedChildren}`;
+	}
+
+	private async renderHtmlTemplate(options: {
+		HtmlTemplate: IntegrationRendererRenderOptions['HtmlTemplate'];
+		metadata: PageMetadataProps;
+		pageProps: Record<string, unknown>;
+		renderedChildren: string;
+		isLitManagedHtmlTemplate: boolean;
+	}): Promise<string> {
+		if (!options.isLitManagedHtmlTemplate) {
+			return String(
+				await options.HtmlTemplate({
+					metadata: options.metadata,
+					children: options.renderedChildren,
+					pageProps: options.pageProps,
+				}),
+			);
+		}
+
+		const template = await options.HtmlTemplate({
+			metadata: options.metadata,
+			children: HTML_TEMPLATE_SLOT_MARKER,
+			pageProps: options.pageProps,
+		});
+
+		return this.injectRenderedChildren(String(template), options.renderedChildren);
 	}
 
 	/**
@@ -54,8 +117,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		) => Promise<EcoPagesElement> | EcoPagesElement;
 		const props = input.children === undefined ? input.props : { ...input.props, children: input.children };
 		const content = await component(props);
-		const markup = String(content);
-		const html = await this.renderMarkupToString(markup);
+		const html = await this.renderValueToString(content);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
 		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
 		const assets =
@@ -66,7 +128,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return {
 			html,
 			canAttachAttributes: true,
-			rootTag: this.getRootTagName(markup),
+			rootTag: this.getRootTagName(html),
 			integrationName: this.name,
 			assets,
 		};
@@ -129,33 +191,42 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			await this.preloadSsrLazyScripts([Page, Layout]);
 
 			const pageContent = await Page({ params, query, ...props, locals });
+			const pageHtml = await this.renderValueToString(pageContent);
 			const children = Layout
-				? await (Layout as (props: { children: EcoPagesElement } & Record<string, unknown>) => EcoPagesElement)(
-						{
-							children: pageContent,
+				? this.isLitManagedComponent(Layout)
+					? await this.renderValueToString(
+							await (
+								Layout as (
+									props: { children: EcoPagesElement } & Record<string, unknown>,
+								) => EcoPagesElement
+							)({
+								children: pageContent,
+								locals,
+							}),
+						)
+					: await (
+							Layout as (
+								props: { children: EcoPagesElement } & Record<string, unknown>,
+							) => EcoPagesElement
+						)({
+							children: pageHtml,
 							locals,
-						},
-					)
-				: pageContent;
+						})
+				: pageHtml;
+			const renderedChildren = this.isLitManagedComponent(HtmlTemplate)
+				? await this.renderMarkupToString(String(children))
+				: String(children);
 
-			const template = (await HtmlTemplate({
-				metadata,
-				children: '<--content-->',
-				pageProps: props || {},
-			})) as string;
-
-			const [templateStart, templateEnd] = template.split('<--content-->');
-
-			const DOC_TYPE = this.DOC_TYPE;
-
-			function* streamBody() {
-				yield DOC_TYPE;
-				yield templateStart;
-				yield* render(staticHtml`${unsafeStatic(children)}`);
-				yield templateEnd;
-			}
-
-			return new RenderResultReadable(streamBody());
+			return (
+				this.DOC_TYPE +
+				(await this.renderHtmlTemplate({
+					HtmlTemplate,
+					metadata,
+					pageProps: props || {},
+					renderedChildren,
+					isLitManagedHtmlTemplate: this.isLitManagedComponent(HtmlTemplate),
+				}))
+			);
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
 		}
@@ -171,57 +242,66 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			const Layout = viewConfig?.layout as
 				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => EcoPagesElement)
 				| undefined;
+			const HtmlTemplate = ctx.partial ? undefined : await this.getHtmlTemplate();
+			const metadata =
+				ctx.partial || !HtmlTemplate
+					? undefined
+					: view.metadata
+						? await view.metadata({
+								params: {},
+								query: {},
+								props: props as Record<string, unknown>,
+								appConfig: this.appConfig,
+							})
+						: this.appConfig.defaultMetadata;
 
 			await this.preloadSsrLazyScripts([view as unknown as EcoComponent, Layout as unknown as EcoComponent]);
 
+			if (!ctx.partial) {
+				await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
+			}
+
 			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
-			const pageContent = await viewFn(props);
+			const renderExecution = await this.captureHtmlRender(async () => {
+				const pageContent = await viewFn(props);
+				const pageHtml = await this.renderValueToString(pageContent);
 
-			if (ctx.partial) {
-				function* streamBody() {
-					yield* render(staticHtml`${unsafeStatic(pageContent)}`);
+				if (ctx.partial) {
+					return await this.renderMarkupToString(pageHtml);
 				}
-				const readable = new RenderResultReadable(streamBody());
-				return this.createHtmlResponse(readable as unknown as BodyInit, ctx);
-			}
 
-			const DOC_TYPE = this.DOC_TYPE;
-			const children = Layout ? await Layout({ children: pageContent }) : pageContent;
+				const children = Layout
+					? this.isLitManagedComponent(Layout as EcoComponent)
+						? await this.renderValueToString(await Layout({ children: pageContent }))
+						: await Layout({ children: pageHtml })
+					: pageHtml;
+				const renderedChildren = this.isLitManagedComponent(HtmlTemplate as EcoComponent)
+					? await this.renderMarkupToString(String(children))
+					: String(children);
 
-			const HtmlTemplate = await this.getHtmlTemplate();
-			const metadata: PageMetadataProps = view.metadata
-				? await view.metadata({
-						params: {},
-						query: {},
-						props: props as Record<string, unknown>,
-						appConfig: this.appConfig,
-					})
-				: this.appConfig.defaultMetadata;
+				return (
+					this.DOC_TYPE +
+					(await this.renderHtmlTemplate({
+						HtmlTemplate: HtmlTemplate!,
+						metadata: metadata ?? this.appConfig.defaultMetadata,
+						pageProps: (props as Record<string, unknown>) ?? {},
+						renderedChildren,
+						isLitManagedHtmlTemplate: this.isLitManagedComponent(HtmlTemplate as EcoComponent),
+					}))
+				);
+			});
 
-			await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
+			const componentsToResolve = ctx.partial
+				? [view]
+				: ([HtmlTemplate, Layout, view].filter(Boolean) as EcoComponent[]);
+			const body = await this.finalizeCapturedHtmlRender({
+				html: renderExecution.html,
+				componentsToResolve,
+				graphContext: renderExecution.graphContext,
+				partial: ctx.partial,
+			});
 
-			const template = (await HtmlTemplate({
-				metadata,
-				children: '<--content-->',
-				pageProps: props as Record<string, unknown>,
-			})) as string;
-
-			const [templateStart, templateEnd] = template.split('<--content-->');
-
-			function* streamBody() {
-				yield DOC_TYPE;
-				yield templateStart;
-				yield* render(staticHtml`${unsafeStatic(children)}`);
-				yield templateEnd;
-			}
-			const stream = new RenderResultReadable(streamBody());
-			const transformedResponse = await this.htmlTransformer.transform(
-				new Response(stream as any, {
-					headers: { 'Content-Type': 'text/html' },
-				}),
-			);
-
-			return this.createHtmlResponse(transformedResponse.body as BodyInit, ctx);
+			return this.createHtmlResponse(body, ctx);
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
 		}

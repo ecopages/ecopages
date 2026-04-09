@@ -141,6 +141,7 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 		super({
 			name: PLUGIN_NAME,
 			extensions,
+			jsxImportSource: 'react',
 			...restOptions,
 		});
 

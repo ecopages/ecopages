@@ -19,7 +19,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { parseSync } from 'oxc-parser';
-import { analyzeReachability } from './reachability-analyzer';
+import { analyzeReachability } from './reachability-analyzer.ts';
 
 const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
 const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
@@ -824,7 +824,7 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 				if (!modified) return undefined;
 
 				const ext = extname(args.path).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';
-				return { contents: transformed, loader: ext };
+				return { contents: transformed, loader: ext, resolveDir: dirname(args.path) };
 			});
 		},
 	};

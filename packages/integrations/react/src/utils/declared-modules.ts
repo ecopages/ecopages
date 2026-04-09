@@ -91,7 +91,7 @@ export function collectPageDeclaredModulesFromModule(pageModule: PageConfigModul
  */
 export async function collectPageDeclaredModules(pagePath: string): Promise<string[]> {
 	try {
-		const pageModule = (await import(pagePath)) as PageConfigModule;
+		const pageModule = (await import(/* @vite-ignore */ pagePath)) as PageConfigModule;
 		return collectPageDeclaredModulesFromModule(pageModule);
 	} catch {
 		return [];

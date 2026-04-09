@@ -106,7 +106,7 @@ export class ReactPageModuleService {
 			throw new Error(`No compiled MDX output generated for page: ${filePath}`);
 		}
 
-		return await import(pathToFileURL(compiledOutput).href);
+		return await import(/* @vite-ignore */ pathToFileURL(compiledOutput).href);
 	}
 
 	/**

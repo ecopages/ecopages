@@ -13,6 +13,7 @@ import {
 	getReactClientGraphAllowSpecifiers,
 	getReactRuntimeExternalSpecifiers,
 } from '../utils/react-runtime-specifier-map.ts';
+import { createForeignJsxOverridePlugin } from '../utils/foreign-jsx-override-plugin.ts';
 import { createUseSyncExternalStoreShimPlugin } from '../utils/use-sync-external-store-shim-plugin.ts';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
@@ -26,6 +27,8 @@ export interface ReactBundleServiceConfig {
 	rootDir: string;
 	routerAdapter?: ReactRouterAdapter;
 	mdxCompilerOptions?: CompileOptions;
+	nonReactExtensions?: string[];
+	jsxImportSource?: string;
 }
 
 /**
@@ -81,6 +84,10 @@ export class ReactBundleService {
 			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers([], this.config.routerAdapter),
 		});
 
+		const foreignJsxOverridePlugin = createForeignJsxOverridePlugin(this.config.nonReactExtensions ?? [], {
+			name: 'react-renderer-foreign-jsx-override',
+			jsxImportSource: this.config.jsxImportSource ?? 'react',
+		});
 		const runtimeAliasPlugin = this.createRuntimeAliasPlugin(runtimeSpecifierMap);
 		const useSyncExternalStoreShimPlugin = createUseSyncExternalStoreShimPlugin({
 			name: 'react-renderer-use-sync-external-store-shim',
@@ -90,9 +97,20 @@ export class ReactBundleService {
 		if (isMdx && this.config.mdxCompilerOptions) {
 			const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
 			const mdxPlugin = createReactMdxLoaderPlugin(this.config.mdxCompilerOptions);
-			options.plugins = [graphBoundaryPlugin, runtimeAliasPlugin, mdxPlugin, useSyncExternalStoreShimPlugin];
+			options.plugins = [
+				foreignJsxOverridePlugin,
+				graphBoundaryPlugin,
+				runtimeAliasPlugin,
+				mdxPlugin,
+				useSyncExternalStoreShimPlugin,
+			];
 		} else {
-			options.plugins = [graphBoundaryPlugin, runtimeAliasPlugin, useSyncExternalStoreShimPlugin];
+			options.plugins = [
+				foreignJsxOverridePlugin,
+				graphBoundaryPlugin,
+				runtimeAliasPlugin,
+				useSyncExternalStoreShimPlugin,
+			];
 		}
 
 		return options;

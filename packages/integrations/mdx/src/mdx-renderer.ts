@@ -82,29 +82,13 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return await this.resolveDependencies(components);
 	}
 
-	protected override async importPageFile(file: string): Promise<
-		EcoPageFile<{
-			layout?:
-				| EcoComponent<any>
-				| {
-						config: EcoComponentConfig | undefined;
-				  };
-		}>
-	> {
+	protected override normalizeImportedPageFile<TPageModule extends EcoPageFile>(
+		_file: string,
+		pageModule: TPageModule,
+	): TPageModule {
 		try {
-			const {
-				default: Page,
-				config,
-				getMetadata,
-			} = (await super.importPageFile(file)) as EcoPageFile<{
-				layout?:
-					| EcoComponent<any>
-					| {
-							config: EcoComponentConfig | undefined;
-					  };
-			}> & {
-				config?: EcoComponentConfig;
-			};
+			const mdxModule = pageModule as TPageModule & { config?: EcoComponentConfig };
+			const { default: Page, config, getMetadata } = mdxModule;
 
 			if (typeof Page !== 'function') {
 				throw new Error('MDX file must export a default function');
@@ -115,10 +99,11 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 			if (config) Page.config = config;
 
 			return {
+				...pageModule,
 				default: Page,
 				layout: resolvedLayout,
 				getMetadata,
-			};
+			} as TPageModule;
 		} catch (error) {
 			invariant(false, `Error importing MDX file: ${error}`);
 		}

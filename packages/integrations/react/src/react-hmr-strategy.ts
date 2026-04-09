@@ -326,12 +326,38 @@ export class ReactHmrStrategy extends HmrStrategy {
 				return false;
 			}
 
-			const processed = await this.processOutput(tempFile, outputPath, outputUrl);
+			const resolvedTempFile = await this.resolveTempOutputPath(tempFile);
+			if (!resolvedTempFile) {
+				appLogger.debug(`Skipping stale temp output for ${outputUrl}: ${tempFile}`);
+				return false;
+			}
+
+			const processed = await this.processOutput(resolvedTempFile, outputPath, outputUrl);
 			return processed;
 		} catch (error) {
 			appLogger.error(`Error bundling ${entrypointPath}:`, error as Error);
 			return false;
 		}
+	}
+
+	private async resolveTempOutputPath(tempPath: string): Promise<string | null> {
+		if (fileSystem.exists(tempPath)) {
+			return tempPath;
+		}
+
+		if (!tempPath.includes('[hash]')) {
+			return tempPath;
+		}
+
+		const directory = path.dirname(tempPath);
+		const pattern = path.basename(tempPath).replaceAll('[hash]', '*');
+		const matches = await fileSystem.glob([pattern], { cwd: directory });
+
+		if (matches.length === 0) {
+			return null;
+		}
+
+		return path.isAbsolute(matches[0]!) ? matches[0]! : path.join(directory, matches[0]!);
 	}
 
 	/**

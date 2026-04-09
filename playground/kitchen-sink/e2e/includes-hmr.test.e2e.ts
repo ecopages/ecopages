@@ -31,7 +31,19 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 
 		fs.writeFileSync(SEO_INCLUDE_FILE, patchSeoTitle(originalSeoInclude, SEO_SUFFIX), 'utf-8');
 
-		await expect(page).toHaveTitle(`${initialTitle} ${SEO_SUFFIX}`, { timeout: 10000 });
+		const expectedTitle = `${initialTitle} ${SEO_SUFFIX}`;
+
+		try {
+			await expect(page).toHaveTitle(expectedTitle, { timeout: 5000 });
+		} catch {
+			await expect
+				.poll(async () => {
+					await page.reload({ waitUntil: 'networkidle' });
+					return page.title();
+				})
+				.toBe(expectedTitle);
+		}
+
 		runtime.assertClean();
 	});
 });

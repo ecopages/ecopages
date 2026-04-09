@@ -196,6 +196,34 @@ export async function fetchCurrentPageModule(page: Page) {
 	};
 }
 
+export async function settleOnRoute(options: {
+	page: Page;
+	href: string;
+	content: Locator;
+	navigate: () => Promise<unknown>;
+	attempts?: number;
+}) {
+	const { page, href, content, navigate, attempts = 3 } = options;
+	const targetUrl = new URL(href, page.url());
+
+	for (let attempt = 0; attempt < attempts; attempt += 1) {
+		try {
+			await expect(page).toHaveURL(new RegExp(`${targetUrl.pathname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), {
+				timeout: 2000,
+			});
+			await expect(content).toBeVisible({ timeout: 2000 });
+			return;
+		} catch (error) {
+			if (attempt === attempts - 1) {
+				throw error;
+			}
+
+			await navigate();
+			await page.waitForLoadState('networkidle').catch(() => undefined);
+		}
+	}
+}
+
 /**
  * Extracts static and dynamic module specifiers from an ESM source string.
  */

@@ -5,10 +5,12 @@ import path from 'node:path';
 import {
 	defaultBuildAdapter,
 	getAppBuildAdapter,
+	getAppBuildOwnership,
 	getAppBrowserBuildPlugins,
 	getAppBuildManifest,
+	ViteHostBuildAdapter,
 } from '../build/build-adapter.ts';
-import { getAppNodeRuntimeManifest } from '../services/runtime-manifest/node-runtime-manifest.service.ts';
+import { createVitePluginsFromAppSourceTransforms } from '../plugins/source-transform.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
@@ -56,21 +58,45 @@ describe('EcoConfigBuilder', () => {
 		const config = await builder.setRootDir('/project').build();
 
 		expect(config.runtime?.buildExecutor).toBeDefined();
+		expect(getAppBuildOwnership(config)).toBe('bun-native');
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
 		expect(config.runtime?.buildExecutor).not.toBe(defaultBuildAdapter);
 		expect(getAppBuildManifest(config).loaderPlugins.length).toBeGreaterThan(0);
 		expect(getAppBrowserBuildPlugins(config).length).toBeGreaterThan(0);
+		expect(config.sourceTransforms.size).toBeGreaterThan(0);
+		expect(createVitePluginsFromAppSourceTransforms(config).length).toBeGreaterThan(0);
 		expect(config.runtime?.serverInvalidationState).toBeDefined();
 		expect(config.runtime?.entrypointDependencyGraph).toBeDefined();
-		expect(config.runtime?.nodeRuntimeManifest).toBeDefined();
 		expect(config.runtime?.runtimeSpecifierRegistry).toBeDefined();
-		expect(getAppNodeRuntimeManifest(config)).toMatchObject({
-			runtime: 'node',
-			appRootDir: '/project',
-			modulePaths: {
-				config: path.join('/project', 'eco.config.ts'),
-			},
-		});
+	});
+
+	test('should allow explicit Vite-host build ownership during config build', async () => {
+		const config = await builder.setRootDir('/project').setBuildOwnership('vite-host').build();
+
+		expect(getAppBuildOwnership(config)).toBe('vite-host');
+		expect(getAppBuildAdapter(config)).toBeInstanceOf(ViteHostBuildAdapter);
+		expect(config.runtime?.buildExecutor).toBeDefined();
+	});
+
+	test('should allow explicit app-owned source transforms for Vite-oriented bundlers', async () => {
+		const config = await builder
+			.setBaseUrl('https://example.com')
+			.setRootDir('/project')
+			.setSourceTransforms([
+				{
+					name: 'test-source-transform',
+					filter: /entry\.tsx$/,
+					transform(code) {
+						return { code: `/* source transform */\n${code}` };
+					},
+				},
+			])
+			.build();
+
+		expect(config.sourceTransforms.has('test-source-transform')).toBe(true);
+		expect(
+			createVitePluginsFromAppSourceTransforms(config).some((plugin) => plugin.name === 'test-source-transform'),
+		).toBe(true);
 	});
 
 	test('should finalize processor and integration manifest contributions during config build', async () => {

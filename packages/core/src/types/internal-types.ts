@@ -1,14 +1,16 @@
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { AppBuildManifest } from '../build/build-manifest.ts';
-import type { BuildAdapter, BuildExecutor } from '../build/build-adapter.ts';
+import type { BuildAdapter, BuildExecutor, BuildOwnership } from '../build/build-adapter.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
+import type { EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { PageMetadataProps } from './public-types.ts';
 import type { FSRouter } from '../router/server/fs-router.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import type { DevGraphService } from '../services/runtime-state/dev-graph.service.ts';
+import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
+import type { SourceModuleLoader } from '../services/module-loading/module-loading-types.ts';
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import type { NodeRuntimeManifest } from '../services/runtime-manifest/node-runtime-manifest.service.ts';
 import type { RuntimeSpecifierRegistry } from '../services/runtime-state/runtime-specifier-registry.service.ts';
 import type { ServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
@@ -129,6 +131,11 @@ export type EcoPagesAppConfig = {
 	 */
 	loaders: Map<string, EcoBuildPlugin>;
 	/**
+	 * App-owned source transforms that can be adapted into Vite or other
+	 * transform-first bundlers without going through the legacy loader bridge.
+	 */
+	sourceTransforms: Map<string, EcoSourceTransform>;
+	/**
 	 * Cache configuration for ISR and page caching.
 	 * @default { store: 'memory', defaultStrategy: 'static', enabled: true }
 	 */
@@ -141,12 +148,15 @@ export type EcoPagesAppConfig = {
 	 * process-global registries.
 	 */
 	runtime?: {
+		appModuleLoader?: AppModuleLoader;
+		buildOwnership?: BuildOwnership;
 		buildAdapter?: BuildAdapter;
 		buildManifest?: AppBuildManifest;
 		buildExecutor?: BuildExecutor;
 		devGraphService?: DevGraphService;
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
-		nodeRuntimeManifest?: NodeRuntimeManifest;
+		hostModuleLoader?: SourceModuleLoader;
+		rendererModuleContext?: unknown;
 		runtimeSpecifierRegistry?: RuntimeSpecifierRegistry;
 		serverInvalidationState?: ServerInvalidationState;
 		serverModuleTranspiler?: ServerModuleTranspiler;

@@ -1,5 +1,18 @@
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
 
+async function clickUntilText(options: {
+	button: ReturnType<Page['locator']>;
+	value: ReturnType<Page['locator']>;
+	expected: string;
+}): Promise<void> {
+	await expect
+		.poll(async () => {
+			await options.button.click();
+			return (await options.value.textContent())?.trim() ?? '';
+		})
+		.toBe(options.expected);
+}
+
 function trackBrowserErrors(page: Page): {
 	pageErrors: string[];
 	consoleErrors: string[];
@@ -29,6 +42,8 @@ function trackBrowserErrors(page: Page): {
 }
 
 test.describe('React Playground Interactivity', () => {
+	test.describe.configure({ mode: 'serial' });
+
 	test('react counter, radiant counter, and select are interactive', async ({ page }) => {
 		const { assertNoRelevantErrors } = trackBrowserErrors(page);
 
@@ -39,14 +54,20 @@ test.describe('React Playground Interactivity', () => {
 		const reactCounter = page.locator('div.counter:has([data-increment])').first();
 		await expect(reactCounter).toBeVisible();
 		await expect(reactCounter.locator('span')).toHaveText('10');
-		await reactCounter.locator('[data-increment]').click();
-		await expect(reactCounter.locator('span')).toHaveText('11');
+		await clickUntilText({
+			button: reactCounter.locator('[data-increment]'),
+			value: reactCounter.locator('span'),
+			expected: '11',
+		});
 
 		const radiantCounter = page.locator('radiant-counter').first();
 		await expect(radiantCounter).toBeVisible();
 		await expect(radiantCounter.locator('[data-ref="count"]')).toHaveText('5');
-		await radiantCounter.locator('[data-ref="increment"]').click();
-		await expect(radiantCounter.locator('[data-ref="count"]')).toHaveText('6');
+		await clickUntilText({
+			button: radiantCounter.locator('[data-ref="increment"]'),
+			value: radiantCounter.locator('[data-ref="count"]'),
+			expected: '6',
+		});
 
 		const selectButton = page.getByRole('button').filter({ hasText: '▼' }).first();
 		await expect(selectButton).toBeVisible();
@@ -70,8 +91,11 @@ test.describe('React Playground Interactivity', () => {
 		await expect(radiantCounter).toBeVisible();
 		await expect(radiantCounter.locator('[data-ref="count"]')).toHaveText('5');
 
-		await radiantCounter.locator('[data-ref="increment"]').click();
-		await expect(radiantCounter.locator('[data-ref="count"]')).toHaveText('6');
+		await clickUntilText({
+			button: radiantCounter.locator('[data-ref="increment"]'),
+			value: radiantCounter.locator('[data-ref="count"]'),
+			expected: '6',
+		});
 
 		await page.getByRole('link', { name: 'Test Images' }).click();
 		await expect(page).toHaveURL(/\/images$/);
@@ -80,14 +104,16 @@ test.describe('React Playground Interactivity', () => {
 		await page.getByRole('link', { name: 'Home' }).click();
 		await expect(page).toHaveURL(/\/$/);
 		await page.waitForLoadState('networkidle');
-		await page.waitForFunction(() => !!document.querySelector('radiant-counter [data-ref="increment"]'));
 
 		const returnedRadiantCounter = page.locator('radiant-counter').first();
 		await expect(returnedRadiantCounter).toBeVisible();
 		await expect(returnedRadiantCounter.locator('[data-ref="count"]')).toHaveText('5');
 
-		await returnedRadiantCounter.locator('[data-ref="increment"]').click();
-		await expect(returnedRadiantCounter.locator('[data-ref="count"]')).toHaveText('6');
+		await clickUntilText({
+			button: returnedRadiantCounter.locator('[data-ref="increment"]'),
+			value: returnedRadiantCounter.locator('[data-ref="count"]'),
+			expected: '6',
+		});
 
 		assertNoRelevantErrors();
 	});

@@ -78,18 +78,27 @@ type ComponentRenderContextState = {
 
 const GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY = '__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__';
 
+function getSharedContextScope(): Record<string, unknown> {
+	const globalProcess = globalThis.process as (NodeJS.Process & Record<string, unknown>) | undefined;
+	if (globalProcess && typeof globalProcess === 'object') {
+		return globalProcess;
+	}
+
+	return globalThis as Record<string, unknown>;
+}
+
 function getComponentRenderContextState(): ComponentRenderContextState {
-	const globalScope = globalThis as typeof globalThis & {
+	const sharedScope = getSharedContextScope() as typeof globalThis & {
 		__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__?: ComponentRenderContextState;
 	};
 
-	globalScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY] ??= {
+	sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY] ??= {
 		contextStack: [],
 		nodeContextStorage: null,
 		nodeContextStorageLoader: null,
 	};
 
-	return globalScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY];
+	return sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY];
 }
 
 /**

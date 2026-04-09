@@ -30,8 +30,109 @@ import type {
 } from './eco.types.ts';
 import { createNodeId, createPropsRef, createSlotRef, getComponentRenderContext } from './component-render-context.ts';
 import { createComponentMarker, parseComponentMarkers } from '../route-renderer/component-graph/component-marker.ts';
-import { getComponentReference } from '../route-renderer/component-graph/component-reference.ts';
+import {
+	getComponentReference,
+	registerRuntimeComponentHint,
+} from '../route-renderer/component-graph/component-reference.ts';
 import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './eco.utils.ts';
+
+type MarkerSerializableTemplateLike = {
+	strings: readonly string[];
+	values?: readonly unknown[];
+};
+
+function isMarkerSerializableTemplateLike(value: unknown): value is MarkerSerializableTemplateLike {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		Array.isArray((value as { strings?: unknown }).strings) &&
+		((value as { values?: unknown }).values === undefined || Array.isArray((value as { values?: unknown }).values))
+	);
+}
+
+function serializeDeferredChildren(value: unknown, seen = new Set<object>()): string | undefined {
+	if (typeof value === 'string') {
+		return value;
+	}
+
+	if (typeof value === 'number' || typeof value === 'bigint') {
+		return String(value);
+	}
+
+	if (typeof value === 'boolean' || value == null) {
+		return '';
+	}
+
+	if (Array.isArray(value)) {
+		return value.map((item) => serializeDeferredChildren(item, seen) ?? '').join('');
+	}
+
+	if (isMarkerSerializableTemplateLike(value)) {
+		const values = value.values ?? [];
+		let html = '';
+
+		for (let index = 0; index < value.strings.length; index += 1) {
+			html += value.strings[index] ?? '';
+			if (index < values.length) {
+				html += serializeDeferredChildren(values[index], seen) ?? '';
+			}
+		}
+
+		return html;
+	}
+
+	if (typeof value === 'object' && value !== null) {
+		if (seen.has(value)) {
+			return '';
+		}
+
+		seen.add(value);
+		const serialized = Object.values(value as Record<string, unknown>)
+			.map((entry) => serializeDeferredChildren(entry, seen) ?? '')
+			.join('');
+		seen.delete(value);
+
+		return serialized.length > 0 ? serialized : undefined;
+	}
+
+	return undefined;
+}
+
+function getRuntimeComponentHint(render: unknown, options: ComponentOptions<unknown, unknown>): string | undefined {
+	const stack = new Error().stack;
+	if (stack) {
+		for (const line of stack.split('\n').slice(1)) {
+			const trimmed = line.trim();
+			if (
+				trimmed.includes('/packages/core/src/eco/eco.ts') ||
+				trimmed.includes('createComponentFactory') ||
+				trimmed.includes('component (') ||
+				trimmed.includes('layout (') ||
+				trimmed.includes('html (') ||
+				trimmed.includes('page (')
+			) {
+				continue;
+			}
+
+			const match = trimmed.match(/(?:at\s+.*?\()?(.+?:\d+:\d+)\)?$/);
+			if (match?.[1]) {
+				return match[1];
+			}
+		}
+	}
+
+	const renderSignature = typeof render === 'function' ? render.toString() : undefined;
+	if (!renderSignature) {
+		return undefined;
+	}
+
+	return JSON.stringify({
+		integration: options.integration,
+		render: renderSignature,
+		stylesheets: options.dependencies?.stylesheets,
+		scripts: options.dependencies?.scripts,
+	});
+}
 
 /**
  * Creates a component factory with lazy-trigger support and deferred-boundary
@@ -65,12 +166,14 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 			const componentRef = getComponentReference(comp);
 
 			const componentProps = (props ?? {}) as Record<string, unknown>;
-			renderContext.propsByRef[propsRef] = componentProps;
+			const storedProps = { ...componentProps };
+			const serializedChildren = serializeDeferredChildren(componentProps.children);
+			renderContext.propsByRef[propsRef] =
+				serializedChildren === undefined ? storedProps : { ...storedProps, children: serializedChildren };
 
 			let slotRef: string | undefined;
-			const children = componentProps.children;
-			if (typeof children === 'string' && children.includes('<eco-marker')) {
-				const childMarkers = parseComponentMarkers(children);
+			if (typeof serializedChildren === 'string' && serializedChildren.includes('<eco-marker')) {
+				const childMarkers = parseComponentMarkers(serializedChildren);
 				if (childMarkers.length > 0) {
 					slotRef = createSlotRef(renderContext);
 					renderContext.slotChildrenByRef[slotRef] = childMarkers.map((marker) => marker.nodeId);
@@ -114,6 +217,11 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 		integration: options.integration,
 		dependencies: options.dependencies,
 	};
+
+	const runtimeHint = getRuntimeComponentHint(options.render, options as ComponentOptions<unknown, unknown>);
+	if (runtimeHint) {
+		registerRuntimeComponentHint(comp, runtimeHint);
+	}
 
 	return comp;
 }

@@ -51,6 +51,7 @@
 			"types": "./src/index.ts"
 		},
 		"./create-app": {
+			"import": "./src/adapters/create-app.ts",
 			"types": "./src/adapters/create-app.ts",
 			"default": "./src/adapters/create-app.ts"
 		},
@@ -75,6 +76,7 @@
 			"default": "./src/errors/locals-access-error.ts"
 		},
 		"./eco": {
+			"browser": "./src/eco/eco.browser.ts",
 			"types": "./src/eco/eco.ts",
 			"default": "./src/eco/eco.ts"
 		},
@@ -111,6 +113,18 @@
 			"types": "./src/services/assets/asset-processing-service/index.ts",
 			"default": "./src/services/assets/asset-processing-service/index.ts"
 		},
+		"./services/invalidation/development-invalidation.service": {
+			"types": "./src/services/invalidation/development-invalidation.service.ts",
+			"default": "./src/services/invalidation/development-invalidation.service.ts"
+		},
+		"./services/module-loading/app-server-module-transpiler.service": {
+			"types": "./src/services/module-loading/app-server-module-transpiler.service.ts",
+			"default": "./src/services/module-loading/app-server-module-transpiler.service.ts"
+		},
+		"./services/module-loading/vite-environment-host-module-loader.service": {
+			"types": "./src/services/module-loading/vite-environment-host-module-loader.service.ts",
+			"default": "./src/services/module-loading/vite-environment-host-module-loader.service.ts"
+		},
 		"./utils/deep-merge": {
 			"types": "./src/utils/deep-merge.ts",
 			"default": "./src/utils/deep-merge.ts"
@@ -131,6 +145,10 @@
 			"types": "./src/plugins/integration-plugin.ts",
 			"default": "./src/plugins/integration-plugin.ts"
 		},
+		"./plugins/source-transform": {
+			"types": "./src/plugins/source-transform.ts",
+			"default": "./src/plugins/source-transform.ts"
+		},
 		"./build/build-types": {
 			"types": "./src/build/build-types.ts",
 			"default": "./src/build/build-types.ts"
@@ -146,22 +164,6 @@
 		"./adapters/bun/client-bridge": {
 			"types": "./src/adapters/bun/client-bridge.ts",
 			"default": "./src/adapters/bun/client-bridge.ts"
-		},
-		"./node": {
-			"types": "./src/adapters/node/index.ts",
-			"default": "./src/adapters/node/index.ts"
-		},
-		"./node/server-adapter": {
-			"types": "./src/adapters/node/server-adapter.ts",
-			"default": "./src/adapters/node/server-adapter.ts"
-		},
-		"./node/create-app": {
-			"types": "./src/adapters/node/create-app.ts",
-			"default": "./src/adapters/node/create-app.ts"
-		},
-		"./node/runtime-adapter": {
-			"types": "./src/adapters/node/runtime-adapter.ts",
-			"default": "./src/adapters/node/runtime-adapter.ts"
 		},
 		"./html": {
 			"import": "./src/utils/html.ts",

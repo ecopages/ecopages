@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ViteHostBuildAdapter } from '../../build/build-adapter.ts';
 import { BrowserBundleService } from './browser-bundle.service.ts';
 
 describe('BrowserBundleService', () => {
@@ -10,6 +11,13 @@ describe('BrowserBundleService', () => {
 		}));
 		const service = new BrowserBundleService({
 			runtime: {
+				buildAdapter: {
+					getTranspileOptions: () => ({
+						target: 'browser',
+						format: 'esm',
+						sourcemap: 'none',
+					}),
+				},
 				buildExecutor: { build },
 			},
 			loaders: new Map(),
@@ -32,5 +40,27 @@ describe('BrowserBundleService', () => {
 				sourcemap: 'none',
 			}),
 		);
+	});
+
+	it('fails fast when a Vite-hosted app tries to use the Bun browser bundle seam', async () => {
+		const service = new BrowserBundleService({
+			runtime: {
+				buildAdapter: new ViteHostBuildAdapter(),
+				buildExecutor: {
+					build: vi.fn(),
+				},
+			},
+			loaders: new Map(),
+		} as any);
+
+		await expect(
+			service.bundle({
+				profile: 'browser-script',
+				entrypoints: ['/tmp/entry.ts'],
+				outdir: '/tmp/out',
+				minify: false,
+				naming: '[name].js',
+			}),
+		).rejects.toThrow(/Vite-hosted builds are owned by the host runtime/);
 	});
 });

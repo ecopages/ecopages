@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ConfigBuilder } from '../../config/config-builder.js';
 import { Processor } from '../../plugins/processor.js';
 import { DevelopmentInvalidationService } from './development-invalidation.service.ts';
@@ -64,12 +64,22 @@ describe('DevelopmentInvalidationService', () => {
 		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
 		const devGraphService = new InMemoryDevGraphService();
 		setAppDevGraphService(appConfig, devGraphService);
+		const invalidateDevelopmentGraph = vi.fn(() => {});
+		appConfig.runtime = {
+			...(appConfig.runtime ?? {}),
+			appModuleLoader: {
+				owner: 'bun',
+				importModule: async <T = unknown>() => ({}) as T,
+				invalidateDevelopmentGraph,
+			},
+		};
 		const service = new DevelopmentInvalidationService(appConfig);
 
 		expect(service.getServerModuleInvalidationVersion()).toBe(0);
 
 		service.invalidateServerModules(['/test/project/src/components/Button.tsx']);
 		expect(service.getServerModuleInvalidationVersion()).toBe(1);
+		expect(invalidateDevelopmentGraph).toHaveBeenCalledTimes(1);
 
 		service.resetRuntimeState(['/test/project/src/pages/index.tsx']);
 		expect(service.getServerModuleInvalidationVersion()).toBe(3);

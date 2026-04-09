@@ -170,7 +170,6 @@ export class AssetProcessingService {
 	 */
 	private async processDependenciesParallel(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
 		const grouped = this.groupDependenciesByType(deps);
-
 		const groupPromises = Object.entries(grouped).map(async ([, typeDeps]) => {
 			const typePromises = typeDeps.map(async (dep) => {
 				const depKey = this.getDependencyKey(dep);

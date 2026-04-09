@@ -213,9 +213,6 @@ export class HtmlTransformerService {
 		const { head, body } = this.groupDependenciesByPosition();
 		const htmlRewriter = await this.htmlRewriterProvider.createHtmlRewriter();
 
-		const html = await res.text();
-		const headers = new Headers(res.headers);
-
 		if (htmlRewriter) {
 			htmlRewriter
 				.on('head', {
@@ -225,14 +222,11 @@ export class HtmlTransformerService {
 					element: (element) => this.appendDependencies(element, body),
 				});
 
-			return htmlRewriter.transform(
-				new Response(html, {
-					headers,
-					status: res.status,
-					statusText: res.statusText,
-				}),
-			);
+			return htmlRewriter.transform(res);
 		}
+
+		const html = await res.text();
+		const headers = new Headers(res.headers);
 
 		const withHeadDependencies = this.injectBeforeClosingTag(html, 'head', this.buildDependencyTags(head));
 		const transformedHtml = this.injectBeforeClosingTag(

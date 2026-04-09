@@ -8,6 +8,24 @@ import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	private hmrManager?: IHmrManager;
 
+	private resolveHmrOutputFilepath(entrypointPath: string): string | undefined {
+		if (!this.hmrManager || !('getDistDir' in this.hmrManager)) {
+			return undefined;
+		}
+
+		const getDistDir = this.hmrManager.getDistDir;
+		if (typeof getDistDir !== 'function') {
+			return undefined;
+		}
+
+		const relativePathJs = path
+			.relative(this.appConfig.absolutePaths.srcDir, entrypointPath)
+			.replace(/\.(tsx?|jsx?|mdx?)$/, '.js')
+			.replace(/\[([^\]]+)\]/g, '_$1_');
+
+		return path.join(getDistDir.call(this.hmrManager), relativePathJs);
+	}
+
 	setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
 	}
@@ -18,8 +36,9 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		 */
 		if (this.hmrManager?.isEnabled() && !dep.inline) {
 			const outputUrl = await this.hmrManager.registerScriptEntrypoint(dep.filepath);
+			const outputFilepath = this.resolveHmrOutputFilepath(dep.filepath);
 			return {
-				filepath: dep.filepath,
+				filepath: outputFilepath ?? dep.filepath,
 				srcUrl: outputUrl,
 				kind: 'script',
 				position: dep.position,

@@ -12,7 +12,7 @@ import type {
 	LayoutProps,
 	StaticPath,
 } from '../types/public-types.ts';
-import type { EcoPagesAppConfig } from 'src/types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
 
 const mockAppConfig = {} as EcoPagesAppConfig;
@@ -275,6 +275,142 @@ describe('eco namespace', () => {
 			expect(execution.value).not.toContain('<eco-marker');
 			expect(execution.graphContext.propsByRef).toEqual({});
 			expect(execution.graphContext.slotChildrenByRef).toEqual({});
+		});
+
+		test('should serialize structured deferred children and register nested marker slots', async () => {
+			const ReactLeaf = eco.component({
+				integration: 'react',
+				__eco: {
+					id: 'react-leaf',
+					file: '/app/components/react-leaf.react.tsx',
+					integration: 'react',
+				},
+				render: () => '<button>Leaf</button>',
+			});
+
+			const KitaParent = eco.component({
+				integration: 'kitajs',
+				__eco: {
+					id: 'kita-parent',
+					file: '/app/components/kita-parent.kita.tsx',
+					integration: 'kitajs',
+				},
+				render: ({ children }: { children?: unknown }) => `<div>${String(children ?? '')}</div>`,
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					boundaryContext: {
+						decideBoundaryRender: ({ targetIntegration }) =>
+							targetIntegration === 'react' || targetIntegration === 'kitajs' ? 'defer' : 'inline',
+					},
+				},
+				async () => {
+					const childMarker = ReactLeaf({});
+					return KitaParent({
+						children: {
+							strings: ['<section>', '</section>'],
+							values: [childMarker],
+						},
+					});
+				},
+			);
+
+			expect(execution.value).toContain('data-eco-integration="kitajs"');
+			expect(Object.values(execution.graphContext.propsByRef)).toContainEqual(
+				expect.objectContaining({
+					children: expect.stringContaining('<eco-marker'),
+				}),
+			);
+			expect(Object.values(execution.graphContext.slotChildrenByRef)).toContainEqual(['n_1']);
+		});
+
+		test('should recover nested marker slots from generic object-shaped deferred children', async () => {
+			const ReactLeaf = eco.component({
+				integration: 'react',
+				__eco: {
+					id: 'react-leaf',
+					file: '/app/components/react-leaf.react.tsx',
+					integration: 'react',
+				},
+				render: () => '<button>Leaf</button>',
+			});
+
+			const KitaParent = eco.component({
+				integration: 'kitajs',
+				__eco: {
+					id: 'kita-parent',
+					file: '/app/components/kita-parent.kita.tsx',
+					integration: 'kitajs',
+				},
+				render: ({ children }: { children?: unknown }) => `<div>${String(children ?? '')}</div>`,
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					boundaryContext: {
+						decideBoundaryRender: ({ targetIntegration }) =>
+							targetIntegration === 'react' || targetIntegration === 'kitajs' ? 'defer' : 'inline',
+					},
+				},
+				async () => {
+					const childMarker = ReactLeaf({});
+					return KitaParent({
+						children: {
+							parts: [
+								'<section>',
+								{
+									deep: {
+										marker: childMarker,
+									},
+								},
+								'</section>',
+							],
+						},
+					});
+				},
+			);
+
+			expect(execution.value).toContain('data-eco-integration="kitajs"');
+			expect(Object.values(execution.graphContext.propsByRef)).toContainEqual(
+				expect.objectContaining({
+					children: expect.stringContaining('<eco-marker'),
+				}),
+			);
+			expect(Object.values(execution.graphContext.slotChildrenByRef)).toContainEqual(['n_1']);
+		});
+
+		test('should store deferred marker props as detached plain objects', async () => {
+			const ReactLeaf = eco.component<{ title: string }>({
+				integration: 'react',
+				__eco: {
+					id: 'react-leaf-detached-props',
+					file: '/app/components/react-leaf-detached-props.react.tsx',
+					integration: 'react',
+				},
+				render: ({ title }) => `<button>${title}</button>`,
+			});
+
+			const inputProps = { title: 'alpha' };
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					boundaryContext: {
+						decideBoundaryRender: ({ targetIntegration }) =>
+							targetIntegration === 'react' ? 'defer' : 'inline',
+					},
+				},
+				async () => ReactLeaf(inputProps),
+			);
+
+			inputProps.title = 'beta';
+			const [capturedProps] = Object.values(execution.graphContext.propsByRef);
+
+			expect(capturedProps).toEqual({ title: 'alpha', children: '' });
+			expect(capturedProps).not.toBe(inputProps);
 		});
 
 		test('should share render context across duplicated module instances', async () => {

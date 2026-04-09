@@ -5,6 +5,21 @@
  */
 
 const PRESERVE_SELECTORS = ['script[type="importmap"]', 'meta[charset]', '[data-eco-persist]'];
+const RERUN_SRC_ATTR = 'data-eco-rerun-src';
+
+type PendingRerunScript = {
+	attributes: Array<[string, string]>;
+	textContent: string;
+	scriptId: string | null;
+	src: string | null;
+};
+
+export type HeadMorphResult = {
+	cleanup: () => void;
+	flushRerunScripts: () => void;
+};
+
+let rerunNonce = 0;
 
 function isNonExecutableHeadScript(el: Element): boolean {
 	if (el.tagName !== 'SCRIPT') {
@@ -46,6 +61,15 @@ function shouldPersistExecutableInlineHeadScript(el: Element): boolean {
 	return !isNonExecutableHeadScript(el);
 }
 
+function isRerunScript(el: Element): el is HTMLScriptElement {
+	return el.tagName === 'SCRIPT' && el.hasAttribute('data-eco-rerun');
+}
+
+function isHydrationScript(el: HTMLScriptElement): boolean {
+	const src = el.getAttribute('src');
+	return !!src && src.includes('hydration.js') && src.includes('ecopages-react');
+}
+
 /**
  * Computes a unique key for a head element to enable diffing.
  * Elements with the same key are considered the same across navigations.
@@ -75,7 +99,7 @@ function getHeadElementKey(el: Element): string | null {
 			if (el.getAttribute('type') === 'importmap') return 'importmap';
 			const scriptId = el.getAttribute('data-eco-script-id') || el.getAttribute('id');
 			if (scriptId) return `script-id:${scriptId}`;
-			const src = (el as HTMLScriptElement).src;
+			const src = el.getAttribute(RERUN_SRC_ATTR) || (el as HTMLScriptElement).src;
 			return src ? `script:${src}` : null;
 		}
 
@@ -96,9 +120,9 @@ function getHeadElementKey(el: Element): string | null {
  * don't disappear before the "old" snapshot is taken.
  *
  * @param newDocument - The parsed document from the navigation target
- * @returns Promise that resolves to a cleanup function when new stylesheets have loaded
+ * @returns Promise that resolves to cleanup and rerun hooks when new stylesheets have loaded
  */
-export async function morphHead(newDocument: Document): Promise<() => void> {
+export async function morphHead(newDocument: Document): Promise<HeadMorphResult> {
 	const currentHead = document.head;
 	const newHead = newDocument.head;
 
@@ -106,6 +130,14 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 	const newElements = new Map<string, Element>();
 	const stylesheetPromises: Promise<void>[] = [];
 	const elementsToRemove: Element[] = [];
+	const pendingRerunScripts = Array.from(newHead.querySelectorAll<HTMLScriptElement>('script[data-eco-rerun]'))
+		.filter((script) => !isHydrationScript(script))
+		.map((script) => ({
+			attributes: Array.from(script.attributes).map((attr) => [attr.name, attr.value] as [string, string]),
+			textContent: script.textContent ?? '',
+			scriptId: script.getAttribute('data-eco-script-id'),
+			src: script.getAttribute('src'),
+		}));
 
 	/**
 	 * First, map existing head elements by their keys
@@ -131,19 +163,16 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 	for (const [key, newEl] of newElements) {
 		const currentEl = currentElements.get(key);
 
+		if (isRerunScript(newEl)) {
+			continue;
+		}
+
 		if (!currentEl) {
-			const src = newEl.getAttribute('src');
 			/**
-			 * Skip hydration scripts during SPA navigation to prevent re-mounting
-			 *
-			 * In an SPA transition, the EcoRouter is already running and handling the page update.
-			 * The new page's HTML includes a hydration script (for initial load support), but
-			 * if we let it execute now, it would re-bootstrap the React app from scratch,
-			 * causing a full re-mount, state loss, and a visual flash.
-			 *
-			 * By blocking this script, we ensure the router maintains control and state.
+			 * Skip hydration scripts during SPA navigation to prevent re-mounting.
+			 * The EcoRouter is already running and handles page updates internally.
 			 */
-			if (newEl.tagName === 'SCRIPT' && src && src.includes('hydration.js') && src.includes('ecopages-react')) {
+			if (newEl.tagName === 'SCRIPT' && isHydrationScript(newEl as HTMLScriptElement)) {
 				continue;
 			}
 
@@ -176,7 +205,7 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 	 */
 	for (const newEl of Array.from(newHead.children)) {
 		const key = getHeadElementKey(newEl);
-		if (!key) {
+		if (!key && !isRerunScript(newEl)) {
 			currentHead.appendChild(newEl.cloneNode(true));
 		}
 	}
@@ -206,9 +235,67 @@ export async function morphHead(newDocument: Document): Promise<() => void> {
 	 * This allows the caller to control when the removal happens,
 	 * which is important for View Transitions.
 	 */
-	return () => {
-		for (const el of elementsToRemove) {
-			el.remove();
-		}
+	return {
+		cleanup: () => {
+			for (const el of elementsToRemove) {
+				el.remove();
+			}
+		},
+		flushRerunScripts: () => {
+			for (const script of pendingRerunScripts) {
+				const replacement = document.createElement('script');
+				const shouldBustModuleSrc = isExternalModuleRerunScript(script);
+
+				for (const [name, value] of script.attributes) {
+					if (name === 'src' && shouldBustModuleSrc) {
+						replacement.setAttribute(RERUN_SRC_ATTR, value);
+						replacement.setAttribute('src', createRerunScriptUrl(value));
+						continue;
+					}
+
+					replacement.setAttribute(name, value);
+				}
+
+				replacement.textContent = script.textContent;
+
+				const existingScript = findExistingRerunScript(script);
+				if (existingScript) {
+					existingScript.replaceWith(replacement);
+					continue;
+				}
+
+				document.head.appendChild(replacement);
+			}
+		},
 	};
+}
+
+function findExistingRerunScript(script: PendingRerunScript): HTMLScriptElement | null {
+	const scripts = Array.from(document.head.querySelectorAll<HTMLScriptElement>('script'));
+
+	if (script.scriptId) {
+		return scripts.find((candidate) => candidate.getAttribute('data-eco-script-id') === script.scriptId) ?? null;
+	}
+
+	return (
+		scripts.find(
+			(candidate) =>
+				(candidate.getAttribute(RERUN_SRC_ATTR) ?? candidate.getAttribute('src')) === script.src &&
+				(candidate.textContent ?? '') === script.textContent,
+		) ?? null
+	);
+}
+
+function isExternalModuleRerunScript(script: PendingRerunScript): boolean {
+	if (!script.src) {
+		return false;
+	}
+
+	return script.attributes.some(([name, value]) => name === 'type' && value === 'module');
+}
+
+function createRerunScriptUrl(src: string): string {
+	const url = new URL(src, document.baseURI);
+	url.searchParams.set('__eco_rerun', String(++rerunNonce));
+	return url.toString();
 }

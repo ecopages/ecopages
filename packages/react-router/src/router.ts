@@ -383,7 +383,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 				if (result) {
 					const { Component, props, doc, finalPath, moduleUrl } = result;
 					const nextPage = { Component, props };
-					const cleanupHead = await morphHead(doc);
+					const { cleanup: cleanupHead, flushRerunScripts } = await morphHead(doc);
 
 					if (isStale()) {
 						cleanupHead();
@@ -429,6 +429,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 									if (isStale()) {
 										return;
 									}
+									flushRerunScripts();
 									cleanupHead();
 									applyViewTransitionNames();
 								} finally {
@@ -438,8 +439,21 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 						});
 						await navigationCommitPromise;
 					} else {
+						pendingRenderRef.current?.resolve();
+						const renderDfd = createDeferred<void>();
+						pendingRenderRef.current = {
+							navigationId,
+							page: nextPage,
+							resolve: renderDfd.resolve,
+						};
 						commitPageData(moduleUrl, props);
 						setCurrentPage(nextPage);
+						await renderDfd.promise;
+						if (isStale()) {
+							cleanupHead();
+							return;
+						}
+						flushRerunScripts();
 						cleanupHead();
 						applyViewTransitionNames();
 					}

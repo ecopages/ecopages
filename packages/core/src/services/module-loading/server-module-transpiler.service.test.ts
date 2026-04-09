@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import type { BuildResult } from '../../build/build-adapter.js';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { CounterServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
+import { getAppModuleLoader, setAppHostModuleLoader } from './app-server-module-transpiler.service.ts';
 import { ServerModuleTranspiler, type ServerModuleImportDependency } from './server-module-transpiler.service.ts';
 
 function createBuildResult(): BuildResult {
@@ -111,5 +114,112 @@ describe('ServerModuleTranspiler', () => {
 		service.invalidate(['/bootstrap-app/src/pages/index.tsx']);
 
 		assert.equal(fakeImportService.calls.invalidateDevelopmentGraph, 1);
+	});
+
+	it('forwards an abstract host module loader into the default page import service', () => {
+		const hostModuleLoader = async (_id: string) => ({ default: { ok: true } });
+		const service = new ServerModuleTranspiler({
+			rootDir: '/bootstrap-app',
+			getBuildExecutor: () => ({ build: async () => createBuildResult() }),
+			getHostModuleLoader: () => hostModuleLoader,
+		});
+
+		const internal = service as unknown as {
+			pageModuleImportService: { dependencies: { getHostModuleLoader: () => unknown } };
+		};
+
+		assert.equal(internal.pageModuleImportService.dependencies.getHostModuleLoader(), hostModuleLoader);
+	});
+
+	it('reuses one app-owned module loader per app config', () => {
+		const appConfig = {
+			rootDir: '/app',
+			absolutePaths: {
+				pagesDir: '/app/src/pages',
+				includesDir: '/app/src/includes',
+				layoutsDir: '/app/src/layouts',
+				componentsDir: '/app/src/components',
+			},
+			templatesExt: ['.tsx'],
+			runtime: {},
+		} as unknown as EcoPagesAppConfig;
+
+		const firstLoader = getAppModuleLoader(appConfig);
+		const secondLoader = getAppModuleLoader(appConfig);
+
+		assert.equal(firstLoader, secondLoader);
+		assert.equal(firstLoader.owner, 'bun');
+	});
+
+	it('reflects host ownership on the app-owned module loader after runtime wiring changes', () => {
+		const appConfig = {
+			rootDir: '/app',
+			absolutePaths: {
+				pagesDir: '/app/src/pages',
+				includesDir: '/app/src/includes',
+				layoutsDir: '/app/src/layouts',
+				componentsDir: '/app/src/components',
+			},
+			templatesExt: ['.tsx'],
+			runtime: {},
+		} as unknown as EcoPagesAppConfig;
+		const moduleLoader = getAppModuleLoader(appConfig);
+
+		setAppHostModuleLoader(appConfig, async () => ({ default: { ok: true } }));
+
+		assert.equal(moduleLoader.owner, 'host');
+	});
+
+	it('applies the app invalidation version to app-owned module imports', async () => {
+		const calls: Array<unknown> = [];
+		const buildExecutor = { build: async () => createBuildResult() };
+		const appConfig = {
+			rootDir: '/app',
+			absolutePaths: {
+				pagesDir: '/app/src/pages',
+				includesDir: '/app/src/includes',
+				layoutsDir: '/app/src/layouts',
+				componentsDir: '/app/src/components',
+			},
+			templatesExt: ['.tsx'],
+			runtime: {
+				buildExecutor,
+				serverInvalidationState: new CounterServerInvalidationState(),
+			},
+		} as unknown as EcoPagesAppConfig;
+
+		const moduleLoader = getAppModuleLoader(appConfig) as unknown as {
+			pageModuleImportService: {
+				importModule: <T = unknown>(options: unknown) => Promise<T>;
+			};
+		};
+
+		const originalImportModule = moduleLoader.pageModuleImportService.importModule.bind(
+			moduleLoader.pageModuleImportService,
+		);
+		moduleLoader.pageModuleImportService.importModule = async <T = unknown>(options: unknown): Promise<T> => {
+			calls.push(options);
+			return { default: { ok: true } } as T;
+		};
+
+		appConfig.runtime!.serverInvalidationState!.invalidateServerModules(['/app/src/includes/seo.kita.tsx']);
+
+		await getAppModuleLoader(appConfig).importModule({
+			filePath: '/app/src/includes/html.kita.tsx',
+			rootDir: '/app',
+			outdir: '/app/.eco/.server-modules',
+		});
+
+		moduleLoader.pageModuleImportService.importModule = originalImportModule;
+
+		assert.deepEqual(calls, [
+			{
+				filePath: '/app/src/includes/html.kita.tsx',
+				rootDir: '/app',
+				outdir: '/app/.eco/.server-modules',
+				buildExecutor,
+				invalidationVersion: 1,
+			},
+		]);
 	});
 });

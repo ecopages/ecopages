@@ -3,11 +3,13 @@ import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { build, type BuildExecutor, type BuildResult } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 
 export interface PageModuleImportOptions {
 	filePath: string;
 	rootDir: string;
 	outdir: string;
+	bypassCache?: boolean;
 	buildExecutor?: BuildExecutor;
 	invalidationVersion?: number;
 	splitting?: boolean;
@@ -28,6 +30,8 @@ export interface PageModuleImportOptions {
 export interface PageModuleImportDependencies {
 	hashFile(filePath: string): string;
 	buildModule(options: Parameters<typeof build>[0], buildExecutor?: BuildExecutor): Promise<BuildResult>;
+	canLoadSourceModuleFromHost(filePath: string): boolean;
+	getHostModuleLoader: SourceModuleLoaderFactory;
 }
 
 /**
@@ -50,6 +54,8 @@ export class PageModuleImportService {
 		this.dependencies = {
 			hashFile: dependencies?.hashFile ?? ((filePath) => fileSystem.hash(filePath)),
 			buildModule: dependencies?.buildModule ?? ((options, buildExecutor) => build(options, buildExecutor)),
+			canLoadSourceModuleFromHost: dependencies?.canLoadSourceModuleFromHost ?? supportsHostSourceModuleLoading,
+			getHostModuleLoader: dependencies?.getHostModuleLoader ?? (() => undefined),
 		};
 	}
 
@@ -91,7 +97,28 @@ export class PageModuleImportService {
 		const invalidationVersion = options.invalidationVersion ?? this.developmentInvalidationVersion;
 
 		const fileHash = this.dependencies.hashFile(filePath);
-		const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node';
+		const hostModuleLoader =
+			typeof Bun === 'undefined' &&
+			process.env.NODE_ENV === 'development' &&
+			this.dependencies.canLoadSourceModuleFromHost(filePath)
+				? this.dependencies.getHostModuleLoader()
+				: undefined;
+
+		if (hostModuleLoader) {
+			const sourceModuleUrl = createRuntimeModuleUrl(filePath, fileHash, invalidationVersion);
+			return (await hostModuleLoader(sourceModuleUrl.href)) as T;
+		}
+
+		if (options.bypassCache) {
+			this.developmentInvalidationVersion += 1;
+			return await this.loadModule<T>({
+				...options,
+				invalidationVersion: this.developmentInvalidationVersion,
+				fileHash,
+			});
+		}
+
+		const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node-build';
 		const cacheKey = [
 			runtime,
 			filePath,
@@ -127,11 +154,6 @@ export class PageModuleImportService {
 			fileHash: string;
 		},
 	): Promise<T> {
-		/**
-		 * Runtime-specific module loading stays centralized here so callers can share
-		 * one cache-key and invalidation model while still diverging between Bun's
-		 * direct source imports and Node's transpile-then-import path.
-		 */
 		const {
 			filePath,
 			rootDir,
@@ -143,15 +165,10 @@ export class PageModuleImportService {
 			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
 			fileHash,
 		} = options;
+		const sourceModuleUrl = createRuntimeModuleUrl(filePath, fileHash, invalidationVersion);
 
 		if (typeof Bun !== 'undefined') {
-			const moduleUrl = pathToFileURL(filePath);
-
-			if (process.env.NODE_ENV === 'development') {
-				moduleUrl.searchParams.set('update', `${fileHash}-${invalidationVersion}`);
-			}
-
-			return (await import(moduleUrl.href)) as T;
+			return (await import(/* @vite-ignore */ sourceModuleUrl.href)) as T;
 		}
 
 		const fileBaseName = path.basename(filePath, path.extname(filePath));
@@ -195,6 +212,30 @@ export class PageModuleImportService {
 			compiledOutputUrl.searchParams.set('update', `${fileHash}-${invalidationVersion}`);
 		}
 
-		return (await import(compiledOutputUrl.href)) as T;
+		return (await import(/* @vite-ignore */ compiledOutputUrl.href)) as T;
 	}
+}
+
+function createRuntimeModuleUrl(filePath: string, fileHash: string, invalidationVersion: number): URL {
+	const moduleUrl = pathToFileURL(filePath);
+
+	if (process.env.NODE_ENV === 'development') {
+		moduleUrl.searchParams.set('update', `${fileHash}-${invalidationVersion}`);
+	}
+
+	return moduleUrl;
+}
+
+function supportsHostSourceModuleLoading(filePath: string): boolean {
+	const extension = path.extname(filePath);
+	return (
+		extension === '.js' ||
+		extension === '.jsx' ||
+		extension === '.ts' ||
+		extension === '.tsx' ||
+		extension === '.mjs' ||
+		extension === '.mts' ||
+		extension === '.cjs' ||
+		extension === '.cts'
+	);
 }

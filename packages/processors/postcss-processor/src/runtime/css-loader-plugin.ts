@@ -1,7 +1,7 @@
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 
-import { getFileAsBuffer } from '../postcss-processor';
-import type { CssTransform } from './css-runtime-contract';
+import { getFileAsBuffer } from '../postcss-processor.ts';
+import type { CssTransform } from './css-runtime-contract.ts';
 
 type CssLoaderOptions = {
 	name: string;

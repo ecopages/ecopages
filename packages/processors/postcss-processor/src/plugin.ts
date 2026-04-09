@@ -10,9 +10,9 @@ import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processo
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
-import { PostCssProcessor } from './postcss-processor';
-import { createCssLoaderPlugin } from './runtime/css-loader-plugin';
-import type { CssTransformInput } from './runtime/css-runtime-contract';
+import { PostCssProcessor } from './postcss-processor.ts';
+import { createCssLoaderPlugin } from './runtime/css-loader-plugin.ts';
+import type { CssTransformInput } from './runtime/css-runtime-contract.ts';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
 	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
@@ -525,7 +525,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			try {
 				logger.debug(`Loading PostCSS config from: ${foundConfigPath}`);
 
-				const postcssConfigModule = await import(foundConfigPath);
+				const postcssConfigModule = await import(/* @vite-ignore */ foundConfigPath);
 				const postcssConfig = postcssConfigModule.default || postcssConfigModule;
 				if (
 					postcssConfig &&

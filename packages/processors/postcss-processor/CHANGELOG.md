@@ -13,6 +13,7 @@ All notable changes to `@ecopages/postcss-processor` are documented here.
 
 ### Bug Fixes
 
+- Suppressed expected Vite import-analysis warnings when loading PostCSS config files from resolved runtime paths.
 - Rebuilt tracked stylesheets from fresh PostCSS plugin instances on non-CSS source changes so Tailwind-style utility generation picks up template edits without stale caches.
 - Applied `transformInput` during direct stylesheet asset processing so Tailwind v4 page CSS keeps injected `@reference` directives and preserves nested BEM selectors in preview/build output.
 - Disabled Tailwind v4 PostCSS optimization in the official plugin preset so preview/build no longer rewrites nested BEM selectors into invalid output.

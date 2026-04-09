@@ -1,0 +1,47 @@
+:where([data-react-counter], [data-kita-counter]) {
+	--integration-counter-accent: oklch(0.74 0.16 82);
+	--integration-counter-border: color-mix(in oklch, var(--integration-counter-accent) 48%, var(--color-border));
+	--integration-counter-bg: color-mix(
+		in oklch,
+		var(--integration-counter-accent) 20%,
+		var(--color-background-accent)
+	);
+	--integration-counter-text: var(--color-on-background-accent);
+	--integration-counter-button-border: color-mix(
+		in oklch,
+		var(--integration-counter-accent) 42%,
+		var(--color-border)
+	);
+	--integration-counter-button-bg: var(--color-background);
+	--integration-counter-button-text: color-mix(
+		in oklch,
+		var(--integration-counter-accent) 82%,
+		var(--color-on-background)
+	);
+	--integration-counter-button-hover-border: var(--integration-counter-accent);
+	--integration-counter-button-hover-text: color-mix(
+		in oklch,
+		var(--integration-counter-accent) 82%,
+		var(--color-on-background)
+	);
+	@apply inline-flex items-center gap-3 rounded-full px-4 py-2 text-sm;
+	border: 1px solid var(--integration-counter-border);
+	background: var(--integration-counter-bg);
+	color: var(--integration-counter-text);
+}
+
+:where([data-react-counter], [data-kita-counter]) .integration-counter__button {
+	@apply inline-flex h-8 w-8 items-center justify-center rounded-full transition;
+	border: 1px solid var(--integration-counter-button-border);
+	background: var(--integration-counter-button-bg);
+	color: var(--integration-counter-button-text);
+}
+
+:where([data-react-counter], [data-kita-counter]) .integration-counter__button:hover {
+	border-color: var(--integration-counter-button-hover-border);
+	color: var(--integration-counter-button-hover-text);
+}
+
+:where([data-react-counter], [data-kita-counter]) .integration-counter__value {
+	@apply min-w-6 text-center font-mono text-base;
+}

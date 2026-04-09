@@ -18,6 +18,7 @@ These contracts are responsible for:
 - `integration-plugin.ts`: framework-semantics contract for render integrations
 - `processor.ts`: asset-transformation contract for processors
 - `runtime-capability.ts`: runtime compatibility declaration types
+- `source-transform.ts`: bundler-neutral source-transform primitive with Ecopages adapters plus app-level Vite plugin composition helpers
 - `eco-component-meta-plugin.ts`: shared metadata transform used by core loading/build paths
 
 ## Ownership Rules

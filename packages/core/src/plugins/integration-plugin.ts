@@ -41,6 +41,7 @@ export interface IntegrationPluginConfig {
 	 * app can start with this integration enabled.
 	 */
 	runtimeCapability?: RuntimeCapabilityDeclaration;
+	jsxImportSource?: string;
 }
 
 /**
@@ -59,6 +60,7 @@ type RendererClass<C> = new (options: {
 	appConfig: EcoPagesAppConfig;
 	assetProcessingService: AssetProcessingService;
 	resolvedIntegrationDependencies: ProcessedAsset[];
+	rendererModules?: unknown;
 	runtimeOrigin: string;
 }) => IntegrationRenderer<C>;
 
@@ -68,6 +70,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	abstract renderer: RendererClass<C>;
 	readonly staticBuildStep: 'render' | 'fetch';
 	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
+	readonly jsxImportSource?: string;
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
@@ -87,6 +90,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.integrationDependencies = config.integrationDependencies || [];
 		this.staticBuildStep = config.staticBuildStep || 'render';
 		this.runtimeCapability = config.runtimeCapability;
+		this.jsxImportSource = config.jsxImportSource;
 	}
 
 	setConfig(appConfig: EcoPagesAppConfig): void {
@@ -158,7 +162,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		return this.resolvedIntegrationDependencies;
 	}
 
-	initializeRenderer(): IntegrationRenderer<C> {
+	initializeRenderer(options?: { rendererModules?: unknown }): IntegrationRenderer<C> {
 		if (!this.appConfig) {
 			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 		}
@@ -172,8 +176,10 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 			appConfig: this.appConfig,
 			assetProcessingService,
 			resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
+			rendererModules: options?.rendererModules,
 			runtimeOrigin: this.runtimeOrigin,
 		});
+		renderer.name ||= this.name;
 
 		if (this.hmrManager) {
 			renderer.setHmrManager(this.hmrManager);

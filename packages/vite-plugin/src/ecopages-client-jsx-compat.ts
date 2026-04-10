@@ -5,7 +5,7 @@ import type { EcopagesVitePlugin } from './types.ts';
  * Overrides the JSX import source for non-host integration files when served
  * to the browser.
  *
- * Non-host integrations (Lit, KitaJS) compile JSX to HTML strings via their
+ * Non-host integrations (i.e. KitaJS) compile JSX to HTML strings via their
  * own JSX runtimes. When those components are imported inside a host page and
  * the host framework calls their render function during hydration, the string
  * return value is rendered as a text node instead of a DOM element. Prepending

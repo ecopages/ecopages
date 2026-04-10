@@ -2,7 +2,6 @@ import type { HotUpdateOptions, ViteDevServer } from 'vite';
 import { DevelopmentInvalidationService } from '@ecopages/core/services/invalidation/development-invalidation.service';
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import type { EcopagesVitePlugin } from './types.ts';
-import path from 'node:path';
 
 function invalidateFileInServerEnvironments(server: ViteDevServer, filePath: string): void {
 	for (const [name, env] of Object.entries(server.environments)) {

@@ -1,3 +1,4 @@
+import type { ServerResponse } from 'node:http';
 import path from 'node:path';
 import type { Connect, ViteDevServer } from 'vite';
 import type { EcopagesPluginApi } from './plugin-api.ts';
@@ -29,7 +30,7 @@ function toWebRequest(req: Connect.IncomingMessage, baseUrl: string): Request {
 	return new Request(url, init);
 }
 
-async function sendWebResponse(res: Connect.ServerResponse, webResponse: Response): Promise<void> {
+async function sendWebResponse(res: ServerResponse, webResponse: Response): Promise<void> {
 	res.statusCode = webResponse.status;
 	res.statusMessage = webResponse.statusText;
 

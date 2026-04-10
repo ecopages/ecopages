@@ -94,7 +94,7 @@ async function rapidClickHref(
 		}
 
 		if (attempt < 2) {
-			await page.waitForTimeout(100);
+			await page.waitForTimeout(100).catch(() => undefined);
 		}
 	}
 

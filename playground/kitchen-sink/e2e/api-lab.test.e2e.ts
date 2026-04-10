@@ -2,7 +2,9 @@ import { expect, test } from '@playwright/test';
 import { clickHrefAndWait, gotoAndWait, trackRuntimeErrors } from './helpers';
 
 test.describe('Kitchen Sink Playground API Lab', () => {
-	test('rebinds the API lab browser script after navigation and still executes commands', async ({ page }) => {
+	test('rebinds the API lab browser script after navigation and still executes host API commands', async ({
+		page,
+	}) => {
 		const runtime = trackRuntimeErrors(page);
 
 		await gotoAndWait(page, '/api-lab');
@@ -23,7 +25,7 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 			page.getByRole('heading', { name: 'Render every integration through every other one.' }),
 		).toBeVisible();
 
-		await clickHrefAndWait(page, '/api-lab');
+		await gotoAndWait(page, '/api-lab');
 		await expect(page.getByRole('heading', { name: 'Handlers registered directly from app.ts' })).toBeVisible();
 		await expect(page.locator('[data-response-body]')).toContainText('Click Run to execute the selected command.');
 
@@ -37,7 +39,7 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 		runtime.assertClean();
 	});
 
-	test('exposes the same runtime paths via direct API requests', async ({ request }) => {
+	test('exposes the same host API paths via direct requests', async ({ request }) => {
 		const pingResponse = await request.get('/api/v1/ping');
 		expect(pingResponse.ok()).toBe(true);
 		const pingJson = await pingResponse.json();

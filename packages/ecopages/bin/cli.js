@@ -28,9 +28,9 @@ function runLaunchPlan(launchPlan) {
 	child.on('error', (error) => {
 		if (error && error.code === 'ENOENT') {
 			const hint =
-				launchPlan.command === 'bun'
+				launchPlan.runtime === 'bun'
 					? 'Install Bun from https://bun.sh to continue.'
-					: 'Install tsx (`npm install -g tsx`) to run ecopages on Node.js.';
+					: 'Reinstall ecopages and its dependencies so the packaged tsx runtime is available for Node.js launches.';
 			logger.error(`Command not found: ${launchPlan.command}. ${hint}`);
 			process.exit(1);
 		}
@@ -52,7 +52,15 @@ function runLaunchPlan(launchPlan) {
  * @param {string} entryFile - Entry file to run
  */
 async function runEntryCommand(args, options = {}, entryFile = 'app.ts') {
-	const launchPlan = await createLaunchPlan(args, options, entryFile);
+	let launchPlan;
+
+	try {
+		launchPlan = await createLaunchPlan(args, options, entryFile);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		logger.error(message);
+		process.exit(1);
+	}
 
 	if (launchPlanRequiresExistingEntryFile(launchPlan) && !existsSync(entryFile)) {
 		logger.error(`Error: Entry file "${entryFile}" not found in the current directory.`);

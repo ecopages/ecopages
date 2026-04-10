@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -9,7 +10,10 @@ import {
 	createLaunchPlan,
 	detectRuntime,
 	launchPlanRequiresExistingEntryFile,
+	resolveTsxCliPath,
 } from './launch-plan.js';
+
+const require = createRequire(import.meta.url);
 
 const originalUserAgent = process.env.npm_config_user_agent;
 
@@ -89,7 +93,11 @@ describe('launch-plan', () => {
 		]);
 	});
 
-	it('createLaunchPlan uses tsx for node runtime', async () => {
+	it('resolveTsxCliPath resolves the packaged tsx cli entry', () => {
+		expect(resolveTsxCliPath()).toBe(require.resolve('tsx/cli'));
+	});
+
+	it('createLaunchPlan uses the packaged tsx cli for node runtime', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
 			process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
@@ -102,9 +110,15 @@ describe('launch-plan', () => {
 			expect(plan).toMatchObject({
 				runtime: 'node',
 				executionStrategy: 'direct-runtime',
-				command: 'tsx',
+				command: process.execPath,
 			});
-			expect(plan.commandArgs).toEqual(['--import', './eco.config.ts', 'app.ts', '--dev']);
+			expect(plan.commandArgs).toEqual([
+				require.resolve('tsx/cli'),
+				'--import',
+				'./eco.config.ts',
+				'app.ts',
+				'--dev',
+			]);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}

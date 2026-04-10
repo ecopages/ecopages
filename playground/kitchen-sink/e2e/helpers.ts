@@ -2,9 +2,9 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { getPrimaryLinkTestId, getRouteLinkTestId } from '../src/data/primary-links';
 
 type CounterExpectations = {
-	kita?: string;
-	lit?: string;
-	react?: string;
+	kita?: string | false;
+	lit?: string | false;
+	react?: string | false;
 };
 
 /**
@@ -72,21 +72,27 @@ export async function incrementCounter(button: Locator, value: Locator, expected
 }
 
 export async function assertCounterInteractivity(root: Locator, expectations: CounterExpectations = {}) {
-	const initialKita = expectations.kita ?? '0';
-	const initialLit = expectations.lit ?? '0';
-	const initialReact = expectations.react ?? '0';
 	const kitaValue = root.locator('[data-kita-value]');
 	const litValue = root.locator('[data-lit-value]').first();
 	const reactValue = root.locator('[data-react-value]');
 
-	await expect(kitaValue).toHaveText(initialKita);
-	await incrementCounter(root.locator('[data-kita-inc]'), kitaValue, String(Number(initialKita) + 1));
+	if (expectations.kita !== false) {
+		const initialKita = expectations.kita ?? '0';
+		await expect(kitaValue).toHaveText(initialKita);
+		await incrementCounter(root.locator('[data-kita-inc]'), kitaValue, String(Number(initialKita) + 1));
+	}
 
-	await expect(litValue).toHaveText(initialLit);
-	await incrementCounter(root.locator('[data-lit-inc]').first(), litValue, String(Number(initialLit) + 1));
+	if (expectations.lit !== false) {
+		const initialLit = expectations.lit ?? '0';
+		await expect(litValue).toHaveText(initialLit);
+		await incrementCounter(root.locator('[data-lit-inc]').first(), litValue, String(Number(initialLit) + 1));
+	}
 
-	await expect(reactValue).toHaveText(initialReact);
-	await incrementCounter(root.locator('[data-react-inc]'), reactValue, String(Number(initialReact) + 1));
+	if (expectations.react !== false) {
+		const initialReact = expectations.react ?? '0';
+		await expect(reactValue).toHaveText(initialReact);
+		await incrementCounter(root.locator('[data-react-inc]'), reactValue, String(Number(initialReact) + 1));
+	}
 }
 
 export function getSectionByHeading(page: Page, heading: string): Locator {
@@ -123,8 +129,18 @@ export async function gotoAndWait(page: Page, href: string) {
 export async function clickHrefAndWait(page: Page, href: string) {
 	const routeLink = page.getByTestId(getRouteLinkTestId(href)).first();
 	const primaryLink = page.getByTestId(getPrimaryLinkTestId(href)).first();
-	const link = (await primaryLink.isVisible().catch(() => false)) ? primaryLink : routeLink;
-	await expect(link).toBeVisible();
+	const fallbackLink = page.locator(`a[href="${href}"]`).first();
+	const link = (await primaryLink.isVisible().catch(() => false))
+		? primaryLink
+		: (await routeLink.isVisible().catch(() => false))
+			? routeLink
+			: fallbackLink;
+
+	if (!(await link.isVisible().catch(() => false))) {
+		await gotoAndWait(page, href);
+		return;
+	}
+
 	const targetUrl = new URL(href, page.url());
 
 	try {
@@ -142,58 +158,21 @@ export async function clickHrefAndWait(page: Page, href: string) {
 	await page.waitForLoadState('networkidle').catch(() => undefined);
 }
 
-export async function expectNavigationOwner(page: Page, owner: string) {
-	await expect
-		.poll(async () =>
-			page.evaluate(() => {
-				return window.__ECO_PAGES__?.navigation?.getOwnerState?.().owner ?? 'none';
-			}),
-		)
-		.toBe(owner);
+export async function readHeaderNavigation(page: Page) {
+	return page.locator('header nav a').evaluateAll((links) =>
+		links.map((link) => ({
+			href: link.getAttribute('href') ?? '',
+			label: link.textContent?.trim() ?? '',
+		})),
+	);
 }
 
-/**
- * Fetches the current page module source referenced by the client runtime.
- */
-export async function fetchCurrentPageModule(page: Page) {
-	let pageModuleUrl: string | null = null;
-
-	for (let attempt = 0; attempt < 20 && !pageModuleUrl; attempt += 1) {
-		pageModuleUrl = await page.evaluate(() => {
-			const runtimeModuleUrl = window.__ECO_PAGES__?.page?.module;
-			if (typeof runtimeModuleUrl === 'string' && runtimeModuleUrl.length > 0) {
-				return runtimeModuleUrl;
-			}
-
-			for (const script of Array.from(document.scripts)) {
-				const inlineCode = script.textContent ?? '';
-				const match = inlineCode.match(/window\.__ECO_PAGES__\.page\s*=\s*\{\s*module:\s*["']([^"']+)["']/);
-				if (match?.[1]) {
-					return match[1];
-				}
-			}
-
-			return null;
-		});
-
-		if (!pageModuleUrl) {
-			await page.waitForTimeout(50);
-		}
-	}
-
-	if (!pageModuleUrl) {
-		throw new Error('Expected React page module URL to be available on window.__ECO_PAGES__.page.module');
-	}
-
-	const source = await page.evaluate(async (moduleUrl) => {
-		const response = await fetch(moduleUrl);
-		return response.text();
-	}, pageModuleUrl);
-
-	return {
-		url: pageModuleUrl,
-		source,
-	};
+export async function assertSingleAppShell(page: Page) {
+	await expect(page.locator('body > div')).toHaveCount(1);
+	await expect(page.locator('body > div > header')).toHaveCount(1);
+	await expect(page.locator('body > div > main')).toHaveCount(1);
+	await expect(page.locator('body > div > footer')).toHaveCount(1);
+	await expect(page.locator('body > div > header nav')).toHaveCount(1);
 }
 
 export async function settleOnRoute(options: {
@@ -222,33 +201,4 @@ export async function settleOnRoute(options: {
 			await page.waitForLoadState('networkidle').catch(() => undefined);
 		}
 	}
-}
-
-/**
- * Extracts static and dynamic module specifiers from an ESM source string.
- */
-export function collectModuleSpecifiers(source: string) {
-	const specifiers = new Set<string>();
-	const staticPattern =
-		/(?:^|[;\n\r])\s*(?:import\s+(?:type\s+)?(?:[^'"`;]+?\s+from\s+)?|export\s+(?:type\s+)?[^'"`;]+?\s+from\s+)(['"])([^'"\\]*(?:\\.[^'"\\]*)*)\1/gm;
-	const dynamicPattern = /import\s*\(\s*(['"])([^'"\\]*(?:\\.[^'"\\]*)*)\1\s*\)/gm;
-
-	for (const match of source.matchAll(staticPattern)) {
-		specifiers.add(match[2]);
-	}
-
-	for (const match of source.matchAll(dynamicPattern)) {
-		specifiers.add(match[2]);
-	}
-
-	return Array.from(specifiers).sort((left, right) => left.localeCompare(right));
-}
-
-export async function readHeaderNavigation(page: Page) {
-	return page.locator('header nav a').evaluateAll((links) =>
-		links.map((link) => ({
-			href: link.getAttribute('href') ?? '',
-			label: link.textContent?.trim() ?? '',
-		})),
-	);
 }

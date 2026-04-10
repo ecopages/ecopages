@@ -1,3 +1,5 @@
+export {};
+
 const commandSelector = '[data-api-command="true"]';
 
 type CommandConfig = {
@@ -12,7 +14,6 @@ type CommandConfig = {
 type ApiLabWindow = Window &
 	typeof globalThis & {
 		__ecopages_api_lab_cleanup__?: () => void;
-		__ecopages_api_lab_remove_page_load_listener__?: () => void;
 	};
 
 function parseCommand(button: HTMLButtonElement): CommandConfig {
@@ -156,21 +157,6 @@ function mountApiLab(): () => void {
 	};
 }
 
-function initializeApiLab() {
-	const runtimeWindow = window as ApiLabWindow;
-	runtimeWindow.__ecopages_api_lab_cleanup__?.();
-	runtimeWindow.__ecopages_api_lab_cleanup__ = mountApiLab();
-}
-
 const runtimeWindow = window as ApiLabWindow;
-runtimeWindow.__ecopages_api_lab_remove_page_load_listener__?.();
-document.addEventListener('eco:page-load', initializeApiLab);
-runtimeWindow.__ecopages_api_lab_remove_page_load_listener__ = () => {
-	document.removeEventListener('eco:page-load', initializeApiLab);
-};
-
-if (document.readyState === 'loading') {
-	document.addEventListener('DOMContentLoaded', initializeApiLab, { once: true });
-} else {
-	initializeApiLab();
-}
+runtimeWindow.__ecopages_api_lab_cleanup__?.();
+runtimeWindow.__ecopages_api_lab_cleanup__ = mountApiLab();

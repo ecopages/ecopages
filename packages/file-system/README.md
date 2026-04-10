@@ -4,7 +4,7 @@ Runtime-agnostic file system utilities for Ecopages that automatically select th
 
 ## Features
 
-- **Runtime Detection**: Automatically uses `Bun.Glob`, `Bun.hash`, `Bun.file` for maximum performance on Bun, and falls back to `fast-glob` and `crypto` on Node.js.
+- **Runtime Detection**: Automatically uses `Bun.Glob`, `Bun.hash`, `Bun.file` for maximum performance on Bun, and falls back to native `node:fs/promises.glob()` and `crypto` on Node.js.
 - **Unified Interface**: Write file system code once; let the runtime handle the optimization.
 - **Type Safe**: Full TypeScript support with a consistent API.
 

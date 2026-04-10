@@ -1,6 +1,6 @@
 /**
  * @module @ecopages/file-system/adapters/node
- * @description Node.js file system adapter using fast-glob, crypto, and node:fs.
+ * @description Node.js file system adapter using node:fs/promises.glob(), crypto, and node:fs.
  */
 
 import crypto from 'node:crypto';

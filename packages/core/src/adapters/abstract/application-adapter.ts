@@ -12,7 +12,7 @@ import {
 	getAppModuleLoader,
 	setAppHostModuleLoader,
 } from '../../services/module-loading/app-server-module-transpiler.service.ts';
-import { getViteEnvironmentHostModuleLoader } from '../../services/module-loading/vite-environment-host-module-loader.service.ts';
+import { getHostModuleLoader } from '../../services/module-loading/host-module-loader-registry.ts';
 import type { SourceModuleLoader } from '../../services/module-loading/module-loading-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
@@ -28,20 +28,6 @@ import type {
 import { fileSystem } from '@ecopages/file-system';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 
-function resolveRuntimeHostModuleLoader(
-	hostModuleLoader: ApplicationRuntimeOptions['hostModuleLoader'],
-): SourceModuleLoader | undefined {
-	if (!hostModuleLoader) {
-		return undefined;
-	}
-
-	if (hostModuleLoader === 'vite-environment') {
-		return getViteEnvironmentHostModuleLoader();
-	}
-
-	return hostModuleLoader;
-}
-
 /**
  * Runtime bootstrap options layered on top of the app config.
  *
@@ -50,16 +36,20 @@ function resolveRuntimeHostModuleLoader(
  */
 export interface ApplicationRuntimeOptions {
 	/**
-	 * Forces the app into the embedded-runtime CLI mode used by Vite/Nitro hosts.
+	 * Forces the app into the embedded-runtime CLI mode used by host
+	 * environments.
+	 *
+	 * When enabled and no explicit `hostModuleLoader` is provided, the
+	 * adapter auto-detects a host module loader from the global scope.
 	 */
 	embedded?: boolean;
 	/**
-	 * Selects how request-time source modules should be loaded.
+	 * Explicit source module loader for request-time imports.
 	 *
-	 * Use `'vite-environment'` for Vite/Nitro hosts so Ecopages can import
-	 * runtime-owned modules through the active server-side Vite environment.
+	 * When omitted in embedded mode, the adapter attempts automatic
+	 * detection from globals set by the host environment.
 	 */
-	hostModuleLoader?: SourceModuleLoader | 'vite-environment';
+	hostModuleLoader?: SourceModuleLoader;
 }
 
 /**
@@ -120,11 +110,11 @@ export abstract class AbstractApplicationAdapter<
 		this.runtimeOptions = options.runtime ?? {};
 		this.cliArgs = parseCliArgs({ embeddedRuntime: this.runtimeOptions.embedded });
 
-		if (Object.prototype.hasOwnProperty.call(this.runtimeOptions, 'hostModuleLoader')) {
-			setAppHostModuleLoader(
-				this.appConfig,
-				resolveRuntimeHostModuleLoader(this.runtimeOptions.hostModuleLoader),
-			);
+		const hostModuleLoader =
+			this.runtimeOptions.hostModuleLoader ?? (this.runtimeOptions.embedded ? getHostModuleLoader() : undefined);
+
+		if (hostModuleLoader) {
+			setAppHostModuleLoader(this.appConfig, hostModuleLoader);
 		}
 
 		getAppModuleLoader(this.appConfig);

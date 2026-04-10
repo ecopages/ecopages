@@ -1,9 +1,9 @@
 import fs from 'node:fs';
-import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 import { gotoAndWait, trackRuntimeErrors } from './helpers';
 
-const SEO_INCLUDE_FILE = path.join(process.cwd(), 'playground/kitchen-sink/src/includes/seo.kita.tsx');
+const SEO_INCLUDE_FILE = fileURLToPath(new URL('../src/includes/seo.kita.tsx', import.meta.url));
 const SEO_SUFFIX = '[include-hmr]';
 
 function patchSeoTitle(content: string, suffix: string) {
@@ -30,19 +30,7 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 		const initialTitle = await page.title();
 
 		fs.writeFileSync(SEO_INCLUDE_FILE, patchSeoTitle(originalSeoInclude, SEO_SUFFIX), 'utf-8');
-
-		const expectedTitle = `${initialTitle} ${SEO_SUFFIX}`;
-
-		try {
-			await expect(page).toHaveTitle(expectedTitle, { timeout: 5000 });
-		} catch {
-			await expect
-				.poll(async () => {
-					await page.reload({ waitUntil: 'networkidle' });
-					return page.title();
-				})
-				.toBe(expectedTitle);
-		}
+		await expect(page).toHaveTitle(`${initialTitle} ${SEO_SUFFIX}`, { timeout: 10000 });
 
 		runtime.assertClean();
 	});

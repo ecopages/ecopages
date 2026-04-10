@@ -32,7 +32,7 @@ group('glob(**/*.ts) - 100 files', () => {
 		await bunFs.glob(['**/*.ts'], { cwd: BENCH_DIR });
 	});
 
-	bench('NodeFileSystem (fast-glob)', async () => {
+	bench('NodeFileSystem (node:fs/promises.glob())', async () => {
 		await nodeFs.glob(['**/*.ts'], { cwd: BENCH_DIR });
 	});
 });

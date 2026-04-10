@@ -1,5 +1,5 @@
 import { createRendererModuleContext } from './integration-di.ts';
-import type { SSROptions } from 'vite';
+import type { Alias, AliasOptions, SSROptions } from 'vite';
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import type { EcopagesVitePlugin, EcopagesViteUserConfig } from './types.ts';
 
@@ -13,16 +13,57 @@ function mergeStringLists(left: string[] | undefined, right: string[]): string[]
 	return Array.from(new Set(values));
 }
 
-function normalizeNoExternal(value: SSROptions['noExternal']): string[] | undefined {
-	if (!value) {
-		return undefined;
+function toAliasEntries(aliases: Record<string, string>): Alias[] {
+	return Object.entries(aliases).map(([find, replacement]) => ({ find, replacement }));
+}
+
+function mergeAliases(existing: AliasOptions | undefined, aliases: Record<string, string>): AliasOptions | undefined {
+	const additions = toAliasEntries(aliases);
+
+	if (additions.length === 0) {
+		return existing;
 	}
 
-	if (Array.isArray(value)) {
-		return value.filter((entry): entry is string => typeof entry === 'string');
+	if (Array.isArray(existing)) {
+		return [...additions, ...existing];
 	}
 
-	return typeof value === 'string' ? [value] : undefined;
+	return {
+		...(existing ?? {}),
+		...aliases,
+	};
+}
+
+function mergeNoExternal(existing: SSROptions['noExternal'], additions: string[]): SSROptions['noExternal'] {
+	if (existing === true) {
+		return true;
+	}
+
+	if (!existing) {
+		return additions.length > 0 ? additions : existing;
+	}
+
+	if (Array.isArray(existing)) {
+		const merged = [...existing];
+		const seenStrings = new Set(existing.filter((entry): entry is string => typeof entry === 'string'));
+
+		for (const addition of additions) {
+			if (seenStrings.has(addition)) {
+				continue;
+			}
+
+			seenStrings.add(addition);
+			merged.push(addition);
+		}
+
+		return merged;
+	}
+
+	if (typeof existing === 'string') {
+		return Array.from(new Set([existing, ...additions]));
+	}
+
+	return [existing, ...additions];
 }
 
 /**
@@ -46,19 +87,13 @@ export function ecopagesConfig(api: EcopagesPluginApi): EcopagesVitePlugin {
 		config(config): EcopagesViteUserConfig {
 			return {
 				resolve: {
-					alias: {
-						...(config.resolve?.alias ?? {}),
-						...api.options.aliases,
-					},
+					alias: mergeAliases(config.resolve?.alias, api.options.aliases),
 				},
 				optimizeDeps: {
 					include: mergeStringLists(config.optimizeDeps?.include, api.options.optimizeDeps.include),
 				},
 				ssr: {
-					noExternal: mergeStringLists(
-						normalizeNoExternal(config.ssr?.noExternal),
-						api.options.ssr.noExternal,
-					),
+					noExternal: mergeNoExternal(config.ssr?.noExternal, api.options.ssr.noExternal),
 				},
 			};
 		},

@@ -6,6 +6,10 @@ All notable changes to `ecopages` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Bug Fixes
+
+- Localized the Node CLI `tsx` runtime dependency so `ecopages` no longer requires a globally installed `tsx` binary.
+
 ### Refactoring
 
 - Removed the CLI thin-host Node bootstrap path and its loader-hook runtime dependency so `ecopages` now defaults to Bun launches.

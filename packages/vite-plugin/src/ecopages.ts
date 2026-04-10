@@ -1,7 +1,7 @@
 import type { PluginOption } from 'vite';
 import { ecopagesClientJsxCompat } from './ecopages-client-jsx-compat.ts';
 import { ecopagesConfig } from './ecopages-config.ts';
-import { ecopagesHostBridge } from './ecopages-host-bridge.ts';
+import { ecopagesDevServer } from './ecopages-dev-server.ts';
 import { ecopagesHotUpdate } from './ecopages-hot-update.ts';
 import { ecopagesIslands } from './ecopages-islands.ts';
 import { ecopagesMetadata } from './ecopages-metadata.ts';
@@ -10,28 +10,13 @@ import { ecopagesSourceTransforms } from './ecopages-source-transforms.ts';
 import { ecopagesVirtualModules } from './ecopages-virtual-modules.ts';
 import type { EcopagesVitePlugin } from './types.ts';
 
-export type {
-	EcopagesViteOptions,
-	EcopagesPluginApi,
-	ResolvedEcopagesViteOptions,
-	EcopagesHostConfig,
-} from './plugin-api.ts';
-export type { EcopagesVitePlugin, EcopagesVitePluginOption, EcopagesViteUserConfig } from './types.ts';
-export { createEcopagesPluginApi, flattenPluginOptions, adaptSourceTransformToVitePlugin } from './plugin-api.ts';
-export {
-	ECOPAGES_INTEGRATION_MANIFEST_MODULE_ID,
-	ECOPAGES_ISLAND_REGISTRY_MODULE_ID,
-	ECOPAGES_ISLAND_CLIENT_MODULE_ID,
-} from './integration-di.ts';
-
 /**
  * Composes the Ecopages Vite plugin surface.
  *
  * @remarks
  * Returns an array of Vite plugins that handle config merging, virtual modules,
  * source transforms, island registration, metadata injection, JSX compatibility,
- * HMR, and host-bridge integration. Pass `host` in the options to compose
- * host-specific plugins (e.g. Nitro) into the plugin surface.
+ * HMR, dev server bridging, and host-bridge integration.
  */
 export function ecopages(
 	options: Pick<EcopagesViteOptions, 'appConfig'> & Omit<Partial<EcopagesViteOptions>, 'appConfig'>,
@@ -63,7 +48,7 @@ export function ecopages(
 		ecopagesVirtualModules(api.appConfig),
 		ecopagesIslands(api),
 		ecopagesHotUpdate(api),
-		...ecopagesHostBridge(api),
+		ecopagesDevServer(api),
 	];
 
 	api.setResolvedPluginNames(plugins.map((plugin) => plugin.name));

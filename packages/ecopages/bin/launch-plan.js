@@ -1,4 +1,7 @@
 import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 export function buildEnvOverrides(options) {
 	const env = {};
@@ -65,6 +68,16 @@ export function buildNodeArgs(args, options, entryFile, hasConfig) {
 	return nodeArgs;
 }
 
+export function resolveTsxCliPath() {
+	try {
+		return require.resolve('tsx/cli');
+	} catch {
+		throw new Error(
+			'Unable to resolve the packaged tsx runtime required for Node.js launches. Reinstall ecopages and its dependencies, or use the Bun runtime instead.',
+		);
+	}
+}
+
 export async function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
 	const hasConfig = existsSync('eco.config.ts');
 	const envOverrides = buildEnvOverrides(options);
@@ -72,11 +85,13 @@ export async function createLaunchPlan(args, options = {}, entryFile = 'app.ts')
 	const env = { ...process.env, ...envOverrides };
 
 	if (runtime === 'node') {
+		const tsxCliPath = resolveTsxCliPath();
+
 		return {
 			runtime,
 			executionStrategy: 'direct-runtime',
-			command: 'tsx',
-			commandArgs: buildNodeArgs(args, options, entryFile, hasConfig),
+			command: process.execPath,
+			commandArgs: [tsxCliPath, ...buildNodeArgs(args, options, entryFile, hasConfig)],
 			envOverrides,
 			env,
 		};

@@ -5,7 +5,16 @@ import * as api from './src/handlers/api';
 import { adminGroup } from './src/handlers/admin';
 import { releaseNotes } from './src/data/demo-data';
 
-const app = await createApp({ appConfig });
+const isViteHosted = process.env.ECOPAGES_KITCHEN_SINK_HOST === 'vite';
+
+export const app = await createApp({
+	appConfig,
+	runtime: isViteHosted
+		? {
+				embedded: true,
+			}
+		: undefined,
+});
 
 app.get('/explicit/team', async (ctx) => {
 	const { default: ExplicitTeamView } = await import('./src/views/explicit-team-view.kita');
@@ -30,4 +39,6 @@ app.onError((error, ctx) => {
 	return ctx.json({ error: 'Internal Server Error' }, { status: 500 });
 });
 
-await app.start();
+if (!isViteHosted) {
+	await app.start();
+}

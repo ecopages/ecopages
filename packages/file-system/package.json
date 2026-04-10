@@ -41,9 +41,6 @@
 			"types": "./src/adapters/node.ts"
 		}
 	},
-	"dependencies": {
-		"fast-glob": "^3.3.2"
-	},
 	"devDependencies": {
 		"@types/bun": "^1.3.9",
 		"@types/node": "^24",

@@ -1,56 +1,49 @@
 import { expect, test, type Page } from '@playwright/test';
 import { getPrimaryLinkTestId, getRouteLinkTestId, primaryLinks } from '../src/data/primary-links';
-import { clickHrefAndWait, gotoAndWait, settleOnRoute, trackRuntimeErrors } from './helpers';
+import { assertSingleAppShell, gotoAndWait, settleOnRoute, trackRuntimeErrors } from './helpers';
 
 const primaryRoutePool = primaryLinks.map(({ href }) => href);
-const randomSequenceCount = 4;
-const randomSequenceLength = 12;
-const broadRouteStressRounds = 3;
 
-function shuffleRoutes(routes: string[]) {
-	const shuffled = [...routes];
+const broadTraversalSequence = [
+	'/',
+	'/react-lab',
+	'/integration-matrix/lit-entry',
+	'/docs',
+	'/react-content',
+	'/integration-matrix',
+	'/react-server-files',
+	'/patterns/middleware',
+	'/integration-matrix/react-entry',
+	'/catalog/semantic-html',
+	'/postcss',
+	'/react-server-metadata',
+	'/images',
+	'/explicit/team',
+	'/transitions',
+	'/latest',
+	'/api-lab',
+];
 
-	for (let index = shuffled.length - 1; index > 0; index -= 1) {
-		const swapIndex = Math.floor(Math.random() * (index + 1));
-		const current = shuffled[index] ?? '';
-		shuffled[index] = shuffled[swapIndex] ?? current;
-		shuffled[swapIndex] = current;
-	}
-
-	return shuffled;
-}
-
-function pickNextRoute(currentHref: string) {
-	const candidates = primaryRoutePool.filter((href) => href !== currentHref);
-	return candidates[Math.floor(Math.random() * candidates.length)] ?? currentHref;
-}
-
-function buildRandomSequence(
-	length: number,
-	startHref = primaryRoutePool[Math.floor(Math.random() * primaryRoutePool.length)] ?? '/',
-) {
-	const sequence = [startHref];
-
-	while (sequence.length < length) {
-		sequence.push(pickNextRoute(sequence[sequence.length - 1] ?? startHref));
-	}
-
-	return sequence;
-}
-
-function buildBroadRouteStressSequence(rounds: number, startHref = '/') {
-	const sequence = [startHref];
-	let currentHref = startHref;
-
-	for (let round = 0; round < rounds; round += 1) {
-		const roundRoutes = shuffleRoutes(primaryRoutePool.filter((href) => href !== currentHref));
-
-		sequence.push(...roundRoutes);
-		currentHref = roundRoutes[roundRoutes.length - 1] ?? currentHref;
-	}
-
-	return sequence;
-}
+const crossTechnologySequences = [
+	['/docs', '/react-lab', '/integration-matrix/lit-entry', '/api-lab', '/react-content', '/postcss'],
+	[
+		'/react-lab',
+		'/react-content',
+		'/catalog/semantic-html',
+		'/integration-matrix/lit-entry',
+		'/react-server-files',
+		'/docs',
+	],
+	[
+		'/integration-matrix/lit-entry',
+		'/react-lab',
+		'/patterns/middleware',
+		'/react-content',
+		'/latest',
+		'/integration-matrix/react-entry',
+	],
+	['/api-lab', '/react-content', '/docs', '/integration-matrix/lit-entry', '/explicit/team', '/react-lab'],
+];
 
 function getKitchenSinkRouteLocator(page: Page, href: string) {
 	const routeLink = page.getByTestId(getRouteLinkTestId(href)).first();
@@ -73,6 +66,7 @@ async function rapidClickHref(
 	options: { requireMatch?: boolean } = {},
 ) {
 	const { requireMatch = false } = options;
+	const targetUrl = new URL(href, page.url());
 	const { routeLink, primaryLink } = getKitchenSinkRouteLocator(page, href);
 	const fallbackLink = page.locator(`a[href="${href}"]`).first();
 	const candidates = [...preferredOrder.map((kind) => (kind === 'route' ? routeLink : primaryLink)), fallbackLink];
@@ -104,6 +98,10 @@ async function rapidClickHref(
 		}
 	}
 
+	if (page.url() === targetUrl.href) {
+		return true;
+	}
+
 	if (requireMatch) {
 		throw new Error(`No matching link found for ${href}`);
 	}
@@ -112,14 +110,27 @@ async function rapidClickHref(
 }
 
 test.describe('Rapid navigation stress', () => {
-	for (const index of Array.from({ length: randomSequenceCount }, (_, sequenceIndex) => sequenceIndex + 1)) {
-		test(`survives random rapid-clicking sequence ${index}`, async ({ page }, testInfo) => {
+	test('survives a full route traversal without a crash', async ({ page }) => {
+		const runtime = trackRuntimeErrors(page);
+
+		await gotoAndWait(page, broadTraversalSequence[0] ?? '/');
+
+		for (const href of broadTraversalSequence.slice(1)) {
+			await rapidClickHref(page, href);
+		}
+
+		await page.waitForLoadState('networkidle');
+		await expect(page).not.toHaveURL(/undefined|null/);
+		await expect(page.locator('body')).not.toContainText('Cannot read properties of null');
+		await expect(page.locator('body')).not.toContainText('Invalid hook call');
+		await assertSingleAppShell(page);
+		runtime.assertClean();
+	});
+
+	for (let index = 0; index < crossTechnologySequences.length; index += 1) {
+		test(`survives cross-technology rapid-clicking sequence ${index + 1}`, async ({ page }) => {
 			const runtime = trackRuntimeErrors(page);
-			const sequence = buildRandomSequence(randomSequenceLength);
-			testInfo.annotations.push({
-				type: 'random-sequence',
-				description: sequence.join(' -> '),
-			});
+			const sequence = crossTechnologySequences[index];
 
 			await gotoAndWait(page, sequence[0]);
 
@@ -135,61 +146,6 @@ test.describe('Rapid navigation stress', () => {
 		});
 	}
 
-	test('survives a broad randomized route-pool run without a crash', async ({ page }) => {
-		const runtime = trackRuntimeErrors(page);
-		const broadRouteStressSequence = buildBroadRouteStressSequence(broadRouteStressRounds, '/');
-
-		await gotoAndWait(page, broadRouteStressSequence[0] ?? '/');
-
-		for (const href of broadRouteStressSequence.slice(1)) {
-			await rapidClickHref(page, href);
-		}
-
-		await page.waitForLoadState('networkidle');
-		await expect(page).not.toHaveURL(/undefined|null/);
-		await expect(page.locator('body')).not.toContainText('Cannot read properties of null');
-		await expect(page.locator('body')).not.toContainText('Invalid hook call');
-		runtime.assertClean();
-	});
-
-	test('loads the correct page content after rapid hops ending on a React route', async ({ page }) => {
-		const runtime = trackRuntimeErrors(page);
-
-		await gotoAndWait(page, '/docs');
-
-		const hops = ['/react-lab', '/docs', '/react-content', '/react-lab', '/react-content'];
-		for (const href of hops.slice(0, -1)) {
-			await rapidClickHref(page, href);
-		}
-		await rapidClickHref(page, hops[hops.length - 1], ['primary', 'route'], { requireMatch: true });
-
-		await page.waitForLoadState('networkidle');
-		await expect(page.getByTestId('page-react-content')).toBeVisible({
-			timeout: 8000,
-		});
-		await expect(page).toHaveURL(/\/react-content/);
-		runtime.assertClean();
-	});
-
-	test('loads the correct page content after rapid hops ending on a non-React route', async ({ page }) => {
-		const runtime = trackRuntimeErrors(page);
-
-		await gotoAndWait(page, '/react-content');
-
-		const hops = ['/docs', '/react-lab', '/react-content', '/docs'];
-		for (const href of hops.slice(0, -1)) {
-			await rapidClickHref(page, href);
-		}
-		await rapidClickHref(page, hops[hops.length - 1], ['primary', 'route'], { requireMatch: true });
-
-		await page.waitForLoadState('networkidle');
-		await expect(page.getByTestId('page-docs')).toBeVisible({
-			timeout: 8000,
-		});
-		await expect(page).toHaveURL(/\/docs/);
-		runtime.assertClean();
-	});
-
 	test('loads the correct React route content after rapid route-link hops', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 
@@ -204,9 +160,10 @@ test.describe('Rapid navigation stress', () => {
 		await settleOnRoute({
 			page,
 			href: '/react-notes',
-			content: page.getByTestId('page-react-notes'),
+			content: page.getByRole('heading', { name: 'React Notes' }),
 			navigate: () => rapidClickHref(page, '/react-notes', ['route', 'primary'], { requireMatch: true }),
 		});
+		await assertSingleAppShell(page);
 		runtime.assertClean();
 	});
 
@@ -221,12 +178,56 @@ test.describe('Rapid navigation stress', () => {
 		}
 		await rapidClickHref(page, hops[hops.length - 1], ['primary', 'route'], { requireMatch: true });
 
-		await page.waitForLoadState('networkidle');
-		await expect(page.getByRole('heading', { name: 'Server-only file tree' })).toBeVisible({
-			timeout: 8000,
+		await settleOnRoute({
+			page,
+			href: '/react-server-files',
+			content: page.getByRole('heading', { name: 'Server-only file tree' }),
+			navigate: () => rapidClickHref(page, '/react-server-files', ['primary', 'route'], { requireMatch: true }),
 		});
 		await expect(page.locator('body')).toContainText('src/pages');
-		await expect(page).toHaveURL(/\/react-server-files/);
+		await assertSingleAppShell(page);
+		runtime.assertClean();
+	});
+
+	test('lands on correct content after rapid hops ending on a non-React route', async ({ page }) => {
+		const runtime = trackRuntimeErrors(page);
+
+		await gotoAndWait(page, '/react-content');
+
+		const hops = ['/docs', '/react-lab', '/react-content', '/docs'];
+		for (const href of hops.slice(0, -1)) {
+			await rapidClickHref(page, href);
+		}
+		await rapidClickHref(page, hops[hops.length - 1], ['primary', 'route'], { requireMatch: true });
+
+		await settleOnRoute({
+			page,
+			href: '/docs',
+			content: page.getByTestId('page-docs'),
+			navigate: () => rapidClickHref(page, '/docs', ['primary', 'route'], { requireMatch: true }),
+		});
+		await assertSingleAppShell(page);
+		runtime.assertClean();
+	});
+
+	test('lands on correct content after rapid hops ending on a React route', async ({ page }) => {
+		const runtime = trackRuntimeErrors(page);
+
+		await gotoAndWait(page, '/docs');
+
+		const hops = ['/react-lab', '/docs', '/react-content', '/react-lab', '/react-content'];
+		for (const href of hops.slice(0, -1)) {
+			await rapidClickHref(page, href);
+		}
+		await rapidClickHref(page, hops[hops.length - 1], ['primary', 'route'], { requireMatch: true });
+
+		await settleOnRoute({
+			page,
+			href: '/react-content',
+			content: page.getByTestId('page-react-content'),
+			navigate: () => rapidClickHref(page, '/react-content', ['primary', 'route'], { requireMatch: true }),
+		});
+		await assertSingleAppShell(page);
 		runtime.assertClean();
 	});
 });

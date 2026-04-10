@@ -1,6 +1,6 @@
 import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
 import type { EcoSourceTransform, EcoViteCompatiblePlugin } from '@ecopages/core';
-import type { EcopagesVitePlugin, EcopagesVitePluginOption } from './types.ts';
+import type { EcopagesVitePlugin } from './types.ts';
 
 /**
  * Public options accepted by the composed Ecopages Vite entrypoint.
@@ -10,14 +10,6 @@ import type { EcopagesVitePlugin, EcopagesVitePluginOption } from './types.ts';
  * fields are Vite-facing overrides that get resolved once and then forwarded to
  * the internal plugin buckets through the shared plugin API.
  */
-/**
- * Configuration provided by a host adapter (e.g. Nitro) to compose
- * host-specific Vite plugins into the Ecopages plugin surface.
- */
-export interface EcopagesHostConfig {
-	plugins: (api: EcopagesPluginApi) => EcopagesVitePluginOption[];
-}
-
 export interface EcopagesViteOptions {
 	appConfig: EcoPagesAppConfig;
 	aliases?: Record<string, string>;
@@ -30,7 +22,6 @@ export interface EcopagesViteOptions {
 	diagnostics?: {
 		logResolvedPluginNames?: boolean;
 	};
-	host?: EcopagesHostConfig;
 }
 
 /**
@@ -48,7 +39,6 @@ export interface ResolvedEcopagesViteOptions {
 	diagnostics: {
 		logResolvedPluginNames: boolean;
 	};
-	host?: EcopagesHostConfig;
 }
 
 /**
@@ -73,32 +63,6 @@ function uniqueStringList(values: string[] | undefined): string[] {
 	}
 
 	return Array.from(new Set(values));
-}
-
-/**
- * Flattens nested Vite plugin options into a concrete plugin list.
- */
-export function flattenPluginOptions(pluginOptions: EcopagesVitePluginOption[] | undefined): EcopagesVitePlugin[] {
-	if (!pluginOptions?.length) {
-		return [];
-	}
-
-	const flattened: EcopagesVitePlugin[] = [];
-
-	for (const pluginOption of pluginOptions) {
-		if (!pluginOption) {
-			continue;
-		}
-
-		if (Array.isArray(pluginOption)) {
-			flattened.push(...flattenPluginOptions(pluginOption));
-			continue;
-		}
-
-		flattened.push(pluginOption);
-	}
-
-	return flattened;
 }
 
 /**
@@ -143,7 +107,6 @@ export function createEcopagesPluginApi(options: EcopagesViteOptions): EcopagesP
 		diagnostics: {
 			logResolvedPluginNames: options.diagnostics?.logResolvedPluginNames ?? false,
 		},
-		host: options.host,
 	};
 
 	let resolvedPluginNames: string[] = [];

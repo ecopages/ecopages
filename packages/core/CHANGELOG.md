@@ -8,6 +8,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Refactoring
 
+- Removed the unused Vite-specific environment host-loader helper from core so host module loading stays behind the generic runtime-owned boundary.
 - Made Bun-native build ownership explicit in core runtime state, added a Vite host-owned build boundary, and demoted esbuild from default architecture to Bun-path compatibility infrastructure.
 - Added explicit ConfigBuilder build-ownership selection so Bun-native and Vite-host flows can be finalized without post-build runtime mutation.
 - Removed the direct Nitro/Vite module-loader default from core page-module imports and replaced it with an abstract host module loader injected through app runtime state.

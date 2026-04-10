@@ -2,13 +2,57 @@ import { defineConfig, devices } from '@playwright/test';
 
 const coreE2ePort = 43102;
 const corePostcssE2ePort = 43108;
+const kitchenSinkDir = 'playground/kitchen-sink';
+const kitchenSinkTestMatch = `${kitchenSinkDir}/e2e/**/*.test.e2e.ts`;
+const kitchenSinkPreviewMatch = `${kitchenSinkDir}/e2e/**/*.preview.test.e2e.ts`;
+const kitchenSinkVariants = [
+	{
+		projectName: 'kitchen-sink-bun-e2e',
+		previewProjectName: 'kitchen-sink-preview-bun-e2e',
+		devPort: 4007,
+		previewPort: 4008,
+		devCommand: 'NODE_ENV=development pnpm exec ecopages dev --runtime bun --port 4007',
+		previewCommand:
+			'NODE_ENV=production pnpm exec ecopages build --runtime bun && pnpm exec ecopages preview --runtime bun --port 4008',
+	},
+	{
+		projectName: 'kitchen-sink-node-e2e',
+		previewProjectName: 'kitchen-sink-preview-node-e2e',
+		devPort: 4010,
+		previewPort: 4011,
+		devCommand: 'NODE_ENV=development pnpm exec ecopages dev --runtime node --port 4010',
+		previewCommand:
+			'NODE_ENV=production pnpm exec ecopages build --runtime node && pnpm exec ecopages preview --runtime node --port 4011',
+	},
+	{
+		projectName: 'kitchen-sink-vite-node-e2e',
+		devPort: 4012,
+		devCommand: 'ECOPAGES_KITCHEN_SINK_HOST=vite pnpm exec vite dev --port 4012 --logLevel silent',
+	},
+	{
+		projectName: 'kitchen-sink-vite-bun-e2e',
+		devPort: 4014,
+		devCommand: 'ECOPAGES_KITCHEN_SINK_HOST=vite bunx vite dev --port 4014 --logLevel silent',
+	},
+] as const;
 const reactPlaygroundE2ePort = 43101;
 const reuseExistingServer = process.env.ECOPAGES_REUSE_TEST_SERVERS === 'true';
+
+const kitchenSinkDevTestIgnore = [kitchenSinkPreviewMatch];
+const kitchenSinkPreviewTestIgnore: string[] = [];
+
+const kitchenSinkWithPreview = kitchenSinkVariants.filter(
+	(
+		variant,
+	): variant is typeof variant & { previewProjectName: string; previewPort: number; previewCommand: string } =>
+		'previewProjectName' in variant,
+);
 
 export default defineConfig({
 	testDir: '.',
 	testMatch: '**/*.test.e2e.ts',
 	fullyParallel: true,
+	workers: 1,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
 	reporter: 'list',
@@ -92,35 +136,26 @@ export default defineConfig({
 				baseURL: `http://localhost:${reactPlaygroundE2ePort}`,
 			},
 		},
-		{
-			name: 'kitchen-sink-e2e',
-			testMatch: 'playground/kitchen-sink/e2e/**/*.test.e2e.ts',
-			testIgnore: ['playground/kitchen-sink/e2e/**/*.preview.test.e2e.ts'],
+		...kitchenSinkVariants.map((variant) => ({
+			name: variant.projectName,
+			testMatch: kitchenSinkTestMatch,
+			testIgnore: kitchenSinkDevTestIgnore,
 			workers: 1,
 			use: {
 				...devices['Desktop Chrome'],
-				baseURL: 'http://localhost:4007',
+				baseURL: `http://localhost:${variant.devPort}`,
 			},
-		},
-		{
-			name: 'kitchen-sink-preview-e2e',
-			testMatch: 'playground/kitchen-sink/e2e/**/*.preview.test.e2e.ts',
+		})),
+		...kitchenSinkWithPreview.map((variant) => ({
+			name: variant.previewProjectName,
+			testMatch: kitchenSinkPreviewMatch,
+			testIgnore: kitchenSinkPreviewTestIgnore,
 			workers: 1,
 			use: {
 				...devices['Desktop Chrome'],
-				baseURL: 'http://localhost:4008',
+				baseURL: `http://localhost:${variant.previewPort}`,
 			},
-		},
-		{
-			name: 'kitchen-sink-nitro-e2e',
-			testMatch: 'playground/kitchen-sink-nitro/e2e/**/*.test.e2e.ts',
-			testIgnore: ['playground/kitchen-sink-nitro/e2e/**/*.preview.test.e2e.ts'],
-			workers: 1,
-			use: {
-				...devices['Desktop Chrome'],
-				baseURL: 'http://localhost:4010',
-			},
-		},
+		})),
 	],
 	webServer: [
 		{
@@ -195,29 +230,21 @@ export default defineConfig({
 			stdout: 'pipe',
 			stderr: 'pipe',
 		},
-		{
-			command: 'NODE_ENV=development ECOPAGES_PORT=4007 pnpm exec ecopages dev --runtime bun',
-			cwd: 'playground/kitchen-sink',
-			port: 4007,
+		...kitchenSinkVariants.map((variant) => ({
+			command: variant.devCommand,
+			cwd: kitchenSinkDir,
+			port: variant.devPort,
 			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		{
-			command: 'NODE_ENV=production ECOPAGES_PORT=4008 pnpm run preview',
-			cwd: 'playground/kitchen-sink',
-			port: 4008,
+			stdout: 'pipe' as const,
+			stderr: 'pipe' as const,
+		})),
+		...kitchenSinkWithPreview.map((variant) => ({
+			command: variant.previewCommand,
+			cwd: kitchenSinkDir,
+			port: variant.previewPort,
 			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		{
-			command: 'pnpm exec vite dev --port 4010',
-			cwd: 'playground/kitchen-sink-nitro',
-			port: 4010,
-			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
+			stdout: 'pipe' as const,
+			stderr: 'pipe' as const,
+		})),
 	],
 });

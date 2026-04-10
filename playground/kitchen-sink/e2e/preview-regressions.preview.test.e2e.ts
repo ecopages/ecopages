@@ -28,6 +28,9 @@ test.describe('Kitchen Sink Preview Regressions', () => {
 		const html = await response.text();
 
 		expect(html).toContain('<template shadowroot="open"');
+		expect(html).toContain('<!--lit-part');
+		expect(html).toContain('data-lit-value');
+		expect(html).not.toContain('<--content-->');
 		expect(html).not.toMatch(/<lit-counter[^>]*><\/lit-counter>/);
 
 		const runtime = trackRuntimeErrors(page);

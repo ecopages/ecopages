@@ -3,6 +3,7 @@
 
 # ecopages
 .eco
+.output
 
 # build
 public/js

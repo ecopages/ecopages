@@ -12,9 +12,7 @@
 	"license": "MIT",
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts",
-		"./nitro": "./src/nitro/index.ts",
-		"./nitro/runtime": "./src/nitro/nitro-html.ts"
+		".": "./src/index.ts"
 	},
 	"files": [
 		"src"
@@ -29,12 +27,6 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"nitro": ">=3.0.0",
 		"vite": ">=8.0.0"
-	},
-	"peerDependenciesMeta": {
-		"nitro": {
-			"optional": true
-		}
 	}
 }

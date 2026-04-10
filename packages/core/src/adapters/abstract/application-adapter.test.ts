@@ -7,11 +7,10 @@ import {
 	type RouteGroupDefinition,
 } from './application-adapter.ts';
 import type { ApiHandlerContext, ViewLoader } from '../../types/public-types.ts';
-
-const hostGlobals = globalThis as typeof globalThis & {
-	__VITE_ENVIRONMENT_RUNNER_IMPORT__?: (environmentName: string, id: string) => Promise<unknown>;
-	__nitro_vite_envs__?: Record<string, unknown>;
-};
+import {
+	setHostModuleLoader,
+	clearHostModuleLoader,
+} from '../../services/module-loading/host-module-loader-registry.ts';
 
 class TestApplicationAdapter extends AbstractApplicationAdapter<ApplicationAdapterOptions, unknown, Request> {
 	public getCliArgsSnapshot() {
@@ -107,8 +106,7 @@ class TestApplicationAdapter extends AbstractApplicationAdapter<ApplicationAdapt
 }
 
 afterEach(() => {
-	delete hostGlobals.__VITE_ENVIRONMENT_RUNNER_IMPORT__;
-	delete hostGlobals.__nitro_vite_envs__;
+	clearHostModuleLoader();
 	delete process.env.NODE_ENV;
 });
 
@@ -136,23 +134,21 @@ describe('application adapter runtime bootstrap', () => {
 		assert.equal(adapter.getAppModuleLoader()?.owner, 'bun');
 	});
 
-	it('installs the Vite environment host module loader through runtime options', async () => {
+	it('auto-detects the host module loader in embedded mode from registry', async () => {
 		process.env.NODE_ENV = 'development';
 		let importedId: string | undefined;
 		const filePath = import.meta.filename;
-		hostGlobals.__VITE_ENVIRONMENT_RUNNER_IMPORT__ = async (_environmentName, id) => ({ id });
-		hostGlobals.__nitro_vite_envs__ = { nitro: {} };
-		hostGlobals.__VITE_ENVIRONMENT_RUNNER_IMPORT__ = async (_environmentName, id) => {
+		setHostModuleLoader(async (id) => {
 			importedId = id;
 			return { id };
-		};
+		});
 
 		const adapter = new TestApplicationAdapter({
 			appConfig: {
 				runtime: {},
 			} as ApplicationAdapterOptions['appConfig'],
 			runtime: {
-				hostModuleLoader: 'vite-environment',
+				embedded: true,
 			},
 		});
 

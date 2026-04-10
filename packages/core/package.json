@@ -121,9 +121,9 @@
 			"types": "./src/services/module-loading/app-server-module-transpiler.service.ts",
 			"default": "./src/services/module-loading/app-server-module-transpiler.service.ts"
 		},
-		"./services/module-loading/vite-environment-host-module-loader.service": {
-			"types": "./src/services/module-loading/vite-environment-host-module-loader.service.ts",
-			"default": "./src/services/module-loading/vite-environment-host-module-loader.service.ts"
+		"./host-module-loader": {
+			"types": "./src/services/module-loading/host-module-loader-registry.ts",
+			"default": "./src/services/module-loading/host-module-loader-registry.ts"
 		},
 		"./utils/deep-merge": {
 			"types": "./src/utils/deep-merge.ts",

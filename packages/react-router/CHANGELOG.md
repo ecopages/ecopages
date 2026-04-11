@@ -8,11 +8,8 @@ All notable changes to `@ecopages/react-router` are documented here.
 
 ### Bug Fixes
 
-- Fixed React-to-non-React handoffs to replay queued clicks through the next active runtime and reuse prefetched HTML documents instead of forcing a second fetch.
-- Fixed stale handoff cleanup and fallback races so older React-router or browser-router navigations cannot overwrite a newer navigation.
-- Standardized React route payload reads on `window.__ECO_PAGES__.page` and explicit document owner markers so mixed-router page ownership stays stable.
-- Restored current-page HMR refreshes with persist layouts enabled by targeting the active React-router owner.
-- Replayed `data-eco-rerun` head scripts after React route commits so page bootstraps rebind on React-to-React navigations.
+- Fixed React-to-browser-router handoffs, queued-click replay, and stale-navigation races during mixed-router navigations.
+- Standardized route payload reads, document-owner markers, rerun scripts, and current-page HMR refreshes for persisted React layouts.
 
 ### Refactoring
 

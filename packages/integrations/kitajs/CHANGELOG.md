@@ -8,8 +8,7 @@ All notable changes to `@ecopages/kitajs` are documented here.
 
 ### Bug Fixes
 
-- Fixed explicit `ctx.render()` flows so deferred cross-integration layout components resolve through the marker pipeline instead of crashing during direct server rendering.
-- Fixed cross-integration Kita component boundaries so Lit and React entry routes defer Kita shells through the marker pipeline instead of rendering them inline.
+- Fixed direct `ctx.render()` flows and mixed-integration Kita boundaries to resolve through the marker pipeline.
 
 ### Features
 

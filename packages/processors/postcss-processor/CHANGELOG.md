@@ -8,15 +8,12 @@ All notable changes to `@ecopages/postcss-processor` are documented here.
 
 ### Features
 
-- Added runtime CSS loader support and a `PostcssProcessor` class so PostCSS processing can be reused outside the plugin DSL.
-- Added esbuild build adapter registration and dependency graph integration to the PostCSS processor plugin.
+- Added reusable runtime CSS loading, a public `PostcssProcessor` class, and build-adapter registration for the plugin.
 
 ### Bug Fixes
 
-- Suppressed expected Vite import-analysis warnings when loading PostCSS config files from resolved runtime paths.
-- Rebuilt tracked stylesheets from fresh PostCSS plugin instances on non-CSS source changes so Tailwind-style utility generation picks up template edits without stale caches.
-- Applied `transformInput` during direct stylesheet asset processing so Tailwind v4 page CSS keeps injected `@reference` directives and preserves nested BEM selectors in preview/build output.
-- Disabled Tailwind v4 PostCSS optimization in the official plugin preset so preview/build no longer rewrites nested BEM selectors into invalid output.
+- Fixed runtime PostCSS config loading and stylesheet rebuilds for Tailwind-driven template changes.
+- Fixed direct stylesheet processing and preset output so Tailwind v4 preserves injected references and nested BEM selectors.
 
 ### Tests
 

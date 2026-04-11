@@ -8,27 +8,16 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
-- Fixed React router page HMR to rerender the live router root directly during page updates, preventing rerun hydration scripts from downgrading the active router registration.
-- Fixed development React routes to keep emitting page hydration bootstraps, restoring client hydration and react-router ownership in Bun dev servers and the React playground.
-- Fixed Bun development React page hydration to register route modules through the React-owned HMR entrypoint path instead of the generic script fallback.
-- Fixed React MDX development module loading to consume an injected host module loader instead of probing Nitro/Vite globals inside the page-module service.
-- Fixed Nitro/Vite development React routes to skip the legacy hydration bundle build path while the Vite-native server runner is active.
-- Fixed Nitro/Vite development React MDX routes to import page modules through the host Vite runner instead of the legacy MDX build-adapter path.
-- Fixed React page hydration bundles to replace direct `@ecopages/core` browser imports with a lightweight Eco factory shim, avoiding esbuild worker crashes when bundling `eco.page(...)` modules for preview and static output.
+- Fixed development hydration, router HMR ownership, and page bootstraps across Bun, Vite, and Nitro flows.
+- Fixed React page and MDX module loading to use host-provided loaders on Vite or Nitro and a lightweight browser `eco` shim in preview and build output.
 
-### Features & Performance
+### Features
 
-- **Performance Hydration**: Introduced static reachability analysis to enforce explicit hydration boundaries and optimized HMR via metadata caching.
-- **Service-Oriented Internals**: Refactored the integration into focused core-backed services for bundling, hydration, and page-module loading.
-- **React MDX**: Inlined MDX support directly into the React integration for a zero-config setup, including Node-native compatibility for experimental startup.
+- Added built-in React MDX support and reachability-based hydration analysis for React page bundles.
 
-### Bug Fixes & Refactoring
+### Refactoring
 
-- Suppressed expected Vite import-analysis warnings for runtime-loaded React page modules and declared-module inspection paths.
-- **Handoff Stability**: Standardized router-backed page payloads and document owner markers for mixed-router stability during navigation.
-- **Hydration Hardening**: Fixed island remount races, prop collisions, and layout metadata resolution during development and route handoffs.
-- **SSR Composition**: Preserved stitched child HTML during marker-graph React renders and skipped parent island hydration for pure SSR composition boundaries.
-- **Architecture**: Centralized runtime specifiers and consolidated browser-side integration state under `window.__ECO_PAGES__`.
+- Consolidated React bundling, hydration, and runtime state behind shared service boundaries and `window.__ECO_PAGES__`.
 
 ---
 

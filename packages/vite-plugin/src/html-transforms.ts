@@ -1,6 +1,7 @@
 const ROOT_LIT_PART_PATTERN = /^<!--lit-part [^>]+-->([\s\S]*)<!--\/lit-part-->$/;
 const HTML_DOCUMENT_CLOSE = '</html>';
 const HTML_TEMPLATE_SLOT_MARKER = '<--content-->';
+const VITE_CLIENT_SCRIPT = '<script type="module" src="/@vite/client"></script>';
 
 function extractAppendedChildren(appendedHtml: string): string {
 	const rootLitPartMatch = appendedHtml.match(ROOT_LIT_PART_PATTERN);
@@ -28,7 +29,9 @@ export function normalizeHtmlResponse(body: string, options?: { injectViteClient
 	}
 
 	if (options?.injectViteClient) {
-		html = html.replace('</head>', '<script type="module" src="/@vite/client"></script></head>');
+		if (!html.includes(VITE_CLIENT_SCRIPT)) {
+			html = html.replace('</head>', `${VITE_CLIENT_SCRIPT}</head>`);
+		}
 	}
 
 	return html;

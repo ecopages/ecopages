@@ -1,14 +1,17 @@
-# @ecopages/vite-plugin
+# Changelog
 
-## [UNRELEASED] - TBD
+All notable changes to `@ecopages/vite-plugin` are documented here.
+
+> **Note:** Changelog tracking begins at version `0.2.0`. Changes prior to this release are not recorded here but are available in the git history.
+
+## [UNRELEASED] — TBD
 
 ### Features
 
-- Added composed Vite plugin surface with `ecopages()` entrypoint that returns an array of Vite plugins for config merging, virtual modules, source transforms, island registration, metadata injection, JSX compatibility, HMR, and dev server bridging
-- Added built-in dev server middleware that bridges `app.fetch()` into Vite's `configureServer` hook
-- Added `normalizeHtmlResponse()` for Lit SSR slot placement and Vite client injection
+- Added the composed `ecopages()` Vite entrypoint, built-in dev-server bridging, and HTML normalization helpers for Vite-hosted Ecopages apps.
 
 ### Bug Fixes
 
-- Fixed `ecopages:config` so it preserves array-form Vite aliases and keeps `ssr.noExternal: true` intact when merging Ecopages defaults
-- Fixed rewritten Vite dev HTML responses so stale `content-length` and `etag` headers are removed before the bridged response is sent
+- Fixed Ecopages config merging to preserve array aliases and `ssr.noExternal: true`.
+- Fixed bridged HTML responses to drop stale body-derived headers after rewriting.
+- Fixed HTML normalization to avoid injecting duplicate `/@vite/client` scripts into already-instrumented documents.

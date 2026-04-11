@@ -4,9 +4,9 @@ The foundational engine for the Ecopages framework. It provides the core build p
 
 ## Overview
 
-Ecopages is an extensible static site generator (SSG) built around a Bun-native core and a Vite-hosted compatibility story. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
+Ecopages is an extensible static site generator (SSG) built around a Bun-first core with Node fallback support and Vite-hosted compatibility for advanced dev and build orchestration. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
 
-- **Runtime Boundary**: Direct Ecopages execution is Bun-only. Cross-runtime support belongs to the Vite host path rather than a framework-owned Node runtime.
+- **Runtime Boundary**: `createApp()` prefers Bun when available and falls back to Node otherwise. Vite and Nitro still own host-side dev and build orchestration.
 - **Build Ownership**: Bun-native execution keeps a core-owned build path. Vite and Nitro own host-side transforms, module graph behavior, and deployment-oriented builds.
 - **Framework agnostic**: First-class support for KitaJS, Lit, React, and MDX via official integration plugins.
 - **Extensible**: Hook into the build process with custom processors or rendering integrations.
@@ -32,17 +32,13 @@ flowchart TD
 	B --> E[Build executor]
 	B --> F[Dev graph service]
 	B --> G[Runtime specifier registry]
-	B --> H[Node runtime manifest]
-	H --> I[CLI launch plan]
-	I --> J[Node thin host]
-	J --> K[Node runtime adapter]
-	K --> L[TranspilerServerLoader]
-	L --> M[ServerModuleTranspiler]
-	M --> N[PageModuleImportService]
-	K --> O[Loaded app runtime]
-	D --> P[BrowserBundleService]
-	E --> M
-	E --> P
+	B --> H[Host module loader boundary]
+	H --> I[PageModuleImportService]
+	E --> I
+	E --> J[BrowserBundleService]
+	I --> K[Runtime app adapter]
+	K --> L[Bun adapter or Node adapter]
+	D --> J
 ```
 
 ### Development Invalidation And HMR Flow
@@ -74,7 +70,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 - `ConfigBuilder` now seeds one app-owned build ownership path, adapter, manifest, executor, dev graph, and runtime registry.
 - `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths.
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
-- direct Ecopages runtime ownership stops at Bun; cross-runtime execution belongs to Vite-hosted integrations.
+- `createApp()` stays the universal runtime entrypoint, while Vite and Nitro hosts own their advanced dev and build workflows.
 - esbuild remains only as a temporary Bun-path implementation detail and is not a strategic core dependency.
 
 ## Documentation Map
@@ -135,13 +131,13 @@ export default config;
 
 ### 2. Application Entry (`app.ts`)
 
-Start the application using `createApp` when running on Bun. Cross-runtime execution should happen through a Vite host integration instead of direct Node execution of the core entrypoint.
+Start the application using `createApp`. It will choose the Bun adapter when Bun is available and fall back to Node otherwise.
 
 ```typescript
 import { createApp } from '@ecopages/core';
 import appConfig from './eco.config';
 
-const app = createApp({ appConfig });
+const app = await createApp({ appConfig });
 
 await app.start();
 ```
@@ -206,7 +202,7 @@ import { createApp } from '@ecopages/core';
 import { helloWorld } from './handlers/hello';
 import appConfig from './eco.config';
 
-const app = createApp({ appConfig });
+const app = await createApp({ appConfig });
 
 app.get(helloWorld); // Register the API handler
 
@@ -224,7 +220,7 @@ import { createApp, defineApiHandler, defineGroupHandler, eco } from '@ecopages/
 ```
 
 > [!NOTE]
-> `createApp` is the recommended Bun-native entrypoint over `EcopagesApp`.
+> `createApp` is the recommended entrypoint over `EcopagesApp`.
 
 ### Runtime Escape Hatches
 

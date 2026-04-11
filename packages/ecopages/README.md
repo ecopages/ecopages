@@ -2,7 +2,7 @@
 
 The official CLI for the Ecopages framework.
 
-It provides scaffolding and development commands to streamline your workflow. It defaults to Bun execution and automatically detects your `eco.config.ts`.
+It provides scaffolding and development commands to streamline your workflow. It prefers Bun when available, falls back to Node otherwise, and automatically detects your `eco.config.ts`.
 
 ## Quick Start
 
@@ -41,11 +41,11 @@ Server and build commands accept the following options. They automatically map t
 | `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string             |
 | `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug-level logging |
 | `-r, --react-fast-refresh` |                         | Enables React Fast Refresh  |
-| `--runtime <runtime>`      |                         | Force execution via `bun`   |
+| `--runtime <runtime>`      |                         | Force execution via `bun` or `node` |
 
 ### Runtime Detection
 
-The CLI now defaults to Bun. It prefers Bun when the package manager already indicates Bun, when the `Bun` global is available, and otherwise still falls back to Bun as the default runtime.
+The CLI prefers Bun when the package manager already indicates Bun, when the `Bun` global is available, or when you force it with `--runtime bun`. Otherwise it falls back to Node.
 
 You can explicitly force the engine using the `--runtime` flag:
 

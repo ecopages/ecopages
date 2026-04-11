@@ -12,4 +12,4 @@ All notable changes to `ecopages` are documented here.
 
 ### Refactoring
 
-- Removed the CLI thin-host Node bootstrap path and its loader-hook runtime dependency so `ecopages` now defaults to Bun launches.
+- Simplified CLI runtime startup and removed the thin-host bootstrap path; runtime selection now follows explicit `--runtime` overrides, package-manager hints, and Bun availability.

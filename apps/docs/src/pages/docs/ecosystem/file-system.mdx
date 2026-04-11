@@ -18,7 +18,7 @@ The `@ecopages/file-system` package provides runtime-agnostic file system utilit
 
 - **Runtime Detection**: Automatically selects the optimal adapter
 - **Bun Optimized**: Uses `Bun.Glob`, `Bun.hash`, `Bun.file`, and `Bun.write` for maximum performance
-- **Node.js Fallback**: Uses `fast-glob` and `crypto` for full compatibility
+- **Node.js Fallback**: Uses native `node:fs/promises.glob()` and `crypto` for full compatibility
 - **Type Safe**: Consistent TypeScript interface across runtimes
 
 ## Installation

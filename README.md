@@ -51,7 +51,7 @@ Start here for package-level architecture:
 
 Architecture RFC and direction docs live under `refactor/` and explain the current direction and why the core seams are shaped the way they are.
 
-The current direction is explicit: Bun is the only core-owned runtime path, Vite and Nitro own host-side build and dev behavior, and esbuild is no longer a strategic core dependency.
+The current direction is explicit: Bun is the primary core-owned runtime path, `createApp()` still supports direct Node fallback execution, Vite and Nitro own host-side build and dev behavior, and esbuild is no longer a strategic core dependency.
 
 ### Static Site Generation
 
@@ -195,6 +195,7 @@ Release pipeline notes:
 - npm publishing uses provenance-enabled `npm publish --provenance`.
 - npm publish steps skip a package if that exact version is already published.
 - brand new npm packages usually require an initial manual npm-side setup before trusted publishing can work.
+- Before publishing, compare each unreleased changelog line against the final implementation state and remove wording that only describes intermediate refactors instead of the shipped behavior.
 
 ## Embracing Simplicity with a Side of Verbosity
 

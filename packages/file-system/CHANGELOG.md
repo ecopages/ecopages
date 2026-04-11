@@ -8,4 +8,4 @@ All notable changes to `@ecopages/file-system` are documented here.
 
 ### Bug Fixes
 
-- Switched Node-side globbing from `fast-glob` to native `node:fs/promises.glob()` and removed the stale `fast-glob` dependency so bundled ESM runtime paths avoid CommonJS interop failures.
+- Switched Node globbing to native `node:fs/promises.glob()` and removed the stale `fast-glob` dependency.

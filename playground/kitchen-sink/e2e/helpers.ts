@@ -184,13 +184,38 @@ export async function settleOnRoute(options: {
 }) {
 	const { page, href, content, navigate, attempts = 3 } = options;
 	const targetUrl = new URL(href, page.url());
+	const targetPathname = targetUrl.pathname;
 
 	for (let attempt = 0; attempt < attempts; attempt += 1) {
 		try {
-			await expect(page).toHaveURL(new RegExp(`${targetUrl.pathname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), {
-				timeout: 2000,
-			});
-			await expect(content).toBeVisible({ timeout: 2000 });
+			await expect
+				.poll(
+					async () => {
+						try {
+							return await page.evaluate(() => window.location.pathname);
+						} catch {
+							return '';
+						}
+					},
+					{
+						timeout: 2000,
+					},
+				)
+				.toBe(targetPathname);
+			await expect
+				.poll(
+					async () => {
+						try {
+							return await content.isVisible();
+						} catch {
+							return false;
+						}
+					},
+					{
+						timeout: 2000,
+					},
+				)
+				.toBe(true);
 			return;
 		} catch (error) {
 			if (attempt === attempts - 1) {

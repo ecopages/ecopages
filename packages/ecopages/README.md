@@ -34,13 +34,13 @@ bun dev
 
 Server and build commands accept the following options. They automatically map to the equivalent environment variables for the underlying process:
 
-| Option                     | Env Var                 | Description                 |
-| :------------------------- | :---------------------- | :-------------------------- |
-| `-p, --port <port>`        | `ECOPAGES_PORT`         | Server port (default 3000)  |
-| `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname             |
-| `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string             |
-| `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug-level logging |
-| `-r, --react-fast-refresh` |                         | Enables React Fast Refresh  |
+| Option                     | Env Var                 | Description                         |
+| :------------------------- | :---------------------- | :---------------------------------- |
+| `-p, --port <port>`        | `ECOPAGES_PORT`         | Server port (default 3000)          |
+| `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname                     |
+| `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string                     |
+| `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug-level logging         |
+| `-r, --react-fast-refresh` |                         | Enables React Fast Refresh          |
 | `--runtime <runtime>`      |                         | Force execution via `bun` or `node` |
 
 ### Runtime Detection

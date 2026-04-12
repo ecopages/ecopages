@@ -1,38 +1,24 @@
 # Copilot Coding Rules
 
-## Commenting
+## Code Style
 
-- Avoid inline comments (`// ...`).
-- Use JSDoc comments (`/** ... */`) only when necessary, especially for public APIs, complex logic, or exported functions/classes.
-- Do not over-comment; prefer clear, self-explanatory code.
-
-## Formatting
-
-- Do not worry about style or formatting issues (e.g., Prettier, linter warnings).
-- Auto-format on save will handle these.
-- Template literals are preferred over string concatenation.
-- Do not use emoji, symbols, or other non-standard characters. Instead you can use plain text (i.e. `[what-emoji-represent]`)
+- Avoid inline comments (`// ...`). Use TSDoc only for public APIs or complex logic.
+- Do not worry about formatting; auto-format on save handles it.
+- Template literals over string concatenation.
+- No emoji or symbols; use plain text (i.e. `[what-emoji-represent]`).
 
 ## TypeScript
 
-- Avoid TypeScript hacks and anti-patterns.
-- Do not use `any` unless absolutely necessary.
-    - If you must use `any`, add a comment explaining why.
-- Prefer `unknown` over `any` when possible.
-
-## JS Runtime
-
-- The project uses Node.js as the runtime and pnpm as the package manager.
-- Use `node:` prefix for built-in module imports (e.g. `import fs from 'node:fs'`).
-- Use `import.meta.dirname` / `import.meta.filename` instead of `__dirname` / `__filename` (ESM-safe).
-- Do not use Bun-specific APIs (e.g. `Bun.write`, `Bun.file`).
+- No `any` unless absolutely necessary (add a comment explaining why). Prefer `unknown`.
+- Trust inherited types: do not add runtime validation for values already enforced by TypeScript interfaces.
+- Avoid defensive programming against typed interfaces; unnecessary guards add noise and cognitive load.
+- Prefer modern APIs over manual equivalents (e.g. `new Headers(entries)` over iterating and appending).
 
 ## Changelog
 
-- Every package has a `CHANGELOG.md`. Changelog tracking started at version `0.2.0`; prior history is in git.
-- Any commit that touches a **public API, adds a feature, or fixes a bug** must include an entry in the relevant package's `CHANGELOG.md` under the current unreleased version block.
-- Group entries under the appropriate heading: `### Features`, `### Refactoring`, `### Bug Fixes`, `### Tests`, or `### Documentation`.
-- Do not use emoji or symbols in changelog entries (plain text only, per formatting rules above).
-- Keep entries concise: one line per change, linking the commit hash in parentheses where useful.
-- The active development block must always be headed `## [UNRELEASED] — TBD`. On release, replace `[UNRELEASED]` with the version number and `TBD` with the release date (YYYY-MM-DD).
-- The release date on the version heading is updated on the actual release/merge commit, not during development.
+- Every package has a `CHANGELOG.md`. Tracking started at `0.2.0`; prior history is in git.
+- Any commit touching a **public API, feature, or bug fix** must add an entry under the current `## [UNRELEASED] -- TBD` block.
+- Group under: `### Features`, `### Refactoring`, `### Bug Fixes`, `### Tests`, or `### Documentation`.
+- One concise line per change, plain text only, commit hash in parentheses where useful.
+- On release, replace `[UNRELEASED]` with the version and `TBD` with the date (YYYY-MM-DD).
+- Changelog entries must reflect the **final state** compared to the target branch (default: `main`). Do not keep iteration history -- if a feature was added and then reworked during the same branch, the entry should describe only the final result.

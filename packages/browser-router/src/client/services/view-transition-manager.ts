@@ -58,13 +58,29 @@ export class ViewTransitionManager {
 			applyViewTransitionNames();
 		});
 
-		void transition.finished.finally(() => {
-			/**
-			 * Cleanup view transition names and dynamic styles after the browser's
-			 * animation lifecycle completes.
-			 */
-			clearViewTransitionNames();
+		void transition.ready.catch((error: unknown) => {
+			if (error instanceof Error && error.name === 'AbortError') {
+				return;
+			}
+
+			console.error('[ecopages] View transition failed to start:', error);
 		});
+
+		void transition.finished
+			.catch((error: unknown) => {
+				if (error instanceof Error && error.name === 'AbortError') {
+					return;
+				}
+
+				console.error('[ecopages] View transition lifecycle failed:', error);
+			})
+			.finally(() => {
+				/**
+				 * Cleanup view transition names and dynamic styles after the browser's
+				 * animation lifecycle completes.
+				 */
+				clearViewTransitionNames();
+			});
 
 		await transition.updateCallbackDone;
 	}

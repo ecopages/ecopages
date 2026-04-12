@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DomSwapper } from '../src/client/services/dom-swapper.ts';
+import { ViewTransitionManager } from '../src/client/services/view-transition-manager.ts';
+
+type DocumentWithViewTransition = Document & {
+	startViewTransition?: (callback: () => void | Promise<void>) => {
+		finished: Promise<void>;
+		ready: Promise<void>;
+		updateCallbackDone: Promise<void>;
+		skipTransition(): void;
+	};
+};
 
 function parseDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
@@ -10,6 +20,11 @@ function resetDocument(): void {
 	document.body.innerHTML = '';
 	document.title = '';
 }
+
+afterEach(() => {
+	Reflect.deleteProperty(document as DocumentWithViewTransition, 'startViewTransition');
+	vi.restoreAllMocks();
+});
 
 describe('DomSwapper service behavior', () => {
 	it('parses HTML with a temporary base tag when a navigation URL is provided', () => {
@@ -164,5 +179,34 @@ describe('DomSwapper service behavior', () => {
 			document.head.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]')?.getAttribute('src'),
 		).toContain('__eco_rerun=2');
 		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
+	});
+
+	it('ignores skipped view transition finish rejections after the DOM update commits', async () => {
+		resetDocument();
+		const manager = new ViewTransitionManager(true);
+		const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const startViewTransition = vi.fn((callback: () => void | Promise<void>) => {
+			const updateCallbackDone = Promise.resolve().then(async () => {
+				await callback();
+			});
+
+			return {
+				finished: Promise.reject(new DOMException('Transition was skipped', 'AbortError')),
+				ready: Promise.reject(new DOMException('Transition was skipped', 'AbortError')),
+				updateCallbackDone,
+				skipTransition() {},
+			};
+		});
+
+		Reflect.set(document as DocumentWithViewTransition, 'startViewTransition', startViewTransition);
+
+		await manager.transition(() => {
+			document.body.innerHTML = '<div>Updated</div>';
+		});
+		await Promise.resolve();
+
+		expect(startViewTransition).toHaveBeenCalledTimes(1);
+		expect(document.body.innerHTML).toContain('Updated');
+		expect(consoleSpy).not.toHaveBeenCalled();
 	});
 });

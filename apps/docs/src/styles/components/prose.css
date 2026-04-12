@@ -36,7 +36,7 @@
 	}
 
 	strong {
-		@apply font-semibold text-on-background-accent;
+		@apply font-semibold;
 	}
 
 	ul,
@@ -73,14 +73,14 @@
 	}
 
 	code {
-		@apply font-mono text-[0.875em] bg-background-accent/30 text-on-background-accent px-1.5 py-0.5 rounded-md border border-border/30;
+		@apply font-mono text-[0.875em] bg-muted text-on-background-accent px-1.5 py-0.5 rounded-md border border-border/30;
 	}
 
 	pre {
-		@apply my-8 rounded-xl bg-background-accent/10 border border-border/40 overflow-x-auto p-5 shadow-sm;
+		@apply my-8 rounded-md bg-background-accent/10 border border-border overflow-x-auto p-5 shadow-sm;
 
 		code {
-			@apply bg-transparent text-inherit p-0 rounded-none border-none text-[0.875em] leading-relaxed;
+			@apply bg-background-accent text-inherit p-0 rounded-none border-none text-[0.875em] leading-relaxed;
 		}
 	}
 
@@ -89,10 +89,10 @@
 	}
 
 	table {
-		@apply w-full text-left border-separate border-spacing-0 my-8 text-sm overflow-hidden rounded-lg border border-border border-solid block md:table;
+		@apply w-full text-left border-collapse my-8 text-sm overflow-hidden rounded-xl border border-border/30 block md:table ring-1 ring-border/20;
 
 		thead {
-			@apply border-b border-border/50 bg-background-accent;
+			@apply border-b border-border/50 bg-background-accent/20;
 
 			th {
 				@apply py-3 px-4 font-semibold text-on-background-accent whitespace-nowrap;
@@ -101,7 +101,7 @@
 
 		tbody {
 			tr {
-				@apply border-b border-border transition-colors hover:bg-background-accent/10;
+				@apply border-b border-border/30 transition-colors hover:bg-background-accent/10;
 
 				td {
 					@apply py-3 px-4 text-on-background align-top;

@@ -68,6 +68,7 @@
 	--color-on-background: var(--color-glacier-white-900);
 	--color-background-accent: var(--color-glacier-white-100);
 	--color-on-background-accent: var(--color-glacier-white-950);
+	--color-muted: var(--color-glacier-white-200);
 	--color-primary-container: var(--color-night-sky-100);
 	--color-on-primary-container: var(--color-night-sky-900);
 	--color-primary: var(--color-night-sky-500);
@@ -85,6 +86,7 @@
 	--color-on-background: var(--color-glacier-white-50);
 	--color-background-accent: var(--color-glacier-white-900);
 	--color-on-background-accent: var(--color-glacier-white-50);
+	--color-muted: var(--color-glacier-white-800);
 	--color-primary-container: var(--color-night-sky-800);
 	--color-on-primary-container: var(--color-night-sky-50);
 	--color-primary: var(--color-night-sky-500);

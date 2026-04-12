@@ -10,6 +10,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 - Added a shared runtime boundary around `createApp()`, host module loading, and explicit build ownership for Bun-native execution, Node fallback support, and Vite or Nitro hosts.
 - Added the browser-safe `eco` export, semantic `eco.html()` and `eco.layout()` helpers, and the internal `.eco` work directory.
+- Added the public `EcoPagesAppConfig` export for published integration packages.
 
 ### Refactoring
 

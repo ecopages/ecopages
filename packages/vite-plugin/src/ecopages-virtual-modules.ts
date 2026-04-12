@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import {
 	createIntegrationManifestModuleSource,
 	createIslandRegistryModuleSourceFromConfig,

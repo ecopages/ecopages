@@ -1,4 +1,4 @@
-import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import path from 'node:path';
 
 /**

@@ -1,14 +1,17 @@
-import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
-import type { EcoSourceTransform, EcoViteCompatiblePlugin } from '@ecopages/core';
+import type { EcoPagesAppConfig, EcoSourceTransform, EcoViteCompatiblePlugin } from '@ecopages/core';
 import type { EcopagesVitePlugin } from './types.ts';
 
 /**
  * Public options accepted by the composed Ecopages Vite entrypoint.
  *
  * @remarks
- * `appConfig` remains the source of truth for Ecopages semantics. The remaining
- * fields are Vite-facing overrides that get resolved once and then forwarded to
- * the internal plugin buckets through the shared plugin API.
+ * `appConfig` must be the Ecopages app config built for the current project.
+ * The remaining fields are Vite-facing overrides that get resolved once and
+ * then forwarded to the internal plugin buckets through the shared plugin API.
+ *
+ * The Vite package intentionally depends on the stable public
+ * `EcoPagesAppConfig` export from `@ecopages/core` rather than the
+ * `internal-types` import path.
  */
 export interface EcopagesViteOptions {
 	appConfig: EcoPagesAppConfig;

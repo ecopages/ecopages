@@ -2,29 +2,35 @@ import { describe, expect, it } from 'vitest';
 import { createEcopagesPluginApi } from './plugin-api.ts';
 import { ecopagesDevServer } from './ecopages-dev-server.ts';
 
-function setupDevServerMiddleware(fetchResponse: Response) {
-	let middleware: ((req: unknown, res: unknown, next: (error?: unknown) => void) => Promise<void>) | undefined;
-
-	const api = createEcopagesPluginApi({
+function createApi() {
+	return createEcopagesPluginApi({
 		appConfig: {
 			rootDir: '/app',
 			runtime: {},
 			integrations: [],
 			sourceTransforms: new Map(),
 			absolutePaths: {
+				componentsDir: '/app/src/components',
+				distDir: '/app/dist',
+				htmlTemplatePath: '/app/src/app.html',
+				includesDir: '/app/src/includes',
 				pagesDir: '/app/src/pages',
 				layoutsDir: '/app/src/layouts',
 			},
 		} as never,
 	});
+}
+
+function setupDevServerMiddleware(
+	fetchResponse: Response,
+	options?: { module?: Record<string, unknown>; includeMiddlewares?: boolean },
+) {
+	let middleware: ((req: unknown, res: unknown, next: (error?: unknown) => void) => Promise<void>) | undefined;
+
+	const api = createApi();
 
 	const plugin = ecopagesDevServer(api);
-	(plugin.configureServer as Function)({
-		middlewares: {
-			use(handler: typeof middleware) {
-				middleware = handler;
-			},
-		},
+	const server = {
 		async ssrLoadModule(id: string) {
 			if (id === '@ecopages/core/host-module-loader') {
 				return {
@@ -32,13 +38,25 @@ function setupDevServerMiddleware(fetchResponse: Response) {
 				};
 			}
 
-			return {
-				app: {
-					fetch: async () => fetchResponse,
-				},
-			};
+			return (
+				options?.module ?? {
+					app: {
+						fetch: async () => fetchResponse,
+					},
+				}
+			);
 		},
-	} as never)?.();
+	} as Record<string, unknown>;
+
+	if (options?.includeMiddlewares !== false) {
+		server.middlewares = {
+			use(handler: typeof middleware) {
+				middleware = handler;
+			},
+		};
+	}
+
+	(plugin.configureServer as Function)(server as never)?.();
 
 	const headers = new Map<string, string>();
 	const chunks: Uint8Array[] = [];
@@ -158,5 +176,74 @@ describe('ecopagesDevServer', () => {
 		expect(harness.response.statusCode).toBe(302);
 		expect(harness.headers.get('location')).toBe('/login');
 		expect(harness.getBody()).toBe('');
+	});
+
+	it('fails fast when the Vite server does not expose Connect middlewares', () => {
+		const api = createApi();
+		const plugin = ecopagesDevServer(api);
+
+		expect(() =>
+			(plugin.configureServer as Function)({
+				async ssrLoadModule() {
+					return {};
+				},
+			}),
+		).toThrow('[ecopages] ecopagesDevServer requires a Vite dev server with Connect-style middlewares.use()');
+	});
+
+	it('surfaces a clear error when host-module-loader is missing setHostModuleLoader()', async () => {
+		const api = createApi();
+		const plugin = ecopagesDevServer(api);
+
+		let middleware: Function | undefined;
+
+		(plugin.configureServer as Function)({
+			middlewares: {
+				use(handler: Function) {
+					middleware = handler;
+				},
+			},
+			async ssrLoadModule() {
+				return {};
+			},
+		})?.();
+
+		let receivedError: unknown;
+
+		await middleware?.(
+			{ headers: {}, method: 'GET', originalUrl: '/' },
+			{ statusCode: 0, statusMessage: '', setHeader() {}, write() {}, end() {} },
+			(error?: unknown) => {
+				receivedError = error;
+			},
+		);
+
+		expect(receivedError).toBeInstanceOf(Error);
+		expect((receivedError as Error).message).toContain(
+			'@ecopages/core/host-module-loader must export setHostModuleLoader()',
+		);
+	});
+
+	it('surfaces a clear error when the app module does not export app.fetch()', async () => {
+		const harness = setupDevServerMiddleware(new Response('unused'), {
+			module: {},
+		});
+
+		let receivedError: unknown;
+
+		await harness.middleware?.(
+			{
+				headers: {},
+				method: 'GET',
+				originalUrl: '/',
+			},
+			harness.response,
+			(error?: unknown) => {
+				receivedError = error;
+			},
+		);
+
+		expect(receivedError).toBeInstanceOf(Error);
+		expect((receivedError as Error).message).toContain('must export an app.fetch(request) handler');
 	});
 });

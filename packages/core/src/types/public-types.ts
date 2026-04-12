@@ -10,6 +10,7 @@ import type { ProcessedAsset } from '../services/assets/asset-processing-service
 import type { CacheStats, CacheStrategy } from '../services/cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
 
+export type { EcoPagesAppConfig } from './internal-types.ts';
 export type { EcoPageComponent } from '../eco/eco.types.ts';
 export type { MarkerGraphContext } from '../route-renderer/component-graph/marker-graph-resolver.ts';
 export type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';

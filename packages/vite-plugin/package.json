@@ -1,11 +1,12 @@
 {
 	"name": "@ecopages/vite-plugin",
 	"version": "0.2.0-alpha.1",
-	"description": "Vite plugin for Ecopages",
+	"description": "Vite plugin for Ecopages apps",
 	"keywords": [
 		"ecopages",
 		"vite",
 		"vite-plugin",
+		"islands",
 		"ssg",
 		"ssr"
 	],
@@ -15,7 +16,9 @@
 		".": "./src/index.ts"
 	},
 	"files": [
-		"src"
+		"src",
+		"README.md",
+		"CHANGELOG.md"
 	],
 	"repository": {
 		"type": "git",

@@ -14,6 +14,11 @@ import type { EcopagesVitePlugin } from './types.ts';
  * Composes the Ecopages Vite plugin surface.
  *
  * @remarks
+ * Pass the app config exported from the Ecopages project `eco.config` path.
+ * The Vite plugin expects the public `EcoPagesAppConfig` export exposed by
+ * `@ecopages/core` and validates the required directories and transforms before
+ * registering the plugin buckets.
+ *
  * Returns an array of Vite plugins that handle config merging, virtual modules,
  * source transforms, island registration, metadata injection, JSX compatibility,
  * HMR, dev server bridging, and host-bridge integration.
@@ -21,24 +26,6 @@ import type { EcopagesVitePlugin } from './types.ts';
 export function ecopages(
 	options: Pick<EcopagesViteOptions, 'appConfig'> & Omit<Partial<EcopagesViteOptions>, 'appConfig'>,
 ): PluginOption[] {
-	const { appConfig } = options;
-
-	if (!appConfig) {
-		throw new Error('[ecopages] appConfig is required');
-	}
-
-	if (!appConfig.integrations || !Array.isArray(appConfig.integrations)) {
-		throw new Error('[ecopages] appConfig.integrations must be an array');
-	}
-
-	if (!appConfig.absolutePaths?.pagesDir || !appConfig.absolutePaths?.layoutsDir) {
-		throw new Error('[ecopages] appConfig.absolutePaths must include pagesDir and layoutsDir');
-	}
-
-	if (!(appConfig.sourceTransforms instanceof Map)) {
-		throw new Error('[ecopages] appConfig.sourceTransforms must be a Map');
-	}
-
 	const api = createEcopagesPluginApi(options as EcopagesViteOptions);
 	const plugins: EcopagesVitePlugin[] = [
 		ecopagesClientJsxCompat(api),

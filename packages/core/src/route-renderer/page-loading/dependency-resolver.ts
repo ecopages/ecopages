@@ -101,7 +101,7 @@ function createModuleScriptName(from: string, imports: string[] | undefined): st
 }
 
 function createNamedImportModuleSource(from: string, imports: string[]): string {
-	const namedImports = imports.join(', ');
+	const namedImports = [...new Set(imports)].sort().join(', ');
 	return `export { ${namedImports} } from '${from}';`;
 }
 
@@ -399,14 +399,11 @@ export class DependencyResolverService {
 
 							scriptDependencyKeys.add(depKey);
 							dependencies.push(
-								AssetFactory.createContentScript({
+								AssetFactory.createInlineContentScript({
 									position: 'head',
 									content,
-									attributes: {
-										type: 'module',
-										defer: '',
-										...attributes,
-									},
+									bundle: false,
+									attributes,
 								}),
 							);
 							continue;

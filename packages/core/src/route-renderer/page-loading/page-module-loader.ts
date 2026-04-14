@@ -1,5 +1,6 @@
 import { invariant } from '../../utils/invariant.ts';
 import type {
+	ComponentGraphContext,
 	EcoPageFile,
 	GetMetadata,
 	GetMetadataContext,
@@ -128,6 +129,7 @@ export class PageModuleLoaderService {
 		Page: EcoPageFile['default'] | EcoPageComponent<any>;
 		getStaticProps?: GetStaticProps<Record<string, unknown>>;
 		getMetadata?: GetMetadata;
+		componentGraphContext?: ComponentGraphContext;
 		integrationSpecificProps: Record<string, unknown>;
 	}> {
 		const module = await (options.importPageFileFn ?? ((file) => this.importPageFile(file)))(options.file);
@@ -135,6 +137,7 @@ export class PageModuleLoaderService {
 			default: Page,
 			getStaticProps: moduleGetStaticProps,
 			getMetadata: moduleGetMetadata,
+			componentGraphContext,
 			...integrationSpecificProps
 		} = module;
 
@@ -142,6 +145,7 @@ export class PageModuleLoaderService {
 			Page,
 			getStaticProps: Page.staticProps ?? moduleGetStaticProps,
 			getMetadata: Page.metadata ?? moduleGetMetadata,
+			componentGraphContext,
 			integrationSpecificProps,
 		};
 	}

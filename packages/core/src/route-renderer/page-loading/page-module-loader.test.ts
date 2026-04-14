@@ -60,9 +60,18 @@ describe('PageModuleLoaderService', () => {
 		const module = {
 			default: Page,
 			getStaticProps: async () => ({ props: { from: 'module-static' } }),
-			getMetadata: async () => ({ title: 'module-metadata' }),
+			getMetadata: async () => ({
+				title: 'module-metadata',
+				description: 'module-description',
+			}),
+			componentGraphContext: {
+				propsByRef: {
+					p_1: { title: 'from-graph' },
+				},
+				slotChildrenByRef: {},
+			},
 			extra: 'integration-value',
-		} as unknown as EcoPageFile;
+		} satisfies EcoPageFile<{ extra: string }>;
 
 		const result = await service.resolvePageModule({
 			file: '/app/pages/index.tsx',
@@ -71,6 +80,12 @@ describe('PageModuleLoaderService', () => {
 
 		expect(result.getStaticProps).toBe(Page.staticProps);
 		expect(result.getMetadata).toBe(Page.metadata);
+		expect(result.componentGraphContext).toEqual({
+			propsByRef: {
+				p_1: { title: 'from-graph' },
+			},
+			slotChildrenByRef: {},
+		});
 		expect(result.integrationSpecificProps).toEqual({ extra: 'integration-value' });
 	});
 

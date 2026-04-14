@@ -60,7 +60,7 @@ app.get('/api/users/:id/posts/:postId', async ({ params }) => {
 
 Ecopages leverages TypeScript to provide strong type safety for your API handlers, especially for route parameters.
 
-While you can define handlers directly, ensuring the `params` type matches the `path` string requires careful manual typing. To simplify this and improve code organization, Ecopages provides adapter-specific helper functions.
+Handlers can be defined directly, but keeping the `params` type aligned with the `path` string requires explicit manual typing. Ecopages provides adapter-specific helper functions to remove that duplication and keep route definitions organized.
 
 ### Using `defineApiHandler`
 

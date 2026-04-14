@@ -96,7 +96,7 @@ describe('PageModuleImportService', () => {
 						entrypoints: ['/app/pages/page.tsx'],
 						root: '/app',
 						outdir: tempDir,
-						target: 'node',
+						target: 'es2022',
 						format: 'esm',
 						sourcemap: 'none',
 						splitting: true,

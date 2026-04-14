@@ -159,11 +159,25 @@ export function resolveNodeBootstrapDependency(
 			: path.join(options.projectDir, 'package.json');
 
 	if (args.path.startsWith('@ecopages/')) {
-		let resolvedPath: string;
+		let resolvedPath: string | undefined;
 		try {
 			resolvedPath = resolveFromCore(args.path);
 		} catch {
-			resolvedPath = resolveSpecifier(args.path, resolveParent);
+			try {
+				resolvedPath = resolveSpecifier(args.path, resolveParent);
+			} catch {
+				const packageName = getPackageNameFromSpecifier(args.path);
+				const candidatePath = path.join(options.projectDir, 'node_modules', packageName);
+				const candidatePackageJson = path.join(candidatePath, 'package.json');
+				if (existsSync(candidatePackageJson)) {
+					ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, candidatePackageJson);
+					return { path: args.path, external: true };
+				}
+			}
+		}
+
+		if (!resolvedPath) {
+			return undefined;
 		}
 
 		if (resolvedPath.includes(`${path.sep}node_modules${path.sep}`)) {

@@ -35,13 +35,15 @@ import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { MarkerGraphResolver } from '../component-graph/marker-graph-resolver.ts';
+import { createComponentMarker, parseComponentMarkers } from '../component-graph/component-marker.ts';
 import { RenderExecutionService, type RenderExecutionGraphContext } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
 import type {
 	BoundaryRenderDecisionInput,
 	ComponentRenderBoundaryContext,
-} from '../../eco/component-render-context.ts';
-import { runWithComponentRenderContext } from '../../eco/component-render-context.ts';
+} from './component-render-context.ts';
+import type { DeferredTemplateSerializer } from './template-serialization.ts';
+import { runWithComponentRenderContext } from './component-render-context.ts';
 
 export interface FinalizeCapturedHtmlRenderOptions {
 	html: string;
@@ -93,6 +95,38 @@ function createLocalsProxy(filePath: string): Record<string, never> {
 	);
 }
 
+function protectPassedThroughMarkers(
+	html: string,
+	propsByRef: Record<string, Record<string, unknown>>,
+): { html: string; restore: (nextHtml: string) => string } {
+	let protectedHtml = html;
+	const placeholders = new Map<string, string>();
+	let index = 0;
+
+	for (const marker of parseComponentMarkers(html)) {
+		if (marker.propsRef in propsByRef) {
+			continue;
+		}
+
+		const markerHtml = createComponentMarker(marker);
+		const placeholder = `<!--__ECO_PASSTHROUGH_MARKER_${index}__-->`;
+		index += 1;
+		placeholders.set(placeholder, markerHtml);
+		protectedHtml = protectedHtml.replace(markerHtml, placeholder);
+	}
+
+	return {
+		html: protectedHtml,
+		restore: (nextHtml) => {
+			let restoredHtml = nextHtml;
+			for (const [placeholder, markerHtml] of placeholders) {
+				restoredHtml = restoredHtml.replaceAll(placeholder, markerHtml);
+			}
+			return restoredHtml;
+		},
+	};
+}
+
 /**
  * Context for renderToResponse method.
  */
@@ -102,12 +136,43 @@ export interface RenderToResponseContext {
 	headers?: HeadersInit;
 }
 
+function createRendererDeferredTemplateValueSerializer(
+	serializers: readonly DeferredTemplateSerializer[] | undefined,
+): ((value: unknown, serializeValue: (value: unknown) => string | undefined) => string | undefined) | undefined {
+	if (!serializers || serializers.length === 0) {
+		return undefined;
+	}
+
+	return (value, serializeValue) => {
+		for (const serializer of serializers) {
+			if (serializer.matches(value)) {
+				return serializer.serialize(value, serializeValue);
+			}
+		}
+
+		return undefined;
+	};
+}
+
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
  * It handles the import of page files, collection of dependencies, and preparation of render options.
  * The class is designed to be extended by specific integration renderers.
  */
 export abstract class IntegrationRenderer<C = EcoPagesElement> {
+	/**
+	 * Integration-owned serializers for deferred template payloads that may cross
+	 * mixed-renderer boundaries before final HTML assembly.
+	 *
+	 * @remarks
+	 * Declare framework-specific template shape adapters here when the integration
+	 * can emit deferred child payloads that core must serialize generically.
+	 * The base renderer registers these serializers automatically during
+	 * construction, so integrations should prefer this colocated declaration over
+	 * side-effect imports or ad hoc bootstrap registration.
+	 */
+	static deferredTemplateSerializers?: readonly DeferredTemplateSerializer[];
+
 	abstract name: string;
 	protected appConfig: EcoPagesAppConfig;
 	protected assetProcessingService: AssetProcessingService;
@@ -122,6 +187,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected markerGraphResolver: MarkerGraphResolver;
 	protected renderPreparationService: RenderPreparationService;
 	protected renderExecutionService: RenderExecutionService;
+	protected deferredTemplateValueSerializer?: (
+		value: unknown,
+		serializeValue: (value: unknown) => string | undefined,
+	) => string | undefined;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -250,6 +319,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.markerGraphResolver = new MarkerGraphResolver();
 		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService);
 		this.renderExecutionService = new RenderExecutionService();
+
+		const rendererClass = this.constructor as typeof IntegrationRenderer;
+		this.deferredTemplateValueSerializer = createRendererDeferredTemplateValueSerializer(
+			rendererClass.deferredTemplateSerializers,
+		);
 	}
 
 	/**
@@ -471,6 +545,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					},
 				}),
 			getComponentRenderBoundaryContext: () => this.getComponentRenderBoundaryContext(),
+			serializeDeferredValue: this.deferredTemplateValueSerializer,
 			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
 			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 			createPageLocalsProxy: (filePath) =>
@@ -501,6 +576,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		Page: EcoPageFile['default'] | EcoPageComponent<any>;
 		getStaticProps?: GetStaticProps<Record<string, unknown>>;
 		getMetadata?: GetMetadata;
+		componentGraphContext?: IntegrationRendererRenderOptions['componentGraphContext'];
 		integrationSpecificProps: Record<string, unknown>;
 	}> {
 		return this.pageModuleLoaderService.resolvePageModule({
@@ -552,6 +628,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				this.prepareRenderOptions(routeOptions) as Promise<IntegrationRendererRenderOptions<C>>,
 			render: (renderOptions) => this.render(renderOptions),
 			getComponentRenderBoundaryContext: () => this.getComponentRenderBoundaryContext(),
+			serializeDeferredValue: this.deferredTemplateValueSerializer,
 			resolveMarkerGraphHtml: (input) =>
 				this.resolveMarkerGraphHtml({
 					html: input.html,
@@ -588,6 +665,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return this.renderExecutionService.captureHtmlRender(
 			this.name,
 			this.getComponentRenderBoundaryContext(),
+			this.deferredTemplateValueSerializer,
 			render,
 		);
 	}
@@ -755,17 +833,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * fall back to inline escaped HTML instead of emitting the next marker layer.
 	 */
 	async renderComponentForMarkerGraph(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		if (!this.shouldWrapMarkerGraphComponent(input.component)) {
-			return this.renderComponent(input);
-		}
-
 		const execution = await runWithComponentRenderContext(
 			{
 				currentIntegration: this.name,
 				boundaryContext: this.getComponentRenderBoundaryContext(),
+				serializeDeferredValue: this.deferredTemplateValueSerializer,
 			},
 			async () => this.renderComponent(input),
 		);
+
+		if (!this.shouldWrapMarkerGraphComponent(input.component)) {
+			return execution.value;
+		}
 
 		if (!execution.value.html.includes('<eco-marker')) {
 			return execution.value;
@@ -781,8 +860,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		const parentInstanceId = (input.integrationContext as { componentInstanceId?: string } | undefined)
 			?.componentInstanceId;
+		const protectedMarkers = protectPassedThroughMarkers(
+			execution.value.html,
+			execution.graphContext.propsByRef ?? {},
+		);
 		const nestedResolution = await this.resolveMarkerGraphHtml({
-			html: execution.value.html,
+			html: protectedMarkers.html,
 			componentsToResolve: [input.component],
 			graphContext: execution.graphContext,
 			instanceIdScope: parentInstanceId,
@@ -790,7 +873,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		return {
 			...execution.value,
-			html: nestedResolution.html,
+			html: protectedMarkers.restore(nestedResolution.html),
 			assets: this.htmlTransformer.dedupeProcessedAssets([
 				...(execution.value.assets ?? []),
 				...nestedResolution.assets,

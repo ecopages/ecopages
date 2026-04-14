@@ -1,7 +1,7 @@
 import {
 	runWithComponentRenderContext,
 	type ComponentRenderBoundaryContext,
-} from '../../eco/component-render-context.ts';
+} from './component-render-context.ts';
 import type {
 	EcoComponent,
 	IntegrationRendererRenderOptions,
@@ -40,6 +40,10 @@ export interface RenderExecutionCallbacks<C> {
 	prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions<C>>;
 	render(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
 	getComponentRenderBoundaryContext(): ComponentRenderBoundaryContext;
+	serializeDeferredValue?: (
+		value: unknown,
+		serializeValue: (value: unknown) => string | undefined,
+	) => string | undefined;
 	getDocumentAttributes(renderOptions: IntegrationRendererRenderOptions<C>): Record<string, string> | undefined;
 	resolveMarkerGraphHtml(input: {
 		html: string;
@@ -106,12 +110,16 @@ export class RenderExecutionService {
 	async captureHtmlRender(
 		currentIntegrationName: string,
 		boundaryContext: ComponentRenderBoundaryContext,
+		serializeDeferredValue:
+			| ((value: unknown, serializeValue: (value: unknown) => string | undefined) => string | undefined)
+			| undefined,
 		render: () => Promise<RouteRendererBody>,
 	): Promise<CapturedHtmlRenderResult> {
 		const renderExecution = await runWithComponentRenderContext(
 			{
 				currentIntegration: currentIntegrationName,
 				boundaryContext,
+				serializeDeferredValue,
 			},
 			async () => {
 				const renderedBody = await render();
@@ -150,6 +158,7 @@ export class RenderExecutionService {
 		const renderExecution = await this.captureHtmlRender(
 			currentIntegrationName,
 			callbacks.getComponentRenderBoundaryContext(),
+			callbacks.serializeDeferredValue,
 			async () => callbacks.render(renderOptions),
 		);
 		const normalizedCapturedHtml = restoreEscapedComponentMarkers(renderExecution.html);

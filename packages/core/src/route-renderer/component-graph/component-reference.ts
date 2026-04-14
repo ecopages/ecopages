@@ -1,14 +1,32 @@
 import type { EcoComponent } from '../../types/public-types.ts';
-import { rapidhash } from '../../utils/hash.ts';
 
-const runtimeComponentRefs = new WeakMap<EcoComponent, string>();
-const runtimeComponentHints = new WeakMap<EcoComponent, string>();
-const runtimeComponentHintSymbol = Symbol.for('ecopages.runtimeComponentHint');
-let nextRuntimeComponentRef = 0;
+type ComponentReferenceState = {
+	runtimeComponentRefs: WeakMap<EcoComponent, string>;
+	nextRuntimeComponentRef: number;
+};
 
-export function registerRuntimeComponentHint(component: EcoComponent, hint: string): void {
-	runtimeComponentHints.set(component, hint);
-	(component as EcoComponent & { [runtimeComponentHintSymbol]?: string })[runtimeComponentHintSymbol] = hint;
+const GLOBAL_COMPONENT_REFERENCE_STATE_KEY = '__ECOPAGES_COMPONENT_REFERENCE_STATE__';
+
+function getSharedReferenceScope(): Record<string, unknown> {
+	const globalProcess = globalThis.process as (NodeJS.Process & Record<string, unknown>) | undefined;
+	if (globalProcess && typeof globalProcess === 'object') {
+		return globalProcess;
+	}
+
+	return globalThis as Record<string, unknown>;
+}
+
+function getComponentReferenceState(): ComponentReferenceState {
+	const sharedScope = getSharedReferenceScope() as typeof globalThis & {
+		__ECOPAGES_COMPONENT_REFERENCE_STATE__?: ComponentReferenceState;
+	};
+
+	sharedScope[GLOBAL_COMPONENT_REFERENCE_STATE_KEY] ??= {
+		runtimeComponentRefs: new WeakMap<EcoComponent, string>(),
+		nextRuntimeComponentRef: 0,
+	};
+
+	return sharedScope[GLOBAL_COMPONENT_REFERENCE_STATE_KEY];
 }
 
 /**
@@ -20,34 +38,19 @@ export function registerRuntimeComponentHint(component: EcoComponent, hint: stri
  * request-time rendering can still resolve deferred boundaries.
  */
 export function getComponentReference(component: EcoComponent): string {
+	const state = getComponentReferenceState();
 	const metadataRef = component.config?.__eco?.id ?? component.config?.__eco?.file;
 	if (metadataRef) {
 		return metadataRef;
 	}
 
-	const existingRef = runtimeComponentRefs.get(component);
+	const existingRef = state.runtimeComponentRefs.get(component);
 	if (existingRef) {
 		return existingRef;
 	}
 
-	const runtimeHint = runtimeComponentHints.get(component);
-	if (runtimeHint) {
-		const hintedRef = `eco-runtime-component-${rapidhash(runtimeHint).toString(36)}`;
-		runtimeComponentRefs.set(component, hintedRef);
-		return hintedRef;
-	}
-
-	const componentHint = (component as EcoComponent & { [runtimeComponentHintSymbol]?: string })[
-		runtimeComponentHintSymbol
-	];
-	if (componentHint) {
-		const hintedRef = `eco-runtime-component-${rapidhash(componentHint).toString(36)}`;
-		runtimeComponentRefs.set(component, hintedRef);
-		return hintedRef;
-	}
-
-	nextRuntimeComponentRef += 1;
-	const runtimeRef = `eco-runtime-component-${nextRuntimeComponentRef}`;
-	runtimeComponentRefs.set(component, runtimeRef);
+	state.nextRuntimeComponentRef += 1;
+	const runtimeRef = `eco-runtime-component-${state.nextRuntimeComponentRef}`;
+	state.runtimeComponentRefs.set(component, runtimeRef);
 	return runtimeRef;
 }

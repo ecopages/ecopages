@@ -49,7 +49,7 @@ function replaceMarkerByNodeId(html: string, nodeId: MarkerNodeId, replacement: 
  * resolved child HTML in subsequent resolver invocations.
  *
  * Nodes discovered from serialized props may not exist as literal marker tokens in
- * `inputHtml`. They still resolve so parent nodes can consume their stitched child
+ * `inputHtml`. They still resolve so parent nodes can consume their resolved child
  * HTML, while replacement in the outer HTML buffer remains a no-op.
  *
  * @param inputHtml HTML containing marker tokens.

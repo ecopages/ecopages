@@ -252,7 +252,7 @@ describe('MarkerGraphResolver', () => {
 			},
 		};
 		const renderOrder: string[] = [];
-		const renderComponent = vi.fn(async (input: { component: EcoComponent; children?: string }) => {
+		const renderComponent = vi.fn(async (input: ComponentRenderInput) => {
 			const componentId = input.component.config?.__eco?.id;
 			renderOrder.push(componentId as string);
 

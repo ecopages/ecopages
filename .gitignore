@@ -36,3 +36,4 @@ playwright-report/
 
 # local improvement tracking (details in ~/.gemini artifacts)
 **/.improvements/
+.audit/

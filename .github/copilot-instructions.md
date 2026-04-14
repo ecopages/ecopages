@@ -14,6 +14,12 @@
 - Avoid defensive programming against typed interfaces; unnecessary guards add noise and cognitive load.
 - Prefer modern APIs over manual equivalents (e.g. `new Headers(entries)` over iterating and appending).
 
+## Documentation Voice
+
+- Customer-facing docs must describe the product contract, not comment on the authoring process or speak to the maintainer about how an example was written.
+- Prefer neutral instructional or factual language such as `To enable...`, `Use...`, and ``X` requires...`.
+- Avoid reviewer-style phrasing such as `Remember to`, `Don't forget`, `If your example...`, `future you`, or design-debt commentary unless the limitation is directly user-visible and actionable.
+
 ## Changelog
 
 - Every package has a `CHANGELOG.md`. Tracking started at `0.2.0`; prior history is in git.

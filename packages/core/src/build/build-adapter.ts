@@ -410,7 +410,38 @@ export class BunBuildAdapter implements BuildAdapter {
 		return options.format === 'cjs' || options.format === 'esm' ? '.js' : '.js';
 	}
 
-	private resolveTemplatedOutputPath(options: BuildOptions, entrypointPath: string): string | undefined {
+	private resolveConcreteOutputPath(outputPath: string): string | undefined {
+		if (fs.existsSync(outputPath)) {
+			return outputPath;
+		}
+
+		if (!outputPath.includes('[hash]')) {
+			return outputPath;
+		}
+
+		const directory = path.dirname(outputPath);
+		if (!fs.existsSync(directory)) {
+			return undefined;
+		}
+
+		const basenamePattern = path.basename(outputPath);
+		const matcher = new RegExp(
+			`^${this.escapeRegExp(basenamePattern).replace(/\\\[hash\\\]/g, '(.+)')}$`,
+		);
+		const matches = fs.readdirSync(directory).filter((candidate) => matcher.test(candidate)).sort();
+
+		if (matches.length === 0) {
+			return undefined;
+		}
+
+		return path.join(directory, matches[0]!);
+	}
+
+	private resolveTemplatedOutputPath(
+		options: BuildOptions,
+		entrypointPath: string,
+		concreteOutputPath?: string,
+	): string | undefined {
 		if (!options.outdir) {
 			return undefined;
 		}
@@ -435,6 +466,25 @@ export class BunBuildAdapter implements BuildAdapter {
 		}
 
 		resolvedPath = resolvedPath.replace(/^\.\//, '');
+
+		if (resolvedPath.includes('[hash]')) {
+			if (!concreteOutputPath) {
+				return path.join(outdir, resolvedPath);
+			}
+
+			const concreteRelativePath = path.relative(outdir, concreteOutputPath).split(path.sep).join('/');
+			const matcher = new RegExp(
+				`^${this.escapeRegExp(resolvedPath).replace(/\\\[hash\\\]/g, '(.+)')}$`,
+			);
+			const match = concreteRelativePath.match(matcher);
+
+			if (!match?.[1]) {
+				return concreteOutputPath;
+			}
+
+			resolvedPath = resolvedPath.replaceAll('[hash]', match[1]);
+		}
+
 		return path.join(outdir, resolvedPath);
 	}
 
@@ -459,13 +509,14 @@ export class BunBuildAdapter implements BuildAdapter {
 
 		if (canMapEntrypointsByIndex) {
 			for (const [index, entrypointPath] of options.entrypoints.entries()) {
-				const expectedOutputPath = this.resolveTemplatedOutputPath(options, entrypointPath);
+				const concreteOutputPath = this.resolveConcreteOutputPath(normalizedOutputs[index]!.path);
+				const expectedOutputPath = this.resolveTemplatedOutputPath(options, entrypointPath, concreteOutputPath);
 				if (!expectedOutputPath) {
 					continue;
 				}
 
 				normalizedOutputs[index] = {
-					path: this.relocateOutputFile(normalizedOutputs[index]!.path, expectedOutputPath),
+					path: this.relocateOutputFile(concreteOutputPath ?? normalizedOutputs[index]!.path, expectedOutputPath),
 				};
 			}
 
@@ -478,13 +529,15 @@ export class BunBuildAdapter implements BuildAdapter {
 		return {
 			...result,
 			outputs: normalizedOutputs.map((output) => {
-				if (path.extname(output.path) !== '') {
+				const concreteOutputPath = this.resolveConcreteOutputPath(output.path) ?? output.path;
+
+				if (path.extname(concreteOutputPath) !== '') {
 					return output;
 				}
 
-				const normalizedPath = `${output.path}.js`;
+				const normalizedPath = `${concreteOutputPath}.js`;
 				return {
-					path: this.relocateOutputFile(output.path, normalizedPath),
+					path: this.relocateOutputFile(concreteOutputPath, normalizedPath),
 				};
 			}),
 		};
@@ -748,7 +801,8 @@ export async function collectConfiguredAppBuildManifestContributions(
 	for (const integration of appConfig.integrations) {
 		integration.setConfig(appConfig);
 		await integration.prepareBuildContributions();
-		runtimePlugins.push(...integration.plugins);
+		runtimePlugins.push(...(integration.plugins ?? []));
+		browserBundlePlugins.push(...(integration.browserBuildPlugins ?? []));
 	}
 
 	return {

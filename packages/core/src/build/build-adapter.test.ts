@@ -187,6 +187,61 @@ test('BunBuildAdapter bundles entrypoints by default to keep transitive app impo
 	}
 });
 
+test('BunBuildAdapter normalizes hashed naming patterns to concrete emitted output files', async () => {
+	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+
+	try {
+		const root = createTempRoot('ecopages-bun-naming-template');
+		const srcDir = path.join(root, 'src', 'components');
+		const outDir = path.join(root, 'dist', 'assets', 'components');
+		fs.mkdirSync(srcDir, { recursive: true });
+		fs.mkdirSync(outDir, { recursive: true });
+
+		const entryPath = path.join(srcDir, 'kita-counter.script.ts');
+		fs.writeFileSync(entryPath, 'export const value = 1;');
+
+		const concreteOutputPath = path.join(outDir, 'kita-counter.script-abc123.js');
+		const placeholderOutputPath = path.join(outDir, 'kita-counter.script-[hash].js');
+
+		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
+			build: vi.fn(async () => {
+				fs.writeFileSync(concreteOutputPath, 'export const value = 1;', 'utf8');
+				return {
+					success: true,
+					logs: [],
+					outputs: [{ path: placeholderOutputPath }],
+				};
+			}),
+			hash: vi.fn(() => 1),
+			resolveSync: vi.fn((importPath: string) => importPath),
+		};
+
+		const freshAdapter = createBunBuildAdapter();
+		const result = await freshAdapter.build({
+			entrypoints: [entryPath],
+			root,
+			outdir: outDir,
+			target: 'browser',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: true,
+			minify: false,
+			naming: '[name]-[hash].[ext]',
+		});
+
+		assert.equal(result.success, true);
+		assert.deepEqual(result.outputs, [{ path: concreteOutputPath }]);
+		assert.equal(fs.existsSync(concreteOutputPath), true);
+		assert.equal(fs.existsSync(placeholderOutputPath), false);
+	} finally {
+		if (originalBun === undefined) {
+			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+		} else {
+			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
+		}
+	}
+});
+
 test('getAppBuildExecutor falls back to the app-owned adapter before the shared default adapter', async () => {
 	const appConfig = {
 		runtime: {},

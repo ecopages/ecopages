@@ -27,6 +27,7 @@ const localPackageTargets: Record<string, string> = {
 	'@ecopages/browser-router': 'packages/browser-router/dist',
 	'@ecopages/core': 'packages/core/dist',
 	'@ecopages/file-system': 'packages/file-system/dist',
+	'@ecopages/ecopages-jsx': 'packages/integrations/ecopages-jsx/dist',
 	'@ecopages/kitajs': 'packages/integrations/kitajs/dist',
 	'@ecopages/lit': 'packages/integrations/lit/dist',
 	'@ecopages/mdx': 'packages/integrations/mdx/dist',

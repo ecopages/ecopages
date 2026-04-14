@@ -3,8 +3,8 @@
  */
 
 import { describe, expect, test } from 'vitest';
-import { createRequire } from 'node:module';
 import { eco } from './eco.ts';
+import { serializeTemplateShape } from '../route-renderer/orchestration/template-serialization.ts';
 import type {
 	EcoComponent,
 	GetMetadataContext,
@@ -16,6 +16,39 @@ import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
 
 const mockAppConfig = {} as EcoPagesAppConfig;
+
+type TestDeferredTemplateShape = {
+	__testTemplateType: 'deferred-template';
+	strings: readonly string[];
+	values?: readonly unknown[];
+};
+
+const testDeferredTemplateSerializer = {
+	matches(value: unknown): value is TestDeferredTemplateShape {
+		return (
+			typeof value === 'object' &&
+			value !== null &&
+			(value as { __testTemplateType?: unknown }).__testTemplateType === 'deferred-template' &&
+			Array.isArray((value as { strings?: unknown }).strings) &&
+			((value as { values?: unknown }).values === undefined ||
+				Array.isArray((value as { values?: unknown }).values))
+		);
+	},
+	serialize(template: TestDeferredTemplateShape, serializeValue: (value: unknown) => string | undefined) {
+		return serializeTemplateShape(template, serializeValue);
+	},
+};
+
+function serializeTestDeferredTemplateValue(
+	value: unknown,
+	serializeValue: (value: unknown) => string | undefined,
+): string | undefined {
+	if (!testDeferredTemplateSerializer.matches(value)) {
+		return undefined;
+	}
+
+	return testDeferredTemplateSerializer.serialize(value, serializeValue);
+}
 
 describe('eco namespace', () => {
 	describe('eco.component()', () => {
@@ -193,11 +226,6 @@ describe('eco namespace', () => {
 		});
 
 		test('should emit marker output for React components from non-React context when metadata exists', async () => {
-			const require = createRequire(import.meta.url);
-			const React = require('react') as {
-				createElement: (tag: string, props: Record<string, unknown>, children: string) => unknown;
-			};
-
 			const ReactButton = eco.component({
 				integration: 'react',
 				__eco: {
@@ -205,7 +233,7 @@ describe('eco namespace', () => {
 					file: '/app/components/react-button.react.tsx',
 					integration: 'react',
 				},
-				render: () => React.createElement('button', { type: 'button' }, 'Click'),
+				render: () => '<button type="button">Click</button>',
 			});
 
 			const execution = await runWithComponentRenderContext(
@@ -225,14 +253,9 @@ describe('eco namespace', () => {
 		});
 
 		test('should emit a runtime fallback reference when React marker metadata is missing', async () => {
-			const require = createRequire(import.meta.url);
-			const React = require('react') as {
-				createElement: (tag: string, props: Record<string, unknown>, children: string) => unknown;
-			};
-
 			const ReactButton = eco.component({
 				integration: 'react',
-				render: () => React.createElement('button', { type: 'button' }, 'Click'),
+				render: () => '<button type="button">Click</button>',
 			});
 
 			const execution = await runWithComponentRenderContext(
@@ -305,11 +328,13 @@ describe('eco namespace', () => {
 						decideBoundaryRender: ({ targetIntegration }) =>
 							targetIntegration === 'react' || targetIntegration === 'kitajs' ? 'defer' : 'inline',
 					},
+					serializeDeferredValue: serializeTestDeferredTemplateValue,
 				},
 				async () => {
 					const childMarker = ReactLeaf({});
 					return KitaParent({
 						children: {
+							__testTemplateType: 'deferred-template',
 							strings: ['<section>', '</section>'],
 							values: [childMarker],
 						},
@@ -326,7 +351,7 @@ describe('eco namespace', () => {
 			expect(Object.values(execution.graphContext.slotChildrenByRef)).toContainEqual(['n_1']);
 		});
 
-		test('should recover nested marker slots from generic object-shaped deferred children', async () => {
+		test('should leave generic object-shaped deferred children unserialized', async () => {
 			const ReactLeaf = eco.component({
 				integration: 'react',
 				__eco: {
@@ -354,6 +379,7 @@ describe('eco namespace', () => {
 						decideBoundaryRender: ({ targetIntegration }) =>
 							targetIntegration === 'react' || targetIntegration === 'kitajs' ? 'defer' : 'inline',
 					},
+					serializeDeferredValue: serializeTestDeferredTemplateValue,
 				},
 				async () => {
 					const childMarker = ReactLeaf({});
@@ -376,7 +402,118 @@ describe('eco namespace', () => {
 			expect(execution.value).toContain('data-eco-integration="kitajs"');
 			expect(Object.values(execution.graphContext.propsByRef)).toContainEqual(
 				expect.objectContaining({
-					children: expect.stringContaining('<eco-marker'),
+					children: {
+						parts: [
+							'<section>',
+							{
+								deep: {
+									marker:
+										'<eco-marker data-eco-node-id="n_1" data-eco-integration="react" data-eco-component-ref="react-leaf" data-eco-props-ref="p_1"></eco-marker>',
+								},
+							},
+							'</section>',
+						],
+					},
+				}),
+			);
+			expect(execution.graphContext.slotChildrenByRef).toEqual({});
+		});
+
+		test('should preserve node-like deferred children without serializing nodeType values', async () => {
+			const ReactLeaf = eco.component({
+				integration: 'react',
+				__eco: {
+					id: 'react-leaf-node-like-child',
+					file: '/app/components/react-leaf-node-like-child.react.tsx',
+					integration: 'react',
+				},
+				render: () => '<button>Leaf</button>',
+			});
+
+			const KitaParent = eco.component({
+				integration: 'kitajs',
+				__eco: {
+					id: 'kita-parent-node-like-child',
+					file: '/app/components/kita-parent-node-like-child.kita.tsx',
+					integration: 'kitajs',
+				},
+				render: ({ children }: { children?: unknown }) => `<div>${String(children ?? '')}</div>`,
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					boundaryContext: {
+						decideBoundaryRender: ({ targetIntegration }) =>
+							targetIntegration === 'react' || targetIntegration === 'kitajs' ? 'defer' : 'inline',
+					},
+				},
+				async () => {
+					const childMarker = ReactLeaf({});
+					return KitaParent({
+						children: {
+							nodeType: 1,
+							outerHTML: `<section>${String(childMarker)}</section>`,
+						},
+					});
+				},
+			);
+
+			expect(Object.values(execution.graphContext.propsByRef)).toContainEqual(
+				expect.objectContaining({
+					children:
+						'<section><eco-marker data-eco-node-id="n_1" data-eco-integration="react" data-eco-component-ref="react-leaf-node-like-child" data-eco-props-ref="p_1"></eco-marker></section>',
+				}),
+			);
+			expect(Object.values(execution.graphContext.slotChildrenByRef)).toContainEqual(['n_1']);
+		});
+
+		test('should preserve quoted attribute values when serializing template-like deferred children', async () => {
+			const ReactLeaf = eco.component({
+				integration: 'react',
+				__eco: {
+					id: 'react-leaf-template-like-child',
+					file: '/app/components/react-leaf-template-like-child.react.tsx',
+					integration: 'react',
+				},
+				render: () => '<button>Leaf</button>',
+			});
+
+			const KitaParent = eco.component({
+				integration: 'kitajs',
+				__eco: {
+					id: 'kita-parent-template-like-child',
+					file: '/app/components/kita-parent-template-like-child.kita.tsx',
+					integration: 'kitajs',
+				},
+				render: ({ children }: { children?: unknown }) => `<div>${String(children ?? '')}</div>`,
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					boundaryContext: {
+						decideBoundaryRender: ({ targetIntegration }) =>
+							targetIntegration === 'react' || targetIntegration === 'kitajs' ? 'defer' : 'inline',
+					},
+					serializeDeferredValue: serializeTestDeferredTemplateValue,
+				},
+				async () => {
+					const childMarker = ReactLeaf({});
+					return KitaParent({
+						children: {
+							__testTemplateType: 'deferred-template',
+							strings: ['<section class=', '>', '</section>'],
+							values: ['card space-y-4', childMarker],
+						},
+					});
+				},
+			);
+
+			expect(Object.values(execution.graphContext.propsByRef)).toContainEqual(
+				expect.objectContaining({
+					children:
+						'<section class="card space-y-4"><eco-marker data-eco-node-id="n_1" data-eco-integration="react" data-eco-component-ref="react-leaf-template-like-child" data-eco-props-ref="p_1"></eco-marker></section>',
 				}),
 			);
 			expect(Object.values(execution.graphContext.slotChildrenByRef)).toContainEqual(['n_1']);

@@ -95,6 +95,41 @@ export async function assertCounterInteractivity(root: Locator, expectations: Co
 	}
 }
 
+export async function assertRadiantCounterInteractivity(counter: Locator, initialValue = '0') {
+	const value = counter.locator('[data-radiant-value]');
+	const increment = counter.locator('[data-radiant-inc]');
+
+	await expect(counter).toBeVisible();
+	await expect(value).toHaveText(initialValue);
+	await incrementCounter(increment, value, String(Number(initialValue) + 1));
+}
+
+export async function assertFourCountersVisible(root: Locator) {
+	const kitaCounter = root.locator('[data-kita-counter]');
+	const litCounter = root.locator('lit-counter[data-counter-kind="lit"]');
+	const reactCounter = root.locator('[data-react-counter]');
+	const radiantCounter = root.locator('radiant-counter[data-radiant-counter]');
+
+	await expect(kitaCounter).toHaveCount(1);
+	await expect(litCounter).toHaveCount(1);
+	await expect(reactCounter).toHaveCount(1);
+	await expect(radiantCounter).toHaveCount(1);
+
+	await expect(kitaCounter).toBeVisible();
+	await expect(litCounter).toBeVisible();
+	await expect(reactCounter).toBeVisible();
+	await expect(radiantCounter).toBeVisible();
+}
+
+export async function assertAllCountersInteractivity(
+	root: Locator,
+	options?: CounterExpectations & { radiant?: string },
+) {
+	await assertFourCountersVisible(root);
+	await assertCounterInteractivity(root, options);
+	await assertRadiantCounterInteractivity(root.locator('radiant-counter').first(), options?.radiant ?? '0');
+}
+
 export function getSectionByHeading(page: Page, heading: string): Locator {
 	return page
 		.locator('section')

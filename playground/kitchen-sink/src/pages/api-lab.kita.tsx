@@ -60,6 +60,8 @@ const commands = [
 	},
 ] as const;
 
+const initialCommand = commands[0];
+
 export default eco.page({
 	dependencies: {
 		components: [BaseLayout],
@@ -79,6 +81,8 @@ export default eco.page({
 		description: 'Manual entry points for the explicit API handlers and grouped admin routes.',
 	}),
 	render: () => {
+		const initialRequestHeaders = JSON.stringify(initialCommand.headers, null, 2);
+
 		return (
 			<div class="api-lab">
 				<section class="api-lab__intro">
@@ -141,17 +145,17 @@ export default eco.page({
 								))}
 							</div>
 						</div>
-						<div class="api-lab__viewer" data-api-response-viewer>
+						<div class="api-lab__viewer" data-api-response-viewer data-api-lab-runtime="server">
 							<div class="api-lab__viewer-header">
 								<div>
 									<p class="api-lab__panel-label">Response viewer</p>
 									<h2 class="api-lab__viewer-title" data-response-label>
-										Select a command
+										{initialCommand.label}
 									</h2>
 								</div>
 								<div class="api-lab__viewer-badges">
 									<span class="api-lab__viewer-badge" data-response-status>
-										Idle
+										Ready
 									</span>
 									<span class="api-lab__viewer-badge" data-response-time>
 										0 ms
@@ -162,21 +166,19 @@ export default eco.page({
 								<div class="api-lab__viewer-section">
 									<p class="api-lab__panel-label">Request</p>
 									<pre class="api-lab__viewer-code">
-										<code data-response-request>
-											Click a command to send a request from the browser.
-										</code>
+										<code data-response-request>{initialCommand.curl}</code>
 									</pre>
 								</div>
 								<div class="api-lab__viewer-section">
 									<p class="api-lab__panel-label">Response body</p>
 									<pre class="api-lab__viewer-code api-lab__viewer-code--body">
-										<code data-response-body>Waiting for input.</code>
+										<code data-response-body>Click Run to execute the selected command.</code>
 									</pre>
 								</div>
 								<div class="api-lab__viewer-section">
 									<p class="api-lab__panel-label">Headers</p>
 									<pre class="api-lab__viewer-code">
-										<code data-response-headers>No response headers yet.</code>
+										<code data-response-headers>{initialRequestHeaders}</code>
 									</pre>
 								</div>
 							</div>

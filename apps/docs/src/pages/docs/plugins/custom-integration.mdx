@@ -11,35 +11,42 @@ export const getMetadata = () => ({
 
 # Creating Custom Integrations
 
-Integrations in Ecopages add support for new templating engines or frameworks. This guide will show you how to create your own integration.
+Integrations in Ecopages add support for new templating engines or frameworks. A custom integration usually owns four things:
+
+1. which file extensions belong to the framework
+2. which renderer turns those files into HTML
+3. which build-time contributions must be registered before startup
+4. which runtime-only behavior is needed for HMR, browser bundles, or cross-integration boundaries
+
+Core still owns lifecycle ordering. Integration plugins declare contributions; `ConfigBuilder.build()` and app startup decide when those hooks run.
 
 ## Basic Structure
 
-An integration extends the `IntegrationPlugin` abstract class and must provide a renderer class:
+An integration extends `IntegrationPlugin` and provides a renderer class. Keep the constructor declarative: use it to describe ownership, not to perform runtime side effects.
 
 ```typescript
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { CustomRenderer } from './custom-renderer';
+import type { EcoPagesElement } from '@ecopages/core';
+import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
+import { CustomRenderer } from './custom-renderer.ts';
 
-class CustomIntegration extends IntegrationPlugin {
+export class CustomIntegration extends IntegrationPlugin<EcoPagesElement> {
 	renderer = CustomRenderer;
-	staticBuildStep = 'render'; // 'render' (default) or 'fetch'
 
-constructor() { 
-	super({
-		name: 'custom-integration',
-		extensions: ['.custom'], 
-		runtimeCapability: {
-			tags: ['node-compatible'],
-		},
-	});
+	constructor(options?: Omit<IntegrationPluginConfig, 'name' | 'extensions'>) {
+		super({
+			name: 'custom-integration',
+			extensions: ['.custom'],
+			...options,
+		});
 	}
 }
 ```
 
+Use `staticBuildStep: 'fetch'` only when your framework cannot produce stable static output from direct component execution and instead needs the full runtime request path. Lit is the current example of that pattern. Most integrations should keep the default `'render'` mode.
+
 ## Declaring Runtime Requirements
 
-If your integration depends on a specific runtime, declare that in `runtimeCapability` so Ecopages can fail during config finalization instead of during startup.
+Declare runtime requirements in `runtimeCapability` so Ecopages can fail during config finalization instead of during startup.
 
 ```typescript
 class CustomIntegration extends IntegrationPlugin {
@@ -67,41 +74,45 @@ Available tags:
 
 Use the smallest declaration that matches reality. For example, an integration that only needs standard Node-compatible APIs should not declare Bun-only requirements.
 
+`runtimeCapability` is validated during `ConfigBuilder.build()`, before `setup()` runs. Integrations that depend on Bun-native APIs should declare that requirement explicitly.
+
 ## Creating a Custom Renderer
 
-The renderer handles the actual transformation of your templates. It extends the `IntegrationRenderer` class:
+The renderer handles framework-specific HTML generation. It extends `IntegrationRenderer` and implements `render()`.
 
 ```typescript
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
-import type { IntegrationRendererRenderOptions, RouteRendererBody, EcoComponent } from '@ecopages/core/public-types';
+import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererBody } from '@ecopages/core';
 
-class CustomRenderer extends IntegrationRenderer {
-	name = 'custom-renderer';
+export class CustomRenderer extends IntegrationRenderer<string> {
+	name = 'custom-integration';
 
 	async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		const { Page, props, metadata, HtmlTemplate } = options;
-
-		// Transform the page content
 		const pageContent = await this.renderPage(Page, props);
 
-		// Render the final HTML using the template
-		return HtmlTemplate({
-			children: pageContent,
-			metadata,
-		});
+		return String(
+			await HtmlTemplate({
+				children: pageContent,
+				metadata,
+				pageProps: props ?? {},
+			}),
+		);
 	}
 
-	private async renderPage(Page: EcoComponent, props: any): Promise<string> {
-		// Implement your rendering logic here
-		// For example, if Page is a function that returns a string:
-		return Page(props);
+	private async renderPage(Page: EcoComponent, props: Record<string, unknown> | undefined): Promise<string> {
+		return String(await Page(props ?? {}));
 	}
 }
 ```
 
+`IntegrationRenderer` already owns shared orchestration such as dependency collection, page-module loading, marker-graph resolution, and document finalization. Custom renderers should focus on framework semantics rather than rebuilding core’s route pipeline.
+
+`HtmlTemplate` receives `children`, `metadata`, and `pageProps`. Examples should include `pageProps` to match the current public contract.
+
 ## Handling Dependencies
 
-Manage assets and dependencies for your integration using the `integrationDependencies` array in the constructor:
+Use `integrationDependencies` for global framework assets that should apply everywhere the integration is active.
 
 ```typescript
 import { AssetFactory } from '@ecopages/core/services/asset-processing-service';
@@ -127,9 +138,38 @@ class CustomIntegration extends IntegrationPlugin {
 }
 ```
 
+Use `prepareBuildContributions()` for build-facing declarations that must exist before the app manifest is sealed, such as optional loaders or browser-only build plugins. Use `setup()` only for runtime-only work.
+
+```typescript
+override async prepareBuildContributions(): Promise<void> {
+	// Register build-facing plugins here.
+}
+
+override async setup(): Promise<void> {
+	await super.setup();
+	// Runtime-only side effects go here.
+}
+```
+
+Use `browserBuildPlugins` for browser-only bundling behavior. `browserBuildPlugins` are intentionally excluded from server bundles and static page-module generation.
+
+## Cross-Integration Boundaries
+
+Override `shouldDeferComponentBoundary()` when a renderer must own its subtree even when another integration encounters it first.
+
+```typescript
+import type { ComponentBoundaryPolicyInput } from '@ecopages/core/plugins/integration-plugin';
+
+override shouldDeferComponentBoundary(input: ComponentBoundaryPolicyInput): boolean {
+	return input.targetIntegration === this.name && input.currentIntegration !== this.name;
+}
+```
+
+This is the current pattern for integrations such as Lit, where the target renderer needs to re-enter later during marker-graph resolution to produce the correct SSR output.
+
 ## Hot Module Replacement (HMR)
 
-To support HMR in your custom integration, you need to implement an `HmrStrategy` and register it in your plugin.
+To support HMR in a custom integration, implement an `HmrStrategy` and register it in the plugin.
 
 ### Creating an HMR Strategy
 
@@ -140,8 +180,8 @@ import {
 	HmrStrategy,
 	HmrStrategyType,
 	type HmrAction,
-	type DefaultHmrContext,
-} from '@ecopages/core';
+} from '@ecopages/core/hmr/hmr-strategy';
+import type { DefaultHmrContext } from '@ecopages/core';
 
 class CustomHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
@@ -150,19 +190,13 @@ class CustomHmrStrategy extends HmrStrategy {
 		super();
 	}
 
-	// Determine if this strategy should handle the changed file
 	matches(filePath: string): boolean {
 		return filePath.endsWith('.custom');
 	}
 
-	// Process the change and return an action
 	async process(filePath: string): Promise<HmrAction> {
-		// Get the public URL for the changed file (if registered)
 		const watchedFiles = this.context.getWatchedFiles();
 		const outputUrl = watchedFiles.get(filePath) || filePath;
-
-		// You can perform rebuilds or code transformations here
-		// ...
 
 		return {
 			type: 'broadcast',
@@ -180,14 +214,16 @@ class CustomHmrStrategy extends HmrStrategy {
 
 ### Registering the Strategy
 
-Override `getHmrStrategy` in your `IntegrationPlugin` to return your custom strategy:
+Override `getHmrStrategy()` to return your custom strategy:
 
 ```typescript
 class CustomIntegration extends IntegrationPlugin {
 	renderer = CustomRenderer;
 
 	override getHmrStrategy() {
-		if (!this.hmrManager) return undefined;
+		if (!this.hmrManager) {
+			return undefined;
+		}
 
 		return new CustomHmrStrategy(this.hmrManager.getDefaultContext());
 	}
@@ -201,11 +237,11 @@ class CustomIntegration extends IntegrationPlugin {
 }
 ```
 
-	If you override `getRuntimeSpecifierMap()`, Ecopages registers those mappings automatically when the integration is attached to the active HMR manager. Today they are used by the development runtime and browser bundle aliasing path, but the registry is intentionally generic enough to support broader import-map-style behavior later. Avoid overriding `setHmrManager()` unless you need behavior beyond the shared registration and strategy setup path.
+If `getRuntimeSpecifierMap()` is overridden, Ecopages registers those mappings automatically when the integration is attached to the active HMR manager. Today they are used by the development runtime and browser bundle aliasing path, but the registry is intentionally generic enough to support broader import-map-style behavior later. Override `setHmrManager()` only when behavior beyond the shared registration and strategy setup path is required.
 
 ## Setup and Teardown
 
-Handle initialization and cleanup of resources needed by your integration:
+Use `setup()` and `teardown()` to initialize and clean up integration resources:
 
 ```typescript
 class CustomIntegration extends IntegrationPlugin {
@@ -223,51 +259,63 @@ class CustomIntegration extends IntegrationPlugin {
 }
 ```
 
+`prepareBuildContributions()` runs before `setup()`. Use that split consistently:
+
+1. `prepareBuildContributions()` for loaders, manifest-facing plugins, and other build declarations
+2. `setup()` for runtime-only side effects
+3. `teardown()` for explicit cleanup when the process stops
+
 ## Using the Integration
 
-Register your integration in the Ecopages configuration:
+Register the integration in the Ecopages configuration:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { CustomIntegration } from './custom-integration';
 
 const customIntegration = new CustomIntegration();
 
-const config = await new ConfigBuilder().setIntegrations([customIntegration]).build();
+const config = await new ConfigBuilder()
+	.setBaseUrl('https://example.com')
+	.setRootDir(process.cwd())
+	.setIntegrations([customIntegration])
+	.build();
 ```
+
+`ConfigBuilder.build()` is the app-owned finalization boundary. This is where Ecopages validates runtime requirements, derives paths, collects build contributions, and prepares the shared runtime state used later by startup and rendering.
 
 ## Best Practices
 
-1. **Follow Single Responsibility Principle**: Keep your renderer focused on transforming templates.
-2. **Type Safety**: Use TypeScript interfaces for props and state.
-3. **Error Handling**: Provide descriptive errors during rendering and HMR.
-4. **Efficiency**: Use `HmrStrategy` to only update what's necessary. Avoid unnecesary rebuilds.
-5. **Caching**: If your rendering or transformation is expensive, implement a caching mechanism.
-6. **Graceful Degradation**: Fall back to full page reload if a hot update cannot be performed safely.
+1. Keep the constructor declarative. Build-facing work goes in `prepareBuildContributions()`. Runtime side effects go in `setup()`.
+2. Keep the renderer focused on framework semantics. Core already owns route orchestration, dependency assembly, and marker-graph resolution.
+3. Declare the smallest valid `runtimeCapability`. Overstating requirements makes the integration unusable on compatible runtimes.
+4. Use `browserBuildPlugins` for browser-only transforms and `getRuntimeSpecifierMap()` for stable bare imports used by browser bundles.
+5. Fall back to full reload when a hot update is not safe. Correctness matters more than partial HMR.
+6. Document any required boundary deferral rules. Cross-integration rendering is the first place future readers will get lost.
 
 ## Example: Complete Integration
 
 Here's a complete example including the plugin, renderer, and HMR strategy:
 
 ```typescript
-import { IntegrationPlugin, IntegrationRenderer, HmrStrategy, HmrStrategyType } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import type {
+	DefaultHmrContext,
+	EcoComponent,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
-	EcoComponent,
-	HmrAction,
-	DefaultHmrContext,
-} from '@ecopages/core/public-types';
+} from '@ecopages/core';
 
-class CustomRenderer extends IntegrationRenderer {
-	name = 'custom-renderer';
+class CustomRenderer extends IntegrationRenderer<string> {
+	name = 'custom-integration';
 
 	async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		const { Page, props, metadata, HtmlTemplate } = options;
-		return HtmlTemplate({
-			children: Page(props),
-			metadata,
-		});
+		const pageContent = String(await Page(props ?? {}));
+		return String(await HtmlTemplate({ children: pageContent, metadata, pageProps: props ?? {} }));
 	}
 }
 
@@ -307,4 +355,10 @@ export class CustomIntegration extends IntegrationPlugin {
 			: undefined;
 	}
 }
+
+const config = await new ConfigBuilder()
+	.setBaseUrl('https://example.com')
+	.setRootDir(process.cwd())
+	.setIntegrations([new CustomIntegration()])
+	.build();
 ```

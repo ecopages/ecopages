@@ -1,21 +1,42 @@
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
-import { RadiantSwitch, type RadiantSwitchProps } from '../switch/switch.script';
+import { RadiantSwitch, type RadiantSwitchEvent, type RadiantSwitchProps } from '../switch/switch.script';
 
 @customElement('theme-toggle')
 export class ThemeToggle extends RadiantSwitch {
+	private readonly _mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+	private readonly _onMediaQueryChange = (e: MediaQueryListEvent) => {
+		if (!localStorage.getItem('theme')) {
+			this.checked = e.matches;
+			this.updateDocumentClass(e.matches);
+		}
+	};
+
+	@onEvent({ ref: 'switch', type: 'click' })
+	override toggle() {
+		if (this.disabled) return;
+
+		const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+		this.checked = !isDark;
+		this.dispatchEvent(
+			new CustomEvent<RadiantSwitchEvent>('change', {
+				detail: { checked: this.checked },
+				bubbles: true,
+			}),
+		);
+		this.handleThemeChange();
+	}
+
 	override connectedCallback(): void {
 		super.connectedCallback();
 		this.initTheme();
+		this._mediaQuery.addEventListener('change', this._onMediaQueryChange);
+	}
 
-		window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-			if (!localStorage.getItem('theme')) {
-				this.checked = e.matches;
-				this.updateDocumentClass(e.matches);
-			}
-		});
-
-		this.addEventListener('change', () => this.handleThemeChange());
+	override disconnectedCallback(): void {
+		super.disconnectedCallback();
+		this._mediaQuery.removeEventListener('change', this._onMediaQueryChange);
 	}
 
 	handleThemeChange() {
@@ -33,8 +54,7 @@ export class ThemeToggle extends RadiantSwitch {
 
 	initTheme() {
 		const storedTheme = localStorage.getItem('theme');
-		const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-		const isDark = storedTheme ? storedTheme === 'dark' : prefersDark;
+		const isDark = storedTheme ? storedTheme === 'dark' : this._mediaQuery.matches;
 
 		this.checked = isDark;
 		this.updateDocumentClass(isDark);

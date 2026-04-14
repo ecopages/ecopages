@@ -104,6 +104,7 @@ describe('EcoConfigBuilder', () => {
 		const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
 		const processorBrowserPlugin = { name: 'processor-browser-plugin', setup() {} };
 		const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
+		const integrationBrowserPlugin = { name: 'integration-browser-plugin', setup() {} };
 
 		const processor = new (class extends Processor {
 			buildPlugins = [processorBrowserPlugin];
@@ -121,6 +122,9 @@ describe('EcoConfigBuilder', () => {
 			override get plugins() {
 				return [integrationRuntimePlugin];
 			}
+			override get browserBuildPlugins() {
+				return [integrationBrowserPlugin];
+			}
 			override async prepareBuildContributions(): Promise<void> {}
 		})({ name: 'test-integration', extensions: ['.test'] });
 
@@ -136,7 +140,10 @@ describe('EcoConfigBuilder', () => {
 				processorRuntimePlugin,
 				integrationRuntimePlugin,
 			]);
-			expect(getAppBuildManifest(config).browserBundlePlugins).toEqual([processorBrowserPlugin]);
+			expect(getAppBuildManifest(config).browserBundlePlugins).toEqual([
+				processorBrowserPlugin,
+				integrationBrowserPlugin,
+			]);
 		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}

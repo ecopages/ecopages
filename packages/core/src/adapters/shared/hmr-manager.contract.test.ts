@@ -17,15 +17,7 @@ type SharedHmrManager = {
 	getSpecifierMap(): Map<string, string>;
 	stop(): void;
 	appConfig: Awaited<ReturnType<ConfigBuilder['build']>>;
-	readonly runtimeName: string;
 };
-
-function withRuntimeName<T extends Omit<SharedHmrManager, 'runtimeName'>>(
-	manager: T,
-	runtimeName: SharedHmrManager['runtimeName'],
-): T & Pick<SharedHmrManager, 'runtimeName'> {
-	return Object.assign(manager, { runtimeName });
-}
 
 const tempRoots: string[] = [];
 
@@ -47,34 +39,28 @@ const runtimes = [
 		name: 'node',
 		async create(rootDir: string): Promise<SharedHmrManager> {
 			const config = await new ConfigBuilder().setRootDir(rootDir).build();
-			return withRuntimeName(
-				new NodeHmrManager({
-					appConfig: config,
-					bridge: {
-						subscriberCount: 0,
-						broadcast: () => {},
-					} as any,
-				}),
-				'node',
-			);
+			return new NodeHmrManager({
+				appConfig: config,
+				bridge: {
+					subscriberCount: 0,
+					broadcast: () => {},
+				} as any,
+			});
 		},
 	},
 	{
 		name: 'bun',
 		async create(rootDir: string): Promise<SharedHmrManager> {
 			const config = await new ConfigBuilder().setRootDir(rootDir).build();
-			return withRuntimeName(
-				new BunHmrManager({
-					appConfig: config,
-					bridge: {
-						subscriberCount: 0,
-						broadcast: () => {},
-						subscribe: () => {},
-						unsubscribe: () => {},
-					} as any,
-				}),
-				'bun',
-			);
+			return new BunHmrManager({
+				appConfig: config,
+				bridge: {
+					subscriberCount: 0,
+					broadcast: () => {},
+					subscribe: () => {},
+					unsubscribe: () => {},
+				} as any,
+			});
 		},
 	},
 ] as const;

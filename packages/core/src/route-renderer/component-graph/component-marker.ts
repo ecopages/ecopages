@@ -1,3 +1,5 @@
+import { escapeHtmlAttribute } from '../../utils/html-escaping.ts';
+
 /**
  * Stable marker node identifier used during one render graph resolution pass.
  *
@@ -38,16 +40,6 @@ export type MarkerRenderInput = {
 };
 
 /**
- * Escapes marker attribute values for safe HTML output.
- *
- * @param value Raw attribute value.
- * @returns HTML-escaped attribute value.
- */
-function escapeAttribute(value: string): string {
-	return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/**
  * Reads a single attribute value from a raw marker tag.
  *
  * @param tag Full marker tag text.
@@ -67,14 +59,14 @@ function readAttribute(tag: string, name: string): string | undefined {
  */
 export function createComponentMarker(input: MarkerRenderInput): string {
 	const attributes = [
-		`data-eco-node-id="${escapeAttribute(input.nodeId)}"`,
-		`data-eco-integration="${escapeAttribute(input.integration)}"`,
-		`data-eco-component-ref="${escapeAttribute(input.componentRef)}"`,
-		`data-eco-props-ref="${escapeAttribute(input.propsRef)}"`,
+		`data-eco-node-id="${escapeHtmlAttribute(input.nodeId)}"`,
+		`data-eco-integration="${escapeHtmlAttribute(input.integration)}"`,
+		`data-eco-component-ref="${escapeHtmlAttribute(input.componentRef)}"`,
+		`data-eco-props-ref="${escapeHtmlAttribute(input.propsRef)}"`,
 	];
 
 	if (input.slotRef) {
-		attributes.push(`data-eco-slot-ref="${escapeAttribute(input.slotRef)}"`);
+		attributes.push(`data-eco-slot-ref="${escapeHtmlAttribute(input.slotRef)}"`);
 	}
 
 	return `<eco-marker ${attributes.join(' ')}></eco-marker>`;

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/postcss-processor",
-	"version": "0.2.0-alpha.10",
+	"version": "0.2.0-alpha.11",
 	"description": "Postcss processor, transform string or postcss file to css",
 	"keywords": [
 		"postcss",
@@ -25,12 +25,12 @@
 	},
 	"dependencies": {
 		"@ecopages/file-system": "workspace:*",
-		"@ecopages/logger": "latest",
+		"@ecopages/logger": "^0.2.3",
 		"autoprefixer": "^10.4.0",
 		"browserslist": "^4.28.1",
-		"cssnano": "^6.0.0",
+		"cssnano": "^7.1.4",
 		"postcss": "^8.4.32",
-		"postcss-import": "^15.0.0",
+		"postcss-import": "^16.1.1",
 		"postcss-nested": "^7.0.2"
 	},
 	"peerDependencies": {

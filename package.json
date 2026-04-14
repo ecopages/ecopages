@@ -1,7 +1,7 @@
 {
 	"name": "@ecopages/ecopages",
 	"private": true,
-	"version": "0.2.0-alpha.10",
+	"version": "0.2.0-alpha.11",
 	"scripts": {
 		"dev:docs": "pnpm --filter @ecopages/docs run dev",
 		"build:docs": "pnpm --filter @ecopages/docs run build",
@@ -46,7 +46,7 @@
 		"@vitest/browser": "^4.0.16",
 		"@vitest/browser-playwright": "^4.0.16",
 		"better-commits": "^1.18.1",
-		"esbuild": "^0.27.3",
+		"esbuild": "^0.28.0",
 		"husky": "^9.0.10",
 		"lint-staged": "^15.2.2",
 		"oxlint": "^1.32.0",

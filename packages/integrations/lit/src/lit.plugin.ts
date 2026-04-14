@@ -3,7 +3,6 @@
  * @module
  */
 
-import '@lit-labs/ssr/lib/install-global-dom-shim.js';
 import './console.ts';
 import {
 	IntegrationPlugin,

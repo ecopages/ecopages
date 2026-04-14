@@ -1,8 +1,8 @@
-import '@lit-labs/ssr/lib/install-global-dom-shim.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { LitElement, html as litHtml } from 'lit';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';
 import { LitRenderer } from '../lit-renderer.ts';
 
@@ -110,9 +110,156 @@ describe('LitRenderer', () => {
 
 			expect(result.html).toContain(`<${tagName}`);
 			expect(result.html).toContain('count="3"');
-			expect(result.html).toContain('<template shadowroot="open" shadowrootmode="open">');
+			expect(result.html).toContain('<template shadowrootmode="open">');
 			expect(result.html).toContain('data-lit-value');
 			expect(result.html).toContain('<!--lit-part-->3<!--/lit-part-->');
+		});
+
+		it('should not rerender serialized children passed into a lit component boundary', async () => {
+			const testRenderer = createRenderer();
+			const tagName = `lit-shell-test-${++customElementIndex}`;
+
+			class TestShellElement extends LitElement {
+				static override properties = {
+					count: { type: Number },
+				};
+
+				count = 0;
+
+				override render() {
+					return litHtml`<span data-lit-value>${this.count}</span>`;
+				}
+			}
+
+			customElements.define(tagName, TestShellElement);
+			const childResult = await testRenderer.renderComponent({
+				component: (() => `<${tagName} count="5"></${tagName}>`) as unknown as EcoComponent<object>,
+				props: {},
+			});
+
+			const Shell = ((props: { children?: string }) =>
+				litHtml`<section class="shell">${props.children ? unsafeHTML(props.children) : ''}</section>`) as unknown as EcoComponent<{
+				children?: string;
+			}>;
+
+			const result = await testRenderer.renderComponent({
+				component: Shell,
+				props: {},
+				children: childResult.html,
+			});
+
+			expect(result.html).toContain('<section class="shell">');
+			expect(result.html.match(new RegExp(`<${tagName}`, 'g'))?.length).toBe(1);
+			expect(result.html.match(/<template shadowrootmode="open">/g)?.length).toBe(1);
+			expect(result.html).toContain('<!--lit-part-->5<!--/lit-part-->');
+		});
+
+		it('should inject non-string children inside the lit component boundary', async () => {
+			const testRenderer = createRenderer();
+			const Shell = ((props: { children?: string }) =>
+				litHtml`<section class="shell"><div class="shell__body">${props.children ? unsafeHTML(props.children) : ''}</div></section>`) as unknown as EcoComponent<{
+				children?: string;
+			}>;
+
+			const result = await testRenderer.renderComponent({
+				component: Shell,
+				props: {},
+				children: litHtml`<div data-child-group><span data-child-value>0</span></div>`,
+			});
+
+			expect(result.html).toContain('<section class="shell">');
+			expect(result.html).toContain('<div class="shell__body">');
+			expect(result.html).toContain('data-child-group');
+			expect(result.html).not.toContain('eco-lit-component-children');
+			expect(result.html.indexOf('data-child-group')).toBeGreaterThan(
+				result.html.indexOf('<div class="shell__body">'),
+			);
+			expect(result.html.indexOf('data-child-group')).toBeLessThan(result.html.indexOf('</section>'));
+		});
+
+		it('should inject serialized children when the lit shell interpolates children directly', async () => {
+			const testRenderer = createRenderer();
+			const tagName = `lit-direct-child-test-${++customElementIndex}`;
+
+			class TestDirectChildElement extends LitElement {
+				static override properties = {
+					count: { type: Number },
+				};
+
+				count = 0;
+
+				override render() {
+					return litHtml`<span data-lit-value>${this.count}</span>`;
+				}
+			}
+
+			customElements.define(tagName, TestDirectChildElement);
+			const childResult = await testRenderer.renderComponent({
+				component: (() => `<${tagName} count="7"></${tagName}>`) as unknown as EcoComponent<object>,
+				props: {},
+			});
+
+			const Shell = ((props: { children?: string }) =>
+				litHtml`<section class="shell"><div class="shell__body">${props.children ?? ''}</div></section>`) as unknown as EcoComponent<{
+				children?: string;
+			}>;
+
+			const result = await testRenderer.renderComponent({
+				component: Shell,
+				props: {},
+				children: childResult.html,
+			});
+
+			expect(result.html).toContain('<section class="shell">');
+			expect(result.html).toContain('<div class="shell__body">');
+			expect(result.html.match(new RegExp(`<${tagName}`, 'g'))?.length).toBe(1);
+			expect(result.html).toContain('<!--lit-part-->7<!--/lit-part-->');
+			expect(result.html).not.toContain('eco-lit-component-children');
+			expect(result.html).not.toContain('&lt;!--eco-lit-component-children--&gt;');
+		});
+
+		it('should inject serialized children into every repeated lit child slot marker', async () => {
+			const testRenderer = createRenderer();
+			const tagName = `lit-repeated-child-test-${++customElementIndex}`;
+
+			class TestRepeatedChildElement extends LitElement {
+				static override properties = {
+					count: { type: Number },
+				};
+
+				count = 0;
+
+				override render() {
+					return litHtml`<span data-lit-value>${this.count}</span>`;
+				}
+			}
+
+			customElements.define(tagName, TestRepeatedChildElement);
+			const childResult = await testRenderer.renderComponent({
+				component: (() => `<${tagName} count="9"></${tagName}>`) as unknown as EcoComponent<object>,
+				props: {},
+			});
+
+			const Shell = ((props: { children?: string }) =>
+				litHtml`
+					<section class="shell">
+						<div class="shell__body">${props.children ?? ''}</div>
+						<footer class="shell__footer">${props.children ?? ''}</footer>
+					</section>
+				`) as unknown as EcoComponent<{
+				children?: string;
+			}>;
+
+			const result = await testRenderer.renderComponent({
+				component: Shell,
+				props: {},
+				children: childResult.html,
+			});
+
+			expect(result.html.match(new RegExp(`<${tagName}`, 'g'))?.length).toBe(2);
+			expect(result.html.match(/<!--lit-part-->9<!--\/lit-part-->/g)?.length).toBe(2);
+			expect(result.html).not.toContain('eco-lit-component-children');
+			expect(result.html).not.toContain('&lt;!--eco-lit-component-children--&gt;');
 		});
 
 		it('should preload SSR lazy scripts before component-level renders', async () => {

@@ -12,6 +12,7 @@ import type {
 	PageMetadataProps,
 	RouteRendererBody,
 } from '@ecopages/core';
+import '@lit-labs/ssr/lib/install-global-dom-shim.js';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { render } from '@lit-labs/ssr';
 import { html as staticHtml, unsafeStatic } from 'lit/static-html.js';
@@ -19,6 +20,10 @@ import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import { PLUGIN_NAME } from './lit.plugin.ts';
 
 const HTML_TEMPLATE_SLOT_MARKER = '<--content-->';
+const COMPONENT_CHILDREN_SLOT_MARKER = '<!--eco-lit-component-children-->';
+const ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER = '&lt;!--eco-lit-component-children--&gt;';
+const DOUBLE_ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER = '&amp;lt;!--eco-lit-component-children--&amp;gt;';
+const DUPLICATE_DECLARATIVE_SHADOW_ROOT_ATTRIBUTE = /\sshadowroot=(['"])(open|closed)\1(?=\sshadowrootmode=\1\2\1)/g;
 
 /**
  * A renderer for the Lit integration.
@@ -26,12 +31,16 @@ const HTML_TEMPLATE_SLOT_MARKER = '<--content-->';
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = PLUGIN_NAME;
 
-	protected override shouldRenderPageComponent(): boolean {
-		return false;
+	private normalizeDeclarativeShadowRootMarkup(markup: string): string {
+		return markup.replace(DUPLICATE_DECLARATIVE_SHADOW_ROOT_ATTRIBUTE, '');
 	}
 
 	private createRenderableMarkup(markup: string) {
 		return staticHtml`${unsafeStatic(markup)}`;
+	}
+
+	protected override shouldRenderPageComponent(): boolean {
+		return false;
 	}
 
 	private async renderMarkupToString(markup: string): Promise<string> {
@@ -39,7 +48,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		for (const chunk of render(this.createRenderableMarkup(markup))) {
 			renderedHtml += chunk;
 		}
-		return renderedHtml;
+		return this.normalizeDeclarativeShadowRootMarkup(renderedHtml);
 	}
 
 	private async renderValueToString(value: unknown): Promise<string> {
@@ -51,7 +60,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		for (const chunk of render(value as Parameters<typeof render>[0])) {
 			renderedHtml += chunk;
 		}
-		return renderedHtml;
+		return this.normalizeDeclarativeShadowRootMarkup(renderedHtml);
 	}
 
 	private isLitManagedComponent(component: EcoComponent | undefined): boolean {
@@ -59,8 +68,18 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	private injectRenderedChildren(template: string, renderedChildren: string): string {
+		for (const marker of [
+			COMPONENT_CHILDREN_SLOT_MARKER,
+			ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER,
+			DOUBLE_ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER,
+		]) {
+			if (template.includes(marker)) {
+				return template.split(marker).join(renderedChildren);
+			}
+		}
+
 		if (template.includes(HTML_TEMPLATE_SLOT_MARKER)) {
-			return template.replace(HTML_TEMPLATE_SLOT_MARKER, renderedChildren);
+			return template.split(HTML_TEMPLATE_SLOT_MARKER).join(renderedChildren);
 		}
 
 		if (template.includes('</body>')) {
@@ -115,9 +134,23 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		const component = input.component as (
 			props: Record<string, unknown>,
 		) => Promise<EcoPagesElement> | EcoPagesElement;
-		const props = input.children === undefined ? input.props : { ...input.props, children: input.children };
+		const renderedChildren =
+			input.children === undefined
+				? undefined
+				: typeof input.children === 'string'
+					? input.children
+					: await this.renderValueToString(input.children);
+		const props =
+			renderedChildren === undefined
+				? input.props
+				: {
+						...input.props,
+						children: COMPONENT_CHILDREN_SLOT_MARKER,
+					};
 		const content = await component(props);
-		const html = await this.renderValueToString(content);
+		const renderedHtml = await this.renderValueToString(content);
+		const html =
+			renderedChildren === undefined ? renderedHtml : this.injectRenderedChildren(renderedHtml, renderedChildren);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
 		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
 		const assets =
@@ -213,9 +246,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 							locals,
 						})
 				: pageHtml;
-			const renderedChildren = this.isLitManagedComponent(HtmlTemplate)
-				? await this.renderMarkupToString(String(children))
-				: String(children);
+			const renderedChildren = this.normalizeDeclarativeShadowRootMarkup(String(children));
 
 			return (
 				this.DOC_TYPE +
@@ -267,7 +298,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				const pageHtml = await this.renderValueToString(pageContent);
 
 				if (ctx.partial) {
-					return await this.renderMarkupToString(pageHtml);
+					return this.normalizeDeclarativeShadowRootMarkup(pageHtml);
 				}
 
 				const children = Layout
@@ -275,9 +306,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 						? await this.renderValueToString(await Layout({ children: pageContent }))
 						: await Layout({ children: pageHtml })
 					: pageHtml;
-				const renderedChildren = this.isLitManagedComponent(HtmlTemplate as EcoComponent)
-					? await this.renderMarkupToString(String(children))
-					: String(children);
+				const renderedChildren = this.normalizeDeclarativeShadowRootMarkup(String(children));
 
 				return (
 					this.DOC_TYPE +

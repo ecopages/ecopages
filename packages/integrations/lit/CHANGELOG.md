@@ -14,6 +14,7 @@ All notable changes to `@ecopages/lit` are documented here.
 
 - Fixed mixed-template SSR composition, placeholder cleanup, lazy preload handling, and browser-router bootstrap reruns.
 - Routed Lit SSR through the static template pipeline so registered custom elements emit declarative shadow DOM.
+- Fixed component-boundary SSR to inject serialized children through both direct Lit interpolation and repeated Lit child slots when Lit is hosted by other integrations.
 
 ### Refactoring
 

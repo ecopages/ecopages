@@ -1,7 +1,9 @@
+import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ReactRuntimeBundleService } from './react-runtime-bundle.service.ts';
 
 const originalNodeEnv = process.env.NODE_ENV;
+const fixtureAppRoot = path.resolve(import.meta.dirname, '../../../../core/__fixtures__/app');
 
 afterEach(() => {
 	process.env.NODE_ENV = originalNodeEnv;
@@ -10,7 +12,7 @@ afterEach(() => {
 describe('ReactRuntimeBundleService', () => {
 	it('uses production vendor asset names outside development mode', () => {
 		process.env.NODE_ENV = 'production';
-		const service = new ReactRuntimeBundleService({});
+		const service = new ReactRuntimeBundleService({ rootDir: fixtureAppRoot });
 
 		expect(service.getRuntimeImports()).toEqual({
 			react: '/assets/vendors/react.js',
@@ -24,6 +26,7 @@ describe('ReactRuntimeBundleService', () => {
 	it('uses development vendor asset names in development mode', () => {
 		process.env.NODE_ENV = 'development';
 		const service = new ReactRuntimeBundleService({
+			rootDir: fixtureAppRoot,
 			routerAdapter: {
 				name: 'react-router',
 				importMapKey: 'react-router',
@@ -84,7 +87,7 @@ describe('ReactRuntimeBundleService', () => {
 
 	it('re-evaluates vendor asset names when the runtime mode changes after construction', () => {
 		process.env.NODE_ENV = 'production';
-		const service = new ReactRuntimeBundleService({});
+		const service = new ReactRuntimeBundleService({ rootDir: fixtureAppRoot });
 
 		expect(service.getRuntimeImports().react).toBe('/assets/vendors/react.js');
 

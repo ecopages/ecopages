@@ -35,6 +35,13 @@ export interface ReactHydrationAssetServiceConfig {
 	hmrPageMetadataCache?: ReactHmrPageMetadataCache;
 }
 
+export function getReactIslandComponentKey(
+	componentFile: string,
+	config?: EcoComponentConfig,
+): string {
+	return rapidhash(`${componentFile}:${config?.__eco?.id ?? ''}`).toString();
+}
+
 /**
  * Manages the creation of client-side hydration assets for React pages and component islands.
  */
@@ -45,15 +52,23 @@ export class ReactHydrationAssetService {
 		this.config = config;
 	}
 
+	private getIslandBundleName(componentFile: string): string {
+		return `ecopages-react-island-${rapidhash(componentFile)}`;
+	}
+
+	private getIslandHydrationName(bundleName: string, componentKey: string): string {
+		return `${bundleName}-hydration-${componentKey}`;
+	}
+
 	/**
 	 * Resolves the import path for the bundled page component.
 	 * Uses HMR manager for development or constructs static path for production.
 	 *
 	 * @param pagePath - Absolute path to the page source file
-	 * @param componentName - Generated unique component name
+	 * @param assetName - Generated asset name
 	 * @returns The resolved import path for the bundled component
 	 */
-	async resolveAssetImportPath(pagePath: string, componentName: string): Promise<string> {
+	async resolveAssetImportPath(pagePath: string, assetName: string): Promise<string> {
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
 
 		if (hmrManager?.isEnabled()) {
@@ -62,7 +77,7 @@ export class ReactHydrationAssetService {
 
 		return `/${path
 			.join(RESOLVED_ASSETS_DIR, path.relative(this.config.srcDir, pagePath))
-			.replace(path.basename(pagePath), `${componentName}.js`)
+			.replace(path.basename(pagePath), `${assetName}.js`)
 			.replace(/\\/g, '/')}`;
 	}
 
@@ -148,24 +163,25 @@ export class ReactHydrationAssetService {
 	/**
 	 * Builds client-side assets for a React component island.
 	 *
-	 * Includes the bundled component entry and an inline hydration bootstrap script.
+	 * Includes the bundled component entry and a shared hydration bootstrap script.
 	 *
 	 * @param componentFile - Absolute path to the component source file
-	 * @param componentInstanceId - Unique instance ID for DOM targeting
-	 * @param props - Serialized props for client-side hydration
 	 * @param config - Optional component config with `__eco` metadata
 	 * @returns Processed assets ready for injection
 	 */
 	async buildComponentRenderAssets(
 		componentFile: string,
-		componentInstanceId: string,
-		props: Record<string, unknown>,
 		config?: EcoComponentConfig,
 	): Promise<ProcessedAsset[]> {
-		const componentName = `ecopages-react-island-${rapidhash(`${componentFile}:${componentInstanceId}`)}`;
-		const importPath = await this.resolveAssetImportPath(componentFile, componentName);
+		const componentName = this.getIslandBundleName(componentFile);
+		const componentKey = getReactIslandComponentKey(componentFile, config);
+		const hydrationName = this.getIslandHydrationName(componentName, componentKey);
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
 		const isDevelopment = hmrManager?.isEnabled() ?? false;
+		if (isDevelopment) {
+			this.config.hmrPageMetadataCache?.markOwnedEntrypoint(componentFile);
+		}
+		const importPath = await this.resolveAssetImportPath(componentFile, componentName);
 		const declaredModules = collectDeclaredModulesInConfig(config);
 		const bundleOptions = await this.config.bundleService.createBundleOptions(
 			componentName,
@@ -194,19 +210,18 @@ export class ReactHydrationAssetService {
 					importPath,
 					reactImportPath: runtimeImports.react,
 					reactDomClientImportPath: runtimeImports.reactDomClient,
-					targetSelector: `[data-eco-component-id="${componentInstanceId}"]`,
-					props,
+					targetSelector: `[data-eco-component-key="${componentKey}"]`,
 					componentRef: config?.__eco?.id,
 					componentFile,
 					isDevelopment,
 				}),
-				name: `${componentName}-hydration`,
+				name: hydrationName,
 				bundle: false,
 				attributes: {
 					type: 'module',
 					defer: '',
 					'data-eco-rerun': 'true',
-					'data-eco-script-id': `${componentName}-hydration`,
+					'data-eco-script-id': hydrationName,
 					'data-eco-persist': 'true',
 				},
 			}),

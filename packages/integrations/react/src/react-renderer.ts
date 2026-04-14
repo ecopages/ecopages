@@ -37,7 +37,10 @@ import { hasSingleRootElement } from './utils/html-boundary.ts';
 import { ReactBundleService } from './services/react-bundle.service.ts';
 import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 import { ReactPageModuleService } from './services/react-page-module.service.ts';
-import { ReactHydrationAssetService } from './services/react-hydration-asset.service.ts';
+import {
+	getReactIslandComponentKey,
+	ReactHydrationAssetService,
+} from './services/react-hydration-asset.service.ts';
 
 type ReactComponentRenderContext = {
 	componentInstanceId?: string;
@@ -337,14 +340,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	/**
 	 * Renders one React component boundary for marker-graph orchestration.
 	 *
-	 * When the marker resolver has already stitched child HTML for this boundary,
+	 * When the marker resolver has already resolved child HTML for this boundary,
 	 * the child payload must remain raw SSR output rather than a React string
 	 * child, otherwise React would escape it. This helper renders a unique token
-	 * through React and swaps that token back to the stitched HTML afterward.
+	 * through React and swaps that token back to the resolved HTML afterward.
 	 *
 	 * @param input Component render input reconstructed from marker metadata.
 	 * @param context React-specific render context for stable token generation.
-	 * @returns Serialized component HTML with stitched child markup preserved.
+	 * @returns Serialized component HTML with resolved child markup preserved.
 	 */
 	private renderComponentHtml(input: ComponentRenderInput, context: ReactComponentRenderContext): string {
 		if (input.children === undefined) {
@@ -353,11 +356,12 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			);
 		}
 
+		const resolvedChildHtml = typeof input.children === 'string' ? input.children : String(input.children ?? '');
 		const rawChildrenToken = `__ECO_RAW_HTML_CHILD_${context.componentInstanceId ?? 'component'}__`;
 		const html = renderToString(
 			createElement(this.asReactComponent(input.component), input.props, rawChildrenToken),
 		);
-		return restoreEscapedComponentMarkers(html.split(rawChildrenToken).join(input.children));
+		return restoreEscapedComponentMarkers(html.split(rawChildrenToken).join(resolvedChildHtml));
 	}
 
 	private buildHydrationProps(props: SerializableProps | undefined): SerializableProps {
@@ -436,20 +440,23 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				),
 			);
 
-			return html.split(rawChildrenToken).join(options.contentHtml);
+			return this.DOC_TYPE + html.split(rawChildrenToken).join(options.contentHtml);
 		}
 
 		const headContent = ReactRenderer.routerAdapter ? this.buildRouterPageDataScript(options.pageProps) : undefined;
 
-		return this.renderNonReactShellComponent(
-			this.asNonReactShellComponent<NonReactHtmlTemplateProps>(options.HtmlTemplate),
-			{
-				metadata: options.metadata,
-				pageProps: options.pageProps,
-				children: options.contentHtml,
-				headContent,
-			},
-			'HtmlTemplate',
+		return (
+			this.DOC_TYPE +
+			(await this.renderNonReactShellComponent(
+				this.asNonReactShellComponent<NonReactHtmlTemplateProps>(options.HtmlTemplate),
+				{
+					metadata: options.metadata,
+					pageProps: options.pageProps,
+					children: options.contentHtml,
+					headContent,
+				},
+				'HtmlTemplate',
+			))
 		);
 	}
 
@@ -461,7 +468,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * - When an explicit component instance id is provided, a stable
 	 *   `data-eco-component-id` attribute is attached so island hydration can target it.
 	 * - Without an explicit instance id, component renders remain plain SSR output.
-	 * - When stitched child HTML is provided, that boundary is treated as a pure SSR
+	 * - When resolved child HTML is provided, that boundary is treated as a pure SSR
 	 *   composition step and does not emit hydration assets for the parent wrapper.
 	 *
 	 * This preserves DOM shape for global CSS/layout selectors while keeping a
@@ -489,12 +496,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			const componentInstanceId = context.componentInstanceId;
 			assets = await this.hydrationAssetService.buildComponentRenderAssets(
 				componentFile,
-				componentInstanceId,
-				this.buildHydrationProps(input.props),
 				componentConfig,
 			);
 			rootAttributes = {
 				'data-eco-component-id': componentInstanceId,
+				'data-eco-component-key': getReactIslandComponentKey(componentFile, componentConfig),
 				'data-eco-props': btoa(JSON.stringify(this.buildHydrationProps(input.props))),
 			};
 		}

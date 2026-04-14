@@ -9,9 +9,11 @@ import { ReactPlugin, reactPlugin } from '../react.plugin';
 const MockPage = ({ children }: any) => <div>{children}</div>;
 MockPage.config = {};
 
+const fixtureAppRoot = path.resolve(__dirname, '../../../../core/__fixtures__/app');
 const testDir = path.join(__dirname, 'fixture/.eco-mdx');
 
 const Config = await new ConfigBuilder()
+	.setRootDir(fixtureAppRoot)
 	.setDistDir(testDir)
 	.setIntegrations([])
 	.setBaseUrl('http://localhost:3000')
@@ -123,6 +125,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 	it('should seal both production and development runtime vendor dependencies during setup preparation', async () => {
 		process.env.NODE_ENV = 'production';
 		const plugin = reactPlugin({});
+		plugin.setConfig(Config);
 
 		expect((plugin as any).integrationDependencies).toEqual([]);
 

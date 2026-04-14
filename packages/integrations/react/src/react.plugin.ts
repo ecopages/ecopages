@@ -179,6 +179,8 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 			return;
 		}
 
+		this.runtimeBundleService.setRootDir(this.appConfig?.rootDir);
+
 		this.integrationDependencies.unshift(...this.runtimeBundleService.getDependencies());
 		this.runtimeDependenciesInitialized = true;
 	}

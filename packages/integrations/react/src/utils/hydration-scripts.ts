@@ -33,10 +33,8 @@ export type IslandHydrationScriptOptions = {
 	reactImportPath: string;
 	/** Browser import path for react-dom/client runtime. */
 	reactDomClientImportPath: string;
-	/** Selector that resolves to the SSR root element for this island instance. */
+  /** Selector that resolves to all SSR root elements for this island component. */
 	targetSelector: string;
-	/** Serialized component props emitted at render time. */
-	props: Record<string, unknown>;
 	/** Optional stable component id used to resolve named exports reliably. */
 	componentRef?: string;
 	/** Optional source file hint used as fallback for component resolution. */
@@ -441,17 +439,22 @@ const resolveComponent = () => {
 };
 
 const mount = () => {
-  const target = document.querySelector(${targetSelector});
+  const targets = document.querySelectorAll(${targetSelector});
   const Component = resolveComponent();
-  if (!target || !Component) {
+  if (!Component || targets.length === 0) {
     return;
   }
-  const props = JSON.parse(atob(target.getAttribute("data-eco-props") || "e30="));
-  const container = document.createElement("eco-island");
-  container.style.display = "block";
-  target.replaceWith(container);
-  const root = createRoot(container);
-  root.render(createElement(Component, props));
+  targets.forEach((target) => {
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    const props = JSON.parse(atob(target.getAttribute("data-eco-props") || "e30="));
+    const container = document.createElement("eco-island");
+    container.style.display = "block";
+    target.replaceWith(container);
+    const root = createRoot(container);
+    root.render(createElement(Component, props));
+  });
 };
 
 if (document.readyState === "loading") {
@@ -462,5 +465,5 @@ if (document.readyState === "loading") {
 `.trim();
 	}
 
-	return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const m=()=>{const t=document.querySelector(${targetSelector});if(!t||!c)return;const p=JSON.parse(atob(t.getAttribute("data-eco-props")||"e30="));const ct=document.createElement("eco-island");ct.style.display="block";t.replaceWith(ct);cr(ct).render(ce(c,p))};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m,{once:true}):m()`;
+  return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const m=()=>{const ts=document.querySelectorAll(${targetSelector});if(!c||ts.length===0)return;ts.forEach((t)=>{if(!(t instanceof HTMLElement))return;const p=JSON.parse(atob(t.getAttribute("data-eco-props")||"e30="));const ct=document.createElement("eco-island");ct.style.display="block";t.replaceWith(ct);cr(ct).render(ce(c,p))})};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m,{once:true}):m()`;
 }

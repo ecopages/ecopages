@@ -100,8 +100,7 @@ describe('createIslandHydrationScript', () => {
 		importPath: '/assets/component.js',
 		reactImportPath: '/assets/react.js',
 		reactDomClientImportPath: '/assets/react-dom-client.js',
-		targetSelector: '[data-eco-component-id="eco-component-1"]',
-		props: { count: 3 },
+		targetSelector: '[data-eco-component-key="eco-component-1"]',
 		componentRef: 'component-ref',
 		componentFile: '/app/component.tsx',
 	};
@@ -115,6 +114,7 @@ describe('createIslandHydrationScript', () => {
 		expect(script).not.toContain('eco:after-swap');
 		expect(script).toContain('document.createElement("eco-island")');
 		expect(script).toContain('container.style.display = "block"');
+		expect(script).toContain('document.querySelectorAll');
 		expect(script).toContain('target.replaceWith(container)');
 		expect(script).toContain('JSON.parse(atob(target.getAttribute("data-eco-props")');
 		expect(script).toContain('document.addEventListener("DOMContentLoaded", mount, { once: true });');
@@ -129,6 +129,7 @@ describe('createIslandHydrationScript', () => {
 		expect(script).not.toContain('eco:after-swap');
 		expect(script).toContain('createElement("eco-island")');
 		expect(script).toContain('style.display="block"');
+		expect(script).toContain('querySelectorAll');
 		expect(script).toContain('replaceWith(ct)');
 		expect(script).toContain('JSON.parse(atob(t.getAttribute("data-eco-props")');
 		expect(script).toContain('DOMContentLoaded",m,{once:true}');

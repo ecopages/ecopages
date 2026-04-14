@@ -9,6 +9,7 @@ import type {
 	AssetProcessingService,
 	ProcessedAsset,
 	ContentScriptAsset,
+	InlineContentScriptAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import type { EcoComponent } from '../../types/public-types.ts';
 
@@ -68,7 +69,7 @@ describe('DependencyResolverService', () => {
 
 		expect(
 			contentScripts.some((script) =>
-				script.content.includes("export { Table, Button } from 'react-aria-components';"),
+				script.content.includes("export { Button, Table } from 'react-aria-components';"),
 			),
 		).toBe(true);
 		expect(contentScripts.some((script) => script.content.includes("export * from './client-utils';"))).toBe(true);
@@ -92,6 +93,44 @@ describe('DependencyResolverService', () => {
 				},
 			},
 		]);
+	});
+
+	it('should canonicalize generated module script content across different import orders', async () => {
+		const captureModuleScriptContent = async (modules: string[]) => {
+			let capturedDeps: AssetDefinition[] = [];
+			const assetProcessingService = {
+				processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+					capturedDeps = deps;
+					return [] as ProcessedAsset[];
+				}),
+			} as unknown as AssetProcessingService;
+
+			const service = new DependencyResolverService(appConfig, assetProcessingService);
+			const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
+			component.config = {
+				__eco: {
+					id: 'module-order',
+					integration: 'react',
+					file: '/app/components/module-order/component.tsx',
+				},
+				dependencies: {
+					modules,
+				},
+			};
+
+			await service.processComponentDependencies([component], 'react');
+
+			return capturedDeps
+				.filter((dep): dep is ContentScriptAsset => dep.kind === 'script' && dep.source === 'content')
+				.map((dep) => dep.content)
+				.find((content) => content.includes("from 'react-aria-components';"));
+		};
+
+		const firstContent = await captureModuleScriptContent(['react-aria-components{Table,Button}']);
+		const secondContent = await captureModuleScriptContent(['react-aria-components{Button,Table}']);
+
+		expect(firstContent).toBe("export { Button, Table } from 'react-aria-components';");
+		expect(secondContent).toBe(firstContent);
 	});
 
 	it('should detect ecopages virtual imports via parser', async () => {
@@ -294,6 +333,53 @@ describe('DependencyResolverService', () => {
 		expect(visibleRule && 'on:visible' in visibleRule ? visibleRule['on:visible'].scripts[0] : undefined).toMatch(
 			/^\/assets\/lazy\/content-\d+\.js$/,
 		);
+	});
+
+	it('should emit object-form content scripts as inline non-bundled assets', async () => {
+		let capturedDeps: AssetDefinition[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'html-shell',
+				integration: 'react',
+				file: '/app/includes/html.tsx',
+			},
+			dependencies: {
+				scripts: [
+					{
+						content: '(function(){document.documentElement.dataset.theme="light";})()',
+						attributes: { 'data-eco-script': 'theme' },
+					},
+					{
+						content: '(function(){document.getElementById("banner").style.display="block";})()',
+						attributes: { 'data-eco-script': 'announcement' },
+					},
+				],
+			},
+		};
+
+		await service.processComponentDependencies([component], 'react');
+
+		const inlineScripts = capturedDeps.filter(
+			(dep): dep is InlineContentScriptAsset =>
+				dep.kind === 'script' && dep.source === 'content' && (dep as InlineContentScriptAsset).inline === true,
+		);
+
+		expect(inlineScripts).toHaveLength(2);
+		expect(inlineScripts.every((s) => s.bundle === false)).toBe(true);
+		expect(inlineScripts.every((s) => s.position === 'head')).toBe(true);
+		expect(inlineScripts[0].attributes?.['data-eco-script']).toBe('theme');
+		expect(inlineScripts[1].attributes?.['data-eco-script']).toBe('announcement');
+		expect(inlineScripts[0].content).toContain('theme');
+		expect(inlineScripts[1].content).toContain('banner');
 	});
 
 	it('should ignore undefined component entries when collecting nested dependencies', async () => {

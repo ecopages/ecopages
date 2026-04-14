@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.2.0-alpha.10",
+	"version": "0.2.0-alpha.11",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -25,13 +25,13 @@
 	},
 	"dependencies": {
 		"@ecopages/file-system": "workspace:*",
-		"@ecopages/logger": "latest",
+		"@ecopages/logger": "^0.2.3",
 		"@ecopages/scripts-injector": "^0.1.3",
 		"@worker-tools/html-rewriter": "0.1.0-pre.19",
-		"chokidar": "^4.0.3",
-		"esbuild": "^0.27.3",
+		"chokidar": "^5.0.0",
+		"esbuild": "^0.28.0",
 		"ghtml": "^4.0.2",
-		"oxc-parser": "^0.110.0",
+		"oxc-parser": "^0.124.0",
 		"ws": "^8.18.0"
 	},
 	"devDependencies": {
@@ -78,6 +78,10 @@
 			"browser": "./src/eco/eco.browser.ts",
 			"types": "./src/eco/eco.ts",
 			"default": "./src/eco/eco.ts"
+		},
+		"./route-renderer/template-serialization": {
+			"types": "./src/route-renderer/orchestration/template-serialization.ts",
+			"default": "./src/route-renderer/orchestration/template-serialization.ts"
 		},
 		"./declarations": {
 			"types": "./src/declarations.d.ts"
@@ -159,6 +163,14 @@
 		"./build/runtime-specifier-alias-plugin": {
 			"types": "./src/build/runtime-specifier-alias-plugin.ts",
 			"default": "./src/build/runtime-specifier-alias-plugin.ts"
+		},
+		"./build/runtime-specifier-aliases": {
+			"types": "./src/build/runtime-specifier-aliases.ts",
+			"default": "./src/build/runtime-specifier-aliases.ts"
+		},
+		"./plugins/foreign-jsx-override-plugin": {
+			"types": "./src/plugins/foreign-jsx-override-plugin.ts",
+			"default": "./src/plugins/foreign-jsx-override-plugin.ts"
 		},
 		"./adapters/bun/client-bridge": {
 			"types": "./src/adapters/bun/client-bridge.ts",

@@ -179,7 +179,7 @@ export class PageModuleImportService {
 				entrypoints: [filePath],
 				root: rootDir,
 				outdir,
-				target: 'node',
+				target: 'es2022',
 				format: 'esm',
 				sourcemap: 'none',
 				splitting: splitting ?? true,

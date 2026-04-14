@@ -14,6 +14,14 @@ export const INTEGRATION_PLUGIN_ERRORS = {
 	NOT_INITIALIZED_WITH_ASSET_SERVICE: 'Plugin not initialized with asset dependency service',
 } as const;
 
+/**
+ * Base configuration shared by all integration plugins.
+ *
+ * @remarks
+ * Integrations declare their file ownership, optional runtime requirements, and
+ * any global assets or build-time contributions here. Runtime-only side effects
+ * belong in `setup()` rather than the constructor.
+ */
 export interface IntegrationPluginConfig {
 	/**
 	 * The name of the integration plugin.
@@ -41,6 +49,14 @@ export interface IntegrationPluginConfig {
 	 * app can start with this integration enabled.
 	 */
 	runtimeCapability?: RuntimeCapabilityDeclaration;
+	/**
+	 * JSX import source owned by this integration.
+	 *
+	 * @remarks
+	 * This is primarily used by mixed-JSX flows where host-owned browser bundles
+	 * need to preserve the correct JSX runtime for files claimed by the
+	 * integration.
+	 */
 	jsxImportSource?: string;
 }
 
@@ -64,6 +80,19 @@ type RendererClass<C> = new (options: {
 	runtimeOrigin: string;
 }) => IntegrationRenderer<C>;
 
+/**
+ * Base class for framework integrations.
+ *
+ * @remarks
+ * An integration owns three main concerns:
+ * - which file extensions it claims
+ * - which renderer class turns those files into HTML
+ * - which build-time or runtime contributions must be registered for that framework
+ *
+ * Core owns lifecycle ordering. Integrations declare contributions through the
+ * hooks on this class, while `ConfigBuilder.build()` and app startup decide when
+ * those hooks run.
+ */
 export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly name: string;
 	readonly extensions: string[];
@@ -84,6 +113,25 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		return [];
 	}
 
+	/**
+	 * Returns build plugins that should only apply to browser-oriented bundles.
+	 *
+	 * @remarks
+	 * Browser-only transforms such as runtime import aliasing belong here so they
+	 * do not affect server bundles or static-page module generation.
+	 */
+	get browserBuildPlugins(): EcoBuildPlugin[] {
+		return [];
+	}
+
+	/**
+	 * Creates the integration with static declaration-only configuration.
+	 *
+	 * @remarks
+	 * Constructors are expected to stay side-effect free. Build-manifest
+	 * contributions belong in `prepareBuildContributions()` and runtime-only setup
+	 * belongs in `setup()`.
+	 */
 	constructor(config: IntegrationPluginConfig) {
 		this.name = config.name;
 		this.extensions = config.extensions;
@@ -93,11 +141,20 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.jsxImportSource = config.jsxImportSource;
 	}
 
+	/**
+	 * Attaches the finalized app config to the integration.
+	 *
+	 * Core calls this during config finalization before runtime setup so the
+	 * integration can resolve asset paths and other app-owned services later.
+	 */
 	setConfig(appConfig: EcoPagesAppConfig): void {
 		this.appConfig = appConfig;
 		this.initializeAssetDefinitionService();
 	}
 
+	/**
+	 * Records the runtime origin used for page-module loading and renderer setup.
+	 */
 	setRuntimeOrigin(runtimeOrigin: string) {
 		this.runtimeOrigin = runtimeOrigin;
 	}
@@ -123,8 +180,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * runtime specifier registry.
 	 *
 	 * @remarks
-	 * Override this when the integration owns browser runtime bundles that must
-	 * be addressable from client-side imports through stable bare specifiers.
+	 * Integrations that own browser runtime bundles can override this to expose
+	 * stable bare specifiers for client-side imports.
 	 *
 	 * Today these mappings are consumed by the development runtime and browser
 	 * bundle aliasing path. They are intentionally generic enough to grow into a
@@ -135,6 +192,14 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		return {};
 	}
 
+	/**
+	 * Attaches the shared HMR manager and registers integration-owned development hooks.
+	 *
+	 * @remarks
+	 * The default implementation registers both runtime bare-specifier mappings and
+	 * the optional integration HMR strategy. Integrations should override this only
+	 * when they need to extend that shared behavior rather than replace it.
+	 */
 	setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
 		hmrManager.registerSpecifierMap(this.getRuntimeSpecifierMap());
@@ -149,6 +214,9 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		}
 	}
 
+	/**
+	 * Creates the asset-processing service used for global integration dependencies.
+	 */
 	initializeAssetDefinitionService(): void {
 		if (!this.appConfig) throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 
@@ -158,10 +226,21 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		}
 	}
 
+	/**
+	 * Returns processed global assets resolved during `setup()`.
+	 */
 	getResolvedIntegrationDependencies(): ProcessedAsset[] {
 		return this.resolvedIntegrationDependencies;
 	}
 
+	/**
+	 * Instantiates the integration renderer with app-owned services.
+	 *
+	 * @remarks
+	 * Renderers are cheap runtime objects. They receive the finalized app config,
+	 * a fresh asset-processing service, integration-global processed assets, and
+	 * any renderer module context supplied by the active runtime.
+	 */
 	initializeRenderer(options?: { rendererModules?: unknown }): IntegrationRenderer<C> {
 		if (!this.appConfig) {
 			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
@@ -193,7 +272,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * deferred through the marker pipeline.
 	 *
 	 * The default implementation never defers. Integrations that require deferred
-	 * subtree rendering should override this method and return `true` when their
+	 * subtree rendering can override this method and return `true` when their
 	 * boundary must be resolved during the marker graph stage.
 	 *
 	 * @param input Boundary metadata for the current render pass.
@@ -207,9 +286,9 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Prepares build-facing contributions before the app build manifest is sealed.
 	 *
 	 * @remarks
-	 * Override this when an integration needs to materialize runtime/build plugin
-	 * declarations ahead of runtime startup. Keep runtime-only side effects out of
-	 * this hook; they belong in `setup()`.
+	 * Integrations can override this when runtime or build plugin declarations must
+	 * be materialized ahead of runtime startup. Runtime-only side effects stay in
+	 * `setup()`.
 	 */
 	async prepareBuildContributions(): Promise<void> {}
 
@@ -228,5 +307,14 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 		this.initializeRenderer();
 	}
+
+	/**
+	 * Releases runtime resources owned by the integration.
+	 *
+	 * @remarks
+	 * Most integrations do not need custom teardown. Override this only for
+	 * explicit cleanup such as watchers, compiler handles, or runtime registries
+	 * that outlive individual requests.
+	 */
 	async teardown(): Promise<void> {}
 }

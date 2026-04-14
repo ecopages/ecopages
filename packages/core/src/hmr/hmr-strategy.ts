@@ -19,11 +19,14 @@ import type { ClientBridgeEvent } from '../types/public-types.ts';
  *   async process(filePath: string): Promise<HmrAction> {
  *     return {
  *       type: 'broadcast',
- *       events: [{ type: 'update', path: filePath, timestamp: Date.now() }]
+ *       events: [{ type: 'update', path: filePath, timestamp: Date.now() }],
  *     };
  *   }
  * }
+ * ```
+ */
 
+/**
  * Defines the category of an HMR strategy, which determines its execution priority.
  * Strategies are evaluated in descending order: INTEGRATION → ASSET → SCRIPT → FALLBACK.
  *
@@ -70,7 +73,7 @@ export interface HmrAction {
 
 	/**
 	 * The HMR events to broadcast, if type is 'broadcast'.
-	 * capable of broadcasting multiple events at once.
+	 * Multiple events may be broadcast in one action.
 	 */
 	events?: ClientBridgeEvent[];
 }
@@ -83,8 +86,8 @@ export interface HmrAction {
  * whether they match the changed file path.
  *
  * @remarks
- * Strategies should be stateless and idempotent. The same file change should always
- * produce the same result when processed by the same strategy.
+	 * Strategies are expected to be stateless and idempotent. The same file change
+	 * should produce the same result when processed by the same strategy.
  *
  * @example
  * ```typescript
@@ -134,7 +137,7 @@ export abstract class HmrStrategy {
 	 * Determines if this strategy can handle the given file path.
 	 *
 	 * @param filePath - Absolute path to the changed file
-	 * @returns True if this strategy should process the file
+	 * @returns `true` when this strategy should process the file
 	 *
 	 * @example
 	 * ```typescript

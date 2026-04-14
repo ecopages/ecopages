@@ -2,6 +2,7 @@ import type { Readable } from 'node:stream';
 import type { ApiResponseBuilder } from '../adapters/shared/api-response.ts';
 import type { BuildExecutor } from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
+import type { ComponentGraphContext } from '../route-renderer/orchestration/component-render-context.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
@@ -31,6 +32,7 @@ export type {
 	StandardSchemaFailureResult,
 	StandardSchemaIssue,
 	InferOutput,
+	ComponentGraphContext,
 };
 
 export type InteractionEventsString = ScriptsInjectorInteractionEventsString;
@@ -305,6 +307,32 @@ export type EcoComponentDependencies = {
 };
 
 export type EcoPagesElement = string | Promise<string>;
+
+/**
+ * Serializable child payloads accepted by cross-integration deferred rendering.
+ *
+ * This models the broad value shapes that EcoPages already flattens when a
+ * foreign component boundary serializes its children for another integration.
+ * It is intentionally transport-oriented rather than framework-native, so it
+ * can be shared across Kita, Lit, React, and Ecopages JSX authoring surfaces
+ * without coupling core types to any one renderer.
+ */
+export type EcoChildren =
+	| string
+	| Promise<string>
+	| number
+	| bigint
+	| boolean
+	| null
+	| undefined
+	| readonly EcoChildren[]
+	| {
+			strings: readonly string[];
+			values?: readonly EcoChildren[];
+	  }
+	| {
+			[key: string]: EcoChildren;
+	  };
 
 /**
  * Represents the input configuration for EcoPages.
@@ -632,6 +660,7 @@ export type EcoPageFile<T = unknown> = T & {
 	getStaticPaths?: GetStaticPaths;
 	getStaticProps?: GetStaticProps<Record<string, unknown>>;
 	getMetadata?: GetMetadata;
+	componentGraphContext?: ComponentGraphContext;
 	cache?: CacheStrategy;
 };
 
@@ -752,6 +781,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	dependencies?: EcoComponentDependencies;
 	resolvedDependencies: ProcessedAsset[];
 	componentRender?: ComponentRenderResult;
+	componentGraphContext?: ComponentGraphContext;
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;
@@ -760,7 +790,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 export interface ComponentRenderInput {
 	component: EcoComponent;
 	props: Record<string, unknown>;
-	children?: string;
+	children?: unknown;
 	integrationContext?: unknown;
 }
 

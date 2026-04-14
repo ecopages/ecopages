@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { eco } from '../../eco/eco.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	EcoComponent,
@@ -110,12 +111,130 @@ describe('RenderPreparationService', () => {
 		expect(result.pageProps).toEqual({ title: 'Hello', params: { slug: 'hello' }, query: { preview: '1' } });
 		expect((result as typeof result & { layoutMode?: string }).layoutMode).toBe('full');
 		expect(result.componentRender?.assets).toEqual([componentAsset]);
+		expect(result.componentGraphContext).toEqual({ propsByRef: {}, slotChildrenByRef: {} });
 		expect(setProcessedDependencies).toHaveBeenCalledWith([
 			resolvedDependency,
 			integrationDependency,
 			pageDependency,
 			componentAsset,
 		]);
+	});
+
+	it('preserves page-root graph context when preparation renders deferred component boundaries', async () => {
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const DeferredChild = eco.component<{}, string>({
+			integration: 'react',
+			render: () => '<span>Deferred</span>',
+		});
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+
+		const result = await service.prepare(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			'ghtml',
+			{
+				resolvePageModule: async () => ({
+					Page,
+					integrationSpecificProps: {},
+				}),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: 'Page', description: 'Page description' },
+				}),
+				resolveDependencies: async () => [],
+				buildRouteRenderAssets: async () => [],
+				shouldRenderPageComponent: () => true,
+				renderPageComponent: async () => ({
+					html: DeferredChild({}),
+					canAttachAttributes: true,
+					rootTag: 'eco-marker',
+					integrationName: 'ghtml',
+				}),
+				getComponentRenderBoundaryContext: () => ({
+					decideBoundaryRender: () => 'defer',
+				}),
+				setProcessedDependencies: vi.fn(),
+				dedupeProcessedAssets: (assets) => assets,
+				createPageLocalsProxy: () => ({}),
+			},
+		);
+
+		expect(result.componentGraphContext).toEqual({
+			propsByRef: {
+				p_1: { children: '' },
+			},
+			slotChildrenByRef: {},
+		});
+	});
+
+	it('merges explicit page-module graph context with page-root preparation graph context', async () => {
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const DeferredChild = eco.component<{}, string>({
+			integration: 'react',
+			render: () => '<span>Deferred</span>',
+		});
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+
+		const result = await service.prepare(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			'ghtml',
+			{
+				resolvePageModule: async () => ({
+					Page,
+					componentGraphContext: {
+						propsByRef: {
+							explicit: { title: 'explicit' },
+						},
+						slotChildrenByRef: {},
+					},
+					integrationSpecificProps: {},
+				}),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: 'Page', description: 'Page description' },
+				}),
+				resolveDependencies: async () => [],
+				buildRouteRenderAssets: async () => [],
+				shouldRenderPageComponent: () => true,
+				renderPageComponent: async () => ({
+					html: DeferredChild({}),
+					canAttachAttributes: true,
+					rootTag: 'eco-marker',
+					integrationName: 'ghtml',
+				}),
+				getComponentRenderBoundaryContext: () => ({
+					decideBoundaryRender: () => 'defer',
+				}),
+				setProcessedDependencies: vi.fn(),
+				dedupeProcessedAssets: (assets) => assets,
+				createPageLocalsProxy: () => ({}),
+			},
+		);
+
+		expect(result.componentGraphContext).toEqual({
+			propsByRef: {
+				p_1: { children: '' },
+				explicit: { title: 'explicit' },
+			},
+			slotChildrenByRef: {},
+		});
 	});
 
 	it('should guard page locals for static pages and skip page-root rendering when disabled', async () => {

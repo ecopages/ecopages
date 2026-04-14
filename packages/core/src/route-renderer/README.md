@@ -89,8 +89,11 @@ Current base orchestration behavior:
 
 When rendered output contains `eco-marker` nodes:
 
+- the first pass still renders from the page root downward and emits markers only for deferred boundaries.
+- each marker carries the target integration name plus the component, props, and optional slot references needed to reconstruct that subtree.
 - builds marker graph using `componentGraphContext` (`propsByRef`, `slotChildrenByRef`) from integration-specific page module exports, including nested deferred child markers captured inside serialized `children` props.
 - resolves markers bottom-up through integration-specific `renderComponent()` calls.
+- core decodes markers and selects the target renderer; the integration renderer only performs the reconstructed component render.
 - fails fast when marker component refs or props refs are missing.
 - merges marker-rendered assets back into the dependency pipeline with deduplication.
 

@@ -27,13 +27,15 @@ import {
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../eco/global-injector-map.ts';
 import {
 	runWithComponentRenderContext,
+	type ComponentGraphContext,
 	type ComponentRenderBoundaryContext,
-} from '../../eco/component-render-context.ts';
+} from './component-render-context.ts';
 
 type ResolvedPageModule = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
 	getStaticProps?: GetStaticProps<Record<string, unknown>>;
 	getMetadata?: GetMetadata;
+	componentGraphContext?: ComponentGraphContext;
 	integrationSpecificProps: Record<string, unknown>;
 };
 
@@ -63,6 +65,10 @@ export interface RenderPreparationCallbacks {
 	 * page-root component output during preparation.
 	 */
 	getComponentRenderBoundaryContext(): ComponentRenderBoundaryContext;
+	serializeDeferredValue?: (
+		value: unknown,
+		serializeValue: (value: unknown) => string | undefined,
+	) => string | undefined;
 	setProcessedDependencies(dependencies: ProcessedAsset[]): void;
 	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
 	createPageLocalsProxy(filePath: string): RouteRendererOptions['locals'];
@@ -112,7 +118,7 @@ export class RenderPreparationService {
 		callbacks: RenderPreparationCallbacks,
 	): Promise<IntegrationRendererRenderOptions<C>> {
 		const pageModule = await callbacks.resolvePageModule(routeOptions.file);
-		const { Page, integrationSpecificProps } = pageModule;
+		const { Page, integrationSpecificProps, componentGraphContext: explicitComponentGraphContext } = pageModule;
 		const HtmlTemplate = await callbacks.getHtmlTemplate();
 		const { props, metadata } = await callbacks.resolvePageData(pageModule, routeOptions);
 		const Layout = Page.config?.layout;
@@ -127,14 +133,20 @@ export class RenderPreparationService {
 		const allDependencies = [...resolvedDependencies, ...usedIntegrationDependencies, ...pageDeps];
 
 		let componentRender: ComponentRenderResult | undefined;
+		let componentGraphContext = explicitComponentGraphContext;
 		if (callbacks.shouldRenderPageComponent({ Page, Layout, options: routeOptions })) {
-			componentRender = await this.renderPageRoot({
+			const pageRootRender = await this.renderPageRoot({
 				currentIntegrationName,
 				Page: Page as EcoComponent,
 				props,
 				routeOptions,
 				callbacks,
 			});
+			componentRender = pageRootRender.componentRender;
+			componentGraphContext = this.mergeGraphContext(
+				pageRootRender.componentGraphContext,
+				explicitComponentGraphContext,
+			);
 
 			if (componentRender.assets?.length) {
 				allDependencies.push(...componentRender.assets);
@@ -172,6 +184,7 @@ export class RenderPreparationService {
 			...routeOptions,
 			resolvedDependencies,
 			componentRender,
+			componentGraphContext,
 			HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps, C>,
 			Layout,
 			props,
@@ -188,6 +201,22 @@ export class RenderPreparationService {
 		return {
 			...integrationSpecificProps,
 			...preparedOptions,
+		};
+	}
+
+	private mergeGraphContext(
+		capturedGraphContext: ComponentGraphContext,
+		explicitGraphContext?: ComponentGraphContext,
+	): ComponentGraphContext {
+		return {
+			propsByRef: {
+				...(capturedGraphContext.propsByRef ?? {}),
+				...(explicitGraphContext?.propsByRef ?? {}),
+			},
+			slotChildrenByRef: {
+				...(capturedGraphContext.slotChildrenByRef ?? {}),
+				...(explicitGraphContext?.slotChildrenByRef ?? {}),
+			},
 		};
 	}
 
@@ -307,11 +336,12 @@ export class RenderPreparationService {
 		props: Record<string, unknown>;
 		routeOptions: RouteRendererOptions;
 		callbacks: RenderPreparationCallbacks;
-	}): Promise<ComponentRenderResult> {
+	}): Promise<{ componentRender: ComponentRenderResult; componentGraphContext: ComponentGraphContext }> {
 		const execution = await runWithComponentRenderContext(
 			{
 				currentIntegration: input.currentIntegrationName,
 				boundaryContext: input.callbacks.getComponentRenderBoundaryContext(),
+				serializeDeferredValue: input.callbacks.serializeDeferredValue,
 			},
 			async () =>
 				input.callbacks.renderPageComponent({
@@ -324,7 +354,10 @@ export class RenderPreparationService {
 				}),
 		);
 
-		return execution.value;
+		return {
+			componentRender: execution.value,
+			componentGraphContext: execution.graphContext,
+		};
 	}
 
 	/**

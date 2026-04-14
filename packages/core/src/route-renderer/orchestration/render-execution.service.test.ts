@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getComponentRenderContext } from '../../eco/component-render-context.ts';
+import { getComponentRenderContext } from './component-render-context.ts';
 import type {
 	EcoComponent,
 	IntegrationRendererRenderOptions,
@@ -20,6 +20,7 @@ describe('RenderExecutionService', () => {
 			{
 				decideBoundaryRender: ({ targetIntegration }) => (targetIntegration === 'react' ? 'defer' : 'inline'),
 			},
+			undefined,
 			async () => {
 				const stream = new ReadableStream({
 					start(controller) {

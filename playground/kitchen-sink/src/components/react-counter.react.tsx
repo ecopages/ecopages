@@ -11,7 +11,7 @@ export const ReactCounter = eco.component<{}, ReactNode>({
 		const [count, setCount] = useState(0);
 
 		return (
-			<div className="integration-counter" data-react-counter>
+			<div className="integration-counter" data-react-counter data-counter-kind="react">
 				<button
 					className="integration-counter__button"
 					type="button"

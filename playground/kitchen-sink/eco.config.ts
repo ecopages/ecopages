@@ -1,6 +1,7 @@
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
 import path from 'node:path';
@@ -16,6 +17,7 @@ const config = await new ConfigBuilder()
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([
 		kitajsPlugin(),
+		ecopagesJsxPlugin({ extensions: ['.eco.tsx'] }),
 		litPlugin(),
 		reactPlugin({
 			router: ecoRouter(),

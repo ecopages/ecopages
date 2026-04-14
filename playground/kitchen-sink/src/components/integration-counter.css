@@ -1,4 +1,4 @@
-:where([data-react-counter], [data-kita-counter]) {
+:where([data-react-counter], [data-kita-counter], [data-radiant-counter]) {
 	--integration-counter-accent: oklch(0.74 0.16 82);
 	--integration-counter-border: color-mix(in oklch, var(--integration-counter-accent) 48%, var(--color-border));
 	--integration-counter-bg: color-mix(
@@ -30,18 +30,18 @@
 	color: var(--integration-counter-text);
 }
 
-:where([data-react-counter], [data-kita-counter]) .integration-counter__button {
+:where([data-react-counter], [data-kita-counter], [data-radiant-counter]) .integration-counter__button {
 	@apply inline-flex h-8 w-8 items-center justify-center rounded-full transition;
 	border: 1px solid var(--integration-counter-button-border);
 	background: var(--integration-counter-button-bg);
 	color: var(--integration-counter-button-text);
 }
 
-:where([data-react-counter], [data-kita-counter]) .integration-counter__button:hover {
+:where([data-react-counter], [data-kita-counter], [data-radiant-counter]) .integration-counter__button:hover {
 	border-color: var(--integration-counter-button-hover-border);
 	color: var(--integration-counter-button-hover-text);
 }
 
-:where([data-react-counter], [data-kita-counter]) .integration-counter__value {
+:where([data-react-counter], [data-kita-counter], [data-radiant-counter]) .integration-counter__value {
 	@apply min-w-6 text-center font-mono text-base;
 }

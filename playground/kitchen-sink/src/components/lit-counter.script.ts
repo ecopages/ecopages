@@ -1,16 +1,17 @@
 import { html, LitElement, unsafeCSS } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
 import styles from './lit-counter.css';
 
 export type LitCounterProps = {
 	count?: number;
 };
 
-@customElement('lit-counter')
 export class LitCounterElement extends LitElement {
 	static override styles = [unsafeCSS(styles)];
+	static override properties = {
+		count: { type: Number },
+	};
 
-	@property({ type: Number }) declare count: number;
+	declare count: number;
 
 	constructor() {
 		super();
@@ -23,12 +24,16 @@ export class LitCounterElement extends LitElement {
 
 	override render() {
 		return html`
-			<div class="wrapper" data-lit-counter>
+			<div class="wrapper" data-lit-counter data-counter-kind="lit">
 				<button type="button" data-lit-inc @click=${this.increment}>+</button>
 				<span data-lit-value>${this.count}</span>
 			</div>
 		`;
 	}
+}
+
+if (!customElements.get('lit-counter')) {
+	customElements.define('lit-counter', LitCounterElement);
 }
 
 declare global {

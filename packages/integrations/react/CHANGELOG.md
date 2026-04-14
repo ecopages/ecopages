@@ -10,6 +10,9 @@ All notable changes to `@ecopages/react` are documented here.
 
 - Fixed development hydration, router HMR ownership, and page bootstraps across Bun, Vite, and Nitro flows.
 - Fixed React page and MDX module loading to use host-provided loaders on Vite or Nitro and a lightweight browser `eco` shim in preview and build output.
+- Fixed React Fast Refresh to keep React-owned island entrypoints on the React HMR path while ignoring non-React watched script entrypoints.
+- Fixed `renderDocument` to prepend `<!DOCTYPE html>` for both React-managed and non-React HTML templates, matching the behavior of all other integrations.
+- Fixed React island asset generation to share both bundled component modules and hydration bootstraps across repeated island instances of the same component.
 
 ### Features
 

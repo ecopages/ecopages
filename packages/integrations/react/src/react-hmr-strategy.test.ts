@@ -1,9 +1,21 @@
 import path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { DefaultHmrContext } from '@ecopages/core';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 import { fileSystem } from '@ecopages/file-system';
+
+function createPageMetadataCache(
+	overrides: {
+		getDeclaredModules?: (entrypointPath: string) => string[] | undefined;
+		ownsEntrypoint?: (entrypointPath: string) => boolean;
+	} = {},
+) {
+	return {
+		getDeclaredModules: overrides.getDeclaredModules ?? (() => undefined),
+		ownsEntrypoint: overrides.ownsEntrypoint ?? (() => false),
+	};
+}
 
 function createImportServerModuleMock(result: {
 	config: Record<string, unknown>;
@@ -42,10 +54,12 @@ function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultH
 }
 
 describe('ReactHmrStrategy', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it('has INTEGRATION type', () => {
-		const strategy = new ReactHmrStrategy(createMockContext(), {
-			getDeclaredModules: () => undefined,
-		} as any);
+		const strategy = new ReactHmrStrategy(createMockContext(), createPageMetadataCache() as any);
 
 		expect(strategy.type).toBe(HmrStrategyType.INTEGRATION);
 	});
@@ -58,7 +72,9 @@ describe('ReactHmrStrategy', () => {
 			createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
-			{ getDeclaredModules: () => undefined } as any,
+			createPageMetadataCache({
+				ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/react-lab.tsx',
+			}) as any,
 			undefined,
 			['.tsx', '.react.tsx'],
 			['.tsx', '.react.tsx', '.kita.tsx', '.lit.tsx'],
@@ -69,6 +85,20 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.matches('/tmp/src/pages/react-lab.tsx')).toBe(true);
 		expect(strategy.matches('/tmp/src/pages/react-lab.react.tsx')).toBe(true);
 		expect(strategy.matches('/tmp/src/components/widget.kita.tsx')).toBe(true);
+	});
+
+	it('ignores watched script entrypoints that React does not own', () => {
+		const watchedFiles = new Map<string, string>([
+			['/tmp/src/components/radiant-counter.script.tsx', '/assets/_hmr/components/radiant-counter.script.js'],
+		]);
+		const strategy = new ReactHmrStrategy(
+			createMockContext({
+				getWatchedFiles: () => watchedFiles,
+			}),
+			createPageMetadataCache() as any,
+		);
+
+		expect(strategy.matches('/tmp/src/components/radiant-counter.script.tsx')).toBe(false);
 	});
 
 	it('routes React browser rebuilds through BrowserBundleService', async () => {
@@ -86,9 +116,9 @@ describe('ReactHmrStrategy', () => {
 				getBrowserBundleService: () => ({ bundle }) as any,
 				getBuildExecutor: () => ({ build }),
 			}),
-			{
+			createPageMetadataCache({
 				getDeclaredModules: () => [],
-			} as any,
+			}) as any,
 		);
 
 		(strategy as any).processOutput = vi.fn(async () => true);
@@ -128,9 +158,7 @@ describe('ReactHmrStrategy', () => {
 				getBrowserBundleService: () => ({ bundle }) as any,
 				getBuildExecutor: () => ({ build }),
 			}),
-			{
-				getDeclaredModules: () => undefined,
-			} as any,
+			createPageMetadataCache() as any,
 		);
 
 		(strategy as any).processOutput = vi.fn(async () => true);
@@ -155,9 +183,9 @@ describe('ReactHmrStrategy', () => {
 			createMockContext({
 				getBrowserBundleService: () => ({ bundle }) as any,
 			}),
-			{
+			createPageMetadataCache({
 				getDeclaredModules: () => [],
-			} as any,
+			}) as any,
 		);
 
 		const existsSpy = vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath: string) => {
@@ -182,9 +210,39 @@ describe('ReactHmrStrategy', () => {
 			'/tmp/.eco/assets/_hmr/pages/index.js',
 			'/_hmr/pages/index.js',
 		);
+	});
 
-		existsSpy.mockRestore();
-		globSpy.mockRestore();
+	it('rewrites runtime specifiers from the shared HMR registry during output processing', async () => {
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
+		const writeAsync = vi.spyOn(fileSystem, 'writeAsync').mockResolvedValue(undefined);
+		vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
+		vi.spyOn(fileSystem, 'readFile').mockResolvedValue(
+			'import { useState } from "react";\nimport { jsxDEV } from "react/jsx-dev-runtime";\n',
+		);
+		const strategy = new ReactHmrStrategy(
+			createMockContext({
+				getSpecifierMap: () =>
+					new Map([
+						['react', '/assets/vendors/react.development.js'],
+						['react/jsx-dev-runtime', '/assets/vendors/react.development.js'],
+					]),
+			}),
+			createPageMetadataCache() as any,
+		);
+
+		const success = await (strategy as any).processOutput(
+			'/tmp/.eco/assets/_hmr/components/react-counter.123.tmp.js',
+			'/tmp/.eco/assets/_hmr/components/react-counter.js',
+			'/_hmr/components/react-counter.js',
+		);
+
+		expect(success).toBe(true);
+		expect(writeAsync).toHaveBeenCalledWith(
+			'/tmp/.eco/assets/_hmr/components/react-counter.js',
+			expect.stringContaining('/assets/vendors/react.development.js'),
+		);
+		expect(writeAsync.mock.calls[0]?.[1]).not.toContain('from "react"');
+		expect(writeAsync.mock.calls[0]?.[1]).not.toContain('from "react/jsx-dev-runtime"');
 	});
 
 	it('process only broadcasts the changed watched entrypoint update', async () => {
@@ -199,7 +257,10 @@ describe('ReactHmrStrategy', () => {
 			createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
-			{ getDeclaredModules: () => [] } as any,
+			createPageMetadataCache({
+				getDeclaredModules: () => [],
+				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
+			}) as any,
 			undefined,
 			['.react.tsx'],
 			['.react.tsx', '.mdx', '.kita.tsx'],
@@ -239,7 +300,9 @@ describe('ReactHmrStrategy', () => {
 			createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
-			{ getDeclaredModules: () => [] } as any,
+			createPageMetadataCache({
+				getDeclaredModules: () => [],
+			}) as any,
 			{},
 			['.react.tsx', '.mdx'],
 			['.react.tsx', '.mdx', '.kita.tsx'],

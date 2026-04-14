@@ -11,6 +11,7 @@ import path from 'node:path';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import { rewriteRuntimeSpecifierAliases } from '@ecopages/core/build/runtime-specifier-aliases';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import { FileNotFoundError, fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
@@ -116,9 +117,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * (including `node:*`) from breaking the browser bundle.
 	 */
 	private getBuildPlugins(declaredModules?: string[]): EcoBuildPlugin[] {
-		const allowSpecifiers = getReactClientGraphAllowSpecifiers(this.context.getSpecifierMap().keys());
+		const runtimeSpecifierMap = this.context.getSpecifierMap();
+		const allowSpecifiers = getReactClientGraphAllowSpecifiers(runtimeSpecifierMap.keys());
 
-		const runtimeAliasPlugin = createRuntimeSpecifierAliasPlugin(this.context.getSpecifierMap(), {
+		const runtimeAliasPlugin = createRuntimeSpecifierAliasPlugin(runtimeSpecifierMap, {
 			name: 'react-hmr-runtime-specifier-alias',
 		});
 
@@ -174,6 +176,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return this.allTemplateExtensions.find((extension) => filePath.endsWith(extension));
 	}
 
+	private ownsWatchedEntrypoint(filePath: string): boolean {
+		return this.pageMetadataCache.ownsEntrypoint(filePath);
+	}
+
 	/**
 	 * Determines if the file is a React/MDX entrypoint that's registered for HMR.
 	 *
@@ -185,6 +191,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 		appLogger.debug(`Checking ${filePath}. Watched: ${watchedFiles.size}`);
 		if (watchedFiles.size === 0) {
 			return false;
+		}
+
+		if (watchedFiles.has(filePath)) {
+			return this.ownsWatchedEntrypoint(filePath);
 		}
 
 		return this.isReactEntrypoint(filePath);
@@ -231,6 +241,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 
 		const changedEntrypointOutput = watchedFiles.get(_filePath);
+		if (changedEntrypointOutput && !this.ownsWatchedEntrypoint(_filePath)) {
+			appLogger.debug(`Skipping non-React watched entrypoint: ${_filePath}`);
+			return { type: 'none' };
+		}
 		const entrypointsToBuild = changedEntrypointOutput
 			? [[_filePath, changedEntrypointOutput]]
 			: watchedFiles.entries();
@@ -386,6 +400,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		try {
 			let code = await fileSystem.readFile(tempPath);
 
+			code = rewriteRuntimeSpecifierAliases(code, this.context.getSpecifierMap());
 			code = injectHmrHandler(code);
 
 			await fileSystem.writeAsync(finalPath, code);

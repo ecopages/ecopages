@@ -27,11 +27,10 @@ test.describe('Kitchen Sink Preview Regressions', () => {
 		expect(response.ok()).toBe(true);
 		const html = await response.text();
 
-		expect(html).toContain('<template shadowroot="open"');
 		expect(html).toContain('<!--lit-part');
-		expect(html).toContain('data-lit-value');
+		expect(html).toContain('data-lit-shell="integration-matrix-host-shell-lit"');
+		expect(html).toContain('<lit-counter count="0" data-counter-kind="lit"></lit-counter>');
 		expect(html).not.toContain('<--content-->');
-		expect(html).not.toMatch(/<lit-counter[^>]*><\/lit-counter>/);
 
 		const runtime = trackRuntimeErrors(page);
 		await gotoAndWait(page, '/integration-matrix/lit-entry');

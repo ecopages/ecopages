@@ -28,6 +28,7 @@ function parseCommand(button: HTMLButtonElement): CommandConfig {
 }
 
 function mountApiLab(): () => void {
+	const responseViewer = document.querySelector<HTMLElement>('[data-api-response-viewer]');
 	const responseLabel = document.querySelector<HTMLElement>('[data-response-label]');
 	const responseStatus = document.querySelector<HTMLElement>('[data-response-status]');
 	const responseTime = document.querySelector<HTMLElement>('[data-response-time]');
@@ -41,6 +42,7 @@ function mountApiLab(): () => void {
 	}
 
 	const abortController = new AbortController();
+	responseViewer?.setAttribute('data-api-lab-runtime', 'mounted');
 
 	function setSelected(button: HTMLButtonElement) {
 		for (const candidate of commandButtons) {
@@ -153,6 +155,7 @@ function mountApiLab(): () => void {
 	});
 
 	return () => {
+		responseViewer?.setAttribute('data-api-lab-runtime', 'cleaned');
 		abortController.abort();
 	};
 }

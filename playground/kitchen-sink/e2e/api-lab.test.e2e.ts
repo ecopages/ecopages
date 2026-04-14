@@ -10,6 +10,7 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 		await gotoAndWait(page, '/api-lab');
 
 		await expect(page.getByRole('heading', { name: 'Handlers registered directly from app.ts' })).toBeVisible();
+		await expect(page.locator('[data-api-response-viewer]')).toHaveAttribute('data-api-lab-runtime', 'mounted');
 
 		await page.getByRole('button', { name: /Ping with locals/i }).click();
 		await expect(page.locator('[data-response-status]')).toContainText('200');
@@ -21,13 +22,18 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 		await expect(page.locator('[data-response-body]')).toContainText('hello kitchen sink');
 
 		await clickHrefAndWait(page, '/integration-matrix');
-		await expect(
-			page.getByRole('heading', { name: 'Render every integration through every other one.' }),
-		).toBeVisible();
+		await expect(page.getByTestId('page-integration-matrix-index')).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Choose the entry route you want to validate.' })).toBeVisible();
 
 		await gotoAndWait(page, '/api-lab');
 		await expect(page.getByRole('heading', { name: 'Handlers registered directly from app.ts' })).toBeVisible();
-		await expect(page.locator('[data-response-body]')).toContainText('Click Run to execute the selected command.');
+		await expect(page.locator('[data-api-response-viewer]')).toHaveAttribute('data-api-lab-runtime', 'mounted', {
+			timeout: 15000,
+		});
+		await expect(page.locator('[data-response-status]')).toHaveText('Ready', { timeout: 15000 });
+		await expect(page.locator('[data-response-body]')).toContainText('Click Run to execute the selected command.', {
+			timeout: 15000,
+		});
 
 		await page.getByRole('button', { name: /Admin list/i }).click();
 		await expect(page.locator('[data-response-status]')).toContainText('200');

@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"allowSyntheticDefaultImports": true,
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
+		"outDir": "./dist",
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"forceConsistentCasingInFileNames": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "@ecopages/jsx",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"noImplicitOverride": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "ES2021",
+		"useDefineForClassFields": true,
+		"verbatimModuleSyntax": true
+	}
+}

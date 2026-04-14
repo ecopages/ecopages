@@ -1,17 +1,13 @@
 import { eco } from '@ecopages/core';
 import type { EcoPagesElement } from '@ecopages/core';
+import { html } from 'lit';
 import type { LitCounterProps } from './lit-counter.script';
 
 export const LitCounter = eco.component<LitCounterProps, EcoPagesElement>({
 	integration: 'lit',
 	dependencies: {
-		scripts: [
-			{
-				lazy: { 'on:interaction': 'click,mouseenter,focusin' },
-				src: './lit-counter.script.ts',
-				ssr: true,
-			},
-		],
+		scripts: ['./lit-counter.script.ts'],
 	},
-	render: ({ count = 0 }) => <lit-counter count={count}></lit-counter>,
+	render: ({ count = 0 }) =>
+		html`<lit-counter count=${count} data-counter-kind="lit"></lit-counter>` as unknown as EcoPagesElement,
 });

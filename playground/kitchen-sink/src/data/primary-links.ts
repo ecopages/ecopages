@@ -1,3 +1,5 @@
+import { integrationMatrixEntryRoutes } from './integration-matrix';
+
 export type PrimaryLink = {
 	href: string;
 	label: string;
@@ -29,8 +31,7 @@ export const kitchenSinkShell = {
 export const primaryLinks: PrimaryLink[] = [
 	{ href: '/', label: 'Overview' },
 	{ href: '/integration-matrix', label: 'Matrix' },
-	{ href: '/integration-matrix/lit-entry', label: 'Lit entry' },
-	{ href: '/integration-matrix/react-entry', label: 'React entry' },
+	...integrationMatrixEntryRoutes.map((route) => ({ href: route.href, label: route.label })),
 	{ href: '/images', label: 'Images' },
 	{ href: '/transitions', label: 'Transitions' },
 	{ href: '/patterns/middleware', label: 'Middleware' },

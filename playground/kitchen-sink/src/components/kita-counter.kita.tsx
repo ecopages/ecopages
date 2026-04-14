@@ -15,7 +15,7 @@ export const KitaCounter = eco.component<{}, EcoPagesElement>({
 		],
 	},
 	render: () => (
-		<div class="integration-counter" data-kita-counter>
+		<div class="integration-counter" data-kita-counter data-counter-kind="kita">
 			<button class="integration-counter__button" type="button" data-kita-inc>
 				+
 			</button>

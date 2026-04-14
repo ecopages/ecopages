@@ -13,6 +13,14 @@
 		@apply border-amber-300/70;
 	}
 
+	&--radiant {
+		@apply border-violet-300/70 bg-background-accent;
+	}
+
+	&--ecopages-jsx {
+		@apply border-rose-300/70;
+	}
+
 	&__label {
 		@apply text-xs font-semibold uppercase tracking-[0.24em] text-muted;
 	}

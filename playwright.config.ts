@@ -51,7 +51,7 @@ const kitchenSinkWithPreview = kitchenSinkVariants.filter(
 export default defineConfig({
 	testDir: '.',
 	testMatch: '**/*.test.e2e.ts',
-	fullyParallel: true,
+	fullyParallel: false,
 	workers: 1,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,

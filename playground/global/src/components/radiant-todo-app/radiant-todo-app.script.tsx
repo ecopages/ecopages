@@ -8,7 +8,7 @@ import {
 	provideContext,
 	query,
 	RadiantElement,
-	reactiveProp,
+	state,
 	WithKita,
 } from '@ecopages/radiant';
 
@@ -41,7 +41,7 @@ class Logger {
 export class RadiantTodoItem extends WithKita(RadiantElement) {
 	@query({ selector: 'input[type="checkbox"]' }) checkbox!: HTMLInputElement;
 	@query({ selector: 'button' }) removeButton!: HTMLButtonElement;
-	@reactiveProp({ type: Boolean, reflect: true, defaultValue: false }) declare complete: boolean;
+	@state({ type: Boolean, reflect: true, defaultValue: false }) declare complete: boolean;
 	@consumeContext(todoContext) context!: ContextProvider<typeof todoContext>;
 
 	override connectedCallback(): void {

@@ -16,7 +16,7 @@
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/radiant": "^0.2.0",
+		"@ecopages/radiant": "^0.3.0-alpha.0",
 		"@tailwindcss/postcss": "^4.1.18",
 		"ecopages": "workspace:*",
 		"tailwindcss": "^4.1.18",

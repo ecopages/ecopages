@@ -3,7 +3,7 @@ import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
 import { query } from '@ecopages/radiant/decorators/query';
 import { onUpdated } from '@ecopages/radiant/decorators/on-updated';
-import { reactiveProp } from '@ecopages/radiant/decorators/reactive-prop';
+import { prop } from '@ecopages/radiant/decorators/prop';
 
 export type RadiantSwitchProps = {
 	id?: string;
@@ -15,10 +15,10 @@ export type RadiantSwitchEvent = { checked: boolean };
 
 @customElement('radiant-switch')
 export class RadiantSwitch extends RadiantElement {
-	@reactiveProp({ type: Boolean, reflect: true, defaultValue: false })
+	@prop({ type: Boolean, reflect: true, defaultValue: false })
 	checked!: boolean;
 
-	@reactiveProp({ type: Boolean, reflect: true })
+	@prop({ type: Boolean, reflect: true })
 	disabled!: boolean;
 
 	@query({ ref: 'switch' })

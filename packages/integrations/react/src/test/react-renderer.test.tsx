@@ -6,6 +6,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import React, { type JSX } from 'react';
 import { ReactRenderer } from '../react-renderer';
+import { getReactIslandComponentKey } from '../services/react-hydration-asset.service.ts';
 import { ErrorPage } from './fixture/error-page';
 import { Page } from './fixture/test-page';
 
@@ -163,6 +164,9 @@ describe('ReactRenderer', () => {
 			expect(result.html).toBe('<h3>Island</h3>');
 			expect(result.html).not.toContain('<div');
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-1');
+			expect(result.rootAttributes?.['data-eco-component-key']).toBe(
+				getReactIslandComponentKey(pageFilePath, Component.config),
+			);
 			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
 			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
 		});
@@ -198,7 +202,7 @@ describe('ReactRenderer', () => {
 			}
 		});
 
-		it('should preserve stitched child html without escaping and skip parent island hydration', async () => {
+		it('should preserve resolved child html without escaping and skip parent island hydration', async () => {
 			const { testRenderer, assetProcessingService } = createRendererWithAssets();
 			const Component = (({ title, children }: { title: string; children?: React.ReactNode }) => (
 				<section>

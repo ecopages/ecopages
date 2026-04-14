@@ -30,6 +30,7 @@ export type ReactRuntimeImports = {
 
 export interface ReactRuntimeBundleServiceConfig {
 	routerAdapter?: ReactRouterAdapter;
+	rootDir?: string;
 }
 
 type RuntimeMode = 'development' | 'production';
@@ -39,6 +40,10 @@ export class ReactRuntimeBundleService {
 
 	constructor(config: ReactRuntimeBundleServiceConfig) {
 		this.config = config;
+	}
+
+	setRootDir(rootDir: string | undefined): void {
+		this.config.rootDir = rootDir;
 	}
 
 	private get isDevelopment(): boolean {
@@ -125,6 +130,7 @@ export class ReactRuntimeBundleService {
 					name: 'react',
 					fileName: this.getReactVendorFileName(mode),
 					cacheDirName: `ecopages-react-runtime-${mode}`,
+					rootDir: this.config.rootDir,
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
 					},
@@ -134,6 +140,7 @@ export class ReactRuntimeBundleService {
 					name: 'react-dom',
 					fileName: this.getReactDomVendorFileName(mode),
 					cacheDirName: `ecopages-react-runtime-${mode}`,
+					rootDir: this.config.rootDir,
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
 						plugins: reactDomBundlePlugins,

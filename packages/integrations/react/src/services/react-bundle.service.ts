@@ -13,9 +13,9 @@ import {
 	getReactClientGraphAllowSpecifiers,
 	getReactRuntimeExternalSpecifiers,
 } from '../utils/react-runtime-specifier-map.ts';
-import { createForeignJsxOverridePlugin } from '../utils/foreign-jsx-override-plugin.ts';
 import { createUseSyncExternalStoreShimPlugin } from '../utils/use-sync-external-store-shim-plugin.ts';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
+import { createForeignJsxOverridePlugin } from '@ecopages/core/plugins/foreign-jsx-override-plugin';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { ReactRuntimeBundleService, type ReactRuntimeImports } from './react-runtime-bundle.service.ts';
@@ -41,6 +41,7 @@ export class ReactBundleService {
 	constructor(config: ReactBundleServiceConfig) {
 		this.config = config;
 		this.runtimeBundleService = new ReactRuntimeBundleService({
+			rootDir: config.rootDir,
 			routerAdapter: config.routerAdapter,
 		});
 	}
@@ -84,9 +85,10 @@ export class ReactBundleService {
 			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers([], this.config.routerAdapter),
 		});
 
-		const foreignJsxOverridePlugin = createForeignJsxOverridePlugin(this.config.nonReactExtensions ?? [], {
+		const foreignJsxOverridePlugin = createForeignJsxOverridePlugin({
 			name: 'react-renderer-foreign-jsx-override',
-			jsxImportSource: this.config.jsxImportSource ?? 'react',
+			hostJsxImportSource: this.config.jsxImportSource ?? 'react',
+			foreignExtensions: this.config.nonReactExtensions ?? [],
 		});
 		const runtimeAliasPlugin = this.createRuntimeAliasPlugin(runtimeSpecifierMap);
 		const useSyncExternalStoreShimPlugin = createUseSyncExternalStoreShimPlugin({

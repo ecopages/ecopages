@@ -80,7 +80,7 @@ export class ReactPageModuleService {
 				entrypoints: [filePath],
 				root: this.config.rootDir,
 				outdir,
-				target: 'node',
+				target: 'es2022',
 				format: 'esm',
 				sourcemap: 'none',
 				splitting: false,

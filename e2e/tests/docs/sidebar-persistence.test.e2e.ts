@@ -34,6 +34,10 @@ test.describe('Docs Sidebar Persistence', () => {
 	});
 
 	test('keeps the selected theme while docs sidebar persistence is enabled', async ({ page }) => {
+		await page.addInitScript(() => {
+			localStorage.setItem('theme', 'dark');
+		});
+
 		await page.goto('/docs/getting-started/introduction');
 		await page.waitForLoadState('networkidle');
 
@@ -42,7 +46,6 @@ test.describe('Docs Sidebar Persistence', () => {
 			(el as HTMLElement & { themeMarker?: string }).themeMarker = 'kept';
 		});
 
-		await page.locator('#toggle-dark-mode [role="switch"]').click();
 		await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
 		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');

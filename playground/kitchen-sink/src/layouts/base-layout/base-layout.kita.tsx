@@ -51,7 +51,7 @@ export const BaseLayout = eco.layout({
 					</nav>
 				</header>
 				<main class="mx-auto w-full max-w-6xl px-6 py-10">{children}</main>
-				<footer class="mx-auto flex max-w-6xl flex-col gap-2 px-6 pb-10 text-sm text-muted lg:flex-row lg:items-center lg:justify-between">
+				<footer class="mx-auto flex max-w-6xl flex-col gap-2 px-6 pb-10 text-sm text-muted lg:items-center lg:justify-between">
 					<p>{kitchenSinkShell.footerLead}</p>
 					<p>{kitchenSinkShell.footerTrail}</p>
 				</footer>

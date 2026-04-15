@@ -2,7 +2,7 @@ import type { Readable } from 'node:stream';
 import type { ApiResponseBuilder } from '../adapters/shared/api-response.ts';
 import type { BuildExecutor } from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
-import type { ComponentGraphContext } from '../route-renderer/orchestration/component-render-context.ts';
+import type { ComponentBoundaryRuntime } from '../route-renderer/orchestration/component-render-context.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
@@ -13,7 +13,6 @@ import type { InteractionEventsString as ScriptsInjectorInteractionEventsString 
 
 export type { EcoPagesAppConfig } from './internal-types.ts';
 export type { EcoPageComponent } from '../eco/eco.types.ts';
-export type { MarkerGraphContext } from '../route-renderer/component-graph/marker-graph-resolver.ts';
 export type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 
 import type {
@@ -32,7 +31,7 @@ export type {
 	StandardSchemaFailureResult,
 	StandardSchemaIssue,
 	InferOutput,
-	ComponentGraphContext,
+	ComponentBoundaryRuntime,
 };
 
 export type InteractionEventsString = ScriptsInjectorInteractionEventsString;
@@ -660,7 +659,6 @@ export type EcoPageFile<T = unknown> = T & {
 	getStaticPaths?: GetStaticPaths;
 	getStaticProps?: GetStaticProps<Record<string, unknown>>;
 	getMetadata?: GetMetadata;
-	componentGraphContext?: ComponentGraphContext;
 	cache?: CacheStrategy;
 };
 
@@ -781,7 +779,6 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	dependencies?: EcoComponentDependencies;
 	resolvedDependencies: ProcessedAsset[];
 	componentRender?: ComponentRenderResult;
-	componentGraphContext?: ComponentGraphContext;
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;

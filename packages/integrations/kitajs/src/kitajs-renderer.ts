@@ -35,24 +35,7 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * Includes component-scoped dependency assets when declared.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		const component = input.component as KitaViewFn<Record<string, unknown>>;
-		const props = input.children === undefined ? input.props : { ...input.props, children: input.children };
-		const content = await component(props);
-		const html = String(content);
-		const hasDependencies = Boolean(input.component.config?.dependencies);
-		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
-		const assets =
-			hasDependencies && canResolveAssets
-				? await this.processComponentDependencies([input.component])
-				: undefined;
-
-		return {
-			html,
-			canAttachAttributes: true,
-			rootTag: this.getRootTagName(html),
-			integrationName: this.name,
-			assets,
-		};
+		return this.renderStringComponentBoundary(input, input.component as KitaViewFn<Record<string, unknown>>);
 	}
 
 	async render({
@@ -67,17 +50,21 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 		HtmlTemplate,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
-			const pageContent = await Page({ params, query, ...props, locals: pageLocals });
-			const pageHtml = String(pageContent);
-			const children =
-				Layout && typeof Layout === 'function' ? await Layout({ children: pageHtml, locals }) : pageHtml;
-			const body = await HtmlTemplate({
+			return await this.renderPageWithDocumentShell({
+				page: {
+					component: Page as EcoComponent,
+					props: { params, query, ...props, locals: pageLocals },
+				},
+				layout: Layout
+					? {
+							component: Layout as EcoComponent,
+							props: locals ? { locals } : {},
+						}
+					: undefined,
+				htmlTemplate: HtmlTemplate as EcoComponent,
 				metadata,
 				pageProps: props ?? {},
-				children,
 			});
-
-			return this.DOC_TYPE + body;
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
 		}
@@ -89,55 +76,12 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
-			const Layout = view.config?.layout as KitaLayoutFn | undefined;
-			const HtmlTemplate = ctx.partial ? undefined : await this.getHtmlTemplate();
-			const metadata =
-				ctx.partial || !HtmlTemplate
-					? undefined
-					: view.metadata
-						? await view.metadata({
-								params: {},
-								query: {},
-								props: props as Record<string, unknown>,
-								appConfig: this.appConfig,
-							})
-						: this.appConfig.defaultMetadata;
-
-			if (!ctx.partial) {
-				await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
-			}
-
-			const viewFn = view as KitaViewFn<P>;
-			const renderExecution = await this.captureHtmlRender(async () => {
-				const pageContent = await viewFn(props);
-				const pageHtml = String(pageContent);
-
-				if (ctx.partial) {
-					return pageHtml;
-				}
-
-				const children = Layout ? await Layout({ children: pageHtml }) : pageHtml;
-				return (
-					this.DOC_TYPE +
-					(await HtmlTemplate!({
-						metadata: metadata ?? this.appConfig.defaultMetadata,
-						pageProps: (props as Record<string, unknown>) ?? {},
-						children: children ?? '',
-					}))
-				);
+			return await this.renderViewWithDocumentShell({
+				view,
+				props,
+				ctx,
+				layout: view.config?.layout as KitaLayoutFn | undefined,
 			});
-
-			const componentsToResolve = ctx.partial
-				? [view]
-				: ([HtmlTemplate, Layout, view].filter(Boolean) as EcoComponent[]);
-			const body = await this.finalizeCapturedHtmlRender({
-				html: renderExecution.html,
-				componentsToResolve,
-				graphContext: renderExecution.graphContext,
-				partial: ctx.partial,
-			});
-
-			return this.createHtmlResponse(body, ctx);
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
 		}

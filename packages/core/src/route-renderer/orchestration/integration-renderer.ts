@@ -35,23 +35,17 @@ import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { MarkerGraphResolver } from '../component-graph/marker-graph-resolver.ts';
-import { createComponentMarker, parseComponentMarkers } from '../component-graph/component-marker.ts';
-import { RenderExecutionService, type RenderExecutionGraphContext } from './render-execution.service.ts';
+import { RenderExecutionService } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
-import type { BoundaryRenderDecisionInput, ComponentRenderBoundaryContext } from './component-render-context.ts';
+import type { ComponentBoundaryCapture, ComponentBoundaryRuntime } from './component-render-context.ts';
 import type { DeferredTemplateSerializer } from './template-serialization.ts';
-import { runWithComponentRenderContext } from './component-render-context.ts';
+import { restoreEscapedComponentMarkers } from './render-output.utils.ts';
+import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
 
-export interface FinalizeCapturedHtmlRenderOptions {
-	html: string;
-	componentsToResolve: EcoComponent[];
-	graphContext: RenderExecutionGraphContext;
-	partial?: boolean;
-	componentRootAttributes?: Record<string, string>;
-	documentAttributes?: Record<string, string>;
-	mergeAssets?: boolean;
-	transformHtml?: boolean;
-}
+type BoundaryRenderDecisionInput = {
+	currentIntegration: string;
+	targetIntegration?: string;
+};
 
 /**
  * Creates a Proxy that throws LocalsAccessError on any property access.
@@ -90,38 +84,6 @@ function createLocalsProxy(filePath: string): Record<string, never> {
 			},
 		},
 	);
-}
-
-function protectPassedThroughMarkers(
-	html: string,
-	propsByRef: Record<string, Record<string, unknown>>,
-): { html: string; restore: (nextHtml: string) => string } {
-	let protectedHtml = html;
-	const placeholders = new Map<string, string>();
-	let index = 0;
-
-	for (const marker of parseComponentMarkers(html)) {
-		if (marker.propsRef in propsByRef) {
-			continue;
-		}
-
-		const markerHtml = createComponentMarker(marker);
-		const placeholder = `<!--__ECO_PASSTHROUGH_MARKER_${index}__-->`;
-		index += 1;
-		placeholders.set(placeholder, markerHtml);
-		protectedHtml = protectedHtml.replace(markerHtml, placeholder);
-	}
-
-	return {
-		html: protectedHtml,
-		restore: (nextHtml) => {
-			let restoredHtml = nextHtml;
-			for (const [placeholder, markerHtml] of placeholders) {
-				restoredHtml = restoredHtml.replaceAll(placeholder, markerHtml);
-			}
-			return restoredHtml;
-		},
-	};
 }
 
 /**
@@ -190,6 +152,68 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	) => string | undefined;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
+
+	/**
+	 * Reads the execution-scoped foreign renderer cache from one boundary input.
+	 *
+	 * Shared page/layout/document shell helpers pass one cache through
+	 * `integrationContext` so repeated delegation to the same foreign integration
+	 * can reuse a single initialized renderer instance during one render flow.
+	 * The cache is deliberately scoped to the current render execution rather than
+	 * stored on the renderer, which avoids leaking mutable integration state across
+	 * requests while still preventing redundant renderer initialization.
+	 *
+	 * @param integrationContext - Optional boundary context carried with one render input.
+	 * @returns The current execution cache when present.
+	 */
+	private getBoundaryRendererCache(integrationContext: unknown): Map<string, IntegrationRenderer<any>> | undefined {
+		if (
+			typeof integrationContext === 'object' &&
+			integrationContext !== null &&
+			'rendererCache' in integrationContext &&
+			integrationContext.rendererCache instanceof Map
+		) {
+			return integrationContext.rendererCache as Map<string, IntegrationRenderer<any>>;
+		}
+
+		return undefined;
+	}
+
+	private getRegisteredBoundaryOwner(component: EcoComponent): string | undefined {
+		const integrationName = component.config?.integration ?? component.config?.__eco?.integration;
+		if (!integrationName || integrationName === this.name) {
+			return undefined;
+		}
+
+		return this.appConfig.integrations.some((integration) => integration.name === integrationName)
+			? integrationName
+			: undefined;
+	}
+
+	/**
+	 * Attaches an execution-scoped foreign renderer cache to one boundary input.
+	 *
+	 * Foreign-owned page, layout, or document shells may delegate several times in
+	 * the same render flow. Threading the cache through `integrationContext`
+	 * preserves renderer reuse without changing the public boundary input contract.
+	 * Existing integration-specific context is preserved and augmented.
+	 *
+	 * @param input - Original boundary render input.
+	 * @param rendererCache - Execution-scoped renderer cache to propagate.
+	 * @returns Boundary input augmented with the shared renderer cache.
+	 */
+	private withBoundaryRendererCache(
+		input: ComponentRenderInput,
+		rendererCache: Map<string, IntegrationRenderer<any>>,
+	): ComponentRenderInput {
+		return {
+			...input,
+			integrationContext:
+				typeof input.integrationContext === 'object' && input.integrationContext !== null
+					? { ...(input.integrationContext as Record<string, unknown>), rendererCache }
+					: { rendererCache },
+		};
+	}
 
 	protected getRendererModuleValue(key: string): unknown {
 		if (!this.rendererModules || typeof this.rendererModules !== 'object') {
@@ -290,6 +314,256 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		);
 		this.htmlTransformer.setProcessedDependencies(resolvedDependencies);
 		return resolvedDependencies;
+	}
+
+	/**
+	 * Merges component-scoped assets into the active HTML transformer state.
+	 *
+	 * Explicit page, layout, and document shell composition can produce assets at
+	 * each boundary. This helper deduplicates those groups and folds them back into
+	 * the transformer so downstream HTML finalization sees one canonical asset set.
+	 *
+	 * @param assetGroups - Optional groups of processed assets to merge.
+	 * @returns The deduplicated asset subset contributed by this merge operation.
+	 */
+	protected appendProcessedDependencies(
+		...assetGroups: Array<readonly ProcessedAsset[] | undefined>
+	): ProcessedAsset[] {
+		const nextDependencies = this.htmlTransformer.dedupeProcessedAssets(
+			assetGroups.flatMap((assets) => assets ?? []),
+		);
+
+		if (nextDependencies.length === 0) {
+			return nextDependencies;
+		}
+
+		this.htmlTransformer.setProcessedDependencies(
+			this.htmlTransformer.dedupeProcessedAssets([
+				...this.htmlTransformer.getProcessedDependencies(),
+				...nextDependencies,
+			]),
+		);
+
+		return nextDependencies;
+	}
+
+	/**
+	 * Resolves metadata for explicit view rendering.
+	 *
+	 * When a view declares a `metadata()` function, that contract owns the final
+	 * metadata for the explicit render. Otherwise the app-level default metadata is
+	 * reused so explicit routes and page-module routes share the same fallback.
+	 *
+	 * @param view - View component being rendered.
+	 * @param props - Props passed to the view.
+	 * @returns Resolved metadata for the final document shell.
+	 */
+	protected async resolveViewMetadata<P>(view: EcoComponent<P>, props: P): Promise<PageMetadataProps> {
+		return view.metadata
+			? await view.metadata({
+					params: {},
+					query: {},
+					props,
+					appConfig: this.appConfig,
+				})
+			: this.appConfig.defaultMetadata;
+	}
+
+	/**
+	 * Renders one explicit view response in partial mode.
+	 *
+	 * Same-integration views can optionally stream or render inline via the caller's
+	 * `renderInline()` hook. Once a view may cross integration boundaries, this
+	 * helper routes the render through `renderComponentBoundary()` instead so mixed
+	 * shells can reuse the execution-scoped renderer cache and resolve nested
+	 * foreign ownership before the partial response is returned.
+	 *
+	 * @param input - View render options for the partial response.
+	 * @returns HTML response for the partial render.
+	 */
+	protected async renderPartialViewResponse<P>(input: {
+		view: EcoComponent<P>;
+		props: P;
+		ctx: RenderToResponseContext;
+		renderInline?: () => Promise<BodyInit>;
+		transformHtml?: (html: string) => string;
+	}): Promise<Response> {
+		if (input.renderInline && !this.shouldUseMarkerCompatibilityForComponent(input.view as EcoComponent)) {
+			return this.createHtmlResponse(await input.renderInline(), input.ctx);
+		}
+
+		const rendererCache = new Map<string, IntegrationRenderer<any>>();
+
+		const viewRender = await this.renderComponentBoundary({
+			component: input.view as EcoComponent,
+			props: (input.props ?? {}) as Record<string, unknown>,
+			integrationContext: { rendererCache },
+		});
+		const html = input.transformHtml ? input.transformHtml(viewRender.html) : viewRender.html;
+
+		return this.createHtmlResponse(html, input.ctx);
+	}
+
+	/**
+	 * Renders an explicit view through optional layout and document shells.
+	 *
+	 * This helper is the shared explicit-route path for string-oriented and mixed
+	 * integrations. It prepares view dependencies, resolves metadata, and composes
+	 * view, layout, and html template boundaries with one execution-scoped renderer
+	 * cache so repeated foreign shell delegation can reuse initialized renderers
+	 * during the same render flow.
+	 *
+	 * @param input - View, props, and optional layout metadata for the render.
+	 * @returns HTML response for the explicit view render.
+	 */
+	protected async renderViewWithDocumentShell<P>(input: {
+		view: EcoComponent<P>;
+		props: P;
+		ctx: RenderToResponseContext;
+		layout?: EcoComponent;
+	}): Promise<Response> {
+		const normalizedProps = (input.props ?? {}) as Record<string, unknown>;
+
+		if (input.ctx.partial) {
+			return this.renderPartialViewResponse({
+				view: input.view,
+				props: input.props,
+				ctx: input.ctx,
+			});
+		}
+
+		await this.prepareViewDependencies(input.view, input.layout);
+
+		const HtmlTemplate = await this.getHtmlTemplate();
+		const metadata = await this.resolveViewMetadata(input.view, input.props);
+		const rendererCache = new Map<string, IntegrationRenderer<any>>();
+		const viewRender = await this.renderComponentBoundary({
+			component: input.view as EcoComponent,
+			props: normalizedProps,
+			integrationContext: { rendererCache },
+		});
+		const layoutRender = input.layout
+			? await this.renderComponentBoundary({
+					component: input.layout,
+					props: {},
+					children: viewRender.html,
+					integrationContext: { rendererCache },
+				})
+			: undefined;
+		const documentRender = await this.renderComponentBoundary({
+			component: HtmlTemplate as EcoComponent,
+			props: {
+				metadata,
+				pageProps: normalizedProps,
+			},
+			children: layoutRender?.html ?? viewRender.html,
+			integrationContext: { rendererCache },
+		});
+
+		this.appendProcessedDependencies(viewRender.assets, layoutRender?.assets, documentRender.assets);
+
+		const html = await this.finalizeResolvedHtml({
+			html: `${this.DOC_TYPE}${documentRender.html}`,
+			partial: false,
+		});
+
+		return this.createHtmlResponse(html, input.ctx);
+	}
+
+	/**
+	 * Renders a route page through optional layout and document shells.
+	 *
+	 * Route rendering and explicit view rendering now share the same boundary-owned
+	 * shell composition model. This helper composes page, layout, and html template
+	 * boundaries while threading one execution-scoped renderer cache through every
+	 * delegated boundary so foreign shell ownership remains stable and renderer
+	 * initialization is reused inside the current request.
+	 *
+	 * @param input - Page, layout, document, and metadata inputs for the route render.
+	 * @returns Final serialized document HTML including the doctype prefix.
+	 */
+	protected async renderPageWithDocumentShell(input: {
+		page: {
+			component: EcoComponent;
+			props: Record<string, unknown>;
+		};
+		layout?: {
+			component: EcoComponent;
+			props?: Record<string, unknown>;
+		};
+		htmlTemplate: EcoComponent;
+		metadata: PageMetadataProps;
+		pageProps: Record<string, unknown>;
+		documentProps?: Record<string, unknown>;
+		transformDocumentHtml?: (html: string) => string;
+	}): Promise<string> {
+		const rendererCache = new Map<string, IntegrationRenderer<any>>();
+		const pageRender = await this.renderComponentBoundary({
+			component: input.page.component,
+			props: input.page.props,
+			integrationContext: { rendererCache },
+		});
+		const layoutRender = input.layout
+			? await this.renderComponentBoundary({
+					component: input.layout.component,
+					props: input.layout.props ?? {},
+					children: pageRender.html,
+					integrationContext: { rendererCache },
+				})
+			: undefined;
+		const documentRender = await this.renderComponentBoundary({
+			component: input.htmlTemplate,
+			props: {
+				metadata: input.metadata,
+				pageProps: input.pageProps,
+				...(input.documentProps ?? {}),
+			},
+			children: layoutRender?.html ?? pageRender.html,
+			integrationContext: { rendererCache },
+		});
+
+		this.appendProcessedDependencies(pageRender.assets, layoutRender?.assets, documentRender.assets);
+
+		const documentHtml = input.transformDocumentHtml
+			? input.transformDocumentHtml(documentRender.html)
+			: documentRender.html;
+
+		return `${this.DOC_TYPE}${documentHtml}`;
+	}
+
+	/**
+	 * Renders one string-first component boundary and collects its assets.
+	 *
+	 * String-oriented integrations frequently share the same boundary contract:
+	 * pass serialized children through props, coerce the render result to HTML, and
+	 * attach any component-scoped dependencies. This helper centralizes that flow
+	 * so integrations can opt into shared orchestration without repeating the same
+	 * boundary boilerplate.
+	 *
+	 * @param input - Boundary render input.
+	 * @param component - String-oriented component implementation to execute.
+	 * @returns Structured component render result for orchestration paths.
+	 */
+	protected async renderStringComponentBoundary(
+		input: ComponentRenderInput,
+		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
+	): Promise<ComponentRenderResult> {
+		const props = input.children === undefined ? input.props : { ...input.props, children: input.children };
+		const content = await component(props);
+		const html = String(content);
+		const assets =
+			input.component.config?.dependencies &&
+			typeof this.assetProcessingService?.processDependencies === 'function'
+				? await this.processComponentDependencies([input.component])
+				: undefined;
+
+		return {
+			html,
+			canAttachAttributes: true,
+			rootTag: this.getRootTagName(html),
+			integrationName: this.name,
+			assets,
+		};
 	}
 
 	constructor({
@@ -534,15 +808,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			buildRouteRenderAssets: (file) => this.buildRouteRenderAssets(file),
 			shouldRenderPageComponent: (input) => this.shouldRenderPageComponent(input),
 			renderPageComponent: ({ component, props }) =>
-				this.renderComponent({
+				this.renderComponentBoundary({
 					component,
 					props,
 					integrationContext: {
 						componentInstanceId: 'eco-page-root',
 					},
 				}),
-			getComponentRenderBoundaryContext: () => this.getComponentRenderBoundaryContext(),
-			serializeDeferredValue: this.deferredTemplateValueSerializer,
 			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
 			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 			createPageLocalsProxy: (filePath) =>
@@ -573,7 +845,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		Page: EcoPageFile['default'] | EcoPageComponent<any>;
 		getStaticProps?: GetStaticProps<Record<string, unknown>>;
 		getMetadata?: GetMetadata;
-		componentGraphContext?: IntegrationRendererRenderOptions['componentGraphContext'];
 		integrationSpecificProps: Record<string, unknown>;
 	}> {
 		return this.pageModuleLoaderService.resolvePageModule({
@@ -606,11 +877,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 *
 	 * Execution flow:
 	 * 1. Build normalized render options (`prepareRenderOptions`).
-	 * 2. Render once inside component render context to capture marker graph refs.
-	 * 3. Merge captured refs with optional explicit page-module graph context.
-	 * 4. Resolve any `eco-marker` graph bottom-up and merge produced assets.
-	 * 5. Optionally apply root attributes for page/component root boundaries.
-	 * 6. Run HTML transformer with final dependency set.
+	 * 2. Render the route body once.
+	 * 3. Reject unresolved route-level compatibility markers.
+	 * 4. Optionally apply root attributes for page/component root boundaries.
+	 * 5. Run HTML transformer with final dependency set.
 	 *
 	 * Stream-safety note: the first render result is normalized to a string once,
 	 * then the pipeline continues with that immutable HTML value to avoid disturbed
@@ -620,102 +890,56 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns Rendered route body plus effective cache strategy.
 	 */
 	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		return this.renderExecutionService.execute(options, this.name, {
+		return this.renderExecutionService.execute(options, {
 			prepareRenderOptions: (routeOptions) =>
 				this.prepareRenderOptions(routeOptions) as Promise<IntegrationRendererRenderOptions<C>>,
 			render: (renderOptions) => this.render(renderOptions),
-			getComponentRenderBoundaryContext: () => this.getComponentRenderBoundaryContext(),
-			serializeDeferredValue: this.deferredTemplateValueSerializer,
-			resolveMarkerGraphHtml: (input) =>
-				this.resolveMarkerGraphHtml({
-					html: input.html,
-					componentsToResolve: input.componentsToResolve,
-					graphContext: input.graphContext,
-				}),
 			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			getProcessedDependencies: () => this.htmlTransformer.getProcessedDependencies(),
-			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
 			applyAttributesToHtmlElement: (html, attributes) =>
 				this.htmlTransformer.applyAttributesToHtmlElement(html, attributes),
 			applyAttributesToFirstBodyElement: (html, attributes) =>
 				this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes),
 			transformResponse: async (response) => {
 				const transformedResponse = await this.htmlTransformer.transform(response);
-				return transformedResponse.body as RouteRendererBody;
+				return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 			},
 		});
 	}
 
 	/**
-	 * Captures a render pass as immutable HTML along with the graph context needed
-	 * for deferred marker resolution.
+	 * Finalizes already-resolved HTML for explicit renderer-owned paths.
 	 *
-	 * This is the shared entry point for direct `renderToResponse()` flows that
-	 * need the same component graph capture semantics as route execution without
-	 * going through `prepareRenderOptions()`.
+	 * This keeps document and root-attribute stamping plus HTML transformation
+	 * available after a renderer has completed nested boundary resolution without
+	 * routing through shared route-level marker finalization.
 	 */
-	protected async captureHtmlRender(render: () => Promise<RouteRendererBody>): Promise<{
+	protected async finalizeResolvedHtml(options: {
 		html: string;
-		graphContext: RenderExecutionGraphContext;
-	}> {
-		return this.renderExecutionService.captureHtmlRender(
-			this.name,
-			this.getComponentRenderBoundaryContext(),
-			this.deferredTemplateValueSerializer,
-			render,
-		);
-	}
-
-	/**
-	 * Finalizes previously captured HTML by resolving deferred markers, merging
-	 * any emitted assets, stamping optional attributes, and optionally running the
-	 * HTML transformer for full-document flows.
-	 */
-	protected async finalizeCapturedHtmlRender(options: FinalizeCapturedHtmlRenderOptions): Promise<string> {
+		partial?: boolean;
+		componentRootAttributes?: Record<string, string>;
+		documentAttributes?: Record<string, string>;
+		transformHtml?: boolean;
+	}): Promise<string> {
 		const rendererBootstrapDependencies = this.getRendererBootstrapDependencies(options.partial);
-		if (rendererBootstrapDependencies.length > 0) {
-			this.htmlTransformer.setProcessedDependencies(
-				this.htmlTransformer.dedupeProcessedAssets([
-					...this.htmlTransformer.getProcessedDependencies(),
-					...rendererBootstrapDependencies,
-				]),
-			);
+		this.appendProcessedDependencies(rendererBootstrapDependencies);
+
+		let html = options.html;
+
+		if (options.componentRootAttributes && Object.keys(options.componentRootAttributes).length > 0) {
+			html = this.htmlTransformer.applyAttributesToFirstBodyElement(html, options.componentRootAttributes);
 		}
 
-		const finalization = await this.renderExecutionService.finalizeHtmlRender(
-			{
-				html: options.html,
-				graphContext: options.graphContext,
-				componentsToResolve: options.componentsToResolve,
-				componentRootAttributes: options.componentRootAttributes,
-				documentAttributes: options.documentAttributes,
-				mergeAssets: options.mergeAssets ?? !options.partial,
-			},
-			{
-				resolveMarkerGraphHtml: (input) =>
-					this.resolveMarkerGraphHtml({
-						html: input.html,
-						componentsToResolve: input.componentsToResolve,
-						graphContext: input.graphContext,
-					}),
-				dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-				getProcessedDependencies: () => this.htmlTransformer.getProcessedDependencies(),
-				setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
-				applyAttributesToHtmlElement: (html, attributes) =>
-					this.htmlTransformer.applyAttributesToHtmlElement(html, attributes),
-				applyAttributesToFirstBodyElement: (html, attributes) =>
-					this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes),
-			},
-		);
+		if (options.documentAttributes && Object.keys(options.documentAttributes).length > 0) {
+			html = this.htmlTransformer.applyAttributesToHtmlElement(html, options.documentAttributes);
+		}
 
 		const shouldTransform = options.transformHtml ?? !options.partial;
 		if (!shouldTransform) {
-			return finalization.html;
+			return html;
 		}
 
 		const transformedResponse = await this.htmlTransformer.transform(
-			new Response(finalization.html, {
+			new Response(html, {
 				headers: { 'Content-Type': 'text/html' },
 			}),
 		);
@@ -736,8 +960,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Resolves all `eco-marker` placeholders in rendered HTML using integration
-	 * dispatch and bottom-up graph execution.
+	 * Resolves all compatibility `eco-marker` placeholders in rendered HTML using
+	 * integration dispatch and bottom-up graph execution.
 	 *
 	 * Responsibility split:
 	 * - core decodes markers into component refs, props, slot children, and target
@@ -748,27 +972,27 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Resolver callback behavior per marker:
 	 * - resolve component definition by `componentRef`
 	 * - resolve serialized props by `propsRef`
-	 * - stitch resolved child HTML when `slotRef` is present
-	 * - dispatch to target integration `renderComponent`
+	 * - stitch resolved child HTML when deferred child markers are embedded in serialized `children`
+	 * - dispatch to target integration `renderComponentBoundary()`
 	 * - collect produced assets and apply root attributes when attachable
 	 *
-	 * @param options.html HTML that may still contain marker tokens.
+	 * @param options.html HTML that may still contain compatibility marker tokens.
 	 * @param options.componentsToResolve Component set used to build component ref registry.
-	 * @param options.graphContext Props/slot linkage captured during render.
-	 * @returns Resolved HTML plus any component-scoped assets produced while resolving nodes.
-	 * @throws Error when marker component refs or props refs cannot be resolved.
+	 * @param options.boundaryCapture Deferred boundary props captured during render.
+	 * @returns Resolved HTML plus any component-scoped assets produced while resolving compatibility nodes.
+	 * @throws Error when marker component refs, integration ownership, or cyclic marker links cannot be resolved.
 	 */
-	private async resolveMarkerGraphHtml(options: {
+	private async resolveMarkerCompatibilityHtml(options: {
 		html: string;
 		componentsToResolve: EcoComponent[];
-		graphContext: RenderExecutionGraphContext;
+		boundaryCapture: ComponentBoundaryCapture;
 		instanceIdScope?: string;
 	}): Promise<{ html: string; assets: ProcessedAsset[] }> {
 		const integrationRendererCache = new Map<string, IntegrationRenderer>();
 		return this.markerGraphResolver.resolve({
 			html: options.html,
 			componentsToResolve: options.componentsToResolve,
-			graphContext: options.graphContext,
+			boundaryCapture: options.boundaryCapture,
 			instanceIdScope: options.instanceIdScope,
 			resolveRenderer: (integrationName) =>
 				this.getIntegrationRendererForName(integrationName, integrationRendererCache),
@@ -803,7 +1027,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const integrationPlugin = this.appConfig.integrations.find(
 			(integration) => integration.name === integrationName,
 		);
-		invariant(!!integrationPlugin, `[ecopages] Integration not found for marker: ${integrationName}`);
+		invariant(!!integrationPlugin, `[ecopages] Integration not found for boundary owner: ${integrationName}`);
 		const renderer = integrationPlugin.initializeRenderer({
 			rendererModules: this.appConfig.runtime?.rendererModuleContext,
 		});
@@ -820,65 +1044,111 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	abstract render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
 
+	protected async resolveBoundaryInOwningRenderer(
+		input: ComponentRenderInput,
+		rendererCache: Map<string, IntegrationRenderer<any>>,
+	): Promise<ComponentRenderResult | undefined> {
+		const boundaryOwner = this.getRegisteredBoundaryOwner(input.component);
+		if (!boundaryOwner) {
+			return undefined;
+		}
+
+		return await this.getIntegrationRendererForName(boundaryOwner, rendererCache).renderComponentBoundary(
+			this.withBoundaryRendererCache(input, rendererCache),
+		);
+	}
+
 	/**
-	 * Renders one deferred marker-graph node under this integration's boundary
-	 * context so nested cross-integration children can continue to defer while the
-	 * graph is being resolved bottom-up.
+	 * Renders one component under this integration's boundary runtime and resolves
+	 * any nested foreign boundaries captured during that render.
 	 *
-	 * Without this wrapper, resolving a deferred React or Kita node would render
-	 * any nested foreign components with no active render context, causing them to
-	 * fall back to inline escaped HTML instead of emitting the next marker layer.
+	 * Without this wrapper, rendering a deferred React or Kita boundary would run
+	 * nested foreign components with no active render context, causing them to fall
+	 * back to inline escaped HTML instead of feeding the compatibility resolver.
 	 */
-	async renderComponentForMarkerGraph(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+	async renderComponentBoundary(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		const rendererCache =
+			this.getBoundaryRendererCache(input.integrationContext) ?? new Map<string, IntegrationRenderer<any>>();
+		const delegatedBoundaryRender = await this.resolveBoundaryInOwningRenderer(input, rendererCache);
+
+		if (delegatedBoundaryRender) {
+			return delegatedBoundaryRender;
+		}
+
+		const shouldUseMarkerCompatibility = this.shouldUseMarkerCompatibilityForComponent(input.component);
+		const activeRenderContext = getComponentRenderContext();
+
+		if (!shouldUseMarkerCompatibility) {
+			if (!activeRenderContext || activeRenderContext.currentIntegration === this.name) {
+				return this.normalizeComponentBoundaryRender(await this.renderComponent(input));
+			}
+
+			const sameIntegrationExecution = await runWithComponentRenderContext(
+				{
+					currentIntegration: this.name,
+				},
+				async () => this.renderComponent(input),
+			);
+
+			return this.normalizeComponentBoundaryRender(sameIntegrationExecution.value);
+		}
+
 		const execution = await runWithComponentRenderContext(
 			{
 				currentIntegration: this.name,
-				boundaryContext: this.getComponentRenderBoundaryContext(),
+				boundaryRuntime: this.createComponentBoundaryRuntime({
+					boundaryInput: input,
+					rendererCache,
+				}),
 				serializeDeferredValue: this.deferredTemplateValueSerializer,
 			},
 			async () => this.renderComponent(input),
 		);
+		const normalizedExecution = this.normalizeComponentBoundaryRender(execution.value);
 
-		if (!this.shouldWrapMarkerGraphComponent(input.component)) {
-			return execution.value;
+		if (!normalizedExecution.html.includes('<eco-marker')) {
+			return normalizedExecution;
 		}
 
-		if (!execution.value.html.includes('<eco-marker')) {
-			return execution.value;
-		}
-
-		const hasCapturedNestedGraph =
-			Object.keys(execution.graphContext.propsByRef ?? {}).length > 0 ||
-			Object.keys(execution.graphContext.slotChildrenByRef ?? {}).length > 0;
+		const hasCapturedNestedGraph = Object.keys(execution.boundaryCapture.capturedPropsByRef).length > 0;
 
 		if (!hasCapturedNestedGraph) {
-			return execution.value;
+			return normalizedExecution;
 		}
 
 		const parentInstanceId = (input.integrationContext as { componentInstanceId?: string } | undefined)
 			?.componentInstanceId;
-		const protectedMarkers = protectPassedThroughMarkers(
-			execution.value.html,
-			execution.graphContext.propsByRef ?? {},
-		);
-		const nestedResolution = await this.resolveMarkerGraphHtml({
-			html: protectedMarkers.html,
+		const nestedResolution = await this.resolveMarkerCompatibilityHtml({
+			html: normalizedExecution.html,
 			componentsToResolve: [input.component],
-			graphContext: execution.graphContext,
+			boundaryCapture: execution.boundaryCapture,
 			instanceIdScope: parentInstanceId,
 		});
 
 		return {
-			...execution.value,
-			html: protectedMarkers.restore(nestedResolution.html),
+			...normalizedExecution,
+			html: nestedResolution.html,
 			assets: this.htmlTransformer.dedupeProcessedAssets([
-				...(execution.value.assets ?? []),
+				...(normalizedExecution.assets ?? []),
 				...nestedResolution.assets,
 			]),
 		};
 	}
 
-	protected shouldWrapMarkerGraphComponent(component: EcoComponent): boolean {
+	private normalizeComponentBoundaryRender(result: ComponentRenderResult): ComponentRenderResult {
+		return result.html.includes('&lt;eco-marker') || result.html.includes('&amp;lt;eco-marker')
+			? {
+					...result,
+					html: this.restoreEscapedComponentMarkers(result.html),
+				}
+			: result;
+	}
+
+	protected restoreEscapedComponentMarkers(html: string): string {
+		return restoreEscapedComponentMarkers(html);
+	}
+
+	protected shouldUseMarkerCompatibilityForComponent(component: EcoComponent): boolean {
 		const stack = [component];
 		const seen = new Set<EcoComponent>();
 
@@ -970,48 +1240,43 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Builds the narrow boundary policy facade injected into component render
-	 * context for this render pass.
+	 * Creates the per-render boundary runtime adopted by the shared component
+	 * render context.
 	 *
-	 * `eco.component()` consumes this facade without knowing about integration
-	 * registries or plugin instances.
-	 *
-	 * @returns Boundary policy context for the active integration renderer.
+	 * Foreign-owned boundaries leave the current render pass through one shared
+	 * placeholder lane. The placeholder transport remains an internal detail of the
+	 * compatibility resolver; ownership is decided here by comparing the active and
+	 * target integrations directly.
 	 */
-	protected getComponentRenderBoundaryContext(): ComponentRenderBoundaryContext {
-		return {
-			decideBoundaryRender: (input) => (this.shouldDeferComponentBoundary(input) ? 'defer' : 'inline'),
+	protected createComponentBoundaryRuntime(_options: {
+		boundaryInput: ComponentRenderInput;
+		rendererCache: Map<string, IntegrationRenderer<any>>;
+	}): ComponentBoundaryRuntime {
+		const decideBoundaryInterception = (input: BoundaryRenderDecisionInput) =>
+			this.shouldResolveBoundaryInOwningRenderer(input)
+				? { kind: 'placeholder' as const }
+				: { kind: 'inline' as const };
+
+		const runtime: ComponentBoundaryRuntime = {
+			interceptBoundary: decideBoundaryInterception,
+			interceptBoundarySync: decideBoundaryInterception,
 		};
+
+		return runtime;
 	}
 
 	/**
-	 * Resolves whether a component boundary should be deferred by consulting the
-	 * target integration plugin.
+	 * Resolves whether a boundary should leave the current render pass and be
+	 * resolved by its owning renderer.
 	 *
-	 * Boundaries targeting the current integration always render inline. Cross-
-	 * integration boundaries delegate the decision to the target integration's
-	 * `shouldDeferComponentBoundary()` policy.
+	 * Boundaries owned by the current integration always render inline. Foreign-
+	 * owned boundaries use the shared compatibility lane so the owning renderer can
+	 * render them under its own execution context.
 	 *
 	 * @param input Boundary metadata for the active render pass.
-	 * @returns `true` when the boundary should emit a marker; otherwise `false`.
+	 * @returns `true` when the boundary should leave the current pass; otherwise `false`.
 	 */
-	protected shouldDeferComponentBoundary(input: BoundaryRenderDecisionInput): boolean {
-		if (!input.targetIntegration || input.targetIntegration === input.currentIntegration) {
-			return false;
-		}
-
-		const targetIntegration = this.appConfig.integrations.find(
-			(integration) => integration.name === input.targetIntegration,
-		);
-		invariant(
-			!!targetIntegration,
-			`[ecopages] Integration not found for component boundary: ${input.targetIntegration}`,
-		);
-
-		return targetIntegration.shouldDeferComponentBoundary({
-			currentIntegration: input.currentIntegration,
-			targetIntegration: input.targetIntegration,
-			component: input.component,
-		});
+	protected shouldResolveBoundaryInOwningRenderer(input: BoundaryRenderDecisionInput): boolean {
+		return !!input.targetIntegration && input.targetIntegration !== input.currentIntegration;
 	}
 }

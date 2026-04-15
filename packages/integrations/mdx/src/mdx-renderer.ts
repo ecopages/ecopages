@@ -4,6 +4,8 @@
  */
 
 import type {
+	ComponentRenderInput,
+	ComponentRenderResult,
 	EcoComponent,
 	EcoComponentConfig,
 	EcoPageFile,
@@ -109,6 +111,13 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		}
 	}
 
+	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		return this.renderStringComponentBoundary(
+			input,
+			input.component as (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
+		);
+	}
+
 	async render({
 		params,
 		query,
@@ -122,17 +131,21 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		pageProps,
 	}: MDXIntegrationRendererOpions): Promise<RouteRendererBody> {
 		try {
-			const pageContent = await Page({ params, query, ...props, locals: pageLocals });
-			const children =
-				typeof Layout === 'function' ? await Layout({ children: pageContent, locals }) : pageContent;
-
-			const body = await HtmlTemplate({
+			return await this.renderPageWithDocumentShell({
+				page: {
+					component: Page as EcoComponent,
+					props: { params, query, ...props, locals: pageLocals },
+				},
+				layout: Layout
+					? {
+							component: Layout as EcoComponent,
+							props: locals ? { locals } : {},
+						}
+					: undefined,
+				htmlTemplate: HtmlTemplate as EcoComponent,
 				metadata,
-				children,
 				pageProps: pageProps || {},
 			});
-
-			return this.DOC_TYPE + body;
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
 		}
@@ -144,39 +157,12 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
-			const Layout = view.config?.layout as
-				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => Promise<EcoPagesElement>)
-				| undefined;
-
-			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
-			const pageContent = await viewFn(props);
-
-			let body: string;
-			if (ctx.partial) {
-				body = pageContent as string;
-			} else {
-				const children = Layout ? await Layout({ children: pageContent }) : pageContent;
-
-				const HtmlTemplate = await this.getHtmlTemplate();
-				const metadata: PageMetadataProps = view.metadata
-					? await view.metadata({
-							params: {},
-							query: {},
-							props: props as Record<string, unknown>,
-							appConfig: this.appConfig,
-						})
-					: this.appConfig.defaultMetadata;
-
-				body =
-					this.DOC_TYPE +
-					(await HtmlTemplate({
-						metadata,
-						children: children as EcoPagesElement,
-						pageProps: props as Record<string, unknown>,
-					}));
-			}
-
-			return this.createHtmlResponse(body, ctx);
+			return await this.renderViewWithDocumentShell({
+				view,
+				props,
+				ctx,
+				layout: view.config?.layout as EcoComponent | undefined,
+			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
 		}

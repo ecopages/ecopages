@@ -1,7 +1,9 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
+import { eco, type EcoComponent, type EcoPageFile, type EcoPagesElement, type HtmlTemplateProps } from '@ecopages/core';
+import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import React, { type JSX } from 'react';
@@ -66,16 +68,100 @@ const renderer = new ReactRenderer({
 	resolvedIntegrationDependencies: [],
 });
 
+class TestReactRenderer extends ReactRenderer {
+	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+	importedPageFileOverride?: EcoPageFile;
+	shouldHydratePageOverride?: boolean;
+	isMdxFileOverride?: boolean;
+	declaredModulesOverride?: string[];
+	routeRenderAssetsOverride?: Awaited<ReturnType<ReactRenderer['buildRouteRenderAssets']>>;
+
+	constructor(options: ConstructorParameters<typeof ReactRenderer>[0]) {
+		super(options);
+
+		const originalShouldHydratePage = this.pageModuleService.shouldHydratePage.bind(this.pageModuleService);
+		const originalIsMdxFile = this.pageModuleService.isMdxFile.bind(this.pageModuleService);
+		const originalCollectPageDeclaredModules = this.pageModuleService.collectPageDeclaredModules.bind(
+			this.pageModuleService,
+		);
+		const originalBuildRouteRenderAssets = this.hydrationAssetService.buildRouteRenderAssets.bind(
+			this.hydrationAssetService,
+		);
+
+		this.pageModuleService.shouldHydratePage = ((pageModule) =>
+			this.shouldHydratePageOverride ??
+			originalShouldHydratePage(pageModule)) as typeof this.pageModuleService.shouldHydratePage;
+		this.pageModuleService.isMdxFile = ((filePath) =>
+			this.isMdxFileOverride ?? originalIsMdxFile(filePath)) as typeof this.pageModuleService.isMdxFile;
+		this.pageModuleService.collectPageDeclaredModules = ((pageModule) =>
+			this.declaredModulesOverride ??
+			originalCollectPageDeclaredModules(pageModule)) as typeof this.pageModuleService.collectPageDeclaredModules;
+		this.hydrationAssetService.buildRouteRenderAssets = (async (pagePath, isMdx, declaredModules) =>
+			this.routeRenderAssetsOverride ??
+			originalBuildRouteRenderAssets(
+				pagePath,
+				isMdx,
+				declaredModules,
+			)) as typeof this.hydrationAssetService.buildRouteRenderAssets;
+	}
+
+	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps, JSX.Element>> {
+		return this.htmlTemplate as EcoComponent<HtmlTemplateProps, JSX.Element>;
+	}
+
+	protected override async importPageFile(file: string): Promise<EcoPageFile> {
+		if (this.importedPageFileOverride) {
+			return this.importedPageFileOverride;
+		}
+
+		return await super.importPageFile(file);
+	}
+}
+
 const createRenderer = () => {
-	const testRenderer = new ReactRenderer({
+	return new TestReactRenderer({
 		appConfig: Config,
 		assetProcessingService: {} as any,
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
-	vi.spyOn(testRenderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
-	return testRenderer;
 };
+
+class DeferredRenderer extends IntegrationRenderer<EcoPagesElement> {
+	name = 'deferred';
+
+	async render(): Promise<string> {
+		return '';
+	}
+
+	override async renderComponent() {
+		return {
+			html: '<button data-testid="deferred-widget">Deferred widget</button>',
+			canAttachAttributes: true,
+			rootTag: 'button',
+			integrationName: this.name,
+		};
+	}
+
+	async renderToResponse<P = Record<string, unknown>>(
+		_view: EcoComponent<P>,
+		_props: P,
+		_ctx: RenderToResponseContext,
+	) {
+		return new Response('');
+	}
+}
+
+class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
+	renderer = DeferredRenderer;
+
+	constructor() {
+		super({
+			name: 'deferred',
+			extensions: ['.deferred.tsx'],
+		});
+	}
+}
 
 class ImportTestReactRenderer extends ReactRenderer {
 	public async importForTest(file: string) {
@@ -89,13 +175,12 @@ const createRendererWithAssets = () => {
 		processDependencies: vi.fn(async () => []),
 	};
 
-	const testRenderer = new ReactRenderer({
+	const testRenderer = new TestReactRenderer({
 		appConfig: Config,
 		assetProcessingService: assetProcessingService as any,
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
-	vi.spyOn(testRenderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
 	return { testRenderer, assetProcessingService };
 };
 
@@ -248,7 +333,7 @@ describe('ReactRenderer', () => {
 				),
 			};
 
-			const testRenderer = new ReactRenderer({
+			const testRenderer = new TestReactRenderer({
 				appConfig: Config,
 				assetProcessingService: assetProcessingService as any,
 				runtimeOrigin: 'http://localhost:3000',
@@ -273,13 +358,13 @@ describe('ReactRenderer', () => {
 				},
 			};
 
-			vi.spyOn(testRenderer as any, 'importPageFile').mockResolvedValue({
+			testRenderer.importedPageFileOverride = {
 				config: {
 					dependencies: {
 						components: [declaredLitComponent],
 					},
 				},
-			});
+			} as EcoPageFile;
 
 			const assets = await (testRenderer as any).processMdxConfigDependencies(
 				path.resolve(__dirname, 'fixture/react-content.mdx'),
@@ -384,14 +469,14 @@ describe('ReactRenderer', () => {
 			},
 		] as any;
 
-		vi.spyOn(testRenderer as any, 'importPageFile').mockResolvedValue({
+		testRenderer.importedPageFileOverride = {
 			default: Page,
 			config: {},
-		});
-		vi.spyOn(testRenderer.pageModuleService, 'shouldHydratePage').mockReturnValue(true);
-		vi.spyOn(testRenderer.pageModuleService, 'isMdxFile').mockReturnValue(false);
-		vi.spyOn(testRenderer.pageModuleService, 'collectPageDeclaredModules').mockReturnValue([]);
-		vi.spyOn(testRenderer.hydrationAssetService, 'buildRouteRenderAssets').mockResolvedValue(hydrationAssets);
+		} as EcoPageFile;
+		testRenderer.shouldHydratePageOverride = true;
+		testRenderer.isMdxFileOverride = false;
+		testRenderer.declaredModulesOverride = [];
+		testRenderer.routeRenderAssetsOverride = hydrationAssets;
 
 		try {
 			process.env.NODE_ENV = 'development';
@@ -513,6 +598,81 @@ describe('ReactRenderer', () => {
 		).rejects.toThrow('Failed to render component');
 	});
 
+	it('should resolve deferred cross-integration layout components in render', async () => {
+		const deferredPlugin = new DeferredPlugin();
+		const config = await new ConfigBuilder()
+			.setDistDir(testDir)
+			.setRobotsTxt({
+				preferences: {
+					'*': [],
+				},
+			})
+			.setIntegrations([deferredPlugin])
+			.setDefaultMetadata({
+				title: 'Ecopages',
+				description: 'Ecopages',
+			})
+			.setBaseUrl('http://localhost:3000')
+			.build();
+
+		deferredPlugin.setConfig(config);
+		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+
+		const testRenderer = new TestReactRenderer({
+			appConfig: config,
+			assetProcessingService: {} as any,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		});
+		testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+
+		const DeferredWidget = eco.component<{}, string>({
+			integration: 'deferred',
+			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+		});
+		DeferredWidget.config = {
+			...DeferredWidget.config,
+			__eco: {
+				id: 'deferred-widget',
+				file: '/app/components/deferred-widget.deferred.tsx',
+				integration: 'deferred',
+			},
+		};
+
+		const NonReactLayout = (({ children }: { children: string }) =>
+			`<main class="layout">${children}${DeferredWidget({})}</main>`) as EcoComponent<{ children: string }>;
+		NonReactLayout.config = {
+			integration: 'html',
+			dependencies: {
+				components: [DeferredWidget],
+			},
+		};
+
+		const body = await testRenderer.render({
+			params: {},
+			query: {},
+			props: {},
+			resolvedDependencies: [],
+			file: pageFilePath,
+			metadata: {
+				title: 'Test Page',
+				description: 'Test Description',
+			},
+			dependencies: {
+				scripts: [],
+				stylesheets: [],
+			},
+			Page,
+			Layout: NonReactLayout,
+			HtmlTemplate: NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps, JSX.Element>,
+			pageProps: {},
+		});
+
+		const text = await new Response(body as BodyInit).text();
+		expect(text).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
+		expect(text).not.toContain('<eco-marker');
+	});
+
 	describe('renderToResponse', () => {
 		it('should render a view with default status 200', async () => {
 			const testRenderer = createRenderer();
@@ -556,6 +716,67 @@ describe('ReactRenderer', () => {
 
 			const body = await response.text();
 			expect(body).toContain('<div>Partial</div>');
+		});
+
+		it('should resolve deferred foreign boundaries in partial views through explicit component rendering', async () => {
+			const deferredPlugin = new DeferredPlugin();
+			const config = await new ConfigBuilder()
+				.setDistDir(testDir)
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([deferredPlugin])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			deferredPlugin.setConfig(config);
+			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const testRenderer = new ReactRenderer({
+				appConfig: config,
+				assetProcessingService: {} as any,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const DeferredWidget = eco.component<{}, string>({
+				integration: 'deferred',
+				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+			});
+			DeferredWidget.config = {
+				...DeferredWidget.config,
+				__eco: {
+					id: 'deferred-widget-partial',
+					file: '/app/components/deferred-widget-partial.deferred.tsx',
+					integration: 'deferred',
+				},
+			};
+
+			const View = eco.component<{ content: string }, JSX.Element>({
+				integration: 'react',
+				dependencies: {
+					components: [DeferredWidget],
+				},
+				render: ({ content }) => (
+					<section>
+						{content}
+						{DeferredWidget({}) as unknown as React.ReactNode}
+					</section>
+				),
+			});
+
+			const response = await testRenderer.renderToResponse(View, { content: 'Partial' }, { partial: true });
+			const body = await response.text();
+
+			expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
+			expect(body).toContain('<section>Partial');
+			expect(body).not.toContain('<eco-marker');
 		});
 
 		it('should apply custom status code', async () => {
@@ -602,6 +823,69 @@ describe('ReactRenderer', () => {
 			const body = await response.text();
 			expect(body).toContain('layout');
 			expect(body).toContain('<p>With Layout</p>');
+		});
+
+		it('should render full views through explicit component boundaries for non-react layouts', async () => {
+			const deferredPlugin = new DeferredPlugin();
+			const config = await new ConfigBuilder()
+				.setDistDir(testDir)
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([deferredPlugin])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			deferredPlugin.setConfig(config);
+			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: {} as any,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+			testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+
+			const DeferredWidget = eco.component<{}, string>({
+				integration: 'deferred',
+				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+			});
+			DeferredWidget.config = {
+				...DeferredWidget.config,
+				__eco: {
+					id: 'deferred-widget-view',
+					file: '/app/components/deferred-widget-view.deferred.tsx',
+					integration: 'deferred',
+				},
+			};
+
+			const NonReactLayout = (({ children }: { children: string }) =>
+				`<main class="layout">${children}${DeferredWidget({})}</main>`) as EcoComponent<{ children: string }>;
+			NonReactLayout.config = {
+				integration: 'html',
+				dependencies: {
+					components: [DeferredWidget],
+				},
+			};
+
+			const View = ((props: { message: string }) => <p>{props.message}</p>) as unknown as EcoComponent<{
+				message: string;
+			}>;
+			View.config = { layout: NonReactLayout };
+
+			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
+			const body = await response.text();
+
+			expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
+			expect(body).toContain('<p>With Layout</p>');
+			expect(body).not.toContain('<eco-marker');
 		});
 
 		it('should throw an error if the view fails to render', async () => {

@@ -82,16 +82,6 @@ describe('IntegrationPlugin', () => {
 		await expect(plugin.teardown()).resolves.toBeUndefined();
 	});
 
-	it('should not defer component boundaries by default', () => {
-		expect(
-			plugin.shouldDeferComponentBoundary({
-				currentIntegration: 'ghtml',
-				targetIntegration: 'react',
-				component: () => '<div></div>',
-			}),
-		).toBe(false);
-	});
-
 	it('should register runtime specifier maps through the base HMR setup', () => {
 		const registerSpecifierMap = vi.fn();
 		const hmrManager = {

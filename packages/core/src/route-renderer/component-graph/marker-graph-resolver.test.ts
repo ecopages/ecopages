@@ -27,7 +27,6 @@ describe('MarkerGraphResolver', () => {
 
 		const html = `<main>${createComponentMarker({
 			nodeId: 'n_1',
-			integration: 'react',
 			componentRef: 'nested-component',
 			propsRef: 'p_1',
 		})}</main>`;
@@ -35,13 +34,12 @@ describe('MarkerGraphResolver', () => {
 		const result = await service.resolve({
 			html,
 			componentsToResolve: [Nested],
-			graphContext: {
-				propsByRef: {
+			boundaryCapture: {
+				capturedPropsByRef: {
 					p_1: { count: 3 },
 				},
-				slotChildrenByRef: {},
 			},
-			resolveRenderer: () => ({ renderComponentForMarkerGraph: renderComponent }),
+			resolveRenderer: () => ({ renderComponentBoundary: renderComponent }),
 			applyAttributesToFirstElement: (fragment, attributes) =>
 				fragment.replace('<aside', `<aside data-eco-component-id="${attributes['data-eco-component-id']}"`),
 		});
@@ -79,18 +77,16 @@ describe('MarkerGraphResolver', () => {
 		await service.resolve({
 			html: `<main>${createComponentMarker({
 				nodeId: 'n_42',
-				integration: 'react',
 				componentRef: 'nested-component',
 				propsRef: 'p_1',
 			})}</main>`,
 			componentsToResolve: [Nested],
-			graphContext: {
-				propsByRef: {
+			boundaryCapture: {
+				capturedPropsByRef: {
 					p_1: { count: 7 },
 				},
-				slotChildrenByRef: {},
 			},
-			resolveRenderer: () => ({ renderComponentForMarkerGraph: renderComponent }),
+			resolveRenderer: () => ({ renderComponentBoundary: renderComponent }),
 			applyAttributesToFirstElement: (fragment) => fragment,
 		});
 
@@ -125,18 +121,16 @@ describe('MarkerGraphResolver', () => {
 		await service.resolve({
 			html: `<main>${createComponentMarker({
 				nodeId: 'n_1',
-				integration: 'react',
 				componentRef: 'nested-component',
 				propsRef: 'p_1',
 			})}</main>`,
 			componentsToResolve: [Nested],
-			graphContext: {
-				propsByRef: {
+			boundaryCapture: {
+				capturedPropsByRef: {
 					p_1: { count: 3 },
 				},
-				slotChildrenByRef: {},
 			},
-			resolveRenderer: () => ({ renderComponentForMarkerGraph: renderComponent }),
+			resolveRenderer: () => ({ renderComponentBoundary: renderComponent }),
 			applyAttributesToFirstElement: (fragment) => fragment,
 			instanceIdScope: 'n_5',
 		});
@@ -173,18 +167,16 @@ describe('MarkerGraphResolver', () => {
 		await service.resolve({
 			html: `<main>${createComponentMarker({
 				nodeId: 'n_42',
-				integration: 'react',
 				componentRef: 'nested-detached-props',
 				propsRef: 'p_1',
 			})}</main>`,
 			componentsToResolve: [Nested],
-			graphContext: {
-				propsByRef: {
+			boundaryCapture: {
+				capturedPropsByRef: {
 					p_1: originalProps,
 				},
-				slotChildrenByRef: {},
 			},
-			resolveRenderer: () => ({ renderComponentForMarkerGraph: renderComponent }),
+			resolveRenderer: () => ({ renderComponentBoundary: renderComponent }),
 			applyAttributesToFirstElement: (fragment) => fragment,
 		});
 
@@ -193,7 +185,7 @@ describe('MarkerGraphResolver', () => {
 		expect(props).not.toBe(originalProps);
 	});
 
-	it('should fail when marker props are missing', async () => {
+	it('preserves unresolved markers when marker props are missing', async () => {
 		const service = new MarkerGraphResolver();
 		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
 		Nested.config = {
@@ -208,18 +200,20 @@ describe('MarkerGraphResolver', () => {
 			service.resolve({
 				html: createComponentMarker({
 					nodeId: 'n_1',
-					integration: 'react',
 					componentRef: 'nested-component',
 					propsRef: 'missing',
 				}),
 				componentsToResolve: [Nested],
-				graphContext: { propsByRef: {}, slotChildrenByRef: {} },
+				boundaryCapture: { capturedPropsByRef: {} },
 				resolveRenderer: () => ({
-					renderComponentForMarkerGraph: vi.fn(),
+					renderComponentBoundary: vi.fn(),
 				}),
 				applyAttributesToFirstElement: (fragment) => fragment,
 			}),
-		).rejects.toThrow('[ecopages] Missing props reference for marker: missing');
+		).resolves.toEqual({
+			assets: [],
+			html: '<eco-marker data-eco-node-id="n_1" data-eco-component-ref="nested-component" data-eco-props-ref="missing"></eco-marker>',
+		});
 	});
 
 	it('should stitch deep multi-level slot children bottom-up before rendering parents', async () => {
@@ -284,40 +278,31 @@ describe('MarkerGraphResolver', () => {
 
 		const parentMarker = createComponentMarker({
 			nodeId: 'n_2',
-			integration: 'react',
 			componentRef: 'parent-component',
 			propsRef: 'p_2',
-			slotRef: 's_2',
 		});
 		const leafMarker = createComponentMarker({
 			nodeId: 'n_3',
-			integration: 'react',
 			componentRef: 'leaf-component',
 			propsRef: 'p_3',
 		});
 		const html = `<main>${createComponentMarker({
 			nodeId: 'n_1',
-			integration: 'react',
 			componentRef: 'root-component',
 			propsRef: 'p_1',
-			slotRef: 's_1',
 		})}</main>`;
 
 		const result = await service.resolve({
 			html,
 			componentsToResolve: [Root, Parent, Leaf],
-			graphContext: {
-				propsByRef: {
+			boundaryCapture: {
+				capturedPropsByRef: {
 					p_1: { id: 'root', children: parentMarker },
 					p_2: { id: 'parent', children: leafMarker },
 					p_3: { id: 'leaf', children: 'leaf-text' },
 				},
-				slotChildrenByRef: {
-					s_1: ['n_2'],
-					s_2: ['n_3'],
-				},
 			},
-			resolveRenderer: () => ({ renderComponentForMarkerGraph: renderComponent }),
+			resolveRenderer: () => ({ renderComponentBoundary: renderComponent }),
 			applyAttributesToFirstElement: (fragment) => fragment,
 		});
 
@@ -355,16 +340,13 @@ describe('MarkerGraphResolver', () => {
 
 		const leafMarker = createComponentMarker({
 			nodeId: 'n_2',
-			integration: 'react',
 			componentRef: 'leaf-component',
 			propsRef: 'p_2',
 		});
 		const html = `<main>${createComponentMarker({
 			nodeId: 'n_1',
-			integration: 'react',
 			componentRef: 'root-component',
 			propsRef: 'p_1',
-			slotRef: 's_1',
 		})}</main>`;
 
 		const renderComponent = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => {
@@ -388,16 +370,13 @@ describe('MarkerGraphResolver', () => {
 		const result = await service.resolve({
 			html,
 			componentsToResolve: [Root, Leaf],
-			graphContext: {
-				propsByRef: {
+			boundaryCapture: {
+				capturedPropsByRef: {
 					p_1: { children: `<div class="shell">before${leafMarker}after</div>` },
 					p_2: { children: 'leaf-text' },
 				},
-				slotChildrenByRef: {
-					s_1: ['n_2'],
-				},
 			},
-			resolveRenderer: () => ({ renderComponentForMarkerGraph: renderComponent }),
+			resolveRenderer: () => ({ renderComponentBoundary: renderComponent }),
 			applyAttributesToFirstElement: (fragment) => fragment,
 		});
 
@@ -409,5 +388,195 @@ describe('MarkerGraphResolver', () => {
 				children: '<div class="shell">before<span>leaf</span>after</div>',
 			}),
 		);
+	});
+
+	it('preserves uncaptured pass-through markers inside serialized children', async () => {
+		const service = new MarkerGraphResolver();
+		const Root = (() => '') as unknown as EcoComponent<object>;
+		const Leaf = (() => '') as unknown as EcoComponent<object>;
+		Root.config = {
+			__eco: { id: 'root-component', file: '/root.tsx', integration: 'react' },
+			integration: 'react',
+			dependencies: { components: [Leaf] },
+		};
+		Leaf.config = {
+			__eco: { id: 'leaf-component', file: '/leaf.tsx', integration: 'react' },
+			integration: 'react',
+		};
+
+		const passedThroughMarker = createComponentMarker({
+			nodeId: 'n_passed',
+			componentRef: 'passed-through-component',
+			propsRef: 'p_passed',
+		});
+		const leafMarker = createComponentMarker({
+			nodeId: 'n_2',
+			componentRef: 'leaf-component',
+			propsRef: 'p_2',
+		});
+		const html = `<main>${createComponentMarker({
+			nodeId: 'n_1',
+			componentRef: 'root-component',
+			propsRef: 'p_1',
+		})}</main>`;
+
+		const renderComponent = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => {
+			if (input.component === Leaf) {
+				return {
+					html: '<span>leaf</span>',
+					canAttachAttributes: true,
+					rootTag: 'span',
+					integrationName: 'react',
+				};
+			}
+
+			return {
+				html: `<article>${input.children ?? ''}</article>`,
+				canAttachAttributes: true,
+				rootTag: 'article',
+				integrationName: 'react',
+			};
+		});
+
+		const result = await service.resolve({
+			html,
+			componentsToResolve: [Root, Leaf],
+			boundaryCapture: {
+				capturedPropsByRef: {
+					p_1: { children: `<div>before${passedThroughMarker}${leafMarker}after</div>` },
+					p_2: { children: 'leaf-text' },
+				},
+			},
+			resolveRenderer: () => ({ renderComponentBoundary: renderComponent }),
+			applyAttributesToFirstElement: (fragment) => fragment,
+		});
+
+		expect(result.html).toContain(
+			`<article><div>before${passedThroughMarker}<span>leaf</span>after</div></article>`,
+		);
+	});
+
+	it('preserves source order for fan-out children resolved in the same level', async () => {
+		const service = new MarkerGraphResolver();
+		const Root = (() => '') as unknown as EcoComponent<object>;
+		const First = (() => '') as unknown as EcoComponent<object>;
+		const Second = (() => '') as unknown as EcoComponent<object>;
+		Root.config = {
+			__eco: { id: 'root-component', file: '/root.tsx', integration: 'react' },
+			integration: 'react',
+			dependencies: { components: [First, Second] },
+		};
+		First.config = {
+			__eco: { id: 'first-component', file: '/first.tsx', integration: 'react' },
+			integration: 'react',
+		};
+		Second.config = {
+			__eco: { id: 'second-component', file: '/second.tsx', integration: 'react' },
+			integration: 'react',
+		};
+
+		const renderOrder: string[] = [];
+		const renderComponent = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => {
+			const componentId = input.component.config?.__eco?.id as string;
+			renderOrder.push(componentId);
+
+			return {
+				html: `<section>${componentId}</section>`,
+				canAttachAttributes: true,
+				rootTag: 'section',
+				integrationName: 'react',
+			};
+		});
+
+		const html = `<main>${createComponentMarker({
+			nodeId: 'n_1',
+			componentRef: 'root-component',
+			propsRef: 'p_1',
+		})}${createComponentMarker({
+			nodeId: 'n_2',
+			componentRef: 'first-component',
+			propsRef: 'p_2',
+		})}${createComponentMarker({
+			nodeId: 'n_3',
+			componentRef: 'second-component',
+			propsRef: 'p_3',
+		})}</main>`;
+
+		await service.resolve({
+			html,
+			componentsToResolve: [Root, First, Second],
+			boundaryCapture: {
+				capturedPropsByRef: {
+					p_1: {
+						children: `${createComponentMarker({
+							nodeId: 'n_2',
+							componentRef: 'first-component',
+							propsRef: 'p_2',
+						})}${createComponentMarker({
+							nodeId: 'n_3',
+							componentRef: 'second-component',
+							propsRef: 'p_3',
+						})}`,
+					},
+					p_2: { children: 'first' },
+					p_3: { children: 'second' },
+				},
+			},
+			resolveRenderer: () => ({ renderComponentBoundary: renderComponent }),
+			applyAttributesToFirstElement: (fragment) => fragment,
+		});
+
+		expect(renderOrder).toEqual(['first-component', 'second-component', 'root-component']);
+	});
+
+	it('throws when deferred slot links contain a cycle', async () => {
+		const service = new MarkerGraphResolver();
+		const First = (() => '') as unknown as EcoComponent<object>;
+		const Second = (() => '') as unknown as EcoComponent<object>;
+		First.config = {
+			__eco: { id: 'first-component', file: '/first.tsx', integration: 'react' },
+			integration: 'react',
+			dependencies: { components: [Second] },
+		};
+		Second.config = {
+			__eco: { id: 'second-component', file: '/second.tsx', integration: 'react' },
+			integration: 'react',
+			dependencies: { components: [First] },
+		};
+
+		await expect(
+			service.resolve({
+				html: `${createComponentMarker({
+					nodeId: 'n_1',
+					componentRef: 'first-component',
+					propsRef: 'p_1',
+				})}${createComponentMarker({
+					nodeId: 'n_2',
+					componentRef: 'second-component',
+					propsRef: 'p_2',
+				})}`,
+				componentsToResolve: [First, Second],
+				boundaryCapture: {
+					capturedPropsByRef: {
+						p_1: {
+							children: createComponentMarker({
+								nodeId: 'n_2',
+								componentRef: 'second-component',
+								propsRef: 'p_2',
+							}),
+						},
+						p_2: {
+							children: createComponentMarker({
+								nodeId: 'n_1',
+								componentRef: 'first-component',
+								propsRef: 'p_1',
+							}),
+						},
+					},
+				},
+				resolveRenderer: () => ({ renderComponentBoundary: vi.fn() }),
+				applyAttributesToFirstElement: (fragment) => fragment,
+			}),
+		).rejects.toThrow('Component marker graph contains a cycle');
 	});
 });

@@ -12,7 +12,6 @@ import type React from 'react';
 import { ReactRenderer } from './react-renderer.ts';
 import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
-import type { ComponentBoundaryPolicyInput } from '@ecopages/core/plugins/integration-plugin';
 import { ReactRuntimeBundleService } from './services/react-runtime-bundle.service.ts';
 import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 
@@ -252,20 +251,6 @@ export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 
 	override getRuntimeSpecifierMap(): Record<string, string> {
 		return this.runtimeBundleService.getSpecifierMap();
-	}
-
-	/**
-	 * Declares React's boundary deferral rule for cross-integration rendering.
-	 *
-	 * React defers when a render pass owned by another integration enters a React
-	 * component boundary. That boundary is then resolved later through the marker
-	 * graph stage using the React renderer.
-	 *
-	 * @param input Boundary metadata for the active render pass.
-	 * @returns `true` when the boundary should be deferred into the marker pass.
-	 */
-	override shouldDeferComponentBoundary(input: ComponentBoundaryPolicyInput): boolean {
-		return input.targetIntegration === this.name && input.currentIntegration !== this.name;
 	}
 }
 

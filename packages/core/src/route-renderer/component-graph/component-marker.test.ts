@@ -5,18 +5,14 @@ describe('component marker contract', () => {
 	it('creates a canonical marker element', () => {
 		const html = createComponentMarker({
 			nodeId: 'n_1',
-			integration: 'react',
 			componentRef: 'c_1',
 			propsRef: 'p_1',
-			slotRef: 's_1',
 		});
 
 		expect(html).toContain('<eco-marker');
 		expect(html).toContain('data-eco-node-id="n_1"');
-		expect(html).toContain('data-eco-integration="react"');
 		expect(html).toContain('data-eco-component-ref="c_1"');
 		expect(html).toContain('data-eco-props-ref="p_1"');
-		expect(html).toContain('data-eco-slot-ref="s_1"');
 	});
 
 	it('parses multiple markers from html', () => {
@@ -24,16 +20,13 @@ describe('component marker contract', () => {
 			'<main>',
 			createComponentMarker({
 				nodeId: 'n_1',
-				integration: 'lit',
 				componentRef: 'c_1',
 				propsRef: 'p_1',
 			}),
 			createComponentMarker({
 				nodeId: 'n_2',
-				integration: 'react',
 				componentRef: 'c_2',
 				propsRef: 'p_2',
-				slotRef: 's_2',
 			}),
 			'</main>',
 		].join('');
@@ -42,26 +35,21 @@ describe('component marker contract', () => {
 		expect(markers).toHaveLength(2);
 		expect(markers[0]).toEqual({
 			nodeId: 'n_1',
-			integration: 'lit',
 			componentRef: 'c_1',
 			propsRef: 'p_1',
-			slotRef: undefined,
 		});
 		expect(markers[1]).toEqual({
 			nodeId: 'n_2',
-			integration: 'react',
 			componentRef: 'c_2',
 			propsRef: 'p_2',
-			slotRef: 's_2',
 		});
 	});
 
 	it('ignores malformed markers missing required fields', () => {
 		const html =
-			'<eco-marker data-eco-node-id="n_1" data-eco-integration="lit"></eco-marker>' +
+			'<eco-marker data-eco-node-id="n_1"></eco-marker>' +
 			createComponentMarker({
 				nodeId: 'n_2',
-				integration: 'lit',
 				componentRef: 'c_2',
 				propsRef: 'p_2',
 			});

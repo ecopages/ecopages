@@ -49,7 +49,7 @@ const ATTRIBUTE_TAIL_PATTERN = /(\s+)([@.?!]?)([^\s"'<>/=`@.?!]+)=$/;
 /**
  * Detects whether the current string segment ends in an HTML attribute binding.
  *
-	 * The parser is intentionally small: it only recognizes the transport shape
+ * The parser is intentionally small: it only recognizes the transport shape
  * Ecopages needs during deferred mixed-integration rendering, not a full HTML
  * grammar.
  */

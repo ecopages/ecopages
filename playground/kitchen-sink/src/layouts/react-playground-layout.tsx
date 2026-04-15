@@ -61,7 +61,7 @@ export const ReactPlaygroundLayout = eco.component<ReactPlaygroundLayoutProps, R
 					</nav>
 				</header>
 				<main className="mx-auto w-full max-w-6xl px-6 py-10">{children}</main>
-				<footer className="mx-auto flex max-w-6xl flex-col gap-2 px-6 pb-10 text-sm text-muted lg:flex-row lg:items-center lg:justify-between">
+				<footer className="mx-auto flex max-w-6xl flex-col gap-2 px-6 pb-10 text-sm text-muted lg:items-center lg:justify-between">
 					<p>{kitchenSinkShell.footerLead}</p>
 					<p>{kitchenSinkShell.footerTrail}</p>
 				</footer>

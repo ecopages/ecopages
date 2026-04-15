@@ -8,16 +8,20 @@ All notable changes to `@ecopages/kitajs` are documented here.
 
 ### Bug Fixes
 
-- Fixed direct `ctx.render()` flows and mixed-integration Kita boundaries to resolve through the marker pipeline.
+- Fixed full route and direct `ctx.render()` Kita rendering to stay on the renderer-owned explicit page/layout/document path while still resolving mixed-integration boundaries without marker artifacts.
 
 ### Features
 
-- Aligned KitaJS with the unified orchestration pipeline.
+- Aligned KitaJS with renderer-owned boundary composition.
 
 ### Refactoring
 
 - Tightened Kita component typing and cleaned up ambient module declarations.
 
+### Documentation
+
+- Updated the README to document `.kita.tsx` route ownership and Kita's role as an outer shell in mixed-renderer apps.
+
 ### Tests
 
-- Updated integration coverage for the orchestration pipeline and Node and esbuild compatibility.
+- Updated integration coverage for explicit boundary composition and Node and esbuild compatibility.

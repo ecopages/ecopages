@@ -60,6 +60,16 @@ const config = await new ConfigBuilder()
 export default config;
 ```
 
+## Mixed Rendering
+
+The React integration can participate in mixed-renderer apps in three ways:
+
+- React can own the page or view directly.
+- React can render nested component boundaries inside pages owned by another integration.
+- React can render through non-React page, layout, or document shells when those shell components return strings.
+
+When a non-React render pass enters a React-owned boundary, Ecopages hands that boundary back to the React renderer. When React renders through a non-React shell, that shell must serialize to HTML so React can insert the result into the final response without escaping it.
+
 ## Server and Client Graph Contract
 
 The React integration supports Node.js modules and server-only code **only on the server execution graph**.

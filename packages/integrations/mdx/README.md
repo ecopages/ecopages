@@ -1,6 +1,6 @@
 # @ecopages/mdx
 
-Integration plugin for standalone MDX support in Ecopages, specifically designed for non-React JSX runtimes (such as `@kitajs/html`). It configures the MDX compiler to process `.mdx` routes natively.
+Integration plugin for standalone MDX support in Ecopages for non-React JSX runtimes such as `@kitajs/html`. Use it when MDX should render directly on the server without React hydration.
 
 ## Installation
 
@@ -28,6 +28,39 @@ By default, the standalone plugin uses:
 
 - `jsxImportSource: '@kitajs/html'`
 - `jsxRuntime: 'automatic'`
+
+## What This Integration Owns
+
+- `.mdx` route files.
+- Optional `.md` routes when you opt them into `extensions`.
+- MDX compilation against a non-React JSX runtime.
+
+## Configure Markdown Extensions
+
+Use `extensions` when both `.mdx` and `.md` files should run through the MDX loader.
+
+```ts
+import { mdxPlugin } from '@ecopages/mdx';
+
+mdxPlugin({
+	extensions: ['.mdx', '.md'],
+});
+```
+
+## Compiler Options
+
+Pass `compilerOptions` to add remark, rehype, or recma plugins while keeping the non-React JSX runtime managed by the integration.
+
+```ts
+import { mdxPlugin } from '@ecopages/mdx';
+
+mdxPlugin({
+	compilerOptions: {
+		remarkPlugins: [],
+		rehypePlugins: [],
+	},
+});
+```
 
 > [!WARNING]
 > React runtimes are intentionally rejected by this standalone plugin.

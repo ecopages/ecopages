@@ -25,13 +25,13 @@ Framework-owned orchestration services and renderer base class:
 
 - `integration-renderer.ts`: abstract base class that coordinates end-to-end route rendering.
 - `render-preparation.service.ts`: page module/data/dependency preparation before render.
-- `render-execution.service.ts`: render capture, marker-graph resolution, and finalization.
+- `render-execution.service.ts`: render capture, marker-compatibility resolution, and finalization.
 
 It also provides:
 
 - `renderToResponse()` contract for explicit-route rendering.
 - `renderComponent()` contract for component-level orchestration and artifact reporting.
-- marker graph resolution for nested cross-integration component boundaries.
+- deferred boundary resolution for nested cross-integration component boundaries.
 
 ### `component-graph/`
 
@@ -39,9 +39,7 @@ Component marker contracts and graph resolution:
 
 - `createComponentMarker()` for canonical `<eco-marker ...></eco-marker>` generation.
 - `parseComponentMarkers()` for marker extraction from rendered HTML.
-- node collection by marker id.
-- parent/child edges from slot reference registry.
-- topological levels for bottom-up execution.
+- `marker-graph-resolver.ts` for marker extraction, child-link reconstruction, and bottom-up resolution.
 
 ### `page-loading/`
 
@@ -61,7 +59,7 @@ Builds processed assets from component dependency declarations:
 
 Default behavior:
 
-- marker-graph component orchestration + component render artifacts.
+- marker-compatibility component orchestration + component render artifacts.
 - global lazy trigger map + global injector bootstrap.
 
 Global injector lifecycle notes:
@@ -90,8 +88,8 @@ Current base orchestration behavior:
 When rendered output contains `eco-marker` nodes:
 
 - the first pass still renders from the page root downward and emits markers only for deferred boundaries.
-- each marker carries the target integration name plus the component, props, and optional slot references needed to reconstruct that subtree.
-- builds marker graph using `componentGraphContext` (`propsByRef`, `slotChildrenByRef`) from integration-specific page module exports, including nested deferred child markers captured inside serialized `children` props.
+- each marker carries the target integration name plus the component and props references needed to reconstruct that subtree.
+- builds deferred boundary resolution input from render-time captured props (`capturedPropsByRef`), including nested deferred child placeholders captured directly inside serialized `children` props.
 - resolves markers bottom-up through integration-specific `renderComponent()` calls.
 - core decodes markers and selects the target renderer; the integration renderer only performs the reconstructed component render.
 - fails fast when marker component refs or props refs are missing.
@@ -124,4 +122,4 @@ If you are reading this file to understand today's contract, you can stop at the
 
 - Deep multi-level slot graphs now have dedicated unit, orchestration, and kitchen-sink coverage, and built-in marker emission covers the cross-integration React and Lit boundaries exercised by the current test matrix.
 - Integration-side marker emission is still conservative, so not every nested cross-integration tree resolves through graph mode by default.
-- Graph execution still resolves nodes one boundary at a time; batching by integration per level remains a possible follow-up if repeated renderer calls become a measurable cost.
+- Marker resolution still resolves nodes one boundary at a time; batching by integration per level remains a possible follow-up if repeated renderer calls become a measurable cost.

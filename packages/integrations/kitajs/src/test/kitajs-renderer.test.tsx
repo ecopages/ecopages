@@ -58,10 +58,6 @@ class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
 			extensions: ['.deferred.tsx'],
 		});
 	}
-
-	override shouldDeferComponentBoundary(): boolean {
-		return true;
-	}
 }
 
 class TestKitaRenderer extends KitaRenderer {
@@ -188,6 +184,78 @@ describe('KitaRenderer', () => {
 				HtmlTemplate,
 			}),
 		).rejects.toThrow('Error rendering page');
+	});
+
+	it('should resolve deferred cross-integration layout components in render', async () => {
+		const deferredPlugin = new DeferredPlugin();
+		const config = await new ConfigBuilder()
+			.setRobotsTxt({
+				preferences: {
+					'*': [],
+				},
+			})
+			.setIntegrations([deferredPlugin])
+			.setDefaultMetadata({
+				title: 'Ecopages',
+				description: 'Ecopages',
+			})
+			.setBaseUrl('http://localhost:3000')
+			.build();
+
+		deferredPlugin.setConfig(config);
+		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+
+		const DeferredWidget = eco.component({
+			integration: 'deferred',
+			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+		});
+		DeferredWidget.config = {
+			...DeferredWidget.config,
+			__eco: {
+				id: 'deferred-widget',
+				file: '/app/components/deferred-widget.deferred.tsx',
+				integration: 'deferred',
+			},
+		};
+
+		const Layout = eco.layout<string>({
+			dependencies: {
+				components: [DeferredWidget],
+			},
+			render: ({ children }) => `<main>${children}${DeferredWidget({})}</main>`,
+		});
+
+		const Page = eco.page({
+			integration: 'kitajs',
+			layout: Layout,
+			render: () => '<section>Route page</section>',
+		});
+
+		const testRenderer = new TestKitaRenderer({
+			appConfig: config,
+			assetProcessingService: {} as any,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		});
+
+		const body = await testRenderer.render({
+			params: {},
+			query: {},
+			props: {},
+			file: '/app/pages/index.tsx',
+			resolvedDependencies: [],
+			metadata: {
+				title: 'Route page',
+				description: 'Route page',
+			},
+			Page,
+			Layout,
+			HtmlTemplate,
+		});
+
+		expect(body).toContain('<section>Route page</section>');
+		expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
+		expect(body).not.toContain('<eco-marker');
 	});
 
 	it('should resolve deferred cross-integration layout components in renderToResponse', async () => {

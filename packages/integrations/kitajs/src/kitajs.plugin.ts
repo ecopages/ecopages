@@ -1,8 +1,4 @@
-import {
-	IntegrationPlugin,
-	type ComponentBoundaryPolicyInput,
-	type IntegrationPluginConfig,
-} from '@ecopages/core/plugins/integration-plugin';
+import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { KitaRenderer } from './kitajs-renderer.ts';
 
 /**
@@ -24,10 +20,6 @@ export class KitaHtmlPlugin extends IntegrationPlugin {
 			jsxImportSource: '@kitajs/html',
 			...options,
 		});
-	}
-
-	override shouldDeferComponentBoundary(input: ComponentBoundaryPolicyInput): boolean {
-		return input.targetIntegration === this.name && input.currentIntegration !== this.name;
 	}
 }
 

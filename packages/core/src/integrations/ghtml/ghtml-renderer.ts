@@ -4,10 +4,11 @@
  */
 
 import type {
+	ComponentRenderInput,
+	ComponentRenderResult,
 	EcoComponent,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
-	PageMetadataProps,
 	RouteRendererBody,
 } from '../../types/public-types.ts';
 import {
@@ -16,12 +17,21 @@ import {
 } from '../../route-renderer/orchestration/integration-renderer.ts';
 import { GHTML_PLUGIN_NAME } from './ghtml.plugin.ts';
 
+type GhtmlViewFn<P> = (props: P) => Promise<EcoPagesElement> | EcoPagesElement;
+type GhtmlLayoutFn = (
+	props: { children: string } & Record<string, unknown>,
+) => Promise<EcoPagesElement> | EcoPagesElement;
+
 /**
  * A renderer for the ghtml integration.
  * It renders a page using the HtmlTemplate and Page components.
  */
 export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = GHTML_PLUGIN_NAME;
+
+	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		return this.renderStringComponentBoundary(input, input.component as GhtmlViewFn<Record<string, unknown>>);
+	}
 
 	async render({
 		params,
@@ -35,16 +45,21 @@ export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 		HtmlTemplate,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
-			const pageContent = await Page({ params, query, ...props, locals: pageLocals });
-			const children =
-				Layout && typeof Layout === 'function' ? await Layout({ children: pageContent, locals }) : pageContent;
-			const body = await HtmlTemplate({
+			return await this.renderPageWithDocumentShell({
+				page: {
+					component: Page as EcoComponent,
+					props: { params, query, ...props, locals: pageLocals },
+				},
+				layout: Layout
+					? {
+							component: Layout as EcoComponent,
+							props: locals ? { locals } : {},
+						}
+					: undefined,
+				htmlTemplate: HtmlTemplate as EcoComponent,
 				metadata,
-				children,
-				pageProps: props || {},
+				pageProps: props ?? {},
 			});
-
-			return this.DOC_TYPE + body;
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
 		}
@@ -56,39 +71,12 @@ export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
-			const Layout = view.config?.layout as
-				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => Promise<EcoPagesElement>)
-				| undefined;
-
-			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
-			const pageContent = await viewFn(props);
-
-			let body: string;
-			if (ctx.partial) {
-				body = pageContent as string;
-			} else {
-				const children = Layout ? await Layout({ children: pageContent }) : pageContent;
-
-				const HtmlTemplate = await this.getHtmlTemplate();
-				const metadata: PageMetadataProps = view.metadata
-					? await view.metadata({
-							params: {},
-							query: {},
-							props: props as Record<string, unknown>,
-							appConfig: this.appConfig,
-						})
-					: this.appConfig.defaultMetadata;
-
-				body =
-					this.DOC_TYPE +
-					(await HtmlTemplate({
-						metadata,
-						children: children as EcoPagesElement,
-						pageProps: props as Record<string, unknown>,
-					}));
-			}
-
-			return this.createHtmlResponse(body, ctx);
+			return await this.renderViewWithDocumentShell({
+				view,
+				props,
+				ctx,
+				layout: view.config?.layout as GhtmlLayoutFn | undefined,
+			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
 		}

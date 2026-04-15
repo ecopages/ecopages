@@ -12,17 +12,13 @@ export type MarkerNodeId = `n_${string}`;
  * Marker payload used by graph extraction and execution.
  *
  * Each marker references:
- * - the owning integration renderer (`integration`)
  * - a component definition key (`componentRef`)
  * - a serialized props key (`propsRef`)
- * - optional child-slot linkage (`slotRef`)
  */
 export type ComponentMarker = {
 	nodeId: MarkerNodeId;
-	integration: string;
 	componentRef: string;
 	propsRef: string;
-	slotRef?: string;
 };
 
 /**
@@ -33,10 +29,8 @@ export type ComponentMarker = {
  */
 export type MarkerRenderInput = {
 	nodeId: MarkerNodeId;
-	integration: string;
 	componentRef: string;
 	propsRef: string;
-	slotRef?: string;
 };
 
 /**
@@ -60,14 +54,9 @@ function readAttribute(tag: string, name: string): string | undefined {
 export function createComponentMarker(input: MarkerRenderInput): string {
 	const attributes = [
 		`data-eco-node-id="${escapeHtmlAttribute(input.nodeId)}"`,
-		`data-eco-integration="${escapeHtmlAttribute(input.integration)}"`,
 		`data-eco-component-ref="${escapeHtmlAttribute(input.componentRef)}"`,
 		`data-eco-props-ref="${escapeHtmlAttribute(input.propsRef)}"`,
 	];
-
-	if (input.slotRef) {
-		attributes.push(`data-eco-slot-ref="${escapeHtmlAttribute(input.slotRef)}"`);
-	}
 
 	return `<eco-marker ${attributes.join(' ')}></eco-marker>`;
 }
@@ -87,21 +76,17 @@ export function parseComponentMarkers(html: string): ComponentMarker[] {
 	for (let match = markerRegex.exec(html); match; match = markerRegex.exec(html)) {
 		const tag = match[0];
 		const nodeId = readAttribute(tag, 'data-eco-node-id');
-		const integration = readAttribute(tag, 'data-eco-integration');
 		const componentRef = readAttribute(tag, 'data-eco-component-ref');
 		const propsRef = readAttribute(tag, 'data-eco-props-ref');
-		const slotRef = readAttribute(tag, 'data-eco-slot-ref');
 
-		if (!nodeId || !integration || !componentRef || !propsRef) {
+		if (!nodeId || !componentRef || !propsRef) {
 			continue;
 		}
 
 		results.push({
 			nodeId: nodeId as MarkerNodeId,
-			integration,
 			componentRef,
 			propsRef,
-			slotRef,
 		});
 	}
 

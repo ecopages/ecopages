@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
+import { eco, type EcoComponent, type EcoPagesElement, type HtmlTemplateProps } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { LitElement, html as litHtml } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';
@@ -26,15 +28,26 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
 };
 
+class TestLitRenderer extends LitRenderer {
+	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate;
+	preloadedComponentBatches: Array<Array<EcoComponent | undefined>> = [];
+
+	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+		return this.htmlTemplate;
+	}
+
+	protected override async preloadSsrLazyScripts(components: Array<EcoComponent | undefined>): Promise<void> {
+		this.preloadedComponentBatches.push(components);
+	}
+}
+
 const createRenderer = () => {
-	const renderer = new LitRenderer({
+	return new TestLitRenderer({
 		appConfig: Config,
 		assetProcessingService: {} as any,
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
-	vi.spyOn(renderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
-	return renderer;
 };
 
 const createRendererWithAssets = () => {
@@ -48,13 +61,12 @@ const createRendererWithAssets = () => {
 		]),
 	};
 
-	const renderer = new LitRenderer({
+	const renderer = new TestLitRenderer({
 		appConfig: Config,
 		assetProcessingService: assetProcessingService as any,
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
-	vi.spyOn(renderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
 	return { renderer, assetProcessingService };
 };
 
@@ -64,6 +76,42 @@ const renderer = new LitRenderer({
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
+
+class DeferredRenderer extends IntegrationRenderer<EcoPagesElement> {
+	name = 'deferred';
+
+	async render(): Promise<string> {
+		return '';
+	}
+
+	override async renderComponent() {
+		return {
+			html: '<button data-testid="deferred-widget">Deferred widget</button>',
+			canAttachAttributes: true,
+			rootTag: 'button',
+			integrationName: this.name,
+		};
+	}
+
+	async renderToResponse<P = Record<string, unknown>>(
+		_view: EcoComponent<P>,
+		_props: P,
+		_ctx: RenderToResponseContext,
+	) {
+		return new Response('');
+	}
+}
+
+class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
+	renderer = DeferredRenderer;
+
+	constructor() {
+		super({
+			name: 'deferred',
+			extensions: ['.deferred.ts'],
+		});
+	}
+}
 
 describe('LitRenderer', () => {
 	describe('renderComponent', () => {
@@ -264,7 +312,6 @@ describe('LitRenderer', () => {
 
 		it('should preload SSR lazy scripts before component-level renders', async () => {
 			const testRenderer = createRenderer();
-			const preloadSpy = vi.spyOn(testRenderer as any, 'preloadSsrLazyScripts').mockResolvedValue(undefined);
 			const Component = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
 			Component.config = {
 				__eco: {
@@ -288,7 +335,7 @@ describe('LitRenderer', () => {
 				props: {},
 			});
 
-			expect(preloadSpy).toHaveBeenCalledWith([Component]);
+			expect(testRenderer.preloadedComponentBatches).toEqual([[Component]]);
 		});
 
 		it('should include component assets when dependencies are declared', async () => {
@@ -555,6 +602,9 @@ describe('LitRenderer', () => {
 
 			const text = await new Response(body as BodyInit).text();
 			expect(text).toContain('<div>Content</div>');
+			expect(text.indexOf('<div>Content</div>')).toBeGreaterThan(text.indexOf('<body>'));
+			expect(text.indexOf('<div>Content</div>')).toBeLessThan(text.indexOf('</body>'));
+			expect(text).not.toContain('eco-lit-component-children');
 			expect(text).not.toContain('<--content-->');
 		});
 
@@ -588,6 +638,7 @@ describe('LitRenderer', () => {
 			const text = await new Response(body as BodyInit).text();
 			expect(text.match(/<lit-counter/g)?.length).toBe(1);
 			expect(text).toContain('<main class="shell">');
+			expect(text).not.toContain('eco-lit-component-children');
 			expect(text).not.toContain('<--content-->');
 		});
 
@@ -609,6 +660,82 @@ describe('LitRenderer', () => {
 					HtmlTemplate,
 				}),
 			).rejects.toThrow('Error rendering page: Page failed to render');
+		});
+
+		it('should resolve deferred cross-integration layout components without leaving markers behind', async () => {
+			const deferredPlugin = new DeferredPlugin();
+			const config = await new ConfigBuilder()
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([deferredPlugin])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			deferredPlugin.setConfig(config);
+			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const testRenderer = new LitRenderer({
+				appConfig: config,
+				assetProcessingService: {} as any,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const DeferredWidget = eco.component({
+				integration: 'deferred',
+				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+			});
+			DeferredWidget.config = {
+				...DeferredWidget.config,
+				__eco: {
+					id: 'deferred-widget',
+					file: '/app/components/deferred-widget.deferred.ts',
+					integration: 'deferred',
+				},
+			};
+
+			const Layout = eco.layout<string>({
+				integration: 'lit',
+				dependencies: {
+					components: [DeferredWidget],
+				},
+				render: ({ children }) =>
+					litHtml`<main>${children ? unsafeHTML(children) : ''}${unsafeHTML(String(DeferredWidget({})))}</main>` as unknown as string,
+			});
+
+			const Page = eco.page({
+				integration: 'lit',
+				layout: Layout,
+				render: () => '<section>Route page</section>',
+			});
+
+			const body = await testRenderer.render({
+				params: {},
+				query: {},
+				props: {},
+				file: '/app/pages/index.lit.ts',
+				resolvedDependencies: [],
+				metadata: {
+					title: 'Route page',
+					description: 'Route page',
+				},
+				Page,
+				Layout,
+				HtmlTemplate,
+				pageProps: {},
+			});
+
+			const text = await new Response(body as BodyInit).text();
+			expect(text).toContain('<section>Route page</section>');
+			expect(text).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
+			expect(text).not.toContain('<eco-marker');
 		});
 	});
 
@@ -684,6 +811,16 @@ describe('LitRenderer', () => {
 			expect(body).toContain('<p>With Layout</p>');
 		});
 
+		it('should not route full view rendering through capture-plus-finalize', async () => {
+			const testRenderer = createRenderer();
+			const View = (async () => '<p>Explicit</p>') as unknown as EcoComponent<object>;
+
+			const response = await testRenderer.renderToResponse(View, {}, {});
+			const body = await response.text();
+
+			expect(body).toContain('<p>Explicit</p>');
+		});
+
 		it('should not append undefined when the html template omits the slot marker', async () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Fallback</p>') as unknown as EcoComponent<object>;
@@ -691,9 +828,7 @@ describe('LitRenderer', () => {
 				config: { integration: 'lit' },
 			}) as EcoComponent<HtmlTemplateProps>;
 
-			(testRenderer as any).getHtmlTemplate = async () => {
-				return LitHtmlTemplate;
-			};
+			testRenderer.htmlTemplate = LitHtmlTemplate;
 
 			const response = await testRenderer.renderToResponse(View, {}, {});
 			const body = await response.text();
@@ -727,9 +862,7 @@ describe('LitRenderer', () => {
 			const NonLitHtmlTemplate = (async ({ children }: HtmlTemplateProps) =>
 				`<html><body><main class="shell">${children}</main></body></html>`) as EcoComponent<HtmlTemplateProps>;
 
-			(testRenderer as any).getHtmlTemplate = async () => {
-				return NonLitHtmlTemplate;
-			};
+			testRenderer.htmlTemplate = NonLitHtmlTemplate;
 
 			const response = await testRenderer.renderToResponse(View, {}, {});
 			const body = await response.text();
@@ -753,9 +886,7 @@ describe('LitRenderer', () => {
 				},
 			) as EcoComponent<HtmlTemplateProps>;
 
-			(testRenderer as any).getHtmlTemplate = async () => {
-				return NonLitHtmlTemplate;
-			};
+			testRenderer.htmlTemplate = NonLitHtmlTemplate;
 
 			const response = await testRenderer.renderToResponse(View, {}, {});
 			const body = await response.text();

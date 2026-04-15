@@ -28,18 +28,22 @@ import type {
 	PagePropsForWithLocals,
 	PageRequires,
 } from './eco.types.ts';
-import { finalizeComponentRender, tryRenderDeferredBoundary } from './component-render-context.ts';
+import {
+	finalizeComponentRender,
+	interceptComponentBoundary,
+} from '../route-renderer/orchestration/component-render-context.ts';
+import { isThenable } from '../route-renderer/orchestration/render-output.utils.ts';
 
 /**
- * Creates a component factory with lazy-trigger support and deferred-boundary
- * marker emission.
+ * Creates a component factory with lazy-trigger support and boundary-runtime
+ * interception.
  *
  * Behavior:
  * - In normal render flow, returns `options.render(props)` with optional lazy
  *   trigger/script wrapping.
- * - When rendering under component graph context and the active boundary policy
- *   decides the target boundary should defer, emits an `eco-marker` token
- *   instead of rendering the component immediately.
+ * - When rendering under an active component boundary runtime and the current
+ *   compatibility lane requests placeholder interception, returns that boundary
+ *   placeholder instead of rendering the component immediately.
  *
  * @param options Component options for rendering and dependency declaration.
  * @returns Configured eco component.
@@ -48,18 +52,24 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 	const integrationName = options.integration ?? options.__eco?.integration;
 	const comp: EcoComponent<P, E> = ((props: P) => {
 		const componentProps = (props ?? {}) as Record<string, unknown>;
-		const deferredRender = tryRenderDeferredBoundary<E>({
+		const renderInline = () => finalizeComponentRender(comp, options.render(props)) as E;
+		const boundaryRender = interceptComponentBoundary({
 			component: comp,
 			props: componentProps,
 			targetIntegration: integrationName,
 		});
 
-		if (deferredRender !== undefined) {
-			return deferredRender;
+		if (isThenable<unknown | undefined>(boundaryRender)) {
+			return boundaryRender.then((resolvedBoundaryRender) =>
+				resolvedBoundaryRender !== undefined ? (resolvedBoundaryRender as E) : renderInline(),
+			) as E;
 		}
 
-		const content = options.render(props);
-		return finalizeComponentRender(comp, content) as E;
+		if (boundaryRender !== undefined) {
+			return boundaryRender as E;
+		}
+
+		return renderInline();
 	}) as EcoComponent<P, E>;
 
 	comp.config = {

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoComponent, EcoPageFile, HtmlTemplateProps, EcoPagesElement } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { MDXRenderer } from '../mdx-renderer.ts';
 
 const Config = await new ConfigBuilder()
@@ -21,15 +24,21 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
 };
 
+class TestMdxRenderer extends MDXRenderer {
+	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate;
+
+	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+		return this.htmlTemplate;
+	}
+}
+
 const createRenderer = () => {
-	const renderer = new MDXRenderer({
+	return new TestMdxRenderer({
 		appConfig: Config,
 		assetProcessingService: {} as any,
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
-	vi.spyOn(renderer as any, 'getHtmlTemplate').mockResolvedValue(HtmlTemplate);
-	return renderer;
 };
 
 const renderer = new MDXRenderer({
@@ -38,6 +47,42 @@ const renderer = new MDXRenderer({
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
+
+class DeferredRenderer extends IntegrationRenderer<EcoPagesElement> {
+	name = 'deferred';
+
+	async render(): Promise<string> {
+		return '';
+	}
+
+	override async renderComponent() {
+		return {
+			html: '<button data-testid="deferred-widget">Deferred widget</button>',
+			canAttachAttributes: true,
+			rootTag: 'button',
+			integrationName: this.name,
+		};
+	}
+
+	async renderToResponse<P = Record<string, unknown>>(
+		_view: EcoComponent<P>,
+		_props: P,
+		_ctx: RenderToResponseContext,
+	) {
+		return new Response('');
+	}
+}
+
+class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
+	renderer = DeferredRenderer;
+
+	constructor() {
+		super({
+			name: 'deferred',
+			extensions: ['.deferred.ts'],
+		});
+	}
+}
 
 class ImportTestMdxRenderer extends MDXRenderer {
 	public normalizeForTest(module: Parameters<MDXRenderer['normalizeImportedPageFile']>[1]) {
@@ -116,6 +161,58 @@ describe('MDXRenderer', () => {
 
 			expect(body).toContain('<main class="mdx-layout">');
 			expect(body).toContain('<article>MDX Content</article>');
+		});
+
+		it('renders deferred foreign layout content through explicit component boundaries', async () => {
+			const config = await new ConfigBuilder()
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([new DeferredPlugin()])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+			const renderer = new TestMdxRenderer({
+				appConfig: config,
+				assetProcessingService: {} as any,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const DeferredWidget = eco.component<{}, string>({
+				integration: 'deferred',
+				render: () => '<button>fallback</button>',
+			});
+			const Layout = eco.layout<string>({
+				dependencies: {
+					components: [DeferredWidget],
+				},
+				render: ({ children }) => `<main class="mdx-layout">${children}${String(DeferredWidget({}))}</main>`,
+			});
+
+			const body = await renderer.render({
+				params: {},
+				query: {},
+				props: {},
+				file: 'file',
+				resolvedDependencies: [],
+				metadata: {
+					title: 'Hello World',
+					description: 'Hello World',
+				},
+				Page: async () => '<article>MDX Content</article>',
+				Layout,
+				HtmlTemplate,
+				pageProps: {},
+			});
+
+			expect(body).toContain('data-testid="deferred-widget"');
+			expect(body).not.toContain('<eco-marker');
 		});
 
 		it('should throw an error if the page fails to render', async () => {

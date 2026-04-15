@@ -70,31 +70,6 @@ type RequiresAwareComponent = {
 	requires?: string | readonly string[];
 };
 
-function decodeHtmlEntities(value: string): string {
-	let decoded = value;
-	let previous: string | undefined;
-
-	do {
-		previous = decoded;
-		decoded = decoded
-			.replaceAll('&quot;', '"')
-			.replaceAll('&#39;', "'")
-			.replaceAll('&#x27;', "'")
-			.replaceAll('&lt;', '<')
-			.replaceAll('&gt;', '>')
-			.replaceAll('&amp;', '&');
-	} while (decoded !== previous);
-
-	return decoded;
-}
-
-function restoreEscapedComponentMarkers(html: string): string {
-	return html.replace(
-		/&(?:amp;)?lt;eco-marker\b[\s\S]*?&(?:amp;)?gt;&(?:amp;)?lt;\/eco-marker&(?:amp;)?gt;/g,
-		(marker) => decodeHtmlEntities(marker),
-	);
-}
-
 /**
  * Error thrown when an error occurs while rendering a React component.
  */
@@ -217,7 +192,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 *
 	 * React pages embedded in a non-React HTML shell still need to expose the same
 	 * page-data contract as fully React-owned documents so navigation and hydration
-	 * can read one marker consistently.
+	 * can read one shared document payload consistently.
 	 */
 	private buildRouterPageDataScript(pageProps: HtmlTemplateProps['pageProps'] | undefined): string {
 		const safeJson = JSON.stringify(pageProps || {}).replace(/</g, '\\u003c');
@@ -290,28 +265,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		}
 
 		const hydrationAssets = await this.buildRouteRenderAssets(filePath);
-		this.htmlTransformer.setProcessedDependencies([
-			...this.htmlTransformer.getProcessedDependencies(),
-			...hydrationAssets,
-		]);
-	}
-
-	/**
-	 * Resolves metadata for direct `renderToResponse()` calls.
-	 *
-	 * View rendering bypasses the normal route-file pipeline, so metadata has to be
-	 * evaluated here from either the component-level generator or the application
-	 * default.
-	 */
-	private async resolveViewMetadata<P>(view: EcoComponent<P>, props: P): Promise<PageMetadataProps> {
-		return view.metadata
-			? await view.metadata({
-					params: {},
-					query: {},
-					props,
-					appConfig: this.appConfig,
-				})
-			: this.appConfig.defaultMetadata;
+		this.appendProcessedDependencies(hydrationAssets);
 	}
 
 	/**
@@ -324,7 +278,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	private async renderNonReactShellComponent<P extends SerializableProps>(
 		Component: (props: P) => EcoPagesElement | Promise<EcoPagesElement>,
 		props: P,
-		label: 'Layout' | 'HtmlTemplate',
+		label: 'Layout' | 'HtmlTemplate' | 'Component',
 	): Promise<string> {
 		const output = await Component(props);
 		if (typeof output === 'string') {
@@ -335,20 +289,21 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	/**
-	 * Renders one React component boundary for marker-graph orchestration.
+	 * Renders one React component boundary while preserving already-resolved child HTML.
 	 *
-	 * When the marker resolver has already resolved child HTML for this boundary,
-	 * the child payload must remain raw SSR output rather than a React string
-	 * child, otherwise React would escape it. This helper renders a unique token
-	 * through React and swaps that token back to the resolved HTML afterward.
+	 * When nested boundary resolution has already produced child HTML for this
+	 * boundary, the child payload must remain raw SSR output rather than a React
+	 * string child, otherwise React would escape it. This helper renders a unique
+	 * token through React and swaps that token back to the resolved HTML
+	 * afterward.
 	 *
-	 * @param input Component render input reconstructed from marker metadata.
+	 * @param input Component render input for the current boundary.
 	 * @param context React-specific render context for stable token generation.
 	 * @returns Serialized component HTML with resolved child markup preserved.
 	 */
 	private renderComponentHtml(input: ComponentRenderInput, context: ReactComponentRenderContext): string {
 		if (input.children === undefined) {
-			return restoreEscapedComponentMarkers(
+			return this.restoreEscapedComponentMarkers(
 				renderToString(createElement(this.asReactComponent(input.component), input.props)),
 			);
 		}
@@ -358,7 +313,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const html = renderToString(
 			createElement(this.asReactComponent(input.component), input.props, rawChildrenToken),
 		);
-		return restoreEscapedComponentMarkers(html.split(rawChildrenToken).join(resolvedChildHtml));
+		return this.restoreEscapedComponentMarkers(html.split(rawChildrenToken).join(resolvedChildHtml));
 	}
 
 	private buildHydrationProps(props: SerializableProps | undefined): SerializableProps {
@@ -368,93 +323,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		const { locals: _locals, ...hydrationProps } = props as SerializableProps & { locals?: unknown };
 		return hydrationProps;
-	}
-
-	/**
-	 * Produces the page body before the final HTML template is applied.
-	 *
-	 * This method owns the React/non-React layout split. React-managed layouts stay
-	 * as React elements so they can stream normally; non-React layouts are rendered
-	 * to HTML first and then passed through as serialized content.
-	 */
-	private async composePageContent(options: {
-		Page: ReactRenderableComponent<SerializableProps>;
-		Layout?: EcoPageLayoutComponent<any>;
-		pageProps: SerializableProps;
-		locals?: RequestLocals;
-	}): Promise<{ contentNode: ReactNode; contentHtml: string }> {
-		const pageElement = createElement(options.Page, options.pageProps);
-		const pageHtml = restoreEscapedComponentMarkers(renderToString(pageElement));
-		const layoutProps = options.locals ? { locals: options.locals } : {};
-
-		if (!options.Layout) {
-			return { contentNode: pageElement, contentHtml: pageHtml };
-		}
-
-		if (this.isReactManagedComponent(options.Layout)) {
-			const layoutElement = createElement(this.asReactComponent(options.Layout), layoutProps, pageElement);
-			return {
-				contentNode: layoutElement,
-				contentHtml: restoreEscapedComponentMarkers(renderToString(layoutElement)),
-			};
-		}
-
-		const layoutHtml = await this.renderNonReactShellComponent(
-			this.asNonReactShellComponent<NonReactLayoutProps>(options.Layout),
-			{ ...layoutProps, children: pageHtml },
-			'Layout',
-		);
-
-		return { contentNode: layoutHtml, contentHtml: layoutHtml };
-	}
-
-	/**
-	 * Wraps composed page content in the final document template.
-	 *
-	 * React-owned HTML templates stream directly. Non-React templates receive
-	 * pre-rendered page HTML plus the canonical React page-data payload so the
-	 * client runtime can recover page data after cross-integration handoff.
-	 */
-	private async renderDocument(options: {
-		HtmlTemplate: EcoHtmlComponent<ReactNode>;
-		metadata: PageMetadataProps;
-		pageProps: HtmlTemplateProps['pageProps'];
-		contentNode: ReactNode;
-		contentHtml: string;
-	}): Promise<RouteRendererBody> {
-		if (this.isReactManagedComponent(options.HtmlTemplate)) {
-			const rawChildrenToken = '__ECO_RAW_HTML_DOCUMENT_CHILD__';
-			const html = restoreEscapedComponentMarkers(
-				renderToString(
-					createElement(
-						this.asReactComponent(options.HtmlTemplate),
-						{
-							metadata: options.metadata,
-							pageProps: options.pageProps,
-						},
-						rawChildrenToken,
-					),
-				),
-			);
-
-			return this.DOC_TYPE + html.split(rawChildrenToken).join(options.contentHtml);
-		}
-
-		const headContent = ReactRenderer.routerAdapter ? this.buildRouterPageDataScript(options.pageProps) : undefined;
-
-		return (
-			this.DOC_TYPE +
-			(await this.renderNonReactShellComponent(
-				this.asNonReactShellComponent<NonReactHtmlTemplateProps>(options.HtmlTemplate),
-				{
-					metadata: options.metadata,
-					pageProps: options.pageProps,
-					children: options.contentHtml,
-					headContent,
-				},
-				'HtmlTemplate',
-			))
-		);
 	}
 
 	/**
@@ -472,6 +340,36 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * deterministic mount target per component instance.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		if (!this.isReactManagedComponent(input.component)) {
+			const props =
+				input.children === undefined
+					? input.props
+					: {
+							...input.props,
+							children:
+								typeof input.children === 'string' ? input.children : String(input.children ?? ''),
+						};
+			const html = await this.renderNonReactShellComponent(
+				this.asNonReactShellComponent<Record<string, unknown>>(input.component),
+				props,
+				'Component',
+			);
+			const hasDependencies = Boolean(input.component.config?.dependencies);
+			const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
+			const assets =
+				hasDependencies && canResolveAssets
+					? await this.processComponentDependencies([input.component])
+					: undefined;
+
+			return {
+				html,
+				canAttachAttributes: true,
+				rootTag: this.getRootTagName(html),
+				integrationName: this.name,
+				assets,
+			};
+		}
+
 		const componentConfig = input.component.config;
 		const context = (input.integrationContext as ReactComponentRenderContext | undefined) ?? {};
 		const hasResolvedChildHtml = input.children !== undefined;
@@ -736,19 +634,25 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				query,
 				safeLocals,
 			});
-			const { contentNode, contentHtml } = await this.composePageContent({
-				Page: this.asReactComponent(Page),
-				Layout,
-				pageProps: { params, query, ...props, locals: pageLocals },
-				locals,
-			});
 
-			return await this.renderDocument({
-				HtmlTemplate,
+			return await this.renderPageWithDocumentShell({
+				page: {
+					component: Page as EcoComponent,
+					props: { params, query, ...props, locals: pageLocals },
+				},
+				layout: Layout
+					? {
+							component: Layout as EcoComponent,
+							props: locals ? { locals } : {},
+						}
+					: undefined,
+				htmlTemplate: HtmlTemplate as EcoComponent,
 				metadata,
 				pageProps: allPageProps,
-				contentNode,
-				contentHtml,
+				documentProps:
+					!this.isReactManagedComponent(HtmlTemplate) && ReactRenderer.routerAdapter
+						? { headContent: this.buildRouterPageDataScript(allPageProps) }
+						: undefined,
 			});
 		} catch (error) {
 			throw this.createRenderError('Failed to render component', error);
@@ -832,8 +736,13 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			const normalizedProps = (props ?? {}) as SerializableProps;
 
 			if (ctx.partial) {
-				const stream = await renderToReadableStream(createElement(ViewComponent, normalizedProps));
-				return this.createHtmlResponse(stream, ctx);
+				return this.renderPartialViewResponse({
+					view,
+					props,
+					ctx,
+					renderInline: async () =>
+						await renderToReadableStream(createElement(ViewComponent, normalizedProps)),
+				});
 			}
 
 			const HtmlTemplate = await this.getHtmlTemplate();
@@ -842,33 +751,36 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			await this.prepareViewDependencies(view, Layout);
 			await this.appendHydrationAssetsForFile(viewConfig?.__eco?.file);
 
-			const { contentNode, contentHtml } = await this.composePageContent({
-				Page: ViewComponent,
-				Layout,
-				pageProps: normalizedProps,
+			const viewRender = await this.renderComponentBoundary({
+				component: view as EcoComponent,
+				props: normalizedProps,
+			});
+			const layoutRender = Layout
+				? await this.renderComponentBoundary({
+						component: Layout as EcoComponent,
+						props: {},
+						children: viewRender.html,
+					})
+				: undefined;
+			const documentRender = await this.renderComponentBoundary({
+				component: HtmlTemplate as EcoComponent,
+				props: {
+					metadata,
+					pageProps: normalizedProps,
+					...(!this.isReactManagedComponent(HtmlTemplate) && ReactRenderer.routerAdapter
+						? { headContent: this.buildRouterPageDataScript(normalizedProps) }
+						: {}),
+				},
+				children: layoutRender?.html ?? viewRender.html,
 			});
 
-			const body = await this.renderDocument({
-				HtmlTemplate,
-				metadata,
-				pageProps: normalizedProps,
-				contentNode,
-				contentHtml,
-			});
+			this.appendProcessedDependencies(viewRender.assets, layoutRender?.assets, documentRender.assets);
 
-			const transformedResponse = await this.htmlTransformer.transform(
-				new Response(body as BodyInit, {
-					headers: { 'Content-Type': 'text/html' },
-				}),
-			);
-			let transformedHtml = await transformedResponse.text();
-			const documentAttributes = this.getRouterDocumentAttributes();
-			if (documentAttributes) {
-				transformedHtml = this.htmlTransformer.applyAttributesToHtmlElement(
-					transformedHtml,
-					documentAttributes,
-				);
-			}
+			const transformedHtml = await this.finalizeResolvedHtml({
+				html: `${this.DOC_TYPE}${documentRender.html}`,
+				partial: false,
+				documentAttributes: this.getRouterDocumentAttributes(),
+			});
 
 			return this.createHtmlResponse(transformedHtml, ctx);
 		} catch (error) {

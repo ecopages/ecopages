@@ -81,20 +81,26 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 	});
 
 	it('should warn when extensions are provided but MDX is disabled', () => {
-		const warnSpy = vi.spyOn(Logger.prototype, 'warn');
+		const originalWarn = Logger.prototype.warn;
+		const warnings: string[] = [];
+		Logger.prototype.warn = function warn(message: string) {
+			warnings.push(message);
+		};
 
-		reactPlugin({
-			mdx: {
-				enabled: false,
-				extensions: ['.md'],
-			},
-		});
+		try {
+			reactPlugin({
+				mdx: {
+					enabled: false,
+					extensions: ['.md'],
+				},
+			});
 
-		expect(warnSpy).toHaveBeenCalledWith(
-			'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
-		);
-
-		warnSpy.mockRestore();
+			expect(warnings).toContain(
+				'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
+			);
+		} finally {
+			Logger.prototype.warn = originalWarn;
+		}
 	});
 
 	it('should correctly identify MDX files in Renderer', () => {

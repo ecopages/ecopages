@@ -237,14 +237,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		await super.setup();
 	}
 
-	/**
-	 * Defers boundaries only when another integration renders a component that is
-	 * owned by this JSX integration.
-	 */
-	override shouldDeferComponentBoundary(input: { currentIntegration: string; targetIntegration?: string }): boolean {
-		return input.targetIntegration === this.name && input.currentIntegration !== this.name;
-	}
-
 	private ensureMdxLoaderPlugin(): void {
 		if (!this.mdxEnabled || !this.mdxCompilerOptions || this.mdxLoaderPlugin) {
 			return;

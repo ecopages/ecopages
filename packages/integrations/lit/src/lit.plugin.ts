@@ -4,11 +4,7 @@
  */
 
 import './console.ts';
-import {
-	IntegrationPlugin,
-	type ComponentBoundaryPolicyInput,
-	type IntegrationPluginConfig,
-} from '@ecopages/core/plugins/integration-plugin';
+import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import { litElementHydrateScript } from './lit-element-hydrate.ts';
 import { LitRenderer } from './lit-renderer.ts';
@@ -59,20 +55,6 @@ export class LitPlugin extends IntegrationPlugin {
 				},
 			}),
 		];
-	}
-
-	/**
-	 * Declares Lit's cross-integration boundary deferral rule.
-	 *
-	 * When a non-Lit render pass enters a Lit component boundary, the boundary is
-	 * deferred into marker-graph resolution so Lit SSR can render custom elements,
-	 * declarative shadow DOM, and other Lit-owned output through the Lit renderer.
-	 *
-	 * @param input Boundary metadata for the active render pass.
-	 * @returns `true` when the boundary should be deferred into the marker pass.
-	 */
-	override shouldDeferComponentBoundary(input: ComponentBoundaryPolicyInput): boolean {
-		return input.targetIntegration === this.name && input.currentIntegration !== this.name;
 	}
 }
 

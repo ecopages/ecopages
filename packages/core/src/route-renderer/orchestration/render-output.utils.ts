@@ -87,3 +87,28 @@ export function wrapWithScriptsInjector(
 	const injectorMapScript = buildInjectorMapScript(lazyGroups ?? []);
 	return `<scripts-injector><script type="ecopages/injector-map">${injectorMapScript}</script>${wrappedContent}</scripts-injector>`;
 }
+
+export function decodeHtmlEntities(value: string): string {
+	let decoded = value;
+	let previous: string | undefined;
+
+	do {
+		previous = decoded;
+		decoded = decoded
+			.replaceAll('&quot;', '"')
+			.replaceAll('&#39;', "'")
+			.replaceAll('&#x27;', "'")
+			.replaceAll('&lt;', '<')
+			.replaceAll('&gt;', '>')
+			.replaceAll('&amp;', '&');
+	} while (decoded !== previous);
+
+	return decoded;
+}
+
+export function restoreEscapedComponentMarkers(html: string): string {
+	return html.replace(
+		/&(?:amp;)?lt;eco-marker\b[\s\S]*?&(?:amp;)?gt;&(?:amp;)?lt;\/eco-marker&(?:amp;)?gt;/g,
+		(marker) => decodeHtmlEntities(marker),
+	);
+}

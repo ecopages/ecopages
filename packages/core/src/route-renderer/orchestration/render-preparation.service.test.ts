@@ -98,9 +98,6 @@ describe('RenderPreparationService', () => {
 				integrationName: 'ghtml',
 				assets: [componentAsset],
 			}),
-			getComponentRenderBoundaryContext: () => ({
-				decideBoundaryRender: () => 'inline',
-			}),
 			setProcessedDependencies,
 			dedupeProcessedAssets: (assets) => assets,
 			createPageLocalsProxy: () => ({ guarded: true }),
@@ -111,7 +108,6 @@ describe('RenderPreparationService', () => {
 		expect(result.pageProps).toEqual({ title: 'Hello', params: { slug: 'hello' }, query: { preview: '1' } });
 		expect((result as typeof result & { layoutMode?: string }).layoutMode).toBe('full');
 		expect(result.componentRender?.assets).toEqual([componentAsset]);
-		expect(result.componentGraphContext).toEqual({ propsByRef: {}, slotChildrenByRef: {} });
 		expect(setProcessedDependencies).toHaveBeenCalledWith([
 			resolvedDependency,
 			integrationDependency,
@@ -120,7 +116,7 @@ describe('RenderPreparationService', () => {
 		]);
 	});
 
-	it('preserves page-root graph context when preparation renders deferred component boundaries', async () => {
+	it('renders page-root output directly during preparation', async () => {
 		const assetProcessingService = {
 			processDependencies: vi.fn(async () => []),
 		} as unknown as AssetProcessingService;
@@ -155,11 +151,8 @@ describe('RenderPreparationService', () => {
 				renderPageComponent: async () => ({
 					html: DeferredChild({}),
 					canAttachAttributes: true,
-					rootTag: 'eco-marker',
+					rootTag: 'span',
 					integrationName: 'ghtml',
-				}),
-				getComponentRenderBoundaryContext: () => ({
-					decideBoundaryRender: () => 'defer',
 				}),
 				setProcessedDependencies: vi.fn(),
 				dedupeProcessedAssets: (assets) => assets,
@@ -167,74 +160,14 @@ describe('RenderPreparationService', () => {
 			},
 		);
 
-		expect(result.componentGraphContext).toEqual({
-			propsByRef: {
-				p_1: { children: '' },
-			},
-			slotChildrenByRef: {},
-		});
-	});
-
-	it('merges explicit page-module graph context with page-root preparation graph context', async () => {
-		const assetProcessingService = {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [],
-		} as unknown as EcoPagesAppConfig;
-		const service = new RenderPreparationService(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const DeferredChild = eco.component<{}, string>({
-			integration: 'react',
-			render: () => '<span>Deferred</span>',
-		});
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-
-		const result = await service.prepare(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			'ghtml',
-			{
-				resolvePageModule: async () => ({
-					Page,
-					componentGraphContext: {
-						propsByRef: {
-							explicit: { title: 'explicit' },
-						},
-						slotChildrenByRef: {},
-					},
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Page', description: 'Page description' },
-				}),
-				resolveDependencies: async () => [],
-				buildRouteRenderAssets: async () => [],
-				shouldRenderPageComponent: () => true,
-				renderPageComponent: async () => ({
-					html: DeferredChild({}),
-					canAttachAttributes: true,
-					rootTag: 'eco-marker',
-					integrationName: 'ghtml',
-				}),
-				getComponentRenderBoundaryContext: () => ({
-					decideBoundaryRender: () => 'defer',
-				}),
-				setProcessedDependencies: vi.fn(),
-				dedupeProcessedAssets: (assets) => assets,
-				createPageLocalsProxy: () => ({}),
-			},
+		expect(result.componentRender).toEqual(
+			expect.objectContaining({
+				canAttachAttributes: true,
+				rootTag: 'span',
+				integrationName: 'ghtml',
+			}),
 		);
-
-		expect(result.componentGraphContext).toEqual({
-			propsByRef: {
-				p_1: { children: '' },
-				explicit: { title: 'explicit' },
-			},
-			slotChildrenByRef: {},
-		});
+		expect(result.componentRender?.html).toBe('<span>Deferred</span>');
 	});
 
 	it('should guard page locals for static pages and skip page-root rendering when disabled', async () => {
@@ -272,9 +205,6 @@ describe('RenderPreparationService', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent,
-				getComponentRenderBoundaryContext: () => ({
-					decideBoundaryRender: () => 'inline',
-				}),
 				setProcessedDependencies: vi.fn(),
 				dedupeProcessedAssets: (assets) => assets,
 				createPageLocalsProxy: () => ({ guarded: true }),
@@ -345,9 +275,6 @@ describe('RenderPreparationService', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
-				getComponentRenderBoundaryContext: () => ({
-					decideBoundaryRender: () => 'inline',
-				}),
 				setProcessedDependencies,
 				dedupeProcessedAssets: (assets) => assets,
 				createPageLocalsProxy: () => ({}),

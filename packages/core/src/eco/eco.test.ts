@@ -13,7 +13,10 @@ import type {
 	StaticPath,
 } from '../types/public-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
+import {
+	getComponentRenderContext,
+	runWithComponentRenderContext,
+} from '../route-renderer/orchestration/component-render-context.ts';
 
 const mockAppConfig = {} as EcoPagesAppConfig;
 
@@ -48,6 +51,24 @@ function serializeTestDeferredTemplateValue(
 	}
 
 	return testDeferredTemplateSerializer.serialize(value, serializeValue);
+}
+
+function createLegacyBoundaryRuntime(targetIntegrations: string[]) {
+	return {
+		interceptBoundarySync: ({ targetIntegration }: { targetIntegration?: string }) =>
+			targetIntegration !== undefined && targetIntegrations.includes(targetIntegration)
+				? { kind: 'placeholder' }
+				: { kind: 'inline' },
+	};
+}
+
+function createResolvedBoundaryRuntime(targetIntegrations: string[], value: string) {
+	return {
+		interceptBoundary: async ({ targetIntegration }: { targetIntegration?: string }) =>
+			targetIntegration !== undefined && targetIntegrations.includes(targetIntegration)
+				? { kind: 'resolved', value }
+				: { kind: 'inline' },
+	};
 }
 
 describe('eco namespace', () => {
@@ -239,16 +260,12 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
-					boundaryContext: {
-						decideBoundaryRender: ({ targetIntegration }) =>
-							targetIntegration === 'react' ? 'defer' : 'inline',
-					},
+					boundaryRuntime: createLegacyBoundaryRuntime(['react']),
 				},
 				async () => ReactButton({}),
 			);
 
 			expect(execution.value).toContain('<eco-marker');
-			expect(execution.value).toContain('data-eco-integration="react"');
 			expect(execution.value).toContain('data-eco-component-ref="react-button"');
 		});
 
@@ -261,10 +278,7 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
-					boundaryContext: {
-						decideBoundaryRender: ({ targetIntegration }) =>
-							targetIntegration === 'react' ? 'defer' : 'inline',
-					},
+					boundaryRuntime: createLegacyBoundaryRuntime(['react']),
 				},
 				async () => ReactButton({}),
 			);
@@ -287,17 +301,39 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
-					boundaryContext: {
-						decideBoundaryRender: () => 'inline',
-					},
 				},
 				async () => ReactButton({}),
 			);
 
 			expect(execution.value).toBe('<button type="button">Click</button>');
 			expect(execution.value).not.toContain('<eco-marker');
-			expect(execution.graphContext.propsByRef).toEqual({});
-			expect(execution.graphContext.slotChildrenByRef).toEqual({});
+			expect(execution.boundaryCapture.capturedPropsByRef).toEqual({});
+		});
+
+		test('should resolve foreign boundaries immediately when the runtime returns resolved output', async () => {
+			const ReactButton = eco.component({
+				integration: 'react',
+				__eco: {
+					id: 'react-button-resolved-runtime',
+					file: '/app/components/react-button-resolved-runtime.react.tsx',
+					integration: 'react',
+				},
+				render: () => '<button type="button">Click</button>',
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					boundaryRuntime: createResolvedBoundaryRuntime(
+						['react'],
+						'<aside>Resolved in owning renderer</aside>',
+					),
+				},
+				async () => ReactButton({}),
+			);
+
+			expect(execution.value).toBe('<aside>Resolved in owning renderer</aside>');
+			expect(execution.boundaryCapture.capturedPropsByRef).toEqual({});
 		});
 
 		test('should serialize structured deferred children and register nested marker slots', async () => {
@@ -324,10 +360,7 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
-					boundaryContext: {
-						decideBoundaryRender: ({ targetIntegration }) =>
-							targetIntegration === 'react' || targetIntegration === 'kitajs' ? 'defer' : 'inline',
-					},
+					boundaryRuntime: createLegacyBoundaryRuntime(['react', 'kitajs']),
 					serializeDeferredValue: serializeTestDeferredTemplateValue,
 				},
 				async () => {
@@ -342,13 +375,15 @@ describe('eco namespace', () => {
 				},
 			);
 
-			expect(execution.value).toContain('data-eco-integration="kitajs"');
-			expect(Object.values(execution.graphContext.propsByRef)).toContainEqual(
+			expect(execution.value).toContain('data-eco-component-ref="kita-parent"');
+			expect(Object.values(execution.boundaryCapture.capturedPropsByRef)).toContainEqual(
 				expect.objectContaining({
 					children: expect.stringContaining('<eco-marker'),
 				}),
 			);
-			expect(Object.values(execution.graphContext.slotChildrenByRef)).toContainEqual(['n_1']);
+			expect(Object.values(execution.boundaryCapture.capturedPropsByRef)).toContainEqual(
+				expect.objectContaining({ children: expect.stringContaining('data-eco-node-id="n_1"') }),
+			);
 		});
 
 		test('should leave generic object-shaped deferred children unserialized', async () => {
@@ -375,10 +410,7 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
-					boundaryContext: {
-						decideBoundaryRender: ({ targetIntegration }) =>
-							targetIntegration === 'react' || targetIntegration === 'kitajs' ? 'defer' : 'inline',
-					},
+					boundaryRuntime: createLegacyBoundaryRuntime(['react', 'kitajs']),
 					serializeDeferredValue: serializeTestDeferredTemplateValue,
 				},
 				async () => {
@@ -399,15 +431,15 @@ describe('eco namespace', () => {
 				},
 			);
 
-			expect(execution.value).toContain('data-eco-integration="kitajs"');
-			expect(Object.values(execution.graphContext.propsByRef)).toContainEqual(
+			expect(execution.value).toContain('data-eco-component-ref="kita-parent"');
+			expect(Object.values(execution.boundaryCapture.capturedPropsByRef)).toContainEqual(
 				expect.objectContaining({
 					children: {
 						parts: [
 							'<section>',
 							{
 								deep: {
-									marker: '<eco-marker data-eco-node-id="n_1" data-eco-integration="react" data-eco-component-ref="react-leaf" data-eco-props-ref="p_1"></eco-marker>',
+									marker: '<eco-marker data-eco-node-id="n_1" data-eco-component-ref="react-leaf" data-eco-props-ref="p_1"></eco-marker>',
 								},
 							},
 							'</section>',
@@ -415,7 +447,7 @@ describe('eco namespace', () => {
 					},
 				}),
 			);
-			expect(execution.graphContext.slotChildrenByRef).toEqual({});
+			expect(execution.boundaryCapture).toEqual({ capturedPropsByRef: expect.any(Object) });
 		});
 
 		test('should preserve node-like deferred children without serializing nodeType values', async () => {
@@ -442,10 +474,7 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
-					boundaryContext: {
-						decideBoundaryRender: ({ targetIntegration }) =>
-							targetIntegration === 'react' || targetIntegration === 'kitajs' ? 'defer' : 'inline',
-					},
+					boundaryRuntime: createLegacyBoundaryRuntime(['react', 'kitajs']),
 				},
 				async () => {
 					const childMarker = ReactLeaf({});
@@ -458,13 +487,15 @@ describe('eco namespace', () => {
 				},
 			);
 
-			expect(Object.values(execution.graphContext.propsByRef)).toContainEqual(
+			expect(Object.values(execution.boundaryCapture.capturedPropsByRef)).toContainEqual(
 				expect.objectContaining({
 					children:
-						'<section><eco-marker data-eco-node-id="n_1" data-eco-integration="react" data-eco-component-ref="react-leaf-node-like-child" data-eco-props-ref="p_1"></eco-marker></section>',
+						'<section><eco-marker data-eco-node-id="n_1" data-eco-component-ref="react-leaf-node-like-child" data-eco-props-ref="p_1"></eco-marker></section>',
 				}),
 			);
-			expect(Object.values(execution.graphContext.slotChildrenByRef)).toContainEqual(['n_1']);
+			expect(Object.values(execution.boundaryCapture.capturedPropsByRef)).toContainEqual(
+				expect.objectContaining({ children: expect.stringContaining('data-eco-node-id="n_1"') }),
+			);
 		});
 
 		test('should preserve quoted attribute values when serializing template-like deferred children', async () => {
@@ -491,10 +522,7 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
-					boundaryContext: {
-						decideBoundaryRender: ({ targetIntegration }) =>
-							targetIntegration === 'react' || targetIntegration === 'kitajs' ? 'defer' : 'inline',
-					},
+					boundaryRuntime: createLegacyBoundaryRuntime(['react', 'kitajs']),
 					serializeDeferredValue: serializeTestDeferredTemplateValue,
 				},
 				async () => {
@@ -509,13 +537,15 @@ describe('eco namespace', () => {
 				},
 			);
 
-			expect(Object.values(execution.graphContext.propsByRef)).toContainEqual(
+			expect(Object.values(execution.boundaryCapture.capturedPropsByRef)).toContainEqual(
 				expect.objectContaining({
 					children:
-						'<section class="card space-y-4"><eco-marker data-eco-node-id="n_1" data-eco-integration="react" data-eco-component-ref="react-leaf-template-like-child" data-eco-props-ref="p_1"></eco-marker></section>',
+						'<section class="card space-y-4"><eco-marker data-eco-node-id="n_1" data-eco-component-ref="react-leaf-template-like-child" data-eco-props-ref="p_1"></eco-marker></section>',
 				}),
 			);
-			expect(Object.values(execution.graphContext.slotChildrenByRef)).toContainEqual(['n_1']);
+			expect(Object.values(execution.boundaryCapture.capturedPropsByRef)).toContainEqual(
+				expect.objectContaining({ children: expect.stringContaining('data-eco-node-id="n_1"') }),
+			);
 		});
 
 		test('should store deferred marker props as detached plain objects', async () => {
@@ -534,16 +564,13 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
-					boundaryContext: {
-						decideBoundaryRender: ({ targetIntegration }) =>
-							targetIntegration === 'react' ? 'defer' : 'inline',
-					},
+					boundaryRuntime: createLegacyBoundaryRuntime(['react']),
 				},
 				async () => ReactLeaf(inputProps),
 			);
 
 			inputProps.title = 'beta';
-			const [capturedProps] = Object.values(execution.graphContext.propsByRef);
+			const [capturedProps] = Object.values(execution.boundaryCapture.capturedPropsByRef);
 
 			expect(capturedProps).toEqual({ title: 'alpha', children: '' });
 			expect(capturedProps).not.toBe(inputProps);
@@ -551,15 +578,12 @@ describe('eco namespace', () => {
 
 		test('should share render context across duplicated module instances', async () => {
 			const duplicateModule = (await import(
-				'./component-render-context.ts?duplicate-instance' as string
-			)) as typeof import('./component-render-context.ts');
+				'../route-renderer/orchestration/component-render-context.ts?duplicate-instance' as string
+			)) as typeof import('../route-renderer/orchestration/component-render-context.ts');
 
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'kitajs',
-					boundaryContext: {
-						decideBoundaryRender: () => 'inline',
-					},
 				},
 				async () => {
 					expect(getComponentRenderContext()?.currentIntegration).toBe('kitajs');

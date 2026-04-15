@@ -64,12 +64,6 @@ describe('PageModuleLoaderService', () => {
 				title: 'module-metadata',
 				description: 'module-description',
 			}),
-			componentGraphContext: {
-				propsByRef: {
-					p_1: { title: 'from-graph' },
-				},
-				slotChildrenByRef: {},
-			},
 			extra: 'integration-value',
 		} satisfies EcoPageFile<{ extra: string }>;
 
@@ -80,12 +74,6 @@ describe('PageModuleLoaderService', () => {
 
 		expect(result.getStaticProps).toBe(Page.staticProps);
 		expect(result.getMetadata).toBe(Page.metadata);
-		expect(result.componentGraphContext).toEqual({
-			propsByRef: {
-				p_1: { title: 'from-graph' },
-			},
-			slotChildrenByRef: {},
-		});
 		expect(result.integrationSpecificProps).toEqual({ extra: 'integration-value' });
 	});
 

@@ -124,7 +124,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 *
 	 * SSR-eligible lazy scripts are preloaded first so custom elements registered
 	 * by the component can render their server markup even when the Lit renderer is
-	 * entered through cross-integration marker resolution.
+	 * entered through cross-integration boundary handoff.
 	 *
 	 * Includes component-scoped dependency assets when declared.
 	 */
@@ -223,41 +223,27 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		try {
 			await this.preloadSsrLazyScripts([Page, Layout]);
 
-			const pageContent = await Page({ params, query, ...props, locals });
-			const pageHtml = await this.renderValueToString(pageContent);
-			const children = Layout
-				? this.isLitManagedComponent(Layout)
-					? await this.renderValueToString(
-							await (
-								Layout as (
-									props: { children: EcoPagesElement } & Record<string, unknown>,
-								) => EcoPagesElement
-							)({
-								children: pageContent,
-								locals,
-							}),
-						)
-					: await (
-							Layout as (
-								props: { children: EcoPagesElement } & Record<string, unknown>,
-							) => EcoPagesElement
-						)({
-							children: pageHtml,
-							locals,
-						})
-				: pageHtml;
-			const renderedChildren = this.normalizeDeclarativeShadowRootMarkup(String(children));
-
-			return (
-				this.DOC_TYPE +
-				(await this.renderHtmlTemplate({
-					HtmlTemplate,
-					metadata,
-					pageProps: props || {},
-					renderedChildren,
-					isLitManagedHtmlTemplate: this.isLitManagedComponent(HtmlTemplate),
-				}))
-			);
+			return await this.renderPageWithDocumentShell({
+				page: {
+					component: Page as EcoComponent,
+					props: {
+						params,
+						query,
+						...props,
+						locals,
+					},
+				},
+				layout: Layout
+					? {
+							component: Layout as EcoComponent,
+							props: locals ? { locals } : {},
+						}
+					: undefined,
+				htmlTemplate: HtmlTemplate as EcoComponent,
+				metadata,
+				pageProps: props || {},
+				transformDocumentHtml: (html) => this.normalizeDeclarativeShadowRootMarkup(html),
+			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
 		}
@@ -269,65 +255,51 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
+			if (ctx.partial) {
+				return this.renderPartialViewResponse({
+					view,
+					props,
+					ctx,
+					transformHtml: (html) => this.normalizeDeclarativeShadowRootMarkup(html),
+				});
+			}
+
 			const viewConfig = view.config;
 			const Layout = viewConfig?.layout as
 				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => EcoPagesElement)
 				| undefined;
-			const HtmlTemplate = ctx.partial ? undefined : await this.getHtmlTemplate();
-			const metadata =
-				ctx.partial || !HtmlTemplate
-					? undefined
-					: view.metadata
-						? await view.metadata({
-								params: {},
-								query: {},
-								props: props as Record<string, unknown>,
-								appConfig: this.appConfig,
-							})
-						: this.appConfig.defaultMetadata;
+			const HtmlTemplate = await this.getHtmlTemplate();
+			const metadata = await this.resolveViewMetadata(view, props);
 
 			await this.preloadSsrLazyScripts([view as unknown as EcoComponent, Layout as unknown as EcoComponent]);
 
-			if (!ctx.partial) {
-				await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
-			}
+			await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
 
-			const viewFn = view as (props: P) => Promise<EcoPagesElement>;
-			const renderExecution = await this.captureHtmlRender(async () => {
-				const pageContent = await viewFn(props);
-				const pageHtml = await this.renderValueToString(pageContent);
-
-				if (ctx.partial) {
-					return this.normalizeDeclarativeShadowRootMarkup(pageHtml);
-				}
-
-				const children = Layout
-					? this.isLitManagedComponent(Layout as EcoComponent)
-						? await this.renderValueToString(await Layout({ children: pageContent }))
-						: await Layout({ children: pageHtml })
-					: pageHtml;
-				const renderedChildren = this.normalizeDeclarativeShadowRootMarkup(String(children));
-
-				return (
-					this.DOC_TYPE +
-					(await this.renderHtmlTemplate({
-						HtmlTemplate: HtmlTemplate!,
-						metadata: metadata ?? this.appConfig.defaultMetadata,
-						pageProps: (props as Record<string, unknown>) ?? {},
-						renderedChildren,
-						isLitManagedHtmlTemplate: this.isLitManagedComponent(HtmlTemplate as EcoComponent),
-					}))
-				);
+			const pageRender = await this.renderComponentBoundary({
+				component: view as EcoComponent,
+				props: (props ?? {}) as Record<string, unknown>,
+			});
+			const layoutRender = Layout
+				? await this.renderComponentBoundary({
+						component: Layout as unknown as EcoComponent,
+						props: {},
+						children: pageRender.html,
+					})
+				: undefined;
+			const documentRender = await this.renderComponentBoundary({
+				component: HtmlTemplate as EcoComponent,
+				props: {
+					metadata,
+					pageProps: (props as Record<string, unknown>) ?? {},
+				},
+				children: layoutRender?.html ?? pageRender.html,
 			});
 
-			const componentsToResolve = ctx.partial
-				? [view]
-				: ([HtmlTemplate, Layout, view].filter(Boolean) as EcoComponent[]);
-			const body = await this.finalizeCapturedHtmlRender({
-				html: renderExecution.html,
-				componentsToResolve,
-				graphContext: renderExecution.graphContext,
-				partial: ctx.partial,
+			this.appendProcessedDependencies(pageRender.assets, layoutRender?.assets, documentRender.assets);
+
+			const body = await this.finalizeResolvedHtml({
+				html: `${this.DOC_TYPE}${this.normalizeDeclarativeShadowRootMarkup(documentRender.html)}`,
+				partial: false,
 			});
 
 			return this.createHtmlResponse(body, ctx);

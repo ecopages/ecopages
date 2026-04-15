@@ -68,6 +68,27 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 		});
 	});
 
+	test('lit entry keeps the shared host shell stack inside the document before hydration', async ({ page }) => {
+		const runtime = trackRuntimeErrors(page);
+
+		const response = await page.request.get('/integration-matrix/lit-entry');
+		const html = await response.text();
+		const bodyStart = html.indexOf('<body');
+		const bodyEnd = html.indexOf('</body>');
+		const htmlEnd = html.lastIndexOf('</html>');
+		const hostShellStack = html.indexOf('data-testid="integration-matrix-host-shell-stack"');
+
+		expect(bodyStart).toBeGreaterThanOrEqual(0);
+		expect(bodyEnd).toBeGreaterThan(bodyStart);
+		expect(hostShellStack).toBeGreaterThan(bodyStart);
+		expect(hostShellStack).toBeLessThan(bodyEnd);
+		expect(html).toContain('data-lit-shell="integration-matrix-host-shell-lit"');
+		expect(html).not.toContain('eco-lit-component-children');
+		expect(html.slice(htmlEnd + '</html>'.length).trim()).toBe('');
+
+		runtime.assertClean();
+	});
+
 	test('ecopages-jsx entry includes the radiant host markup before hydration', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 

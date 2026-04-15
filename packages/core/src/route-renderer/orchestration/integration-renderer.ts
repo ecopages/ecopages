@@ -38,10 +38,7 @@ import { MarkerGraphResolver } from '../component-graph/marker-graph-resolver.ts
 import { createComponentMarker, parseComponentMarkers } from '../component-graph/component-marker.ts';
 import { RenderExecutionService, type RenderExecutionGraphContext } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
-import type {
-	BoundaryRenderDecisionInput,
-	ComponentRenderBoundaryContext,
-} from './component-render-context.ts';
+import type { BoundaryRenderDecisionInput, ComponentRenderBoundaryContext } from './component-render-context.ts';
 import type { DeferredTemplateSerializer } from './template-serialization.ts';
 import { runWithComponentRenderContext } from './component-render-context.ts';
 

@@ -86,8 +86,8 @@ export interface HmrAction {
  * whether they match the changed file path.
  *
  * @remarks
-	 * Strategies are expected to be stateless and idempotent. The same file change
-	 * should produce the same result when processed by the same strategy.
+ * Strategies are expected to be stateless and idempotent. The same file change
+ * should produce the same result when processed by the same strategy.
  *
  * @example
  * ```typescript

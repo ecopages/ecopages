@@ -37,10 +37,7 @@ import { hasSingleRootElement } from './utils/html-boundary.ts';
 import { ReactBundleService } from './services/react-bundle.service.ts';
 import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 import { ReactPageModuleService } from './services/react-page-module.service.ts';
-import {
-	getReactIslandComponentKey,
-	ReactHydrationAssetService,
-} from './services/react-hydration-asset.service.ts';
+import { getReactIslandComponentKey, ReactHydrationAssetService } from './services/react-hydration-asset.service.ts';
 
 type ReactComponentRenderContext = {
 	componentInstanceId?: string;
@@ -494,10 +491,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			!hasResolvedChildHtml
 		) {
 			const componentInstanceId = context.componentInstanceId;
-			assets = await this.hydrationAssetService.buildComponentRenderAssets(
-				componentFile,
-				componentConfig,
-			);
+			assets = await this.hydrationAssetService.buildComponentRenderAssets(componentFile, componentConfig);
 			rootAttributes = {
 				'data-eco-component-id': componentInstanceId,
 				'data-eco-component-key': getReactIslandComponentKey(componentFile, componentConfig),

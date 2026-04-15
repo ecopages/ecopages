@@ -35,10 +35,7 @@ export interface ReactHydrationAssetServiceConfig {
 	hmrPageMetadataCache?: ReactHmrPageMetadataCache;
 }
 
-export function getReactIslandComponentKey(
-	componentFile: string,
-	config?: EcoComponentConfig,
-): string {
+export function getReactIslandComponentKey(componentFile: string, config?: EcoComponentConfig): string {
 	return rapidhash(`${componentFile}:${config?.__eco?.id ?? ''}`).toString();
 }
 
@@ -169,10 +166,7 @@ export class ReactHydrationAssetService {
 	 * @param config - Optional component config with `__eco` metadata
 	 * @returns Processed assets ready for injection
 	 */
-	async buildComponentRenderAssets(
-		componentFile: string,
-		config?: EcoComponentConfig,
-	): Promise<ProcessedAsset[]> {
+	async buildComponentRenderAssets(componentFile: string, config?: EcoComponentConfig): Promise<ProcessedAsset[]> {
 		const componentName = this.getIslandBundleName(componentFile);
 		const componentKey = getReactIslandComponentKey(componentFile, config);
 		const hydrationName = this.getIslandHydrationName(componentName, componentKey);

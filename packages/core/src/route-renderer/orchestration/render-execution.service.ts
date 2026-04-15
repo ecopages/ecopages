@@ -1,7 +1,4 @@
-import {
-	runWithComponentRenderContext,
-	type ComponentRenderBoundaryContext,
-} from './component-render-context.ts';
+import { runWithComponentRenderContext, type ComponentRenderBoundaryContext } from './component-render-context.ts';
 import type {
 	EcoComponent,
 	IntegrationRendererRenderOptions,

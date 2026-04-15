@@ -407,8 +407,7 @@ describe('eco namespace', () => {
 							'<section>',
 							{
 								deep: {
-									marker:
-										'<eco-marker data-eco-node-id="n_1" data-eco-integration="react" data-eco-component-ref="react-leaf" data-eco-props-ref="p_1"></eco-marker>',
+									marker: '<eco-marker data-eco-node-id="n_1" data-eco-integration="react" data-eco-component-ref="react-leaf" data-eco-props-ref="p_1"></eco-marker>',
 								},
 							},
 							'</section>',

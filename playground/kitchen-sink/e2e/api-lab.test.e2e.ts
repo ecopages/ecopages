@@ -10,7 +10,11 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 		await gotoAndWait(page, '/api-lab');
 
 		await expect(page.getByRole('heading', { name: 'Handlers registered directly from app.ts' })).toBeVisible();
-		await expect(page.locator('[data-api-response-viewer]')).toHaveAttribute('data-api-lab-runtime', 'mounted');
+		await page.waitForFunction(
+			() => document.querySelector('[data-api-response-viewer]')?.getAttribute('data-api-lab-runtime') === 'mounted',
+			null,
+			{ timeout: 15000 },
+		);
 
 		await page.getByRole('button', { name: /Ping with locals/i }).click();
 		await expect(page.locator('[data-response-status]')).toContainText('200');
@@ -27,9 +31,11 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 
 		await gotoAndWait(page, '/api-lab');
 		await expect(page.getByRole('heading', { name: 'Handlers registered directly from app.ts' })).toBeVisible();
-		await expect(page.locator('[data-api-response-viewer]')).toHaveAttribute('data-api-lab-runtime', 'mounted', {
-			timeout: 15000,
-		});
+		await page.waitForFunction(
+			() => document.querySelector('[data-api-response-viewer]')?.getAttribute('data-api-lab-runtime') === 'mounted',
+			null,
+			{ timeout: 15000 },
+		);
 		await expect(page.locator('[data-response-status]')).toHaveText('Ready', { timeout: 15000 });
 		await expect(page.locator('[data-response-body]')).toContainText('Click Run to execute the selected command.', {
 			timeout: 15000,

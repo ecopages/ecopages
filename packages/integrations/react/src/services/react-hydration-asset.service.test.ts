@@ -1,9 +1,6 @@
 import { rapidhash } from '@ecopages/core/hash';
 import { describe, expect, it, vi } from 'vitest';
-import {
-	getReactIslandComponentKey,
-	ReactHydrationAssetService,
-} from './react-hydration-asset.service.ts';
+import { getReactIslandComponentKey, ReactHydrationAssetService } from './react-hydration-asset.service.ts';
 
 describe('ReactHydrationAssetService', () => {
 	it('uses the React-owned HMR entrypoint path for hydration assets in development', async () => {
@@ -53,14 +50,12 @@ describe('ReactHydrationAssetService', () => {
 			} as unknown as ConstructorParameters<typeof ReactHydrationAssetService>[0]['bundleService'],
 		});
 
-		await service.buildComponentRenderAssets(
-			'/app/src/components/counter.tsx',
-			{ __eco: { id: 'Counter', file: '/app/src/components/counter.tsx' } },
-		);
-		await service.buildComponentRenderAssets(
-			'/app/src/components/counter.tsx',
-			{ __eco: { id: 'Counter', file: '/app/src/components/counter.tsx' } },
-		);
+		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
+			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx' },
+		});
+		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
+			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx' },
+		});
 
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			1,

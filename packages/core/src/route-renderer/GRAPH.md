@@ -1,6 +1,6 @@
 # Rendering Logic Graph
 
-This document maps the end-to-end rendering logic in core, including request-time rendering, explicit route rendering, static generation, and marker graph orchestration.
+This document maps the end-to-end rendering logic in core, including request-time rendering, explicit route rendering, static generation, and deferred boundary orchestration.
 
 ## Design Principles
 
@@ -12,12 +12,12 @@ These diagrams are based on a few architectural assumptions that seem important 
   Adapters and route matchers decide which renderer to use; once selected, the integration renderer owns the page render pipeline.
 - **Data resolution should happen before HTML transformation.**
   Static props, metadata, dependency processing, and route assets are all upstream of final HTML injection.
-- **Marker graph orchestration should be a post-render reconciliation step.**
-  The initial integration render may emit deferred component markers; those are resolved after the first HTML pass, not during route matching.
-- **Marker emission is integration-defined boundary behavior.**
-  Markers are emitted when the active render boundary policy decides a component boundary must be deferred. If no `eco-marker` tokens are emitted, the marker graph stage is skipped entirely.
-- **The marker pipeline remains generic after emission.**
-  Once markers exist, core resolves them generically through marker graph extraction, integration renderer dispatch, asset collection, and HTML replacement. The current built-in React integration is one concrete consumer of that mechanism.
+- **Deferred boundary orchestration should remain a post-render reconciliation step.**
+  The initial integration render may emit deferred boundary placeholders; those are resolved after the first HTML pass, not during route matching.
+- **Foreign boundary ownership is renderer-defined behavior.**
+  Placeholders are emitted only when the active render pass crosses into a boundary owned by another integration. If no `eco-marker` tokens are emitted, the deferred boundary stage is skipped entirely.
+- **Placeholder resolution remains generic after emission.**
+  Once placeholders exist, core resolves them generically through placeholder extraction, integration renderer dispatch, asset collection, and HTML replacement. The current built-in React integration is one concrete consumer of that mechanism.
 - **Caching policy is authoritative at the page layer.**
   Middleware, locals, and response reuse all depend on the effective page cache strategy.
 - **Asset emission should converge into one injection stage.**
@@ -151,9 +151,8 @@ flowchart TD
   B --> C[prepareRenderOptions]
   C --> D[runWithComponentRenderContext then render]
   D --> E[normalize response body to renderedHtml]
-  E --> F[merge captured and explicit componentGraphContext]
-  F --> G{contains eco marker token?}
-  G -- Yes --> H[resolveMarkerGraphHtml]
+  E --> G{contains eco marker token?}
+  G -- Yes --> H[resolveMarkerCompatibilityHtml]
   G -- No --> I[skip graph resolution]
   H --> J[HtmlTransformerService dedupeProcessedAssets]
   J --> K[merge marker assets into transformer deps]
@@ -257,10 +256,10 @@ flowchart TD
   C --> D{decision is defer?}
   D -- No --> E[render component content immediately]
   D -- Yes --> F[create nodeId + propsRef]
-  F --> G[store props in propsByRef]
+  F --> G[store props in capturedPropsByRef]
   G --> H{children include eco-marker tokens?}
-  H -- Yes --> I[create slotRef and slotChildrenByRef links]
-  H -- No --> J[no slot links]
+  H -- Yes --> I[keep serialized children marker html in props]
+  H -- No --> J[no nested child markers]
   I --> K[createComponentMarker]
   J --> K
   K --> L[return eco marker token]
@@ -274,13 +273,13 @@ This means the marker itself is not interpreted by the integration renderer. Cor
 
 ```mermaid
 flowchart TD
-  A[resolveMarkerGraphHtml] --> B[buildComponentRefRegistry]
-  B --> C[extractComponentGraph from html and slot registry]
-  C --> D[resolveComponentGraph in reverse levels]
+  A[resolveMarkerCompatibilityHtml] --> B[buildComponentRefRegistry]
+  B --> C[extract marker graph from html and slot registry]
+  C --> D[iterate reverse graph levels]
   D --> E[for each marker node]
   E --> F[resolve component by componentRef]
   F --> G[resolve props by propsRef]
-  G --> H[stitch child html from slotRef node ids]
+  G --> H[stitch child html from nested markers in serialized children]
   H --> I[getIntegrationRendererForName]
   I --> J[renderer.renderComponent]
   J --> K[collect component assets]
@@ -350,10 +349,8 @@ For someone new to the rendering system, this is probably the most useful order 
 11. `page-module-loader.ts`
 12. `dependency-resolver.ts`
 13. `component-marker.ts`
-14. `component-graph.ts`
-15. `component-graph-executor.ts`
-16. `eco.ts`
-17. `component-render-context.ts`
+14. `eco.ts`
+15. `component-render-context.ts`
 
 ## 9) Key Files
 
@@ -370,8 +367,6 @@ For someone new to the rendering system, this is probably the most useful order 
 - `packages/core/src/route-renderer/orchestration/render-execution.service.ts`
 - `packages/core/src/route-renderer/component-graph/marker-graph-resolver.ts`
 - `packages/core/src/route-renderer/component-graph/component-marker.ts`
-- `packages/core/src/route-renderer/component-graph/component-graph.ts`
-- `packages/core/src/route-renderer/component-graph/component-graph-executor.ts`
 - `packages/core/src/route-renderer/page-loading/page-module-loader.ts`
 - `packages/core/src/route-renderer/page-loading/dependency-resolver.ts`
 - `packages/core/src/services/module-loading/page-module-import.service.ts`

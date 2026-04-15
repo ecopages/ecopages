@@ -1,8 +1,6 @@
 # @ecopages/lit
 
-Integration plugin for [Lit](https://lit.dev/) web components in Ecopages.
-
-This integration is optimized for use alongside `@ecopages/kitajs` (or another HTML JSX engine), allowing you to author your pages in Kitajs JSX templates while embedding interactive Lit components where needed.
+Integration plugin for [Lit](https://lit.dev/) in Ecopages. Use it when Lit should own `.lit.tsx` routes or when another integration needs Lit to render nested custom-element boundaries.
 
 ## Installation
 
@@ -12,7 +10,21 @@ bunx jsr add @ecopages/lit
 
 ## Usage
 
-It is recommended to use `@ecopages/lit` in conjunction with `@ecopages/kitajs`. Configure your project to include both integrations in your `eco.config.ts`:
+Register `litPlugin()` in your `eco.config.ts`.
+
+```ts
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { litPlugin } from '@ecopages/lit';
+
+const config = await new ConfigBuilder()
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([litPlugin()])
+	.build();
+
+export default config;
+```
+
+Lit also works well alongside an HTML-first renderer such as `@ecopages/kitajs` when you want Lit to own only the nested custom elements:
 
 ```ts
 import { ConfigBuilder } from '@ecopages/core/config-builder';
@@ -27,4 +39,14 @@ const config = await new ConfigBuilder()
 export default config;
 ```
 
-This setup enables server-rendered KitaJS pages that embed and hydrate Lit custom elements on the client.
+This setup lets Kita own the page shell while Lit owns the nested Lit component boundaries.
+
+## What This Integration Owns
+
+- `.lit.tsx` route files.
+- Nested Lit component boundaries rendered inside pages owned by other integrations.
+- The Lit hydration support script required for SSR custom elements and declarative shadow DOM.
+
+## Mixed Rendering
+
+When a non-Lit render pass enters a Lit-owned component boundary, Ecopages hands that boundary to the Lit renderer. That keeps Lit SSR in charge of custom elements, declarative shadow DOM, and Lit-managed child content.

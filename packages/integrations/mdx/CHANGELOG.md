@@ -13,6 +13,7 @@ All notable changes to `@ecopages/mdx` are documented here.
 ### Bug Fixes
 
 - Fixed `.md` opt-in handling, loader registration, and Node `source-map` interop.
+- Fixed full route and explicit MDX view rendering to stay on the renderer-owned page/layout/document component path for deferred mixed-integration boundaries.
 
 ### Refactoring
 
@@ -20,7 +21,7 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 ### Documentation
 
-- Updated the README for standalone MDX registration and the current integration setup.
+- Updated the README for standalone non-React MDX usage, `.md` opt-in handling, and compiler configuration.
 
 ---
 

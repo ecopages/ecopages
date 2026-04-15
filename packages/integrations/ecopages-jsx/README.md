@@ -1,6 +1,6 @@
 # @ecopages/ecopages-jsx
 
-Integration plugin for [@ecopages/jsx](https://jsr.io/@ecopages/jsx) templates in Ecopages. It provides server-rendered JSX pages, Radiant-backed web component support, and optional MDX route handling.
+Integration plugin for [@ecopages/jsx](https://jsr.io/@ecopages/jsx) templates in Ecopages. Use it when Ecopages JSX should own `.tsx` routes, Radiant-backed web components, or MDX compiled against the `@ecopages/jsx` runtime.
 
 ## Installation
 
@@ -24,6 +24,22 @@ const config = await new ConfigBuilder()
 	.build();
 
 export default config;
+```
+
+## What This Integration Owns
+
+- `.tsx` route files by default. Use `extensions` to change the JSX route suffix list.
+- Optional Radiant runtime assets and import-map entries.
+- Optional `.mdx` routes compiled against the `@ecopages/jsx` runtime.
+
+## Route Extensions
+
+Use `extensions` when JSX routes should use a custom suffix instead of the default `.tsx`.
+
+```ts
+ecopagesJsxPlugin({
+	extensions: ['.page.tsx'],
+});
 ```
 
 ## Radiant Support
@@ -51,6 +67,7 @@ const config = await new ConfigBuilder()
 		ecopagesJsxPlugin({
 			mdx: {
 				enabled: true,
+				extensions: ['.mdx', '.md'],
 			},
 		}),
 	])
@@ -58,3 +75,7 @@ const config = await new ConfigBuilder()
 
 export default config;
 ```
+
+## Mixed Rendering
+
+Ecopages JSX can own the outer page shell or just the nested boundary. When another integration reaches a JSX-owned boundary, Ecopages hands that boundary back to the JSX renderer so it can serialize the correct output before the outer renderer resumes.

@@ -425,10 +425,11 @@ export class BunBuildAdapter implements BuildAdapter {
 		}
 
 		const basenamePattern = path.basename(outputPath);
-		const matcher = new RegExp(
-			`^${this.escapeRegExp(basenamePattern).replace(/\\\[hash\\\]/g, '(.+)')}$`,
-		);
-		const matches = fs.readdirSync(directory).filter((candidate) => matcher.test(candidate)).sort();
+		const matcher = new RegExp(`^${this.escapeRegExp(basenamePattern).replace(/\\\[hash\\\]/g, '(.+)')}$`);
+		const matches = fs
+			.readdirSync(directory)
+			.filter((candidate) => matcher.test(candidate))
+			.sort();
 
 		if (matches.length === 0) {
 			return undefined;
@@ -473,9 +474,7 @@ export class BunBuildAdapter implements BuildAdapter {
 			}
 
 			const concreteRelativePath = path.relative(outdir, concreteOutputPath).split(path.sep).join('/');
-			const matcher = new RegExp(
-				`^${this.escapeRegExp(resolvedPath).replace(/\\\[hash\\\]/g, '(.+)')}$`,
-			);
+			const matcher = new RegExp(`^${this.escapeRegExp(resolvedPath).replace(/\\\[hash\\\]/g, '(.+)')}$`);
 			const match = concreteRelativePath.match(matcher);
 
 			if (!match?.[1]) {
@@ -516,7 +515,10 @@ export class BunBuildAdapter implements BuildAdapter {
 				}
 
 				normalizedOutputs[index] = {
-					path: this.relocateOutputFile(concreteOutputPath ?? normalizedOutputs[index]!.path, expectedOutputPath),
+					path: this.relocateOutputFile(
+						concreteOutputPath ?? normalizedOutputs[index]!.path,
+						expectedOutputPath,
+					),
 				};
 			}
 

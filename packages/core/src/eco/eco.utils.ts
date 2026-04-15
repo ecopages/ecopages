@@ -1,1 +1,5 @@
-export { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from '../route-renderer/orchestration/render-output.utils.ts';
+export {
+	addTriggerAttribute,
+	isThenable,
+	wrapWithScriptsInjector,
+} from '../route-renderer/orchestration/render-output.utils.ts';

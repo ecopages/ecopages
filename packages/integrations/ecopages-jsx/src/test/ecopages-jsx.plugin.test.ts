@@ -64,41 +64,51 @@ test('EcopagesJsxPlugin only processes scripts that declare custom elements', as
 			},
 		];
 
-		(plugin as EcopagesJsxPlugin & {
-			appConfig: { absolutePaths: { srcDir: string } };
-			assetProcessingService: { processDependencies: typeof processDependencies };
-			buildIntrinsicCustomElementAssetRegistry(): Promise<void>;
-			intrinsicCustomElementAssets: Map<string, Array<{ srcUrl: string }>>;
-		}).appConfig = {
+		(
+			plugin as EcopagesJsxPlugin & {
+				appConfig: { absolutePaths: { srcDir: string } };
+				assetProcessingService: { processDependencies: typeof processDependencies };
+				buildIntrinsicCustomElementAssetRegistry(): Promise<void>;
+				intrinsicCustomElementAssets: Map<string, Array<{ srcUrl: string }>>;
+			}
+		).appConfig = {
 			absolutePaths: {
 				srcDir: tempDir,
 			},
 		};
-		(plugin as EcopagesJsxPlugin & {
-			assetProcessingService: { processDependencies: typeof processDependencies };
-		}).assetProcessingService = {
+		(
+			plugin as EcopagesJsxPlugin & {
+				assetProcessingService: { processDependencies: typeof processDependencies };
+			}
+		).assetProcessingService = {
 			processDependencies,
 		};
 
 		let processedPath: string | undefined;
-		(plugin as EcopagesJsxPlugin & {
-			resolveIntrinsicCustomElementAsset(scriptFile: string): Promise<{ srcUrl: string } | undefined>;
-		}).resolveIntrinsicCustomElementAsset = async (scriptFile: string) => {
+		(
+			plugin as EcopagesJsxPlugin & {
+				resolveIntrinsicCustomElementAsset(scriptFile: string): Promise<{ srcUrl: string } | undefined>;
+			}
+		).resolveIntrinsicCustomElementAsset = async (scriptFile: string) => {
 			processedPath = scriptFile;
 			return {
 				srcUrl: '/assets/radiant-counter.js',
 			};
 		};
 
-		await (plugin as EcopagesJsxPlugin & {
-			buildIntrinsicCustomElementAssetRegistry(): Promise<void>;
-		}).buildIntrinsicCustomElementAssetRegistry();
+		await (
+			plugin as EcopagesJsxPlugin & {
+				buildIntrinsicCustomElementAssetRegistry(): Promise<void>;
+			}
+		).buildIntrinsicCustomElementAssetRegistry();
 
 		assert.equal(processedPath, customElementScriptPath);
 		assert.deepEqual(
-			(plugin as EcopagesJsxPlugin & {
-				intrinsicCustomElementAssets: Map<string, Array<{ srcUrl: string }>>;
-			}).intrinsicCustomElementAssets.get('radiant-counter'),
+			(
+				plugin as EcopagesJsxPlugin & {
+					intrinsicCustomElementAssets: Map<string, Array<{ srcUrl: string }>>;
+				}
+			).intrinsicCustomElementAssets.get('radiant-counter'),
 			[{ srcUrl: '/assets/radiant-counter.js' }],
 		);
 	} finally {

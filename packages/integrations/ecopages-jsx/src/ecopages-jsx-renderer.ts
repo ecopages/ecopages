@@ -243,7 +243,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			);
 			const rendered = await this.renderJsx(content);
 			const componentAssets =
-				input.component.config?.dependencies && typeof this.assetProcessingService?.processDependencies === 'function'
+				input.component.config?.dependencies &&
+				typeof this.assetProcessingService?.processDependencies === 'function'
 					? await this.processComponentDependencies([input.component])
 					: [];
 			const html = rendered.html;

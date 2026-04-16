@@ -38,7 +38,8 @@ We currently provide a simple **Postcss** and **Tailwind (v4 and v3)** plugin th
 You can customize this in your `eco.config.ts` file:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import path from 'node:path';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
@@ -70,7 +71,8 @@ To ensure that your components have the necessary scripts and styles, you must e
 
 ```tsx
 import { BaseLayout } from '@/layouts/base-layout';
-import { eco, html } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 
 const HomePage = eco.component({
   dependencies: {

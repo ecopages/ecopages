@@ -44,7 +44,7 @@ Add the image processor to your Ecopages configuration:
 
 ```typescript
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { ImageProcessorPlugin } from '@ecopages/image-processor';
 
 const appRoot = process.cwd();
@@ -99,9 +99,9 @@ The image processor provides several entry points:
 ### HTML Component
 
 ```typescript
-import { Image } from '@ecopages/image-processor/component/html';
+import { EcoImage } from '@ecopages/image-processor/component/html';
 
-const imageHtml = Image({
+const imageHtml = EcoImage({
 	src: '/images/hero.jpg',
 	alt: 'Hero image',
 	width: 800,
@@ -113,11 +113,11 @@ const imageHtml = Image({
 ### React Component
 
 ```typescript
-import { Image } from '@ecopages/image-processor/component/react';
+import { EcoImage } from '@ecopages/image-processor/component/react';
 
 function MyComponent() {
 	return (
-		<Image src="/images/hero.jpg" alt="Hero image" width={800} height={600} loading="lazy" />
+		<EcoImage src="/images/hero.jpg" alt="Hero image" width={800} height={600} loading="lazy" />
 	);
 }
 ```

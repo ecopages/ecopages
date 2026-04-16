@@ -46,7 +46,7 @@ To incorporate the KitaJS integration into your Ecopages project, follow these s
 1. Import the `kitajsPlugin` in your Ecopages configuration file:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { kitajsPlugin } from '@ecopages/kitajs';
 ```
 
@@ -60,6 +60,8 @@ const config = await new ConfigBuilder()
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([kitajsPlugin()])
 	.build();
+
+export default config;
 ```
 
 ## Creating Pages with KitaJS
@@ -111,7 +113,7 @@ The KitaJS integration works well with other Ecopages plugins. For example, you 
 
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
@@ -122,15 +124,11 @@ const config = await new ConfigBuilder()
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([
 		kitajsPlugin(), 
-		mdxPlugin({
-			compilerOptions: {
-				jsxImportSource: '@kitajs/html',
-			},
-		})
+		mdxPlugin()
 	])
 	.build();
 
 export default config;
 ```
 
-This setup allows both KitaJS and MDX in the same project, giving flexibility in how pages and components are authored. Set `jsxImportSource` to `@kitajs/html` in the MDX plugin options to keep the JSX runtime compatible.
+This setup allows both KitaJS and MDX in the same project, giving flexibility in how pages and components are authored. Standalone `mdxPlugin()` already defaults to `@kitajs/html`, so no extra JSX runtime override is required for the common KitaJS pairing.

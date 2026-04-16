@@ -13,7 +13,7 @@ export const getMetadata = () => ({
 
 # MDX Integration
 
-The `@ecopages/mdx` package brings the power of [MDX](https://mdxjs.com/) (Markdown with JSX) to Ecopages. It allows you to write content-rich pages using Markdown syntax while seamlessly embedding interactive components.
+The standalone `@ecopages/mdx` package brings [MDX](https://mdxjs.com/) to Ecopages for non-React JSX runtimes such as `@kitajs/html`. Use it when you want server-rendered MDX routes without routing or hydration through the React integration.
 
 ## Installation
 
@@ -40,7 +40,7 @@ bunx jsr add @ecopages/mdx
 To start using MDX, add the `mdxPlugin` to your Ecopages configuration.
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const appRoot = process.cwd();
@@ -54,9 +54,9 @@ const config = await new ConfigBuilder()
 export default config;
 ```
 
-### Implicit React Support
+### Default JSX Runtime
 
-By default, the MDX plugin is configured to use **React** as the JSX runtime. This means you do not need to manually configure React support or import React in every MDX file. The plugin handles the necessary imports and environment setup for you.
+Standalone `mdxPlugin()` defaults to `@kitajs/html` with the automatic JSX runtime. It is intentionally not a React wrapper. If you need React-backed MDX, enable MDX through `reactPlugin({ mdx: { enabled: true } })` instead of changing the standalone plugin's JSX runtime.
 
 ## Features
 
@@ -121,11 +121,12 @@ mdxPlugin({
   compilerOptions: {
     remarkPlugins: [],
     rehypePlugins: [],
-    // You can also change the JSX runtime if needed (default: 'react')
-    jsxImportSource: 'react', 
+    recmaPlugins: [],
   }
 })
 ```
+
+Important: the standalone plugin manages `jsxImportSource` and `jsxRuntime` itself. Point React-backed MDX at `reactPlugin`, not at standalone `mdxPlugin()`.
 
 ## Using MDX with React Router
 
@@ -143,19 +144,19 @@ reactPlugin({
 
 This ensures unified routing, hydration, and HMR for both `.tsx` and `.mdx` pages. See the [React Integration](/docs/integrations/react) for details.
 
-## Integration with Other Frameworks
+## Mixing with Other Integrations
 
-While React is the default, MDX can be used with other frameworks like Lit, though it may require specific configuration or client-side rendering considerations.
+Standalone MDX works well alongside other integrations when MDX itself should stay on a non-React JSX runtime.
 
 
 <Banner type="alert">
-	<Banner.Title>Non-React Frameworks</Banner.Title>
+  <Banner.Title>Mixed Rendering</Banner.Title>
 	<p>
-		When using non-React frameworks inside MDX (e.g., Lit components), they might not be server-side rendered by the MDX renderer and will likely relying on client-side hydration.
+    When an MDX route crosses into another registered integration, Ecopages resolves that nested boundary through the owning renderer before final route HTML is returned.
 	</p>
 </Banner>
 
-For example, using Lit components:
+For example, you can keep MDX on the standalone runtime while still registering Lit for nested component boundaries:
 
 ```typescript
 import { litPlugin } from '@ecopages/lit';
@@ -164,4 +165,4 @@ import { litPlugin } from '@ecopages/lit';
 .setIntegrations([mdxPlugin(), litPlugin()])
 ```
 
-In your MDX file, standard Lit components will work as custom elements (once registered via their import).
+Use `reactPlugin({ mdx: { enabled: true } })` instead when the MDX route itself should compile and hydrate as React.

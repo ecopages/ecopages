@@ -19,7 +19,8 @@ A typical page in Ecopages using the ghtml integration consists of a single Type
 
 ```typescript
 import { BaseLayout } from '@/layouts/base-layout';
-import { eco, html } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 
 export default eco.page({
 	metadata: () => ({
@@ -59,7 +60,8 @@ To use components in your pages, import them and include them in your HTML templ
 ```typescript
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { eco, html } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 
 export default eco.page({
 	dependencies: {

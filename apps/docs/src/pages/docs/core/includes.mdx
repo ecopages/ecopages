@@ -28,7 +28,7 @@ The extension depends on your chosen integration (e.g., `.kita.tsx`, `.lit.ts`, 
 You can configure includes in your `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 
 const config = await new ConfigBuilder()
 	.build();
@@ -43,7 +43,8 @@ Ecopages resolves `src/includes/html.*` automatically using the registered integ
 The HTML template defines the overall structure of your pages. Use `eco.html()` to clearly signal that this component owns the full document shell:
 
 ```typescript
-import { eco, html } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 
 const Html = eco.html<HtmlProps>({
 	dependencies: {
@@ -64,7 +65,8 @@ export default Html;
 The head template manages your document's head section:
 
 ```typescript
-import { eco, html } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 
 const Head = eco.component<HeadProps>({
 	render: ({ title, meta, links, scripts }) => html`	
@@ -84,7 +86,8 @@ export default Head;
 The SEO template handles meta tags for search engines and social sharing:
 
 ```typescript
-import { eco, html } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 
 const Seo = eco.component<SeoProps>({
 	render: ({ title, description, image, keywords }) => html`

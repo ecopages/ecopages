@@ -42,7 +42,7 @@ bunx jsr add @ecopages/react
 To enable React support, add the `reactPlugin` to your Ecopages configuration.
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { reactPlugin } from '@ecopages/react';
 
 const appRoot = process.cwd();
@@ -140,8 +140,7 @@ Use the `dynamic` utility to lazy-load components or render them only on the cli
 import { dynamic } from '@ecopages/react/utils/dynamic';
 
 const HeavyComponent = dynamic(() => import('@/components/heavy-chart'), {
-    ssr: false, // Defaults to true
-    loading: () => <p>Loading chart...</p>
+	ssr: false,
 });
 ```
 
@@ -159,17 +158,17 @@ import { ClientOnly } from '@ecopages/react/utils/client-only';
 
 ## Key Features
 
-- **React 19**: Full support for Server Components concepts and latest hooks.
+- **React 19**: Server rendering and hydration for standard React 19 components and hooks.
 - **Fast Refresh**: Built-in Hot Module Replacement (HMR) for instant feedback.
-- **TypeScript**: First-class type definitions.
-- **Streaming**: (Coming Soon) Support for React Server Components streaming.
+- **MDX**: Built-in React MDX support through `reactPlugin({ mdx: { enabled: true } })`.
+- **Mixed Rendering**: React can own routes directly or resolve nested React boundaries inside non-React shells.
 
 ## MDX Support
 
 The React plugin includes optional MDX support. When enabled, you can author `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
@@ -199,6 +198,6 @@ This is the recommended approach when using a client-side router, as it ensures 
 <Banner type="info">
 	<Banner.Title>Standalone MDX</Banner.Title>
 	<p>
-		If you are not using a client-side router, you can use the standalone <a href="/docs/integrations/mdx">MDX Integration</a> instead.
+		Use the standalone <a href="/docs/integrations/mdx">MDX Integration</a> only when MDX should compile against a non-React JSX runtime. React-backed MDX belongs on the React plugin even when you are not using client-side routing.
 	</p>
 </Banner>

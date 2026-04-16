@@ -65,10 +65,11 @@ Ecopages includes a type-safe, lightweight backend. Define handlers with full ty
 - **Explicit Routing**: Use `app.get`, `app.post`, etc., for dynamic routes.
 - **Route API docs**: See `packages/core/README.md` for route registration patterns (`app.get`, `defineApiHandler`, `defineGroupHandler`, and API direction notes).
 
-Use root imports by default:
+Use the `create-app` subpath for runtime startup and the root package for standard authoring helpers:
 
 ```ts
-import { createApp, defineApiHandler, defineGroupHandler } from '@ecopages/core';
+import { createApp } from '@ecopages/core/create-app';
+import { defineApiHandler, defineGroupHandler } from '@ecopages/core';
 ```
 
 Treat `@ecopages/core/bun` as an advanced escape hatch for Bun-native APIs.

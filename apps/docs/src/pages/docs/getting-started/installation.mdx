@@ -51,7 +51,7 @@ After installation, create an `eco.config.ts` file in your project's root direct
 
 ```typescript
 // filepath: eco.config.ts
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
@@ -128,10 +128,10 @@ Create an entry point file (e.g., `app.ts`) to initialize and run Ecopages:
 
 ```typescript
 // filepath: app.ts
-import { EcopagesApp } from '@ecopages/core';
+import { createApp } from '@ecopages/core/create-app';
 import config from './eco.config.ts';
 
-const app = new EcopagesApp({ appConfig: config });
+const app = await createApp({ appConfig: config });
 await app.start();
 ```
 

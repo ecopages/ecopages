@@ -325,6 +325,10 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 				AssetFactory.createFileScript({
 					filepath: scriptFile,
 					position: 'head',
+					attributes: {
+						type: 'module',
+						defer: '',
+					},
 				}),
 			],
 			`${this.name}:intrinsic-custom-elements:${scriptFile}`,

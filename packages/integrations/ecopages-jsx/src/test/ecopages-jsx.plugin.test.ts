@@ -2,9 +2,19 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { EcopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
+
+type PluginTestInternals = {
+	appConfig: { absolutePaths: { srcDir: string } };
+	assetProcessingService: {
+		processDependencies: (dependencies: unknown[], key: string) => Promise<unknown[]>;
+	};
+	buildIntrinsicCustomElementAssetRegistry(): Promise<void>;
+	resolveIntrinsicCustomElementAsset(scriptFile: string): Promise<unknown>;
+	intrinsicCustomElementAssets: Map<string, Array<{ srcUrl: string }>>;
+};
 
 function getMdxLoaderFilter(plugin: EcoBuildPlugin): RegExp {
 	let capturedFilter: RegExp | undefined;
@@ -56,62 +66,79 @@ test('EcopagesJsxPlugin only processes scripts that declare custom elements', as
 		);
 
 		const plugin = new EcopagesJsxPlugin({ radiant: false });
-		const processDependencies = async () => [
+		const pluginInternals = plugin as unknown as PluginTestInternals;
+		const processDependencies = async (_dependencies: unknown[], _key: string) => [
 			{
-				kind: 'script',
+				kind: 'script' as const,
 				srcUrl: '/assets/radiant-counter.js',
-				position: 'head',
+				position: 'head' as const,
 			},
 		];
 
-		(
-			plugin as EcopagesJsxPlugin & {
-				appConfig: { absolutePaths: { srcDir: string } };
-				assetProcessingService: { processDependencies: typeof processDependencies };
-				buildIntrinsicCustomElementAssetRegistry(): Promise<void>;
-				intrinsicCustomElementAssets: Map<string, Array<{ srcUrl: string }>>;
-			}
-		).appConfig = {
+		pluginInternals.appConfig = {
 			absolutePaths: {
 				srcDir: tempDir,
 			},
 		};
-		(
-			plugin as EcopagesJsxPlugin & {
-				assetProcessingService: { processDependencies: typeof processDependencies };
-			}
-		).assetProcessingService = {
+		pluginInternals.assetProcessingService = {
 			processDependencies,
 		};
 
 		let processedPath: string | undefined;
-		(
-			plugin as EcopagesJsxPlugin & {
-				resolveIntrinsicCustomElementAsset(scriptFile: string): Promise<{ srcUrl: string } | undefined>;
-			}
-		).resolveIntrinsicCustomElementAsset = async (scriptFile: string) => {
+		pluginInternals.resolveIntrinsicCustomElementAsset = async (scriptFile: string) => {
 			processedPath = scriptFile;
 			return {
 				srcUrl: '/assets/radiant-counter.js',
 			};
 		};
 
-		await (
-			plugin as EcopagesJsxPlugin & {
-				buildIntrinsicCustomElementAssetRegistry(): Promise<void>;
-			}
-		).buildIntrinsicCustomElementAssetRegistry();
+		await pluginInternals.buildIntrinsicCustomElementAssetRegistry();
 
 		assert.equal(processedPath, customElementScriptPath);
-		assert.deepEqual(
-			(
-				plugin as EcopagesJsxPlugin & {
-					intrinsicCustomElementAssets: Map<string, Array<{ srcUrl: string }>>;
-				}
-			).intrinsicCustomElementAssets.get('radiant-counter'),
-			[{ srcUrl: '/assets/radiant-counter.js' }],
-		);
+		assert.deepEqual(pluginInternals.intrinsicCustomElementAssets.get('radiant-counter'), [
+			{ srcUrl: '/assets/radiant-counter.js' },
+		]);
 	} finally {
 		await rm(tempDir, { recursive: true, force: true });
 	}
+});
+
+test('EcopagesJsxPlugin registers intrinsic custom element scripts as module entrypoints', async () => {
+	const plugin = new EcopagesJsxPlugin({ radiant: true });
+	const pluginInternals = plugin as unknown as PluginTestInternals;
+	const processDependencies = vi.fn(async (dependencies: unknown[], _key: string) =>
+		dependencies.map(() => ({
+			kind: 'script' as const,
+			srcUrl: '/assets/theme-toggle.script.js',
+			position: 'head' as const,
+			attributes: {
+				type: 'module',
+				defer: '',
+			},
+		})),
+	);
+
+	pluginInternals.assetProcessingService = {
+		processDependencies,
+	};
+
+	await pluginInternals.resolveIntrinsicCustomElementAsset('/tmp/theme-toggle.script.ts');
+
+	assert.equal(processDependencies.mock.calls.length, 1);
+	assert.deepEqual(processDependencies.mock.calls[0]?.[0], [
+		{
+			kind: 'script',
+			source: 'file',
+			filepath: '/tmp/theme-toggle.script.ts',
+			position: 'head',
+			attributes: {
+				type: 'module',
+				defer: '',
+			},
+		},
+	]);
+	assert.equal(
+		processDependencies.mock.calls[0]?.[1],
+		'ecopages-jsx:intrinsic-custom-elements:/tmp/theme-toggle.script.ts',
+	);
 });

@@ -25,8 +25,8 @@ Framework-owned orchestration services and renderer base class:
 
 - `integration-renderer.ts`: abstract base class that coordinates end-to-end route rendering.
 - `render-preparation.service.ts`: page module/data/dependency preparation before render.
-- `render-execution.service.ts`: render capture, unresolved-marker enforcement, and finalization.
-- `string-boundary-runtime.service.ts`: shared queued foreign-boundary runtime for string-first renderers.
+- `render-execution.service.ts`: render capture, unresolved boundary artifact enforcement, and finalization.
+- `queued-boundary-runtime.service.ts`: shared queued foreign-boundary runtime used directly by renderer-owned helpers, including string-first renderers.
 
 It also provides:
 
@@ -34,9 +34,9 @@ It also provides:
 - `renderComponent()` contract for component-level orchestration and artifact reporting.
 - deferred boundary resolution for nested cross-integration component boundaries.
 
-### Boundary Markers
+### Boundary Tokens
 
-Renderer-owned runtimes may still emit raw `<eco-marker ...></eco-marker>` transport tokens internally while they resolve foreign descendants before returning final HTML.
+Renderer-owned runtimes may emit internal boundary tokens while they resolve foreign descendants before returning final HTML. If literal `<eco-marker ...></eco-marker>` markup survives to route finalization, it is treated as an unresolved boundary artifact rather than a normal transport mechanism.
 
 ### `page-loading/`
 
@@ -82,9 +82,9 @@ Current base orchestration behavior:
 - Merges returned `assets` into processed dependencies.
 - Applies returned `rootAttributes` to the first element under `<body>`.
 
-When rendered output contains `eco-marker` nodes:
+When rendered output still contains unresolved boundary artifact HTML:
 
-- route execution now treats them as unresolved boundary artifacts and fails fast.
+- route execution now fails fast instead of attempting any route-level unresolved-boundary fallback.
 - renderer-owned boundary runtimes are responsible for resolving foreign nested components before final route HTML is returned.
 
 This enables island-style hydration assets (for example React/Lit/Kita integration outputs) to be emitted through the normal dependency injection pipeline.

@@ -185,7 +185,7 @@ function getCandidateOwners(
 	return owners;
 }
 
-function createEcoNavigationRuntime(_windowObject: EcoNavigationWindow): EcoNavigationRuntime {
+function createEcoNavigationRuntime(): EcoNavigationRuntime {
 	const registrations = new Map<EcoNavigationOwner, EcoNavigationRuntimeRegistration>();
 	const listeners = new Set<EcoNavigationRuntimeListener>();
 	let owner: EcoNavigationOwner = 'none';
@@ -426,7 +426,7 @@ export function getEcoNavigationRuntime(windowObject: Window & typeof globalThis
 	const runtimeWindow = windowObject as EcoNavigationWindow;
 	runtimeWindow.__ECO_PAGES__ = runtimeWindow.__ECO_PAGES__ || {};
 	if (!runtimeWindow.__ECO_PAGES__.navigation) {
-		runtimeWindow.__ECO_PAGES__.navigation = createEcoNavigationRuntime(runtimeWindow);
+		runtimeWindow.__ECO_PAGES__.navigation = createEcoNavigationRuntime();
 	}
 
 	return runtimeWindow.__ECO_PAGES__.navigation;

@@ -676,9 +676,10 @@ export function createBuildAdapter(options?: { ownership?: BuildOwnership }): Bu
 export const defaultBunBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'bun-native' });
 export const defaultViteHostBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'vite-host' });
 /**
- * @deprecated Prefer app-owned build state via `getAppBuildAdapter()`.
- * This Bun-native fallback remains only for compatibility with older helpers
- * and tests that do not yet thread app runtime state explicitly.
+ * Bun-native fallback export for callsites that still resolve build state
+ * globally.
+ *
+ * New app-aware code should prefer `getAppBuildAdapter()`.
  */
 export const defaultBuildAdapter: BuildAdapter = defaultBunBuildAdapter;
 
@@ -896,9 +897,9 @@ export function build(options: BuildOptions, executor: BuildExecutor = defaultBu
 }
 
 /**
- * @deprecated Prefer `getAppTranspileOptions()` for finalized app/runtime work.
- * This helper exists only for compatibility with Bun-native callsites that do
- * not yet have app context available.
+ * Bun-native fallback helper for callsites without app runtime context.
+ *
+ * New app-aware code should prefer `getAppTranspileOptions()`.
  */
 export function getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
 	return defaultBunBuildAdapter.getTranspileOptions(profile);

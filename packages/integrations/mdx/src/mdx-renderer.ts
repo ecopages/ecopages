@@ -22,6 +22,9 @@ import type { CompileOptions } from '@mdx-js/mdx';
 import { PLUGIN_NAME } from './mdx.plugin.ts';
 import { rapidhash } from '@ecopages/core/hash';
 
+const MDX_BOUNDARY_TOKEN_PREFIX = '__ECO_MDX_BOUNDARY__';
+const MDX_BOUNDARY_RUNTIME_CONTEXT_KEY = '__mdxBoundaryRuntime';
+
 /**
  * A structure representing an MDX file
  */
@@ -112,10 +115,26 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		return this.renderStringComponentBoundary(
+		return this.renderStringComponentBoundaryWithQueuedForeignBoundaries(
 			input,
 			input.component as (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
+			{
+				runtimeContextKey: MDX_BOUNDARY_RUNTIME_CONTEXT_KEY,
+				tokenPrefix: MDX_BOUNDARY_TOKEN_PREFIX,
+			},
 		);
+	}
+
+	protected override createComponentBoundaryRuntime(options: {
+		boundaryInput: ComponentRenderInput;
+		rendererCache: Map<string, IntegrationRenderer<any>>;
+	}) {
+		return this.createStringBoundaryRuntime({
+			boundaryInput: options.boundaryInput,
+			rendererCache: options.rendererCache,
+			runtimeContextKey: MDX_BOUNDARY_RUNTIME_CONTEXT_KEY,
+			tokenPrefix: MDX_BOUNDARY_TOKEN_PREFIX,
+		});
 	}
 
 	async render({

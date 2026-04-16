@@ -28,7 +28,7 @@ import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-se
 import { AssetFactory, type AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import path from 'node:path';
-import { createElement, type ReactNode } from 'react';
+import { createElement, Fragment, type ReactNode } from 'react';
 import { renderToReadableStream, renderToString } from 'react-dom/server';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { PLUGIN_NAME } from './react.plugin.ts';
@@ -39,8 +39,24 @@ import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-ca
 import { ReactPageModuleService } from './services/react-page-module.service.ts';
 import { getReactIslandComponentKey, ReactHydrationAssetService } from './services/react-hydration-asset.service.ts';
 
+const REACT_BOUNDARY_TOKEN_PREFIX = '__ECO_REACT_BOUNDARY__';
+
 type ReactComponentRenderContext = {
 	componentInstanceId?: string;
+};
+
+type ReactBoundaryRuntimeContext = {
+	rendererCache: Map<string, IntegrationRenderer<any>>;
+	componentInstanceScope?: string;
+	nextBoundaryId: number;
+	queuedResolutions: Array<{
+		token: string;
+		component: EcoComponent;
+		props: Record<string, unknown>;
+		componentInstanceId: string;
+	}>;
+	rawChildrenToken?: string;
+	rawChildrenHtml?: string;
 };
 
 type SerializableProps = Record<string, unknown>;
@@ -301,7 +317,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * @param context React-specific render context for stable token generation.
 	 * @returns Serialized component HTML with resolved child markup preserved.
 	 */
-	private renderComponentHtml(input: ComponentRenderInput, context: ReactComponentRenderContext): string {
+	private renderComponentHtml(
+		input: ComponentRenderInput,
+		context: ReactComponentRenderContext,
+		runtimeContext?: ReactBoundaryRuntimeContext,
+	): string {
 		if (input.children === undefined) {
 			return this.restoreEscapedComponentMarkers(
 				renderToString(createElement(this.asReactComponent(input.component), input.props)),
@@ -310,10 +330,85 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		const resolvedChildHtml = typeof input.children === 'string' ? input.children : String(input.children ?? '');
 		const rawChildrenToken = `__ECO_RAW_HTML_CHILD_${context.componentInstanceId ?? 'component'}__`;
+		if (runtimeContext) {
+			runtimeContext.rawChildrenToken = rawChildrenToken;
+			runtimeContext.rawChildrenHtml = resolvedChildHtml;
+		}
 		const html = renderToString(
 			createElement(this.asReactComponent(input.component), input.props, rawChildrenToken),
 		);
 		return this.restoreEscapedComponentMarkers(html.split(rawChildrenToken).join(resolvedChildHtml));
+	}
+
+	private restoreRuntimeChildHtml(html: string, runtimeContext: ReactBoundaryRuntimeContext | undefined): string {
+		if (!runtimeContext?.rawChildrenToken || runtimeContext.rawChildrenHtml === undefined) {
+			return html;
+		}
+
+		return html.split(runtimeContext.rawChildrenToken).join(runtimeContext.rawChildrenHtml);
+	}
+
+	private async renderQueuedChildrenToHtml(
+		children: unknown,
+		runtimeContext: ReactBoundaryRuntimeContext,
+		queuedResolutionsByToken: Map<string, ReactBoundaryRuntimeContext['queuedResolutions'][number]>,
+		resolveToken: (token: string) => Promise<string>,
+	): Promise<string | undefined> {
+		if (children === undefined) {
+			return undefined;
+		}
+
+		let html = this.restoreEscapedComponentMarkers(
+			renderToString(createElement(Fragment, null, children as ReactNode)),
+		);
+		html = this.restoreRuntimeChildHtml(html, runtimeContext);
+
+		for (const token of queuedResolutionsByToken.keys()) {
+			if (!html.includes(token)) {
+				continue;
+			}
+
+			html = html.split(token).join(await resolveToken(token));
+		}
+
+		return html;
+	}
+
+	private async resolveQueuedBoundaryHtml(
+		html: string,
+		runtimeContext: ReactBoundaryRuntimeContext | undefined,
+	): Promise<{ assets: NonNullable<ComponentRenderResult['assets']>; html: string }> {
+		return this.queuedBoundaryRuntimeService.resolveQueuedHtml({
+			html,
+			runtimeContext,
+			queueLabel: 'React',
+			renderQueuedChildren: async (
+				children,
+				currentRuntimeContext,
+				queuedResolutionsByToken,
+				resolveToken,
+			) => {
+				const renderedHtml = await this.renderQueuedChildrenToHtml(
+					children,
+					currentRuntimeContext,
+					queuedResolutionsByToken,
+					resolveToken,
+				);
+
+				return {
+					assets: [],
+					html: renderedHtml,
+				};
+			},
+			resolveBoundary: (boundaryInput, rendererCache) =>
+				this.resolveBoundaryInOwningRenderer(
+					boundaryInput,
+					rendererCache as Map<string, IntegrationRenderer<any>>,
+				),
+			applyAttributesToFirstElement: (queuedHtml, attributes) =>
+				this.htmlTransformer.applyAttributesToFirstElement(queuedHtml, attributes),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+		});
 	}
 
 	private buildHydrationProps(props: SerializableProps | undefined): SerializableProps {
@@ -340,15 +435,19 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * deterministic mount target per component instance.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		const runtimeContext = this.queuedBoundaryRuntimeService.getRuntimeContext<ReactBoundaryRuntimeContext>(
+			input,
+			'__reactBoundaryRuntime',
+		);
+
 		if (!this.isReactManagedComponent(input.component)) {
-			const props =
-				input.children === undefined
-					? input.props
-					: {
-							...input.props,
-							children:
-								typeof input.children === 'string' ? input.children : String(input.children ?? ''),
-						};
+			let props = input.props;
+			if (input.children !== undefined) {
+				props = {
+					...input.props,
+					children: typeof input.children === 'string' ? input.children : String(input.children ?? ''),
+				};
+			}
 			const html = await this.renderNonReactShellComponent(
 				this.asNonReactShellComponent<Record<string, unknown>>(input.component),
 				props,
@@ -360,20 +459,27 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				hasDependencies && canResolveAssets
 					? await this.processComponentDependencies([input.component])
 					: undefined;
+			const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(html, runtimeContext);
+			const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
+				...(assets ?? []),
+				...queuedBoundaryResolution.assets,
+			]);
 
 			return {
-				html,
+				html: queuedBoundaryResolution.html,
 				canAttachAttributes: true,
-				rootTag: this.getRootTagName(html),
+				rootTag: this.getRootTagName(queuedBoundaryResolution.html),
 				integrationName: this.name,
-				assets,
+				assets: mergedAssets.length > 0 ? mergedAssets : undefined,
 			};
 		}
 
 		const componentConfig = input.component.config;
 		const context = (input.integrationContext as ReactComponentRenderContext | undefined) ?? {};
 		const hasResolvedChildHtml = input.children !== undefined;
-		let html = this.renderComponentHtml(input, context);
+		let html = this.renderComponentHtml(input, context, runtimeContext);
+		const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(html, runtimeContext);
+		html = queuedBoundaryResolution.html;
 		let canAttachAttributes = hasSingleRootElement(html);
 		let rootTag = this.getRootTagName(html);
 		const componentFile = componentConfig?.__eco?.file;
@@ -397,14 +503,40 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			};
 		}
 
+		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
+			...(assets ?? []),
+			...queuedBoundaryResolution.assets,
+		]);
+
 		return {
 			html,
 			canAttachAttributes,
 			rootTag,
 			integrationName: this.name,
 			rootAttributes,
-			assets,
+			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
 		};
+	}
+
+	protected override createComponentBoundaryRuntime(options: {
+		boundaryInput: ComponentRenderInput;
+		rendererCache: Map<string, IntegrationRenderer<any>>;
+	}) {
+		return this.queuedBoundaryRuntimeService.createRuntime<ReactBoundaryRuntimeContext>({
+			boundaryInput: options.boundaryInput,
+			rendererCache: options.rendererCache as Map<string, unknown>,
+			runtimeContextKey: '__reactBoundaryRuntime',
+			tokenPrefix: REACT_BOUNDARY_TOKEN_PREFIX,
+			shouldQueueBoundary: (input) => this.shouldResolveBoundaryInOwningRenderer(input),
+			createRuntimeContext: (integrationContext, rendererCache) => ({
+				rendererCache: rendererCache as Map<string, IntegrationRenderer<any>>,
+				componentInstanceScope: integrationContext.componentInstanceId,
+				nextBoundaryId: 0,
+				queuedResolutions: [],
+				rawChildrenToken: undefined,
+				rawChildrenHtml: undefined,
+			}),
+		});
 	}
 
 	/**

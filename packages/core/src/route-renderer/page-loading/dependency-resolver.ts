@@ -62,12 +62,12 @@ function extractEcopagesVirtualImports(file: string): Array<{ from: string; impo
 		const namedImports: string[] = [];
 		for (const spec of node.specifiers ?? []) {
 			if (spec.type === 'ImportSpecifier') {
-				const importedName =
-					spec.imported?.type === 'Identifier'
-						? spec.imported.name
-						: spec.imported?.type === 'Literal'
-							? spec.imported.value
-							: spec.local?.name;
+				let importedName = spec.local?.name;
+				if (spec.imported?.type === 'Identifier') {
+					importedName = spec.imported.name;
+				} else if (spec.imported?.type === 'Literal') {
+					importedName = spec.imported.value;
+				}
 				namedImports.push(importedName);
 			}
 		}

@@ -13,35 +13,23 @@ import { rapidhash } from '@ecopages/core/hash';
 import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
-import {
-	serializeTemplateShape,
-	type DeferredTemplateSerializer,
-	type SerializableTemplateShape,
-} from '@ecopages/core/route-renderer/template-serialization';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.plugin.ts';
 
 let radiantLightDomShimInstallPromise: Promise<void> | undefined;
+const ECOPAGES_JSX_BOUNDARY_TOKEN_PREFIX = '__ECO_ECOPAGES_JSX_BOUNDARY__';
 
-type EcopagesJsxTemplateShape = SerializableTemplateShape & {
-	_$rType$: 1;
-};
-
-const ecopagesJsxDeferredTemplateSerializer: DeferredTemplateSerializer<EcopagesJsxTemplateShape> = {
-	matches(value: unknown): value is EcopagesJsxTemplateShape {
-		return (
-			typeof value === 'object' &&
-			value !== null &&
-			(value as { _$rType$?: unknown })._$rType$ === 1 &&
-			Array.isArray((value as { strings?: unknown }).strings) &&
-			((value as { values?: unknown }).values === undefined ||
-				Array.isArray((value as { values?: unknown }).values))
-		);
-	},
-	serialize(template, serializeValue) {
-		return serializeTemplateShape(template, serializeValue);
-	},
+type EcopagesJsxBoundaryRuntimeContext = {
+	rendererCache: Map<string, IntegrationRenderer<any>>;
+	componentInstanceScope?: string;
+	nextBoundaryId: number;
+	queuedResolutions: Array<{
+		token: string;
+		component: EcoComponent;
+		props: Record<string, unknown>;
+		componentInstanceId: string;
+	}>;
 };
 
 async function ensureRadiantLightDomShimInstalled(): Promise<void> {
@@ -107,23 +95,74 @@ const wrapMdxPage = (
  * async page, layout, and html template components on the server.
  */
 export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
-	/**
-	 * Deferred template serializers owned by the Ecopages JSX renderer.
-	 *
-	 * @remarks
-	 * Ecopages JSX can emit runtime-specific deferred template payloads during
-	 * mixed-integration rendering. Declaring the serializer here keeps JSX
-	 * template-shape knowledge colocated with the renderer while the base
-	 * `IntegrationRenderer` handles registration automatically.
-	 */
-	static override readonly deferredTemplateSerializers = [ecopagesJsxDeferredTemplateSerializer];
-
 	name = ECOPAGES_JSX_PLUGIN_NAME;
 
 	static mdxExtensions = ['.mdx'];
 	private intrinsicCustomElementAssets = new Map<string, readonly ProcessedAsset[]>();
 	private collectedAssetFrames: ProcessedAsset[][] = [];
 	private radiantSsrEnabled = false;
+
+	private async resolveQueuedBoundaryChildren(
+		children: unknown,
+		queuedResolutionsByToken: Map<
+			string,
+			EcopagesJsxBoundaryRuntimeContext['queuedResolutions'][number]
+		>,
+		resolveToken: (token: string) => Promise<string>,
+	): Promise<{ assets: ProcessedAsset[]; html?: string }> {
+		if (children === undefined) {
+			return { assets: [] };
+		}
+
+		let assets: ProcessedAsset[] = [];
+		let html: string;
+
+		if (typeof children === 'string') {
+			html = children;
+		} else {
+			const renderedChildren = await this.renderJsx(children as JsxRenderable);
+			html = renderedChildren.html;
+			assets = renderedChildren.assets;
+		}
+
+		for (const token of queuedResolutionsByToken.keys()) {
+			if (!html.includes(token)) {
+				continue;
+			}
+
+			html = html.split(token).join(await resolveToken(token));
+		}
+
+		return {
+			assets,
+			html,
+		};
+	}
+
+	private async resolveQueuedBoundaryHtml(
+		html: string,
+		runtimeContext: EcopagesJsxBoundaryRuntimeContext | undefined,
+	): Promise<{ assets: ProcessedAsset[]; html: string }> {
+		return this.queuedBoundaryRuntimeService.resolveQueuedHtml({
+			html,
+			runtimeContext,
+			queueLabel: 'Ecopages JSX',
+			renderQueuedChildren: async (
+				children,
+				_runtimeContext,
+				queuedResolutionsByToken,
+				resolveToken,
+			) => this.resolveQueuedBoundaryChildren(children, queuedResolutionsByToken, resolveToken),
+			resolveBoundary: (boundaryInput, rendererCache) =>
+				this.resolveBoundaryInOwningRenderer(
+					boundaryInput,
+					rendererCache as Map<string, IntegrationRenderer<any>>,
+				),
+			applyAttributesToFirstElement: (queuedHtml, attributes) =>
+				this.htmlTransformer.applyAttributesToFirstElement(queuedHtml, attributes),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+		});
+	}
 
 	constructor({
 		appConfig,
@@ -223,36 +262,43 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 				throw new TypeError('JSX renderer expected a callable component.');
 			}
 
-			const props =
-				input.children === undefined
-					? input.props
-					: {
-							...input.props,
-							children:
-								typeof input.children === 'string'
-									? createMarkupNodeLike(input.children)
-									: input.children,
-						};
+			let props = input.props;
+			if (input.children !== undefined) {
+				props = {
+					...input.props,
+					children:
+						typeof input.children === 'string'
+							? createMarkupNodeLike(input.children)
+							: input.children,
+				};
+			}
 			const content = await this.renderEcoComponent(
 				input.component as AsyncEcoComponent<Record<string, unknown>>,
 				props,
 			);
 			const rendered = await this.renderJsx(content);
+			const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(
+				rendered.html,
+				this.queuedBoundaryRuntimeService.getRuntimeContext<EcopagesJsxBoundaryRuntimeContext>(
+					input,
+					'__ecopagesJsxBoundaryRuntime',
+				),
+			);
 			const componentAssets =
 				input.component.config?.dependencies &&
 				typeof this.assetProcessingService?.processDependencies === 'function'
 					? await this.processComponentDependencies([input.component])
 					: [];
-			const html = rendered.html;
 			const assets = this.htmlTransformer.dedupeProcessedAssets([
 				...this.endCollectedAssetFrame(assetFrame),
+				...queuedBoundaryResolution.assets,
 				...componentAssets,
 			]);
 
 			return {
-				html,
+				html: queuedBoundaryResolution.html,
 				canAttachAttributes: true,
-				rootTag: this.getRootTagName(html),
+				rootTag: this.getRootTagName(queuedBoundaryResolution.html),
 				integrationName: this.name,
 				assets,
 			};
@@ -260,6 +306,19 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			this.endCollectedAssetFrame(assetFrame);
 			throw this.createRenderError('Error rendering component', error);
 		}
+	}
+
+	protected override createComponentBoundaryRuntime(options: {
+		boundaryInput: ComponentRenderInput;
+		rendererCache: Map<string, IntegrationRenderer<any>>;
+	}) {
+		return this.queuedBoundaryRuntimeService.createRuntime<EcopagesJsxBoundaryRuntimeContext>({
+			boundaryInput: options.boundaryInput,
+			rendererCache: options.rendererCache as Map<string, unknown>,
+			runtimeContextKey: '__ecopagesJsxBoundaryRuntime',
+			tokenPrefix: ECOPAGES_JSX_BOUNDARY_TOKEN_PREFIX,
+			shouldQueueBoundary: (input) => this.shouldResolveBoundaryInOwningRenderer(input),
+		});
 	}
 
 	override async renderToResponse<P = any>(

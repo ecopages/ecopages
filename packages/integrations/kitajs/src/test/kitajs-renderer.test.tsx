@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
-import { eco, type EcoComponent, type EcoPagesElement, type HtmlTemplateProps } from '@ecopages/core';
+import {
+	eco,
+	type ComponentRenderInput,
+	type EcoComponent,
+	type EcoPagesElement,
+	type HtmlTemplateProps,
+} from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
@@ -146,6 +152,128 @@ describe('KitaRenderer', () => {
 		expect(assetProcessingService.processDependencies).toHaveBeenCalled();
 		expect(result.assets).toBeDefined();
 		expect(result.assets?.[0]?.srcUrl).toBe('/assets/kita-island.js');
+	});
+
+	it('should resolve foreign boundaries inside the Kita renderer and bubble nested assets', async () => {
+		const deferredRenderComponent = vi.fn(async (input: ComponentRenderInput) => ({
+			html: '<button data-testid="deferred-widget">Deferred widget</button>',
+			canAttachAttributes: true,
+			rootTag: 'button',
+			integrationName: 'deferred',
+			rootAttributes: {
+				'data-eco-component-id':
+					(input.integrationContext as { componentInstanceId?: string } | undefined)?.componentInstanceId ??
+					'missing',
+			},
+			assets: [
+				{
+					kind: 'script',
+					inline: true,
+					content: 'console.log("deferred-kita")',
+					position: 'body',
+				},
+			],
+		}));
+
+		class DeferredBoundaryRenderer extends IntegrationRenderer<EcoPagesElement> {
+			name = 'deferred';
+
+			async render(): Promise<string> {
+				return '';
+			}
+
+			override async renderComponent(input: ComponentRenderInput) {
+				return deferredRenderComponent(input);
+			}
+
+			async renderToResponse<P = Record<string, unknown>>(
+				_view: EcoComponent<P>,
+				_props: P,
+				_ctx: RenderToResponseContext,
+			) {
+				return new Response('');
+			}
+		}
+
+		class DeferredBoundaryPlugin extends IntegrationPlugin<EcoPagesElement> {
+			renderer = DeferredBoundaryRenderer;
+
+			constructor() {
+				super({
+					name: 'deferred',
+					extensions: ['.deferred.tsx'],
+				});
+			}
+		}
+
+		const deferredPlugin = new DeferredBoundaryPlugin();
+		const config = await new ConfigBuilder()
+			.setRobotsTxt({
+				preferences: {
+					'*': [],
+				},
+			})
+			.setIntegrations([deferredPlugin])
+			.setDefaultMetadata({
+				title: 'Ecopages',
+				description: 'Ecopages',
+			})
+			.setBaseUrl('http://localhost:3000')
+			.build();
+
+		deferredPlugin.setConfig(config);
+		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+
+		const testRenderer = new TestKitaRenderer({
+			appConfig: config,
+			assetProcessingService: {
+				processDependencies: vi.fn(async () => []),
+			} as never,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		});
+
+		const DeferredWidget = eco.component({
+			integration: 'deferred',
+			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+		});
+		DeferredWidget.config = {
+			...DeferredWidget.config,
+			__eco: {
+				id: 'deferred-widget',
+				file: '/app/components/deferred-widget.deferred.tsx',
+				integration: 'deferred',
+			},
+		};
+
+		const Shell = eco.component<{ children?: string }, string>({
+			integration: 'kitajs',
+			dependencies: {
+				components: [DeferredWidget],
+			},
+			render: ({ children }) => `<main>${children ?? ''}${DeferredWidget({})}</main>`,
+		});
+
+		const result = await testRenderer.renderComponentBoundary({
+			component: Shell,
+			props: {},
+			children: '<section>Host child</section>',
+			integrationContext: {
+				componentInstanceId: 'host',
+			},
+		});
+
+		expect(result.html).toContain('<section>Host child</section>');
+		expect(result.html).toContain('<button data-eco-component-id="host_n_1" data-testid="deferred-widget">Deferred widget</button>');
+		expect(result.html).not.toContain('<eco-marker');
+		expect(result.assets).toEqual([
+			expect.objectContaining({
+				kind: 'script',
+				inline: true,
+				position: 'body',
+			}),
+		]);
+		expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 	});
 
 	it('should render the page', async () => {

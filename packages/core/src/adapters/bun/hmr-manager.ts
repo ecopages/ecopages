@@ -318,8 +318,7 @@ export class HmrManager implements IHmrManager {
 	 */
 	public async registerEntrypoint(entrypointPath: string): Promise<string> {
 		return await this.entrypointRegistrar.registerEntrypoint(entrypointPath, {
-			emit: async (normalizedEntrypoint, outputPath) =>
-				await this.emitStrictEntrypoint(normalizedEntrypoint, outputPath),
+			emit: async (normalizedEntrypoint) => await this.emitStrictEntrypoint(normalizedEntrypoint),
 			getMissingOutputError: (normalizedEntrypoint, outputPath) =>
 				new Error(
 					`[HMR] Integration failed to emit entrypoint ${normalizedEntrypoint} to ${outputPath}. Page entrypoints must be produced by their owning integration.`,
@@ -351,7 +350,7 @@ export class HmrManager implements IHmrManager {
 	 * strategy processing without broadcasting, and then verifies that the owning
 	 * integration emitted the expected file.
 	 */
-	private async emitStrictEntrypoint(entrypointPath: string, _outputPath: string): Promise<void> {
+	private async emitStrictEntrypoint(entrypointPath: string): Promise<void> {
 		await this.handleFileChange(entrypointPath, { broadcast: false });
 	}
 

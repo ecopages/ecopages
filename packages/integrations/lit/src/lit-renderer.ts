@@ -24,12 +24,84 @@ const COMPONENT_CHILDREN_SLOT_MARKER = '<!--eco-lit-component-children-->';
 const ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER = '&lt;!--eco-lit-component-children--&gt;';
 const DOUBLE_ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER = '&amp;lt;!--eco-lit-component-children--&amp;gt;';
 const DUPLICATE_DECLARATIVE_SHADOW_ROOT_ATTRIBUTE = /\sshadowroot=(['"])(open|closed)\1(?=\sshadowrootmode=\1\2\1)/g;
+const LIT_BOUNDARY_TOKEN_PREFIX = '__ECO_LIT_BOUNDARY__';
+
+type LitBoundaryRuntimeContext = {
+	rendererCache: Map<string, IntegrationRenderer<any>>;
+	componentInstanceScope?: string;
+	nextBoundaryId: number;
+	queuedResolutions: Array<{
+		token: string;
+		component: EcoComponent;
+		props: Record<string, unknown>;
+		componentInstanceId: string;
+	}>;
+};
 
 /**
  * A renderer for the Lit integration.
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = PLUGIN_NAME;
+
+	private async resolveQueuedBoundaryChildren(
+		children: unknown,
+		queuedResolutionsByToken: Map<string, LitBoundaryRuntimeContext['queuedResolutions'][number]>,
+		resolveToken: (token: string) => Promise<string>,
+	): Promise<string | undefined> {
+		if (children === undefined) {
+			return undefined;
+		}
+
+		let renderedChildren =
+			typeof children === 'string' ? children : await this.renderValueToString(children);
+
+		for (const token of queuedResolutionsByToken.keys()) {
+			if (!renderedChildren.includes(token)) {
+				continue;
+			}
+
+			renderedChildren = renderedChildren.split(token).join(await resolveToken(token));
+		}
+
+		return renderedChildren;
+	}
+
+	private async resolveQueuedBoundaryHtml(
+		html: string,
+		runtimeContext: LitBoundaryRuntimeContext | undefined,
+	): Promise<{ html: string; assets: ComponentRenderResult['assets'] }> {
+		const queuedBoundaryResolution = await this.queuedBoundaryRuntimeService.resolveQueuedHtml({
+			html,
+			runtimeContext,
+			queueLabel: 'Lit',
+			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
+				const renderedChildren = await this.resolveQueuedBoundaryChildren(
+					children,
+					queuedResolutionsByToken,
+					resolveToken,
+				);
+
+				return {
+					assets: [],
+					html: renderedChildren,
+				};
+			},
+			resolveBoundary: (boundaryInput, rendererCache) =>
+				this.resolveBoundaryInOwningRenderer(
+					boundaryInput,
+					rendererCache as Map<string, IntegrationRenderer<any>>,
+				),
+			applyAttributesToFirstElement: (queuedHtml, attributes) =>
+				this.htmlTransformer.applyAttributesToFirstElement(queuedHtml, attributes),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+		});
+
+		return {
+			html: queuedBoundaryResolution.html,
+			assets: queuedBoundaryResolution.assets.length > 0 ? queuedBoundaryResolution.assets : undefined,
+		};
+	}
 
 	private normalizeDeclarativeShadowRootMarkup(markup: string): string {
 		return markup.replace(DUPLICATE_DECLARATIVE_SHADOW_ROOT_ATTRIBUTE, '');
@@ -134,23 +206,32 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		const component = input.component as (
 			props: Record<string, unknown>,
 		) => Promise<EcoPagesElement> | EcoPagesElement;
-		const renderedChildren =
-			input.children === undefined
-				? undefined
-				: typeof input.children === 'string'
+		let renderedChildren: string | undefined;
+		if (input.children !== undefined) {
+			renderedChildren =
+				typeof input.children === 'string'
 					? input.children
 					: await this.renderValueToString(input.children);
-		const props =
-			renderedChildren === undefined
-				? input.props
-				: {
-						...input.props,
-						children: COMPONENT_CHILDREN_SLOT_MARKER,
-					};
+		}
+
+		let props = input.props;
+		if (renderedChildren !== undefined) {
+			props = {
+				...input.props,
+				children: COMPONENT_CHILDREN_SLOT_MARKER,
+			};
+		}
 		const content = await component(props);
 		const renderedHtml = await this.renderValueToString(content);
 		const html =
 			renderedChildren === undefined ? renderedHtml : this.injectRenderedChildren(renderedHtml, renderedChildren);
+		const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(
+			html,
+			this.queuedBoundaryRuntimeService.getRuntimeContext<LitBoundaryRuntimeContext>(
+				input,
+				'__ecopagesLitBoundaryRuntime',
+			),
+		);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
 		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
 		const assets =
@@ -159,12 +240,28 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				: undefined;
 
 		return {
-			html,
+			html: queuedBoundaryResolution.html,
 			canAttachAttributes: true,
-			rootTag: this.getRootTagName(html),
+			rootTag: this.getRootTagName(queuedBoundaryResolution.html),
 			integrationName: this.name,
-			assets,
+			assets: this.htmlTransformer.dedupeProcessedAssets([
+				...(assets ?? []),
+				...(queuedBoundaryResolution.assets ?? []),
+			]),
 		};
+	}
+
+	protected override createComponentBoundaryRuntime(options: {
+		boundaryInput: ComponentRenderInput;
+		rendererCache: Map<string, IntegrationRenderer<any>>;
+	}) {
+		return this.queuedBoundaryRuntimeService.createRuntime<LitBoundaryRuntimeContext>({
+			boundaryInput: options.boundaryInput,
+			rendererCache: options.rendererCache as Map<string, unknown>,
+			runtimeContextKey: '__ecopagesLitBoundaryRuntime',
+			tokenPrefix: LIT_BOUNDARY_TOKEN_PREFIX,
+			shouldQueueBoundary: (input) => this.shouldResolveBoundaryInOwningRenderer(input),
+		});
 	}
 
 	private readonly ssrLazyPreloader = new LitSsrLazyPreloader({

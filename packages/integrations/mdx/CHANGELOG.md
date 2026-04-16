@@ -8,16 +8,11 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 ### Features
 
-- Added standalone MDX server rendering and async compilation support.
+- Added standalone non-React MDX server rendering with async compilation and opt-in `.md` support.
 
 ### Bug Fixes
 
-- Fixed `.md` opt-in handling, loader registration, and Node `source-map` interop.
-- Fixed full route and explicit MDX view rendering to stay on the renderer-owned page/layout/document component path for deferred mixed-integration boundaries.
-
-### Refactoring
-
-- Removed the React-specific renderer and HMR path from the package.
+- Fixed loader registration, Node `source-map` interop, and renderer-owned mixed-boundary rendering for standalone MDX routes.
 
 ### Documentation
 
@@ -27,5 +22,4 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 ## Migration Notes
 
-- Register `@ecopages/mdx` and `@ecopages/react` separately when you want MDX server rendering together with React client hydration.
-- The previous React-specific MDX path, including `useReact` and the React-specific HMR hooks, has been removed.
+- Use `reactPlugin({ mdx: { enabled: true } })` for React-backed MDX routes; the standalone `@ecopages/mdx` plugin now targets non-React JSX runtimes.

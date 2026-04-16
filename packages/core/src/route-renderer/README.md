@@ -25,7 +25,8 @@ Framework-owned orchestration services and renderer base class:
 
 - `integration-renderer.ts`: abstract base class that coordinates end-to-end route rendering.
 - `render-preparation.service.ts`: page module/data/dependency preparation before render.
-- `render-execution.service.ts`: render capture, marker-compatibility resolution, and finalization.
+- `render-execution.service.ts`: render capture, unresolved-marker enforcement, and finalization.
+- `string-boundary-runtime.service.ts`: shared queued foreign-boundary runtime for string-first renderers.
 
 It also provides:
 
@@ -33,13 +34,9 @@ It also provides:
 - `renderComponent()` contract for component-level orchestration and artifact reporting.
 - deferred boundary resolution for nested cross-integration component boundaries.
 
-### `component-graph/`
+### Boundary Markers
 
-Component marker contracts and graph resolution:
-
-- `createComponentMarker()` for canonical `<eco-marker ...></eco-marker>` generation.
-- `parseComponentMarkers()` for marker extraction from rendered HTML.
-- `marker-graph-resolver.ts` for marker extraction, child-link reconstruction, and bottom-up resolution.
+Renderer-owned runtimes may still emit raw `<eco-marker ...></eco-marker>` transport tokens internally while they resolve foreign descendants before returning final HTML.
 
 ### `page-loading/`
 
@@ -59,7 +56,7 @@ Builds processed assets from component dependency declarations:
 
 Default behavior:
 
-- marker-compatibility component orchestration + component render artifacts.
+- renderer-owned component-boundary orchestration + component render artifacts.
 - global lazy trigger map + global injector bootstrap.
 
 Global injector lifecycle notes:
@@ -87,13 +84,8 @@ Current base orchestration behavior:
 
 When rendered output contains `eco-marker` nodes:
 
-- the first pass still renders from the page root downward and emits markers only for deferred boundaries.
-- each marker carries the target integration name plus the component and props references needed to reconstruct that subtree.
-- builds deferred boundary resolution input from render-time captured props (`capturedPropsByRef`), including nested deferred child placeholders captured directly inside serialized `children` props.
-- resolves markers bottom-up through integration-specific `renderComponent()` calls.
-- core decodes markers and selects the target renderer; the integration renderer only performs the reconstructed component render.
-- fails fast when marker component refs or props refs are missing.
-- merges marker-rendered assets back into the dependency pipeline with deduplication.
+- route execution now treats them as unresolved boundary artifacts and fails fast.
+- renderer-owned boundary runtimes are responsible for resolving foreign nested components before final route HTML is returned.
 
 This enables island-style hydration assets (for example React/Lit/Kita integration outputs) to be emitted through the normal dependency injection pipeline.
 
@@ -120,6 +112,5 @@ This enables island-style hydration assets (for example React/Lit/Kita integrati
 
 If you are reading this file to understand today's contract, you can stop at the output pipeline above. The items below describe areas still evolving rather than required behavior.
 
-- Deep multi-level slot graphs now have dedicated unit, orchestration, and kitchen-sink coverage, and built-in marker emission covers the cross-integration React and Lit boundaries exercised by the current test matrix.
-- Integration-side marker emission is still conservative, so not every nested cross-integration tree resolves through graph mode by default.
-- Marker resolution still resolves nodes one boundary at a time; batching by integration per level remains a possible follow-up if repeated renderer calls become a measurable cost.
+- Deep multi-level mixed-integration trees now rely on renderer-owned boundary runtimes rather than a shared post-render graph resolver.
+- Each renderer still decides how to hand off foreign boundaries, so specialized runtimes remain appropriate where child serialization or hydration contracts differ.

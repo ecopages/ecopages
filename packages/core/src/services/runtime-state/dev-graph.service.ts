@@ -48,8 +48,8 @@ export class NoopDevGraphService implements DevGraphService {
 	/**
 	 * Invalidates all server-side module state by incrementing the shared version.
 	 */
-	invalidateServerModules(_changedFiles?: string[]): void {
-		this.invalidationState.invalidateServerModules(_changedFiles);
+	invalidateServerModules(changedFiles?: string[]): void {
+		this.invalidationState.invalidateServerModules(changedFiles);
 	}
 
 	/**
@@ -63,16 +63,16 @@ export class NoopDevGraphService implements DevGraphService {
 	 * Returns an empty entrypoint set because this implementation stores no
 	 * dependency graph metadata.
 	 */
-	getDependencyEntrypoints(_filePath: string): Set<string> {
-		return this.dependencyGraph.getDependencyEntrypoints(_filePath);
+	getDependencyEntrypoints(filePath: string): Set<string> {
+		return this.dependencyGraph.getDependencyEntrypoints(filePath);
 	}
 
 	/**
 	 * Accepts dependency updates to preserve interface compatibility, but stores no
 	 * graph state in the noop implementation.
 	 */
-	setEntrypointDependencies(_entrypointPath: string, _dependencies: string[]): void {
-		this.dependencyGraph.setEntrypointDependencies(_entrypointPath, _dependencies);
+	setEntrypointDependencies(entrypointPath: string, dependencies: string[]): void {
+		this.dependencyGraph.setEntrypointDependencies(entrypointPath, dependencies);
 	}
 
 	/**
@@ -81,8 +81,8 @@ export class NoopDevGraphService implements DevGraphService {
 	 * @remarks
 	 * There is no stored graph state in this implementation, so this is a no-op.
 	 */
-	clearEntrypointDependencies(_entrypointPath: string): void {
-		this.dependencyGraph.clearEntrypointDependencies(_entrypointPath);
+	clearEntrypointDependencies(entrypointPath: string): void {
+		this.dependencyGraph.clearEntrypointDependencies(entrypointPath);
 	}
 
 	/**
@@ -121,8 +121,8 @@ export class InMemoryDevGraphService implements DevGraphService {
 	 * modules. Selective dependency lookups are used by callers that need to limit
 	 * browser rebuild work.
 	 */
-	invalidateServerModules(_changedFiles?: string[]): void {
-		this.invalidationState.invalidateServerModules(_changedFiles);
+	invalidateServerModules(changedFiles?: string[]): void {
+		this.invalidationState.invalidateServerModules(changedFiles);
 	}
 
 	/**

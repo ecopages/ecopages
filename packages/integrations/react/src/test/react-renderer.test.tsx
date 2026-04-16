@@ -4,6 +4,7 @@ import { ConfigBuilder } from '@ecopages/core/config-builder';
 import {
 	eco,
 	type ComponentRenderInput,
+	type ComponentRenderResult,
 	type EcoComponent,
 	type EcoPageFile,
 	type EcoPagesElement,
@@ -366,6 +367,7 @@ describe('ReactRenderer', () => {
 			};
 
 			testRenderer.importedPageFileOverride = {
+				default: Page,
 				config: {
 					dependencies: {
 						components: [declaredLitComponent],
@@ -437,25 +439,27 @@ describe('ReactRenderer', () => {
 		});
 
 		it('should resolve foreign boundaries inside React and preserve upstream child html', async () => {
-			const deferredRenderComponent = vi.fn(async (input: ComponentRenderInput) => ({
-				html: `<aside data-slot="true">${input.children ?? ''}<button data-testid="deferred-widget">Deferred widget</button></aside>`,
-				canAttachAttributes: true,
-				rootTag: 'aside',
-				integrationName: 'deferred',
-				rootAttributes: {
-					'data-eco-component-id':
-						(input.integrationContext as { componentInstanceId?: string } | undefined)
-							?.componentInstanceId ?? 'missing',
-				},
-				assets: [
-					{
-						kind: 'script',
-						inline: true,
-						content: 'console.log("deferred-react")',
-						position: 'body',
+			const deferredRenderComponent = vi.fn(
+				async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
+					html: `<aside data-slot="true">${input.children ?? ''}<button data-testid="deferred-widget">Deferred widget</button></aside>`,
+					canAttachAttributes: true,
+					rootTag: 'aside',
+					integrationName: 'deferred',
+					rootAttributes: {
+						'data-eco-component-id':
+							(input.integrationContext as { componentInstanceId?: string } | undefined)
+								?.componentInstanceId ?? 'missing',
 					},
-				],
-			}));
+					assets: [
+						{
+							kind: 'script' as const,
+							inline: true,
+							content: 'console.log("deferred-react")',
+							position: 'body' as const,
+						},
+					],
+				}),
+			);
 
 			class DeferredBoundaryRenderer extends IntegrationRenderer<EcoPagesElement> {
 				name = 'deferred';
@@ -464,7 +468,7 @@ describe('ReactRenderer', () => {
 					return '';
 				}
 
-				override async renderComponent(input: ComponentRenderInput) {
+				override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 					return deferredRenderComponent(input);
 				}
 

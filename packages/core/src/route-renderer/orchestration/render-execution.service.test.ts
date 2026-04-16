@@ -183,8 +183,8 @@ describe('RenderExecutionService', () => {
 							Page,
 							cacheStrategy: 'dynamic',
 						}) as unknown as IntegrationRendererRenderOptions<unknown>,
-						render: async () =>
-							'<html><body><eco-marker data-eco-node-id="n_1" data-eco-component-ref="unexpected-marker" data-eco-props-ref="p_1"></eco-marker></body></html>',
+					render: async () =>
+						'<html><body><eco-marker data-eco-node-id="n_1" data-eco-component-ref="unexpected-marker" data-eco-props-ref="p_1"></eco-marker></body></html>',
 					getDocumentAttributes: () => undefined,
 					applyAttributesToHtmlElement: (html) => html,
 					applyAttributesToFirstBodyElement: (html) => html,

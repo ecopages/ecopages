@@ -8,9 +8,7 @@ import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './rend
  * renderer-owned value immediately, which can be final HTML or a renderer-local
  * transport token for later queue resolution.
  */
-export type ComponentBoundaryInterceptionResult =
-	| { kind: 'inline' }
-	| { kind: 'resolved'; value: unknown };
+export type ComponentBoundaryInterceptionResult = { kind: 'inline' } | { kind: 'resolved'; value: unknown };
 
 /**
  * Boundary metadata passed into the active renderer-owned runtime.
@@ -94,9 +92,7 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 		this.context = context;
 	}
 
-	private applyBoundaryInterceptionResult(
-		result: ComponentBoundaryInterceptionResult,
-	): unknown | undefined {
+	private applyBoundaryInterceptionResult(result: ComponentBoundaryInterceptionResult): unknown | undefined {
 		if (result.kind === 'resolved') {
 			return result.value;
 		}

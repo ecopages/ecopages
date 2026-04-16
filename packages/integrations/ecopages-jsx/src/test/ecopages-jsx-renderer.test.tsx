@@ -134,8 +134,8 @@ describe('EcopagesJsxRenderer', () => {
 				integrationName: 'deferred',
 				rootAttributes: {
 					'data-eco-component-id':
-						(input.integrationContext as { componentInstanceId?: string } | undefined)?.componentInstanceId ??
-						'missing',
+						(input.integrationContext as { componentInstanceId?: string } | undefined)
+							?.componentInstanceId ?? 'missing',
 				},
 				assets: [
 					{
@@ -240,7 +240,9 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			expect(result.html).toContain('<section>Host child</section>');
-			expect(result.html).toContain('<button data-eco-component-id="host_n_1" data-testid="deferred-widget">Deferred widget</button>');
+			expect(result.html).toContain(
+				'<button data-eco-component-id="host_n_1" data-testid="deferred-widget">Deferred widget</button>',
+			);
 			expect(result.html).not.toContain('<eco-marker');
 			expect(result.assets).toEqual([
 				expect.objectContaining({

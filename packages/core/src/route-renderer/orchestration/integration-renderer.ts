@@ -43,7 +43,7 @@ import {
 	QueuedBoundaryRuntimeService,
 	type QueuedBoundaryResolution,
 	type QueuedBoundaryRuntimeContext,
-	} from './queued-boundary-runtime.service.ts';
+} from './queued-boundary-runtime.service.ts';
 
 type BoundaryRenderDecisionInput = {
 	currentIntegration: string;
@@ -575,7 +575,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		runtimeContextKey?: string;
 		tokenPrefix?: string;
 		createRuntimeContext?: (
-			integrationContext: { rendererCache?: Map<string, unknown>; componentInstanceId?: string; [key: string]: unknown },
+			integrationContext: {
+				rendererCache?: Map<string, unknown>;
+				componentInstanceId?: string;
+				[key: string]: unknown;
+			},
 			rendererCache: Map<string, unknown>,
 		) => TContext;
 	}): ComponentBoundaryRuntime {
@@ -1160,8 +1164,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected normalizeBoundaryArtifactHtml(html: string): string {
 		return normalizeBoundaryArtifactHtml(html);
 	}
-
-
 
 	/**
 	 * Returns whether the component dependency tree crosses into another

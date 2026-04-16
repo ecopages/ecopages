@@ -374,12 +374,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			html,
 			runtimeContext,
 			queueLabel: 'React',
-			renderQueuedChildren: async (
-				children,
-				currentRuntimeContext,
-				queuedResolutionsByToken,
-				resolveToken,
-			) => {
+			renderQueuedChildren: async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => {
 				const renderedHtml = await this.renderQueuedChildrenToHtml(
 					children,
 					currentRuntimeContext,

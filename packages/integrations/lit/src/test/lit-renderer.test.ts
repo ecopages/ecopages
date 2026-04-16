@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { eco, type ComponentRenderInput, type EcoComponent, type EcoPagesElement, type HtmlTemplateProps } from '@ecopages/core';
+import {
+	eco,
+	type ComponentRenderInput,
+	type EcoComponent,
+	type EcoPagesElement,
+	type HtmlTemplateProps,
+} from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
@@ -371,8 +377,8 @@ describe('LitRenderer', () => {
 				integrationName: 'deferred',
 				rootAttributes: {
 					'data-eco-component-id':
-						(input.integrationContext as { componentInstanceId?: string } | undefined)?.componentInstanceId ??
-						'missing',
+						(input.integrationContext as { componentInstanceId?: string } | undefined)
+							?.componentInstanceId ?? 'missing',
 				},
 				assets: [
 					{
@@ -473,7 +479,9 @@ describe('LitRenderer', () => {
 			});
 
 			expect(result.html).toContain('<section>Host child</section>');
-			expect(result.html).toContain('<button data-eco-component-id="host_n_1" data-testid="deferred-widget">Deferred widget</button>');
+			expect(result.html).toContain(
+				'<button data-eco-component-id="host_n_1" data-testid="deferred-widget">Deferred widget</button>',
+			);
 			expect(result.html).not.toContain('<eco-marker');
 			expect(result.assets).toEqual([
 				expect.objectContaining({

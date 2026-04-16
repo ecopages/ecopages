@@ -444,8 +444,8 @@ describe('ReactRenderer', () => {
 				integrationName: 'deferred',
 				rootAttributes: {
 					'data-eco-component-id':
-						(input.integrationContext as { componentInstanceId?: string } | undefined)?.componentInstanceId ??
-						'missing',
+						(input.integrationContext as { componentInstanceId?: string } | undefined)
+							?.componentInstanceId ?? 'missing',
 				},
 				assets: [
 					{
@@ -550,7 +550,9 @@ describe('ReactRenderer', () => {
 			});
 
 			expect(result.html).toContain('<h2>Host</h2>');
-			expect(result.html).toContain('<aside data-eco-component-id="host_n_1" data-slot="true"><span data-child="true">Child</span><button data-testid="deferred-widget">Deferred widget</button></aside>');
+			expect(result.html).toContain(
+				'<aside data-eco-component-id="host_n_1" data-slot="true"><span data-child="true">Child</span><button data-testid="deferred-widget">Deferred widget</button></aside>',
+			);
 			expect(result.html).not.toContain('<eco-marker');
 			expect(result.assets).toEqual([
 				expect.objectContaining({

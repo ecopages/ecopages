@@ -264,7 +264,9 @@ describe('KitaRenderer', () => {
 		});
 
 		expect(result.html).toContain('<section>Host child</section>');
-		expect(result.html).toContain('<button data-eco-component-id="host_n_1" data-testid="deferred-widget">Deferred widget</button>');
+		expect(result.html).toContain(
+			'<button data-eco-component-id="host_n_1" data-testid="deferred-widget">Deferred widget</button>',
+		);
 		expect(result.html).not.toContain('<eco-marker');
 		expect(result.assets).toEqual([
 			expect.objectContaining({

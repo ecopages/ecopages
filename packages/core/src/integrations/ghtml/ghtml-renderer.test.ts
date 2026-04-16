@@ -4,7 +4,10 @@ import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.js';
 import { eco, type EcoComponent, type EcoPagesElement, type HtmlTemplateProps } from '../../index.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { IntegrationPlugin } from '../../plugins/integration-plugin.ts';
-import { IntegrationRenderer, type RenderToResponseContext } from '../../route-renderer/orchestration/integration-renderer.ts';
+import {
+	IntegrationRenderer,
+	type RenderToResponseContext,
+} from '../../route-renderer/orchestration/integration-renderer.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
 
 const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();

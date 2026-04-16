@@ -103,10 +103,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 	private async resolveQueuedBoundaryChildren(
 		children: unknown,
-		queuedResolutionsByToken: Map<
-			string,
-			EcopagesJsxBoundaryRuntimeContext['queuedResolutions'][number]
-		>,
+		queuedResolutionsByToken: Map<string, EcopagesJsxBoundaryRuntimeContext['queuedResolutions'][number]>,
 		resolveToken: (token: string) => Promise<string>,
 	): Promise<{ assets: ProcessedAsset[]; html?: string }> {
 		if (children === undefined) {
@@ -139,12 +136,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			html,
 			runtimeContext,
 			queueLabel: 'Ecopages JSX',
-			renderQueuedChildren: async (
-				children,
-				_runtimeContext,
-				queuedResolutionsByToken,
-				resolveToken,
-			) => this.resolveQueuedBoundaryChildren(children, queuedResolutionsByToken, resolveToken),
+			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
+				this.resolveQueuedBoundaryChildren(children, queuedResolutionsByToken, resolveToken),
 		});
 	}
 
@@ -251,9 +244,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 				props = {
 					...input.props,
 					children:
-						typeof input.children === 'string'
-							? createMarkupNodeLike(input.children)
-							: input.children,
+						typeof input.children === 'string' ? createMarkupNodeLike(input.children) : input.children,
 				};
 			}
 			const content = await this.renderEcoComponent(

@@ -52,8 +52,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			return undefined;
 		}
 
-		let renderedChildren =
-			typeof children === 'string' ? children : await this.renderValueToString(children);
+		let renderedChildren = typeof children === 'string' ? children : await this.renderValueToString(children);
 		renderedChildren = await this.resolveQueuedBoundaryTokens(
 			renderedChildren,
 			queuedResolutionsByToken,
@@ -197,9 +196,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		let renderedChildren: string | undefined;
 		if (input.children !== undefined) {
 			renderedChildren =
-				typeof input.children === 'string'
-					? input.children
-					: await this.renderValueToString(input.children);
+				typeof input.children === 'string' ? input.children : await this.renderValueToString(input.children);
 		}
 
 		let props = input.props;

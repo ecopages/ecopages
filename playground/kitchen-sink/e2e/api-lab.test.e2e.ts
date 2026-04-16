@@ -11,7 +11,9 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 
 		await expect(page.getByRole('heading', { name: 'Handlers registered directly from app.ts' })).toBeVisible();
 		await page.waitForFunction(
-			() => document.querySelector('[data-api-response-viewer]')?.getAttribute('data-api-lab-runtime') === 'mounted',
+			() =>
+				document.querySelector('[data-api-response-viewer]')?.getAttribute('data-api-lab-runtime') ===
+				'mounted',
 			null,
 			{ timeout: 15000 },
 		);
@@ -32,7 +34,9 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 		await gotoAndWait(page, '/api-lab');
 		await expect(page.getByRole('heading', { name: 'Handlers registered directly from app.ts' })).toBeVisible();
 		await page.waitForFunction(
-			() => document.querySelector('[data-api-response-viewer]')?.getAttribute('data-api-lab-runtime') === 'mounted',
+			() =>
+				document.querySelector('[data-api-response-viewer]')?.getAttribute('data-api-lab-runtime') ===
+				'mounted',
 			null,
 			{ timeout: 15000 },
 		);

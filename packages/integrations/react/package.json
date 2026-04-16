@@ -1,60 +1,60 @@
 {
-	"name": "@ecopages/react",
-	"version": "0.2.0-alpha.13",
-	"description": "React integration for Ecopages",
-	"keywords": [
-		"ecopages",
-		"react",
-		"plugin"
-	],
-	"license": "MIT",
-	"main": "./src/react.plugin.ts",
-	"types": "./src/react.plugin.ts",
-	"type": "module",
-	"files": [
-		"src"
-	],
-	"exports": {
-		".": {
-			"default": "./src/react.plugin.ts",
-			"types": "./src/react.plugin.ts"
-		},
-		"./declarations": {
-			"types": "./src/declarations.d.ts"
-		},
-		"./utils/dynamic": "./src/utils/dynamic.ts",
-		"./utils/client-only": "./src/utils/client-only.ts",
-		"./router-adapter": "./src/router-adapter.ts"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/ecopages/ecopages.git",
-		"directory": "packages/integrations/react"
-	},
-	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
-	},
-	"peerDependencies": {
-		"@ecopages/core": "workspace:*",
-		"@types/react": "^19",
-		"@types/react-dom": "^19",
-		"react": "^19",
-		"react-dom": "^19"
-	},
-	"dependencies": {
-		"@ecopages/file-system": "workspace:*",
-		"@ecopages/logger": "^0.2.3",
-		"@mdx-js/esbuild": "^3.0.1",
-		"@mdx-js/mdx": "^3.1.0",
-		"oxc-parser": "^0.124.0",
-		"oxc-transform": "^0.124.0",
-		"source-map": "^0.7.6",
-		"vfile": "^6.0.3"
-	},
-	"overrides": {
-		"react": "^19",
-		"react-dom": "^19"
-	},
-	"devDependencies": {}
+  "name": "@ecopages/react",
+  "version": "0.2.0-alpha.14",
+  "description": "React integration for Ecopages",
+  "keywords": [
+    "ecopages",
+    "react",
+    "plugin"
+  ],
+  "license": "MIT",
+  "main": "./src/react.plugin.ts",
+  "types": "./src/react.plugin.ts",
+  "type": "module",
+  "files": [
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "default": "./src/react.plugin.ts",
+      "types": "./src/react.plugin.ts"
+    },
+    "./declarations": {
+      "types": "./src/declarations.d.ts"
+    },
+    "./utils/dynamic": "./src/utils/dynamic.ts",
+    "./utils/client-only": "./src/utils/client-only.ts",
+    "./router-adapter": "./src/router-adapter.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ecopages/ecopages.git",
+    "directory": "packages/integrations/react"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "release:jsr": "bunx jsr publish"
+  },
+  "peerDependencies": {
+    "@ecopages/core": "workspace:*",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "dependencies": {
+    "@ecopages/file-system": "workspace:*",
+    "@ecopages/logger": "^0.2.3",
+    "@mdx-js/esbuild": "^3.0.1",
+    "@mdx-js/mdx": "^3.1.0",
+    "oxc-parser": "^0.124.0",
+    "oxc-transform": "^0.124.0",
+    "source-map": "^0.7.6",
+    "vfile": "^6.0.3"
+  },
+  "overrides": {
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {}
 }

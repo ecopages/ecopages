@@ -21,7 +21,7 @@ Ecopages is framework-agnostic. You can use one or multiple rendering integratio
 | **[KitaJS](/docs/integrations/kitajs)** | JSX (Fast) | High-performance static sites | Full |
 | **[React 19](/docs/integrations/react)** | React | Dynamic apps, rich interactivity | Full |
 | **[Lit](/docs/integrations/lit)** | Web Components | Reusable UI, micro-frontends | Full |
-| **[MDX](/docs/integrations/mdx)** | Markdown + JSX | Documentation, Blogs, Content | Full (via React) |
+| **[MDX](/docs/integrations/mdx)** | Markdown + JSX | Documentation, Blogs, Content | Full |
 
 ---
 
@@ -35,7 +35,7 @@ Ecopages is framework-agnostic. You can use one or multiple rendering integratio
 ### Use React if...
 - You are building a complex dashboard or interactive app.
 - You want to leverage the massive React ecosystem and libraries.
-- You are familiar with React Server Components patterns.
+- You want React-managed pages or component islands inside a mixed-renderer app.
 
 ### Use Lit if...
 - You want to build standard-compliant Web Components.
@@ -56,6 +56,6 @@ You can combine multiple integrations in your `eco.config.ts`. This allows you t
 <Banner type="info">
 	<Banner.Title>Pro Tip</Banner.Title>
 	<p>
-		When mixing integrations, make sure to set the correct `jsxImportSource` in your MDX configuration if you want it to align with either React or KitaJS.
+		Choose the MDX path that matches the owning runtime. Standalone <code>mdxPlugin()</code> targets non-React JSX runtimes such as KitaJS, while React-backed MDX should be enabled through <code>reactPlugin({`{ mdx: { enabled: true } }`})</code>.
 	</p>
 </Banner>

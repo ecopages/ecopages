@@ -134,7 +134,7 @@ export default config;
 Start the application using `createApp`. It will choose the Bun adapter when Bun is available and fall back to Node otherwise.
 
 ```typescript
-import { createApp } from '@ecopages/core';
+import { createApp } from '@ecopages/core/create-app';
 import appConfig from './eco.config';
 
 const app = await createApp({ appConfig });
@@ -198,7 +198,7 @@ Attach the handler in your `app.ts` entry:
 
 ```typescript
 // app.ts
-import { createApp } from '@ecopages/core';
+import { createApp } from '@ecopages/core/create-app';
 import { helloWorld } from './handlers/hello';
 import appConfig from './eco.config';
 
@@ -213,10 +213,11 @@ See the [official documentation](https://ecopages.app) for advanced usage, API h
 
 ## Import Structure
 
-Use the root package exports for standard authoring in Bun-native flows:
+Use the `create-app` subpath for runtime startup and the root package for standard authoring helpers:
 
 ```ts
-import { createApp, defineApiHandler, defineGroupHandler, eco } from '@ecopages/core';
+import { createApp } from '@ecopages/core/create-app';
+import { defineApiHandler, defineGroupHandler, eco } from '@ecopages/core';
 ```
 
 > [!NOTE]

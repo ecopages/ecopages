@@ -26,7 +26,8 @@ Let's create a simple counter component to demonstrate this structure, we will u
 ## RadiantCounter.ts
 
 ```typescript
-import { eco, html } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 import type { RadiantCounterProps } from './radiant-counter.script';
 
 export const RadiantCounter = eco.component<RadiantCounterProps>({
@@ -152,7 +153,8 @@ To use your components in pages, import them and include them in your HTML templ
 ```typescript
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
-import { eco, html } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
 
 export default eco.page({
 	metadata: () => ({

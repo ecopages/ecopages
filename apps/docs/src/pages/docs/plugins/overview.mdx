@@ -45,13 +45,13 @@ Examples include the KitaJS, React, and Lit integrations.
 Plugins are configured in your `eco.config.ts` file:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { kitaPlugin } from '@ecopages/kitajs';
+import { kitajsPlugin } from '@ecopages/kitajs';
 
 const config = await new ConfigBuilder()
 	.setProcessors([postcssProcessorPlugin()])
-	.setIntegrations([kitaPlugin()])
+	.setIntegrations([kitajsPlugin()])
 	.build();
 ```
 

@@ -652,7 +652,7 @@ describe('ReactRenderer', () => {
 		}
 	});
 
-	it('should preserve raw eco markers through non-react html templates', async () => {
+	it('should preserve unresolved boundary artifact html through non-react html templates', async () => {
 		const testRenderer = createRenderer();
 		const MarkerPage = (() =>
 			'<eco-marker data-eco-node-id="n_1" data-eco-integration="lit" data-eco-component-ref="cmp" data-eco-props-ref="p_1"></eco-marker>') as unknown as EcoComponent<object>;
@@ -681,7 +681,7 @@ describe('ReactRenderer', () => {
 		expect(text).not.toContain('&amp;lt;eco-marker');
 	});
 
-	it('should preserve raw eco markers through react html templates', async () => {
+	it('should preserve unresolved boundary artifact html through react html templates', async () => {
 		const testRenderer = createRenderer();
 		const MarkerPage = (() =>
 			'<eco-marker data-eco-node-id="n_1" data-eco-integration="lit" data-eco-component-ref="cmp" data-eco-props-ref="p_1"></eco-marker>') as unknown as EcoComponent<object>;

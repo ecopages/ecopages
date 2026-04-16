@@ -1,4 +1,4 @@
-import { restoreEscapedComponentMarkers } from './render-output.utils.ts';
+import { inspectBoundaryArtifactHtml } from './render-output.utils.ts';
 import type {
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
@@ -26,17 +26,13 @@ export interface RenderExecutionCallbacks<C> {
 	transformResponse(response: Response): Promise<RouteRendererBody>;
 }
 
-function containsBoundaryMarkerHtml(html: string): boolean {
-	return html.includes('<eco-marker');
-}
-
 /**
  * Executes the main post-preparation rendering flow for integration renderers.
  *
-	 * This service owns the orchestration that happens after normalized render
-	 * options have been prepared: one render pass, unresolved-route-marker
-	 * enforcement, root-attribute application, and final HTML transformation into
-	 * a response body stream.
+ * This service owns the orchestration that happens after normalized render
+ * options have been prepared: one render pass, unresolved boundary-marker
+ * enforcement, root-attribute application, and final HTML transformation into
+ * a response body stream.
  */
 export class RenderExecutionService {
 	async captureHtmlRender(render: () => Promise<RouteRendererBody>): Promise<CapturedHtmlRenderResult> {
@@ -70,13 +66,13 @@ export class RenderExecutionService {
 			Object.keys(renderOptions.componentRender.rootAttributes).length > 0;
 
 		const renderExecution = await this.captureHtmlRender(async () => callbacks.render(renderOptions));
-		const normalizedCapturedHtml = restoreEscapedComponentMarkers(renderExecution.html);
+		const boundaryArtifacts = inspectBoundaryArtifactHtml(renderExecution.html);
 		const documentAttributes = callbacks.getDocumentAttributes(renderOptions);
-		const hasBoundaryMarkerHtml = containsBoundaryMarkerHtml(normalizedCapturedHtml);
+		const hasBoundaryMarkerHtml = boundaryArtifacts.hasUnresolvedBoundaryArtifacts;
 
 		if (hasBoundaryMarkerHtml) {
 			throw new Error(
-				'[ecopages] Route render returned unresolved boundary marker HTML. Full-route marker fallback has been removed; resolve mixed boundaries inside renderComponentBoundary().',
+				'[ecopages] Route render returned unresolved boundary artifact HTML. Full-route unresolved-boundary fallback has been removed; resolve mixed boundaries inside renderComponentBoundary().',
 			);
 		}
 
@@ -102,7 +98,7 @@ export class RenderExecutionService {
 
 		const finalization = await this.finalizeHtmlRender(
 			{
-				html: normalizedCapturedHtml,
+				html: boundaryArtifacts.normalizedHtml,
 				componentRootAttributes: shouldApplyComponentRootAttributes
 					? (renderOptions.componentRender?.rootAttributes as Record<string, string>)
 					: undefined,
@@ -160,7 +156,7 @@ export class RenderExecutionService {
 			'applyAttributesToHtmlElement' | 'applyAttributesToFirstBodyElement'
 		>,
 	): Promise<string> {
-		return this.applyFinalHtmlAttributes(restoreEscapedComponentMarkers(options.html), options, callbacks);
+		return this.applyFinalHtmlAttributes(options.html, options, callbacks);
 	}
 
 	private applyFinalHtmlAttributes(

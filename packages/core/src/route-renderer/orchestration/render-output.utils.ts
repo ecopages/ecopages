@@ -106,9 +106,21 @@ export function decodeHtmlEntities(value: string): string {
 	return decoded;
 }
 
-export function restoreEscapedComponentMarkers(html: string): string {
+export function normalizeBoundaryArtifactHtml(html: string): string {
 	return html.replace(
 		/&(?:amp;)?lt;eco-marker\b[\s\S]*?&(?:amp;)?gt;&(?:amp;)?lt;\/eco-marker&(?:amp;)?gt;/g,
 		(marker) => decodeHtmlEntities(marker),
 	);
+}
+
+export function inspectBoundaryArtifactHtml(html: string): {
+	hasUnresolvedBoundaryArtifacts: boolean;
+	normalizedHtml: string;
+} {
+	const normalizedHtml = normalizeBoundaryArtifactHtml(html);
+
+	return {
+		normalizedHtml,
+		hasUnresolvedBoundaryArtifacts: normalizedHtml.includes('<eco-marker'),
+	};
 }

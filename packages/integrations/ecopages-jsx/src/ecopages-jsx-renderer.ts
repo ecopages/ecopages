@@ -18,7 +18,6 @@ import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.plugin.ts';
 
 let radiantLightDomShimInstallPromise: Promise<void> | undefined;
-const ECOPAGES_JSX_BOUNDARY_TOKEN_PREFIX = '__ECO_ECOPAGES_JSX_BOUNDARY__';
 
 type EcopagesJsxBoundaryRuntimeContext = {
 	rendererCache: Map<string, IntegrationRenderer<any>>;
@@ -124,14 +123,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			html = renderedChildren.html;
 			assets = renderedChildren.assets;
 		}
-
-		for (const token of queuedResolutionsByToken.keys()) {
-			if (!html.includes(token)) {
-				continue;
-			}
-
-			html = html.split(token).join(await resolveToken(token));
-		}
+		html = await this.resolveQueuedBoundaryTokens(html, queuedResolutionsByToken, resolveToken);
 
 		return {
 			assets,
@@ -143,7 +135,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		html: string,
 		runtimeContext: EcopagesJsxBoundaryRuntimeContext | undefined,
 	): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		return this.queuedBoundaryRuntimeService.resolveQueuedHtml({
+		return this.resolveRendererOwnedQueuedBoundaryHtml({
 			html,
 			runtimeContext,
 			queueLabel: 'Ecopages JSX',
@@ -153,14 +145,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 				queuedResolutionsByToken,
 				resolveToken,
 			) => this.resolveQueuedBoundaryChildren(children, queuedResolutionsByToken, resolveToken),
-			resolveBoundary: (boundaryInput, rendererCache) =>
-				this.resolveBoundaryInOwningRenderer(
-					boundaryInput,
-					rendererCache as Map<string, IntegrationRenderer<any>>,
-				),
-			applyAttributesToFirstElement: (queuedHtml, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(queuedHtml, attributes),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 		});
 	}
 
@@ -279,10 +263,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			const rendered = await this.renderJsx(content);
 			const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(
 				rendered.html,
-				this.queuedBoundaryRuntimeService.getRuntimeContext<EcopagesJsxBoundaryRuntimeContext>(
-					input,
-					'__ecopagesJsxBoundaryRuntime',
-				),
+				this.getQueuedBoundaryRuntime<EcopagesJsxBoundaryRuntimeContext>(input),
 			);
 			const componentAssets =
 				input.component.config?.dependencies &&
@@ -312,12 +293,9 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		boundaryInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.queuedBoundaryRuntimeService.createRuntime<EcopagesJsxBoundaryRuntimeContext>({
+		return this.createQueuedBoundaryRuntime<EcopagesJsxBoundaryRuntimeContext>({
 			boundaryInput: options.boundaryInput,
-			rendererCache: options.rendererCache as Map<string, unknown>,
-			runtimeContextKey: '__ecopagesJsxBoundaryRuntime',
-			tokenPrefix: ECOPAGES_JSX_BOUNDARY_TOKEN_PREFIX,
-			shouldQueueBoundary: (input) => this.shouldResolveBoundaryInOwningRenderer(input),
+			rendererCache: options.rendererCache,
 		});
 	}
 

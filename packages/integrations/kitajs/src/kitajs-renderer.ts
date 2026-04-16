@@ -14,9 +14,6 @@ import type {
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { PLUGIN_NAME } from './kitajs.plugin.ts';
 
-const KITA_BOUNDARY_TOKEN_PREFIX = '__ECO_KITA_BOUNDARY__';
-const KITA_BOUNDARY_RUNTIME_CONTEXT_KEY = '__kitaBoundaryRuntime';
-
 /** Narrows an EcoComponent to its KitaJS callable signature. */
 type KitaViewFn<P> = (props: P) => Promise<EcoPagesElement> | EcoPagesElement;
 
@@ -41,10 +38,6 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return this.renderStringComponentBoundaryWithQueuedForeignBoundaries(
 			input,
 			input.component as KitaViewFn<Record<string, unknown>>,
-			{
-				runtimeContextKey: KITA_BOUNDARY_RUNTIME_CONTEXT_KEY,
-				tokenPrefix: KITA_BOUNDARY_TOKEN_PREFIX,
-			},
 		);
 	}
 
@@ -52,11 +45,9 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 		boundaryInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.createStringBoundaryRuntime({
+		return this.createQueuedBoundaryRuntime({
 			boundaryInput: options.boundaryInput,
 			rendererCache: options.rendererCache,
-			runtimeContextKey: KITA_BOUNDARY_RUNTIME_CONTEXT_KEY,
-			tokenPrefix: KITA_BOUNDARY_TOKEN_PREFIX,
 		});
 	}
 

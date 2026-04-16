@@ -12,16 +12,14 @@ These diagrams are based on a few architectural assumptions that seem important 
   Adapters and route matchers decide which renderer to use; once selected, the integration renderer owns the page render pipeline.
 - **Data resolution should happen before HTML transformation.**
   Static props, metadata, dependency processing, and route assets are all upstream of final HTML injection.
-- **Deferred boundary orchestration should remain a post-render reconciliation step.**
-  The initial integration render may emit deferred boundary placeholders; those are resolved after the first HTML pass, not during route matching.
+- **Deferred boundary orchestration should stay renderer-owned.**
+  The initial integration render is responsible for handing foreign boundaries back to their owning renderer before final route HTML is returned.
 - **Foreign boundary ownership is renderer-defined behavior.**
-  Placeholders are emitted only when the active render pass crosses into a boundary owned by another integration. If no `eco-marker` tokens are emitted, the deferred boundary stage is skipped entirely.
-- **Placeholder resolution remains generic after emission.**
-  Once placeholders exist, core resolves them generically through placeholder extraction, integration renderer dispatch, asset collection, and HTML replacement. The current built-in React integration is one concrete consumer of that mechanism.
+  If a renderer cannot resolve a foreign boundary inside its own runtime, route execution now treats any leftover `eco-marker` output as an error instead of running a shared fallback resolver.
 - **Caching policy is authoritative at the page layer.**
   Middleware, locals, and response reuse all depend on the effective page cache strategy.
 - **Asset emission should converge into one injection stage.**
-  Route-level assets, integration assets, page-root component assets, and marker-generated assets all end up in the HTML transformer.
+  Route-level assets, integration assets, page-root component assets, and renderer-owned boundary assets all end up in the HTML transformer.
 
 ## Entry Points
 
@@ -143,7 +141,7 @@ flowchart TD
 
 ### 4.2 Main execute flow via `RenderExecutionService`
 
-Important nuance: this phase does not always run marker graph resolution. It only does that when the first render pass actually produced `eco-marker` placeholders. In practice today, that usually means a non-owning renderer crossed into a React or Lit component boundary and deferred those nodes for the second pass.
+Important nuance: this phase does not resolve mixed-integration boundaries itself anymore. Renderer-owned runtimes must finish that work before route finalization. If unresolved `eco-marker` tokens survive to this phase, route execution fails fast.
 
 ```mermaid
 flowchart TD
@@ -151,18 +149,14 @@ flowchart TD
   B --> C[prepareRenderOptions]
   C --> D[runWithComponentRenderContext then render]
   D --> E[normalize response body to renderedHtml]
-  E --> G{contains eco marker token?}
-  G -- Yes --> H[resolveMarkerCompatibilityHtml]
-  G -- No --> I[skip graph resolution]
-  H --> J[HtmlTransformerService dedupeProcessedAssets]
-  J --> K[merge marker assets into transformer deps]
-  I --> L{root attributes attachable?}
-  K --> L
-  L -- Yes --> M[HtmlTransformerService applyAttributesToFirstBodyElement]
-  L -- No --> N[leave html unchanged]
-  M --> O[htmlTransformer transform]
-  N --> O
-  O --> P[return body stream and cache strategy]
+  E --> F{contains eco marker token?}
+  F -- Yes --> G[throw unresolved boundary error]
+  F -- No --> H{root attributes attachable?}
+  H -- Yes --> I[HtmlTransformerService applyAttributesToFirstBodyElement]
+  H -- No --> J[leave html unchanged]
+  I --> K[htmlTransformer transform]
+  J --> K
+  K --> L[return body stream and cache strategy]
 ```
 
 ### 4.3 Render preparation responsibilities
@@ -188,7 +182,7 @@ flowchart LR
 flowchart LR
   A[IntegrationRenderer] --> B[RenderPreparationService]
   A --> C[RenderExecutionService]
-  A --> D[MarkerGraphResolver]
+  A --> D[StringBoundaryRuntimeService]
   A --> F[PageModuleLoaderService]
   A --> G[DependencyResolverService]
   A --> H[HtmlTransformerService]
@@ -196,32 +190,32 @@ flowchart LR
   B --> F
   B --> G
   B --> H
-  C --> D
   C --> H
+  D --> H
 ```
 
-## 5) Marker Emission + Graph Resolution
+## 5) Boundary Markers And Renderer-Owned Resolution
 
-This part is architecturally interesting because it introduces a second render stage. The first pass captures boundaries; the second pass resolves them in dependency order.
+This part is architecturally interesting because boundaries can still emit temporary transport tokens, but renderer-owned runtimes are now responsible for resolving foreign descendants before final route HTML is returned.
 
 If this feels complex, the simplest mental model is:
 
 - first pass: render everything that can be rendered safely right now
-- when a boundary cannot be rendered safely in the current integration pass, emit a placeholder marker instead
-- second pass: revisit those placeholders and render them using the correct integration renderer
-- final pass: merge any emitted assets and perform the normal HTML transformation
+- when a renderer supports mixed boundaries, hand foreign descendants back to the owning renderer inside that renderer's runtime
+- if unresolved `eco-marker` HTML survives to route finalization, treat it as a failure instead of running a shared fallback resolver
+- final pass: merge emitted assets and perform the normal HTML transformation
 
-In the current implementation, this marker path exists to defer React subtrees that cannot be rendered inline during the active non-React integration pass.
+In the current implementation, marker-shaped placeholders remain an internal transport detail for renderer-owned runtimes that still need token-based nested handoff.
 
-Important clarification: not every integration automatically goes through this stage. The marker pipeline is conditional.
+Important clarification: not every integration automatically goes through this stage. Boundary queueing is conditional.
 
-- If the first render pass returns plain HTML with no `eco-marker` tokens, rendering continues directly to post-processing and HTML transformation.
-- If the first render pass emits `eco-marker` tokens, the marker graph is built and resolved before the final HTML rewrite.
-- In the current implementation, marker emission is triggered when the active render pass boundary policy decides that entering React should be deferred. The policy is injected through component render context, and the React integration currently opts into that deferred behavior.
+- If a render pass stays inside one integration, rendering continues directly to post-processing and HTML transformation.
+- If a renderer can resolve foreign descendants inline, the boundary runtime returns resolved HTML immediately.
+- If a renderer needs token-based nested handoff, it queues renderer-owned transport tokens and resolves them before returning final HTML.
 
 ### Why this exists
 
-The marker pipeline exists because some component boundaries cannot always be rendered eagerly inside the current integration pass.
+Renderer-owned boundary queueing exists because some component boundaries cannot always be rendered eagerly inside the current integration pass.
 
 Typical reasons include:
 
@@ -230,62 +224,45 @@ Typical reasons include:
 - the parent render needs to preserve ordering and slots before the child subtree is resolved
 - the child render may emit its own assets or root attributes that must be merged back into the final document
 
-So the first pass captures a stable placeholder plus serialized render context, and the second pass resolves those placeholders using the correct integration renderer.
-
-Responsibility split:
-
-- core resolves the deferred marker mechanically: graph shape, refs, slot relationships, and target renderer lookup
-- the selected integration renderer resolves the actual component render once it receives `component`, `props`, and optional `children`
+So the first pass either returns resolved renderer-owned output immediately or emits a renderer-local transport token that is resolved before the enclosing renderer returns its final HTML.
 
 Another way to say it:
 
-- a marker is a promise that says "this subtree will be rendered later by another renderer"
-- the marker stores just enough information to make that later render deterministic
-- the graph exists so nested deferred boundaries resolve from leaves to parents, preserving child insertion order and slot structure
+- a boundary token says "this subtree belongs to another renderer, but the current renderer still owns the overall render pass"
+- the token stores just enough information to make that later renderer-owned handoff deterministic
+- the queue exists so nested foreign boundaries resolve from leaves to parents while preserving child insertion order and emitted assets
 
 ### 5.1 Marker emission in `eco.component` factory
 
-The key rule here today is: markers are not a general-purpose placeholder for every component. During an active component render pass, `eco.component` asks the current render boundary context whether the next boundary should be deferred. When the answer is defer, it captures props/refs/slot links and returns an `eco-marker` token instead of rendering the component immediately.
+The key rule here today is: boundaries are resolved by the owning renderer, not by a shared core fallback. During an active component render pass, `eco.component` asks the current render boundary context whether the next boundary should render inline or be resolved by a foreign renderer runtime.
 
-For the current built-in integrations, this is how non-React renders defer React subtrees until the marker resolution pass.
+For the current built-in integrations, this is how non-owning renderers hand foreign subtrees back to the owning runtime without relying on a shared core fallback.
 
 ```mermaid
 flowchart TD
   A[eco component render] --> B[getComponentRenderContext]
-  B --> C[boundaryContext decideBoundaryRender]
-  C --> D{decision is defer?}
-  D -- No --> E[render component content immediately]
-  D -- Yes --> F[create nodeId + propsRef]
-  F --> G[store props in capturedPropsByRef]
-  G --> H{children include eco-marker tokens?}
-  H -- Yes --> I[keep serialized children marker html in props]
-  H -- No --> J[no nested child markers]
-  I --> K[createComponentMarker]
-  J --> K
-  K --> L[return eco marker token]
+  B --> C[boundaryRuntime interceptBoundarySync]
+  C --> D{resolved foreign boundary?}
+  D -- No --> E[render component content inline]
+  D -- Yes --> F[return renderer-owned resolved html]
 ```
 
-### 5.2 Marker graph execution
+### 5.2 Queued marker execution
 
-Once markers exist in the HTML, the second pass is integration-agnostic at execution time. Each marker carries its target integration name, so the resolver can ask the right renderer to render that specific node. Even though marker emission is still intentionally selective, the resolution phase itself is generic and works off the marker payload plus renderer lookup.
+When string-first renderers queue foreign boundaries, core still does a marker pass over the queued HTML. That pass is intentionally narrow: it only resolves queued boundary markers that the owning renderer emitted as transport artifacts for that string runtime.
 
-This means the marker itself is not interpreted by the integration renderer. Core interprets the marker and reconstructs render input; the integration renderer only performs the final component render.
+This means markers are no longer the general component-boundary contract. Core only resolves queued marker payloads that already belong to a renderer-owned string boundary workflow.
 
 ```mermaid
 flowchart TD
-  A[resolveMarkerCompatibilityHtml] --> B[buildComponentRefRegistry]
-  B --> C[extract marker graph from html and slot registry]
-  C --> D[iterate reverse graph levels]
-  D --> E[for each marker node]
-  E --> F[resolve component by componentRef]
-  F --> G[resolve props by propsRef]
-  G --> H[stitch child html from nested markers in serialized children]
-  H --> I[getIntegrationRendererForName]
-  I --> J[renderer.renderComponent]
-  J --> K[collect component assets]
-  K --> L[apply root attributes to first element]
-  L --> M[replace marker token in HTML]
-  M --> N[resolved html and assets]
+  A[string boundary runtime html] --> B[find queued boundary tokens]
+  B --> C[resolve nested child tokens first]
+  C --> D[dispatch boundary to owning renderer]
+  D --> E[renderer.renderComponentBoundary]
+  E --> F[collect emitted assets]
+  F --> G[apply root attributes to first element]
+  G --> H[replace queued token in html]
+  H --> I[resolved html and merged assets]
 ```
 
 ## 6) Explicit Rendering Paths (outside FS page matching)
@@ -344,13 +321,12 @@ For someone new to the rendering system, this is probably the most useful order 
 6. `integration-renderer.ts`
 7. `render-preparation.service.ts`
 8. `render-execution.service.ts`
-9. `marker-graph-resolver.ts`
+9. `string-boundary-runtime.service.ts`
 10. `html-transformer.service.ts`
 11. `page-module-loader.ts`
 12. `dependency-resolver.ts`
-13. `component-marker.ts`
-14. `eco.ts`
-15. `component-render-context.ts`
+13. `eco.ts`
+14. `component-render-context.ts`
 
 ## 9) Key Files
 
@@ -365,8 +341,7 @@ For someone new to the rendering system, this is probably the most useful order 
 - `packages/core/src/route-renderer/orchestration/integration-renderer.ts`
 - `packages/core/src/route-renderer/orchestration/render-preparation.service.ts`
 - `packages/core/src/route-renderer/orchestration/render-execution.service.ts`
-- `packages/core/src/route-renderer/component-graph/marker-graph-resolver.ts`
-- `packages/core/src/route-renderer/component-graph/component-marker.ts`
+- `packages/core/src/route-renderer/orchestration/string-boundary-runtime.service.ts`
 - `packages/core/src/route-renderer/page-loading/page-module-loader.ts`
 - `packages/core/src/route-renderer/page-loading/dependency-resolver.ts`
 - `packages/core/src/services/module-loading/page-module-import.service.ts`

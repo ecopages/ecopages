@@ -1,10 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { eco } from '../../eco/eco.ts';
-import { serializeTemplateShape, type SerializableTemplateShape } from './template-serialization.ts';
 import { IntegrationRenderer, type RenderToResponseContext } from './integration-renderer.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
-import { createComponentMarker } from '../component-graph/component-marker.ts';
 import { getComponentRenderContext, type ComponentBoundaryRuntime } from './component-render-context.ts';
 import type {
 	ComponentRenderInput,
@@ -20,13 +18,9 @@ import type {
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
 import { runWithComponentRenderContext } from './component-render-context.ts';
 
-type TestDeferredTemplateShape = SerializableTemplateShape & {
-	__integrationRendererTemplate: true;
-};
-
-type DedupingDeferredTemplateShape = SerializableTemplateShape & {
-	__dedupingIntegrationRendererTemplate: true;
-};
+function createBoundaryMarker(nodeId: string, componentRef: string, propsRef: string): string {
+	return `<eco-marker data-eco-node-id="${nodeId}" data-eco-component-ref="${componentRef}" data-eco-props-ref="${propsRef}"></eco-marker>`;
+}
 
 /**
  * Concrete implementation with ed file loading for testing purposes.
@@ -139,8 +133,8 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return this.shouldResolveBoundaryInOwningRenderer(input);
 	}
 
-	public testShouldUseMarkerCompatibilityForComponent(component: EcoComponent) {
-		return this.shouldUseMarkerCompatibilityForComponent(component);
+	public testHasForeignBoundaryDescendants(component: EcoComponent) {
+		return this.hasForeignBoundaryDescendants(component);
 	}
 
 	public async testResolveBoundaryInOwningRenderer(
@@ -205,89 +199,6 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}): ComponentBoundaryRuntime {
 		this.BoundaryRuntimeCreationCount += 1;
 		return super.createComponentBoundaryRuntime(options);
-	}
-}
-
-class AutoRegisteringSerializerRenderer extends IntegrationRenderer<EcoPagesElement> {
-	name = 'auto-registering-serializer-renderer';
-
-	static override deferredTemplateSerializers = [
-		{
-			matches(value: unknown): value is TestDeferredTemplateShape {
-				return (
-					typeof value === 'object' &&
-					value !== null &&
-					(value as { __integrationRendererTemplate?: unknown }).__integrationRendererTemplate === true &&
-					Array.isArray((value as { strings?: unknown }).strings) &&
-					((value as { values?: unknown }).values === undefined ||
-						Array.isArray((value as { values?: unknown }).values))
-				);
-			},
-			serialize(template: TestDeferredTemplateShape, serializeValue: (value: unknown) => string | undefined) {
-				return serializeTemplateShape(template, serializeValue);
-			},
-		},
-	] as const;
-
-	async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
-		return '<div>ok</div>';
-	}
-
-	async renderToResponse<P>(_view: EcoComponent<P>, _props: P, _ctx: RenderToResponseContext): Promise<Response> {
-		return new Response('<div>ok</div>');
-	}
-
-	public testSerializeDeferredTemplateValue(
-		value: unknown,
-		serializeValue: (value: unknown) => string | undefined,
-	): string | undefined {
-		return this.deferredTemplateValueSerializer?.(value, serializeValue);
-	}
-}
-
-class DedupingSerializerRenderer extends IntegrationRenderer<EcoPagesElement> {
-	name = 'deduping-serializer-renderer';
-
-	private static matchCount = 0;
-
-	static override deferredTemplateSerializers = [
-		{
-			matches(value: unknown): value is DedupingDeferredTemplateShape {
-				DedupingSerializerRenderer.matchCount += 1;
-				return (
-					DedupingSerializerRenderer.matchCount > 1 &&
-					typeof value === 'object' &&
-					value !== null &&
-					(value as { __dedupingIntegrationRendererTemplate?: unknown })
-						.__dedupingIntegrationRendererTemplate === true &&
-					Array.isArray((value as { strings?: unknown }).strings) &&
-					((value as { values?: unknown }).values === undefined ||
-						Array.isArray((value as { values?: unknown }).values))
-				);
-			},
-			serialize(template: DedupingDeferredTemplateShape, serializeValue: (value: unknown) => string | undefined) {
-				return serializeTemplateShape(template, serializeValue);
-			},
-		},
-	] as const;
-
-	static resetMatchCount(): void {
-		DedupingSerializerRenderer.matchCount = 0;
-	}
-
-	async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
-		return '<div>ok</div>';
-	}
-
-	public testSerializeDeferredTemplateValue(
-		value: unknown,
-		serializeValue: (value: unknown) => string | undefined,
-	): string | undefined {
-		return this.deferredTemplateValueSerializer?.(value, serializeValue);
-	}
-
-	async renderToResponse<P>(_view: EcoComponent<P>, _props: P, _ctx: RenderToResponseContext): Promise<Response> {
-		return new Response('<div>ok</div>');
 	}
 }
 
@@ -361,50 +272,6 @@ describe('IntegrationRenderer', () => {
 		const result = await renderer.testPrepareRenderOptions(options);
 
 		expect(result.cacheStrategy).toBeUndefined();
-	});
-
-	it('should auto-register renderer-owned deferred template serializers', () => {
-		const renderer = new AutoRegisteringSerializerRenderer({
-			appConfig: AppConfig,
-			assetProcessingService: AssetService,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-
-		expect(
-			renderer.testSerializeDeferredTemplateValue(
-				{
-					__integrationRendererTemplate: true,
-					strings: ['<div class=', '>', '</div>'],
-					values: ['grid gap-4', 'content'],
-				} satisfies TestDeferredTemplateShape,
-				(value) => (value == null ? '' : String(value)),
-			),
-		).toBe('<div class="grid gap-4">content</div>');
-	});
-
-	it('should ignore duplicate renderer-owned serializer registrations across instances', () => {
-		const renderer = new DedupingSerializerRenderer({
-			appConfig: AppConfig,
-			assetProcessingService: AssetService,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-		new DedupingSerializerRenderer({
-			appConfig: AppConfig,
-			assetProcessingService: AssetService,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-		DedupingSerializerRenderer.resetMatchCount();
-
-		expect(
-			renderer.testSerializeDeferredTemplateValue(
-				{
-					__dedupingIntegrationRendererTemplate: true,
-					strings: ['<div>', '</div>'],
-					values: ['content'],
-				} satisfies DedupingDeferredTemplateShape,
-				(value) => (value == null ? '' : String(value)),
-			),
-		).toBeUndefined();
 	});
 
 	it('should resolve static props and metadata correctly', async () => {
@@ -1172,13 +1039,7 @@ describe('IntegrationRenderer', () => {
 			renderer.PageModule = {
 				default: Page,
 			} as unknown as EcoPageFile;
-			renderer.RenderBodyFactory = (context) => {
-				if (context) {
-					context.capturedPropsByRef['props-1'] = { count: 3 };
-				}
-
-				return renderer.RenderedBody;
-			};
+			renderer.RenderBodyFactory = () => renderer.RenderedBody;
 			renderer.HtmlTemplate = (() =>
 				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
@@ -1258,13 +1119,7 @@ describe('IntegrationRenderer', () => {
 			renderer.PageModule = {
 				default: Page,
 			} as unknown as EcoPageFile;
-			renderer.RenderBodyFactory = (context) => {
-				if (context) {
-					context.capturedPropsByRef['props-1'] = { count: 3, label: 'contract' };
-				}
-
-				return renderer.RenderedBody;
-			};
+			renderer.RenderBodyFactory = () => renderer.RenderedBody;
 			renderer.HtmlTemplate = (() =>
 				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
@@ -1278,7 +1133,7 @@ describe('IntegrationRenderer', () => {
 			expect((explicitRenderer.renderComponent as any).mock.calls).toHaveLength(0);
 		});
 
-		it('should fail route execution for deep multi-level marker graphs', async () => {
+		it('should fail route execution for deep multi-level unresolved boundary markers', async () => {
 			const renderOrder: string[] = [];
 			const explicitRenderer = {
 				renderComponent: vi.fn(async (input: ComponentRenderInput) => {
@@ -1332,22 +1187,10 @@ describe('IntegrationRenderer', () => {
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const parentMarker = createComponentMarker({
-				nodeId: 'n_2',
-				componentRef: 'parent-component',
-				propsRef: 'props-parent',
-			});
-			const leafMarker = createComponentMarker({
-				nodeId: 'n_3',
-				componentRef: 'leaf-component',
-				propsRef: 'props-leaf',
-			});
+			const parentMarker = createBoundaryMarker('n_2', 'parent-component', 'props-parent');
+			const leafMarker = createBoundaryMarker('n_3', 'leaf-component', 'props-leaf');
 
-			renderer.RenderedBody = `<html><body><main>${createComponentMarker({
-				nodeId: 'n_1',
-				componentRef: 'root-component',
-				propsRef: 'props-root',
-			})}</main></body></html>`;
+			renderer.RenderedBody = `<html><body><main>${createBoundaryMarker('n_1', 'root-component', 'props-root')}</main></body></html>`;
 			renderer.MockComponentRenderResult = {
 				html: '<main>Test Page</main>',
 				canAttachAttributes: true,
@@ -1395,15 +1238,7 @@ describe('IntegrationRenderer', () => {
 			renderer.PageModule = {
 				default: Page,
 			} as unknown as EcoPageFile;
-			renderer.RenderBodyFactory = (context) => {
-				if (context) {
-					context.capturedPropsByRef['props-root'] = { id: 'root', children: parentMarker };
-					context.capturedPropsByRef['props-parent'] = { id: 'parent', children: leafMarker };
-					context.capturedPropsByRef['props-leaf'] = { id: 'leaf', children: 'leaf-text' };
-				}
-
-				return renderer.RenderedBody;
-			};
+			renderer.RenderBodyFactory = () => renderer.RenderedBody;
 			renderer.HtmlTemplate = (() =>
 				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
@@ -1524,7 +1359,7 @@ describe('IntegrationRenderer', () => {
 			);
 		});
 
-		it('should preserve pass-through child markers while resolving newly captured nested markers', async () => {
+		it('fails fast when a renderer without a boundary runtime crosses into a foreign owner', async () => {
 			const foreignRenderer = {
 				renderComponent: vi.fn(async () => ({
 					html: '<span>resolved nested marker</span>',
@@ -1566,21 +1401,16 @@ describe('IntegrationRenderer', () => {
 				render: ({ children }) => `<section>${children ?? ''}${ForeignComponent({})}</section>`,
 			});
 
-			const passedThroughMarker = createComponentMarker({
-				nodeId: 'n_passed',
-				componentRef: 'passed-through-component',
-				propsRef: 'p_passed',
-			});
+			const passedThroughMarker = createBoundaryMarker('n_passed', 'passed-through-component', 'p_passed');
 
-			const result = await renderer.renderComponentBoundary({
-				component: ShellComponent,
-				props: { children: passedThroughMarker },
-				children: passedThroughMarker,
-			});
-
-			expect(result.html).toContain(passedThroughMarker);
-			expect(result.html).toContain('<span>resolved nested marker</span>');
-			expect(foreignRenderer.renderComponent).toHaveBeenCalledTimes(1);
+			await expect(
+				renderer.renderComponentBoundary({
+					component: ShellComponent,
+					props: { children: passedThroughMarker },
+					children: passedThroughMarker,
+				}),
+			).rejects.toThrow('without a renderer-owned boundary runtime');
+			expect(foreignRenderer.renderComponent).toHaveBeenCalledTimes(0);
 		});
 
 		it('fails route execution when deep mixed-integration markers are returned at the route level', async () => {
@@ -1638,22 +1468,10 @@ describe('IntegrationRenderer', () => {
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const parentMarker = createComponentMarker({
-				nodeId: 'n_2',
-				componentRef: 'parent-component',
-				propsRef: 'props-parent',
-			});
-			const leafMarker = createComponentMarker({
-				nodeId: 'n_3',
-				componentRef: 'leaf-component',
-				propsRef: 'props-leaf',
-			});
+			const parentMarker = createBoundaryMarker('n_2', 'parent-component', 'props-parent');
+			const leafMarker = createBoundaryMarker('n_3', 'leaf-component', 'props-leaf');
 
-			renderer.RenderedBody = `<html><body><main><div data-shell="deep">${createComponentMarker({
-				nodeId: 'n_1',
-				componentRef: 'root-component',
-				propsRef: 'props-root',
-			})}</div></main></body></html>`;
+			renderer.RenderedBody = `<html><body><main><div data-shell="deep">${createBoundaryMarker('n_1', 'root-component', 'props-root')}</div></main></body></html>`;
 			renderer.MockComponentRenderResult = {
 				html: '<main>Test Page</main>',
 				canAttachAttributes: true,
@@ -1701,15 +1519,7 @@ describe('IntegrationRenderer', () => {
 			renderer.PageModule = {
 				default: Page,
 			} as unknown as EcoPageFile;
-			renderer.RenderBodyFactory = (context) => {
-				if (context) {
-					context.capturedPropsByRef['props-root'] = { id: 'root', children: parentMarker };
-					context.capturedPropsByRef['props-parent'] = { id: 'parent', children: leafMarker };
-					context.capturedPropsByRef['props-leaf'] = { id: 'leaf' };
-				}
-
-				return renderer.RenderedBody;
-			};
+			renderer.RenderBodyFactory = () => renderer.RenderedBody;
 			renderer.HtmlTemplate = (() =>
 				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
@@ -1723,7 +1533,7 @@ describe('IntegrationRenderer', () => {
 			expect(renderOrder).toEqual([]);
 		});
 
-		it('renders leaf marker-compatibility components under their own integration context', async () => {
+		it('renders same-integration leaf components under their own integration context', async () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: AppConfig,
 				assetProcessingService: AssetService,
@@ -1738,9 +1548,6 @@ describe('IntegrationRenderer', () => {
 			const result = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'foreign-renderer',
-					boundaryRuntime: {
-						interceptBoundarySync: () => ({ kind: 'placeholder' }),
-					} as ComponentBoundaryRuntime,
 				},
 				async () =>
 					renderer.renderComponentBoundary({
@@ -1754,7 +1561,7 @@ describe('IntegrationRenderer', () => {
 			expect(renderer.BoundaryRuntimeCreationCount).toBe(0);
 		});
 
-		it('uses inline partial rendering when compatibility is not needed', async () => {
+		it('uses inline partial rendering when no foreign boundaries are present', async () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: AppConfig,
 				assetProcessingService: AssetService,
@@ -1923,7 +1730,7 @@ describe('IntegrationRenderer', () => {
 			expect(foreignRenderer.renderComponentBoundary).toHaveBeenCalledTimes(3);
 		});
 
-		it('should skip marker-compatibility wrapping for pure same-integration component trees', () => {
+		it('should skip foreign-boundary wrapping for pure same-integration component trees', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: AppConfig,
 				assetProcessingService: AssetService,
@@ -1951,10 +1758,10 @@ describe('IntegrationRenderer', () => {
 				dependencies: { components: [Child] },
 			};
 
-			expect(renderer.testShouldUseMarkerCompatibilityForComponent(Root)).toBe(false);
+			expect(renderer.testHasForeignBoundaryDescendants(Root)).toBe(false);
 		});
 
-		it('should keep marker-compatibility wrapping when nested cross-integration components are present', () => {
+		it('should detect nested cross-integration component trees', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: AppConfig,
 				assetProcessingService: AssetService,
@@ -1982,7 +1789,7 @@ describe('IntegrationRenderer', () => {
 				dependencies: { components: [ForeignChild] },
 			};
 
-			expect(renderer.testShouldUseMarkerCompatibilityForComponent(Root)).toBe(true);
+			expect(renderer.testHasForeignBoundaryDescendants(Root)).toBe(true);
 		});
 	});
 });

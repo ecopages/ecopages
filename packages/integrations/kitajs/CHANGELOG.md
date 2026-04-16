@@ -8,15 +8,7 @@ All notable changes to `@ecopages/kitajs` are documented here.
 
 ### Bug Fixes
 
-- Fixed full route and direct `ctx.render()` Kita rendering to stay on the renderer-owned explicit page/layout/document path while still resolving mixed-integration boundaries without marker artifacts.
-
-### Features
-
-- Aligned KitaJS with renderer-owned boundary composition.
-
-### Refactoring
-
-- Tightened Kita component typing and cleaned up ambient module declarations.
+- Fixed Kita full-route and direct `ctx.render()` rendering to stay on the renderer-owned page/layout/document path while resolving mixed boundaries inside the owning renderer.
 
 ### Documentation
 

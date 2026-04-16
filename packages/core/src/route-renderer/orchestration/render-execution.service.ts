@@ -26,17 +26,17 @@ export interface RenderExecutionCallbacks<C> {
 	transformResponse(response: Response): Promise<RouteRendererBody>;
 }
 
-function containsMarkerCompatibilityHtml(html: string): boolean {
+function containsBoundaryMarkerHtml(html: string): boolean {
 	return html.includes('<eco-marker');
 }
 
 /**
  * Executes the main post-preparation rendering flow for integration renderers.
  *
- * This service owns the orchestration that happens after normalized render
- * options have been prepared: one render pass, unresolved-route-marker
- * enforcement, root-attribute application, and final HTML transformation into
- * a response body stream.
+	 * This service owns the orchestration that happens after normalized render
+	 * options have been prepared: one render pass, unresolved-route-marker
+	 * enforcement, root-attribute application, and final HTML transformation into
+	 * a response body stream.
  */
 export class RenderExecutionService {
 	async captureHtmlRender(render: () => Promise<RouteRendererBody>): Promise<CapturedHtmlRenderResult> {
@@ -72,16 +72,16 @@ export class RenderExecutionService {
 		const renderExecution = await this.captureHtmlRender(async () => callbacks.render(renderOptions));
 		const normalizedCapturedHtml = restoreEscapedComponentMarkers(renderExecution.html);
 		const documentAttributes = callbacks.getDocumentAttributes(renderOptions);
-		const hasMarkerCompatibilityHtml = containsMarkerCompatibilityHtml(normalizedCapturedHtml);
+		const hasBoundaryMarkerHtml = containsBoundaryMarkerHtml(normalizedCapturedHtml);
 
-		if (hasMarkerCompatibilityHtml) {
+		if (hasBoundaryMarkerHtml) {
 			throw new Error(
-				'[ecopages] Route render returned unresolved marker compatibility HTML. Full-route marker fallback has been removed; resolve mixed boundaries inside renderComponentBoundary().',
+				'[ecopages] Route render returned unresolved boundary marker HTML. Full-route marker fallback has been removed; resolve mixed boundaries inside renderComponentBoundary().',
 			);
 		}
 
 		const canReuseCapturedBody =
-			!hasMarkerCompatibilityHtml &&
+			!hasBoundaryMarkerHtml &&
 			!shouldApplyComponentRootAttributes &&
 			!(documentAttributes && Object.keys(documentAttributes).length > 0);
 

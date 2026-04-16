@@ -1,14 +1,20 @@
 import type { EcoComponent } from '../../types/public-types.ts';
-import type { MarkerNodeId } from '../component-graph/component-marker.ts';
-import { createComponentMarker } from '../component-graph/component-marker.ts';
-import { getComponentReference } from '../component-graph/component-reference.ts';
 import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './render-output.utils.ts';
 
+/**
+ * Result returned by a renderer-owned boundary runtime.
+ *
+ * `inline` keeps rendering inside the current integration. `resolved` returns a
+ * renderer-owned value immediately, which can be final HTML or a renderer-local
+ * transport token for later queue resolution.
+ */
 export type ComponentBoundaryInterceptionResult =
 	| { kind: 'inline' }
-	| { kind: 'placeholder' }
 	| { kind: 'resolved'; value: unknown };
 
+/**
+ * Boundary metadata passed into the active renderer-owned runtime.
+ */
 export type ComponentBoundaryInterceptionInput = {
 	currentIntegration: string;
 	targetIntegration?: string;
@@ -17,7 +23,11 @@ export type ComponentBoundaryInterceptionInput = {
 };
 
 /**
- * Narrow boundary runtime injected into one active render context.
+ * Narrow renderer-owned boundary runtime injected into one active render
+ * context.
+ *
+ * Integrations implement this contract when foreign boundaries must be handed
+ * off inside the renderer instead of being left for route-level reconciliation.
  */
 export interface ComponentBoundaryRuntime {
 	interceptBoundary?(
@@ -26,129 +36,17 @@ export interface ComponentBoundaryRuntime {
 	interceptBoundarySync?(input: ComponentBoundaryInterceptionInput): ComponentBoundaryInterceptionResult;
 }
 
-/**
- * Integration-owned hook for serializing framework-specific deferred child payloads.
- *
- * Core handles primitive values, generic template transport shapes, and node-like
- * objects directly. Integrations can provide this callback to teach the boundary
- * runtime about richer payloads such as framework template sentinels that should
- * survive marker deferral as HTML rather than as opaque objects.
- *
- * Returning `undefined` tells core that the value is not recognized by the
- * integration-specific serializer.
- */
-type DeferredValueSerializer = (
-	value: unknown,
-	serializeValue: (value: unknown) => string | undefined,
-) => string | undefined;
-
-/**
- * Minimal boundary payload needed to emit one deferred placeholder.
- *
- * The props object is captured into the boundary capture so the later deferred-
- * boundary resolution pass can reconstruct the original component invocation
- * outside the current integration's render stack.
- */
-type DeferredBoundaryRenderInput = {
+type ComponentBoundaryRenderInput = {
 	component: EcoComponent;
 	props: Record<string, unknown>;
 	targetIntegration?: string;
 };
 
 /**
- * DOM-like shape that can be serialized without importing a concrete DOM type.
- *
- * Mixed-integration boundaries sometimes pass SSR-produced node-like structures
- * rather than plain strings. Core recognizes only the small subset needed to
- * recover HTML or text content during deferred child capture.
- */
-type MarkerSerializableNodeLike = {
-	nodeType: number;
-	outerHTML?: string;
-	textContent?: string | null;
-	childNodes?: readonly MarkerSerializableNodeLike[];
-};
-
-/**
- * Detects node-like values that can be flattened into deferred HTML.
- */
-function isMarkerSerializableNodeLike(value: unknown): value is MarkerSerializableNodeLike {
-	return typeof value === 'object' && value !== null && 'nodeType' in value;
-}
-
-/**
- * Serializes a minimal DOM-like payload into HTML or text.
- *
- * Element-like payloads prefer `outerHTML` when present; text nodes prefer
- * `textContent`; other node containers recurse through `childNodes`.
- */
-function serializeDeferredNodeLike(node: MarkerSerializableNodeLike): string | undefined {
-	if (typeof node.outerHTML === 'string') {
-		return node.outerHTML;
-	}
-
-	if (node.nodeType === 3) {
-		return node.textContent ?? '';
-	}
-
-	if (Array.isArray(node.childNodes)) {
-		return node.childNodes.map((child) => serializeDeferredNodeLike(child) ?? '').join('');
-	}
-
-	return node.textContent ?? undefined;
-}
-
-/**
- * Converts deferred child payloads into the string form stored in boundary capture.
- *
- * Core accepts primitives, arrays, and DOM-like payloads directly. Anything
- * richer must be recognized by the integration-owned `serializeDeferredValue`
- * callback; arbitrary plain objects are otherwise preserved as-is by the caller
- * instead of being flattened heuristically.
- */
-function serializeDeferredChildren(
-	value: unknown,
-	serializeDeferredValue?: DeferredValueSerializer,
-): string | undefined {
-	if (typeof value === 'string') {
-		return value;
-	}
-
-	if (typeof value === 'number' || typeof value === 'bigint') {
-		return String(value);
-	}
-
-	if (typeof value === 'boolean' || value == null) {
-		return '';
-	}
-
-	if (Array.isArray(value)) {
-		return value.map((item) => serializeDeferredChildren(item, serializeDeferredValue) ?? '').join('');
-	}
-
-	if (isMarkerSerializableNodeLike(value)) {
-		return serializeDeferredNodeLike(value);
-	}
-
-	if (serializeDeferredValue) {
-		const serializedTemplate = serializeDeferredValue(value, (templateValue) =>
-			serializeDeferredChildren(templateValue, serializeDeferredValue),
-		);
-
-		if (serializedTemplate !== undefined) {
-			return serializedTemplate;
-		}
-	}
-
-	return undefined;
-}
-
-/**
  * Shared output finalization behavior used both inside and outside active render contexts.
  *
  * This stage is responsible only for lazy trigger or injector wrapping. Boundary
- * deferral stays in `ContextualComponentRenderRuntime`, which requires access to
- * per-render boundary-capture state.
+ * interception stays in `ContextualComponentRenderRuntime`.
  */
 class ComponentRenderOutputRuntime {
 	finalizeComponentRender<T>(component: EcoComponent, content: T): T {
@@ -186,12 +84,7 @@ class ComponentRenderOutputRuntime {
 }
 
 /**
- * Render-context-aware runtime that captures deferred boundary metadata.
- *
- * When the compatibility runtime requests placeholder emission, this runtime
- * stores props and deferred child payloads into the current boundary capture
- * state and returns an `eco-marker` placeholder for later deferred-boundary
- * resolution.
+ * Render-context-aware runtime that delegates boundary interception.
  */
 class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 	private readonly context: ComponentRenderContext;
@@ -201,45 +94,22 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 		this.context = context;
 	}
 
-	private createDeferredBoundaryPlaceholder(input: DeferredBoundaryRenderInput): string {
-		const nodeId = createNodeId(this.context);
-		const propsRef = createPropsRef(this.context);
-		const componentRef = getComponentReference(input.component);
-		const storedProps = { ...input.props };
-		const serializedChildren = serializeDeferredChildren(input.props.children, this.context.serializeDeferredValue);
-
-		this.context.capturedPropsByRef[propsRef] =
-			serializedChildren === undefined ? storedProps : { ...storedProps, children: serializedChildren };
-
-		return createComponentMarker({
-			nodeId,
-			componentRef,
-			propsRef,
-		});
-	}
-
 	private applyBoundaryInterceptionResult(
-		input: DeferredBoundaryRenderInput,
 		result: ComponentBoundaryInterceptionResult,
 	): unknown | undefined {
-		if (result.kind === 'inline') {
-			return undefined;
-		}
-
 		if (result.kind === 'resolved') {
 			return result.value;
 		}
 
-		return this.createDeferredBoundaryPlaceholder(input);
+		return undefined;
 	}
 
 	/**
 	 * Resolves one boundary interception through the active runtime.
 	 *
-	 * The runtime may choose inline rendering, immediate resolved output, or the
-	 * legacy compatibility placeholder lane.
+	 * The runtime may choose inline rendering or immediate resolved output.
 	 */
-	interceptBoundary(input: DeferredBoundaryRenderInput): Promise<unknown | undefined> | unknown | undefined {
+	interceptBoundary(input: ComponentBoundaryRenderInput): Promise<unknown | undefined> | unknown | undefined {
 		const boundaryRuntimeInput = {
 			currentIntegration: this.context.currentIntegration,
 			targetIntegration: input.targetIntegration,
@@ -250,10 +120,10 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 		const asyncInterception = this.context.boundaryRuntime?.interceptBoundary?.(boundaryRuntimeInput);
 		if (asyncInterception !== undefined) {
 			if (isThenable<ComponentBoundaryInterceptionResult>(asyncInterception)) {
-				return asyncInterception.then((result) => this.applyBoundaryInterceptionResult(input, result));
+				return asyncInterception.then((result) => this.applyBoundaryInterceptionResult(result));
 			}
 
-			return this.applyBoundaryInterceptionResult(input, asyncInterception);
+			return this.applyBoundaryInterceptionResult(asyncInterception);
 		}
 
 		const syncInterception = this.context.boundaryRuntime?.interceptBoundarySync?.(boundaryRuntimeInput);
@@ -261,55 +131,18 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 			return undefined;
 		}
 
-		return this.applyBoundaryInterceptionResult(input, syncInterception);
-	}
-
-	/**
-	 * Emits one deferred boundary placeholder when the active runtime selects the
-	 * compatibility lane through its synchronous interception hook.
-	 */
-	interceptBoundarySync(input: DeferredBoundaryRenderInput): unknown | undefined {
-		const syncBoundaryResult = this.context.boundaryRuntime?.interceptBoundarySync?.({
-			currentIntegration: this.context.currentIntegration,
-			targetIntegration: input.targetIntegration,
-			component: input.component,
-			props: input.props,
-		});
-
-		if (!syncBoundaryResult) {
-			return undefined;
-		}
-
-		return this.applyBoundaryInterceptionResult(input, syncBoundaryResult);
+		return this.applyBoundaryInterceptionResult(syncInterception);
 	}
 }
 
 /**
- * Serializable payload collected while a render pass records deferred boundaries.
- */
-export type ComponentBoundaryCapture = {
-	/** Captured props keyed by the generated placeholder props ref. */
-	capturedPropsByRef: Record<string, Record<string, unknown>>;
-};
-
-/**
- * Per-render mutable state used while collecting deferred boundary capture.
- *
- * Counters generate deterministic ids within one render execution.
+ * Per-render mutable state used while applying boundary interception and lazy
+ * output wrapping.
  */
 export type ComponentRenderContext = {
 	currentIntegration: string;
 	boundaryRuntime?: ComponentBoundaryRuntime;
-	/** Optional integration-owned serializer for richer deferred child payloads. */
-	serializeDeferredValue?: DeferredValueSerializer;
-	/** Monotonic counter for stable marker node ids within one render pass. */
-	nextNodeId: number;
-	/** Monotonic counter for stable props references within one render pass. */
-	nextPropsRefId: number;
-	/** Captured props for deferred boundaries, keyed by `propsRef`. */
-	capturedPropsByRef: Record<string, Record<string, unknown>>;
-	interceptBoundary(input: DeferredBoundaryRenderInput): Promise<unknown | undefined> | unknown | undefined;
-	interceptBoundarySync(input: DeferredBoundaryRenderInput): unknown | undefined;
+	interceptBoundary(input: ComponentBoundaryRenderInput): Promise<unknown | undefined> | unknown | undefined;
 	finalizeComponentRender<T>(component: EcoComponent, content: T): T;
 };
 
@@ -418,42 +251,15 @@ export function getComponentRenderContext(): ComponentRenderContext | undefined 
 	return state.nodeContextStorage?.getStore() ?? state.contextStack[state.contextStack.length - 1];
 }
 
-/**
- * Allocates the next marker node id inside one render pass.
- */
-function createNodeId(context: ComponentRenderContext): MarkerNodeId {
-	context.nextNodeId += 1;
-	return `n_${context.nextNodeId}`;
-}
-
-/**
- * Allocates the next props reference id inside one render pass.
- */
-function createPropsRef(context: ComponentRenderContext): string {
-	context.nextPropsRefId += 1;
-	return `p_${context.nextPropsRefId}`;
-}
-
 const componentRenderOutputRuntime = new ComponentRenderOutputRuntime();
-
-/**
- * Runs synchronous compatibility interception for one component boundary.
- *
- * Outside an active render context this is a no-op and returns `undefined`, which
- * lets the caller render inline instead.
- */
-export function interceptComponentBoundarySync(input: DeferredBoundaryRenderInput): string | undefined {
-	return getComponentRenderContext()?.interceptBoundarySync(input) as string | undefined;
-}
 
 /**
  * Runs boundary interception for one component boundary.
  *
- * The active runtime may resolve the boundary immediately, keep it inline, or
- * fall back to the legacy placeholder compatibility lane.
+ * The active runtime may resolve the boundary immediately or keep it inline.
  */
 export function interceptComponentBoundary(
-	input: DeferredBoundaryRenderInput,
+	input: ComponentBoundaryRenderInput,
 ): Promise<unknown | undefined> | unknown | undefined {
 	return getComponentRenderContext()?.interceptBoundary(input);
 }
@@ -471,35 +277,27 @@ export function finalizeComponentRender<T>(component: EcoComponent, content: T):
 }
 
 /**
- * Runs render work under a fresh component render context and returns both:
- * - the render result value
- * - captured boundary state for downstream deferred-boundary resolution
+ * Runs render work under a fresh component render context and returns the
+ * resulting value.
  *
  * @param input Execution metadata for current integration and boundary policy.
  * @param render Async render function to execute inside the context.
- * @returns Render result and captured deferred-boundary state.
+ * @returns Render result value.
  */
 export async function runWithComponentRenderContext<T>(
 	input: {
 		currentIntegration: string;
 		boundaryRuntime?: ComponentBoundaryRuntime;
-		serializeDeferredValue?: DeferredValueSerializer;
 	},
 	render: () => Promise<T>,
-): Promise<{ value: T; boundaryCapture: ComponentBoundaryCapture }> {
+): Promise<{ value: T }> {
 	const context = {
 		currentIntegration: input.currentIntegration,
 		boundaryRuntime: input.boundaryRuntime,
-		serializeDeferredValue: input.serializeDeferredValue,
-		nextNodeId: 0,
-		nextPropsRefId: 0,
-		capturedPropsByRef: {},
 	} as ComponentRenderContext;
 	const runtime = new ContextualComponentRenderRuntime(context);
-	context.interceptBoundary = (deferredInput: DeferredBoundaryRenderInput) =>
+	context.interceptBoundary = (deferredInput: ComponentBoundaryRenderInput) =>
 		runtime.interceptBoundary(deferredInput);
-	context.interceptBoundarySync = (deferredInput: DeferredBoundaryRenderInput) =>
-		runtime.interceptBoundarySync(deferredInput);
 	context.finalizeComponentRender = <TContent>(component: EcoComponent, content: TContent) =>
 		runtime.finalizeComponentRender(component, content);
 
@@ -520,8 +318,5 @@ export async function runWithComponentRenderContext<T>(
 
 	return {
 		value,
-		boundaryCapture: {
-			capturedPropsByRef: context.capturedPropsByRef,
-		},
 	};
 }

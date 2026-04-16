@@ -377,13 +377,13 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * underlying socket closes early — into a 499 response so it does not
 	 * incorrectly surface as a 500 in application logs.
 	 */
-	public async handleRequest(_request: Request): Promise<Response> {
+	public async handleRequest(request: Request): Promise<Response> {
 		if (!this.initialized) {
 			throw new Error('Node server adapter is not initialized. Call createAdapter() first.');
 		}
 
 		try {
-			return await this.handleSharedRequest(_request, {
+			return await this.handleSharedRequest(request, {
 				apiHandlers: this.apiHandlers,
 				errorHandler: this.errorHandler,
 				serverInstance: this.serverInstance,
@@ -419,8 +419,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * WebSocket upgrade requests that do not target `/_hmr` are rejected with an
 	 * immediate socket destroy to prevent unhandled upgrade leaks.
 	 */
-	public async completeInitialization(_server: NodeServerInstance): Promise<void> {
-		this.serverInstance = _server;
+	public async completeInitialization(server: NodeServerInstance): Promise<void> {
+		this.serverInstance = server;
 
 		if (this.options?.watch) {
 			const { NodeHmrManager } = await import('./node-hmr-manager.ts');
@@ -432,7 +432,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 			await this.hmrManager.buildRuntime();
 
-			_server.on('upgrade', (req, socket, head) => {
+			server.on('upgrade', (req, socket, head) => {
 				const url = new URL(req.url ?? '/', this.runtimeOrigin);
 				if (url.pathname === '/_hmr') {
 					wss.handleUpgrade(req, socket, head, (ws) => {

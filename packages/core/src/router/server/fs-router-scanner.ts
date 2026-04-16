@@ -171,7 +171,12 @@ export class FSRouterScanner {
 		const filePath = path.join(this.dir, file);
 		const isCatchAll = filePath.includes('[...');
 		const isDynamic = !isCatchAll && filePath.includes('[') && filePath.includes(']');
-		const kind: RouteKind = isCatchAll ? 'catch-all' : isDynamic ? 'dynamic' : 'exact';
+		let kind: RouteKind = 'exact';
+		if (isCatchAll) {
+			kind = 'catch-all';
+		} else if (isDynamic) {
+			kind = 'dynamic';
+		}
 
 		return { route, routePath, filePath, kind };
 	}

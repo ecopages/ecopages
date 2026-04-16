@@ -34,13 +34,18 @@ import { HttpError } from '../../errors/http-error.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
-import { MarkerGraphResolver } from '../component-graph/marker-graph-resolver.ts';
 import { RenderExecutionService } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
-import type { ComponentBoundaryCapture, ComponentBoundaryRuntime } from './component-render-context.ts';
-import type { DeferredTemplateSerializer } from './template-serialization.ts';
+import type { ComponentBoundaryRuntime } from './component-render-context.ts';
 import { restoreEscapedComponentMarkers } from './render-output.utils.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
+import {
+	QueuedBoundaryRuntimeService,
+	} from './queued-boundary-runtime.service.ts';
+import {
+	StringBoundaryRuntimeService,
+	type StringBoundaryRuntimeContext,
+} from './string-boundary-runtime.service.ts';
 
 type BoundaryRenderDecisionInput = {
 	currentIntegration: string;
@@ -95,43 +100,12 @@ export interface RenderToResponseContext {
 	headers?: HeadersInit;
 }
 
-function createRendererDeferredTemplateValueSerializer(
-	serializers: readonly DeferredTemplateSerializer[] | undefined,
-): ((value: unknown, serializeValue: (value: unknown) => string | undefined) => string | undefined) | undefined {
-	if (!serializers || serializers.length === 0) {
-		return undefined;
-	}
-
-	return (value, serializeValue) => {
-		for (const serializer of serializers) {
-			if (serializer.matches(value)) {
-				return serializer.serialize(value, serializeValue);
-			}
-		}
-
-		return undefined;
-	};
-}
-
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
  * It handles the import of page files, collection of dependencies, and preparation of render options.
  * The class is designed to be extended by specific integration renderers.
  */
 export abstract class IntegrationRenderer<C = EcoPagesElement> {
-	/**
-	 * Integration-owned serializers for deferred template payloads that may cross
-	 * mixed-renderer boundaries before final HTML assembly.
-	 *
-	 * @remarks
-	 * Declare framework-specific template shape adapters here when the integration
-	 * can emit deferred child payloads that core must serialize generically.
-	 * The base renderer registers these serializers automatically during
-	 * construction, so integrations should prefer this colocated declaration over
-	 * side-effect imports or ad hoc bootstrap registration.
-	 */
-	static deferredTemplateSerializers?: readonly DeferredTemplateSerializer[];
-
 	abstract name: string;
 	protected appConfig: EcoPagesAppConfig;
 	protected assetProcessingService: AssetProcessingService;
@@ -143,13 +117,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected runtimeOrigin: string;
 	protected dependencyResolverService: DependencyResolverService;
 	protected pageModuleLoaderService: PageModuleLoaderService;
-	protected markerGraphResolver: MarkerGraphResolver;
 	protected renderPreparationService: RenderPreparationService;
 	protected renderExecutionService: RenderExecutionService;
-	protected deferredTemplateValueSerializer?: (
-		value: unknown,
-		serializeValue: (value: unknown) => string | undefined,
-	) => string | undefined;
+	protected readonly queuedBoundaryRuntimeService = new QueuedBoundaryRuntimeService();
+	protected readonly stringBoundaryRuntimeService = new StringBoundaryRuntimeService();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -206,11 +177,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		input: ComponentRenderInput,
 		rendererCache: Map<string, IntegrationRenderer<any>>,
 	): ComponentRenderInput {
+		const integrationContext = input.integrationContext;
+
 		return {
 			...input,
 			integrationContext:
-				typeof input.integrationContext === 'object' && input.integrationContext !== null
-					? { ...(input.integrationContext as Record<string, unknown>), rendererCache }
+				typeof integrationContext === 'object' && integrationContext !== null
+					? { ...(integrationContext as Record<string, unknown>), rendererCache }
 					: { rendererCache },
 		};
 	}
@@ -388,7 +361,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		renderInline?: () => Promise<BodyInit>;
 		transformHtml?: (html: string) => string;
 	}): Promise<Response> {
-		if (input.renderInline && !this.shouldUseMarkerCompatibilityForComponent(input.view as EcoComponent)) {
+		if (input.renderInline && !this.hasForeignBoundaryDescendants(input.view as EcoComponent)) {
 			return this.createHtmlResponse(await input.renderInline(), input.ctx);
 		}
 
@@ -566,6 +539,86 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		};
 	}
 
+	/**
+	 * Reads the shared string-boundary runtime context attached to one active
+	 * component render.
+	 */
+	protected getStringBoundaryRuntimeContext(
+		input: ComponentRenderInput,
+		runtimeContextKey: string,
+	): StringBoundaryRuntimeContext | undefined {
+		return this.stringBoundaryRuntimeService.getRuntimeContext(input, runtimeContextKey);
+	}
+
+	/**
+	 * Creates the queue-backed boundary runtime used by string-first renderers.
+	 *
+	 * String renderers can resolve nested foreign boundaries after their first HTML
+	 * render because children are already serialized to strings.
+	 */
+	protected createStringBoundaryRuntime(options: {
+		boundaryInput: ComponentRenderInput;
+		rendererCache: Map<string, IntegrationRenderer<any>>;
+		runtimeContextKey: string;
+		tokenPrefix: string;
+	}): ComponentBoundaryRuntime {
+		return this.stringBoundaryRuntimeService.createRuntime({
+			boundaryInput: options.boundaryInput,
+			rendererCache: options.rendererCache as Map<string, unknown>,
+			runtimeContextKey: options.runtimeContextKey,
+			tokenPrefix: options.tokenPrefix,
+			shouldQueueBoundary: (input) => this.shouldResolveBoundaryInOwningRenderer(input),
+		});
+	}
+
+	/**
+	 * Resolves queued foreign-boundary tokens emitted by a string-first renderer.
+	 */
+	protected async resolveQueuedStringBoundaryHtml(options: {
+		html: string;
+		runtimeContext?: StringBoundaryRuntimeContext;
+	}): Promise<{ assets: ProcessedAsset[]; html: string }> {
+		return this.stringBoundaryRuntimeService.resolveQueuedHtml({
+			html: options.html,
+			runtimeContext: options.runtimeContext,
+			resolveBoundary: (input, rendererCache) =>
+				this.resolveBoundaryInOwningRenderer(input, rendererCache as Map<string, IntegrationRenderer<any>>),
+			applyAttributesToFirstElement: (html, attributes) =>
+				this.htmlTransformer.applyAttributesToFirstElement(html, attributes),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+		});
+	}
+
+	/**
+	 * Renders a string-first component, then resolves any queued foreign
+	 * boundaries before returning final component HTML.
+	 */
+	protected async renderStringComponentBoundaryWithQueuedForeignBoundaries(
+		input: ComponentRenderInput,
+		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
+		options: {
+			runtimeContextKey: string;
+			tokenPrefix: string;
+		},
+	): Promise<ComponentRenderResult> {
+		const componentRender = await this.renderStringComponentBoundary(input, component);
+		const queuedBoundaryResolution = await this.resolveQueuedStringBoundaryHtml({
+			html: componentRender.html,
+			runtimeContext: this.getStringBoundaryRuntimeContext(input, options.runtimeContextKey),
+		});
+		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
+			...(componentRender.assets ?? []),
+			...queuedBoundaryResolution.assets,
+		]);
+
+		return {
+			...componentRender,
+			html: queuedBoundaryResolution.html,
+			rootTag: this.getRootTagName(queuedBoundaryResolution.html),
+			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
+		};
+	}
+
 	constructor({
 		appConfig,
 		assetProcessingService,
@@ -587,14 +640,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.runtimeOrigin = runtimeOrigin;
 		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
-		this.markerGraphResolver = new MarkerGraphResolver();
 		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService);
 		this.renderExecutionService = new RenderExecutionService();
-
-		const rendererClass = this.constructor as typeof IntegrationRenderer;
-		this.deferredTemplateValueSerializer = createRendererDeferredTemplateValueSerializer(
-			rendererClass.deferredTemplateSerializers,
-		);
 	}
 
 	/**
@@ -960,48 +1007,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Resolves all compatibility `eco-marker` placeholders in rendered HTML using
-	 * integration dispatch and bottom-up graph execution.
-	 *
-	 * Responsibility split:
-	 * - core decodes markers into component refs, props, slot children, and target
-	 *   integration dispatch
-	 * - the selected integration renderer performs the actual component render via
-	 *   `renderComponent()`
-	 *
-	 * Resolver callback behavior per marker:
-	 * - resolve component definition by `componentRef`
-	 * - resolve serialized props by `propsRef`
-	 * - stitch resolved child HTML when deferred child markers are embedded in serialized `children`
-	 * - dispatch to target integration `renderComponentBoundary()`
-	 * - collect produced assets and apply root attributes when attachable
-	 *
-	 * @param options.html HTML that may still contain compatibility marker tokens.
-	 * @param options.componentsToResolve Component set used to build component ref registry.
-	 * @param options.boundaryCapture Deferred boundary props captured during render.
-	 * @returns Resolved HTML plus any component-scoped assets produced while resolving compatibility nodes.
-	 * @throws Error when marker component refs, integration ownership, or cyclic marker links cannot be resolved.
-	 */
-	private async resolveMarkerCompatibilityHtml(options: {
-		html: string;
-		componentsToResolve: EcoComponent[];
-		boundaryCapture: ComponentBoundaryCapture;
-		instanceIdScope?: string;
-	}): Promise<{ html: string; assets: ProcessedAsset[] }> {
-		const integrationRendererCache = new Map<string, IntegrationRenderer>();
-		return this.markerGraphResolver.resolve({
-			html: options.html,
-			componentsToResolve: options.componentsToResolve,
-			boundaryCapture: options.boundaryCapture,
-			instanceIdScope: options.instanceIdScope,
-			resolveRenderer: (integrationName) =>
-				this.getIntegrationRendererForName(integrationName, integrationRendererCache),
-			applyAttributesToFirstElement: (html, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(html, attributes),
-		});
-	}
-
-	/**
 	 * Returns a renderer instance for a given integration name.
 	 *
 	 * Uses a per-execution cache to avoid repeated renderer initialization.
@@ -1062,9 +1067,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Renders one component under this integration's boundary runtime and resolves
 	 * any nested foreign boundaries captured during that render.
 	 *
-	 * Without this wrapper, rendering a deferred React or Kita boundary would run
-	 * nested foreign components with no active render context, causing them to fall
-	 * back to inline escaped HTML instead of feeding the compatibility resolver.
+	 * Without this wrapper, a component tree with foreign-owned descendants would
+	 * render them with no active boundary runtime, which bypasses the owning
+	 * renderer's nested-boundary handoff.
 	 */
 	async renderComponentBoundary(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 		const rendererCache =
@@ -1075,10 +1080,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return delegatedBoundaryRender;
 		}
 
-		const shouldUseMarkerCompatibility = this.shouldUseMarkerCompatibilityForComponent(input.component);
+		const hasForeignBoundaries = this.hasForeignBoundaryDescendants(input.component);
 		const activeRenderContext = getComponentRenderContext();
 
-		if (!shouldUseMarkerCompatibility) {
+		if (!hasForeignBoundaries) {
 			if (!activeRenderContext || activeRenderContext.currentIntegration === this.name) {
 				return this.normalizeComponentBoundaryRender(await this.renderComponent(input));
 			}
@@ -1100,39 +1105,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					boundaryInput: input,
 					rendererCache,
 				}),
-				serializeDeferredValue: this.deferredTemplateValueSerializer,
 			},
 			async () => this.renderComponent(input),
 		);
-		const normalizedExecution = this.normalizeComponentBoundaryRender(execution.value);
 
-		if (!normalizedExecution.html.includes('<eco-marker')) {
-			return normalizedExecution;
-		}
-
-		const hasCapturedNestedGraph = Object.keys(execution.boundaryCapture.capturedPropsByRef).length > 0;
-
-		if (!hasCapturedNestedGraph) {
-			return normalizedExecution;
-		}
-
-		const parentInstanceId = (input.integrationContext as { componentInstanceId?: string } | undefined)
-			?.componentInstanceId;
-		const nestedResolution = await this.resolveMarkerCompatibilityHtml({
-			html: normalizedExecution.html,
-			componentsToResolve: [input.component],
-			boundaryCapture: execution.boundaryCapture,
-			instanceIdScope: parentInstanceId,
-		});
-
-		return {
-			...normalizedExecution,
-			html: nestedResolution.html,
-			assets: this.htmlTransformer.dedupeProcessedAssets([
-				...(normalizedExecution.assets ?? []),
-				...nestedResolution.assets,
-			]),
-		};
+		return this.normalizeComponentBoundaryRender(execution.value);
 	}
 
 	private normalizeComponentBoundaryRender(result: ComponentRenderResult): ComponentRenderResult {
@@ -1148,7 +1125,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return restoreEscapedComponentMarkers(html);
 	}
 
-	protected shouldUseMarkerCompatibilityForComponent(component: EcoComponent): boolean {
+	/**
+	 * Returns whether the component dependency tree crosses into another
+	 * integration.
+	 *
+	 * This keeps boundary-runtime setup narrow: same-integration trees can render
+	 * directly without paying the queue orchestration cost.
+	 */
+	protected hasForeignBoundaryDescendants(component: EcoComponent): boolean {
 		const stack = [component];
 		const seen = new Set<EcoComponent>();
 
@@ -1243,19 +1227,24 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Creates the per-render boundary runtime adopted by the shared component
 	 * render context.
 	 *
-	 * Foreign-owned boundaries leave the current render pass through one shared
-	 * placeholder lane. The placeholder transport remains an internal detail of the
-	 * compatibility resolver; ownership is decided here by comparing the active and
-	 * target integrations directly.
+	 * Real mixed-integration renderers should override this and keep foreign
+	 * boundary resolution inside their own renderer-owned queue. The base runtime
+	 * fails fast when a renderer crosses into a foreign owner without providing its
+	 * own handoff mechanism.
 	 */
 	protected createComponentBoundaryRuntime(_options: {
 		boundaryInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}): ComponentBoundaryRuntime {
-		const decideBoundaryInterception = (input: BoundaryRenderDecisionInput) =>
-			this.shouldResolveBoundaryInOwningRenderer(input)
-				? { kind: 'placeholder' as const }
-				: { kind: 'inline' as const };
+		const decideBoundaryInterception = (input: BoundaryRenderDecisionInput) => {
+			if (!this.shouldResolveBoundaryInOwningRenderer(input)) {
+				return { kind: 'inline' as const };
+			}
+
+			throw new Error(
+				`[ecopages] ${this.name} renderer crossed into ${input.targetIntegration} without a renderer-owned boundary runtime. Override createComponentBoundaryRuntime() to resolve foreign boundaries inside the owning renderer.`,
+			);
+		};
 
 		const runtime: ComponentBoundaryRuntime = {
 			interceptBoundary: decideBoundaryInterception,
@@ -1270,8 +1259,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * resolved by its owning renderer.
 	 *
 	 * Boundaries owned by the current integration always render inline. Foreign-
-	 * owned boundaries use the shared compatibility lane so the owning renderer can
-	 * render them under its own execution context.
+	 * owned boundaries must be handed off by a renderer-owned runtime.
 	 *
 	 * @param input Boundary metadata for the active render pass.
 	 * @returns `true` when the boundary should leave the current pass; otherwise `false`.

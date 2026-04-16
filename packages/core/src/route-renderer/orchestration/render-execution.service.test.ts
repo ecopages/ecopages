@@ -6,7 +6,6 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
-import { createComponentMarker } from '../component-graph/component-marker.ts';
 import { RenderExecutionService } from './render-execution.service.ts';
 
 describe('RenderExecutionService', () => {
@@ -184,12 +183,8 @@ describe('RenderExecutionService', () => {
 							Page,
 							cacheStrategy: 'dynamic',
 						}) as unknown as IntegrationRendererRenderOptions<unknown>,
-					render: async () =>
-						`<html><body>${createComponentMarker({
-							nodeId: 'n_1',
-							componentRef: 'unexpected-marker',
-							propsRef: 'p_1',
-						})}</body></html>`,
+						render: async () =>
+							'<html><body><eco-marker data-eco-node-id="n_1" data-eco-component-ref="unexpected-marker" data-eco-props-ref="p_1"></eco-marker></body></html>',
 					getDocumentAttributes: () => undefined,
 					applyAttributesToHtmlElement: (html) => html,
 					applyAttributesToFirstBodyElement: (html) => html,

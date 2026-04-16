@@ -42,8 +42,8 @@ import { isThenable } from '../route-renderer/orchestration/render-output.utils.
  * - In normal render flow, returns `options.render(props)` with optional lazy
  *   trigger/script wrapping.
  * - When rendering under an active component boundary runtime and the current
- *   compatibility lane requests placeholder interception, returns that boundary
- *   placeholder instead of rendering the component immediately.
+ *   renderer-owned boundary runtime resolves the boundary immediately, returns
+ *   that resolved output instead of rendering the component inline.
  *
  * @param options Component options for rendering and dependency declaration.
  * @returns Configured eco component.

@@ -1,7 +1,14 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { eco, type EcoComponent, type EcoPageFile, type EcoPagesElement, type HtmlTemplateProps } from '@ecopages/core';
+import {
+	eco,
+	type ComponentRenderInput,
+	type EcoComponent,
+	type EcoPageFile,
+	type EcoPagesElement,
+	type HtmlTemplateProps,
+} from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { fileSystem } from '@ecopages/file-system';
@@ -427,6 +434,132 @@ describe('ReactRenderer', () => {
 			});
 
 			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
+		});
+
+		it('should resolve foreign boundaries inside React and preserve upstream child html', async () => {
+			const deferredRenderComponent = vi.fn(async (input: ComponentRenderInput) => ({
+				html: `<aside data-slot="true">${input.children ?? ''}<button data-testid="deferred-widget">Deferred widget</button></aside>`,
+				canAttachAttributes: true,
+				rootTag: 'aside',
+				integrationName: 'deferred',
+				rootAttributes: {
+					'data-eco-component-id':
+						(input.integrationContext as { componentInstanceId?: string } | undefined)?.componentInstanceId ??
+						'missing',
+				},
+				assets: [
+					{
+						kind: 'script',
+						inline: true,
+						content: 'console.log("deferred-react")',
+						position: 'body',
+					},
+				],
+			}));
+
+			class DeferredBoundaryRenderer extends IntegrationRenderer<EcoPagesElement> {
+				name = 'deferred';
+
+				async render(): Promise<string> {
+					return '';
+				}
+
+				override async renderComponent(input: ComponentRenderInput) {
+					return deferredRenderComponent(input);
+				}
+
+				async renderToResponse<P = Record<string, unknown>>(
+					_view: EcoComponent<P>,
+					_props: P,
+					_ctx: RenderToResponseContext,
+				) {
+					return new Response('');
+				}
+			}
+
+			class DeferredBoundaryPlugin extends IntegrationPlugin<EcoPagesElement> {
+				renderer = DeferredBoundaryRenderer;
+
+				constructor() {
+					super({
+						name: 'deferred',
+						extensions: ['.deferred.tsx'],
+					});
+				}
+			}
+
+			const deferredPlugin = new DeferredBoundaryPlugin();
+			const config = await new ConfigBuilder()
+				.setDistDir(testDir)
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([deferredPlugin])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			deferredPlugin.setConfig(config);
+			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as any,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const DeferredShell = eco.component<{ children?: React.ReactNode }, string>({
+				integration: 'deferred',
+				render: () => '',
+			});
+			DeferredShell.config = {
+				...DeferredShell.config,
+				__eco: {
+					id: 'deferred-shell',
+					file: '/app/components/deferred-shell.deferred.tsx',
+					integration: 'deferred',
+				},
+			};
+
+			const Shell = eco.component<{ label: string; children?: React.ReactNode }, JSX.Element>({
+				integration: 'react',
+				dependencies: {
+					components: [DeferredShell],
+				},
+				render: ({ label, children }) => (
+					<section>
+						<h2>{label}</h2>
+						{DeferredShell({ children }) as unknown as React.ReactNode}
+					</section>
+				),
+			});
+
+			const result = await testRenderer.renderComponentBoundary({
+				component: Shell,
+				props: { label: 'Host' },
+				children: '<span data-child="true">Child</span>',
+				integrationContext: { componentInstanceId: 'host' },
+			});
+
+			expect(result.html).toContain('<h2>Host</h2>');
+			expect(result.html).toContain('<aside data-eco-component-id="host_n_1" data-slot="true"><span data-child="true">Child</span><button data-testid="deferred-widget">Deferred widget</button></aside>');
+			expect(result.html).not.toContain('<eco-marker');
+			expect(result.assets).toEqual([
+				expect.objectContaining({
+					kind: 'script',
+					inline: true,
+					position: 'body',
+				}),
+			]);
+			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 		});
 	});
 

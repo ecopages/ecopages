@@ -27,7 +27,7 @@ describe('RenderExecutionService', () => {
 		expect(result.html).toContain('<main>Streamed</main>');
 	});
 
-	it('preserves streamed bodies when no marker resolution or attribute stamping is required', async () => {
+	it('preserves streamed bodies when no boundary resolution or attribute stamping is required', async () => {
 		const service = new RenderExecutionService();
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
@@ -102,7 +102,7 @@ describe('RenderExecutionService', () => {
 		expect(result.body).toContain('<main data-eco-component-id="eco-page-root">Resolved</main>');
 	});
 
-	it('throws when route HTML contains unresolved markers', async () => {
+	it('throws when route HTML contains escaped unresolved boundary artifacts', async () => {
 		const service = new RenderExecutionService();
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
@@ -129,7 +129,7 @@ describe('RenderExecutionService', () => {
 					transformResponse: async (response) => await response.text(),
 				},
 			),
-		).rejects.toThrow('Full-route marker fallback has been removed');
+		).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
 	});
 
 	it('renders routes with no active component render context', async () => {
@@ -164,7 +164,7 @@ describe('RenderExecutionService', () => {
 		expect(result.body).toContain('<main>Plain render</main>');
 	});
 
-	it('throws when route HTML returns unresolved marker tokens', async () => {
+	it('throws when route HTML returns unresolved boundary artifact HTML', async () => {
 		const service = new RenderExecutionService();
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
@@ -191,6 +191,6 @@ describe('RenderExecutionService', () => {
 					transformResponse: async (response) => await response.text(),
 				},
 			),
-		).rejects.toThrow('Full-route marker fallback has been removed');
+		).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
 	});
 });

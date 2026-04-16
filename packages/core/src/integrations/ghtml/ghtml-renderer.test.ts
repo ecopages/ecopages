@@ -104,7 +104,7 @@ describe('GhtmlRenderer', () => {
 			});
 	});
 
-	it('should resolve deferred foreign layout content without marker artifacts', async () => {
+	it('should resolve deferred foreign layout content without unresolved boundary artifacts', async () => {
 		const deferredPlugin = new DeferredPlugin();
 		const config = await new ConfigBuilder()
 			.setRootDir(FIXTURE_APP_PROJECT_DIR)

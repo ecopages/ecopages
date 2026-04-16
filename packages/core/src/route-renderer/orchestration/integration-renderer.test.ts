@@ -973,7 +973,7 @@ describe('IntegrationRenderer', () => {
 			).toHaveLength(1);
 		});
 
-		it('should fail route execution when unresolved eco-marker nodes are returned', async () => {
+		it('should fail route execution when unresolved boundary artifact HTML is returned', async () => {
 			const explicitRenderer = {
 				renderComponent: vi.fn(async () => ({
 					html: '<aside>Nested Render</aside>',
@@ -1049,11 +1049,11 @@ describe('IntegrationRenderer', () => {
 					params: {},
 					query: {},
 				}),
-			).rejects.toThrow('Full-route marker fallback has been removed');
+			).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
 			expect((explicitRenderer.renderComponent as any).mock.calls).toHaveLength(0);
 		});
 
-		it('should fail route execution when unresolved markers remain inside surrounding shell html', async () => {
+		it('should fail route execution when unresolved boundary artifact HTML remains inside surrounding shell html', async () => {
 			const explicitRenderer = {
 				renderComponent: vi.fn(async () => ({
 					html: '<aside data-explicit-shell="nested"><span>Nested Render</span></aside>',
@@ -1129,11 +1129,11 @@ describe('IntegrationRenderer', () => {
 					params: {},
 					query: {},
 				}),
-			).rejects.toThrow('Full-route marker fallback has been removed');
+			).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
 			expect((explicitRenderer.renderComponent as any).mock.calls).toHaveLength(0);
 		});
 
-		it('should fail route execution for deep multi-level unresolved boundary markers', async () => {
+		it('should fail route execution for deep multi-level unresolved boundary artifacts', async () => {
 			const renderOrder: string[] = [];
 			const explicitRenderer = {
 				renderComponent: vi.fn(async (input: ComponentRenderInput) => {
@@ -1248,7 +1248,7 @@ describe('IntegrationRenderer', () => {
 					params: {},
 					query: {},
 				}),
-			).rejects.toThrow('Full-route marker fallback has been removed');
+			).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
 			expect(renderOrder).toEqual([]);
 		});
 
@@ -1319,10 +1319,10 @@ describe('IntegrationRenderer', () => {
 					params: {},
 					query: {},
 				}),
-			).rejects.toThrow('Full-route marker fallback has been removed');
+			).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
 		});
 
-		it('should not recursively resolve markers that were only passed through resolved child html', async () => {
+		it('should not recursively resolve boundary artifacts that were only passed through resolved child html', async () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: AppConfig,
 				assetProcessingService: AssetService,
@@ -1413,7 +1413,7 @@ describe('IntegrationRenderer', () => {
 			expect(foreignRenderer.renderComponent).toHaveBeenCalledTimes(0);
 		});
 
-		it('fails route execution when deep mixed-integration markers are returned at the route level', async () => {
+		it('fails route execution when deep mixed-integration boundary artifacts are returned at the route level', async () => {
 			const renderOrder: string[] = [];
 			const explicitRenderer = {
 				renderComponent: vi.fn(async (input: ComponentRenderInput) => {
@@ -1529,7 +1529,7 @@ describe('IntegrationRenderer', () => {
 					params: {},
 					query: {},
 				}),
-			).rejects.toThrow('Full-route marker fallback has been removed');
+			).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
 			expect(renderOrder).toEqual([]);
 		});
 

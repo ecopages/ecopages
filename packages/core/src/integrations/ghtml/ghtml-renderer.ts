@@ -17,9 +17,6 @@ import {
 } from '../../route-renderer/orchestration/integration-renderer.ts';
 import { GHTML_PLUGIN_NAME } from './ghtml.plugin.ts';
 
-const GHTML_BOUNDARY_TOKEN_PREFIX = '__ECO_GHTML_BOUNDARY__';
-const GHTML_BOUNDARY_RUNTIME_CONTEXT_KEY = '__ghtmlBoundaryRuntime';
-
 type GhtmlViewFn<P> = (props: P) => Promise<EcoPagesElement> | EcoPagesElement;
 type GhtmlLayoutFn = (
 	props: { children: string } & Record<string, unknown>,
@@ -36,10 +33,6 @@ export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return this.renderStringComponentBoundaryWithQueuedForeignBoundaries(
 			input,
 			input.component as GhtmlViewFn<Record<string, unknown>>,
-			{
-				runtimeContextKey: GHTML_BOUNDARY_RUNTIME_CONTEXT_KEY,
-				tokenPrefix: GHTML_BOUNDARY_TOKEN_PREFIX,
-			},
 		);
 	}
 
@@ -47,11 +40,9 @@ export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 		boundaryInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.createStringBoundaryRuntime({
+		return this.createQueuedBoundaryRuntime({
 			boundaryInput: options.boundaryInput,
 			rendererCache: options.rendererCache,
-			runtimeContextKey: GHTML_BOUNDARY_RUNTIME_CONTEXT_KEY,
-			tokenPrefix: GHTML_BOUNDARY_TOKEN_PREFIX,
 		});
 	}
 

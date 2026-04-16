@@ -37,15 +37,13 @@ import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { RenderExecutionService } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
 import type { ComponentBoundaryRuntime } from './component-render-context.ts';
-import { restoreEscapedComponentMarkers } from './render-output.utils.ts';
+import { normalizeBoundaryArtifactHtml } from './render-output.utils.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
 import {
 	QueuedBoundaryRuntimeService,
+	type QueuedBoundaryResolution,
+	type QueuedBoundaryRuntimeContext,
 	} from './queued-boundary-runtime.service.ts';
-import {
-	StringBoundaryRuntimeService,
-	type StringBoundaryRuntimeContext,
-} from './string-boundary-runtime.service.ts';
 
 type BoundaryRenderDecisionInput = {
 	currentIntegration: string;
@@ -120,7 +118,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected renderPreparationService: RenderPreparationService;
 	protected renderExecutionService: RenderExecutionService;
 	protected readonly queuedBoundaryRuntimeService = new QueuedBoundaryRuntimeService();
-	protected readonly stringBoundaryRuntimeService = new StringBoundaryRuntimeService();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -539,48 +536,75 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		};
 	}
 
-	/**
-	 * Reads the shared string-boundary runtime context attached to one active
-	 * component render.
-	 */
-	protected getStringBoundaryRuntimeContext(
-		input: ComponentRenderInput,
-		runtimeContextKey: string,
-	): StringBoundaryRuntimeContext | undefined {
-		return this.stringBoundaryRuntimeService.getRuntimeContext(input, runtimeContextKey);
+	protected getBoundaryTokenPrefix(): string {
+		return `__${this.name}_boundary__`;
 	}
 
-	/**
-	 * Creates the queue-backed boundary runtime used by string-first renderers.
-	 *
-	 * String renderers can resolve nested foreign boundaries after their first HTML
-	 * render because children are already serialized to strings.
-	 */
-	protected createStringBoundaryRuntime(options: {
+	protected getBoundaryRuntimeContextKey(): string {
+		return `__${this.name}_boundary_runtime__`;
+	}
+
+	protected getQueuedBoundaryRuntime<TContext extends QueuedBoundaryRuntimeContext>(
+		input: ComponentRenderInput,
+		runtimeContextKey = this.getBoundaryRuntimeContextKey(),
+	): TContext | undefined {
+		return this.queuedBoundaryRuntimeService.getRuntimeContext<TContext>(input, runtimeContextKey);
+	}
+
+	protected async resolveQueuedBoundaryTokens(
+		html: string,
+		queuedResolutionsByToken: Map<string, QueuedBoundaryResolution>,
+		resolveToken: (token: string) => Promise<string>,
+	): Promise<string> {
+		let resolvedHtml = html;
+
+		for (const token of queuedResolutionsByToken.keys()) {
+			if (!resolvedHtml.includes(token)) {
+				continue;
+			}
+
+			resolvedHtml = resolvedHtml.split(token).join(await resolveToken(token));
+		}
+
+		return resolvedHtml;
+	}
+
+	protected createQueuedBoundaryRuntime<TContext extends QueuedBoundaryRuntimeContext>(options: {
 		boundaryInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
-		runtimeContextKey: string;
-		tokenPrefix: string;
+		runtimeContextKey?: string;
+		tokenPrefix?: string;
+		createRuntimeContext?: (
+			integrationContext: { rendererCache?: Map<string, unknown>; componentInstanceId?: string; [key: string]: unknown },
+			rendererCache: Map<string, unknown>,
+		) => TContext;
 	}): ComponentBoundaryRuntime {
-		return this.stringBoundaryRuntimeService.createRuntime({
+		return this.queuedBoundaryRuntimeService.createRuntime<TContext>({
 			boundaryInput: options.boundaryInput,
 			rendererCache: options.rendererCache as Map<string, unknown>,
-			runtimeContextKey: options.runtimeContextKey,
-			tokenPrefix: options.tokenPrefix,
+			runtimeContextKey: options.runtimeContextKey ?? this.getBoundaryRuntimeContextKey(),
+			tokenPrefix: options.tokenPrefix ?? this.getBoundaryTokenPrefix(),
 			shouldQueueBoundary: (input) => this.shouldResolveBoundaryInOwningRenderer(input),
+			createRuntimeContext: options.createRuntimeContext,
 		});
 	}
 
-	/**
-	 * Resolves queued foreign-boundary tokens emitted by a string-first renderer.
-	 */
-	protected async resolveQueuedStringBoundaryHtml(options: {
+	protected async resolveRendererOwnedQueuedBoundaryHtml<TContext extends QueuedBoundaryRuntimeContext>(options: {
 		html: string;
-		runtimeContext?: StringBoundaryRuntimeContext;
+		runtimeContext?: TContext;
+		queueLabel: string;
+		renderQueuedChildren: (
+			children: unknown,
+			runtimeContext: TContext,
+			queuedResolutionsByToken: Map<string, QueuedBoundaryResolution>,
+			resolveToken: (token: string) => Promise<string>,
+		) => Promise<{ assets: ProcessedAsset[]; html?: string }>;
 	}): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		return this.stringBoundaryRuntimeService.resolveQueuedHtml({
+		return this.queuedBoundaryRuntimeService.resolveQueuedHtml({
 			html: options.html,
 			runtimeContext: options.runtimeContext,
+			queueLabel: options.queueLabel,
+			renderQueuedChildren: options.renderQueuedChildren,
 			resolveBoundary: (input, rendererCache) =>
 				this.resolveBoundaryInOwningRenderer(input, rendererCache as Map<string, IntegrationRenderer<any>>),
 			applyAttributesToFirstElement: (html, attributes) =>
@@ -596,15 +620,25 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async renderStringComponentBoundaryWithQueuedForeignBoundaries(
 		input: ComponentRenderInput,
 		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
-		options: {
-			runtimeContextKey: string;
-			tokenPrefix: string;
-		},
 	): Promise<ComponentRenderResult> {
 		const componentRender = await this.renderStringComponentBoundary(input, component);
-		const queuedBoundaryResolution = await this.resolveQueuedStringBoundaryHtml({
+		const queuedBoundaryResolution = await this.resolveRendererOwnedQueuedBoundaryHtml({
 			html: componentRender.html,
-			runtimeContext: this.getStringBoundaryRuntimeContext(input, options.runtimeContextKey),
+			runtimeContext: this.getQueuedBoundaryRuntime<QueuedBoundaryRuntimeContext>(input),
+			queueLabel: 'String',
+			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
+				if (children === undefined) {
+					return { assets: [], html: undefined };
+				}
+
+				const html = await this.resolveQueuedBoundaryTokens(
+					typeof children === 'string' ? children : String(children ?? ''),
+					queuedResolutionsByToken,
+					resolveToken,
+				);
+
+				return { assets: [], html };
+			},
 		});
 		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
 			...(componentRender.assets ?? []),
@@ -925,7 +959,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Execution flow:
 	 * 1. Build normalized render options (`prepareRenderOptions`).
 	 * 2. Render the route body once.
-	 * 3. Reject unresolved route-level compatibility markers.
+	 * 3. Reject unresolved route-level boundary artifacts.
 	 * 4. Optionally apply root attributes for page/component root boundaries.
 	 * 5. Run HTML transformer with final dependency set.
 	 *
@@ -958,7 +992,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 *
 	 * This keeps document and root-attribute stamping plus HTML transformation
 	 * available after a renderer has completed nested boundary resolution without
-	 * routing through shared route-level marker finalization.
+	 * routing back through shared route execution.
 	 */
 	protected async finalizeResolvedHtml(options: {
 		html: string;
@@ -1113,17 +1147,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	private normalizeComponentBoundaryRender(result: ComponentRenderResult): ComponentRenderResult {
-		return result.html.includes('&lt;eco-marker') || result.html.includes('&amp;lt;eco-marker')
-			? {
+		const normalizedHtml = this.normalizeBoundaryArtifactHtml(result.html);
+
+		return normalizedHtml === result.html
+			? result
+			: {
 					...result,
-					html: this.restoreEscapedComponentMarkers(result.html),
-				}
-			: result;
+					html: normalizedHtml,
+				};
 	}
 
-	protected restoreEscapedComponentMarkers(html: string): string {
-		return restoreEscapedComponentMarkers(html);
+	protected normalizeBoundaryArtifactHtml(html: string): string {
+		return normalizeBoundaryArtifactHtml(html);
 	}
+
+
 
 	/**
 	 * Returns whether the component dependency tree crosses into another
@@ -1175,7 +1213,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Default behavior delegates to `renderToResponse` in partial mode and wraps
 	 * the resulting HTML into the `ComponentRenderResult` contract.
 	 *
-	 * In marker resolution, this method is the integration-owned step that turns an
+	 * In boundary resolution, this method is the integration-owned step that turns an
 	 * already-resolved deferred boundary into concrete HTML, assets, and optional
 	 * root attributes.
 	 *
@@ -1183,7 +1221,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * root attributes, integration-specific hydration metadata).
 	 *
 	 * @param input Component render request.
-	 * @returns Structured render result used by marker/page orchestration.
+	 * @returns Structured render result used by component/page orchestration.
 	 */
 	async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 		const response = await this.renderToResponse(

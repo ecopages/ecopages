@@ -24,7 +24,6 @@ const COMPONENT_CHILDREN_SLOT_MARKER = '<!--eco-lit-component-children-->';
 const ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER = '&lt;!--eco-lit-component-children--&gt;';
 const DOUBLE_ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER = '&amp;lt;!--eco-lit-component-children--&amp;gt;';
 const DUPLICATE_DECLARATIVE_SHADOW_ROOT_ATTRIBUTE = /\sshadowroot=(['"])(open|closed)\1(?=\sshadowrootmode=\1\2\1)/g;
-const LIT_BOUNDARY_TOKEN_PREFIX = '__ECO_LIT_BOUNDARY__';
 
 type LitBoundaryRuntimeContext = {
 	rendererCache: Map<string, IntegrationRenderer<any>>;
@@ -55,14 +54,11 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 
 		let renderedChildren =
 			typeof children === 'string' ? children : await this.renderValueToString(children);
-
-		for (const token of queuedResolutionsByToken.keys()) {
-			if (!renderedChildren.includes(token)) {
-				continue;
-			}
-
-			renderedChildren = renderedChildren.split(token).join(await resolveToken(token));
-		}
+		renderedChildren = await this.resolveQueuedBoundaryTokens(
+			renderedChildren,
+			queuedResolutionsByToken,
+			resolveToken,
+		);
 
 		return renderedChildren;
 	}
@@ -71,7 +67,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		html: string,
 		runtimeContext: LitBoundaryRuntimeContext | undefined,
 	): Promise<{ html: string; assets: ComponentRenderResult['assets'] }> {
-		const queuedBoundaryResolution = await this.queuedBoundaryRuntimeService.resolveQueuedHtml({
+		const queuedBoundaryResolution = await this.resolveRendererOwnedQueuedBoundaryHtml({
 			html,
 			runtimeContext,
 			queueLabel: 'Lit',
@@ -87,14 +83,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 					html: renderedChildren,
 				};
 			},
-			resolveBoundary: (boundaryInput, rendererCache) =>
-				this.resolveBoundaryInOwningRenderer(
-					boundaryInput,
-					rendererCache as Map<string, IntegrationRenderer<any>>,
-				),
-			applyAttributesToFirstElement: (queuedHtml, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(queuedHtml, attributes),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 		});
 
 		return {
@@ -227,10 +215,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			renderedChildren === undefined ? renderedHtml : this.injectRenderedChildren(renderedHtml, renderedChildren);
 		const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(
 			html,
-			this.queuedBoundaryRuntimeService.getRuntimeContext<LitBoundaryRuntimeContext>(
-				input,
-				'__ecopagesLitBoundaryRuntime',
-			),
+			this.getQueuedBoundaryRuntime<LitBoundaryRuntimeContext>(input),
 		);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
 		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
@@ -255,12 +240,9 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		boundaryInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.queuedBoundaryRuntimeService.createRuntime<LitBoundaryRuntimeContext>({
+		return this.createQueuedBoundaryRuntime<LitBoundaryRuntimeContext>({
 			boundaryInput: options.boundaryInput,
-			rendererCache: options.rendererCache as Map<string, unknown>,
-			runtimeContextKey: '__ecopagesLitBoundaryRuntime',
-			tokenPrefix: LIT_BOUNDARY_TOKEN_PREFIX,
-			shouldQueueBoundary: (input) => this.shouldResolveBoundaryInOwningRenderer(input),
+			rendererCache: options.rendererCache,
 		});
 	}
 

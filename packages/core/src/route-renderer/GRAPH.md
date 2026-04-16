@@ -15,7 +15,7 @@ These diagrams are based on a few architectural assumptions that seem important 
 - **Deferred boundary orchestration should stay renderer-owned.**
   The initial integration render is responsible for handing foreign boundaries back to their owning renderer before final route HTML is returned.
 - **Foreign boundary ownership is renderer-defined behavior.**
-  If a renderer cannot resolve a foreign boundary inside its own runtime, route execution now treats any leftover `eco-marker` output as an error instead of running a shared fallback resolver.
+  If a renderer cannot resolve a foreign boundary inside its own runtime, route execution now treats any leftover unresolved boundary artifact HTML as an error instead of attempting any route-level fallback.
 - **Caching policy is authoritative at the page layer.**
   Middleware, locals, and response reuse all depend on the effective page cache strategy.
 - **Asset emission should converge into one injection stage.**
@@ -141,7 +141,7 @@ flowchart TD
 
 ### 4.2 Main execute flow via `RenderExecutionService`
 
-Important nuance: this phase does not resolve mixed-integration boundaries itself anymore. Renderer-owned runtimes must finish that work before route finalization. If unresolved `eco-marker` tokens survive to this phase, route execution fails fast.
+Important nuance: this phase does not resolve mixed-integration boundaries itself anymore. Renderer-owned runtimes must finish that work before route finalization. If unresolved boundary artifact HTML survives to this phase, route execution fails fast.
 
 ```mermaid
 flowchart TD
@@ -149,7 +149,7 @@ flowchart TD
   B --> C[prepareRenderOptions]
   C --> D[runWithComponentRenderContext then render]
   D --> E[normalize response body to renderedHtml]
-  E --> F{contains eco marker token?}
+  E --> F{contains unresolved boundary artifact html?}
   F -- Yes --> G[throw unresolved boundary error]
   F -- No --> H{root attributes attachable?}
   H -- Yes --> I[HtmlTransformerService applyAttributesToFirstBodyElement]
@@ -182,7 +182,7 @@ flowchart LR
 flowchart LR
   A[IntegrationRenderer] --> B[RenderPreparationService]
   A --> C[RenderExecutionService]
-  A --> D[StringBoundaryRuntimeService]
+  A --> D[QueuedBoundaryRuntimeService]
   A --> F[PageModuleLoaderService]
   A --> G[DependencyResolverService]
   A --> H[HtmlTransformerService]
@@ -194,7 +194,7 @@ flowchart LR
   D --> H
 ```
 
-## 5) Boundary Markers And Renderer-Owned Resolution
+## 5) Boundary Tokens And Renderer-Owned Resolution
 
 This part is architecturally interesting because boundaries can still emit temporary transport tokens, but renderer-owned runtimes are now responsible for resolving foreign descendants before final route HTML is returned.
 
@@ -202,10 +202,10 @@ If this feels complex, the simplest mental model is:
 
 - first pass: render everything that can be rendered safely right now
 - when a renderer supports mixed boundaries, hand foreign descendants back to the owning renderer inside that renderer's runtime
-- if unresolved `eco-marker` HTML survives to route finalization, treat it as a failure instead of running a shared fallback resolver
+- if literal `<eco-marker>` boundary artifact HTML survives to route finalization, treat it as a failure instead of attempting any route-level fallback
 - final pass: merge emitted assets and perform the normal HTML transformation
 
-In the current implementation, marker-shaped placeholders remain an internal transport detail for renderer-owned runtimes that still need token-based nested handoff.
+In the current implementation, renderer-owned runtimes use internal boundary tokens for queued nested handoff. Literal `<eco-marker>` markup remains only as a route-level failure signal when unresolved boundary artifacts escape renderer-owned resolution.
 
 Important clarification: not every integration automatically goes through this stage. Boundary queueing is conditional.
 
@@ -232,7 +232,7 @@ Another way to say it:
 - the token stores just enough information to make that later renderer-owned handoff deterministic
 - the queue exists so nested foreign boundaries resolve from leaves to parents while preserving child insertion order and emitted assets
 
-### 5.1 Marker emission in `eco.component` factory
+### 5.1 Boundary interception in `eco.component` factory
 
 The key rule here today is: boundaries are resolved by the owning renderer, not by a shared core fallback. During an active component render pass, `eco.component` asks the current render boundary context whether the next boundary should render inline or be resolved by a foreign renderer runtime.
 
@@ -247,11 +247,11 @@ flowchart TD
   D -- Yes --> F[return renderer-owned resolved html]
 ```
 
-### 5.2 Queued marker execution
+### 5.2 Queued boundary execution
 
-When string-first renderers queue foreign boundaries, core still does a marker pass over the queued HTML. That pass is intentionally narrow: it only resolves queued boundary markers that the owning renderer emitted as transport artifacts for that string runtime.
+When string-first renderers queue foreign boundaries, the base renderer helper resolves queued boundary tokens directly against the shared queue service. That pass is intentionally narrow: it only resolves queued boundary tokens that the owning renderer emitted as transport artifacts for that string runtime.
 
-This means markers are no longer the general component-boundary contract. Core only resolves queued marker payloads that already belong to a renderer-owned string boundary workflow.
+This means boundary tokens are no longer a general component-boundary contract. Core only resolves queued boundary payloads that already belong to a renderer-owned string boundary workflow.
 
 ```mermaid
 flowchart TD
@@ -321,7 +321,7 @@ For someone new to the rendering system, this is probably the most useful order 
 6. `integration-renderer.ts`
 7. `render-preparation.service.ts`
 8. `render-execution.service.ts`
-9. `string-boundary-runtime.service.ts`
+9. `queued-boundary-runtime.service.ts`
 10. `html-transformer.service.ts`
 11. `page-module-loader.ts`
 12. `dependency-resolver.ts`
@@ -341,7 +341,7 @@ For someone new to the rendering system, this is probably the most useful order 
 - `packages/core/src/route-renderer/orchestration/integration-renderer.ts`
 - `packages/core/src/route-renderer/orchestration/render-preparation.service.ts`
 - `packages/core/src/route-renderer/orchestration/render-execution.service.ts`
-- `packages/core/src/route-renderer/orchestration/string-boundary-runtime.service.ts`
+- `packages/core/src/route-renderer/orchestration/queued-boundary-runtime.service.ts`
 - `packages/core/src/route-renderer/page-loading/page-module-loader.ts`
 - `packages/core/src/route-renderer/page-loading/dependency-resolver.ts`
 - `packages/core/src/services/module-loading/page-module-import.service.ts`

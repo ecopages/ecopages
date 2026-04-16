@@ -13,18 +13,19 @@ import type {
 } from '../types/public-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import {
+	type ComponentBoundaryRuntime,
 	getComponentRenderContext,
 	runWithComponentRenderContext,
 } from '../route-renderer/orchestration/component-render-context.ts';
 
 const mockAppConfig = {} as EcoPagesAppConfig;
 
-function createResolvedBoundaryRuntime(targetIntegrations: string[], value: string) {
+function createResolvedBoundaryRuntime(targetIntegrations: string[], value: string): ComponentBoundaryRuntime {
 	return {
 		interceptBoundary: async ({ targetIntegration }: { targetIntegration?: string }) =>
 			targetIntegration !== undefined && targetIntegrations.includes(targetIntegration)
-				? { kind: 'resolved', value }
-				: { kind: 'inline' },
+				? ({ kind: 'resolved', value } as const)
+				: ({ kind: 'inline' } as const),
 	};
 }
 

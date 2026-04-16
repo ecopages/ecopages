@@ -85,6 +85,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		const warnings: string[] = [];
 		Logger.prototype.warn = function warn(message: string) {
 			warnings.push(message);
+			return this;
 		};
 
 		try {

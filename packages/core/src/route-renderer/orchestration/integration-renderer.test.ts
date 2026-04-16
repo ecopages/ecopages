@@ -480,7 +480,7 @@ describe('IntegrationRenderer', () => {
 					{
 						name: 'foreign-renderer',
 						initializeRenderer,
-					},
+					} as unknown as EcoPagesAppConfig['integrations'][number],
 				],
 			} as EcoPagesAppConfig,
 			assetProcessingService: AssetService,

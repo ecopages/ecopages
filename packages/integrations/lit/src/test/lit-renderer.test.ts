@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
 	eco,
 	type ComponentRenderInput,
+	type ComponentRenderResult,
 	type EcoComponent,
 	type EcoPagesElement,
 	type HtmlTemplateProps,
@@ -370,25 +371,27 @@ describe('LitRenderer', () => {
 		});
 
 		it('should resolve foreign boundaries inside the lit renderer and bubble nested assets', async () => {
-			const deferredRenderComponent = vi.fn(async (input: ComponentRenderInput) => ({
-				html: '<button data-testid="deferred-widget">Deferred widget</button>',
-				canAttachAttributes: true,
-				rootTag: 'button',
-				integrationName: 'deferred',
-				rootAttributes: {
-					'data-eco-component-id':
-						(input.integrationContext as { componentInstanceId?: string } | undefined)
-							?.componentInstanceId ?? 'missing',
-				},
-				assets: [
-					{
-						kind: 'script',
-						inline: true,
-						content: 'console.log("deferred")',
-						position: 'body',
+			const deferredRenderComponent = vi.fn(
+				async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
+					html: '<button data-testid="deferred-widget">Deferred widget</button>',
+					canAttachAttributes: true,
+					rootTag: 'button',
+					integrationName: 'deferred',
+					rootAttributes: {
+						'data-eco-component-id':
+							(input.integrationContext as { componentInstanceId?: string } | undefined)
+								?.componentInstanceId ?? 'missing',
 					},
-				],
-			}));
+					assets: [
+						{
+							kind: 'script' as const,
+							inline: true,
+							content: 'console.log("deferred")',
+							position: 'body' as const,
+						},
+					],
+				}),
+			);
 
 			class DeferredBoundaryRenderer extends IntegrationRenderer<EcoPagesElement> {
 				name = 'deferred';
@@ -397,7 +400,7 @@ describe('LitRenderer', () => {
 					return '';
 				}
 
-				override async renderComponent(input: ComponentRenderInput) {
+				override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 					return deferredRenderComponent(input);
 				}
 
@@ -856,8 +859,8 @@ describe('LitRenderer', () => {
 					title: 'Route page',
 					description: 'Route page',
 				},
-				Page,
-				Layout,
+				Page: Page as unknown as EcoComponent<Record<string, unknown>>,
+				Layout: Layout as unknown as EcoComponent<Record<string, unknown>>,
 				HtmlTemplate,
 				pageProps: {},
 			});

@@ -51,10 +51,10 @@ describe('ReactHydrationAssetService', () => {
 		});
 
 		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx' },
+			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
 		});
 		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx' },
+			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
 		});
 
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
@@ -70,11 +70,11 @@ describe('ReactHydrationAssetService', () => {
 			[],
 		);
 
-		const [firstDependencies, firstKey] = processDependencies.mock.calls[0] as [
+		const [firstDependencies, firstKey] = processDependencies.mock.calls[0] as unknown as [
 			Array<{ name: string; content?: string; attributes?: Record<string, string> }>,
 			string,
 		];
-		const [secondDependencies, secondKey] = processDependencies.mock.calls[1] as [
+		const [secondDependencies, secondKey] = processDependencies.mock.calls[1] as unknown as [
 			Array<{ name: string; content?: string; attributes?: Record<string, string> }>,
 			string,
 		];
@@ -82,7 +82,7 @@ describe('ReactHydrationAssetService', () => {
 		const [firstBundle, firstHydration] = firstDependencies;
 		const [secondBundle, secondHydration] = secondDependencies;
 		const componentKey = getReactIslandComponentKey('/app/src/components/counter.tsx', {
-			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx' },
+			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
 		});
 
 		expect(firstKey).toBe(`ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`);

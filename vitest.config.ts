@@ -23,6 +23,7 @@ export default defineConfig({
 						'packages/loaders/**/*.test.ts',
 						'packages/file-system/**/*.test.ts',
 						'packages/vite-plugin/**/*.test.ts',
+						'scripts/**/*.test.ts',
 					],
 					exclude: [...configDefaults.exclude, 'packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
 				},

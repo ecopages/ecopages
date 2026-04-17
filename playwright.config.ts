@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import { defineConfig, devices } from '@playwright/test';
 
 const coreE2ePort = 43102;
@@ -5,41 +6,82 @@ const corePostcssE2ePort = 43108;
 const kitchenSinkDir = 'playground/kitchen-sink';
 const kitchenSinkTestMatch = `${kitchenSinkDir}/e2e/**/*.test.e2e.ts`;
 const kitchenSinkPreviewMatch = `${kitchenSinkDir}/e2e/**/*.preview.test.e2e.ts`;
+const kitchenSinkStatefulTestMatch = `${kitchenSinkDir}/e2e/includes-hmr.test.e2e.ts`;
+
+function withKitchenSinkDirs(command: string, distDir: string, workDir: string) {
+	return `export ECOPAGES_DIST_DIR=${distDir} ECOPAGES_WORK_DIR=${workDir}; ${command}`;
+}
+
 const kitchenSinkVariants = [
 	{
 		projectName: 'kitchen-sink-bun-e2e',
 		previewProjectName: 'kitchen-sink-preview-bun-e2e',
 		devPort: 4007,
 		previewPort: 4008,
-		devCommand: 'NODE_ENV=development pnpm exec ecopages dev --runtime bun --port 4007',
-		previewCommand:
+		devCommand: withKitchenSinkDirs(
+			'NODE_ENV=development pnpm exec ecopages dev --runtime bun --port 4007',
+			'.e2e/kitchen-sink-bun/dist',
+			'.e2e/kitchen-sink-bun/work',
+		),
+		previewCommand: withKitchenSinkDirs(
 			'NODE_ENV=production pnpm exec ecopages build --runtime bun && pnpm exec ecopages preview --runtime bun --port 4008',
+			'.e2e/kitchen-sink-preview-bun/dist',
+			'.e2e/kitchen-sink-preview-bun/work',
+		),
 	},
 	{
 		projectName: 'kitchen-sink-node-e2e',
 		previewProjectName: 'kitchen-sink-preview-node-e2e',
 		devPort: 4010,
 		previewPort: 4011,
-		devCommand: 'NODE_ENV=development pnpm exec ecopages dev --runtime node --port 4010',
-		previewCommand:
+		devCommand: withKitchenSinkDirs(
+			'NODE_ENV=development pnpm exec ecopages dev --runtime node --port 4010',
+			'.e2e/kitchen-sink-node/dist',
+			'.e2e/kitchen-sink-node/work',
+		),
+		previewCommand: withKitchenSinkDirs(
 			'NODE_ENV=production pnpm exec ecopages build --runtime node && pnpm exec ecopages preview --runtime node --port 4011',
+			'.e2e/kitchen-sink-preview-node/dist',
+			'.e2e/kitchen-sink-preview-node/work',
+		),
 	},
 	{
 		projectName: 'kitchen-sink-vite-node-e2e',
 		devPort: 4012,
-		devCommand: 'ECOPAGES_KITCHEN_SINK_HOST=vite pnpm exec vite dev --port 4012 --logLevel silent',
+		devCommand: withKitchenSinkDirs(
+			'ECOPAGES_KITCHEN_SINK_HOST=vite pnpm exec vite dev --port 4012 --logLevel silent',
+			'.e2e/kitchen-sink-vite-node/dist',
+			'.e2e/kitchen-sink-vite-node/work',
+		),
 	},
 	{
 		projectName: 'kitchen-sink-vite-bun-e2e',
 		devPort: 4014,
-		devCommand: 'ECOPAGES_KITCHEN_SINK_HOST=vite bunx vite dev --port 4014 --logLevel silent',
+		devCommand: withKitchenSinkDirs(
+			'ECOPAGES_KITCHEN_SINK_HOST=vite bunx vite dev --port 4014 --logLevel silent',
+			'.e2e/kitchen-sink-vite-bun/dist',
+			'.e2e/kitchen-sink-vite-bun/work',
+		),
 	},
 ] as const;
 const reactPlaygroundE2ePort = 43101;
 const reuseExistingServer = process.env.ECOPAGES_REUSE_TEST_SERVERS === 'true';
+const selectedProjects = new Set(
+	(process.env.ECOPAGES_PLAYWRIGHT_PROJECTS ?? '')
+		.split(',')
+		.map((value) => value.trim())
+		.filter(Boolean),
+);
 
-const kitchenSinkDevTestIgnore = [kitchenSinkPreviewMatch];
+const includeStatefulKitchenSinkTests =
+	process.env.ECOPAGES_INCLUDE_STATEFUL_KITCHEN_SINK_TESTS === 'true' ||
+	process.argv.some((arg) => arg.includes('includes-hmr.test.e2e.ts'));
+const kitchenSinkDevTestIgnore = includeStatefulKitchenSinkTests
+	? [kitchenSinkPreviewMatch]
+	: [kitchenSinkPreviewMatch, kitchenSinkStatefulTestMatch];
 const kitchenSinkPreviewTestIgnore: string[] = [];
+const maxAvailableWorkers = availableParallelism();
+const defaultWorkerCount = maxAvailableWorkers > 1 ? maxAvailableWorkers : 1;
 
 const kitchenSinkWithPreview = kitchenSinkVariants.filter(
 	(
@@ -48,11 +90,128 @@ const kitchenSinkWithPreview = kitchenSinkVariants.filter(
 		'previewProjectName' in variant,
 );
 
+type WebServerConfig = {
+	command: string;
+	cwd: string;
+	port: number;
+	projects: string[];
+	stderr: 'pipe';
+	stdout: 'pipe';
+	reuseExistingServer: boolean;
+};
+
+function includeServerForProjects(projects: string[]) {
+	return selectedProjects.size === 0 || projects.some((project) => selectedProjects.has(project));
+}
+
+const webServers: WebServerConfig[] = [
+	{
+		command: `NODE_ENV=development ECOPAGES_PORT=${coreE2ePort} bun run app.ts --dev`,
+		cwd: 'packages/core/__fixtures__/app',
+		port: coreE2ePort,
+		projects: ['core-e2e'],
+		reuseExistingServer,
+		stdout: 'pipe',
+		stderr: 'pipe',
+	},
+	{
+		command: `NODE_ENV=development ECOPAGES_USE_POSTCSS_PROCESSOR=true ECOPAGES_PORT=${corePostcssE2ePort} bun run app.ts --dev`,
+		cwd: 'packages/core/__fixtures__/app',
+		port: corePostcssE2ePort,
+		projects: ['core-postcss-e2e'],
+		reuseExistingServer,
+		stdout: 'pipe',
+		stderr: 'pipe',
+	},
+	{
+		command: 'NODE_ENV=production ECOPAGES_PORT=4005 bun run app.ts',
+		cwd: 'e2e/fixtures/cache-app',
+		port: 4005,
+		projects: ['cache-e2e'],
+		reuseExistingServer,
+		stdout: 'pipe',
+		stderr: 'pipe',
+	},
+	{
+		command: 'NODE_ENV=production ECOPAGES_PORT=4002 bun run app.ts --preview',
+		cwd: 'e2e/fixtures/browser-router-app',
+		port: 4002,
+		projects: ['browser-router-e2e'],
+		reuseExistingServer,
+		stdout: 'pipe',
+		stderr: 'pipe',
+	},
+	{
+		command:
+			'NODE_ENV=production pnpm --filter @ecopages/docs run build && NODE_ENV=production ECOPAGES_PORT=4009 pnpm --filter @ecopages/docs run preview',
+		cwd: '.',
+		port: 4009,
+		projects: ['docs-e2e'],
+		reuseExistingServer,
+		stdout: 'pipe',
+		stderr: 'pipe',
+	},
+	{
+		command: 'NODE_ENV=production ECOPAGES_PORT=4003 bun run app.ts --preview',
+		cwd: 'e2e/fixtures/react-router-app',
+		port: 4003,
+		projects: ['react-router-e2e'],
+		reuseExistingServer,
+		stdout: 'pipe',
+		stderr: 'pipe',
+	},
+	{
+		command: 'NODE_ENV=production ECOPAGES_PORT=4004 ECOPAGES_PERSIST_LAYOUTS=true bun run app.ts --preview',
+		cwd: 'e2e/fixtures/react-router-app',
+		port: 4004,
+		projects: ['react-router-persist-layouts-e2e'],
+		reuseExistingServer,
+		stdout: 'pipe',
+		stderr: 'pipe',
+	},
+	{
+		command: 'NODE_ENV=development ECOPAGES_PORT=4006 ECOPAGES_PERSIST_LAYOUTS=true bun run app.ts --dev',
+		cwd: 'e2e/fixtures/react-router-app',
+		port: 4006,
+		projects: ['react-router-persist-layouts-dev-e2e'],
+		reuseExistingServer,
+		stdout: 'pipe',
+		stderr: 'pipe',
+	},
+	{
+		command: `ECOPAGES_PORT=${reactPlaygroundE2ePort} pnpm --filter @ecopages/playground-react run dev`,
+		cwd: '.',
+		port: reactPlaygroundE2ePort,
+		projects: ['react-playground-e2e'],
+		reuseExistingServer,
+		stdout: 'pipe',
+		stderr: 'pipe',
+	},
+	...kitchenSinkVariants.map((variant) => ({
+		command: variant.devCommand,
+		cwd: kitchenSinkDir,
+		port: variant.devPort,
+		projects: [variant.projectName],
+		reuseExistingServer,
+		stdout: 'pipe' as const,
+		stderr: 'pipe' as const,
+	})),
+	...kitchenSinkWithPreview.map((variant) => ({
+		command: variant.previewCommand,
+		cwd: kitchenSinkDir,
+		port: variant.previewPort,
+		projects: [variant.previewProjectName],
+		reuseExistingServer,
+		stdout: 'pipe' as const,
+		stderr: 'pipe' as const,
+	})),
+];
+
 export default defineConfig({
 	testDir: '.',
 	testMatch: '**/*.test.e2e.ts',
-	fullyParallel: false,
-	workers: 1,
+	fullyParallel: true,
+	workers: defaultWorkerCount,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
 	reporter: 'list',
@@ -157,94 +316,5 @@ export default defineConfig({
 			},
 		})),
 	],
-	webServer: [
-		{
-			command: `NODE_ENV=development ECOPAGES_PORT=${coreE2ePort} bun run app.ts --dev`,
-			cwd: 'packages/core/__fixtures__/app',
-			port: coreE2ePort,
-			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		{
-			command: `NODE_ENV=development ECOPAGES_USE_POSTCSS_PROCESSOR=true ECOPAGES_PORT=${corePostcssE2ePort} bun run app.ts --dev`,
-			cwd: 'packages/core/__fixtures__/app',
-			port: corePostcssE2ePort,
-			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		{
-			command: 'NODE_ENV=production ECOPAGES_PORT=4005 bun run app.ts',
-			cwd: 'e2e/fixtures/cache-app',
-			port: 4005,
-			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		{
-			command: 'NODE_ENV=production ECOPAGES_PORT=4002 bun run app.ts --preview',
-			cwd: 'e2e/fixtures/browser-router-app',
-			port: 4002,
-			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		{
-			command: 'NODE_ENV=production ECOPAGES_PORT=4009 pnpm --filter @ecopages/docs run preview',
-			cwd: '.',
-			port: 4009,
-			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		{
-			command: 'NODE_ENV=production ECOPAGES_PORT=4003 bun run app.ts --preview',
-			cwd: 'e2e/fixtures/react-router-app',
-			port: 4003,
-			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		{
-			command: 'NODE_ENV=production ECOPAGES_PORT=4004 ECOPAGES_PERSIST_LAYOUTS=true bun run app.ts --preview',
-			cwd: 'e2e/fixtures/react-router-app',
-			port: 4004,
-			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		{
-			command: 'NODE_ENV=development ECOPAGES_PORT=4006 ECOPAGES_PERSIST_LAYOUTS=true bun run app.ts --dev',
-			cwd: 'e2e/fixtures/react-router-app',
-			port: 4006,
-			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		{
-			command: `ECOPAGES_PORT=${reactPlaygroundE2ePort} pnpm --filter @ecopages/playground-react run dev`,
-			cwd: '.',
-			port: reactPlaygroundE2ePort,
-			reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		},
-		...kitchenSinkVariants.map((variant) => ({
-			command: variant.devCommand,
-			cwd: kitchenSinkDir,
-			port: variant.devPort,
-			reuseExistingServer,
-			stdout: 'pipe' as const,
-			stderr: 'pipe' as const,
-		})),
-		...kitchenSinkWithPreview.map((variant) => ({
-			command: variant.previewCommand,
-			cwd: kitchenSinkDir,
-			port: variant.previewPort,
-			reuseExistingServer,
-			stdout: 'pipe' as const,
-			stderr: 'pipe' as const,
-		})),
-	],
+	webServer: webServers.filter((server) => includeServerForProjects(server.projects)),
 });

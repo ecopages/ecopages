@@ -4,6 +4,7 @@
 # ecopages
 .eco
 .output
+.e2e
 
 # build
 public/js

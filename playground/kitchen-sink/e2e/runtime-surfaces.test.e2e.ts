@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoAndWait, trackRuntimeErrors } from './helpers';
+import { gotoAndWait, trackRuntimeErrors, waitForPageReady } from './helpers';
 
 test.describe('Kitchen Sink Playground Runtime Surfaces', () => {
 	test('renders middleware locals and request-scoped layout state', async ({ page }) => {
@@ -25,7 +25,7 @@ test.describe('Kitchen Sink Playground Runtime Surfaces', () => {
 		await expect(page.getByAltText('Kita Kamakura full width')).toBeVisible();
 
 		await page.getByRole('link', { name: 'transition lab' }).click();
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/transitions');
 		await expect(page.getByRole('heading', { name: 'Image handoff across browser-router routes' })).toBeVisible();
 		await expect(page.getByRole('link', { name: 'Open the image processor page' })).toBeVisible();
 		runtime.assertClean();

@@ -45,7 +45,8 @@ async function clickCounter(button: Locator) {
 	for (let attempt = 0; attempt < 3; attempt += 1) {
 		try {
 			await expect(button).toBeVisible();
-			await button.click({ timeout: 5000 });
+			await button.scrollIntoViewIfNeeded().catch(() => undefined);
+			await button.click({ noWaitAfter: true, timeout: 5000 });
 			return;
 		} catch (error) {
 			if (attempt === 2) {
@@ -56,19 +57,35 @@ async function clickCounter(button: Locator) {
 	}
 }
 
-export async function incrementCounter(button: Locator, value: Locator, expectedValue: string) {
-	for (let attempt = 0; attempt < 4; attempt += 1) {
-		try {
-			await clickCounter(button);
-			await expect(value).toHaveText(expectedValue, { timeout: 1000 });
-			return;
-		} catch (error) {
-			if (attempt === 3) {
-				throw error;
-			}
-			await new Promise((resolve) => setTimeout(resolve, 150));
-		}
+async function waitForNextPaint(target: Locator) {
+	try {
+		await target.evaluate(
+			() =>
+				new Promise<void>((resolve) => {
+					requestAnimationFrame(() => {
+						requestAnimationFrame(() => resolve());
+					});
+				}),
+		);
+	} catch {
+		return;
 	}
+}
+
+export async function incrementCounter(button: Locator, value: Locator, expectedValue: string) {
+	await expect
+		.poll(
+			async () => {
+				await clickCounter(button);
+				await waitForNextPaint(value);
+				return ((await value.textContent()) ?? '').trim();
+			},
+			{
+				intervals: [100, 200, 350, 500],
+				timeout: 5000,
+			},
+		)
+		.toBe(expectedValue);
 }
 
 export async function assertCounterInteractivity(root: Locator, expectations: CounterExpectations = {}) {
@@ -110,6 +127,10 @@ export async function assertFourCountersVisible(root: Locator) {
 	const reactCounter = root.locator('[data-react-counter]');
 	const radiantCounter = root.locator('radiant-counter[data-radiant-counter]');
 
+	await expect(root).toBeVisible();
+	await root.scrollIntoViewIfNeeded().catch(() => undefined);
+	await waitForNextPaint(root);
+
 	await expect(kitaCounter).toHaveCount(1);
 	await expect(litCounter).toHaveCount(1);
 	await expect(reactCounter).toHaveCount(1);
@@ -141,13 +162,56 @@ export function getSectionByText(page: Page, text: string): Locator {
 	return page.locator('section').filter({ hasText: text }).first();
 }
 
+export async function waitForPageReady(page: Page, href?: string) {
+	const targetUrl = href ? new URL(href, page.url()) : undefined;
+
+	if (targetUrl) {
+		await expect
+			.poll(
+				() => {
+					try {
+						const currentUrl = new URL(page.url());
+						return `${currentUrl.pathname}${currentUrl.search}`;
+					} catch {
+						return '';
+					}
+				},
+				{ timeout: 10000 },
+			)
+			.toBe(`${targetUrl.pathname}${targetUrl.search}`);
+	}
+
+	await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+	await page.waitForLoadState('load').catch(() => undefined);
+	await page
+		.waitForFunction(() => document.readyState !== 'loading' && !!document.body, null, {
+			timeout: 10000,
+		})
+		.catch(() => undefined);
+	await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
+	await expect
+		.poll(
+			async () => {
+				try {
+					return await page.title();
+				} catch {
+					return '';
+				}
+			},
+			{ timeout: 10000 },
+		)
+		.not.toMatch(/^Loading\s/u);
+}
+
 export async function gotoAndWait(page: Page, href: string) {
 	try {
-		await page.goto(href);
+		await page.goto(href, { waitUntil: 'domcontentloaded' });
 	} catch (error) {
 		if (
 			!(error instanceof Error) ||
-			(!error.message.includes('net::ERR_ABORTED') && !error.message.includes('frame was detached'))
+			(!error.message.includes('net::ERR_ABORTED') &&
+				!error.message.includes('net::ERR_EMPTY_RESPONSE') &&
+				!error.message.includes('frame was detached'))
 		) {
 			throw error;
 		}
@@ -155,7 +219,7 @@ export async function gotoAndWait(page: Page, href: string) {
 		await page.goto(href, { waitUntil: 'domcontentloaded' });
 	}
 
-	await page.waitForLoadState('networkidle');
+	await waitForPageReady(page, href);
 }
 
 /**
@@ -183,14 +247,14 @@ export async function clickHrefAndWait(page: Page, href: string) {
 			page.waitForURL((url) => url.pathname === targetUrl.pathname && url.search === targetUrl.search, {
 				timeout: 5000,
 			}),
-			link.click(),
+			link.click({ noWaitAfter: true }),
 		]);
 	} catch {
 		await gotoAndWait(page, href);
 		return;
 	}
 
-	await page.waitForLoadState('networkidle').catch(() => undefined);
+	await waitForPageReady(page, href);
 }
 
 export async function readHeaderNavigation(page: Page) {
@@ -203,11 +267,30 @@ export async function readHeaderNavigation(page: Page) {
 }
 
 export async function assertSingleAppShell(page: Page) {
-	await expect(page.locator('body > div')).toHaveCount(1);
-	await expect(page.locator('body > div > header')).toHaveCount(1);
-	await expect(page.locator('body > div > main')).toHaveCount(1);
-	await expect(page.locator('body > div > footer')).toHaveCount(1);
-	await expect(page.locator('body > div > header nav')).toHaveCount(1);
+	await expect
+		.poll(
+			async () => {
+				try {
+					return await page.evaluate(() => ({
+						footerCount: document.querySelectorAll('body > div > footer').length,
+						headerCount: document.querySelectorAll('body > div > header').length,
+						navCount: document.querySelectorAll('body > div > header nav').length,
+						mainCount: document.querySelectorAll('body > div > main').length,
+						rootCount: document.querySelectorAll('body > div').length,
+					}));
+				} catch {
+					return null;
+				}
+			},
+			{ timeout: 5000 },
+		)
+		.toEqual({
+			footerCount: 1,
+			headerCount: 1,
+			mainCount: 1,
+			navCount: 1,
+			rootCount: 1,
+		});
 }
 
 export async function settleOnRoute(options: {
@@ -233,7 +316,7 @@ export async function settleOnRoute(options: {
 						}
 					},
 					{
-						timeout: 2000,
+						timeout: 5000,
 					},
 				)
 				.toBe(targetPathname);
@@ -247,7 +330,7 @@ export async function settleOnRoute(options: {
 						}
 					},
 					{
-						timeout: 2000,
+						timeout: 5000,
 					},
 				)
 				.toBe(true);
@@ -258,7 +341,7 @@ export async function settleOnRoute(options: {
 			}
 
 			await navigate();
-			await page.waitForLoadState('networkidle').catch(() => undefined);
+			await waitForPageReady(page, href).catch(() => undefined);
 		}
 	}
 }

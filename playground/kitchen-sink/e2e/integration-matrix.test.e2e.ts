@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { assertAllCountersInteractivity, gotoAndWait, trackRuntimeErrors } from './helpers';
+import { assertAllCountersInteractivity, clickHrefAndWait, gotoAndWait, trackRuntimeErrors } from './helpers';
 import {
 	integrationMatrixEntryRoutes,
 	integrationMatrixHostPages,
@@ -141,8 +141,7 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 		const runtime = trackRuntimeErrors(page);
 
 		await gotoAndWait(page, '/');
-		await page.getByTestId('primary-link-integration-matrix-ecopages-jsx-entry').click();
-		await page.waitForURL('**/integration-matrix/ecopages-jsx-entry');
+		await clickHrefAndWait(page, '/integration-matrix/ecopages-jsx-entry');
 
 		const styleSnapshot = await page.evaluate(() => {
 			const counterGroup = document.querySelector(

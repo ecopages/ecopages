@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { gotoAndWait, waitForPageReady } from '../../utils/test-helpers';
 
 /**
  * E2E tests for the Docs Table of Contents (radiant-toc).
@@ -11,8 +12,7 @@ test.describe('Docs TOC', () => {
 	const TOC = 'radiant-toc';
 
 	test.beforeEach(async ({ page }) => {
-		await page.goto(PAGE);
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, PAGE);
 		await page.waitForFunction(() => !!(window as any).__ecopages_browser_router__);
 	});
 
@@ -121,7 +121,7 @@ test.describe('Docs TOC', () => {
 	test('TOC re-renders correctly after SPA navigation to another page', async ({ page }) => {
 		await page.click('[data-testid="docs-nav-link:/docs/getting-started/introduction"]');
 		await page.waitForURL('**/docs/getting-started/introduction');
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/docs/getting-started/introduction');
 
 		const toc = page.locator(TOC);
 

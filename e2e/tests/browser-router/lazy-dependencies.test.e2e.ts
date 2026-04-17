@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { gotoAndWait } from '../../utils/test-helpers';
 
 type GlobalInjectorRule = { value?: string | boolean; scripts: string[] };
 type GlobalInjectorMapConfig = Record<string, Record<string, GlobalInjectorRule>>;
@@ -63,16 +64,14 @@ function findRule(
 test.describe('Lazy Dependencies', () => {
 	test.describe('on:interaction (click)', () => {
 		test('should not load lazy script before interaction', async ({ page }) => {
-			await page.goto('/lazy-deps');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/lazy-deps');
 
 			const sentinel = page.locator('#lazy-script-loaded');
 			await expect(sentinel).not.toBeVisible();
 		});
 
 		test('should load lazy script after click interaction', async ({ page }) => {
-			await page.goto('/lazy-deps');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/lazy-deps');
 
 			const sentinel = page.locator('#lazy-script-loaded');
 			await expect(sentinel).not.toBeVisible();
@@ -96,16 +95,14 @@ test.describe('Lazy Dependencies', () => {
 
 	test.describe('on:visible', () => {
 		test('should not load visible script before scrolling into view', async ({ page }) => {
-			await page.goto('/lazy-deps');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/lazy-deps');
 
 			const sentinel = page.locator('#visible-script-loaded');
 			await expect(sentinel).not.toBeVisible();
 		});
 
 		test('should load visible script when component enters viewport', async ({ page }) => {
-			await page.goto('/lazy-deps');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/lazy-deps');
 
 			const sentinel = page.locator('#visible-script-loaded');
 			await expect(sentinel).not.toBeVisible();
@@ -131,8 +128,7 @@ test.describe('Lazy Dependencies', () => {
 
 	test.describe('on:idle', () => {
 		test('should load idle script when browser becomes idle', async ({ page }) => {
-			await page.goto('/lazy-deps');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/lazy-deps');
 
 			const sentinel = page.locator('#idle-script-loaded');
 			await expect(sentinel).toBeVisible({ timeout: 5000 });

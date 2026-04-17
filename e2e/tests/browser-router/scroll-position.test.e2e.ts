@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { gotoAndWait } from '../../utils/test-helpers';
 
 /**
  * E2E tests for sidebar scroll position persistence in @ecopages/browser-router
  */
 test.describe('Browser Router Scroll Position', () => {
 	test('sidebar scroll position is preserved after navigation', async ({ page }) => {
-		await page.goto('/docs');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs');
 
 		await expect(page.locator('[data-testid="docs-page"]')).toBeVisible();
 
@@ -43,8 +43,7 @@ test.describe('Browser Router Scroll Position', () => {
 	});
 
 	test('sidebar scroll position is preserved on back navigation', async ({ page }) => {
-		await page.goto('/docs');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs');
 
 		const sidebar = page.locator('[data-testid="docs-sidebar"]');
 

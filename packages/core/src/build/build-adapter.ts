@@ -498,43 +498,84 @@ export class BunBuildAdapter implements BuildAdapter {
 		return targetPath;
 	}
 
+	private createDeterministicOutputReference(outputPath: string): string {
+		return path.normalize(outputPath).replace(/\.(?:[cm]?js)$/u, '');
+	}
+
+	private collectDeterministicOutputReferences(
+		options: BuildOptions,
+		entrypointPath: string,
+	): Map<string, string> {
+		const expectedOutputsByReference = new Map<string, string>();
+		const expectedOutputPath = this.resolveTemplatedOutputPath(options, entrypointPath);
+
+		if (!expectedOutputPath) {
+			return expectedOutputsByReference;
+		}
+
+		expectedOutputsByReference.set(
+			this.createDeterministicOutputReference(expectedOutputPath),
+			expectedOutputPath,
+		);
+
+		if (!options.outbase) {
+			return expectedOutputsByReference;
+		}
+
+		const bunRootRelativeOutputPath = this.resolveTemplatedOutputPath(
+			{ ...options, outbase: undefined },
+			entrypointPath,
+		);
+
+		if (bunRootRelativeOutputPath && bunRootRelativeOutputPath !== expectedOutputPath) {
+			expectedOutputsByReference.set(
+				this.createDeterministicOutputReference(bunRootRelativeOutputPath),
+				expectedOutputPath,
+			);
+		}
+
+		return expectedOutputsByReference;
+	}
+
+	private hasJavaScriptExtension(outputPath: string): boolean {
+		return /\.(?:[cm]?js)$/u.test(outputPath);
+	}
+
 	private normalizeBunOutputs(result: BuildResult, options: BuildOptions): BuildResult {
 		if (!result.success || result.outputs.length === 0) {
 			return result;
 		}
 
 		const normalizedOutputs = [...result.outputs];
-		const canMapEntrypointsByIndex = options.entrypoints.length === normalizedOutputs.length;
+		const expectedOutputsByReference = new Map<string, string>();
 
-		if (canMapEntrypointsByIndex) {
-			for (const [index, entrypointPath] of options.entrypoints.entries()) {
-				const concreteOutputPath = this.resolveConcreteOutputPath(normalizedOutputs[index]!.path);
-				const expectedOutputPath = this.resolveTemplatedOutputPath(options, entrypointPath, concreteOutputPath);
-				if (!expectedOutputPath) {
-					continue;
-				}
-
-				normalizedOutputs[index] = {
-					path: this.relocateOutputFile(
-						concreteOutputPath ?? normalizedOutputs[index]!.path,
-						expectedOutputPath,
-					),
-				};
+		for (const entrypointPath of options.entrypoints) {
+			for (const [reference, expectedOutputPath] of this.collectDeterministicOutputReferences(
+				options,
+				entrypointPath,
+			)) {
+				expectedOutputsByReference.set(reference, expectedOutputPath);
 			}
-
-			return {
-				...result,
-				outputs: normalizedOutputs,
-			};
 		}
 
 		return {
 			...result,
 			outputs: normalizedOutputs.map((output) => {
 				const concreteOutputPath = this.resolveConcreteOutputPath(output.path) ?? output.path;
+				const expectedOutputPath = expectedOutputsByReference.get(
+					this.createDeterministicOutputReference(concreteOutputPath),
+				);
 
-				if (path.extname(concreteOutputPath) !== '') {
-					return output;
+				if (expectedOutputPath) {
+					return {
+						path: this.relocateOutputFile(concreteOutputPath, expectedOutputPath),
+					};
+				}
+
+				if (this.hasJavaScriptExtension(concreteOutputPath)) {
+					return {
+						path: concreteOutputPath,
+					};
 				}
 
 				const normalizedPath = `${concreteOutputPath}.js`;

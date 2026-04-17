@@ -8,8 +8,4 @@
 
 ### Bug Fixes
 
-- Fixed mixed-renderer JSX boundary resolution, Radiant/browser runtime asset mapping, required peer dependency wiring, Bun-only MDX loader setup, and multi-dot MDX extension matching.
-
-### Documentation
-
-- Updated the README to document JSX route extensions, Radiant defaults, MDX configuration, and mixed-renderer boundary ownership.
+- Fixed Radiant SSR page inspection to install the light-DOM shim before JSX page modules are imported outside the normal render pass.

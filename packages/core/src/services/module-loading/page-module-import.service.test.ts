@@ -369,6 +369,56 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
+	it('should isolate node module identities across cache scopes', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-scope-'));
+		const requestCompiledOutput = join(tempDir, 'page-hash123-request-metadata.js');
+		const renderCompiledOutput = join(tempDir, 'page-hash123-render.js');
+		writeFileSync(requestCompiledOutput, 'export const scope = "request"; export default { ok: true };', 'utf8');
+		writeFileSync(renderCompiledOutput, 'export const scope = "render"; export default { ok: true };', 'utf8');
+
+		service = new PageModuleImportService({
+			...fakeDependencies.dependencies,
+			async buildModule(options, buildExecutor) {
+				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
+				return createBuildResult({
+					outputs: [
+						{
+							path:
+								options.naming === 'page-hash123-request-metadata.js'
+									? requestCompiledOutput
+									: renderCompiledOutput,
+						},
+					],
+				});
+			},
+		});
+
+		try {
+			const requestModule = await service.importModule<{ scope: string }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+				cacheScope: 'request-metadata',
+			});
+
+			const renderModule = await service.importModule<{ scope: string }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+				cacheScope: 'render',
+			});
+
+			assert.equal(requestModule.scope, 'request');
+			assert.equal(renderModule.scope, 'render');
+			assert.deepEqual(
+				fakeDependencies.calls.buildModule.map((call) => call.options.naming),
+				['page-hash123-request-metadata.js', 'page-hash123-render.js'],
+			);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('should reload the same node module path after development graph invalidation', async () => {
 		process.env.NODE_ENV = 'development';
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-'));

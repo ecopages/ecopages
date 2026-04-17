@@ -96,6 +96,38 @@ test('resolveNodeBootstrapDependency resolves workspace-source third-party impor
 	}
 });
 
+test('resolveNodeBootstrapDependency resolves workspace package dependencies from the importer package boundary', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
+	const appProjectDir = path.join(rootDir, 'playground', 'kitchen-sink');
+	fs.mkdirSync(appProjectDir, { recursive: true });
+	fs.writeFileSync(path.join(appProjectDir, 'package.json'), '{}', 'utf8');
+	const frameworkPackageDir = path.join(rootDir, 'packages', 'core');
+	const importerPath = path.join(frameworkPackageDir, 'src', 'plugin.ts');
+	fs.mkdirSync(path.dirname(importerPath), { recursive: true });
+	fs.writeFileSync(importerPath, 'export default null;\n', 'utf8');
+	fs.writeFileSync(path.join(frameworkPackageDir, 'package.json'), JSON.stringify({ name: '@ecopages/core' }), 'utf8');
+	writePackage(path.join(frameworkPackageDir, 'node_modules', 'oxc-parser'), {
+		name: 'oxc-parser',
+		main: 'index.js',
+	});
+
+	try {
+		const runtimeNodeModulesDir = path.join(rootDir, '.eco', 'node_modules');
+		const result = resolveNodeBootstrapDependency(
+			{ path: 'oxc-parser', importer: importerPath },
+			{ projectDir: appProjectDir, runtimeNodeModulesDir },
+		);
+
+		assert.deepEqual(result, { path: 'oxc-parser', external: true });
+		assert.equal(
+			fs.realpathSync(path.join(runtimeNodeModulesDir, 'oxc-parser')),
+			fs.realpathSync(path.join(frameworkPackageDir, 'node_modules', 'oxc-parser')),
+		);
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
 test('resolveNodeBootstrapDependency resolves nested third-party dependencies from the importer package context', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
@@ -114,6 +146,36 @@ test('resolveNodeBootstrapDependency resolves nested third-party dependencies fr
 
 		assert.deepEqual(result, { path: 'dep-b', external: true });
 		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'dep-b')), fs.realpathSync(nestedDependencyDir));
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
+test('resolveNodeBootstrapDependency refreshes runtime links when the resolved package target changes', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
+	const importerPath = path.join(rootDir, 'src', 'page.tsx');
+	fs.mkdirSync(path.dirname(importerPath), { recursive: true });
+	fs.writeFileSync(importerPath, 'export default null;\n', 'utf8');
+	const firstPackageDir = path.join(rootDir, 'store', 'react-v1');
+	const secondPackageDir = path.join(rootDir, 'store', 'react-v2');
+	writePackage(firstPackageDir, { name: 'react' });
+	writePackage(secondPackageDir, { name: 'react' });
+	const nodeModulesDir = path.join(rootDir, 'node_modules');
+	const appReactLinkPath = path.join(nodeModulesDir, 'react');
+	const runtimeNodeModulesDir = path.join(rootDir, '.eco', 'node_modules');
+	const runtimeReactLinkPath = path.join(runtimeNodeModulesDir, 'react');
+	fs.mkdirSync(nodeModulesDir, { recursive: true });
+	fs.mkdirSync(runtimeNodeModulesDir, { recursive: true });
+	fs.symlinkSync(secondPackageDir, appReactLinkPath, 'dir');
+	fs.symlinkSync(firstPackageDir, runtimeReactLinkPath, 'dir');
+
+	try {
+		assert.deepEqual(
+			resolveNodeBootstrapDependency({ path: 'react', importer: importerPath }, { projectDir: rootDir, runtimeNodeModulesDir }),
+			{ path: 'react', external: true },
+		);
+		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'react')), fs.realpathSync(secondPackageDir));
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}

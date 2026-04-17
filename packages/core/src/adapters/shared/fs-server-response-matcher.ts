@@ -6,21 +6,12 @@ import type { FSRouter } from '../../router/server/fs-router.ts';
 import type { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from '../../services/cache/cache.types.ts';
 import { PageRequestCacheCoordinator } from '../../services/cache/page-request-cache-coordinator.service.ts';
-import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
-import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
-import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
 import type { Middleware, RequestLocals } from '../../types/public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
-
-export const FILE_SYSTEM_RESPONSE_MATCHER_ERRORS = {
-	transpilePageModuleFailed: (details: string) => `Error transpiling page module: ${details}`,
-	noTranspiledOutputForPageModule: (filePath: string) =>
-		`No transpiled output generated for page module: ${filePath}`,
-} as const;
 
 export interface FileSystemResponseMatcherOptions {
 	appConfig: EcoPagesAppConfig;
@@ -36,7 +27,6 @@ export interface FileSystemResponseMatcherOptions {
 /**
  * Matches file-system routes to rendered HTML responses.
  *
- * This class sits at the request-time boundary between router matches and the
  * render pipeline. It coordinates page module inspection, request-local policy,
  * renderer invocation, middleware execution, cache integration, and fallback
  * error translation.
@@ -46,7 +36,6 @@ export class FileSystemResponseMatcher {
 	private router: FSRouter;
 	private routeRendererFactory: RouteRendererFactory;
 	private fileSystemResponseFactory: FileSystemServerResponseFactory;
-	private serverModuleTranspiler: ServerModuleTranspiler;
 	private pageRequestCacheCoordinator: PageRequestCacheCoordinator;
 	private fileRouteMiddlewarePipeline: FileRouteMiddlewarePipeline;
 
@@ -62,7 +51,6 @@ export class FileSystemResponseMatcher {
 		this.router = router;
 		this.routeRendererFactory = routeRendererFactory;
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
-		this.serverModuleTranspiler = getAppServerModuleTranspiler(appConfig);
 		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy);
 		this.fileRouteMiddlewarePipeline = new FileRouteMiddlewarePipeline(cacheService);
 	}
@@ -70,7 +58,6 @@ export class FileSystemResponseMatcher {
 	/**
 	 * Resolves unmatched paths either as static asset requests or as the custom
 	 * not-found page.
-	 *
 	 * @param requestUrl Incoming pathname.
 	 * @returns Static file response or rendered 404 response.
 	 */
@@ -179,20 +166,17 @@ export class FileSystemResponseMatcher {
 	 * Loads the matched page module for request-time inspection.
 	 *
 	 * The matcher needs access to page-level metadata such as `cache` and
-	 * `middleware` before full rendering starts, so it uses the shared module
-	 * import service directly rather than going through route rendering. The
-	 * app config is injected explicitly so build ownership stays at the adapter
-	 * boundary instead of leaking through nested router collaborators.
+	 * `middleware` before full rendering starts, so it asks the owning route
+	 * renderer to load the page module. That preserves integration-specific page
+	 * import setup for request-time inspection as well as for full rendering.
 	 *
 	 * @param filePath Absolute page module path.
 	 * @returns Imported page module.
 	 */
 	private async importPageModule(filePath: string): Promise<unknown> {
-		return this.serverModuleTranspiler.importModule({
-			filePath,
-			outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules-meta'),
-			transpileErrorMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.transpilePageModuleFailed,
-			noOutputMessage: FILE_SYSTEM_RESPONSE_MATCHER_ERRORS.noTranspiledOutputForPageModule,
+		const routeRenderer = this.routeRendererFactory.createRenderer(filePath);
+		return routeRenderer.loadPageModule(filePath, {
+			cacheScope: 'request-metadata',
 		});
 	}
 

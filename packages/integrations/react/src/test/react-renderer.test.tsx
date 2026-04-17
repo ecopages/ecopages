@@ -11,7 +11,11 @@ import {
 	type HtmlTemplateProps,
 } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import {
+	IntegrationRenderer,
+	type RenderToResponseContext,
+	type RouteModuleLoadOptions,
+} from '@ecopages/core/route-renderer/integration-renderer';
 import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import React, { type JSX } from 'react';
@@ -69,6 +73,11 @@ NonReactHtmlTemplate.config = {
 const pageFilePath = path.resolve(__dirname, 'fixture/test-page.tsx');
 const errorPageFile = path.resolve(__dirname, 'fixture/error-page.tsx');
 
+type TestReactRuntimeModules = {
+	react: Pick<typeof React, 'createElement' | 'Fragment'>;
+	reactDomServer: Pick<typeof import('react-dom/server'), 'renderToReadableStream' | 'renderToString'>;
+};
+
 const renderer = new ReactRenderer({
 	appConfig: Config,
 	assetProcessingService: {} as any,
@@ -83,6 +92,7 @@ class TestReactRenderer extends ReactRenderer {
 	isMdxFileOverride?: boolean;
 	declaredModulesOverride?: string[];
 	routeRenderAssetsOverride?: Awaited<ReturnType<ReactRenderer['buildRouteRenderAssets']>>;
+	reactRuntimeModulesOverride?: TestReactRuntimeModules;
 
 	constructor(options: ConstructorParameters<typeof ReactRenderer>[0]) {
 		super(options);
@@ -117,7 +127,11 @@ class TestReactRenderer extends ReactRenderer {
 		return this.htmlTemplate as EcoComponent<HtmlTemplateProps, JSX.Element>;
 	}
 
-	protected override async importPageFile(file: string): Promise<EcoPageFile> {
+	protected override resolveReactRuntimeModules() {
+		return this.reactRuntimeModulesOverride ?? super.resolveReactRuntimeModules();
+	}
+
+	protected override async importPageFile(file: string, _options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
 		if (this.importedPageFileOverride) {
 			return this.importedPageFileOverride;
 		}
@@ -567,6 +581,42 @@ describe('ReactRenderer', () => {
 			]);
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 		});
+	});
+
+	it('should render boundaries with the app-scoped React runtime', async () => {
+		const createElement = vi.fn((component: unknown, props: unknown, ...children: unknown[]) => ({
+			component,
+			props,
+			children,
+		})) as unknown as typeof React.createElement;
+		const renderToString = vi.fn((value: unknown) => JSON.stringify(value));
+		const testRenderer = createRenderer();
+		testRenderer.reactRuntimeModulesOverride = {
+			react: {
+				createElement,
+				Fragment: 'fragment-token' as unknown as typeof React.Fragment,
+			},
+			reactDomServer: {
+				renderToReadableStream: vi.fn(
+					async () => new ReadableStream(),
+				) as unknown as typeof import('react-dom/server').renderToReadableStream,
+				renderToString: renderToString as unknown as typeof import('react-dom/server').renderToString,
+			},
+		};
+
+		const Boundary = eco.component<{ label: string }, JSX.Element>({
+			integration: 'react',
+			render: ({ label }) => <section>{label}</section>,
+		});
+
+		const result = await testRenderer.renderComponentBoundary({
+			component: Boundary,
+			props: { label: 'Hello' },
+		});
+
+		expect(result.html).toContain('"label":"Hello"');
+		expect(createElement).toHaveBeenCalled();
+		expect(renderToString).toHaveBeenCalledTimes(1);
 	});
 
 	afterAll(() => {
@@ -1057,8 +1107,14 @@ describe('ReactRenderer', () => {
 			const mdxModule = await testRenderer.importForTest('/tmp/page.mdx');
 			const tsxModule = await testRenderer.importForTest('/tmp/page.tsx');
 
-			expect(importMdxPageFile).toHaveBeenCalledWith('/tmp/page.mdx');
-			expect(baseImporter).toHaveBeenCalledWith('/tmp/page.tsx', { bypassCache: false });
+			expect(importMdxPageFile).toHaveBeenCalledWith('/tmp/page.mdx', {
+				bypassCache: false,
+				cacheScope: undefined,
+			});
+			expect(baseImporter).toHaveBeenCalledWith('/tmp/page.tsx', {
+				bypassCache: false,
+				cacheScope: undefined,
+			});
 			expect(mdxModule.default).toBe(pageComponent);
 			expect((mdxModule.default as typeof pageComponent).config).toBe(mdxConfig);
 			expect(tsxModule.default).toBe(Page);

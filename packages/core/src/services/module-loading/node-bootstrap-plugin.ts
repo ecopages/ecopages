@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { existsSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { EcoBuildOnResolveArgs, EcoBuildOnResolveResult, EcoBuildPlugin } from '../../build/build-types.ts';
@@ -49,7 +49,11 @@ function ensureRuntimePackageLink(nodeModulesDir: string, specifier: string, res
 	const linkPath = path.join(nodeModulesDir, packageName);
 
 	if (existsSync(linkPath)) {
-		return;
+		if (realpathSync(linkPath) === realpathSync(packageRoot)) {
+			return;
+		}
+
+		rmSync(linkPath, { recursive: true, force: true });
 	}
 
 	mkdirSync(path.dirname(linkPath), { recursive: true });
@@ -57,7 +61,15 @@ function ensureRuntimePackageLink(nodeModulesDir: string, specifier: string, res
 }
 
 export interface NodeBootstrapResolutionOptions {
+	/**
+	 * App root used as the fallback package boundary when an importer does not
+	 * live under a more specific package.json.
+	 */
 	projectDir: string;
+	/**
+	 * Runtime-local node_modules directory that receives symlinks to resolved
+	 * package roots so transpiled Node imports share one package graph.
+	 */
 	runtimeNodeModulesDir: string;
 	preserveImportMetaPaths?: string[];
 }
@@ -70,10 +82,6 @@ export function getNodeUnsupportedBuiltinError(specifier: string, importer?: str
 	return `Node bootstrap transpilation does not support Bun builtin specifier ${JSON.stringify(specifier)}${importer ? ` imported from ${importer}` : ''}.`;
 }
 
-function shouldResolveFromImporter(importer: string | undefined): importer is string {
-	return Boolean(importer && importer.includes(`${path.sep}node_modules${path.sep}`));
-}
-
 function resolveSpecifier(specifier: string, parentPath: string): string {
 	try {
 		return createRequire(parentPath).resolve(specifier);
@@ -84,6 +92,28 @@ function resolveSpecifier(specifier: string, parentPath: string): string {
 
 function resolveFromCore(specifier: string): string {
 	return createRequire(import.meta.url).resolve(specifier);
+}
+
+function findResolutionParent(importer: string | undefined, projectDir: string): string {
+	if (!importer || !path.isAbsolute(importer)) {
+		return path.join(projectDir, 'package.json');
+	}
+
+	let currentPath = path.dirname(importer);
+
+	while (true) {
+		const packageJsonPath = path.join(currentPath, 'package.json');
+		if (existsSync(packageJsonPath)) {
+			return packageJsonPath;
+		}
+
+		const parentPath = path.dirname(currentPath);
+		if (parentPath === currentPath) {
+			return path.join(projectDir, 'package.json');
+		}
+
+		currentPath = parentPath;
+	}
 }
 
 function getBootstrapBuildLoaderForPath(filePath: string): 'js' | 'jsx' | 'json' | 'ts' | 'tsx' {
@@ -153,10 +183,7 @@ export function resolveNodeBootstrapDependency(
 		return undefined;
 	}
 
-	const resolveParent =
-		args.importer && path.isAbsolute(args.importer) && shouldResolveFromImporter(args.importer)
-			? args.importer
-			: path.join(options.projectDir, 'package.json');
+	const resolveParent = findResolutionParent(args.importer, options.projectDir);
 
 	if (args.path.startsWith('@ecopages/')) {
 		let resolvedPath: string | undefined;
@@ -200,6 +227,14 @@ export function resolveNodeBootstrapDependency(
 	};
 }
 
+/**
+ * Creates the Node bootstrap plugin used by app-owned server module loads.
+ *
+ * The resolver anchors third-party imports to the nearest package boundary for
+ * the importing file, then mirrors the resolved package root into the runtime
+ * node_modules directory. That keeps transpiled Node execution aligned with the
+ * package graph each source file was authored against.
+ */
 export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOptions): EcoBuildPlugin {
 	const projectDir = path.resolve(options.projectDir);
 	const importMetaRewritePaths = new Set(
@@ -253,6 +288,13 @@ export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOption
 	};
 }
 
+/**
+ * Creates the default Node bootstrap plugin for one Ecopages app runtime.
+ *
+ * This binds the shared resolution policy to the app's internal execution
+ * directory so transpiled server modules can externalize packages into one
+ * stable runtime node_modules graph.
+ */
 export function createAppNodeBootstrapPlugin(
 	appConfig: Pick<EcoPagesAppConfig, 'rootDir' | 'workDir' | 'absolutePaths'>,
 	options?: {

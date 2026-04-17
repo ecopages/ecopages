@@ -91,4 +91,40 @@ describe('app server module transpiler runtime state', () => {
 		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/pages/docs.md'), false);
 		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/pages/react-content.mdx'), false);
 	});
+
+	it('adds the Node bootstrap plugin to app-owned module imports in node runtimes', async () => {
+		const calls: Array<unknown> = [];
+		const appConfig = {
+			rootDir: '/app',
+			absolutePaths: {
+				componentsDir: '/app/src/components',
+				includesDir: '/app/src/includes',
+				layoutsDir: '/app/src/layouts',
+				pagesDir: '/app/src/pages',
+			},
+			templatesExt: ['.tsx'],
+			runtime: {},
+		} as any;
+
+		const moduleLoader = getAppModuleLoader(appConfig) as any;
+		const originalImportModule = moduleLoader.pageModuleImportService.importModule.bind(
+			moduleLoader.pageModuleImportService,
+		);
+		moduleLoader.pageModuleImportService.importModule = async (options: unknown) => {
+			calls.push(options);
+			return { default: { ok: true } };
+		};
+
+		await moduleLoader.importModule({
+			filePath: '/app/src/pages/index.tsx',
+			rootDir: '/app',
+			outdir: '/app/.eco/.server-modules',
+		});
+
+		moduleLoader.pageModuleImportService.importModule = originalImportModule;
+
+		const plugins = (calls[0] as { plugins?: Array<{ name: string }> }).plugins;
+		assert.equal(Array.isArray(plugins), true);
+		assert.equal(plugins?.[0]?.name, 'node-bootstrap-plugin');
+	});
 });

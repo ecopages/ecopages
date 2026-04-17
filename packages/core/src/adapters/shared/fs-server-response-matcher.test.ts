@@ -8,7 +8,6 @@ import { FSRouter } from '../../router/server/fs-router.ts';
 import { FSRouterScanner } from '../../router/server/fs-router-scanner.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
-import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 
@@ -260,7 +259,7 @@ describe('FileSystemResponseMatcher', () => {
 	});
 
 	describe('internal transpile output', () => {
-		it('should write page metadata modules to the execution directory', async () => {
+		it('should inspect page modules through the owning route renderer', async () => {
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
 				router,
@@ -268,19 +267,19 @@ describe('FileSystemResponseMatcher', () => {
 				fileSystemResponseFactory,
 			});
 
-			const importModule = vi.fn(async () => ({}));
-			(matcher as any).serverModuleTranspiler = {
-				importModule,
+			const loadPageModule = vi.fn(async () => ({}));
+			(matcher as any).routeRendererFactory = {
+				createRenderer: vi.fn(() => ({
+					loadPageModule,
+				})),
 			};
 
 			await (matcher as any).importPageModule(INDEX_TEMPLATE_FILE);
 
-			expect(importModule).toHaveBeenCalledWith(
-				expect.objectContaining({
-					filePath: INDEX_TEMPLATE_FILE,
-					outdir: path.join(resolveInternalExecutionDir(appConfig), '.server-modules-meta'),
-				}),
-			);
+			expect((matcher as any).routeRendererFactory.createRenderer).toHaveBeenCalledWith(INDEX_TEMPLATE_FILE);
+			expect(loadPageModule).toHaveBeenCalledWith(INDEX_TEMPLATE_FILE, {
+				cacheScope: 'request-metadata',
+			});
 		});
 	});
 });

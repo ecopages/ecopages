@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoPageComponent, StaticRoute } from '../types/public-types.ts';
@@ -7,8 +6,6 @@ import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
 import type { FSRouter } from '../router/server/fs-router.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { PathUtils } from '../utils/path-utils.module.ts';
-import { getAppServerModuleTranspiler } from '../services/module-loading/app-server-module-transpiler.service.ts';
-import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
 
 export const STATIC_SITE_GENERATOR_ERRORS = {
 	ROUTE_RENDERER_FACTORY_REQUIRED: 'RouteRendererFactory is required for render strategy',
@@ -31,24 +28,12 @@ export const STATIC_SITE_GENERATOR_ERRORS = {
  */
 export class StaticSiteGenerator {
 	appConfig: EcoPagesAppConfig;
-	private serverModuleTranspiler: ServerModuleTranspiler;
 
 	/**
 	 * Creates the static-site generator for one app config.
 	 */
 	constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
 		this.appConfig = appConfig;
-		this.serverModuleTranspiler = getAppServerModuleTranspiler(appConfig);
-	}
-
-	/**
-	 * Returns the transpiler output directory used for static page-module probes.
-	 */
-	private getStaticPageModuleOutdir(): string {
-		const workDir =
-			this.appConfig.absolutePaths?.workDir ??
-			path.join(this.appConfig.rootDir, this.appConfig.workDir ?? DEFAULT_ECOPAGES_WORK_DIR);
-		return path.join(workDir, '.server-static-page-modules');
 	}
 
 	private getExportDir(): string {
@@ -69,15 +54,15 @@ export class StaticSiteGenerator {
 	 * Determines whether one filesystem-discovered page should be excluded from
 	 * static generation.
 	 */
-	private async shouldSkipStaticPageFile(filePath: string): Promise<boolean> {
-		const module = (await this.serverModuleTranspiler.importModule({
-			filePath,
-			outdir: this.getStaticPageModuleOutdir(),
-			externalPackages: false,
-			transpileErrorMessage: (details) => `Error transpiling static page module: ${details}`,
-			noOutputMessage: (targetFilePath) =>
-				`No transpiled output generated for static page module: ${targetFilePath}`,
-		})) as { default?: EcoPageComponent<any> };
+	private async shouldSkipStaticPageFile(
+		filePath: string,
+		routeRendererFactory: RouteRendererFactory,
+	): Promise<boolean> {
+		const module = (await routeRendererFactory.createRenderer(filePath).loadPageModule(filePath, {
+			cacheScope: 'static-page-probe',
+		})) as {
+			default?: EcoPageComponent<any>;
+		};
 
 		if (module.default?.cache !== 'dynamic') {
 			return false;
@@ -191,9 +176,6 @@ export class StaticSiteGenerator {
 		for (const route of routes) {
 			try {
 				const { filePath, pathname: routePathname } = router.routes[route];
-				if (await this.shouldSkipStaticPageFile(filePath)) {
-					continue;
-				}
 
 				const ext = PathUtils.getEcoTemplateExtension(filePath);
 				const integration = this.appConfig.integrations.find((plugin) => plugin.extensions.includes(ext));
@@ -213,6 +195,10 @@ export class StaticSiteGenerator {
 				} else {
 					if (!routeRendererFactory) {
 						throw new Error(STATIC_SITE_GENERATOR_ERRORS.ROUTE_RENDERER_FACTORY_REQUIRED);
+					}
+
+					if (await this.shouldSkipStaticPageFile(filePath, routeRendererFactory)) {
+						continue;
 					}
 
 					let pathname = routePathname;

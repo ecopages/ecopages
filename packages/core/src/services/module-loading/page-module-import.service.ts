@@ -10,6 +10,7 @@ export interface PageModuleImportOptions {
 	rootDir: string;
 	outdir: string;
 	bypassCache?: boolean;
+	cacheScope?: string;
 	buildExecutor?: BuildExecutor;
 	invalidationVersion?: number;
 	splitting?: boolean;
@@ -105,7 +106,7 @@ export class PageModuleImportService {
 				: undefined;
 
 		if (hostModuleLoader) {
-			const sourceModuleUrl = createRuntimeModuleUrl(filePath, fileHash, invalidationVersion);
+			const sourceModuleUrl = createRuntimeModuleUrl(filePath, fileHash, invalidationVersion, options.cacheScope);
 			return (await hostModuleLoader(sourceModuleUrl.href)) as T;
 		}
 
@@ -125,6 +126,7 @@ export class PageModuleImportService {
 			rootDir,
 			splitting ?? 'default',
 			externalPackages ?? 'default',
+			options.cacheScope ?? 'default',
 			fileHash,
 			invalidationVersion,
 		].join('::');
@@ -161,18 +163,20 @@ export class PageModuleImportService {
 			invalidationVersion = this.developmentInvalidationVersion,
 			splitting,
 			externalPackages,
+			cacheScope,
 			transpileErrorMessage = (details) => `Error transpiling page module: ${details}`,
 			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
 			fileHash,
 		} = options;
-		const sourceModuleUrl = createRuntimeModuleUrl(filePath, fileHash, invalidationVersion);
+		const sourceModuleUrl = createRuntimeModuleUrl(filePath, fileHash, invalidationVersion, cacheScope);
 
 		if (typeof Bun !== 'undefined') {
 			return (await import(/* @vite-ignore */ sourceModuleUrl.href)) as T;
 		}
 
 		const fileBaseName = path.basename(filePath, path.extname(filePath));
-		const outputFileName = `${fileBaseName}-${fileHash}.js`;
+		const cacheScopeSuffix = cacheScope ? `-${sanitizeCacheScope(cacheScope)}` : '';
+		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}.js`;
 
 		const buildResult = await this.dependencies.buildModule(
 			{
@@ -208,22 +212,41 @@ export class PageModuleImportService {
 
 		const compiledOutputUrl = pathToFileURL(compiledOutput);
 
-		if (process.env.NODE_ENV === 'development') {
-			compiledOutputUrl.searchParams.set('update', `${fileHash}-${invalidationVersion}`);
+		if (process.env.NODE_ENV === 'development' || cacheScope) {
+			compiledOutputUrl.searchParams.set(
+				'update',
+				[fileHash, invalidationVersion, cacheScope ? sanitizeCacheScope(cacheScope) : undefined]
+					.filter((value) => value !== undefined)
+					.join('-'),
+			);
 		}
 
 		return (await import(/* @vite-ignore */ compiledOutputUrl.href)) as T;
 	}
 }
 
-function createRuntimeModuleUrl(filePath: string, fileHash: string, invalidationVersion: number): URL {
+function createRuntimeModuleUrl(
+	filePath: string,
+	fileHash: string,
+	invalidationVersion: number,
+	cacheScope?: string,
+): URL {
 	const moduleUrl = pathToFileURL(filePath);
 
-	if (process.env.NODE_ENV === 'development') {
-		moduleUrl.searchParams.set('update', `${fileHash}-${invalidationVersion}`);
+	if (process.env.NODE_ENV === 'development' || cacheScope) {
+		moduleUrl.searchParams.set(
+			'update',
+			[fileHash, invalidationVersion, cacheScope ? sanitizeCacheScope(cacheScope) : undefined]
+				.filter((value) => value !== undefined)
+				.join('-'),
+		);
 	}
 
 	return moduleUrl;
+}
+
+function sanitizeCacheScope(cacheScope: string): string {
+	return cacheScope.replace(/[^a-zA-Z0-9_-]+/g, '-');
 }
 
 function supportsHostSourceModuleLoading(filePath: string): boolean {

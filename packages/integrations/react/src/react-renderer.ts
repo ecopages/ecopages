@@ -19,7 +19,11 @@ import type {
 	RequestLocals,
 	RouteRendererBody,
 } from '@ecopages/core';
-import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import {
+	IntegrationRenderer,
+	type RenderToResponseContext,
+	type RouteModuleLoadOptions,
+} from '@ecopages/core/route-renderer/integration-renderer';
 import { LocalsAccessError } from '@ecopages/core/errors/locals-access-error';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { getAppBuildExecutor } from '@ecopages/core/build/build-adapter';
@@ -27,9 +31,9 @@ import { rapidhash } from '@ecopages/core/hash';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { AssetFactory, type AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import { createElement, Fragment, type ReactNode } from 'react';
-import { renderToReadableStream, renderToString } from 'react-dom/server';
+import type { FunctionComponent, ReactNode } from 'react';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { PLUGIN_NAME } from './react.plugin.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
@@ -59,9 +63,14 @@ type ReactBoundaryRuntimeContext = {
 
 type SerializableProps = Record<string, unknown>;
 
-type ReactRenderableComponent<P extends SerializableProps = SerializableProps> = React.FunctionComponent<P> & {
+type ReactRenderableComponent<P extends SerializableProps = SerializableProps> = FunctionComponent<P> & {
 	config?: EcoComponentConfig;
 	requires?: string | readonly string[];
+};
+
+type ReactRuntimeModules = {
+	react: Pick<typeof import('react'), 'createElement' | 'Fragment'>;
+	reactDomServer: Pick<typeof import('react-dom/server'), 'renderToReadableStream' | 'renderToString'>;
 };
 
 type NonReactLayoutProps = {
@@ -118,6 +127,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	static mdxCompilerOptions: CompileOptions | undefined;
 	static mdxExtensions: string[] = ['.mdx'];
 	static hmrPageMetadataCache: ReactHmrPageMetadataCache | undefined;
+	private reactRuntimeModules?: ReactRuntimeModules;
 	/**
 	 * Enables explicit graph behavior for React page-entry bundling.
 	 *
@@ -248,6 +258,31 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return component as (props: P) => EcoPagesElement | Promise<EcoPagesElement>;
 	}
 
+	protected resolveReactRuntimeModules(): ReactRuntimeModules {
+		const appPackageJsonPath = path.resolve(this.appConfig.rootDir || process.cwd(), 'package.json');
+
+		try {
+			const requireFromApp = createRequire(appPackageJsonPath);
+
+			return {
+				react: requireFromApp('react') as ReactRuntimeModules['react'],
+				reactDomServer: requireFromApp('react-dom/server') as ReactRuntimeModules['reactDomServer'],
+			};
+		} catch {
+			const requireFromIntegration = createRequire(import.meta.url);
+
+			return {
+				react: requireFromIntegration('react') as ReactRuntimeModules['react'],
+				reactDomServer: requireFromIntegration('react-dom/server') as ReactRuntimeModules['reactDomServer'],
+			};
+		}
+	}
+
+	private getReactRuntimeModules(): ReactRuntimeModules {
+		this.reactRuntimeModules ??= this.resolveReactRuntimeModules();
+		return this.reactRuntimeModules;
+	}
+
 	/**
 	 * Builds the serialized page-props payload embedded into the final HTML.
 	 *
@@ -320,9 +355,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		context: ReactComponentRenderContext,
 		runtimeContext?: ReactBoundaryRuntimeContext,
 	): string {
+		const { react, reactDomServer } = this.getReactRuntimeModules();
+
 		if (input.children === undefined) {
 			return this.normalizeBoundaryArtifactHtml(
-				renderToString(createElement(this.asReactComponent(input.component), input.props)),
+				reactDomServer.renderToString(react.createElement(this.asReactComponent(input.component), input.props)),
 			);
 		}
 
@@ -332,8 +369,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			runtimeContext.rawChildrenToken = rawChildrenToken;
 			runtimeContext.rawChildrenHtml = resolvedChildHtml;
 		}
-		const html = renderToString(
-			createElement(this.asReactComponent(input.component), input.props, rawChildrenToken),
+		const html = reactDomServer.renderToString(
+			react.createElement(this.asReactComponent(input.component), input.props, rawChildrenToken),
 		);
 		return this.normalizeBoundaryArtifactHtml(html.split(rawChildrenToken).join(resolvedChildHtml));
 	}
@@ -356,8 +393,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			return undefined;
 		}
 
+		const { react, reactDomServer } = this.getReactRuntimeModules();
+
 		let html = this.normalizeBoundaryArtifactHtml(
-			renderToString(createElement(Fragment, null, children as ReactNode)),
+			reactDomServer.renderToString(react.createElement(react.Fragment, null, children as ReactNode)),
 		);
 		html = this.restoreRuntimeChildHtml(html, runtimeContext);
 
@@ -525,8 +564,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return this.pageModuleService.isMdxFile(file);
 	}
 
-	protected override async importIntegrationPageFile(file: string): Promise<EcoPageFile> {
-		return (await this.pageModuleService.importMdxPageFile(file)) as EcoPageFile;
+	protected override async importIntegrationPageFile(
+		file: string,
+		options?: RouteModuleLoadOptions,
+	): Promise<EcoPageFile> {
+		return (await this.pageModuleService.importMdxPageFile(file, options)) as EcoPageFile;
 	}
 
 	protected override normalizeImportedPageFile<TPageModule extends EcoPageFile>(
@@ -835,6 +877,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
+			const { react, reactDomServer } = this.getReactRuntimeModules();
 			const viewConfig = view.config;
 			const Layout = viewConfig?.layout;
 			const ViewComponent = this.asReactComponent(view);
@@ -846,7 +889,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 					props,
 					ctx,
 					renderInline: async () =>
-						await renderToReadableStream(createElement(ViewComponent, normalizedProps)),
+						await reactDomServer.renderToReadableStream(react.createElement(ViewComponent, normalizedProps)),
 				});
 			}
 

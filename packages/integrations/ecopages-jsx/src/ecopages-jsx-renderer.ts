@@ -11,7 +11,11 @@ import type {
 } from '@ecopages/core';
 import { rapidhash } from '@ecopages/core/hash';
 import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
-import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import {
+	IntegrationRenderer,
+	type RenderToResponseContext,
+	type RouteModuleLoadOptions,
+} from '@ecopages/core/route-renderer/integration-renderer';
 import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';
@@ -178,8 +182,12 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		this.radiantSsrEnabled = enabled;
 	}
 
-	protected override async importPageFile(file: string): Promise<MdxPageModule> {
-		const module = (await super.importPageFile(file)) as MdxPageModule;
+	protected override async importPageFile(file: string, options?: RouteModuleLoadOptions): Promise<MdxPageModule> {
+		if (this.radiantSsrEnabled) {
+			await ensureRadiantLightDomShimInstalled();
+		}
+
+		const module = (await super.importPageFile(file, options)) as MdxPageModule;
 
 		if (!this.isMdxFile(file)) {
 			return module;

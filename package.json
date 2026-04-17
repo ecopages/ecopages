@@ -35,9 +35,9 @@
     "bump:beta:major": "node scripts/bump-version.ts prerelease beta major && pnpm run jsr:sync-version",
     "commit": "better-commits",
     "prepare:husky": "husky",
-    "test:all": "pnpm run test:vitest && playwright test",
+    "test:all": "pnpm run test:vitest && pnpm run test:e2e",
     "test:vitest": "vitest run --project shared-core --project browser",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:ui": "playwright test --ui",
     "typecheck": "pnpm run check:portability && pnpm --filter '*' run typecheck"
   },

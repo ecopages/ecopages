@@ -11,10 +11,14 @@ import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
 const appRoot = process.cwd();
+const distDir = process.env.ECOPAGES_DIST_DIR ?? 'dist';
+const workDir = process.env.ECOPAGES_WORK_DIR ?? '.eco';
 
 const config = await new ConfigBuilder()
 	.setRootDir(appRoot)
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setDistDir(distDir)
+	.setWorkDir(workDir)
 	.setIntegrations([
 		kitajsPlugin(),
 		ecopagesJsxPlugin({ extensions: ['.eco.tsx'] }),
@@ -37,7 +41,7 @@ const config = await new ConfigBuilder()
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(appRoot, 'src/images'),
-				outputDir: path.resolve(appRoot, 'dist/images'),
+				outputDir: path.resolve(appRoot, distDir, 'images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 				quality: 80,

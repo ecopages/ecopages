@@ -242,6 +242,154 @@ test('BunBuildAdapter normalizes hashed naming patterns to concrete emitted outp
 	}
 });
 
+test('BunBuildAdapter normalizes unordered multi-entrypoint outputs by path instead of output index', async () => {
+	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+
+	try {
+		const root = createTempRoot('ecopages-bun-unordered-entrypoints');
+		const srcDir = path.join(root, 'src', 'components');
+		const outDir = path.join(root, 'dist', 'assets');
+		fs.mkdirSync(path.join(srcDir, 'theme-toggle'), { recursive: true });
+		fs.mkdirSync(path.join(srcDir, 'weather-app'), { recursive: true });
+		fs.mkdirSync(path.join(srcDir, 'code-tabs'), { recursive: true });
+		fs.mkdirSync(outDir, { recursive: true });
+
+		const themeToggleEntrypoint = path.join(srcDir, 'theme-toggle', 'theme-toggle.script.ts');
+		const weatherAppEntrypoint = path.join(srcDir, 'weather-app', 'weather-app.script.tsx');
+		const codeTabsEntrypoint = path.join(srcDir, 'code-tabs', 'code-tabs.script.tsx');
+		fs.writeFileSync(themeToggleEntrypoint, 'export const themeToggle = 1;');
+		fs.writeFileSync(weatherAppEntrypoint, 'export const weatherApp = 2;');
+		fs.writeFileSync(codeTabsEntrypoint, 'export const codeTabs = 3;');
+
+		const themeToggleOutput = path.join(outDir, 'components', 'theme-toggle', 'theme-toggle.script');
+		const weatherAppOutput = path.join(outDir, 'components', 'weather-app', 'weather-app.script');
+		const codeTabsOutput = path.join(outDir, 'components', 'code-tabs', 'code-tabs.script');
+
+		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
+			build: vi.fn(async () => {
+				fs.mkdirSync(path.dirname(themeToggleOutput), { recursive: true });
+				fs.mkdirSync(path.dirname(weatherAppOutput), { recursive: true });
+				fs.mkdirSync(path.dirname(codeTabsOutput), { recursive: true });
+				fs.writeFileSync(themeToggleOutput, 'export const themeToggle = 1;', 'utf8');
+				fs.writeFileSync(weatherAppOutput, 'export const weatherApp = 2;', 'utf8');
+				fs.writeFileSync(codeTabsOutput, 'export const codeTabs = 3;', 'utf8');
+				return {
+					success: true,
+					logs: [],
+					outputs: [
+						{ path: weatherAppOutput },
+						{ path: codeTabsOutput },
+						{ path: themeToggleOutput },
+					],
+				};
+			}),
+			hash: vi.fn(() => 1),
+			resolveSync: vi.fn((importPath: string) => importPath),
+		};
+
+		const freshAdapter = createBunBuildAdapter();
+		const result = await freshAdapter.build({
+			entrypoints: [themeToggleEntrypoint, weatherAppEntrypoint, codeTabsEntrypoint],
+			root,
+			outdir: outDir,
+			outbase: path.join(root, 'src'),
+			target: 'browser',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: true,
+			minify: false,
+			naming: '[dir]/[name]',
+		});
+
+		assert.equal(result.success, true);
+		assert.deepEqual(result.outputs, [
+			{ path: `${weatherAppOutput}.js` },
+			{ path: `${codeTabsOutput}.js` },
+			{ path: `${themeToggleOutput}.js` },
+		]);
+		assert.equal(fs.readFileSync(`${themeToggleOutput}.js`, 'utf8'), 'export const themeToggle = 1;');
+		assert.equal(fs.readFileSync(`${weatherAppOutput}.js`, 'utf8'), 'export const weatherApp = 2;');
+		assert.equal(fs.readFileSync(`${codeTabsOutput}.js`, 'utf8'), 'export const codeTabs = 3;');
+	} finally {
+		if (originalBun === undefined) {
+			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+		} else {
+			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
+		}
+		cleanupTempRoots();
+	}
+});
+
+test('BunBuildAdapter remaps Bun root-relative outputs back to outbase-relative paths', async () => {
+	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+
+	try {
+		const root = createTempRoot('ecopages-bun-outbase-root-relative');
+		const srcDir = path.join(root, 'src', 'components', 'theme-toggle');
+		const outDir = path.join(root, 'dist', 'assets');
+		fs.mkdirSync(srcDir, { recursive: true });
+		fs.mkdirSync(outDir, { recursive: true });
+
+		const entryPath = path.join(srcDir, 'theme-toggle.script.ts');
+		fs.writeFileSync(entryPath, 'export const themeToggle = 1;');
+
+		const bunRootRelativeOutputPath = path.join(
+			outDir,
+			'src',
+			'components',
+			'theme-toggle',
+			'theme-toggle.script',
+		);
+		const expectedOutputPath = path.join(
+			outDir,
+			'components',
+			'theme-toggle',
+			'theme-toggle.script',
+		);
+
+		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
+			build: vi.fn(async () => {
+				fs.mkdirSync(path.dirname(bunRootRelativeOutputPath), { recursive: true });
+				fs.writeFileSync(bunRootRelativeOutputPath, 'export const themeToggle = 1;', 'utf8');
+				return {
+					success: true,
+					logs: [],
+					outputs: [{ path: bunRootRelativeOutputPath }],
+				};
+			}),
+			hash: vi.fn(() => 1),
+			resolveSync: vi.fn((importPath: string) => importPath),
+		};
+
+		const freshAdapter = createBunBuildAdapter();
+		const result = await freshAdapter.build({
+			entrypoints: [entryPath],
+			root,
+			outdir: outDir,
+			outbase: path.join(root, 'src'),
+			target: 'browser',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: true,
+			minify: false,
+			naming: '[dir]/[name]',
+		});
+
+		assert.equal(result.success, true);
+		assert.deepEqual(result.outputs, [{ path: `${expectedOutputPath}.js` }]);
+		assert.equal(fs.existsSync(`${expectedOutputPath}.js`), true);
+		assert.equal(fs.existsSync(bunRootRelativeOutputPath), false);
+		assert.equal(fs.readFileSync(`${expectedOutputPath}.js`, 'utf8'), 'export const themeToggle = 1;');
+	} finally {
+		if (originalBun === undefined) {
+			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+		} else {
+			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
+		}
+		cleanupTempRoots();
+	}
+});
+
 test('getAppBuildExecutor falls back to the app-owned adapter before the shared default adapter', async () => {
 	const appConfig = {
 		runtime: {},

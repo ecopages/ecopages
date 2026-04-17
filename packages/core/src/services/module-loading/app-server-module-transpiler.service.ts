@@ -71,6 +71,10 @@ export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLo
 			getHostModuleLoader: () => getAppHostModuleLoader(appConfig),
 		},
 		getBuildExecutor: () => getAppBuildExecutor(appConfig),
+		getDefaultPlugins:
+			typeof Bun === 'undefined' && appConfig.rootDir
+				? () => [createAppNodeBootstrapPlugin(appConfig)]
+				: undefined,
 		getOwner: () => getAppModuleLoaderOwner(appConfig),
 		getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
 	});
@@ -109,10 +113,6 @@ export function createAppServerModuleTranspiler(appConfig: EcoPagesAppConfig): S
 		getInvalidationVersion: () => invalidationService.getServerModuleInvalidationVersion(),
 		invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
 		pageModuleImportService: getAppModuleLoader(appConfig),
-		getDefaultPlugins:
-			typeof Bun === 'undefined' && appConfig.rootDir
-				? () => [createAppNodeBootstrapPlugin(appConfig)]
-				: undefined,
 	});
 }
 

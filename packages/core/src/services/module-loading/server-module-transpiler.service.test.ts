@@ -212,7 +212,24 @@ describe('ServerModuleTranspiler', () => {
 
 		moduleLoader.pageModuleImportService.importModule = originalImportModule;
 
-		assert.deepEqual(calls, [
+		assert.equal(calls.length, 1);
+		const importOptions = calls[0] as {
+			buildExecutor: unknown;
+			filePath: string;
+			invalidationVersion: number;
+			outdir: string;
+			plugins?: Array<{ name: string }>;
+			rootDir: string;
+		};
+
+		assert.deepEqual(
+			{
+				buildExecutor: importOptions.buildExecutor,
+				filePath: importOptions.filePath,
+				invalidationVersion: importOptions.invalidationVersion,
+				outdir: importOptions.outdir,
+				rootDir: importOptions.rootDir,
+			},
 			{
 				filePath: '/app/src/includes/html.kita.tsx',
 				rootDir: '/app',
@@ -220,6 +237,7 @@ describe('ServerModuleTranspiler', () => {
 				buildExecutor,
 				invalidationVersion: 1,
 			},
-		]);
+		);
+		assert.equal(importOptions.plugins?.[0]?.name, 'node-bootstrap-plugin');
 	});
 });

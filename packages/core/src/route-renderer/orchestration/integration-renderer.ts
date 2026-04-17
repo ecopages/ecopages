@@ -51,6 +51,18 @@ type BoundaryRenderDecisionInput = {
 };
 
 /**
+ * Controls how one route module is loaded outside the normal render path.
+ *
+ * Request-time metadata inspection and static-generation probes use these
+ * options to isolate their module identity from the main render cache while
+ * still going through the owning integration's import setup.
+ */
+export type RouteModuleLoadOptions = {
+	bypassCache?: boolean;
+	cacheScope?: string;
+};
+
+/**
  * Creates a Proxy that throws LocalsAccessError on any property access.
  * Used to protect static pages from accidentally accessing request locals.
  *
@@ -120,6 +132,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected readonly queuedBoundaryRuntimeService = new QueuedBoundaryRuntimeService();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
+
+	/**
+	 * Loads one route module through the owning renderer's import path.
+	 *
+	 * Request-time infrastructure may need page metadata such as cache strategy or
+	 * middleware before full rendering starts. Exposing this narrow entrypoint lets
+	 * those callers reuse integration-specific import setup instead of bypassing it
+	 * with raw transpiler access.
+	 */
+	public async loadPageModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
+		return this.importPageFile(file, options);
+	}
 
 	/**
 	 * Reads the execution-scoped foreign renderer cache from one boundary input.
@@ -760,7 +784,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return false;
 	}
 
-	protected async importIntegrationPageFile(_file: string): Promise<EcoPageFile> {
+	protected async importIntegrationPageFile(_file: string, _options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
 		invariant(false, 'Integration page importer must be implemented when enabled');
 	}
 
@@ -778,11 +802,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @param file - The file path to import.
 	 * @returns The imported module.
 	 */
-	protected async importPageFile(file: string): Promise<EcoPageFile> {
-		const bypassCache = typeof Bun !== 'undefined' && process.env.NODE_ENV === 'development';
+	protected async importPageFile(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
+		const bypassCache =
+			options?.bypassCache ?? (typeof Bun !== 'undefined' && process.env.NODE_ENV === 'development');
 		const pageModule = this.usesIntegrationPageImporter(file)
-			? await this.importIntegrationPageFile(file)
-			: await this.pageModuleLoaderService.importPageFile(file, { bypassCache });
+			? await this.importIntegrationPageFile(file, {
+					bypassCache,
+					cacheScope: options?.cacheScope,
+				})
+			: await this.pageModuleLoaderService.importPageFile(file, {
+					bypassCache,
+					cacheScope: options?.cacheScope,
+				});
 
 		return this.normalizeImportedPageFile(file, pageModule);
 	}

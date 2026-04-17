@@ -5,7 +5,6 @@ import type { EcoPagesAppConfig } from '../types/internal-types';
 import type { FSRouter } from '../router/server/fs-router';
 import type { RouteRendererFactory } from '../route-renderer/route-renderer';
 import { appLogger } from '../global/app-logger.ts';
-import { PageModuleImportService } from '../services/module-loading/page-module-import.service';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 
 const originalEnsureDir = fileSystem.ensureDir;
@@ -40,9 +39,6 @@ describe('StaticSiteGenerator', () => {
 		writeMock = vi.fn(() => {});
 		fileSystem.ensureDir = ensureDirMock;
 		fileSystem.write = writeMock;
-		vi.spyOn(PageModuleImportService.prototype, 'importModule').mockResolvedValue({
-			default: Object.assign(() => null, { cache: 'static' }),
-		});
 		vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
 	});
 
@@ -154,6 +150,10 @@ describe('StaticSiteGenerator', () => {
 				origin: 'http://localhost:3000',
 			}) as unknown as FSRouter;
 
+		const createStaticPageModule = () => ({
+			default: Object.assign(() => null, { cache: 'static' }),
+		});
+
 		test('should filter out dynamic routes containing [', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 			const Router = createMockRouter({
@@ -163,6 +163,7 @@ describe('StaticSiteGenerator', () => {
 
 			const RendererFactory = {
 				createRenderer: vi.fn(() => ({
+					loadPageModule: vi.fn(async () => createStaticPageModule()),
 					createRoute: vi.fn(async () => ({ body: '<html>Static</html>' })),
 				})),
 			} as unknown as RouteRendererFactory;
@@ -180,6 +181,7 @@ describe('StaticSiteGenerator', () => {
 
 			const RendererFactory = {
 				createRenderer: vi.fn(() => ({
+					loadPageModule: vi.fn(async () => createStaticPageModule()),
 					createRoute: vi.fn(async () => ({ body: '<html>Blog Post</html>' })),
 				})),
 			} as unknown as RouteRendererFactory;
@@ -206,6 +208,7 @@ describe('StaticSiteGenerator', () => {
 
 			const RendererFactory = {
 				createRenderer: vi.fn(() => ({
+					loadPageModule: vi.fn(async () => createStaticPageModule()),
 					createRoute: vi.fn(async () => ({ body: '<html>Home</html>' })),
 				})),
 			} as unknown as RouteRendererFactory;
@@ -224,6 +227,7 @@ describe('StaticSiteGenerator', () => {
 			const bufferContent = Buffer.from('<html>Buffer Content</html>');
 			const RendererFactory = {
 				createRenderer: vi.fn(() => ({
+					loadPageModule: vi.fn(async () => createStaticPageModule()),
 					createRoute: vi.fn(async () => ({ body: bufferContent })),
 				})),
 			} as unknown as RouteRendererFactory;
@@ -234,24 +238,29 @@ describe('StaticSiteGenerator', () => {
 		});
 
 		test('should skip cache dynamic pages during static generation and log a warning', async () => {
-			vi.spyOn(PageModuleImportService.prototype, 'importModule').mockResolvedValue({
-				default: Object.assign(() => null, { cache: 'dynamic' }),
-			});
-
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 			const Router = createMockRouter({
 				'/dashboard': { filePath: '/src/pages/dashboard.tsx', pathname: '/dashboard' },
 			});
 
+			const createRoute = vi.fn(async () => ({ body: '<html>Dashboard</html>' }));
+			const loadPageModule = vi.fn(async () => ({
+				default: Object.assign(() => null, { cache: 'dynamic' }),
+			}));
 			const RendererFactory = {
 				createRenderer: vi.fn(() => ({
-					createRoute: vi.fn(async () => ({ body: '<html>Dashboard</html>' })),
+					createRoute,
+					loadPageModule,
 				})),
 			} as unknown as RouteRendererFactory;
 
 			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
-			expect(RendererFactory.createRenderer).not.toHaveBeenCalled();
+			expect(RendererFactory.createRenderer).toHaveBeenCalledWith('/src/pages/dashboard.tsx');
+			expect(loadPageModule).toHaveBeenCalledWith('/src/pages/dashboard.tsx', {
+				cacheScope: 'static-page-probe',
+			});
+			expect(createRoute).not.toHaveBeenCalled();
 			expect(writeMock).not.toHaveBeenCalled();
 			expect(appLogger.warn).toHaveBeenCalledWith(
 				"Pages with cache: 'dynamic' are not supported in static generation or preview, so they will be skipped\n",

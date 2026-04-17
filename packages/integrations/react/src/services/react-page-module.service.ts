@@ -59,7 +59,7 @@ export class ReactPageModuleService {
 	 * @param filePath - Absolute path to the MDX file
 	 * @returns The imported module
 	 */
-	async importMdxPageFile(filePath: string): Promise<unknown> {
+	async importMdxPageFile(filePath: string, options?: { bypassCache?: boolean; cacheScope?: string }): Promise<unknown> {
 		const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
 		const mdxPlugin = createReactMdxLoaderPlugin(
 			this.config.mdxCompilerOptions ?? {
@@ -72,8 +72,10 @@ export class ReactPageModuleService {
 		const outdir = path.join(this.config.workDir, '.server-modules-react-mdx');
 		const fileBaseName = path.basename(filePath, path.extname(filePath));
 		const fileHash = fileSystem.hash(filePath);
-		const cacheBuster = process?.env?.NODE_ENV === 'development' ? `-${Date.now()}` : '';
-		const outputFileName = `${fileBaseName}-${fileHash}${cacheBuster}.js`;
+		const cacheScopeSuffix = options?.cacheScope ? `-${sanitizeCacheScope(options.cacheScope)}` : '';
+		const cacheBuster =
+			options?.bypassCache || process?.env?.NODE_ENV === 'development' ? `-${Date.now()}` : '';
+		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${cacheBuster}.js`;
 
 		const buildResult = await build(
 			{
@@ -106,7 +108,18 @@ export class ReactPageModuleService {
 			throw new Error(`No compiled MDX output generated for page: ${filePath}`);
 		}
 
-		return await import(/* @vite-ignore */ pathToFileURL(compiledOutput).href);
+		const compiledOutputUrl = pathToFileURL(compiledOutput);
+
+		if (process?.env?.NODE_ENV === 'development' || options?.cacheScope) {
+			compiledOutputUrl.searchParams.set(
+				'update',
+				[fileHash, options?.cacheScope ? sanitizeCacheScope(options.cacheScope) : undefined]
+					.filter((value) => value !== undefined)
+					.join('-'),
+			);
+		}
+
+		return await import(/* @vite-ignore */ compiledOutputUrl.href);
 	}
 
 	/**
@@ -221,4 +234,8 @@ export class ReactPageModuleService {
 
 		return Array.from(new Set(declarations));
 	}
+}
+
+function sanitizeCacheScope(cacheScope: string): string {
+	return cacheScope.replace(/[^a-zA-Z0-9_-]+/g, '-');
 }

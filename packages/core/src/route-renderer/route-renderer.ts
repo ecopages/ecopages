@@ -1,9 +1,9 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
-import type { RouteRenderResult, RouteRendererOptions } from '../types/public-types.ts';
+import type { EcoPageFile, RouteRenderResult, RouteRendererOptions } from '../types/public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 import { PathUtils } from '../utils/path-utils.module.ts';
-import type { IntegrationRenderer } from './orchestration/integration-renderer.ts';
+import type { IntegrationRenderer, RouteModuleLoadOptions } from './orchestration/integration-renderer.ts';
 
 /**
  * Thin wrapper around one initialized integration renderer.
@@ -28,6 +28,13 @@ export class RouteRenderer {
 	 */
 	async createRoute(options: RouteRendererOptions): Promise<RouteRenderResult> {
 		return this.renderer.execute(options);
+	}
+
+	/**
+	 * Loads the route module through the owning integration renderer.
+	 */
+	async loadPageModule(filePath: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
+		return this.renderer.loadPageModule(filePath, options);
 	}
 }
 

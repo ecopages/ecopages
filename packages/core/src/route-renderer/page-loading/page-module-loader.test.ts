@@ -132,6 +132,49 @@ describe('PageModuleLoaderService', () => {
 				filePath: '/app/src/pages/index.tsx',
 				rootDir: '/app',
 				outdir: '/app/.eco/.server-modules',
+				bypassCache: undefined,
+				cacheScope: undefined,
+				transpileErrorMessage: expect.any(Function),
+				noOutputMessage: expect.any(Function),
+			},
+		]);
+	});
+
+	it('should forward cache scope options to the app-owned module loader', async () => {
+		const calls: Array<unknown> = [];
+		const expectedModule = {
+			default: (() => 'ok') as EcoPageComponent<any>,
+		} as EcoPageFile;
+		const service = new PageModuleLoaderService(
+			{
+				...appConfig,
+				runtime: {
+					appModuleLoader: {
+						owner: 'bun',
+						async importModule<T = unknown>(options: unknown): Promise<T> {
+							calls.push(options);
+							return expectedModule as T;
+						},
+						invalidateDevelopmentGraph(): void {
+							return;
+						},
+					} satisfies AppModuleLoader,
+				},
+			} as EcoPagesAppConfig,
+			'http://localhost:3000',
+		);
+
+		await service.importPageFile('/app/src/pages/index.tsx', {
+			cacheScope: 'request-metadata',
+		});
+
+		expect(calls).toEqual([
+			{
+				filePath: '/app/src/pages/index.tsx',
+				rootDir: '/app',
+				outdir: '/app/.eco/.server-modules',
+				bypassCache: undefined,
+				cacheScope: 'request-metadata',
 				transpileErrorMessage: expect.any(Function),
 				noOutputMessage: expect.any(Function),
 			},

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { getPrimaryLinkTestId, getRouteLinkTestId, primaryLinks } from '../src/data/primary-links';
-import { assertSingleAppShell, gotoAndWait, settleOnRoute, trackRuntimeErrors } from './helpers';
+import { assertSingleAppShell, gotoAndWait, settleOnRoute, trackRuntimeErrors, waitForPageReady } from './helpers';
 
 const primaryRoutePool = primaryLinks.map(({ href }) => href);
 
@@ -119,7 +119,7 @@ test.describe('Rapid navigation stress', () => {
 			await rapidClickHref(page, href);
 		}
 
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page);
 		await expect(page).not.toHaveURL(/undefined|null/);
 		await expect(page.locator('body')).not.toContainText('Cannot read properties of null');
 		await expect(page.locator('body')).not.toContainText('Invalid hook call');
@@ -138,7 +138,7 @@ test.describe('Rapid navigation stress', () => {
 				await rapidClickHref(page, href);
 			}
 
-			await page.waitForLoadState('networkidle');
+			await waitForPageReady(page);
 			await expect(page).not.toHaveURL(/undefined|null/);
 			await expect(page.locator('body')).not.toContainText('Cannot read properties of null');
 			await expect(page.locator('body')).not.toContainText('Invalid hook call');

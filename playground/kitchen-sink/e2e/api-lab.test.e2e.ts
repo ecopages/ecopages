@@ -18,12 +18,12 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 			{ timeout: 15000 },
 		);
 
-		await page.getByRole('button', { name: /Ping with locals/i }).click();
+		await page.getByRole('button', { name: /Ping with locals/i }).click({ noWaitAfter: true });
 		await expect(page.locator('[data-response-status]')).toContainText('200');
 		await expect(page.locator('[data-response-body]')).toContainText('"ok": true');
 		await expect(page.locator('[data-response-body]')).toContainText('featureFlags');
 
-		await page.getByRole('button', { name: /Echo payload/i }).click();
+		await page.getByRole('button', { name: /Echo payload/i }).click({ noWaitAfter: true });
 		await expect(page.locator('[data-response-status]')).toContainText('201');
 		await expect(page.locator('[data-response-body]')).toContainText('hello kitchen sink');
 
@@ -45,11 +45,11 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 			timeout: 15000,
 		});
 
-		await page.getByRole('button', { name: /Admin list/i }).click();
+		await page.getByRole('button', { name: /Admin list/i }).click({ noWaitAfter: true });
 		await expect(page.locator('[data-response-status]')).toContainText('200');
 		await expect(page.locator('[data-response-body]')).toContainText('Semantic shells are active');
 
-		await page.getByRole('button', { name: /Admin create/i }).click();
+		await page.getByRole('button', { name: /Admin create/i }).click({ noWaitAfter: true });
 		await expect(page.locator('[data-response-status]')).toContainText('201');
 		await expect(page.locator('[data-response-body]')).toContainText('Fresh deploy');
 		runtime.assertClean();

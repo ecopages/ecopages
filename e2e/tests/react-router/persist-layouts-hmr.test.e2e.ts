@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { gotoAndWait } from '../../utils/test-helpers';
 
 const DOCS_PAGE_FILE = path.join(process.cwd(), 'e2e/fixtures/react-router-app/src/pages/docs/index.tsx');
 
@@ -68,8 +69,7 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	});
 
 	test('HMR refreshes page content with persist layouts enabled', async ({ page }) => {
-		await page.goto('/docs');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs');
 
 		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
 		await expect(page.locator('h1')).toHaveText('Documentation');
@@ -90,8 +90,7 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	});
 
 	test('HMR updates layout while MDX page is active (persist layouts enabled)', async ({ page }) => {
-		await page.goto('/docs/mdx-docs-1');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs/mdx-docs-1');
 
 		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
 		await expect(page.locator('a[data-testid="docs-nav-link"]', { hasText: 'MDX Docs 1' })).toBeVisible();
@@ -107,8 +106,7 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	});
 
 	test('HMR updates layout while TSX page is active (persist layouts enabled)', async ({ page }) => {
-		await page.goto('/docs');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs');
 
 		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
 		await expect(page.locator('a[data-testid="docs-nav-link"]', { hasText: 'MDX Docs 1' })).toBeVisible();

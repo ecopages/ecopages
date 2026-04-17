@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { gotoAndWait, waitForPageReady } from '../../utils/test-helpers';
 
 test.describe('Docs Sidebar Persistence', () => {
 	test('preserves the sidebar element and scroll position across docs navigation', async ({ page }) => {
-		await page.goto('/docs/ecosystem/browser-router');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs/ecosystem/browser-router');
 
 		const sidebar = page.locator('[data-testid="docs-sidebar"]');
 		await expect(sidebar).toBeVisible();
@@ -22,7 +22,7 @@ test.describe('Docs Sidebar Persistence', () => {
 			.locator('[data-testid="docs-nav-link:/docs/ecosystem/react-router"]')
 			.evaluate((el) => (el as HTMLAnchorElement).click());
 		await page.waitForURL('**/docs/ecosystem/react-router');
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/docs/ecosystem/react-router');
 
 		await expect(page.locator('[data-testid="docs-nav-link:/docs/ecosystem/react-router"]')).toHaveClass(/active/);
 
@@ -38,8 +38,7 @@ test.describe('Docs Sidebar Persistence', () => {
 			localStorage.setItem('theme', 'dark');
 		});
 
-		await page.goto('/docs/getting-started/introduction');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs/getting-started/introduction');
 
 		const themeToggle = page.locator('#toggle-dark-mode');
 		await themeToggle.evaluate((el) => {
@@ -50,7 +49,7 @@ test.describe('Docs Sidebar Persistence', () => {
 
 		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
 		await page.waitForURL('**/docs/getting-started/configuration');
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/docs/getting-started/configuration');
 
 		await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 

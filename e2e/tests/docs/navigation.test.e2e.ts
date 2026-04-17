@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { gotoAndWait, waitForPageReady } from '../../utils/test-helpers';
 
 /**
  * E2E tests for Docs left-side navigation (radiant-navigation).
@@ -15,8 +16,7 @@ test.describe('Docs Sidebar Navigation', () => {
 	const SIDEBAR = '[data-testid="docs-sidebar"]';
 
 	test.beforeEach(async ({ page }) => {
-		await page.goto('/docs/getting-started/introduction');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs/getting-started/introduction');
 		await page.waitForFunction(() => !!(window as any).__ecopages_browser_router__);
 	});
 
@@ -33,7 +33,7 @@ test.describe('Docs Sidebar Navigation', () => {
 
 		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
 		await page.waitForURL('**/docs/getting-started/configuration');
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/docs/getting-started/configuration');
 
 		const extraReloads = reloads.filter((u) => !u.includes('introduction'));
 		expect(extraReloads).toHaveLength(0);
@@ -42,7 +42,7 @@ test.describe('Docs Sidebar Navigation', () => {
 	test('active nav link updates after SPA navigation', async ({ page }) => {
 		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
 		await page.waitForURL('**/docs/getting-started/configuration');
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/docs/getting-started/configuration');
 
 		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/configuration"]')).toHaveClass(
 			/active/,
@@ -54,16 +54,16 @@ test.describe('Docs Sidebar Navigation', () => {
 
 	test('navigation chain: multiple sequential links all work correctly', async ({ page }) => {
 		const steps = [
-			{ testId: 'docs-nav-link:/docs/getting-started/installation', url: 'installation' },
-			{ testId: 'docs-nav-link:/docs/getting-started/configuration', url: 'configuration' },
-			{ testId: 'docs-nav-link:/docs/ecosystem/browser-router', url: 'browser-router' },
-			{ testId: 'docs-nav-link:/docs/getting-started/introduction', url: 'introduction' },
+			{ href: '/docs/getting-started/installation', testId: 'docs-nav-link:/docs/getting-started/installation' },
+			{ href: '/docs/getting-started/configuration', testId: 'docs-nav-link:/docs/getting-started/configuration' },
+			{ href: '/docs/ecosystem/browser-router', testId: 'docs-nav-link:/docs/ecosystem/browser-router' },
+			{ href: '/docs/getting-started/introduction', testId: 'docs-nav-link:/docs/getting-started/introduction' },
 		];
 
 		for (const step of steps) {
 			await page.click(`[data-testid="${step.testId}"]`);
-			await page.waitForURL(`**/${step.url}`);
-			await page.waitForLoadState('networkidle');
+			await page.waitForURL(`**${step.href}`);
+			await waitForPageReady(page, step.href);
 
 			await expect(page.locator(`[data-testid="${step.testId}"]`)).toHaveClass(/active/);
 			await expect(page.locator(SIDEBAR)).toBeVisible();
@@ -73,7 +73,7 @@ test.describe('Docs Sidebar Navigation', () => {
 	test('nav links remain clickable after interacting with TOC', async ({ page }) => {
 		await page.click('[data-testid="docs-nav-link:/docs/ecosystem/browser-router"]');
 		await page.waitForURL('**/docs/ecosystem/browser-router');
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/docs/ecosystem/browser-router');
 
 		const tocLink = page.locator('radiant-toc a[data-toc-link]').first();
 		await tocLink.click();
@@ -81,7 +81,7 @@ test.describe('Docs Sidebar Navigation', () => {
 
 		await page.click('[data-testid="docs-nav-link:/docs/getting-started/introduction"]');
 		await page.waitForURL('**/docs/getting-started/introduction');
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/docs/getting-started/introduction');
 
 		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/introduction"]')).toHaveClass(
 			/active/,
@@ -91,11 +91,11 @@ test.describe('Docs Sidebar Navigation', () => {
 	test('browser back navigation restores correct active link', async ({ page }) => {
 		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
 		await page.waitForURL('**/docs/getting-started/configuration');
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/docs/getting-started/configuration');
 
 		await page.goBack();
 		await page.waitForURL('**/docs/getting-started/introduction');
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/docs/getting-started/introduction');
 
 		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/introduction"]')).toHaveClass(
 			/active/,
@@ -110,7 +110,7 @@ test.describe('Docs Sidebar Navigation', () => {
 		await installLink.click();
 
 		await page.waitForURL('**/docs/getting-started/installation', { timeout: 5000 });
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/docs/getting-started/installation');
 
 		await expect(installLink).toHaveClass(/active/);
 	});
@@ -125,7 +125,7 @@ test.describe('Docs Sidebar Navigation', () => {
 		const nextHref = await nextLink.getAttribute('href');
 		await nextLink.click();
 		await page.waitForURL(`**${nextHref}`);
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, nextHref ?? undefined);
 
 		const activeLink = page.locator('[data-nav-link].active');
 		await expect(activeLink).toHaveCount(1);

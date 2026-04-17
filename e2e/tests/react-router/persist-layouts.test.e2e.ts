@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { gotoAndWait } from '../../utils/test-helpers';
 
 test.describe('React Router Persist Layouts', () => {
 	test('layout remains visible when navigating between pages with same layout', async ({ page }) => {
-		await page.goto('/docs');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs');
 
 		const layout = page.locator('[data-testid="docs-layout"]');
 		await expect(layout).toBeVisible();
@@ -16,8 +16,7 @@ test.describe('React Router Persist Layouts', () => {
 	});
 
 	test('layout changes when navigating to page with different layout', async ({ page }) => {
-		await page.goto('/docs');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs');
 
 		const docsLayout = page.locator('[data-testid="docs-layout"]');
 		await expect(docsLayout).toBeVisible();
@@ -30,8 +29,7 @@ test.describe('React Router Persist Layouts', () => {
 	});
 
 	test('sidebar scroll position persists when navigating within same layout', async ({ page }) => {
-		await page.goto('/docs');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs');
 
 		const sidebar = page.locator('[data-testid="docs-sidebar"]');
 		await expect(sidebar).toBeVisible();
@@ -60,16 +58,14 @@ test.describe('React Router Persist Layouts - MDX', () => {
 	});
 
 	test('MDX page loads with DocsLayout', async ({ page }) => {
-		await page.goto('/docs/mdx-docs-1');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs/mdx-docs-1');
 
 		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
 		await expect(page.locator('[data-testid="mdx-docs-1"]')).toBeVisible();
 	});
 
 	test('MDX to MDX navigation preserves layout (layout caching works)', async ({ page }) => {
-		await page.goto('/docs/mdx-docs-1');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs/mdx-docs-1');
 
 		const layout = page.locator('[data-testid="docs-layout"]');
 		await expect(layout).toBeVisible();
@@ -87,8 +83,7 @@ test.describe('React Router Persist Layouts - MDX', () => {
 	});
 
 	test('TSX to MDX navigation preserves layout', async ({ page }) => {
-		await page.goto('/docs');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs');
 
 		const layout = page.locator('[data-testid="docs-layout"]');
 		await layout.evaluate((el) => {
@@ -104,8 +99,7 @@ test.describe('React Router Persist Layouts - MDX', () => {
 	});
 
 	test('MDX to TSX navigation preserves layout', async ({ page }) => {
-		await page.goto('/docs/mdx-docs-1');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs/mdx-docs-1');
 
 		const layout = page.locator('[data-testid="docs-layout"]');
 		await layout.evaluate((el) => {
@@ -121,8 +115,7 @@ test.describe('React Router Persist Layouts - MDX', () => {
 	});
 
 	test('sidebar scroll persists during MDX to MDX navigation', async ({ page }) => {
-		await page.goto('/docs/mdx-docs-1');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/docs/mdx-docs-1');
 
 		const sidebar = page.locator('[data-testid="docs-sidebar"]');
 		await sidebar.evaluate((el) => {

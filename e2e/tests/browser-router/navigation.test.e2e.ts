@@ -1,13 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { SELECTORS, PAGE_COLORS } from '../../utils/test-helpers';
+import { SELECTORS, PAGE_COLORS, gotoAndWait } from '../../utils/test-helpers';
 
 /**
  * E2E tests for @ecopages/browser-router navigation
  */
 test.describe('Browser Router Navigation', () => {
 	test.beforeEach(async ({ page }) => {
-		await page.goto('/');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/');
 	});
 
 	test('index page loads with correct layout', async ({ page }) => {
@@ -32,8 +31,7 @@ test.describe('Browser Router Navigation', () => {
 	});
 
 	test('about page has correct background color (CSS attached)', async ({ page }) => {
-		await page.goto('/about');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/about');
 
 		const bgColor = await page.evaluate(() => {
 			return getComputedStyle(document.body).backgroundColor;
@@ -50,8 +48,7 @@ test.describe('Browser Router Navigation', () => {
 	});
 
 	test('post page has correct background color (CSS attached)', async ({ page }) => {
-		await page.goto('/posts/test-post');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/posts/test-post');
 
 		const bgColor = await page.evaluate(() => {
 			return getComputedStyle(document.body).backgroundColor;
@@ -70,7 +67,7 @@ test.describe('Browser Router Navigation', () => {
 	});
 
 	test('navigation from post back to home works', async ({ page }) => {
-		await page.goto('/posts/test-post');
+		await gotoAndWait(page, '/posts/test-post');
 		await page.click(SELECTORS.LINK_HOME);
 		await page.waitForURL(/.*\/$/);
 
@@ -78,7 +75,7 @@ test.describe('Browser Router Navigation', () => {
 	});
 
 	test('navigates to mdx page', async ({ page }) => {
-		await page.goto('/mdx-page');
+		await gotoAndWait(page, '/mdx-page');
 		await expect(page.locator(SELECTORS.MDX_CONTENT)).toBeVisible();
 	});
 });

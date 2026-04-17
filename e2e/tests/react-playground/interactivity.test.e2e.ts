@@ -1,4 +1,5 @@
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
+import { gotoAndWait, waitForPageReady } from '../../utils/test-helpers';
 
 async function clickUntilText(options: {
 	button: ReturnType<Page['locator']>;
@@ -47,8 +48,7 @@ test.describe('React Playground Interactivity', () => {
 	test('react counter, radiant counter, and select are interactive', async ({ page }) => {
 		const { assertNoRelevantErrors } = trackBrowserErrors(page);
 
-		await page.goto('/');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/');
 		await page.waitForFunction(() => !!customElements.get('radiant-counter'));
 
 		const reactCounter = page.locator('div.counter:has([data-increment])').first();
@@ -83,8 +83,7 @@ test.describe('React Playground Interactivity', () => {
 	}) => {
 		const { assertNoRelevantErrors } = trackBrowserErrors(page);
 
-		await page.goto('/');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/');
 		await page.waitForFunction(() => !!customElements.get('radiant-counter'));
 
 		const radiantCounter = page.locator('radiant-counter').first();
@@ -99,11 +98,11 @@ test.describe('React Playground Interactivity', () => {
 
 		await page.getByRole('link', { name: 'Test Images' }).click();
 		await expect(page).toHaveURL(/\/images$/);
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/images');
 
 		await page.getByRole('link', { name: 'Home' }).click();
 		await expect(page).toHaveURL(/\/$/);
-		await page.waitForLoadState('networkidle');
+		await waitForPageReady(page, '/');
 
 		const returnedRadiantCounter = page.locator('radiant-counter').first();
 		await expect(returnedRadiantCounter).toBeVisible();

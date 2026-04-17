@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { gotoAndWait } from '../../utils/test-helpers';
 
 test.describe('Browser Router Prefetch', () => {
 	test('should prefetch link with eager strategy immediately', async ({ page }) => {
@@ -10,8 +11,7 @@ test.describe('Browser Router Prefetch', () => {
 			}
 		});
 
-		await page.goto('/prefetch');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/prefetch');
 		await page.waitForTimeout(500);
 
 		const eagerPrefetched = requests.some((url) => url.includes('test=eager'));
@@ -19,8 +19,7 @@ test.describe('Browser Router Prefetch', () => {
 	});
 
 	test('should NOT prefetch hover-only link until hovered', async ({ page }) => {
-		await page.goto('/prefetch');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/prefetch');
 
 		const requests: string[] = [];
 		page.on('request', (request) => {
@@ -40,8 +39,7 @@ test.describe('Browser Router Prefetch', () => {
 	});
 
 	test('should prefetch viewport link when scrolled into view', async ({ page }) => {
-		await page.goto('/prefetch');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/prefetch');
 
 		const requests: string[] = [];
 		page.on('request', (request) => {
@@ -63,8 +61,7 @@ test.describe('Browser Router Prefetch', () => {
 	});
 
 	test('should NOT prefetch link with data-eco-no-prefetch', async ({ page }) => {
-		await page.goto('/prefetch');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/prefetch');
 
 		const requests: string[] = [];
 		page.on('request', (request) => {
@@ -82,8 +79,7 @@ test.describe('Browser Router Prefetch', () => {
 	});
 
 	test('should respect custom delay on hover', async ({ page }) => {
-		await page.goto('/prefetch');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/prefetch');
 
 		const requests: string[] = [];
 		const timestamps: number[] = [];
@@ -107,8 +103,7 @@ test.describe('Browser Router Prefetch', () => {
 	});
 
 	test('should prefetch with intent strategy on hover', async ({ page }) => {
-		await page.goto('/prefetch');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/prefetch');
 
 		const requests: string[] = [];
 		page.on('request', (request) => {
@@ -125,8 +120,7 @@ test.describe('Browser Router Prefetch', () => {
 	});
 
 	test('should navigate instantly after prefetch', async ({ page }) => {
-		await page.goto('/prefetch');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/prefetch');
 		await page.waitForTimeout(500);
 
 		const navigationStart = Date.now();
@@ -149,8 +143,7 @@ test.describe('Browser Router Prefetch', () => {
 			}
 		});
 
-		await page.goto('/prefetch');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/prefetch');
 		await page.waitForTimeout(1000);
 
 		expect(cssPrefetched).toBe(true);
@@ -167,8 +160,7 @@ test.describe('Browser Router Prefetch', () => {
 			}
 		});
 
-		await page.goto(prefetchUrl);
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, prefetchUrl);
 		await page.waitForTimeout(500);
 
 		const initialRequestCount = requests.length;

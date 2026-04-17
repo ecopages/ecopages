@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { SELECTORS, PAGE_COLORS } from '../../utils/test-helpers';
+import { SELECTORS, PAGE_COLORS, gotoAndWait } from '../../utils/test-helpers';
 
 /**
  * E2E tests for @ecopages/react-router
@@ -7,8 +7,7 @@ import { SELECTORS, PAGE_COLORS } from '../../utils/test-helpers';
  */
 test.describe('React Router', () => {
 	test.beforeEach(async ({ page }) => {
-		await page.goto('/');
-		await page.waitForLoadState('networkidle');
+		await gotoAndWait(page, '/');
 	});
 
 	test.describe('Navigation', () => {
@@ -34,8 +33,7 @@ test.describe('React Router', () => {
 		});
 
 		test('about page has correct background color (CSS attached)', async ({ page }) => {
-			await page.goto('/about');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/about');
 
 			const bgColor = await page.evaluate(() => {
 				return getComputedStyle(document.body).backgroundColor;
@@ -55,8 +53,7 @@ test.describe('React Router', () => {
 		});
 
 		test('post page has correct background color (CSS attached)', async ({ page }) => {
-			await page.goto('/posts/test-post');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/posts/test-post');
 
 			const bgColor = await page.evaluate(() => {
 				return getComputedStyle(document.body).backgroundColor;
@@ -65,7 +62,7 @@ test.describe('React Router', () => {
 		});
 
 		test('navigation from post back to home works', async ({ page }) => {
-			await page.goto('/posts/test-post');
+			await gotoAndWait(page, '/posts/test-post');
 			await page.click(SELECTORS.LINK_HOME);
 			await page.waitForURL(/.*\/$/);
 
@@ -73,7 +70,7 @@ test.describe('React Router', () => {
 		});
 
 		test('navigates to mdx page', async ({ page }) => {
-			await page.goto('/mdx-page');
+			await gotoAndWait(page, '/mdx-page');
 			await expect(page.locator(SELECTORS.MDX_CONTENT)).toBeVisible();
 		});
 
@@ -117,8 +114,7 @@ test.describe('React Router', () => {
 
 	test.describe('MDX Navigation', () => {
 		test('MDX page loads with layout (no double layout)', async ({ page }) => {
-			await page.goto('/mdx-page');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/mdx-page');
 
 			await expect(page.locator(SELECTORS.MDX_CONTENT)).toBeVisible();
 			await expect(page.locator(SELECTORS.BASE_LAYOUT)).toBeVisible();
@@ -143,8 +139,7 @@ test.describe('React Router', () => {
 		});
 
 		test('MDX to TSX navigation works', async ({ page }) => {
-			await page.goto('/mdx-page');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/mdx-page');
 
 			await page.click(SELECTORS.LINK_ABOUT);
 			await page.waitForURL('**/about');
@@ -153,8 +148,7 @@ test.describe('React Router', () => {
 		});
 
 		test('MDX to TSX navigation is client-side (SPA)', async ({ page }) => {
-			await page.goto('/mdx-page');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/mdx-page');
 
 			await page.evaluate(() => {
 				(window as any).__spa_persistence_check = true;
@@ -170,8 +164,7 @@ test.describe('React Router', () => {
 		});
 
 		test('MDX to MDX navigation works', async ({ page }) => {
-			await page.goto('/mdx-page');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/mdx-page');
 
 			await page.click(SELECTORS.LINK_DOCS);
 			await page.waitForURL('**/docs');
@@ -180,8 +173,7 @@ test.describe('React Router', () => {
 		});
 
 		test('MDX to MDX navigation is client-side (SPA)', async ({ page }) => {
-			await page.goto('/mdx-page');
-			await page.waitForLoadState('networkidle');
+			await gotoAndWait(page, '/mdx-page');
 
 			await page.evaluate(() => {
 				(window as any).__spa_persistence_check = true;

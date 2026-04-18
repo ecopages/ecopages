@@ -10,18 +10,18 @@ import type {
 	RouteRendererBody,
 } from '@ecopages/core';
 import { rapidhash } from '@ecopages/core/hash';
-import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
 import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
 	type RouteModuleLoadOptions,
 } from '@ecopages/core/route-renderer/integration-renderer';
-import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.plugin.ts';
+import type { EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
 
-let radiantLightDomShimInstallPromise: Promise<void> | undefined;
+export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
 
 type EcopagesJsxBoundaryRuntimeContext = {
 	rendererCache: Map<string, IntegrationRenderer<any>>;
@@ -35,61 +35,12 @@ type EcopagesJsxBoundaryRuntimeContext = {
 	}>;
 };
 
-async function ensureRadiantLightDomShimInstalled(): Promise<void> {
-	if (!radiantLightDomShimInstallPromise) {
-		radiantLightDomShimInstallPromise = import('@ecopages/radiant/server/light-dom-shim')
-			.then((module) => {
-				module.installLightDomShim();
-			})
-			.then(() => undefined);
-	}
-
-	await radiantLightDomShimInstallPromise;
-}
-
 type AsyncEcoComponent<P = Record<string, unknown>, R = JsxRenderable> = EcoComponent<P, R | Promise<R>>;
 type MdxPageModule = EcoPageFile<{
 	config?: EcoComponentConfig;
 	layout?: EcoComponent;
 	getMetadata?: GetMetadata;
 }>;
-
-const isEcoFunctionComponent = (component: EcoComponent): component is EcoFunctionComponent<any, any> => {
-	return typeof component === 'function';
-};
-
-const renderComponent = async <P>(component: AsyncEcoComponent<P>, props: P): Promise<JsxRenderable> => {
-	return (await (component as (props: P) => JsxRenderable | Promise<JsxRenderable>)(props)) as JsxRenderable;
-};
-
-const createEcoMeta = (file: string): NonNullable<EcoComponentConfig['__eco']> => ({
-	id: String(rapidhash(file)),
-	file,
-	integration: ECOPAGES_JSX_PLUGIN_NAME,
-});
-
-const wrapMdxPage = (
-	page: AsyncEcoComponent<Record<string, unknown>>,
-	{
-		config,
-		metadata,
-	}: {
-		config: EcoComponentConfig;
-		metadata?: GetMetadata;
-	},
-): AsyncEcoComponent<Record<string, unknown>> => {
-	const wrappedPage = (async (props: Record<string, unknown>) => renderComponent(page, props)) as AsyncEcoComponent<
-		Record<string, unknown>
-	>;
-
-	wrappedPage.config = config;
-
-	if (metadata) {
-		wrappedPage.metadata = metadata;
-	}
-
-	return wrappedPage;
-};
 
 /**
  * Local Ecopages renderer for JSX templates in the docs app.
@@ -100,12 +51,18 @@ const wrapMdxPage = (
 export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	name = ECOPAGES_JSX_PLUGIN_NAME;
 
-	static mdxExtensions = ['.mdx'];
-	private intrinsicCustomElementAssets = new Map<string, readonly ProcessedAsset[]>();
-	private collectedAssetFrames: ProcessedAsset[][] = [];
-	private radiantSsrEnabled = false;
+	private static radiantLightDomShimInstallPromise: Promise<void> | undefined;
 
-	private async resolveQueuedBoundaryChildren(
+	private readonly intrinsicCustomElementAssets: Map<string, readonly ProcessedAsset[]>;
+	private collectedAssetFrames: ProcessedAsset[][] = [];
+	private readonly mdxExtensions: string[];
+	private readonly radiantSsrEnabled: boolean;
+
+	/**
+	 * Re-renders queued JSX children inside the owning renderer so nested custom
+	 * elements and queued foreign boundaries contribute assets to the same frame.
+	 */
+	private async renderQueuedBoundaryChildren(
 		children: unknown,
 		queuedResolutionsByToken: Map<string, EcopagesJsxBoundaryRuntimeContext['queuedResolutions'][number]>,
 		resolveToken: (token: string) => Promise<string>,
@@ -132,7 +89,13 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		};
 	}
 
-	private async resolveQueuedBoundaryHtml(
+	/**
+	 * Resolves queued foreign boundaries after JSX has been stringified.
+	 *
+	 * JSX content needs one extra render pass because child boundaries may emit
+	 * additional browser assets while also replacing placeholder tokens.
+	 */
+	private async resolveOwnedBoundaryHtml(
 		html: string,
 		runtimeContext: EcopagesJsxBoundaryRuntimeContext | undefined,
 	): Promise<{ assets: ProcessedAsset[]; html: string }> {
@@ -141,7 +104,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			runtimeContext,
 			queueLabel: 'Ecopages JSX',
 			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
-				this.resolveQueuedBoundaryChildren(children, queuedResolutionsByToken, resolveToken),
+				this.renderQueuedBoundaryChildren(children, queuedResolutionsByToken, resolveToken),
 		});
 	}
 
@@ -149,66 +112,34 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		appConfig,
 		assetProcessingService,
 		resolvedIntegrationDependencies,
+		jsxConfig,
 		runtimeOrigin,
-	}: {
-		appConfig: EcoPagesAppConfig;
-		assetProcessingService: AssetProcessingService;
-		resolvedIntegrationDependencies: ProcessedAsset[];
-		runtimeOrigin: string;
-	}) {
+	}: EcopagesJsxRendererOptions) {
 		super({
 			appConfig,
 			assetProcessingService,
 			resolvedIntegrationDependencies,
 			runtimeOrigin,
 		});
+
+		this.intrinsicCustomElementAssets = jsxConfig?.intrinsicCustomElementAssets ?? new Map();
+		this.mdxExtensions = jsxConfig?.mdxExtensions ?? ['.mdx'];
+		this.radiantSsrEnabled = jsxConfig?.radiantSsrEnabled ?? false;
 	}
 
 	/** Returns whether the requested page file should be treated as MDX. */
 	public isMdxFile(filePath: string): boolean {
-		return EcopagesJsxRenderer.mdxExtensions.some((ext) => filePath.endsWith(ext));
-	}
-
-	/**
-	 * Supplies the intrinsic custom-element assets discovered by the plugin so
-	 * component renders can attach the correct client scripts.
-	 */
-	public setIntrinsicCustomElementAssets(assetsByTagName: Map<string, readonly ProcessedAsset[]>): void {
-		this.intrinsicCustomElementAssets = assetsByTagName;
-	}
-
-	/** Enables the Radiant SSR light-DOM shim for this renderer instance. */
-	public setRadiantSsrEnabled(enabled: boolean): void {
-		this.radiantSsrEnabled = enabled;
+		return this.mdxExtensions.some((ext) => filePath.endsWith(ext));
 	}
 
 	protected override async importPageFile(file: string, options?: RouteModuleLoadOptions): Promise<MdxPageModule> {
 		if (this.radiantSsrEnabled) {
-			await ensureRadiantLightDomShimInstalled();
+			await this.ensureRadiantLightDomShimInstalled();
 		}
 
 		const module = (await super.importPageFile(file, options)) as MdxPageModule;
 
-		if (!this.isMdxFile(file)) {
-			return module;
-		}
-
-		const Page = module.default as EcoComponent;
-		const normalizedConfig: EcoComponentConfig = {
-			...(module.config ?? Page.config ?? {}),
-			...(module.layout ? { layout: module.layout } : {}),
-			__eco: module.config?.__eco ?? Page.config?.__eco ?? createEcoMeta(file),
-		};
-		const wrappedPage = wrapMdxPage(Page as AsyncEcoComponent<Record<string, unknown>>, {
-			config: normalizedConfig,
-			metadata: module.getMetadata ?? Page.metadata,
-		});
-
-		return {
-			...module,
-			default: wrappedPage,
-			config: normalizedConfig,
-		};
+		return this.isMdxFile(file) ? this.normalizeMdxPageModule(file, module) : module;
 	}
 
 	override async render(options: IntegrationRendererRenderOptions<JsxRenderable>): Promise<RouteRendererBody> {
@@ -243,32 +174,20 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		const assetFrame = this.beginCollectedAssetFrame();
 
 		try {
-			if (!isEcoFunctionComponent(input.component)) {
+			if (!this.isFunctionComponent(input.component)) {
 				throw new TypeError('JSX renderer expected a callable component.');
 			}
 
-			let props = input.props;
-			if (input.children !== undefined) {
-				props = {
-					...input.props,
-					children:
-						typeof input.children === 'string' ? createMarkupNodeLike(input.children) : input.children,
-				};
-			}
 			const content = await this.renderEcoComponent(
 				input.component as AsyncEcoComponent<Record<string, unknown>>,
-				props,
+				this.createComponentProps(input),
 			);
 			const rendered = await this.renderJsx(content);
-			const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(
+			const queuedBoundaryResolution = await this.resolveOwnedBoundaryHtml(
 				rendered.html,
 				this.getQueuedBoundaryRuntime<EcopagesJsxBoundaryRuntimeContext>(input),
 			);
-			const componentAssets =
-				input.component.config?.dependencies &&
-				typeof this.assetProcessingService?.processDependencies === 'function'
-					? await this.processComponentDependencies([input.component])
-					: [];
+			const componentAssets = await this.collectComponentAssets(input.component);
 			const assets = this.htmlTransformer.dedupeProcessedAssets([
 				...this.endCollectedAssetFrame(assetFrame),
 				...queuedBoundaryResolution.assets,
@@ -304,7 +223,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
-			if (!isEcoFunctionComponent(view)) {
+			if (!this.isFunctionComponent(view)) {
 				throw new TypeError('JSX renderer expected a callable view component.');
 			}
 
@@ -317,6 +236,32 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
 		}
+	}
+
+	/**
+	 * Normalizes MDX modules into the same page contract as JSX route modules.
+	 *
+	 * MDX files export page metadata alongside generated component code, so the
+	 * renderer folds those exports back into the Ecopages component shape before
+	 * any layout or document-shell logic runs.
+	 */
+	private normalizeMdxPageModule(file: string, module: MdxPageModule): MdxPageModule {
+		const Page = module.default as EcoComponent;
+		const normalizedConfig: EcoComponentConfig = {
+			...(module.config ?? Page.config ?? {}),
+			...(module.layout ? { layout: module.layout } : {}),
+			__eco: module.config?.__eco ?? Page.config?.__eco ?? this.createEcoMeta(file),
+		};
+		const wrappedPage = this.wrapMdxPage(Page as AsyncEcoComponent<Record<string, unknown>>, {
+			config: normalizedConfig,
+			metadata: module.getMetadata ?? Page.metadata,
+		});
+
+		return {
+			...module,
+			default: wrappedPage,
+			config: normalizedConfig,
+		};
 	}
 
 	private beginCollectedAssetFrame(): ProcessedAsset[] {
@@ -337,7 +282,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 	private async renderJsx(value: JsxRenderable): Promise<{ assets: ProcessedAsset[]; html: string }> {
 		if (this.radiantSsrEnabled) {
-			await ensureRadiantLightDomShimInstalled();
+			await this.ensureRadiantLightDomShimInstalled();
 		}
 
 		const collectedAssets: ProcessedAsset[] = [];
@@ -360,13 +305,13 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 	private async renderEcoComponent<P>(component: AsyncEcoComponent<P>, props: P): Promise<JsxRenderable> {
 		if (this.radiantSsrEnabled) {
-			await ensureRadiantLightDomShimInstalled();
+			await this.ensureRadiantLightDomShimInstalled();
 		}
 
 		const collectedAssets: ProcessedAsset[] = [];
 		const rendered = await withServerCustomElementRenderHook(
 			this.createIntrinsicCustomElementRenderHook(collectedAssets),
-			() => renderComponent(component, props),
+			() => this.invokeComponent(component, props),
 		);
 		const activeFrame = this.collectedAssetFrames[this.collectedAssetFrames.length - 1];
 
@@ -375,6 +320,75 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		}
 
 		return rendered;
+	}
+
+	private async ensureRadiantLightDomShimInstalled(): Promise<void> {
+		if (!EcopagesJsxRenderer.radiantLightDomShimInstallPromise) {
+			EcopagesJsxRenderer.radiantLightDomShimInstallPromise = import('@ecopages/radiant/server/light-dom-shim')
+				.then((module) => {
+					module.installLightDomShim();
+				})
+				.then(() => undefined);
+		}
+
+		await EcopagesJsxRenderer.radiantLightDomShimInstallPromise;
+	}
+
+	private isFunctionComponent(component: EcoComponent): component is EcoFunctionComponent<any, any> {
+		return typeof component === 'function';
+	}
+
+	private createComponentProps(input: ComponentRenderInput): Record<string, unknown> {
+		if (input.children === undefined) {
+			return input.props;
+		}
+
+		return {
+			...input.props,
+			children: typeof input.children === 'string' ? createMarkupNodeLike(input.children) : input.children,
+		};
+	}
+
+	private async collectComponentAssets(component: EcoComponent): Promise<ProcessedAsset[]> {
+		if (!component.config?.dependencies || typeof this.assetProcessingService?.processDependencies !== 'function') {
+			return [];
+		}
+
+		return this.processComponentDependencies([component]);
+	}
+
+	private async invokeComponent<P>(component: AsyncEcoComponent<P>, props: P): Promise<JsxRenderable> {
+		return (await (component as (props: P) => JsxRenderable | Promise<JsxRenderable>)(props)) as JsxRenderable;
+	}
+
+	private createEcoMeta(file: string): NonNullable<EcoComponentConfig['__eco']> {
+		return {
+			id: String(rapidhash(file)),
+			file,
+			integration: ECOPAGES_JSX_PLUGIN_NAME,
+		};
+	}
+
+	private wrapMdxPage(
+		page: AsyncEcoComponent<Record<string, unknown>>,
+		{
+			config,
+			metadata,
+		}: {
+			config: EcoComponentConfig;
+			metadata?: GetMetadata;
+		},
+	): AsyncEcoComponent<Record<string, unknown>> {
+		const wrappedPage = (async (props: Record<string, unknown>) =>
+			this.invokeComponent(page, props)) as AsyncEcoComponent<Record<string, unknown>>;
+
+		wrappedPage.config = config;
+
+		if (metadata) {
+			wrappedPage.metadata = metadata;
+		}
+
+		return wrappedPage;
 	}
 
 	private createIntrinsicCustomElementRenderHook(target: ProcessedAsset[]) {

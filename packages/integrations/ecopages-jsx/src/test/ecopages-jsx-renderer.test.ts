@@ -140,9 +140,11 @@ test('EcopagesJsxRenderer installs the Radiant SSR shim before resolving JSX pag
 			appConfig: createAppConfig(tempDir),
 			assetProcessingService: {} as never,
 			resolvedIntegrationDependencies: [],
+			jsxConfig: {
+				radiantSsrEnabled: true,
+			},
 			runtimeOrigin: 'http://localhost:3000',
 		});
-		renderer.setRadiantSsrEnabled(true);
 
 		await withClearedLightDomGlobals(async () => {
 			assert.equal('HTMLElement' in globalThis, false);
@@ -155,4 +157,30 @@ test('EcopagesJsxRenderer installs the Radiant SSR shim before resolving JSX pag
 	} finally {
 		await rm(tempDir, { recursive: true, force: true });
 	}
+});
+
+test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
+	const rendererA = new TestEcopagesJsxRenderer({
+		appConfig: createAppConfig(tmpdir()),
+		assetProcessingService: {} as never,
+		resolvedIntegrationDependencies: [],
+		jsxConfig: {
+			mdxExtensions: ['.docs.mdx'],
+		},
+		runtimeOrigin: 'http://localhost:3000',
+	});
+	const rendererB = new TestEcopagesJsxRenderer({
+		appConfig: createAppConfig(tmpdir()),
+		assetProcessingService: {} as never,
+		resolvedIntegrationDependencies: [],
+		jsxConfig: {
+			mdxExtensions: ['.guide.mdx'],
+		},
+		runtimeOrigin: 'http://localhost:3000',
+	});
+
+	assert.equal(rendererA.isMdxFile('/tmp/page.docs.mdx'), true);
+	assert.equal(rendererA.isMdxFile('/tmp/page.guide.mdx'), false);
+	assert.equal(rendererB.isMdxFile('/tmp/page.docs.mdx'), false);
+	assert.equal(rendererB.isMdxFile('/tmp/page.guide.mdx'), true);
 });

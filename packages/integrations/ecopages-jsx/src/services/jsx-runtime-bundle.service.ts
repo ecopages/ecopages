@@ -39,6 +39,8 @@ type BrowserRuntimeRadiantModule = {
 	modulePath: string;
 };
 
+type PackageExportTarget = string | { import?: string };
+
 function getNamedExportNamesFromModuleSource(source: string): string[] {
 	const exportNames = new Set<string>();
 
@@ -104,6 +106,7 @@ function findPackageManifestPath(packageName: string): string {
 export class JsxRuntimeBundleService {
 	private readonly config: JsxRuntimeBundleServiceConfig;
 	private cachedSpecifierMap: Record<string, string> | undefined;
+	private cachedJsxEntryModulePath: string | undefined;
 	private cachedRadiantEntryModulePath: string | undefined;
 
 	constructor(config: JsxRuntimeBundleServiceConfig) {
@@ -146,6 +149,7 @@ export class JsxRuntimeBundleService {
 	 */
 	async getDependencies(): Promise<AssetDefinition[]> {
 		const specifierMap = await this.getSpecifierMap();
+		const jsxEntryModulePath = await this.getOrCreateJsxEntryModulePath();
 
 		const deps: AssetDefinition[] = [
 			AssetFactory.createInlineContentScript({
@@ -155,7 +159,7 @@ export class JsxRuntimeBundleService {
 				attributes: { type: 'importmap' },
 			}),
 			createBrowserRuntimeScriptAsset({
-				importPath: '@ecopages/jsx',
+				importPath: jsxEntryModulePath,
 				name: 'ecopages-jsx-esm',
 				fileName: VENDOR_FILE_NAMES.jsx,
 			}),
@@ -184,7 +188,6 @@ export class JsxRuntimeBundleService {
 		const jsxVendorUrl = buildBrowserRuntimeAssetUrl(VENDOR_FILE_NAMES.jsx);
 		const specifierMap: Record<string, string> = {
 			'@ecopages/jsx': jsxVendorUrl,
-			'@ecopages/jsx/server': jsxVendorUrl,
 			'@ecopages/jsx/client': jsxVendorUrl,
 			'@ecopages/jsx/jsx-runtime': jsxVendorUrl,
 			'@ecopages/jsx/jsx-dev-runtime': jsxVendorUrl,
@@ -210,6 +213,36 @@ export class JsxRuntimeBundleService {
 		return specifierMap;
 	}
 
+	private async getOrCreateJsxEntryModulePath(): Promise<string> {
+		if (this.cachedJsxEntryModulePath) {
+			return this.cachedJsxEntryModulePath;
+		}
+
+		const rootDir = this.config.rootDir ?? process.cwd();
+		const artifactsDir = path.join(rootDir, 'node_modules', '.cache', 'ecopages-browser-runtime');
+		const filePath = path.join(artifactsDir, 'ecopages-jsx-esm-entry.mjs');
+		const manifestPath = findPackageManifestPath('@ecopages/jsx');
+		const packageDir = path.dirname(realpathSync(manifestPath));
+		const jsxPkg = JSON.parse(readFileSync(manifestPath, 'utf8')) as RadiantPackageJson;
+		const jsxModulePath = this.resolvePackageExportModulePath(
+			packageDir,
+			'.',
+			jsxPkg.exports?.['.'] as PackageExportTarget,
+		);
+		const relativeModulePath = path.relative(artifactsDir, jsxModulePath).split(path.sep).join('/');
+		const entryImportPath = relativeModulePath.startsWith('.') ? relativeModulePath : `./${relativeModulePath}`;
+
+		mkdirSync(artifactsDir, { recursive: true });
+		writeFileSync(
+			filePath,
+			[`export * from '${entryImportPath}';`].join('\n'),
+			'utf8',
+		);
+
+		this.cachedJsxEntryModulePath = filePath;
+		return filePath;
+	}
+
 	private getRadiantBrowserRuntimeSpecifiers(): string[] {
 		return this.getRadiantBrowserRuntimeModules().map(({ exportKey }) => `@ecopages/radiant${exportKey.slice(1)}`);
 	}
@@ -224,12 +257,16 @@ export class JsxRuntimeBundleService {
 			.sort(([left], [right]) => left.localeCompare(right))
 			.map(([exportKey, exportTarget]) => ({
 				exportKey,
-				modulePath: this.resolveRadiantExportModulePath(packageDir, exportKey, exportTarget),
+				modulePath: this.resolvePackageExportModulePath(packageDir, exportKey, exportTarget as PackageExportTarget),
 			}))
 			.filter((module) => existsSync(module.modulePath));
 	}
 
-	private resolveRadiantExportModulePath(packageDir: string, exportKey: string, exportTarget: unknown): string {
+	private resolvePackageExportModulePath(
+		packageDir: string,
+		exportKey: string,
+		exportTarget: PackageExportTarget | undefined,
+	): string {
 		if (typeof exportTarget === 'string') {
 			return path.resolve(packageDir, exportTarget);
 		}

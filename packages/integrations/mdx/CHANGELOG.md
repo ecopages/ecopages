@@ -13,10 +13,15 @@ All notable changes to `@ecopages/mdx` are documented here.
 ### Bug Fixes
 
 - Fixed loader registration, Node `source-map` interop, and renderer-owned mixed-boundary rendering for standalone MDX routes.
+- Fixed standalone MDX boundary payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
 
 ### Documentation
 
 - Updated the README for standalone non-React MDX usage, `.md` opt-in handling, and compiler configuration.
+
+### Tests
+
+- Added renderer-level coverage for the boundary payload compatibility contract.
 
 ### Refactoring
 

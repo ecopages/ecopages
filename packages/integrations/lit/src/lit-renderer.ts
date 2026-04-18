@@ -14,7 +14,7 @@ import type {
 import '@lit-labs/ssr/lib/install-global-dom-shim.js';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
-import { PLUGIN_NAME } from './lit.plugin.ts';
+import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import {
 	injectLitRenderedChildren,
 	LIT_COMPONENT_CHILDREN_SLOT_MARKER,
@@ -38,7 +38,7 @@ type LitBoundaryRuntimeContext = {
  * A renderer for the Lit integration.
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
-	override name = PLUGIN_NAME;
+	override name = LIT_PLUGIN_NAME;
 
 	private async resolveQueuedBoundaryChildren(
 		children: unknown,

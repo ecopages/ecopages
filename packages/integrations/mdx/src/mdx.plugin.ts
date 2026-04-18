@@ -5,6 +5,7 @@ import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { createMdxLoaderPlugin } from './mdx-loader-plugin.ts';
+import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
 import { MDXRenderer } from './mdx-renderer.ts';
 import type { MDXPluginConfig } from './mdx.types.ts';
 
@@ -15,7 +16,7 @@ const appLogger = new Logger('[MDXPlugin]');
 /**
  * The name of the MDX plugin
  */
-export const PLUGIN_NAME = 'MDX';
+export const PLUGIN_NAME = MDX_PLUGIN_NAME;
 
 const defaultOptions: CompileOptions = {
 	format: 'detect',

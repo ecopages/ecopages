@@ -10,6 +10,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 - Fixed React hydration, Fast Refresh, module loading, doctype handling, island asset reuse, and mixed-renderer boundary resolution across Bun, Vite, and Nitro flows.
 - Restored direct `ReactPlugin` construction so the exported class still accepts the public plugin options shape.
+- Fixed React boundary payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
 
 ### Features
 
@@ -28,6 +29,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 - Added Vitest browser coverage for the React `dynamic()` utility using React Testing Library.
 - Added browser execution coverage for the generated React hydration bootstrap, including router ownership registration and page-root cleanup.
+- Added renderer-level coverage for the boundary payload compatibility contract, including non-attachable fragment roots.
 
 ### Documentation
 

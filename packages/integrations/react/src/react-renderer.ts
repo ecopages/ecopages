@@ -26,7 +26,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { FunctionComponent, ReactNode } from 'react';
 import type { CompileOptions } from '@mdx-js/mdx';
-import { PLUGIN_NAME } from './react.plugin.ts';
+import { REACT_PLUGIN_NAME } from './react.constants.ts';
 import type { ReactRendererConfig } from './react.types.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
 import { hasSingleRootElement } from './utils/html-boundary.ts';
@@ -105,7 +105,7 @@ export class BundleError extends Error {
  * @extends IntegrationRenderer
  */
 export class ReactRenderer extends IntegrationRenderer<ReactNode> {
-	name = PLUGIN_NAME;
+	name = REACT_PLUGIN_NAME;
 	componentDirectory = RESOLVED_ASSETS_DIR;
 	private reactRuntimeModules?: ReactRuntimeModules;
 	private readonly routerAdapter?: ReactRouterAdapter;

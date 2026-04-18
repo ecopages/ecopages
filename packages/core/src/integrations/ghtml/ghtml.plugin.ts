@@ -1,10 +1,6 @@
 import { IntegrationPlugin, type IntegrationPluginConfig } from '../../plugins/integration-plugin.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
-
-/**
- * The name of the ghtml plugin
- */
-export const GHTML_PLUGIN_NAME = 'ghtml';
+import { GHTML_PLUGIN_NAME } from './ghtml.constants.ts';
 
 /**
  * The Ghtml plugin class

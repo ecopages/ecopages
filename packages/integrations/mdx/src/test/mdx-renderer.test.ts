@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoComponent, EcoPageFile, HtmlTemplateProps, EcoPagesElement } from '@ecopages/core';
+import type {
+	BoundaryRenderPayload,
+	EcoComponent,
+	EcoPageFile,
+	HtmlTemplateProps,
+	EcoPagesElement,
+} from '@ecopages/core';
 import { eco } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
@@ -233,6 +239,25 @@ describe('MDXRenderer', () => {
 					HtmlTemplate,
 				}),
 			).rejects.toThrow('Error rendering page: Page failed to render');
+		});
+
+		it('should expose the compatibility boundary payload contract', async () => {
+			const testRenderer = createRenderer();
+			const Component = (async () => '<article>Boundary</article>') as unknown as EcoComponent<object>;
+
+			const result = await testRenderer.renderBoundary({
+				component: Component,
+				props: {},
+			});
+
+			expect(result).toEqual<BoundaryRenderPayload>({
+				html: '<article>Boundary</article>',
+				assets: [],
+				rootTag: 'article',
+				rootAttributes: undefined,
+				attachmentPolicy: { kind: 'first-element' },
+				integrationName: 'MDX',
+			});
 		});
 	});
 

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import HtmlTemplate from '../../../__fixtures__/app/src/includes/html.ghtml.js';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.js';
-import { eco, type EcoComponent, type EcoPagesElement, type HtmlTemplateProps } from '../../index.ts';
+import {
+	eco,
+	type BoundaryRenderPayload,
+	type EcoComponent,
+	type EcoPagesElement,
+	type HtmlTemplateProps,
+} from '../../index.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { IntegrationPlugin } from '../../plugins/integration-plugin.ts';
 import {
@@ -169,6 +175,25 @@ describe('GhtmlRenderer', () => {
 
 		expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
 		expect(body).not.toContain('<eco-marker');
+	});
+
+	it('should expose the compatibility boundary payload contract', async () => {
+		const renderer = createRenderer();
+		const Component = (async () => '<main>Boundary</main>') as EcoComponent<Record<string, unknown>>;
+
+		const result = await renderer.renderBoundary({
+			component: Component,
+			props: {},
+		});
+
+		expect(result).toEqual<BoundaryRenderPayload>({
+			html: '<main>Boundary</main>',
+			assets: [],
+			rootTag: 'main',
+			rootAttributes: undefined,
+			attachmentPolicy: { kind: 'first-element' },
+			integrationName: 'ghtml',
+		});
 	});
 
 	describe('renderToResponse', () => {

@@ -5,8 +5,10 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import { getComponentRenderContext, type ComponentBoundaryRuntime } from './component-render-context.ts';
 import type {
+	BaseIntegrationContext,
 	ComponentRenderInput,
 	ComponentRenderResult,
+	BoundaryRenderPayload,
 	RouteRendererBody,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
@@ -191,6 +193,10 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 			ctx: input.ctx ?? {},
 			layout: input.layout,
 		});
+	}
+
+	public async testRenderBoundary(input: ComponentRenderInput) {
+		return this.renderBoundary(input);
 	}
 
 	protected override createComponentBoundaryRuntime(options: {
@@ -432,6 +438,195 @@ describe('IntegrationRenderer', () => {
 		expect(result.pageLocals).toBe(incomingLocals);
 	});
 
+	it('should include a boundary plan for page, layout, and html template roots', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: {
+				...AppConfig,
+				integrations: [
+					{
+						name: 'foreign-renderer',
+					} as unknown as EcoPagesAppConfig['integrations'][number],
+				],
+			} as EcoPagesAppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
+		ForeignComponent.config = {
+			integration: 'foreign-renderer',
+			__eco: {
+				id: 'foreign-component',
+				file: '/app/components/foreign-component.tsx',
+				integration: 'foreign-renderer',
+			},
+		};
+
+		const Layout = (() => '<main>Layout</main>') as EcoComponent<Record<string, unknown>>;
+		Layout.config = {
+			__eco: {
+				id: 'layout-component',
+				file: '/app/layouts/default.tsx',
+				integration: 'test-renderer',
+			},
+			dependencies: {
+				components: [ForeignComponent],
+			},
+		};
+
+		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		PageIdx.config = {
+			layout: Layout,
+			__eco: {
+				id: 'page-component',
+				file: '/app/pages/index.tsx',
+				integration: 'test-renderer',
+			},
+		};
+
+		const HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+		HtmlTemplate.config = {
+			__eco: {
+				id: 'html-template',
+				file: '/app/index.ghtml.ts',
+				integration: 'test-renderer',
+			},
+		};
+
+		renderer.PageModule = {
+			default: PageIdx,
+		};
+		renderer.HtmlTemplate = HtmlTemplate;
+
+		const result = await renderer.testPrepareRenderOptions({
+			file: '/app/pages/index.tsx',
+			params: {},
+			query: {},
+		});
+
+		expect(result.boundaryPlan).toEqual(
+			expect.objectContaining({
+				foreignEdgeCount: 1,
+				hasValidationErrors: false,
+				rendererNames: expect.arrayContaining(['test-renderer', 'foreign-renderer']),
+				root: expect.objectContaining({
+					source: 'route',
+					children: expect.arrayContaining([
+						expect.objectContaining({ source: 'html-template' }),
+						expect.objectContaining({ source: 'layout' }),
+						expect.objectContaining({ source: 'page' }),
+					]),
+				}),
+			}),
+		);
+	});
+
+	it('should record validation errors for unknown foreign integration owners', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const UnknownForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
+		UnknownForeignComponent.config = {
+			integration: 'missing-renderer',
+			__eco: {
+				id: 'missing-foreign-component',
+				file: '/app/components/missing-foreign-component.tsx',
+				integration: 'missing-renderer',
+			},
+		};
+
+		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		PageIdx.config = {
+			__eco: {
+				id: 'page-component',
+				file: '/app/pages/index.tsx',
+				integration: 'test-renderer',
+			},
+			dependencies: {
+				components: [UnknownForeignComponent],
+			},
+		};
+
+		const HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+		HtmlTemplate.config = {
+			__eco: {
+				id: 'html-template',
+				file: '/app/index.ghtml.ts',
+				integration: 'test-renderer',
+			},
+		};
+
+		renderer.PageModule = {
+			default: PageIdx,
+		};
+		renderer.HtmlTemplate = HtmlTemplate;
+
+		const result = await renderer.testPrepareRenderOptions({
+			file: '/app/pages/index.tsx',
+			params: {},
+			query: {},
+		});
+
+		expect(result.boundaryPlan?.hasValidationErrors).toBe(true);
+		expect(result.boundaryPlan?.validationErrors).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: 'UNKNOWN_INTEGRATION_OWNER',
+					componentId: 'missing-foreign-component',
+					integrationName: 'missing-renderer',
+				}),
+			]),
+		);
+	});
+
+	it('should expose a compatibility boundary payload contract', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		renderer.MockComponentRenderResult = {
+			html: '<main data-root="true">Hello</main>',
+			canAttachAttributes: true,
+			rootTag: 'main',
+			integrationName: 'test-renderer',
+			rootAttributes: { 'data-eco-component-id': 'root-1' },
+			assets: [
+				{
+					kind: 'script',
+					inline: true,
+					content: 'console.log("boundary")',
+					position: 'body',
+				},
+			],
+		};
+
+		const payload = await renderer.testRenderBoundary({
+			component: (() => '<main>Hello</main>') as EcoComponent<Record<string, unknown>>,
+			props: {},
+		});
+
+		expect(payload).toEqual<BoundaryRenderPayload>({
+			html: '<main data-root="true">Hello</main>',
+			assets: [
+				{
+					kind: 'script',
+					inline: true,
+					content: 'console.log("boundary")',
+					position: 'body',
+				},
+			],
+			rootTag: 'main',
+			rootAttributes: { 'data-eco-component-id': 'root-1' },
+			attachmentPolicy: { kind: 'first-element' },
+			integrationName: 'test-renderer',
+		});
+	});
+
 	it('should resolve foreign-owned boundaries in the owning renderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: AppConfig,
@@ -515,6 +710,65 @@ describe('IntegrationRenderer', () => {
 		);
 		expect(initializeRenderer).toHaveBeenCalledTimes(1);
 		expect(foreignRenderer.renderComponentBoundary).toHaveBeenCalledTimes(1);
+	});
+
+	it('should preserve shared integration context fields when delegating to the owning renderer', async () => {
+		const foreignRenderer = {
+			renderComponentBoundary: vi.fn(async (input: ComponentRenderInput) => ({
+				html: `<aside>${String(
+					(input.integrationContext as BaseIntegrationContext | undefined)?.componentInstanceId ?? 'missing',
+				)}</aside>`,
+				canAttachAttributes: true,
+				rootTag: 'aside',
+				integrationName: 'foreign-renderer',
+			})),
+		} as unknown as IntegrationRenderer;
+		const initializeRenderer = vi.fn(() => foreignRenderer);
+
+		const renderer = new TestIntegrationRenderer({
+			appConfig: {
+				...AppConfig,
+				integrations: [
+					{
+						name: 'foreign-renderer',
+						initializeRenderer,
+					} as unknown as EcoPagesAppConfig['integrations'][number],
+				],
+			} as EcoPagesAppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
+		ForeignComponent.config = {
+			integration: 'foreign-renderer',
+			__eco: {
+				id: 'foreign-component',
+				file: '/app/components/foreign-component.tsx',
+				integration: 'foreign-renderer',
+			},
+		};
+
+		const rendererCache = new Map<string, IntegrationRenderer<any>>();
+		await renderer.testResolveBoundaryInOwningRenderer(
+			{
+				component: ForeignComponent,
+				props: { label: 'foreign' },
+				integrationContext: {
+					componentInstanceId: 'host-1',
+				} satisfies BaseIntegrationContext,
+			},
+			rendererCache,
+		);
+
+		expect(foreignRenderer.renderComponentBoundary).toHaveBeenCalledWith(
+			expect.objectContaining({
+				integrationContext: expect.objectContaining({
+					componentInstanceId: 'host-1',
+					rendererCache,
+				}),
+			}),
+		);
 	});
 
 	it('should stop boundary delegation when the resolved owner renderer is the current renderer', async () => {

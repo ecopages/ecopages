@@ -1,6 +1,5 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	ComponentRenderResult,
@@ -25,6 +24,7 @@ import {
 	type ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../eco/global-injector-map.ts';
+import { BoundaryPlanningService } from './boundary-planning.service.ts';
 
 type ResolvedPageModule = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
@@ -59,6 +59,10 @@ export interface RenderPreparationCallbacks {
 	createPageLocalsProxy(filePath: string): RouteRendererOptions['locals'];
 }
 
+export interface RenderPreparationServiceDependencies {
+	boundaryPlanningService?: BoundaryPlanningService;
+}
+
 /**
  * Prepares the normalized render inputs consumed by `IntegrationRenderer.execute()`.
  *
@@ -70,6 +74,7 @@ export interface RenderPreparationCallbacks {
 export class RenderPreparationService {
 	private appConfig: EcoPagesAppConfig;
 	private assetProcessingService: AssetProcessingService;
+	private readonly boundaryPlanningService: BoundaryPlanningService;
 
 	/**
 	 * Creates the render-preparation orchestrator for one app instance.
@@ -78,9 +83,14 @@ export class RenderPreparationService {
 	 * The service is app-scoped because it depends on finalized config defaults and
 	 * the app-owned asset-processing pipeline while remaining renderer-agnostic.
 	 */
-	constructor(appConfig: EcoPagesAppConfig, assetProcessingService: AssetProcessingService) {
+	constructor(
+		appConfig: EcoPagesAppConfig,
+		assetProcessingService: AssetProcessingService,
+		dependencies: RenderPreparationServiceDependencies = {},
+	) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
+		this.boundaryPlanningService = dependencies.boundaryPlanningService ?? new BoundaryPlanningService(appConfig);
 	}
 
 	/**
@@ -107,6 +117,13 @@ export class RenderPreparationService {
 		const HtmlTemplate = await callbacks.getHtmlTemplate();
 		const { props, metadata } = await callbacks.resolvePageData(pageModule, routeOptions);
 		const Layout = Page.config?.layout;
+		const boundaryPlan = this.boundaryPlanningService.buildPlan({
+			routeFile: routeOptions.file,
+			currentIntegrationName,
+			HtmlTemplate,
+			Layout,
+			Page: Page as EcoComponent,
+		});
 
 		const componentsToResolve = Layout ? [HtmlTemplate, Layout, Page] : [HtmlTemplate, Page];
 		const resolvedDependencies = await callbacks.resolveDependencies(componentsToResolve);
@@ -174,6 +191,7 @@ export class RenderPreparationService {
 			locals,
 			pageLocals,
 			cacheStrategy,
+			boundaryPlan,
 		};
 
 		return {

@@ -9,12 +9,14 @@ All notable changes to `@ecopages/core` are documented here.
 ### Features
 
 - Added app-owned runtime and build ownership around `createApp()`, host module loading, the browser-safe `eco` export, `eco.html()`, `eco.layout()`, and the published `EcoPagesAppConfig` surface.
+- Added boundary-plan metadata and a compatibility `renderBoundary()` payload contract for mixed-renderer orchestration.
 
 ### Refactoring
 
 - Consolidated runtime state around shared module-loading services, app-owned build execution, and the universal `createApp()` boundary.
 - Simplified route-renderer orchestration around renderer-owned boundary runtimes, shared string-boundary queue helpers, and a smaller component render context.
 - Centralized shared integration renderer bootstrapping so package integrations only append renderer-specific config instead of duplicating core lifecycle wiring.
+- Moved shared queued boundary resolution to attachment-policy payloads and constructor-injectable planning services.
 - Removed marker-era compatibility capture, the shared route-level fallback resolver, deprecated `@ecopages/core/node*` escape hatches, and other dead route-renderer internals.
 
 ### Bug Fixes
@@ -34,6 +36,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 - Added regression coverage for app-owned runtime services, Node fallback paths, and cross-runtime invalidation behavior.
 - Strengthened the core ghtml integration tests so route and explicit render paths await real outcomes and cover `renderToResponse` behavior.
+- Added core regression coverage for boundary plans, payload contracts, and typed mixed-boundary context flow.
 
 ---
 

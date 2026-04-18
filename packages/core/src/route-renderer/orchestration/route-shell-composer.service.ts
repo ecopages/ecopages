@@ -86,7 +86,7 @@ export class RouteShellComposer {
 					props: {},
 					children: viewRender.html,
 					integrationContext: { rendererCache },
-			  })
+				})
 			: undefined;
 		const documentRender = await callbacks.renderComponentBoundary({
 			component: HtmlTemplate as EcoComponent,
@@ -138,7 +138,7 @@ export class RouteShellComposer {
 					props: input.layout.props ?? {},
 					children: pageRender.html,
 					integrationContext: { rendererCache },
-			  })
+				})
 			: undefined;
 		const documentRender = await callbacks.renderComponentBoundary({
 			component: input.htmlTemplate,

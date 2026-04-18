@@ -63,7 +63,7 @@ export class BoundaryPlanningService {
 				if (!componentMeta) {
 					validationErrors.push({
 						code: 'MISSING_COMPONENT_METADATA',
-						message: `[ecopages] Foreign boundary \"${componentId}\" must provide stable __eco metadata so ownership diagnostics stay actionable. Declared dependencies must include all possible foreign children.`,
+						message: `[ecopages] Foreign boundary "${componentId}" must provide stable __eco metadata so ownership diagnostics stay actionable. Declared dependencies must include all possible foreign children.`,
 						componentId,
 						integrationName,
 					});
@@ -72,7 +72,7 @@ export class BoundaryPlanningService {
 				if (!this.isRegisteredIntegration(integrationName, input.currentIntegrationName)) {
 					validationErrors.push({
 						code: 'UNKNOWN_INTEGRATION_OWNER',
-						message: `[ecopages] Foreign boundary \"${componentId}\" references unknown integration owner \"${integrationName}\". Declared dependencies must include all possible foreign children and those integrations must be registered.`,
+						message: `[ecopages] Foreign boundary "${componentId}" references unknown integration owner "${integrationName}". Declared dependencies must include all possible foreign children and those integrations must be registered.`,
 						componentId,
 						componentFile: componentMeta?.file,
 						integrationName,

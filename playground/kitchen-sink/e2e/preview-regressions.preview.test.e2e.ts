@@ -1,7 +1,7 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { gotoAndWait, incrementCounter, trackRuntimeErrors } from './helpers';
 
-async function requestUntilOk(request: Parameters<typeof test>[0]['request'], href: string) {
+async function requestUntilOk(request: APIRequestContext, href: string) {
 	let lastResponse: Awaited<ReturnType<typeof request.get>> | undefined;
 
 	await expect
@@ -26,7 +26,7 @@ async function requestUntilOk(request: Parameters<typeof test>[0]['request'], hr
 	return lastResponse!;
 }
 
-async function requestUntilContains(request: Parameters<typeof test>[0]['request'], href: string, text: string) {
+async function requestUntilContains(request: APIRequestContext, href: string, text: string) {
 	await expect
 		.poll(
 			async () => {
@@ -46,29 +46,17 @@ async function requestUntilContains(request: Parameters<typeof test>[0]['request
 		.toBe(true);
 }
 
-async function waitForReactPageHydration(page: Parameters<typeof test>[0]['page']) {
+async function waitForReactPageHydration(page: Page) {
 	await page.waitForFunction(() => !!window.__ECO_PAGES__?.react?.pageRoot, null, {
 		timeout: 10000,
 	});
 }
 
-async function gotoAndWaitForHeading(page: Parameters<typeof test>[0]['page'], href: string, heading: string) {
-	await expect
-		.poll(
-			async () => {
-				try {
-					await gotoAndWait(page, href);
-					return ((await page.getByRole('heading', { name: heading }).textContent()) ?? '').trim();
-				} catch {
-					return '';
-				}
-			},
-			{
-				intervals: [100, 200, 350, 500],
-				timeout: 10000,
-			},
-		)
-		.toBe(heading);
+async function gotoAndWaitForHeading(page: Page, href: string, heading: string) {
+	await gotoAndWait(page, href);
+	await expect(page.getByRole('heading', { name: heading })).toHaveText(heading, {
+		timeout: 10000,
+	});
 }
 
 test.describe('Kitchen Sink Preview Regressions', () => {

@@ -1127,7 +1127,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return undefined;
 		}
 
-		return await this.getIntegrationRendererForName(boundaryOwner, rendererCache).renderComponentBoundary(
+		const owningRenderer = this.getIntegrationRendererForName(boundaryOwner, rendererCache);
+		if (owningRenderer === this || owningRenderer.name === this.name) {
+			return undefined;
+		}
+		return await owningRenderer.renderComponentBoundary(
 			this.withBoundaryRendererCache(input, rendererCache),
 		);
 	}

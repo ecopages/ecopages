@@ -32,6 +32,19 @@ class TestIntegrationPlugin extends IntegrationPlugin {
 	}
 }
 
+class OverrideInitializeRendererPlugin extends TestIntegrationPlugin {
+	override initializeRenderer() {
+		const renderer = new NamelessRenderer({
+			appConfig: this.appConfig as EcoPagesAppConfig,
+			assetProcessingService: {} as never,
+			resolvedIntegrationDependencies: [],
+			runtimeOrigin: this.runtimeOrigin,
+		});
+
+		return this.attachRendererRuntimeServices(renderer);
+	}
+}
+
 describe('IntegrationPlugin', () => {
 	let plugin: TestIntegrationPlugin;
 	const config: IntegrationPluginConfig = {
@@ -127,6 +140,17 @@ describe('IntegrationPlugin', () => {
 		pluginWithRenderer.runtimeOrigin = 'http://localhost:3000';
 
 		const renderer = pluginWithRenderer.initializeRenderer();
+		expect(renderer.name).toBe('test-plugin');
+	});
+
+	it('should stamp the plugin integration name when overrides use shared renderer runtime services', () => {
+		const pluginWithOverride = new OverrideInitializeRendererPlugin(config);
+
+		(pluginWithOverride as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
+			{} as EcoPagesAppConfig;
+		pluginWithOverride.runtimeOrigin = 'http://localhost:3000';
+
+		const renderer = pluginWithOverride.initializeRenderer();
 		expect(renderer.name).toBe('test-plugin');
 	});
 });

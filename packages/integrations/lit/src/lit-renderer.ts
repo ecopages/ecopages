@@ -9,21 +9,18 @@ import type {
 	EcoComponent,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
-	PageMetadataProps,
 	RouteRendererBody,
 } from '@ecopages/core';
 import '@lit-labs/ssr/lib/install-global-dom-shim.js';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
-import { render } from '@lit-labs/ssr';
-import { html as staticHtml, unsafeStatic } from 'lit/static-html.js';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import { PLUGIN_NAME } from './lit.plugin.ts';
-
-const HTML_TEMPLATE_SLOT_MARKER = '<--content-->';
-const COMPONENT_CHILDREN_SLOT_MARKER = '<!--eco-lit-component-children-->';
-const ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER = '&lt;!--eco-lit-component-children--&gt;';
-const DOUBLE_ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER = '&amp;lt;!--eco-lit-component-children--&amp;gt;';
-const DUPLICATE_DECLARATIVE_SHADOW_ROOT_ATTRIBUTE = /\sshadowroot=(['"])(open|closed)\1(?=\sshadowrootmode=\1\2\1)/g;
+import {
+	injectLitRenderedChildren,
+	LIT_COMPONENT_CHILDREN_SLOT_MARKER,
+	normalizeLitHtml,
+	renderLitValueToString,
+} from './utils/lit-html-rendering.ts';
 
 type LitBoundaryRuntimeContext = {
 	rendererCache: Map<string, IntegrationRenderer<any>>;
@@ -52,7 +49,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			return undefined;
 		}
 
-		let renderedChildren = typeof children === 'string' ? children : await this.renderValueToString(children);
+		let renderedChildren = typeof children === 'string' ? children : await renderLitValueToString(children);
 		renderedChildren = await this.resolveQueuedBoundaryTokens(
 			renderedChildren,
 			queuedResolutionsByToken,
@@ -90,92 +87,12 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		};
 	}
 
-	private normalizeDeclarativeShadowRootMarkup(markup: string): string {
-		return markup.replace(DUPLICATE_DECLARATIVE_SHADOW_ROOT_ATTRIBUTE, '');
-	}
-
-	private createRenderableMarkup(markup: string) {
-		return staticHtml`${unsafeStatic(markup)}`;
-	}
-
 	protected override shouldRenderPageComponent(): boolean {
 		return false;
 	}
 
-	private async renderMarkupToString(markup: string): Promise<string> {
-		let renderedHtml = '';
-		for (const chunk of render(this.createRenderableMarkup(markup))) {
-			renderedHtml += chunk;
-		}
-		return this.normalizeDeclarativeShadowRootMarkup(renderedHtml);
-	}
-
-	private async renderValueToString(value: unknown): Promise<string> {
-		if (typeof value === 'string') {
-			return await this.renderMarkupToString(value);
-		}
-
-		let renderedHtml = '';
-		for (const chunk of render(value as Parameters<typeof render>[0])) {
-			renderedHtml += chunk;
-		}
-		return this.normalizeDeclarativeShadowRootMarkup(renderedHtml);
-	}
-
 	private isLitManagedComponent(component: EcoComponent | undefined): boolean {
 		return component?.config?.integration === this.name || component?.config?.__eco?.integration === this.name;
-	}
-
-	private injectRenderedChildren(template: string, renderedChildren: string): string {
-		for (const marker of [
-			COMPONENT_CHILDREN_SLOT_MARKER,
-			ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER,
-			DOUBLE_ESCAPED_COMPONENT_CHILDREN_SLOT_MARKER,
-		]) {
-			if (template.includes(marker)) {
-				return template.split(marker).join(renderedChildren);
-			}
-		}
-
-		if (template.includes(HTML_TEMPLATE_SLOT_MARKER)) {
-			return template.split(HTML_TEMPLATE_SLOT_MARKER).join(renderedChildren);
-		}
-
-		if (template.includes('</body>')) {
-			return template.replace('</body>', `${renderedChildren}</body>`);
-		}
-
-		if (template.includes('</html>')) {
-			return template.replace('</html>', `${renderedChildren}</html>`);
-		}
-
-		return `${template}${renderedChildren}`;
-	}
-
-	private async renderHtmlTemplate(options: {
-		HtmlTemplate: IntegrationRendererRenderOptions['HtmlTemplate'];
-		metadata: PageMetadataProps;
-		pageProps: Record<string, unknown>;
-		renderedChildren: string;
-		isLitManagedHtmlTemplate: boolean;
-	}): Promise<string> {
-		if (!options.isLitManagedHtmlTemplate) {
-			return String(
-				await options.HtmlTemplate({
-					metadata: options.metadata,
-					children: options.renderedChildren,
-					pageProps: options.pageProps,
-				}),
-			);
-		}
-
-		const template = await options.HtmlTemplate({
-			metadata: options.metadata,
-			children: HTML_TEMPLATE_SLOT_MARKER,
-			pageProps: options.pageProps,
-		});
-
-		return this.injectRenderedChildren(String(template), options.renderedChildren);
 	}
 
 	/**
@@ -196,20 +113,20 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		let renderedChildren: string | undefined;
 		if (input.children !== undefined) {
 			renderedChildren =
-				typeof input.children === 'string' ? input.children : await this.renderValueToString(input.children);
+				typeof input.children === 'string' ? input.children : await renderLitValueToString(input.children);
 		}
 
 		let props = input.props;
 		if (renderedChildren !== undefined) {
 			props = {
 				...input.props,
-				children: COMPONENT_CHILDREN_SLOT_MARKER,
+				children: LIT_COMPONENT_CHILDREN_SLOT_MARKER,
 			};
 		}
 		const content = await component(props);
-		const renderedHtml = await this.renderValueToString(content);
+		const renderedHtml = await renderLitValueToString(content);
 		const html =
-			renderedChildren === undefined ? renderedHtml : this.injectRenderedChildren(renderedHtml, renderedChildren);
+			renderedChildren === undefined ? renderedHtml : injectLitRenderedChildren(renderedHtml, renderedChildren);
 		const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(
 			html,
 			this.getQueuedBoundaryRuntime<LitBoundaryRuntimeContext>(input),
@@ -318,7 +235,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				htmlTemplate: HtmlTemplate as EcoComponent,
 				metadata,
 				pageProps: props || {},
-				transformDocumentHtml: (html) => this.normalizeDeclarativeShadowRootMarkup(html),
+				transformDocumentHtml: normalizeLitHtml,
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
@@ -336,7 +253,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 					view,
 					props,
 					ctx,
-					transformHtml: (html) => this.normalizeDeclarativeShadowRootMarkup(html),
+					transformHtml: normalizeLitHtml,
 				});
 			}
 
@@ -374,7 +291,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			this.appendProcessedDependencies(pageRender.assets, layoutRender?.assets, documentRender.assets);
 
 			const body = await this.finalizeResolvedHtml({
-				html: `${this.DOC_TYPE}${this.normalizeDeclarativeShadowRootMarkup(documentRender.html)}`,
+				html: `${this.DOC_TYPE}${normalizeLitHtml(documentRender.html)}`,
 				partial: false,
 			});
 

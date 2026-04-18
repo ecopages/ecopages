@@ -17,3 +17,7 @@ All notable changes to `@ecopages/lit` are documented here.
 ### Tests
 
 - Updated integration coverage for explicit boundary composition and Node and esbuild compatibility.
+
+### Refactoring
+
+- Moved Lit HTML serialization and child-slot reinjection mechanics into a dedicated utility so the renderer stays focused on preload and boundary orchestration.

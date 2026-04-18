@@ -1,13 +1,23 @@
 {
-	"$schema": "https://jsr.io/schema/config-file.v1.json",
-	"name": "@ecopages/mdx",
-	"version": "0.2.0-alpha.16",
-	"exports": {
-		".": "./src/mdx.plugin.ts"
-	},
-	"exclude": ["**/*.test.ts"],
-	"publish": {
-		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json", "package.json"],
-		"exclude": ["src/test"]
-	}
+  "$schema": "https://jsr.io/schema/config-file.v1.json",
+  "name": "@ecopages/mdx",
+  "version": "0.2.0-alpha.17",
+  "exports": {
+    ".": "./src/mdx.plugin.ts"
+  },
+  "exclude": [
+    "**/*.test.ts"
+  ],
+  "publish": {
+    "include": [
+      "src/**/*.ts",
+      "LICENSE",
+      "README.md",
+      "jsr.json",
+      "package.json"
+    ],
+    "exclude": [
+      "src/test"
+    ]
+  }
 }

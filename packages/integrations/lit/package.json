@@ -1,42 +1,42 @@
 {
-	"name": "@ecopages/lit",
-	"version": "0.2.0-alpha.16",
-	"description": "Ecopages lit integration",
-	"keywords": [
-		"ecopages",
-		"lit",
-		"plugin"
-	],
-	"license": "MIT",
-	"main": "./src/lit.plugin.ts",
-	"types": "./src/lit.plugin.ts",
-	"type": "module",
-	"files": [
-		"src"
-	],
-	"exports": {
-		".": {
-			"default": "./src/lit.plugin.ts",
-			"types": "./src/lit.plugin.ts"
-		},
-		"./styled-mixin": {
-			"default": "./src/styled-mixin.ts",
-			"types": "./src/styled-mixin.ts"
-		}
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/ecopages/ecopages.git",
-		"directory": "packages/integrations/lit"
-	},
-	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
-	},
-	"peerDependencies": {
-		"@ecopages/core": "workspace:*",
-		"@lit-labs/ssr": "^3.3.0",
-		"@lit-labs/ssr-client": "^1.1.7",
-		"lit": "^3.2.1"
-	}
+  "name": "@ecopages/lit",
+  "version": "0.2.0-alpha.17",
+  "description": "Ecopages lit integration",
+  "keywords": [
+    "ecopages",
+    "lit",
+    "plugin"
+  ],
+  "license": "MIT",
+  "main": "./src/lit.plugin.ts",
+  "types": "./src/lit.plugin.ts",
+  "type": "module",
+  "files": [
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "default": "./src/lit.plugin.ts",
+      "types": "./src/lit.plugin.ts"
+    },
+    "./styled-mixin": {
+      "default": "./src/styled-mixin.ts",
+      "types": "./src/styled-mixin.ts"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ecopages/ecopages.git",
+    "directory": "packages/integrations/lit"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "release:jsr": "bunx jsr publish"
+  },
+  "peerDependencies": {
+    "@ecopages/core": "workspace:*",
+    "@lit-labs/ssr": "^3.3.0",
+    "@lit-labs/ssr-client": "^1.1.7",
+    "lit": "^3.2.1"
+  }
 }

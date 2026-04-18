@@ -316,6 +316,90 @@ test('BunBuildAdapter normalizes unordered multi-entrypoint outputs by path inst
 	}
 });
 
+test('BunBuildAdapter matches reordered hashed multi-entrypoint outputs back to outbase-relative targets', async () => {
+	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+
+	try {
+		const root = createTempRoot('ecopages-bun-unordered-hashed-entrypoints');
+		const srcDir = path.join(root, 'src', 'components');
+		const outDir = path.join(root, 'dist', 'assets');
+		fs.mkdirSync(path.join(srcDir, 'theme-toggle'), { recursive: true });
+		fs.mkdirSync(path.join(srcDir, 'weather-app'), { recursive: true });
+		fs.mkdirSync(outDir, { recursive: true });
+
+		const themeToggleEntrypoint = path.join(srcDir, 'theme-toggle', 'theme-toggle.script.ts');
+		const weatherAppEntrypoint = path.join(srcDir, 'weather-app', 'weather-app.script.tsx');
+		fs.writeFileSync(themeToggleEntrypoint, 'export const themeToggle = 1;');
+		fs.writeFileSync(weatherAppEntrypoint, 'export const weatherApp = 2;');
+
+		const themeToggleBunOutput = path.join(
+			outDir,
+			'src',
+			'components',
+			'theme-toggle',
+			'theme-toggle.script-abc123.js',
+		);
+		const weatherAppBunOutput = path.join(
+			outDir,
+			'src',
+			'components',
+			'weather-app',
+			'weather-app.script-def456.js',
+		);
+		const themeToggleExpectedOutput = path.join(
+			outDir,
+			'components',
+			'theme-toggle',
+			'theme-toggle.script-abc123.js',
+		);
+		const weatherAppExpectedOutput = path.join(outDir, 'components', 'weather-app', 'weather-app.script-def456.js');
+
+		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
+			build: vi.fn(async () => {
+				fs.mkdirSync(path.dirname(themeToggleBunOutput), { recursive: true });
+				fs.mkdirSync(path.dirname(weatherAppBunOutput), { recursive: true });
+				fs.writeFileSync(themeToggleBunOutput, 'export const themeToggle = 1;', 'utf8');
+				fs.writeFileSync(weatherAppBunOutput, 'export const weatherApp = 2;', 'utf8');
+				return {
+					success: true,
+					logs: [],
+					outputs: [{ path: weatherAppBunOutput }, { path: themeToggleBunOutput }],
+				};
+			}),
+			hash: vi.fn(() => 1),
+			resolveSync: vi.fn((importPath: string) => importPath),
+		};
+
+		const freshAdapter = createBunBuildAdapter();
+		const result = await freshAdapter.build({
+			entrypoints: [themeToggleEntrypoint, weatherAppEntrypoint],
+			root,
+			outdir: outDir,
+			outbase: path.join(root, 'src'),
+			target: 'browser',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: true,
+			minify: false,
+			naming: '[dir]/[name]-[hash].[ext]',
+		});
+
+		assert.equal(result.success, true);
+		assert.deepEqual(result.outputs, [{ path: weatherAppExpectedOutput }, { path: themeToggleExpectedOutput }]);
+		assert.equal(fs.readFileSync(themeToggleExpectedOutput, 'utf8'), 'export const themeToggle = 1;');
+		assert.equal(fs.readFileSync(weatherAppExpectedOutput, 'utf8'), 'export const weatherApp = 2;');
+		assert.equal(fs.existsSync(themeToggleBunOutput), false);
+		assert.equal(fs.existsSync(weatherAppBunOutput), false);
+	} finally {
+		if (originalBun === undefined) {
+			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+		} else {
+			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
+		}
+		cleanupTempRoots();
+	}
+});
+
 test('BunBuildAdapter remaps Bun root-relative outputs back to outbase-relative paths', async () => {
 	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
 

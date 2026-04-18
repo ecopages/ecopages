@@ -23,7 +23,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Fixed host/runtime module loading, published build-helper exports, asset output normalization, explicit render flows, and static or preview build stability across Bun, Node, Vite, and Nitro.
 - Fixed request-time and static-generation page inspection to preserve integration-specific page loading without reusing the normal render module identity.
 - Fixed Node preview and static-generation React runtime resolution so app-owned page modules and server rendering share one React module identity.
-- Fixed Bun HMR script output normalization so multi-entrypoint browser builds preserve the expected outbase-relative source paths for emitted files.
+- Fixed Bun browser output normalization so batched multi-entrypoint HMR rebuilds match emitted files to their expected served paths instead of Bun output order.
 - Fixed render-preparation graph traversal so sparse component dependency arrays do not break custom 404 rendering or file-system response fallback flows.
 
 ### Documentation

@@ -116,6 +116,10 @@ export interface BuildExecutor {
 
 type RuntimeBun = NonNullable<ReturnType<typeof getBunRuntime>>;
 
+type NormalizedBunOutput = {
+	concretePath: string;
+};
+
 type BunPluginBuilder = {
 	config?: {
 		external?: string[];
@@ -438,11 +442,66 @@ export class BunBuildAdapter implements BuildAdapter {
 		return path.join(directory, matches[0]!);
 	}
 
-	private resolveTemplatedOutputPath(
-		options: BuildOptions,
-		entrypointPath: string,
-		concreteOutputPath?: string,
-	): string | undefined {
+	private normalizePathForMatch(filePath: string): string {
+		return path.normalize(filePath).split(path.sep).join('/');
+	}
+
+	private normalizeOutputPathForMatch(outputPath: string, templatePath: string): string {
+		const normalizedOutputPath = path.normalize(outputPath);
+		const templateExtension = path.extname(templatePath);
+
+		if (!templateExtension) {
+			return normalizedOutputPath;
+		}
+
+		if (templateExtension === '.js') {
+			if (this.hasJavaScriptExtension(normalizedOutputPath)) {
+				return path.normalize(normalizedOutputPath.replace(/\.(?:[cm]?js)$/u, '.js'));
+			}
+
+			return path.normalize(`${normalizedOutputPath}.js`);
+		}
+
+		if (normalizedOutputPath.endsWith(templateExtension)) {
+			return normalizedOutputPath;
+		}
+
+		return path.normalize(`${normalizedOutputPath}${templateExtension}`);
+	}
+
+	private extractTemplateHashTokens(templatePath: string, candidatePath: string): string[] | undefined {
+		const normalizedTemplatePath = this.normalizePathForMatch(templatePath);
+		const normalizedCandidatePath = this.normalizePathForMatch(
+			this.normalizeOutputPathForMatch(candidatePath, templatePath),
+		);
+		const matcher = new RegExp(
+			`^${this.escapeRegExp(normalizedTemplatePath).replace(/\\\[hash\\\]/g, '([^/]+)')}$`,
+		);
+		const match = normalizedCandidatePath.match(matcher);
+
+		if (!match) {
+			return undefined;
+		}
+
+		return match.slice(1);
+	}
+
+	private applyTemplateHashTokens(templatePath: string, hashTokens: string[]): string | undefined {
+		const hashTokenCount = templatePath.match(/\[hash\]/g)?.length ?? 0;
+
+		if (hashTokenCount !== hashTokens.length) {
+			return undefined;
+		}
+
+		if (hashTokenCount === 0) {
+			return templatePath;
+		}
+
+		let hashTokenIndex = 0;
+		return templatePath.replace(/\[hash\]/g, () => hashTokens[hashTokenIndex++] ?? '');
+	}
+
+	private resolveTemplatedOutputPath(options: BuildOptions, entrypointPath: string): string | undefined {
 		if (!options.outdir) {
 			return undefined;
 		}
@@ -468,22 +527,6 @@ export class BunBuildAdapter implements BuildAdapter {
 
 		resolvedPath = resolvedPath.replace(/^\.\//, '');
 
-		if (resolvedPath.includes('[hash]')) {
-			if (!concreteOutputPath) {
-				return path.join(outdir, resolvedPath);
-			}
-
-			const concreteRelativePath = path.relative(outdir, concreteOutputPath).split(path.sep).join('/');
-			const matcher = new RegExp(`^${this.escapeRegExp(resolvedPath).replace(/\\\[hash\\\]/g, '(.+)')}$`);
-			const match = concreteRelativePath.match(matcher);
-
-			if (!match?.[1]) {
-				return concreteOutputPath;
-			}
-
-			resolvedPath = resolvedPath.replaceAll('[hash]', match[1]);
-		}
-
 		return path.join(outdir, resolvedPath);
 	}
 
@@ -498,41 +541,57 @@ export class BunBuildAdapter implements BuildAdapter {
 		return targetPath;
 	}
 
-	private createDeterministicOutputReference(outputPath: string): string {
-		return path.normalize(outputPath).replace(/\.(?:[cm]?js)$/u, '');
+	private hasJavaScriptExtension(outputPath: string): boolean {
+		return /\.(?:[cm]?js)$/u.test(outputPath);
 	}
 
-	private collectDeterministicOutputReferences(options: BuildOptions, entrypointPath: string): Map<string, string> {
-		const expectedOutputsByReference = new Map<string, string>();
+	private findOutputMatchForEntrypoint(
+		options: BuildOptions,
+		entrypointPath: string,
+		outputs: NormalizedBunOutput[],
+		usedOutputIndexes: Set<number>,
+	): { outputIndex: number; targetPath: string } | undefined {
 		const expectedOutputPath = this.resolveTemplatedOutputPath(options, entrypointPath);
 
 		if (!expectedOutputPath) {
-			return expectedOutputsByReference;
+			return undefined;
 		}
 
-		expectedOutputsByReference.set(this.createDeterministicOutputReference(expectedOutputPath), expectedOutputPath);
+		const expectedMatchPaths = [expectedOutputPath];
 
-		if (!options.outbase) {
-			return expectedOutputsByReference;
-		}
-
-		const bunRootRelativeOutputPath = this.resolveTemplatedOutputPath(
-			{ ...options, outbase: undefined },
-			entrypointPath,
-		);
-
-		if (bunRootRelativeOutputPath && bunRootRelativeOutputPath !== expectedOutputPath) {
-			expectedOutputsByReference.set(
-				this.createDeterministicOutputReference(bunRootRelativeOutputPath),
-				expectedOutputPath,
+		if (options.outbase) {
+			const bunRootRelativeOutputPath = this.resolveTemplatedOutputPath(
+				{ ...options, outbase: undefined },
+				entrypointPath,
 			);
+
+			if (bunRootRelativeOutputPath && bunRootRelativeOutputPath !== expectedOutputPath) {
+				expectedMatchPaths.push(bunRootRelativeOutputPath);
+			}
 		}
 
-		return expectedOutputsByReference;
-	}
+		for (const [outputIndex, output] of outputs.entries()) {
+			if (usedOutputIndexes.has(outputIndex)) {
+				continue;
+			}
 
-	private hasJavaScriptExtension(outputPath: string): boolean {
-		return /\.(?:[cm]?js)$/u.test(outputPath);
+			for (const matchPath of expectedMatchPaths) {
+				const hashTokens = this.extractTemplateHashTokens(matchPath, output.concretePath);
+				if (!hashTokens) {
+					continue;
+				}
+
+				const targetPath = this.applyTemplateHashTokens(expectedOutputPath, hashTokens);
+				if (!targetPath) {
+					continue;
+				}
+
+				usedOutputIndexes.add(outputIndex);
+				return { outputIndex, targetPath };
+			}
+		}
+
+		return undefined;
 	}
 
 	private normalizeBunOutputs(result: BuildResult, options: BuildOptions): BuildResult {
@@ -540,25 +599,30 @@ export class BunBuildAdapter implements BuildAdapter {
 			return result;
 		}
 
-		const normalizedOutputs = [...result.outputs];
-		const expectedOutputsByReference = new Map<string, string>();
+		const normalizedOutputs = result.outputs.map((output) => ({
+			concretePath: this.resolveConcreteOutputPath(output.path) ?? output.path,
+		}));
+		const matchedTargetsByIndex = new Map<number, string>();
+		const usedOutputIndexes = new Set<number>();
 
 		for (const entrypointPath of options.entrypoints) {
-			for (const [reference, expectedOutputPath] of this.collectDeterministicOutputReferences(
+			const matchedOutput = this.findOutputMatchForEntrypoint(
 				options,
 				entrypointPath,
-			)) {
-				expectedOutputsByReference.set(reference, expectedOutputPath);
+				normalizedOutputs,
+				usedOutputIndexes,
+			);
+
+			if (matchedOutput) {
+				matchedTargetsByIndex.set(matchedOutput.outputIndex, matchedOutput.targetPath);
 			}
 		}
 
 		return {
 			...result,
-			outputs: normalizedOutputs.map((output) => {
-				const concreteOutputPath = this.resolveConcreteOutputPath(output.path) ?? output.path;
-				const expectedOutputPath = expectedOutputsByReference.get(
-					this.createDeterministicOutputReference(concreteOutputPath),
-				);
+			outputs: normalizedOutputs.map((output, index) => {
+				const expectedOutputPath = matchedTargetsByIndex.get(index);
+				const concreteOutputPath = output.concretePath;
 
 				if (expectedOutputPath) {
 					return {

@@ -33,6 +33,7 @@ public/js
 test-results/
 playwright-report/
 .vitest-attachments/
+.e2e-tmp/
 
 # local improvement tracking (details in ~/.gemini artifacts)
 **/.improvements/

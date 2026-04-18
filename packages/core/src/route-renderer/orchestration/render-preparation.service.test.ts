@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { eco } from '../../eco/eco.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
+	BoundaryPlan,
 	EcoComponent,
 	EcoPageComponent,
 	HtmlTemplateProps,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
+import { BoundaryPlanningService } from './boundary-planning.service.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
@@ -348,5 +350,74 @@ describe('RenderPreparationService', () => {
 		);
 
 		expect(setProcessedDependencies).toHaveBeenCalledWith([integrationDependency]);
+	});
+
+	it('uses an injected boundary planning service when provided', async () => {
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+		const boundaryPlan = {
+			root: {
+				id: 'route:/app/pages/index.tsx',
+				source: 'route',
+				ownership: {
+					integrationName: 'ghtml',
+					componentId: 'route:/app/pages/index.tsx',
+					componentFile: '/app/pages/index.tsx',
+					isPageEntry: false,
+					isForeignToParent: false,
+				},
+				children: [],
+				declaredDependenciesValid: true,
+			},
+			rendererNames: ['ghtml'],
+			foreignEdgeCount: 0,
+			hasValidationErrors: false,
+			validationErrors: [],
+		} satisfies BoundaryPlan;
+		const injectedBoundaryPlanningService = {
+			buildPlan: vi.fn(() => boundaryPlan),
+		} as unknown as BoundaryPlanningService;
+		const service = new RenderPreparationService(appConfig, assetProcessingService, {
+			boundaryPlanningService: injectedBoundaryPlanningService,
+		});
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+
+		const result = await service.prepare(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			'ghtml',
+			{
+				resolvePageModule: async () => ({
+					Page,
+					integrationSpecificProps: {},
+				}),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: 'Page', description: 'Page description' },
+				}),
+				resolveDependencies: async () => [],
+				buildRouteRenderAssets: async () => [],
+				shouldRenderPageComponent: () => false,
+				renderPageComponent: vi.fn(),
+				setProcessedDependencies: vi.fn(),
+				dedupeProcessedAssets: (assets) => assets,
+				createPageLocalsProxy: () => ({}),
+			},
+		);
+
+		expect(injectedBoundaryPlanningService.buildPlan).toHaveBeenCalledWith({
+			routeFile: '/app/pages/index.tsx',
+			currentIntegrationName: 'ghtml',
+			HtmlTemplate,
+			Layout: undefined,
+			Page,
+		});
+		expect(result.boundaryPlan).toBe(boundaryPlan);
 	});
 });

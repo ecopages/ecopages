@@ -8,6 +8,7 @@ import type { EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
+	BoundaryRenderPayload,
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoFunctionComponent,
@@ -17,6 +18,7 @@ import type {
 	GetMetadata,
 	GetMetadataContext,
 	GetStaticProps,
+	BaseIntegrationContext,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
 	PageMetadataProps,
@@ -158,13 +160,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @param integrationContext - Optional boundary context carried with one render input.
 	 * @returns The current execution cache when present.
 	 */
-	private getBoundaryRendererCache(integrationContext: unknown): Map<string, IntegrationRenderer<any>> | undefined {
-		if (
-			typeof integrationContext === 'object' &&
-			integrationContext !== null &&
-			'rendererCache' in integrationContext &&
-			integrationContext.rendererCache instanceof Map
-		) {
+	private getBoundaryRendererCache(
+		integrationContext?: BaseIntegrationContext,
+	): Map<string, IntegrationRenderer<any>> | undefined {
+		if (integrationContext?.rendererCache instanceof Map) {
 			return integrationContext.rendererCache as Map<string, IntegrationRenderer<any>>;
 		}
 
@@ -199,13 +198,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		rendererCache: Map<string, IntegrationRenderer<any>>,
 	): ComponentRenderInput {
 		const integrationContext = input.integrationContext;
+		const sharedRendererCache = rendererCache as BaseIntegrationContext['rendererCache'];
 
 		return {
 			...input,
-			integrationContext:
-				typeof integrationContext === 'object' && integrationContext !== null
-					? { ...(integrationContext as Record<string, unknown>), rendererCache }
-					: { rendererCache },
+			integrationContext: integrationContext
+				? { ...integrationContext, rendererCache: sharedRendererCache }
+				: { rendererCache: sharedRendererCache },
 		};
 	}
 
@@ -599,11 +598,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		runtimeContextKey?: string;
 		tokenPrefix?: string;
 		createRuntimeContext?: (
-			integrationContext: {
-				rendererCache?: Map<string, unknown>;
-				componentInstanceId?: string;
-				[key: string]: unknown;
-			},
+			integrationContext: BaseIntegrationContext & Record<string, unknown>,
 			rendererCache: Map<string, unknown>,
 		) => TContext;
 	}): ComponentBoundaryRuntime {
@@ -634,7 +629,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			queueLabel: options.queueLabel,
 			renderQueuedChildren: options.renderQueuedChildren,
 			resolveBoundary: (input, rendererCache) =>
-				this.resolveBoundaryInOwningRenderer(input, rendererCache as Map<string, IntegrationRenderer<any>>),
+				this.resolveBoundaryPayloadInOwningRenderer(
+					input,
+					rendererCache as Map<string, IntegrationRenderer<any>>,
+				),
 			applyAttributesToFirstElement: (html, attributes) =>
 				this.htmlTransformer.applyAttributesToFirstElement(html, attributes),
 			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
@@ -1134,6 +1132,23 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return await owningRenderer.renderComponentBoundary(this.withBoundaryRendererCache(input, rendererCache));
 	}
 
+	protected async resolveBoundaryPayloadInOwningRenderer(
+		input: ComponentRenderInput,
+		rendererCache: Map<string, IntegrationRenderer<any>>,
+	): Promise<BoundaryRenderPayload | undefined> {
+		const boundaryOwner = this.getRegisteredBoundaryOwner(input.component);
+		if (!boundaryOwner) {
+			return undefined;
+		}
+
+		const owningRenderer = this.getIntegrationRendererForName(boundaryOwner, rendererCache);
+		if (owningRenderer === this || owningRenderer.name === this.name) {
+			return undefined;
+		}
+
+		return await owningRenderer.renderBoundary(this.withBoundaryRendererCache(input, rendererCache));
+	}
+
 	/**
 	 * Renders one component under this integration's boundary runtime and resolves
 	 * any nested foreign boundaries captured during that render.
@@ -1181,6 +1196,24 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		);
 
 		return this.normalizeComponentBoundaryRender(execution.value);
+	}
+
+	/**
+	 * Compatibility boundary contract that exposes a narrower payload shape for
+	 * future route-composition work while preserving the current
+	 * `renderComponentBoundary()` runtime semantics.
+	 */
+	async renderBoundary(input: ComponentRenderInput): Promise<BoundaryRenderPayload> {
+		const result = await this.renderComponentBoundary(input);
+
+		return {
+			html: result.html,
+			assets: result.assets ?? [],
+			rootTag: result.rootTag,
+			rootAttributes: result.rootAttributes,
+			attachmentPolicy: result.canAttachAttributes ? { kind: 'first-element' } : { kind: 'none' },
+			integrationName: result.integrationName,
+		};
 	}
 
 	private normalizeComponentBoundaryRender(result: ComponentRenderResult): ComponentRenderResult {

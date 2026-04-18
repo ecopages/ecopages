@@ -1,5 +1,10 @@
 import type { ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
-import type { ComponentRenderInput, ComponentRenderResult, EcoComponent } from '../../types/public-types.ts';
+import type {
+	BaseIntegrationContext,
+	BoundaryRenderPayload,
+	ComponentRenderInput,
+	EcoComponent,
+} from '../../types/public-types.ts';
 import type { ComponentBoundaryRuntime } from './component-render-context.ts';
 
 export type QueuedBoundaryDecisionInput = {
@@ -30,11 +35,7 @@ export type QueuedBoundaryRuntimeContext = {
 	queuedResolutions: QueuedBoundaryResolution[];
 };
 
-type QueuedBoundaryIntegrationContext = {
-	rendererCache?: Map<string, unknown>;
-	componentInstanceId?: string;
-	[key: string]: unknown;
-};
+type QueuedBoundaryIntegrationContext = BaseIntegrationContext & Record<string, unknown>;
 
 type QueuedBoundaryChildRenderResult = {
 	assets: ProcessedAsset[];
@@ -141,7 +142,7 @@ export class QueuedBoundaryRuntimeService {
 		resolveBoundary: (
 			input: ComponentRenderInput,
 			rendererCache: Map<string, unknown>,
-		) => Promise<ComponentRenderResult | undefined>;
+		) => Promise<BoundaryRenderPayload | undefined>;
 		applyAttributesToFirstElement: (html: string, attributes: Record<string, string>) => string;
 		dedupeProcessedAssets: (assets: ProcessedAsset[]) => ProcessedAsset[];
 	}): Promise<{ assets: ProcessedAsset[]; html: string }> {
@@ -212,7 +213,7 @@ export class QueuedBoundaryRuntimeService {
 				}
 
 				const resolvedHtml =
-					boundaryRender.canAttachAttributes && boundaryRender.rootAttributes
+					boundaryRender.attachmentPolicy.kind === 'first-element' && boundaryRender.rootAttributes
 						? options.applyAttributesToFirstElement(boundaryRender.html, boundaryRender.rootAttributes)
 						: boundaryRender.html;
 

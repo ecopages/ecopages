@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { eco } from '../../eco/eco.ts';
 import type { ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
-import type { ComponentRenderInput, ComponentRenderResult, EcoComponent } from '../../types/public-types.ts';
+import type {
+	BaseIntegrationContext,
+	BoundaryRenderPayload,
+	ComponentRenderInput,
+	EcoComponent,
+} from '../../types/public-types.ts';
 import { QueuedBoundaryRuntimeService, type QueuedBoundaryRuntimeContext } from './queued-boundary-runtime.service.ts';
 
 function createComponent(name: string, integration = name): EcoComponent<Record<string, unknown>, string> {
@@ -106,6 +111,36 @@ describe('QueuedBoundaryRuntimeService', () => {
 		);
 	});
 
+	it('preserves existing shared integration context fields when queue runtime state is attached', () => {
+		const service = new QueuedBoundaryRuntimeService();
+		const shell = createComponent('shell', 'shell');
+		const boundaryInput: ComponentRenderInput = {
+			component: shell,
+			props: {},
+			integrationContext: {
+				componentInstanceId: 'host',
+				customKey: 'preserved',
+			} as BaseIntegrationContext & { customKey: string },
+		};
+		const rendererCache = new Map<string, unknown>();
+
+		service.createRuntime({
+			boundaryInput,
+			rendererCache,
+			runtimeContextKey: '__testQueuedBoundaryRuntime',
+			tokenPrefix: '__TEST_QUEUE__',
+			shouldQueueBoundary: () => true,
+		});
+
+		expect(boundaryInput.integrationContext).toEqual(
+			expect.objectContaining({
+				componentInstanceId: 'host',
+				customKey: 'preserved',
+				rendererCache,
+			}),
+		);
+	});
+
 	it('resolves nested queued boundaries, applies root attributes, and dedupes bubbled assets', async () => {
 		const service = new QueuedBoundaryRuntimeService();
 		const shell = createComponent('shell', 'shell');
@@ -152,11 +187,11 @@ describe('QueuedBoundaryRuntimeService', () => {
 
 		runtimeContext.queuedResolutions[0].props.children = `<slot>${childToken.value}</slot>`;
 
-		const resolveBoundary = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => {
+		const resolveBoundary = vi.fn(async (input: ComponentRenderInput): Promise<BoundaryRenderPayload> => {
 			if (input.component === childBoundary) {
 				return {
 					html: `<span>${String(input.props.label ?? '')}</span>`,
-					canAttachAttributes: true,
+					attachmentPolicy: { kind: 'first-element' },
 					rootTag: 'span',
 					integrationName: 'deferred',
 					rootAttributes: {
@@ -172,7 +207,7 @@ describe('QueuedBoundaryRuntimeService', () => {
 
 			return {
 				html: `<section>${input.children ?? ''}</section>`,
-				canAttachAttributes: true,
+				attachmentPolicy: { kind: 'first-element' },
 				rootTag: 'section',
 				integrationName: 'deferred',
 				rootAttributes: {
@@ -271,7 +306,8 @@ describe('QueuedBoundaryRuntimeService', () => {
 				},
 				resolveBoundary: async (input) => ({
 					html: `<section>${input.children ?? ''}</section>`,
-					canAttachAttributes: true,
+					assets: [],
+					attachmentPolicy: { kind: 'first-element' },
 					rootTag: 'section',
 					integrationName: 'deferred',
 				}),

@@ -782,13 +782,72 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;
+	boundaryPlan?: BoundaryPlan;
 };
 
-export interface ComponentRenderInput {
+export type BoundaryValidationErrorCode = 'UNKNOWN_INTEGRATION_OWNER' | 'MISSING_COMPONENT_METADATA';
+
+export interface BoundaryValidationError {
+	code: BoundaryValidationErrorCode;
+	message: string;
+	componentId?: string;
+	componentFile?: string;
+	integrationName?: string;
+}
+
+export type BoundaryPlanNodeSource = 'route' | 'page' | 'layout' | 'html-template' | 'dependency';
+
+export interface BoundaryOwnership {
+	integrationName: string;
+	componentId: string;
+	componentFile?: string;
+	isPageEntry: boolean;
+	isForeignToParent: boolean;
+}
+
+export interface BoundaryPlanNode {
+	id: string;
+	source: BoundaryPlanNodeSource;
+	ownership: BoundaryOwnership;
+	children: BoundaryPlanNode[];
+	declaredDependenciesValid: boolean;
+}
+
+export interface BoundaryPlan {
+	root: BoundaryPlanNode;
+	rendererNames: string[];
+	foreignEdgeCount: number;
+	hasValidationErrors: boolean;
+	validationErrors: BoundaryValidationError[];
+}
+
+export type BoundaryAttachmentPolicy = { kind: 'none' } | { kind: 'first-element' };
+
+export interface BoundaryRenderPayload {
+	html: string;
+	assets: ProcessedAsset[];
+	rootTag?: string;
+	rootAttributes?: Record<string, string>;
+	attachmentPolicy: BoundaryAttachmentPolicy;
+	integrationName: string;
+}
+
+/**
+ * Shared execution-scoped context threaded through component boundary renders.
+ *
+ * Integrations can extend this with renderer-local runtime keys, but the cache
+ * and optional component instance identity are shared across all renderers.
+ */
+export interface BaseIntegrationContext {
+	rendererCache?: Map<string, unknown>;
+	componentInstanceId?: string;
+}
+
+export interface ComponentRenderInput<TIntegrationContext extends BaseIntegrationContext = BaseIntegrationContext> {
 	component: EcoComponent;
 	props: Record<string, unknown>;
 	children?: unknown;
-	integrationContext?: unknown;
+	integrationContext?: TIntegrationContext;
 }
 
 export interface ComponentRenderResult {

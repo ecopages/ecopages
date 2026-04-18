@@ -2,98 +2,31 @@
  * This module contains the react plugin for Ecopages
  * @module
  */
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
+import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
-import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type React from 'react';
 import { ReactRenderer } from './react-renderer.ts';
+import type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
 import { ReactRuntimeBundleService } from './services/react-runtime-bundle.service.ts';
 import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 
+export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
+
 const appLogger = new Logger('[ReactPlugin]');
 
-/**
- * MDX configuration options for the React plugin
- */
-export type ReactMdxOptions = {
-	/**
-	 * Whether to enable MDX support.
-	 * @default false
-	 */
-	enabled: boolean;
-	/**
-	 * Compiler options for MDX.
-	 * @default undefined
-	 */
-	compilerOptions?: Omit<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
-	/**
-	 * Remark plugins.
-	 * @default undefined
-	 */
-	remarkPlugins?: CompileOptions['remarkPlugins'];
-	/**
-	 * Rehype plugins.
-	 * @default undefined
-	 */
-	rehypePlugins?: CompileOptions['rehypePlugins'];
-	/**
-	 * Recma plugins.
-	 * @default undefined
-	 */
-	recmaPlugins?: CompileOptions['recmaPlugins'];
-	/**
-	 * Custom extensions to be treated as MDX files.
-	 * @default ['.mdx']
-	 */
-	extensions?: string[];
-};
-
-/**
- * Options for the React plugin
- */
-export type ReactPluginOptions = {
-	extensions?: string[];
-	dependencies?: AssetDefinition[];
-	/**
-	 * Enables explicit client graph mode for React page entries.
-	 *
-	 * When enabled, React page-entry bundling relies on explicit dependency declarations
-	 * and skips AST-based `middleware`/`requires` stripping in the React path.
-	 * @default false
-	 */
-	explicitGraph?: boolean;
-	/**
-	 * Router adapter for SPA navigation.
-	 * When provided, pages with layouts will be wrapped in the router for client-side navigation.
-	 * @example
-	 * ```ts
-	 * import { ecoRouter } from '@ecopages/react-router';
-	 * reactPlugin({ router: ecoRouter() })
-	 * ```
-	 */
-	router?: ReactRouterAdapter;
-	/**
-	 * MDX configuration for handling .mdx files within the React plugin.
-	 * When enabled, MDX files are treated as React pages with full router support.
-	 * @example
-	 * ```ts
-	 * reactPlugin({
-	 *   router: ecoRouter(),
-	 *   mdx: {
-	 *     enabled: true,
-	 *     extensions: ['.mdx', '.md'],
-	 *     remarkPlugins: [remarkGfm],
-	 *     rehypePlugins: [[rehypePrettyCode, { theme: '...' }]],
-	 *   }
-	 * })
-	 * ```
-	 */
-	mdx?: ReactMdxOptions;
+type ResolvedReactPluginConfig = Omit<
+	IntegrationPluginConfig,
+	'name' | 'extensions' | 'jsxImportSource' | 'integrationDependencies'
+> & {
+	extensions: string[];
+	integrationDependencies?: AssetDefinition[];
+	rendererConfig: ReactRendererConfig;
 };
 
 /**
@@ -101,76 +34,151 @@ export type ReactPluginOptions = {
  */
 export const PLUGIN_NAME = 'react';
 
+const mergePluginLists = <T>(...lists: Array<readonly T[] | null | undefined>): T[] | undefined => {
+	const merged = lists.flatMap((list) => (list ? [...list] : []));
+	return merged.length > 0 ? merged : undefined;
+};
+
+const appendMdxExtensions = (target: string[], mdxExtensions: string[]): void => {
+	for (const extension of mdxExtensions) {
+		if (!target.includes(extension)) {
+			target.push(extension);
+		}
+	}
+};
+
+/**
+ * Resolves MDX compiler options for the React integration.
+ *
+ * React owns the JSX runtime fields for MDX route compilation so mixed route
+ * graphs keep the same runtime contract as authored React page modules.
+ */
+const resolveReactMdxCompilerOptions = (mdxOptions: ReactMdxOptions): CompileOptions => {
+	const { compilerOptions, remarkPlugins, rehypePlugins, recmaPlugins } = mdxOptions;
+	const resolved: CompileOptions = {
+		...compilerOptions,
+		jsxImportSource: 'react',
+		jsxRuntime: 'automatic',
+		development: process.env.NODE_ENV === 'development',
+	};
+
+	const mergedRemark = mergePluginLists(compilerOptions?.remarkPlugins, remarkPlugins);
+	const mergedRehype = mergePluginLists(compilerOptions?.rehypePlugins, rehypePlugins);
+	const mergedRecma = mergePluginLists(compilerOptions?.recmaPlugins, recmaPlugins);
+
+	if (mergedRemark) resolved.remarkPlugins = mergedRemark;
+	if (mergedRehype) resolved.rehypePlugins = mergedRehype;
+	if (mergedRecma) resolved.recmaPlugins = mergedRecma;
+
+	return resolved;
+};
+
+/**
+ * Resolves user-facing React plugin options into the internal plugin config.
+ *
+ * Defaults:
+ * - `extensions`: `['.tsx']`
+ * - `explicitGraph`: `false`
+ * - `mdx.enabled`: `false`
+ * - `mdx.extensions`: `['.mdx']`
+ */
+const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactPluginConfig => {
+	const { extensions: userExtensions, router, mdx, explicitGraph, dependencies, ...baseConfig } = options ?? {};
+	const extensions = [...(userExtensions ?? ['.tsx'])];
+	const mdxEnabled = mdx?.enabled ?? false;
+	const mdxExtensions = mdx?.extensions ?? ['.mdx'];
+
+	if (mdxEnabled) {
+		appendMdxExtensions(extensions, mdxExtensions);
+	} else if (mdx?.extensions?.length) {
+		appLogger.warn(
+			'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
+		);
+	}
+
+	const rendererConfig: ReactRendererConfig = {
+		routerAdapter: router,
+		mdxCompilerOptions: mdxEnabled && mdx ? resolveReactMdxCompilerOptions(mdx) : undefined,
+		mdxExtensions,
+		hmrPageMetadataCache: new ReactHmrPageMetadataCache(),
+		explicitGraphEnabled: explicitGraph ?? false,
+	};
+
+	return {
+		...baseConfig,
+		extensions,
+		integrationDependencies: dependencies,
+		rendererConfig,
+	};
+};
+
 /**
  * The React plugin class
  * This plugin provides support for React components in Ecopages
  */
 export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
 	renderer = ReactRenderer;
-	routerAdapter: ReactRouterAdapter | undefined;
-	private mdxEnabled: boolean;
-	private mdxCompilerOptions?: CompileOptions;
-	private mdxExtensions: string[];
+	private readonly routerAdapter: ReactRouterAdapter | undefined;
+	private readonly mdxEnabled: boolean;
+	private readonly mdxCompilerOptions?: CompileOptions;
+	private readonly mdxExtensions: string[];
 	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
-	private runtimeBundleService: ReactRuntimeBundleService;
-	private readonly hmrPageMetadataCache = new ReactHmrPageMetadataCache();
+	private readonly runtimeBundleService: ReactRuntimeBundleService;
+	private readonly hmrPageMetadataCache: ReactHmrPageMetadataCache;
 	private runtimeDependenciesInitialized = false;
 	/**
 	 * Indicates whether React explicit graph mode is enabled for renderer/HMR behavior.
 	 */
-	private explicitGraphEnabled: boolean;
+	private readonly explicitGraphEnabled: boolean;
+	private readonly rendererConfig: ReactRendererConfig;
 
-	constructor(options?: Omit<ReactPluginOptions, 'name'>) {
-		const { extensions: _ignoredExtensions, ...restOptions } = options ?? {};
-		const extensions = [...(options?.extensions ?? ['.tsx'])];
-		const mdxExtensions = options?.mdx?.extensions ?? ['.mdx'];
-
-		if (options?.mdx?.enabled) {
-			for (const extension of mdxExtensions) {
-				if (!extensions.includes(extension)) {
-					extensions.push(extension);
-				}
-			}
-		} else if (options?.mdx?.extensions?.length) {
-			appLogger.warn(
-				'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
-			);
-		}
+	constructor(options?: ReactPluginOptions) {
+		const config = resolveReactPluginOptions(options);
+		const { extensions, rendererConfig, integrationDependencies, ...baseConfig } = config;
 
 		super({
 			name: PLUGIN_NAME,
 			extensions,
 			jsxImportSource: 'react',
-			...restOptions,
+			integrationDependencies,
+			...baseConfig,
 		});
 
-		this.mdxEnabled = options?.mdx?.enabled ?? false;
-		this.mdxExtensions = mdxExtensions;
+		this.routerAdapter = rendererConfig.routerAdapter;
+		this.mdxCompilerOptions = rendererConfig.mdxCompilerOptions;
+		this.mdxEnabled = Boolean(rendererConfig.mdxCompilerOptions);
+		this.mdxExtensions = rendererConfig.mdxExtensions ?? ['.mdx'];
+		this.hmrPageMetadataCache = rendererConfig.hmrPageMetadataCache ?? new ReactHmrPageMetadataCache();
+		this.explicitGraphEnabled = rendererConfig.explicitGraphEnabled ?? false;
+		this.rendererConfig = {
+			...rendererConfig,
+			mdxExtensions: this.mdxExtensions,
+			hmrPageMetadataCache: this.hmrPageMetadataCache,
+			explicitGraphEnabled: this.explicitGraphEnabled,
+		};
 
 		if (this.mdxEnabled) {
-			const { compilerOptions, remarkPlugins, rehypePlugins, recmaPlugins } = options?.mdx || {};
-			this.mdxCompilerOptions = {
-				...compilerOptions,
-				remarkPlugins: [...(compilerOptions?.remarkPlugins || []), ...(remarkPlugins || [])],
-				rehypePlugins: [...(compilerOptions?.rehypePlugins || []), ...(rehypePlugins || [])],
-				recmaPlugins: [...(compilerOptions?.recmaPlugins || []), ...(recmaPlugins || [])],
-				jsxImportSource: 'react',
-				jsxRuntime: 'automatic',
-				development: process.env.NODE_ENV === 'development',
-			};
 			appLogger.debug('MDX mode enabled with React jsx runtime');
 		}
 
-		this.routerAdapter = options?.router;
 		this.runtimeBundleService = new ReactRuntimeBundleService({
 			routerAdapter: this.routerAdapter,
 		});
-		this.explicitGraphEnabled = options?.explicitGraph ?? false;
-		ReactRenderer.routerAdapter = this.routerAdapter;
-		ReactRenderer.mdxCompilerOptions = this.mdxCompilerOptions;
-		ReactRenderer.mdxExtensions = this.mdxExtensions;
-		ReactRenderer.explicitGraphEnabled = this.explicitGraphEnabled;
-		ReactRenderer.hmrPageMetadataCache = this.hmrPageMetadataCache;
+	}
+
+	/**
+	 * Creates a React renderer with instance-owned runtime configuration.
+	 *
+	 * React renderers depend on plugin-owned router, MDX, and HMR metadata state.
+	 * Keeping that state on the instance avoids cross-plugin static mutation while
+	 * preserving the same runtime services the base initializer wires up.
+	 */
+	override initializeRenderer(options?: { rendererModules?: unknown }): ReactRenderer {
+		const renderer = new this.renderer({
+			...this.createRendererOptions(options),
+			reactConfig: this.rendererConfig,
+		});
+		return this.attachRendererRuntimeServices(renderer);
 	}
 
 	private ensureRuntimeDependencies(): void {

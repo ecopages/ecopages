@@ -4,7 +4,7 @@ import { playwright } from '@vitest/browser-playwright';
 export default defineProject({
 	test: {
 		name: 'browser',
-		include: ['packages/**/*.test.browser.ts'],
+		include: ['packages/**/*.test.browser.ts', 'packages/**/*.test.browser.tsx'],
 		browser: {
 			enabled: true,
 			provider: playwright(),

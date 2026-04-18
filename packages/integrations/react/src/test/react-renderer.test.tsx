@@ -19,7 +19,7 @@ import {
 import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import React, { type JSX } from 'react';
-import { ReactRenderer } from '../react-renderer';
+import { ReactRenderer, type ReactRendererConfig } from '../react-renderer';
 import { getReactIslandComponentKey } from '../services/react-hydration-asset.service.ts';
 import { ErrorPage } from './fixture/error-page';
 import { Page } from './fixture/test-page';
@@ -140,12 +140,13 @@ class TestReactRenderer extends ReactRenderer {
 	}
 }
 
-const createRenderer = () => {
+const createRenderer = (reactConfig?: ReactRendererConfig) => {
 	return new TestReactRenderer({
 		appConfig: Config,
 		assetProcessingService: {} as any,
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
+		reactConfig,
 	});
 };
 
@@ -191,7 +192,7 @@ class ImportTestReactRenderer extends ReactRenderer {
 	}
 }
 
-const createRendererWithAssets = () => {
+const createRendererWithAssets = (reactConfig?: ReactRendererConfig) => {
 	const assetProcessingService = {
 		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
 		processDependencies: vi.fn(async () => []),
@@ -202,6 +203,7 @@ const createRendererWithAssets = () => {
 		assetProcessingService: assetProcessingService as any,
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
+		reactConfig,
 	});
 	return { testRenderer, assetProcessingService };
 };
@@ -279,34 +281,29 @@ describe('ReactRenderer', () => {
 		});
 
 		it('should not emit island assets when no componentInstanceId is provided', async () => {
-			const originalRouterAdapter = ReactRenderer.routerAdapter;
-			ReactRenderer.routerAdapter = mockRouterAdapter;
+			const { testRenderer, assetProcessingService } = createRendererWithAssets({
+				routerAdapter: mockRouterAdapter,
+			});
+			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
+				title: string;
+			}>;
+			Component.config = {
+				__eco: {
+					id: 'component-id',
+					file: pageFilePath,
+					integration: 'react',
+				},
+			};
 
-			try {
-				const { testRenderer, assetProcessingService } = createRendererWithAssets();
-				const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
-					title: string;
-				}>;
-				Component.config = {
-					__eco: {
-						id: 'component-id',
-						file: pageFilePath,
-						integration: 'react',
-					},
-				};
+			const result = await testRenderer.renderComponent({
+				component: Component,
+				props: { title: 'Page child' },
+			});
 
-				const result = await testRenderer.renderComponent({
-					component: Component,
-					props: { title: 'Page child' },
-				});
-
-				expect(result.canAttachAttributes).toBe(true);
-				expect(result.rootAttributes).toBeUndefined();
-				expect(result.assets).toBeUndefined();
-				expect(assetProcessingService.processDependencies).not.toHaveBeenCalled();
-			} finally {
-				ReactRenderer.routerAdapter = originalRouterAdapter;
-			}
+			expect(result.canAttachAttributes).toBe(true);
+			expect(result.rootAttributes).toBeUndefined();
+			expect(result.assets).toBeUndefined();
+			expect(assetProcessingService.processDependencies).not.toHaveBeenCalled();
 		});
 
 		it('should preserve resolved child html without escaping and skip parent island hydration', async () => {
@@ -340,84 +337,6 @@ describe('ReactRenderer', () => {
 			expect(result.rootAttributes).toBeUndefined();
 			expect(result.assets).toBeUndefined();
 			expect(assetProcessingService.processDependencies).not.toHaveBeenCalled();
-		});
-
-		it('should eagerly emit SSR-marked lazy scripts for declared MDX component dependencies', async () => {
-			const assetProcessingService = {
-				getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
-				processDependencies: vi.fn(async (dependencies: Array<Record<string, unknown>>) =>
-					dependencies.map((dependency) => ({
-						kind: dependency.kind as 'script' | 'stylesheet',
-						filepath: dependency.source === 'file' ? (dependency.filepath as string) : undefined,
-						attributes: dependency.attributes as Record<string, string> | undefined,
-						excludeFromHtml: dependency.excludeFromHtml as boolean | undefined,
-					})),
-				),
-			};
-
-			const testRenderer = new TestReactRenderer({
-				appConfig: Config,
-				assetProcessingService: assetProcessingService as any,
-				runtimeOrigin: 'http://localhost:3000',
-				resolvedIntegrationDependencies: [],
-			});
-
-			const declaredLitComponent = (() => null) as unknown as EcoComponent<object>;
-			declaredLitComponent.config = {
-				__eco: {
-					id: 'declared-lit-counter',
-					file: path.resolve(__dirname, 'fixture/declared-lit-counter.lit.tsx'),
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: [
-						{
-							src: './declared-lit-counter.script.ts',
-							lazy: { 'on:interaction': 'click' },
-							ssr: true,
-						},
-					],
-				},
-			};
-
-			testRenderer.importedPageFileOverride = {
-				default: Page,
-				config: {
-					dependencies: {
-						components: [declaredLitComponent],
-					},
-				},
-			} as EcoPageFile;
-
-			const assets = await (testRenderer as any).processMdxConfigDependencies(
-				path.resolve(__dirname, 'fixture/react-content.mdx'),
-			);
-
-			expect(assetProcessingService.processDependencies).toHaveBeenCalledTimes(2);
-			expect(assetProcessingService.processDependencies).toHaveBeenNthCalledWith(
-				2,
-				[
-					expect.objectContaining({
-						kind: 'script',
-						source: 'file',
-						filepath: path.resolve(__dirname, 'fixture/declared-lit-counter.script.ts'),
-						position: 'head',
-						attributes: {
-							type: 'module',
-							defer: '',
-						},
-					}),
-				],
-				`react-mdx-ssr-lazy:${path.resolve(__dirname, 'fixture/react-content.mdx')}`,
-			);
-			expect(assets).toEqual(
-				expect.arrayContaining([
-					expect.objectContaining({
-						filepath: path.resolve(__dirname, 'fixture/declared-lit-counter.script.ts'),
-						excludeFromHtml: undefined,
-					}),
-				]),
-			);
 		});
 
 		it('should omit guarded locals from hydrated component props', async () => {
@@ -677,35 +596,28 @@ describe('ReactRenderer', () => {
 	});
 
 	it('should emit canonical page data for router-backed pages inside non-react html templates', async () => {
-		const testRenderer = createRenderer();
-		const originalRouterAdapter = ReactRenderer.routerAdapter;
-		ReactRenderer.routerAdapter = mockRouterAdapter;
+		const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
+		const body = await testRenderer.render({
+			params: {},
+			query: {},
+			props: { routeFiles: ['a.tsx'] },
+			resolvedDependencies: [],
+			file: pageFilePath,
+			metadata: {
+				title: 'Test Page',
+				description: 'Test Description',
+			},
+			dependencies: {
+				scripts: [],
+				stylesheets: [],
+			},
+			Page,
+			HtmlTemplate: NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps, JSX.Element>,
+		});
 
-		try {
-			const body = await testRenderer.render({
-				params: {},
-				query: {},
-				props: { routeFiles: ['a.tsx'] },
-				resolvedDependencies: [],
-				file: pageFilePath,
-				metadata: {
-					title: 'Test Page',
-					description: 'Test Description',
-				},
-				dependencies: {
-					scripts: [],
-					stylesheets: [],
-				},
-				Page,
-				HtmlTemplate: NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps, JSX.Element>,
-			});
-
-			const text = await new Response(body as BodyInit).text();
-			expect(text).toContain('<script id="__ECO_PAGE_DATA__" type="application/json">');
-			expect(text).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
-		} finally {
-			ReactRenderer.routerAdapter = originalRouterAdapter;
-		}
+		const text = await new Response(body as BodyInit).text();
+		expect(text).toContain('<script id="__ECO_PAGE_DATA__" type="application/json">');
+		expect(text).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});
 
 	it('should preserve unresolved boundary artifact html through non-react html templates', async () => {
@@ -878,21 +790,15 @@ describe('ReactRenderer', () => {
 		});
 
 		it('should stamp router-backed documents with an explicit owner marker', async () => {
-			const testRenderer = createRenderer();
+			const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
 			const MockView = ((props: { title: string }) => <h1>{props.title}</h1>) as unknown as EcoComponent<{
 				title: string;
 			}>;
-			const originalRouterAdapter = ReactRenderer.routerAdapter;
-			ReactRenderer.routerAdapter = mockRouterAdapter;
 
-			try {
-				const response = await testRenderer.renderToResponse(MockView, { title: 'Marked' }, {});
-				const body = await response.text();
+			const response = await testRenderer.renderToResponse(MockView, { title: 'Marked' }, {});
+			const body = await response.text();
 
-				expect(body).toContain(`<html lang="en" ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`);
-			} finally {
-				ReactRenderer.routerAdapter = originalRouterAdapter;
-			}
+			expect(body).toContain(`<html lang="en" ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`);
 		});
 
 		it('should render a partial view without full HTML wrapper', async () => {

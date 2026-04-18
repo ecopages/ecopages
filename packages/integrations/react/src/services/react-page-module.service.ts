@@ -15,6 +15,7 @@ import { rapidhash } from '@ecopages/core/hash';
 import { build } from '@ecopages/core/build/build-adapter';
 import { fileSystem } from '@ecopages/file-system';
 import type { CompileOptions } from '@mdx-js/mdx';
+import { someInConfigTree } from '../utils/component-config-traversal.ts';
 import { collectDeclaredModulesInConfig } from '../utils/declared-modules.ts';
 
 /**
@@ -177,28 +178,10 @@ export class ReactPageModuleService {
 	 * Recursively checks whether a component config tree declares any browser modules.
 	 * Used to determine if a page needs hydration.
 	 */
-	hasModulesInConfig(config: EcoComponentConfig | undefined, visited = new Set<EcoComponentConfig>()): boolean {
-		if (!config || visited.has(config)) {
-			return false;
-		}
-
-		visited.add(config);
-
-		if (config.dependencies?.modules?.some((entry) => entry.trim().length > 0)) {
-			return true;
-		}
-
-		if (config.layout?.config && this.hasModulesInConfig(config.layout.config, visited)) {
-			return true;
-		}
-
-		for (const component of config.dependencies?.components ?? []) {
-			if (this.hasModulesInConfig(component.config, visited)) {
-				return true;
-			}
-		}
-
-		return false;
+	hasModulesInConfig(config: EcoComponentConfig | undefined): boolean {
+		return someInConfigTree(config, (node) =>
+			node.dependencies?.modules?.some((entry) => entry.trim().length > 0) ?? false,
+		);
 	}
 
 	/**

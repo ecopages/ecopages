@@ -7,6 +7,7 @@
  */
 
 import type { EcoComponentConfig } from '@ecopages/core';
+import { collectFromConfigTree } from './component-config-traversal.ts';
 
 type PageConfigModule = {
 	default?: { config?: EcoComponentConfig };
@@ -50,27 +51,8 @@ export function normalizeDeclaredModuleSources(modules?: string[]): string[] {
  */
 export function collectDeclaredModulesInConfig(
 	config: EcoComponentConfig | undefined,
-	visited = new Set<EcoComponentConfig>(),
 ): string[] {
-	if (!config || visited.has(config)) {
-		return [];
-	}
-
-	visited.add(config);
-
-	const declarations = normalizeDeclaredModuleSources(config.dependencies?.modules);
-
-	if (config.layout?.config) {
-		declarations.push(...collectDeclaredModulesInConfig(config.layout.config, visited));
-	}
-
-	for (const component of config.dependencies?.components ?? []) {
-		if (component.config) {
-			declarations.push(...collectDeclaredModulesInConfig(component.config, visited));
-		}
-	}
-
-	return declarations;
+	return collectFromConfigTree(config, (node) => normalizeDeclaredModuleSources(node.dependencies?.modules));
 }
 
 /**

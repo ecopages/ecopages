@@ -4,7 +4,7 @@ import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import { ReactRenderer } from '../react-renderer';
-import { ReactPlugin, reactPlugin } from '../react.plugin';
+import { reactPlugin } from '../react.plugin';
 
 const MockPage = ({ children }: any) => <div>{children}</div>;
 MockPage.config = {};
@@ -20,10 +20,10 @@ const Config = await new ConfigBuilder()
 	.build();
 
 /** Helper to access private/protected properties for testing */
-const getExtensions = (plugin: ReactPlugin) => (plugin as any).extensions;
+const getExtensions = (plugin: ReturnType<typeof reactPlugin>) => (plugin as any).extensions;
+const getMdxExtensions = (plugin: ReturnType<typeof reactPlugin>) => (plugin as any).mdxExtensions;
 
 describe('ReactPlugin & ReactRenderer Extensions', () => {
-	const originalExtensions = ReactRenderer.mdxExtensions;
 	const originalNodeEnv = process.env.NODE_ENV;
 
 	afterEach(() => {
@@ -34,24 +34,18 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		if (fileSystem.exists(testDir)) {
 			fileSystem.remove(testDir);
 		}
-		ReactRenderer.mdxExtensions = originalExtensions;
 	});
 
 	it('should have default extensions when MDX is disabled', () => {
 		const plugin = reactPlugin({ mdx: { enabled: false } });
 		expect(getExtensions(plugin)).toEqual(['.tsx']);
-
-		/**
-		 * Even if MDX is disabled in the plugin, the renderer should still be configured with default extensions
-		 * as the plugin constructor initializes the static configuration.
-		 */
-		expect(ReactRenderer.mdxExtensions).toEqual(['.mdx']);
+		expect(getMdxExtensions(plugin)).toEqual(['.mdx']);
 	});
 
 	it('should include .mdx by default when MDX is enabled', () => {
 		const plugin = reactPlugin({ mdx: { enabled: true } });
 		expect(getExtensions(plugin)).toEqual(['.tsx', '.mdx']);
-		expect(ReactRenderer.mdxExtensions).toEqual(['.mdx']);
+		expect(getMdxExtensions(plugin)).toEqual(['.mdx']);
 	});
 
 	it('should include custom extensions when provided', () => {
@@ -64,7 +58,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		});
 
 		expect(getExtensions(plugin)).toEqual(['.tsx', '.md', '.custom']);
-		expect(ReactRenderer.mdxExtensions).toEqual(customExtensions);
+		expect(getMdxExtensions(plugin)).toEqual(customExtensions);
 	});
 
 	it('should preserve custom React route extensions when MDX is enabled', () => {
@@ -77,7 +71,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		});
 
 		expect(getExtensions(plugin)).toEqual(['.react.tsx', '.mdx']);
-		expect(ReactRenderer.mdxExtensions).toEqual(['.mdx']);
+		expect(getMdxExtensions(plugin)).toEqual(['.mdx']);
 	});
 
 	it('should warn when extensions are provided but MDX is disabled', () => {
@@ -121,6 +115,9 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 			} as any,
 			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
+			reactConfig: {
+				mdxExtensions: ['.md', '.story.mdx'],
+			},
 		});
 
 		expect(renderer.isMdxFile('file.md')).toBe(true);

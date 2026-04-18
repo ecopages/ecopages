@@ -6,6 +6,7 @@ import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/
 import { AssetFactory, type ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { VFile } from 'vfile';
+import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import { EcopagesJsxRenderer } from './ecopages-jsx-renderer.ts';
 import type {
 	EcopagesJsxMdxCompileOptions,
@@ -23,14 +24,6 @@ export type {
 } from './ecopages-jsx.types.ts';
 
 type ResolvedMdxCompileOptions = EcopagesJsxMdxCompileOptions & Pick<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
-
-/**
- * Stable integration name shared by the JSX plugin and renderer.
- *
- * Ecopages uses this identifier to match route files, renderer instances, and
- * cross-integration component boundaries.
- */
-export const ECOPAGES_JSX_PLUGIN_NAME = 'ecopages-jsx';
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

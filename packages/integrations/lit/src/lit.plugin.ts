@@ -7,12 +7,13 @@ import './console.ts';
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import { litElementHydrateScript } from './lit-element-hydrate.ts';
+import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { LitRenderer } from './lit-renderer.ts';
 
 /**
  * The name of the Lit plugin
  */
-export const PLUGIN_NAME = 'lit';
+export const PLUGIN_NAME = LIT_PLUGIN_NAME;
 
 /**
  * The Lit plugin class

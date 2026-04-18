@@ -12,7 +12,7 @@ import type {
 	RouteRendererBody,
 } from '@ecopages/core';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
-import { PLUGIN_NAME } from './kitajs.plugin.ts';
+import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
 
 /** Narrows an EcoComponent to its KitaJS callable signature. */
 type KitaViewFn<P> = (props: P) => Promise<EcoPagesElement> | EcoPagesElement;
@@ -27,7 +27,7 @@ type KitaLayoutFn = (
  * It renders a page using the HtmlTemplate and Page components.
  */
 export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
-	name = PLUGIN_NAME;
+	name = KITAJS_PLUGIN_NAME;
 
 	/**
 	 * Renders a Kita component boundary for component-level orchestration.

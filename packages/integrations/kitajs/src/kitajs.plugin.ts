@@ -1,10 +1,11 @@
 import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { KitaRenderer } from './kitajs-renderer.ts';
+import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
 
 /**
  * The name of the Kita.js plugin
  */
-export const PLUGIN_NAME = 'kitajs';
+export const PLUGIN_NAME = KITAJS_PLUGIN_NAME;
 
 /**
  * The Kita.js plugin class

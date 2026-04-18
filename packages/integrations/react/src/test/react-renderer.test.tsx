@@ -3,6 +3,7 @@ import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import {
 	eco,
+	type BoundaryRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
@@ -499,6 +500,60 @@ describe('ReactRenderer', () => {
 				}),
 			]);
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
+		});
+
+		it('should expose the compatibility boundary payload contract for attachable roots', async () => {
+			const { testRenderer } = createRendererWithAssets();
+			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
+				title: string;
+			}>;
+			Component.config = {
+				__eco: {
+					id: 'component-id',
+					file: pageFilePath,
+					integration: 'react',
+				},
+			};
+
+			const result = await testRenderer.renderBoundary({
+				component: Component,
+				props: { title: 'Island' },
+				integrationContext: { componentInstanceId: 'island-1' },
+			});
+
+			expect(result).toEqual<BoundaryRenderPayload>({
+				html: '<h3>Island</h3>',
+				assets: [],
+				rootTag: 'h3',
+				rootAttributes: {
+					'data-eco-component-id': 'island-1',
+					'data-eco-component-key': getReactIslandComponentKey(pageFilePath, Component.config),
+					'data-eco-props': btoa(JSON.stringify({ title: 'Island' })),
+				},
+				attachmentPolicy: { kind: 'first-element' },
+				integrationName: 'react',
+			});
+		});
+
+		it('should expose a none attachment policy for fragment boundaries', async () => {
+			const testRenderer = createRenderer();
+			const Component = (() => (
+				<>
+					<span>One</span>
+					<span>Two</span>
+				</>
+			)) as unknown as EcoComponent<object>;
+
+			const result = await testRenderer.renderBoundary({
+				component: Component,
+				props: {},
+			});
+
+			expect(result.attachmentPolicy).toEqual({ kind: 'none' });
+			expect(result.rootAttributes).toBeUndefined();
+			expect(result.integrationName).toBe('react');
+			expect(result.html).toContain('<span>One</span>');
+			expect(result.html).toContain('<span>Two</span>');
 		});
 	});
 

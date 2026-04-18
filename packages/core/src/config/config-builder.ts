@@ -21,7 +21,8 @@ import {
 } from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import { createAppBuildExecutor } from '../build/dev-build-coordinator.ts';
-import { GHTML_PLUGIN_NAME, ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
+import { GHTML_PLUGIN_NAME } from '../integrations/ghtml/ghtml.constants.ts';
+import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
 import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
 import { createEcoComponentMetaTransform } from '../plugins/eco-component-meta-plugin.ts';
@@ -91,15 +92,6 @@ type RuntimeCapabilityOwner = {
  * A builder class for creating and configuring EcoPages application configuration.
  * Provides a fluent interface for setting various configuration options and managing
  * application settings.
- *
- * @example
- * ```typescript
- * const config = new ConfigBuilder()
- *   .setBaseUrl('https://example.com')
- *   .setRootDir('./myproject')
- *   .setSrcDir('source')
- *   .build();
- * ```
  *
  * @remarks
  * The ConfigBuilder follows the builder pattern and allows for:

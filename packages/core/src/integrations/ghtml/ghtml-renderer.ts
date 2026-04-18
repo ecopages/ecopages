@@ -15,7 +15,7 @@ import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
 } from '../../route-renderer/orchestration/integration-renderer.ts';
-import { GHTML_PLUGIN_NAME } from './ghtml.plugin.ts';
+import { GHTML_PLUGIN_NAME } from './ghtml.constants.ts';
 
 type GhtmlViewFn<P> = (props: P) => Promise<EcoPagesElement> | EcoPagesElement;
 type GhtmlLayoutFn = (

@@ -9,6 +9,7 @@ All notable changes to `@ecopages/kitajs` are documented here.
 ### Bug Fixes
 
 - Fixed Kita full-route and direct `ctx.render()` rendering to stay on the renderer-owned page/layout/document path while resolving mixed boundaries inside the owning renderer.
+- Fixed Kita boundary payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
 
 ### Documentation
 
@@ -17,3 +18,4 @@ All notable changes to `@ecopages/kitajs` are documented here.
 ### Tests
 
 - Updated integration coverage for explicit boundary composition and Node and esbuild compatibility.
+- Added renderer-level coverage for the boundary payload compatibility contract.

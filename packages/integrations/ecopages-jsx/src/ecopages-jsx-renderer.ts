@@ -18,7 +18,7 @@ import {
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';
-import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.plugin.ts';
+import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import type { EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
 
 export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';

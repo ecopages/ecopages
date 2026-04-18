@@ -17,7 +17,7 @@ import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/cor
 import { invariant } from '@ecopages/core/utils/invariant';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { CompileOptions } from '@mdx-js/mdx';
-import { PLUGIN_NAME } from './mdx.plugin.ts';
+import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
 import { rapidhash } from '@ecopages/core/hash';
 import type { MDXFile, MDXRendererOptions } from './mdx.types.ts';
 
@@ -32,7 +32,7 @@ interface MDXIntegrationRendererOptions<C = EcoPagesElement> extends Integration
  * A renderer for the MDX integration.
  */
 export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
-	name = PLUGIN_NAME;
+	name = MDX_PLUGIN_NAME;
 	readonly compilerOptions: CompileOptions;
 
 	constructor({ mdxConfig, ...options }: MDXRendererOptions) {

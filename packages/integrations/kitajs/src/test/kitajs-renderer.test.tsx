@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 import {
 	eco,
+	type BoundaryRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
@@ -153,6 +154,24 @@ describe('KitaRenderer', () => {
 		expect(assetProcessingService.processDependencies).toHaveBeenCalled();
 		expect(result.assets).toBeDefined();
 		expect(result.assets?.[0]?.srcUrl).toBe('/assets/kita-island.js');
+	});
+
+	it('should expose the compatibility boundary payload contract', async () => {
+		const Component = createTestComponent(async () => '<section>Kita Boundary</section>');
+
+		const result = await renderer.renderBoundary({
+			component: Component,
+			props: {},
+		});
+
+		expect(result).toEqual<BoundaryRenderPayload>({
+			html: '<section>Kita Boundary</section>',
+			assets: [],
+			rootTag: 'section',
+			rootAttributes: undefined,
+			attachmentPolicy: { kind: 'first-element' },
+			integrationName: 'kitajs',
+		});
 	});
 
 	it('should resolve foreign boundaries inside the Kita renderer and bubble nested assets', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	eco,
+	type BoundaryRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
@@ -368,6 +369,26 @@ describe('LitRenderer', () => {
 			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
 			expect(result.assets).toBeDefined();
 			expect(result.assets?.[0]?.srcUrl).toBe('/assets/island.js');
+		});
+
+		it('should expose the compatibility boundary payload contract', async () => {
+			const testRenderer = createRenderer();
+			const Component = (async () => '<section>Lit Boundary</section>') as unknown as EcoComponent<object>;
+
+			const result = await testRenderer.renderBoundary({
+				component: Component,
+				props: {},
+			});
+
+			expect(result).toEqual<BoundaryRenderPayload>({
+				html: expect.stringContaining('<section>Lit Boundary</section>') as unknown as string,
+				assets: [],
+				rootTag: 'section',
+				rootAttributes: undefined,
+				attachmentPolicy: { kind: 'first-element' },
+				integrationName: 'lit',
+			});
+			expect(result.html).toContain('<section>Lit Boundary</section>');
 		});
 
 		it('should resolve foreign boundaries inside the lit renderer and bubble nested assets', async () => {

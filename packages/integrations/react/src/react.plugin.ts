@@ -9,6 +9,7 @@ import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type React from 'react';
+import { REACT_PLUGIN_NAME } from './react.constants.ts';
 import { ReactRenderer } from './react-renderer.ts';
 import type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 import { ReactHmrStrategy } from './react-hmr-strategy.ts';
@@ -32,7 +33,7 @@ type ResolvedReactPluginConfig = Omit<
 /**
  * The name of the React plugin
  */
-export const PLUGIN_NAME = 'react';
+export const PLUGIN_NAME = REACT_PLUGIN_NAME;
 
 const mergePluginLists = <T>(...lists: Array<readonly T[] | null | undefined>): T[] | undefined => {
 	const merged = lists.flatMap((list) => (list ? [...list] : []));

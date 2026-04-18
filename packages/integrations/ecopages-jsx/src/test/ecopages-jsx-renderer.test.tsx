@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import {
 	eco,
+	type BoundaryRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
@@ -125,6 +126,36 @@ describe('EcopagesJsxRenderer', () => {
 					position: 'head',
 				},
 			]);
+		});
+
+		it('exposes the compatibility boundary payload contract', async () => {
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: Config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const Component = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				render: () => <section data-jsx-boundary>ready</section>,
+			});
+
+			const result = await renderer.renderBoundary({
+				component: Component,
+				props: {},
+			});
+
+			expect(result).toEqual<BoundaryRenderPayload>({
+				html: '<section data-jsx-boundary="true">ready</section>',
+				assets: [],
+				rootTag: 'section',
+				rootAttributes: undefined,
+				attachmentPolicy: { kind: 'first-element' },
+				integrationName: 'ecopages-jsx',
+			});
 		});
 
 		it('resolves foreign boundaries inside the JSX renderer and bubbles nested assets', async () => {

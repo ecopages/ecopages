@@ -59,15 +59,57 @@ Default behavior:
 - renderer-owned component-boundary orchestration + component render artifacts.
 - global lazy trigger map + global injector bootstrap.
 
+## Mixed Renderer Mental Model
+
+The current mixed-renderer contract has four phases:
+
+1. `render-preparation.service.ts` builds the route inputs and a conservative `boundaryPlan` from declared component dependencies.
+2. The selected integration renderer owns page, layout, document-shell, and explicit-view composition for that route.
+3. Renderer-owned boundary runtimes resolve foreign nested components through the owning renderer and exchange a compatibility `renderBoundary()` payload with explicit attachment-policy semantics.
+4. `render-execution.service.ts` finalizes the response and fails if unresolved boundary artifact HTML survives the renderer-owned resolution pass.
+
+Important:
+
+- Renderer-owned deferral is intentional. Ecopages does not run a route-level fallback resolver after render completion.
+- Boundary ownership is planned from declared component dependency metadata, not inferred purely from rendered HTML.
+- Same-integration children do not have to pass through one universal string-only transport. Each renderer keeps its own child transport rules for same-integration trees.
+
+## Declared Foreign Child Contract
+
+Mixed-integration component configs must declare every possible foreign child in `config.dependencies.components`. The planning pass uses those declarations to describe ownership transitions and surface invalid or unknown foreign owners before render execution.
+
+Current behavior:
+
+- Missing or unknown ownership is recorded on the route `boundaryPlan` as validation errors.
+- Renderer-owned runtime discovery still resolves actual foreign descendants during render.
+- If unresolved boundary artifact HTML reaches route finalization, Ecopages throws instead of attempting a route-level recovery pass.
+
 Global injector lifecycle notes:
 
 - The bootstrap remains active across client-side navigations.
 - On `eco:after-swap`, it prunes stale `ecopages/global-injector-map` scripts and calls `refresh()` so newly swapped `data-eco-trigger` elements can bind their lazy rules.
 - It must not call injector `cleanup()` on every swap, because that permanently disables future refresh work for the current runtime instance.
 
-## Current Component Artifact Contract
+## Boundary Payload Contract
 
-Integration `renderComponent()` returns `ComponentRenderResult` with:
+The compatibility boundary API is `renderBoundary()`. Today it wraps the existing `renderComponentBoundary()` behavior and returns a narrower payload:
+
+- `html`
+- `assets`
+- `rootTag`
+- `integrationName`
+- optional `rootAttributes`
+- `attachmentPolicy`
+
+`renderComponent()` still returns `ComponentRenderResult` internally, including `canAttachAttributes`, because renderer-local implementations have not been collapsed into one universal boundary primitive.
+
+Base orchestration uses the compatibility payload to:
+
+- keep queued foreign-boundary resolution renderer-owned
+- apply root attributes only when `attachmentPolicy.kind === 'first-element'`
+- preserve asset bubbling through the normal dependency pipeline
+
+The lower-level `ComponentRenderResult` currently includes:
 
 - `html`
 - `canAttachAttributes`
@@ -75,12 +117,6 @@ Integration `renderComponent()` returns `ComponentRenderResult` with:
 - `integrationName`
 - optional `rootAttributes`
 - optional `assets`
-
-Current base orchestration behavior:
-
-- Calls `renderComponent()` for the page root component.
-- Merges returned `assets` into processed dependencies.
-- Applies returned `rootAttributes` to the first element under `<body>`.
 
 When rendered output still contains unresolved boundary artifact HTML:
 
@@ -114,3 +150,5 @@ If you are reading this file to understand today's contract, you can stop at the
 
 - Deep multi-level mixed-integration trees now rely on renderer-owned boundary runtimes rather than a shared post-render graph resolver.
 - Each renderer still decides how to hand off foreign boundaries, so specialized runtimes remain appropriate where child serialization or hydration contracts differ.
+- `boundaryPlan` is currently preparation-time metadata and diagnostics. It does not yet drive a separate route-composer execution model.
+- A dedicated route composer is still deferred until the boundary contract proves stable enough to justify splitting more logic out of `IntegrationRenderer`.

@@ -250,8 +250,9 @@ export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOption
 
 			build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async (args) => {
 				const absolutePath = path.resolve(args.path);
-				const shouldPreserveImportMeta = importMetaRewritePaths.has(absolutePath);
-				const shouldRewriteReexports = shouldRewriteBootstrapSource(absolutePath, projectDir);
+				const isProjectSource = shouldRewriteBootstrapSource(absolutePath, projectDir);
+				const shouldPreserveImportMeta = isProjectSource || importMetaRewritePaths.has(absolutePath);
+				const shouldRewriteReexports = isProjectSource;
 
 				if (!shouldPreserveImportMeta && !shouldRewriteReexports) {
 					return undefined;

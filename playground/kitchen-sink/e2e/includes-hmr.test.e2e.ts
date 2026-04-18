@@ -44,7 +44,7 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 			? page.waitForEvent('framenavigated', {
 					predicate: (frame) => frame === page.mainFrame(),
 					timeout: 10000,
-			  })
+				})
 			: undefined;
 
 		fs.writeFileSync(SEO_INCLUDE_FILE, patchSeoTitle(originalSeoInclude, SEO_SUFFIX), 'utf-8');

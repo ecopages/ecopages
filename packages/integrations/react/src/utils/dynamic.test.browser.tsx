@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, type ReactElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { dynamic } from './dynamic.ts';
@@ -22,7 +22,7 @@ describe('dynamic', () => {
 
 	it('returns a browser lazy component that resolves through Suspense', async () => {
 		const deferredImport = createDeferredImport<{
-			default: () => JSX.Element;
+			default: () => ReactElement;
 		}>();
 		const DynamicComponent = dynamic(() => deferredImport.promise);
 

@@ -26,26 +26,13 @@ const kitchenSinkDevProjects = [
 	'kitchen-sink-vite-bun-e2e',
 ];
 
-const kitchenSinkViteProjects = [
-	'kitchen-sink-vite-node-e2e',
-	'kitchen-sink-vite-bun-e2e',
-];
+const kitchenSinkViteProjects = ['kitchen-sink-vite-node-e2e', 'kitchen-sink-vite-bun-e2e'];
 
-const kitchenSinkStableDevProjects = [
-	'kitchen-sink-bun-e2e',
-	'kitchen-sink-node-e2e',
-];
+const kitchenSinkStableDevProjects = ['kitchen-sink-bun-e2e', 'kitchen-sink-node-e2e'];
 
-const kitchenSinkPreviewProjects = [
-	'kitchen-sink-preview-bun-e2e',
-	'kitchen-sink-preview-node-e2e',
-];
+const kitchenSinkPreviewProjects = ['kitchen-sink-preview-bun-e2e', 'kitchen-sink-preview-node-e2e'];
 
-const allKnownProjects = [
-	...nonKitchenSinkProjects,
-	...kitchenSinkDevProjects,
-	...kitchenSinkPreviewProjects,
-];
+const allKnownProjects = [...nonKitchenSinkProjects, ...kitchenSinkDevProjects, ...kitchenSinkPreviewProjects];
 
 const interactivePassThroughFlags = new Set(['--debug', '--ui']);
 
@@ -224,10 +211,7 @@ function buildParallelRun(projects, forwardedArgs) {
 		return null;
 	}
 
-	return [
-		...forwardedArgs,
-		...projects.flatMap((projectName) => ['--project', projectName]),
-	];
+	return [...forwardedArgs, ...projects.flatMap((projectName) => ['--project', projectName])];
 }
 
 function buildSerialRuns(projects, forwardedArgs, env) {
@@ -248,7 +232,9 @@ export function buildProjectRuns(args) {
 	const forwardedArgs = stripProjectArgs(args);
 	const fileArgs = getFileArgs(forwardedArgs);
 	const targetProjects =
-		selectedProjects.length > 0 ? getTargetProjects(selectedProjects) : (inferProjectsFromFiles(fileArgs) ?? allKnownProjects);
+		selectedProjects.length > 0
+			? getTargetProjects(selectedProjects)
+			: (inferProjectsFromFiles(fileArgs) ?? allKnownProjects);
 	const projectRuns = [];
 	const statefulSpecOnly = isStatefulKitchenSinkSpecOnlySelection(fileArgs);
 
@@ -262,16 +248,20 @@ export function buildProjectRuns(args) {
 		projectRuns.push({ args: nonKitchenSinkRun });
 	}
 
-	const stableKitchenSinkRun = buildParallelRun(filterProjects(kitchenSinkStableDevProjects, targetProjects), forwardedArgs);
+	const stableKitchenSinkRun = buildParallelRun(
+		filterProjects(kitchenSinkStableDevProjects, targetProjects),
+		forwardedArgs,
+	);
 	if (stableKitchenSinkRun) {
 		projectRuns.push({ args: stableKitchenSinkRun });
 	}
 
-	projectRuns.push(
-		...buildSerialRuns(filterProjects(kitchenSinkViteProjects, targetProjects), forwardedArgs),
-	);
+	projectRuns.push(...buildSerialRuns(filterProjects(kitchenSinkViteProjects, targetProjects), forwardedArgs));
 
-	const previewKitchenSinkRun = buildParallelRun(filterProjects(kitchenSinkPreviewProjects, targetProjects), forwardedArgs);
+	const previewKitchenSinkRun = buildParallelRun(
+		filterProjects(kitchenSinkPreviewProjects, targetProjects),
+		forwardedArgs,
+	);
 	if (previewKitchenSinkRun) {
 		projectRuns.push({ args: previewKitchenSinkRun });
 	}
@@ -304,9 +294,7 @@ function runPlaywright(args, env = {}) {
 			cwd: process.cwd(),
 			env: {
 				...process.env,
-				...(selectedProjects.length > 0
-					? { ECOPAGES_PLAYWRIGHT_PROJECTS: selectedProjects.join(',') }
-					: {}),
+				...(selectedProjects.length > 0 ? { ECOPAGES_PLAYWRIGHT_PROJECTS: selectedProjects.join(',') } : {}),
 				...env,
 			},
 			stdio: 'inherit',

@@ -34,9 +34,9 @@ describe('lit-html-rendering', () => {
 	});
 
 	it('falls back to inserting children before closing body tags', () => {
-		expect(
-			injectLitRenderedChildren('<html><body class="shell"></body></html>', '<article>page</article>'),
-		).toBe('<html><body class="shell"><article>page</article></body></html>');
+		expect(injectLitRenderedChildren('<html><body class="shell"></body></html>', '<article>page</article>')).toBe(
+			'<html><body class="shell"><article>page</article></body></html>',
+		);
 	});
 
 	it('renders lit values to normalized strings', async () => {

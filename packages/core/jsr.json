@@ -1,46 +1,34 @@
 {
-  "$schema": "https://jsr.io/schema/config-file.v1.json",
-  "name": "@ecopages/core",
-  "version": "0.2.0-alpha.15",
-  "exports": {
-    ".": "./src/index.ts",
-    "./route-renderer/integration-renderer": "./src/route-renderer/orchestration/integration-renderer.ts",
-    "./errors/locals-access-error": "./src/errors/locals-access-error.ts",
-    "./constants": "./src/constants.ts",
-    "./config-builder": "./src/config/config-builder.ts",
-    "./adapters/bun": "./src/adapters/bun/index.ts",
-    "./adapters/bun/create-app": "./src/adapters/bun/create-app.ts",
-    "./services/asset-processing-service": "./src/services/assets/asset-processing-service/index.ts",
-    "./hmr/hmr-strategy": "./src/hmr/hmr-strategy.ts",
-    "./utils/deep-merge": "./src/utils/deep-merge.ts",
-    "./utils/invariant": "./src/utils/invariant.ts",
-    "./utils/parse-cli-args": "./src/utils/parse-cli-args.ts",
-    "./plugins/processor": "./src/plugins/processor.ts",
-    "./plugins/integration-plugin": "./src/plugins/integration-plugin.ts",
-    "./adapters/bun/client-bridge": "./src/adapters/bun/client-bridge.ts",
-    "./internal-types": "./src/internal-types.ts",
-    "./html": "./src/utils/html.ts",
-    "./css": "./src/utils/css.ts",
-    "./hash": "./src/utils/hash.ts"
-  },
-  "exclude": [
-    "fixtures",
-    "**/*.test.ts"
-  ],
-  "imports": {
-    "bun": "npm:@types/bun@latest"
-  },
-  "publish": {
-    "include": [
-      "src/**/*.ts",
-      "LICENSE",
-      "README.md",
-      "jsr.json",
-      "package.json"
-    ],
-    "exclude": [
-      "src/**/*.test.ts",
-      "fixtures"
-    ]
-  }
+	"$schema": "https://jsr.io/schema/config-file.v1.json",
+	"name": "@ecopages/core",
+	"version": "0.2.0-alpha.15",
+	"exports": {
+		".": "./src/index.ts",
+		"./route-renderer/integration-renderer": "./src/route-renderer/orchestration/integration-renderer.ts",
+		"./errors/locals-access-error": "./src/errors/locals-access-error.ts",
+		"./constants": "./src/constants.ts",
+		"./config-builder": "./src/config/config-builder.ts",
+		"./adapters/bun": "./src/adapters/bun/index.ts",
+		"./adapters/bun/create-app": "./src/adapters/bun/create-app.ts",
+		"./services/asset-processing-service": "./src/services/assets/asset-processing-service/index.ts",
+		"./hmr/hmr-strategy": "./src/hmr/hmr-strategy.ts",
+		"./utils/deep-merge": "./src/utils/deep-merge.ts",
+		"./utils/invariant": "./src/utils/invariant.ts",
+		"./utils/parse-cli-args": "./src/utils/parse-cli-args.ts",
+		"./plugins/processor": "./src/plugins/processor.ts",
+		"./plugins/integration-plugin": "./src/plugins/integration-plugin.ts",
+		"./adapters/bun/client-bridge": "./src/adapters/bun/client-bridge.ts",
+		"./internal-types": "./src/internal-types.ts",
+		"./html": "./src/utils/html.ts",
+		"./css": "./src/utils/css.ts",
+		"./hash": "./src/utils/hash.ts"
+	},
+	"exclude": ["fixtures", "**/*.test.ts"],
+	"imports": {
+		"bun": "npm:@types/bun@latest"
+	},
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json", "package.json"],
+		"exclude": ["src/**/*.test.ts", "fixtures"]
+	}
 }

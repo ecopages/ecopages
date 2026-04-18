@@ -174,7 +174,9 @@ describe('GhtmlRenderer', () => {
 	describe('renderToResponse', () => {
 		it('should render a view with default status 200', async () => {
 			const renderer = createRenderer();
-			const View = (async (props: { title: string }) => `<h1>${props.title}</h1>`) as EcoComponent<{ title: string }>;
+			const View = (async (props: { title: string }) => `<h1>${props.title}</h1>`) as EcoComponent<{
+				title: string;
+			}>;
 
 			const response = await renderer.renderToResponse(View, { title: 'Hello Ghtml' }, {});
 

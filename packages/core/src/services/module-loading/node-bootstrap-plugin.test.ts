@@ -105,7 +105,11 @@ test('resolveNodeBootstrapDependency resolves workspace package dependencies fro
 	const importerPath = path.join(frameworkPackageDir, 'src', 'plugin.ts');
 	fs.mkdirSync(path.dirname(importerPath), { recursive: true });
 	fs.writeFileSync(importerPath, 'export default null;\n', 'utf8');
-	fs.writeFileSync(path.join(frameworkPackageDir, 'package.json'), JSON.stringify({ name: '@ecopages/core' }), 'utf8');
+	fs.writeFileSync(
+		path.join(frameworkPackageDir, 'package.json'),
+		JSON.stringify({ name: '@ecopages/core' }),
+		'utf8',
+	);
 	writePackage(path.join(frameworkPackageDir, 'node_modules', 'oxc-parser'), {
 		name: 'oxc-parser',
 		main: 'index.js',
@@ -172,7 +176,10 @@ test('resolveNodeBootstrapDependency refreshes runtime links when the resolved p
 
 	try {
 		assert.deepEqual(
-			resolveNodeBootstrapDependency({ path: 'react', importer: importerPath }, { projectDir: rootDir, runtimeNodeModulesDir }),
+			resolveNodeBootstrapDependency(
+				{ path: 'react', importer: importerPath },
+				{ projectDir: rootDir, runtimeNodeModulesDir },
+			),
 			{ path: 'react', external: true },
 		);
 		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'react')), fs.realpathSync(secondPackageDir));

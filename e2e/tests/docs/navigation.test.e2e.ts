@@ -55,7 +55,10 @@ test.describe('Docs Sidebar Navigation', () => {
 	test('navigation chain: multiple sequential links all work correctly', async ({ page }) => {
 		const steps = [
 			{ href: '/docs/getting-started/installation', testId: 'docs-nav-link:/docs/getting-started/installation' },
-			{ href: '/docs/getting-started/configuration', testId: 'docs-nav-link:/docs/getting-started/configuration' },
+			{
+				href: '/docs/getting-started/configuration',
+				testId: 'docs-nav-link:/docs/getting-started/configuration',
+			},
 			{ href: '/docs/ecosystem/browser-router', testId: 'docs-nav-link:/docs/ecosystem/browser-router' },
 			{ href: '/docs/getting-started/introduction', testId: 'docs-nav-link:/docs/getting-started/introduction' },
 		];

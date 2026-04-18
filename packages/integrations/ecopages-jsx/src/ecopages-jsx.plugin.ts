@@ -379,5 +379,4 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 /**
  * Creates the JSX integration plugin with resolved defaults.
  */
-export const ecopagesJsxPlugin = (options?: EcopagesJsxPluginOptions) =>
-	new EcopagesJsxPlugin(options);
+export const ecopagesJsxPlugin = (options?: EcopagesJsxPluginOptions) => new EcopagesJsxPlugin(options);

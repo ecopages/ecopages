@@ -1,196 +1,196 @@
 {
-  "name": "@ecopages/core",
-  "version": "0.2.0-alpha.15",
-  "description": "Core package for Ecopages",
-  "keywords": [
-    "ecopages",
-    "core",
-    "ssg"
-  ],
-  "license": "MIT",
-  "main": "./src/index.ts",
-  "type": "module",
-  "files": [
-    "src"
-  ],
-  "sideEffects": false,
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ecopages/ecopages.git",
-    "directory": "packages/core"
-  },
-  "scripts": {
-    "typecheck": "bunx tsc --noEmit",
-    "release:jsr": "bunx jsr publish"
-  },
-  "dependencies": {
-    "@ecopages/file-system": "workspace:*",
-    "@ecopages/logger": "^0.2.3",
-    "@ecopages/scripts-injector": "^0.1.3",
-    "@worker-tools/html-rewriter": "0.1.0-pre.19",
-    "chokidar": "^5.0.0",
-    "esbuild": "^0.28.0",
-    "ghtml": "^4.0.2",
-    "oxc-parser": "^0.124.0",
-    "ws": "^8.18.0"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/ws": "^8.5.14",
-    "arktype": "^2.1.29",
-    "tailwindcss": "^3.4.19",
-    "valibot": "^1.2.0",
-    "zod": "^4.3.6"
-  },
-  "exports": {
-    ".": {
-      "browser": "./src/index.browser.ts",
-      "import": "./src/index.ts",
-      "require": "./src/index.ts",
-      "types": "./src/index.ts"
-    },
-    "./create-app": {
-      "import": "./src/adapters/create-app.ts",
-      "types": "./src/adapters/create-app.ts",
-      "default": "./src/adapters/create-app.ts"
-    },
-    "./route-renderer/integration-renderer": {
-      "types": "./src/route-renderer/orchestration/integration-renderer.ts",
-      "default": "./src/route-renderer/orchestration/integration-renderer.ts"
-    },
-    "./router/navigation-coordinator": {
-      "types": "./src/router/client/navigation-coordinator.ts",
-      "default": "./src/router/client/navigation-coordinator.ts"
-    },
-    "./router/link-intent": {
-      "types": "./src/router/client/link-intent.ts",
-      "default": "./src/router/client/link-intent.ts"
-    },
-    "./router/client/navigation-coordinator": {
-      "types": "./src/router/client/navigation-coordinator.ts",
-      "default": "./src/router/client/navigation-coordinator.ts"
-    },
-    "./errors/locals-access-error": {
-      "types": "./src/errors/locals-access-error.ts",
-      "default": "./src/errors/locals-access-error.ts"
-    },
-    "./eco": {
-      "browser": "./src/eco/eco.browser.ts",
-      "types": "./src/eco/eco.ts",
-      "default": "./src/eco/eco.ts"
-    },
-    "./route-renderer/template-serialization": {
-      "types": "./src/route-renderer/orchestration/template-serialization.ts",
-      "default": "./src/route-renderer/orchestration/template-serialization.ts"
-    },
-    "./declarations": {
-      "types": "./src/declarations.d.ts"
-    },
-    "./env": {
-      "types": "./src/env.d.ts"
-    },
-    "./config-builder": {
-      "types": "./src/config/config-builder.ts",
-      "default": "./src/config/config-builder.ts"
-    },
-    "./constants": {
-      "types": "./src/config/constants.ts",
-      "default": "./src/config/constants.ts"
-    },
-    "./bun": {
-      "types": "./src/adapters/bun/index.ts",
-      "default": "./src/adapters/bun/index.ts"
-    },
-    "./bun/create-app": {
-      "types": "./src/adapters/bun/create-app.ts",
-      "default": "./src/adapters/bun/create-app.ts"
-    },
-    "./hmr/hmr-strategy": {
-      "types": "./src/hmr/hmr-strategy.ts",
-      "default": "./src/hmr/hmr-strategy.ts"
-    },
-    "./internal-types": {
-      "types": "./src/types/internal-types.ts"
-    },
-    "./services/asset-processing-service": {
-      "types": "./src/services/assets/asset-processing-service/index.ts",
-      "default": "./src/services/assets/asset-processing-service/index.ts"
-    },
-    "./services/invalidation/development-invalidation.service": {
-      "types": "./src/services/invalidation/development-invalidation.service.ts",
-      "default": "./src/services/invalidation/development-invalidation.service.ts"
-    },
-    "./services/module-loading/app-server-module-transpiler.service": {
-      "types": "./src/services/module-loading/app-server-module-transpiler.service.ts",
-      "default": "./src/services/module-loading/app-server-module-transpiler.service.ts"
-    },
-    "./host-module-loader": {
-      "types": "./src/services/module-loading/host-module-loader-registry.ts",
-      "default": "./src/services/module-loading/host-module-loader-registry.ts"
-    },
-    "./utils/deep-merge": {
-      "types": "./src/utils/deep-merge.ts",
-      "default": "./src/utils/deep-merge.ts"
-    },
-    "./utils/invariant": {
-      "types": "./src/utils/invariant.ts",
-      "default": "./src/utils/invariant.ts"
-    },
-    "./utils/parse-cli-args": {
-      "types": "./src/utils/parse-cli-args.ts",
-      "default": "./src/utils/parse-cli-args.ts"
-    },
-    "./plugins/processor": {
-      "types": "./src/plugins/processor.ts",
-      "default": "./src/plugins/processor.ts"
-    },
-    "./plugins/integration-plugin": {
-      "types": "./src/plugins/integration-plugin.ts",
-      "default": "./src/plugins/integration-plugin.ts"
-    },
-    "./plugins/source-transform": {
-      "types": "./src/plugins/source-transform.ts",
-      "default": "./src/plugins/source-transform.ts"
-    },
-    "./build/build-types": {
-      "types": "./src/build/build-types.ts",
-      "default": "./src/build/build-types.ts"
-    },
-    "./build/build-adapter": {
-      "types": "./src/build/build-adapter.ts",
-      "default": "./src/build/build-adapter.ts"
-    },
-    "./build/runtime-specifier-alias-plugin": {
-      "types": "./src/build/runtime-specifier-alias-plugin.ts",
-      "default": "./src/build/runtime-specifier-alias-plugin.ts"
-    },
-    "./build/runtime-specifier-aliases": {
-      "types": "./src/build/runtime-specifier-aliases.ts",
-      "default": "./src/build/runtime-specifier-aliases.ts"
-    },
-    "./plugins/foreign-jsx-override-plugin": {
-      "types": "./src/plugins/foreign-jsx-override-plugin.ts",
-      "default": "./src/plugins/foreign-jsx-override-plugin.ts"
-    },
-    "./adapters/bun/client-bridge": {
-      "types": "./src/adapters/bun/client-bridge.ts",
-      "default": "./src/adapters/bun/client-bridge.ts"
-    },
-    "./html": {
-      "import": "./src/utils/html.ts",
-      "require": "./src/utils/html.ts"
-    },
-    "./hash": {
-      "import": "./src/utils/hash.ts",
-      "require": "./src/utils/hash.ts"
-    },
-    "./errors": {
-      "types": "./src/errors/index.ts",
-      "default": "./src/errors/index.ts"
-    },
-    "./integrations/ghtml": {
-      "types": "./src/integrations/ghtml/ghtml.plugin.ts",
-      "default": "./src/integrations/ghtml/ghtml.plugin.ts"
-    }
-  }
+	"name": "@ecopages/core",
+	"version": "0.2.0-alpha.15",
+	"description": "Core package for Ecopages",
+	"keywords": [
+		"ecopages",
+		"core",
+		"ssg"
+	],
+	"license": "MIT",
+	"main": "./src/index.ts",
+	"type": "module",
+	"files": [
+		"src"
+	],
+	"sideEffects": false,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/core"
+	},
+	"scripts": {
+		"typecheck": "bunx tsc --noEmit",
+		"release:jsr": "bunx jsr publish"
+	},
+	"dependencies": {
+		"@ecopages/file-system": "workspace:*",
+		"@ecopages/logger": "^0.2.3",
+		"@ecopages/scripts-injector": "^0.1.3",
+		"@worker-tools/html-rewriter": "0.1.0-pre.19",
+		"chokidar": "^5.0.0",
+		"esbuild": "^0.28.0",
+		"ghtml": "^4.0.2",
+		"oxc-parser": "^0.124.0",
+		"ws": "^8.18.0"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@types/ws": "^8.5.14",
+		"arktype": "^2.1.29",
+		"tailwindcss": "^3.4.19",
+		"valibot": "^1.2.0",
+		"zod": "^4.3.6"
+	},
+	"exports": {
+		".": {
+			"browser": "./src/index.browser.ts",
+			"import": "./src/index.ts",
+			"require": "./src/index.ts",
+			"types": "./src/index.ts"
+		},
+		"./create-app": {
+			"import": "./src/adapters/create-app.ts",
+			"types": "./src/adapters/create-app.ts",
+			"default": "./src/adapters/create-app.ts"
+		},
+		"./route-renderer/integration-renderer": {
+			"types": "./src/route-renderer/orchestration/integration-renderer.ts",
+			"default": "./src/route-renderer/orchestration/integration-renderer.ts"
+		},
+		"./router/navigation-coordinator": {
+			"types": "./src/router/client/navigation-coordinator.ts",
+			"default": "./src/router/client/navigation-coordinator.ts"
+		},
+		"./router/link-intent": {
+			"types": "./src/router/client/link-intent.ts",
+			"default": "./src/router/client/link-intent.ts"
+		},
+		"./router/client/navigation-coordinator": {
+			"types": "./src/router/client/navigation-coordinator.ts",
+			"default": "./src/router/client/navigation-coordinator.ts"
+		},
+		"./errors/locals-access-error": {
+			"types": "./src/errors/locals-access-error.ts",
+			"default": "./src/errors/locals-access-error.ts"
+		},
+		"./eco": {
+			"browser": "./src/eco/eco.browser.ts",
+			"types": "./src/eco/eco.ts",
+			"default": "./src/eco/eco.ts"
+		},
+		"./route-renderer/template-serialization": {
+			"types": "./src/route-renderer/orchestration/template-serialization.ts",
+			"default": "./src/route-renderer/orchestration/template-serialization.ts"
+		},
+		"./declarations": {
+			"types": "./src/declarations.d.ts"
+		},
+		"./env": {
+			"types": "./src/env.d.ts"
+		},
+		"./config-builder": {
+			"types": "./src/config/config-builder.ts",
+			"default": "./src/config/config-builder.ts"
+		},
+		"./constants": {
+			"types": "./src/config/constants.ts",
+			"default": "./src/config/constants.ts"
+		},
+		"./bun": {
+			"types": "./src/adapters/bun/index.ts",
+			"default": "./src/adapters/bun/index.ts"
+		},
+		"./bun/create-app": {
+			"types": "./src/adapters/bun/create-app.ts",
+			"default": "./src/adapters/bun/create-app.ts"
+		},
+		"./hmr/hmr-strategy": {
+			"types": "./src/hmr/hmr-strategy.ts",
+			"default": "./src/hmr/hmr-strategy.ts"
+		},
+		"./internal-types": {
+			"types": "./src/types/internal-types.ts"
+		},
+		"./services/asset-processing-service": {
+			"types": "./src/services/assets/asset-processing-service/index.ts",
+			"default": "./src/services/assets/asset-processing-service/index.ts"
+		},
+		"./services/invalidation/development-invalidation.service": {
+			"types": "./src/services/invalidation/development-invalidation.service.ts",
+			"default": "./src/services/invalidation/development-invalidation.service.ts"
+		},
+		"./services/module-loading/app-server-module-transpiler.service": {
+			"types": "./src/services/module-loading/app-server-module-transpiler.service.ts",
+			"default": "./src/services/module-loading/app-server-module-transpiler.service.ts"
+		},
+		"./host-module-loader": {
+			"types": "./src/services/module-loading/host-module-loader-registry.ts",
+			"default": "./src/services/module-loading/host-module-loader-registry.ts"
+		},
+		"./utils/deep-merge": {
+			"types": "./src/utils/deep-merge.ts",
+			"default": "./src/utils/deep-merge.ts"
+		},
+		"./utils/invariant": {
+			"types": "./src/utils/invariant.ts",
+			"default": "./src/utils/invariant.ts"
+		},
+		"./utils/parse-cli-args": {
+			"types": "./src/utils/parse-cli-args.ts",
+			"default": "./src/utils/parse-cli-args.ts"
+		},
+		"./plugins/processor": {
+			"types": "./src/plugins/processor.ts",
+			"default": "./src/plugins/processor.ts"
+		},
+		"./plugins/integration-plugin": {
+			"types": "./src/plugins/integration-plugin.ts",
+			"default": "./src/plugins/integration-plugin.ts"
+		},
+		"./plugins/source-transform": {
+			"types": "./src/plugins/source-transform.ts",
+			"default": "./src/plugins/source-transform.ts"
+		},
+		"./build/build-types": {
+			"types": "./src/build/build-types.ts",
+			"default": "./src/build/build-types.ts"
+		},
+		"./build/build-adapter": {
+			"types": "./src/build/build-adapter.ts",
+			"default": "./src/build/build-adapter.ts"
+		},
+		"./build/runtime-specifier-alias-plugin": {
+			"types": "./src/build/runtime-specifier-alias-plugin.ts",
+			"default": "./src/build/runtime-specifier-alias-plugin.ts"
+		},
+		"./build/runtime-specifier-aliases": {
+			"types": "./src/build/runtime-specifier-aliases.ts",
+			"default": "./src/build/runtime-specifier-aliases.ts"
+		},
+		"./plugins/foreign-jsx-override-plugin": {
+			"types": "./src/plugins/foreign-jsx-override-plugin.ts",
+			"default": "./src/plugins/foreign-jsx-override-plugin.ts"
+		},
+		"./adapters/bun/client-bridge": {
+			"types": "./src/adapters/bun/client-bridge.ts",
+			"default": "./src/adapters/bun/client-bridge.ts"
+		},
+		"./html": {
+			"import": "./src/utils/html.ts",
+			"require": "./src/utils/html.ts"
+		},
+		"./hash": {
+			"import": "./src/utils/hash.ts",
+			"require": "./src/utils/hash.ts"
+		},
+		"./errors": {
+			"types": "./src/errors/index.ts",
+			"default": "./src/errors/index.ts"
+		},
+		"./integrations/ghtml": {
+			"types": "./src/integrations/ghtml/ghtml.plugin.ts",
+			"default": "./src/integrations/ghtml/ghtml.plugin.ts"
+		}
+	}
 }

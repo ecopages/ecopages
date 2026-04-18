@@ -473,7 +473,9 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const hasDependencies = Boolean(input.component.config?.dependencies);
 		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
 		const assets =
-			hasDependencies && canResolveAssets ? await this.processComponentDependencies([input.component]) : undefined;
+			hasDependencies && canResolveAssets
+				? await this.processComponentDependencies([input.component])
+				: undefined;
 		const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(html, runtimeContext);
 		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
 			...(assets ?? []),
@@ -647,7 +649,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				const mdxConfigAssets = await this.mdxConfigDependencyService.processMdxConfigDependencies({
 					pagePath,
 					config: (pageModule as EcoPageFile & { config?: EcoComponentConfig }).config,
-					processComponentDependencies: async (components) => await this.processComponentDependencies(components),
+					processComponentDependencies: async (components) =>
+						await this.processComponentDependencies(components),
 				});
 				return [...processedAssets, ...mdxConfigAssets];
 			}
@@ -747,7 +750,9 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 					props,
 					ctx,
 					renderInline: async () =>
-						await reactDomServer.renderToReadableStream(react.createElement(ViewComponent, normalizedProps)),
+						await reactDomServer.renderToReadableStream(
+							react.createElement(ViewComponent, normalizedProps),
+						),
 				});
 			}
 

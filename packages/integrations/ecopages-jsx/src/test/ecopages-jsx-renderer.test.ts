@@ -10,14 +10,7 @@ import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 const radiantEntryUrl = import.meta.resolve('@ecopages/radiant');
 const radiantCustomElementEntryUrl = import.meta.resolve('@ecopages/radiant/decorators/custom-element');
 
-const lightDomGlobalKeys = [
-	'customElements',
-	'Element',
-	'HTMLElement',
-	'HTMLScriptElement',
-	'Node',
-	'window',
-] as const;
+const lightDomGlobalKeys = ['customElements', 'Element', 'HTMLElement', 'HTMLScriptElement', 'Node', 'window'] as const;
 
 type LightDomGlobalKey = (typeof lightDomGlobalKeys)[number];
 
@@ -105,7 +98,7 @@ async function writeRadiantFixture(options: {
 			"import './counter.script.mjs';",
 			'',
 			'export function Counter() {',
-				"\treturn '<top-level-radiant-counter></top-level-radiant-counter>';",
+			"\treturn '<top-level-radiant-counter></top-level-radiant-counter>';",
 			'}',
 		].join('\n'),
 	);
@@ -116,7 +109,7 @@ async function writeRadiantFixture(options: {
 			"import { Counter } from './counter-component.mjs';",
 			'',
 			'export default function Page() {',
-				'\treturn Counter();',
+			'\treturn Counter();',
 			'}',
 		].join('\n'),
 	);

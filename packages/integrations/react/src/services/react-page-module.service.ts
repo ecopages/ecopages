@@ -60,7 +60,10 @@ export class ReactPageModuleService {
 	 * @param filePath - Absolute path to the MDX file
 	 * @returns The imported module
 	 */
-	async importMdxPageFile(filePath: string, options?: { bypassCache?: boolean; cacheScope?: string }): Promise<unknown> {
+	async importMdxPageFile(
+		filePath: string,
+		options?: { bypassCache?: boolean; cacheScope?: string },
+	): Promise<unknown> {
 		const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
 		const mdxPlugin = createReactMdxLoaderPlugin(
 			this.config.mdxCompilerOptions ?? {
@@ -74,8 +77,7 @@ export class ReactPageModuleService {
 		const fileBaseName = path.basename(filePath, path.extname(filePath));
 		const fileHash = fileSystem.hash(filePath);
 		const cacheScopeSuffix = options?.cacheScope ? `-${sanitizeCacheScope(options.cacheScope)}` : '';
-		const cacheBuster =
-			options?.bypassCache || process?.env?.NODE_ENV === 'development' ? `-${Date.now()}` : '';
+		const cacheBuster = options?.bypassCache || process?.env?.NODE_ENV === 'development' ? `-${Date.now()}` : '';
 		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${cacheBuster}.js`;
 
 		const buildResult = await build(
@@ -179,8 +181,9 @@ export class ReactPageModuleService {
 	 * Used to determine if a page needs hydration.
 	 */
 	hasModulesInConfig(config: EcoComponentConfig | undefined): boolean {
-		return someInConfigTree(config, (node) =>
-			node.dependencies?.modules?.some((entry) => entry.trim().length > 0) ?? false,
+		return someInConfigTree(
+			config,
+			(node) => node.dependencies?.modules?.some((entry) => entry.trim().length > 0) ?? false,
 		);
 	}
 

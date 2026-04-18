@@ -38,6 +38,7 @@ import { DependencyResolverService } from '../page-loading/dependency-resolver.t
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { RenderExecutionService } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
+import { RouteShellComposer } from './route-shell-composer.service.ts';
 import type { ComponentBoundaryRuntime } from './component-render-context.ts';
 import { normalizeBoundaryArtifactHtml } from './render-output.utils.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
@@ -131,6 +132,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected renderPreparationService: RenderPreparationService;
 	protected renderExecutionService: RenderExecutionService;
+	protected readonly routeShellComposer = new RouteShellComposer();
 	protected readonly queuedBoundaryRuntimeService = new QueuedBoundaryRuntimeService();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
@@ -381,20 +383,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		renderInline?: () => Promise<BodyInit>;
 		transformHtml?: (html: string) => string;
 	}): Promise<Response> {
-		if (input.renderInline && !this.hasForeignBoundaryDescendants(input.view as EcoComponent)) {
-			return this.createHtmlResponse(await input.renderInline(), input.ctx);
-		}
-
-		const rendererCache = new Map<string, IntegrationRenderer<any>>();
-
-		const viewRender = await this.renderComponentBoundary({
-			component: input.view as EcoComponent,
-			props: (input.props ?? {}) as Record<string, unknown>,
-			integrationContext: { rendererCache },
+		return this.routeShellComposer.renderPartialViewResponse(input, {
+			hasForeignBoundaryDescendants: (component) => this.hasForeignBoundaryDescendants(component),
+			createHtmlResponse: (body, ctx) => this.createHtmlResponse(body, ctx),
+			renderComponentBoundary: (boundaryInput) => this.renderComponentBoundary(boundaryInput),
+			prepareViewDependencies: (view, layout) => this.prepareViewDependencies(view, layout),
+			getHtmlTemplate: () => this.getHtmlTemplate(),
+			resolveViewMetadata: (view, props) => this.resolveViewMetadata(view, props),
+			appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
+			finalizeResolvedHtml: (options) => this.finalizeResolvedHtml(options),
+			docType: this.DOC_TYPE,
 		});
-		const html = input.transformHtml ? input.transformHtml(viewRender.html) : viewRender.html;
-
-		return this.createHtmlResponse(html, input.ctx);
 	}
 
 	/**
@@ -415,52 +414,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		ctx: RenderToResponseContext;
 		layout?: EcoComponent;
 	}): Promise<Response> {
-		const normalizedProps = (input.props ?? {}) as Record<string, unknown>;
-
-		if (input.ctx.partial) {
-			return this.renderPartialViewResponse({
-				view: input.view,
-				props: input.props,
-				ctx: input.ctx,
-			});
-		}
-
-		await this.prepareViewDependencies(input.view, input.layout);
-
-		const HtmlTemplate = await this.getHtmlTemplate();
-		const metadata = await this.resolveViewMetadata(input.view, input.props);
-		const rendererCache = new Map<string, IntegrationRenderer<any>>();
-		const viewRender = await this.renderComponentBoundary({
-			component: input.view as EcoComponent,
-			props: normalizedProps,
-			integrationContext: { rendererCache },
+		return this.routeShellComposer.renderViewWithDocumentShell(input, {
+			hasForeignBoundaryDescendants: (component) => this.hasForeignBoundaryDescendants(component),
+			createHtmlResponse: (body, ctx) => this.createHtmlResponse(body, ctx),
+			renderComponentBoundary: (boundaryInput) => this.renderComponentBoundary(boundaryInput),
+			prepareViewDependencies: (view, layout) => this.prepareViewDependencies(view, layout),
+			getHtmlTemplate: () => this.getHtmlTemplate(),
+			resolveViewMetadata: (view, props) => this.resolveViewMetadata(view, props),
+			appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
+			finalizeResolvedHtml: (options) => this.finalizeResolvedHtml(options),
+			docType: this.DOC_TYPE,
 		});
-		const layoutRender = input.layout
-			? await this.renderComponentBoundary({
-					component: input.layout,
-					props: {},
-					children: viewRender.html,
-					integrationContext: { rendererCache },
-				})
-			: undefined;
-		const documentRender = await this.renderComponentBoundary({
-			component: HtmlTemplate as EcoComponent,
-			props: {
-				metadata,
-				pageProps: normalizedProps,
-			},
-			children: layoutRender?.html ?? viewRender.html,
-			integrationContext: { rendererCache },
-		});
-
-		this.appendProcessedDependencies(viewRender.assets, layoutRender?.assets, documentRender.assets);
-
-		const html = await this.finalizeResolvedHtml({
-			html: `${this.DOC_TYPE}${documentRender.html}`,
-			partial: false,
-		});
-
-		return this.createHtmlResponse(html, input.ctx);
 	}
 
 	/**
@@ -490,38 +454,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		documentProps?: Record<string, unknown>;
 		transformDocumentHtml?: (html: string) => string;
 	}): Promise<string> {
-		const rendererCache = new Map<string, IntegrationRenderer<any>>();
-		const pageRender = await this.renderComponentBoundary({
-			component: input.page.component,
-			props: input.page.props,
-			integrationContext: { rendererCache },
+		return this.routeShellComposer.renderPageWithDocumentShell(input, {
+			hasForeignBoundaryDescendants: (component) => this.hasForeignBoundaryDescendants(component),
+			createHtmlResponse: (body, ctx) => this.createHtmlResponse(body, ctx),
+			renderComponentBoundary: (boundaryInput) => this.renderComponentBoundary(boundaryInput),
+			prepareViewDependencies: (view, layout) => this.prepareViewDependencies(view, layout),
+			getHtmlTemplate: () => this.getHtmlTemplate(),
+			resolveViewMetadata: (view, props) => this.resolveViewMetadata(view, props),
+			appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
+			finalizeResolvedHtml: (options) => this.finalizeResolvedHtml(options),
+			docType: this.DOC_TYPE,
 		});
-		const layoutRender = input.layout
-			? await this.renderComponentBoundary({
-					component: input.layout.component,
-					props: input.layout.props ?? {},
-					children: pageRender.html,
-					integrationContext: { rendererCache },
-				})
-			: undefined;
-		const documentRender = await this.renderComponentBoundary({
-			component: input.htmlTemplate,
-			props: {
-				metadata: input.metadata,
-				pageProps: input.pageProps,
-				...(input.documentProps ?? {}),
-			},
-			children: layoutRender?.html ?? pageRender.html,
-			integrationContext: { rendererCache },
-		});
-
-		this.appendProcessedDependencies(pageRender.assets, layoutRender?.assets, documentRender.assets);
-
-		const documentHtml = input.transformDocumentHtml
-			? input.transformDocumentHtml(documentRender.html)
-			: documentRender.html;
-
-		return `${this.DOC_TYPE}${documentHtml}`;
 	}
 
 	/**

@@ -17,6 +17,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Simplified route-renderer orchestration around renderer-owned boundary runtimes, shared string-boundary queue helpers, and a smaller component render context.
 - Centralized shared integration renderer bootstrapping so package integrations only append renderer-specific config instead of duplicating core lifecycle wiring.
 - Moved shared queued boundary resolution to attachment-policy payloads and constructor-injectable planning services.
+- Extracted shared page, layout, and document-shell composition into a narrow `RouteShellComposer` while keeping renderer-owned boundary handoff in `IntegrationRenderer`.
 - Removed marker-era compatibility capture, the shared route-level fallback resolver, deprecated `@ecopages/core/node*` escape hatches, and other dead route-renderer internals.
 
 ### Bug Fixes

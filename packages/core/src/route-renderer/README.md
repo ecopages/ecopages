@@ -26,6 +26,7 @@ Framework-owned orchestration services and renderer base class:
 - `integration-renderer.ts`: abstract base class that coordinates end-to-end route rendering.
 - `render-preparation.service.ts`: page module/data/dependency preparation before render.
 - `render-execution.service.ts`: render capture, unresolved boundary artifact enforcement, and finalization.
+- `route-shell-composer.service.ts`: shared page/view/layout/html-template shell composition used by multiple integrations.
 - `queued-boundary-runtime.service.ts`: shared queued foreign-boundary runtime used directly by renderer-owned helpers, including string-first renderers.
 
 It also provides:
@@ -65,8 +66,9 @@ The current mixed-renderer contract has four phases:
 
 1. `render-preparation.service.ts` builds the route inputs and a conservative `boundaryPlan` from declared component dependencies.
 2. The selected integration renderer owns page, layout, document-shell, and explicit-view composition for that route.
-3. Renderer-owned boundary runtimes resolve foreign nested components through the owning renderer and exchange a compatibility `renderBoundary()` payload with explicit attachment-policy semantics.
-4. `render-execution.service.ts` finalizes the response and fails if unresolved boundary artifact HTML survives the renderer-owned resolution pass.
+3. `route-shell-composer.service.ts` applies the shared page/view/layout/html-template composition flow while calling back into the owning renderer for each boundary render.
+4. Renderer-owned boundary runtimes resolve foreign nested components through the owning renderer and exchange a compatibility `renderBoundary()` payload with explicit attachment-policy semantics.
+5. `render-execution.service.ts` finalizes the response and fails if unresolved boundary artifact HTML survives the renderer-owned resolution pass.
 
 Important:
 
@@ -150,5 +152,5 @@ If you are reading this file to understand today's contract, you can stop at the
 
 - Deep multi-level mixed-integration trees now rely on renderer-owned boundary runtimes rather than a shared post-render graph resolver.
 - Each renderer still decides how to hand off foreign boundaries, so specialized runtimes remain appropriate where child serialization or hydration contracts differ.
-- `boundaryPlan` is currently preparation-time metadata and diagnostics. It does not yet drive a separate route-composer execution model.
-- A dedicated route composer is still deferred until the boundary contract proves stable enough to justify splitting more logic out of `IntegrationRenderer`.
+- `boundaryPlan` is currently preparation-time metadata and diagnostics. It does not yet drive a full route-composer execution model.
+- A narrow `RouteShellComposer` now owns shared shell composition, but a broader route composer that absorbs boundary ownership or execution flow is still deferred.

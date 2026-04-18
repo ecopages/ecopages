@@ -65,6 +65,16 @@ mdxPlugin({
 > [!WARNING]
 > React runtimes are intentionally rejected by this standalone plugin.
 
+## Mixed Rendering
+
+Standalone MDX can own the page shell or nested MDX component boundaries in a mixed-renderer app. When another integration reaches an MDX-owned boundary, Ecopages hands that boundary back to the MDX renderer so the MDX runtime can finish serialization before the outer renderer resumes.
+
+Important:
+
+- Components that may render foreign children must declare those children in `config.dependencies.components`.
+- Ecopages validates mixed-renderer ownership from declared dependencies during render preparation rather than inferring every boundary from rendered HTML alone.
+- Standalone MDX keeps its own page normalization and non-React JSX runtime behavior.
+
 ## Using MDX with React
 
 If you are using `@ecopages/react` and building a full React application, **do not** use this standalone MDX plugin. Instead, enable MDX directly within the React plugin configuration to ensure unified hydration, client-side routing, and HMR:

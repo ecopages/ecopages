@@ -50,3 +50,9 @@ This setup lets Kita own the page shell while Lit owns the nested Lit component 
 ## Mixed Rendering
 
 When a non-Lit render pass enters a Lit-owned component boundary, Ecopages hands that boundary to the Lit renderer. That keeps Lit SSR in charge of custom elements, declarative shadow DOM, and Lit-managed child content.
+
+Important:
+
+- Components that may render foreign children must declare those children in `config.dependencies.components`.
+- Ecopages validates ownership from declared dependencies during render preparation instead of relying on post-render HTML discovery.
+- Lit keeps slot transport, shadow-root handling, and SSR preload behavior inside the Lit renderer.

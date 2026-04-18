@@ -33,3 +33,9 @@ export default config;
 ## Mixed Rendering
 
 Kita works well as the outer renderer in mixed apps. When a Kita-owned page encounters a nested boundary from another integration, Ecopages resolves that boundary with its owning renderer and inserts the resulting HTML back into the Kita shell.
+
+Important:
+
+- Components that may render foreign children must declare those children in `config.dependencies.components`.
+- Ecopages validates mixed-renderer ownership from declared dependencies during render preparation instead of inferring every foreign child from rendered HTML.
+- Kita remains an HTML-first outer shell. Same-integration Kita children do not go through a separate universal child serialization contract.

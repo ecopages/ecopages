@@ -70,6 +70,12 @@ The React integration can participate in mixed-renderer apps in three ways:
 
 When a non-React render pass enters a React-owned boundary, Ecopages hands that boundary back to the React renderer. When React renders through a non-React shell, that shell must serialize to HTML so React can insert the result into the final response without escaping it.
 
+Important:
+
+- Components that may render foreign children must declare those children in `config.dependencies.components`.
+- Ecopages validates mixed-renderer ownership from declared dependencies during render preparation. It does not infer every foreign boundary from rendered HTML alone.
+- React still keeps its own child transport and hydration rules for React-owned subtrees.
+
 ## Server and Client Graph Contract
 
 The React integration supports Node.js modules and server-only code **only on the server execution graph**.

@@ -18,6 +18,10 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 - Updated the README for standalone non-React MDX usage, `.md` opt-in handling, and compiler configuration.
 
+### Refactoring
+
+- Replaced the standalone MDX renderer factory with explicit renderer-owned compiler configuration and collected shared MDX plugin and renderer types into a dedicated module.
+
 ---
 
 ## Migration Notes

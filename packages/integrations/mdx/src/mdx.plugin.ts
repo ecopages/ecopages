@@ -1,11 +1,14 @@
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import type { EcoPagesElement } from '@ecopages/core';
-import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
+import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { createMdxLoaderPlugin } from './mdx-loader-plugin.ts';
-import { createMDXRenderer, MDXRenderer } from './mdx-renderer.ts';
+import { MDXRenderer } from './mdx-renderer.ts';
+import type { MDXPluginConfig } from './mdx.types.ts';
+
+export type { MDXPluginConfig, MDXRendererConfig, MDXRendererOptions } from './mdx.types.ts';
 
 const appLogger = new Logger('[MDXPlugin]');
 
@@ -13,10 +16,6 @@ const appLogger = new Logger('[MDXPlugin]');
  * The name of the MDX plugin
  */
 export const PLUGIN_NAME = 'MDX';
-
-export type MDXPluginConfig = Partial<Omit<IntegrationPluginConfig, 'name'>> & {
-	compilerOptions?: CompileOptions;
-};
 
 const defaultOptions: CompileOptions = {
 	format: 'detect',
@@ -60,8 +59,8 @@ function splitMarkdownExtensions(extensions: string[]): Pick<CompileOptions, 'md
  * `reactPlugin({ mdx: { enabled: true, compilerOptions: ... } })` instead.
  */
 export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
-	renderer: typeof MDXRenderer;
-	private compilerOptions: CompileOptions;
+	renderer = MDXRenderer;
+	private readonly compilerOptions: CompileOptions;
 	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
 
 	constructor({ compilerOptions, ...options }: MDXPluginConfig = { extensions: ['.mdx'] }) {
@@ -90,9 +89,18 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 		}
 
 		this.compilerOptions = finalCompilerOptions;
-		this.renderer = createMDXRenderer(finalCompilerOptions);
 
 		appLogger.debug(`MDX plugin configured with jsxImportSource: ${jsxImportSource ?? 'default'}`);
+	}
+
+	override initializeRenderer(options?: { rendererModules?: unknown }): MDXRenderer {
+		const renderer = new this.renderer({
+			...this.createRendererOptions(options),
+			mdxConfig: {
+				compilerOptions: this.compilerOptions,
+			},
+		});
+		return this.attachRendererRuntimeServices(renderer);
 	}
 
 	override get plugins(): EcoBuildPlugin[] {

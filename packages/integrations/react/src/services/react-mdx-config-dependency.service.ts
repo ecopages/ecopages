@@ -60,7 +60,10 @@ export class ReactMdxConfigDependencyService {
 		const resolvedLayout = config?.layout;
 
 		if (resolvedLayout?.config?.dependencies) {
-			const layoutConfig = this.config.pageModuleService.ensureConfigFileMetadata(resolvedLayout.config, pagePath);
+			const layoutConfig = this.config.pageModuleService.ensureConfigFileMetadata(
+				resolvedLayout.config,
+				pagePath,
+			);
 			components.push({ config: layoutConfig });
 		}
 

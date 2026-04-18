@@ -502,10 +502,7 @@ export class BunBuildAdapter implements BuildAdapter {
 		return path.normalize(outputPath).replace(/\.(?:[cm]?js)$/u, '');
 	}
 
-	private collectDeterministicOutputReferences(
-		options: BuildOptions,
-		entrypointPath: string,
-	): Map<string, string> {
+	private collectDeterministicOutputReferences(options: BuildOptions, entrypointPath: string): Map<string, string> {
 		const expectedOutputsByReference = new Map<string, string>();
 		const expectedOutputPath = this.resolveTemplatedOutputPath(options, entrypointPath);
 
@@ -513,10 +510,7 @@ export class BunBuildAdapter implements BuildAdapter {
 			return expectedOutputsByReference;
 		}
 
-		expectedOutputsByReference.set(
-			this.createDeterministicOutputReference(expectedOutputPath),
-			expectedOutputPath,
-		);
+		expectedOutputsByReference.set(this.createDeterministicOutputReference(expectedOutputPath), expectedOutputPath);
 
 		if (!options.outbase) {
 			return expectedOutputsByReference;

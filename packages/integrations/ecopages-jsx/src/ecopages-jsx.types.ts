@@ -1,6 +1,10 @@
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import type { AssetDefinition, AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import type {
+	AssetDefinition,
+	AssetProcessingService,
+	ProcessedAsset,
+} from '@ecopages/core/services/asset-processing-service';
 import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
 
 type MdxPluginList = NonNullable<CompileOptions['remarkPlugins']>;

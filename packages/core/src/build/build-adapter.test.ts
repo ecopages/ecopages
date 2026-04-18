@@ -276,11 +276,7 @@ test('BunBuildAdapter normalizes unordered multi-entrypoint outputs by path inst
 				return {
 					success: true,
 					logs: [],
-					outputs: [
-						{ path: weatherAppOutput },
-						{ path: codeTabsOutput },
-						{ path: themeToggleOutput },
-					],
+					outputs: [{ path: weatherAppOutput }, { path: codeTabsOutput }, { path: themeToggleOutput }],
 				};
 			}),
 			hash: vi.fn(() => 1),
@@ -333,19 +329,8 @@ test('BunBuildAdapter remaps Bun root-relative outputs back to outbase-relative 
 		const entryPath = path.join(srcDir, 'theme-toggle.script.ts');
 		fs.writeFileSync(entryPath, 'export const themeToggle = 1;');
 
-		const bunRootRelativeOutputPath = path.join(
-			outDir,
-			'src',
-			'components',
-			'theme-toggle',
-			'theme-toggle.script',
-		);
-		const expectedOutputPath = path.join(
-			outDir,
-			'components',
-			'theme-toggle',
-			'theme-toggle.script',
-		);
+		const bunRootRelativeOutputPath = path.join(outDir, 'src', 'components', 'theme-toggle', 'theme-toggle.script');
+		const expectedOutputPath = path.join(outDir, 'components', 'theme-toggle', 'theme-toggle.script');
 
 		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
 			build: vi.fn(async () => {

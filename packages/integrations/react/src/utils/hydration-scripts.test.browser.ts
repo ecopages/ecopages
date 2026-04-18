@@ -42,10 +42,11 @@ type TestWindowState = {
 	};
 };
 
-type TestWindow = Window & typeof globalThis & {
-	__ECO_PAGES__?: TestWindowState;
-	__ECO_REACT_HYDRATION_TEST__?: TestHydrationRuntime;
-};
+type TestWindow = Window &
+	typeof globalThis & {
+		__ECO_PAGES__?: TestWindowState;
+		__ECO_REACT_HYDRATION_TEST__?: TestHydrationRuntime;
+	};
 
 const routerAdapter: ReactRouterAdapter = {
 	name: 'eco-router',

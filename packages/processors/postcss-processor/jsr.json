@@ -1,27 +1,17 @@
 {
-  "name": "@ecopages/postcss-processor",
-  "version": "0.2.0-alpha.15",
-  "exports": {
-    ".": "./src/index.ts",
-    "./postcss-processor": "./src/postcss-processor.ts",
-    "./plugin": "./src/plugin.ts",
-    "./presets": "./src/presets/index.ts",
-    "./presets/tailwind-v3": "./src/presets/tailwind-v3.ts",
-    "./presets/tailwind-v4": "./src/presets/tailwind-v4.ts"
-  },
-  "exclude": [
-    "src/test"
-  ],
-  "publish": {
-    "include": [
-      "src/**/*.ts",
-      "LICENSE",
-      "README.md",
-      "jsr.json",
-      "package.json"
-    ],
-    "exclude": [
-      "src/test"
-    ]
-  }
+	"name": "@ecopages/postcss-processor",
+	"version": "0.2.0-alpha.15",
+	"exports": {
+		".": "./src/index.ts",
+		"./postcss-processor": "./src/postcss-processor.ts",
+		"./plugin": "./src/plugin.ts",
+		"./presets": "./src/presets/index.ts",
+		"./presets/tailwind-v3": "./src/presets/tailwind-v3.ts",
+		"./presets/tailwind-v4": "./src/presets/tailwind-v4.ts"
+	},
+	"exclude": ["src/test"],
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json", "package.json"],
+		"exclude": ["src/test"]
+	}
 }

@@ -233,11 +233,7 @@ export class JsxRuntimeBundleService {
 		const entryImportPath = relativeModulePath.startsWith('.') ? relativeModulePath : `./${relativeModulePath}`;
 
 		mkdirSync(artifactsDir, { recursive: true });
-		writeFileSync(
-			filePath,
-			[`export * from '${entryImportPath}';`].join('\n'),
-			'utf8',
-		);
+		writeFileSync(filePath, [`export * from '${entryImportPath}';`].join('\n'), 'utf8');
 
 		this.cachedJsxEntryModulePath = filePath;
 		return filePath;
@@ -257,7 +253,11 @@ export class JsxRuntimeBundleService {
 			.sort(([left], [right]) => left.localeCompare(right))
 			.map(([exportKey, exportTarget]) => ({
 				exportKey,
-				modulePath: this.resolvePackageExportModulePath(packageDir, exportKey, exportTarget as PackageExportTarget),
+				modulePath: this.resolvePackageExportModulePath(
+					packageDir,
+					exportKey,
+					exportTarget as PackageExportTarget,
+				),
 			}))
 			.filter((module) => existsSync(module.modulePath));
 	}

@@ -201,8 +201,5 @@ test('EcopagesJsxPlugin registers intrinsic custom element scripts as module ent
 			},
 		},
 	]);
-	assert.equal(
-		processDependencies.mock.calls[0]?.[1],
-		'ecopages-jsx:custom-elements:/tmp/theme-toggle.script.ts',
-	);
+	assert.equal(processDependencies.mock.calls[0]?.[1], 'ecopages-jsx:custom-elements:/tmp/theme-toggle.script.ts');
 });

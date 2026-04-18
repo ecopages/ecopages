@@ -24,15 +24,14 @@ async function requestUntilOk(request: Parameters<typeof test>[0]['request'], hr
 		.toBe(200);
 
 	const response = await request.get(href);
-	expect(response.ok(), `${href} should respond with a successful status after preview warmup; last status was ${lastStatus}`).toBe(true);
+	expect(
+		response.ok(),
+		`${href} should respond with a successful status after preview warmup; last status was ${lastStatus}`,
+	).toBe(true);
 	return response;
 }
 
-async function requestUntilContains(
-	request: Parameters<typeof test>[0]['request'],
-	href: string,
-	text: string,
-) {
+async function requestUntilContains(request: Parameters<typeof test>[0]['request'], href: string, text: string) {
 	await expect
 		.poll(
 			async () => {

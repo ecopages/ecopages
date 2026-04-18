@@ -49,9 +49,7 @@ export function normalizeDeclaredModuleSources(modules?: string[]): string[] {
  * Recursively walks a component config tree (including layouts and nested
  * `dependencies.components`) to collect all declared module sources.
  */
-export function collectDeclaredModulesInConfig(
-	config: EcoComponentConfig | undefined,
-): string[] {
+export function collectDeclaredModulesInConfig(config: EcoComponentConfig | undefined): string[] {
 	return collectFromConfigTree(config, (node) => normalizeDeclaredModuleSources(node.dependencies?.modules));
 }
 

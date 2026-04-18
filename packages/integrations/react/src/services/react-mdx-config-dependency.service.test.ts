@@ -1,16 +1,17 @@
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoComponentConfig } from '@ecopages/core';
+import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { ReactMdxConfigDependencyService } from './react-mdx-config-dependency.service.ts';
 
 describe('ReactMdxConfigDependencyService', () => {
 	it('eagerly emits SSR-marked lazy scripts for declared MDX component dependencies', async () => {
-		const processDependencies = vi.fn(async (dependencies: Array<Record<string, unknown>>) =>
+		const processDependencies = vi.fn(async (dependencies: AssetDefinition[]) =>
 			dependencies.map((dependency) => ({
-				kind: dependency.kind as 'script' | 'stylesheet',
-				filepath: dependency.source === 'file' ? (dependency.filepath as string) : undefined,
-				attributes: dependency.attributes as Record<string, string> | undefined,
-				excludeFromHtml: dependency.excludeFromHtml as boolean | undefined,
+				kind: dependency.kind,
+				filepath: dependency.source === 'file' ? dependency.filepath : undefined,
+				attributes: dependency.attributes,
+				excludeFromHtml: dependency.kind === 'script' ? dependency.excludeFromHtml : undefined,
 			})),
 		);
 		const processComponentDependencies = vi.fn(async () => [

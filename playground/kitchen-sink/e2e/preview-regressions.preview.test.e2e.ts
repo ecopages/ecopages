@@ -2,17 +2,16 @@ import { expect, test } from '@playwright/test';
 import { gotoAndWait, incrementCounter, trackRuntimeErrors } from './helpers';
 
 async function requestUntilOk(request: Parameters<typeof test>[0]['request'], href: string) {
-	let lastStatus = 0;
+	let lastResponse: Awaited<ReturnType<typeof request.get>> | undefined;
 
 	await expect
 		.poll(
 			async () => {
 				try {
-					const response = await request.get(href);
-					lastStatus = response.status();
-					return response.ok() ? response.status() : 0;
+					lastResponse = await request.get(href);
+					return lastResponse.ok() ? lastResponse.status() : 0;
 				} catch {
-					lastStatus = 0;
+					lastResponse = undefined;
 					return 0;
 				}
 			},
@@ -23,12 +22,8 @@ async function requestUntilOk(request: Parameters<typeof test>[0]['request'], hr
 		)
 		.toBe(200);
 
-	const response = await request.get(href);
-	expect(
-		response.ok(),
-		`${href} should respond with a successful status after preview warmup; last status was ${lastStatus}`,
-	).toBe(true);
-	return response;
+	expect(lastResponse?.ok(), `${href} should respond with a successful status after preview warmup`).toBe(true);
+	return lastResponse!;
 }
 
 async function requestUntilContains(request: Parameters<typeof test>[0]['request'], href: string, text: string) {

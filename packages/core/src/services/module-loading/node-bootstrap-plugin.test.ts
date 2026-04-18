@@ -219,7 +219,7 @@ test('createNodeBootstrapPlugin wires the shared resolution policy into an Eco b
 	}
 });
 
-test('createNodeBootstrapPlugin rewrites import.meta only for declared bootstrap files', async () => {
+test('createNodeBootstrapPlugin rewrites import.meta for all project source files', async () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
 	const bootstrapFile = path.join(rootDir, 'eco.config.ts');
@@ -258,7 +258,15 @@ test('createNodeBootstrapPlugin rewrites import.meta only for declared bootstrap
 				: false,
 			true,
 		);
-		assert.equal(regularResult, undefined);
+		assert.equal(typeof (regularResult as { contents?: string } | undefined)?.contents, 'string');
+		assert.equal(
+			regularResult && typeof regularResult === 'object' && 'contents' in regularResult
+				? String((regularResult as { contents: string }).contents).includes(
+						JSON.stringify(path.dirname(regularFile)),
+					)
+				: false,
+			true,
+		);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}

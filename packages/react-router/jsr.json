@@ -1,12 +1,22 @@
 {
-	"name": "@ecopages/react-router",
-	"version": "0.2.0-alpha.16",
-	"exports": {
-		".": "./src/index.ts",
-		"./browser": "./browser.ts"
-	},
-	"publish": {
-		"include": ["src/**/*.ts", "src/**/*.tsx", "browser.ts", "README.md", "LICENSE", "jsr.json", "package.json"],
-		"exclude": ["**/*.css"]
-	}
+  "name": "@ecopages/react-router",
+  "version": "0.2.0-alpha.17",
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./browser.ts"
+  },
+  "publish": {
+    "include": [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "browser.ts",
+      "README.md",
+      "LICENSE",
+      "jsr.json",
+      "package.json"
+    ],
+    "exclude": [
+      "**/*.css"
+    ]
+  }
 }

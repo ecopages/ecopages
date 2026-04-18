@@ -1,13 +1,23 @@
 {
-	"$schema": "https://jsr.io/schema/config-file.v1.json",
-	"name": "@ecopages/vite-plugin",
-	"version": "0.2.0-alpha.16",
-	"exports": {
-		".": "./src/index.ts"
-	},
-	"exclude": ["**/*.test.ts"],
-	"publish": {
-		"include": ["src/**/*.ts", "README.md", "CHANGELOG.md", "jsr.json", "package.json"],
-		"exclude": ["src/**/*.test.ts"]
-	}
+  "$schema": "https://jsr.io/schema/config-file.v1.json",
+  "name": "@ecopages/vite-plugin",
+  "version": "0.2.0-alpha.17",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "exclude": [
+    "**/*.test.ts"
+  ],
+  "publish": {
+    "include": [
+      "src/**/*.ts",
+      "README.md",
+      "CHANGELOG.md",
+      "jsr.json",
+      "package.json"
+    ],
+    "exclude": [
+      "src/**/*.test.ts"
+    ]
+  }
 }

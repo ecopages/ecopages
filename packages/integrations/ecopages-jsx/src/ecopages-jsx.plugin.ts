@@ -7,31 +7,82 @@ import { AssetFactory, type ProcessedAsset } from '@ecopages/core/services/asset
 import type { JsxRenderable } from '@ecopages/jsx';
 import { VFile } from 'vfile';
 import { EcopagesJsxRenderer } from './ecopages-jsx-renderer.ts';
+import type {
+	EcopagesJsxMdxCompileOptions,
+	EcopagesJsxMdxOptions,
+	EcopagesJsxPluginOptions,
+	EcopagesJsxRendererConfig,
+} from './ecopages-jsx.types.ts';
 import { JsxRuntimeBundleService } from './services/jsx-runtime-bundle.service.ts';
 
-type MdxPluginList = NonNullable<CompileOptions['remarkPlugins']>;
+export type {
+	EcopagesJsxMdxCompileOptions,
+	EcopagesJsxMdxOptions,
+	EcopagesJsxPluginOptions,
+	EcopagesJsxRendererConfig,
+} from './ecopages-jsx.types.ts';
 
-type MdxCompileOptions = Omit<
-	CompileOptions,
-	'jsxImportSource' | 'jsxRuntime' | 'remarkPlugins' | 'rehypePlugins' | 'recmaPlugins'
-> & {
-	remarkPlugins?: MdxPluginList;
-	rehypePlugins?: MdxPluginList;
-	recmaPlugins?: MdxPluginList;
-};
+type ResolvedMdxCompileOptions = EcopagesJsxMdxCompileOptions & Pick<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
 
-type ResolvedMdxCompileOptions = MdxCompileOptions & Pick<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
+/**
+ * Stable integration name shared by the JSX plugin and renderer.
+ *
+ * Ecopages uses this identifier to match route files, renderer instances, and
+ * cross-integration component boundaries.
+ */
+export const ECOPAGES_JSX_PLUGIN_NAME = 'ecopages-jsx';
+
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const mergePluginLists = <T>(...lists: Array<readonly T[] | null | undefined>): T[] | undefined => {
 	const merged = lists.flatMap((list) => (list ? [...list] : []));
 	return merged.length > 0 ? merged : undefined;
 };
 
-const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const createMdxExtensionFilter = (extensions: string[], options?: { allowQueryString?: boolean }): RegExp => {
+	const escaped = extensions.map(escapeRegex);
+	const suffix = options?.allowQueryString ? '(\\?.*)?$' : '$';
+	return new RegExp(`(${escaped.join('|')})${suffix}`);
+};
+
+const appendMdxExtensions = (target: string[], mdxExtensions: string[]): void => {
+	for (const ext of mdxExtensions) {
+		if (!target.includes(ext)) {
+			target.push(ext);
+		}
+	}
+};
+
+/**
+ * Resolves MDX compiler options for the JSX integration.
+ *
+ * The integration always controls the JSX runtime fields so route compilation
+ * stays aligned with the shared `@ecopages/jsx` server and client runtime.
+ */
+const resolveMdxCompilerOptions = (mdxOptions: EcopagesJsxMdxOptions): ResolvedMdxCompileOptions => {
+	const { compilerOptions, remarkPlugins, rehypePlugins, recmaPlugins } = mdxOptions;
+	const resolved: ResolvedMdxCompileOptions = {
+		format: 'detect',
+		outputFormat: 'program',
+		...compilerOptions,
+		jsxImportSource: '@ecopages/jsx',
+		jsxRuntime: 'automatic',
+		development: process.env.NODE_ENV === 'development',
+	};
+
+	const mergedRemark = mergePluginLists(compilerOptions?.remarkPlugins, remarkPlugins);
+	const mergedRehype = mergePluginLists(compilerOptions?.rehypePlugins, rehypePlugins);
+	const mergedRecma = mergePluginLists(compilerOptions?.recmaPlugins, recmaPlugins);
+
+	if (mergedRemark) resolved.remarkPlugins = mergedRemark;
+	if (mergedRehype) resolved.rehypePlugins = mergedRehype;
+	if (mergedRecma) resolved.recmaPlugins = mergedRecma;
+
+	return resolved;
+};
 
 const createMdxLoaderPlugin = (compilerOptions: ResolvedMdxCompileOptions, extensions: string[]): EcoBuildPlugin => {
-	const escapedExts = extensions.map(escapeRegex);
-	const filter = new RegExp(`(${escapedExts.join('|')})(\\?.*)?$`);
+	const filter = createMdxExtensionFilter(extensions, { allowQueryString: true });
 
 	return {
 		name: 'ecopages-jsx-mdx-loader',
@@ -52,56 +103,49 @@ const createMdxLoaderPlugin = (compilerOptions: ResolvedMdxCompileOptions, exten
 	};
 };
 
-/**
- * Stable integration name shared by the JSX plugin and renderer.
- *
- * Ecopages uses this identifier to match route files, renderer instances, and
- * cross-integration component boundaries.
- */
-export const ECOPAGES_JSX_PLUGIN_NAME = 'ecopages-jsx';
-
-/**
- * MDX configuration for the JSX integration.
- *
- * Mirrors Ecopages' built-in combined integration pattern where a single
- * JSX-capable plugin can own both `.tsx` and `.mdx` route files.
- */
-export type EcopagesJsxMdxOptions = {
-	/** Enables MDX file handling inside the JSX integration. */
-	enabled: boolean;
-	/** Additional MDX compiler options. JSX runtime fields are managed by the integration. */
-	compilerOptions?: MdxCompileOptions;
-	/** Extra remark plugins appended to `compilerOptions.remarkPlugins`. */
-	remarkPlugins?: MdxPluginList;
-	/** Extra rehype plugins appended to `compilerOptions.rehypePlugins`. */
-	rehypePlugins?: MdxPluginList;
-	/** Extra recma plugins appended to `compilerOptions.recmaPlugins`. */
-	recmaPlugins?: MdxPluginList;
-	/** Custom file extensions to treat as MDX. */
-	extensions?: string[];
+type ResolvedJsxPluginConfig = Omit<IntegrationPluginConfig, 'name' | 'extensions' | 'jsxImportSource'> & {
+	extensions: string[];
+	includeRadiant: boolean;
+	mdxEnabled: boolean;
+	mdxExtensions: string[];
+	mdxCompilerOptions?: ResolvedMdxCompileOptions;
 };
 
-/** Options for the JSX integration plugin. */
-export type EcopagesJsxPluginOptions = Omit<IntegrationPluginConfig, 'name' | 'extensions'> & {
-	/** Optional JSX route extensions. Defaults to `.tsx`. */
-	extensions?: string[];
-	/**
-	 * Whether to include the `@ecopages/radiant` and `@ecopages/signals` vendor
-	 * bundles and bare-specifier mappings.
-	 *
-	 * Set to `false` when pages do not use Radiant web components.
-	 * @default true
-	 */
-	radiant?: boolean;
-	/** Optional MDX integration configuration. */
-	mdx?: EcopagesJsxMdxOptions;
+/**
+ * Resolves user-facing plugin options into a fully-defaulted internal config.
+ *
+ * Defaults:
+ * - `extensions`: `['.tsx']`
+ * - `radiant`: `true`
+ * - `mdx.enabled`: `false`
+ * - `mdx.extensions`: `['.mdx']`
+ */
+const resolvePluginOptions = (options?: EcopagesJsxPluginOptions): ResolvedJsxPluginConfig => {
+	const { extensions: userExtensions, radiant, mdx, ...baseConfig } = options ?? {};
+
+	const extensions = [...(userExtensions ?? ['.tsx'])];
+	const mdxExtensions = mdx?.extensions ?? ['.mdx'];
+	const mdxEnabled = mdx?.enabled ?? false;
+
+	if (mdxEnabled) {
+		appendMdxExtensions(extensions, mdxExtensions);
+	}
+
+	return {
+		...baseConfig,
+		extensions,
+		includeRadiant: radiant ?? true,
+		mdxEnabled,
+		mdxExtensions,
+		mdxCompilerOptions: mdxEnabled && mdx ? resolveMdxCompilerOptions(mdx) : undefined,
+	};
 };
 
 /** JSX integration plugin for Ecopages, supporting `.tsx` templates and optional Radiant web components. */
 export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
-	/** Renderer implementation used for JSX and MDX routes. */
-	renderer = EcopagesJsxRenderer as unknown as IntegrationPlugin<JsxRenderable>['renderer'];
-	private intrinsicCustomElementAssets = new Map<string, readonly ProcessedAsset[]>();
+	renderer = EcopagesJsxRenderer;
+
+	private customElementAssets = new Map<string, readonly ProcessedAsset[]>();
 	private includeRadiant: boolean;
 	private mdxEnabled: boolean;
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;
@@ -137,75 +181,35 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	 * Creates the renderer instance and attaches the discovered intrinsic custom
 	 * element assets before the renderer handles any requests.
 	 */
-	override initializeRenderer() {
-		const renderer = super.initializeRenderer() as EcopagesJsxRenderer;
-		renderer.setIntrinsicCustomElementAssets(this.intrinsicCustomElementAssets);
-		renderer.setRadiantSsrEnabled(this.includeRadiant);
-		return renderer;
+	override initializeRenderer(options?: { rendererModules?: unknown }): EcopagesJsxRenderer {
+		const rendererConfig: EcopagesJsxRendererConfig = {
+			intrinsicCustomElementAssets: this.customElementAssets,
+			mdxExtensions: this.mdxExtensions,
+			radiantSsrEnabled: this.includeRadiant,
+		};
+		const renderer = new this.renderer({
+			...this.createRendererOptions(options),
+			jsxConfig: rendererConfig,
+		});
+		return this.attachRendererRuntimeServices(renderer);
 	}
 
-	/**
-	 * Creates a JSX integration plugin.
-	 *
-	 * When MDX is enabled, the plugin also claims the configured MDX extensions
-	 * and prepares compiler options around the shared `@ecopages/jsx` runtime.
-	 */
 	constructor(options?: EcopagesJsxPluginOptions) {
-		const { extensions: _ignoredExtensions, ...restOptions } = options ?? {};
-		const extensions = [...(options?.extensions ?? ['.tsx'])];
-		const mdxExtensions = options?.mdx?.extensions ?? ['.mdx'];
-		const includeRadiant = options?.radiant ?? true;
-
-		if (options?.mdx?.enabled) {
-			for (const extension of mdxExtensions) {
-				if (!extensions.includes(extension)) {
-					extensions.push(extension);
-				}
-			}
-		}
+		const config = resolvePluginOptions(options);
+		const { extensions, includeRadiant, mdxEnabled, mdxExtensions, mdxCompilerOptions, ...baseConfig } = config;
 
 		super({
 			name: ECOPAGES_JSX_PLUGIN_NAME,
 			extensions,
 			jsxImportSource: '@ecopages/jsx',
-			...restOptions,
+			...baseConfig,
 		});
 
 		this.includeRadiant = includeRadiant;
 		this.runtimeBundleService = new JsxRuntimeBundleService({ radiant: includeRadiant });
-		this.mdxEnabled = options?.mdx?.enabled ?? false;
+		this.mdxEnabled = mdxEnabled;
 		this.mdxExtensions = mdxExtensions;
-		EcopagesJsxRenderer.mdxExtensions = this.mdxExtensions;
-
-		if (this.mdxEnabled) {
-			const { compilerOptions, remarkPlugins, rehypePlugins, recmaPlugins } = options?.mdx ?? {};
-			const resolvedCompilerOptions: ResolvedMdxCompileOptions = {
-				format: 'detect',
-				outputFormat: 'program',
-				...compilerOptions,
-				jsxImportSource: '@ecopages/jsx',
-				jsxRuntime: 'automatic',
-				development: process.env.NODE_ENV === 'development',
-			};
-
-			const mergedRemarkPlugins = mergePluginLists(compilerOptions?.remarkPlugins, remarkPlugins);
-			const mergedRehypePlugins = mergePluginLists(compilerOptions?.rehypePlugins, rehypePlugins);
-			const mergedRecmaPlugins = mergePluginLists(compilerOptions?.recmaPlugins, recmaPlugins);
-
-			if (mergedRemarkPlugins) {
-				resolvedCompilerOptions.remarkPlugins = mergedRemarkPlugins;
-			}
-
-			if (mergedRehypePlugins) {
-				resolvedCompilerOptions.rehypePlugins = mergedRehypePlugins;
-			}
-
-			if (mergedRecmaPlugins) {
-				resolvedCompilerOptions.recmaPlugins = mergedRecmaPlugins;
-			}
-
-			this.mdxCompilerOptions = resolvedCompilerOptions;
-		}
+		this.mdxCompilerOptions = mdxCompilerOptions;
 	}
 
 	/** Ensures MDX build hooks are ready before Ecopages collects contributions. */
@@ -229,10 +233,10 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		this.ensureMdxLoaderPlugin();
 
 		if (typeof Bun !== 'undefined' && this.mdxEnabled && this.mdxCompilerOptions) {
-			await this.setupMdxBunPlugin();
+			await this.registerMdxBunPlugin();
 		}
 
-		await this.buildIntrinsicCustomElementAssetRegistry();
+		await this.buildCustomElementRegistry();
 
 		await super.setup();
 	}
@@ -245,14 +249,19 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		this.mdxLoaderPlugin = createMdxLoaderPlugin(this.mdxCompilerOptions, this.mdxExtensions);
 	}
 
-	private async setupMdxBunPlugin(): Promise<void> {
-		if (typeof Bun === 'undefined' || !this.mdxEnabled || !this.mdxCompilerOptions) {
+	/**
+	 * Registers Bun's MDX loader at runtime setup time.
+	 *
+	 * Build-time contribution collection may run where Bun is absent, so
+	 * this hook stays isolated from manifest preparation.
+	 */
+	private async registerMdxBunPlugin(): Promise<void> {
+		if (typeof Bun === 'undefined' || !this.mdxCompilerOptions) {
 			return;
 		}
 
 		const compilerOptions = this.mdxCompilerOptions;
-		const escapedExts = this.mdxExtensions.map(escapeRegex);
-		const filter = new RegExp(`(${escapedExts.join('|')})$`);
+		const filter = createMdxExtensionFilter(this.mdxExtensions);
 
 		Bun.plugin({
 			name: 'ecopages-jsx-mdx',
@@ -268,59 +277,65 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		});
 	}
 
-	private async buildIntrinsicCustomElementAssetRegistry(): Promise<void> {
+	/**
+	 * Scans `src/` for custom-element entry scripts and pre-resolves their assets.
+	 *
+	 * The renderer's server-side custom-element hook relies on this registry to
+	 * attach browser scripts without per-render file-system lookups.
+	 */
+	private async buildCustomElementRegistry(): Promise<void> {
 		if (!this.appConfig || !this.assetProcessingService) {
 			return;
 		}
 
-		this.intrinsicCustomElementAssets.clear();
-		const scriptFiles = await this.collectScriptEntryFiles(this.appConfig.absolutePaths.srcDir);
+		this.customElementAssets.clear();
+		const scriptFiles = await this.collectScriptEntries(this.appConfig.absolutePaths.srcDir);
 
 		for (const scriptFile of scriptFiles) {
-			const tagNames = await this.extractIntrinsicCustomElementTagNames(scriptFile);
+			const tagNames = await this.extractCustomElementTagNames(scriptFile);
 
 			if (tagNames.length === 0) {
 				continue;
 			}
 
-			const processedAsset = await this.resolveIntrinsicCustomElementAsset(scriptFile);
+			const asset = await this.resolveCustomElementAsset(scriptFile);
 
-			if (!processedAsset) {
+			if (!asset) {
 				continue;
 			}
 
 			for (const tagName of tagNames) {
-				this.intrinsicCustomElementAssets.set(tagName, [processedAsset]);
+				this.customElementAssets.set(tagName, [asset]);
 			}
 		}
 	}
 
-	private async collectScriptEntryFiles(directory: string): Promise<string[]> {
-		const directoryEntries = await readdir(directory, { withFileTypes: true });
-		const scriptFiles: string[] = [];
+	private async collectScriptEntries(directory: string): Promise<string[]> {
+		const entries = await readdir(directory, { withFileTypes: true });
+		const scripts: string[] = [];
 
-		for (const directoryEntry of directoryEntries) {
-			const entryPath = path.join(directory, directoryEntry.name);
+		for (const entry of entries) {
+			const entryPath = path.join(directory, entry.name);
 
-			if (directoryEntry.isDirectory()) {
-				scriptFiles.push(...(await this.collectScriptEntryFiles(entryPath)));
+			if (entry.isDirectory()) {
+				scripts.push(...(await this.collectScriptEntries(entryPath)));
 				continue;
 			}
 
-			if (/\.script\.(?:ts|tsx)$/.test(directoryEntry.name)) {
-				scriptFiles.push(entryPath);
+			if (/\.script\.(?:ts|tsx)$/.test(entry.name)) {
+				scripts.push(entryPath);
 			}
 		}
 
-		return scriptFiles;
+		return scripts;
 	}
 
-	private async resolveIntrinsicCustomElementAsset(scriptFile: string): Promise<ProcessedAsset | undefined> {
+	private async resolveCustomElementAsset(scriptFile: string): Promise<ProcessedAsset | undefined> {
 		if (!this.assetProcessingService) {
 			return undefined;
 		}
 
-		const [processedAsset] = await this.assetProcessingService.processDependencies(
+		const [asset] = await this.assetProcessingService.processDependencies(
 			[
 				AssetFactory.createFileScript({
 					filepath: scriptFile,
@@ -331,17 +346,25 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 					},
 				}),
 			],
-			`${this.name}:intrinsic-custom-elements:${scriptFile}`,
+			`${this.name}:custom-elements:${scriptFile}`,
 		);
 
-		return processedAsset;
+		return asset;
 	}
 
-	private async extractIntrinsicCustomElementTagNames(scriptFile: string): Promise<string[]> {
+	private async extractCustomElementTagNames(scriptFile: string): Promise<string[]> {
 		const source = await readFile(scriptFile, 'utf8');
 		const tagNames = new Set<string>();
 
 		for (const match of source.matchAll(/@customElement\(\s*['"]([^'"]+)['"]/g)) {
+			const tagName = match[1];
+
+			if (tagName) {
+				tagNames.add(tagName);
+			}
+		}
+
+		for (const match of source.matchAll(/customElement\(\s*['"]([^'"]+)['"]\s*\)\s*\(/g)) {
 			const tagName = match[1];
 
 			if (tagName) {
@@ -354,6 +377,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 }
 
 /**
- * Creates the JSX integration plugin.
+ * Creates the JSX integration plugin with resolved defaults.
  */
-export const ecopagesJsxPlugin = (options?: EcopagesJsxPluginOptions) => new EcopagesJsxPlugin(options);
+export const ecopagesJsxPlugin = (options?: EcopagesJsxPluginOptions) =>
+	new EcopagesJsxPlugin(options);

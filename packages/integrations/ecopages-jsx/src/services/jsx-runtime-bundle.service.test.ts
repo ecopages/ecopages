@@ -53,6 +53,7 @@ test('JsxRuntimeBundleService excludes server-only Radiant subpaths from the bro
 	const service = new JsxRuntimeBundleService({ radiant: true });
 	const specifierMap = await service.getSpecifierMap();
 
+	assert.equal('@ecopages/jsx/server' in specifierMap, false);
 	assert.equal(
 		specifierMap['@ecopages/radiant/decorators/custom-element'],
 		'/assets/vendors/ecopages-radiant-esm.js',
@@ -66,9 +67,21 @@ test('JsxRuntimeBundleService excludes server-only Radiant subpaths from the bro
 test('JsxRuntimeBundleService builds the Radiant vendor from curated browser-safe subpaths', async () => {
 	const service = new JsxRuntimeBundleService({ radiant: true, rootDir: repoRoot });
 	const dependencies = await service.getDependencies();
+	const jsxDependency = dependencies.find(
+		(dependency) => dependency.source === 'node-module' && dependency.name === 'ecopages-jsx-esm',
+	);
 	const radiantDependency = dependencies.find(
 		(dependency) => dependency.source === 'node-module' && dependency.name === 'ecopages-radiant-esm',
 	);
+
+	assert.ok(jsxDependency && jsxDependency.source === 'node-module');
+	assert.match(jsxDependency.importPath, /ecopages-jsx-esm-entry\.mjs$/);
+
+	const jsxEntrySource = readFileSync(jsxDependency.importPath, 'utf8');
+
+	assert.match(jsxEntrySource, /export \* from '.*node_modules\/@ecopages\/jsx\/dist\/index\.js';/);
+	assert.doesNotMatch(jsxEntrySource, /assets\/vendors\/ecopages-jsx-esm/);
+	assert.doesNotMatch(jsxEntrySource, /@ecopages\/jsx\/server/);
 
 	assert.ok(radiantDependency && radiantDependency.source === 'node-module');
 	assert.match(radiantDependency.importPath, /ecopages-radiant-esm-entry\.mjs$/);

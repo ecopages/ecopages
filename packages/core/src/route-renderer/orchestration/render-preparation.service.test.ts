@@ -283,4 +283,70 @@ describe('RenderPreparationService', () => {
 
 		expect(setProcessedDependencies).toHaveBeenCalledWith([eagerSsrLazyAsset]);
 	});
+
+	it('skips undefined component entries while collecting integration dependencies and triggers', async () => {
+		const integrationDependency = {
+			kind: 'script',
+			srcUrl: '/assets/react-runtime.js',
+			position: 'head',
+		} as ProcessedAsset;
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [
+				{
+					name: 'react',
+					initializeRenderer: vi.fn(),
+					getResolvedIntegrationDependencies: () => [integrationDependency],
+				},
+			],
+		} as unknown as EcoPagesAppConfig;
+		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
+		Nested.config = {
+			integration: 'react',
+			__eco: { id: 'nested', file: '/app/components/nested.tsx', integration: 'react' },
+		};
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+		Page.config = {
+			dependencies: {
+				components: [undefined, Nested] as unknown as EcoComponent[],
+			},
+		};
+		const setProcessedDependencies = vi.fn();
+
+		await expect(
+			service.prepare(
+				{ file: '/app/pages/404.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+				'ghtml',
+				{
+					resolvePageModule: async () => ({
+						Page,
+						integrationSpecificProps: {},
+					}),
+					getHtmlTemplate: async () => HtmlTemplate,
+					resolvePageData: async () => ({
+						props: {},
+						metadata: { title: '404', description: 'Not found' },
+					}),
+					resolveDependencies: async () => [],
+					buildRouteRenderAssets: async () => [],
+					shouldRenderPageComponent: () => false,
+					renderPageComponent: vi.fn(),
+					setProcessedDependencies,
+					dedupeProcessedAssets: (assets) => assets,
+					createPageLocalsProxy: () => ({}),
+				},
+			),
+		).resolves.toEqual(
+			expect.objectContaining({
+				Page,
+			}),
+		);
+
+		expect(setProcessedDependencies).toHaveBeenCalledWith([integrationDependency]);
+	});
 });

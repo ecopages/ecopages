@@ -517,6 +517,44 @@ describe('IntegrationRenderer', () => {
 		expect(foreignRenderer.renderComponentBoundary).toHaveBeenCalledTimes(1);
 	});
 
+	it('should stop boundary delegation when the resolved owner renderer is the current renderer', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: {
+				...AppConfig,
+				integrations: [
+					{
+						name: 'foreign-renderer',
+						initializeRenderer: () => renderer,
+					} as unknown as EcoPagesAppConfig['integrations'][number],
+				],
+			} as EcoPagesAppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
+		ForeignComponent.config = {
+			integration: 'foreign-renderer',
+			__eco: {
+				id: 'foreign-component',
+				file: '/app/components/foreign-component.tsx',
+				integration: 'foreign-renderer',
+			},
+		};
+
+		const rendererCache = new Map<string, IntegrationRenderer<any>>();
+		const result = await renderer.testResolveBoundaryInOwningRenderer(
+			{
+				component: ForeignComponent,
+				props: { label: 'foreign' },
+				integrationContext: { rendererCache },
+			},
+			rendererCache,
+		);
+
+		expect(result).toBeUndefined();
+	});
+
 	it('should prefer processed lazy script srcUrl for _resolvedLazyTriggers', async () => {
 		let capturedDeps: unknown[] = [];
 		const LazySrcUrl = '/assets/_hmr/components/lit-counter/lit-counter.script.js';

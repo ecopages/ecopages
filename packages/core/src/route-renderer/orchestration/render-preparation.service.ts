@@ -198,6 +198,10 @@ export class RenderPreparationService {
 	): ResolvedLazyTrigger[] {
 		const triggers: ResolvedLazyTrigger[] = [];
 		for (const comp of components) {
+			if (!comp) {
+				continue;
+			}
+
 			const ecoComp = comp as EcoComponent;
 			if (seen.has(ecoComp)) {
 				continue;
@@ -261,6 +265,10 @@ export class RenderPreparationService {
 		const integrationNames = new Set<string>();
 
 		for (const comp of components) {
+			if (!comp) {
+				continue;
+			}
+
 			const ecoComp = comp as EcoComponent;
 			if (seen.has(ecoComp)) {
 				continue;

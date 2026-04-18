@@ -14,6 +14,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 - Consolidated runtime state around shared module-loading services, app-owned build execution, and the universal `createApp()` boundary.
 - Simplified route-renderer orchestration around renderer-owned boundary runtimes, shared string-boundary queue helpers, and a smaller component render context.
+- Centralized shared integration renderer bootstrapping so package integrations only append renderer-specific config instead of duplicating core lifecycle wiring.
 - Removed marker-era compatibility capture, the shared route-level fallback resolver, deprecated `@ecopages/core/node*` escape hatches, and other dead route-renderer internals.
 
 ### Bug Fixes
@@ -23,6 +24,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Fixed request-time and static-generation page inspection to preserve integration-specific page loading without reusing the normal render module identity.
 - Fixed Node preview and static-generation React runtime resolution so app-owned page modules and server rendering share one React module identity.
 - Fixed Bun HMR script output normalization so multi-entrypoint browser builds preserve the expected outbase-relative source paths for emitted files.
+- Fixed render-preparation graph traversal so sparse component dependency arrays do not break custom 404 rendering or file-system response fallback flows.
 
 ### Documentation
 
@@ -31,6 +33,7 @@ All notable changes to `@ecopages/core` are documented here.
 ### Tests
 
 - Added regression coverage for app-owned runtime services, Node fallback paths, and cross-runtime invalidation behavior.
+- Strengthened the core ghtml integration tests so route and explicit render paths await real outcomes and cover `renderToResponse` behavior.
 
 ---
 

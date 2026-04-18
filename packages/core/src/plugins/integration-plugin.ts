@@ -222,14 +222,9 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Instantiates the integration renderer with app-owned services.
-	 *
-	 * @remarks
-	 * Renderers are cheap runtime objects. They receive the finalized app config,
-	 * a fresh asset-processing service, integration-global processed assets, and
-	 * any renderer module context supplied by the active runtime.
+	 * Creates the shared renderer options owned by core lifecycle setup.
 	 */
-	initializeRenderer(options?: { rendererModules?: unknown }): IntegrationRenderer<C> {
+	protected createRendererOptions(options?: { rendererModules?: unknown }) {
 		if (!this.appConfig) {
 			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 		}
@@ -239,20 +234,43 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 			assetProcessingService.setHmrManager(this.hmrManager);
 		}
 
-		const renderer = new this.renderer({
+		return {
 			appConfig: this.appConfig,
 			assetProcessingService,
 			resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
 			rendererModules: options?.rendererModules,
 			runtimeOrigin: this.runtimeOrigin,
-		});
-		renderer.name ||= this.name;
+		};
+	}
+
+	/**
+	 * Attaches runtime-only services after a renderer instance has been created.
+	 */
+	protected attachRendererRuntimeServices<T extends IntegrationRenderer<C>>(renderer: T): T {
+		if (typeof renderer.name !== 'string' || renderer.name.length === 0) {
+			renderer.name = this.name;
+		}
 
 		if (this.hmrManager) {
 			renderer.setHmrManager(this.hmrManager);
 		}
 
 		return renderer;
+	}
+
+	/**
+	 * Instantiates the integration renderer with app-owned services.
+	 *
+	 * @remarks
+	 * Renderers are cheap runtime objects. They receive the finalized app config,
+	 * a fresh asset-processing service, integration-global processed assets, and
+	 * any renderer module context supplied by the active runtime.
+			renderer.name ||= this.name;
+	 */
+	initializeRenderer(options?: { rendererModules?: unknown }): IntegrationRenderer<C> {
+		const renderer = new this.renderer(this.createRendererOptions(options));
+		renderer.name ||= this.name;
+		return this.attachRendererRuntimeServices(renderer);
 	}
 
 	/**

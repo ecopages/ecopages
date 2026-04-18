@@ -26,7 +26,8 @@ function collectPackageManifestPaths(relativeDir: string): string[] {
 
 	return readdirSync(dirPath, { withFileTypes: true })
 		.filter((entry) => entry.isDirectory())
-		.map((entry) => path.posix.join(relativeDir, entry.name, 'package.json'));
+		.map((entry) => path.posix.join(relativeDir, entry.name, 'package.json'))
+		.filter((manifestPath) => existsSync(resolveRepoPath(manifestPath)));
 }
 
 function collectCorePeerPackagePaths(): string[] {

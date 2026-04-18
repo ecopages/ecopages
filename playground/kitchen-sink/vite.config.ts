@@ -4,9 +4,7 @@ import { ecopages } from '@ecopages/vite-plugin';
 import appConfig from './eco.config';
 
 const configRoot = import.meta.dirname;
-const generatedDirs = ['.e2e', process.env.ECOPAGES_DIST_DIR, process.env.ECOPAGES_WORK_DIR].filter(
-	(value): value is string => typeof value === 'string' && value.length > 0,
-);
+const generatedDirs = ['.e2e', 'dist', '.eco'];
 
 function toPosixPath(value: string) {
 	return value.split(path.sep).join('/');

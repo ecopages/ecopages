@@ -1,67 +1,71 @@
+import path from 'node:path';
 import { availableParallelism } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 
+const repoRootDir = path.dirname(fileURLToPath(import.meta.url));
 const coreE2ePort = 43102;
 const corePostcssE2ePort = 43108;
 const kitchenSinkDir = 'playground/kitchen-sink';
+const isolatedAppLauncher = 'node scripts/playwright/run-isolated-app.mjs';
 const kitchenSinkTestMatch = `${kitchenSinkDir}/e2e/**/*.test.e2e.ts`;
 const kitchenSinkPreviewMatch = `${kitchenSinkDir}/e2e/**/*.preview.test.e2e.ts`;
 const kitchenSinkStatefulTestMatch = `${kitchenSinkDir}/e2e/includes-hmr.test.e2e.ts`;
 
-function withKitchenSinkDirs(command: string, distDir: string, workDir: string) {
-	return `export ECOPAGES_DIST_DIR=${distDir} ECOPAGES_WORK_DIR=${workDir}; ${command}`;
+function buildIsolatedAppCommand(options: {
+	sourceDir: string;
+	host: 'ecopages' | 'vite';
+	mode: 'dev' | 'preview';
+	port: number;
+	runtime: 'bun' | 'node';
+	workspace: string;
+}) {
+	return `${isolatedAppLauncher} --sourceDir ${options.sourceDir} --workspace ${options.workspace} --host ${options.host} --runtime ${options.runtime} --mode ${options.mode} --port ${options.port}`;
 }
 
+type KitchenSinkProjectConfig = {
+	name: string;
+	port: number;
+	host: 'ecopages' | 'vite';
+	runtime: 'bun' | 'node';
+	mode: 'dev' | 'preview';
+	workspace: string;
+	testMatch: string;
+	testIgnore?: string[];
+	workers?: number;
+};
+
+const kitchenSinkSourceDir = 'playground/kitchen-sink';
 const kitchenSinkVariants = [
 	{
-		projectName: 'kitchen-sink-bun-e2e',
-		previewProjectName: 'kitchen-sink-preview-bun-e2e',
+		baseName: 'kitchen-sink-bun',
 		devPort: 4007,
+		hmrPort: 4016,
 		previewPort: 4008,
-		devCommand: withKitchenSinkDirs(
-			'NODE_ENV=development pnpm exec ecopages dev --runtime bun --port 4007',
-			'.e2e/kitchen-sink-bun/dist',
-			'.e2e/kitchen-sink-bun/work',
-		),
-		previewCommand: withKitchenSinkDirs(
-			'NODE_ENV=production pnpm exec ecopages build --runtime bun && pnpm exec ecopages preview --runtime bun --port 4008',
-			'.e2e/kitchen-sink-preview-bun/dist',
-			'.e2e/kitchen-sink-preview-bun/work',
-		),
+		host: 'ecopages',
+		runtime: 'bun',
 	},
 	{
-		projectName: 'kitchen-sink-node-e2e',
-		previewProjectName: 'kitchen-sink-preview-node-e2e',
+		baseName: 'kitchen-sink-node',
 		devPort: 4010,
+		hmrPort: 4018,
 		previewPort: 4011,
-		devCommand: withKitchenSinkDirs(
-			'NODE_ENV=development pnpm exec ecopages dev --runtime node --port 4010',
-			'.e2e/kitchen-sink-node/dist',
-			'.e2e/kitchen-sink-node/work',
-		),
-		previewCommand: withKitchenSinkDirs(
-			'NODE_ENV=production pnpm exec ecopages build --runtime node && pnpm exec ecopages preview --runtime node --port 4011',
-			'.e2e/kitchen-sink-preview-node/dist',
-			'.e2e/kitchen-sink-preview-node/work',
-		),
+		host: 'ecopages',
+		runtime: 'node',
 	},
 	{
-		projectName: 'kitchen-sink-vite-node-e2e',
+		baseName: 'kitchen-sink-vite-node',
 		devPort: 4012,
-		devCommand: withKitchenSinkDirs(
-			'ECOPAGES_KITCHEN_SINK_HOST=vite pnpm exec vite dev --port 4012 --logLevel silent',
-			'.e2e/kitchen-sink-vite-node/dist',
-			'.e2e/kitchen-sink-vite-node/work',
-		),
+		hmrPort: 4020,
+		host: 'vite',
+		runtime: 'node',
 	},
 	{
-		projectName: 'kitchen-sink-vite-bun-e2e',
+		baseName: 'kitchen-sink-vite-bun',
 		devPort: 4014,
-		devCommand: withKitchenSinkDirs(
-			'ECOPAGES_KITCHEN_SINK_HOST=vite bunx vite dev --port 4014 --logLevel silent',
-			'.e2e/kitchen-sink-vite-bun/dist',
-			'.e2e/kitchen-sink-vite-bun/work',
-		),
+		hmrPort: 4022,
+		host: 'vite',
+		runtime: 'bun',
 	},
 ] as const;
 const reactPlaygroundE2ePort = 43101;
@@ -73,22 +77,47 @@ const selectedProjects = new Set(
 		.filter(Boolean),
 );
 
-const includeStatefulKitchenSinkTests =
-	process.env.ECOPAGES_INCLUDE_STATEFUL_KITCHEN_SINK_TESTS === 'true' ||
-	process.argv.some((arg) => arg.includes('includes-hmr.test.e2e.ts'));
-const kitchenSinkDevTestIgnore = includeStatefulKitchenSinkTests
-	? [kitchenSinkPreviewMatch]
-	: [kitchenSinkPreviewMatch, kitchenSinkStatefulTestMatch];
-const kitchenSinkPreviewTestIgnore: string[] = [];
 const maxAvailableWorkers = availableParallelism();
 const defaultWorkerCount = maxAvailableWorkers > 1 ? maxAvailableWorkers : 1;
+const kitchenSinkProjects: KitchenSinkProjectConfig[] = kitchenSinkVariants.flatMap((variant) => {
+	const projects: KitchenSinkProjectConfig[] = [
+		{
+			name: `${variant.baseName}-e2e`,
+			port: variant.devPort,
+			host: variant.host,
+			runtime: variant.runtime,
+			mode: 'dev',
+			workspace: `${variant.baseName}-dev`,
+			testMatch: kitchenSinkTestMatch,
+			testIgnore: [kitchenSinkPreviewMatch, kitchenSinkStatefulTestMatch],
+			workers: defaultWorkerCount,
+		},
+		{
+			name: `${variant.baseName}-hmr-e2e`,
+			port: variant.hmrPort,
+			host: variant.host,
+			runtime: variant.runtime,
+			mode: 'dev',
+			workspace: `${variant.baseName}-hmr`,
+			testMatch: kitchenSinkStatefulTestMatch,
+			workers: 1,
+		},
+	];
 
-const kitchenSinkWithPreview = kitchenSinkVariants.filter(
-	(
-		variant,
-	): variant is typeof variant & { previewProjectName: string; previewPort: number; previewCommand: string } =>
-		'previewProjectName' in variant,
-);
+	if ('previewPort' in variant && variant.previewPort) {
+		projects.push({
+			name: `${variant.baseName}-preview-e2e`,
+			port: variant.previewPort,
+			host: variant.host,
+			runtime: variant.runtime,
+			mode: 'preview',
+			workspace: `${variant.baseName}-preview`,
+			testMatch: kitchenSinkPreviewMatch,
+		});
+	}
+
+	return projects;
+});
 
 type WebServerConfig = {
 	command: string;
@@ -187,20 +216,18 @@ const webServers: WebServerConfig[] = [
 		stdout: 'pipe',
 		stderr: 'pipe',
 	},
-	...kitchenSinkVariants.map((variant) => ({
-		command: variant.devCommand,
-		cwd: kitchenSinkDir,
-		port: variant.devPort,
-		projects: [variant.projectName],
-		reuseExistingServer,
-		stdout: 'pipe' as const,
-		stderr: 'pipe' as const,
-	})),
-	...kitchenSinkWithPreview.map((variant) => ({
-		command: variant.previewCommand,
-		cwd: kitchenSinkDir,
-		port: variant.previewPort,
-		projects: [variant.previewProjectName],
+	...kitchenSinkProjects.map((project) => ({
+		command: buildIsolatedAppCommand({
+			sourceDir: kitchenSinkSourceDir,
+			workspace: project.workspace,
+			host: project.host,
+			runtime: project.runtime,
+			mode: project.mode,
+			port: project.port,
+		}),
+		cwd: '.',
+		port: project.port,
+		projects: [project.name],
 		reuseExistingServer,
 		stdout: 'pipe' as const,
 		stderr: 'pipe' as const,
@@ -295,24 +322,17 @@ export default defineConfig({
 				baseURL: `http://localhost:${reactPlaygroundE2ePort}`,
 			},
 		},
-		...kitchenSinkVariants.map((variant) => ({
-			name: variant.projectName,
-			testMatch: kitchenSinkTestMatch,
-			testIgnore: kitchenSinkDevTestIgnore,
-			workers: 1,
-			use: {
-				...devices['Desktop Chrome'],
-				baseURL: `http://localhost:${variant.devPort}`,
+		...kitchenSinkProjects.map((project) => ({
+			name: project.name,
+			testMatch: project.testMatch,
+			testIgnore: project.testIgnore,
+			workers: project.workers,
+			metadata: {
+				isolatedAppDir: path.join(repoRootDir, '.e2e-tmp', project.workspace),
 			},
-		})),
-		...kitchenSinkWithPreview.map((variant) => ({
-			name: variant.previewProjectName,
-			testMatch: kitchenSinkPreviewMatch,
-			testIgnore: kitchenSinkPreviewTestIgnore,
-			workers: 1,
 			use: {
 				...devices['Desktop Chrome'],
-				baseURL: `http://localhost:${variant.previewPort}`,
+				baseURL: `http://localhost:${project.port}`,
 			},
 		})),
 	],

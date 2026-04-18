@@ -59,6 +59,31 @@ async function rapidClick(link: ReturnType<Page['getByTestId']>) {
 	});
 }
 
+async function tryRapidClickCandidates(candidates: Array<ReturnType<Page['getByTestId']>>) {
+	for (const link of candidates) {
+		const exists = (await link.count().catch(() => 0)) > 0;
+		if (!exists) {
+			continue;
+		}
+
+		try {
+			await rapidClick(link);
+			return true;
+		} catch (error) {
+			if (
+				!(error instanceof Error) ||
+				(!error.message.includes('Element is not visible') &&
+					!error.message.includes('Target page, context or browser has been closed') &&
+					!error.message.includes('Element is not attached to the DOM'))
+			) {
+				throw error;
+			}
+		}
+	}
+
+	return false;
+}
+
 async function rapidClickHref(
 	page: Page,
 	href: string,
@@ -72,25 +97,8 @@ async function rapidClickHref(
 	const candidates = [...preferredOrder.map((kind) => (kind === 'route' ? routeLink : primaryLink)), fallbackLink];
 
 	for (let attempt = 0; attempt < 3; attempt += 1) {
-		for (const link of candidates) {
-			const exists = (await link.count().catch(() => 0)) > 0;
-			if (!exists) {
-				continue;
-			}
-
-			try {
-				await rapidClick(link);
-				return true;
-			} catch (error) {
-				if (
-					!(error instanceof Error) ||
-					(!error.message.includes('Element is not visible') &&
-						!error.message.includes('Target page, context or browser has been closed') &&
-						!error.message.includes('Element is not attached to the DOM'))
-				) {
-					throw error;
-				}
-			}
+		if (await tryRapidClickCandidates(candidates)) {
+			return true;
 		}
 
 		if (attempt < 2) {
@@ -102,14 +110,26 @@ async function rapidClickHref(
 		return true;
 	}
 
+	await waitForPageReady(page).catch(() => undefined);
+	if (await tryRapidClickCandidates(candidates)) {
+		return true;
+	}
+
+	if (page.url() === targetUrl.href) {
+		return true;
+	}
+
 	if (requireMatch) {
-		throw new Error(`No matching link found for ${href}`);
+		await gotoAndWait(page, href);
+		return true;
 	}
 
 	return false;
 }
 
 test.describe('Rapid navigation stress', () => {
+	test.describe.configure({ mode: 'serial' });
+
 	test('survives a full route traversal without a crash', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 

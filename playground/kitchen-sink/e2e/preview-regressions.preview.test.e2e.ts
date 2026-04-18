@@ -1,6 +1,82 @@
 import { expect, test } from '@playwright/test';
 import { gotoAndWait, incrementCounter, trackRuntimeErrors } from './helpers';
 
+async function requestUntilOk(request: Parameters<typeof test>[0]['request'], href: string) {
+	let lastStatus = 0;
+
+	await expect
+		.poll(
+			async () => {
+				try {
+					const response = await request.get(href);
+					lastStatus = response.status();
+					return response.ok() ? response.status() : 0;
+				} catch {
+					lastStatus = 0;
+					return 0;
+				}
+			},
+			{
+				intervals: [100, 200, 350, 500],
+				timeout: 10000,
+			},
+		)
+		.toBe(200);
+
+	const response = await request.get(href);
+	expect(response.ok(), `${href} should respond with a successful status after preview warmup; last status was ${lastStatus}`).toBe(true);
+	return response;
+}
+
+async function requestUntilContains(
+	request: Parameters<typeof test>[0]['request'],
+	href: string,
+	text: string,
+) {
+	await expect
+		.poll(
+			async () => {
+				try {
+					const response = await requestUntilOk(request, href);
+					const body = await response.text();
+					return body.includes(text);
+				} catch {
+					return false;
+				}
+			},
+			{
+				intervals: [100, 200, 350, 500],
+				timeout: 10000,
+			},
+		)
+		.toBe(true);
+}
+
+async function waitForReactPageHydration(page: Parameters<typeof test>[0]['page']) {
+	await page.waitForFunction(() => !!window.__ECO_PAGES__?.react?.pageRoot, null, {
+		timeout: 10000,
+	});
+}
+
+async function gotoAndWaitForHeading(page: Parameters<typeof test>[0]['page'], href: string, heading: string) {
+	await expect
+		.poll(
+			async () => {
+				try {
+					await gotoAndWait(page, href);
+					return ((await page.getByRole('heading', { name: heading }).textContent()) ?? '').trim();
+				} catch {
+					return '';
+				}
+			},
+			{
+				intervals: [100, 200, 350, 500],
+				timeout: 10000,
+			},
+		)
+		.toBe(heading);
+}
+
 test.describe('Kitchen Sink Preview Regressions', () => {
 	test('serves preview CSS with the expected selectors', async ({ request, page }) => {
 		const tailwindResponse = await request.get('/assets/styles/tailwind.css');
@@ -39,18 +115,20 @@ test.describe('Kitchen Sink Preview Regressions', () => {
 	});
 
 	test('keeps React preview vendors available and hydration interactive', async ({ request, page }) => {
-		const reactVendorResponse = await request.get('/assets/vendors/react.js');
+		const reactVendorResponse = await requestUntilOk(request, '/assets/vendors/react.js');
 		expect(reactVendorResponse.ok()).toBe(true);
 		expect(reactVendorResponse.headers()['content-type']).toContain('javascript');
 
-		const reactDomVendorResponse = await request.get('/assets/vendors/react-dom.js');
+		const reactDomVendorResponse = await requestUntilOk(request, '/assets/vendors/react-dom.js');
 		expect(reactDomVendorResponse.ok()).toBe(true);
 		expect(reactDomVendorResponse.headers()['content-type']).toContain('javascript');
+		await requestUntilContains(request, '/react-lab', 'React Page Route');
 
 		const runtime = trackRuntimeErrors(page);
-		await gotoAndWait(page, '/react-lab');
+		await gotoAndWaitForHeading(page, '/react-lab', 'React Page Route');
 		await expect(page.getByRole('heading', { name: 'React Page Route' })).toBeVisible();
 		await expect(page.locator('[data-react-value]')).toHaveText('0');
+		await waitForReactPageHydration(page);
 		await incrementCounter(page.locator('[data-react-inc]'), page.locator('[data-react-value]'), '1');
 		runtime.assertClean();
 	});

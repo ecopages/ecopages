@@ -9,6 +9,7 @@ All notable changes to `@ecopages/react` are documented here.
 ### Bug Fixes
 
 - Fixed React hydration, Fast Refresh, module loading, doctype handling, island asset reuse, and mixed-renderer boundary resolution across Bun, Vite, and Nitro flows.
+- Restored direct `ReactPlugin` construction so the exported class still accepts the public plugin options shape.
 
 ### Features
 
@@ -17,6 +18,16 @@ All notable changes to `@ecopages/react` are documented here.
 ### Refactoring
 
 - Consolidated React bundling, hydration, and runtime state behind shared service boundaries and `window.__ECO_PAGES__`.
+- Moved React plugin option/default resolution into the factory and replaced renderer static config with instance-owned runtime wiring.
+- Extracted React page-payload and locals serialization into a dedicated service to keep the renderer focused on orchestration.
+- Centralized recursive React component-config traversal so module discovery and MDX SSR-lazy asset collection no longer reimplement graph walking.
+- Moved MDX config dependency resolution out of the renderer into a dedicated React service.
+- Collected shared React plugin and renderer config types into a dedicated module while keeping renderer-local runtime types close to implementation.
+
+### Tests
+
+- Added Vitest browser coverage for the React `dynamic()` utility using React Testing Library.
+- Added browser execution coverage for the generated React hydration bootstrap, including router ownership registration and page-root cleanup.
 
 ### Documentation
 

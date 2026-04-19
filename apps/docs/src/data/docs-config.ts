@@ -67,6 +67,7 @@ export const docsConfig: DocsConfig = {
 				{ title: 'React', slug: 'react' },
 				{ title: 'Lit', slug: 'lit' },
 				{ title: 'Mdx', slug: 'mdx' },
+				{ title: 'Ecopages JSX', slug: 'ecopages-jsx' },
 			],
 		},
 		{

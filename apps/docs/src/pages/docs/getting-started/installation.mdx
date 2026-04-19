@@ -13,28 +13,30 @@ export const getMetadata = () => ({
 
 ## Installation
 
-To create a new Ecopages project, you can install the core package and desired integrations using Bun:
+To create a new Ecopages project, install the core package plus the rendering integration you want to start with. The example below uses Ecopages JSX for standard `.tsx` routes.
 
 <CodeTabs
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx' },
-		{ id: 'npm', label: 'npm', code: 'npx jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx' },
-		{ id: 'bun', label: 'bun', code: 'bunx jsr add @ecopages/core @ecopages/kitajs @ecopages/mdx' },
+    {
+      id: 'pnpm',
+      label: 'pnpm',
+      code: 'pnpm add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+    },
+    {
+      id: 'npm',
+      label: 'npm',
+      code: 'npm install @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+    },
+    {
+      id: 'bun',
+      label: 'bun',
+      code: 'bun add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+    },
 	]}
 	defaultSelectedKey="pnpm"
 />
 
-<Banner type="info">
-  <Banner.Title>JSR Configuration</Banner.Title>
-  <p>
-    To install packages from the JSR registry, you'll need to configure your npmrc. Create an `.npmrc` file in your project root with the following content:
-  </p>
-  ```properties
-  @jsr:registry=https://npm.jsr.io
-  ```
-</Banner>
-
-This example installs the core package along with the KitaJS and MDX integrations. You can add or remove integrations based on your project needs.
+This example installs the core package along with the Ecopages JSX integration and its peer runtimes. You can swap in KitaJS, React, Lit, or standalone MDX instead depending on the route ownership model you want.
 
 ## Configuration
 
@@ -43,8 +45,7 @@ After installation, create an `eco.config.ts` file in your project's root direct
 ```typescript
 // filepath: eco.config.ts
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { kitajsPlugin } from '@ecopages/kitajs';
-import { mdxPlugin } from '@ecopages/mdx';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 const appRoot = process.cwd();
 
@@ -55,7 +56,7 @@ const config = await new ConfigBuilder()
 	// If omitted, it defaults to http://localhost:3000 during development.
 	// Can be overridden by the ECOPAGES_BASE_URL environment variable.
 	.setBaseUrl('https://your-production-domain.com')
-	.setIntegrations([kitajsPlugin(), mdxPlugin()])
+  .setIntegrations([ecopagesJsxPlugin()])
 	.build();
 
 export default config;
@@ -105,10 +106,10 @@ my-project/
 
 ```
 
-- `src/pages/`: Contains your page files (e.g., `.mdx`, `.kita.tsx`, `.lit.tsx`)
+- `src/pages/`: Contains your page files (e.g., `.tsx`, `.mdx`, `.kita.tsx`, `.lit.tsx`)
 - `src/layouts/`: Holds layout components
 - `src/components/`: Stores reusable components
-- `src/includes/`: Contains include templates (e.g., `head.kita.tsx`, `html.kita.tsx`)
+- `src/includes/`: Contains include templates (e.g., `head.tsx`, `html.tsx` or integration-specific suffixes)
 - `public/`: Static assets that will be copied to the build directory
 - `app.ts`: The main script to run Ecopages commands.
 - `eco.config.ts`: Ecopages configuration file.

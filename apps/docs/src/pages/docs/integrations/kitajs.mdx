@@ -13,37 +13,40 @@ export const getMetadata = () => ({
 
 # KitaJS Integration
 
-The `@ecopages/kitajs` package provides seamless integration with [Kita](https://kitajs.org/html/), enabling effortless rendering of JSX templates within the Ecopages framework.
+The `@ecopages/kitajs` package integrates [KitaJS HTML](https://kitajs.org/html/) into Ecopages. Use it when Kita should own `.kita.tsx` page shells and HTML-first routes.
+
+<Banner type="info">
+	<Banner.Title>Looking for Ecopages JSX?</Banner.Title>
+	<p>
+		Use <a href="/docs/integrations/ecopages-jsx">Ecopages JSX Integration</a> when Ecopages should own standard <code>.tsx</code> routes, runtime bundling, and optional Radiant hydration. KitaJS remains the HTML-first option for <code>.kita.tsx</code> shells.
+	</p>
+</Banner>
 
 
 
 ## Installation
 
-To install the KitaJS integration plugin, run the following command in your project directory:
+Install the integration package:
 
 <CodeTabs
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx jsr add @ecopages/kitajs' },
-		{ id: 'npm', label: 'npm', code: 'npx jsr add @ecopages/kitajs' },
-		{ id: 'bun', label: 'bun', code: 'bunx jsr add @ecopages/kitajs' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/kitajs' },
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/kitajs' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/kitajs' },
 	]}
 	defaultSelectedKey="pnpm"
 />
 
+Also install Kita's required peer packages in your app: `@kitajs/html` and `@kitajs/ts-html-plugin`.
+
 ## Usage
 
-To incorporate the KitaJS integration into your Ecopages project, follow these steps:
-
-1. Import the `kitajsPlugin` in your Ecopages configuration file:
+Register the `kitajsPlugin` in your Ecopages configuration:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { kitajsPlugin } from '@ecopages/kitajs';
-```
 
-2. Add the `kitajsPlugin` to your configuration:
-
-```typescript
 const appRoot = process.cwd();
 
 const config = await new ConfigBuilder()
@@ -55,9 +58,11 @@ const config = await new ConfigBuilder()
 export default config;
 ```
 
+By default, KitaJS owns `.kita.tsx` route files and renders them through `@kitajs/html`.
+
 ## Creating Pages with KitaJS
 
-Once the KitaJS integration is set up, you can create pages using JSX syntax. Here's an example of a basic page:
+Create routes with a `.kita.tsx` suffix so the Kita integration can claim them. For example, `src/pages/index.kita.tsx`:
 
 ```tsx
 import { BaseLayout } from '@/layouts/base-layout';
@@ -79,20 +84,20 @@ export default eco.page({
 
 ## Key Features
 
-1. **JSX Support**: Write your templates using JSX syntax, which is familiar to React developers.
-2. **Component-based Architecture**: Create reusable components and import them into your pages.
-3. **Metadata Management**: Use the `getMetadata` function to define page-specific metadata.
-4. **Dependency Management**: Specify component dependencies in the `config` object for proper rendering and optimization.
+- **HTML-first JSX**: Kita renders JSX to HTML strings through `@kitajs/html`.
+- **Owned route suffixes**: Kita owns `.kita.tsx` routes rather than generic `.tsx` files.
+- **Outer-shell friendly**: Kita works well as the HTML-first shell in mixed-renderer apps.
+- **Dependency-driven rendering**: Declare nested component dependencies so Ecopages can preserve renderer ownership correctly.
 
 ## Best Practices
 
 1. **Layouts**: Create layout components (like `BaseLayout` in the example) to maintain consistent page structures.
-2. **Typing**: Utilize TypeScript types like `EcoComponent` and `GetMetadata` for better type checking and IDE support.
-3. **Config Object**: Always include the `config` object with any necessary dependencies for proper page rendering.
+2. **Route naming**: Use `.kita.tsx` for Kita-owned route files.
+3. **Dependency declarations**: Declare foreign child components in `config.dependencies.components` when mixing integrations.
 
 ## Integration with Other Plugins
 
-The KitaJS integration works well with other Ecopages plugins. For example, you can use it alongside the MDX plugin for markdown support:
+KitaJS works well with other Ecopages plugins. For example, you can pair it with the standalone MDX integration when MDX should compile against the same non-React JSX runtime:
 
 
 <Banner type="info" class='my-8'>

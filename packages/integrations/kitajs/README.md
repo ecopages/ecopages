@@ -5,7 +5,7 @@ Integration plugin for [KitaJS](https://kitajs.org/html/) HTML in Ecopages. Use 
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/kitajs
+bun add @ecopages/kitajs
 ```
 
 ## Usage

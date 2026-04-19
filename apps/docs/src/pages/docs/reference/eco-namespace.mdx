@@ -67,9 +67,7 @@ While `eco.component()` is the default, there are specific scenarios where light
 
 ### Simple JSX Functions (Optimization)
 
-For purely presentational components (static UI) that **do not require** client-side interactivity, scripts, or dedicated stylesheets, you can use plain JSX functions. This is a performance optimization that avoids the overhead of a custom element wrapper.
-
-Powered by [`@ecopages/kitajs`](https://github.com/ecopages/kitajs). Best used with utility-first CSS (Tailwind, UnoCSS) where styles are inline.
+For purely presentational components (static UI) that **do not require** client-side interactivity, scripts, or dedicated stylesheets, you can use plain JSX functions. This is a performance optimization that avoids the overhead of a custom element wrapper and works especially well with utility-first CSS where styles are expressed inline through class names.
 
 ```tsx
 import type { PropsWithChildren } from '@/types';

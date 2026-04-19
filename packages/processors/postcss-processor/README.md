@@ -12,7 +12,7 @@ PostCSS processing pipeline for Ecopages. It provides a processor plugin that se
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/postcss-processor
+bun add @ecopages/postcss-processor
 ```
 
 ## Usage

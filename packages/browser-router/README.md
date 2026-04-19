@@ -24,7 +24,7 @@ This package is designed for MPA-style rendering where the server returns full H
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/browser-router
+bun add @ecopages/browser-router
 ```
 
 ## Usage

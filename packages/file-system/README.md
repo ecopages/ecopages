@@ -11,7 +11,7 @@ Runtime-agnostic file system utilities for Ecopages that automatically select th
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/file-system
+bun add @ecopages/file-system
 ```
 
 ## Usage

@@ -16,31 +16,27 @@ The `@ecopages/lit` package provides seamless integration with [Lit](https://lit
 
 ## Installation
 
-To install the Lit integration plugin, run the following command in your project directory:
+Install the integration package:
 
 <CodeTabs
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx jsr add @ecopages/lit' },
-		{ id: 'npm', label: 'npm', code: 'npx jsr add @ecopages/lit' },
-		{ id: 'bun', label: 'bun', code: 'bunx jsr add @ecopages/lit' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/lit' },
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/lit' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/lit' },
 	]}
 	defaultSelectedKey="pnpm"
 />
 
+Also install Lit's required peer packages in your app: `lit`, `@lit-labs/ssr`, and `@lit-labs/ssr-client`.
+
 ## Usage
 
-To incorporate the Lit integration into your Ecopages project, follow these steps:
-
-1. Import the `litPlugin` in your Ecopages configuration file:
+Register the `litPlugin` in your Ecopages configuration:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { litPlugin } from '@ecopages/lit';
-```
 
-2. Add the `litPlugin` to your configuration:
-
-```typescript
 const appRoot = process.cwd();
 
 const config = await new ConfigBuilder()
@@ -54,16 +50,20 @@ export default config;
 
 ## Creating Components with Lit
  
-Once the Lit integration is set up, you can create components. Ecopages provides a `StyledMixin` to easily apply styles to your Lit components.
- 
-Thanks to the Ecopages PostCSS processor, you can import CSS files directly as strings, which is perfect for Lit's shadow DOM styles.
+Once the Lit integration is set up, you can create components. Ecopages provides a `StyledMixin` to attach string-based styles to your Lit components without any extra processor setup.
  
 ```typescript
 import { StyledMixin } from '@ecopages/lit/styled-mixin';
 import { html, LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-// Styles are imported as a string thanks to the PostCSS processor
-import styles from './lit-counter.css';
+
+const styles = `
+	:host {
+		display: inline-flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+`;
  
 @customElement('lit-counter')
 export class LitCounter extends StyledMixin(LitElement, [styles]) {
@@ -86,6 +86,8 @@ export class LitCounter extends StyledMixin(LitElement, [styles]) {
 	}
 }
 ```
+
+If you want to import CSS files as strings instead of inlining them, add the PostCSS processor in your app config. See the <a href="/docs/ecosystem/postcss-processor">PostCSS Processor</a> docs for the required setup.
 
 ## Create the Component Wrapper
 
@@ -153,7 +155,7 @@ export default eco.page({
 
 ## Integration with Other Plugins
 
-The Lit integration works well with other Ecopages plugins. For example, you can use it alongside the kitajs plugin to create reusable components in a jsx style.
+The Lit integration works well with other Ecopages plugins. For example, you can pair it with KitaJS when an HTML-first shell should host nested Lit custom elements.
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
@@ -165,7 +167,7 @@ const appRoot = process.cwd();
 const config = await new ConfigBuilder()
 	.setRootDir(appRoot)
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([litPlugin(), kitajsPlugin()])
+	.setIntegrations([kitajsPlugin(), litPlugin()])
 	.build();
 
 export default config;

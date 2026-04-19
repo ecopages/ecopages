@@ -4,7 +4,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(scriptDir, '..', '..');
+const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const runE2eScriptPath = path.join(scriptDir, 'run-e2e.mjs');
 const playwrightConfigPath = path.join(repoRoot, 'playwright.config.ts');
 

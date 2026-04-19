@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(scriptDir, '..', '..');
+const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const playwrightCliPath = require.resolve('@playwright/test/cli');
 const e2eTempDir = path.join(repoRoot, '.e2e-tmp');
 

@@ -1,0 +1,58 @@
+radiant-code-tabs {
+	@apply block w-full;
+}
+
+.code-tabs {
+	@apply flex h-full my-8 w-full flex-col items-stretch justify-between overflow-hidden rounded-sm border border-border bg-background-accent font-mono text-sm text-on-background shadow-xs;
+
+	&__list {
+		@apply flex items-center gap-1 border-b border-border/50 bg-background-accent/50 px-2 pt-2;
+	}
+
+	&__tab {
+		@apply border-b-2 border-transparent px-3 py-1.5 text-xs opacity-60 transition-colors;
+		@apply hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background-accent;
+
+		&[aria-selected='true'] {
+			@apply border-primary font-medium text-primary opacity-100;
+		}
+	}
+
+	&__panel {
+		@apply contents;
+	}
+
+	&__body {
+		@apply flex min-h-12 items-center justify-between gap-3 px-4 py-3;
+	}
+
+	&__code {
+		@apply min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[13px];
+	}
+
+	&__copy {
+		@apply inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-sm border border-border bg-background px-2 text-on-background transition-colors;
+		@apply hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background-accent;
+
+		&[data-copied='true'] {
+			@apply text-primary;
+		}
+	}
+
+	&__icon {
+		@apply inline-flex h-4 w-4 shrink-0 items-center justify-center text-current;
+
+		&::before {
+			content: '⧉';
+			@apply text-sm leading-none;
+		}
+
+		.code-tabs__copy[data-copied='true'] &::before {
+			content: '✓';
+		}
+	}
+
+	&__status {
+		@apply sr-only;
+	}
+}

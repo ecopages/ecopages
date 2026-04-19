@@ -1,1 +1,1 @@
-export * from './docs-layout.kita';
+export * from './docs-layout';

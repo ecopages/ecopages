@@ -1,4 +1,6 @@
-export const getGroupIcon = (name: string) => {
+import type { JsxRenderable } from '@ecopages/jsx';
+
+export const getGroupIcon = (name: string): JsxRenderable => {
 	switch (name) {
 		case 'Getting Started':
 			return (

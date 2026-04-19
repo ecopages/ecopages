@@ -11,6 +11,7 @@ import autoprefixer from 'autoprefixer';
 import browserslist from 'browserslist';
 import cssnano from 'cssnano';
 import path from 'node:path';
+import type postcss from 'postcss';
 import postcssImport from 'postcss-import';
 import postcssNested from 'postcss-nested';
 import type { PluginFactoryRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
@@ -65,10 +66,14 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 				overrideBrowserslist: ['>0.3%', 'not ie 11', 'not dead', 'not op_mini all'],
 			};
 
+	const createTailwindPlugin = (): postcss.AcceptedPlugin => {
+		return tailwindcss({ optimize: false }) as unknown as postcss.AcceptedPlugin;
+	};
+
 	const pluginFactories: PluginFactoryRecord = {
 		'postcss-import': () => postcssImport(),
 		'postcss-nested': () => postcssNested(),
-		'@tailwindcss/postcss': () => tailwindcss({ optimize: false }),
+		'@tailwindcss/postcss': createTailwindPlugin,
 		autoprefixer: () => autoprefixer(autoprefixerOptions),
 		cssnano: () => cssnano(),
 	};

@@ -1,13 +1,14 @@
 import type { EcoComponent } from '@ecopages/core';
-import { ApiField } from '@/components/api-field/api-field.kita';
+import { ApiField } from '@/components/api-field/api-field';
 import { docsConfig } from '@/data/docs-config';
 import { BaseLayout } from '@/layouts/base-layout';
-import { Banner } from '@/components/banner/banner.kita';
-import { getGroupIcon } from './get-group-icon.kita';
-import { CodeSnippetTabs } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
+import { Banner } from '@/components/banner/banner';
+import { getGroupIcon } from './get-group-icon';
+import { CodeTabs } from '@/components/code-tabs';
+import type { JsxRenderable } from '@ecopages/jsx';
 
 export type DocsLayoutProps = {
-	children: JSX.Element;
+	children: JsxRenderable;
 	class?: string;
 };
 
@@ -45,7 +46,7 @@ const DocsNavigation = () => {
 	);
 };
 
-export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children, class: className }) => {
+export const DocsLayout: EcoComponent<DocsLayoutProps, JsxRenderable> = ({ children, class: className }) => {
 	return (
 		<BaseLayout class={`docs-layout ${className ?? ''}`.trim()}>
 			<>
@@ -70,6 +71,6 @@ DocsLayout.config = {
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
 		scripts: ['./docs-layout.script.ts'],
-		components: [BaseLayout, ApiField, Banner, CodeSnippetTabs],
+		components: [BaseLayout, ApiField, Banner, CodeTabs],
 	},
 };

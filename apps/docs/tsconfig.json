@@ -5,7 +5,7 @@
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"jsx": "react-jsx",
-		"jsxImportSource": "@kitajs/html",
+		"jsxImportSource": "@ecopages/jsx",
 		"module": "ESNext",
 		"moduleResolution": "Bundler",
 		"noImplicitOverride": true,

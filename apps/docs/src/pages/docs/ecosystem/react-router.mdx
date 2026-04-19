@@ -1,6 +1,6 @@
-import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
+import { CodeTabs } from '@/components/code-tabs';
 import { DocsLayout } from '@/layouts/docs-layout';
-import { Banner } from '@/components/banner/banner.kita';
+import { Banner } from '@/components/banner/banner';
 
 export const config = {
   layout: DocsLayout,
@@ -32,23 +32,14 @@ The `@ecopages/react-router` package enables Single Page Application (SPA) navig
 
 ## Installation
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm add @ecopages/react-router
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npm install @ecopages/react-router
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bun add @ecopages/react-router
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/react-router' },
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/react-router' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/react-router' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 ## Setup
 

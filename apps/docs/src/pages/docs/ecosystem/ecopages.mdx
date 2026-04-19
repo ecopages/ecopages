@@ -1,6 +1,6 @@
-import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
+import { CodeTabs } from '@/components/code-tabs';
 import { DocsLayout } from '@/layouts/docs-layout';
-import { Banner } from '@/components/banner/banner.kita';
+import { Banner } from '@/components/banner/banner';
 
 export const config = {
   layout: DocsLayout,
@@ -30,43 +30,25 @@ It is best when you want:
 
 You can run the CLI directly with `bunx` (no global install required):
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages --help
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages --help
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages --help
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages --help' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages --help' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages --help' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 Or install it in a project:
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm add ecopages
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npm install ecopages
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bun add ecopages
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add ecopages' },
+		{ id: 'npm', label: 'npm', code: 'npm install ecopages' },
+		{ id: 'bun', label: 'bun', code: 'bun add ecopages' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 ## Initialize Projects
 
@@ -74,23 +56,14 @@ bun add ecopages
 
 Use the init command with a target directory, then optionally select a template:
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init my-app
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init my-app
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init my-app
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init my-app' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages init my-app' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages init my-app' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 ### One-Shot Commands (Complete)
 
@@ -98,207 +71,135 @@ Use these when you want a full bootstrap in one command chain.
 
 **Basic starter** - Creates a minimal Ecopages app with default setup. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/starter-jsx" target="_blank">starter-jsx</a>.
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init ecopages-app && cd ecopages-app && pnpm install && pnpm run dev
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init ecopages-app && cd ecopages-app && npm install && npm run dev
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init ecopages-app && cd ecopages-app && pnpm install && pnpm run dev' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages init ecopages-app && cd ecopages-app && npm install && npm run dev' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 **Blog with KitaJS** - Creates a content-focused blog using the `blog-jsx` template. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/blog-jsx" target="_blank">blog-jsx</a>.
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && pnpm install && pnpm run dev
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && npm install && npm run dev
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install && bun dev
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && pnpm install && pnpm run dev' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && npm install && npm run dev' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install && bun dev' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 **Blog with React** - Creates a React-powered blog with routing preconfigured. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/blog-react" target="_blank">blog-react</a>.
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init blog-react --template blog-react && cd blog-react && pnpm install && pnpm run dev
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init blog-react --template blog-react && cd blog-react && npm install && npm run dev
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init blog-react --template blog-react && cd blog-react && pnpm install && pnpm run dev' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages init blog-react --template blog-react && cd blog-react && npm install && npm run dev' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 **React app with Better Auth + Drizzle** - Creates a full app starter with auth and database workflow included. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/with-react-better-auth" target="_blank">with-react-better-auth</a>.
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && pnpm install && pnpm run db:generate && pnpm run db:migrate && pnpm run dev
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && npm install && npm run db:generate && npm run db:migrate && npm run dev
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && pnpm install && pnpm run db:generate && pnpm run db:migrate && pnpm run dev' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && npm install && npm run db:generate && npm run db:migrate && npm run dev' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 ### Step-by-Step (Individual)
 
 #### 1) Basic starter
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init ecopages-app
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: `pnpm dlx ecopages init ecopages-app
 cd ecopages-app
 pnpm install
-pnpm run dev
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init ecopages-app
+pnpm run dev` },
+		{ id: 'npm', label: 'npm', code: `npx ecopages init ecopages-app
 cd ecopages-app
 npm install
-npm run dev
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init ecopages-app
+npm run dev` },
+		{ id: 'bun', label: 'bun', code: `bunx ecopages init ecopages-app
 cd ecopages-app
 bun install
-bun dev
-```
-  </CodeTab>
-</CodeSnippetTabs>
+bun dev` },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 #### 2) Blog with KitaJS
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init blog-jsx --template blog-jsx
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: `pnpm dlx ecopages init blog-jsx --template blog-jsx
 cd blog-jsx
 pnpm install
-pnpm run dev
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init blog-jsx --template blog-jsx
+pnpm run dev` },
+		{ id: 'npm', label: 'npm', code: `npx ecopages init blog-jsx --template blog-jsx
 cd blog-jsx
 npm install
-npm run dev
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init blog-jsx --template blog-jsx
+npm run dev` },
+		{ id: 'bun', label: 'bun', code: `bunx ecopages init blog-jsx --template blog-jsx
 cd blog-jsx
 bun install
-bun dev
-```
-  </CodeTab>
-</CodeSnippetTabs>
+bun dev` },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 #### 3) Blog with React
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init blog-react --template blog-react
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: `pnpm dlx ecopages init blog-react --template blog-react
 cd blog-react
 pnpm install
-pnpm run dev
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init blog-react --template blog-react
+pnpm run dev` },
+		{ id: 'npm', label: 'npm', code: `npx ecopages init blog-react --template blog-react
 cd blog-react
 npm install
-npm run dev
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init blog-react --template blog-react
+npm run dev` },
+		{ id: 'bun', label: 'bun', code: `bunx ecopages init blog-react --template blog-react
 cd blog-react
 bun install
-bun dev
-```
-  </CodeTab>
-</CodeSnippetTabs>
+bun dev` },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 #### 4) React app with Better Auth + Drizzle
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init with-react-better-auth --template with-react-better-auth
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: `pnpm dlx ecopages init with-react-better-auth --template with-react-better-auth
 cd with-react-better-auth
 pnpm install
 pnpm run db:generate
 pnpm run db:migrate
-pnpm run dev
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init with-react-better-auth --template with-react-better-auth
+pnpm run dev` },
+		{ id: 'npm', label: 'npm', code: `npx ecopages init with-react-better-auth --template with-react-better-auth
 cd with-react-better-auth
 npm install
 npm run db:generate
 npm run db:migrate
-npm run dev
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init with-react-better-auth --template with-react-better-auth
+npm run dev` },
+		{ id: 'bun', label: 'bun', code: `bunx ecopages init with-react-better-auth --template with-react-better-auth
 cd with-react-better-auth
 bun install
 bun db:generate
 bun db:migrate
-bun dev
-```
-  </CodeTab>
-</CodeSnippetTabs>
+bun dev` },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 ## Runtime Notes
 

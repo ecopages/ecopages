@@ -1,4 +1,4 @@
-import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
+import { CodeTabs } from '@/components/code-tabs';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 export const config = {
@@ -16,43 +16,25 @@ The Ecopages CLI is the canonical command-line interface for scaffolding, develo
 
 Run it with your package manager's one-off executor:
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages --help
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages --help
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages --help
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages --help' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages --help' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages --help' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 Or install it in your app and run via scripts:
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm add ecopages
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npm install ecopages
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bun add ecopages
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add ecopages' },
+		{ id: 'npm', label: 'npm', code: 'npm install ecopages' },
+		{ id: 'bun', label: 'bun', code: 'bun add ecopages' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 ## Commands
 
@@ -144,61 +126,34 @@ Used to determine where the server listens.
 ## Example Usage
 
 ### Show CLI help
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages --help
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages --help
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages --help
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages --help' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages --help' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages --help' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 ### Initialize a starter app
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init ecopages-app
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init ecopages-app
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init ecopages-app
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init ecopages-app' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages init ecopages-app' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages init ecopages-app' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 ### Run development server
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages dev
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages dev
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages dev
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages dev' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages dev' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages dev' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 ### Build for production with a specific base URL
 ```bash

@@ -1,8 +1,9 @@
 import { eco } from '@ecopages/core';
 import { DocsLayout } from '@/layouts/docs-layout';
 import type { Error404TemplateProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export default eco.page<Error404TemplateProps>({
+export default eco.page<Error404TemplateProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./404.css'],
 		components: [DocsLayout],

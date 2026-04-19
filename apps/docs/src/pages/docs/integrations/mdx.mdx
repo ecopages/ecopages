@@ -1,6 +1,6 @@
-import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
+import { CodeTabs } from '@/components/code-tabs';
 import { DocsLayout } from '@/layouts/docs-layout';
-import { Banner } from '@/components/banner/banner.kita';
+import { Banner } from '@/components/banner/banner';
 
 export const config = {
   layout: DocsLayout,
@@ -17,23 +17,14 @@ The standalone `@ecopages/mdx` package brings [MDX](https://mdxjs.com/) to Ecopa
 
 ## Installation
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx jsr add @ecopages/mdx
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx jsr add @ecopages/mdx
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx jsr add @ecopages/mdx
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx jsr add @ecopages/mdx' },
+		{ id: 'npm', label: 'npm', code: 'npx jsr add @ecopages/mdx' },
+		{ id: 'bun', label: 'bun', code: 'bunx jsr add @ecopages/mdx' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 ## Usage
 

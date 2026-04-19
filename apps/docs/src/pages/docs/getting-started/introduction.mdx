@@ -1,6 +1,6 @@
-import { CodeSnippetTabs, CodeTab } from '@/components/code-snippet-tabs/code-snippet-tabs.kita';
+import { CodeTabs } from '@/components/code-tabs';
 import { DocsLayout } from '@/layouts/docs-layout';
-import { Banner } from '@/components/banner/banner.kita';
+import { Banner } from '@/components/banner/banner';
 
 export const config = {
   layout: DocsLayout,
@@ -21,23 +21,14 @@ export const getMetadata = () => ({
 	</p>
 </Banner>
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init ecopages-app
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init ecopages-app
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init ecopages-app
-```
-  </CodeTab>
-</CodeSnippetTabs>
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init ecopages-app' },
+		{ id: 'npm', label: 'npm', code: 'npx ecopages init ecopages-app' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages init ecopages-app' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
 
 Ecopages is a **modern, basic** web framework built on [Bun](https://bun.sh/) and supports Node.js.
 
@@ -192,29 +183,20 @@ Refer your AI agent to our [`llms.txt`](/llms.txt) file (found at the root of ou
 
 Ready to try Ecopages? Check out the [Installation Guide](/docs/getting-started/installation) to create your first project.
 
-<CodeSnippetTabs>
-  <CodeTab name="pnpm">
-```bash
-pnpm dlx ecopages init my-ecopages
+<CodeTabs
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: `pnpm dlx ecopages init my-ecopages
 cd my-ecopages
 pnpm install
-pnpm run dev
-```
-  </CodeTab>
-  <CodeTab name="npm">
-```bash
-npx ecopages init my-ecopages
+pnpm run dev` },
+		{ id: 'npm', label: 'npm', code: `npx ecopages init my-ecopages
 cd my-ecopages
 npm install
-npm run dev
-```
-  </CodeTab>
-  <CodeTab name="bun">
-```bash
-bunx ecopages init my-ecopages
+npm run dev` },
+		{ id: 'bun', label: 'bun', code: `bunx ecopages init my-ecopages
 cd my-ecopages
 bun install
-bun run dev
-```
-  </CodeTab>
-</CodeSnippetTabs>
+bun run dev` },
+	]}
+	defaultSelectedKey="pnpm"
+/>

@@ -1,12 +1,13 @@
 import { eco } from '@ecopages/core';
 import { Header } from '@/components/header';
+import type { JsxRenderable } from '@ecopages/jsx';
 
 export type BaseLayoutProps = {
-	children: JSX.Element;
+	children: JsxRenderable;
 	class?: string;
 };
 
-export const BaseLayout = eco.component<BaseLayoutProps>({
+export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],

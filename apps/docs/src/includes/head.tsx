@@ -1,8 +1,9 @@
 import { eco } from '@ecopages/core';
 import type { PageHeadProps } from '@ecopages/core';
-import { Seo } from '@/includes/seo.kita';
+import { Seo } from '@/includes/seo';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export const Head = eco.component<PageHeadProps>({
+export const Head = eco.component<PageHeadProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['../styles/fonts.css', '../styles/tailwind.css'],
 	},

@@ -1,1 +1,1 @@
-export * from './header.kita';
+export * from './header';

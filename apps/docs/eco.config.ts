@@ -1,38 +1,37 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { imageProcessorPlugin } from '@ecopages/image-processor';
-import { kitajsPlugin } from '@ecopages/kitajs';
-import { mdxPlugin } from '@ecopages/mdx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import remarkGfm from 'remark-gfm';
 import rehypePrettyCode from 'rehype-pretty-code';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { imageProcessorPlugin } from '@ecopages/image-processor';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { rehypeSimpleTableWrapper } from './src/plugins/rehype-simple-table-wrapper';
-import { transformerEscapeHtml } from './src/plugins/transformer-escape-html';
 import { remarkEscapeInlineCodeHtml } from '@/plugins/remark-escape-inline-code-html';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
 	.setIntegrations([
-		kitajsPlugin(),
-		mdxPlugin({
-			compilerOptions: {
-				jsxImportSource: '@kitajs/html',
-				remarkPlugins: [remarkGfm, remarkEscapeInlineCodeHtml],
-				rehypePlugins: [
-					[
-						rehypePrettyCode,
-						{
-							theme: {
-								light: 'light-plus',
-								dark: 'dark-plus',
+		ecopagesJsxPlugin({
+			extensions: ['.tsx', '.kita.tsx'],
+			mdx: {
+				enabled: true,
+				compilerOptions: {
+					remarkPlugins: [remarkGfm, remarkEscapeInlineCodeHtml],
+					rehypePlugins: [
+						[
+							rehypePrettyCode,
+							{
+								theme: {
+									light: 'light-plus',
+									dark: 'dark-plus',
+								},
 							},
-							transformers: [transformerEscapeHtml],
-						},
+						],
+						rehypeSimpleTableWrapper,
 					],
-					rehypeSimpleTableWrapper,
-				],
+				},
 			},
 		}),
 	])

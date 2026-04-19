@@ -1,1 +1,1 @@
-export * from './burger.kita';
+export * from './burger';

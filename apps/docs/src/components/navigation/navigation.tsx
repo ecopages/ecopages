@@ -1,9 +1,10 @@
 import type { EcoComponent } from '@ecopages/core';
-import { ThemeToggle } from '../theme-toggle/theme-toggle.kita';
+import { ThemeToggle } from '../theme-toggle/theme-toggle';
+import type { JsxRenderable } from '@ecopages/jsx';
 
 export type NavigationProps = {
 	items: {
-		label: string | JSX.Element;
+		label: string | JsxRenderable;
 		href: string;
 		target?: '_blank' | '_self';
 	}[];

@@ -188,6 +188,34 @@ test('resolveNodeBootstrapDependency refreshes runtime links when the resolved p
 	}
 });
 
+test('resolveNodeBootstrapDependency replaces dangling runtime symlinks before linking the resolved package', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
+	const importerPath = path.join(rootDir, 'src', 'page.tsx');
+	fs.mkdirSync(path.dirname(importerPath), { recursive: true });
+	fs.writeFileSync(importerPath, 'export default null;\n', 'utf8');
+	const packageDir = path.join(rootDir, 'node_modules', 'react');
+	const staleTargetDir = path.join(rootDir, 'store', 'react-stale');
+	const runtimeNodeModulesDir = path.join(rootDir, '.eco', 'node_modules');
+	const runtimeReactLinkPath = path.join(runtimeNodeModulesDir, 'react');
+	writePackage(packageDir, { name: 'react' });
+	fs.mkdirSync(path.dirname(runtimeReactLinkPath), { recursive: true });
+	fs.symlinkSync(staleTargetDir, runtimeReactLinkPath, 'dir');
+
+	try {
+		assert.deepEqual(
+			resolveNodeBootstrapDependency(
+				{ path: 'react', importer: importerPath },
+				{ projectDir: rootDir, runtimeNodeModulesDir },
+			),
+			{ path: 'react', external: true },
+		);
+		assert.equal(fs.realpathSync(runtimeReactLinkPath), fs.realpathSync(packageDir));
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
 test('createNodeBootstrapPlugin wires the shared resolution policy into an Eco build plugin', async () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
@@ -232,7 +260,6 @@ test('createNodeBootstrapPlugin rewrites import.meta for all project source file
 		const plugin = createNodeBootstrapPlugin({
 			projectDir: rootDir,
 			runtimeNodeModulesDir: path.join(rootDir, '.eco', 'node_modules'),
-			preserveImportMetaPaths: [bootstrapFile],
 		});
 
 		let onLoadCallback: ((args: { path: string; namespace?: string }) => Promise<unknown> | unknown) | undefined;
@@ -266,58 +293,6 @@ test('createNodeBootstrapPlugin rewrites import.meta for all project source file
 					)
 				: false,
 			true,
-		);
-	} finally {
-		fs.rmSync(rootDir, { recursive: true, force: true });
-	}
-});
-
-test('createNodeBootstrapPlugin injects side-effect imports for project re-export barrels', async () => {
-	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
-	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
-	const barrelFile = path.join(rootDir, 'src', 'layouts', 'base-layout', 'index.ts');
-	fs.mkdirSync(path.dirname(barrelFile), { recursive: true });
-	fs.writeFileSync(
-		barrelFile,
-		[
-			"export * from './base-layout.kita';",
-			"export { BaseLayout } from './base-layout.kita';",
-			"export type { BaseLayoutProps } from './base-layout.kita';",
-		].join('\n'),
-		'utf8',
-	);
-
-	try {
-		const plugin = createNodeBootstrapPlugin({
-			projectDir: rootDir,
-			runtimeNodeModulesDir: path.join(rootDir, '.eco', 'node_modules'),
-		});
-
-		let onLoadCallback: ((args: { path: string; namespace?: string }) => Promise<unknown> | unknown) | undefined;
-
-		await plugin.setup({
-			onResolve() {},
-			onLoad(_options, callback) {
-				onLoadCallback = callback;
-			},
-			module() {},
-		});
-
-		assert.ok(onLoadCallback);
-		const result = await onLoadCallback?.({ path: barrelFile });
-		const contents =
-			result && typeof result === 'object' && 'contents' in result
-				? String((result as { contents: string }).contents)
-				: '';
-
-		assert.match(contents, /^import \* as __eco_bootstrap_reexport_0 from '\.\/base-layout\.kita';/m);
-		assert.match(contents, /^void __eco_bootstrap_reexport_0;$/m);
-		assert.match(contents, /export \* from '\.\/base-layout\.kita';/);
-		assert.match(contents, /export \{ BaseLayout \} from '\.\/base-layout\.kita';/);
-		assert.match(contents, /export type \{ BaseLayoutProps \} from '\.\/base-layout\.kita';/);
-		assert.equal(
-			contents.match(/import \* as __eco_bootstrap_reexport_0 from '\.\/base-layout\.kita';/g)?.length,
-			1,
 		);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });

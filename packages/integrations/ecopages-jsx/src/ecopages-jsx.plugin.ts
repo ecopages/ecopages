@@ -155,9 +155,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 
 	/** Returns the browser-only build plugins required by the JSX integration. */
 	override get browserBuildPlugins(): EcoBuildPlugin[] {
-		return [this.runtimeBundleService.getBuildPlugin()].filter(
-			(plugin): plugin is EcoBuildPlugin => plugin !== undefined,
-		);
+		return [this.runtimeBundleService.getBuildPlugin()];
 	}
 
 	/**

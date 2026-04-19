@@ -75,7 +75,7 @@
 	--color-on-primary: var(--color-glacier-white-50);
 	--color-secondary: var(--color-scarlet-500);
 	--color-on-secondary: var(--color-glacier-white-50);
-	--color-border: var(--color-glacier-white-200);
+	--color-border: var(--color-glacier-white-300);
 	--color-link: var(--color-navy-blue-700);
 	--color-background-code: var(--color-glacier-white-100);
 	--color-on-background-code: var(--color-laser-lemon-800);
@@ -93,7 +93,7 @@
 	--color-on-primary: var(--color-glacier-white-950);
 	--color-secondary: var(--color-scarlet-500);
 	--color-on-secondary: var(--color-glacier-white-950);
-	--color-border: var(--color-glacier-white-900);
+	--color-border: var(--color-glacier-white-800);
 	--color-link: var(--color-navy-blue-400);
 	--color-background-code: var(--color-glacier-white-900);
 	--color-on-background-code: var(--color-laser-lemon-300);

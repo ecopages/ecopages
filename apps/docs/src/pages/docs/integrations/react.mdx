@@ -21,12 +21,14 @@ The `@ecopages/react` package introduces first-class integration with [React](ht
 
 <CodeTabs
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx jsr add @ecopages/react' },
-		{ id: 'npm', label: 'npm', code: 'npx jsr add @ecopages/react' },
-		{ id: 'bun', label: 'bun', code: 'bunx jsr add @ecopages/react' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/react' },
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/react' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/react' },
 	]}
 	defaultSelectedKey="pnpm"
 />
+
+Also install React's required peer packages in your app: `react` and `react-dom`. In TypeScript projects, install `@types/react` and `@types/react-dom` as well.
 
 ## Usage
 

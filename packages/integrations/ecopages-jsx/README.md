@@ -1,11 +1,11 @@
 # @ecopages/ecopages-jsx
 
-Integration plugin for [@ecopages/jsx](https://jsr.io/@ecopages/jsx) templates in Ecopages. Use it when Ecopages JSX should own `.tsx` routes, Radiant-backed web components, or MDX compiled against the `@ecopages/jsx` runtime.
+Integration plugin for [@ecopages/jsx](https://www.npmjs.com/package/@ecopages/jsx) templates in Ecopages. Use it when Ecopages JSX should own `.tsx` routes, Radiant-backed web components, or MDX compiled against the `@ecopages/jsx` runtime.
 
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/ecopages-jsx @ecopages/radiant
+bun add @ecopages/ecopages-jsx @ecopages/radiant
 ```
 
 `@ecopages/radiant` is a required peer dependency for this package.

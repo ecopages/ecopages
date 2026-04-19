@@ -5,7 +5,7 @@ Integration plugin for [Lit](https://lit.dev/) in Ecopages. Use it when Lit shou
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/lit
+bun add @ecopages/lit
 ```
 
 ## Usage

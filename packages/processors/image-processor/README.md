@@ -15,7 +15,7 @@ It provides automatic image processing (e.g. converting and compressing to WebP)
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/image-processor
+bun add @ecopages/image-processor
 ```
 
 ## Configuration

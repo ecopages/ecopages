@@ -18,7 +18,7 @@ The Ecopages ecosystem is composed of several modular packages. You only install
 
 | Package | Purpose |
 | :--- | :--- |
-| **[`@ecopages/core`](https://jsr.io/@ecopages/core)** | The heart of Ecopages. Contains the application adapter, router, and base plugin classes. |
+| **[`@ecopages/core`](https://www.npmjs.com/package/@ecopages/core)** | The heart of Ecopages. Contains the application adapter, router, and base plugin classes. |
 | **[`@ecopages/logger`](https://www.npmjs.com/package/@ecopages/logger)** | Unified logging utility used across the entire ecosystem. |
 
 ---
@@ -29,8 +29,8 @@ Specialized routers for different application needs.
 
 | Package | Purpose |
 | :--- | :--- |
-| **[`@ecopages/browser-router`](https://jsr.io/@ecopages/browser-router)** | Standard browser-based router with View Transitions support. |
-| **[`@ecopages/react-router`](https://jsr.io/@ecopages/react-router)** | React-specific router enabling SPA navigation for React apps. |
+| **[`@ecopages/browser-router`](https://www.npmjs.com/package/@ecopages/browser-router)** | Standard browser-based router with View Transitions support. |
+| **[`@ecopages/react-router`](https://www.npmjs.com/package/@ecopages/react-router)** | React-specific router enabling SPA navigation for React apps. |
 
 ---
 
@@ -40,10 +40,11 @@ These packages add support for different rendering engines.
 
 | Package | Purpose |
 | :--- | :--- |
-| **[`@ecopages/kitajs`](https://jsr.io/@ecopages/kitajs)** | Fast JSX rendering using KitaJS. |
-| **[`@ecopages/react`](https://jsr.io/@ecopages/react)** | React 19 support with SSR and hydration. |
-| **[`@ecopages/lit`](https://jsr.io/@ecopages/lit)** | Lit Web Components integration with SSR support. |
-| **[`@ecopages/mdx`](https://jsr.io/@ecopages/mdx)** | Markdown with JSX (React-powered by default). |
+| **[`@ecopages/ecopages-jsx`](https://www.npmjs.com/package/@ecopages/ecopages-jsx)** | Ecopages-owned JSX routes with optional Radiant and MDX support. |
+| **[`@ecopages/kitajs`](https://www.npmjs.com/package/@ecopages/kitajs)** | HTML-first JSX rendering for `.kita.tsx` routes. |
+| **[`@ecopages/react`](https://www.npmjs.com/package/@ecopages/react)** | React 19 support with SSR and hydration. |
+| **[`@ecopages/lit`](https://www.npmjs.com/package/@ecopages/lit)** | Lit Web Components integration with SSR support. |
+| **[`@ecopages/mdx`](https://www.npmjs.com/package/@ecopages/mdx)** | Standalone MDX for non-React JSX runtimes such as `@kitajs/html`. |
 
 ---
 
@@ -53,8 +54,8 @@ Tools for processing assets and extending Bun's loading capabilities.
 
 | Package | Purpose |
 | :--- | :--- |
-| **[`@ecopages/image-processor`](https://jsr.io/@ecopages/image-processor)** | Build-time image optimization and responsive image generation. |
-| **[`@ecopages/postcss-processor`](https://jsr.io/@ecopages/postcss-processor)** | Processes CSS through PostCSS and Tailwind. |
+| **[`@ecopages/image-processor`](https://www.npmjs.com/package/@ecopages/image-processor)** | Build-time image optimization and responsive image generation. |
+| **[`@ecopages/postcss-processor`](https://www.npmjs.com/package/@ecopages/postcss-processor)** | Processes CSS through PostCSS and Tailwind. |
 
 ---
 
@@ -63,7 +64,7 @@ Tools for processing assets and extending Bun's loading capabilities.
 | Package | Purpose |
 | :--- | :--- |
 | **[`ecopages`](https://www.npmjs.com/package/ecopages)** | Official npm CLI for scaffolding and running Ecopages apps. See also [CLI docs](/docs/ecosystem/ecopages). |
-| **[`@ecopages/file-system`](https://jsr.io/@ecopages/file-system)** | Utilities for file system operations and route discovery. |
+| **[`@ecopages/file-system`](https://www.npmjs.com/package/@ecopages/file-system)** | Utilities for file system operations and route discovery. |
 | **[`@ecopages/radiant`](https://www.npmjs.com/package/@ecopages/radiant)** | A minimalist web component library for reactive UI. |
 | **[`@ecopages/scripts-injector`](https://www.npmjs.com/package/@ecopages/scripts-injector)** | Helper for lazy-loading scripts in the browser. |
 
@@ -71,13 +72,25 @@ Tools for processing assets and extending Bun's loading capabilities.
 
 ## Installation Tip
 
-You can install multiple packages at once using Bun:
+You can install multiple packages at once:
 
 <CodeTabs
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx jsr add @ecopages/core @ecopages/kitajs @ecopages/image-processor' },
-		{ id: 'npm', label: 'npm', code: 'npx jsr add @ecopages/core @ecopages/kitajs @ecopages/image-processor' },
-		{ id: 'bun', label: 'bun', code: 'bunx jsr add @ecopages/core @ecopages/kitajs @ecopages/image-processor' },
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant @ecopages/image-processor',
+		},
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npm install @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant @ecopages/image-processor',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bun add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant @ecopages/image-processor',
+		},
 	]}
 	defaultSelectedKey="pnpm"
 />

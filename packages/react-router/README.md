@@ -23,7 +23,7 @@ This keeps React-router focused on React rendering while still allowing mixed Re
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/react-router
+bun add @ecopages/react-router
 ```
 
 ## Quick Start

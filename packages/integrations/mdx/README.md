@@ -5,7 +5,7 @@ Integration plugin for standalone MDX support in Ecopages for non-React JSX runt
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/mdx
+bun add @ecopages/mdx
 ```
 
 ## Usage

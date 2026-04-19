@@ -18,6 +18,7 @@ Ecopages is framework-agnostic. You can use one or multiple rendering integratio
 
 | Integration | Technology | Primary Use Case | SSR Support |
 | :--- | :--- | :--- | :--- |
+| **[Ecopages JSX](/docs/integrations/ecopages-jsx)** | JSX + Radiant | JSX-first routes, MDX, custom elements | Full |
 | **[KitaJS](/docs/integrations/kitajs)** | JSX (Fast) | High-performance static sites | Full |
 | **[React 19](/docs/integrations/react)** | React | Dynamic apps, rich interactivity | Full |
 | **[Lit](/docs/integrations/lit)** | Web Components | Reusable UI, micro-frontends | Full |
@@ -27,9 +28,14 @@ Ecopages is framework-agnostic. You can use one or multiple rendering integratio
 
 ## Choosing an Integration
 
+### Use Ecopages JSX if...
+- You want standard `.tsx` routes owned directly by Ecopages.
+- You want optional Radiant SSR and hydration for web components.
+- You want one integration to own both JSX routes and JSX-backed MDX routes.
+
 ### Use KitaJS if...
 - You want the best possible performance for static pages.
-- You like JSX syntax but don't need the overhead of a full frontend framework.
+- You like JSX syntax but want an HTML-first renderer to own `.kita.tsx` shells.
 - You are building a content-heavy site (docs, blogs, marketing).
 
 ### Use React if...

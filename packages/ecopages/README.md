@@ -65,13 +65,7 @@ ecopages dev -r
 
 ## Ecosystem & Plugins
 
-Ecopages relies on a modular architecture. Core logic and framework integrations are published separately to [JSR](https://jsr.io/@ecopages).
-
-Configure your project to use JSR by adding a `.npmrc` file:
-
-```ini
-@jsr:registry=https://npm.jsr.io
-```
+Ecopages relies on a modular architecture. Core logic and framework integrations are published as `@ecopages/*` packages on [npm](https://www.npmjs.com/org/ecopages).
 
 ### Official Packages
 
@@ -80,6 +74,7 @@ Configure your project to use JSR by adding a `.npmrc` file:
 | `@ecopages/browser-router`    | Client-side navigation & view transitions. |
 | `@ecopages/codemod`           | AST migrations for codebase upgrades.      |
 | `@ecopages/core`              | The foundational SSG engine.               |
+| `@ecopages/ecopages-jsx`      | Ecopages-owned JSX routes and hydration.   |
 | `@ecopages/file-system`       | Runtime-agnostic file system utilities.    |
 | `@ecopages/image-processor`   | Asset pipeline for responsive images.      |
 | `@ecopages/kitajs`            | Integration for KitaJS.                    |
@@ -89,7 +84,7 @@ Configure your project to use JSR by adding a `.npmrc` file:
 | `@ecopages/react`             | Integration for React 19 SSR/Islands.      |
 | `@ecopages/react-router`      | SPA routing for React.                     |
 
-Explore all packages at [jsr.io/@ecopages](https://jsr.io/@ecopages).
+Explore all packages at [npmjs.com/org/ecopages](https://www.npmjs.com/org/ecopages).
 
 ## License
 

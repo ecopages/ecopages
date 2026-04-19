@@ -99,7 +99,7 @@ The intended reading order is:
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/core
+bun add @ecopages/core
 ```
 
 _(You can also use `npm`, `yarn`, or `pnpm`)_

@@ -47,11 +47,11 @@ Plugins are configured in your `eco.config.ts` file:
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { kitajsPlugin } from '@ecopages/kitajs';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 const config = await new ConfigBuilder()
 	.setProcessors([postcssProcessorPlugin()])
-	.setIntegrations([kitajsPlugin()])
+	.setIntegrations([ecopagesJsxPlugin()])
 	.build();
 ```
 

@@ -5,7 +5,7 @@ First-class integration for [React 19](https://react.dev/) in Ecopages. This plu
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/react
+bun add @ecopages/react
 ```
 
 ## Usage

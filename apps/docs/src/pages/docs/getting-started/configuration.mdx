@@ -18,15 +18,14 @@ Here's a basic example of an Ecopages configuration:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { kitajsPlugin } from '@ecopages/kitajs';
-import { mdxPlugin } from '@ecopages/mdx';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 const appRoot = process.cwd();
 
 const config = await new ConfigBuilder()
 	.setRootDir(appRoot)
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([kitajsPlugin(), mdxPlugin()])
+	.setIntegrations([ecopagesJsxPlugin()])
 	.setDefaultMetadata({
 		title: 'Your Site Title',
 		description: 'Your site description',
@@ -126,24 +125,24 @@ No template filename setter is required in `eco.config.ts`.
 
 Ecopages supports various integrations to extend its capabilities. Here are some commonly used integrations:
 
+- **Ecopages JSX**: For Ecopages-owned `.tsx` routes and optional Radiant hydration
 - **KitaJS**: For JSX templating
 - **Lit**: For web components
-- **MDX**: For Markdown with JSX
+- **MDX**: For standalone Markdown with a non-React JSX runtime
 - **React**: For React components
 
 To use an integration, install it and add it to your configuration. For example:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { kitajsPlugin } from '@ecopages/kitajs';
-import { mdxPlugin } from '@ecopages/mdx';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 const appRoot = process.cwd();
 
 const config = await new ConfigBuilder()
 	.setRootDir(appRoot)
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([kitajsPlugin(), mdxPlugin()])
+	.setIntegrations([ecopagesJsxPlugin()])
 	.build();
 
 export default config;
@@ -151,6 +150,7 @@ export default config;
 
 For more details on specific integrations, refer to their respective documentation pages:
 
+- [Ecopages JSX Integration](/docs/integrations/ecopages-jsx)
 - [KitaJS Integration](/docs/integrations/kitajs)
 - [Lit Integration](/docs/integrations/lit)
 - [MDX Integration](/docs/integrations/mdx)

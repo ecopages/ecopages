@@ -1,0 +1,165 @@
+import { CodeTabs } from '@/components/code-tabs';
+import { DocsLayout } from '@/layouts/docs-layout';
+import { Banner } from '@/components/banner/banner';
+
+export const config = {
+	layout: DocsLayout,
+};
+
+export const getMetadata = () => ({
+	title: 'Docs | Ecopages JSX Integration',
+	description: 'Learn how to use the Ecopages JSX integration with Ecopages',
+});
+
+# Ecopages JSX Integration
+
+The `@ecopages/ecopages-jsx` package lets Ecopages own JSX-first `.tsx` routes through the `@ecopages/jsx` runtime. Use it when you want Ecopages-managed JSX pages, optional Radiant web components, or MDX compiled against the Ecopages JSX runtime.
+
+## Installation
+
+Install the integration and its peer runtimes:
+
+<CodeTabs
+	tabs={[
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm add @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+		},
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npm install @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bun add @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+		},
+	]}
+	defaultSelectedKey="pnpm"
+/>
+
+## Usage
+
+Register the `ecopagesJsxPlugin` in your Ecopages config.
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+
+const appRoot = process.cwd();
+
+const config = await new ConfigBuilder()
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setIntegrations([ecopagesJsxPlugin()])
+	.build();
+
+export default config;
+```
+
+By default, the plugin owns `.tsx` route files and compiles them against `@ecopages/jsx` with the automatic JSX runtime.
+
+## Creating Pages
+
+Pages use the usual `eco.page()` contract. Declare layout or nested component dependencies when Ecopages needs to resolve mixed-renderer ownership.
+
+```tsx
+import { BaseLayout } from '@/layouts/base-layout';
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	dependencies: {
+		components: [BaseLayout],
+	},
+	render: () => {
+		return (
+			<BaseLayout>
+				<h1>Welcome to Ecopages JSX</h1>
+				<p>TSX routes render through the Ecopages JSX runtime.</p>
+			</BaseLayout>
+		);
+	},
+});
+```
+
+## Boundaries and Islands
+
+The right mental model here is renderer-owned boundaries, not blanket client hydration for every JSX component.
+
+- Plain Ecopages JSX components render to HTML on the server.
+- A boundary is a subtree that Ecopages can hand back to the JSX renderer during mixed rendering.
+- A boundary only behaves like an island when that subtree also brings browser behavior, such as a Radiant custom element or component-scoped browser assets.
+
+For Ecopages JSX, Radiant custom-element hosts are the clearest island-like case: Ecopages renders the host HTML on the server, then the explicit Radiant hydrator upgrades that host in place on the client. Without that hydrator, the host falls back to a fresh client render instead of in-place hydration.
+
+Important: boundary ownership is broader than hydration. Ecopages uses the same boundary contract to preserve renderer ownership, collect nested assets, and resolve foreign children even when the final output is fully static HTML.
+
+## Route Extensions
+
+Use `extensions` when JSX routes should use a custom suffix instead of the default `.tsx`.
+
+```typescript
+ecopagesJsxPlugin({
+	extensions: ['.page.tsx'],
+})
+```
+
+## Radiant Support
+
+Radiant support is enabled by default. When `radiant: true`, the plugin wires the Radiant SSR renderer on the server and installs the client hydrator before intrinsic custom-element modules load.
+
+```typescript
+ecopagesJsxPlugin({
+	radiant: true,
+})
+```
+
+Set `radiant: false` when the app does not use Radiant web components and should not include that runtime contract.
+
+<Banner type="info">
+	<Banner.Title>KitaJS vs Ecopages JSX</Banner.Title>
+	<p>
+		Use <a href="/docs/integrations/kitajs">KitaJS</a> when an HTML-first renderer should own <code>.kita.tsx</code> shells. Use Ecopages JSX when Ecopages should own standard <code>.tsx</code> routes, JSX runtime bundling, and optional Radiant hydration.
+	</p>
+</Banner>
+
+## MDX Support
+
+Enable `mdx` to let the same integration own `.mdx` routes compiled against `@ecopages/jsx`.
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+
+const appRoot = process.cwd();
+
+const config = await new ConfigBuilder()
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setIntegrations([
+		ecopagesJsxPlugin({
+			mdx: {
+				enabled: true,
+				extensions: ['.mdx', '.md'],
+			},
+		}),
+	])
+	.build();
+
+export default config;
+```
+
+Use the standalone <a href="/docs/integrations/mdx">MDX Integration</a> only when MDX should stay on a non-React JSX runtime without the Ecopages JSX route owner.
+
+## Mixed Rendering
+
+Ecopages JSX can own the full route or only a nested boundary. When another integration reaches a JSX-owned boundary, Ecopages hands that boundary back to the JSX renderer before the outer renderer resumes.
+
+Important:
+
+- Components that may render foreign children must declare those children in `config.dependencies.components`.
+- Mixed-renderer ownership is validated from declared dependencies during render preparation.
+- Raw markup preservation and asset collection stay inside the JSX renderer.
+- Nested boundary assets bubble back through the owning JSX render pass, so the boundary keeps both its HTML and its browser requirements together.

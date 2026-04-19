@@ -84,21 +84,27 @@ async function writeRadiantFixture(options: {
 	await writeFile(
 		options.scriptPath,
 		[
-			`import { RadiantElement } from ${JSON.stringify(scopedRadiantEntryUrl)};`,
+			`import { RadiantComponent, signal } from ${JSON.stringify(scopedRadiantEntryUrl)};`,
 			`import { customElement } from ${JSON.stringify(scopedRadiantCustomElementEntryUrl)};`,
 			'',
-			'class TopLevelRadiantCounter extends RadiantElement {}',
+			'class TopLevelRadiantCounter extends RadiantComponent {',
+			'\trender() {',
+			'\t\treturn `<button data-testid="radiant-counter">${this.$.count}</button>`;',
+			'\t}',
+			'}',
+			"signal({ bind: true, hydrate: true, initial: 1 })(TopLevelRadiantCounter.prototype, 'count');",
 			"customElement('top-level-radiant-counter')(TopLevelRadiantCounter);",
+			'export { TopLevelRadiantCounter };',
 		].join('\n'),
 	);
 
 	await writeFile(
 		options.componentPath,
 		[
-			"import './counter.script.mjs';",
+			"import { TopLevelRadiantCounter } from './counter.script.mjs';",
 			'',
-			'export function Counter() {',
-			"\treturn '<top-level-radiant-counter></top-level-radiant-counter>';",
+			'export function renderCounterHost() {',
+			'\treturn new TopLevelRadiantCounter().renderHostToString({ hydrate: true });',
 			'}',
 		].join('\n'),
 	);
@@ -106,16 +112,16 @@ async function writeRadiantFixture(options: {
 	await writeFile(
 		options.pagePath,
 		[
-			"import { Counter } from './counter-component.mjs';",
+			"import { renderCounterHost } from './counter-component.mjs';",
 			'',
 			'export default function Page() {',
-			'\treturn Counter();',
+			'\treturn renderCounterHost();',
 			'}',
 		].join('\n'),
 	);
 }
 
-test('EcopagesJsxRenderer installs the Radiant SSR shim before resolving JSX page modules', async () => {
+test('EcopagesJsxRenderer installs the Radiant SSR runtime before resolving JSX page modules', async () => {
 	const tempDir = await mkdtemp(path.join(tmpdir(), 'ecopages-jsx-renderer-'));
 	const pagePath = path.join(tempDir, 'page.mjs');
 	const componentPath = path.join(tempDir, 'counter-component.mjs');
@@ -143,8 +149,11 @@ test('EcopagesJsxRenderer installs the Radiant SSR shim before resolving JSX pag
 			assert.equal('HTMLElement' in globalThis, false);
 
 			const pageModule = await renderer.testResolvePageModule(pagePath);
+			const html = await (pageModule.Page as () => string | Promise<string>)();
 
 			assert.equal(typeof pageModule.Page, 'function');
+			assert.match(html, /<top-level-radiant-counter/);
+			assert.match(html, /data-hydration/);
 			assert.equal(typeof globalThis.HTMLElement, 'function');
 		});
 	} finally {

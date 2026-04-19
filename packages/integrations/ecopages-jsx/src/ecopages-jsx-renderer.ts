@@ -51,7 +51,7 @@ type MdxPageModule = EcoPageFile<{
 export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	name = ECOPAGES_JSX_PLUGIN_NAME;
 
-	private static radiantLightDomShimInstallPromise: Promise<void> | undefined;
+	private static radiantServerRuntimeInstallPromise: Promise<void> | undefined;
 
 	private readonly intrinsicCustomElementAssets: Map<string, readonly ProcessedAsset[]>;
 	private collectedAssetFrames: ProcessedAsset[][] = [];
@@ -133,9 +133,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	}
 
 	protected override async importPageFile(file: string, options?: RouteModuleLoadOptions): Promise<MdxPageModule> {
-		if (this.radiantSsrEnabled) {
-			await this.ensureRadiantLightDomShimInstalled();
-		}
+		await this.ensureRadiantServerRuntimeIfEnabled();
 
 		const module = (await super.importPageFile(file, options)) as MdxPageModule;
 
@@ -281,21 +279,14 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	}
 
 	private async renderJsx(value: JsxRenderable): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		if (this.radiantSsrEnabled) {
-			await this.ensureRadiantLightDomShimInstalled();
-		}
+		await this.ensureRadiantServerRuntimeIfEnabled();
 
 		const collectedAssets: ProcessedAsset[] = [];
 		const html = withServerCustomElementRenderHook(
 			this.createIntrinsicCustomElementRenderHook(collectedAssets),
 			() => renderToString(value),
 		);
-		const dedupedAssets = this.htmlTransformer.dedupeProcessedAssets(collectedAssets);
-		const activeFrame = this.collectedAssetFrames[this.collectedAssetFrames.length - 1];
-
-		if (activeFrame) {
-			activeFrame.push(...dedupedAssets);
-		}
+		const dedupedAssets = this.recordCollectedAssets(collectedAssets);
 
 		return {
 			assets: dedupedAssets,
@@ -304,34 +295,48 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	}
 
 	private async renderEcoComponent<P>(component: AsyncEcoComponent<P>, props: P): Promise<JsxRenderable> {
-		if (this.radiantSsrEnabled) {
-			await this.ensureRadiantLightDomShimInstalled();
-		}
+		await this.ensureRadiantServerRuntimeIfEnabled();
 
 		const collectedAssets: ProcessedAsset[] = [];
 		const rendered = await withServerCustomElementRenderHook(
 			this.createIntrinsicCustomElementRenderHook(collectedAssets),
 			() => this.invokeComponent(component, props),
 		);
-		const activeFrame = this.collectedAssetFrames[this.collectedAssetFrames.length - 1];
-
-		if (activeFrame) {
-			activeFrame.push(...this.htmlTransformer.dedupeProcessedAssets(collectedAssets));
-		}
+		this.recordCollectedAssets(collectedAssets);
 
 		return rendered;
 	}
 
-	private async ensureRadiantLightDomShimInstalled(): Promise<void> {
-		if (!EcopagesJsxRenderer.radiantLightDomShimInstallPromise) {
-			EcopagesJsxRenderer.radiantLightDomShimInstallPromise = import('@ecopages/radiant/server/light-dom-shim')
-				.then((module) => {
-					module.installLightDomShim();
-				})
-				.then(() => undefined);
+	private recordCollectedAssets(collectedAssets: ProcessedAsset[]): ProcessedAsset[] {
+		const dedupedAssets = this.htmlTransformer.dedupeProcessedAssets(collectedAssets);
+		const activeFrame = this.collectedAssetFrames[this.collectedAssetFrames.length - 1];
+
+		if (activeFrame) {
+			activeFrame.push(...dedupedAssets);
 		}
 
-		await EcopagesJsxRenderer.radiantLightDomShimInstallPromise;
+		return dedupedAssets;
+	}
+
+	private async ensureRadiantServerRuntimeIfEnabled(): Promise<void> {
+		if (!this.radiantSsrEnabled) {
+			return;
+		}
+
+		await this.ensureRadiantServerRuntimeInstalled();
+	}
+
+	private async ensureRadiantServerRuntimeInstalled(): Promise<void> {
+		if (!EcopagesJsxRenderer.radiantServerRuntimeInstallPromise) {
+			EcopagesJsxRenderer.radiantServerRuntimeInstallPromise = Promise.all([
+				import('@ecopages/radiant/server/render-component'),
+				import('@ecopages/radiant/server/light-dom-shim').then((module) => {
+					module.installLightDomShim();
+				}),
+			]).then(() => undefined);
+		}
+
+		await EcopagesJsxRenderer.radiantServerRuntimeInstallPromise;
 	}
 
 	private isFunctionComponent(component: EcoComponent): component is EcoFunctionComponent<any, any> {

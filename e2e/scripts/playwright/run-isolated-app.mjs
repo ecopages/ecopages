@@ -5,7 +5,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(scriptDir, '..', '..');
+const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const tempRootDir = path.join(repoRoot, '.e2e-tmp');
 const keepWorkspace = process.env.ECOPAGES_KEEP_E2E_TMP === 'true';
 const excludedTopLevelEntries = new Set(['.eco', '.e2e', 'dist', 'node_modules']);

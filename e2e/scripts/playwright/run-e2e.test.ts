@@ -14,7 +14,7 @@ describe('run-e2e wrapper planning', () => {
 		]);
 	});
 
-	it('cleans the shared .e2e-tmp directory without throwing', () => {
+	it('cleans the shared e2e temp directory without throwing', () => {
 		expect(() => cleanupE2eTempDir()).not.toThrow();
 	});
 });

@@ -19,11 +19,7 @@
 		"dev:vite": "pnpm run dev:vite:node",
 		"dev:vite:node": "ECOPAGES_KITCHEN_SINK_HOST=vite pnpm exec vite dev",
 		"dev:vite:bun": "ECOPAGES_KITCHEN_SINK_HOST=vite bunx vite dev",
-		"test:e2e": "node ../../scripts/playwright/run-kitchen-sink-e2e.mjs",
-		"test:e2e:dev": "node ../../scripts/playwright/run-kitchen-sink-e2e.mjs dev",
-		"test:e2e:preview": "node ../../scripts/playwright/run-kitchen-sink-e2e.mjs preview",
-		"test:e2e:review": "pnpm run test:e2e:review:dev",
-		"test:e2e:review:dev": "playwright test --config ../../playwright.config.ts --project kitchen-sink-bun-review-e2e --project kitchen-sink-node-review-e2e --project kitchen-sink-vite-node-review-e2e --project kitchen-sink-vite-bun-review-e2e"
+		"test:e2e:review": "playwright test --config ../../playwright.config.ts --project kitchen-sink-bun-review-e2e --project kitchen-sink-node-review-e2e --project kitchen-sink-vite-node-review-e2e --project kitchen-sink-vite-bun-review-e2e"
 	},
 	"devDependencies": {
 		"@ecopages/browser-router": "workspace:*",

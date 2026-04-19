@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import {
+	BROWSER_RUNTIME_SCRIPT_ATTRIBUTES,
 	buildBrowserRuntimeAssetUrl,
 	createBrowserRuntimeScriptAsset,
 	AssetFactory,
@@ -24,6 +25,8 @@ const VENDOR_FILE_NAMES = {
 	jsx: 'ecopages-jsx-esm.js',
 	radiant: 'ecopages-radiant-esm.js',
 } as const;
+
+export const RADIANT_HYDRATOR_BOOTSTRAP_ATTRIBUTE = 'data-ecopages-jsx-radiant-hydrator';
 
 export interface JsxRuntimeBundleServiceConfig {
 	radiant: boolean;
@@ -73,6 +76,10 @@ function getNamedExportNamesFromModuleSource(source: string): string[] {
 
 function isBrowserRuntimeRadiantSpecifier(exportKey: string): boolean {
 	if (exportKey === '.' || exportKey.startsWith('./context/')) {
+		return true;
+	}
+
+	if (exportKey === './client/hydrator') {
 		return true;
 	}
 
@@ -158,12 +165,19 @@ export class JsxRuntimeBundleService {
 				content: JSON.stringify({ imports: specifierMap }, null, 2),
 				attributes: { type: 'importmap' },
 			}),
+		];
+
+		if (this.config.radiant) {
+			deps.push(this.createRadiantHydratorBootstrapAsset());
+		}
+
+		deps.push(
 			createBrowserRuntimeScriptAsset({
 				importPath: jsxEntryModulePath,
 				name: 'ecopages-jsx-esm',
 				fileName: VENDOR_FILE_NAMES.jsx,
 			}),
-		];
+		);
 
 		if (this.config.radiant) {
 			const radiantEntryModulePath = await this.getOrCreateRadiantEntryModulePath();
@@ -178,6 +192,35 @@ export class JsxRuntimeBundleService {
 		}
 
 		return deps;
+	}
+
+	private createRadiantHydratorBootstrapAsset(): AssetDefinition {
+		return AssetFactory.createInlineContentScript({
+			position: 'head',
+			bundle: false,
+			content: this.createRadiantHydratorBootstrapSource(),
+			attributes: {
+				...BROWSER_RUNTIME_SCRIPT_ATTRIBUTES,
+				[RADIANT_HYDRATOR_BOOTSTRAP_ATTRIBUTE]: 'true',
+			},
+		});
+	}
+
+	private createRadiantHydratorBootstrapSource(): string {
+		return [
+			"import { installRadiantHydrator } from '@ecopages/radiant/client/hydrator';",
+			'installRadiantHydrator();',
+		].join('\n');
+	}
+
+	private getArtifactsDir(): string {
+		const rootDir = this.config.rootDir ?? process.cwd();
+		return path.join(rootDir, 'node_modules', '.cache', 'ecopages-browser-runtime');
+	}
+
+	private getEntryImportPath(fromDir: string, targetPath: string): string {
+		const relativeModulePath = path.relative(fromDir, targetPath).split(path.sep).join('/');
+		return relativeModulePath.startsWith('.') ? relativeModulePath : `./${relativeModulePath}`;
 	}
 
 	private getOrCreateSpecifierMap(): Record<string, string> {
@@ -218,8 +261,7 @@ export class JsxRuntimeBundleService {
 			return this.cachedJsxEntryModulePath;
 		}
 
-		const rootDir = this.config.rootDir ?? process.cwd();
-		const artifactsDir = path.join(rootDir, 'node_modules', '.cache', 'ecopages-browser-runtime');
+		const artifactsDir = this.getArtifactsDir();
 		const filePath = path.join(artifactsDir, 'ecopages-jsx-esm-entry.mjs');
 		const manifestPath = findPackageManifestPath('@ecopages/jsx');
 		const packageDir = path.dirname(realpathSync(manifestPath));
@@ -229,18 +271,13 @@ export class JsxRuntimeBundleService {
 			'.',
 			jsxPkg.exports?.['.'] as PackageExportTarget,
 		);
-		const relativeModulePath = path.relative(artifactsDir, jsxModulePath).split(path.sep).join('/');
-		const entryImportPath = relativeModulePath.startsWith('.') ? relativeModulePath : `./${relativeModulePath}`;
+		const entryImportPath = this.getEntryImportPath(artifactsDir, jsxModulePath);
 
 		mkdirSync(artifactsDir, { recursive: true });
 		writeFileSync(filePath, [`export * from '${entryImportPath}';`].join('\n'), 'utf8');
 
 		this.cachedJsxEntryModulePath = filePath;
 		return filePath;
-	}
-
-	private getRadiantBrowserRuntimeSpecifiers(): string[] {
-		return this.getRadiantBrowserRuntimeModules().map(({ exportKey }) => `@ecopages/radiant${exportKey.slice(1)}`);
 	}
 
 	private getRadiantBrowserRuntimeModules(): BrowserRuntimeRadiantModule[] {
@@ -287,8 +324,7 @@ export class JsxRuntimeBundleService {
 			return this.cachedRadiantEntryModulePath;
 		}
 
-		const rootDir = this.config.rootDir ?? process.cwd();
-		const artifactsDir = path.join(rootDir, 'node_modules', '.cache', 'ecopages-browser-runtime');
+		const artifactsDir = this.getArtifactsDir();
 		const filePath = path.join(artifactsDir, 'ecopages-radiant-esm-entry.mjs');
 		const seenExports = new Set<string>();
 		const statements: string[] = [];
@@ -305,8 +341,7 @@ export class JsxRuntimeBundleService {
 				continue;
 			}
 
-			const relativeModulePath = path.relative(artifactsDir, module.modulePath).split(path.sep).join('/');
-			const entryImportPath = relativeModulePath.startsWith('.') ? relativeModulePath : `./${relativeModulePath}`;
+			const entryImportPath = this.getEntryImportPath(artifactsDir, module.modulePath);
 
 			statements.push(`export { ${exportNames.join(', ')} } from '${entryImportPath}';`);
 

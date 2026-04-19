@@ -29,7 +29,7 @@ export default config;
 ## What This Integration Owns
 
 - `.tsx` route files by default. Use `extensions` to change the JSX route suffix list.
-- Optional Radiant runtime assets and import-map entries.
+- Optional Radiant SSR/runtime wiring through the public `@ecopages/radiant` entrypoints.
 - Optional `.mdx` routes compiled against the `@ecopages/jsx` runtime.
 
 ## Route Extensions
@@ -44,7 +44,13 @@ ecopagesJsxPlugin({
 
 ## Radiant Support
 
-Radiant runtime bundles are enabled by default so JSX pages can render and hydrate Radiant custom elements.
+Radiant support is enabled by default. When `radiant: true`, the plugin keeps the ownership split explicit:
+
+- Ecopages JSX owns page-level JSX SSR and container hydration.
+- Radiant SSR is activated on the server through `@ecopages/radiant/server/render-component`.
+- Radiant host hydration is activated on the client through an explicit head bootstrap that calls `installRadiantHydrator()` from `@ecopages/radiant/client/hydrator` before intrinsic custom-element modules load.
+
+That means server-rendered `RadiantComponent` hosts hydrate in place only when both the SSR markers and the explicit client hydrator are present. Without the client hydrator, Radiant intentionally falls back to a fresh client render on first connect.
 
 ```ts
 ecopagesJsxPlugin({
@@ -52,7 +58,9 @@ ecopagesJsxPlugin({
 });
 ```
 
-Set `radiant: false` when your JSX pages do not need the Radiant browser runtime on a given app.
+Set `radiant: false` when your JSX pages do not need Radiant SSR or the Radiant browser runtime on a given app.
+
+The plugin bootstrap is intentionally explicit rather than relying on unrelated imports to install the Radiant hydrator as a side effect.
 
 ## MDX Support
 

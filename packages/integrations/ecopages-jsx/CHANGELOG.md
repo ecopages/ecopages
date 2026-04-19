@@ -8,6 +8,7 @@
 
 ### Bug Fixes
 
+- Aligned Radiant SSR and hydration wiring with the public `@ecopages/radiant/server/render-component` and `@ecopages/radiant/client/hydrator` entrypoints so JSX apps install an explicit client hydrator bootstrap instead of relying on implicit side effects.
 - Fixed Radiant SSR page inspection to install the light-DOM shim before JSX page modules are imported outside the normal render pass.
 - Restored direct `EcopagesJsxPlugin` construction so the exported class still accepts the public plugin options shape.
 - Fixed intrinsic custom-element asset discovery so Ecopages JSX registers scripts declared with decorator and function-call `customElement(...)` syntax.

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { EcoBuildOnResolveArgs, EcoBuildOnResolveResult, EcoBuildPlugin } from '../../build/build-types.ts';
@@ -43,21 +43,52 @@ function findPackageRoot(resolvedPath: string): string {
 	}
 }
 
+function pathEntryExists(filePath: string): boolean {
+	try {
+		lstatSync(filePath);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function linkPointsToPackage(linkPath: string, packageRoot: string): boolean {
+	try {
+		return realpathSync(linkPath) === realpathSync(packageRoot);
+	} catch {
+		return false;
+	}
+}
+
 function ensureRuntimePackageLink(nodeModulesDir: string, specifier: string, resolvedPath: string): void {
 	const packageName = getPackageNameFromSpecifier(specifier);
 	const packageRoot = findPackageRoot(resolvedPath);
 	const linkPath = path.join(nodeModulesDir, packageName);
 
-	if (existsSync(linkPath)) {
-		if (realpathSync(linkPath) === realpathSync(packageRoot)) {
+	mkdirSync(path.dirname(linkPath), { recursive: true });
+
+	if (pathEntryExists(linkPath)) {
+		if (linkPointsToPackage(linkPath, packageRoot)) {
 			return;
 		}
 
 		rmSync(linkPath, { recursive: true, force: true });
 	}
 
-	mkdirSync(path.dirname(linkPath), { recursive: true });
-	symlinkSync(packageRoot, linkPath, 'dir');
+	try {
+		symlinkSync(packageRoot, linkPath, 'dir');
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+			throw error;
+		}
+
+		if (linkPointsToPackage(linkPath, packageRoot)) {
+			return;
+		}
+
+		rmSync(linkPath, { recursive: true, force: true });
+		symlinkSync(packageRoot, linkPath, 'dir');
+	}
 }
 
 export interface NodeBootstrapResolutionOptions {
@@ -71,7 +102,6 @@ export interface NodeBootstrapResolutionOptions {
 	 * package roots so transpiled Node imports share one package graph.
 	 */
 	runtimeNodeModulesDir: string;
-	preserveImportMetaPaths?: string[];
 }
 
 /**
@@ -131,32 +161,6 @@ function getBootstrapBuildLoaderForPath(filePath: string): 'js' | 'jsx' | 'json'
 		default:
 			return 'js';
 	}
-}
-
-const REEXPORT_FROM_STATEMENT_PATTERN =
-	/^\s*export\s+(?!type\b)(?:\*|\{[\s\S]*?\})\s+from\s+(['"][^'"]+['"])\s*;?\s*$/gm;
-
-function injectBootstrapReexportImports(source: string): string {
-	const sideEffectImports: string[] = [];
-	const importedSpecifiers = new Set<string>();
-	let importIndex = 0;
-
-	const rewrittenSource = source.replace(REEXPORT_FROM_STATEMENT_PATTERN, (statement, specifierLiteral: string) => {
-		if (!importedSpecifiers.has(specifierLiteral)) {
-			importedSpecifiers.add(specifierLiteral);
-			const importBinding = `__eco_bootstrap_reexport_${importIndex++}`;
-			sideEffectImports.push(`import * as ${importBinding} from ${specifierLiteral};`);
-			sideEffectImports.push(`void ${importBinding};`);
-		}
-
-		return statement;
-	});
-
-	if (sideEffectImports.length === 0) {
-		return source;
-	}
-
-	return `${sideEffectImports.join('\n')}\n${rewrittenSource}`;
 }
 
 function shouldRewriteBootstrapSource(filePath: string, projectDir: string): boolean {
@@ -237,9 +241,6 @@ export function resolveNodeBootstrapDependency(
  */
 export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOptions): EcoBuildPlugin {
 	const projectDir = path.resolve(options.projectDir);
-	const importMetaRewritePaths = new Set(
-		(options.preserveImportMetaPaths ?? []).map((filePath) => path.resolve(filePath)),
-	);
 
 	return {
 		name: 'node-bootstrap-plugin',
@@ -250,26 +251,16 @@ export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOption
 
 			build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async (args) => {
 				const absolutePath = path.resolve(args.path);
-				const isProjectSource = shouldRewriteBootstrapSource(absolutePath, projectDir);
-				const shouldPreserveImportMeta = isProjectSource || importMetaRewritePaths.has(absolutePath);
-				const shouldRewriteReexports = isProjectSource;
+				const shouldRewriteImportMeta = shouldRewriteBootstrapSource(absolutePath, projectDir);
 
-				if (!shouldPreserveImportMeta && !shouldRewriteReexports) {
+				if (!shouldRewriteImportMeta) {
 					return undefined;
 				}
 
 				const originalContents = readFileSync(args.path, 'utf8');
-				let contents = originalContents;
-
-				if (shouldPreserveImportMeta) {
-					contents = contents
-						.replaceAll('import.meta.dirname', JSON.stringify(path.dirname(args.path)))
-						.replaceAll('import.meta.filename', JSON.stringify(args.path));
-				}
-
-				if (shouldRewriteReexports) {
-					contents = injectBootstrapReexportImports(contents);
-				}
+				const contents = originalContents
+					.replaceAll('import.meta.dirname', JSON.stringify(path.dirname(args.path)))
+					.replaceAll('import.meta.filename', JSON.stringify(args.path));
 
 				if (contents === originalContents) {
 					return undefined;
@@ -298,13 +289,9 @@ export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOption
  */
 export function createAppNodeBootstrapPlugin(
 	appConfig: Pick<EcoPagesAppConfig, 'rootDir' | 'workDir' | 'absolutePaths'>,
-	options?: {
-		preserveImportMetaPaths?: string[];
-	},
 ): EcoBuildPlugin {
 	return createNodeBootstrapPlugin({
 		projectDir: appConfig.rootDir,
 		runtimeNodeModulesDir: getAppRuntimeNodeModulesDir(appConfig),
-		preserveImportMetaPaths: options?.preserveImportMetaPaths,
 	});
 }

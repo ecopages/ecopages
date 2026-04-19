@@ -1,23 +1,12 @@
 {
-  "name": "@ecopages/ecopages-jsx",
-  "version": "0.2.0-alpha.17",
-  "exports": {
-    ".": "./src/ecopages-jsx.plugin.ts"
-  },
-  "exclude": [
-    "src/test",
-    "**/*.test.ts"
-  ],
-  "publish": {
-    "include": [
-      "src/**/*.ts",
-      "LICENSE",
-      "README.md",
-      "jsr.json",
-      "package.json"
-    ],
-    "exclude": [
-      "src/test"
-    ]
-  }
+	"name": "@ecopages/ecopages-jsx",
+	"version": "0.2.0-alpha.17",
+	"exports": {
+		".": "./src/ecopages-jsx.plugin.ts"
+	},
+	"exclude": ["src/test", "**/*.test.ts"],
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json", "package.json"],
+		"exclude": ["src/test"]
+	}
 }

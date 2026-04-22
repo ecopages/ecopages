@@ -133,4 +133,49 @@ test.describe('Docs Sidebar Navigation', () => {
 		const activeLink = page.locator('[data-nav-link].active');
 		await expect(activeLink).toHaveCount(1);
 	});
+
+	test('repeated-heading pages do not duplicate content after SPA navigation', async ({ page }) => {
+		await gotoAndWait(page, '/docs/server/routing-patterns');
+		await page.waitForFunction(() => !!(window as any).__ecopages_browser_router__);
+
+		const getPageState = async () => {
+			return page.evaluate(() => {
+				const proseChildren = document.querySelectorAll('.docs-layout__content .prose > *').length;
+				const ids = Array.from(document.querySelectorAll('.docs-layout__content [id]')).map((el) => el.id);
+				const duplicateIds = Object.entries(
+					ids.reduce<Record<string, number>>((map, id) => {
+						map[id] = (map[id] || 0) + 1;
+						return map;
+					}, {}),
+				).filter(([, count]) => count > 1);
+
+				return {
+					proseChildren,
+					duplicateIds,
+					heading: document.querySelector('.docs-layout__content h1')?.textContent?.trim() ?? '',
+				};
+			});
+		};
+
+		const initial = await getPageState();
+		expect(initial.heading).toBe('Routing Patterns');
+		expect(initial.duplicateIds).toHaveLength(0);
+
+		await page.click('[data-testid="docs-nav-link:/docs/integrations/ecopages-jsx"]');
+		await page.waitForURL('**/docs/integrations/ecopages-jsx');
+		await waitForPageReady(page, '/docs/integrations/ecopages-jsx');
+
+		const afterFirstNavigation = await getPageState();
+		expect(afterFirstNavigation.heading).toBe('Ecopages JSX Integration');
+		expect(afterFirstNavigation.duplicateIds).toHaveLength(0);
+
+		await page.click('[data-testid="docs-nav-link:/docs/server/routing-patterns"]');
+		await page.waitForURL('**/docs/server/routing-patterns');
+		await waitForPageReady(page, '/docs/server/routing-patterns');
+
+		const afterSecondNavigation = await getPageState();
+		expect(afterSecondNavigation.heading).toBe('Routing Patterns');
+		expect(afterSecondNavigation.duplicateIds).toHaveLength(0);
+		expect(afterSecondNavigation.proseChildren).toBe(initial.proseChildren);
+	});
 });

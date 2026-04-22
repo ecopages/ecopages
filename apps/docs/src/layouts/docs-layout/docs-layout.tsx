@@ -7,6 +7,21 @@ import { getGroupIcon } from './get-group-icon';
 import { CodeTabs } from '@/components/code-tabs';
 import type { JsxRenderable } from '@ecopages/jsx';
 
+type DocsCustomElementTag = {
+	children?: JsxRenderable;
+	[attr: string]: unknown;
+};
+
+declare global {
+	namespace JSX {
+		interface IntrinsicElements {
+			'radiant-navigation': DocsCustomElementTag;
+			'radiant-docs-pagination': DocsCustomElementTag;
+			'radiant-toc': DocsCustomElementTag;
+		}
+	}
+}
+
 export type DocsLayoutProps = {
 	children: JsxRenderable;
 	class?: string;
@@ -70,7 +85,11 @@ export const DocsLayout: EcoComponent<DocsLayoutProps, JsxRenderable> = ({ child
 DocsLayout.config = {
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
-		scripts: ['./docs-layout.script.ts'],
+		scripts: [
+			'./components/navigation/navigation.script.ts',
+			'./components/docs-pagination/docs-pagination.script.tsx',
+			'./components/toc/toc.script.tsx',
+		],
 		components: [BaseLayout, ApiField, Banner, CodeTabs],
 	},
 };

@@ -42,6 +42,13 @@ export interface PostCssProcessorPluginConfig {
 	 */
 	filter?: RegExp;
 	/**
+	 * CSS entry files to rebuild when a non-CSS dependency changes.
+	 *
+	 * Use this when the processor watches template or script files that affect a
+	 * known stylesheet entry, such as a Tailwind reference file.
+	 */
+	dependencyEntryPaths?: string[];
+	/**
 	 * Function to transform the contents of the file.
 	 * It can be handy to add a custom header or footer to the file.
 	 * Useful for injecting Tailwind v4 `@reference` directives.
@@ -301,12 +308,29 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		);
 	}
 
+	private getTrackedCssEntryFiles(): string[] {
+		const importedCssFiles = new Set(this.cssDependencyMap.keys());
+
+		return this.getTrackedCssFiles().filter((filePath) => !importedCssFiles.has(filePath));
+	}
+
+	private getDependencyEntryFiles(): string[] {
+		const configuredEntryPaths = this.options?.dependencyEntryPaths;
+		if (!configuredEntryPaths || configuredEntryPaths.length === 0) {
+			return this.getTrackedCssEntryFiles();
+		}
+
+		return configuredEntryPaths.filter(
+			(filePath) => this.matchesFileFilter(filePath) && fileSystem.exists(filePath),
+		);
+	}
+
 	private async handleDependencyChange(bridge: IClientBridge): Promise<void> {
 		if (!this.context) {
 			return;
 		}
 
-		const cssFiles = this.getTrackedCssFiles();
+		const cssFiles = this.getDependencyEntryFiles();
 		if (cssFiles.length === 0) {
 			return;
 		}

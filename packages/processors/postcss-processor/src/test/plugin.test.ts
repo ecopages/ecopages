@@ -135,6 +135,77 @@ describe('PostCssProcessorPlugin HMR', () => {
 		expect(bridgeSpy).toHaveBeenCalledWith(cssFile);
 	});
 
+	test('non-CSS dependency changes should rebuild each CSS entry once', async () => {
+		const stylesDir = path.join(SRC_DIR, 'dependency-entry-test');
+		fs.mkdirSync(path.join(stylesDir, 'partials'), { recursive: true });
+
+		const entryFile = path.join(stylesDir, 'tailwind.css');
+		const themeFile = path.join(stylesDir, 'partials', 'theme.css');
+		const proseFile = path.join(stylesDir, 'partials', 'prose.css');
+		const dependencyFile = path.join(SRC_DIR, 'entry-trigger.mdx');
+
+		fs.writeFileSync(themeFile, '.theme { color: red; }');
+		fs.writeFileSync(proseFile, '.prose { color: blue; }');
+		fs.writeFileSync(
+			entryFile,
+			`@import './partials/theme.css';\n@import './partials/prose.css';\n.root { display: flex; color: red; }`,
+		);
+		fs.writeFileSync(dependencyFile, '# trigger');
+
+		let activeColor = 'red';
+
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /dependency-entry-test\/.*\.css$/,
+				dependencyEntryPaths: [entryFile],
+				pluginFactories: {
+					'test-color-plugin': () => {
+						const colorAtCreation = activeColor;
+
+						return {
+							postcssPlugin: 'test-color-plugin',
+							Declaration(decl) {
+								if (decl.prop === 'color') {
+									decl.value = colorAtCreation;
+								}
+							},
+						} as postcss.AcceptedPlugin;
+					},
+				},
+			},
+		});
+
+		const config = await new ConfigBuilder()
+			.setRootDir(TMP_DIR)
+			.setSrcDir('src')
+			.setDistDir('dist')
+			.setBaseUrl('http://localhost:3000')
+			.build();
+
+		plugin.setContext(config);
+		await plugin.setup();
+
+		const Bridge = {
+			cssUpdate: () => {},
+			error: (msg: string) => {
+				throw new Error(msg);
+			},
+			reload: () => {},
+		} as unknown as ClientBridge;
+
+		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChange) {
+			throw new Error('Plugin does not have watch handler');
+		}
+
+		activeColor = 'purple';
+		await watchConfig.onChange({ path: dependencyFile, bridge: Bridge });
+
+		expect(bridgeSpy).toHaveBeenCalledTimes(1);
+		expect(bridgeSpy).toHaveBeenCalledWith(entryFile);
+	});
+
 	test('setup should use configured plugins initially and pluginFactories for rebuilds', async () => {
 		const cssFile = path.join(SRC_DIR, 'factory-precedence.css');
 		const dependencyFile = path.join(SRC_DIR, 'factory-precedence.tsx');

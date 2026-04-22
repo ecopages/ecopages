@@ -72,6 +72,8 @@ describe('Presets Verification', () => {
 			referencePath: path.resolve(__dirname, '../fixtures/tailwind.css'),
 		});
 
+		expect(preset.dependencyEntryPaths).toEqual([path.resolve(__dirname, '../fixtures/tailwind.css')]);
+
 		const result = await PostCssProcessor.processStringOrBuffer(cssToPrefix, {
 			plugins: preset.plugins ? Object.values(preset.plugins) : [],
 			filePath: path.resolve(__dirname, 'style.css'),

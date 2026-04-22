@@ -79,6 +79,7 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 	};
 
 	return {
+		dependencyEntryPaths: [referencePath],
 		/**
 		 * Instantiate the initial plugin list for the active processor instance.
 		 * Fresh instances can later be recreated from `pluginFactories`.

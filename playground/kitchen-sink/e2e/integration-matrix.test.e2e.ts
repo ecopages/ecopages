@@ -41,8 +41,6 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 			const runtime = trackRuntimeErrors(page);
 
 			await gotoAndWait(page, hostPage.href);
-			await page.waitForFunction(() => !!customElements.get('lit-counter'));
-			await page.waitForFunction(() => !!customElements.get('radiant-counter'));
 
 			await assertAllCountersInteractivity(page.getByTestId(hostPage.flatCountersTestId), {
 				radiant: hostPage.radiantInitialValue,
@@ -58,8 +56,6 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 				const runtime = trackRuntimeErrors(page);
 
 				await gotoAndWait(page, hostPage.href);
-				await page.waitForFunction(() => !!customElements.get('lit-counter'));
-				await page.waitForFunction(() => !!customElements.get('radiant-counter'));
 
 				await assertAllCountersInteractivity(page.getByTestId(shellCase.testId));
 

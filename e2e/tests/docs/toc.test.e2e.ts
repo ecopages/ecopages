@@ -13,7 +13,7 @@ test.describe('Docs TOC', () => {
 
 	test.beforeEach(async ({ page }) => {
 		await gotoAndWait(page, PAGE);
-		await page.waitForFunction(() => !!(window as any).__ecopages_browser_router__);
+		await expect(page.locator(TOC)).toBeVisible();
 	});
 
 	test('renders a TOC with links matching page h2/h3 headings', async ({ page }) => {
@@ -89,8 +89,7 @@ test.describe('Docs TOC', () => {
 		const toc = page.locator(TOC);
 		const setupLink = toc.locator('a[data-toc-link="setup"]');
 		await setupLink.click();
-
-		await page.waitForTimeout(300);
+		await expect(page).toHaveURL(/#setup$/);
 
 		const extraDocRequests = requests.filter((url) => !url.includes(PAGE));
 		expect(extraDocRequests).toHaveLength(0);
@@ -112,8 +111,6 @@ test.describe('Docs TOC', () => {
 			el?.scrollIntoView({ behavior: 'instant' });
 		});
 
-		await page.waitForTimeout(500);
-
 		const activeLinks = page.locator(`${TOC} a.toc-active`);
 		await expect(activeLinks).toHaveCount(1);
 	});
@@ -134,7 +131,7 @@ test.describe('Docs TOC', () => {
 
 	test('repeated heading labels get unique TOC targets', async ({ page }) => {
 		await gotoAndWait(page, '/docs/server/routing-patterns');
-		await page.waitForFunction(() => !!(window as any).__ecopages_browser_router__);
+		await expect(page.locator(TOC)).toBeVisible();
 
 		const tocLinks = page.locator('radiant-toc a[data-toc-link]');
 		const ids = await tocLinks.evaluateAll((links) =>

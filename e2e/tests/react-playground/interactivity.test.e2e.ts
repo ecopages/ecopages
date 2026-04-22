@@ -49,7 +49,6 @@ test.describe('React Playground Interactivity', () => {
 		const { assertNoRelevantErrors } = trackBrowserErrors(page);
 
 		await gotoAndWait(page, '/');
-		await page.waitForFunction(() => !!customElements.get('radiant-counter'));
 
 		const reactCounter = page.locator('div.counter:has([data-increment])').first();
 		await expect(reactCounter).toBeVisible();
@@ -84,7 +83,6 @@ test.describe('React Playground Interactivity', () => {
 		const { assertNoRelevantErrors } = trackBrowserErrors(page);
 
 		await gotoAndWait(page, '/');
-		await page.waitForFunction(() => !!customElements.get('radiant-counter'));
 
 		const radiantCounter = page.locator('radiant-counter').first();
 		await expect(radiantCounter).toBeVisible();

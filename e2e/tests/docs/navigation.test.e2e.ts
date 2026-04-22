@@ -17,7 +17,7 @@ test.describe('Docs Sidebar Navigation', () => {
 
 	test.beforeEach(async ({ page }) => {
 		await gotoAndWait(page, '/docs/getting-started/introduction');
-		await page.waitForFunction(() => !!(window as any).__ecopages_browser_router__);
+		await expect(page.locator(SIDEBAR)).toBeVisible();
 	});
 
 	test('highlights the active nav link on initial load', async ({ page }) => {
@@ -80,7 +80,7 @@ test.describe('Docs Sidebar Navigation', () => {
 
 		const tocLink = page.locator('radiant-toc a[data-toc-link]').first();
 		await tocLink.click();
-		await page.waitForTimeout(300);
+		await expect(page).toHaveURL(/#.+$/);
 
 		await page.click('[data-testid="docs-nav-link:/docs/getting-started/introduction"]');
 		await page.waitForURL('**/docs/getting-started/introduction');
@@ -136,7 +136,7 @@ test.describe('Docs Sidebar Navigation', () => {
 
 	test('repeated-heading pages do not duplicate content after SPA navigation', async ({ page }) => {
 		await gotoAndWait(page, '/docs/server/routing-patterns');
-		await page.waitForFunction(() => !!(window as any).__ecopages_browser_router__);
+		await expect(page.locator(SIDEBAR)).toBeVisible();
 
 		const getPageState = async () => {
 			return page.evaluate(() => {

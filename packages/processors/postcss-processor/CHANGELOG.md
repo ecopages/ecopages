@@ -13,6 +13,7 @@ All notable changes to `@ecopages/postcss-processor` are documented here.
 ### Bug Fixes
 
 - Fixed runtime PostCSS config loading and stylesheet rebuilds for Tailwind-driven template changes.
+
 - Fixed direct stylesheet processing and preset output so Tailwind v4 preserves injected references and nested BEM selectors.
 
 ### Tests

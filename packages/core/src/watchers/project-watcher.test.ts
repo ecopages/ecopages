@@ -698,11 +698,39 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 			expect.arrayContaining([
 				'/test/project/custom-watch',
 				Config.absolutePaths.includesDir,
+				Config.absolutePaths.srcDir,
 				Config.absolutePaths.pagesDir,
 			]),
 			expect.any(Object),
 		);
-		expect(watcherHandle.add).toHaveBeenCalledWith(Config.absolutePaths.srcDir);
+		expect(watcherHandle.add).not.toHaveBeenCalled();
+	});
+
+	test('should attach chokidar handlers only once when watcher subscription is requested twice', async () => {
+		const Config = await createMockConfig();
+		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		const HmrManager = createMockHmrManager();
+		const Bridge = createMockBridge();
+		const watcherHandle = {
+			add: vi.fn(),
+			on: vi.fn().mockReturnThis(),
+			close: vi.fn(),
+		};
+
+		vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherHandle as never);
+
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: HmrManager,
+			bridge: Bridge,
+		});
+
+		await watcher.createWatcherSubscription();
+		await watcher.createWatcherSubscription();
+
+		expect(chokidar.watch).toHaveBeenCalledTimes(1);
+		expect(watcherHandle.on).toHaveBeenCalledTimes(6);
 	});
 
 	test('should refresh routes once for added page files', async () => {

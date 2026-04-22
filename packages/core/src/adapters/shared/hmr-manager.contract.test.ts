@@ -144,13 +144,58 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 			}),
 		};
 
-		vi.spyOn(manager, 'handleFileChange').mockImplementation(async () => {});
-
 		const outputUrl = await manager.registerScriptEntrypoint(entrypointPath);
 
 		assert.equal(outputUrl, '/assets/_hmr/script.js');
 		assert.deepEqual(buildCalls, [entrypointPath]);
 		assert.equal(fs.readFileSync(outputPath, 'utf8'), 'fresh-output');
+
+		manager.stop();
+	});
+
+	test('registering one script entrypoint does not rebuild previously watched script entrypoints', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-script-targeted-register');
+		const srcDir = path.join(rootDir, 'src');
+		fs.mkdirSync(srcDir, { recursive: true });
+
+		const firstEntrypoint = path.join(srcDir, 'first.script.ts');
+		const secondEntrypoint = path.join(srcDir, 'second.script.ts');
+		fs.writeFileSync(firstEntrypoint, 'console.log("first");', 'utf8');
+		fs.writeFileSync(secondEntrypoint, 'console.log("second");', 'utf8');
+
+		const manager = await create(rootDir);
+		const buildCalls: string[][] = [];
+		manager.appConfig.runtime!.buildExecutor = {
+			build: vi.fn(async (options) => {
+				const entrypoints = (options.entrypoints as string[]).map(String);
+				buildCalls.push(entrypoints);
+				for (const entrypoint of entrypoints) {
+					const relativePathJs = path
+						.relative(path.join(rootDir, 'src'), entrypoint)
+						.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
+					const outputPath = path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', relativePathJs);
+					fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+					fs.writeFileSync(outputPath, `output:${path.basename(entrypoint)}`, 'utf8');
+				}
+				return {
+					success: true,
+					logs: [],
+					outputs: entrypoints.map((entrypoint) => ({
+						path: path.join(
+							resolveInternalWorkDir(manager.appConfig),
+							'assets',
+							'_hmr',
+							path.relative(path.join(rootDir, 'src'), entrypoint).replace(/\.(tsx?|jsx?|mdx?)$/, '.js'),
+						),
+					})),
+				};
+			}),
+		};
+
+		await manager.registerScriptEntrypoint(firstEntrypoint);
+		await manager.registerScriptEntrypoint(secondEntrypoint);
+
+		assert.deepEqual(buildCalls, [[firstEntrypoint], [secondEntrypoint]]);
 
 		manager.stop();
 	});

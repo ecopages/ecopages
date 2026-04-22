@@ -358,31 +358,29 @@ export class HmrManager implements IHmrManager {
 	 * Performs registration for a generic script asset.
 	 *
 	 * @remarks
-	 * Strategies get the first chance to emit output. If no output exists after
-	 * that pass, Bun falls back to the generic browser build for this explicit
-	 * script-only path.
+	 * This path performs a targeted browser bundle for the requested script
+	 * entrypoint only. The resulting dependency graph is retained so later file
+	 * changes can invalidate just the affected script entrypoints.
 	 */
 	private async emitScriptEntrypoint(entrypointPath: string, outputPath: string): Promise<void> {
 		const naming = path.relative(this.distDir, outputPath).split(path.sep).join('/');
+		const buildResult = await this.browserBundleService.bundle({
+			profile: 'hmr-entrypoint',
+			entrypoints: [entrypointPath],
+			outdir: this.distDir,
+			naming,
+			minify: false,
+			plugins: this.plugins,
+		});
 
-		await this.handleFileChange(entrypointPath, { broadcast: false });
+		if (!buildResult.success) {
+			appLogger.error(`[HMR] Generic script entrypoint build failed for ${entrypointPath}:`, buildResult.logs);
+			return;
+		}
 
-		if (!fileSystem.exists(outputPath)) {
-			const buildResult = await this.browserBundleService.bundle({
-				profile: 'hmr-entrypoint',
-				entrypoints: [entrypointPath],
-				outdir: this.distDir,
-				naming,
-				minify: false,
-				plugins: this.plugins,
-			});
-
-			if (!buildResult.success) {
-				appLogger.error(
-					`[HMR] Generic script entrypoint build failed for ${entrypointPath}:`,
-					buildResult.logs,
-				);
-			}
+		const entrypointDependencies = buildResult.dependencyGraph?.entrypoints?.[entrypointPath];
+		if (entrypointDependencies) {
+			this.entrypointDependencyGraph.setEntrypointDependencies(entrypointPath, entrypointDependencies);
 		}
 	}
 

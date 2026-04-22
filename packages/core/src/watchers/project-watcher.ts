@@ -297,45 +297,45 @@ export class ProjectWatcher {
 	 * rapid file changes efficiently.
 	 */
 	public async createWatcherSubscription() {
-		if (!this.watcher) {
-			const processorPaths: string[] = [];
-			for (const processor of this.appConfig.processors.values()) {
-				const watchConfig = processor.getWatchConfig();
-				if (!watchConfig) continue;
-				processorPaths.push(...watchConfig.paths);
-			}
-
-			if (fileSystem.exists(this.appConfig.absolutePaths.includesDir)) {
-				processorPaths.push(this.appConfig.absolutePaths.includesDir);
-			}
-
-			if (fileSystem.exists(this.appConfig.absolutePaths.srcDir)) {
-				processorPaths.push(this.appConfig.absolutePaths.srcDir);
-			}
-
-			if (fileSystem.exists(this.appConfig.absolutePaths.pagesDir)) {
-				processorPaths.push(this.appConfig.absolutePaths.pagesDir);
-			}
-
-			if (fileSystem.exists(this.appConfig.absolutePaths.publicDir)) {
-				processorPaths.push(this.appConfig.absolutePaths.publicDir);
-			}
-
-			if (this.appConfig.additionalWatchPaths.length) {
-				processorPaths.push(...this.appConfig.additionalWatchPaths);
-			}
-
-			this.watcher = chokidar.watch(processorPaths, {
-				ignoreInitial: true,
-				ignorePermissionErrors: true,
-				awaitWriteFinish: {
-					stabilityThreshold: 50,
-					pollInterval: 50,
-				},
-			});
+		if (this.watcher) {
+			return this.watcher;
 		}
 
-		this.watcher.add(this.appConfig.absolutePaths.srcDir);
+		const processorPaths: string[] = [];
+		for (const processor of this.appConfig.processors.values()) {
+			const watchConfig = processor.getWatchConfig();
+			if (!watchConfig) continue;
+			processorPaths.push(...watchConfig.paths);
+		}
+
+		if (fileSystem.exists(this.appConfig.absolutePaths.includesDir)) {
+			processorPaths.push(this.appConfig.absolutePaths.includesDir);
+		}
+
+		if (fileSystem.exists(this.appConfig.absolutePaths.srcDir)) {
+			processorPaths.push(this.appConfig.absolutePaths.srcDir);
+		}
+
+		if (fileSystem.exists(this.appConfig.absolutePaths.pagesDir)) {
+			processorPaths.push(this.appConfig.absolutePaths.pagesDir);
+		}
+
+		if (fileSystem.exists(this.appConfig.absolutePaths.publicDir)) {
+			processorPaths.push(this.appConfig.absolutePaths.publicDir);
+		}
+
+		if (this.appConfig.additionalWatchPaths.length) {
+			processorPaths.push(...this.appConfig.additionalWatchPaths);
+		}
+
+		this.watcher = chokidar.watch(processorPaths, {
+			ignoreInitial: true,
+			ignorePermissionErrors: true,
+			awaitWriteFinish: {
+				stabilityThreshold: 50,
+				pollInterval: 50,
+			},
+		});
 
 		this.watcher
 			.on('change', (p) => this.enqueueChange(() => this.handleFileChange(p, 'change')))

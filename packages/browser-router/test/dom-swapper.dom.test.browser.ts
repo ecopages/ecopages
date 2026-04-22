@@ -159,7 +159,9 @@ describe('DomSwapper DOM behavior', () => {
 		expect(nextCounter).not.toBe(currentCounter);
 		expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('0');
 
-		(nextCounter?.querySelector('[data-ref="increment"]') as HTMLButtonElement).click();
+		const incrementButton = nextCounter?.querySelector<HTMLButtonElement>('[data-ref="increment"]');
+		expect(incrementButton).not.toBeNull();
+		incrementButton?.click();
 		expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('1');
 	});
 
@@ -189,7 +191,48 @@ describe('DomSwapper DOM behavior', () => {
 		expect(nextCounter?.marker).toBe('kept');
 		expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('5');
 
-		(nextCounter?.querySelector('[data-ref="increment"]') as HTMLButtonElement).click();
+		const incrementButton = nextCounter?.querySelector<HTMLButtonElement>('[data-ref="increment"]');
+		expect(incrementButton).not.toBeNull();
+		incrementButton?.click();
 		expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('6');
+	});
+
+	it('does not retain stale siblings when duplicate ids appear across navigations', () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		document.body.innerHTML = [
+			'<main>',
+			'<h1>Routing Patterns</h1>',
+			'<h3 id="when-to-use">When to Use</h3>',
+			'<p>Alpha section</p>',
+			'<h3 id="example">Example</h3>',
+			'<p>Alpha example</p>',
+			'<h3 id="when-to-use">When to Use</h3>',
+			'<p>Beta section</p>',
+			'<h3 id="example">Example</h3>',
+			'<p>Beta example</p>',
+			'</main>',
+		].join('');
+
+		const nextDocument = parseDocument(
+			[
+				'<html><body>',
+				'<main>',
+				'<h1>Ecopages JSX Integration</h1>',
+				'<h2>Installation</h2>',
+				'<p>Install the integration.</p>',
+				'</main>',
+				'</body></html>',
+			].join(''),
+		);
+
+		swapper.morphBody(nextDocument);
+
+		expect(document.body.textContent).toContain('Ecopages JSX Integration');
+		expect(document.body.textContent).not.toContain('Routing Patterns');
+		expect(document.body.textContent).not.toContain('Alpha section');
+		expect(document.body.textContent).not.toContain('Beta example');
+		expect(document.querySelectorAll('#when-to-use')).toHaveLength(0);
+		expect(document.querySelectorAll('#example')).toHaveLength(0);
 	});
 });

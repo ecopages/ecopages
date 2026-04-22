@@ -41,6 +41,23 @@ function isHydratedCustomElement(element: Element): boolean {
 }
 
 /**
+ * Returns the only body-morph keys that browser-router should trust.
+ *
+ * morphdom defaults to treating every `id` attribute as a structural key.
+ * That is fragile for content-heavy pages where repeated heading ids or other
+ * invalid-but-common markup can appear. Browser-router only needs stable keys
+ * for explicitly persisted nodes, so all other elements fall back to normal
+ * tree-order diffing.
+ */
+function getBodyMorphKey(element: Node, persistAttribute: string): string | undefined {
+	if (!(element instanceof Element)) {
+		return undefined;
+	}
+
+	return element.getAttribute(persistAttribute) || element.getAttribute(DEFAULT_PERSIST_ATTR) || undefined;
+}
+
+/**
  * Handles DOM manipulation during client-side page transitions.
  *
  * Uses a hybrid approach inspired by Turbo:
@@ -366,6 +383,7 @@ export class DomSwapper {
 		const deferredReplacements: Array<{ from: Element; to: Element }> = [];
 
 		morphdom(document.body, newDocument.body, {
+			getNodeKey: (node) => getBodyMorphKey(node, persistAttr),
 			onBeforeElUpdated: (fromEl, toEl) => {
 				if (isPersisted(fromEl, persistAttr)) {
 					return false;

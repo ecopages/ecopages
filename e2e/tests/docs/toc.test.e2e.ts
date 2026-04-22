@@ -132,6 +132,20 @@ test.describe('Docs TOC', () => {
 		await expect(anyLink.first()).toBeVisible();
 	});
 
+	test('repeated heading labels get unique TOC targets', async ({ page }) => {
+		await gotoAndWait(page, '/docs/server/routing-patterns');
+		await page.waitForFunction(() => !!(window as any).__ecopages_browser_router__);
+
+		const tocLinks = page.locator('radiant-toc a[data-toc-link]');
+		const ids = await tocLinks.evaluateAll((links) =>
+			links
+				.filter((link) => link.textContent?.trim() === 'When to Use')
+				.map((link) => link.getAttribute('data-toc-link')),
+		);
+
+		expect(ids).toEqual(['when-to-use', 'when-to-use-2', 'when-to-use-3', 'when-to-use-4', 'when-to-use-5']);
+	});
+
 	test('TOC is empty on a page with no headings', async ({ page }) => {
 		const headingCount = await page.locator('.docs-layout__content h2, .docs-layout__content h3').count();
 

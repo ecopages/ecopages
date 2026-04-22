@@ -3,7 +3,7 @@ import type { RadiantSwitchProps } from './switch.script';
 import './switch.script';
 
 export const RadiantSwitch: EcoComponent<RadiantSwitchProps> = (props) => {
-	return <radiant-switch class="radiant-switch" {...props} />;
+	return <radiant-switch class="radiant-switch" {...props}></radiant-switch>;
 };
 
 RadiantSwitch.config = {

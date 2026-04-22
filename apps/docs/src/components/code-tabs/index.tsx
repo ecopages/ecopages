@@ -16,7 +16,7 @@ export const CodeTabs = eco.component({
 				prop:copyLabel={props.copyLabel}
 				prop:defaultSelectedKey={props.defaultSelectedKey}
 				prop:selectedKey={props.selectedKey}
-			/>
+			></radiant-code-tabs>
 		);
 	},
 });

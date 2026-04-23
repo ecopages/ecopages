@@ -113,7 +113,9 @@ export class RadiantToc extends RadiantComponent {
 
 	private hasPendingScrollReachedTarget(heading: HTMLElement): boolean {
 		const headingTop = heading.getBoundingClientRect().top;
-		return headingTop <= this.scrollOffset + this.scrollOffsetTolerance && headingTop >= -this.scrollOffsetTolerance;
+		return (
+			headingTop <= this.scrollOffset + this.scrollOffsetTolerance && headingTop >= -this.scrollOffsetTolerance
+		);
 	}
 
 	private findHeadingById(id: string): HTMLElement | null {

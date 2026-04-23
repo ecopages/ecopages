@@ -12,10 +12,23 @@ function trackMatchingRequests(page: import('@playwright/test').Page, predicate:
 	return requests;
 }
 
+function trackConsoleWarnings(page: import('@playwright/test').Page, pattern: RegExp) {
+	const warnings: string[] = [];
+	page.on('console', (message) => {
+		if (message.type() !== 'warning') return;
+		const text = message.text();
+		if (pattern.test(text)) {
+			warnings.push(text);
+		}
+	});
+	return warnings;
+}
+
 test.describe('Browser Router Prefetch', () => {
 	test('should prefetch link with eager strategy immediately', async ({ page }) => {
-		const requests = trackMatchingRequests(page, (url) =>
-			url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'eager',
+		const requests = trackMatchingRequests(
+			page,
+			(url) => url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'eager',
 		);
 
 		await gotoAndWait(page, '/prefetch');
@@ -25,8 +38,9 @@ test.describe('Browser Router Prefetch', () => {
 	test('should NOT prefetch hover-only link until hovered', async ({ page }) => {
 		await gotoAndWait(page, '/prefetch');
 
-		const requests = trackMatchingRequests(page, (url) =>
-			url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'hover',
+		const requests = trackMatchingRequests(
+			page,
+			(url) => url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'hover',
 		);
 
 		expect(requests.length).toBe(0);
@@ -38,8 +52,9 @@ test.describe('Browser Router Prefetch', () => {
 	test('should prefetch viewport link when scrolled into view', async ({ page }) => {
 		await gotoAndWait(page, '/prefetch');
 
-		const requests = trackMatchingRequests(page, (url) =>
-			url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'below',
+		const requests = trackMatchingRequests(
+			page,
+			(url) => url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'below',
 		);
 
 		expect(requests.length).toBe(0);
@@ -53,8 +68,9 @@ test.describe('Browser Router Prefetch', () => {
 	test('should NOT prefetch link with data-eco-no-prefetch', async ({ page }) => {
 		await gotoAndWait(page, '/prefetch');
 
-		const requests = trackMatchingRequests(page, (url) =>
-			url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'none',
+		const requests = trackMatchingRequests(
+			page,
+			(url) => url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'none',
 		);
 
 		await page.hover('#link-no-prefetch');
@@ -85,8 +101,9 @@ test.describe('Browser Router Prefetch', () => {
 	test('should prefetch with intent strategy on hover', async ({ page }) => {
 		await gotoAndWait(page, '/prefetch');
 
-		const requests = trackMatchingRequests(page, (url) =>
-			url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'intent',
+		const requests = trackMatchingRequests(
+			page,
+			(url) => url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'intent',
 		);
 
 		await page.hover('#link-intent');
@@ -119,6 +136,15 @@ test.describe('Browser Router Prefetch', () => {
 		await gotoAndWait(page, '/prefetch');
 		await expect.poll(() => cssPrefetched).toBe(true);
 		expect(cssPrefetched).toBe(true);
+	});
+
+	test('should not emit unused preload warnings while prefetching future page stylesheets', async ({ page }) => {
+		const preloadWarnings = trackConsoleWarnings(page, /preloaded using link preload but not used/i);
+
+		await gotoAndWait(page, '/prefetch');
+		await page.waitForTimeout(3500);
+
+		expect(preloadWarnings).toEqual([]);
 	});
 
 	test('should NOT prefetch the current page', async ({ page }) => {

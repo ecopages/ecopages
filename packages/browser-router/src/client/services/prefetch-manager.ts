@@ -25,6 +25,7 @@ const DEFAULT_PREFETCH_OPTIONS: PrefetchOptions = {
 export class PrefetchManager {
 	private options: PrefetchOptions;
 	private prefetched: Set<string> = new Set();
+	private prefetchedStylesheets: Set<string> = new Set();
 	private htmlCache: Map<string, string> = new Map();
 	private observer: IntersectionObserver | null = null;
 	private hoverTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
@@ -418,9 +419,10 @@ export class PrefetchManager {
 	/**
 	 * Prefetches stylesheets discovered in HTML content.
 	 *
-	 * Parses the HTML to find stylesheet links, then creates preload hints
-	 * for stylesheets not already present in the current document. This ensures
-	 * styles are cached before navigation to prevent FOUC.
+	 * Parses the HTML to find stylesheet links, then warms the HTTP cache for
+	 * stylesheets not already present in the current document. This keeps future
+	 * navigation CSS warm without injecting `preload` hints that browsers expect
+	 * the current page to consume immediately.
 	 *
 	 * @param html - The raw HTML string to parse
 	 * @param url - The base URL for resolving relative stylesheet paths
@@ -431,22 +433,31 @@ export class PrefetchManager {
 
 		const existingHrefs = new Set([
 			...Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).map((l) => l.href),
-			...Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="preload"][as="style"]')).map(
-				(l) => l.href,
-			),
+			...this.prefetchedStylesheets,
 		]);
 
 		const newStylesheets = doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]');
+		const stylesheetFetches: Promise<void>[] = [];
 
 		for (const link of newStylesheets) {
 			if (!existingHrefs.has(link.href)) {
-				const preloadLink = document.createElement('link');
-				preloadLink.rel = 'preload';
-				preloadLink.as = 'style';
-				preloadLink.href = link.href;
-
-				document.head.appendChild(preloadLink);
+				existingHrefs.add(link.href);
+				this.prefetchedStylesheets.add(link.href);
+				stylesheetFetches.push(this.prefetchStylesheet(link.href));
 			}
+		}
+
+		await Promise.allSettled(stylesheetFetches);
+	}
+
+	private async prefetchStylesheet(href: string): Promise<void> {
+		try {
+			await fetch(href, {
+				credentials: 'same-origin',
+				priority: 'low',
+			} as RequestInit);
+		} catch {
+			this.prefetchedStylesheets.delete(href);
 		}
 	}
 }

@@ -173,7 +173,12 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 					const relativePathJs = path
 						.relative(path.join(rootDir, 'src'), entrypoint)
 						.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-					const outputPath = path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', relativePathJs);
+					const outputPath = path.join(
+						resolveInternalWorkDir(manager.appConfig),
+						'assets',
+						'_hmr',
+						relativePathJs,
+					);
 					fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 					fs.writeFileSync(outputPath, `output:${path.basename(entrypoint)}`, 'utf8');
 				}

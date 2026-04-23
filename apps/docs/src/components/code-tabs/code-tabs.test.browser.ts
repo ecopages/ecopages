@@ -81,7 +81,9 @@ describe('RadiantCodeTabs', () => {
 
 		await vi.waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith('console.log("js")');
-			expect(codeTabs.querySelector('.code-tabs__status')?.textContent).toContain('JavaScript copied to clipboard');
+			expect(codeTabs.querySelector('.code-tabs__status')?.textContent).toContain(
+				'JavaScript copied to clipboard',
+			);
 			expect(codeTabs.querySelector('.code-tabs__copy')?.getAttribute('data-copied')).toBe('true');
 		});
 

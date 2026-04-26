@@ -1,6 +1,74 @@
 import type { ReactNode, CSSProperties } from 'react';
 import { eco } from '@ecopages/core';
-import { BW_CONFIG, BADGE_CONFIG, LEAF_PATH, MIDRIB_PATH, type LogoVariant, createLeafConfig } from './logo.constants';
+import {
+	BW_CONFIG,
+	BADGE_CONFIG,
+	LEAF_PATH,
+	MIDRIB_PATH,
+	SCALES,
+	type ScaleStop,
+	type LogoVariant,
+	createLeafConfig,
+} from './logo.constants';
+
+const SQUIRCLE_BACKGROUND = SCALES.gray[900];
+const SQUIRCLE_BACKGROUND_INVERTED = SCALES.gray[50];
+const BADGE_LEAF_BORDER_WIDTH = '22';
+const BADGE_LOGO_SCALE = 0.92;
+const BADGE_LOGO_TRANSLATE_X = 6.56;
+const BADGE_LOGO_TRANSLATE_Y = 6.4;
+
+const LOGO_LAYER_SPECS = [
+	{ key: 'back', y: 100, botStrokeOpacity: '0.15' },
+	{ key: 'mid', y: 60, botStrokeOpacity: '0.2' },
+	{ key: 'front', y: 20, botStrokeOpacity: '0.2' },
+] as const;
+
+const BADGE_SHADOW = {
+	color: '#000000',
+	opacity: '0.75',
+} as const;
+
+export type LogoMode = 'light' | 'dark';
+
+type LeafConfig = ReturnType<typeof createLeafConfig>;
+
+const getLayerFill = (config: LeafConfig, key: 'front' | 'mid' | 'back') => ({
+	fillBase: config[key],
+	fillGrad: config[`${key}Gradient`],
+	topGrad: config[`${key}Top`],
+	botGrad: config[`${key}Bot`],
+});
+
+const invertScaleStop = (stop: ScaleStop): ScaleStop => {
+	const numericStop = Number(stop);
+	const inverted = 1000 - numericStop;
+	return (inverted === 1000 ? 950 : inverted) as ScaleStop;
+};
+
+const invertLeafConfig = (stops: {
+	front: [ScaleStop, ScaleStop, ScaleStop];
+	mid: [ScaleStop, ScaleStop, ScaleStop];
+	back: [ScaleStop, ScaleStop, ScaleStop];
+}) =>
+	createLeafConfig(
+		'gray',
+		stops.front.map((stop) => invertScaleStop(stop)) as [ScaleStop, ScaleStop, ScaleStop],
+		stops.mid.map((stop) => invertScaleStop(stop)) as [ScaleStop, ScaleStop, ScaleStop],
+		stops.back.map((stop) => invertScaleStop(stop)) as [ScaleStop, ScaleStop, ScaleStop],
+	);
+
+const BADGE_STOP_CONFIG = {
+	front: [50, 50, 100],
+	mid: [200, 200, 300],
+	back: [400, 400, 500],
+} as const satisfies {
+	front: [ScaleStop, ScaleStop, ScaleStop];
+	mid: [ScaleStop, ScaleStop, ScaleStop];
+	back: [ScaleStop, ScaleStop, ScaleStop];
+};
+
+const BADGE_DARK_CONFIG = invertLeafConfig(BADGE_STOP_CONFIG);
 
 export const Logo = eco.component({
 	dependencies: {
@@ -19,6 +87,17 @@ export const Logo = eco.component({
 	}) => {
 		const idPrefix = name;
 		const shadowColor = config.shadow;
+		const layers = LOGO_LAYER_SPECS.map((layer) => {
+			const fills = getLayerFill(config, layer.key);
+			return {
+				...layer,
+				...fills,
+				fillGradId: `${idPrefix}-${layer.key}-grad`,
+				topGradId: `${idPrefix}-${layer.key}-top`,
+				botGradId: `${idPrefix}-${layer.key}-bot`,
+				strokeColor: fills.botGrad[1],
+			};
+		});
 
 		return (
 			<div className="ecopages-logo">
@@ -114,50 +193,22 @@ export const Logo = eco.component({
 						</filter>
 					</defs>
 
-					{[
-						{
-							y: 100,
-							fillBase: config.back,
-							fillGrad: `${idPrefix}-back-grad`,
-							topGrad: `${idPrefix}-back-top`,
-							botGrad: `${idPrefix}-back-bot`,
-							strokeColor: config.backBot[1],
-							botStrokeOpacity: '0.15',
-						},
-						{
-							y: 60,
-							fillBase: config.mid,
-							fillGrad: `${idPrefix}-mid-grad`,
-							topGrad: `${idPrefix}-mid-top`,
-							botGrad: `${idPrefix}-mid-bot`,
-							strokeColor: config.midBot[1],
-							botStrokeOpacity: '0.2',
-						},
-						{
-							y: 20,
-							fillBase: config.front,
-							fillGrad: `${idPrefix}-front-grad`,
-							topGrad: `${idPrefix}-front-top`,
-							botGrad: `${idPrefix}-front-bot`,
-							strokeColor: config.frontBot[1],
-							botStrokeOpacity: '0.2',
-						},
-					].map((layer, index) => (
+					{layers.map((layer, index) => (
 						<g key={index} transform={`translate(0, ${layer.y})`} filter={`url(#${idPrefix}-leaf-shadow)`}>
 							{variant === 'flat' && <use href={`#${idPrefix}-leaf`} fill={layer.fillBase} />}
 							{variant === 'gradient' && (
-								<use href={`#${idPrefix}-leaf`} fill={`url(#${layer.fillGrad})`} />
+								<use href={`#${idPrefix}-leaf`} fill={`url(#${layer.fillGradId})`} />
 							)}
 							{variant === 'detailed' && (
 								<>
 									<use
 										href={`#${idPrefix}-leaf`}
-										fill={`url(#${layer.topGrad})`}
+										fill={`url(#${layer.topGradId})`}
 										clipPath={`url(#${idPrefix}-above-midrib)`}
 									/>
 									<use
 										href={`#${idPrefix}-leaf`}
-										fill={`url(#${layer.botGrad})`}
+										fill={`url(#${layer.botGradId})`}
 										clipPath={`url(#${idPrefix}-below-midrib)`}
 									/>
 									<use
@@ -193,30 +244,67 @@ export const LogoSquircle = eco.component({
 		name = 'logo-badge',
 		variant = 'gradient',
 		config = BADGE_CONFIG,
+		mode = 'light',
 		children,
 	}: {
 		name?: string;
 		variant?: LogoVariant;
 		config?: ReturnType<typeof createLeafConfig>;
+		mode?: LogoMode;
 		children?: ReactNode;
 	}) => {
 		const p = name;
-		const c = config;
+		const c = mode === 'dark' && config === BADGE_CONFIG ? BADGE_DARK_CONFIG : config;
+		const badgeBackground = mode === 'dark' ? SQUIRCLE_BACKGROUND_INVERTED : SQUIRCLE_BACKGROUND;
+		const rootClassName = children ? 'ecopages-logo' : 'ecopages-logo ecopages-logo--badge';
+		const layers = LOGO_LAYER_SPECS.map((layer) => {
+			const fills = getLayerFill(c, layer.key);
+			return {
+				...layer,
+				...fills,
+				fillGradId: `${p}-${layer.key}`,
+				topGradId: `${p}-${layer.key}-top`,
+				botGradId: `${p}-${layer.key}-bot`,
+			};
+		});
+		const leafBackplate = (
+			<path d={LEAF_PATH} fill={badgeBackground} stroke={badgeBackground} strokeWidth={BADGE_LEAF_BORDER_WIDTH} />
+		);
+		const grainOverlay = (
+			<>
+				<rect
+					x="-20"
+					y="-20"
+					width="220"
+					height="160"
+					fill="#FFFFFF"
+					clipPath={`url(#${p}-leaf-body)`}
+					filter={`url(#${p}-leaf-grain-light)`}
+					opacity="0.12"
+					style={{ mixBlendMode: 'screen' }}
+				/>
+				<rect
+					x="-20"
+					y="-20"
+					width="220"
+					height="160"
+					fill="#000000"
+					clipPath={`url(#${p}-leaf-body)`}
+					filter={`url(#${p}-leaf-grain-dark)`}
+					opacity="0.08"
+					style={{ mixBlendMode: 'multiply' }}
+				/>
+			</>
+		);
 
 		return (
-			<div className="ecopages-logo">
+			<div className={rootClassName}>
 				<div
+					className="ecopages-logo__badge"
 					style={{
-						width: '1.2em',
-						height: '1.2em',
-						aspectRatio: '1 / 1',
-						background: '#09090B',
+						background: badgeBackground,
 						borderRadius: '30%',
 						...({ cornerShape: 'squircle' } as CSSProperties),
-						overflow: 'hidden',
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'center',
 					}}
 				>
 					<svg
@@ -227,6 +315,57 @@ export const LogoSquircle = eco.component({
 						xmlns="http://www.w3.org/2000/svg"
 					>
 						<defs>
+							<clipPath id={`${p}-leaf-body`}>
+								<path d={LEAF_PATH} />
+							</clipPath>
+							<filter
+								id={`${p}-leaf-grain-light`}
+								x="-20"
+								y="-20"
+								width="220"
+								height="160"
+								filterUnits="userSpaceOnUse"
+							>
+								<feTurbulence
+									type="fractalNoise"
+									baseFrequency="0.7"
+									numOctaves="2"
+									seed="8"
+									stitchTiles="stitch"
+									result="noise"
+								/>
+								<feColorMatrix in="noise" type="saturate" values="0" result="grain" />
+								<feComponentTransfer in="grain">
+									<feFuncR type="table" tableValues="0.72 1" />
+									<feFuncG type="table" tableValues="0.72 1" />
+									<feFuncB type="table" tableValues="0.72 1" />
+									<feFuncA type="table" tableValues="0 0.9" />
+								</feComponentTransfer>
+							</filter>
+							<filter
+								id={`${p}-leaf-grain-dark`}
+								x="-20"
+								y="-20"
+								width="220"
+								height="160"
+								filterUnits="userSpaceOnUse"
+							>
+								<feTurbulence
+									type="fractalNoise"
+									baseFrequency="0.95"
+									numOctaves="3"
+									seed="19"
+									stitchTiles="stitch"
+									result="noise"
+								/>
+								<feColorMatrix in="noise" type="saturate" values="0" result="grain" />
+								<feComponentTransfer in="grain">
+									<feFuncR type="table" tableValues="0 0.32" />
+									<feFuncG type="table" tableValues="0 0.32" />
+									<feFuncB type="table" tableValues="0 0.32" />
+									<feFuncA type="table" tableValues="0 0.75" />
+								</feComponentTransfer>
+							</filter>
 							{variant === 'gradient' && (
 								<>
 									<linearGradient id={`${p}-back`} x1="0" y1="0" x2="0" y2="1">
@@ -247,7 +386,13 @@ export const LogoSquircle = eco.component({
 								</>
 							)}
 							<filter id={`${p}-badge-shadow`} x="-40%" y="-40%" width="180%" height="180%">
-								<feDropShadow dx="0" dy="8" stdDeviation="5" floodColor="#000000" floodOpacity="0.75" />
+								<feDropShadow
+									dx="0"
+									dy="8"
+									stdDeviation="5"
+									floodColor={BADGE_SHADOW.color}
+									floodOpacity={BADGE_SHADOW.opacity}
+								/>
 							</filter>
 							{variant === 'detailed' && (
 								<>
@@ -282,69 +427,46 @@ export const LogoSquircle = eco.component({
 							)}
 						</defs>
 
-						{[
-							{
-								y: 100,
-								fillBase: c.back,
-								fillGrad: `${p}-back`,
-								botGrad: `${p}-back-bot`,
-								topGrad: `${p}-back-top`,
-								strokeColor: c.backBot[1],
-							},
-							{
-								y: 60,
-								fillBase: c.mid,
-								fillGrad: `${p}-mid`,
-								botGrad: `${p}-mid-bot`,
-								topGrad: `${p}-mid-top`,
-								strokeColor: c.midBot[1],
-							},
-							{
-								y: 20,
-								fillBase: c.front,
-								fillGrad: `${p}-front`,
-								botGrad: `${p}-front-bot`,
-								topGrad: `${p}-front-top`,
-								strokeColor: c.frontBot[1],
-							},
-						].map((layer, index) => (
-							<g key={index} transform={`translate(0, ${layer.y})`} filter={`url(#${p}-badge-shadow)`}>
-								{variant === 'flat' && (
-									<path
-										d={LEAF_PATH}
-										fill={layer.fillBase}
-										stroke="#09090B"
-										strokeWidth="3"
-										paintOrder="stroke fill"
-									/>
-								)}
-								{variant === 'gradient' && (
-									<path
-										d={LEAF_PATH}
-										fill={`url(#${layer.fillGrad})`}
-										stroke="#09090B"
-										strokeWidth="3"
-										paintOrder="stroke fill"
-									/>
-								)}
-								{variant === 'detailed' && (
-									<>
-										<path
-											d={LEAF_PATH}
-											fill={`url(#${layer.botGrad})`}
-											stroke="#09090B"
-											strokeWidth="3"
-											paintOrder="stroke fill"
-										/>
-										<path
-											d={LEAF_PATH}
-											fill={`url(#${layer.topGrad})`}
-											clipPath={`url(#${p}-above)`}
-										/>
-									</>
-								)}
-							</g>
-						))}
+						<g
+							transform={`translate(${BADGE_LOGO_TRANSLATE_X}, ${BADGE_LOGO_TRANSLATE_Y}) scale(${BADGE_LOGO_SCALE})`}
+						>
+							{layers.map((layer, index) => (
+								<g key={index} transform={`translate(0, ${layer.y})`}>
+									{variant === 'flat' && (
+										<>
+											{leafBackplate}
+											<g filter={`url(#${p}-badge-shadow)`}>
+												<path d={LEAF_PATH} fill={layer.fillBase} />
+												{grainOverlay}
+											</g>
+										</>
+									)}
+									{variant === 'gradient' && (
+										<>
+											{leafBackplate}
+											<g filter={`url(#${p}-badge-shadow)`}>
+												<path d={LEAF_PATH} fill={`url(#${layer.fillGradId})`} />
+												{grainOverlay}
+											</g>
+										</>
+									)}
+									{variant === 'detailed' && (
+										<>
+											{leafBackplate}
+											<g filter={`url(#${p}-badge-shadow)`}>
+												<path d={LEAF_PATH} fill={`url(#${layer.botGradId})`} />
+												<path
+													d={LEAF_PATH}
+													fill={`url(#${layer.topGradId})`}
+													clipPath={`url(#${p}-above)`}
+												/>
+												{grainOverlay}
+											</g>
+										</>
+									)}
+								</g>
+							))}
+						</g>
 					</svg>
 				</div>
 				{children && <span className="ecopages-logo__text">{children}</span>}

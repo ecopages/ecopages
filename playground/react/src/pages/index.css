@@ -1,7 +1,230 @@
-.main-title {
-	@apply text-2xl font-bold;
+.logo-lab {
+	@apply flex flex-col gap-8 items-stretch;
 }
 
-.main-content {
-	@apply flex flex-col gap-8 justify-center items-center text-center;
+.logo-lab__intro {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	text-align: left;
+	max-width: 48rem;
+}
+
+.logo-lab__title {
+	font-size: clamp(2rem, 3vw, 3.5rem);
+	font-weight: 700;
+	letter-spacing: -0.04em;
+	line-height: 0.95;
+	margin: 0;
+}
+
+.logo-lab__section-title {
+	font-size: clamp(1.5rem, 2.2vw, 2.25rem);
+	font-weight: 700;
+	letter-spacing: -0.03em;
+	line-height: 1;
+	margin: 0;
+}
+
+.logo-lab__copy {
+	font-size: 1rem;
+	line-height: 1.5;
+	color: color-mix(in srgb, var(--color-on-background) 72%, transparent);
+	margin: 0;
+}
+
+.logo-sheet {
+	display: grid;
+	grid-template-columns: minmax(5.5rem, 7rem) minmax(0, 1fr) minmax(0, 1fr);
+	gap: 1rem;
+	align-items: stretch;
+}
+
+.logo-sheet__corner,
+.logo-sheet__mode-heading,
+.logo-sheet__size-label,
+.logo-sheet__panel {
+	border-radius: 1.5rem;
+	padding: 1.25rem;
+}
+
+.logo-sheet__corner,
+.logo-sheet__size-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: color-mix(in srgb, var(--color-on-background) 6%, transparent);
+	border: 1px solid color-mix(in srgb, var(--color-on-background) 10%, transparent);
+	font-size: 0.9rem;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	text-transform: uppercase;
+	color: color-mix(in srgb, var(--color-on-background) 72%, transparent);
+}
+
+.logo-sheet__mode-heading {
+	background: color-mix(in srgb, var(--color-on-background) 4%, transparent);
+	border: 1px solid color-mix(in srgb, var(--color-on-background) 10%, transparent);
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.logo-sheet__mode-heading h2,
+.logo-sheet__mode-heading p {
+	margin: 0;
+}
+
+.logo-sheet__mode-heading h2 {
+	font-size: 1rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+}
+
+.logo-sheet__mode-heading p {
+	font-size: 0.95rem;
+	line-height: 1.45;
+	color: color-mix(in srgb, var(--color-on-background) 70%, transparent);
+}
+
+.logo-sheet__panel {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 1rem;
+	min-height: 13rem;
+	border: 1px solid transparent;
+}
+
+.logo-sheet__panel--light {
+	--color-on-background: #111827;
+	background:
+		radial-gradient(circle at top, rgba(255, 255, 255, 0.88), rgba(244, 244, 245, 0.96)),
+		#f8fafc;
+	color: var(--color-on-background);
+	border-color: rgba(24, 24, 27, 0.08);
+	box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+.logo-sheet__panel--dark {
+	--color-on-background: #f5f7fb;
+	background:
+		radial-gradient(circle at top, rgba(63, 63, 70, 0.55), rgba(9, 9, 11, 0.96)),
+		#09090b;
+	color: var(--color-on-background);
+	border-color: rgba(244, 244, 245, 0.08);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.logo-sheet__variant {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 1rem;
+	padding: 1rem;
+	border-radius: 1rem;
+	min-height: 100%;
+	background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.logo-sheet__variant-frame {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 1rem;
+	padding: 0.25rem 0;
+	min-height: 100%;
+}
+
+.logo-sheet__variant-surface,
+.logo-sheet__named-surface {
+	width: 100%;
+	min-height: 9rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1rem;
+	border-radius: 1rem;
+	background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.logo-sheet__variant-surface {
+	aspect-ratio: 1 / 1;
+	max-width: 18rem;
+	margin-inline: auto;
+	min-height: 0;
+}
+
+.logo-sheet__variant-surface .ecopages-logo {
+	width: var(--ecopages-logo-size);
+	height: var(--ecopages-logo-size);
+	aspect-ratio: 1 / 1;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+
+.logo-sheet__variant-label {
+	font-size: 0.875rem;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	text-transform: capitalize;
+	color: color-mix(in srgb, currentColor 78%, transparent);
+}
+
+
+.logo-sheet--names .logo-sheet__size-label {
+	text-transform: uppercase;
+	font-size: 0.9rem;
+	letter-spacing: 0.01em;
+}
+
+.logo-sheet__panel--names-grid {
+	grid-template-columns: 1fr;
+	min-height: 0;
+}
+
+.logo-sheet__named-surface {
+	justify-content: flex-start;
+	min-height: 6.5rem;
+	padding-inline: 1.5rem;
+}
+
+.logo-sheet__named-surface .ecopages-logo {
+	align-items: center;
+	max-width: 100%;
+	flex-wrap: nowrap;
+}
+
+.logo-sheet__named-surface .ecopages-logo__text {
+	white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+	.logo-sheet {
+		grid-template-columns: 1fr;
+	}
+
+	.logo-sheet__corner {
+		display: none;
+	}
+
+	.logo-sheet__mode-heading,
+	.logo-sheet__size-label,
+	.logo-sheet__panel {
+		grid-column: 1;
+	}
+
+	.logo-sheet__panel {
+		grid-template-columns: 1fr;
+	}
+
+	.logo-sheet__named-surface {
+		justify-content: center;
+		padding-inline: 1rem;
+	}
+
+	.logo-sheet__size-label {
+		justify-content: flex-start;
+	}
 }

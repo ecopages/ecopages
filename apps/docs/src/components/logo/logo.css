@@ -1,7 +1,25 @@
 .logo {
-	@apply font-bold text-lg tracking-tight;
+	@apply font-bold text-sm tracking-tight;
 	@apply text-on-background;
+	display: inline-flex;
+	align-items: center;
 	&:hover {
 		@apply text-on-background/80;
 	}
+}
+
+.logo__theme {
+	display: none;
+}
+
+.logo__theme--light {
+	display: inline-flex;
+}
+
+[data-theme='dark'] .logo__theme--light {
+	display: none;
+}
+
+[data-theme='dark'] .logo__theme--dark {
+	display: inline-flex;
 }

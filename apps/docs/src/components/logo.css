@@ -1,0 +1,30 @@
+.ecopages-logo {
+	@apply flex gap-2 items-center;
+	font-size: var(--ecopages-logo-size, clamp(1.5rem, 4vw, 6rem));
+}
+
+.ecopages-logo--badge {
+	justify-content: center;
+	width: fit-content;
+	height: fit-content;
+}
+
+.ecopages-logo__badge {
+	width: 1.2em;
+	height: 1.2em;
+	aspect-ratio: 1 / 1;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+
+.ecopages-logo__text {
+	font-weight: 600;
+	color: var(--color-on-background);
+	font-family: 'Karla', sans-serif;
+	letter-spacing: -0.02em;
+	margin: 0;
+	line-height: 1;
+}

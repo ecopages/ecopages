@@ -1,4 +1,4 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { ApiField } from '@/components/api-field/api-field';
 import { docsConfig } from '@/data/docs-config';
 import { BaseLayout } from '@/layouts/base-layout';
@@ -6,26 +6,6 @@ import { Banner } from '@/components/banner/banner';
 import { getGroupIcon } from './get-group-icon';
 import { CodeTabs } from '@/components/code-tabs';
 import type { JsxRenderable } from '@ecopages/jsx';
-
-type DocsCustomElementTag = {
-	children?: JsxRenderable;
-	[attr: string]: unknown;
-};
-
-declare global {
-	namespace JSX {
-		interface IntrinsicElements {
-			'radiant-navigation': DocsCustomElementTag;
-			'radiant-docs-pagination': DocsCustomElementTag;
-			'radiant-toc': DocsCustomElementTag;
-		}
-	}
-}
-
-export type DocsLayoutProps = {
-	children: JsxRenderable;
-	class?: string;
-};
 
 const DocsNavigation = () => {
 	return (
@@ -61,10 +41,19 @@ const DocsNavigation = () => {
 	);
 };
 
-export const DocsLayout: EcoComponent<DocsLayoutProps, JsxRenderable> = ({ children, class: className }) => {
-	return (
-		<BaseLayout class={`docs-layout ${className ?? ''}`.trim()}>
-			<>
+export const DocsLayout = eco.layout<JsxRenderable>({
+	dependencies: {
+		stylesheets: ['./docs-layout.css'],
+		scripts: [
+			'./components/navigation/navigation.script.ts',
+			'./components/docs-pagination/docs-pagination.script.tsx',
+			'./components/toc/toc.script.tsx',
+		],
+		components: [BaseLayout, ApiField, Banner, CodeTabs],
+	},
+	render: ({ children }) => {
+		return (
+			<BaseLayout class="docs-layout">
 				<radiant-navigation
 					class="docs-layout__aside hidden md:block"
 					data-eco-persist="docs-sidebar"
@@ -77,19 +66,9 @@ export const DocsLayout: EcoComponent<DocsLayoutProps, JsxRenderable> = ({ child
 					<radiant-docs-pagination class="docs-layout__pagination"></radiant-docs-pagination>
 				</div>
 				<radiant-toc class="docs-layout__toc"></radiant-toc>
-			</>
-		</BaseLayout>
-	);
-};
-
-DocsLayout.config = {
-	dependencies: {
-		stylesheets: ['./docs-layout.css'],
-		scripts: [
-			'./components/navigation/navigation.script.ts',
-			'./components/docs-pagination/docs-pagination.script.tsx',
-			'./components/toc/toc.script.tsx',
-		],
-		components: [BaseLayout, ApiField, Banner, CodeTabs],
+			</BaseLayout>
+		);
 	},
-};
+});
+
+export default DocsLayout;

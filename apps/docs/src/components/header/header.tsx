@@ -1,6 +1,6 @@
 import type { EcoComponent } from '@ecopages/core';
 import { Burger } from '@/components/burger';
-import { Logo } from '@/components/logo';
+import { Logo } from '@/components/logo/logo';
 import { Navigation, type NavigationProps } from '@/components/navigation';
 import rootJson from '../../../../../package.json';
 

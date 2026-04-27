@@ -12,11 +12,6 @@
 		"paths": {
 			"@/*": ["./src/*"]
 		},
-		"plugins": [
-			{
-				"name": "@kitajs/ts-html-plugin"
-			}
-		],
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,

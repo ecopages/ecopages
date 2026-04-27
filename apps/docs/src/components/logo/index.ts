@@ -1,1 +1,1 @@
-export * from './logo.kita';
+export * from './logo';

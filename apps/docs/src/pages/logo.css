@@ -1,0 +1,27 @@
+.logo-lab {
+	@apply flex flex-col items-stretch;
+	gap: clamp(1.75rem, 4vw, 2.5rem);
+}
+
+.logo-lab__intro {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	text-align: left;
+	max-width: 48rem;
+}
+
+.logo-lab__title {
+	font-size: clamp(2rem, 3vw, 3.5rem);
+	font-weight: 700;
+	letter-spacing: -0.04em;
+	line-height: 0.95;
+	margin: 0;
+}
+
+.logo-lab__copy {
+	font-size: 1rem;
+	line-height: 1.5;
+	color: color-mix(in srgb, var(--color-on-background) 72%, transparent);
+	margin: 0;
+}

@@ -1,0 +1,273 @@
+.logo-playground {
+	display: grid;
+	grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
+	gap: 1.25rem;
+	align-items: start;
+}
+
+.logo-playground__controls,
+.logo-playground__stage-shell {
+	border-radius: 1.5rem;
+	border: 1px solid color-mix(in srgb, var(--color-on-background) 10%, transparent);
+	background: color-mix(in srgb, var(--color-on-background) 4%, transparent);
+	box-shadow: 0 20px 60px color-mix(in srgb, var(--color-on-background) 7%, transparent);
+}
+
+.logo-playground__controls {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	padding: 1.25rem;
+	position: sticky;
+	top: 1rem;
+}
+
+.logo-playground__group {
+	border: 0;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.logo-playground__group legend {
+	font-size: 0.8rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: color-mix(in srgb, var(--color-on-background) 68%, transparent);
+	padding: 0;
+	margin-bottom: 0.25rem;
+}
+
+.logo-playground__chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.625rem;
+}
+
+.logo-playground__chip {
+	position: relative;
+	display: inline-flex;
+}
+
+.logo-playground__chip input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.logo-playground__chip span,
+.logo-playground__select,
+.logo-playground__export {
+	min-height: 2.75rem;
+	border-radius: 0.5rem;
+	border: 1px solid color-mix(in srgb, var(--color-on-background) 12%, transparent);
+	font: inherit;
+	transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease,
+		transform 160ms ease;
+}
+
+.logo-playground__chip span {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.65rem 1rem;
+	font-size: 0.95rem;
+	font-weight: 600;
+	background: color-mix(in srgb, var(--color-on-background) 4%, transparent);
+	color: color-mix(in srgb, var(--color-on-background) 78%, transparent);
+	cursor: pointer;
+	user-select: none;
+}
+
+.logo-playground__chip input:checked + span {
+	background: color-mix(in srgb, var(--color-primary) 14%, var(--color-background));
+	border-color: color-mix(in srgb, var(--color-primary) 44%, transparent);
+	color: var(--color-on-background);
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 22%, transparent);
+	transform: translateY(-1px);
+}
+
+.logo-playground__chip input:focus-visible + span,
+.logo-playground__select:focus-visible,
+.logo-playground__export:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 18%, transparent);
+	border-color: color-mix(in srgb, var(--color-primary) 48%, transparent);
+}
+
+.logo-playground__field {
+	display: block;
+}
+
+.logo-playground__range-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.logo-playground__range-value {
+	font-size: 0.9rem;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	color: var(--color-on-background);
+}
+
+.logo-playground__range-input {
+	width: 100%;
+	accent-color: var(--color-primary);
+	cursor: pointer;
+}
+
+.logo-playground__select {
+	width: 100%;
+	padding: 0.7rem 1rem;
+	background: color-mix(in srgb, var(--color-background) 92%, var(--color-on-background) 8%);
+	color: var(--color-on-background);
+	appearance: none;
+}
+
+.logo-playground__hint,
+.logo-playground__summary {
+	margin: 0;
+	font-size: 0.95rem;
+	line-height: 1.5;
+	color: color-mix(in srgb, var(--color-on-background) 70%, transparent);
+}
+
+.logo-playground__export {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.75rem 1.15rem;
+	background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 88%, white 12%), var(--color-primary));
+	color: var(--color-primary-foreground, white);
+	font-weight: 700;
+	cursor: pointer;
+	border-color: transparent;
+	box-shadow: 0 18px 32px color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
+
+.logo-playground__stage-shell {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	padding: 1rem;
+}
+
+.logo-playground__stage {
+	--color-on-background: #111827;
+	border-radius: 1.25rem;
+	border: 1px solid transparent;
+	min-height: 26rem;
+	display: flex;
+	align-items: stretch;
+	justify-content: stretch;
+	padding: 1rem;
+	overflow: hidden;
+	position: relative;
+	isolation: isolate;
+}
+
+.logo-playground__stage::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background:
+		radial-gradient(circle at top left, color-mix(in srgb, currentColor 9%, transparent), transparent 46%),
+		radial-gradient(circle at bottom right, color-mix(in srgb, currentColor 7%, transparent), transparent 42%);
+	opacity: 0.9;
+	pointer-events: none;
+}
+
+.logo-playground__stage[data-mode='light'] {
+	--color-on-background: #111827;
+	background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(243, 244, 246, 0.96));
+	color: var(--color-on-background);
+	border-color: rgba(24, 24, 27, 0.08);
+}
+
+.logo-playground__stage[data-mode='dark'] {
+	--color-on-background: #f5f7fb;
+	background: radial-gradient(circle at top, rgba(63, 63, 70, 0.5), rgba(9, 9, 11, 0.98)), #09090b;
+	color: var(--color-on-background);
+	border-color: rgba(244, 244, 245, 0.08);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.logo-playground__preview {
+	position: relative;
+	z-index: 1;
+	width: 100%;
+	min-height: 100%;
+	border-radius: 1rem;
+	background: color-mix(in srgb, currentColor 5%, transparent);
+	overflow: auto;
+}
+
+.logo-playground__preview-canvas {
+	min-width: 100%;
+	min-height: 100%;
+	width: max-content;
+	display: grid;
+	place-items: center;
+	padding: clamp(1.5rem, 5vw, 3rem);
+	box-sizing: border-box;
+}
+
+.logo-playground__preview .ecopages-logo {
+	max-width: 100%;
+	flex-wrap: nowrap;
+}
+
+.logo-playground__preview .ecopages-logo__text {
+	white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+	.logo-playground {
+		grid-template-columns: 1fr;
+	}
+
+	.logo-playground__controls {
+		position: static;
+	}
+
+	.logo-playground__stage {
+		min-height: 20rem;
+	}
+
+	.logo-playground__preview {
+		justify-content: flex-start;
+		overflow-x: auto;
+	}
+}
+
+@media (hover: hover) {
+	.logo-playground__chip span:hover {
+		border-color: color-mix(in srgb, var(--color-primary) 22%, transparent);
+		color: var(--color-on-background);
+	}
+
+	.logo-playground__export:hover {
+		transform: translateY(-1px);
+		box-shadow: 0 22px 36px color-mix(in srgb, var(--color-primary) 30%, transparent);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.logo-playground__chip span,
+	.logo-playground__select,
+	.logo-playground__export {
+		transition: none;
+	}
+}

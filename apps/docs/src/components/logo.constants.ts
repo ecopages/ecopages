@@ -31,7 +31,7 @@ export const createLeafConfig = (front: LeafGradientStops, mid: LeafGradientStop
 	};
 };
 
-export const BW_CONFIG = createLeafConfig([200, 400], [500, 600], [700, 800]);
+export const BW_CONFIG = createLeafConfig([200, 400], [400, 600], [700, 800]);
 
 export type LogoVariant = 'flat' | 'gradient';
 

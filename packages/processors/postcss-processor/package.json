@@ -1,82 +1,82 @@
 {
-	"name": "@ecopages/postcss-processor",
-	"version": "0.2.0-alpha.21",
-	"description": "Postcss processor, transform string or postcss file to css",
-	"keywords": [
-		"postcss",
-		"processor",
-		"css"
-	],
-	"license": "MIT",
-	"main": "./src/postcss-processor.ts",
-	"type": "module",
-	"types": "./src/postcss-processor.ts",
-	"files": [
-		"src"
-	],
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/ecopages/ecopages.git",
-		"directory": "packages/processors/postcss-processor"
-	},
-	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
-	},
-	"dependencies": {
-		"@ecopages/file-system": "workspace:*",
-		"@ecopages/logger": "^0.2.3",
-		"autoprefixer": "^10.4.0",
-		"browserslist": "^4.28.1",
-		"cssnano": "^7.1.4",
-		"postcss": "^8.4.32",
-		"postcss-import": "^16.1.1",
-		"postcss-nested": "^7.0.2"
-	},
-	"peerDependencies": {
-		"@ecopages/core": "workspace:*",
-		"@tailwindcss/postcss": ">=4",
-		"tailwindcss": ">=3"
-	},
-	"peerDependenciesMeta": {
-		"@tailwindcss/postcss": {
-			"optional": true
-		},
-		"tailwindcss": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@tailwindcss/postcss": "^4.1.18",
-		"@types/bun": "latest",
-		"@types/postcss-import": "^14",
-		"postcss-simple-vars": "^7.0.1",
-		"tailwindcss": "^3.4.19"
-	},
-	"exports": {
-		".": {
-			"default": "./src/index.ts",
-			"types": "./src/index.ts"
-		},
-		"./postcss-processor": {
-			"default": "./src/postcss-processor.ts",
-			"types": "./src/postcss-processor.ts"
-		},
-		"./plugin": {
-			"default": "./src/plugin.ts",
-			"types": "./src/plugin.ts"
-		},
-		"./presets": {
-			"default": "./src/presets/index.ts",
-			"types": "./src/presets/index.ts"
-		},
-		"./presets/tailwind-v3": {
-			"default": "./src/presets/tailwind-v3.ts",
-			"types": "./src/presets/tailwind-v3.ts"
-		},
-		"./presets/tailwind-v4": {
-			"default": "./src/presets/tailwind-v4.ts",
-			"types": "./src/presets/tailwind-v4.ts"
-		}
-	}
+  "name": "@ecopages/postcss-processor",
+  "version": "0.2.0-alpha.22",
+  "description": "Postcss processor, transform string or postcss file to css",
+  "keywords": [
+    "postcss",
+    "processor",
+    "css"
+  ],
+  "license": "MIT",
+  "main": "./src/postcss-processor.ts",
+  "type": "module",
+  "types": "./src/postcss-processor.ts",
+  "files": [
+    "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ecopages/ecopages.git",
+    "directory": "packages/processors/postcss-processor"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "release:jsr": "bunx jsr publish"
+  },
+  "dependencies": {
+    "@ecopages/file-system": "workspace:*",
+    "@ecopages/logger": "^0.2.3",
+    "autoprefixer": "^10.4.0",
+    "browserslist": "^4.28.1",
+    "cssnano": "^7.1.4",
+    "postcss": "^8.4.32",
+    "postcss-import": "^16.1.1",
+    "postcss-nested": "^7.0.2"
+  },
+  "peerDependencies": {
+    "@ecopages/core": "workspace:*",
+    "@tailwindcss/postcss": ">=4",
+    "tailwindcss": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "@tailwindcss/postcss": {
+      "optional": true
+    },
+    "tailwindcss": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/bun": "latest",
+    "@types/postcss-import": "^14",
+    "postcss-simple-vars": "^7.0.1",
+    "tailwindcss": "^3.4.19"
+  },
+  "exports": {
+    ".": {
+      "default": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./postcss-processor": {
+      "default": "./src/postcss-processor.ts",
+      "types": "./src/postcss-processor.ts"
+    },
+    "./plugin": {
+      "default": "./src/plugin.ts",
+      "types": "./src/plugin.ts"
+    },
+    "./presets": {
+      "default": "./src/presets/index.ts",
+      "types": "./src/presets/index.ts"
+    },
+    "./presets/tailwind-v3": {
+      "default": "./src/presets/tailwind-v3.ts",
+      "types": "./src/presets/tailwind-v3.ts"
+    },
+    "./presets/tailwind-v4": {
+      "default": "./src/presets/tailwind-v4.ts",
+      "types": "./src/presets/tailwind-v4.ts"
+    }
+  }
 }

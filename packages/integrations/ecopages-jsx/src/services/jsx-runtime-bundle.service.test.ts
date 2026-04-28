@@ -94,7 +94,10 @@ test('JsxRuntimeBundleService builds the Radiant vendor from curated browser-saf
 
 	const jsxEntrySource = readFileSync(jsxDependency.importPath, 'utf8');
 
-	assert.match(jsxEntrySource, /export \* from '.*node_modules\/@ecopages\/jsx\/dist\/index\.js';/);
+	assert.match(jsxEntrySource, /eopCanonicalSvgLocalNames/);
+	assert.match(jsxEntrySource, /lineargradient:'linearGradient'/);
+	assert.match(jsxEntrySource, /fedropshadow:'feDropShadow'/);
+	assert.match(jsxEntrySource, /eopRepairNamespaceChildren/);
 	assert.doesNotMatch(jsxEntrySource, /assets\/vendors\/ecopages-jsx-esm/);
 	assert.doesNotMatch(jsxEntrySource, /@ecopages\/jsx\/server/);
 

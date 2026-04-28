@@ -6,7 +6,7 @@ import { BADGE_CONFIG, createLeafConfig } from '../logo.constants';
 
 export type { LogoMode } from '../logo';
 
-export type LogoProps = Pick<HTMLAnchorElement, 'href' | 'target' | 'title'> & {
+export type LogoProps = Partial<Pick<HTMLAnchorElement, 'href' | 'target' | 'title'>> & {
 	children?: JsxRenderable;
 	config?: ReturnType<typeof createLeafConfig>;
 	mode?: LogoMode;
@@ -25,7 +25,7 @@ export const Logo: EcoComponent<LogoProps> = ({
 	name = 'logo',
 	shadow = true,
 	size = '1.75rem',
-	squircle = true,
+	squircle = false,
 	target,
 	title,
 	variant = 'gradient',

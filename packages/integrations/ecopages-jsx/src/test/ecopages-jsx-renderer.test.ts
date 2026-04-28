@@ -104,7 +104,7 @@ async function writeRadiantFixture(options: {
 			"import { TopLevelRadiantCounter } from './counter.script.mjs';",
 			'',
 			'export function renderCounterHost() {',
-			'\treturn new TopLevelRadiantCounter().renderHostToString({ hydrate: true });',
+			"\treturn new TopLevelRadiantCounter().renderHostToString({ mode: 'hydrate' });",
 			'}',
 		].join('\n'),
 	);

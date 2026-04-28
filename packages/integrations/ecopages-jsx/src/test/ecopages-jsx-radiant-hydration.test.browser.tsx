@@ -31,7 +31,7 @@ function defineCounterComponent(tagName: string) {
 
 function createSsrHost(tagName: string): { host: HTMLElement; markup: string; ssrButton: TestButton } {
 	const Counter = defineCounterComponent(tagName);
-	const markup = new Counter().renderHostToString({ hydrate: true });
+	const markup = new Counter().renderHostToString({ mode: 'hydrate' });
 	const template = document.createElement('template');
 	template.innerHTML = markup;
 

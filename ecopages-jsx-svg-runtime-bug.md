@@ -13,7 +13,7 @@ The JSX source and SSR markup are correct. The corruption happens in the client 
 
 ## Affected Version
 
-- `@ecopages/jsx@0.3.0-alpha.2`
+- `@ecopages/jsx@0.3.0-alpha.3`
 
 ## User-Visible Impact
 

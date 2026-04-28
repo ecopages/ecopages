@@ -124,6 +124,7 @@ export async function assertRadiantCounterInteractivity(counter: Locator, initia
 export async function assertFourCountersVisible(root: Locator) {
 	const kitaCounter = root.locator('[data-kita-counter]');
 	const litCounter = root.locator('lit-counter[data-counter-kind="lit"]');
+	const litValue = root.locator('[data-lit-value]').first();
 	const reactCounter = root.locator('[data-react-counter]');
 	const radiantCounter = root.locator('radiant-counter[data-radiant-counter]');
 
@@ -137,6 +138,7 @@ export async function assertFourCountersVisible(root: Locator) {
 	await expect(radiantCounter).toHaveCount(1);
 
 	await expect(kitaCounter).toBeVisible();
+	await expect(litValue).toBeVisible();
 	await expect(litCounter).toBeVisible();
 	await expect(reactCounter).toBeVisible();
 	await expect(radiantCounter).toBeVisible();

@@ -14,7 +14,7 @@
 		"ecopages": "latest",
 		"@ecopages/core": "latest",
 		"@ecopages/postcss-processor": "latest",
-		"@ecopages/radiant": "^0.3.0-alpha.3",
+		"@ecopages/radiant": "0.3.0-alpha.4",
 		"@ecopages/scripts-injector": "latest",
 		"@tailwindcss/postcss": "^4.0.0",
 		"tailwindcss": "^4.0.0"

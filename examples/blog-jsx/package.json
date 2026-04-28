@@ -22,6 +22,6 @@
 		"@kitajs/html": "^4.2.13",
 		"@tailwindcss/postcss": "^4.1.18",
 		"tailwindcss": "^4.1.18",
-		"@ecopages/radiant": "^0.3.0-alpha.3"
+		"@ecopages/radiant": "0.3.0-alpha.4"
 	}
 }

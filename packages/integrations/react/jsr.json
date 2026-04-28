@@ -1,14 +1,26 @@
 {
-	"name": "@ecopages/react",
-	"version": "0.2.0-alpha.21",
-	"exports": {
-		".": "./src/react.plugin.ts",
-		"./utils/dynamic": "./src/utils/dynamic.ts",
-		"./utils/client-only": "./src/utils/client-only.ts"
-	},
-	"exclude": ["src/test", "**/*.test.ts"],
-	"publish": {
-		"include": ["src/**/*.ts", "src/**/*.tsx", "LICENSE", "README.md", "jsr.json", "package.json"],
-		"exclude": ["src/test"]
-	}
+  "name": "@ecopages/react",
+  "version": "0.2.0-alpha.22",
+  "exports": {
+    ".": "./src/react.plugin.ts",
+    "./utils/dynamic": "./src/utils/dynamic.ts",
+    "./utils/client-only": "./src/utils/client-only.ts"
+  },
+  "exclude": [
+    "src/test",
+    "**/*.test.ts"
+  ],
+  "publish": {
+    "include": [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "LICENSE",
+      "README.md",
+      "jsr.json",
+      "package.json"
+    ],
+    "exclude": [
+      "src/test"
+    ]
+  }
 }

@@ -1,37 +1,37 @@
 {
-	"name": "@ecopages/browser-router",
-	"version": "0.2.0-alpha.21",
-	"description": "Client-side router for Ecopages with view transitions support",
-	"keywords": [
-		"ecopages",
-		"router",
-		"browser-router",
-		"navigation",
-		"spa",
-		"view-transitions"
-	],
-	"license": "MIT",
-	"type": "module",
-	"exports": {
-		".": "./src/index.ts",
-		"./client": "./src/client/eco-router.ts"
-	},
-	"files": [
-		"src"
-	],
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/ecopages/ecopages.git",
-		"directory": "packages/browser-router"
-	},
-	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
-	},
-	"dependencies": {
-		"morphdom": "^2.7.8"
-	},
-	"peerDependencies": {
-		"@ecopages/core": "workspace:*"
-	}
+  "name": "@ecopages/browser-router",
+  "version": "0.2.0-alpha.22",
+  "description": "Client-side router for Ecopages with view transitions support",
+  "keywords": [
+    "ecopages",
+    "router",
+    "browser-router",
+    "navigation",
+    "spa",
+    "view-transitions"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client/eco-router.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ecopages/ecopages.git",
+    "directory": "packages/browser-router"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "release:jsr": "bunx jsr publish"
+  },
+  "dependencies": {
+    "morphdom": "^2.7.8"
+  },
+  "peerDependencies": {
+    "@ecopages/core": "workspace:*"
+  }
 }

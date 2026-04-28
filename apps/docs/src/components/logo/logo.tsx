@@ -1,12 +1,12 @@
 import type { EcoComponent } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx/jsx-runtime';
+import type { JsxRenderable } from '@ecopages/jsx';
 import { Logo as PlainLogo, LogoSquircle, type LogoMode } from '../logo';
 import type { LogoVariant } from '../logo.constants';
 import { BADGE_CONFIG, createLeafConfig } from '../logo.constants';
 
 export type { LogoMode } from '../logo';
 
-export type LogoProps = Partial<Pick<HTMLAnchorElement, 'href' | 'target' | 'title'>> & {
+export type LogoProps = Pick<HTMLAnchorElement, 'href' | 'target' | 'title'> & {
 	children?: JsxRenderable;
 	config?: ReturnType<typeof createLeafConfig>;
 	mode?: LogoMode;
@@ -25,7 +25,7 @@ export const Logo: EcoComponent<LogoProps> = ({
 	name = 'logo',
 	shadow = true,
 	size = '1.75rem',
-	squircle = false,
+	squircle = true,
 	target,
 	title,
 	variant = 'gradient',

@@ -8,6 +8,7 @@
 
 ### Bug Fixes
 
+- Patched the Ecopages JSX browser runtime bundle so nested SVG templates restore canonical camel-cased SVG tag names during client rendering.
 - Aligned Ecopages JSX peer dependency ranges with the current `@ecopages/jsx` and `@ecopages/radiant` alpha releases.
 - Aligned Radiant SSR and hydration wiring with the public `@ecopages/radiant/server/render-component` and `@ecopages/radiant/client/hydrator` entrypoints so JSX apps install an explicit client hydrator bootstrap instead of relying on implicit side effects.
 - Fixed Radiant SSR page inspection to install the light-DOM shim before JSX page modules are imported outside the normal render pass.

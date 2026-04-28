@@ -1,7 +1,7 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { LogoPlayground } from '@/components/logo-playground';
-import type { JsxRenderable } from '@ecopages/jsx/jsx-runtime';
+import type { JsxRenderable } from '@ecopages/jsx';
 
 export default eco.page<{}, JsxRenderable>({
 	dependencies: {

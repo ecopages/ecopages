@@ -44,6 +44,20 @@ type BrowserRuntimeRadiantModule = {
 
 type PackageExportTarget = string | { import?: string };
 
+const JSX_RUNTIME_NAMESPACE_REPAIR_SNIPPET =
+	'function rG(W,G,J){let j=G instanceof Element?G:G?.parentElement,U=j?.namespaceURI??K9,$=j?.localName,X=W.firstElementChild;if(!X)return;let F=J??X.localName,Z=O9(U,$,F);if(X.namespaceURI===Z&&X.localName===F)return;W.replaceChild(tG(X,Z,F),X)}function tG(W,G,J){let j=document.createElementNS(G,J);for(let U of Array.from(W.attributes)){if(U.namespaceURI){j.setAttributeNS(U.namespaceURI,U.name,U.value);continue}n(j,U.name,U.value)}return j.append(...W.childNodes),j}';
+
+const JSX_RUNTIME_NAMESPACE_REPAIR_PATCH = [
+	"const eopHtmlNamespace='http://www.w3.org/1999/xhtml',eopSvgNamespace='http://www.w3.org/2000/svg',eopCanonicalSvgLocalNames={altglyph:'altGlyph',altglyphdef:'altGlyphDef',altglyphitem:'altGlyphItem',animatemotion:'animateMotion',animatetransform:'animateTransform',clippath:'clipPath',feblend:'feBlend',fecolormatrix:'feColorMatrix',fecomponenttransfer:'feComponentTransfer',fecomposite:'feComposite',feconvolvematrix:'feConvolveMatrix',fediffuselighting:'feDiffuseLighting',fedisplacementmap:'feDisplacementMap',fedistantlight:'feDistantLight',fedropshadow:'feDropShadow',feflood:'feFlood',fefunca:'feFuncA',fefuncb:'feFuncB',fefuncg:'feFuncG',fefuncr:'feFuncR',fegaussianblur:'feGaussianBlur',feimage:'feImage',femerge:'feMerge',femergenode:'feMergeNode',femorphology:'feMorphology',feoffset:'feOffset',fepointlight:'fePointLight',fespecularlighting:'feSpecularLighting',fespotlight:'feSpotLight',fetile:'feTile',feturbulence:'feTurbulence',foreignobject:'foreignObject',glyphref:'glyphRef',lineargradient:'linearGradient',radialgradient:'radialGradient',textpath:'textPath'};",
+	'function eopGetCanonicalSvgLocalName(W){return eopCanonicalSvgLocalNames[W]??W}',
+	'function eopIsSvgNamespace(W){return W===eopSvgNamespace}',
+	'function rG(W,G,J){let j=G instanceof Element?G:G?.parentElement,U=j?.namespaceURI??K9,$=j?.localName;eopRepairNamespaceFragment(W,U??eopHtmlNamespace,$,J)}',
+	'function eopRepairNamespaceFragment(W,G,J,j){let U=W.firstElementChild;if(!U)return;let $=j??U.localName,X=O9(G,J,$),F=eopIsSvgNamespace(X)?eopGetCanonicalSvgLocalName($):$;eopRepairNamespaceElement(W,U,X,F)}',
+	'function eopRepairNamespaceElement(W,G,J,j){let U=G;if(G.namespaceURI!==J||G.localName!==j)U=tG(G,J,j),W.replaceChild(U,G);eopRepairNamespaceChildren(U,J,j)}',
+	'function eopRepairNamespaceChildren(W,G,J){for(let j of Array.from(W.children)){let U=O9(G,J,j.localName),$=eopIsSvgNamespace(U)?eopGetCanonicalSvgLocalName(j.localName):j.localName,X=j;if(j.namespaceURI!==U||j.localName!==$)X=tG(j,U,$),W.replaceChild(X,j);eopRepairNamespaceChildren(X,U,$)}}',
+	'function tG(W,G,J){let j=document.createElementNS(G,eopIsSvgNamespace(G)?eopGetCanonicalSvgLocalName(J):J);for(let U of Array.from(W.attributes)){if(U.namespaceURI){j.setAttributeNS(U.namespaceURI,U.name,U.value);continue}n(j,U.name,U.value)}return j.append(...W.childNodes),j}',
+].join('');
+
 function getNamedExportNamesFromModuleSource(source: string): string[] {
 	const exportNames = new Set<string>();
 
@@ -88,6 +102,23 @@ function isBrowserRuntimeRadiantSpecifier(exportKey: string): boolean {
 	}
 
 	return exportKey === './core/radiant-component' || exportKey === './core/radiant-element';
+}
+
+function replaceExactOnce(source: string, search: string, replacement: string, label: string): string {
+	if (!source.includes(search)) {
+		throw new Error(`Could not find ${label} in @ecopages/jsx browser runtime source`);
+	}
+
+	return source.replace(search, replacement);
+}
+
+function createPatchedJsxBrowserRuntimeSource(source: string): string {
+	return replaceExactOnce(
+		source,
+		JSX_RUNTIME_NAMESPACE_REPAIR_SNIPPET,
+		JSX_RUNTIME_NAMESPACE_REPAIR_PATCH,
+		'SVG namespace repair snippet',
+	);
 }
 
 function findPackageManifestPath(packageName: string): string {
@@ -271,10 +302,10 @@ export class JsxRuntimeBundleService {
 			'.',
 			jsxPkg.exports?.['.'] as PackageExportTarget,
 		);
-		const entryImportPath = this.getEntryImportPath(artifactsDir, jsxModulePath);
+		const patchedRuntimeSource = createPatchedJsxBrowserRuntimeSource(readFileSync(jsxModulePath, 'utf8'));
 
 		mkdirSync(artifactsDir, { recursive: true });
-		writeFileSync(filePath, [`export * from '${entryImportPath}';`].join('\n'), 'utf8');
+		writeFileSync(filePath, patchedRuntimeSource, 'utf8');
 
 		this.cachedJsxEntryModulePath = filePath;
 		return filePath;

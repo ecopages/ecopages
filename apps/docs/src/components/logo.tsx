@@ -8,7 +8,7 @@ import {
 	type ScaleStop,
 	createLeafConfig,
 } from './logo.constants';
-import type { JsxRenderable } from '@ecopages/jsx/jsx-runtime';
+import type { JsxRenderable } from '@ecopages/jsx';
 
 const SQUIRCLE_BACKGROUND = SCALES.gray[900];
 const SQUIRCLE_BACKGROUND_INVERTED = SCALES.gray[50];
@@ -61,7 +61,7 @@ const BADGE_STOP_CONFIG = {
 };
 
 const BADGE_DARK_CONFIG = invertLeafConfig(BADGE_STOP_CONFIG);
-const LOGO_DARK_CONFIG = createLeafConfig([400, 500], [200, 300], [50, 100]);
+const LOGO_DARK_CONFIG = createLeafConfig([50, 100], [200, 300], [400, 500]);
 
 export const Logo = eco.component({
 	dependencies: {

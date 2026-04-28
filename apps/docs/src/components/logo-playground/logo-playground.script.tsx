@@ -1,6 +1,5 @@
 import { RadiantComponent, customElement, state } from '@ecopages/radiant';
-import { Logo } from '../logo/logo';
-import type { LogoVariant } from '../logo.constants';
+import { BADGE_CONFIG, LEAF_PATH, SCALES, type LogoVariant, type ScaleStop, createLeafConfig } from '../logo.constants';
 import type { LogoMode } from '../logo/logo';
 
 const PREVIEW_MODES = [
@@ -44,6 +43,53 @@ const MAX_FONT_SIZE_REM = 10;
 const DEFAULT_FONT_SIZE_REM = 5.5;
 const FONT_SIZE_STEP_REM = 0.25;
 const EXPORT_PADDING_PX = 32;
+const SQUIRCLE_BACKGROUND = SCALES.gray[900];
+const SQUIRCLE_BACKGROUND_INVERTED = SCALES.gray[50];
+const BADGE_LEAF_BORDER_WIDTH = '22';
+const BADGE_LOGO_SCALE = 0.92;
+const BADGE_LOGO_TRANSLATE_X = 6.56;
+const BADGE_LOGO_TRANSLATE_Y = 6.4;
+
+const LOGO_LAYER_SPECS = [
+	{ key: 'back', y: 100 },
+	{ key: 'mid', y: 60 },
+	{ key: 'front', y: 20 },
+] as const;
+
+type LeafConfig = ReturnType<typeof createLeafConfig>;
+
+const invertScaleStop = (stop: ScaleStop): ScaleStop => {
+	const numericStop = Number(stop);
+	const inverted = 1000 - numericStop;
+	return (inverted === 1000 ? 950 : inverted) as ScaleStop;
+};
+
+const invertLeafConfig = (stops: { front: ScaleStop; mid: ScaleStop; back: ScaleStop }) =>
+	createLeafConfig(
+		[invertScaleStop(stops.front), invertScaleStop(stops.front)],
+		[invertScaleStop(stops.mid), invertScaleStop(stops.mid)],
+		[invertScaleStop(stops.back), invertScaleStop(stops.back)],
+	);
+
+const BADGE_STOP_CONFIG = {
+	front: 50,
+	mid: 200,
+	back: 400,
+} as const satisfies {
+	front: ScaleStop;
+	mid: ScaleStop;
+	back: ScaleStop;
+};
+
+const BADGE_DARK_CONFIG = invertLeafConfig(BADGE_STOP_CONFIG);
+
+const getLayerFill = (config: LeafConfig, key: 'front' | 'mid' | 'back') => ({
+	fillBase: config[key],
+	fillGrad: config[`${key}Gradient`],
+});
+
+const PLAIN_LIGHT_SURFACE_CONFIG = createLeafConfig([400, 500], [500, 600], [700, 800]);
+const PLAIN_DARK_SURFACE_CONFIG = createLeafConfig([100, 200], [300, 400], [500, 600]);
 
 const escapeXml = (value: string): string =>
 	value
@@ -55,6 +101,74 @@ const escapeXml = (value: string): string =>
 
 const round = (value: number): string => value.toFixed(2);
 
+const renderPlainLogoMarkup = ({
+	mode,
+	name,
+	shadow,
+	text,
+	variant,
+}: {
+	mode: LogoMode;
+	name: string;
+	shadow: boolean;
+	text: string;
+	variant: LogoVariant;
+}) => {
+	const isDarkMode = mode === 'dark';
+	const config = isDarkMode ? PLAIN_DARK_SURFACE_CONFIG : PLAIN_LIGHT_SURFACE_CONFIG;
+	const textColor = isDarkMode ? SCALES.gray[50] : SCALES.gray[900];
+	const hasText = text !== '';
+	const rootClassName = hasText ? 'ecopages-logo' : 'ecopages-logo ecopages-logo--badge';
+	const layersMarkup = LOGO_LAYER_SPECS.map((layer) => {
+		const fills = getLayerFill(config, layer.key);
+		const fill = variant === 'gradient' ? `url(#${escapeXml(`${name}-${layer.key}-grad`)})` : fills.fillBase;
+		const filterAttribute = shadow ? ` filter="url(#${escapeXml(`${name}-leaf-shadow`)})"` : '';
+
+		return `<g transform="translate(0, ${layer.y})"><g${filterAttribute}><use href="#${escapeXml(`${name}-leaf`)}" fill="${escapeXml(fill)}"></use></g></g>`;
+	}).join('');
+
+	const gradientsMarkup =
+		variant === 'gradient'
+			? `<linearGradient id="${escapeXml(`${name}-back-grad`)}" x1="0" y1="0" x2="0" y2="180" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="${escapeXml(config.backGradient[0])}" /><stop offset="100%" stop-color="${escapeXml(config.backGradient[1])}" /></linearGradient><linearGradient id="${escapeXml(`${name}-mid-grad`)}" x1="0" y1="0" x2="0" y2="180" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="${escapeXml(config.midGradient[0])}" /><stop offset="100%" stop-color="${escapeXml(config.midGradient[1])}" /></linearGradient><linearGradient id="${escapeXml(`${name}-front-grad`)}" x1="0" y1="0" x2="0" y2="180" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="${escapeXml(config.frontGradient[0])}" /><stop offset="100%" stop-color="${escapeXml(config.frontGradient[1])}" /></linearGradient>`
+			: '';
+
+	const shadowMarkup = shadow
+		? `<filter id="${escapeXml(`${name}-leaf-shadow`)}" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2.5" stdDeviation="2.25" flood-color="${escapeXml(config.shadow)}" flood-opacity="0.55"></feDropShadow></filter>`
+		: '';
+
+	return `<div class="${rootClassName}" style="--color-on-background: ${escapeXml(textColor)}"><svg width="1.5em" height="1.5em" viewBox="-10 -20 200 220" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><path id="${escapeXml(`${name}-leaf`)}" d="${escapeXml(LEAF_PATH)}"></path>${gradientsMarkup}${shadowMarkup}</defs>${layersMarkup}</svg>${hasText ? `<span class="ecopages-logo__text">${escapeXml(text)}</span>` : ''}</div>`;
+};
+
+const renderSquircleLogoMarkup = ({
+	mode,
+	name,
+	text,
+	variant,
+}: {
+	mode: LogoMode;
+	name: string;
+	text: string;
+	variant: LogoVariant;
+}) => {
+	const isDarkMode = mode === 'dark';
+	const config = isDarkMode ? BADGE_DARK_CONFIG : BADGE_CONFIG;
+	const badgeBackground = isDarkMode ? SQUIRCLE_BACKGROUND_INVERTED : SQUIRCLE_BACKGROUND;
+	const hasText = text !== '';
+	const rootClassName = hasText ? 'ecopages-logo' : 'ecopages-logo ecopages-logo--badge';
+	const layersMarkup = LOGO_LAYER_SPECS.map((layer) => {
+		const fills = getLayerFill(config, layer.key);
+		const fill = variant === 'gradient' ? `url(#${escapeXml(`${name}-${layer.key}`)})` : fills.fillBase;
+		return `<g transform="translate(0, ${layer.y})"><path d="${escapeXml(LEAF_PATH)}" fill="${escapeXml(badgeBackground)}" stroke="${escapeXml(badgeBackground)}" stroke-width="${BADGE_LEAF_BORDER_WIDTH}"></path><g filter="url(#${escapeXml(`${name}-badge-shadow`)})"><path d="${escapeXml(LEAF_PATH)}" fill="${escapeXml(fill)}"></path><rect x="-20" y="-20" width="220" height="160" fill="#FFFFFF" clip-path="url(#${escapeXml(`${name}-leaf-body`)})" filter="url(#${escapeXml(`${name}-leaf-grain-light`)})" opacity="0.12" style="mix-blend-mode: screen"></rect><rect x="-20" y="-20" width="220" height="160" fill="#000000" clip-path="url(#${escapeXml(`${name}-leaf-body`)})" filter="url(#${escapeXml(`${name}-leaf-grain-dark`)})" opacity="0.08" style="mix-blend-mode: multiply"></rect></g></g>`;
+	}).join('');
+
+	const gradientsMarkup =
+		variant === 'gradient'
+			? `<linearGradient id="${escapeXml(`${name}-back`)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${escapeXml(config.backGradient[0])}" /><stop offset="100%" stop-color="${escapeXml(config.backGradient[1])}" /></linearGradient><linearGradient id="${escapeXml(`${name}-mid`)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${escapeXml(config.midGradient[0])}" /><stop offset="100%" stop-color="${escapeXml(config.midGradient[1])}" /></linearGradient><linearGradient id="${escapeXml(`${name}-front`)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${escapeXml(config.frontGradient[0])}" /><stop offset="100%" stop-color="${escapeXml(config.frontGradient[1])}" /></linearGradient>`
+			: '';
+
+	return `<div class="${rootClassName}"><div class="ecopages-logo__badge" style="background: ${escapeXml(badgeBackground)}; border-radius: 30%; corner-shape: squircle;"><svg width="100%" height="100%" viewBox="-20 -4 205 205" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="${escapeXml(`${name}-leaf-body`)}"><path d="${escapeXml(LEAF_PATH)}"></path></clipPath><filter id="${escapeXml(`${name}-leaf-grain-light`)}" x="-20" y="-20" width="220" height="160" filterUnits="userSpaceOnUse"><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" seed="8" stitchTiles="stitch" result="noise"></feTurbulence><feColorMatrix in="noise" type="saturate" values="0" result="grain"></feColorMatrix><feComponentTransfer in="grain"><feFuncR type="table" tableValues="0.72 1"></feFuncR><feFuncG type="table" tableValues="0.72 1"></feFuncG><feFuncB type="table" tableValues="0.72 1"></feFuncB><feFuncA type="table" tableValues="0 0.9"></feFuncA></feComponentTransfer></filter><filter id="${escapeXml(`${name}-leaf-grain-dark`)}" x="-20" y="-20" width="220" height="160" filterUnits="userSpaceOnUse"><feTurbulence type="fractalNoise" baseFrequency="0.95" numOctaves="3" seed="19" stitchTiles="stitch" result="noise"></feTurbulence><feColorMatrix in="noise" type="saturate" values="0" result="grain"></feColorMatrix><feComponentTransfer in="grain"><feFuncR type="table" tableValues="0 0.32"></feFuncR><feFuncG type="table" tableValues="0 0.32"></feFuncG><feFuncB type="table" tableValues="0 0.32"></feFuncB><feFuncA type="table" tableValues="0 0.75"></feFuncA></feComponentTransfer></filter>${gradientsMarkup}<filter id="${escapeXml(`${name}-badge-shadow`)}" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="8" stdDeviation="5" flood-color="#000000" flood-opacity="0.75"></feDropShadow></filter></defs><g transform="translate(${BADGE_LOGO_TRANSLATE_X}, ${BADGE_LOGO_TRANSLATE_Y}) scale(${BADGE_LOGO_SCALE})">${layersMarkup}</g></svg></div>${hasText ? `<span class="ecopages-logo__text">${escapeXml(text)}</span>` : ''}</div>`;
+};
+
 @customElement('radiant-logo-playground')
 export class RadiantLogoPlayground extends RadiantComponent {
 	@state mode: LogoMode = 'light';
@@ -63,6 +177,30 @@ export class RadiantLogoPlayground extends RadiantComponent {
 	@state textId: PlaygroundTextId = 'ecopages';
 	@state variant: LogoVariant = 'gradient';
 	@state fontSizeRem = DEFAULT_FONT_SIZE_REM;
+	private previewMarkup = '';
+
+	override connectedCallback(): void {
+		super.connectedCallback();
+		this.syncPreviewMarkup();
+	}
+
+	override update(): void {
+		super.update();
+		this.syncPreviewMarkup();
+	}
+
+	private readonly syncPreviewMarkup = () => {
+		const preview = this.querySelector<HTMLElement>('.logo-playground__preview-canvas');
+		if (!preview) {
+			return;
+		}
+
+		if (preview.innerHTML === this.previewMarkup) {
+			return;
+		}
+
+		preview.innerHTML = this.previewMarkup;
+	};
 
 	private readonly handleVariantChange = (event: Event & { readonly currentTarget: HTMLInputElement }) => {
 		this.variant = event.currentTarget.value as LogoVariant;
@@ -183,6 +321,15 @@ export class RadiantLogoPlayground extends RadiantComponent {
 		const previewStyle = {
 			'--ecopages-logo-size': `${this.fontSizeRem.toFixed(2)}rem`,
 		};
+		this.previewMarkup = this.squircle
+			? renderSquircleLogoMarkup({ mode: this.mode, name, text, variant: this.variant })
+			: renderPlainLogoMarkup({
+					mode: this.mode,
+					name,
+					shadow: this.shadow,
+					text,
+					variant: this.variant,
+				});
 
 		return (
 			<div class="logo-playground">
@@ -301,17 +448,7 @@ export class RadiantLogoPlayground extends RadiantComponent {
 				<div class="logo-playground__stage-shell">
 					<div class="logo-playground__stage" data-mode={this.mode}>
 						<div class="logo-playground__preview">
-							<div class="logo-playground__preview-canvas" style={previewStyle}>
-								<Logo
-									mode={this.mode}
-									name={name}
-									shadow={this.shadow}
-									squircle={this.squircle}
-									variant={this.variant}
-								>
-									{text || undefined}
-								</Logo>
-							</div>
+							<div class="logo-playground__preview-canvas" style={previewStyle}></div>
 						</div>
 					</div>
 					<p class="logo-playground__summary">{this.getSummary()}</p>

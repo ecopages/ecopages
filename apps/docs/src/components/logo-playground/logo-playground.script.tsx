@@ -1,6 +1,10 @@
 import { RadiantComponent, customElement, state } from '@ecopages/radiant';
-import { type LogoVariant } from '../logo.constants';
 import { Logo, type LogoMode } from '../logo/logo';
+import { LOGO_PLAYGROUND_FONT_SIZE_RANGE, type LogoVariant } from '../logo/logo.constants';
+import '../radiant-controls/radiant-select.script';
+import '../radiant-controls/radiant-slider.script';
+import '../radiant-controls/radiant-toggle-selector.script';
+import '../switch/switch.script';
 
 const PREVIEW_MODES = [
 	{ id: 'light', label: 'Light surface', description: 'Dark leaves and badge treatment on a bright stage.' },
@@ -24,11 +28,6 @@ const PREVIEW_SQUIRCLE_OPTIONS = [
 	{ id: 'false', label: 'Plain', squircle: false },
 ] as const;
 
-const PREVIEW_SHADOW_OPTIONS = [
-	{ id: 'true', label: 'Shadow on', shadow: true },
-	{ id: 'false', label: 'Shadow off', shadow: false },
-] as const;
-
 const PLAYGROUND_TEXT_OPTIONS = [
 	{ id: 'ecopages', label: 'ecopages', text: 'ecopages' },
 	{ id: 'radiant', label: 'radiant', text: 'radiant' },
@@ -38,11 +37,8 @@ const PLAYGROUND_TEXT_OPTIONS = [
 ] as const;
 
 type PlaygroundTextId = (typeof PLAYGROUND_TEXT_OPTIONS)[number]['id'];
-const MIN_FONT_SIZE_REM = 1.5;
-const MAX_FONT_SIZE_REM = 10;
-const DEFAULT_FONT_SIZE_REM = 5.5;
-const FONT_SIZE_STEP_REM = 0.25;
 const EXPORT_PADDING_PX = 32;
+const PNG_EXPORT_SCALE = 2;
 
 const escapeXml = (value: string): string =>
 	value
@@ -54,6 +50,13 @@ const escapeXml = (value: string): string =>
 
 const round = (value: number): string => value.toFixed(2);
 
+type LogoExportAsset = {
+	fileName: string;
+	height: number;
+	markup: string;
+	width: number;
+};
+
 @customElement('radiant-logo-playground')
 export class RadiantLogoPlayground extends RadiantComponent {
 	@state mode: LogoMode = 'light';
@@ -61,33 +64,65 @@ export class RadiantLogoPlayground extends RadiantComponent {
 	@state squircle = true;
 	@state textId: PlaygroundTextId = 'ecopages';
 	@state variant: LogoVariant = 'gradient';
-	@state fontSizeRem = DEFAULT_FONT_SIZE_REM;
+	@state fontSizeRem: number = LOGO_PLAYGROUND_FONT_SIZE_RANGE.defaultRem;
 
-	private readonly handleVariantChange = (event: Event & { readonly currentTarget: HTMLInputElement }) => {
-		this.variant = event.currentTarget.value as LogoVariant;
+	private readonly getStringEventValue = (event: Event): string => {
+		return (event as CustomEvent<{ value: string }>).detail.value;
 	};
 
-	private readonly handleModeChange = (event: Event & { readonly currentTarget: HTMLInputElement }) => {
-		this.mode = event.currentTarget.value as LogoMode;
+	private readonly getNumberEventValue = (event: Event): number => {
+		return (event as CustomEvent<{ value: number }>).detail.value;
 	};
 
-	private readonly handleSquircleChange = (event: Event & { readonly currentTarget: HTMLInputElement }) => {
-		this.squircle = event.currentTarget.value === 'true';
+	private readonly getBooleanEventValue = (event: Event): boolean => {
+		return (event as CustomEvent<{ checked: boolean }>).detail.checked;
 	};
 
-	private readonly handleTextChange = (event: Event & { readonly currentTarget: HTMLSelectElement }) => {
-		this.textId = event.currentTarget.value as PlaygroundTextId;
+	private readonly handleVariantChange = (event: Event) => {
+		this.variant = this.getStringEventValue(event) as LogoVariant;
 	};
 
-	private readonly handleShadowChange = (event: Event & { readonly currentTarget: HTMLInputElement }) => {
-		this.shadow = event.currentTarget.value === 'true';
+	private readonly handleModeChange = (event: Event) => {
+		this.mode = this.getStringEventValue(event) as LogoMode;
 	};
 
-	private readonly handleFontSizeInput = (event: Event & { readonly currentTarget: HTMLInputElement }) => {
-		this.fontSizeRem = Number(event.currentTarget.value);
+	private readonly handleSquircleChange = (event: Event) => {
+		this.squircle = this.getStringEventValue(event) === 'true';
 	};
 
-	private readonly buildExportMarkup = (): string | null => {
+	private readonly handleTextChange = (event: Event) => {
+		this.textId = this.getStringEventValue(event) as PlaygroundTextId;
+	};
+
+	private readonly handleShadowChange = (event: Event) => {
+		this.shadow = this.getBooleanEventValue(event);
+	};
+
+	private readonly handleFontSizeInput = (event: Event) => {
+		this.fontSizeRem = this.getNumberEventValue(event);
+	};
+
+	private readonly getExportFileName = (): string => {
+		return ['ecopages-logo', this.squircle ? 'squircle' : 'plain', this.variant, this.mode, this.textId]
+			.filter((part) => part && part !== 'none')
+			.join('-');
+	};
+
+	private readonly triggerBlobDownload = (blob: Blob, fileName: string) => {
+		const objectUrl = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = objectUrl;
+		link.download = fileName;
+		link.style.display = 'none';
+		document.body.append(link);
+		link.click();
+		link.remove();
+		window.setTimeout(() => {
+			URL.revokeObjectURL(objectUrl);
+		}, 0);
+	};
+
+	private readonly buildExportAsset = (): LogoExportAsset | null => {
 		const logoRoot = this.querySelector<HTMLElement>('.logo-playground__preview .ecopages-logo');
 		const symbolSvg = logoRoot?.querySelector<SVGSVGElement>('svg');
 		if (!logoRoot || !symbolSvg) {
@@ -134,36 +169,77 @@ export class RadiantLogoPlayground extends RadiantComponent {
 			return `<text x="${round(textRect.left - rootRect.left + padding)}" y="${round(textRect.top - rootRect.top + textRect.height / 2 + padding)}" fill="${escapeXml(textStyle.color)}" font-family="${escapeXml(textStyle.fontFamily)}" font-size="${escapeXml(textStyle.fontSize)}" font-weight="${escapeXml(textStyle.fontWeight)}" letter-spacing="${escapeXml(textStyle.letterSpacing)}" dominant-baseline="middle">${escapeXml(textNode.textContent.trim())}</text>`;
 		})();
 
-		return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${round(rootRect.width + padding * 2)}" height="${round(rootRect.height + padding * 2)}" viewBox="0 0 ${round(rootRect.width + padding * 2)} ${round(rootRect.height + padding * 2)}" fill="none">
+		const width = rootRect.width + padding * 2;
+		const height = rootRect.height + padding * 2;
+		const fileName = this.getExportFileName();
+		const markup = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${round(width)}" height="${round(height)}" viewBox="0 0 ${round(width)} ${round(height)}" fill="none">
 	${badgeMarkup}
 	${symbolMarkup}
 	${textMarkup}
 </svg>
 `;
+
+		return {
+			fileName,
+			height,
+			markup,
+			width,
+		};
 	};
 
-	private readonly handleExport = () => {
-		const markup = this.buildExportMarkup();
-		if (!markup) {
+	private readonly handleSvgExport = () => {
+		const asset = this.buildExportAsset();
+		if (!asset) {
 			return;
 		}
 
-		const fileName = ['ecopages-logo', this.squircle ? 'squircle' : 'plain', this.variant, this.mode, this.textId]
-			.filter((part) => part && part !== 'none')
-			.join('-');
-		const blob = new Blob([markup], { type: 'image/svg+xml;charset=utf-8' });
-		const objectUrl = URL.createObjectURL(blob);
-		const link = document.createElement('a');
-		link.href = objectUrl;
-		link.download = `${fileName}.svg`;
-		link.style.display = 'none';
-		document.body.append(link);
-		link.click();
-		link.remove();
-		window.setTimeout(() => {
-			URL.revokeObjectURL(objectUrl);
-		}, 0);
+		this.triggerBlobDownload(new Blob([asset.markup], { type: 'image/svg+xml;charset=utf-8' }), `${asset.fileName}.svg`);
+	};
+
+	private readonly handlePngExport = async () => {
+		const asset = this.buildExportAsset();
+		if (!asset) {
+			return;
+		}
+
+		await document.fonts.ready;
+
+		const svgBlob = new Blob([asset.markup], { type: 'image/svg+xml;charset=utf-8' });
+		const svgUrl = URL.createObjectURL(svgBlob);
+
+		try {
+			const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+				const nextImage = new Image();
+				nextImage.decoding = 'async';
+				nextImage.onload = () => resolve(nextImage);
+				nextImage.onerror = () => reject(new Error('Failed to load logo export image.'));
+				nextImage.src = svgUrl;
+			});
+
+			const canvas = document.createElement('canvas');
+			canvas.width = Math.ceil(asset.width * PNG_EXPORT_SCALE);
+			canvas.height = Math.ceil(asset.height * PNG_EXPORT_SCALE);
+
+			const context = canvas.getContext('2d');
+			if (!context) {
+				return;
+			}
+
+			context.scale(PNG_EXPORT_SCALE, PNG_EXPORT_SCALE);
+			context.drawImage(image, 0, 0, asset.width, asset.height);
+
+			const pngBlob = await new Promise<Blob | null>((resolve) => {
+				canvas.toBlob(resolve, 'image/png');
+			});
+			if (!pngBlob) {
+				return;
+			}
+
+			this.triggerBlobDownload(pngBlob, `${asset.fileName}.png`);
+		} finally {
+			URL.revokeObjectURL(svgUrl);
+		}
 	};
 
 	private readonly getTextOption = () => PLAYGROUND_TEXT_OPTIONS.find((option) => option.id === this.textId);
@@ -179,132 +255,85 @@ export class RadiantLogoPlayground extends RadiantComponent {
 		const text = this.getTextOption()?.text ?? '';
 		const modeDescription = PREVIEW_MODES.find((mode) => mode.id === this.mode)?.description ?? '';
 		const name = `logo-preview-${this.squircle ? 'squircle' : 'plain'}-${this.variant}-${this.mode}-${this.textId}`;
-		const previewStyle = {
-			'--ecopages-logo-size': `${this.fontSizeRem.toFixed(2)}rem`,
-		};
+		const size = `${this.fontSizeRem.toFixed(2)}rem`;
 
 		return (
 			<div class="logo-playground">
 				<form class="logo-playground__controls">
-					<fieldset class="logo-playground__group">
-						<legend>Variant</legend>
-						<div class="logo-playground__chips">
-							{PREVIEW_VARIANTS.map((variant) => (
-								<label key={variant.id} class="logo-playground__chip">
-									<input
-										type="radio"
-										name="variant"
-										value={variant.id}
-										checked={variant.id === this.variant}
-										on:change={this.handleVariantChange}
-									/>
-									<span>{variant.label}</span>
-								</label>
-							))}
-						</div>
-					</fieldset>
+					<radiant-toggle-selector
+						label="Variant"
+						name="variant"
+						prop:options={PREVIEW_VARIANTS}
+						value={this.variant}
+						on:change={this.handleVariantChange}
+					></radiant-toggle-selector>
 
-					<fieldset class="logo-playground__group">
-						<legend>Inner text</legend>
-						<label class="logo-playground__field">
-							<select class="logo-playground__select" name="text" on:change={this.handleTextChange}>
-								{PLAYGROUND_TEXT_OPTIONS.map((option) => (
-									<option key={option.id} value={option.id} selected={option.id === this.textId}>
-										{option.label}
-									</option>
-								))}
-							</select>
-						</label>
-					</fieldset>
+					<radiant-select
+						label="Inner text"
+						name="text"
+						prop:options={PLAYGROUND_TEXT_OPTIONS.map((option) => ({ id: option.id, label: option.label }))}
+						value={this.textId}
+						on:change={this.handleTextChange}
+					></radiant-select>
 
-					<fieldset class="logo-playground__group">
-						<legend>Surface</legend>
-						<div class="logo-playground__chips">
-							{PREVIEW_MODES.map((mode) => (
-								<label key={mode.id} class="logo-playground__chip">
-									<input
-										type="radio"
-										name="mode"
-										value={mode.id}
-										checked={mode.id === this.mode}
-										on:change={this.handleModeChange}
-									/>
-									<span>{mode.label}</span>
-								</label>
-							))}
-						</div>
-						<p class="logo-playground__hint">{modeDescription}</p>
-					</fieldset>
+					<radiant-toggle-selector
+						description={modeDescription}
+						label="Surface"
+						name="mode"
+						prop:options={PREVIEW_MODES}
+						value={this.mode}
+						on:change={this.handleModeChange}
+					></radiant-toggle-selector>
 
-					<fieldset class="logo-playground__group">
-						<legend>Shape</legend>
-						<div class="logo-playground__chips">
-							{PREVIEW_SQUIRCLE_OPTIONS.map((option) => (
-								<label key={option.id} class="logo-playground__chip">
-									<input
-										type="radio"
-										name="squircle"
-										value={option.id}
-										checked={option.squircle === this.squircle}
-										on:change={this.handleSquircleChange}
-									/>
-									<span>{option.label}</span>
-								</label>
-							))}
-						</div>
-					</fieldset>
+					<radiant-toggle-selector
+						label="Shape"
+						name="squircle"
+						prop:options={PREVIEW_SQUIRCLE_OPTIONS.map((option) => ({ id: option.id, label: option.label }))}
+						value={String(this.squircle)}
+						on:change={this.handleSquircleChange}
+					></radiant-toggle-selector>
 
-					<fieldset class="logo-playground__group" disabled={this.squircle ? 'true' : undefined}>
-						<legend>Shadow</legend>
-						<div class="logo-playground__chips">
-							{PREVIEW_SHADOW_OPTIONS.map((option) => (
-								<label key={option.id} class="logo-playground__chip">
-									<input
-										type="radio"
-										name="shadow"
-										value={option.id}
-										checked={option.shadow === this.shadow}
-										disabled={this.squircle ? 'true' : undefined}
-										on:change={this.handleShadowChange}
-									/>
-									<span>{option.label}</span>
-								</label>
-							))}
-						</div>
-						<p class="logo-playground__hint">Available for the plain logo only.</p>
-					</fieldset>
+					<radiant-switch
+						id="logo-playground-shadow"
+						class="radiant-switch"
+						label="Shadow"
+						description="Available for the plain logo only."
+						prop:checked={this.shadow}
+						prop:disabled={this.squircle}
+						on:change={this.handleShadowChange}
+					></radiant-switch>
 
-					<fieldset class="logo-playground__group">
-						<legend>Font size</legend>
-						<div class="logo-playground__range-header">
-							<span class="logo-playground__hint">Scale the current mark in rem units.</span>
-							<output class="logo-playground__range-value">{this.fontSizeRem.toFixed(2)}rem</output>
-						</div>
-						<input
-							class="logo-playground__range-input"
-							type="range"
-							min={String(MIN_FONT_SIZE_REM)}
-							max={String(MAX_FONT_SIZE_REM)}
-							step={String(FONT_SIZE_STEP_REM)}
-							value={String(this.fontSizeRem)}
-							aria-label="Logo font size"
-							on:input={this.handleFontSizeInput}
-						/>
-					</fieldset>
+					<radiant-slider
+						description="Scale the current mark in rem units."
+						label="Font size"
+						aria-label="Logo font size"
+						min={LOGO_PLAYGROUND_FONT_SIZE_RANGE.minRem}
+						max={LOGO_PLAYGROUND_FONT_SIZE_RANGE.maxRem}
+						step={LOGO_PLAYGROUND_FONT_SIZE_RANGE.stepRem}
+						value={this.fontSizeRem}
+						unit="rem"
+						on:input={this.handleFontSizeInput}
+					></radiant-slider>
 
-					<button type="button" class="logo-playground__export" on:click={this.handleExport}>
-						Export SVG
-					</button>
+					<div class="logo-playground__export-actions">
+						<button type="button" class="button button--primary" on:click={this.handleSvgExport}>
+							Export SVG
+						</button>
+						<button type="button" class="button button--outline" on:click={this.handlePngExport}>
+							Export PNG
+						</button>
+					</div>
 				</form>
 
 				<div class="logo-playground__stage-shell">
 					<div class="logo-playground__stage" data-mode={this.mode}>
 						<div class="logo-playground__preview">
-							<div class="logo-playground__preview-canvas" style={previewStyle}>
+							<div class="logo-playground__preview-canvas">
 								<Logo
 									mode={this.mode}
 									name={name}
 									shadow={this.shadow}
+									size={size}
 									squircle={this.squircle}
 									variant={this.variant}
 								>

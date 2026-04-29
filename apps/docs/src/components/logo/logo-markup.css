@@ -23,7 +23,7 @@
 .ecopages-logo__text {
 	font-weight: 600;
 	color: var(--color-on-background);
-	font-family: 'Karla', sans-serif;
+	font-family: var(--font-heading, 'Karla', sans-serif);
 	letter-spacing: -0.02em;
 	margin: 0;
 	line-height: 1;

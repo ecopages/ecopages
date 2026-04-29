@@ -1,71 +1,34 @@
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 import {
+	BADGE_DARK_CONFIG,
 	BW_CONFIG,
 	BADGE_CONFIG,
+	BADGE_GRAIN_FILTERS,
+	BADGE_GRAIN_OVERLAYS,
+	BADGE_GRAIN_RECT,
+	BADGE_SHADOW,
+	BADGE_SVG,
 	LEAF_PATH,
-	SCALES,
+	LEAF_SHADOW,
+	type LeafConfig,
+	LOGO_BACKGROUNDS,
+	LOGO_DARK_CONFIG,
+	LOGO_LAYER_SPECS,
+	type LogoMode,
+	LOGO_SVG,
 	type LogoVariant,
-	type ScaleStop,
 	createLeafConfig,
 } from './logo.constants';
-import type { JsxRenderable } from '@ecopages/jsx';
-
-const SQUIRCLE_BACKGROUND = SCALES.gray[900];
-const SQUIRCLE_BACKGROUND_INVERTED = SCALES.gray[50];
-const BADGE_LEAF_BORDER_WIDTH = '26';
-const BADGE_LOGO_SCALE = 0.92;
-const BADGE_LOGO_TRANSLATE_X = 6.56;
-const BADGE_LOGO_TRANSLATE_Y = 6.4;
-
-const LOGO_LAYER_SPECS = [
-	{ key: 'back', y: 100 },
-	{ key: 'mid', y: 60 },
-	{ key: 'front', y: 20 },
-] as const;
-
-const BADGE_SHADOW = {
-	color: '#000000',
-	opacity: '0.75',
-} as const;
-
-export type LogoMode = 'light' | 'dark';
-
-type LeafConfig = ReturnType<typeof createLeafConfig>;
 
 const getLayerFill = (config: LeafConfig, key: 'front' | 'mid' | 'back') => ({
 	fillBase: config[key],
 	fillGrad: config[`${key}Gradient`],
 });
 
-const invertScaleStop = (stop: ScaleStop): ScaleStop => {
-	const numericStop = Number(stop);
-	const inverted = 1000 - numericStop;
-	return (inverted === 1000 ? 950 : inverted) as ScaleStop;
-};
-
-const invertLeafConfig = (stops: { front: ScaleStop; mid: ScaleStop; back: ScaleStop }) =>
-	createLeafConfig(
-		[invertScaleStop(stops.front), invertScaleStop(stops.front)],
-		[invertScaleStop(stops.mid), invertScaleStop(stops.mid)],
-		[invertScaleStop(stops.back), invertScaleStop(stops.back)],
-	);
-
-const BADGE_STOP_CONFIG = {
-	front: 50,
-	mid: 200,
-	back: 400,
-} as const satisfies {
-	front: ScaleStop;
-	mid: ScaleStop;
-	back: ScaleStop;
-};
-
-const BADGE_DARK_CONFIG = invertLeafConfig(BADGE_STOP_CONFIG);
-const LOGO_DARK_CONFIG = createLeafConfig([50, 100], [200, 300], [400, 500]);
-
-export const Logo = eco.component({
+export const LogoMarkup = eco.component({
 	dependencies: {
-		stylesheets: ['./logo.css'],
+		stylesheets: ['./logo-markup.css'],
 	},
 	render: ({
 		config = BW_CONFIG,
@@ -98,9 +61,9 @@ export const Logo = eco.component({
 		return (
 			<div class={rootClassName}>
 				<svg
-					width="1.5em"
-					height="1.5em"
-					viewBox="-10 -20 200 220"
+					width={`calc(${LOGO_SVG.baseSize} * ${LOGO_SVG.logoScale})`}
+					height={`calc(${LOGO_SVG.baseSize} * ${LOGO_SVG.logoScale})`}
+					viewBox={LOGO_SVG.viewBox}
 					fill="none"
 					xmlns="http://www.w3.org/2000/svg"
 				>
@@ -145,13 +108,19 @@ export const Logo = eco.component({
 						)}
 
 						{shadow && (
-							<filter id={`${idPrefix}-leaf-shadow`} x="-40%" y="-40%" width="180%" height="180%">
+							<filter
+								id={`${idPrefix}-leaf-shadow`}
+								x={LEAF_SHADOW.x}
+								y={LEAF_SHADOW.y}
+								width={LEAF_SHADOW.width}
+								height={LEAF_SHADOW.height}
+							>
 								<feDropShadow
 									dx="0"
 									dy="8"
 									stdDeviation="5"
 									flood-color={c.shadow}
-									flood-opacity="0.75"
+									flood-opacity={LEAF_SHADOW.opacity}
 								/>
 							</filter>
 						)}
@@ -165,7 +134,7 @@ export const Logo = eco.component({
 									<use href={`#${idPrefix}-leaf`} fill={`url(#${layer.fillGradId})`} />
 								)}
 							</g>
-						</g>
+							</g>
 					))}
 				</svg>
 				{hasText && <span class="ecopages-logo__text">{children}</span>}
@@ -176,7 +145,7 @@ export const Logo = eco.component({
 
 export const LogoSquircle = eco.component({
 	dependencies: {
-		stylesheets: ['./logo.css'],
+		stylesheets: ['./logo-markup.css'],
 	},
 	render: ({
 		name = 'logo-badge',
@@ -193,7 +162,7 @@ export const LogoSquircle = eco.component({
 	}) => {
 		const p = name;
 		const c = mode === 'dark' && config === BADGE_CONFIG ? BADGE_DARK_CONFIG : config;
-		const badgeBackground = mode === 'dark' ? SQUIRCLE_BACKGROUND_INVERTED : SQUIRCLE_BACKGROUND;
+		const badgeBackground = mode === 'dark' ? LOGO_BACKGROUNDS.dark : LOGO_BACKGROUNDS.light;
 		const rootClassName = children ? 'ecopages-logo' : 'ecopages-logo ecopages-logo--badge';
 		const layers = LOGO_LAYER_SPECS.map((layer) => {
 			const fills = getLayerFill(c, layer.key);
@@ -208,32 +177,32 @@ export const LogoSquircle = eco.component({
 				d={LEAF_PATH}
 				fill={badgeBackground}
 				stroke={badgeBackground}
-				stroke-width={BADGE_LEAF_BORDER_WIDTH}
+				stroke-width={BADGE_SVG.borderWidth}
 			/>
 		);
 		const grainOverlay = (
 			<>
 				<rect
-					x="-20"
-					y="-20"
-					width="220"
-					height="160"
-					fill="#FFFFFF"
+					x={BADGE_GRAIN_RECT.x}
+					y={BADGE_GRAIN_RECT.y}
+					width={BADGE_GRAIN_RECT.width}
+					height={BADGE_GRAIN_RECT.height}
+					fill={BADGE_GRAIN_OVERLAYS.light.fill}
 					clip-path={`url(#${p}-leaf-body)`}
 					filter={`url(#${p}-leaf-grain-light)`}
-					opacity="0.12"
-					style="mix-blend-mode: screen"
+					opacity={BADGE_GRAIN_OVERLAYS.light.opacity}
+					style={`mix-blend-mode: ${BADGE_GRAIN_OVERLAYS.light.mixBlendMode}`}
 				/>
 				<rect
-					x="-20"
-					y="-20"
-					width="220"
-					height="160"
-					fill="#000000"
+					x={BADGE_GRAIN_RECT.x}
+					y={BADGE_GRAIN_RECT.y}
+					width={BADGE_GRAIN_RECT.width}
+					height={BADGE_GRAIN_RECT.height}
+					fill={BADGE_GRAIN_OVERLAYS.dark.fill}
 					clip-path={`url(#${p}-leaf-body)`}
 					filter={`url(#${p}-leaf-grain-dark)`}
-					opacity="0.08"
-					style="mix-blend-mode: multiply"
+					opacity={BADGE_GRAIN_OVERLAYS.dark.opacity}
+					style={`mix-blend-mode: ${BADGE_GRAIN_OVERLAYS.dark.mixBlendMode}`}
 				/>
 			</>
 		);
@@ -242,12 +211,12 @@ export const LogoSquircle = eco.component({
 			<div class={rootClassName}>
 				<div
 					class="ecopages-logo__badge"
-					style={`background: ${badgeBackground}; border-radius: 30%; corner-shape: squircle;`}
+					style={`background: ${badgeBackground}; border-radius: ${BADGE_SVG.backgroundRadius}; corner-shape: ${BADGE_SVG.cornerShape};`}
 				>
 					<svg
-						width="100%"
-						height="100%"
-						viewBox="-20 -4 205 205"
+						width={BADGE_SVG.width}
+						height={BADGE_SVG.height}
+						viewBox={BADGE_SVG.viewBox}
 						fill="none"
 						xmlns="http://www.w3.org/2000/svg"
 					>
@@ -257,50 +226,50 @@ export const LogoSquircle = eco.component({
 							</clipPath>
 							<filter
 								id={`${p}-leaf-grain-light`}
-								x="-20"
-								y="-20"
-								width="220"
-								height="160"
+								x={BADGE_GRAIN_FILTERS.light.x}
+								y={BADGE_GRAIN_FILTERS.light.y}
+								width={BADGE_GRAIN_FILTERS.light.width}
+								height={BADGE_GRAIN_FILTERS.light.height}
 								filterUnits="userSpaceOnUse"
 							>
 								<feTurbulence
 									type="fractalNoise"
-									baseFrequency="0.7"
-									numOctaves="2"
-									seed="8"
+									baseFrequency={BADGE_GRAIN_FILTERS.light.baseFrequency}
+									numOctaves={BADGE_GRAIN_FILTERS.light.numOctaves}
+									seed={BADGE_GRAIN_FILTERS.light.seed}
 									stitchTiles="stitch"
 									result="noise"
 								/>
 								<feColorMatrix in="noise" type="saturate" values="0" result="grain" />
 								<feComponentTransfer in="grain">
-									<feFuncR type="table" tableValues="0.72 1" />
-									<feFuncG type="table" tableValues="0.72 1" />
-									<feFuncB type="table" tableValues="0.72 1" />
-									<feFuncA type="table" tableValues="0 0.9" />
+									<feFuncR type="table" tableValues={BADGE_GRAIN_FILTERS.light.componentValues.r} />
+									<feFuncG type="table" tableValues={BADGE_GRAIN_FILTERS.light.componentValues.g} />
+									<feFuncB type="table" tableValues={BADGE_GRAIN_FILTERS.light.componentValues.b} />
+									<feFuncA type="table" tableValues={BADGE_GRAIN_FILTERS.light.componentValues.a} />
 								</feComponentTransfer>
 							</filter>
 							<filter
 								id={`${p}-leaf-grain-dark`}
-								x="-20"
-								y="-20"
-								width="220"
-								height="160"
+								x={BADGE_GRAIN_FILTERS.dark.x}
+								y={BADGE_GRAIN_FILTERS.dark.y}
+								width={BADGE_GRAIN_FILTERS.dark.width}
+								height={BADGE_GRAIN_FILTERS.dark.height}
 								filterUnits="userSpaceOnUse"
 							>
 								<feTurbulence
 									type="fractalNoise"
-									baseFrequency="0.95"
-									numOctaves="3"
-									seed="19"
+									baseFrequency={BADGE_GRAIN_FILTERS.dark.baseFrequency}
+									numOctaves={BADGE_GRAIN_FILTERS.dark.numOctaves}
+									seed={BADGE_GRAIN_FILTERS.dark.seed}
 									stitchTiles="stitch"
 									result="noise"
 								/>
 								<feColorMatrix in="noise" type="saturate" values="0" result="grain" />
 								<feComponentTransfer in="grain">
-									<feFuncR type="table" tableValues="0 0.32" />
-									<feFuncG type="table" tableValues="0 0.32" />
-									<feFuncB type="table" tableValues="0 0.32" />
-									<feFuncA type="table" tableValues="0 0.75" />
+									<feFuncR type="table" tableValues={BADGE_GRAIN_FILTERS.dark.componentValues.r} />
+									<feFuncG type="table" tableValues={BADGE_GRAIN_FILTERS.dark.componentValues.g} />
+									<feFuncB type="table" tableValues={BADGE_GRAIN_FILTERS.dark.componentValues.b} />
+									<feFuncA type="table" tableValues={BADGE_GRAIN_FILTERS.dark.componentValues.a} />
 								</feComponentTransfer>
 							</filter>
 							{variant === 'gradient' && (
@@ -319,7 +288,13 @@ export const LogoSquircle = eco.component({
 									</linearGradient>
 								</>
 							)}
-							<filter id={`${p}-badge-shadow`} x="-40%" y="-40%" width="180%" height="180%">
+							<filter
+								id={`${p}-badge-shadow`}
+								x={BADGE_SHADOW.x}
+								y={BADGE_SHADOW.y}
+								width={BADGE_SHADOW.width}
+								height={BADGE_SHADOW.height}
+							>
 								<feDropShadow
 									dx="0"
 									dy="8"
@@ -331,7 +306,7 @@ export const LogoSquircle = eco.component({
 						</defs>
 
 						<g
-							transform={`translate(${BADGE_LOGO_TRANSLATE_X}, ${BADGE_LOGO_TRANSLATE_Y}) scale(${BADGE_LOGO_SCALE})`}
+							transform={`translate(${BADGE_SVG.translateX}, ${BADGE_SVG.translateY}) scale(${BADGE_SVG.logoScale})`}
 						>
 							{layers.map((layer, index) => (
 								<g key={index} transform={`translate(0, ${layer.y})`}>

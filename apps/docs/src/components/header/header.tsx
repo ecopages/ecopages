@@ -1,6 +1,7 @@
 import type { EcoComponent } from '@ecopages/core';
 import { Burger } from '@/components/burger';
 import { Logo } from '@/components/logo/logo';
+import { DEFAULT_LOGO_SIZE } from '@/components/logo/logo.constants';
 import { Navigation, type NavigationProps } from '@/components/navigation';
 import rootJson from '../../../../../package.json';
 
@@ -14,7 +15,7 @@ export const Header: EcoComponent<HeaderProps> = ({ navigation }) => {
 			<div class="header__inner">
 				<div class="header__inner-left">
 					<Burger class="md:hidden" />
-					<Logo href="/" target="_self" title="Ecopages" />
+					<Logo href="/" size={DEFAULT_LOGO_SIZE} target="_self" title="Ecopages" />
 					<p class="version">v {rootJson.version as 'safe'}</p>
 				</div>
 				<Navigation {...navigation} />

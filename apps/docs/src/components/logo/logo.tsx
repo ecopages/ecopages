@@ -1,10 +1,9 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
-import { Logo as PlainLogo, LogoSquircle, type LogoMode } from '../logo';
-import type { LogoVariant } from '../logo.constants';
-import { BADGE_CONFIG, createLeafConfig } from '../logo.constants';
+import { LogoMarkup, LogoSquircle } from './logo-markup';
+import { BADGE_CONFIG, createLeafConfig, type LogoMode, type LogoVariant } from './logo.constants';
 
-export type { LogoMode } from '../logo';
+export type { LogoMode } from './logo.constants';
 
 export type LogoProps = Partial<Pick<HTMLAnchorElement, 'href' | 'target' | 'title'>> & {
 	children?: JsxRenderable;
@@ -19,7 +18,7 @@ export type LogoProps = Partial<Pick<HTMLAnchorElement, 'href' | 'target' | 'tit
 
 export const Logo = eco.component<LogoProps, JsxRenderable>({
 	dependencies: {
-		components: [PlainLogo, LogoSquircle],
+		components: [LogoMarkup, LogoSquircle],
 		stylesheets: ['./logo.css'],
 	},
 	render: ({
@@ -29,7 +28,7 @@ export const Logo = eco.component<LogoProps, JsxRenderable>({
 		mode,
 		name = 'logo',
 		shadow = true,
-		size = '1.75rem',
+		size,
 		squircle = false,
 		target,
 		title,
@@ -44,7 +43,7 @@ export const Logo = eco.component<LogoProps, JsxRenderable>({
 						{children}
 					</LogoSquircle>
 				) : (
-					<PlainLogo
+					<LogoMarkup
 						config={resolvedConfig}
 						mode={resolvedMode}
 						name={resolvedName}
@@ -52,7 +51,7 @@ export const Logo = eco.component<LogoProps, JsxRenderable>({
 						variant={variant}
 					>
 						{children}
-					</PlainLogo>
+					</LogoMarkup>
 				)}
 			</span>
 		);
@@ -65,7 +64,7 @@ export const Logo = eco.component<LogoProps, JsxRenderable>({
 				href={href}
 				target={target}
 				title={title}
-				style={{ '--ecopages-logo-size': size }}
+				style={size ? { '--ecopages-logo-size': size } : undefined}
 			>
 				{isThemeControlled
 					? [

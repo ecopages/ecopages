@@ -31,6 +31,7 @@ It is best when you want:
 You can run the CLI directly with `bunx` (no global install required):
 
 <CodeTabs
+	name="ecopages-cli-run"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages --help' },
 		{ id: 'npm', label: 'npm', code: 'npx ecopages --help' },
@@ -42,6 +43,7 @@ You can run the CLI directly with `bunx` (no global install required):
 Or install it in a project:
 
 <CodeTabs
+	name="ecopages-cli-install"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add ecopages' },
 		{ id: 'npm', label: 'npm', code: 'npm install ecopages' },
@@ -57,6 +59,7 @@ Or install it in a project:
 Use the init command with a target directory, then optionally select a template:
 
 <CodeTabs
+	name="ecopages-init-command"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init my-app' },
 		{ id: 'npm', label: 'npm', code: 'npx ecopages init my-app' },
@@ -72,6 +75,7 @@ Use these when you want a full bootstrap in one command chain.
 **Basic starter** - Creates a minimal Ecopages app with default setup. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/starter-jsx" target="_blank">starter-jsx</a>.
 
 <CodeTabs
+	name="ecopages-basic-starter"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init ecopages-app && cd ecopages-app && pnpm install && pnpm run dev' },
 		{ id: 'npm', label: 'npm', code: 'npx ecopages init ecopages-app && cd ecopages-app && npm install && npm run dev' },
@@ -83,6 +87,7 @@ Use these when you want a full bootstrap in one command chain.
 **Blog with KitaJS** - Creates a content-focused blog using the `blog-jsx` template. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/blog-jsx" target="_blank">blog-jsx</a>.
 
 <CodeTabs
+	name="ecopages-blog-jsx"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && pnpm install && pnpm run dev' },
 		{ id: 'npm', label: 'npm', code: 'npx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && npm install && npm run dev' },
@@ -94,6 +99,7 @@ Use these when you want a full bootstrap in one command chain.
 **Blog with React** - Creates a React-powered blog with routing preconfigured. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/blog-react" target="_blank">blog-react</a>.
 
 <CodeTabs
+	name="ecopages-blog-react"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init blog-react --template blog-react && cd blog-react && pnpm install && pnpm run dev' },
 		{ id: 'npm', label: 'npm', code: 'npx ecopages init blog-react --template blog-react && cd blog-react && npm install && npm run dev' },
@@ -105,6 +111,7 @@ Use these when you want a full bootstrap in one command chain.
 **React app with Better Auth + Drizzle** - Creates a full app starter with auth and database workflow included. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/with-react-better-auth" target="_blank">with-react-better-auth</a>.
 
 <CodeTabs
+	name="ecopages-better-auth"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && pnpm install && pnpm run db:generate && pnpm run db:migrate && pnpm run dev' },
 		{ id: 'npm', label: 'npm', code: 'npx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && npm install && npm run db:generate && npm run db:migrate && npm run dev' },
@@ -118,6 +125,7 @@ Use these when you want a full bootstrap in one command chain.
 #### 1) Basic starter
 
 <CodeTabs
+	name="ecopages-basic-starter-steps"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: `pnpm dlx ecopages init ecopages-app
 cd ecopages-app
@@ -138,6 +146,7 @@ bun dev` },
 #### 2) Blog with KitaJS
 
 <CodeTabs
+	name="ecopages-blog-jsx-steps"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: `pnpm dlx ecopages init blog-jsx --template blog-jsx
 cd blog-jsx
@@ -158,6 +167,7 @@ bun dev` },
 #### 3) Blog with React
 
 <CodeTabs
+	name="ecopages-blog-react-steps"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: `pnpm dlx ecopages init blog-react --template blog-react
 cd blog-react
@@ -178,6 +188,7 @@ bun dev` },
 #### 4) React app with Better Auth + Drizzle
 
 <CodeTabs
+	name="ecopages-better-auth-steps"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: `pnpm dlx ecopages init with-react-better-auth --template with-react-better-auth
 cd with-react-better-auth

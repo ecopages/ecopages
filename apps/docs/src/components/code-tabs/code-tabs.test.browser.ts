@@ -10,6 +10,7 @@ function resetDom(): void {
 
 function createCodeTabs(): RadiantCodeTabs {
 	const element = document.createElement('radiant-code-tabs') as RadiantCodeTabs;
+	element.name = 'test-code-tabs';
 	element.label = 'Code examples';
 	element.copyLabel = 'Copy code';
 	element.tabs = [
@@ -93,5 +94,24 @@ describe('RadiantCodeTabs', () => {
 			expect(codeTabs.querySelector('.code-tabs__status')?.textContent?.trim()).toBe('');
 			expect(codeTabs.querySelector('.code-tabs__copy')?.getAttribute('data-copied')).toBe('false');
 		});
+	});
+
+	it('derives tab and panel ids from the provided name and tab ids', async () => {
+		const codeTabs = createCodeTabs();
+		codeTabs.name = 'image-processor-install';
+		document.body.appendChild(codeTabs);
+
+		await vi.waitFor(() => {
+			expect(codeTabs.querySelector<HTMLButtonElement>('[role="tab"]')?.id).toBe(
+				'radiant-code-tabs-image-processor-install-tab-js',
+			);
+		});
+
+		const activeTab = codeTabs.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
+		const panel = codeTabs.querySelector<HTMLDivElement>('[role="tabpanel"]');
+		expect(activeTab?.id).toBe('radiant-code-tabs-image-processor-install-tab-js');
+		expect(panel?.id).toBe('radiant-code-tabs-image-processor-install-panel-js');
+		expect(activeTab?.getAttribute('aria-controls')).toBe(panel?.id ?? null);
+		expect(panel?.getAttribute('aria-labelledby')).toBe(activeTab?.id ?? null);
 	});
 });

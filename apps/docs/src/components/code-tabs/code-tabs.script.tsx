@@ -13,6 +13,7 @@ export type RadiantCodeTabItem = {
  * Public props for the docs code-tabs custom element.
  */
 export type RadiantCodeTabsProps = {
+	name: string;
 	label?: string;
 	tabs?: RadiantCodeTabItem[];
 	copyLabel?: string;
@@ -20,8 +21,110 @@ export type RadiantCodeTabsProps = {
 	selectedKey?: string;
 };
 
+type NonEmptyCodeTabs = [RadiantCodeTabItem, ...RadiantCodeTabItem[]];
+
+type CodeTabsDomIds = {
+	tabId: string;
+	panelId: string;
+};
+
+type CodeTabsTabListProps = {
+	tabs: RadiantCodeTabItem[];
+	activeTabId: string;
+	tabListLabel: string;
+	onSelectTab: (tabId: string) => void;
+	onTabKeyDown: (event: KeyboardEvent & { readonly currentTarget: HTMLButtonElement }) => void;
+	getDomIds: (tabId: string) => CodeTabsDomIds;
+};
+
+type CodeTabsPanelProps = {
+	activeTab: RadiantCodeTabItem;
+	copyLabel: string;
+	copyStatus: string;
+	clipboardError: boolean;
+	isCopied: boolean;
+	domIds: CodeTabsDomIds;
+	onCopy: () => void;
+};
+
+function CodeTabsEmptyState() {
+	return (
+		<div class="code-tabs">
+			<p class="code-tabs__empty">No code examples available</p>
+		</div>
+	);
+}
+
+function CodeTabsTabList({
+	tabs,
+	activeTabId,
+	tabListLabel,
+	onSelectTab,
+	onTabKeyDown,
+	getDomIds,
+}: CodeTabsTabListProps) {
+	return (
+		<div class="code-tabs__list" role="tablist" aria={{ orientation: 'horizontal', label: tabListLabel }}>
+			{tabs.map((tab, index) => {
+				const isSelected = tab.id === activeTabId;
+				const domIds = getDomIds(tab.id);
+				return (
+					<button
+						key={tab.id}
+						type="button"
+						class="code-tabs__tab"
+						role="tab"
+						id={domIds.tabId}
+						aria-selected={isSelected}
+						aria-controls={domIds.panelId}
+						tabIndex={isSelected ? 0 : -1}
+						data-tab-index={String(index)}
+						on:click={() => {
+							onSelectTab(tab.id);
+						}}
+						on:keydown={onTabKeyDown}
+					>
+						{tab.label}
+					</button>
+				);
+			})}
+		</div>
+	);
+}
+
+function CodeTabsPanel({
+	activeTab,
+	copyLabel,
+	copyStatus,
+	clipboardError,
+	isCopied,
+	domIds,
+	onCopy,
+}: CodeTabsPanelProps) {
+	return (
+		<div class="code-tabs__panel" role="tabpanel" id={domIds.panelId} aria-labelledby={domIds.tabId}>
+			<div class="code-tabs__body">
+				<span class="code-tabs__code">{activeTab.code}</span>
+				<button
+					type="button"
+					class="code-tabs__copy"
+					data={{ copied: isCopied }}
+					aria-label={`${copyLabel}: ${activeTab.label}`}
+					on:click={onCopy}
+				>
+					<span class="code-tabs__icon" aria-hidden="true"></span>
+				</button>
+			</div>
+			<span class={`code-tabs__status${clipboardError ? ' code-tabs__status--error' : ''}`} aria-live="polite">
+				{copyStatus}
+			</span>
+		</div>
+	);
+}
+
 @customElement('radiant-code-tabs')
 export class RadiantCodeTabs extends RadiantComponent {
+	@prop({ type: String }) name = '';
 	@prop({ type: String }) label = '';
 	@prop({ type: Array }) tabs: RadiantCodeTabItem[] = [];
 	@prop({ type: String }) copyLabel = 'Copy code';
@@ -29,9 +132,8 @@ export class RadiantCodeTabs extends RadiantComponent {
 	@prop({ type: String, reflect: true }) selectedKey = '';
 	@state copiedTabId = '';
 	@state copyStatus = '';
+	@state clipboardError = false;
 
-	private static nextInstanceId = 0;
-	private readonly instanceId = `radiant-code-tabs-${++RadiantCodeTabs.nextInstanceId}`;
 	private timeoutId: ReturnType<typeof setTimeout> | null = null;
 
 	override disconnectedCallback(): void {
@@ -43,29 +145,7 @@ export class RadiantCodeTabs extends RadiantComponent {
 		super.disconnectedCallback();
 	}
 
-	private readonly resolveTabs = (): RadiantCodeTabItem[] => {
-		if (Array.isArray(this.tabs) && this.tabs.length > 0) {
-			return this.tabs;
-		}
-
-		const tabsAttribute = this.getAttribute('tabs');
-		if (!tabsAttribute) {
-			return Array.isArray(this.tabs) ? this.tabs : [];
-		}
-
-		try {
-			const parsedTabs = JSON.parse(tabsAttribute) as unknown;
-			return Array.isArray(parsedTabs) ? (parsedTabs as RadiantCodeTabItem[]) : [];
-		} catch {
-			return Array.isArray(this.tabs) ? this.tabs : [];
-		}
-	};
-
-	private readonly getActiveTab = (tabs: RadiantCodeTabItem[]): RadiantCodeTabItem | null => {
-		if (tabs.length === 0) {
-			return null;
-		}
-
+	private readonly getActiveTab = (tabs: NonEmptyCodeTabs): RadiantCodeTabItem => {
 		if (this.selectedKey) {
 			const selectedTab = tabs.find((tab) => tab.id === this.selectedKey);
 			if (selectedTab) {
@@ -80,8 +160,32 @@ export class RadiantCodeTabs extends RadiantComponent {
 			}
 		}
 
-		return tabs[0] ?? null;
+		return tabs[0];
 	};
+
+	private readonly getNonEmptyTabs = (): NonEmptyCodeTabs | null => {
+		if (this.tabs.length === 0) {
+			return null;
+		}
+
+		return this.tabs as NonEmptyCodeTabs;
+	};
+
+	private readonly normalizeIdPart = (value: string) => {
+		const normalized = value
+			.trim()
+			.toLowerCase()
+			.replace(/[^a-z0-9_-]+/g, '-')
+			.replace(/^-+|-+$/g, '');
+		return normalized || 'code-tabs';
+	};
+
+	private readonly getInstanceIdPrefix = () => `radiant-code-tabs-${this.normalizeIdPart(this.name)}`;
+
+	private readonly getDomIds = (instanceIdPrefix: string, tabId: string): CodeTabsDomIds => ({
+		tabId: `${instanceIdPrefix}-tab-${this.normalizeIdPart(tabId)}`,
+		panelId: `${instanceIdPrefix}-panel-${this.normalizeIdPart(tabId)}`,
+	});
 
 	private readonly setSelectedTab = (tabId: string) => {
 		if (this.selectedKey === tabId) {
@@ -101,16 +205,18 @@ export class RadiantCodeTabs extends RadiantComponent {
 	private readonly handleTabKeyDown = (
 		keyboardEvent: KeyboardEvent & { readonly currentTarget: HTMLButtonElement },
 	) => {
-		const tabs = this.resolveTabs();
-		const activeTab = this.getActiveTab(tabs);
-		if (!activeTab) {
+		const validKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+		if (!validKeys.includes(keyboardEvent.key)) {
 			return;
 		}
 
-		const activeIndex = tabs.findIndex((tab) => tab.id === activeTab.id);
-		if (activeIndex === -1) {
+		const tabs = this.getNonEmptyTabs();
+		if (!tabs) {
 			return;
 		}
+		const activeTab = this.getActiveTab(tabs);
+
+		const activeIndex = tabs.findIndex((tab) => tab.id === activeTab.id);
 
 		let nextIndex = activeIndex;
 		switch (keyboardEvent.key) {
@@ -128,26 +234,23 @@ export class RadiantCodeTabs extends RadiantComponent {
 			case 'End':
 				nextIndex = tabs.length - 1;
 				break;
-			default:
-				return;
 		}
 
 		keyboardEvent.preventDefault();
 		const nextTab = tabs[nextIndex];
-		if (!nextTab) {
-			return;
-		}
 
 		this.setSelectedTab(nextTab.id);
 		this.focusTabAtIndex(nextIndex);
 	};
 
 	private readonly handleCopy = async () => {
-		const activeTab = this.getActiveTab(this.resolveTabs());
-		if (!activeTab) {
+		const tabs = this.getNonEmptyTabs();
+		if (!tabs) {
 			return;
 		}
+		const activeTab = this.getActiveTab(tabs);
 
+		this.clipboardError = false;
 		try {
 			await navigator.clipboard.writeText(activeTab.code);
 			this.copiedTabId = activeTab.id;
@@ -161,64 +264,50 @@ export class RadiantCodeTabs extends RadiantComponent {
 			}, 2000);
 		} catch (error) {
 			console.error('Failed to copy code', error);
+			this.clipboardError = true;
+			this.copyStatus = `Failed to copy ${activeTab.label}`;
+			if (this.timeoutId) {
+				clearTimeout(this.timeoutId);
+			}
+			this.timeoutId = setTimeout(() => {
+				this.clipboardError = false;
+				this.copyStatus = '';
+			}, 3000);
 		}
 	};
 
 	override render() {
-		const tabs = this.resolveTabs();
-		const activeTab = this.getActiveTab(tabs);
-		if (!activeTab) {
-			return null;
+		const tabs = this.getNonEmptyTabs();
+		if (!tabs) {
+			return <CodeTabsEmptyState />;
 		}
 
-		const activeIndex = tabs.findIndex((tab) => tab.id === activeTab.id);
+		const activeTab = this.getActiveTab(tabs);
+
+		const instanceIdPrefix = this.getInstanceIdPrefix();
+		const getDomIds = (tabId: string) => this.getDomIds(instanceIdPrefix, tabId);
+		const activeDomIds = getDomIds(activeTab.id);
 		const tabListLabel = this.label || 'Code examples';
-		const tabId = `${this.instanceId}-tab-${String(activeIndex)}`;
-		const panelId = `${this.instanceId}-panel-${String(activeIndex)}`;
 
 		return (
 			<div class="code-tabs">
-				<div class="code-tabs__list" role="tablist" aria={{ orientation: 'horizontal', label: tabListLabel }}>
-					{tabs.map((tab, index) => {
-						const isSelected = tab.id === activeTab.id;
-						return (
-							<button
-								key={tab.id}
-								type="button"
-								class="code-tabs__tab"
-								role="tab"
-								id={`${this.instanceId}-tab-${String(index)}`}
-								aria-selected={isSelected}
-								aria-controls={`${this.instanceId}-panel-${String(index)}`}
-								tabIndex={isSelected ? 0 : -1}
-								data-tab-index={String(index)}
-								on:click={() => {
-									this.setSelectedTab(tab.id);
-								}}
-								on:keydown={this.handleTabKeyDown}
-							>
-								{tab.label}
-							</button>
-						);
-					})}
-				</div>
-				<div class="code-tabs__panel" role="tabpanel" id={panelId} aria-labelledby={tabId}>
-					<div class="code-tabs__body">
-						<span class="code-tabs__code">{activeTab.code}</span>
-						<button
-							type="button"
-							class="code-tabs__copy"
-							data={{ copied: this.copiedTabId === activeTab.id }}
-							aria-label={`${this.copyLabel}: ${activeTab.label}`}
-							on:click={this.handleCopy}
-						>
-							<span class="code-tabs__icon" aria-hidden="true"></span>
-						</button>
-					</div>
-					<span class="code-tabs__status" aria-live="polite">
-						{this.copyStatus}
-					</span>
-				</div>
+				<CodeTabsTabList
+					tabs={tabs}
+					activeTabId={activeTab.id}
+					tabListLabel={tabListLabel}
+					onSelectTab={this.setSelectedTab}
+					onTabKeyDown={this.handleTabKeyDown}
+					getDomIds={getDomIds}
+				/>
+				<CodeTabsPanel
+					activeTab={activeTab}
+					copyLabel={this.copyLabel}
+					copyStatus={this.copyStatus}
+					clipboardError={this.clipboardError}
+					isCopied={this.copiedTabId === activeTab.id}
+					domIds={activeDomIds}
+					onCopy={this.handleCopy}
+				/>
 			</div>
 		);
 	}

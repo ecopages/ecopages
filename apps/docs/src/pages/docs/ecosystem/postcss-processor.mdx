@@ -19,6 +19,7 @@ The `@ecopages/postcss-processor` package provides a PostCSS processor plugin fo
 Install the package:
 
 <CodeTabs
+	name="postcss-processor-install"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/postcss-processor' },
 		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/postcss-processor' },
@@ -36,6 +37,7 @@ The processor comes with presets to get you started quickly with popular setups.
 This preset includes the standard Tailwind CSS v3 stack: `tailwindcss`, `tailwindcss/nesting`, `autoprefixer`, `postcss-import`, and `cssnano`.
 
 <CodeTabs
+	name="postcss-processor-tailwind-v3"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D tailwindcss@3.4.19' },
 		{ id: 'npm', label: 'npm', code: 'npm install -D tailwindcss@3.4.19' },
@@ -63,6 +65,7 @@ export default config;
 This preset supports Tailwind CSS v4, utilizing `@tailwindcss/postcss`. It includes `autoprefixer`, `postcss-nested`, and `cssnano` by default. It also automatically handles `@reference` injection for `@apply` directives, making usage simpler in isolated component styles.
 
 <CodeTabs
+	name="postcss-processor-tailwind-v4"
 	tabs={[
 		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D @tailwindcss/postcss tailwindcss' },
 		{ id: 'npm', label: 'npm', code: 'npm install -D @tailwindcss/postcss tailwindcss' },

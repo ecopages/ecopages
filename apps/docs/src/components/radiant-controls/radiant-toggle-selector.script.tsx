@@ -40,9 +40,7 @@ export class RadiantToggleSelector extends RadiantElement {
 				aria-label={this.ariaLabel || undefined}
 				aria-describedby={hasDescription ? descriptionId : undefined}
 			>
-				<legend class="radiant-control__legend">
-					{this.label}
-				</legend>
+				<legend class="radiant-control__legend">{this.label}</legend>
 				<div class="radiant-control__body">
 					<div class="radiant-choice-group__options">
 						{this.controlOptions.map((option) => (

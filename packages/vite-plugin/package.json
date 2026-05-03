@@ -1,36 +1,36 @@
 {
-  "name": "@ecopages/vite-plugin",
-  "version": "0.2.0-alpha.23",
-  "description": "Vite plugin for Ecopages apps",
-  "private": true,
-  "keywords": [
-    "ecopages",
-    "vite",
-    "vite-plugin",
-    "islands",
-    "ssg",
-    "ssr"
-  ],
-  "license": "MIT",
-  "type": "module",
-  "exports": {
-    ".": "./src/index.ts"
-  },
-  "files": [
-    "src",
-    "README.md",
-    "CHANGELOG.md"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ecopages/ecopages.git",
-    "directory": "packages/vite-plugin"
-  },
-  "scripts": {
-    "typecheck": "tsc --noEmit"
-  },
-  "peerDependencies": {
-    "@ecopages/core": "workspace:*",
-    "vite": ">=8.0.0"
-  }
+	"name": "@ecopages/vite-plugin",
+	"version": "0.2.0-alpha.23",
+	"description": "Vite plugin for Ecopages apps",
+	"private": true,
+	"keywords": [
+		"ecopages",
+		"vite",
+		"vite-plugin",
+		"islands",
+		"ssg",
+		"ssr"
+	],
+	"license": "MIT",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"files": [
+		"src",
+		"README.md",
+		"CHANGELOG.md"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/vite-plugin"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*",
+		"vite": ">=8.0.0"
+	}
 }

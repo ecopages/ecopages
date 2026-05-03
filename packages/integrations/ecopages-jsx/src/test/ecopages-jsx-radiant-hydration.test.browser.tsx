@@ -1,6 +1,13 @@
 /** @jsxImportSource @ecopages/jsx */
 import { afterEach, describe, expect, it } from 'vitest';
-import { RadiantController, RadiantElement, customElement, signal, startControllers, stopControllers } from '@ecopages/radiant';
+import {
+	RadiantController,
+	RadiantElement,
+	customElement,
+	signal,
+	startControllers,
+	stopControllers,
+} from '@ecopages/radiant';
 import { controller } from '@ecopages/radiant/decorators/controller';
 import { installRadiantHydrator, uninstallRadiantHydrator } from '@ecopages/radiant/client/hydrator';
 import '@ecopages/radiant/server/render-component';
@@ -136,7 +143,7 @@ describe('RadiantController SSR activation contract', () => {
 
 	it('connects SSR controller hosts and updates host-backed reactive props', async () => {
 		const { host, markup, ssrButton } = await createSsrControllerHost(
-			`ecopages-jsx-controller-counter-${nextTagId += 1}`,
+			`ecopages-jsx-controller-counter-${(nextTagId += 1)}`,
 		);
 
 		expect(markup).toContain('data-controller');

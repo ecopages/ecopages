@@ -1,45 +1,45 @@
 {
-  "name": "@ecopages/react-router",
-  "version": "0.2.0-alpha.23",
-  "description": "Client-side SPA router for EcoPages React applications",
-  "keywords": [
-    "ecopages",
-    "react",
-    "router",
-    "spa",
-    "navigation",
-    "ssr"
-  ],
-  "license": "MIT",
-  "type": "module",
-  "exports": {
-    ".": "./src/index.ts",
-    "./browser": "./browser.ts"
-  },
-  "files": [
-    "src",
-    "browser.ts"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ecopages/ecopages.git",
-    "directory": "packages/react-router"
-  },
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "release:jsr": "bunx jsr publish"
-  },
-  "peerDependencies": {
-    "@ecopages/core": "workspace:*",
-    "@ecopages/react": "workspace:*"
-  },
-  "dependencies": {
-    "react": "^19",
-    "react-dom": "^19.2.4"
-  },
-  "devDependencies": {
-    "@types/bun": "^1.3.9",
-    "@types/react": "^19",
-    "@types/react-dom": "^19"
-  }
+	"name": "@ecopages/react-router",
+	"version": "0.2.0-alpha.23",
+	"description": "Client-side SPA router for EcoPages React applications",
+	"keywords": [
+		"ecopages",
+		"react",
+		"router",
+		"spa",
+		"navigation",
+		"ssr"
+	],
+	"license": "MIT",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./browser": "./browser.ts"
+	},
+	"files": [
+		"src",
+		"browser.ts"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/react-router"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"release:jsr": "bunx jsr publish"
+	},
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/react": "workspace:*"
+	},
+	"dependencies": {
+		"react": "^19",
+		"react-dom": "^19.2.4"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.9",
+		"@types/react": "^19",
+		"@types/react-dom": "^19"
+	}
 }

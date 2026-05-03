@@ -1,26 +1,13 @@
 {
-  "name": "@ecopages/browser-router",
-  "version": "0.2.0-alpha.23",
-  "exports": {
-    ".": "./src/index.ts",
-    "./client": "./src/client/eco-router.ts"
-  },
-  "exclude": [
-    "src/test",
-    "**/*.test.ts",
-    "**/*.css"
-  ],
-  "publish": {
-    "include": [
-      "src/**/*.ts",
-      "LICENSE",
-      "README.md",
-      "jsr.json",
-      "package.json"
-    ],
-    "exclude": [
-      "src/test",
-      "**/*.css"
-    ]
-  }
+	"name": "@ecopages/browser-router",
+	"version": "0.2.0-alpha.23",
+	"exports": {
+		".": "./src/index.ts",
+		"./client": "./src/client/eco-router.ts"
+	},
+	"exclude": ["src/test", "**/*.test.ts", "**/*.css"],
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json", "package.json"],
+		"exclude": ["src/test", "**/*.css"]
+	}
 }

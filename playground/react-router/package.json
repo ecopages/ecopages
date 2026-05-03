@@ -15,7 +15,7 @@
 		"@ecopages/core": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/radiant": "0.3.0-alpha.4",
+		"@ecopages/radiant": "0.3.0-alpha.5",
 		"@ecopages/react": "workspace:*",
 		"@ecopages/react-router": "workspace:*",
 		"@tailwindcss/postcss": "^4.1.18",

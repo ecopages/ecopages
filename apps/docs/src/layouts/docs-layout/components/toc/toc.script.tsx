@@ -1,4 +1,4 @@
-import { RadiantComponent, state } from '@ecopages/radiant';
+import { RadiantElement, state } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
 
@@ -9,7 +9,7 @@ type TocItem = {
 };
 
 @customElement('radiant-toc')
-export class RadiantToc extends RadiantComponent {
+export class RadiantToc extends RadiantElement {
 	@state tocItems: TocItem[] = [];
 	@state activeHeadingId = '';
 

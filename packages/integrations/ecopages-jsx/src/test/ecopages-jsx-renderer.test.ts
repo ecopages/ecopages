@@ -84,10 +84,10 @@ async function writeRadiantFixture(options: {
 	await writeFile(
 		options.scriptPath,
 		[
-			`import { RadiantComponent, signal } from ${JSON.stringify(scopedRadiantEntryUrl)};`,
+			`import { RadiantElement, signal } from ${JSON.stringify(scopedRadiantEntryUrl)};`,
 			`import { customElement } from ${JSON.stringify(scopedRadiantCustomElementEntryUrl)};`,
 			'',
-			'class TopLevelRadiantCounter extends RadiantComponent {',
+			'class TopLevelRadiantCounter extends RadiantElement {',
 			'\trender() {',
 			'\t\treturn `<button data-testid="radiant-counter">${this.$.count}</button>`;',
 			'\t}',

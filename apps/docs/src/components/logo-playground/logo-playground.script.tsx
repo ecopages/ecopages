@@ -1,4 +1,4 @@
-import { RadiantComponent, customElement, state } from '@ecopages/radiant';
+import { RadiantElement, customElement, state } from '@ecopages/radiant';
 import { Logo, type LogoMode } from '../logo/logo';
 import { LOGO_PLAYGROUND_FONT_SIZE_RANGE, type LogoVariant } from '../logo/logo.constants';
 import '../radiant-controls/radiant-select.script';
@@ -58,7 +58,7 @@ type LogoExportAsset = {
 };
 
 @customElement('radiant-logo-playground')
-export class RadiantLogoPlayground extends RadiantComponent {
+export class RadiantLogoPlayground extends RadiantElement {
 	@state mode: LogoMode = 'light';
 	@state shadow = true;
 	@state squircle = true;

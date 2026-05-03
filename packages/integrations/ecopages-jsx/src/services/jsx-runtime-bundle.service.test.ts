@@ -43,13 +43,17 @@ test('JsxRuntimeBundleService exposes runtime alias data for emitted browser chu
 	assert.equal(aliasMap.get('@ecopages/radiant'), specifierMap['@ecopages/radiant']);
 	assert.equal(aliasMap.get('@ecopages/radiant/client/hydrator'), specifierMap['@ecopages/radiant/client/hydrator']);
 	assert.equal(
+		aliasMap.get('@ecopages/radiant/client/install-hydrator'),
+		specifierMap['@ecopages/radiant/client/install-hydrator'],
+	);
+	assert.equal(
 		rewriteRuntimeSpecifierAliases(
-			'import { RadiantComponent } from "@ecopages/radiant";\nimport { installRadiantHydrator } from "@ecopages/radiant/client/hydrator";\nimport { jsx } from "@ecopages/jsx/jsx-runtime";',
+			'import { RadiantElement, startControllers } from "@ecopages/radiant";\nimport "@ecopages/radiant/client/install-hydrator";\nimport { jsx } from "@ecopages/jsx/jsx-runtime";',
 			aliasMap,
 		),
 		[
-			`import { RadiantComponent } from "${specifierMap['@ecopages/radiant']}";`,
-			`import { installRadiantHydrator } from "${specifierMap['@ecopages/radiant/client/hydrator']}";`,
+			`import { RadiantElement, startControllers } from "${specifierMap['@ecopages/radiant']}";`,
+			`import "${specifierMap['@ecopages/radiant/client/install-hydrator']}";`,
 			`import { jsx } from "${specifierMap['@ecopages/jsx/jsx-runtime']}";`,
 		].join('\n'),
 	);
@@ -65,8 +69,13 @@ test('JsxRuntimeBundleService excludes server-only Radiant subpaths from the bro
 		'/assets/vendors/ecopages-radiant-esm.js',
 	);
 	assert.equal(specifierMap['@ecopages/radiant/client/hydrator'], '/assets/vendors/ecopages-radiant-esm.js');
+	assert.equal(
+		specifierMap['@ecopages/radiant/client/install-hydrator'],
+		'/assets/vendors/ecopages-radiant-install-hydrator-esm.js',
+	);
+	assert.equal(specifierMap['@ecopages/radiant/controller-registry'], '/assets/vendors/ecopages-radiant-esm.js');
+	assert.equal(specifierMap['@ecopages/radiant/core/radiant-controller'], '/assets/vendors/ecopages-radiant-esm.js');
 	assert.equal(specifierMap['@ecopages/radiant/core/radiant-element'], '/assets/vendors/ecopages-radiant-esm.js');
-	assert.equal('@ecopages/radiant/client/install-hydrator' in specifierMap, false);
 	assert.equal('@ecopages/radiant/server/render-component' in specifierMap, false);
 	assert.equal('@ecopages/radiant/tools/stringify-typed' in specifierMap, false);
 	assert.equal('@ecopages/radiant/signals/host-resource' in specifierMap, false);
@@ -80,6 +89,10 @@ test('JsxRuntimeBundleService builds the Radiant vendor from curated browser-saf
 	);
 	const radiantDependency = dependencies.find(
 		(dependency) => dependency.source === 'node-module' && dependency.name === 'ecopages-radiant-esm',
+	);
+	const radiantInstallHydratorDependency = dependencies.find(
+		(dependency) =>
+			dependency.source === 'node-module' && dependency.name === 'ecopages-radiant-install-hydrator-esm',
 	);
 	const radiantBootstrapDependency = dependencies.find(
 		(dependency): dependency is InlineContentScriptAsset =>
@@ -104,24 +117,36 @@ test('JsxRuntimeBundleService builds the Radiant vendor from curated browser-saf
 	assert.ok(radiantBootstrapDependency);
 	assert.equal(radiantBootstrapDependency.position, 'head');
 	assert.equal(radiantBootstrapDependency.attributes?.type, 'module');
-	assert.match(
-		radiantBootstrapDependency.content,
-		/import \{ installRadiantHydrator \} from '@ecopages\/radiant\/client\/hydrator';/,
-	);
-	assert.match(radiantBootstrapDependency.content, /installRadiantHydrator\(\);/);
+	assert.equal(radiantBootstrapDependency.content, "import '@ecopages/radiant/client/install-hydrator';");
 
 	assert.ok(radiantDependency && radiantDependency.source === 'node-module');
 	assert.match(radiantDependency.importPath, /ecopages-radiant-esm-entry\.mjs$/);
+	assert.ok(radiantInstallHydratorDependency && radiantInstallHydratorDependency.source === 'node-module');
+	assert.match(
+		radiantInstallHydratorDependency.importPath,
+		/ecopages-radiant-install-hydrator-esm-entry\.mjs$/,
+	);
+
+	const radiantInstallHydratorSource = readFileSync(radiantInstallHydratorDependency.importPath, 'utf8');
+
+	assert.match(
+		radiantInstallHydratorSource,
+		/import '.*\/node_modules\/@ecopages\/radiant\/dist\/client\/install-hydrator\.js';/,
+	);
 
 	const entrySource = readFileSync(radiantDependency.importPath, 'utf8');
 
 	assert.match(
 		entrySource,
-		/export \{ RadiantComponent \} from '.*\/node_modules\/@ecopages\/radiant\/dist\/core\/radiant-component\.js';/,
+		/export \{ RadiantController \} from '.*\/node_modules\/@ecopages\/radiant\/dist\/core\/radiant-controller\.js';/,
 	);
 	assert.match(
 		entrySource,
 		/export \{ customElement \} from '.*\/node_modules\/@ecopages\/radiant\/dist\/decorators\/custom-element\.js';/,
+	);
+	assert.match(
+		entrySource,
+		/export \{ CONTROLLER_ATTRIBUTE, ControllerRegistryRuntime, disableControllerReplacementForHmr, enableControllerReplacementForHmr, hasRegisteredController, registerController, registerControllerWithConfiguredStrategy, replaceController, setControllerRegistrationStrategy, startControllers, stopControllers \} from '.*\/node_modules\/@ecopages\/radiant\/dist\/controller-registry\.js';/,
 	);
 	assert.match(
 		entrySource,
@@ -138,6 +163,7 @@ test('JsxRuntimeBundleService keeps plain JSX browser runtime output free of Rad
 
 	assert.equal('@ecopages/radiant' in specifierMap, false);
 	assert.equal('@ecopages/radiant/client/hydrator' in specifierMap, false);
+	assert.equal('@ecopages/radiant/client/install-hydrator' in specifierMap, false);
 	assert.equal(
 		dependencies.some(
 			(dependency) =>
@@ -150,6 +176,13 @@ test('JsxRuntimeBundleService keeps plain JSX browser runtime output free of Rad
 	assert.equal(
 		dependencies.some(
 			(dependency) => dependency.source === 'node-module' && dependency.name === 'ecopages-radiant-esm',
+		),
+		false,
+	);
+	assert.equal(
+		dependencies.some(
+			(dependency) =>
+				dependency.source === 'node-module' && dependency.name === 'ecopages-radiant-install-hydrator-esm',
 		),
 		false,
 	);

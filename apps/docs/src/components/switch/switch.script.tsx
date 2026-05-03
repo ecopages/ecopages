@@ -1,4 +1,4 @@
-import { RadiantComponent, customElement, prop } from '@ecopages/radiant';
+import { RadiantElement, customElement, prop } from '@ecopages/radiant';
 
 export type RadiantSwitchProps = {
 	id?: string;
@@ -16,7 +16,7 @@ type RadiantSwitchBindings = {
 };
 
 @customElement('radiant-switch')
-export class RadiantSwitch extends RadiantComponent<RadiantSwitchBindings> {
+export class RadiantSwitch extends RadiantElement<RadiantSwitchBindings> {
 	@prop({ type: Boolean, reflect: true, defaultValue: false }) declare checked: boolean;
 	@prop({ type: Boolean, reflect: true, defaultValue: false }) declare disabled: boolean;
 	@prop({ type: String, defaultValue: '' }) declare label: string;

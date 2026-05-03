@@ -43,8 +43,6 @@ type BrowserRuntimeRadiantModule = {
 	modulePath: string;
 };
 
-type PackageExportTarget = string | { import?: string };
-
 const JSX_RUNTIME_NAMESPACE_REPAIR_SNIPPET =
 	'function rG(W,G,J){let j=G instanceof Element?G:G?.parentElement,U=j?.namespaceURI??K9,$=j?.localName,X=W.firstElementChild;if(!X)return;let F=J??X.localName,Z=O9(U,$,F);if(X.namespaceURI===Z&&X.localName===F)return;W.replaceChild(tG(X,Z,F),X)}function tG(W,G,J){let j=document.createElementNS(G,J);for(let U of Array.from(W.attributes)){if(U.namespaceURI){j.setAttributeNS(U.namespaceURI,U.name,U.value);continue}n(j,U.name,U.value)}return j.append(...W.childNodes),j}';
 
@@ -119,6 +117,26 @@ function replaceExactOnce(source: string, search: string, replacement: string, l
 	}
 
 	return source.replace(search, replacement);
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+function readRadiantPackageJson(manifestPath: string): RadiantPackageJson {
+	const parsed: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'));
+
+	if (!isObjectRecord(parsed)) {
+		throw new Error(`Invalid package manifest at ${manifestPath}`);
+	}
+
+	if (parsed.exports !== undefined && !isObjectRecord(parsed.exports)) {
+		throw new Error(`Invalid package exports in ${manifestPath}`);
+	}
+
+	return {
+		exports: parsed.exports,
+	};
 }
 
 function createPatchedJsxBrowserRuntimeSource(source: string): string {
@@ -285,9 +303,7 @@ export class JsxRuntimeBundleService {
 			const radiantInstallHydratorVendorUrl = buildBrowserRuntimeAssetUrl(
 				VENDOR_FILE_NAMES.radiantInstallHydrator,
 			);
-			const radiantPkg = JSON.parse(
-				readFileSync(findPackageManifestPath('@ecopages/radiant'), 'utf8'),
-			) as RadiantPackageJson;
+			const radiantPkg = readRadiantPackageJson(findPackageManifestPath('@ecopages/radiant'));
 
 			for (const key of Object.keys(radiantPkg.exports ?? {})) {
 				if (!isBrowserRuntimeRadiantSpecifier(key)) {
@@ -313,12 +329,8 @@ export class JsxRuntimeBundleService {
 		const filePath = path.join(artifactsDir, 'ecopages-jsx-esm-entry.mjs');
 		const manifestPath = findPackageManifestPath('@ecopages/jsx');
 		const packageDir = path.dirname(realpathSync(manifestPath));
-		const jsxPkg = JSON.parse(readFileSync(manifestPath, 'utf8')) as RadiantPackageJson;
-		const jsxModulePath = this.resolvePackageExportModulePath(
-			packageDir,
-			'.',
-			jsxPkg.exports?.['.'] as PackageExportTarget,
-		);
+		const jsxPkg = readRadiantPackageJson(manifestPath);
+		const jsxModulePath = this.resolvePackageExportModulePath(packageDir, '.', jsxPkg.exports?.['.']);
 		const patchedRuntimeSource = createPatchedJsxBrowserRuntimeSource(readFileSync(jsxModulePath, 'utf8'));
 
 		mkdirSync(artifactsDir, { recursive: true });
@@ -331,32 +343,24 @@ export class JsxRuntimeBundleService {
 	private getRadiantBrowserRuntimeModules(): BrowserRuntimeRadiantModule[] {
 		const manifestPath = findPackageManifestPath('@ecopages/radiant');
 		const packageDir = path.dirname(realpathSync(manifestPath));
-		const radiantPkg = JSON.parse(readFileSync(manifestPath, 'utf8')) as RadiantPackageJson;
+		const radiantPkg = readRadiantPackageJson(manifestPath);
 
 		return Object.entries(radiantPkg.exports ?? {})
 			.filter(([key]) => isBrowserRuntimeRadiantSpecifier(key) && key !== '.')
 			.sort(([left], [right]) => left.localeCompare(right))
 			.map(([exportKey, exportTarget]) => ({
 				exportKey,
-				modulePath: this.resolvePackageExportModulePath(
-					packageDir,
-					exportKey,
-					exportTarget as PackageExportTarget,
-				),
+				modulePath: this.resolvePackageExportModulePath(packageDir, exportKey, exportTarget),
 			}))
 			.filter((module) => existsSync(module.modulePath));
 	}
 
-	private resolvePackageExportModulePath(
-		packageDir: string,
-		exportKey: string,
-		exportTarget: PackageExportTarget | undefined,
-	): string {
+	private resolvePackageExportModulePath(packageDir: string, exportKey: string, exportTarget: unknown): string {
 		if (typeof exportTarget === 'string') {
 			return path.resolve(packageDir, exportTarget);
 		}
 
-		if (exportTarget && typeof exportTarget === 'object' && 'import' in exportTarget) {
+		if (isObjectRecord(exportTarget) && 'import' in exportTarget) {
 			const importTarget = exportTarget.import;
 
 			if (typeof importTarget === 'string') {
@@ -412,19 +416,15 @@ export class JsxRuntimeBundleService {
 		const filePath = path.join(artifactsDir, 'ecopages-radiant-install-hydrator-esm-entry.mjs');
 		const manifestPath = findPackageManifestPath('@ecopages/radiant');
 		const packageDir = path.dirname(realpathSync(manifestPath));
-		const radiantPkg = JSON.parse(readFileSync(manifestPath, 'utf8')) as RadiantPackageJson;
+		const radiantPkg = readRadiantPackageJson(manifestPath);
 		const modulePath = this.resolvePackageExportModulePath(
 			packageDir,
 			'./client/install-hydrator',
-			radiantPkg.exports?.['./client/install-hydrator'] as PackageExportTarget,
+			radiantPkg.exports?.['./client/install-hydrator'],
 		);
 
 		mkdirSync(artifactsDir, { recursive: true });
-		writeFileSync(
-			filePath,
-			`import '${this.getEntryImportPath(artifactsDir, modulePath)}';\nexport {};\n`,
-			'utf8',
-		);
+		writeFileSync(filePath, `import '${this.getEntryImportPath(artifactsDir, modulePath)}';\nexport {};\n`, 'utf8');
 
 		this.cachedRadiantInstallHydratorEntryModulePath = filePath;
 		return filePath;

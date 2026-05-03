@@ -63,7 +63,7 @@ export class ReactPageModuleService {
 	async importMdxPageFile(
 		filePath: string,
 		options?: { bypassCache?: boolean; cacheScope?: string },
-	): Promise<unknown> {
+	): Promise<EcoPageFile<{ config?: EcoComponentConfig }>> {
 		const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
 		const mdxPlugin = createReactMdxLoaderPlugin(
 			this.config.mdxCompilerOptions ?? {

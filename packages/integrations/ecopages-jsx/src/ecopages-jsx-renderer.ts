@@ -35,7 +35,8 @@ type EcopagesJsxBoundaryRuntimeContext = {
 	}>;
 };
 
-type AsyncEcoComponent<P = Record<string, unknown>, R = JsxRenderable> = EcoComponent<P, R | Promise<R>>;
+type AsyncEcoComponent<P = Record<string, unknown>, R = JsxRenderable> = EcoFunctionComponent<P, R | Promise<R>>;
+
 type MdxPageModule = EcoPageFile<{
 	config?: EcoComponentConfig;
 	layout?: EcoComponent;
@@ -144,7 +145,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		try {
 			return await this.renderPageWithDocumentShell({
 				page: {
-					component: options.Page as EcoComponent,
+					component: options.Page,
 					props: {
 						...options.pageProps,
 						locals: options.pageLocals,
@@ -152,14 +153,14 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 				},
 				layout: options.Layout
 					? {
-							component: options.Layout as EcoComponent,
+							component: options.Layout,
 							props: {
 								...options.pageProps,
 								locals: options.locals,
 							},
 						}
 					: undefined,
-				htmlTemplate: options.HtmlTemplate as EcoComponent,
+				htmlTemplate: options.HtmlTemplate,
 				metadata: options.metadata,
 				pageProps: options.pageProps ?? {},
 			});
@@ -176,10 +177,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 				throw new TypeError('JSX renderer expected a callable component.');
 			}
 
-			const content = await this.renderEcoComponent(
-				input.component as AsyncEcoComponent<Record<string, unknown>>,
-				this.createComponentProps(input),
-			);
+			const content = await this.renderEcoComponent(input.component, this.createComponentProps(input));
 			const rendered = await this.renderJsx(content);
 			const queuedBoundaryResolution = await this.resolveOwnedBoundaryHtml(
 				rendered.html,
@@ -227,7 +225,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 			return await this.renderViewWithDocumentShell({
 				view,
-				props,
+				props: props as Record<string, unknown>,
 				ctx,
 				layout: view.config?.layout,
 			});
@@ -244,13 +242,17 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	 * any layout or document-shell logic runs.
 	 */
 	private normalizeMdxPageModule(file: string, module: MdxPageModule): MdxPageModule {
-		const Page = module.default as EcoComponent;
+		if (!this.isFunctionComponent(module.default)) {
+			throw new TypeError('MDX file must export a callable default component.');
+		}
+
+		const Page = module.default;
 		const normalizedConfig: EcoComponentConfig = {
 			...(module.config ?? Page.config ?? {}),
 			...(module.layout ? { layout: module.layout } : {}),
 			__eco: module.config?.__eco ?? Page.config?.__eco ?? this.createEcoMeta(file),
 		};
-		const wrappedPage = this.wrapMdxPage(Page as AsyncEcoComponent<Record<string, unknown>>, {
+		const wrappedPage = this.wrapMdxPage(Page, {
 			config: normalizedConfig,
 			metadata: module.getMetadata ?? Page.metadata,
 		});
@@ -339,7 +341,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		await EcopagesJsxRenderer.radiantServerRuntimeInstallPromise;
 	}
 
-	private isFunctionComponent(component: EcoComponent): component is EcoFunctionComponent<any, any> {
+	private isFunctionComponent(component: EcoComponent): component is AsyncEcoComponent<Record<string, unknown>> {
 		return typeof component === 'function';
 	}
 
@@ -363,7 +365,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	}
 
 	private async invokeComponent<P>(component: AsyncEcoComponent<P>, props: P): Promise<JsxRenderable> {
-		return (await (component as (props: P) => JsxRenderable | Promise<JsxRenderable>)(props)) as JsxRenderable;
+		return await component(props);
 	}
 
 	private createEcoMeta(file: string): NonNullable<EcoComponentConfig['__eco']> {
@@ -384,8 +386,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			metadata?: GetMetadata;
 		},
 	): AsyncEcoComponent<Record<string, unknown>> {
-		const wrappedPage = (async (props: Record<string, unknown>) =>
-			this.invokeComponent(page, props)) as AsyncEcoComponent<Record<string, unknown>>;
+		const wrappedPage: AsyncEcoComponent<Record<string, unknown>> = async (props: Record<string, unknown>) =>
+			await this.invokeComponent(page, props);
 
 		wrappedPage.config = config;
 

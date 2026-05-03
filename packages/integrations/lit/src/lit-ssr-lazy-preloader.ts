@@ -36,15 +36,21 @@ export class LitSsrLazyPreloader {
 		this.preferSourceImports = preferSourceImports ?? typeof Bun !== 'undefined';
 	}
 
+	private getErrorCode(error: unknown): string {
+		if (typeof error !== 'object' || error === null) {
+			return '';
+		}
+
+		const code = Reflect.get(error, 'code');
+		return code === undefined ? '' : String(code);
+	}
+
 	/**
 	 * Detects preload failures that are expected for browser-only modules.
 	 */
 	isExpectedSsrPreloadError(error: unknown): boolean {
 		const errorMessage = error instanceof Error ? error.message : String(error);
-		const errorCode =
-			typeof error === 'object' && error !== null && 'code' in error
-				? String((error as { code?: unknown }).code ?? '')
-				: '';
+		const errorCode = this.getErrorCode(error);
 
 		if (errorCode === 'ERR_UNKNOWN_FILE_EXTENSION') {
 			return true;

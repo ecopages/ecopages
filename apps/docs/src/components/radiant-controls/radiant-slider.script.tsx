@@ -37,7 +37,10 @@ export class RadiantSlider extends RadiantElement {
 					{this.label}
 				</label>
 				<div class="radiant-control__header">
-					<output class="radiant-control__value">{this.value.toFixed(2)}{suffix}</output>
+					<output class="radiant-control__value">
+						{this.value.toFixed(2)}
+						{suffix}
+					</output>
 				</div>
 				<input
 					id={controlId}

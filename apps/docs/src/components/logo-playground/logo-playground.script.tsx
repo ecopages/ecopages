@@ -194,7 +194,10 @@ export class RadiantLogoPlayground extends RadiantElement {
 			return;
 		}
 
-		this.triggerBlobDownload(new Blob([asset.markup], { type: 'image/svg+xml;charset=utf-8' }), `${asset.fileName}.svg`);
+		this.triggerBlobDownload(
+			new Blob([asset.markup], { type: 'image/svg+xml;charset=utf-8' }),
+			`${asset.fileName}.svg`,
+		);
 	};
 
 	private readonly handlePngExport = async () => {
@@ -288,7 +291,10 @@ export class RadiantLogoPlayground extends RadiantElement {
 					<radiant-toggle-selector
 						label="Shape"
 						name="squircle"
-						prop:options={PREVIEW_SQUIRCLE_OPTIONS.map((option) => ({ id: option.id, label: option.label }))}
+						prop:options={PREVIEW_SQUIRCLE_OPTIONS.map((option) => ({
+							id: option.id,
+							label: option.label,
+						}))}
 						value={String(this.squircle)}
 						on:change={this.handleSquircleChange}
 					></radiant-toggle-selector>

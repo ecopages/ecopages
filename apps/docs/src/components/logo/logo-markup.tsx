@@ -134,7 +134,7 @@ export const LogoMarkup = eco.component({
 									<use href={`#${idPrefix}-leaf`} fill={`url(#${layer.fillGradId})`} />
 								)}
 							</g>
-							</g>
+						</g>
 					))}
 				</svg>
 				{hasText && <span class="ecopages-logo__text">{children}</span>}
@@ -173,12 +173,7 @@ export const LogoSquircle = eco.component({
 			};
 		});
 		const leafBackplate = (
-			<path
-				d={LEAF_PATH}
-				fill={badgeBackground}
-				stroke={badgeBackground}
-				stroke-width={BADGE_SVG.borderWidth}
-			/>
+			<path d={LEAF_PATH} fill={badgeBackground} stroke={badgeBackground} stroke-width={BADGE_SVG.borderWidth} />
 		);
 		const grainOverlay = (
 			<>

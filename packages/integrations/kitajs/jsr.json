@@ -1,23 +1,12 @@
 {
-  "name": "@ecopages/kitajs",
-  "version": "0.2.0-alpha.23",
-  "exports": {
-    ".": "./src/kitajs.plugin.ts"
-  },
-  "exclude": [
-    "src/test",
-    "**/*.test.ts"
-  ],
-  "publish": {
-    "include": [
-      "src/**/*.ts",
-      "LICENSE",
-      "README.md",
-      "jsr.json",
-      "package.json"
-    ],
-    "exclude": [
-      "src/test"
-    ]
-  }
+	"name": "@ecopages/kitajs",
+	"version": "0.2.0-alpha.23",
+	"exports": {
+		".": "./src/kitajs.plugin.ts"
+	},
+	"exclude": ["src/test", "**/*.test.ts"],
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json", "package.json"],
+		"exclude": ["src/test"]
+	}
 }

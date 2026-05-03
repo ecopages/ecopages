@@ -1,49 +1,49 @@
 {
-  "name": "@ecopages/mdx",
-  "version": "0.2.0-alpha.23",
-  "description": "MDX plugin for Ecopages",
-  "keywords": [
-    "ecopages",
-    "mdx",
-    "plugin"
-  ],
-  "license": "MIT",
-  "main": "./src/mdx.plugin.ts",
-  "types": "./src/mdx.plugin.ts",
-  "type": "module",
-  "exports": {
-    ".": {
-      "default": "./src/mdx.plugin.ts",
-      "types": "./src/mdx.plugin.ts"
-    },
-    "./declarations": {
-      "types": "./src/declarations.d.ts"
-    },
-    "./mdx-loader-plugin": {
-      "default": "./src/mdx-loader-plugin.ts",
-      "types": "./src/mdx-loader-plugin.ts"
-    }
-  },
-  "files": [
-    "src"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ecopages/ecopages.git",
-    "directory": "packages/integrations/mdx"
-  },
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "release:jsr": "bunx jsr publish"
-  },
-  "peerDependencies": {
-    "@ecopages/core": "workspace:*",
-    "@kitajs/html": "^4.1.0",
-    "@mdx-js/mdx": "^3.1.0"
-  },
-  "dependencies": {
-    "@ecopages/logger": "^0.2.2",
-    "source-map": "^0.7.6",
-    "vfile": "^6.0.3"
-  }
+	"name": "@ecopages/mdx",
+	"version": "0.2.0-alpha.23",
+	"description": "MDX plugin for Ecopages",
+	"keywords": [
+		"ecopages",
+		"mdx",
+		"plugin"
+	],
+	"license": "MIT",
+	"main": "./src/mdx.plugin.ts",
+	"types": "./src/mdx.plugin.ts",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/mdx.plugin.ts",
+			"types": "./src/mdx.plugin.ts"
+		},
+		"./declarations": {
+			"types": "./src/declarations.d.ts"
+		},
+		"./mdx-loader-plugin": {
+			"default": "./src/mdx-loader-plugin.ts",
+			"types": "./src/mdx-loader-plugin.ts"
+		}
+	},
+	"files": [
+		"src"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ecopages/ecopages.git",
+		"directory": "packages/integrations/mdx"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"release:jsr": "bunx jsr publish"
+	},
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@kitajs/html": "^4.1.0",
+		"@mdx-js/mdx": "^3.1.0"
+	},
+	"dependencies": {
+		"@ecopages/logger": "^0.2.2",
+		"source-map": "^0.7.6",
+		"vfile": "^6.0.3"
+	}
 }

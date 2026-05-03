@@ -122,10 +122,7 @@ test('JsxRuntimeBundleService builds the Radiant vendor from curated browser-saf
 	assert.ok(radiantDependency && radiantDependency.source === 'node-module');
 	assert.match(radiantDependency.importPath, /ecopages-radiant-esm-entry\.mjs$/);
 	assert.ok(radiantInstallHydratorDependency && radiantInstallHydratorDependency.source === 'node-module');
-	assert.match(
-		radiantInstallHydratorDependency.importPath,
-		/ecopages-radiant-install-hydrator-esm-entry\.mjs$/,
-	);
+	assert.match(radiantInstallHydratorDependency.importPath, /ecopages-radiant-install-hydrator-esm-entry\.mjs$/);
 
 	const radiantInstallHydratorSource = readFileSync(radiantInstallHydratorDependency.importPath, 'utf8');
 

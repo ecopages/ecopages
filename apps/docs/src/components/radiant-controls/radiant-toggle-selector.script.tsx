@@ -1,8 +1,8 @@
-import { RadiantComponent, customElement, prop } from '@ecopages/radiant';
+import { RadiantElement, customElement, prop } from '@ecopages/radiant';
 import { createControlInstanceId, type RadiantOption, type RadiantValueChangeEvent } from './radiant-controls.shared';
 
 @customElement('radiant-toggle-selector')
-export class RadiantToggleSelector extends RadiantComponent {
+export class RadiantToggleSelector extends RadiantElement {
 	private readonly instanceId = createControlInstanceId('radiant-toggle-selector');
 
 	@prop({ type: String }) label: string = '';

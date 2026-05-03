@@ -1,8 +1,8 @@
-import { RadiantComponent, customElement, prop } from '@ecopages/radiant';
+import { RadiantElement, customElement, prop } from '@ecopages/radiant';
 import { createControlInstanceId, type RadiantNumberChangeEvent } from './radiant-controls.shared';
 
 @customElement('radiant-slider')
-export class RadiantSlider extends RadiantComponent {
+export class RadiantSlider extends RadiantElement {
 	private readonly instanceId = createControlInstanceId('radiant-slider');
 
 	@prop({ type: String }) label: string = '';

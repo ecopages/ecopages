@@ -1,4 +1,4 @@
-import { RadiantComponent, state } from '@ecopages/radiant';
+import { RadiantElement, state } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
 
@@ -8,7 +8,7 @@ type PaginationLink = {
 };
 
 @customElement('radiant-docs-pagination')
-export class RadiantDocsPagination extends RadiantComponent {
+export class RadiantDocsPagination extends RadiantElement {
 	@state prevLink: PaginationLink | null = null;
 	@state nextLink: PaginationLink | null = null;
 

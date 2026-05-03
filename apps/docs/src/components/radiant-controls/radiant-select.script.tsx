@@ -1,4 +1,4 @@
-import { RadiantComponent, customElement, prop } from '@ecopages/radiant';
+import { RadiantElement, customElement, prop } from '@ecopages/radiant';
 import {
 	createControlInstanceId,
 	type RadiantSelectOption,
@@ -6,7 +6,7 @@ import {
 } from './radiant-controls.shared';
 
 @customElement('radiant-select')
-export class RadiantSelect extends RadiantComponent {
+export class RadiantSelect extends RadiantElement {
 	private readonly instanceId = createControlInstanceId('radiant-select');
 
 	@prop({ type: String }) label: string = '';

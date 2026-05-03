@@ -1,4 +1,4 @@
-import { RadiantComponent, customElement, prop, state } from '@ecopages/radiant';
+import { RadiantElement, customElement, prop, state } from '@ecopages/radiant';
 
 /**
  * A single tab definition for the docs code-tabs custom element.
@@ -123,7 +123,7 @@ function CodeTabsPanel({
 }
 
 @customElement('radiant-code-tabs')
-export class RadiantCodeTabs extends RadiantComponent {
+export class RadiantCodeTabs extends RadiantElement {
 	@prop({ type: String }) name = '';
 	@prop({ type: String }) label = '';
 	@prop({ type: Array }) tabs: RadiantCodeTabItem[] = [];

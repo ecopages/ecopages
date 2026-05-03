@@ -7,6 +7,7 @@ import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
 	EcoComponent,
+	EcoFunctionComponent,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
@@ -39,6 +40,12 @@ type LitBoundaryRuntimeContext = {
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = LIT_PLUGIN_NAME;
+
+	private isFunctionComponent(
+		component: EcoComponent,
+	): component is EcoFunctionComponent<Record<string, unknown>, Promise<EcoPagesElement> | EcoPagesElement> {
+		return typeof component === 'function';
+	}
 
 	private async resolveQueuedBoundaryChildren(
 		children: unknown,
@@ -107,9 +114,11 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 		await this.preloadSsrLazyScripts([input.component]);
 
-		const component = input.component as (
-			props: Record<string, unknown>,
-		) => Promise<EcoPagesElement> | EcoPagesElement;
+		if (!this.isFunctionComponent(input.component)) {
+			throw new TypeError('Lit renderer expected a callable component.');
+		}
+
+		const component = input.component;
 		let renderedChildren: string | undefined;
 		if (input.children !== undefined) {
 			renderedChildren =
@@ -218,7 +227,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 
 			return await this.renderPageWithDocumentShell({
 				page: {
-					component: Page as EcoComponent,
+					component: Page,
 					props: {
 						params,
 						query,
@@ -228,11 +237,11 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				},
 				layout: Layout
 					? {
-							component: Layout as EcoComponent,
+							component: Layout,
 							props: locals ? { locals } : {},
 						}
 					: undefined,
-				htmlTemplate: HtmlTemplate as EcoComponent,
+				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: props || {},
 				transformDocumentHtml: normalizeLitHtml,
@@ -258,32 +267,31 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			}
 
 			const viewConfig = view.config;
-			const Layout = viewConfig?.layout as
-				| ((props: { children: EcoPagesElement } & Record<string, unknown>) => EcoPagesElement)
-				| undefined;
+			const Layout = viewConfig?.layout;
 			const HtmlTemplate = await this.getHtmlTemplate();
 			const metadata = await this.resolveViewMetadata(view, props);
+			const normalizedProps = (props ?? {}) as Record<string, unknown>;
 
-			await this.preloadSsrLazyScripts([view as unknown as EcoComponent, Layout as unknown as EcoComponent]);
+			await this.preloadSsrLazyScripts([view, Layout]);
 
-			await this.prepareViewDependencies(view, Layout as EcoComponent | undefined);
+			await this.prepareViewDependencies(view, Layout);
 
 			const pageRender = await this.renderComponentBoundary({
-				component: view as EcoComponent,
-				props: (props ?? {}) as Record<string, unknown>,
+				component: view,
+				props: normalizedProps,
 			});
 			const layoutRender = Layout
 				? await this.renderComponentBoundary({
-						component: Layout as unknown as EcoComponent,
+						component: Layout,
 						props: {},
 						children: pageRender.html,
 					})
 				: undefined;
 			const documentRender = await this.renderComponentBoundary({
-				component: HtmlTemplate as EcoComponent,
+				component: HtmlTemplate,
 				props: {
 					metadata,
-					pageProps: (props as Record<string, unknown>) ?? {},
+					pageProps: normalizedProps,
 				},
 				children: layoutRender?.html ?? pageRender.html,
 			});

@@ -7,6 +7,7 @@ import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
 	EcoComponent,
+	EcoFunctionComponent,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
@@ -15,12 +16,7 @@ import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/cor
 import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
 
 /** Narrows an EcoComponent to its KitaJS callable signature. */
-type KitaViewFn<P> = (props: P) => Promise<EcoPagesElement> | EcoPagesElement;
-
-/** KitaJS layout function signature. */
-type KitaLayoutFn = (
-	props: { children: string } & Record<string, unknown>,
-) => Promise<EcoPagesElement> | EcoPagesElement;
+type KitaViewFn<P> = EcoFunctionComponent<P, Promise<EcoPagesElement> | EcoPagesElement>;
 
 /**
  * A renderer for the Kita.js integration.
@@ -29,16 +25,21 @@ type KitaLayoutFn = (
 export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = KITAJS_PLUGIN_NAME;
 
+	private isFunctionComponent(component: EcoComponent): component is KitaViewFn<Record<string, unknown>> {
+		return typeof component === 'function';
+	}
+
 	/**
 	 * Renders a Kita component boundary for component-level orchestration.
 	 *
 	 * Includes component-scoped dependency assets when declared.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		return this.renderStringComponentBoundaryWithQueuedForeignBoundaries(
-			input,
-			input.component as KitaViewFn<Record<string, unknown>>,
-		);
+		if (!this.isFunctionComponent(input.component)) {
+			throw new TypeError('Kita renderer expected a callable component.');
+		}
+
+		return this.renderStringComponentBoundaryWithQueuedForeignBoundaries(input, input.component);
 	}
 
 	protected override createComponentBoundaryRuntime(options: {
@@ -65,16 +66,16 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 		try {
 			return await this.renderPageWithDocumentShell({
 				page: {
-					component: Page as EcoComponent,
+					component: Page,
 					props: { params, query, ...props, locals: pageLocals },
 				},
 				layout: Layout
 					? {
-							component: Layout as EcoComponent,
+							component: Layout,
 							props: locals ? { locals } : {},
 						}
 					: undefined,
-				htmlTemplate: HtmlTemplate as EcoComponent,
+				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: props ?? {},
 			});
@@ -93,7 +94,7 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 				view,
 				props,
 				ctx,
-				layout: view.config?.layout as KitaLayoutFn | undefined,
+				layout: view.config?.layout,
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);

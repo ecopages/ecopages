@@ -8,6 +8,7 @@ import type {
 	ComponentRenderResult,
 	EcoComponent,
 	EcoComponentConfig,
+	EcoFunctionComponent,
 	EcoPageFile,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
@@ -34,6 +35,12 @@ interface MDXIntegrationRendererOptions<C = EcoPagesElement> extends Integration
 export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = MDX_PLUGIN_NAME;
 	readonly compilerOptions: CompileOptions;
+
+	private isFunctionComponent(
+		component: EcoComponent,
+	): component is EcoFunctionComponent<Record<string, unknown>, EcoPagesElement | Promise<EcoPagesElement>> {
+		return typeof component === 'function';
+	}
 
 	constructor({ mdxConfig, ...options }: MDXRendererOptions) {
 		super(options);
@@ -95,10 +102,11 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		return this.renderStringComponentBoundaryWithQueuedForeignBoundaries(
-			input,
-			input.component as (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
-		);
+		if (!this.isFunctionComponent(input.component)) {
+			throw new TypeError('MDX renderer expected a callable component.');
+		}
+
+		return this.renderStringComponentBoundaryWithQueuedForeignBoundaries(input, input.component);
 	}
 
 	protected override createComponentBoundaryRuntime(options: {
@@ -126,16 +134,16 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		try {
 			return await this.renderPageWithDocumentShell({
 				page: {
-					component: Page as EcoComponent,
+					component: Page,
 					props: { params, query, ...props, locals: pageLocals },
 				},
 				layout: Layout
 					? {
-							component: Layout as EcoComponent,
+							component: Layout,
 							props: locals ? { locals } : {},
 						}
 					: undefined,
-				htmlTemplate: HtmlTemplate as EcoComponent,
+				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: pageProps || {},
 			});
@@ -154,7 +162,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 				view,
 				props,
 				ctx,
-				layout: view.config?.layout as EcoComponent | undefined,
+				layout: view.config?.layout,
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);

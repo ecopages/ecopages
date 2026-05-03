@@ -208,6 +208,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return integration === undefined || integration === this.name;
 	}
 
+	private getComponentRequires(component?: (EcoComponent & RequiresAwareComponent) | null) {
+		return component?.requires;
+	}
+
 	private getRouterDocumentAttributes(): Record<string, string> | undefined {
 		if (!this.routerAdapter) {
 			return undefined;
@@ -423,7 +427,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			return props ?? {};
 		}
 
-		const { locals: _locals, ...hydrationProps } = props as SerializableProps & { locals?: unknown };
+		const { locals: _locals, ...hydrationProps } = props;
 		return hydrationProps;
 	}
 
@@ -503,7 +507,9 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		runtimeContext: ReactBoundaryRuntimeContext | undefined,
 	): Promise<ComponentRenderResult> {
 		const componentConfig = input.component.config;
-		const context = (input.integrationContext as ReactComponentRenderContext | undefined) ?? {};
+		const context: ReactComponentRenderContext = {
+			componentInstanceId: input.integrationContext?.componentInstanceId,
+		};
 		const hasResolvedChildHtml = input.children !== undefined;
 		let html = this.renderComponentHtml(input, context, runtimeContext);
 		const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(html, runtimeContext);
@@ -605,7 +611,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		file: string,
 		options?: RouteModuleLoadOptions,
 	): Promise<EcoPageFile> {
-		return (await this.pageModuleService.importMdxPageFile(file, options)) as EcoPageFile;
+		return await this.pageModuleService.importMdxPageFile(file, options);
 	}
 
 	protected override normalizeImportedPageFile<TPageModule extends EcoPageFile>(
@@ -688,10 +694,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		pageProps,
 	}: IntegrationRendererRenderOptions<ReactNode>): Promise<RouteRendererBody> {
 		try {
-			const safeLocals = this.pagePayloadService.getSerializableLocals(
-				locals,
-				(Page as RequiresAwareComponent).requires,
-			);
+			const safeLocals = this.pagePayloadService.getSerializableLocals(locals, this.getComponentRequires(Page));
 			const allPageProps = this.pagePayloadService.buildSerializedPageProps({
 				pageProps,
 				params,
@@ -701,16 +704,16 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 			return await this.renderPageWithDocumentShell({
 				page: {
-					component: Page as EcoComponent,
+					component: Page,
 					props: { params, query, ...props, locals: pageLocals },
 				},
 				layout: Layout
 					? {
-							component: Layout as EcoComponent,
+							component: Layout,
 							props: locals ? { locals } : {},
 						}
 					: undefined,
-				htmlTemplate: HtmlTemplate as EcoComponent,
+				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: allPageProps,
 				documentProps: this.buildNonReactDocumentProps(HtmlTemplate, allPageProps),
@@ -763,18 +766,18 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			await this.appendHydrationAssetsForFile(viewConfig?.__eco?.file);
 
 			const viewRender = await this.renderComponentBoundary({
-				component: view as EcoComponent,
+				component: view,
 				props: normalizedProps,
 			});
 			const layoutRender = Layout
 				? await this.renderComponentBoundary({
-						component: Layout as EcoComponent,
+						component: Layout,
 						props: {},
 						children: viewRender.html,
 					})
 				: undefined;
 			const documentRender = await this.renderComponentBoundary({
-				component: HtmlTemplate as EcoComponent,
+				component: HtmlTemplate,
 				props: {
 					metadata,
 					pageProps: normalizedProps,

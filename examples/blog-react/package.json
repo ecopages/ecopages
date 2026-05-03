@@ -14,7 +14,7 @@
 		"ecopages": "latest",
 		"@ecopages/core": "latest",
 		"@ecopages/mdx": "latest",
-		"@ecopages/radiant": "0.3.0-alpha.4",
+		"@ecopages/radiant": "0.3.0-alpha.5",
 		"@ecopages/react": "latest",
 		"@ecopages/react-router": "latest",
 		"@ecopages/image-processor": "latest",

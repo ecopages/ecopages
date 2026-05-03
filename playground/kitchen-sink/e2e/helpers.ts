@@ -72,6 +72,25 @@ async function waitForNextPaint(target: Locator) {
 	}
 }
 
+async function waitForLitCounterReady(counter: Locator) {
+	await expect(counter).toHaveCount(1);
+	await counter.evaluate(async (element) => {
+		const litElement = element as HTMLElement & {
+			updateComplete?: Promise<unknown>;
+			shadowRoot: ShadowRoot | null;
+		};
+
+		await customElements.whenDefined('lit-counter');
+		await litElement.updateComplete;
+
+		if (!litElement.shadowRoot?.querySelector('[data-lit-value]')) {
+			await new Promise<void>((resolve) => {
+				requestAnimationFrame(() => resolve());
+			});
+		}
+	});
+}
+
 export async function incrementCounter(button: Locator, value: Locator, expectedValue: string) {
 	await expect
 		.poll(
@@ -90,6 +109,7 @@ export async function incrementCounter(button: Locator, value: Locator, expected
 
 export async function assertCounterInteractivity(root: Locator, expectations: CounterExpectations = {}) {
 	const kitaValue = root.locator('[data-kita-value]');
+	const litCounter = root.locator('lit-counter[data-counter-kind="lit"]');
 	const litValue = root.locator('[data-lit-value]').first();
 	const reactValue = root.locator('[data-react-value]');
 
@@ -101,6 +121,7 @@ export async function assertCounterInteractivity(root: Locator, expectations: Co
 
 	if (expectations.lit !== false) {
 		const initialLit = expectations.lit ?? '0';
+		await waitForLitCounterReady(litCounter);
 		await expect(litValue).toHaveText(initialLit);
 		await incrementCounter(root.locator('[data-lit-inc]').first(), litValue, String(Number(initialLit) + 1));
 	}
@@ -133,7 +154,7 @@ export async function assertFourCountersVisible(root: Locator) {
 	await waitForNextPaint(root);
 
 	await expect(kitaCounter).toHaveCount(1);
-	await expect(litCounter).toHaveCount(1);
+	await waitForLitCounterReady(litCounter);
 	await expect(reactCounter).toHaveCount(1);
 	await expect(radiantCounter).toHaveCount(1);
 

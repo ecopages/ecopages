@@ -4,6 +4,7 @@ import { createHydrationScript, createIslandHydrationScript } from './hydration-
 describe('createHydrationScript', () => {
 	const baseOptions = {
 		importPath: '/assets/page.js',
+		scriptId: 'ecopages-react-page',
 		reactImportPath: '/assets/react.js',
 		reactDomClientImportPath: '/assets/react-dom-client.js',
 		isMdx: false,
@@ -16,6 +17,9 @@ describe('createHydrationScript', () => {
 		});
 
 		expect(script).toContain('window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};');
+		expect(script).toContain('export default Page;');
+		expect(script).toContain('const pageModuleUrl = import.meta.url;');
+		expect(script).toContain('const isActivePageEntry = Boolean(document.querySelector');
 		expect(script).toContain('window.__ECO_PAGES__.react.pageRoot = window.__ECO_PAGES__.react.pageRoot || null;');
 		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot = () => {');
 		expect(script).toContain('activeRoot.unmount();');
@@ -44,6 +48,8 @@ describe('createHydrationScript', () => {
 		});
 
 		expect(script).toContain('window.__ECO_PAGES__=window.__ECO_PAGES__||{};');
+		expect(script).toContain('export default P;');
+		expect(script).toContain('module:u');
 		expect(script).toContain('window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;');
 		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot=()=>{');
 		expect(script).toContain('a.unmount()');
@@ -70,16 +76,24 @@ describe('createHydrationScript', () => {
 		});
 
 		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot = () => {');
+		expect(script).toContain('export default Page;');
 		expect(script).toContain('const currentOwnerState = window.__ECO_PAGES__?.navigation?.getOwnerState?.();');
 		expect(script).toContain(
 			'if (!(currentOwnerState?.owner === "react-router" && currentOwnerState.canHandleSpaNavigation)) {',
 		);
+		expect(script).toContain('const shouldReuseExistingRouterRoot = () => {');
+		expect(script).toContain('if (shouldReuseExistingRouterRoot()) {');
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.register({');
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router");');
+		expect(script).toContain('const currentPageLayout = Page.config?.layout;');
+		expect(script).toContain('const nextPageLayout = NewPage.config?.layout;');
+		expect(script).toContain('clearCache: currentPageLayout !== nextPageLayout');
+		expect(script).toContain('moduleUrl: "/assets/page.js"');
 		expect(script).toContain('const nextProps = getPageData();');
 		expect(script).toContain('root.render(createTree(NewPage, nextProps));');
 		expect(script).toContain('console.log("[ecopages] React component updated via router");');
 		expect(script).toContain('document.getElementById("__ECO_PAGE_DATA__")');
+		expect(script).toContain('module: pageModuleUrl');
 		expect(script).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});
 
@@ -92,6 +106,24 @@ describe('createHydrationScript', () => {
 
 		expect(script).toContain('const lp=p?.locals?{locals:p.locals}:null;');
 		expect(script).toContain('return L?ce(L,lp,pe):pe');
+	});
+
+	test('router production output reuses an active router-owned root during rerun bootstraps', () => {
+		const script = createHydrationScript({
+			...baseOptions,
+			isDevelopment: false,
+			router: {
+				name: 'eco-router',
+				bundle: { importPath: '/assets/router.js', outputName: 'router', externals: [] },
+				importMapKey: '@ecopages/react-router',
+				components: { router: 'EcoRouter', pageContent: 'PageContent' },
+				getRouterProps: (page: string, props: string) => `{ page: ${page}, pageProps: ${props} }`,
+			},
+			routerImportPath: '/assets/router.js',
+		});
+
+		expect(script).toContain('const sr=()=>{');
+		expect(script).toContain('if(sr()){root=window.__ECO_PAGES__.react.pageRoot;return}');
 	});
 });
 

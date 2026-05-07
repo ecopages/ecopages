@@ -13,6 +13,7 @@ type TestHydrationRuntime = {
 		hasRecoverableErrorHandler: boolean;
 		tree: unknown;
 	}>;
+	renderCalls: unknown[];
 	claimedOwners: string[];
 	releasedOwners: string[];
 	registrations: TestHydrationRegistration[];
@@ -67,8 +68,16 @@ function createModuleUrl(source: string): string {
 	return `data:text/javascript;base64,${btoa(source)}`;
 }
 
-async function importModule(moduleUrl: string): Promise<void> {
+async function importModule(moduleUrl: string, scriptId?: string): Promise<void> {
+	let marker: HTMLScriptElement | undefined;
+	if (scriptId) {
+		marker = document.createElement('script');
+		marker.setAttribute('data-eco-script-id', scriptId);
+		document.head.appendChild(marker);
+	}
+
 	await import(/* @vite-ignore */ moduleUrl);
+	marker?.remove();
 }
 
 function createRuntimeModules() {
@@ -124,6 +133,7 @@ describe('createHydrationScript browser execution', () => {
 
 		testWindow.__ECO_REACT_HYDRATION_TEST__ = {
 			hydrateCalls: [],
+			renderCalls: [],
 			claimedOwners: [],
 			releasedOwners: [],
 			registrations: [],
@@ -154,12 +164,14 @@ describe('createHydrationScript browser execution', () => {
 
 		const script = createHydrationScript({
 			...runtimeModules,
+			scriptId: 'ecopages-react-page',
 			isDevelopment: true,
 			isMdx: false,
 			router: routerAdapter,
 		});
 
-		await importModule(createModuleUrl(script));
+		const moduleUrl = createModuleUrl(script);
+		await importModule(moduleUrl, 'ecopages-react-page');
 
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(1);
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls[0]?.containerTag).toBe('BODY');
@@ -168,7 +180,7 @@ describe('createHydrationScript browser execution', () => {
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.registrations).toHaveLength(1);
 		expect(typeof testWindow.__ECO_PAGES__?.react?.cleanupPageRoot).toBe('function');
 		expect(testWindow.__ECO_PAGES__?.page).toEqual({
-			module: runtimeModules.importPath,
+			module: moduleUrl,
 			props: {
 				title: 'Hello React',
 				locals: { theme: 'dark' },
@@ -181,5 +193,76 @@ describe('createHydrationScript browser execution', () => {
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.releasedOwners).toEqual(['react-router']);
 		expect(testWindow.__ECO_PAGES__?.page).toBeUndefined();
 		expect(testWindow.__ECO_PAGES__?.react?.pageRoot).toBeNull();
+	});
+
+	it('reuses an existing router-owned page root during rerun bootstrap execution', async () => {
+		const runtimeModules = createRuntimeModules();
+		const testWindow = window as TestWindow;
+
+		testWindow.__ECO_REACT_HYDRATION_TEST__ = {
+			hydrateCalls: [],
+			renderCalls: [],
+			claimedOwners: [],
+			releasedOwners: [],
+			registrations: [],
+			unmountCount: 0,
+		};
+
+		const existingRoot = {
+			render: (tree: unknown) => {
+				testWindow.__ECO_REACT_HYDRATION_TEST__?.renderCalls.push(tree);
+			},
+			unmount: () => {
+				testWindow.__ECO_REACT_HYDRATION_TEST__!.unmountCount += 1;
+			},
+		};
+
+		testWindow.__ECO_PAGES__ = {
+			navigation: {
+				getOwnerState: () => ({
+					owner: 'react-router',
+					canHandleSpaNavigation: true,
+				}),
+				register: (registration) => {
+					testWindow.__ECO_REACT_HYDRATION_TEST__?.registrations.push(registration);
+				},
+				claimOwnership: (owner) => {
+					testWindow.__ECO_REACT_HYDRATION_TEST__?.claimedOwners.push(owner);
+				},
+				releaseOwnership: (owner) => {
+					testWindow.__ECO_REACT_HYDRATION_TEST__?.releasedOwners.push(owner);
+				},
+			},
+			react: {
+				pageRoot: existingRoot,
+			},
+		};
+
+		document.body.innerHTML = `<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({
+			title: 'Rerun',
+		})}</script>`;
+
+		const script = createHydrationScript({
+			...runtimeModules,
+			scriptId: 'ecopages-react-page-rerun',
+			isDevelopment: true,
+			isMdx: false,
+			router: routerAdapter,
+		});
+
+		const moduleUrl = createModuleUrl(script);
+		await importModule(moduleUrl, 'ecopages-react-page-rerun');
+
+		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(0);
+		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.renderCalls).toHaveLength(0);
+		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.claimedOwners).toHaveLength(0);
+		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.registrations).toHaveLength(0);
+		expect(testWindow.__ECO_PAGES__?.react?.pageRoot).toBe(existingRoot);
+		expect(testWindow.__ECO_PAGES__?.page).toEqual({
+			module: moduleUrl,
+			props: {
+				title: 'Rerun',
+			},
+		});
 	});
 });

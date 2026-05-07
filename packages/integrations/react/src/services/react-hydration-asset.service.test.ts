@@ -3,6 +3,47 @@ import { describe, expect, it, vi } from 'vitest';
 import { getReactIslandComponentKey, ReactHydrationAssetService } from './react-hydration-asset.service.ts';
 
 describe('ReactHydrationAssetService', () => {
+	it('creates one page-owned route entry asset', () => {
+		const service = new ReactHydrationAssetService({
+			srcDir: '/app/src',
+			assetProcessingService: {
+				getHmrManager: () => undefined,
+			} as any,
+			bundleService: {
+				getRuntimeImports: () => ({
+					react: 'react',
+					reactDomClient: 'react-dom/client',
+					router: undefined,
+				}),
+			} as any,
+		});
+
+		const dependencies = service.createPageDependencies(
+			'/app/src/pages/index.tsx',
+			'ecopages-react-index',
+			'/assets/pages/index.js',
+			{},
+			false,
+			false,
+		);
+
+		expect(dependencies).toHaveLength(1);
+		expect(dependencies[0]).toMatchObject({
+			kind: 'script',
+			source: 'content',
+			name: 'ecopages-react-index',
+			packageRole: 'page-script',
+			bundle: true,
+			attributes: {
+				type: 'module',
+				defer: '',
+				'data-eco-rerun': 'true',
+				'data-eco-script-id': 'ecopages-react-index',
+				'data-eco-persist': 'true',
+			},
+		});
+	});
+
 	it('uses the React-owned HMR entrypoint path for hydration assets in development', async () => {
 		const registerScriptEntrypoint = vi.fn(async () => '/assets/_hmr/pages/index.js');
 		const registerEntrypoint = vi.fn(async () => '/assets/_hmr/pages/index.js');

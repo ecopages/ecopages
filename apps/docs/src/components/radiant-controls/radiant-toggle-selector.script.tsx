@@ -1,4 +1,6 @@
-import { RadiantElement, customElement, prop } from '@ecopages/radiant';
+import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
+import { customElement } from '@ecopages/radiant/decorators/custom-element';
+import { prop } from '@ecopages/radiant/decorators/prop';
 import { createControlInstanceId, type RadiantOption, type RadiantValueChangeEvent } from './radiant-controls.shared';
 
 @customElement('radiant-toggle-selector')

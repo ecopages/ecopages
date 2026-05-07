@@ -10,7 +10,7 @@ export type BaseLayoutProps = {
 export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
-		scripts: ['./base-layout.script.ts'],
+		scripts: [{ src: './base-layout.script.ts', lazy: { 'on:idle': true } }],
 		components: [Header],
 	},
 

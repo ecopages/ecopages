@@ -1,4 +1,6 @@
-import { RadiantElement, customElement, state } from '@ecopages/radiant';
+import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
+import { customElement } from '@ecopages/radiant/decorators/custom-element';
+import { state } from '@ecopages/radiant/decorators/state';
 import { Logo, type LogoMode } from '../logo/logo';
 import { LOGO_PLAYGROUND_FONT_SIZE_RANGE, type LogoVariant } from '../logo/logo.constants';
 import '../radiant-controls/radiant-select.script';

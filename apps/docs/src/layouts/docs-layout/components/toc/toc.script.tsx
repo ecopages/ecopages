@@ -1,6 +1,7 @@
-import { RadiantElement, state } from '@ecopages/radiant';
+import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
+import { state } from '@ecopages/radiant/decorators/state';
 
 type TocItem = {
 	id: string;

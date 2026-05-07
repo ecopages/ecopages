@@ -10,6 +10,8 @@ import type {
 	RouteRendererBody,
 } from '@ecopages/core';
 import { rapidhash } from '@ecopages/core/hash';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
@@ -53,9 +55,13 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	name = ECOPAGES_JSX_PLUGIN_NAME;
 
 	private static radiantServerRuntimeInstallPromise: Promise<void> | undefined;
+	private static readonly SCRIPT_IMPORT_RE =
+		/import\s+(?:[^'";]+\s+from\s+)?['"](\.[^'"\n]*\.script(?:\.[cm]?[jt]sx?)?)['"]/g;
 
 	private readonly intrinsicCustomElementAssets: Map<string, readonly ProcessedAsset[]>;
+	private readonly intrinsicCustomElementScriptFiles: Map<string, string>;
 	private collectedAssetFrames: ProcessedAsset[][] = [];
+	private importedIntrinsicScriptFrames: Set<string>[] = [];
 	private readonly mdxExtensions: string[];
 	private readonly radiantSsrEnabled: boolean;
 
@@ -124,6 +130,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		});
 
 		this.intrinsicCustomElementAssets = jsxConfig?.intrinsicCustomElementAssets ?? new Map();
+		this.intrinsicCustomElementScriptFiles = jsxConfig?.intrinsicCustomElementScriptFiles ?? new Map();
 		this.mdxExtensions = jsxConfig?.mdxExtensions ?? ['.mdx'];
 		this.radiantSsrEnabled = jsxConfig?.radiantSsrEnabled ?? false;
 	}
@@ -142,6 +149,12 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	}
 
 	override async render(options: IntegrationRendererRenderOptions<JsxRenderable>): Promise<RouteRendererBody> {
+		const importedScriptFrame = this.beginImportedIntrinsicScriptFrame([
+			options.Page,
+			options.Layout,
+			options.HtmlTemplate,
+		]);
+
 		try {
 			return await this.renderPageWithDocumentShell({
 				page: {
@@ -166,10 +179,13 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
+		} finally {
+			this.endImportedIntrinsicScriptFrame(importedScriptFrame);
 		}
 	}
 
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		const importedScriptFrame = this.beginImportedIntrinsicScriptFrame([input.component]);
 		const assetFrame = this.beginCollectedAssetFrame();
 
 		try {
@@ -200,6 +216,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		} catch (error) {
 			this.endCollectedAssetFrame(assetFrame);
 			throw this.createRenderError('Error rendering component', error);
+		} finally {
+			this.endImportedIntrinsicScriptFrame(importedScriptFrame);
 		}
 	}
 
@@ -218,6 +236,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		props: P,
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
+		const importedScriptFrame = this.beginImportedIntrinsicScriptFrame([view, view.config?.layout]);
 		try {
 			if (!this.isFunctionComponent(view)) {
 				throw new TypeError('JSX renderer expected a callable view component.');
@@ -231,6 +250,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
+		} finally {
+			this.endImportedIntrinsicScriptFrame(importedScriptFrame);
 		}
 	}
 
@@ -320,6 +341,128 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		return dedupedAssets;
 	}
 
+	private beginImportedIntrinsicScriptFrame(components: Array<EcoComponent | undefined>): Set<string> {
+		const frame = this.collectImportedIntrinsicScriptFiles(components);
+		this.importedIntrinsicScriptFrames.push(frame);
+		return frame;
+	}
+
+	private endImportedIntrinsicScriptFrame(frame: Set<string>): void {
+		const activeFrame = this.importedIntrinsicScriptFrames.pop();
+		if (activeFrame !== frame) {
+			this.importedIntrinsicScriptFrames = this.importedIntrinsicScriptFrames.filter((entry) => entry !== frame);
+		}
+	}
+
+	private getActiveImportedIntrinsicScriptFiles(): Set<string> | undefined {
+		return this.importedIntrinsicScriptFrames[this.importedIntrinsicScriptFrames.length - 1];
+	}
+
+	/**
+	 * Collects intrinsic custom-element script files already owned by the current
+	 * component tree through direct source imports or dependency declarations.
+	 */
+	private collectImportedIntrinsicScriptFiles(components: Array<EcoComponent | undefined>): Set<string> {
+		const importedScriptFiles = new Set<string>();
+		const visitedFiles = new Set<string>();
+
+		const visit = (component: EcoComponent | undefined) => {
+			const file = component?.config?.__eco?.file;
+			if (!file || visitedFiles.has(file)) {
+				return;
+			}
+
+			visitedFiles.add(file);
+
+			for (const scriptFile of this.extractConfiguredDependencyScriptFiles(component, path.dirname(file))) {
+				importedScriptFiles.add(scriptFile);
+			}
+
+			for (const scriptFile of this.extractImportedIntrinsicScriptFiles(file)) {
+				importedScriptFiles.add(scriptFile);
+			}
+
+			for (const nestedComponent of component?.config?.dependencies?.components ?? []) {
+				visit(nestedComponent);
+			}
+
+			visit(component?.config?.layout);
+		};
+
+		for (const component of components) {
+			visit(component);
+		}
+
+		return importedScriptFiles;
+	}
+
+	private extractImportedIntrinsicScriptFiles(file: string): string[] {
+		let source: string;
+		try {
+			source = readFileSync(file, 'utf8');
+		} catch {
+			return [];
+		}
+
+		const scriptFiles = new Set<string>();
+		const directory = path.dirname(file);
+
+		for (const match of source.matchAll(EcopagesJsxRenderer.SCRIPT_IMPORT_RE)) {
+			const specifier = match[1];
+			if (!specifier) {
+				continue;
+			}
+
+			const resolvedScriptFile = this.resolveImportedIntrinsicScriptFile(directory, specifier);
+			if (resolvedScriptFile) {
+				scriptFiles.add(resolvedScriptFile);
+			}
+		}
+
+		return [...scriptFiles];
+	}
+
+	private extractConfiguredDependencyScriptFiles(component: EcoComponent | undefined, directory: string): string[] {
+		const scriptFiles = new Set<string>();
+
+		for (const script of component?.config?.dependencies?.scripts ?? []) {
+			const specifier = typeof script === 'string' ? script : script.src;
+			if (!specifier) {
+				continue;
+			}
+
+			const resolvedScriptFile = this.resolveImportedIntrinsicScriptFile(directory, specifier);
+			if (resolvedScriptFile) {
+				scriptFiles.add(resolvedScriptFile);
+			}
+		}
+
+		return [...scriptFiles];
+	}
+
+	private resolveImportedIntrinsicScriptFile(directory: string, specifier: string): string | undefined {
+		const basePath = path.resolve(directory, specifier);
+		const candidatePaths = [
+			basePath,
+			`${basePath}.ts`,
+			`${basePath}.tsx`,
+			`${basePath}.js`,
+			`${basePath}.jsx`,
+			`${basePath}.mts`,
+			`${basePath}.cts`,
+			`${basePath}.mjs`,
+			`${basePath}.cjs`,
+		];
+
+		for (const candidatePath of candidatePaths) {
+			if (existsSync(candidatePath)) {
+				return candidatePath;
+			}
+		}
+
+		return undefined;
+	}
+
 	private async ensureRadiantServerRuntimeIfEnabled(): Promise<void> {
 		if (!this.radiantSsrEnabled) {
 			return;
@@ -400,6 +543,13 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 	private createIntrinsicCustomElementRenderHook(target: ProcessedAsset[]) {
 		return ({ tagName }: { tagName: string }) => {
+			const currentImportedScriptFiles = this.getActiveImportedIntrinsicScriptFiles();
+			const intrinsicScriptFile = this.intrinsicCustomElementScriptFiles.get(tagName);
+
+			if (intrinsicScriptFile && currentImportedScriptFiles?.has(intrinsicScriptFile)) {
+				return undefined;
+			}
+
 			const assets = this.intrinsicCustomElementAssets.get(tagName);
 
 			if (assets) {

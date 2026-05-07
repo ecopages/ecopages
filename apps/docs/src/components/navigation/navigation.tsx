@@ -20,7 +20,7 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
 				{items.map(({ label, href, target = '_self' }) => (
 					<li>
 						<a href={href} target={target}>
-							{label as 'safe'}
+							{label}
 						</a>
 					</li>
 				))}

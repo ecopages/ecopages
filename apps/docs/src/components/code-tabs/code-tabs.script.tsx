@@ -1,4 +1,7 @@
-import { RadiantElement, customElement, prop, state } from '@ecopages/radiant';
+import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
+import { customElement } from '@ecopages/radiant/decorators/custom-element';
+import { prop } from '@ecopages/radiant/decorators/prop';
+import { state } from '@ecopages/radiant/decorators/state';
 
 /**
  * A single tab definition for the docs code-tabs custom element.

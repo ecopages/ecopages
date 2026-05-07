@@ -315,6 +315,97 @@ test('AssetProcessingService - deduplication processes duplicate deps only once'
 	expect(results.length).toBe(1);
 });
 
+test('AssetProcessingService - deduplication preserves package role distinctions', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async (dep: AssetDefinition) => ({
+		filepath: `/test/dist/assets/${dep.packageRole ?? 'default'}.js`,
+		kind: 'script' as const,
+		inline: false,
+		packageRole: dep.packageRole,
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+
+	const pageDependency: AssetDefinition = {
+		kind: 'script',
+		source: 'file',
+		filepath: 'path/to/dedup-role.js',
+		packageRole: 'page-script',
+	};
+	const runtimeDependency: AssetDefinition = {
+		...pageDependency,
+		packageRole: 'runtime',
+	};
+
+	const results = await service.processDependencies([pageDependency, runtimeDependency], 'dedup-role-key');
+
+	expect(processMock).toHaveBeenCalledTimes(2);
+	expect(results).toHaveLength(2);
+	expect(results.map((result) => result.packageRole)).toEqual(['page-script', 'runtime']);
+});
+
+test('AssetProcessingService - grouped content scripts use processGrouped once per bundle id', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	const service = new AssetProcessingService(Config);
+	const processGroupedMock = vi.fn(async () => [
+		{
+			filepath: '/test/dist/assets/page-entry.js',
+			kind: 'script',
+			inline: false,
+			packageRole: 'page-script',
+		},
+		{
+			filepath: '/test/dist/assets/lazy-entry.js',
+			kind: 'script',
+			inline: false,
+			excludeFromHtml: true,
+		},
+	]);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/standalone.js',
+		kind: 'script',
+		inline: false,
+	}));
+
+	service.registerProcessor('script', 'content', {
+		process: processMock,
+		processGrouped: processGroupedMock,
+	});
+
+	const results = await service.processDependencies(
+		[
+			{
+				kind: 'script',
+				source: 'content',
+				content: 'import "/page.js";',
+				groupedBundle: { id: 'bundle-1', entryName: 'page-entry' },
+				packageRole: 'page-script',
+			},
+			{
+				kind: 'script',
+				source: 'content',
+				content: 'import "/lazy.js";',
+				groupedBundle: { id: 'bundle-1', entryName: 'lazy-entry' },
+				excludeFromHtml: true,
+			},
+		],
+		'grouped-content-key',
+	);
+
+	expect(processGroupedMock).toHaveBeenCalledTimes(1);
+	expect(processMock).not.toHaveBeenCalled();
+	expect(results.map((result) => result.srcUrl)).toEqual([
+		'/assets/page-entry.js',
+		'/assets/lazy-entry.js',
+	]);
+});
+
 test('AssetProcessingService - clearCache clears all cached assets', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});

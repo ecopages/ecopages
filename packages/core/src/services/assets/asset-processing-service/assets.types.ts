@@ -3,22 +3,32 @@ import type { EcoBuildPlugin } from '../../../build/build-types.ts';
 export type AssetSource = 'content' | 'file' | 'node-module';
 export type AssetKind = 'script' | 'stylesheet';
 export type AssetPosition = 'head' | 'body';
+export type AssetPackageRole = 'page-script' | 'page-style' | 'runtime' | 'keep-separate' | 'dynamic-chunk';
+
+export type GroupedScriptBundle = {
+	id: string;
+	entryName: string;
+};
 
 export interface BaseAsset {
 	kind: AssetKind;
 	source: AssetSource;
 	attributes?: Record<string, string>;
 	position?: AssetPosition;
+	packageRole?: AssetPackageRole;
 }
 
 export interface ScriptAsset extends BaseAsset {
 	kind: 'script';
 	inline?: boolean;
 	bundle?: boolean;
+	groupedBundle?: GroupedScriptBundle;
 	bundleOptions?: {
 		define?: Record<string, string>;
 		minify?: boolean;
 		external?: string[];
+		splitting?: boolean;
+		excludeAppBuildPlugins?: string[];
 		naming?: string;
 		plugins?: EcoBuildPlugin[];
 	};
@@ -102,6 +112,8 @@ export type ProcessedAsset = {
 	attributes?: Record<string, string>;
 	inline?: boolean;
 	excludeFromHtml?: boolean;
+	packageRole?: AssetPackageRole;
+	groupedBundle?: GroupedScriptBundle;
 };
 
 export type AssetDefinition =

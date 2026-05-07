@@ -52,7 +52,8 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 	protected buildCacheKey(identifier: string, contentHash: string, dep: T): string {
 		const attrsHash = dep.attributes ? this.generateHash(JSON.stringify(dep.attributes)) : '';
 		const position = dep.position ?? '';
-		return `${identifier}:${contentHash}:${position}:${attrsHash}`;
+		const packageRole = dep.packageRole ?? '';
+		return `${identifier}:${contentHash}:${position}:${attrsHash}:${packageRole}`;
 	}
 
 	protected getOrProcess(

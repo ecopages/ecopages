@@ -43,6 +43,7 @@ export function createBrowserRuntimeScriptAsset(options: {
 		position: 'head',
 		importPath: options.importPath,
 		name: options.name,
+		packageRole: 'runtime',
 		excludeFromHtml: true,
 		bundleOptions: {
 			naming: options.fileName,

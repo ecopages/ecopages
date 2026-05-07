@@ -74,6 +74,7 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 				position: dep.position,
 				attributes: dep.attributes,
 				inline: dep.inline,
+				packageRole: dep.packageRole,
 			};
 		});
 	}

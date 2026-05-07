@@ -31,6 +31,7 @@ test('createBrowserRuntimeScriptAsset creates a hidden head runtime bundle asset
 		position: 'head',
 		importPath: '/tmp/react-entry.mjs',
 		name: 'react',
+		packageRole: 'runtime',
 		excludeFromHtml: true,
 		bundleOptions: {
 			naming: 'react.js',
@@ -66,6 +67,7 @@ test('createBrowserRuntimeModuleAsset creates an entry module and hidden runtime
 		);
 		assert.equal(asset.bundleOptions?.naming, 'runtime-a.js');
 		assert.equal(asset.excludeFromHtml, true);
+		assert.equal(asset.packageRole, 'runtime');
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}

@@ -11,7 +11,7 @@
 - Fixed lazy Ecopages JSX custom-element dependencies to stay as standalone assets instead of being folded into page-owned bundles, restoring trigger-driven loading for docs components like `theme-toggle`.
 - Fixed Ecopages JSX page-owned browser bundles to inline their JSX and Radiant runtime imports while skipping separate intrinsic custom-element script tags when the current component tree already imports those scripts.
 - Fixed intrinsic custom-element script suppression to honor dependency-declared script ownership instead of relying only on source import scanning.
-- Patched the Ecopages JSX browser runtime bundle so nested SVG templates restore canonical camel-cased SVG tag names during client rendering.
+- Aligned the Ecopages JSX browser runtime bundle with the upstream `@ecopages/jsx` runtime shipped by current alpha releases.
 - Aligned Ecopages JSX peer dependency ranges with the current `@ecopages/jsx` and `@ecopages/radiant` alpha releases.
 - Aligned Radiant SSR and hydration wiring with the public `@ecopages/radiant/server/render-component` and `@ecopages/radiant/client/hydrator` entrypoints so JSX apps install an explicit client hydrator bootstrap instead of relying on implicit side effects.
 - Updated the Ecopages JSX Radiant browser runtime for the `RadiantElement` and `RadiantController` API surface and switched the explicit hydrator bootstrap to `@ecopages/radiant/client/install-hydrator`.

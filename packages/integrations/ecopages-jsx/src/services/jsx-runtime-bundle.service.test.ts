@@ -95,10 +95,9 @@ test('JsxRuntimeBundleService builds the Radiant vendor from curated browser-saf
 
 	const jsxEntrySource = readFileSync(jsxDependency.importPath, 'utf8');
 
-	assert.match(jsxEntrySource, /eopCanonicalSvgLocalNames/);
-	assert.match(jsxEntrySource, /lineargradient:'linearGradient'/);
-	assert.match(jsxEntrySource, /fedropshadow:'feDropShadow'/);
-	assert.match(jsxEntrySource, /eopRepairNamespaceChildren/);
+	assert.match(jsxEntrySource, /http:\/\/www\.w3\.org\/2000\/svg/);
+	assert.match(jsxEntrySource, /foreignObject|foreignobject/);
+	assert.match(jsxEntrySource, /toLowerCase\(\)===['"]svg['"]/);
 	assert.doesNotMatch(jsxEntrySource, /assets\/vendors\/ecopages-jsx-esm/);
 	assert.doesNotMatch(jsxEntrySource, /@ecopages\/jsx\/server/);
 
@@ -122,7 +121,7 @@ test('JsxRuntimeBundleService builds the Radiant vendor from curated browser-saf
 	);
 	assert.match(
 		entrySource,
-		/export \{ CONTROLLER_ATTRIBUTE, ControllerRegistryRuntime, disableControllerReplacementForHmr, enableControllerReplacementForHmr, hasRegisteredController, registerController, registerControllerWithConfiguredStrategy, replaceController, setControllerRegistrationStrategy, startControllers, stopControllers \} from '.*\/node_modules\/@ecopages\/radiant\/dist\/controller-registry\.js';/,
+		/export \{ [^}]*CONTROLLER_ATTRIBUTE[^}]*ControllerRegistryRuntime[^}]*disableControllerReplacementForHmr[^}]*enableControllerReplacementForHmr[^}]*hasRegisteredController[^}]*registerController[^}]*registerControllerWithConfiguredStrategy[^}]*replaceController[^}]*setControllerRegistrationStrategy[^}]*startControllers[^}]*stopControllers[^}]*\} from '.*\/node_modules\/@ecopages\/radiant\/dist\/controller-registry\.js';/,
 	);
 	assert.match(
 		entrySource,

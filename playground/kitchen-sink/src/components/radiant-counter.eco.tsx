@@ -14,7 +14,7 @@ export const RadiantCounterComponent = eco.component<EcopagesJsxRadiantCounterPr
 		scripts: [{ src: './radiant-counter-element.script.ts' }],
 	},
 	render: ({ id = '', value = 0 }) => (
-		<radiant-counter id={id || undefined} data-radiant-counter data-counter-kind="radiant" value={value}>
+		<radiant-counter id={id || undefined} data-radiant-counter data-counter-kind="radiant" attr:value={value}>
 			<button
 				class="integration-counter__button"
 				type="button"

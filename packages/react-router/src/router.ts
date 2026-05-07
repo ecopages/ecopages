@@ -359,25 +359,24 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			});
 			previousUrlRef.current = url.href;
 		}
-
 	}, [currentPage, options.scrollBehavior, options.smoothScroll]);
 
 	const navigate = useCallback(
 		async (
 			url: string,
-				navigationOptions: {
-					isPopState?: boolean;
-					pushHistory?: boolean;
-					skipViewTransition?: boolean;
-					moduleUrlOverride?: string;
-				} = {},
+			navigationOptions: {
+				isPopState?: boolean;
+				pushHistory?: boolean;
+				skipViewTransition?: boolean;
+				moduleUrlOverride?: string;
+			} = {},
 		) => {
-				const {
-					isPopState = false,
-					pushHistory = false,
-					skipViewTransition = false,
-					moduleUrlOverride,
-				} = navigationOptions;
+			const {
+				isPopState = false,
+				pushHistory = false,
+				skipViewTransition = false,
+				moduleUrlOverride,
+			} = navigationOptions;
 			const navigationRuntime = getEcoNavigationRuntime(window);
 			const navigation = navigationRuntime.beginNavigationTransaction();
 			activeNavigationRef.current = navigation;

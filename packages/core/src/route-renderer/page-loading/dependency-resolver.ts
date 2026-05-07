@@ -1,16 +1,10 @@
 import path from 'node:path';
 import type { EcoComponent } from '../../types/public-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type {
-	AssetProcessingService,
-	ProcessedAsset,
-} from '../../services/assets/asset-processing-service/index.ts';
+import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import { rapidhash } from '../../utils/hash.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
-import {
-	buildResolvedLazyTriggers,
-	type ResolvedLazyGroup,
-} from './lazy-trigger-planning.ts';
+import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
 import { collectComponentDependencies } from './component-dependency-collection.ts';
 import { createUnifiedPageDependencies } from './page-dependency-bundling.ts';
 

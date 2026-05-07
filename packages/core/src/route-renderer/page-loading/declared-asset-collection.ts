@@ -1,7 +1,4 @@
-import type {
-	EcoComponentScriptEntry,
-	EcoComponentStylesheetEntry,
-} from '../../types/public-types.ts';
+import type { EcoComponentScriptEntry, EcoComponentStylesheetEntry } from '../../types/public-types.ts';
 import type { AssetDefinition } from '../../services/assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
 

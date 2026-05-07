@@ -165,9 +165,8 @@ describe('RenderPreparationService', () => {
 	});
 
 	it('inlines the global injector bootstrap when resolved lazy triggers are present', async () => {
-		const processDependencies = vi
-			.fn<AssetProcessingService['processDependencies']>()
-			.mockImplementation(async (dependencies) =>
+		const processDependencies = vi.fn<AssetProcessingService['processDependencies']>().mockImplementation(
+			async (dependencies) =>
 				dependencies.map((dependency) => ({
 					kind: dependency.kind,
 					position: dependency.position,
@@ -176,7 +175,7 @@ describe('RenderPreparationService', () => {
 					inline: dependency.inline,
 					packageRole: dependency.packageRole,
 				})) as ProcessedAsset[],
-			);
+		);
 		const assetProcessingService = {
 			processDependencies,
 		} as unknown as AssetProcessingService;

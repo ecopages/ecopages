@@ -6,10 +6,7 @@ import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
 import type { ScriptAsset } from '../../assets.types.ts';
 import { BaseProcessor } from './base-processor.ts';
-import {
-	BrowserBundleService,
-	type BrowserBundleGroupedEntry,
-} from '../../../browser-bundle.service.ts';
+import { BrowserBundleService, type BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
 
 export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BaseProcessor<T> {
 	private readonly browserBundleService: BrowserBundleService;
@@ -151,7 +148,9 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 				continue;
 			}
 
-			const hashedOutput = outputs.find((outputPath) => path.basename(outputPath).startsWith(`${entry.entryName}-`));
+			const hashedOutput = outputs.find((outputPath) =>
+				path.basename(outputPath).startsWith(`${entry.entryName}-`),
+			);
 			if (hashedOutput) {
 				entryOutputs.set(entry.entryName, hashedOutput);
 				continue;

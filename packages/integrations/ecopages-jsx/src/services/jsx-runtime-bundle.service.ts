@@ -311,9 +311,7 @@ export class JsxRuntimeBundleService {
 			radiantPkg.exports?.['./client/install-hydrator'],
 		);
 		const seenExports = new Set<string>();
-		const statements: string[] = [
-			`import '${this.getEntryImportPath(artifactsDir, installHydratorModulePath)}';`,
-		];
+		const statements: string[] = [`import '${this.getEntryImportPath(artifactsDir, installHydratorModulePath)}';`];
 
 		mkdirSync(artifactsDir, { recursive: true });
 

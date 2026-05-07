@@ -81,8 +81,14 @@ type CollectComponentDependenciesOptions = {
 export function collectComponentDependencies(
 	options: CollectComponentDependenciesOptions,
 ): CollectedComponentDependencies {
-	const { components, integrationName, resolveLazyScripts, createEcopagesJsxLazyEntryName, isEcopagesJsxIntegration, errors } =
-		options;
+	const {
+		components,
+		integrationName,
+		resolveLazyScripts,
+		createEcopagesJsxLazyEntryName,
+		isEcopagesJsxIntegration,
+		errors,
+	} = options;
 	const dependencies: AssetDefinition[] = [];
 	const lazyScriptsByConfig = new Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>();
 	const lazyDependencyKeys = new Set<string>();

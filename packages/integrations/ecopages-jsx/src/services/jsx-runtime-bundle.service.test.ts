@@ -68,10 +68,7 @@ test('JsxRuntimeBundleService excludes server-only Radiant subpaths from the bro
 		'/assets/vendors/ecopages-radiant-esm.js',
 	);
 	assert.equal(specifierMap['@ecopages/radiant/client/hydrator'], '/assets/vendors/ecopages-radiant-esm.js');
-	assert.equal(
-		specifierMap['@ecopages/radiant/client/install-hydrator'],
-		'/assets/vendors/ecopages-radiant-esm.js',
-	);
+	assert.equal(specifierMap['@ecopages/radiant/client/install-hydrator'], '/assets/vendors/ecopages-radiant-esm.js');
 	assert.equal(specifierMap['@ecopages/radiant/controller-registry'], '/assets/vendors/ecopages-radiant-esm.js');
 	assert.equal(specifierMap['@ecopages/radiant/core/radiant-controller'], '/assets/vendors/ecopages-radiant-esm.js');
 	assert.equal(specifierMap['@ecopages/radiant/core/radiant-element'], '/assets/vendors/ecopages-radiant-esm.js');
@@ -106,10 +103,7 @@ test('JsxRuntimeBundleService builds the Radiant vendor from curated browser-saf
 
 	const entrySource = readFileSync(radiantDependency.importPath, 'utf8');
 
-	assert.match(
-		entrySource,
-		/import '.*\/node_modules\/@ecopages\/radiant\/dist\/client\/install-hydrator\.js';/,
-	);
+	assert.match(entrySource, /import '.*\/node_modules\/@ecopages\/radiant\/dist\/client\/install-hydrator\.js';/);
 
 	assert.match(
 		entrySource,

@@ -400,10 +400,7 @@ test('AssetProcessingService - grouped content scripts use processGrouped once p
 
 	expect(processGroupedMock).toHaveBeenCalledTimes(1);
 	expect(processMock).not.toHaveBeenCalled();
-	expect(results.map((result) => result.srcUrl)).toEqual([
-		'/assets/page-entry.js',
-		'/assets/lazy-entry.js',
-	]);
+	expect(results.map((result) => result.srcUrl)).toEqual(['/assets/page-entry.js', '/assets/lazy-entry.js']);
 });
 
 test('AssetProcessingService - clearCache clears all cached assets', async () => {

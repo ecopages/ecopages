@@ -218,9 +218,11 @@ test('EcopagesJsxRenderer treats dependency-declared scripts as intrinsic script
 			},
 		} as unknown as EcoComponent;
 
-		const ownedScripts = (renderer as unknown as {
-			collectImportedIntrinsicScriptFiles: (components: Array<EcoComponent | undefined>) => Set<string>;
-		}).collectImportedIntrinsicScriptFiles([component]);
+		const ownedScripts = (
+			renderer as unknown as {
+				collectImportedIntrinsicScriptFiles: (components: Array<EcoComponent | undefined>) => Set<string>;
+			}
+		).collectImportedIntrinsicScriptFiles([component]);
 
 		assert.equal(ownedScripts.has(scriptPath), true);
 	} finally {

@@ -34,7 +34,10 @@ function cloneTemplateStrings(strings: readonly string[], firstString: string): 
 	return nextStrings;
 }
 
-function cloneTemplateContentWithUpdatedFirstString<T extends TemplateContentShape>(content: T, firstString: string): T {
+function cloneTemplateContentWithUpdatedFirstString<T extends TemplateContentShape>(
+	content: T,
+	firstString: string,
+): T {
 	const descriptors = Object.getOwnPropertyDescriptors(content);
 	const clonedContent = Object.create(Object.getPrototypeOf(content)) as T;
 	const stringsDescriptor = descriptors.strings;
@@ -138,7 +141,9 @@ function isTemplateContentShape(value: unknown): value is TemplateContentShape {
 }
 
 function isMarkupNodeLikeShape(value: unknown): value is MarkupNodeLikeShape {
-	return typeof value === 'object' && value !== null && typeof (value as { nodeType?: unknown }).nodeType === 'number';
+	return (
+		typeof value === 'object' && value !== null && typeof (value as { nodeType?: unknown }).nodeType === 'number'
+	);
 }
 
 function injectTriggerAttributeIntoString(content: string, triggerId: string): string {
@@ -198,8 +203,14 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
 export function addTriggerAttribute(content: string, triggerId: string): string;
 export function addTriggerAttribute<T extends TemplateContentShape>(content: T, triggerId: string): T;
 export function addTriggerAttribute<T extends MarkupNodeLikeShape>(content: T, triggerId: string): T;
-export function addTriggerAttribute(content: unknown, triggerId: string): string | TemplateContentShape | MarkupNodeLikeShape;
-export function addTriggerAttribute(content: unknown, triggerId: string): string | TemplateContentShape | MarkupNodeLikeShape {
+export function addTriggerAttribute(
+	content: unknown,
+	triggerId: string,
+): string | TemplateContentShape | MarkupNodeLikeShape;
+export function addTriggerAttribute(
+	content: unknown,
+	triggerId: string,
+): string | TemplateContentShape | MarkupNodeLikeShape {
 	if (isTemplateContentShape(content)) {
 		if (content.strings.length === 0) {
 			return String(content);
@@ -228,10 +239,7 @@ export function addTriggerAttribute(content: unknown, triggerId: string): string
  * @param content Rendered component HTML.
  * @param lazyGroups Resolved lazy script groups attached to the component config.
  */
-export function wrapWithScriptsInjector(
-	content: string,
-	lazyGroups: ResolvedLazyScriptGroups,
-): string;
+export function wrapWithScriptsInjector(content: string, lazyGroups: ResolvedLazyScriptGroups): string;
 export function wrapWithScriptsInjector<T extends TemplateContentShape>(
 	content: T,
 	lazyGroups: ResolvedLazyScriptGroups,

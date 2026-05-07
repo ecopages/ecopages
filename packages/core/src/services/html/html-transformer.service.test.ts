@@ -435,10 +435,7 @@ describe('HtmlTransformerService', () => {
 			packageRole: 'runtime',
 		} as ProcessedAsset;
 
-		expect(transformer.dedupeProcessedAssets([pageScript, runtimeScript])).toEqual([
-			pageScript,
-			runtimeScript,
-		]);
+		expect(transformer.dedupeProcessedAssets([pageScript, runtimeScript])).toEqual([pageScript, runtimeScript]);
 	});
 
 	it('should prefer page package html assets during transform', async () => {

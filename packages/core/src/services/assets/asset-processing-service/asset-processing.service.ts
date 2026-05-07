@@ -114,8 +114,7 @@ export class AssetProcessingService {
 					getCachedAsset: (assetDep, depKey) => this.getCachedAsset(assetDep, depKey),
 					getProcessor: (assetDep) => this.registry.getProcessor(assetDep.kind, assetDep.source),
 					resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
-					setCachedAsset: (assetDep, depKey, processed) =>
-						this.setCachedAsset(assetDep, depKey, processed),
+					setCachedAsset: (assetDep, depKey, processed) => this.setCachedAsset(assetDep, depKey, processed),
 					logMissingProcessor: (assetDep) => {
 						appLogger.error(`No processor found for ${assetDep.kind}/${assetDep.source}`);
 					},

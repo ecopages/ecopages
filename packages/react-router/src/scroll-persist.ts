@@ -65,19 +65,32 @@ export function restoreScrollPositions(targetUrl: string, isPopState: boolean): 
 		return;
 	}
 
-	requestAnimationFrame(() => {
+	const restore = (remainingAttempts: number) => {
 		requestAnimationFrame(() => {
+			const restoredKeys = new Set<string>();
+
 			document.querySelectorAll(PERSIST_SELECTOR).forEach((el) => {
 				const key = getElementKey(el);
-				if (key && positions.has(key)) {
-					const pos = positions.get(key)!;
-					el.scrollTop = pos.top;
-					el.scrollLeft = pos.left;
+				if (!key || !positions.has(key)) {
+					return;
 				}
+
+				const pos = positions.get(key)!;
+				el.scrollTop = pos.top;
+				el.scrollLeft = pos.left;
+				restoredKeys.add(key);
 			});
-			currentScrollSnapshot = null;
+
+			if (restoredKeys.size === positions.size || remainingAttempts <= 1) {
+				currentScrollSnapshot = null;
+				return;
+			}
+
+			setTimeout(() => restore(remainingAttempts - 1), 50);
 		});
-	});
+	};
+
+	restore(20);
 }
 
 /**

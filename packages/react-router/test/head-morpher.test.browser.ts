@@ -72,4 +72,30 @@ describe('morphHead', () => {
 		expect(nextScript?.textContent).toBe('window.__theme_runs__=2;');
 		expect(document.head.querySelectorAll('script[data-eco-script-id="theme-bootstrap"]')).toHaveLength(1);
 	});
+
+	it('skips React Router route bootstrap scripts during head morphing', async () => {
+		document.head.innerHTML = '<title>Current route</title>';
+		const nextDocument = createDocument(
+			[
+				'<html><head>',
+				'<title>Next route</title>',
+				'<script src="/assets/ecopages-react-123.js" type="module" data-eco-rerun="true" data-eco-persist="true"></script>',
+				'<script src="/assets/scripts/ecopages-react-123-hydration.js" type="module"></script>',
+				'<script src="/assets/scripts/ecopages-react-island-123-hydration.js" type="module"></script>',
+				'</head><body></body></html>',
+			].join(''),
+		);
+
+		const { cleanup } = await morphHead(nextDocument);
+		cleanup();
+
+		expect(document.title).toBe('Next route');
+		expect(document.head.querySelector('script[src="/assets/ecopages-react-123.js"]')).toBeNull();
+		expect(
+			document.head.querySelector('script[src="/assets/scripts/ecopages-react-123-hydration.js"]'),
+		).toBeNull();
+		expect(
+			document.head.querySelector('script[src="/assets/scripts/ecopages-react-island-123-hydration.js"]'),
+		).not.toBeNull();
+	});
 });

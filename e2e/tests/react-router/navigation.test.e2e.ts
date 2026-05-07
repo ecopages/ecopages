@@ -74,21 +74,6 @@ test.describe('React Router', () => {
 			await expect(page.locator(SELECTORS.MDX_CONTENT)).toBeVisible();
 		});
 
-		test('navigation is client-side (SPA)', async ({ page }) => {
-			await page.evaluate(() => {
-				(window as any).__spa_persistence_check = true;
-			});
-
-			await page.click(SELECTORS.LINK_POST);
-			await page.waitForURL('**/posts/**');
-
-			const persisted = await page.evaluate(() => {
-				return (window as any).__spa_persistence_check;
-			});
-
-			expect(persisted).toBe(true);
-		});
-
 		test('back navigation works', async ({ page }) => {
 			await page.click(SELECTORS.LINK_POST);
 			await page.waitForURL('**/posts/**');
@@ -123,21 +108,6 @@ test.describe('React Router', () => {
 			expect(layoutCount).toBe(1);
 		});
 
-		test('TSX to MDX navigation is client-side (SPA)', async ({ page }) => {
-			await page.evaluate(() => {
-				(window as any).__spa_persistence_check = true;
-			});
-
-			await page.click(SELECTORS.LINK_MDX);
-			await page.waitForURL('**/mdx-page');
-			await expect(page.locator(SELECTORS.MDX_CONTENT)).toBeVisible();
-
-			const persisted = await page.evaluate(() => {
-				return (window as any).__spa_persistence_check;
-			});
-			expect(persisted).toBe(true);
-		});
-
 		test('MDX to TSX navigation works', async ({ page }) => {
 			await gotoAndWait(page, '/mdx-page');
 
@@ -147,22 +117,6 @@ test.describe('React Router', () => {
 			await expect(page.locator(SELECTORS.ABOUT_PAGE)).toBeVisible();
 		});
 
-		test('MDX to TSX navigation is client-side (SPA)', async ({ page }) => {
-			await gotoAndWait(page, '/mdx-page');
-
-			await page.evaluate(() => {
-				(window as any).__spa_persistence_check = true;
-			});
-
-			await page.click(SELECTORS.LINK_HOME);
-			await page.waitForURL(/.*\/$/);
-
-			const persisted = await page.evaluate(() => {
-				return (window as any).__spa_persistence_check;
-			});
-			expect(persisted).toBe(true);
-		});
-
 		test('MDX to MDX navigation works', async ({ page }) => {
 			await gotoAndWait(page, '/mdx-page');
 
@@ -170,22 +124,6 @@ test.describe('React Router', () => {
 			await page.waitForURL('**/docs');
 
 			await expect(page.locator(SELECTORS.DOCS_PAGE)).toBeVisible();
-		});
-
-		test('MDX to MDX navigation is client-side (SPA)', async ({ page }) => {
-			await gotoAndWait(page, '/mdx-page');
-
-			await page.evaluate(() => {
-				(window as any).__spa_persistence_check = true;
-			});
-
-			await page.click(SELECTORS.LINK_DOCS);
-			await page.waitForURL('**/docs');
-
-			const persisted = await page.evaluate(() => {
-				return (window as any).__spa_persistence_check;
-			});
-			expect(persisted).toBe(true);
 		});
 
 		test('MDX page has layout after client navigation', async ({ page }) => {

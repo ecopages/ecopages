@@ -143,10 +143,11 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		}
 
 		const buildServer = await this.startBuildRuntimeServer();
+		const buildRuntimeOrigin = this.getListeningServerOrigin(buildServer);
 
 		try {
 			await this.staticBuilder.build(
-				{ preview: false },
+				{ preview: false, baseUrl: buildRuntimeOrigin },
 				{
 					router: this.router,
 					routeRendererFactory: this.routeRendererFactory,
@@ -296,7 +297,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 */
 	private async startBuildRuntimeServer(): Promise<NodeHttpServer> {
 		const hostname = String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME);
-		const port = Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT);
+		const port = 0;
 
 		const server = createServer(async (req, res) => {
 			try {
@@ -319,9 +320,20 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		});
 
 		this.serverInstance = server;
-		appLogger.info(`Server running at http://${hostname}:${port}`);
+		appLogger.info(`Server running at ${this.getListeningServerOrigin(server)}`);
 
 		return server;
+	}
+
+	private getListeningServerOrigin(server: NodeHttpServer): string {
+		const address = server.address();
+		const hostname = String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME);
+
+		if (!address || typeof address === 'string') {
+			throw new Error('Build runtime server did not expose a numeric listening port');
+		}
+
+		return `http://${hostname}:${address.port}`;
 	}
 
 	/**

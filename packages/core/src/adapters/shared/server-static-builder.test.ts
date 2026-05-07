@@ -208,6 +208,28 @@ describe('ServerStaticBuilder', () => {
 			assert.equal((calls.staticSiteGeneratorRun[0] as { baseUrl: string }).baseUrl, 'http://0.0.0.0:8080');
 		});
 
+		it('should allow build-time base URL overrides', async () => {
+			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
+				createMockDependencies();
+
+			const builder = new ServerStaticBuilder({
+				appConfig: AppConfig,
+				staticSiteGenerator: StaticSiteGenerator,
+				serveOptions: ServeOptions,
+				logger,
+			});
+
+			await builder.build(
+				{ baseUrl: 'http://localhost:41731' },
+				{
+					router: Router,
+					routeRendererFactory: RouteRendererFactory,
+				},
+			);
+
+			assert.equal((calls.staticSiteGeneratorRun[0] as { baseUrl: string }).baseUrl, 'http://localhost:41731');
+		});
+
 		it('should start preview server when preview option is true', async () => {
 			const {
 				AppConfig,

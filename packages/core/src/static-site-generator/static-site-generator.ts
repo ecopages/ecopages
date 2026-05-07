@@ -184,7 +184,7 @@ export class StaticSiteGenerator {
 				let contents: string | Buffer;
 
 				if (strategy === 'fetch') {
-					const fetchUrl = route.startsWith('http') ? route : `${baseUrl}${route}`;
+					const fetchUrl = this.resolveStaticFetchUrl(route, baseUrl);
 					const response = await fetch(fetchUrl);
 
 					if (!response.ok) {
@@ -255,6 +255,20 @@ export class StaticSiteGenerator {
 				);
 			}
 		}
+	}
+
+	private resolveStaticFetchUrl(route: string, baseUrl: string): string {
+		if (!route.startsWith('http://') && !route.startsWith('https://')) {
+			return `${baseUrl}${route}`;
+		}
+
+		const targetUrl = new URL(route);
+		const buildUrl = new URL(baseUrl);
+		buildUrl.pathname = targetUrl.pathname;
+		buildUrl.search = targetUrl.search;
+		buildUrl.hash = targetUrl.hash;
+
+		return buildUrl.href;
 	}
 
 	/**

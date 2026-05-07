@@ -91,9 +91,7 @@ describe('morphHead', () => {
 
 		expect(document.title).toBe('Next route');
 		expect(document.head.querySelector('script[src="/assets/ecopages-react-123.js"]')).toBeNull();
-		expect(
-			document.head.querySelector('script[src="/assets/scripts/ecopages-react-123-hydration.js"]'),
-		).toBeNull();
+		expect(document.head.querySelector('script[src="/assets/scripts/ecopages-react-123-hydration.js"]')).toBeNull();
 		expect(
 			document.head.querySelector('script[src="/assets/scripts/ecopages-react-island-123-hydration.js"]'),
 		).not.toBeNull();

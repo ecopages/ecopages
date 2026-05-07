@@ -53,9 +53,7 @@ export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLo
 		getHostModuleLoader: () => getAppHostModuleLoader(appConfig),
 	});
 	const getDefaultPlugins =
-		typeof Bun === 'undefined' && appConfig.rootDir
-			? () => [createAppNodeBootstrapPlugin(appConfig)]
-			: () => [];
+		typeof Bun === 'undefined' && appConfig.rootDir ? () => [createAppNodeBootstrapPlugin(appConfig)] : () => [];
 	const appModuleLoader: AppModuleLoader & {
 		pageModuleImportService: PageModuleImportService;
 	} = {

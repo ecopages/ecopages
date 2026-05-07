@@ -262,9 +262,12 @@ describe('extractComponentUrl', () => {
 		const doc = createMockDocument(html);
 
 		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response('window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:"/assets/pages/about.js",props:{}};', {
-				status: 200,
-			}),
+			new Response(
+				'window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:"/assets/pages/about.js",props:{}};',
+				{
+					status: 200,
+				},
+			),
 		);
 
 		const url = await extractComponentUrl(doc);
@@ -284,9 +287,12 @@ describe('extractComponentUrl', () => {
 		const doc = createMockDocument(html);
 
 		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response('window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:import.meta.url,props:{}};', {
-				status: 200,
-			}),
+			new Response(
+				'window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:import.meta.url,props:{}};',
+				{
+					status: 200,
+				},
+			),
 		);
 
 		const url = await extractComponentUrl(doc);
@@ -306,9 +312,12 @@ describe('extractComponentUrl', () => {
 		const doc = createMockDocument(html);
 
 		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response('var N=import.meta.url,V=p;window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:N,props:{}};', {
-				status: 200,
-			}),
+			new Response(
+				'var N=import.meta.url,V=p;window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:N,props:{}};',
+				{
+					status: 200,
+				},
+			),
 		);
 
 		const url = await extractComponentUrl(doc);

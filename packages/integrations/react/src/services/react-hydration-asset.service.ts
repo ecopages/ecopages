@@ -104,9 +104,7 @@ export class ReactHydrationAssetService {
 					importPath: isDevelopment ? importPath : pagePath,
 					reactImportPath: isDevelopment ? runtimeImports.react : 'react',
 					reactDomClientImportPath: isDevelopment ? runtimeImports.reactDomClient : 'react-dom/client',
-					routerImportPath: isDevelopment
-						? runtimeImports.router
-						: this.config.routerAdapter?.importMapKey,
+					routerImportPath: isDevelopment ? runtimeImports.router : this.config.routerAdapter?.importMapKey,
 					isDevelopment,
 					isMdx,
 					router: this.config.routerAdapter,

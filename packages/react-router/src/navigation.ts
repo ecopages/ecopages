@@ -140,7 +140,7 @@ function extractModulePathFromCode(code: string, fallbackUrl?: string): string |
 	const moduleIdentifier = code.match(PAGE_MODULE_IDENTIFIER_REGEX)?.[1];
 	if (moduleIdentifier) {
 		const assignmentRegex = new RegExp(
-			`(?:const|let|var)[^;]*\\b${moduleIdentifier}\\s*=\\s*(?:['\"]([^'\"]+)['\"]|(import\\.meta\\.url))`,
+			`(?:const|let|var)[^;]*\\b${moduleIdentifier}\\s*=\\s*(?:['"]([^'"]+)['"]|(import\\.meta\\.url))`,
 		);
 		const assignmentMatch = code.match(assignmentRegex);
 		if (assignmentMatch?.[1]) {

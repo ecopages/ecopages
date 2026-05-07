@@ -249,4 +249,3 @@ function createRuntimeModuleUrl(
 function sanitizeCacheScope(cacheScope: string): string {
 	return cacheScope.replace(/[^a-zA-Z0-9_-]+/g, '-');
 }
-

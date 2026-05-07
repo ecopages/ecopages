@@ -143,15 +143,18 @@ describe('ContentScriptProcessor', () => {
 
 	test('processGrouped should fall back to per-entry processing when bundling is disabled', async () => {
 		const processor = new ContentScriptProcessor({ appConfig: createMockConfig() });
-		const processSpy = vi.spyOn(processor, 'process').mockResolvedValueOnce({
-			kind: 'script',
-			inline: false,
-			filepath: '/tmp/first.js',
-		}).mockResolvedValueOnce({
-			kind: 'script',
-			inline: false,
-			filepath: '/tmp/second.js',
-		});
+		const processSpy = vi
+			.spyOn(processor, 'process')
+			.mockResolvedValueOnce({
+				kind: 'script',
+				inline: false,
+				filepath: '/tmp/first.js',
+			})
+			.mockResolvedValueOnce({
+				kind: 'script',
+				inline: false,
+				filepath: '/tmp/second.js',
+			});
 
 		const results = await processor.processGrouped([
 			{

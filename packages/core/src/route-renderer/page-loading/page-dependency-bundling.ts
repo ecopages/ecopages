@@ -47,7 +47,7 @@ function normalizeCssReferenceToken(token: string): string {
  * working once multiple files are collapsed into one page-owned bundle.
  */
 function isSafeBundledStylesheetContent(content: string): boolean {
-	for (const match of content.matchAll(/@import\s+(?:url\()?['"]?([^'"\)\s]+)['"]?\)?/g)) {
+	for (const match of content.matchAll(/@import\s+(?:url\()?['"]?([^'")\s]+)['"]?\)?/g)) {
 		const reference = normalizeCssReferenceToken(match[1] ?? '');
 		if (reference && !isSafeBundledStylesheetReference(reference)) {
 			return false;
@@ -94,39 +94,43 @@ export function createUnifiedPageDependencies(
 		return dependencies;
 	}
 
-	const bundleableStyles = dependencies.filter((dependency) => {
-		if (dependency.kind !== 'stylesheet' || dependency.inline || dependency.position === 'body') {
-			return false;
-		}
+	const bundleableStyles = dependencies
+		.filter((dependency) => {
+			if (dependency.kind !== 'stylesheet' || dependency.inline || dependency.position === 'body') {
+				return false;
+			}
 
-		if (dependency.packageRole || !hasOnlyExpectedAttributes(dependency.attributes, { rel: 'stylesheet' })) {
-			return false;
-		}
+			if (dependency.packageRole || !hasOnlyExpectedAttributes(dependency.attributes, { rel: 'stylesheet' })) {
+				return false;
+			}
 
-		if (dependency.source === 'content') {
-			return isSafeBundledStylesheetContent(dependency.content);
-		}
+			if (dependency.source === 'content') {
+				return isSafeBundledStylesheetContent(dependency.content);
+			}
 
-		if (!existsSync(dependency.filepath)) {
-			return false;
-		}
+			if (!existsSync(dependency.filepath)) {
+				return false;
+			}
 
-		return isSafeBundledStylesheetContent(readFileSync(dependency.filepath, 'utf8'));
-	}).filter(isBundleableFileStylesheetAsset);
+			return isSafeBundledStylesheetContent(readFileSync(dependency.filepath, 'utf8'));
+		})
+		.filter(isBundleableFileStylesheetAsset);
 
-	const bundleableScripts = dependencies.filter((dependency) => {
-		return (
-			dependency.kind === 'script' &&
-			dependency.source === 'file' &&
-			!dependency.inline &&
-			!dependency.excludeFromHtml &&
-			dependency.position !== 'body' &&
-			!dependency.packageRole &&
-			dependency.bundle !== false &&
-			hasOnlyExpectedAttributes(dependency.attributes, { type: 'module', defer: '' }) &&
-			existsSync(dependency.filepath)
-		);
-	}).filter(isBundleableFileScriptAsset);
+	const bundleableScripts = dependencies
+		.filter((dependency) => {
+			return (
+				dependency.kind === 'script' &&
+				dependency.source === 'file' &&
+				!dependency.inline &&
+				!dependency.excludeFromHtml &&
+				dependency.position !== 'body' &&
+				!dependency.packageRole &&
+				dependency.bundle !== false &&
+				hasOnlyExpectedAttributes(dependency.attributes, { type: 'module', defer: '' }) &&
+				existsSync(dependency.filepath)
+			);
+		})
+		.filter(isBundleableFileScriptAsset);
 
 	const bundledStylesheet =
 		bundleableStyles.length > 1
@@ -144,16 +148,15 @@ export function createUnifiedPageDependencies(
 
 	const shouldBundlePageScript = pageScriptImports.length > 0 && bundleableScripts.length > 1;
 
-	const bundledScript =
-		shouldBundlePageScript
-			? AssetFactory.createContentScript({
-					name: `${integrationName}-page-${rapidhash(pageScriptImports.join('|')).toString(16)}`,
-					content: pageScriptImports.map((filepath) => `import ${JSON.stringify(filepath)};`).join('\n'),
-					position: 'head',
-					attributes: { type: 'module', defer: '' },
-					packageRole: 'page-script',
-				})
-			: undefined;
+	const bundledScript = shouldBundlePageScript
+		? AssetFactory.createContentScript({
+				name: `${integrationName}-page-${rapidhash(pageScriptImports.join('|')).toString(16)}`,
+				content: pageScriptImports.map((filepath) => `import ${JSON.stringify(filepath)};`).join('\n'),
+				position: 'head',
+				attributes: { type: 'module', defer: '' },
+				packageRole: 'page-script',
+			})
+		: undefined;
 
 	if (!bundledStylesheet && !bundledScript) {
 		return dependencies;

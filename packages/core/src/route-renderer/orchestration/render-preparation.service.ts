@@ -403,7 +403,10 @@ export class RenderPreparationService {
 			bundle: true,
 		});
 
-		return this.assetProcessingService.processDependencies([mapScript, bootstrapInlineScript], currentIntegrationName);
+		return this.assetProcessingService.processDependencies(
+			[mapScript, bootstrapInlineScript],
+			currentIntegrationName,
+		);
 	}
 
 	private async buildEagerSsrLazyAssets(

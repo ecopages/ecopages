@@ -45,10 +45,11 @@ function createPageWithNamedLayout(name: string, layoutLabel: string, layoutKey:
 		__eco: { id: layoutKey },
 	};
 
-	const Page = (() =>
-		createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<typeof createMockPageComponent> & {
-			config?: { layout?: typeof Layout };
-		};
+	const Page = (() => createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
+		config?: { layout?: typeof Layout };
+	};
 
 	Page.displayName = name;
 	Page.config = { layout: Layout };

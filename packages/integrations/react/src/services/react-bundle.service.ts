@@ -110,10 +110,10 @@ export class ReactBundleService {
 		const runtimePlugins = bundleOptions.includeRuntime
 			? []
 			: [
-				this.createRuntimeAliasPlugin(
-					buildReactRuntimeSpecifierMap(this.getRuntimeImports(), this.config.routerAdapter),
-				),
-			];
+					this.createRuntimeAliasPlugin(
+						buildReactRuntimeSpecifierMap(this.getRuntimeImports(), this.config.routerAdapter),
+					),
+				];
 
 		if (isMdx && this.config.mdxCompilerOptions) {
 			const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');

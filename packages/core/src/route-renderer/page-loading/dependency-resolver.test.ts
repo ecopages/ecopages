@@ -203,7 +203,11 @@ describe('DependencyResolverService', () => {
 				file: componentFile,
 			},
 			dependencies: {
-				scripts: ['./widget.script.ts', './other.ts', { src: './lazy.ts', lazy: { 'on:interaction': 'click' } }],
+				scripts: [
+					'./widget.script.ts',
+					'./other.ts',
+					{ src: './lazy.ts', lazy: { 'on:interaction': 'click' } },
+				],
 			},
 		};
 
@@ -248,7 +252,11 @@ describe('DependencyResolverService', () => {
 		const componentFile = join(tempDir, 'component.tsx');
 		const lazyScript = join(tempDir, 'theme-toggle.script.ts');
 
-		writeFileSync(componentFile, "import './theme-toggle.script';\nexport const Component = () => null;\n", 'utf-8');
+		writeFileSync(
+			componentFile,
+			"import './theme-toggle.script';\nexport const Component = () => null;\n",
+			'utf-8',
+		);
 		writeFileSync(lazyScript, 'export const themeToggle = true;\n', 'utf-8');
 
 		let capturedDeps: AssetDefinition[] = [];

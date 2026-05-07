@@ -29,5 +29,4 @@ test.describe('React Router Scroll Position', () => {
 
 		await expect.poll(() => sidebar.evaluate((el) => el.scrollTop)).toBe(75);
 	});
-
 });

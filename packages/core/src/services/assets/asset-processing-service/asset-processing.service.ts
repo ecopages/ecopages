@@ -2,11 +2,16 @@ import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
-import { rapidhash } from '../../../utils/hash.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types.ts';
+import { deduplicateAssetDependencies, getAssetDependencyKey } from './asset-dependency-keys.ts';
+import {
+	partitionGroupedContentScriptDependencies,
+	processGroupedDependencyBundles,
+} from './grouped-content-bundles.ts';
 import { isHmrAware } from './processor.interface.ts';
 import { ProcessorRegistry } from './processor.registry.ts';
+import { processUngroupedDependency } from './ungrouped-dependency-processing.ts';
 import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
@@ -81,83 +86,11 @@ export class AssetProcessingService {
 		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
 		fileSystem.ensureDir(depsDir);
 
-		const dedupedDeps = this.deduplicateDependencies(deps);
+		const dedupedDeps = deduplicateAssetDependencies(deps);
 		const results = await this.processDependenciesParallel(dedupedDeps, key);
 
 		await this.optimizeDependencies(results);
 		return results;
-	}
-
-	/**
-	 * Removes duplicate dependency declarations while preserving first-seen order.
-	 */
-	private deduplicateDependencies(deps: AssetDefinition[]): AssetDefinition[] {
-		const seen = new Map<string, AssetDefinition>();
-
-		for (const dep of deps) {
-			const key = this.getDependencyKey(dep);
-			if (!seen.has(key)) {
-				seen.set(key, dep);
-			}
-		}
-
-		return Array.from(seen.values());
-	}
-
-	/**
-	 * Builds the cache signature fragment for script dependencies that can vary by
-	 * bundling policy.
-	 */
-	private getScriptDependencyBuildSignature(dep: AssetDefinition): string | undefined {
-		if (dep.kind !== 'script') {
-			return undefined;
-		}
-
-		const pluginNames = dep.bundleOptions?.plugins?.map((plugin) => plugin.name) ?? [];
-		const signature = {
-			bundle: dep.bundle,
-			inline: dep.inline,
-			excludeFromHtml: dep.excludeFromHtml,
-			naming: dep.bundleOptions?.naming,
-			external: dep.bundleOptions?.external,
-			minify: dep.bundleOptions?.minify,
-			plugins: pluginNames,
-		};
-
-		return this.generateHash(JSON.stringify(signature));
-	}
-
-	/**
-	 * Derives the stable cache key for one dependency declaration.
-	 */
-	private getDependencyKey(dep: AssetDefinition): string {
-		const parts: string[] = [dep.kind, dep.source];
-
-		if ('filepath' in dep) {
-			parts.push(dep.filepath);
-		} else if ('content' in dep) {
-			parts.push(`content:${this.generateHash(dep.content)}`);
-		} else if ('importPath' in dep) {
-			parts.push(dep.importPath);
-		}
-
-		if ('position' in dep && dep.position) {
-			parts.push(dep.position);
-		}
-
-		const scriptBuildSignature = this.getScriptDependencyBuildSignature(dep);
-		if (scriptBuildSignature) {
-			parts.push(`build:${scriptBuildSignature}`);
-		}
-
-		return parts.join(':');
-	}
-
-	/**
-	 * Hashes content used in dependency cache and signature keys.
-	 */
-	private generateHash(content: string): string {
-		return rapidhash(content).toString();
 	}
 
 	/**
@@ -171,54 +104,66 @@ export class AssetProcessingService {
 	private async processDependenciesParallel(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
 		const grouped = this.groupDependenciesByType(deps);
 		const groupPromises = Object.entries(grouped).map(async ([, typeDeps]) => {
-			const typePromises = typeDeps.map(async (dep) => {
-				const depKey = this.getDependencyKey(dep);
-				const cached = this.getCachedAsset(dep, depKey);
+			const { groupedBundleDeps, ungroupedDeps } = partitionGroupedContentScriptDependencies(typeDeps);
 
-				if (cached) {
-					return { key, ...cached };
-				}
+			const typePromises = ungroupedDeps.map((dep) =>
+				processUngroupedDependency({
+					dep,
+					key,
+					depKey: getAssetDependencyKey(dep),
+					getCachedAsset: (assetDep, depKey) => this.getCachedAsset(assetDep, depKey),
+					getProcessor: (assetDep) => this.registry.getProcessor(assetDep.kind, assetDep.source),
+					resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
+					setCachedAsset: (assetDep, depKey, processed) =>
+						this.setCachedAsset(assetDep, depKey, processed),
+					logMissingProcessor: (assetDep) => {
+						appLogger.error(`No processor found for ${assetDep.kind}/${assetDep.source}`);
+					},
+					logMissingFile: (assetDep) => {
+						appLogger.warn(`Skipping missing ${assetDep.kind} file: ${assetDep.filepath}`);
+					},
+					logProcessingError: (assetDep, error) => {
+						appLogger.error(
+							`Failed to process dependency: ${
+								error instanceof Error ? error.message : String(error)
+							} for ${assetDep.kind}/${assetDep.source}`,
+						);
+						appLogger.debug(error as Error);
+					},
+				}),
+			);
 
-				const processor = this.registry.getProcessor(dep.kind, dep.source);
-				if (!processor) {
-					appLogger.error(`No processor found for ${dep.kind}/${dep.source}`);
-					return null;
-				}
-
-				if (dep.source === 'file' && 'filepath' in dep) {
-					const fileExists = fileSystem.exists(dep.filepath);
-					if (!fileExists) {
-						appLogger.warn(`Skipping missing ${dep.kind} file: ${dep.filepath}`);
-						return null;
-					}
-				}
-
-				try {
-					const processed = await processor.process(dep);
-					const srcUrl = this.resolveProcessedAssetSrcUrl(processed);
-
-					const processedWithKey = {
-						key,
-						...processed,
-						srcUrl,
-					};
-
-					this.setCachedAsset(dep, depKey, processedWithKey);
-
-					return processedWithKey as ProcessedAsset;
-				} catch (error) {
+			const groupedResults = await processGroupedDependencyBundles({
+				bundles: Array.from(groupedBundleDeps.values()),
+				key,
+				getCachedAsset: (dep, depKey) => this.getCachedAsset(dep, depKey),
+				getDependencyKey: getAssetDependencyKey,
+				getGroupedProcessor: () =>
+					this.registry.getProcessor('script', 'content') as {
+						processGrouped?: (deps: AssetDefinition[]) => Promise<ProcessedAsset[]>;
+					},
+				resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
+				setCachedAsset: (dep, depKey, processed) => this.setCachedAsset(dep, depKey, processed),
+				logError: (error) => {
 					appLogger.error(
-						`Failed to process dependency: ${
+						`Failed to process grouped dependency bundle: ${
 							error instanceof Error ? error.message : String(error)
-						} for ${dep.kind}/${dep.source}`,
+						}`,
 					);
 					appLogger.debug(error as Error);
-					return null;
-				}
+				},
 			});
 
 			const typeResults = await Promise.all(typePromises);
-			return typeResults.filter((result) => result !== null);
+			const processedTypeResults = typeResults.flatMap((result) => {
+				if (!result) {
+					return [];
+				}
+
+				return Array.isArray(result) ? result : [result];
+			});
+
+			return [...processedTypeResults, ...groupedResults];
 		});
 
 		const allTypeResults = await Promise.all(groupPromises);

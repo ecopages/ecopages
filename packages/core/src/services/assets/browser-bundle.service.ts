@@ -4,13 +4,53 @@ import { getAppBrowserBuildPlugins, getAppBuildExecutor, getAppTranspileOptions 
 import { mergeEcoBuildPlugins } from '../../build/build-manifest.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
-export type BrowserBundleOptions = Omit<BuildOptions, 'target' | 'format' | 'sourcemap'> & {
+export type BrowserBundleOptions = {
+	entrypoints: string[];
+	outdir?: string;
+	outbase?: string;
+	naming?: string;
+	conditions?: string[];
+	define?: Record<string, string>;
+	minify?: boolean;
+	treeshaking?: boolean;
+	splitting?: boolean;
+	root?: string;
+	bundle?: boolean;
+	externalPackages?: boolean;
+	external?: string[];
+	plugins?: EcoBuildPlugin[];
+	[key: string]: unknown;
 	profile: BuildTranspileProfile;
+	excludeAppBuildPlugins?: string[];
+};
+
+type BrowserBundleGroupedOptions = {
+	outdir?: string;
+	outbase?: string;
+	naming?: string;
+	conditions?: string[];
+	define?: Record<string, string>;
+	minify?: boolean;
+	treeshaking?: boolean;
+	splitting?: boolean;
+	root?: string;
+	bundle?: boolean;
+	externalPackages?: boolean;
+	external?: string[];
+	plugins?: EcoBuildPlugin[];
+	[key: string]: unknown;
+	profile: BuildTranspileProfile;
+	excludeAppBuildPlugins?: string[];
 };
 
 export interface BrowserBundleExecutor {
 	bundle(options: BrowserBundleOptions): Promise<BuildResult>;
 }
+
+export type BrowserBundleGroupedEntry = {
+	entrypoint: string;
+	entryName: string;
+};
 
 /**
  * App-owned boundary for browser-oriented bundle work.
@@ -39,15 +79,31 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 	 * site.
 	 */
 	async bundle(options: BrowserBundleOptions): Promise<BuildResult> {
-		const { profile, ...rawBuildOptions } = options;
-		const buildOptions = rawBuildOptions as Omit<BuildOptions, 'target' | 'format' | 'sourcemap'>;
-		const plugins = buildOptions.plugins as EcoBuildPlugin[] | undefined;
-		const request = {
-			...buildOptions,
+		const { profile, excludeAppBuildPlugins, plugins, ...rawBuildOptions } = options;
+		const appBrowserPlugins = getAppBrowserBuildPlugins(this.appConfig);
+		const filteredAppBrowserPlugins =
+			excludeAppBuildPlugins && excludeAppBuildPlugins.length > 0
+				? appBrowserPlugins.filter((plugin) => !excludeAppBuildPlugins.includes(plugin.name))
+				: appBrowserPlugins;
+		const request: BuildOptions = {
+			...rawBuildOptions,
+			entrypoints: options.entrypoints,
 			...getAppTranspileOptions(this.appConfig, profile),
-			plugins: mergeEcoBuildPlugins(plugins, getAppBrowserBuildPlugins(this.appConfig)),
-		} as BuildOptions;
+			plugins: mergeEcoBuildPlugins(plugins, filteredAppBrowserPlugins),
+		};
 
 		return await getAppBuildExecutor(this.appConfig).build(request);
+	}
+
+	async bundleGroupedEntries(
+		entries: BrowserBundleGroupedEntry[],
+		options: BrowserBundleGroupedOptions,
+	): Promise<BuildResult> {
+		const request: BrowserBundleOptions = {
+			...options,
+			entrypoints: entries.map((entry) => entry.entrypoint),
+		};
+
+		return this.bundle(request);
 	}
 }

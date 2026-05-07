@@ -275,6 +275,24 @@ describe('FileScriptProcessor', () => {
 			expect(buildArgs.outdir).toBe('/test/project/.eco/public/assets/pages');
 		});
 
+		test('should disable splitting for page-owned script bundles by default', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const bundleScriptSpy = vi.spyOn(processor as any, 'bundleScript').mockResolvedValue('/tmp/out.js');
+
+			const dep: FileScriptAsset = {
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/pages/index.tsx',
+				bundle: true,
+				packageRole: 'page-script',
+			};
+
+			await processor.process(dep);
+
+			const buildArgs = bundleScriptSpy.mock.calls[0]?.[0] as { splitting?: boolean };
+			expect(buildArgs.splitting).toBe(false);
+		});
+
 		test('should return updated attributes when cached asset is retrieved with different attributes', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 

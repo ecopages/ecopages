@@ -24,6 +24,7 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 					attributes: dep.attributes,
 					inline: true,
 					excludeFromHtml: dep.excludeFromHtml,
+					packageRole: dep.packageRole,
 				};
 			}
 
@@ -45,6 +46,7 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 				attributes: dep.attributes,
 				inline: dep.inline,
 				excludeFromHtml: dep.excludeFromHtml,
+				packageRole: dep.packageRole,
 			};
 		});
 	}

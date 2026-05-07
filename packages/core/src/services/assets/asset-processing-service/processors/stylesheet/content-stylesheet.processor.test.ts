@@ -3,33 +3,75 @@ import { fileSystem } from '@ecopages/file-system';
 import { ContentStylesheetProcessor } from './content-stylesheet.processor';
 import type { EcoPagesAppConfig } from '../../../../../types/internal-types';
 import type { ContentStylesheetAsset } from '../../assets.types';
+import { Processor } from '../../../../../plugins/processor.ts';
 
-const originalWrite = fileSystem.write;
-const originalExists = fileSystem.exists;
-
-const createMockConfig = (): EcoPagesAppConfig =>
-	({
+function createMockConfig(processors = new Map<string, Processor>()): EcoPagesAppConfig {
+	return {
+		baseUrl: 'http://localhost:3000',
 		rootDir: '/test/project',
 		srcDir: 'src',
+		publicDir: 'public',
+		pagesDir: 'pages',
+		includesDir: 'includes',
+		layoutsDir: 'layouts',
 		distDir: '.eco/public',
+		workDir: '.eco',
+		templatesExt: [],
+		componentsDir: 'components',
+		robotsTxt: { preferences: { '*': [] } },
+		additionalWatchPaths: [],
+		defaultMetadata: { title: 'Test', description: 'Test' },
+		integrations: [],
+		integrationsDependencies: [],
 		absolutePaths: {
+			config: '/test/project/eco.config.ts',
+			componentsDir: '/test/project/src/components',
 			distDir: '/test/project/.eco/public',
+			workDir: '/test/project/.eco',
+			includesDir: '/test/project/src/includes',
+			layoutsDir: '/test/project/src/layouts',
+			pagesDir: '/test/project/src/pages',
+			projectDir: '/test/project',
+			publicDir: '/test/project/public',
 			srcDir: '/test/project/src',
+			htmlTemplatePath: '/test/project/src/html.tsx',
+			error404TemplatePath: '/test/project/src/404.tsx',
 		},
-	}) as unknown as EcoPagesAppConfig;
+		processors,
+		loaders: new Map(),
+		sourceTransforms: new Map(),
+	};
+}
+
+class TestStylesheetProcessor extends Processor {
+	readonly buildPlugins = undefined;
+	readonly plugins = undefined;
+
+	constructor() {
+		super({
+			name: 'bundled-css',
+			capabilities: [{ kind: 'stylesheet' }],
+		});
+	}
+
+	async setup(): Promise<void> {}
+
+	async teardown(): Promise<void> {}
+
+	async process(input: unknown): Promise<unknown> {
+		return typeof input === 'string' ? input.replace('red', 'green') : input;
+	}
+}
 
 describe('ContentStylesheetProcessor', () => {
-	let writeMock: any;
+	let writeMock: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
-		writeMock = vi.fn(() => {});
-		fileSystem.write = writeMock;
-		fileSystem.exists = vi.fn(() => true);
+		writeMock = vi.spyOn(fileSystem, 'write').mockImplementation(() => {});
+		vi.spyOn(fileSystem, 'exists').mockImplementation(() => true);
 	});
 
 	afterEach(() => {
-		fileSystem.write = originalWrite;
-		fileSystem.exists = originalExists;
 		vi.restoreAllMocks();
 	});
 
@@ -194,6 +236,26 @@ describe('ContentStylesheetProcessor', () => {
 			expect(result1.position).toBe('head');
 			expect(result2.attributes).toEqual({ media: 'print' });
 			expect(result2.position).toBe('body');
+		});
+	});
+
+	describe('process - stylesheet processors', () => {
+		test('should apply configured stylesheet processors to bundled content', async () => {
+			const processors = new Map<string, Processor>([['bundled-css', new TestStylesheetProcessor()]]);
+			const processor = new ContentStylesheetProcessor({
+				appConfig: createMockConfig(processors),
+			});
+
+			const dep: ContentStylesheetAsset = {
+				kind: 'stylesheet',
+				source: 'content',
+				content: 'body { color: red; }',
+				inline: true,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(result.content).toBe('body { color: green; }');
 		});
 	});
 });

@@ -45,6 +45,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				attributes: dep.attributes,
 				inline: false,
 				excludeFromHtml: dep.excludeFromHtml,
+				packageRole: dep.packageRole,
 			};
 		}
 
@@ -77,6 +78,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 					attributes: dep.attributes,
 					inline: dep.inline,
 					excludeFromHtml: dep.excludeFromHtml,
+					packageRole: dep.packageRole,
 				};
 			}
 
@@ -101,6 +103,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				attributes: dep.attributes,
 				inline: dep.inline,
 				excludeFromHtml: dep.excludeFromHtml,
+				packageRole: dep.packageRole,
 			};
 		});
 	}

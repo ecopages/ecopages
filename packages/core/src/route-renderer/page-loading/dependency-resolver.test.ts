@@ -174,6 +174,173 @@ describe('DependencyResolverService', () => {
 		}
 	});
 
+	it('should keep ecopages-jsx page and lazy dependency bundles separate', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-jsx-script-dedupe-'));
+		const componentFile = join(tempDir, 'component.tsx');
+		const widgetScript = join(tempDir, 'widget.script.ts');
+		const siblingScript = join(tempDir, 'other.ts');
+		const lazyScript = join(tempDir, 'lazy.ts');
+
+		writeFileSync(componentFile, "import './widget.script';\nexport const Component = () => null;\n", 'utf-8');
+		writeFileSync(widgetScript, 'export const widget = true;\n', 'utf-8');
+		writeFileSync(siblingScript, 'export const other = true;\n', 'utf-8');
+		writeFileSync(lazyScript, 'export const lazy = true;\n', 'utf-8');
+
+		let capturedDeps: AssetDefinition[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'imported-script',
+				integration: 'ecopages-jsx',
+				file: componentFile,
+			},
+			dependencies: {
+				scripts: ['./widget.script.ts', './other.ts', { src: './lazy.ts', lazy: { 'on:interaction': 'click' } }],
+			},
+		};
+
+		try {
+			await service.processComponentDependencies([component], 'ecopages-jsx');
+
+			const contentScripts = capturedDeps.filter(
+				(dep): dep is Extract<AssetDefinition, { kind: 'script'; source: 'content' }> =>
+					dep.kind === 'script' && dep.source === 'content',
+			);
+
+			expect(contentScripts).toHaveLength(2);
+
+			const pageScript = contentScripts.find((dep) => dep.packageRole === 'page-script');
+			const lazyEntry = contentScripts.find((dep) => dep.excludeFromHtml === true);
+
+			expect(pageScript).toEqual(
+				expect.objectContaining({
+					content: `import ${JSON.stringify(widgetScript)};\nimport ${JSON.stringify(siblingScript)};`,
+				}),
+			);
+
+			expect(lazyEntry).toEqual(
+				expect.objectContaining({
+					content: `import ${JSON.stringify(lazyScript)};`,
+					excludeFromHtml: true,
+					bundleOptions: {
+						splitting: false,
+					},
+				}),
+			);
+
+			expect(pageScript?.groupedBundle).toBeUndefined();
+			expect(lazyEntry?.groupedBundle).toBeUndefined();
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should not promote SSR-imported lazy ecopages-jsx scripts into the page bundle', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-jsx-lazy-imported-script-'));
+		const componentFile = join(tempDir, 'component.tsx');
+		const lazyScript = join(tempDir, 'theme-toggle.script.ts');
+
+		writeFileSync(componentFile, "import './theme-toggle.script';\nexport const Component = () => null;\n", 'utf-8');
+		writeFileSync(lazyScript, 'export const themeToggle = true;\n', 'utf-8');
+
+		let capturedDeps: AssetDefinition[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'imported-lazy-script',
+				integration: 'ecopages-jsx',
+				file: componentFile,
+			},
+			dependencies: {
+				scripts: [{ src: './theme-toggle.script.ts', lazy: { 'on:interaction': 'click' } }],
+			},
+		};
+
+		try {
+			await service.processComponentDependencies([component], 'ecopages-jsx');
+
+			const contentScripts = capturedDeps.filter(
+				(dep): dep is Extract<AssetDefinition, { kind: 'script'; source: 'content' }> =>
+					dep.kind === 'script' && dep.source === 'content',
+			);
+
+			expect(contentScripts).toHaveLength(1);
+			expect(contentScripts[0]).toEqual(
+				expect.objectContaining({
+					content: `import ${JSON.stringify(lazyScript)};`,
+					excludeFromHtml: true,
+				}),
+			);
+			expect(contentScripts[0]?.packageRole).toBeUndefined();
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should ignore ecopages-jsx SSR imports that are not declared in dependencies', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-jsx-undeclared-import-'));
+		const componentFile = join(tempDir, 'component.tsx');
+		const declaredScript = join(tempDir, 'declared.ts');
+
+		writeFileSync(
+			componentFile,
+			"import './theme-toggle.script';\nimport './not-declared.script';\nexport const Component = () => null;\n",
+			'utf-8',
+		);
+		writeFileSync(declaredScript, 'export const declared = true;\n', 'utf-8');
+
+		let capturedDeps: AssetDefinition[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'undeclared-import',
+				integration: 'ecopages-jsx',
+				file: componentFile,
+			},
+			dependencies: {
+				scripts: ['./declared.ts'],
+			},
+		};
+
+		try {
+			await service.processComponentDependencies([component], 'ecopages-jsx');
+
+			const fileScripts = capturedDeps.filter(
+				(dep): dep is Extract<AssetDefinition, { kind: 'script'; source: 'file' }> =>
+					dep.kind === 'script' && dep.source === 'file',
+			);
+
+			expect(fileScripts).toHaveLength(1);
+			expect(fileScripts[0]?.filepath).toBe(declaredScript);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('should pass entry attributes and support inline stylesheet content', async () => {
 		let capturedDeps: AssetDefinition[] = [];
 		const assetProcessingService = {
@@ -250,6 +417,73 @@ describe('DependencyResolverService', () => {
 				return dep.content === 'body { background: red; }' && dep.attributes?.media === 'screen';
 			}),
 		).toBe(true);
+	});
+
+	it('should collapse bundleable page stylesheets and scripts into page-owned assets', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-bundle-'));
+		const componentFile = join(tempDir, 'component.tsx');
+		const stylesheetA = join(tempDir, 'first.css');
+		const stylesheetB = join(tempDir, 'second.css');
+		const scriptA = join(tempDir, 'first.ts');
+		const scriptB = join(tempDir, 'second.ts');
+
+		writeFileSync(componentFile, 'export const Component = () => null;', 'utf-8');
+		writeFileSync(stylesheetA, '.first { color: red; }', 'utf-8');
+		writeFileSync(stylesheetB, '.second { color: blue; }', 'utf-8');
+		writeFileSync(scriptA, 'export const first = true;', 'utf-8');
+		writeFileSync(scriptB, 'export const second = true;', 'utf-8');
+
+		let capturedDeps: AssetDefinition[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+
+		const bundleAppConfig = {
+			...appConfig,
+			rootDir: tempDir,
+			absolutePaths: {
+				srcDir: tempDir,
+				distDir: join(tempDir, '.eco/public'),
+			},
+		} as EcoPagesAppConfig;
+
+		const service = new DependencyResolverService(bundleAppConfig, assetProcessingService);
+		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'page-bundle',
+				integration: 'react',
+				file: componentFile,
+			},
+			dependencies: {
+				stylesheets: ['./first.css', './second.css'],
+				scripts: ['./first.ts', './second.ts'],
+			},
+		};
+
+		try {
+			await service.processComponentDependencies([component], 'react');
+
+			expect(capturedDeps).toEqual([
+				expect.objectContaining({
+					kind: 'stylesheet',
+					source: 'content',
+					packageRole: 'page-style',
+					content: '.first { color: red; }\n.second { color: blue; }',
+				}),
+				expect.objectContaining({
+					kind: 'script',
+					source: 'content',
+					packageRole: 'page-script',
+					content: `import ${JSON.stringify(scriptA)};\nimport ${JSON.stringify(scriptB)};`,
+				}),
+			]);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	it('should reject lazy script entry without src or content', async () => {

@@ -1,10 +1,12 @@
 import type { AssetPosition, ProcessedAsset, ScriptAsset } from '../assets/asset-processing-service/assets.types.ts';
+import type { PagePackageResult } from '../../types/public-types.ts';
 import {
 	DefaultHtmlRewriterProvider,
 	type HtmlRewriterElement,
 	type HtmlRewriterMode,
 	type HtmlRewriterProvider,
 } from './html-rewriter-provider.service.ts';
+import { dedupeProcessedAssets } from '../../route-renderer/orchestration/processed-asset-dedupe.ts';
 
 export interface HtmlTransformerServiceOptions {
 	htmlRewriterMode?: HtmlRewriterMode;
@@ -13,6 +15,7 @@ export interface HtmlTransformerServiceOptions {
 
 export class HtmlTransformerService {
 	private processedDependencies: ProcessedAsset[] = [];
+	private pagePackage?: PagePackageResult;
 	private htmlRewriterProvider: HtmlRewriterProvider;
 
 	constructor(options: HtmlTransformerServiceOptions = {}) {
@@ -98,7 +101,16 @@ export class HtmlTransformerService {
 	 * Replaces the current processed dependency set used during HTML finalization.
 	 */
 	setProcessedDependencies(processedDependencies: ProcessedAsset[]) {
+		this.pagePackage = undefined;
 		this.processedDependencies = processedDependencies;
+	}
+
+	/**
+	 * Replaces the current structured page package used during HTML finalization.
+	 */
+	setPagePackage(pagePackage: PagePackageResult) {
+		this.pagePackage = pagePackage;
+		this.processedDependencies = pagePackage.htmlAssets;
 	}
 
 	/**
@@ -106,6 +118,13 @@ export class HtmlTransformerService {
 	 */
 	getProcessedDependencies(): ProcessedAsset[] {
 		return this.processedDependencies;
+	}
+
+	/**
+	 * Returns the structured page package queued for the next transform pass.
+	 */
+	getPagePackage(): PagePackageResult | undefined {
+		return this.pagePackage;
 	}
 
 	/**
@@ -179,26 +198,7 @@ export class HtmlTransformerService {
 	 * variants.
 	 */
 	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
-		const unique = new Map<string, ProcessedAsset>();
-
-		for (const asset of assets) {
-			const key = [
-				asset.kind,
-				asset.position ?? '',
-				asset.srcUrl ?? '',
-				asset.filepath ?? '',
-				asset.content ?? '',
-				asset.inline ? 'inline' : 'external',
-				asset.excludeFromHtml ? 'excluded' : 'included',
-				JSON.stringify(asset.attributes ?? {}),
-			].join('|');
-
-			if (!unique.has(key)) {
-				unique.set(key, asset);
-			}
-		}
-
-		return [...unique.values()];
+		return dedupeProcessedAssets(assets);
 	}
 
 	/**
@@ -246,7 +246,9 @@ export class HtmlTransformerService {
 	 * Splits processed assets into head and body injection groups.
 	 */
 	private groupDependenciesByPosition() {
-		return this.processedDependencies.reduce(
+		const dependencies = this.pagePackage?.htmlAssets ?? this.processedDependencies;
+
+		return dependencies.reduce(
 			(acc, dep) => {
 				if (dep.kind === 'script') {
 					if (dep.excludeFromHtml) return acc;

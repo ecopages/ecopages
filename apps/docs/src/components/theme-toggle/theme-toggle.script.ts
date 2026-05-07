@@ -1,4 +1,5 @@
-import { customElement, onEvent } from '@ecopages/radiant';
+import { customElement } from '@ecopages/radiant/decorators/custom-element';
+import { onEvent } from '@ecopages/radiant/decorators/on-event';
 import { RadiantSwitch } from '../switch/switch.script';
 
 type ThemeChangeDetail = {

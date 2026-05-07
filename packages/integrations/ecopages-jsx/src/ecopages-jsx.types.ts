@@ -48,10 +48,10 @@ export type EcopagesJsxPluginOptions = Omit<IntegrationPluginConfig, 'name' | 'e
 	 *
 	 * When enabled, Ecopages JSX:
 	 * - imports `@ecopages/radiant/server/render-component` before Radiant SSR
-	 * - exposes browser-safe Radiant bare specifiers through the runtime import map
-	 * - injects an explicit client bootstrap that imports
-	 *   `@ecopages/radiant/client/install-hydrator` before intrinsic
-	 *   custom-element modules load
+	 * - rewrites browser runtime specifiers to emitted vendor assets at build time
+	 * - folds `@ecopages/radiant/client/install-hydrator` into the emitted
+	 *   Radiant vendor so intrinsic custom-element modules install the
+	 *   hydrator before they connect
 	 *
 	 * Set to `false` when pages do not use Radiant web components.
 	 * @default true
@@ -63,6 +63,7 @@ export type EcopagesJsxPluginOptions = Omit<IntegrationPluginConfig, 'name' | 'e
 
 export type EcopagesJsxRendererConfig = {
 	intrinsicCustomElementAssets?: Map<string, readonly ProcessedAsset[]>;
+	intrinsicCustomElementScriptFiles?: Map<string, string>;
 	mdxExtensions?: string[];
 	radiantSsrEnabled?: boolean;
 };

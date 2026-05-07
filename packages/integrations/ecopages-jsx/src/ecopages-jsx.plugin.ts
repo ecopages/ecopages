@@ -139,6 +139,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	renderer = EcopagesJsxRenderer;
 
 	private customElementAssets = new Map<string, readonly ProcessedAsset[]>();
+	private customElementScriptFiles = new Map<string, string>();
 	private includeRadiant: boolean;
 	private mdxEnabled: boolean;
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;
@@ -175,6 +176,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	override initializeRenderer(options?: { rendererModules?: unknown }): EcopagesJsxRenderer {
 		const rendererConfig: EcopagesJsxRendererConfig = {
 			intrinsicCustomElementAssets: this.customElementAssets,
+			intrinsicCustomElementScriptFiles: this.customElementScriptFiles,
 			mdxExtensions: this.mdxExtensions,
 			radiantSsrEnabled: this.includeRadiant,
 		};
@@ -280,6 +282,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		}
 
 		this.customElementAssets.clear();
+		this.customElementScriptFiles.clear();
 		const scriptFiles = await this.collectScriptEntries(this.appConfig.absolutePaths.srcDir);
 
 		for (const scriptFile of scriptFiles) {
@@ -297,6 +300,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 
 			for (const tagName of tagNames) {
 				this.customElementAssets.set(tagName, [asset]);
+				this.customElementScriptFiles.set(tagName, scriptFile);
 			}
 		}
 	}

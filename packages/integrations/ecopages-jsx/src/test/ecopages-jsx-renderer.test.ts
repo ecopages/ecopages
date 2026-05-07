@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { EcoComponent } from '@ecopages/core';
 import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
 import { test } from 'vitest';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
@@ -185,4 +186,44 @@ test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
 	assert.equal(rendererA.isMdxFile('/tmp/page.guide.mdx'), false);
 	assert.equal(rendererB.isMdxFile('/tmp/page.docs.mdx'), false);
 	assert.equal(rendererB.isMdxFile('/tmp/page.guide.mdx'), true);
+});
+
+test('EcopagesJsxRenderer treats dependency-declared scripts as intrinsic script ownership', async () => {
+	const tempDir = await mkdtemp(path.join(tmpdir(), 'ecopages-jsx-renderer-owned-scripts-'));
+	const componentPath = path.join(tempDir, 'theme-toggle.tsx');
+	const scriptPath = path.join(tempDir, 'theme-toggle.script.ts');
+
+	try {
+		await writeFile(componentPath, 'export const ThemeToggle = () => null;\n');
+		await writeFile(scriptPath, 'export const themeToggle = true;\n');
+
+		const renderer = new TestEcopagesJsxRenderer({
+			appConfig: createAppConfig(tempDir),
+			assetProcessingService: {} as never,
+			resolvedIntegrationDependencies: [],
+			jsxConfig: {
+				radiantSsrEnabled: false,
+			},
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const component = {
+			config: {
+				__eco: {
+					file: componentPath,
+				},
+				dependencies: {
+					scripts: [{ src: './theme-toggle.script.ts', lazy: { 'on:interaction': 'click' } }],
+				},
+			},
+		} as unknown as EcoComponent;
+
+		const ownedScripts = (renderer as unknown as {
+			collectImportedIntrinsicScriptFiles: (components: Array<EcoComponent | undefined>) => Set<string>;
+		}).collectImportedIntrinsicScriptFiles([component]);
+
+		assert.equal(ownedScripts.has(scriptPath), true);
+	} finally {
+		await rm(tempDir, { recursive: true, force: true });
+	}
 });

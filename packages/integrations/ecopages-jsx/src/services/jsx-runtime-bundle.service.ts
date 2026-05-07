@@ -14,20 +14,15 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import {
-	BROWSER_RUNTIME_SCRIPT_ATTRIBUTES,
 	buildBrowserRuntimeAssetUrl,
 	createBrowserRuntimeScriptAsset,
-	AssetFactory,
 	type AssetDefinition,
 } from '@ecopages/core/services/asset-processing-service';
 
 const VENDOR_FILE_NAMES = {
 	jsx: 'ecopages-jsx-esm.js',
 	radiant: 'ecopages-radiant-esm.js',
-	radiantInstallHydrator: 'ecopages-radiant-install-hydrator-esm.js',
 } as const;
-
-export const RADIANT_HYDRATOR_BOOTSTRAP_ATTRIBUTE = 'data-ecopages-jsx-radiant-hydrator';
 
 export interface JsxRuntimeBundleServiceConfig {
 	radiant: boolean;
@@ -173,7 +168,6 @@ export class JsxRuntimeBundleService {
 	private cachedSpecifierMap: Record<string, string> | undefined;
 	private cachedJsxEntryModulePath: string | undefined;
 	private cachedRadiantEntryModulePath: string | undefined;
-	private cachedRadiantInstallHydratorEntryModulePath: string | undefined;
 
 	constructor(config: JsxRuntimeBundleServiceConfig) {
 		this.config = config;
@@ -211,24 +205,12 @@ export class JsxRuntimeBundleService {
 
 	/**
 	 * Builds the full list of vendor asset definitions: the import map inline
-	 * script plus one `createBrowserRuntimeScriptAsset` per vendor bundle.
+	 * assets plus one `createBrowserRuntimeScriptAsset` per vendor bundle.
 	 */
 	async getDependencies(): Promise<AssetDefinition[]> {
-		const specifierMap = await this.getSpecifierMap();
 		const jsxEntryModulePath = await this.getOrCreateJsxEntryModulePath();
 
-		const deps: AssetDefinition[] = [
-			AssetFactory.createInlineContentScript({
-				position: 'head',
-				bundle: false,
-				content: JSON.stringify({ imports: specifierMap }, null, 2),
-				attributes: { type: 'importmap' },
-			}),
-		];
-
-		if (this.config.radiant) {
-			deps.push(this.createRadiantHydratorBootstrapAsset());
-		}
+		const deps: AssetDefinition[] = [];
 
 		deps.push(
 			createBrowserRuntimeScriptAsset({
@@ -240,7 +222,6 @@ export class JsxRuntimeBundleService {
 
 		if (this.config.radiant) {
 			const radiantEntryModulePath = await this.getOrCreateRadiantEntryModulePath();
-			const radiantInstallHydratorEntryModulePath = await this.getOrCreateRadiantInstallHydratorEntryModulePath();
 
 			deps.push(
 				createBrowserRuntimeScriptAsset({
@@ -248,31 +229,10 @@ export class JsxRuntimeBundleService {
 					name: 'ecopages-radiant-esm',
 					fileName: VENDOR_FILE_NAMES.radiant,
 				}),
-				createBrowserRuntimeScriptAsset({
-					importPath: radiantInstallHydratorEntryModulePath,
-					name: 'ecopages-radiant-install-hydrator-esm',
-					fileName: VENDOR_FILE_NAMES.radiantInstallHydrator,
-				}),
 			);
 		}
 
 		return deps;
-	}
-
-	private createRadiantHydratorBootstrapAsset(): AssetDefinition {
-		return AssetFactory.createInlineContentScript({
-			position: 'head',
-			bundle: false,
-			content: this.createRadiantHydratorBootstrapSource(),
-			attributes: {
-				...BROWSER_RUNTIME_SCRIPT_ATTRIBUTES,
-				[RADIANT_HYDRATOR_BOOTSTRAP_ATTRIBUTE]: 'true',
-			},
-		});
-	}
-
-	private createRadiantHydratorBootstrapSource(): string {
-		return "import '@ecopages/radiant/client/install-hydrator';";
 	}
 
 	private getArtifactsDir(): string {
@@ -300,9 +260,6 @@ export class JsxRuntimeBundleService {
 
 		if (this.config.radiant) {
 			const radiantVendorUrl = buildBrowserRuntimeAssetUrl(VENDOR_FILE_NAMES.radiant);
-			const radiantInstallHydratorVendorUrl = buildBrowserRuntimeAssetUrl(
-				VENDOR_FILE_NAMES.radiantInstallHydrator,
-			);
 			const radiantPkg = readRadiantPackageJson(findPackageManifestPath('@ecopages/radiant'));
 
 			for (const key of Object.keys(radiantPkg.exports ?? {})) {
@@ -311,8 +268,7 @@ export class JsxRuntimeBundleService {
 				}
 
 				const specifier = key === '.' ? '@ecopages/radiant' : `@ecopages/radiant${key.slice(1)}`;
-				specifierMap[specifier] =
-					key === './client/install-hydrator' ? radiantInstallHydratorVendorUrl : radiantVendorUrl;
+				specifierMap[specifier] = radiantVendorUrl;
 			}
 		}
 
@@ -378,8 +334,18 @@ export class JsxRuntimeBundleService {
 
 		const artifactsDir = this.getArtifactsDir();
 		const filePath = path.join(artifactsDir, 'ecopages-radiant-esm-entry.mjs');
+		const manifestPath = findPackageManifestPath('@ecopages/radiant');
+		const packageDir = path.dirname(realpathSync(manifestPath));
+		const radiantPkg = readRadiantPackageJson(manifestPath);
+		const installHydratorModulePath = this.resolvePackageExportModulePath(
+			packageDir,
+			'./client/install-hydrator',
+			radiantPkg.exports?.['./client/install-hydrator'],
+		);
 		const seenExports = new Set<string>();
-		const statements: string[] = [];
+		const statements: string[] = [
+			`import '${this.getEntryImportPath(artifactsDir, installHydratorModulePath)}';`,
+		];
 
 		mkdirSync(artifactsDir, { recursive: true });
 
@@ -404,29 +370,6 @@ export class JsxRuntimeBundleService {
 
 		writeFileSync(filePath, statements.join('\n'), 'utf8');
 		this.cachedRadiantEntryModulePath = filePath;
-		return filePath;
-	}
-
-	private async getOrCreateRadiantInstallHydratorEntryModulePath(): Promise<string> {
-		if (this.cachedRadiantInstallHydratorEntryModulePath) {
-			return this.cachedRadiantInstallHydratorEntryModulePath;
-		}
-
-		const artifactsDir = this.getArtifactsDir();
-		const filePath = path.join(artifactsDir, 'ecopages-radiant-install-hydrator-esm-entry.mjs');
-		const manifestPath = findPackageManifestPath('@ecopages/radiant');
-		const packageDir = path.dirname(realpathSync(manifestPath));
-		const radiantPkg = readRadiantPackageJson(manifestPath);
-		const modulePath = this.resolvePackageExportModulePath(
-			packageDir,
-			'./client/install-hydrator',
-			radiantPkg.exports?.['./client/install-hydrator'],
-		);
-
-		mkdirSync(artifactsDir, { recursive: true });
-		writeFileSync(filePath, `import '${this.getEntryImportPath(artifactsDir, modulePath)}';\nexport {};\n`, 'utf8');
-
-		this.cachedRadiantInstallHydratorEntryModulePath = filePath;
 		return filePath;
 	}
 }

@@ -8,6 +8,10 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
+- Fixed router-managed React HMR page entries to reload the active route with a cleared persisted-layout cache so shared layout edits apply while the current page stays mounted.
+- Fixed router-managed React HMR handlers to forward the active page HMR entry when reloading the current route through React Router.
+- Fixed React route hydration bundles to resolve the router through the published import-map key and keep rerun navigation on the shared runtime graph.
+- Removed the redundant React page props bootstrap script so route hydration relies on the canonical `__ECO_PAGE_DATA__` payload.
 - Fixed React hydration, Fast Refresh, module loading, doctype handling, island asset reuse, and mixed-renderer boundary resolution across Bun, Vite, and Nitro flows.
 - Restored direct `ReactPlugin` construction so the exported class still accepts the public plugin options shape.
 - Fixed React boundary payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
@@ -18,6 +22,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Refactoring
 
+- Collapsed React route hydration into one page-owned entry module that re-exports the page component and bundles runtime dependencies in production.
 - Consolidated React bundling, hydration, and runtime state behind shared service boundaries and `window.__ECO_PAGES__`.
 - Moved React plugin option/default resolution into the factory and replaced renderer static config with instance-owned runtime wiring.
 - Extracted React page-payload and locals serialization into a dedicated service to keep the renderer focused on orchestration.

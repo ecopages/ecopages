@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { build, type BuildExecutor, type BuildResult } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
+import { supportsSourceModuleLoading } from './source-module-support.ts';
 
 export interface PageModuleImportOptions {
 	filePath: string;
@@ -55,7 +56,7 @@ export class PageModuleImportService {
 		this.dependencies = {
 			hashFile: dependencies?.hashFile ?? ((filePath) => fileSystem.hash(filePath)),
 			buildModule: dependencies?.buildModule ?? ((options, buildExecutor) => build(options, buildExecutor)),
-			canLoadSourceModuleFromHost: dependencies?.canLoadSourceModuleFromHost ?? supportsHostSourceModuleLoading,
+			canLoadSourceModuleFromHost: dependencies?.canLoadSourceModuleFromHost ?? supportsSourceModuleLoading,
 			getHostModuleLoader: dependencies?.getHostModuleLoader ?? (() => undefined),
 		};
 	}
@@ -249,16 +250,3 @@ function sanitizeCacheScope(cacheScope: string): string {
 	return cacheScope.replace(/[^a-zA-Z0-9_-]+/g, '-');
 }
 
-function supportsHostSourceModuleLoading(filePath: string): boolean {
-	const extension = path.extname(filePath);
-	return (
-		extension === '.js' ||
-		extension === '.jsx' ||
-		extension === '.ts' ||
-		extension === '.tsx' ||
-		extension === '.mjs' ||
-		extension === '.mts' ||
-		extension === '.cjs' ||
-		extension === '.cts'
-	);
-}

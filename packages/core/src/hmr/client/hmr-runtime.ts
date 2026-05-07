@@ -52,7 +52,9 @@ interface HMRPayload {
 				break;
 			case 'layout-update': {
 				await waitForNavigationToSettle(navigationRuntime);
-				if (await navigationRuntime.reloadCurrentPage({ clearCache: true, moduleUrl: getActiveHmrModuleUrl() })) {
+				if (
+					await navigationRuntime.reloadCurrentPage({ clearCache: true, moduleUrl: getActiveHmrModuleUrl() })
+				) {
 				} else {
 					location.reload();
 				}
@@ -107,7 +109,7 @@ interface HMRPayload {
 		}
 
 		const handlerPaths = Object.keys(window.__ECO_PAGES__?.hmrHandlers ?? {});
-		return handlerPaths.at(-1);
+		return handlerPaths[handlerPaths.length - 1];
 	}
 
 	async function waitForNavigationToSettle(navigationRuntime: ReturnType<typeof getEcoNavigationRuntime>) {

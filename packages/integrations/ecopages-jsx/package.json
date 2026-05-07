@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/ecopages-jsx",
-	"version": "0.2.0-alpha.23",
+	"version": "0.2.0-alpha.26",
 	"description": "JSX integration plugin for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -29,7 +29,7 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": "0.3.0-alpha.10",
-		"@ecopages/radiant": "0.3.0-alpha.10"
+		"@ecopages/jsx": "0.3.0-alpha.11",
+		"@ecopages/radiant": "0.3.0-alpha.11"
 	}
 }

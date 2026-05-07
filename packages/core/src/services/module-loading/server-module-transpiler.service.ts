@@ -1,21 +1,12 @@
 import type { BuildExecutor } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import type { AppModuleLoader } from './app-module-loader.service.ts';
 import { PageModuleImportService, type PageModuleImportOptions } from './page-module-import.service.ts';
 import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 
 export type ServerModuleTranspilerOptions = Omit<PageModuleImportOptions, 'rootDir' | 'buildExecutor'>;
 
-/**
- * Minimal import-service dependency required by the server module transpiler.
- *
- * @remarks
- * This keeps the transpiler boundary testable without module-level mocking and
- * lets callers provide an app-owned import implementation when needed.
- */
-export interface ServerModuleImportDependency {
-	importModule<T = unknown>(options: PageModuleImportOptions): Promise<T>;
-	invalidateDevelopmentGraph(): void;
-}
+export type ServerModuleImportDependency = Pick<AppModuleLoader, 'importModule' | 'invalidateDevelopmentGraph'>;
 
 /**
  * Immutable execution context for one server-transpiler instance.
@@ -27,7 +18,7 @@ export interface ServerModuleImportDependency {
  */
 export type ServerModuleTranspilerBootstrapArgs = {
 	rootDir: string;
-	getBuildExecutor: () => BuildExecutor | undefined;
+	getBuildExecutor?: () => BuildExecutor | undefined;
 	canLoadSourceModuleFromHost?: (filePath: string) => boolean;
 	getHostModuleLoader?: SourceModuleLoaderFactory;
 	getInvalidationVersion?: () => number;
@@ -64,7 +55,7 @@ export class ServerModuleTranspiler {
 				getHostModuleLoader: args.getHostModuleLoader,
 			});
 		this.getRootDir = () => args.rootDir;
-		this.getBuildExecutor = args.getBuildExecutor;
+		this.getBuildExecutor = args.getBuildExecutor ?? (() => undefined);
 		this.getInvalidationVersion = () => args.getInvalidationVersion?.();
 		this.getDefaultPlugins = args.getDefaultPlugins ?? (() => []);
 		this.invalidateModules = (changedFiles) => {

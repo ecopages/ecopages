@@ -43,7 +43,19 @@ import {
 	type EcoPendingNavigationIntent,
 } from '@ecopages/core/router/link-intent';
 
-type PageContextValue = PageState | null;
+/**
+ * Router-owned page state.
+ *
+ * `refreshPersistedLayout` is reserved for refresh-style updates where the
+ * route stays logically the same but the page module may have changed, such as
+ * HMR or top-level page prop refreshes. Ordinary SPA navigation keeps this flag
+ * unset so persisted layouts retain their existing mounted instance.
+ */
+type RouterPageState = PageState & {
+	refreshPersistedLayout?: boolean;
+};
+
+type PageContextValue = RouterPageState | null;
 
 const PageContext = createContext<PageContextValue>(null);
 
@@ -131,7 +143,9 @@ export function clearLayoutCache(): void {
  * Must be a child of {@link EcoRouter}. When `persistLayouts` is enabled,
  * shared layouts remain mounted across navigations. When the server serialized
  * request `locals` for hydration, the same `locals` object is passed to the
- * layout on the client so the hydrated tree matches SSR.
+ * layout on the client so the hydrated tree matches SSR. Refresh-style updates
+ * may still replace the cached layout implementation when the router marks the
+ * page state with `refreshPersistedLayout`.
  *
  * @example
  * ```tsx
@@ -151,7 +165,7 @@ export const PageContent: FC = () => {
 		return null;
 	}
 
-	const { Component: Page, props } = pageContext;
+	const { Component: Page, props, refreshPersistedLayout } = pageContext;
 	const Layout = getLayoutFromPage(Page);
 	const pageElement = createElement(Page, props);
 	const layoutProps = props?.locals ? { locals: props.locals } : null;
@@ -166,7 +180,7 @@ export const PageContent: FC = () => {
 		const layoutKeyRaw = layoutConfig?.__eco?.id || Layout.displayName || Layout.name || 'layout';
 		const layoutKey = normalizeLayoutKey(layoutKeyRaw);
 
-		if (!layoutCache.has(layoutKey)) {
+		if (!layoutCache.has(layoutKey) || (refreshPersistedLayout && layoutCache.get(layoutKey) !== Layout)) {
 			layoutCache.set(layoutKey, Layout);
 		}
 		const CachedLayout = layoutCache.get(layoutKey)!;
@@ -194,7 +208,12 @@ type PendingRender = {
 function useNavigationCoordinator(
 	navigate: (
 		url: string,
-		options?: { isPopState?: boolean; pushHistory?: boolean; skipViewTransition?: boolean },
+		options?: {
+			isPopState?: boolean;
+			pushHistory?: boolean;
+			skipViewTransition?: boolean;
+			moduleUrlOverride?: string;
+		},
 	) => Promise<void>,
 	activeNavigationRef: RefObject<EcoNavigationTransaction | null>,
 	isNavigatingRef: RefObject<boolean>,
@@ -225,7 +244,7 @@ function useNavigationCoordinator(
 				}
 
 				const currentUrl = window.location.pathname + window.location.search;
-				await navigate(currentUrl);
+				await navigate(currentUrl, { moduleUrlOverride: request?.moduleUrl });
 			},
 			cleanupBeforeHandoff: async () => {
 				runtimeActiveRef.current = false;
@@ -279,7 +298,11 @@ function useNavigationCoordinator(
  */
 export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOptions, children }: EcoRouterProps) => {
 	const options = useMemo(() => ({ ...DEFAULT_OPTIONS, ...userOptions }), [userOptions]);
-	const [currentPage, setCurrentPage] = useState<PageState>({ Component: page, props: pageProps });
+	const [currentPage, setCurrentPage] = useState<RouterPageState>({
+		Component: page,
+		props: pageProps,
+		refreshPersistedLayout: false,
+	});
 	const [isNavigating, setIsNavigating] = useState(false);
 	const pendingRenderRef = useRef<PendingRender | null>(null);
 	const activeNavigationRef = useRef<EcoNavigationTransaction | null>(null);
@@ -288,7 +311,6 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	const pendingPointerNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
 	const pendingHoverNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
 	const queuedNavigationHrefRef = useRef<string | null>(null);
-	const pendingScrollRestoreRef = useRef<{ url: string; isPopState: boolean } | null>(null);
 	const previousUrlRef = useRef<string>(typeof window !== 'undefined' ? window.location.href : '');
 
 	useEffect(() => {
@@ -296,7 +318,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	}, [isNavigating]);
 
 	useEffect(() => {
-		setCurrentPage({ Component: page, props: pageProps });
+		setCurrentPage({ Component: page, props: pageProps, refreshPersistedLayout: true });
 	}, [page, pageProps]);
 
 	useEffect(() => {
@@ -338,19 +360,24 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			previousUrlRef.current = url.href;
 		}
 
-		if (pendingScrollRestoreRef.current) {
-			const { url: targetUrl, isPopState } = pendingScrollRestoreRef.current;
-			restoreScrollPositions(targetUrl, isPopState);
-			pendingScrollRestoreRef.current = null;
-		}
 	}, [currentPage, options.scrollBehavior, options.smoothScroll]);
 
 	const navigate = useCallback(
 		async (
 			url: string,
-			navigationOptions: { isPopState?: boolean; pushHistory?: boolean; skipViewTransition?: boolean } = {},
+				navigationOptions: {
+					isPopState?: boolean;
+					pushHistory?: boolean;
+					skipViewTransition?: boolean;
+					moduleUrlOverride?: string;
+				} = {},
 		) => {
-			const { isPopState = false, pushHistory = false, skipViewTransition = false } = navigationOptions;
+				const {
+					isPopState = false,
+					pushHistory = false,
+					skipViewTransition = false,
+					moduleUrlOverride,
+				} = navigationOptions;
 			const navigationRuntime = getEcoNavigationRuntime(window);
 			const navigation = navigationRuntime.beginNavigationTransaction();
 			activeNavigationRef.current = navigation;
@@ -376,13 +403,15 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 					return;
 				}
 
-				const result = await loadPageModuleFromDocument(fetchedPage.doc, fetchedPage.finalPath);
+				const result = await loadPageModuleFromDocument(fetchedPage.doc, fetchedPage.finalPath, {
+					moduleUrlOverride,
+				});
 
 				if (isStale()) return;
 
 				if (result) {
 					const { Component, props, doc, finalPath, moduleUrl } = result;
-					const nextPage = { Component, props };
+					const nextPage = { Component, props, refreshPersistedLayout: Boolean(moduleUrlOverride) };
 					const { cleanup: cleanupHead, flushRerunScripts } = await morphHead(doc);
 
 					if (isStale()) {
@@ -392,14 +421,13 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 
 					applyViewTransitionNames();
 
+					saveScrollPositions();
+
 					if (pushHistory) {
 						window.history.pushState(null, '', finalPath);
 					} else if (finalPath !== url) {
 						window.history.replaceState(null, '', finalPath);
 					}
-
-					saveScrollPositions();
-					pendingScrollRestoreRef.current = { url, isPopState };
 
 					if (!skipViewTransition && options.viewTransitions && document.startViewTransition) {
 						pendingRenderRef.current?.resolve();
@@ -432,6 +460,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 									flushRerunScripts();
 									cleanupHead();
 									applyViewTransitionNames();
+									restoreScrollPositions(finalPath, isPopState);
 								} finally {
 									resolve();
 								}
@@ -456,6 +485,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 						flushRerunScripts();
 						cleanupHead();
 						applyViewTransitionNames();
+						restoreScrollPositions(finalPath, isPopState);
 					}
 				} else {
 					if (isStale()) return;

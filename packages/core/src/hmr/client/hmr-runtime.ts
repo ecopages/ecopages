@@ -52,7 +52,7 @@ interface HMRPayload {
 				break;
 			case 'layout-update': {
 				await waitForNavigationToSettle(navigationRuntime);
-				if (await navigationRuntime.reloadCurrentPage({ clearCache: true })) {
+				if (await navigationRuntime.reloadCurrentPage({ clearCache: true, moduleUrl: getActiveHmrModuleUrl() })) {
 				} else {
 					location.reload();
 				}
@@ -93,13 +93,21 @@ interface HMRPayload {
 
 			await import(url);
 
-			// If we're inside the EcoRouter, we need to trigger a router navigation to render the new component.
-			// Passing clearCache: false preserves the persisted layout cache.
 			if (await navigationRuntime.reloadCurrentPage({ clearCache: false })) {
 			}
 		} catch (e) {
 			console.error('[ecopages] Failed to apply HMR update:', e);
 		}
+	}
+
+	function getActiveHmrModuleUrl(): string | undefined {
+		const pageModule = window.__ECO_PAGES__?.page?.module;
+		if (pageModule && pageModule.includes('/assets/_hmr/')) {
+			return pageModule.split('?')[0];
+		}
+
+		const handlerPaths = Object.keys(window.__ECO_PAGES__?.hmrHandlers ?? {});
+		return handlerPaths.at(-1);
 	}
 
 	async function waitForNavigationToSettle(navigationRuntime: ReturnType<typeof getEcoNavigationRuntime>) {

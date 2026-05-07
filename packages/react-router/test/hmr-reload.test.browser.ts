@@ -36,6 +36,25 @@ function createLayoutAwarePage(name: string) {
 	return Page;
 }
 
+function createPageWithNamedLayout(name: string, layoutLabel: string, layoutKey: string) {
+	const Layout = ({ children }: { children: ReactNode }) =>
+		createElement('div', { 'data-testid': `${name}-layout` }, layoutLabel, children);
+
+	Layout.displayName = `${layoutKey}-layout`;
+	(Layout as typeof Layout & { config?: { __eco?: { id: string } } }).config = {
+		__eco: { id: layoutKey },
+	};
+
+	const Page = (() =>
+		createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<typeof createMockPageComponent> & {
+			config?: { layout?: typeof Layout };
+		};
+
+	Page.displayName = name;
+	Page.config = { layout: Layout };
+	return Page;
+}
+
 function createMultiLinkPage(name: string, links: Array<{ href: string; label: string }>) {
 	const Component = () =>
 		createElement(
@@ -255,6 +274,40 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
 			expect(container.textContent).toContain('Andee');
+		});
+
+		it('refreshes cached persisted layouts when HMR provides a new layout implementation', async () => {
+			const FirstPage = createPageWithNamedLayout('PersistentPageA', 'Layout v1', 'shared-docs-layout');
+			const UpdatedPage = createPageWithNamedLayout('PersistentPageB', 'Layout v2', 'shared-docs-layout');
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: FirstPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.textContent).toContain('Layout v1');
+
+			root.render(
+				createElement(EcoRouter, {
+					page: UpdatedPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.textContent).toContain('Layout v2');
+			const layout = container.querySelector('[data-testid="PersistentPageB-layout"]') as HTMLDivElement | null;
+			expect(layout?.textContent).toContain('Layout v2');
 		});
 
 		it('delegates non-React documents to browser-router when it is registered', async () => {

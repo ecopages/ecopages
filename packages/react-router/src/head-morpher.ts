@@ -4,6 +4,8 @@
  * @module
  */
 
+import { isReactRouterPageBootstrapAssetSrc } from './hydration-assets.ts';
+
 const PRESERVE_SELECTORS = ['script[type="importmap"]', 'meta[charset]', '[data-eco-persist]'];
 const RERUN_SRC_ATTR = 'data-eco-rerun-src';
 
@@ -67,7 +69,7 @@ function isRerunScript(el: Element): el is HTMLScriptElement {
 
 function isHydrationScript(el: HTMLScriptElement): boolean {
 	const src = el.getAttribute('src');
-	return !!src && src.includes('hydration.js') && src.includes('ecopages-react');
+	return !!src && isReactRouterPageBootstrapAssetSrc(src);
 }
 
 /**

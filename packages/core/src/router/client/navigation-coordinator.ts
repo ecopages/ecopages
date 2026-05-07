@@ -46,7 +46,21 @@ export type EcoNavigationHandoffRequest = EcoNavigationRequest & {
 
 /** Request to reload the current page through the active runtime. */
 export type EcoReloadRequest = {
+	/**
+	 * Clears runtime-owned caches before reloading.
+	 *
+	 * Runtimes use this when a reload must discard persisted client state such as
+	 * cached layouts or route-local module instances.
+	 */
 	clearCache?: boolean;
+	/**
+	 * Explicit page module URL to load for the reload.
+	 *
+	 * This is primarily used by HMR-aware runtimes so a current-page reload can
+	 * reuse the active hot module entry instead of rediscovering the static page
+	 * bootstrap asset from the fetched HTML document.
+	 */
+	moduleUrl?: string;
 	source?: EcoNavigationOwner;
 };
 
@@ -89,6 +103,12 @@ export type EcoNavigationRuntimeRegistration = {
 	owner: EcoNavigationOwner;
 	navigate?: (request: EcoNavigationRequest) => Promise<boolean | void>;
 	handoffNavigation?: (request: EcoNavigationHandoffRequest) => Promise<boolean | void>;
+	/**
+	 * Reloads the current page through the runtime's local navigation mechanism.
+	 *
+	 * Implementations may honor `request.moduleUrl` to force a specific page entry
+	 * and `request.clearCache` to discard persisted runtime state before reloading.
+	 */
 	reloadCurrentPage?: (request?: EcoReloadRequest) => Promise<void>;
 	/**
 	 * Releases runtime-owned client state before another runtime commits a new

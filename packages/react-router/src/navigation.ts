@@ -7,13 +7,10 @@
 
 import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinator';
 import { type ComponentType } from 'react';
+import { isReactPageHydrationAssetSrc } from './hydration-assets.ts';
 import type { EcoRouterOptions } from './types.ts';
 
 const ROUTER_PROPS_SCRIPT_ID = '__ECO_PAGE_DATA__';
-
-function isReactPageHydrationAsset(src: string): boolean {
-	return src.includes('ecopages-react-') && src.includes('hydration.js') && !src.includes('ecopages-react-island-');
-}
 
 export type PageState = {
 	Component: ComponentType<any>;
@@ -36,6 +33,17 @@ export type FetchedPageDocument = {
 
 type LoadPageModuleOptions = {
 	signal?: AbortSignal;
+};
+
+type LoadPageModuleFromDocumentOptions = {
+	/**
+	 * Explicit page module URL to import instead of extracting one from the
+	 * document's hydration assets.
+	 *
+	 * React Router uses this during HMR-driven reloads so the active hot module
+	 * entry wins over any static bootstrap asset references embedded in the HTML.
+	 */
+	moduleUrlOverride?: string;
 };
 
 export type InterceptDecision =
@@ -114,10 +122,40 @@ const DEFAULT_IMPORT_REGEX = /import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/;
 const NAMESPACE_IMPORT_REGEX = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['"]/;
 
 /**
+ * Matches explicit page-module markers written by hydration scripts.
+ */
+const PAGE_MODULE_MARKER_REGEX = /module\s*:\s*['"]([^'"]+)['"]/;
+const PAGE_MODULE_IDENTIFIER_REGEX = /module\s*:\s*([A-Za-z_$][\w$]*)\s*,/;
+
+/**
  * Extracts import path from hydration script code using regex.
  * Used for fetched documents. Less reliable due to minification.
  */
-function extractModulePathFromCode(code: string): string | null {
+function extractModulePathFromCode(code: string, fallbackUrl?: string): string | null {
+	const markerMatch = code.match(PAGE_MODULE_MARKER_REGEX);
+	if (markerMatch) {
+		return markerMatch[1] ?? null;
+	}
+
+	const moduleIdentifier = code.match(PAGE_MODULE_IDENTIFIER_REGEX)?.[1];
+	if (moduleIdentifier) {
+		const assignmentRegex = new RegExp(
+			`(?:const|let|var)[^;]*\\b${moduleIdentifier}\\s*=\\s*(?:['\"]([^'\"]+)['\"]|(import\\.meta\\.url))`,
+		);
+		const assignmentMatch = code.match(assignmentRegex);
+		if (assignmentMatch?.[1]) {
+			return assignmentMatch[1];
+		}
+
+		if (fallbackUrl && assignmentMatch?.[2]) {
+			return fallbackUrl;
+		}
+	}
+
+	if (fallbackUrl && code.includes('module:import.meta.url')) {
+		return fallbackUrl;
+	}
+
 	const defaultMatch = code.match(DEFAULT_IMPORT_REGEX);
 	const namespaceMatch = code.match(NAMESPACE_IMPORT_REGEX);
 	return (defaultMatch || namespaceMatch)?.[2] ?? null;
@@ -192,14 +230,14 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 		return extractModulePathFromCode(inlineHydrationScript.textContent);
 	}
 
-	const hydrationScript = scripts.find((s) => isReactPageHydrationAsset(s.src ?? ''));
+	const hydrationScript = scripts.find((s) => isReactPageHydrationAssetSrc(s.src ?? ''));
 	if (!hydrationScript?.src) return null;
 
 	try {
 		const scriptUrl = addCacheBuster(hydrationScript.src);
 		const res = await fetch(scriptUrl);
 		const code = await res.text();
-		return extractModulePathFromCode(code);
+		return extractModulePathFromCode(code, hydrationScript.src);
 	} catch {
 		return null;
 	}
@@ -256,9 +294,27 @@ export async function fetchPageDocument(
 	}
 }
 
-export async function loadPageModuleFromDocument(doc: Document, finalPath: string): Promise<LoadedPageModule | null> {
+/**
+ * Loads the page module for a fetched or current document.
+ *
+ * The router normally extracts the page module URL from the document's
+ * hydration assets. Callers can provide `options.moduleUrlOverride` when the
+ * document is stale with respect to the active runtime module identity, such as
+ * during HMR-driven current-page reloads.
+ *
+ * @param doc - Parsed destination document.
+ * @param finalPath - Final route path after redirects.
+ * @param options - Module loading overrides.
+ * @returns Loaded page module payload or `null` when the document is not a
+ * React-router page or no page component can be resolved.
+ */
+export async function loadPageModuleFromDocument(
+	doc: Document,
+	finalPath: string,
+	options: LoadPageModuleFromDocumentOptions = {},
+): Promise<LoadedPageModule | null> {
 	const props = extractProps(doc);
-	const componentUrl = await extractComponentUrl(doc);
+	const componentUrl = options.moduleUrlOverride ?? (await extractComponentUrl(doc));
 
 	if (!componentUrl) {
 		if (isReactRouteDocument(doc)) {

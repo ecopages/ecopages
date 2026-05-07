@@ -251,6 +251,72 @@ describe('extractComponentUrl', () => {
 		fetchSpy.mockRestore();
 	});
 
+	it('should extract from explicit page-module markers in fetched hydration scripts', async () => {
+		const html = `
+			<html>
+				<body>
+					<script src="/assets/scripts/ecopages-react-123-hydration.js" type="module"></script>
+				</body>
+			</html>
+		`;
+		const doc = createMockDocument(html);
+
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+			new Response('window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:"/assets/pages/about.js",props:{}};', {
+				status: 200,
+			}),
+		);
+
+		const url = await extractComponentUrl(doc);
+		expect(url).toBe('/assets/pages/about.js');
+
+		fetchSpy.mockRestore();
+	});
+
+	it('should fall back to the hydration script URL for self-owned bundled page entries', async () => {
+		const html = `
+			<html>
+				<body>
+					<script src="/assets/scripts/ecopages-react-123-page.js" type="module"></script>
+				</body>
+			</html>
+		`;
+		const doc = createMockDocument(html);
+
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+			new Response('window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:import.meta.url,props:{}};', {
+				status: 200,
+			}),
+		);
+
+		const url = await extractComponentUrl(doc);
+		expect(url).toBe('http://localhost:63315/assets/scripts/ecopages-react-123-page.js');
+
+		fetchSpy.mockRestore();
+	});
+
+	it('should resolve aliased import.meta.url markers in generated production route bootstrap scripts', async () => {
+		const html = `
+			<html>
+				<body>
+					<script src="/assets/ecopages-react-123.js" type="module"></script>
+				</body>
+			</html>
+		`;
+		const doc = createMockDocument(html);
+
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+			new Response('var N=import.meta.url,V=p;window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:N,props:{}};', {
+				status: 200,
+			}),
+		);
+
+		const url = await extractComponentUrl(doc);
+		expect(url).toBe('http://localhost:63315/assets/ecopages-react-123.js');
+
+		fetchSpy.mockRestore();
+	});
+
 	it('should ignore island hydration assets when extracting a page module URL', async () => {
 		const html = `
 			<html>
@@ -367,6 +433,28 @@ describe('loadPageModule', () => {
 		expect(result?.props).toEqual({ message: 'hello' });
 		expect(result?.doc).toBe(doc);
 		expect(result?.finalPath).toBe('/test');
+		expect(result?.moduleUrl).toBe(moduleUrl);
+		expect(typeof result?.Component).toBe('function');
+	});
+
+	it('should prefer a provided module URL override when loading a fetched document', async () => {
+		const moduleUrl = '/packages/react-router/test/fixtures/test-page-module.ts';
+		const doc = createMockDocument(
+			[
+				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
+				'<body>',
+				'<script id="__ECO_PAGE_DATA__" type="application/json">{"message":"override"}</script>',
+				'<script src="/assets/ecopages-react-stale.js" type="module"></script>',
+				'</body>',
+				'</html>',
+			].join(''),
+		);
+
+		const result = await loadPageModuleFromDocument(doc, '/test', {
+			moduleUrlOverride: moduleUrl,
+		});
+
+		expect(result?.props).toEqual({ message: 'override' });
 		expect(result?.moduleUrl).toBe(moduleUrl);
 		expect(typeof result?.Component).toBe('function');
 	});

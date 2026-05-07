@@ -1,9 +1,8 @@
 /**
  * Hydration asset creation service for React integration.
  *
- * Builds the asset definitions (bundled component scripts + hydration bootstrap scripts)
- * required for client-side React rendering — both at the page level and the component
- * island level.
+ * Builds the asset definitions required for client-side React rendering — both at
+ * the page level and the component island level.
  *
  * @module
  */
@@ -58,12 +57,12 @@ export class ReactHydrationAssetService {
 	}
 
 	/**
-	 * Resolves the import path for the bundled page component.
+	 * Resolves the browser import path used for a React-owned page or island module.
 	 * Uses HMR manager for development or constructs static path for production.
 	 *
 	 * @param pagePath - Absolute path to the page source file
 	 * @param assetName - Generated asset name
-	 * @returns The resolved import path for the bundled component
+	 * @returns The resolved browser import path for the module
 	 */
 	async resolveAssetImportPath(pagePath: string, assetName: string): Promise<string> {
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
@@ -79,16 +78,15 @@ export class ReactHydrationAssetService {
 	}
 
 	/**
-	 * Creates the asset dependencies for a page: the bundled component and hydration script.
+	 * Creates the page-owned route entry asset for hydration and client navigation.
 	 *
 	 * @param pagePath - Absolute path to the page source file
 	 * @param componentName - Generated unique component name
-	 * @param importPath - Resolved import path for the bundled component
+	 * @param importPath - Resolved browser import path used by development HMR
 	 * @param bundleOptions - Bundle configuration options
 	 * @param isDevelopment - Whether running in development mode with HMR
 	 * @param isMdx - Whether the source file is an MDX file
-	 * @param props - Optional page props for client serialization
-	 * @returns Array of asset definitions for processing
+	 * @returns One page-owned asset definition for processing
 	 */
 	createPageDependencies(
 		pagePath: string,
@@ -97,64 +95,36 @@ export class ReactHydrationAssetService {
 		bundleOptions: Record<string, unknown>,
 		isDevelopment: boolean,
 		isMdx: boolean,
-		props?: Record<string, unknown>,
 	): AssetDefinition[] {
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
-		const dependencies: AssetDefinition[] = [
-			AssetFactory.createFileScript({
+		return [
+			AssetFactory.createContentScript({
 				position: 'head',
-				filepath: pagePath,
+				content: createHydrationScript({
+					importPath: isDevelopment ? importPath : pagePath,
+					reactImportPath: isDevelopment ? runtimeImports.react : 'react',
+					reactDomClientImportPath: isDevelopment ? runtimeImports.reactDomClient : 'react-dom/client',
+					routerImportPath: isDevelopment
+						? runtimeImports.router
+						: this.config.routerAdapter?.importMapKey,
+					isDevelopment,
+					isMdx,
+					router: this.config.routerAdapter,
+					scriptId: componentName,
+				}),
 				name: componentName,
-				excludeFromHtml: true,
-				bundle: true,
+				packageRole: 'page-script',
+				bundle: !isDevelopment,
 				bundleOptions,
 				attributes: {
 					type: 'module',
 					defer: '',
+					'data-eco-rerun': 'true',
+					'data-eco-script-id': componentName,
 					'data-eco-persist': 'true',
 				},
 			}),
 		];
-
-		if (props && Object.keys(props).length > 0) {
-			dependencies.push(
-				AssetFactory.createContentScript({
-					position: 'head',
-					content: `window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:"${importPath}",props:${JSON.stringify(props)}};`,
-					name: `${componentName}-props`,
-					bundle: false,
-					attributes: {
-						type: 'module',
-					},
-				}),
-			);
-		}
-
-		dependencies.push(
-			AssetFactory.createContentScript({
-				position: 'head',
-				content: createHydrationScript({
-					importPath,
-					reactImportPath: runtimeImports.react,
-					reactDomClientImportPath: runtimeImports.reactDomClient,
-					routerImportPath: runtimeImports.router,
-					isDevelopment,
-					isMdx,
-					router: this.config.routerAdapter,
-				}),
-				name: `${componentName}-hydration`,
-				bundle: false,
-				attributes: {
-					type: 'module',
-					defer: '',
-					'data-eco-rerun': 'true',
-					'data-eco-script-id': `${componentName}-hydration`,
-					'data-eco-persist': 'true',
-				},
-			}),
-		);
-
-		return dependencies;
 	}
 
 	/**
@@ -189,6 +159,7 @@ export class ReactHydrationAssetService {
 				position: 'head',
 				filepath: componentFile,
 				name: componentName,
+				packageRole: 'dynamic-chunk',
 				excludeFromHtml: true,
 				bundle: true,
 				bundleOptions,
@@ -210,6 +181,7 @@ export class ReactHydrationAssetService {
 					isDevelopment,
 				}),
 				name: hydrationName,
+				packageRole: 'keep-separate',
 				bundle: false,
 				attributes: {
 					type: 'module',

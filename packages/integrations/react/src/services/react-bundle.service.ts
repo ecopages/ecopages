@@ -32,6 +32,17 @@ export interface ReactBundleServiceConfig {
 }
 
 /**
+ * Optional flags that adjust how a React client entry is bundled.
+ */
+export interface ReactClientBundleOptions {
+	/**
+	 * When `true`, bundle React runtime dependencies into the emitted entry instead of
+	 * rewriting them to external runtime specifiers.
+	 */
+	includeRuntime?: boolean;
+}
+
+/**
  * Manages esbuild bundle configuration and plugin creation for React page/component builds.
  */
 export class ReactBundleService {
@@ -65,11 +76,9 @@ export class ReactBundleService {
 		componentName: string,
 		isMdx: boolean,
 		declaredModules: string[],
+		bundleOptions: ReactClientBundleOptions = {},
 	): Promise<Record<string, unknown>> {
-		const runtimeImports = this.getRuntimeImports();
-		const runtimeSpecifierMap = buildReactRuntimeSpecifierMap(runtimeImports, this.config.routerAdapter);
 		const options: Record<string, unknown> = {
-			external: getReactRuntimeExternalSpecifiers(),
 			mainFields: ['module', 'browser', 'main'],
 			naming: `${componentName}.[ext]`,
 			...(import.meta.env?.NODE_ENV === 'production' && {
@@ -78,6 +87,10 @@ export class ReactBundleService {
 				treeshaking: true,
 			}),
 		};
+
+		if (!bundleOptions.includeRuntime) {
+			options.external = getReactRuntimeExternalSpecifiers();
+		}
 
 		const graphBoundaryPlugin = createClientGraphBoundaryPlugin({
 			absWorkingDir: this.config.rootDir,
@@ -90,11 +103,17 @@ export class ReactBundleService {
 			hostJsxImportSource: this.config.jsxImportSource ?? 'react',
 			foreignExtensions: this.config.nonReactExtensions ?? [],
 		});
-		const runtimeAliasPlugin = this.createRuntimeAliasPlugin(runtimeSpecifierMap);
 		const useSyncExternalStoreShimPlugin = createUseSyncExternalStoreShimPlugin({
 			name: 'react-renderer-use-sync-external-store-shim',
 			namespace: 'ecopages-react-renderer-shim',
 		});
+		const runtimePlugins = bundleOptions.includeRuntime
+			? []
+			: [
+				this.createRuntimeAliasPlugin(
+					buildReactRuntimeSpecifierMap(this.getRuntimeImports(), this.config.routerAdapter),
+				),
+			];
 
 		if (isMdx && this.config.mdxCompilerOptions) {
 			const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
@@ -102,7 +121,7 @@ export class ReactBundleService {
 			options.plugins = [
 				foreignJsxOverridePlugin,
 				graphBoundaryPlugin,
-				runtimeAliasPlugin,
+				...runtimePlugins,
 				mdxPlugin,
 				useSyncExternalStoreShimPlugin,
 			];
@@ -110,7 +129,7 @@ export class ReactBundleService {
 			options.plugins = [
 				foreignJsxOverridePlugin,
 				graphBoundaryPlugin,
-				runtimeAliasPlugin,
+				...runtimePlugins,
 				useSyncExternalStoreShimPlugin,
 			];
 		}

@@ -1,6 +1,6 @@
 /**
  * Hydration script generators for React pages.
- * These functions create the client-side scripts that hydrate React components.
+ * These functions create the page entry modules that hydrate React routes.
  * @module
  */
 
@@ -10,8 +10,10 @@ import type { ReactRouterAdapter } from '../router-adapter.ts';
  * Options for generating a hydration script.
  */
 export type HydrationScriptOptions = {
-	/** The import path for the bundled page component */
+  /** The module path imported by the page entry module. */
 	importPath: string;
+  /** Stable id of the page entry script tag in the document. */
+  scriptId: string;
 	/** Direct import path for React runtime module */
 	reactImportPath: string;
 	/** Direct import path for react-dom/client runtime module */
@@ -129,6 +131,21 @@ function getProdRouterBootstrapRegistrationScript(): string {
 	return 'const o=window.__ECO_PAGES__?.navigation?.getOwnerState?.();if(!(o?.owner==="react-router"&&o.canHandleSpaNavigation)){window.__ECO_PAGES__?.navigation?.register({owner:"react-router",cleanupBeforeHandoff:async()=>{window.__ECO_PAGES__?.react?.cleanupPageRoot?.()}});window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router")}';
 }
 
+function getDevReuseExistingRouterRootScript(): string {
+	return `const shouldReuseExistingRouterRoot = () => {
+  const ownerState = window.__ECO_PAGES__?.navigation?.getOwnerState?.();
+  return Boolean(
+    window.__ECO_PAGES__.react?.pageRoot &&
+      ownerState?.owner === "react-router" &&
+      ownerState.canHandleSpaNavigation
+  );
+};`;
+}
+
+function getProdReuseExistingRouterRootScript(): string {
+	return 'const sr=()=>{const o=window.__ECO_PAGES__?.navigation?.getOwnerState?.();return!!(window.__ECO_PAGES__.react?.pageRoot&&o?.owner==="react-router"&&o.canHandleSpaNavigation)};';
+}
+
 /**
  * Creates development hydration script with router support.
  *
@@ -146,7 +163,8 @@ function getProdRouterBootstrapRegistrationScript(): string {
  *   or patch the current root directly when the router is inactive
  */
 function createDevScriptWithRouter(options: HydrationScriptOptions): string {
-	const { importPath, isMdx, router, reactImportPath, reactDomClientImportPath, routerImportPath } = options;
+  const { importPath, isMdx, router, reactImportPath, reactDomClientImportPath, routerImportPath, scriptId } =
+    options;
 	const { components, getRouterProps } = router!;
 	if (!routerImportPath) {
 		throw new Error('routerImportPath is required when router adapter is configured');
@@ -157,6 +175,12 @@ import { hydrateRoot } from "${reactDomClientImportPath}";
 import { createElement } from "${reactImportPath}";
 import { ${components.router}, ${components.pageContent} } from "${routerImportPath}";
 ${getImportStatement(importPath, isMdx)}
+const pageModuleUrl = import.meta.url;
+export default Page;
+export const config = Page.config;
+const isActivePageEntry = Boolean(document.querySelector('script[data-eco-script-id="${scriptId}"]'));
+
+if (isActivePageEntry) {
 
 window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
 window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
@@ -165,6 +189,7 @@ window.__ECO_PAGES__.react.pageRoot = window.__ECO_PAGES__.react.pageRoot || nul
 let root = window.__ECO_PAGES__.react.pageRoot;
 ${getDevPageRootCleanupScript()}
 ${getDevRouterBootstrapRegistrationScript()}
+${getDevReuseExistingRouterRootScript()}
 
 const getPageData = () => {
   const el = document.getElementById("__ECO_PAGE_DATA__");
@@ -177,7 +202,7 @@ const getPageData = () => {
 const props = getPageData();
 
 window.__ECO_PAGES__.page = {
-  module: "${importPath}",
+  module: pageModuleUrl,
   props
 };
 
@@ -187,7 +212,9 @@ const createTree = (Component, props) => {
 };
 
 const mount = () => {
-  if (window.__ECO_PAGES__.react?.pageRoot) {
+  if (shouldReuseExistingRouterRoot()) {
+    root = window.__ECO_PAGES__.react.pageRoot;
+  } else if (window.__ECO_PAGES__.react?.pageRoot) {
     root = window.__ECO_PAGES__.react.pageRoot;
     root.render(createTree(Page, props));
   } else {
@@ -201,16 +228,25 @@ const mount = () => {
       const newModule = await import(newUrl);
       const nextProps = getPageData();
       ${getHmrImportStatement(isMdx)}
+      const currentPageLayout = Page.config?.layout;
+      const nextPageLayout = NewPage.config?.layout;
+
+      if (window.__ECO_PAGES__?.navigation?.getOwnerState().owner === "react-router") {
+        await window.__ECO_PAGES__?.navigation?.reloadCurrentPage?.({
+          clearCache: currentPageLayout !== nextPageLayout,
+          moduleUrl: "${importPath}",
+          source: "react-router"
+        });
+        console.log("[ecopages] ${getComponentType(isMdx)} component updated via router");
+        return;
+      }
+
       window.__ECO_PAGES__.page = {
-        module: "${importPath}",
+        module: pageModuleUrl,
         props: nextProps
       };
       root.render(createTree(NewPage, nextProps));
-      if (window.__ECO_PAGES__?.navigation?.getOwnerState().owner === "react-router") {
-        console.log("[ecopages] ${getComponentType(isMdx)} component updated via router");
-      } else {
-        console.log("[ecopages] ${getComponentType(isMdx)} component updated");
-      }
+      console.log("[ecopages] ${getComponentType(isMdx)} component updated");
     } catch (e) {
       console.error("[ecopages] Failed to hot-reload ${getComponentType(isMdx)} component:", e);
     }
@@ -221,6 +257,7 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", mount);
 } else {
   mount();
+}
 }
 `.trim();
 }
@@ -240,12 +277,18 @@ if (document.readyState === "loading") {
  * - patches that root during HMR without involving a router adapter
  */
 function createDevScriptWithoutRouter(options: HydrationScriptOptions): string {
-	const { importPath, isMdx, reactImportPath, reactDomClientImportPath } = options;
+  const { importPath, isMdx, reactImportPath, reactDomClientImportPath, scriptId } = options;
 
 	return `
 import { hydrateRoot } from "${reactDomClientImportPath}";
 import { createElement } from "${reactImportPath}";
 ${getImportStatement(importPath, isMdx)}
+const pageModuleUrl = import.meta.url;
+export default Page;
+export const config = Page.config;
+const isActivePageEntry = Boolean(document.querySelector('script[data-eco-script-id="${scriptId}"]'));
+
+if (isActivePageEntry) {
 
 window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
 window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
@@ -265,7 +308,7 @@ const getPageData = () => {
 const props = getPageData();
 
 window.__ECO_PAGES__.page = {
-  module: "${importPath}",
+  module: pageModuleUrl,
   props
 };
 
@@ -303,6 +346,7 @@ if (document.readyState === "loading") {
 } else {
   mount();
 }
+}
 `.trim();
 }
 
@@ -314,17 +358,18 @@ if (document.readyState === "loading") {
  * compressed for delivery.
  */
 function createProdScriptWithRouter(options: HydrationScriptOptions): string {
-	const { importPath, isMdx, router, reactImportPath, reactDomClientImportPath, routerImportPath } = options;
+  const { importPath, isMdx, router, reactImportPath, reactDomClientImportPath, routerImportPath, scriptId } =
+    options;
 	const { components, getRouterProps } = router!;
 	if (!routerImportPath) {
 		throw new Error('routerImportPath is required when router adapter is configured');
 	}
 
 	if (isMdx) {
-		return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{${components.router} as R,${components.pageContent} as PC}from"${routerImportPath}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}${getProdRouterBootstrapRegistrationScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGES__.page={module:"${importPath}",props:pr};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>{if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+      return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{${components.router} as R,${components.pageContent} as PC}from"${routerImportPath}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const u=import.meta.url;export default P;export const config=P.config;const a=!!document.querySelector('script[data-eco-script-id="${scriptId}"]');if(a){window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}${getProdRouterBootstrapRegistrationScript()}${getProdReuseExistingRouterRootScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGES__.page={module:u,props:pr};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>{if(sr()){root=window.__ECO_PAGES__.react.pageRoot;return}if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()}`;
 	}
 
-	return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{${components.router} as R,${components.pageContent} as PC}from"${routerImportPath}";import P from"${importPath}";window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}${getProdRouterBootstrapRegistrationScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGES__.page={module:"${importPath}",props:pr};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>{if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+    return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{${components.router} as R,${components.pageContent} as PC}from"${routerImportPath}";import P from"${importPath}";const u=import.meta.url;export default P;export const config=P.config;const a=!!document.querySelector('script[data-eco-script-id="${scriptId}"]');if(a){window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}${getProdRouterBootstrapRegistrationScript()}${getProdReuseExistingRouterRootScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGES__.page={module:u,props:pr};const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>{if(sr()){root=window.__ECO_PAGES__.react.pageRoot;return}if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()}`;
 }
 
 /**
@@ -337,13 +382,13 @@ function createProdScriptWithRouter(options: HydrationScriptOptions): string {
  * condensed.
  */
 function createProdScriptWithoutRouter(options: HydrationScriptOptions): string {
-	const { importPath, isMdx, reactImportPath, reactDomClientImportPath } = options;
+  const { importPath, isMdx, reactImportPath, reactDomClientImportPath, scriptId } = options;
 
 	if (isMdx) {
-		return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGES__.page={module:"${importPath}",props:pr};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);const lp=p?.locals?{locals:p.locals}:null;return L?ce(L,lp,pe):pe};const m=()=>{if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+    return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import*as M from"${importPath}";const P=M.default;if(M.config)P.config=M.config;const u=import.meta.url;export default P;export const config=P.config;const a=!!document.querySelector('script[data-eco-script-id="${scriptId}"]');if(a){window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGES__.page={module:u,props:pr};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);const lp=p?.locals?{locals:p.locals}:null;return L?ce(L,lp,pe):pe};const m=()=>{if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()}`;
 	}
 
-	return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import P from"${importPath}";window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGES__.page={module:"${importPath}",props:pr};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);const lp=p?.locals?{locals:p.locals}:null;return L?ce(L,lp,pe):pe};const m=()=>{if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()`;
+  return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import P from"${importPath}";const u=import.meta.url;export default P;export const config=P.config;const a=!!document.querySelector('script[data-eco-script-id="${scriptId}"]');if(a){window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}const gd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{return JSON.parse(e.textContent)}catch{}}return{}};const pr=gd();window.__ECO_PAGES__.page={module:u,props:pr};const ct=(C,p)=>{const L=C.config?.layout;const pe=ce(C,p);const lp=p?.locals?{locals:p.locals}:null;return L?ce(L,lp,pe):pe};const m=()=>{if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()}`;
 }
 
 /**

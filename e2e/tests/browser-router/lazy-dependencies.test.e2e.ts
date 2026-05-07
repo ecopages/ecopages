@@ -164,7 +164,7 @@ test.describe('Lazy Dependencies', () => {
 			const html = await response?.text();
 
 			expect(html).toContain('ecopages/global-injector-map');
-			expect(html).toContain('ecopages-global-injector-bootstrap');
+			expect(html).toContain('__ecoGlobalInjectorCleanup');
 		});
 	});
 });

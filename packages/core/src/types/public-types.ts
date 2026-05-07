@@ -778,12 +778,51 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	Layout?: EcoPageLayoutComponent<any>;
 	dependencies?: EcoComponentDependencies;
 	resolvedDependencies: ProcessedAsset[];
+	pagePackage?: PagePackageResult;
 	componentRender?: ComponentRenderResult;
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;
 	boundaryPlan?: BoundaryPlan;
 };
+
+/**
+ * Structured page asset package produced after dependency resolution.
+ *
+ * `assets` retains the full processed asset list, while the remaining fields
+ * split that list into the subsets used during final HTML injection and
+ * renderer-owned follow-up work.
+ */
+export interface PagePackageResult {
+	/**
+	 * Full processed asset list before any page-level partitioning.
+	 */
+	assets: ProcessedAsset[];
+	/**
+	 * Assets that should still be injected into the final HTML document.
+	 */
+	htmlAssets: ProcessedAsset[];
+	/**
+	 * Primary page-owned browser entry when one was identified during packaging.
+	 */
+	pageScript?: ProcessedAsset;
+	/**
+	 * Primary page-owned stylesheet when one was identified during packaging.
+	 */
+	pageStylesheet?: ProcessedAsset;
+	/**
+	 * Inline assets that remain embedded directly in the document.
+	 */
+	inlineAssets: ProcessedAsset[];
+	/**
+	 * Assets kept outside the main page package so callers can manage them explicitly.
+	 */
+	separateAssets: ProcessedAsset[];
+	/**
+	 * Browser chunks needed after initial page bootstrap, including eager lazy-entry bundles.
+	 */
+	dynamicChunks: ProcessedAsset[];
+}
 
 export type BoundaryValidationErrorCode = 'UNKNOWN_INTEGRATION_OWNER' | 'MISSING_COMPONENT_METADATA';
 

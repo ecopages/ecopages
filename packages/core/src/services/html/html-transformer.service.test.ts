@@ -419,4 +419,61 @@ describe('HtmlTransformerService', () => {
 
 		expect(transformer.dedupeProcessedAssets([first, duplicate, second])).toEqual([first, second]);
 	});
+
+	it('should preserve assets with different package roles during dedupe', () => {
+		const { transformer } = createTransformer();
+		const pageScript = {
+			kind: 'script',
+			srcUrl: '/assets/app.js',
+			position: 'head',
+			packageRole: 'page-script',
+		} as ProcessedAsset;
+		const runtimeScript = {
+			kind: 'script',
+			srcUrl: '/assets/app.js',
+			position: 'head',
+			packageRole: 'runtime',
+		} as ProcessedAsset;
+
+		expect(transformer.dedupeProcessedAssets([pageScript, runtimeScript])).toEqual([
+			pageScript,
+			runtimeScript,
+		]);
+	});
+
+	it('should prefer page package html assets during transform', async () => {
+		const { transformer } = createTransformer();
+		transformer.setProcessedDependencies([
+			{
+				kind: 'script',
+				srcUrl: '/ignored.js',
+				position: 'body',
+			},
+		]);
+		transformer.setPagePackage({
+			assets: [
+				{
+					kind: 'script',
+					srcUrl: '/ignored.js',
+					position: 'body',
+				},
+			],
+			htmlAssets: [
+				{
+					kind: 'script',
+					srcUrl: '/chosen.js',
+					position: 'body',
+				},
+			],
+			inlineAssets: [],
+			separateAssets: [],
+			dynamicChunks: [],
+		});
+
+		const response = await transformer.transform(new Response('<html><head></head><body></body></html>'));
+		const html = await response.text();
+
+		expect(html).toContain('<script src="/chosen.js"></script>');
+		expect(html).not.toContain('/ignored.js');
+	});
 });

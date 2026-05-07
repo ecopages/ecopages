@@ -24,7 +24,10 @@ import {
 	type ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../eco/global-injector-map.ts';
+import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { BoundaryPlanningService } from './boundary-planning.service.ts';
+import { PagePackagingService } from './page-packaging.service.ts';
+import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
 
 type ResolvedPageModule = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
@@ -54,13 +57,42 @@ export interface RenderPreparationCallbacks {
 		component: EcoComponent;
 		props: Record<string, unknown>;
 	}): Promise<ComponentRenderResult>;
-	setProcessedDependencies(dependencies: ProcessedAsset[]): void;
-	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
-	createPageLocalsProxy(filePath: string): RouteRendererOptions['locals'];
 }
 
 export interface RenderPreparationServiceDependencies {
 	boundaryPlanningService?: BoundaryPlanningService;
+	pagePackagingService?: PagePackagingService;
+}
+
+function createPageLocalsProxy(filePath: string): Record<string, never> {
+	const errorMessage = `[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: ${filePath}. If you meant to use locals here, set cache: 'dynamic' and provide locals from route middleware/handlers.`;
+
+	return new Proxy(
+		{},
+		{
+			get: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			set: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			has: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			ownKeys: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			deleteProperty: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			defineProperty: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+			getOwnPropertyDescriptor: () => {
+				throw new LocalsAccessError(errorMessage);
+			},
+		},
+	);
 }
 
 /**
@@ -75,6 +107,7 @@ export class RenderPreparationService {
 	private appConfig: EcoPagesAppConfig;
 	private assetProcessingService: AssetProcessingService;
 	private readonly boundaryPlanningService: BoundaryPlanningService;
+	private readonly pagePackagingService: PagePackagingService;
 
 	/**
 	 * Creates the render-preparation orchestrator for one app instance.
@@ -91,6 +124,7 @@ export class RenderPreparationService {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 		this.boundaryPlanningService = dependencies.boundaryPlanningService ?? new BoundaryPlanningService(appConfig);
+		this.pagePackagingService = dependencies.pagePackagingService ?? new PagePackagingService();
 	}
 
 	/**
@@ -160,7 +194,8 @@ export class RenderPreparationService {
 			allDependencies.push(...eagerSsrLazyAssets);
 		}
 
-		callbacks.setProcessedDependencies(callbacks.dedupeProcessedAssets(allDependencies));
+		const dedupedDependencies = dedupeProcessedAssets(allDependencies);
+		const pagePackage = this.pagePackagingService.createPagePackage(dedupedDependencies);
 
 		const pageProps = {
 			...props,
@@ -173,12 +208,15 @@ export class RenderPreparationService {
 		const effectiveCacheStrategy = cacheStrategy ?? defaultCacheStrategy;
 		const localsAvailable = effectiveCacheStrategy === 'dynamic' && routeOptions.locals !== undefined;
 
-		const pageLocals = localsAvailable ? routeOptions.locals! : callbacks.createPageLocalsProxy(routeOptions.file);
+		const pageLocals = localsAvailable
+			? routeOptions.locals!
+			: (createPageLocalsProxy(routeOptions.file) as RouteRendererOptions['locals']);
 
 		const locals = localsAvailable ? routeOptions.locals : undefined;
 		const preparedOptions: IntegrationRendererRenderOptions<C> = {
 			...routeOptions,
 			resolvedDependencies,
+			pagePackage,
 			componentRender,
 			HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps, C>,
 			Layout,
@@ -347,42 +385,25 @@ export class RenderPreparationService {
 		currentIntegrationName: string,
 	): Promise<ProcessedAsset[]> {
 		const globalInjectorImportPath = createRequire(import.meta.url).resolve('@ecopages/scripts-injector/global');
-		const globalInjectorRuntimeAsset = AssetFactory.createNodeModuleScript({
-			position: 'head',
-			name: 'ecopages-scripts-injector-global',
-			importPath: globalInjectorImportPath,
-			excludeFromHtml: true,
-		});
-
-		const [globalInjectorRuntimeProcessed] = await this.assetProcessingService.processDependencies(
-			[globalInjectorRuntimeAsset],
-			currentIntegrationName,
-		);
-
-		const globalInjectorModuleUrl = globalInjectorRuntimeProcessed?.srcUrl;
-		if (!globalInjectorModuleUrl) {
-			throw new Error('[ecopages] Failed to resolve global injector runtime asset URL.');
-		}
 
 		const mapScript = AssetFactory.createInlineContentScript({
 			position: 'head',
 			name: 'ecopages-global-injector-map',
 			content: buildGlobalInjectorMapScript(triggers),
 			attributes: { type: 'ecopages/global-injector-map' },
+			packageRole: 'keep-separate',
 			bundle: false,
 		});
-		const bootstrapScript = AssetFactory.createContentScript({
+		const bootstrapInlineScript = AssetFactory.createInlineContentScript({
 			position: 'head',
 			name: 'ecopages-global-injector-bootstrap',
-			content: buildGlobalInjectorBootstrapContent(globalInjectorModuleUrl),
+			content: buildGlobalInjectorBootstrapContent(globalInjectorImportPath),
 			attributes: { type: 'module' },
-			bundle: false,
+			packageRole: 'keep-separate',
+			bundle: true,
 		});
 
-		return this.assetProcessingService.processDependencies(
-			[mapScript, bootstrapScript, globalInjectorRuntimeAsset],
-			currentIntegrationName,
-		);
+		return this.assetProcessingService.processDependencies([mapScript, bootstrapInlineScript], currentIntegrationName);
 	}
 
 	private async buildEagerSsrLazyAssets(
@@ -441,6 +462,7 @@ export class RenderPreparationService {
 								position: 'head',
 								content: script.content,
 								attributes,
+								packageRole: 'dynamic-chunk',
 							}),
 						);
 						continue;
@@ -462,6 +484,7 @@ export class RenderPreparationService {
 							filepath: resolvedPath,
 							position: 'head',
 							attributes,
+							packageRole: 'dynamic-chunk',
 						}),
 					);
 				}

@@ -33,9 +33,9 @@ import {
 import { HtmlTransformerService } from '../../services/html/html-transformer.service.ts';
 import { invariant } from '../../utils/invariant.ts';
 import { HttpError } from '../../errors/http-error.ts';
-import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
+import { PagePackagingService } from './page-packaging.service.ts';
 import { RenderExecutionService } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
 import { RouteShellComposer } from './route-shell-composer.service.ts';
@@ -66,45 +66,6 @@ export type RouteModuleLoadOptions = {
 };
 
 /**
- * Creates a Proxy that throws LocalsAccessError on any property access.
- * Used to protect static pages from accidentally accessing request locals.
- *
- * @param filePath - The file path of the page attempting to access locals (for error reporting)
- * @returns A Proxy object that blocks all property access operations
- * @throws {LocalsAccessError} When any property access operation is attempted
- */
-function createLocalsProxy(filePath: string): Record<string, never> {
-	const errorMessage = `[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: ${filePath}. If you meant to use locals here, set cache: 'dynamic' and provide locals from route middleware/handlers.`;
-
-	return new Proxy(
-		{},
-		{
-			get: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			set: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			has: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			ownKeys: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			deleteProperty: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			defineProperty: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			getOwnPropertyDescriptor: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-		},
-	);
-}
-
-/**
  * Context for renderToResponse method.
  */
 export interface RenderToResponseContext {
@@ -132,6 +93,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected renderPreparationService: RenderPreparationService;
 	protected renderExecutionService: RenderExecutionService;
+	protected pagePackagingService: PagePackagingService;
 	protected readonly routeShellComposer = new RouteShellComposer();
 	protected readonly queuedBoundaryRuntimeService = new QueuedBoundaryRuntimeService();
 
@@ -243,6 +205,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				content: `import ${JSON.stringify(islandClientModuleId)};`,
 				inline: true,
 				kind: 'script',
+				packageRole: 'keep-separate',
 				position: 'body',
 			},
 		];
@@ -307,7 +270,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const resolvedDependencies = this.htmlTransformer.dedupeProcessedAssets(
 			await this.resolveDependencies(componentsToResolve),
 		);
-		this.htmlTransformer.setProcessedDependencies(resolvedDependencies);
+		this.htmlTransformer.setPagePackage(this.pagePackagingService.createPagePackage(resolvedDependencies));
 		return resolvedDependencies;
 	}
 
@@ -332,12 +295,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return nextDependencies;
 		}
 
-		this.htmlTransformer.setProcessedDependencies(
-			this.htmlTransformer.dedupeProcessedAssets([
-				...this.htmlTransformer.getProcessedDependencies(),
-				...nextDependencies,
-			]),
-		);
+		const mergedDependencies = this.htmlTransformer.dedupeProcessedAssets([
+			...this.htmlTransformer.getProcessedDependencies(),
+			...nextDependencies,
+		]);
+
+		this.htmlTransformer.setPagePackage(this.pagePackagingService.createPagePackage(mergedDependencies));
 
 		return nextDependencies;
 	}
@@ -638,12 +601,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 		this.htmlTransformer = new HtmlTransformerService();
+		this.pagePackagingService = new PagePackagingService();
 		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 		this.rendererModules = rendererModules ?? appConfig.runtime?.rendererModuleContext;
 		this.runtimeOrigin = runtimeOrigin;
 		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
-		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService);
+		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService, {
+			pagePackagingService: this.pagePackagingService,
+		});
 		this.renderExecutionService = new RenderExecutionService();
 	}
 
@@ -857,7 +823,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The prepared render options.
 	 */
 	protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
-		return this.renderPreparationService.prepare(options, this.name, {
+		const preparedOptions = await this.renderPreparationService.prepare(options, this.name, {
 			resolvePageModule: (file) => this.resolvePageModule(file),
 			getHtmlTemplate: () => this.getHtmlTemplate(),
 			resolvePageData: (pageModule, routeOptions) => this.resolvePageData(pageModule, routeOptions),
@@ -872,11 +838,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						componentInstanceId: 'eco-page-root',
 					},
 				}),
-			setProcessedDependencies: (dependencies) => this.htmlTransformer.setProcessedDependencies(dependencies),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			createPageLocalsProxy: (filePath) =>
-				createLocalsProxy(filePath) as unknown as RouteRendererOptions['locals'],
 		});
+
+		invariant(preparedOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
+		this.htmlTransformer.setPagePackage(preparedOptions.pagePackage);
+		return preparedOptions;
 	}
 
 	/**

@@ -70,11 +70,11 @@ export function buildGlobalInjectorMapScript(triggers: ResolvedLazyTrigger[]): s
 }
 
 /**
- * Builds the inline module script that boots the global lazy injector on the client.
+ * Builds the module source that boots the global lazy injector on the client.
  * Emitted once per page alongside the `ecopages/global-injector-map` script block.
  */
-export function buildGlobalInjectorBootstrapContent(globalInjectorModuleUrl: string): string {
-	return `import { initGlobalInjector } from ${JSON.stringify(globalInjectorModuleUrl)};
+export function buildGlobalInjectorBootstrapContent(globalInjectorModuleSpecifier: string): string {
+	return `import { initGlobalInjector } from ${JSON.stringify(globalInjectorModuleSpecifier)};
 
 function pruneStaleTriggerMaps() {
 	const mapScripts = Array.from(document.querySelectorAll('script[type="ecopages/global-injector-map"]'));

@@ -8,6 +8,7 @@ import type {
 	HtmlTemplateProps,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
+import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { BoundaryPlanningService } from './boundary-planning.service.ts';
 import type {
 	AssetDefinition,
@@ -78,8 +79,6 @@ describe('RenderPreparationService', () => {
 			query: { preview: '1' },
 			locals: { user: 'andee' },
 		} as unknown as RouteRendererOptions;
-		const setProcessedDependencies = vi.fn();
-
 		const result = await service.prepare(routeOptions, 'ghtml', {
 			resolvePageModule: async () => ({
 				Page,
@@ -100,9 +99,6 @@ describe('RenderPreparationService', () => {
 				integrationName: 'ghtml',
 				assets: [componentAsset],
 			}),
-			setProcessedDependencies,
-			dedupeProcessedAssets: (assets) => assets,
-			createPageLocalsProxy: () => ({ guarded: true }),
 		});
 
 		expect(result.locals).toEqual({ user: 'andee' });
@@ -110,12 +106,11 @@ describe('RenderPreparationService', () => {
 		expect(result.pageProps).toEqual({ title: 'Hello', params: { slug: 'hello' }, query: { preview: '1' } });
 		expect((result as typeof result & { layoutMode?: string }).layoutMode).toBe('full');
 		expect(result.componentRender?.assets).toEqual([componentAsset]);
-		expect(setProcessedDependencies).toHaveBeenCalledWith([
-			resolvedDependency,
-			integrationDependency,
-			pageDependency,
-			componentAsset,
-		]);
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({
+				assets: [resolvedDependency, integrationDependency, pageDependency, componentAsset],
+			}),
+		);
 	});
 
 	it('renders page-root output directly during preparation', async () => {
@@ -156,9 +151,6 @@ describe('RenderPreparationService', () => {
 					rootTag: 'span',
 					integrationName: 'ghtml',
 				}),
-				setProcessedDependencies: vi.fn(),
-				dedupeProcessedAssets: (assets) => assets,
-				createPageLocalsProxy: () => ({}),
 			},
 		);
 
@@ -170,6 +162,72 @@ describe('RenderPreparationService', () => {
 			}),
 		);
 		expect(result.componentRender?.html).toBe('<span>Deferred</span>');
+	});
+
+	it('inlines the global injector bootstrap when resolved lazy triggers are present', async () => {
+		const processDependencies = vi
+			.fn<AssetProcessingService['processDependencies']>()
+			.mockImplementation(async (dependencies) =>
+				dependencies.map((dependency) => ({
+					kind: dependency.kind,
+					position: dependency.position,
+					attributes: dependency.attributes,
+					content: dependency.source === 'content' ? dependency.content : undefined,
+					inline: dependency.inline,
+					packageRole: dependency.packageRole,
+				})) as ProcessedAsset[],
+			);
+		const assetProcessingService = {
+			processDependencies,
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+		Page.config = {
+			_resolvedLazyTriggers: [
+				{
+					triggerId: 'eco-trigger-theme-toggle',
+					rules: [{ 'on:interaction': { value: 'click', scripts: ['/assets/lazy-theme-toggle.js'] } }],
+				},
+			],
+		};
+
+		await service.prepare(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			'ghtml',
+			{
+				resolvePageModule: async () => ({
+					Page,
+					integrationSpecificProps: {},
+				}),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: 'Page', description: 'Page description' },
+				}),
+				resolveDependencies: async () => [],
+				buildRouteRenderAssets: async () => [],
+				shouldRenderPageComponent: () => false,
+				renderPageComponent: vi.fn(),
+			},
+		);
+
+		expect(processDependencies).toHaveBeenCalledOnce();
+		expect(processDependencies).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: 'ecopages-global-injector-bootstrap',
+					inline: true,
+					bundle: true,
+					attributes: { type: 'module' },
+				}),
+			]),
+			'ghtml',
+		);
 	});
 
 	it('should guard page locals for static pages and skip page-root rendering when disabled', async () => {
@@ -207,14 +265,11 @@ describe('RenderPreparationService', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent,
-				setProcessedDependencies: vi.fn(),
-				dedupeProcessedAssets: (assets) => assets,
-				createPageLocalsProxy: () => ({ guarded: true }),
 			},
 		);
 
 		expect(result.locals).toBeUndefined();
-		expect(result.pageLocals).toEqual({ guarded: true });
+		expect(() => Reflect.get(result.pageLocals as object, 'guarded')).toThrow(LocalsAccessError);
 		expect(result.componentRender).toBeUndefined();
 		expect(renderPageComponent).not.toHaveBeenCalled();
 	});
@@ -224,6 +279,82 @@ describe('RenderPreparationService', () => {
 			kind: 'script',
 			srcUrl: '/assets/components/lit-counter.script.js',
 			position: 'head',
+			packageRole: 'dynamic-chunk',
+		} as ProcessedAsset;
+		const processDependencies = vi.fn(async (dependencies: AssetDefinition[]) => {
+			const hasEagerSsrLazyDependency = dependencies.some((dependency) => {
+				if (dependency.kind !== 'script' || dependency.source !== 'file') {
+					return false;
+				}
+
+				return String(dependency.filepath).endsWith('/lit-counter.script.ts');
+			});
+
+			return hasEagerSsrLazyDependency ? [eagerSsrLazyAsset] : [];
+		});
+		const assetProcessingService = {
+			processDependencies,
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const LitCounter = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
+		LitCounter.config = {
+			__eco: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
+			dependencies: {
+				scripts: [{ src: './lit-counter.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
+			},
+		};
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+		Page.config = {
+			dependencies: {
+				components: [LitCounter],
+			},
+		};
+
+		await service.prepare(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			'ghtml',
+			{
+				resolvePageModule: async () => ({
+					Page,
+					integrationSpecificProps: {},
+				}),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: 'Static page', description: 'Static page description' },
+				}),
+				resolveDependencies: async () => [],
+				buildRouteRenderAssets: async () => [],
+				shouldRenderPageComponent: () => false,
+				renderPageComponent: vi.fn(),
+			},
+		);
+
+		expect(processDependencies).toHaveBeenCalledOnce();
+		expect(processDependencies).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					kind: 'script',
+					source: 'file',
+					filepath: '/app/components/lit-counter.script.ts',
+					packageRole: 'dynamic-chunk',
+				}),
+			],
+			'ghtml:ssr-lazy',
+		);
+	});
+
+	it('exposes eager lazy SSR assets through the returned page package', async () => {
+		const eagerSsrLazyAsset = {
+			kind: 'script',
+			srcUrl: '/assets/components/lit-counter.script.js',
+			position: 'head',
+			packageRole: 'dynamic-chunk',
 		} as ProcessedAsset;
 		const assetProcessingService = {
 			processDependencies: vi.fn(async (dependencies: AssetDefinition[]) => {
@@ -258,9 +389,7 @@ describe('RenderPreparationService', () => {
 			},
 		};
 
-		const setProcessedDependencies = vi.fn();
-
-		await service.prepare(
+		const result = await service.prepare(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
 			{
@@ -277,13 +406,14 @@ describe('RenderPreparationService', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
-				setProcessedDependencies,
-				dedupeProcessedAssets: (assets) => assets,
-				createPageLocalsProxy: () => ({}),
 			},
 		);
 
-		expect(setProcessedDependencies).toHaveBeenCalledWith([eagerSsrLazyAsset]);
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({
+				dynamicChunks: [eagerSsrLazyAsset],
+			}),
+		);
 	});
 
 	it('skips undefined component entries while collecting integration dependencies and triggers', async () => {
@@ -318,8 +448,6 @@ describe('RenderPreparationService', () => {
 				components: [undefined, Nested] as unknown as EcoComponent[],
 			},
 		};
-		const setProcessedDependencies = vi.fn();
-
 		await expect(
 			service.prepare(
 				{ file: '/app/pages/404.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
@@ -338,9 +466,6 @@ describe('RenderPreparationService', () => {
 					buildRouteRenderAssets: async () => [],
 					shouldRenderPageComponent: () => false,
 					renderPageComponent: vi.fn(),
-					setProcessedDependencies,
-					dedupeProcessedAssets: (assets) => assets,
-					createPageLocalsProxy: () => ({}),
 				},
 			),
 		).resolves.toEqual(
@@ -349,7 +474,31 @@ describe('RenderPreparationService', () => {
 			}),
 		);
 
-		expect(setProcessedDependencies).toHaveBeenCalledWith([integrationDependency]);
+		const result = await service.prepare(
+			{ file: '/app/pages/404.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			'ghtml',
+			{
+				resolvePageModule: async () => ({
+					Page,
+					integrationSpecificProps: {},
+				}),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: '404', description: 'Not found' },
+				}),
+				resolveDependencies: async () => [],
+				buildRouteRenderAssets: async () => [],
+				shouldRenderPageComponent: () => false,
+				renderPageComponent: vi.fn(),
+			},
+		);
+
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({
+				assets: [integrationDependency],
+			}),
+		);
 	});
 
 	it('uses an injected boundary planning service when provided', async () => {
@@ -405,9 +554,6 @@ describe('RenderPreparationService', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
-				setProcessedDependencies: vi.fn(),
-				dedupeProcessedAssets: (assets) => assets,
-				createPageLocalsProxy: () => ({}),
 			},
 		);
 

@@ -49,7 +49,7 @@ function dedupeCsvValues(values: string[]): string {
  * @param lazyGroups Lazy script groups resolved during dependency processing.
  * @returns Injector map config keyed by lazy trigger.
  */
-function buildInjectorMap(lazyGroups: ResolvedLazyScriptGroup[]): InjectorMapConfig {
+function buildInjectorMap(lazyGroups: readonly ResolvedLazyScriptGroup[]): InjectorMapConfig {
 	const map: InjectorMapConfig = {};
 
 	for (const group of lazyGroups) {
@@ -114,7 +114,7 @@ function buildInjectorMap(lazyGroups: ResolvedLazyScriptGroup[]): InjectorMapCon
  * @param lazyGroups Lazy script groups resolved during dependency processing.
  * @returns Escaped JSON string safe for inline script embedding.
  */
-export function buildInjectorMapScript(lazyGroups: ResolvedLazyScriptGroup[]): string {
+export function buildInjectorMapScript(lazyGroups: readonly ResolvedLazyScriptGroup[]): string {
 	const map = buildInjectorMap(lazyGroups);
 	return JSON.stringify(map).replace(/<\/script/gi, '<\\/script');
 }

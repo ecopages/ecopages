@@ -359,6 +359,7 @@ describe('IntegrationRenderer', () => {
 				content: 'import "virtual:ecopages/island-client.ts";',
 				inline: true,
 				kind: 'script',
+				packageRole: 'keep-separate',
 				position: 'body',
 			},
 		]);
@@ -1479,8 +1480,8 @@ describe('IntegrationRenderer', () => {
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const parentMarker = createBoundaryMarker('n_2', 'parent-component', 'props-parent');
-			const leafMarker = createBoundaryMarker('n_3', 'leaf-component', 'props-leaf');
+			const _parentMarker = createBoundaryMarker('n_2', 'parent-component', 'props-parent');
+			const _leafMarker = createBoundaryMarker('n_3', 'leaf-component', 'props-leaf');
 
 			renderer.RenderedBody = `<html><body><main>${createBoundaryMarker('n_1', 'root-component', 'props-root')}</main></body></html>`;
 			renderer.MockComponentRenderResult = {
@@ -1760,8 +1761,8 @@ describe('IntegrationRenderer', () => {
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const parentMarker = createBoundaryMarker('n_2', 'parent-component', 'props-parent');
-			const leafMarker = createBoundaryMarker('n_3', 'leaf-component', 'props-leaf');
+			const _parentMarker = createBoundaryMarker('n_2', 'parent-component', 'props-parent');
+			const _leafMarker = createBoundaryMarker('n_3', 'leaf-component', 'props-leaf');
 
 			renderer.RenderedBody = `<html><body><main><div data-shell="deep">${createBoundaryMarker('n_1', 'root-component', 'props-root')}</div></main></body></html>`;
 			renderer.MockComponentRenderResult = {

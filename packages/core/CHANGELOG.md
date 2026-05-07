@@ -13,6 +13,9 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Refactoring
 
+- Bundled page-local component stylesheets and standard file scripts into page-owned assets before processing, reducing per-page asset fan-out in emitted HTML.
+- Grouped Ecopages JSX page and lazy dependency entries into one multi-entry browser build so shared chunks can be emitted once without relying on the runtime alias vendor path.
+- Removed the transitional flat dependency write from render preparation so final HTML injection now follows the structured page-package path only.
 - Consolidated runtime state around shared module-loading services, app-owned build execution, and the universal `createApp()` boundary.
 - Simplified route-renderer orchestration around renderer-owned boundary runtimes, shared string-boundary queue helpers, and a smaller component render context.
 - Centralized shared integration renderer bootstrapping so package integrations only append renderer-specific config instead of duplicating core lifecycle wiring.
@@ -22,6 +25,18 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Fixed router-owned HMR current-page reloads to clear persisted layout caches so active shared layouts pick up updated implementations during development.
+- Fixed router-owned HMR layout refreshes to reuse the active HMR page entry instead of stale static bootstrap assets during persisted-layout reloads.
+- Fixed fetch-mode static generation to normalize absolute routes onto the active build runtime origin, restoring preview prerendering for routes discovered from absolute router entries.
+- Fixed global lazy-trigger bootstrap emission to inline the full bootstrap runtime in final HTML, removing separate initial injector bootstrap and runtime requests.
+- Fixed Ecopages JSX lazy-trigger finalization to preserve SSR custom-element markup nodes instead of coercing them to `[object Object]` inside parent renders.
+- Fixed legacy scripts-injector wrapping and grouped content-script bundling cleanup so non-string JSX SSR output stays intact and failed grouped builds do not leak temporary entries.
+- Fixed Ecopages JSX dependency resolution so page bundling now follows only declared `dependencies.scripts` entries, preventing SSR-only imports and lazy-declared scripts from being promoted into the page bundle.
+- Fixed Ecopages JSX lazy dependency bundling to keep page and lazy entries separate, preventing lazy scripts from forcing extra shared chunk requests into the page bundle.
+- Fixed Ecopages JSX dependency emission to collapse bundleable component CSS and module scripts into page-owned assets while preserving lazy trigger scripts.
+- Fixed Ecopages JSX page-owned dependency bundles to keep using the shared JSX and Radiant vendor runtimes so lazy chunks do not trigger duplicate runtime downloads.
+- Fixed Ecopages JSX page-owned browser bundles to keep intrinsic custom-element scripts out of final HTML when the current component tree already imports them, reducing docs home page script fan-out to one page bundle.
+- Fixed Node static builds so `ecopages build` no longer fails when the configured serve port is already in use.
 - Fixed mixed-integration page, layout, document, and component rendering to resolve foreign boundaries inside their owning renderer across the built-in integrations.
 - Fixed host/runtime module loading, published build-helper exports, asset output normalization, explicit render flows, and static or preview build stability across Bun, Node, Vite, and Nitro.
 - Fixed development project watcher setup to register chokidar paths and handlers only once per app runtime.

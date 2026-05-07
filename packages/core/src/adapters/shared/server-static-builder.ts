@@ -11,6 +11,7 @@ import type { StaticSiteGenerator } from '../../static-site-generator/static-sit
 
 export interface StaticBuildOptions {
 	preview?: boolean;
+	baseUrl?: string;
 }
 
 export interface ServeOptions {
@@ -132,9 +133,11 @@ export class ServerStaticBuilder {
 			staticRoutes?: StaticRoute[];
 		},
 	): Promise<void> {
-		const { preview = false } = options ?? {};
+		const { preview = false, baseUrl: explicitBaseUrl } = options ?? {};
 
-		const baseUrl = `http://${this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
+		const baseUrl =
+			explicitBaseUrl ??
+			`http://${this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
 		this.warnApiHandlersUnavailableInStaticMode();
 		this.prepareExportDirectory();
 		await this.refreshRuntimeAssets();

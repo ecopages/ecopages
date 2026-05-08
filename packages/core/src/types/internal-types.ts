@@ -5,7 +5,7 @@ import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { PageMetadataProps } from './public-types.ts';
-import type { FSRouter } from '../router/server/fs-router.ts';
+import type { RouteRegistry } from '../router/server/route-registry.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import type { DevGraphService } from '../services/runtime-state/dev-graph.service.ts';
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
@@ -189,11 +189,14 @@ export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
  * Represents the result of a route match.
  */
 export type MatchResult = {
-	filePath: string;
-	kind: RouteKind;
-	pathname: string;
-	query?: Record<string, string>;
-	params?: Record<string, string | string[]>;
+	requestedPathname: string;
+	templateRoute: {
+		filePath: string;
+		kind: RouteKind;
+		pathname: string;
+	};
+	query: Record<string, string>;
+	params: Record<string, string | string[]>;
 };
 
 /**
@@ -224,10 +227,10 @@ export type FileSystemServerOptions = {
 export interface EcoPagesFileSystemServerAdapter<ServerInstanceOptions = unknown> {
 	startServer(serverOptions: ServerInstanceOptions):
 		| {
-				router: FSRouter;
+				router: RouteRegistry;
 				server: unknown;
 		  }
-		| Promise<{ router: FSRouter; server: unknown }>;
+		| Promise<{ router: RouteRegistry; server: unknown }>;
 }
 
 export interface ProcessorPlugin {

@@ -16,6 +16,7 @@ import {
 const require = createRequire(import.meta.url);
 
 const originalUserAgent = process.env.npm_config_user_agent;
+const originalCwd = process.cwd();
 
 afterEach(() => {
 	if (originalUserAgent === undefined) {
@@ -23,7 +24,7 @@ afterEach(() => {
 	} else {
 		process.env.npm_config_user_agent = originalUserAgent;
 	}
-	process.chdir('/Users/andeeplus/github/ecopages');
+	process.chdir(originalCwd);
 });
 
 describe('launch-plan', () => {

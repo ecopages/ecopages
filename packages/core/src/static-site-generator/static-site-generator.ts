@@ -1,11 +1,34 @@
 import path from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { EcoPageComponent, StaticRoute } from '../types/public-types.ts';
-import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
-import type { FSRouter } from '../router/server/fs-router.ts';
+import type { EcoComponent, EcoPageComponent, StaticRoute } from '../types/public-types.ts';
+import type { RouteRenderer } from '../route-renderer/route-renderer.ts';
+import type { RenderToResponseContext } from '../route-renderer/orchestration/integration-renderer.ts';
+import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { PathUtils } from '../utils/path-utils.module.ts';
+
+type StaticGenerationRouteSource = {
+	listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]>;
+};
+
+type StaticPageRouteRendererFactory = {
+	createRenderer(filePath: string): Pick<RouteRenderer, 'createRoute' | 'loadPageModule'>;
+};
+
+type ExplicitStaticViewRenderer = {
+	renderToResponse<P = Record<string, unknown>>(
+		view: EcoComponent<P>,
+		props: P,
+		ctx: RenderToResponseContext,
+	): Promise<Response>;
+};
+
+type ExplicitStaticRouteRendererFactory = {
+	getRendererByIntegration(integrationName: string): ExplicitStaticViewRenderer | null;
+};
+
+type StaticGenerationRendererFactory = StaticPageRouteRendererFactory & ExplicitStaticRouteRendererFactory;
 
 export const STATIC_SITE_GENERATOR_ERRORS = {
 	ROUTE_RENDERER_FACTORY_REQUIRED: 'RouteRendererFactory is required for render strategy',
@@ -56,7 +79,7 @@ export class StaticSiteGenerator {
 	 */
 	private async shouldSkipStaticPageFile(
 		filePath: string,
-		routeRendererFactory: RouteRendererFactory,
+		routeRendererFactory: StaticPageRouteRendererFactory,
 	): Promise<boolean> {
 		const module = (await routeRendererFactory.createRenderer(filePath).loadPageModule(filePath, {
 			cacheScope: 'static-page-probe',
@@ -131,27 +154,17 @@ export class StaticSiteGenerator {
 		return Array.from(directories);
 	}
 
-	/**
-	 * Extracts dynamic parameters from the actual path based on the template path.
-	 *
-	 * @param templatePath - The template path (e.g., "/blog/[slug]")
-	 * @param actualPath - The actual path (e.g., "/blog/my-post")
-	 * @returns A record of extracted parameters (e.g., { slug: "my-post" })
-	 */
-	private extractParams(templatePath: string, actualPath: string): Record<string, string> {
-		const templateSegments = templateSegmentsFromPath(templatePath);
-		const actualSegments = templateSegmentsFromPath(actualPath);
-		const params: Record<string, string> = {};
-
-		for (let i = 0; i < templateSegments.length; i++) {
-			const segment = templateSegments[i];
-			if (segment.startsWith('[') && segment.endsWith(']')) {
-				const paramName = segment.slice(1, -1).replace('...', '');
-				params[paramName] = actualSegments[i];
-			}
+	private getFilesystemOutputPath(routePath: string, directories: string[]): string {
+		if (routePath === '/') {
+			return '/index.html';
 		}
 
-		return params;
+		const pathnameSegments = routePath.split('/').filter(Boolean);
+		if (pathnameSegments.length >= 1 && directories.includes(`/${pathnameSegments.join('/')}`)) {
+			return `${routePath.endsWith('/') ? routePath : `${routePath}/`}index.html`;
+		}
+
+		return `${routePath}.html`;
 	}
 
 	/**
@@ -162,12 +175,19 @@ export class StaticSiteGenerator {
 	 * issuing a request against the running server origin. Render-strategy routes
 	 * go through the normal route renderer directly.
 	 */
-	async generateStaticPages(router: FSRouter, baseUrl: string, routeRendererFactory?: RouteRendererFactory) {
-		const routes = Object.keys(router.routes).filter((route) => !route.includes('['));
+	async generateStaticPages(
+		router: StaticGenerationRouteSource,
+		baseUrl: string,
+		routeRendererFactory?: StaticPageRouteRendererFactory,
+	) {
+		const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
 
-		appLogger.debug('Static Pages', routes);
+		appLogger.debug(
+			'Static Pages',
+			routes.map((route) => route.requestUrl),
+		);
 
-		const directories = this.getDirectories(routes);
+		const directories = this.getDirectories(routes.map((route) => route.requestUrl));
 
 		for (const directory of directories) {
 			fileSystem.ensureDir(path.join(this.getExportDir(), directory));
@@ -175,7 +195,11 @@ export class StaticSiteGenerator {
 
 		for (const route of routes) {
 			try {
-				const { filePath, pathname: routePathname } = router.routes[route];
+				const {
+					templateRoute: { filePath },
+					pathname: routePathname,
+					params,
+				} = route;
 
 				const ext = PathUtils.getEcoTemplateExtension(filePath);
 				const integration = this.appConfig.integrations.find((plugin) => plugin.extensions.includes(ext));
@@ -184,7 +208,7 @@ export class StaticSiteGenerator {
 				let contents: string | Buffer;
 
 				if (strategy === 'fetch') {
-					const fetchUrl = this.resolveStaticFetchUrl(route, baseUrl);
+					const fetchUrl = this.resolveStaticFetchUrl(route.requestUrl, baseUrl);
 					const response = await fetch(fetchUrl);
 
 					if (!response.ok) {
@@ -201,25 +225,13 @@ export class StaticSiteGenerator {
 						continue;
 					}
 
-					let pathname = routePathname;
-					const pathnameSegments = pathname.split('/').filter(Boolean);
-
-					if (pathname === '/') {
-						pathname = '/index.html';
-					} else if (pathnameSegments.join('/').includes('[')) {
-						pathname = `${route.replace(router.origin, '')}.html`;
-					} else if (pathnameSegments.length >= 1 && directories.includes(`/${pathnameSegments.join('/')}`)) {
-						pathname = `${pathname.endsWith('/') ? pathname : `${pathname}/`}index.html`;
-					} else {
-						pathname += '.html';
-					}
+					const pathname = this.getFilesystemOutputPath(routePathname, directories);
 
 					const renderer = routeRendererFactory.createRenderer(filePath);
-					const params = this.extractParams(routePathname, pathname.replace('.html', ''));
 
 					const result = await renderer.createRoute({
 						file: filePath,
-						params,
+						params: params as Record<string, string>,
 					});
 
 					const body = result.body;
@@ -233,24 +245,13 @@ export class StaticSiteGenerator {
 					}
 				}
 
-				let pathname = routePathname;
-				const pathnameSegments = pathname.split('/').filter(Boolean);
-
-				if (pathname === '/') {
-					pathname = '/index.html';
-				} else if (pathnameSegments.join('/').includes('[')) {
-					pathname = `${route.replace(router.origin, '')}.html`;
-				} else if (pathnameSegments.length >= 1 && directories.includes(`/${pathnameSegments.join('/')}`)) {
-					pathname = `${pathname.endsWith('/') ? pathname : `${pathname}/`}index.html`;
-				} else {
-					pathname += '.html';
-				}
+				const pathname = this.getFilesystemOutputPath(routePathname, directories);
 
 				const outputPath = path.join(this.getExportDir(), pathname);
 				fileSystem.write(outputPath, contents);
 			} catch (error) {
 				appLogger.error(
-					`Error generating static page for ${route}:`,
+					`Error generating static page for ${route.requestUrl}:`,
 					error instanceof Error ? error : String(error),
 				);
 			}
@@ -280,9 +281,9 @@ export class StaticSiteGenerator {
 		routeRendererFactory,
 		staticRoutes,
 	}: {
-		router: FSRouter;
+		router: StaticGenerationRouteSource;
 		baseUrl: string;
-		routeRendererFactory?: RouteRendererFactory;
+		routeRendererFactory?: StaticGenerationRendererFactory;
 		staticRoutes?: StaticRoute[];
 	}) {
 		this.generateRobotsTxt();
@@ -299,7 +300,7 @@ export class StaticSiteGenerator {
 	 */
 	private async generateExplicitStaticPages(
 		staticRoutes: StaticRoute[],
-		routeRendererFactory: RouteRendererFactory,
+		routeRendererFactory: ExplicitStaticRouteRendererFactory,
 	): Promise<void> {
 		appLogger.debug(
 			'Generating explicit static routes',
@@ -314,13 +315,7 @@ export class StaticSiteGenerator {
 					continue;
 				}
 
-				const isDynamic = route.path.includes(':') || route.path.includes('[');
-
-				if (isDynamic) {
-					await this.generateDynamicStaticRoute(route.path, view, routeRendererFactory);
-				} else {
-					await this.generateSingleStaticRoute(route.path, view, routeRendererFactory);
-				}
+				await this.generateExplicitStaticRoute(route.path, view, routeRendererFactory);
 			} catch (error) {
 				appLogger.error(
 					`Error generating explicit static page for ${route.path}:`,
@@ -330,74 +325,15 @@ export class StaticSiteGenerator {
 		}
 	}
 
-	/**
-	 * Generate a single static page for a non-dynamic route.
-	 */
-	private async generateSingleStaticRoute(
+	private async generateExplicitStaticRoute(
 		routePath: string,
 		view: EcoPageComponent<any>,
-		routeRendererFactory: RouteRendererFactory,
+		routeRendererFactory: ExplicitStaticRouteRendererFactory,
 	): Promise<void> {
-		const integrationName = view.config?.__eco?.integration;
-		if (!integrationName) {
-			throw new Error(STATIC_SITE_GENERATOR_ERRORS.missingIntegration(routePath));
-		}
+		const renderer = this.getExplicitStaticRenderer(routePath, view, routeRendererFactory);
+		const routeEntries = await this.listExplicitStaticRouteEntries(routePath, view);
 
-		const renderer = routeRendererFactory.getRendererByIntegration(integrationName);
-		if (!renderer) {
-			throw new Error(STATIC_SITE_GENERATOR_ERRORS.noRendererForIntegration(integrationName));
-		}
-
-		const props = view.staticProps
-			? (
-					await view.staticProps({
-						pathname: { params: {} },
-						appConfig: this.appConfig,
-						runtimeOrigin: this.appConfig.baseUrl,
-					})
-				).props
-			: {};
-
-		const response = await renderer.renderToResponse(view, props, {});
-		const contents = await response.text();
-
-		const outputPath = this.getOutputPath(routePath);
-		fileSystem.ensureDir(path.dirname(outputPath));
-		fileSystem.write(outputPath, contents);
-
-		appLogger.debug(`Generated static page: ${routePath} -> ${outputPath}`);
-	}
-
-	/**
-	 * Generate static pages for a dynamic route using staticPaths.
-	 */
-	private async generateDynamicStaticRoute(
-		routePath: string,
-		view: EcoPageComponent<any>,
-		routeRendererFactory: RouteRendererFactory,
-	): Promise<void> {
-		if (!view.staticPaths) {
-			throw new Error(STATIC_SITE_GENERATOR_ERRORS.dynamicRouteRequiresStaticPaths(routePath));
-		}
-
-		const integrationName = view.config?.__eco?.integration;
-		if (!integrationName) {
-			throw new Error(STATIC_SITE_GENERATOR_ERRORS.missingIntegration(routePath));
-		}
-
-		const renderer = routeRendererFactory.getRendererByIntegration(integrationName);
-		if (!renderer) {
-			throw new Error(STATIC_SITE_GENERATOR_ERRORS.noRendererForIntegration(integrationName));
-		}
-
-		const { paths } = await view.staticPaths({
-			appConfig: this.appConfig,
-			runtimeOrigin: this.appConfig.baseUrl,
-		});
-
-		for (const { params } of paths) {
-			const resolvedPath = this.resolveRoutePath(routePath, params);
-
+		for (const { pathname, params } of routeEntries) {
 			const props = view.staticProps
 				? (
 						await view.staticProps({
@@ -411,12 +347,51 @@ export class StaticSiteGenerator {
 			const response = await renderer.renderToResponse(view, props, {});
 			const contents = await response.text();
 
-			const outputPath = this.getOutputPath(resolvedPath);
+			const outputPath = this.getOutputPath(pathname);
 			fileSystem.ensureDir(path.dirname(outputPath));
 			fileSystem.write(outputPath, contents);
 
-			appLogger.debug(`Generated static page: ${resolvedPath} -> ${outputPath}`);
+			appLogger.debug(`Generated static page: ${pathname} -> ${outputPath}`);
 		}
+	}
+
+	private getExplicitStaticRenderer(
+		routePath: string,
+		view: EcoPageComponent<any>,
+		routeRendererFactory: ExplicitStaticRouteRendererFactory,
+	) {
+		const integrationName = view.config?.__eco?.integration;
+		if (!integrationName) {
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.missingIntegration(routePath));
+		}
+
+		const renderer = routeRendererFactory.getRendererByIntegration(integrationName);
+		if (!renderer) {
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.noRendererForIntegration(integrationName));
+		}
+
+		return renderer;
+	}
+
+	private async listExplicitStaticRouteEntries(routePath: string, view: EcoPageComponent<any>) {
+		const isDynamic = routePath.includes(':') || routePath.includes('[');
+		if (!isDynamic) {
+			return [{ pathname: routePath, params: {} }];
+		}
+
+		if (!view.staticPaths) {
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.dynamicRouteRequiresStaticPaths(routePath));
+		}
+
+		const { paths } = await view.staticPaths({
+			appConfig: this.appConfig,
+			runtimeOrigin: this.appConfig.baseUrl,
+		});
+
+		return paths.map(({ params }) => ({
+			pathname: this.resolveRoutePath(routePath, params),
+			params,
+		}));
 	}
 
 	/**
@@ -452,11 +427,4 @@ export class StaticSiteGenerator {
 
 		return path.join(this.getExportDir(), outputName);
 	}
-}
-
-/**
- * Splits a path into segments, filtering out empty strings.
- */
-function templateSegmentsFromPath(path: string) {
-	return path.split('/').filter(Boolean);
 }

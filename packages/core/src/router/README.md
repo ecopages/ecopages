@@ -8,9 +8,9 @@ The router layer determines what route is being handled and how the client runti
 
 It is responsible for:
 
-- filesystem route scanning and classification (`exact`, `dynamic`, `catch-all`)
-- matching incoming request URLs to discovered routes
-- server-side static-path expansion for dynamic routes
+- filesystem route discovery and classification (`exact`, `dynamic`, `catch-all`)
+- matching incoming request URLs to canonical template routes
+- server-side static-path expansion for dynamic template routes
 - client-side navigation ownership and cross-runtime handoff
 - keeping route discovery separate from rendering execution
 
@@ -18,9 +18,8 @@ It is responsible for:
 
 ```
 router/
-├── server/                      # Server-side route scanning and matching
-│   ├── fs-router-scanner.ts     # Scans the filesystem and classifies routes
-│   └── fs-router.ts             # Matches request URLs to discovered routes
+├── server/                      # Server-side route discovery and matching
+│   └── route-registry.ts        # Owns template routes, request matching, static expansion, and reload
 └── client/                      # Browser-side navigation coordination
     ├── navigation-coordinator.ts # Singleton runtime coordinator
     └── link-intent.ts           # Shared anchor detection and intent recovery helpers
@@ -28,9 +27,9 @@ router/
 
 ## `server/`
 
-### `FSRouterScanner`
+### `RouteRegistry`
 
-Walks the pages directory and builds a `Routes` map keyed by route pathname.
+Owns the canonical set of filesystem-discovered template routes for one application.
 
 File patterns determine route kind:
 
@@ -40,25 +39,23 @@ File patterns determine route kind:
 | `[slug].tsx`    | `dynamic`   | `/blog/[slug]`    |
 | `[...slug].tsx` | `catch-all` | `/docs/[...slug]` |
 
-For `dynamic` routes, the scanner checks whether the page module exports `getStaticPaths`. If present, every returned path is expanded into a concrete `exact`-style route at scan time. In build mode, both `getStaticPaths` and `getStaticProps` are required or an invariant is thrown.
+The registry stores canonical template routes only. It compiles request-time matching metadata during `init()` and `reload()`, but it does not execute `staticPaths()` during discovery.
 
-Catch-all routes are registered but skipped during static generation with a warning.
+Build-time static expansion is a separate operation. The registry invokes `staticPaths()` lazily through an injected page-module adapter and returns concrete static path expansions for the static generator.
 
-### `FSRouter`
+The public interface is intentionally small:
 
-Holds the scanned `Routes` map and exposes a `match(requestUrl)` method used by adapters.
+- `templateRoutes` — ordered readonly template routes
+- `init()` / `reload()` — rebuild discovery state and match metadata
+- `matchRequest(requestUrl)` — request-time matching result with requested pathname, matched template route, params, and query
+- `listStaticPathExpansions()` — build-time expansion for dynamic routes
+- `listStaticGenerationRoutes()` — build-time route planning for static generation across exact and expanded routes
 
 Match priority:
 
 1. `exact` — the pathname must equal the route pathname exactly.
 2. `dynamic` — the clean (bracket-stripped) prefix must appear in the pathname, and the segment counts must match.
 3. `catch-all` — the clean prefix must appear in the pathname.
-
-Additional helpers:
-
-- `getDynamicParams(route, pathname)` — extracts named and spread parameters from a matched dynamic or catch-all route.
-- `getSearchParams(url)` — converts `URLSearchParams` to a plain object.
-- `setOnReload(cb)` / `reload()` — re-scans routes and fires an optional callback, used during development HMR.
 
 ## `client/`
 

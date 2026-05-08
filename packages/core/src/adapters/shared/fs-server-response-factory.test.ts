@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { fileSystem } from '@ecopages/file-system';
 import {
 	FIXTURE_APP_PROJECT_DIR,
 	FIXTURE_EXISTING_CSS_FILE_IN_DIST,
@@ -139,10 +140,15 @@ describe('FileSystemServerResponseFactory', () => {
 
 	describe('createFileResponse', () => {
 		it('should create a response with the file content and content type', async () => {
+			const readFileAsBufferSpy = vi
+				.spyOn(fileSystem, 'readFileAsBuffer')
+				.mockReturnValue(Buffer.from('<svg></svg>'));
+
 			const response = await responseFactory.createFileResponse(
 				FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH,
 				'image/svg+xml',
 			);
+			readFileAsBufferSpy.mockRestore();
 			expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
 		});
 
@@ -168,17 +174,29 @@ describe('FileSystemServerResponseFactory', () => {
 
 		it('should serve gzip file with Content-Encoding header when gzip is enabled', async () => {
 			const cssFilePath = `${appConfig.absolutePaths.distDir}/${FIXTURE_EXISTING_CSS_FILE_IN_DIST}`;
+			const existsSpy = vi
+				.spyOn(fileSystem, 'exists')
+				.mockImplementation((filePath) => filePath === `${cssFilePath}.gz`);
+			const readFileAsBufferSpy = vi
+				.spyOn(fileSystem, 'readFileAsBuffer')
+				.mockReturnValue(Buffer.from('body{color:red}'));
 			const response = await responseFactory.createFileResponse(cssFilePath, 'text/css');
+			existsSpy.mockRestore();
+			readFileAsBufferSpy.mockRestore();
 
 			expect(response.headers.get('Content-Type')).toBe('text/css');
 			expect(response.headers.get('Content-Encoding')).toBe('gzip');
 		});
 
 		it('should not set Content-Encoding header for non-gzip content types', async () => {
+			const readFileAsBufferSpy = vi
+				.spyOn(fileSystem, 'readFileAsBuffer')
+				.mockReturnValue(Buffer.from('<svg></svg>'));
 			const response = await responseFactory.createFileResponse(
 				FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH,
 				'image/svg+xml',
 			);
+			readFileAsBufferSpy.mockRestore();
 
 			expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
 			expect(response.headers.get('Content-Encoding')).toBeNull();

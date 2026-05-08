@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
 import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../__fixtures__/constants.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import type { MatchResult } from '../../types/internal-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
-import { FSRouter } from '../../router/server/fs-router.ts';
-import { FSRouterScanner } from '../../router/server/fs-router-scanner.ts';
+import { RouteRegistry } from '../../router/server/route-registry.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
@@ -18,21 +18,18 @@ for (const integration of appConfig.integrations) {
 	integration.setRuntimeOrigin(appConfig.baseUrl);
 }
 
-const scanner = new FSRouterScanner({
-	dir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
+const router = new RouteRegistry({
+	pagesDir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
 	appConfig,
 	origin: appConfig.baseUrl,
 	templatesExt: appConfig.templatesExt,
-	options: {
-		buildMode: false,
+	buildMode: false,
+	pageModuleAdapter: {
+		loadPageModule: vi.fn(async () => ({})),
 	},
 });
 
-const router = new FSRouter({
-	origin: appConfig.baseUrl,
-	assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
-	scanner,
-});
+await router.init();
 
 const routeRendererFactory = new RouteRendererFactory({
 	appConfig,
@@ -51,6 +48,7 @@ describe('FileSystemResponseMatcher', () => {
 	describe('without cache service', () => {
 		const matcherWithoutCache = new FileSystemResponseMatcher({
 			appConfig,
+			assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
 			router,
 			routeRendererFactory,
 			fileSystemResponseFactory,
@@ -65,9 +63,12 @@ describe('FileSystemResponseMatcher', () => {
 
 		it('should handle match with disabled cache headers', async () => {
 			const match: MatchResult = {
-				kind: 'exact',
-				pathname: APP_TEST_ROUTES.index,
-				filePath: INDEX_TEMPLATE_FILE,
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: {
+					kind: 'exact',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
 				params: {},
 				query: {},
 			};
@@ -90,6 +91,7 @@ describe('FileSystemResponseMatcher', () => {
 
 		const matcherWithCache = new FileSystemResponseMatcher({
 			appConfig,
+			assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
 			router,
 			routeRendererFactory,
 			fileSystemResponseFactory,
@@ -103,9 +105,12 @@ describe('FileSystemResponseMatcher', () => {
 
 		it('should return X-Cache header on first request (MISS)', async () => {
 			const match: MatchResult = {
-				kind: 'exact',
-				pathname: '/cache-test-miss',
-				filePath: INDEX_TEMPLATE_FILE,
+				requestedPathname: '/cache-test-miss',
+				templateRoute: {
+					kind: 'exact',
+					pathname: '/cache-test-miss',
+					filePath: INDEX_TEMPLATE_FILE,
+				},
 				params: {},
 				query: {},
 			};
@@ -117,9 +122,12 @@ describe('FileSystemResponseMatcher', () => {
 		it('should return X-Cache HIT on second request to same path', async () => {
 			const uniquePath = `/cache-test-hit-${Date.now()}`;
 			const match: MatchResult = {
-				kind: 'exact',
-				pathname: uniquePath,
-				filePath: INDEX_TEMPLATE_FILE,
+				requestedPathname: uniquePath,
+				templateRoute: {
+					kind: 'exact',
+					pathname: uniquePath,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
 				params: {},
 				query: {},
 			};
@@ -133,16 +141,22 @@ describe('FileSystemResponseMatcher', () => {
 
 		it('should cache different paths separately', async () => {
 			const match1: MatchResult = {
-				kind: 'exact',
-				pathname: '/path-a',
-				filePath: INDEX_TEMPLATE_FILE,
+				requestedPathname: '/path-a',
+				templateRoute: {
+					kind: 'exact',
+					pathname: '/path-a',
+					filePath: INDEX_TEMPLATE_FILE,
+				},
 				params: {},
 				query: {},
 			};
 			const match2: MatchResult = {
-				kind: 'exact',
-				pathname: '/path-b',
-				filePath: INDEX_TEMPLATE_FILE,
+				requestedPathname: '/path-b',
+				templateRoute: {
+					kind: 'exact',
+					pathname: '/path-b',
+					filePath: INDEX_TEMPLATE_FILE,
+				},
 				params: {},
 				query: {},
 			};
@@ -157,16 +171,22 @@ describe('FileSystemResponseMatcher', () => {
 		it('should include query params in cache key', async () => {
 			const basePath = `/search-${Date.now()}`;
 			const matchWithQuery: MatchResult = {
-				kind: 'exact',
-				pathname: basePath,
-				filePath: INDEX_TEMPLATE_FILE,
+				requestedPathname: basePath,
+				templateRoute: {
+					kind: 'exact',
+					pathname: basePath,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
 				params: {},
 				query: { q: 'test' },
 			};
 			const matchWithDifferentQuery: MatchResult = {
-				kind: 'exact',
-				pathname: basePath,
-				filePath: INDEX_TEMPLATE_FILE,
+				requestedPathname: basePath,
+				templateRoute: {
+					kind: 'exact',
+					pathname: basePath,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
 				params: {},
 				query: { q: 'other' },
 			};
@@ -189,6 +209,7 @@ describe('FileSystemResponseMatcher', () => {
 
 		const dynamicMatcher = new FileSystemResponseMatcher({
 			appConfig,
+			assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
 			router,
 			routeRendererFactory,
 			fileSystemResponseFactory,
@@ -198,9 +219,12 @@ describe('FileSystemResponseMatcher', () => {
 
 		it('should bypass cache entirely for dynamic strategy', async () => {
 			const match: MatchResult = {
-				kind: 'exact',
-				pathname: '/dynamic-page',
-				filePath: INDEX_TEMPLATE_FILE,
+				requestedPathname: '/dynamic-page',
+				templateRoute: {
+					kind: 'exact',
+					pathname: '/dynamic-page',
+					filePath: INDEX_TEMPLATE_FILE,
+				},
 				params: {},
 				query: {},
 			};
@@ -217,6 +241,7 @@ describe('FileSystemResponseMatcher', () => {
 	describe('handleNoMatch content type behavior', () => {
 		const matcher = new FileSystemResponseMatcher({
 			appConfig,
+			assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
 			router,
 			routeRendererFactory,
 			fileSystemResponseFactory,
@@ -247,7 +272,9 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should serve text/plain files from disk', async () => {
+			const readFileAsBuffer = vi.spyOn(fileSystem, 'readFileAsBuffer').mockReturnValue(Buffer.from('robots'));
 			const response = await matcher.handleNoMatch('/robots.txt');
+			readFileAsBuffer.mockRestore();
 			expect(response.headers.get('Content-Type')).toBe('text/plain');
 		});
 
@@ -262,6 +289,7 @@ describe('FileSystemResponseMatcher', () => {
 		it('should inspect page modules through the owning route renderer', async () => {
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
 				router,
 				routeRendererFactory,
 				fileSystemResponseFactory,

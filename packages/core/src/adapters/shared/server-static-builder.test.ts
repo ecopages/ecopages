@@ -8,7 +8,7 @@ import {
 } from './server-static-builder';
 import type { EcoPagesAppConfig } from '../../types/internal-types';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
-import type { FSRouter } from '../../router/server/fs-router';
+import type { RouteRegistry } from '../../router/server/route-registry';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -68,7 +68,7 @@ function createMockDependencies() {
 		port: 3000,
 	};
 
-	const Router = {} as FSRouter;
+	const Router = {} as RouteRegistry;
 	const RouteRendererFactory = {} as RouteRendererFactory;
 	const logger: ServerStaticBuilderLogger = {
 		warn: (message: string, detail?: string) => {

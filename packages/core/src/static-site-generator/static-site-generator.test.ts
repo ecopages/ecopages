@@ -2,8 +2,6 @@ import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { StaticSiteGenerator } from './static-site-generator';
 import type { EcoPagesAppConfig } from '../types/internal-types';
-import type { FSRouter } from '../router/server/fs-router';
-import type { RouteRendererFactory } from '../route-renderer/route-renderer';
 import { appLogger } from '../global/app-logger.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 
@@ -29,6 +27,17 @@ const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesA
 		integrations: [],
 		...overrides,
 	}) as EcoPagesAppConfig;
+
+const testInjectedMeta = {
+	id: 'test-page',
+	file: '/src/pages/test.tsx',
+	integration: 'test',
+};
+
+type StaticGenerationRouteSource = Parameters<StaticSiteGenerator['generateStaticPages']>[0];
+type StaticPageRouteRendererFactory = NonNullable<Parameters<StaticSiteGenerator['generateStaticPages']>[2]>;
+type StaticGenerationRendererFactory = NonNullable<Parameters<StaticSiteGenerator['run']>[0]['routeRendererFactory']>;
+type StaticGenerationRunnerInput = Parameters<StaticSiteGenerator['run']>[0];
 
 describe('StaticSiteGenerator', () => {
 	let ensureDirMock: any;
@@ -144,11 +153,21 @@ describe('StaticSiteGenerator', () => {
 	describe('generateStaticPages', () => {
 		const createMockRouter = (routes: Record<string, { filePath: string; pathname: string }>) =>
 			({
-				routes: Object.fromEntries(
-					Object.entries(routes).map(([key, value]) => [key, { ...value, kind: 'exact' }]),
+				listStaticGenerationRoutes: vi.fn(async () =>
+					Object.values(routes)
+						.filter((value) => !value.pathname.includes('['))
+						.map((value) => ({
+							requestUrl: `http://localhost:3000${value.pathname}`,
+							pathname: value.pathname,
+							templateRoute: {
+								...value,
+								kind: 'exact' as const,
+								paramNames: [],
+							},
+							params: {},
+						})),
 				),
-				origin: 'http://localhost:3000',
-			}) as unknown as FSRouter;
+			}) satisfies StaticGenerationRouteSource;
 
 		const createStaticPageModule = () => ({
 			default: Object.assign(() => null, { cache: 'static' }),
@@ -166,7 +185,7 @@ describe('StaticSiteGenerator', () => {
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
 					createRoute: vi.fn(async () => ({ body: '<html>Static</html>' })),
 				})),
-			} as unknown as RouteRendererFactory;
+			} satisfies StaticPageRouteRendererFactory;
 
 			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
@@ -184,7 +203,7 @@ describe('StaticSiteGenerator', () => {
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
 					createRoute: vi.fn(async () => ({ body: '<html>Blog Post</html>' })),
 				})),
-			} as unknown as RouteRendererFactory;
+			} satisfies StaticPageRouteRendererFactory;
 
 			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
@@ -211,7 +230,7 @@ describe('StaticSiteGenerator', () => {
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
 					createRoute: vi.fn(async () => ({ body: '<html>Home</html>' })),
 				})),
-			} as unknown as RouteRendererFactory;
+			} satisfies StaticPageRouteRendererFactory;
 
 			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
@@ -230,7 +249,7 @@ describe('StaticSiteGenerator', () => {
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
 					createRoute: vi.fn(async () => ({ body: bufferContent })),
 				})),
-			} as unknown as RouteRendererFactory;
+			} satisfies StaticPageRouteRendererFactory;
 
 			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
@@ -252,7 +271,7 @@ describe('StaticSiteGenerator', () => {
 					createRoute,
 					loadPageModule,
 				})),
-			} as unknown as RouteRendererFactory;
+			} satisfies StaticPageRouteRendererFactory;
 
 			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
@@ -273,9 +292,8 @@ describe('StaticSiteGenerator', () => {
 		test('should call generateRobotsTxt and generateStaticPages', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 			const Router = {
-				routes: {},
-				origin: 'http://localhost:3000',
-			} as unknown as FSRouter;
+				listStaticGenerationRoutes: vi.fn(async () => []),
+			} satisfies StaticGenerationRouteSource;
 
 			await ssg.run({
 				router: Router,
@@ -292,13 +310,13 @@ describe('StaticSiteGenerator', () => {
 
 			await ssg.run({
 				router: {
-					routes: {},
-					origin: 'http://localhost:3000',
-				} as unknown as FSRouter,
+					listStaticGenerationRoutes: vi.fn(async () => []),
+				} satisfies StaticGenerationRunnerInput['router'],
 				baseUrl: 'http://localhost:3000',
 				routeRendererFactory: {
+					createRenderer: vi.fn(),
 					getRendererByIntegration: vi.fn(),
-				} as unknown as RouteRendererFactory,
+				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
 					{
 						path: '/dashboard',
@@ -311,6 +329,80 @@ describe('StaticSiteGenerator', () => {
 				"Pages with cache: 'dynamic' are not supported in static generation or preview, so they will be skipped\n",
 				'➤ /dashboard',
 			);
+		});
+
+		test('should render dynamic explicit static routes from staticPaths', async () => {
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
+			});
+			const renderToResponse = vi.fn(async () => new Response('<html>Post</html>'));
+			const staticProps = vi.fn(async ({ pathname }) => ({
+				props: pathname.params,
+			}));
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => []),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: {
+					createRenderer: vi.fn(),
+					getRendererByIntegration: vi.fn(() => ({
+						renderToResponse,
+					})),
+				} satisfies StaticGenerationRendererFactory,
+				staticRoutes: [
+					{
+						path: '/blog/[slug]',
+						loader: async () => ({
+							default: Object.assign(() => null, {
+								config: { __eco: testInjectedMeta },
+								staticPaths: async () => ({ paths: [{ params: { slug: 'hello-world' } }] }),
+								staticProps,
+							}),
+						}),
+					},
+				],
+			});
+
+			expect(staticProps).toHaveBeenCalledWith({
+				pathname: { params: { slug: 'hello-world' } },
+				appConfig: expect.any(Object),
+				runtimeOrigin: 'http://localhost:3000',
+			});
+			expect(renderToResponse).toHaveBeenCalledWith(expect.any(Function), { slug: 'hello-world' }, {});
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/blog/hello-world.html', '<html>Post</html>');
+		});
+
+		test('should log an error for dynamic explicit routes without staticPaths', async () => {
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
+			});
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => []),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: {
+					createRenderer: vi.fn(),
+					getRendererByIntegration: vi.fn(() => ({
+						renderToResponse: vi.fn(),
+					})),
+				} satisfies StaticGenerationRendererFactory,
+				staticRoutes: [
+					{
+						path: '/blog/[slug]',
+						loader: async () => ({
+							default: Object.assign(() => null, {
+								config: { __eco: testInjectedMeta },
+							}),
+						}),
+					},
+				],
+			});
+
+			expect(writeMock).not.toHaveBeenCalledWith('/test/project/dist/blog/hello-world.html', expect.anything());
 		});
 	});
 });

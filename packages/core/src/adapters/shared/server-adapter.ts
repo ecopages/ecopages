@@ -522,10 +522,7 @@ export abstract class SharedServerAdapter<
 		return null;
 	}
 
-	private async tryHandleSharedApiRequest(
-		request: Request,
-		context: SharedRequestContext,
-	): Promise<Response | null> {
+	private async tryHandleSharedApiRequest(request: Request, context: SharedRequestContext): Promise<Response | null> {
 		const apiMatch = this.matchApiHandler(request, context.apiHandlers);
 		if (!apiMatch) {
 			return null;
@@ -551,10 +548,7 @@ export abstract class SharedServerAdapter<
 	 * Both Bun and Node bindings fall back to this exact function once they have mapped their
 	 * native HTTP objects into Web Standard Requests.
 	 */
-	public async handleSharedRequest(
-		request: Request,
-		context: SharedRequestContext,
-	): Promise<Response> {
+	public async handleSharedRequest(request: Request, context: SharedRequestContext): Promise<Response> {
 		const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
 		if (hmrResponse) {
 			return hmrResponse;

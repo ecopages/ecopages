@@ -93,25 +93,13 @@
 			"types": "./src/hmr/hmr-strategy.ts",
 			"default": "./src/hmr/hmr-strategy.ts"
 		},
+		"./dev/host-runtime": {
+			"types": "./src/dev/host-runtime.ts",
+			"default": "./src/dev/host-runtime.ts"
+		},
 		"./services/asset-processing-service": {
 			"types": "./src/services/assets/asset-processing-service/index.ts",
 			"default": "./src/services/assets/asset-processing-service/index.ts"
-		},
-		"./services/invalidation/development-invalidation.service": {
-			"types": "./src/services/invalidation/development-invalidation.service.ts",
-			"default": "./src/services/invalidation/development-invalidation.service.ts"
-		},
-		"./host-module-loader": {
-			"types": "./src/services/module-loading/host-module-loader-registry.ts",
-			"default": "./src/services/module-loading/host-module-loader-registry.ts"
-		},
-		"./utils/deep-merge": {
-			"types": "./src/utils/deep-merge.ts",
-			"default": "./src/utils/deep-merge.ts"
-		},
-		"./utils/invariant": {
-			"types": "./src/utils/invariant.ts",
-			"default": "./src/utils/invariant.ts"
 		},
 		"./plugins/processor": {
 			"types": "./src/plugins/processor.ts",

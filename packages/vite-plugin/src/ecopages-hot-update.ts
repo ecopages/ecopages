@@ -1,5 +1,5 @@
 import type { EnvironmentModuleNode, HotUpdateOptions, ViteDevServer } from 'vite';
-import { DevelopmentInvalidationService } from '@ecopages/core/services/invalidation/development-invalidation.service';
+import { createDevelopmentHostRuntime } from '@ecopages/core/dev/host-runtime';
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import type { EcopagesVitePlugin } from './types.ts';
 
@@ -35,7 +35,7 @@ function invalidateFileInServerEnvironments(server: ViteDevServer, filePath: str
  *   host-specific directories like a local plugin folder.
  */
 export function ecopagesHotUpdate(api: EcopagesPluginApi, options?: { watchedPaths?: string[] }): EcopagesVitePlugin {
-	const invalidationService = new DevelopmentInvalidationService(api.appConfig);
+	const hostRuntime = createDevelopmentHostRuntime(api.appConfig);
 	const extraWatchedPaths = options?.watchedPaths ?? [];
 
 	return {
@@ -65,10 +65,10 @@ export function ecopagesHotUpdate(api: EcopagesPluginApi, options?: { watchedPat
 				}
 			}
 
-			const plan = invalidationService.planFileChange(hotUpdateOptions.file);
+			const plan = hostRuntime.planFileChange(hotUpdateOptions.file);
 
 			if (plan.invalidateServerModules) {
-				invalidationService.invalidateServerModules([hotUpdateOptions.file]);
+				hostRuntime.invalidateServerModules([hotUpdateOptions.file]);
 				invalidateFileInServerEnvironments(server, hotUpdateOptions.file);
 			}
 

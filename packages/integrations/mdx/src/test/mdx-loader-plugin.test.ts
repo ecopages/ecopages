@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPluginBuilder } from '@ecopages/core/plugins/integration-plugin';
+import type {
+	EcoBuildOnLoadArgs,
+	EcoBuildOnLoadResult,
+	EcoBuildPluginBuilder,
+} from '@ecopages/core/plugins/integration-plugin';
 import { createMdxLoaderPlugin } from '../mdx-loader-plugin.ts';
 
 function createBuilderHarness() {

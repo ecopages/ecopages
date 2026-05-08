@@ -14,8 +14,8 @@ import type {
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 } from '@ecopages/core';
+import { assertIntegrationInvariant } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
-import { invariant } from '@ecopages/core/utils/invariant';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
@@ -97,7 +97,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 				getMetadata,
 			} as TPageModule;
 		} catch (error) {
-			invariant(false, `Error importing MDX file: ${error}`);
+			assertIntegrationInvariant(false, `Error importing MDX file: ${error}`);
 		}
 	}
 

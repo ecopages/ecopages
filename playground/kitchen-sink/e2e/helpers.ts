@@ -7,6 +7,89 @@ type CounterExpectations = {
 	react?: string | false;
 };
 
+const RETRIABLE_NAVIGATION_ERROR_FRAGMENTS = [
+	'net::ERR_ABORTED',
+	'net::ERR_EMPTY_RESPONSE',
+	'frame was detached',
+	'interrupted by another navigation',
+	'chrome-error://chromewebdata/',
+	'Target page, context or browser has been closed',
+];
+
+function isRetriableNavigationError(error: unknown): error is Error {
+	return (
+		error instanceof Error &&
+		RETRIABLE_NAVIGATION_ERROR_FRAGMENTS.some((fragment) => error.message.includes(fragment))
+	);
+}
+
+function isChromeErrorUrl(url: string): boolean {
+	return url.startsWith('chrome-error://');
+}
+
+function getNavigationBaseUrl(page: Page): string {
+	const currentUrl = page.url();
+
+	if (currentUrl && !isChromeErrorUrl(currentUrl) && !currentUrl.startsWith('about:')) {
+		try {
+			return new URL(currentUrl).href;
+		} catch {
+			// Fall through to the neutral base URL below.
+		}
+	}
+
+	return 'http://localhost/';
+}
+
+async function waitForStablePaint(page: Page) {
+	await page
+		.evaluate(
+			() =>
+				new Promise<void>((resolve) => {
+					requestAnimationFrame(() => {
+						requestAnimationFrame(() => resolve());
+					});
+				}),
+		)
+		.catch(() => undefined);
+}
+
+async function clickLocatorAndWaitInternal(page: Page, link: Locator, href: string) {
+	if (!(await link.isVisible().catch(() => false))) {
+		await gotoAndWait(page, href);
+		return;
+	}
+
+	const targetUrl = new URL(href, getNavigationBaseUrl(page));
+
+	try {
+		await Promise.all([
+			page.waitForURL((url) => url.pathname === targetUrl.pathname && url.search === targetUrl.search, {
+				timeout: 5000,
+			}),
+			link.click({ noWaitAfter: true }),
+		]);
+	} catch (error) {
+		if (!isRetriableNavigationError(error) && !(error instanceof Error && error.message.includes('Timeout'))) {
+			throw error;
+		}
+
+		await gotoAndWait(page, href);
+		return;
+	}
+
+	try {
+		await waitForPageReady(page, href);
+	} catch (error) {
+		if (isRetriableNavigationError(error) || (error instanceof Error && error.message.includes('Timeout'))) {
+			await gotoAndWait(page, href);
+			return;
+		}
+
+		throw error;
+	}
+}
+
 /**
  * Captures page and console errors so E2E specs can assert that rapid navigation stays clean.
  */
@@ -186,7 +269,7 @@ export function getSectionByText(page: Page, text: string): Locator {
 }
 
 export async function waitForPageReady(page: Page, href?: string) {
-	const targetUrl = href ? new URL(href, page.url()) : undefined;
+	const targetUrl = href ? new URL(href, getNavigationBaseUrl(page)) : undefined;
 
 	if (targetUrl) {
 		await expect
@@ -212,6 +295,7 @@ export async function waitForPageReady(page: Page, href?: string) {
 		})
 		.catch(() => undefined);
 	await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
+	await waitForStablePaint(page);
 	await expect
 		.poll(
 			async () => {
@@ -227,22 +311,36 @@ export async function waitForPageReady(page: Page, href?: string) {
 }
 
 export async function gotoAndWait(page: Page, href: string) {
-	try {
-		await page.goto(href, { waitUntil: 'domcontentloaded' });
-	} catch (error) {
-		if (
-			!(error instanceof Error) ||
-			(!error.message.includes('net::ERR_ABORTED') &&
-				!error.message.includes('net::ERR_EMPTY_RESPONSE') &&
-				!error.message.includes('frame was detached'))
-		) {
-			throw error;
+	const targetUrl = new URL(href, getNavigationBaseUrl(page));
+
+	for (let attempt = 0; attempt < 4; attempt += 1) {
+		if (page.url() === targetUrl.href) {
+			try {
+				await waitForPageReady(page, href);
+				return;
+			} catch (error) {
+				if (attempt === 3 || !isRetriableNavigationError(error)) {
+					throw error;
+				}
+			}
 		}
 
-		await page.goto(href, { waitUntil: 'domcontentloaded' });
-	}
+		try {
+			await page.goto(href, { waitUntil: 'domcontentloaded' });
+			await waitForPageReady(page, href);
+			return;
+		} catch (error) {
+			if (attempt === 3 || !isRetriableNavigationError(error)) {
+				throw error;
+			}
 
-	await waitForPageReady(page, href);
+			if (isChromeErrorUrl(page.url())) {
+				await page.goto('about:blank').catch(() => undefined);
+			}
+
+			await page.waitForTimeout(150).catch(() => undefined);
+		}
+	}
 }
 
 /**
@@ -258,26 +356,11 @@ export async function clickHrefAndWait(page: Page, href: string) {
 			? routeLink
 			: fallbackLink;
 
-	if (!(await link.isVisible().catch(() => false))) {
-		await gotoAndWait(page, href);
-		return;
-	}
+	await clickLocatorAndWaitInternal(page, link, href);
+}
 
-	const targetUrl = new URL(href, page.url());
-
-	try {
-		await Promise.all([
-			page.waitForURL((url) => url.pathname === targetUrl.pathname && url.search === targetUrl.search, {
-				timeout: 5000,
-			}),
-			link.click({ noWaitAfter: true }),
-		]);
-	} catch {
-		await gotoAndWait(page, href);
-		return;
-	}
-
-	await waitForPageReady(page, href);
+export async function clickLocatorAndWait(page: Page, link: Locator, href: string) {
+	await clickLocatorAndWaitInternal(page, link, href);
 }
 
 export async function readHeaderNavigation(page: Page) {

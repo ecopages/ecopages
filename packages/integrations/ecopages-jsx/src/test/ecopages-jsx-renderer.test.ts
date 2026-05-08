@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { EcoComponent } from '@ecopages/core';
-import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import { test } from 'vitest';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 

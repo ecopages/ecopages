@@ -1,5 +1,4 @@
-import type { EcoComponent, EcoComponentConfig, GetMetadata } from '@ecopages/core';
-import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
+import type { EcoComponent, EcoComponentConfig, EcoPagesAppConfig, GetMetadata } from '@ecopages/core';
 import type { IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { CompileOptions } from '@mdx-js/mdx';

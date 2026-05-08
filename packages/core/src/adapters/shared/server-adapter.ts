@@ -21,6 +21,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { EcoPageFile } from '../../types/public-types.ts';
 import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
+import type { RouteRegistryPageModuleAdapter } from '../../router/server/route-registry.ts';
 import type {
 	ApiHandler,
 	ApiHandlerContext,
@@ -104,9 +105,7 @@ export abstract class SharedServerAdapter<
 		await this.router.init();
 	}
 
-	private createRouteRegistryPageModuleAdapter(): RouteRegistry['pageModuleAdapter'] | {
-		loadPageModule(filePath: string): Promise<{ staticPaths?: unknown; staticProps?: unknown }>;
-	} {
+	private createRouteRegistryPageModuleAdapter(): RouteRegistryPageModuleAdapter {
 		const serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
 
 		return {
@@ -151,9 +150,8 @@ export abstract class SharedServerAdapter<
 			runtimeOrigin: this.runtimeOrigin,
 		});
 
-		const { fileSystemResponseMatcher, explicitStaticRouteMatcher } = this.createSharedResponseHandlerDependencies(
-			staticRoutes,
-		);
+		const { fileSystemResponseMatcher, explicitStaticRouteMatcher } =
+			this.createSharedResponseHandlerDependencies(staticRoutes);
 
 		this.fileSystemResponseMatcher = fileSystemResponseMatcher;
 		this.routeHandler = new ServerRouteHandler({

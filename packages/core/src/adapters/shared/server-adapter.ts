@@ -249,98 +249,20 @@ export abstract class SharedServerAdapter<
 		let context: ApiHandlerContext<Request, any> | undefined;
 
 		try {
-			const middleware = routeConfig.middleware || [];
-			const schema = routeConfig.schema;
-			const locals: Record<string, unknown> = {};
-
-			const normalizedParams = Object.fromEntries(
-				Object.entries(params).map(([key, value]) => [key, Array.isArray(value) ? value.join('/') : value]),
-			);
-
-			context = {
-				request,
-				params: normalizedParams,
-				response: new ApiResponseBuilder(),
-				server: serverInstance,
-				locals,
-				require: createRequire((): Record<string, unknown> => locals),
-				services: {
-					cache: this.getCacheService(),
-				},
-				...this.getRenderContext(),
-			};
-
-			if (schema) {
-				const url = new URL(request.url);
-				const queryParams = Object.fromEntries(url.searchParams);
-				const headers = Object.fromEntries(request.headers);
-
-				let body: unknown;
-				if (schema.body) {
-					try {
-						const contentType = request.headers.get('Content-Type') || '';
-						if (contentType.includes('application/json')) body = await request.clone().json();
-						else if (contentType.includes('text/plain')) body = await request.clone().text();
-					} catch {
-						return context.response.status(400).json({ error: 'Invalid request body' });
-					}
-				}
-
-				const validationResult = await this.schemaValidator.validateRequest(
-					{ body, query: queryParams, headers, params: normalizedParams },
-					schema,
-				);
-
-				if (!validationResult.success) {
-					return context.response.status(400).json({
-						error: 'Validation failed',
-						issues: validationResult.errors,
-					});
-				}
-
-				const validated = validationResult.data!;
-				if (validated.body !== undefined) context.body = validated.body;
-				if (validated.query !== undefined) context.query = validated.query;
-				if (validated.headers !== undefined) context.headers = validated.headers;
-				if (validated.params !== undefined) context.params = validated.params as Record<string, string>;
+			context = this.createApiHandlerContext(request, params, serverInstance);
+			const schemaResponse = await this.applyApiRequestSchema(context, routeConfig.schema);
+			if (schemaResponse) {
+				return schemaResponse;
 			}
 
-			if (middleware.length === 0) {
-				return await routeConfig.handler(context);
-			}
-
-			let index = 0;
-			const executeNext = async (): Promise<Response> => {
-				if (index < middleware.length) {
-					const currentMiddleware = middleware[index++];
-					return await currentMiddleware(context!, executeNext);
-				}
-				return await routeConfig.handler(context!);
-			};
-
-			return await executeNext();
+			return await this.runApiMiddlewareChain(context, routeConfig);
 		} catch (error) {
 			if (error instanceof Response) return error;
 
 			if (errorHandler) {
 				try {
 					if (!context) {
-						const locals: Record<string, unknown> = {};
-						context = {
-							request,
-							params: Object.fromEntries(
-								Object.entries(params).map(([key, value]) => [
-									key,
-									Array.isArray(value) ? value.join('/') : value,
-								]),
-							),
-							response: new ApiResponseBuilder(),
-							server: serverInstance,
-							locals,
-							require: createRequire((): Record<string, unknown> => locals),
-							services: { cache: this.getCacheService() },
-							...this.getRenderContext(),
-						};
+						context = this.createApiHandlerContext(request, params, serverInstance);
 					}
 					return await errorHandler(error, context);
 				} catch (handlerError) {
@@ -352,6 +274,98 @@ export abstract class SharedServerAdapter<
 			appLogger.error(`[ecopages] Error handling API request: ${error}`);
 			return new Response('Internal Server Error', { status: 500 });
 		}
+	}
+
+	private createApiHandlerContext(
+		request: Request,
+		params: Record<string, string | string[]>,
+		serverInstance: any,
+	): ApiHandlerContext<Request, any> {
+		const locals: Record<string, unknown> = {};
+		const normalizedParams = this.normalizeApiParams(params);
+
+		return {
+			request,
+			params: normalizedParams,
+			response: new ApiResponseBuilder(),
+			server: serverInstance,
+			locals,
+			require: createRequire((): Record<string, unknown> => locals),
+			services: {
+				cache: this.getCacheService(),
+			},
+			...this.getRenderContext(),
+		};
+	}
+
+	private normalizeApiParams(params: Record<string, string | string[]>): Record<string, string> {
+		return Object.fromEntries(
+			Object.entries(params).map(([key, value]) => [key, Array.isArray(value) ? value.join('/') : value]),
+		);
+	}
+
+	private async applyApiRequestSchema(
+		context: ApiHandlerContext<Request, any>,
+		schema: ApiHandler['schema'],
+	): Promise<Response | undefined> {
+		if (!schema) {
+			return undefined;
+		}
+
+		const url = new URL(context.request.url);
+		const queryParams = Object.fromEntries(url.searchParams);
+		const headers = Object.fromEntries(context.request.headers);
+
+		let body: unknown;
+		if (schema.body) {
+			try {
+				const contentType = context.request.headers.get('Content-Type') || '';
+				if (contentType.includes('application/json')) body = await context.request.clone().json();
+				else if (contentType.includes('text/plain')) body = await context.request.clone().text();
+			} catch {
+				return context.response.status(400).json({ error: 'Invalid request body' });
+			}
+		}
+
+		const validationResult = await this.schemaValidator.validateRequest(
+			{ body, query: queryParams, headers, params: context.params },
+			schema,
+		);
+
+		if (!validationResult.success) {
+			return context.response.status(400).json({
+				error: 'Validation failed',
+				issues: validationResult.errors,
+			});
+		}
+
+		const validated = validationResult.data!;
+		if (validated.body !== undefined) context.body = validated.body;
+		if (validated.query !== undefined) context.query = validated.query;
+		if (validated.headers !== undefined) context.headers = validated.headers;
+		if (validated.params !== undefined) context.params = validated.params as Record<string, string>;
+		return undefined;
+	}
+
+	private async runApiMiddlewareChain(
+		context: ApiHandlerContext<Request, any>,
+		routeConfig: ApiHandler,
+	): Promise<Response> {
+		const middleware = routeConfig.middleware || [];
+		if (middleware.length === 0) {
+			return await routeConfig.handler(context);
+		}
+
+		let index = 0;
+		const executeNext = async (): Promise<Response> => {
+			if (index < middleware.length) {
+				const currentMiddleware = middleware[index++];
+				return await currentMiddleware(context, executeNext);
+			}
+			return await routeConfig.handler(context);
+		};
+
+		return await executeNext();
 	}
 
 	private normalizePath(pathname: string): string {

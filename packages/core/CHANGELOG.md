@@ -22,6 +22,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Moved shared queued boundary resolution to attachment-policy payloads and constructor-injectable planning services.
 - Extracted shared page, layout, and document-shell composition into a narrow `RouteShellComposer` while keeping renderer-owned boundary handoff in `IntegrationRenderer`.
 - Removed marker-era compatibility capture, the shared route-level fallback resolver, deprecated `@ecopages/core/node*` escape hatches, and other dead route-renderer internals.
+- Replaced the split `FSRouter` and `FSRouterScanner` flow with one `RouteRegistry` seam for filesystem route discovery, request matching, and static-generation planning.
 
 ### Bug Fixes
 
@@ -56,6 +57,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Added regression coverage for app-owned runtime services, Node fallback paths, and cross-runtime invalidation behavior.
 - Strengthened the core ghtml integration tests so route and explicit render paths await real outcomes and cover `renderToResponse` behavior.
 - Added core regression coverage for boundary plans, payload contracts, and typed mixed-boundary context flow.
+- Added router and static-generation regression coverage for `RouteRegistry`, explicit static route expansion, and file-response fallbacks.
 
 ---
 

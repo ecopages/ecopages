@@ -2,8 +2,7 @@ import path from 'node:path';
 import { AbstractServerAdapter } from '../abstract/server-adapter.ts';
 import type { ServerAdapterOptions, ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
-import { FSRouter } from '../../router/server/fs-router.ts';
-import { FSRouterScanner } from '../../router/server/fs-router-scanner.ts';
+import { RouteRegistry } from '../../router/server/route-registry.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../services/validation/schema-validation-service.ts';
@@ -19,6 +18,9 @@ import { HttpError } from '../../errors/http-error.ts';
 import { ApiResponseBuilder } from './api-response.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { fileSystem } from '@ecopages/file-system';
+import type { EcoPageFile } from '../../types/public-types.ts';
+import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import type {
 	ApiHandler,
 	ApiHandlerContext,
@@ -32,7 +34,7 @@ export abstract class SharedServerAdapter<
 	TOptions extends ServerAdapterOptions,
 	TResult extends ServerAdapterResult,
 > extends AbstractServerAdapter<TOptions, TResult> {
-	protected router!: FSRouter;
+	protected router!: RouteRegistry;
 	protected fileSystemResponseMatcher!: FileSystemResponseMatcher;
 	protected routeRendererFactory!: RouteRendererFactory;
 	protected routeHandler!: ServerRouteHandler;
@@ -76,28 +78,41 @@ export abstract class SharedServerAdapter<
 	}
 
 	/**
-	 * Scans the filesystem and dynamically constructs the universal router map.
+	 * Scans the filesystem and dynamically constructs the Route Registry.
 	 *
 	 * This process runs identically across both Bun and Node wrappers. It analyzes the configured pages
 	 * directory, building a map of all available UI routes and API endpoints.
-	 * The resulting `FSRouter` instance becomes the central nervous system for mapping WinterCG incoming
+	 * The resulting `RouteRegistry` instance becomes the central nervous system for mapping WinterCG incoming
 	 * Web Requests (`Request`) to their corresponding internal execution paths.
 	 */
 	protected async initSharedRouter(): Promise<void> {
-		const scanner = new FSRouterScanner({
-			dir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
+		const serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
+
+		this.router = new RouteRegistry({
+			pagesDir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
 			appConfig: this.appConfig,
 			origin: this.runtimeOrigin,
 			templatesExt: this.appConfig.templatesExt,
-			options: {
-				buildMode: !this.options?.watch,
-			},
-		});
+			buildMode: !this.options?.watch,
+			pageModuleAdapter: {
+				loadPageModule: async (filePath) => {
+					const module = (await serverModuleTranspiler.importModule({
+						filePath,
+						outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-route-modules'),
+						externalPackages: false,
+						transpileErrorMessage: (details) => `Error transpiling route module: ${details}`,
+						noOutputMessage: (targetFilePath) =>
+							`No transpiled output generated for route module: ${targetFilePath}`,
+					})) as EcoPageFile;
 
-		this.router = new FSRouter({
-			origin: this.runtimeOrigin,
-			assetPrefix: path.join(this.appConfig.rootDir, this.appConfig.distDir),
-			scanner,
+					const page = module.default;
+
+					return {
+						staticPaths: page?.staticPaths ?? module.getStaticPaths,
+						staticProps: page?.staticProps ?? module.getStaticProps,
+					};
+				},
+			},
 		});
 
 		await this.router.init();
@@ -146,6 +161,7 @@ export abstract class SharedServerAdapter<
 
 		this.fileSystemResponseMatcher = new FileSystemResponseMatcher({
 			appConfig: this.appConfig,
+			assetPrefix: path.join(this.appConfig.rootDir, this.appConfig.distDir),
 			router: this.router,
 			routeRendererFactory: this.routeRendererFactory,
 			fileSystemResponseFactory,

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { EcoBuildOnResolveArgs, EcoBuildOnResolveResult, EcoBuildPlugin } from '../../build/build-types.ts';
@@ -72,7 +72,7 @@ function ensureRuntimePackageLink(nodeModulesDir: string, specifier: string, res
 			return;
 		}
 
-		rmSync(linkPath, { recursive: true, force: true });
+		removeRuntimePackageLink(linkPath);
 	}
 
 	try {
@@ -86,9 +86,23 @@ function ensureRuntimePackageLink(nodeModulesDir: string, specifier: string, res
 			return;
 		}
 
-		rmSync(linkPath, { recursive: true, force: true });
+		removeRuntimePackageLink(linkPath);
 		symlinkSync(packageRoot, linkPath, 'dir');
 	}
+}
+
+function removeRuntimePackageLink(linkPath: string): void {
+	try {
+		const stats = lstatSync(linkPath);
+		if (stats.isSymbolicLink()) {
+			unlinkSync(linkPath);
+			return;
+		}
+	} catch {
+		return;
+	}
+
+	rmSync(linkPath, { recursive: true, force: true });
 }
 
 export interface NodeBootstrapResolutionOptions {

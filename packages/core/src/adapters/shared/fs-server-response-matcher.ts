@@ -2,7 +2,7 @@ import path from 'node:path';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, MatchResult } from '../../types/internal-types.ts';
 import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
-import type { FSRouter } from '../../router/server/fs-router.ts';
+import type { RouteRegistry } from '../../router/server/route-registry.ts';
 import type { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from '../../services/cache/cache.types.ts';
 import { PageRequestCacheCoordinator } from '../../services/cache/page-request-cache-coordinator.service.ts';
@@ -15,7 +15,8 @@ import type { FileSystemServerResponseFactory } from './fs-server-response-facto
 
 export interface FileSystemResponseMatcherOptions {
 	appConfig: EcoPagesAppConfig;
-	router: FSRouter;
+	assetPrefix: string;
+	router: RouteRegistry;
 	routeRendererFactory: RouteRendererFactory;
 	fileSystemResponseFactory: FileSystemServerResponseFactory;
 	/** Optional cache service. When null, caching is disabled. */
@@ -33,7 +34,8 @@ export interface FileSystemResponseMatcherOptions {
  */
 export class FileSystemResponseMatcher {
 	private appConfig: EcoPagesAppConfig;
-	private router: FSRouter;
+	private assetPrefix: string;
+	private router: RouteRegistry;
 	private routeRendererFactory: RouteRendererFactory;
 	private fileSystemResponseFactory: FileSystemServerResponseFactory;
 	private pageRequestCacheCoordinator: PageRequestCacheCoordinator;
@@ -41,6 +43,7 @@ export class FileSystemResponseMatcher {
 
 	constructor({
 		appConfig,
+		assetPrefix,
 		router,
 		routeRendererFactory,
 		fileSystemResponseFactory,
@@ -48,6 +51,7 @@ export class FileSystemResponseMatcher {
 		defaultCacheStrategy = 'static',
 	}: FileSystemResponseMatcherOptions) {
 		this.appConfig = appConfig;
+		this.assetPrefix = assetPrefix;
 		this.router = router;
 		this.routeRendererFactory = routeRendererFactory;
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
@@ -69,7 +73,7 @@ export class FileSystemResponseMatcher {
 		}
 
 		const relativeUrl = requestUrl.startsWith('/') ? requestUrl.slice(1) : requestUrl;
-		const filePath = path.join(this.router.assetPrefix, relativeUrl);
+		const filePath = path.join(this.assetPrefix, relativeUrl);
 		const contentType = ServerUtils.getContentType(filePath);
 
 		return this.fileSystemResponseFactory.createFileResponse(filePath, contentType);
@@ -87,7 +91,10 @@ export class FileSystemResponseMatcher {
 	 * @returns Final response for the matched route.
 	 */
 	async handleMatch(match: MatchResult, request?: Request): Promise<Response> {
-		const cacheKey = this.pageRequestCacheCoordinator.buildCacheKey(match);
+		const cacheKey = this.pageRequestCacheCoordinator.buildCacheKey({
+			pathname: match.requestedPathname,
+			query: match.query,
+		});
 
 		try {
 			const resolvedRequest =
@@ -97,7 +104,8 @@ export class FileSystemResponseMatcher {
 				});
 
 			const localsStore: RequestLocals = {};
-			const pageModule = await this.importPageModule(match.filePath);
+			const pageFilePath = match.templateRoute.filePath;
+			const pageModule = await this.importPageModule(pageFilePath);
 			const Page = (pageModule as any)?.default;
 			const pageMiddleware = (Page?.middleware ?? []) as Middleware[];
 			const pageCacheStrategy =
@@ -109,10 +117,10 @@ export class FileSystemResponseMatcher {
 			this.fileRouteMiddlewarePipeline.assertValidConfiguration({
 				middleware: pageMiddleware,
 				pageCacheStrategy,
-				filePath: match.filePath,
+				filePath: pageFilePath,
 			});
 
-			const routeRenderer = this.routeRendererFactory.createRenderer(match.filePath);
+			const routeRenderer = this.routeRendererFactory.createRenderer(pageFilePath);
 			const middlewareContext = this.fileRouteMiddlewarePipeline.createContext({
 				request: resolvedRequest,
 				params: match.params as Record<string, string>,
@@ -121,7 +129,7 @@ export class FileSystemResponseMatcher {
 
 			const renderFn = async (): Promise<RenderResult> => {
 				const result = await routeRenderer.createRoute({
-					file: match.filePath,
+					file: pageFilePath,
 					params: match.params,
 					query: match.query,
 					locals: localsForRender,
@@ -155,7 +163,7 @@ export class FileSystemResponseMatcher {
 			}
 			if (error instanceof Error) {
 				if (isDevelopmentRuntime() || appLogger.isDebugEnabled()) {
-					appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.pathname}`);
+					appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.requestedPathname}`);
 				}
 			}
 			return this.fileSystemResponseFactory.createCustomNotFoundResponse();

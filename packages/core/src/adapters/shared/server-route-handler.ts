@@ -1,5 +1,5 @@
 import type { IHmrManager } from '../../types/public-types.ts';
-import type { FSRouter } from '../../router/server/fs-router.ts';
+import type { RouteRegistry } from '../../router/server/route-registry.ts';
 import type { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
 import type { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -11,7 +11,7 @@ import { injectHmrRuntimeIntoHtmlResponse, isHtmlResponse, shouldInjectHmrHtmlRe
  */
 export interface ServerRouteHandlerParams {
 	/** File system router for matching request URLs to route handlers. */
-	router: FSRouter;
+	router: RouteRegistry;
 	/** Matcher for handling file system route responses. */
 	fileSystemResponseMatcher: FileSystemResponseMatcher;
 	/** Optional matcher for explicit static routes like processed images or sitemaps. */
@@ -33,7 +33,7 @@ export interface ServerRouteHandlerParams {
  * In development mode, it also injects HMR scripts into HTML responses.
  */
 export class ServerRouteHandler {
-	private readonly router: FSRouter;
+	private readonly router: RouteRegistry;
 	private readonly fileSystemResponseMatcher: FileSystemResponseMatcher;
 	private readonly explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
 	private readonly watch: boolean;
@@ -98,7 +98,7 @@ export class ServerRouteHandler {
 			return this.maybeInjectHmrScript(response);
 		}
 
-		const fsMatch = !pathname.includes('.') && this.router.match(request.url);
+		const fsMatch = !pathname.includes('.') && this.router.matchRequest(request.url);
 
 		const response = await (fsMatch
 			? this.fileSystemResponseMatcher.handleMatch(fsMatch, request)

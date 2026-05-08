@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ServerRouteHandler } from './server-route-handler';
-import type { FSRouter } from '../../router/server/fs-router.ts';
+import type { RouteRegistry } from '../../router/server/route-registry.ts';
 import type { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 import type { IHmrManager } from '../../types/public-types.ts';
 
 function createMockDependencies() {
 	const Router = {
-		match: vi.fn(() => null),
-	} as unknown as FSRouter;
+		matchRequest: vi.fn(() => null),
+		origin: 'http://localhost:3000',
+	} as unknown as RouteRegistry;
 
 	const FileSystemResponseMatcher = {
 		handleMatch: vi.fn(() => Promise.resolve(new Response('Matched Content'))),
@@ -35,7 +36,7 @@ describe('ServerRouteHandler', () => {
 				fileSystemResponseMatcher: FileSystemResponseMatcher,
 			});
 
-			Router.match = vi.fn(
+			Router.matchRequest = vi.fn(
 				() =>
 					({
 						/* match */
@@ -71,7 +72,7 @@ describe('ServerRouteHandler', () => {
 				hmrManager: HmrManager,
 			});
 
-			Router.match = vi.fn(() => ({}) as any);
+			Router.matchRequest = vi.fn(() => ({}) as any);
 			FileSystemResponseMatcher.handleMatch = vi.fn(() =>
 				Promise.resolve(
 					new Response('<html><body></body></html>', { headers: { 'Content-Type': 'text/html' } }),

@@ -13,6 +13,10 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Refactoring
 
+- Removed the unused `@ecopages/core/utils/parse-cli-args` and `@ecopages/core/services/module-loading/app-server-module-transpiler.service` exports from the published package surface.
+- Removed the unused `@ecopages/core/bun/create-app` and `@ecopages/core/route-renderer/template-serialization` exports to keep the published package surface aligned with the documented entrypoints.
+- Removed the legacy `@ecopages/core/internal-types` export now that the public root package exposes the supported `EcoPagesAppConfig` contract.
+- Removed the duplicate `@ecopages/core/router/client/navigation-coordinator` export in favor of the canonical `@ecopages/core/router/navigation-coordinator` subpath.
 - Bundled page-local component stylesheets and standard file scripts into page-owned assets before processing, reducing per-page asset fan-out in emitted HTML.
 - Grouped Ecopages JSX page and lazy dependency entries into one multi-entry browser build so shared chunks can be emitted once without relying on the runtime alias vendor path.
 - Removed the transitional flat dependency write from render preparation so final HTML injection now follows the structured page-package path only.

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { Middleware } from '../types/public-types.ts';
+import type { FileRouteMiddleware } from '../types/public-types.ts';
 import { eco } from './eco.browser.ts';
 
 describe('browser eco facade', () => {
@@ -10,7 +10,7 @@ describe('browser eco facade', () => {
 
 		const staticPaths = async () => ({ paths: [{ params: { slug: 'intro' } }] });
 		const metadata = async () => ({ title: 'Docs', description: 'Docs page' });
-		const middleware: Middleware[] = [async (_ctx, next) => next()];
+		const middleware: FileRouteMiddleware[] = [async (_ctx, next) => next()];
 
 		const Page = eco.page({
 			layout: Layout,

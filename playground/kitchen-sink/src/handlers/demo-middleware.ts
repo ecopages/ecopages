@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
-import type { Middleware } from '@ecopages/core';
+import type { FileRouteMiddleware, Middleware } from '@ecopages/core';
 
 const defaultFlags = ['semantic-shells', 'explicit-routes', 'request-locals'];
 
-export const requestInfoMiddleware: Middleware = async (ctx, next) => {
+export const requestInfoMiddleware: FileRouteMiddleware = async (ctx, next) => {
 	const url = new URL(ctx.request.url);
 	const featureFlags = url.searchParams.getAll('flag').filter(Boolean);
 

@@ -1,12 +1,14 @@
 import { createRequire } from '../../utils/locals-utils.ts';
-import type { Middleware, ApiHandlerContext, RequestLocals } from '../../types/public-types.ts';
+import type {
+	FileRouteMiddleware,
+	FileRouteMiddlewareContext,
+	RequestLocals,
+} from '../../types/public-types.ts';
 import type { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import { ApiResponseBuilder } from './api-response.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 
 export const FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS = {
-	CTX_RENDER_UNAVAILABLE: '[ecopages] ctx.render is not available in file-route middleware',
-	CTX_RENDER_PARTIAL_UNAVAILABLE: '[ecopages] ctx.renderPartial is not available in file-route middleware',
 	middlewareRequiresDynamic: (filePath: string) =>
 		`[ecopages] Page middleware requires cache: 'dynamic'. Page: ${filePath}`,
 } as const;
@@ -36,7 +38,7 @@ export class FileRouteMiddlewarePipeline {
 	 * @throws LocalsAccessError When middleware is configured for a non-dynamic page.
 	 */
 	assertValidConfiguration(input: {
-		middleware: Middleware[];
+		middleware: FileRouteMiddleware[];
 		pageCacheStrategy: 'static' | 'dynamic' | { revalidate: number; tags?: string[] };
 		filePath: string;
 	}): void {
@@ -50,9 +52,8 @@ export class FileRouteMiddlewarePipeline {
 	/**
 	 * Creates the request-scoped middleware context used by page middleware.
 	 *
-	 * The context intentionally disables `render()` and `renderPartial()` inside
-	 * file-route middleware because rendering is owned by the page route pipeline,
-	 * not by middleware stages.
+	 * The context intentionally omits `render()` and `renderPartial()` because
+	 * rendering is owned by the page route pipeline, not by middleware stages.
 	 *
 	 * @param input Request details and the mutable locals store.
 	 * @returns Middleware execution context.
@@ -61,8 +62,8 @@ export class FileRouteMiddlewarePipeline {
 		request: Request;
 		params: Record<string, string>;
 		locals: RequestLocals;
-	}): ApiHandlerContext {
-		const context: ApiHandlerContext = {
+	}): FileRouteMiddlewareContext {
+		const context: FileRouteMiddlewareContext = {
 			request: input.request,
 			params: input.params,
 			response: new ApiResponseBuilder(),
@@ -72,12 +73,6 @@ export class FileRouteMiddlewarePipeline {
 			},
 			locals: input.locals,
 			require: createRequire(() => context.locals as unknown as Record<string, unknown>),
-			render: async () => {
-				throw new Error(FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS.CTX_RENDER_UNAVAILABLE);
-			},
-			renderPartial: async () => {
-				throw new Error(FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS.CTX_RENDER_PARTIAL_UNAVAILABLE);
-			},
 			json: (data, options) => {
 				const builder = new ApiResponseBuilder();
 				if (options?.status) builder.status(options.status);
@@ -105,8 +100,8 @@ export class FileRouteMiddlewarePipeline {
 	 * @returns Response from middleware or final render stage.
 	 */
 	async run(input: {
-		middleware: Middleware[];
-		context: ApiHandlerContext;
+		middleware: FileRouteMiddleware[];
+		context: FileRouteMiddlewareContext;
 		renderResponse: () => Promise<Response>;
 	}): Promise<Response> {
 		if (input.middleware.length === 0) {

@@ -1,9 +1,9 @@
-import type { ApiHandlerContext, Middleware } from '@ecopages/core';
+import type { ApiHandlerContext, FileRouteMiddleware } from '@ecopages/core';
 import { auth } from '@/lib/auth.server';
 
 export type Session = (typeof auth)['$Infer']['Session'];
 
-export const authMiddleware: Middleware = async (ctx, next) => {
+export const authMiddleware: FileRouteMiddleware = async (ctx, next) => {
 	const session = await auth.api.getSession({
 		headers: ctx.request.headers,
 	});

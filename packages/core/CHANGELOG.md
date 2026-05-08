@@ -13,6 +13,9 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Refactoring
 
+- Moved page-package classification into the asset-processing module so render orchestration no longer carries a dedicated packaging service wrapper.
+- Split file-route page middleware onto its own context contract so page middleware no longer exposes handler-only `ctx.render()` helpers and the pipeline stops carrying fake render traps.
+
 - Added the `@ecopages/core/dev/host-runtime` seam so host integrations such as the Vite plugin use one explicit development bridge instead of importing host-module-loader and invalidation internals directly.
 - Moved extension-facing merge and assertion helpers behind the integration and processor plugin entrypoints so MDX and image processing no longer depend on raw `utils/deep-merge` or `utils/invariant` package paths.
 - Re-exported shared build-plugin authoring types through the integration and processor plugin entrypoints so extension packages depend on plugin surfaces instead of the raw `build/build-types` module.

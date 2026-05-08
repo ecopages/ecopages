@@ -7,7 +7,7 @@ import type { PageCacheService } from '../../services/cache/page-cache-service.t
 import type { CacheStrategy, RenderResult } from '../../services/cache/cache.types.ts';
 import { PageRequestCacheCoordinator } from '../../services/cache/page-request-cache-coordinator.service.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
-import type { Middleware, RequestLocals } from '../../types/public-types.ts';
+import type { FileRouteMiddleware, RequestLocals } from '../../types/public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';
@@ -17,7 +17,7 @@ type FileRouteExecutionPlan = {
 	cacheKey: string;
 	request: Request;
 	pageFilePath: string;
-	pageMiddleware: Middleware[];
+	pageMiddleware: FileRouteMiddleware[];
 	pageCacheStrategy: CacheStrategy;
 	localsStore: RequestLocals;
 	localsForRender: RequestLocals | undefined;
@@ -174,7 +174,7 @@ export class FileSystemResponseMatcher {
 		const pageFilePath = match.templateRoute.filePath;
 		const pageModule = await this.importPageModule(pageFilePath);
 		const Page = (pageModule as any)?.default;
-		const pageMiddleware = (Page?.middleware ?? []) as Middleware[];
+		const pageMiddleware = (Page?.middleware ?? []) as FileRouteMiddleware[];
 		const pageCacheStrategy =
 			(Page?.cache as CacheStrategy | undefined) ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
 

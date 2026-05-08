@@ -21,12 +21,12 @@ import type {
 import {
 	type AssetProcessingService,
 	AssetFactory,
+	createPagePackage,
 	type ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../eco/global-injector-map.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { BoundaryPlanningService } from './boundary-planning.service.ts';
-import { PagePackagingService } from './page-packaging.service.ts';
 import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
 
 type ResolvedPageModule = {
@@ -61,7 +61,6 @@ export interface RenderPreparationCallbacks {
 
 export interface RenderPreparationServiceDependencies {
 	boundaryPlanningService?: BoundaryPlanningService;
-	pagePackagingService?: PagePackagingService;
 }
 
 function createPageLocalsProxy(filePath: string): Record<string, never> {
@@ -107,7 +106,6 @@ export class RenderPreparationService {
 	private appConfig: EcoPagesAppConfig;
 	private assetProcessingService: AssetProcessingService;
 	private readonly boundaryPlanningService: BoundaryPlanningService;
-	private readonly pagePackagingService: PagePackagingService;
 
 	/**
 	 * Creates the render-preparation orchestrator for one app instance.
@@ -124,7 +122,6 @@ export class RenderPreparationService {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 		this.boundaryPlanningService = dependencies.boundaryPlanningService ?? new BoundaryPlanningService(appConfig);
-		this.pagePackagingService = dependencies.pagePackagingService ?? new PagePackagingService();
 	}
 
 	/**
@@ -195,7 +192,7 @@ export class RenderPreparationService {
 		}
 
 		const dedupedDependencies = dedupeProcessedAssets(allDependencies);
-		const pagePackage = this.pagePackagingService.createPagePackage(dedupedDependencies);
+		const pagePackage = createPagePackage(dedupedDependencies);
 
 		const pageProps = {
 			...props,

@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
-import { PagePackagingService } from './page-packaging.service.ts';
+import type { ProcessedAsset } from './assets.types.ts';
+import { createPagePackage } from './page-package.ts';
 
-describe('PagePackagingService', () => {
+describe('createPagePackage', () => {
 	it('classifies page assets, inline assets, separate assets, and dynamic chunks', () => {
-		const service = new PagePackagingService();
 		const pageScript = {
 			kind: 'script',
 			srcUrl: '/assets/page.js',
@@ -35,13 +34,7 @@ describe('PagePackagingService', () => {
 			packageRole: 'dynamic-chunk',
 		} as ProcessedAsset;
 
-		const result = service.createPagePackage([
-			pageStylesheet,
-			pageScript,
-			runtimeScript,
-			inlineScript,
-			dynamicChunk,
-		]);
+		const result = createPagePackage([pageStylesheet, pageScript, runtimeScript, inlineScript, dynamicChunk]);
 
 		expect(result.pageScript).toBe(pageScript);
 		expect(result.pageStylesheet).toBe(pageStylesheet);
@@ -52,7 +45,6 @@ describe('PagePackagingService', () => {
 	});
 
 	it('prefers explicit page roles over visibility heuristics', () => {
-		const service = new PagePackagingService();
 		const hiddenPageScript = {
 			kind: 'script',
 			srcUrl: '/assets/pages/index.js',
@@ -67,7 +59,7 @@ describe('PagePackagingService', () => {
 			packageRole: 'keep-separate',
 		} as ProcessedAsset;
 
-		const result = service.createPagePackage([hiddenPageScript, hydrationBootstrap]);
+		const result = createPagePackage([hiddenPageScript, hydrationBootstrap]);
 
 		expect(result.pageScript).toBe(hiddenPageScript);
 		expect(result.htmlAssets).toEqual([hydrationBootstrap]);

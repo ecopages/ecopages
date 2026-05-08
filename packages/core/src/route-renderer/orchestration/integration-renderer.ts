@@ -28,6 +28,7 @@ import type {
 } from '../../types/public-types.ts';
 import {
 	type AssetProcessingService,
+	createPagePackage,
 	type ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import { HtmlTransformerService } from '../../services/html/html-transformer.service.ts';
@@ -35,7 +36,6 @@ import { invariant } from '../../utils/invariant.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
-import { PagePackagingService } from './page-packaging.service.ts';
 import { RenderExecutionService } from './render-execution.service.ts';
 import { RenderPreparationService } from './render-preparation.service.ts';
 import { RouteShellComposer } from './route-shell-composer.service.ts';
@@ -93,7 +93,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected renderPreparationService: RenderPreparationService;
 	protected renderExecutionService: RenderExecutionService;
-	protected pagePackagingService: PagePackagingService;
 	protected readonly routeShellComposer = new RouteShellComposer();
 	protected readonly queuedBoundaryRuntimeService = new QueuedBoundaryRuntimeService();
 
@@ -270,7 +269,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const resolvedDependencies = this.htmlTransformer.dedupeProcessedAssets(
 			await this.resolveDependencies(componentsToResolve),
 		);
-		this.htmlTransformer.setPagePackage(this.pagePackagingService.createPagePackage(resolvedDependencies));
+		this.htmlTransformer.setPagePackage(createPagePackage(resolvedDependencies));
 		return resolvedDependencies;
 	}
 
@@ -300,7 +299,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			...nextDependencies,
 		]);
 
-		this.htmlTransformer.setPagePackage(this.pagePackagingService.createPagePackage(mergedDependencies));
+		this.htmlTransformer.setPagePackage(createPagePackage(mergedDependencies));
 
 		return nextDependencies;
 	}
@@ -601,15 +600,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 		this.htmlTransformer = new HtmlTransformerService();
-		this.pagePackagingService = new PagePackagingService();
 		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 		this.rendererModules = rendererModules ?? appConfig.runtime?.rendererModuleContext;
 		this.runtimeOrigin = runtimeOrigin;
 		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
-		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService, {
-			pagePackagingService: this.pagePackagingService,
-		});
+		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService);
 		this.renderExecutionService = new RenderExecutionService();
 	}
 

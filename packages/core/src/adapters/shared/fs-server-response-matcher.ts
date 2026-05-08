@@ -13,6 +13,16 @@ import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
+type FileRouteExecutionPlan = {
+	cacheKey: string;
+	request: Request;
+	pageFilePath: string;
+	pageMiddleware: Middleware[];
+	pageCacheStrategy: CacheStrategy;
+	localsStore: RequestLocals;
+	localsForRender: RequestLocals | undefined;
+};
+
 export interface FileSystemResponseMatcherOptions {
 	appConfig: EcoPagesAppConfig;
 	assetPrefix: string;
@@ -91,48 +101,28 @@ export class FileSystemResponseMatcher {
 	 * @returns Final response for the matched route.
 	 */
 	async handleMatch(match: MatchResult, request?: Request): Promise<Response> {
-		const cacheKey = this.pageRequestCacheCoordinator.buildCacheKey({
-			pathname: match.requestedPathname,
-			query: match.query,
-		});
-
 		try {
-			const resolvedRequest =
-				request ??
-				new Request(new URL(cacheKey, this.router.origin).toString(), {
-					method: 'GET',
-				});
-
-			const localsStore: RequestLocals = {};
-			const pageFilePath = match.templateRoute.filePath;
-			const pageModule = await this.importPageModule(pageFilePath);
-			const Page = (pageModule as any)?.default;
-			const pageMiddleware = (Page?.middleware ?? []) as Middleware[];
-			const pageCacheStrategy =
-				(Page?.cache as CacheStrategy | undefined) ??
-				this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
-			const localsForRender: RequestLocals | undefined =
-				pageCacheStrategy === 'dynamic' ? localsStore : undefined;
+			const executionPlan = await this.createExecutionPlan(match, request);
 
 			this.fileRouteMiddlewarePipeline.assertValidConfiguration({
-				middleware: pageMiddleware,
-				pageCacheStrategy,
-				filePath: pageFilePath,
+				middleware: executionPlan.pageMiddleware,
+				pageCacheStrategy: executionPlan.pageCacheStrategy,
+				filePath: executionPlan.pageFilePath,
 			});
 
-			const routeRenderer = this.routeRendererFactory.createRenderer(pageFilePath);
+			const routeRenderer = this.routeRendererFactory.createRenderer(executionPlan.pageFilePath);
 			const middlewareContext = this.fileRouteMiddlewarePipeline.createContext({
-				request: resolvedRequest,
+				request: executionPlan.request,
 				params: match.params as Record<string, string>,
-				locals: localsStore,
+				locals: executionPlan.localsStore,
 			});
 
 			const renderFn = async (): Promise<RenderResult> => {
 				const result = await routeRenderer.createRoute({
-					file: pageFilePath,
+					file: executionPlan.pageFilePath,
 					params: match.params,
 					query: match.query,
-					locals: localsForRender,
+					locals: executionPlan.localsForRender,
 				});
 				const html = await this.pageRequestCacheCoordinator.bodyToString(result.body);
 				const strategy = result.cacheStrategy ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
@@ -140,14 +130,14 @@ export class FileSystemResponseMatcher {
 			};
 			const renderResponse = async (): Promise<Response> => {
 				return this.pageRequestCacheCoordinator.render({
-					cacheKey,
-					pageCacheStrategy,
+					cacheKey: executionPlan.cacheKey,
+					pageCacheStrategy: executionPlan.pageCacheStrategy,
 					renderFn,
 				});
 			};
 
 			return await this.fileRouteMiddlewarePipeline.run({
-				middleware: pageMiddleware,
+				middleware: executionPlan.pageMiddleware,
 				context: middlewareContext,
 				renderResponse,
 			});
@@ -168,6 +158,35 @@ export class FileSystemResponseMatcher {
 			}
 			return this.fileSystemResponseFactory.createCustomNotFoundResponse();
 		}
+	}
+
+	private async createExecutionPlan(match: MatchResult, request?: Request): Promise<FileRouteExecutionPlan> {
+		const cacheKey = this.pageRequestCacheCoordinator.buildCacheKey({
+			pathname: match.requestedPathname,
+			query: match.query,
+		});
+		const resolvedRequest =
+			request ??
+			new Request(new URL(cacheKey, this.router.origin).toString(), {
+				method: 'GET',
+			});
+		const localsStore: RequestLocals = {};
+		const pageFilePath = match.templateRoute.filePath;
+		const pageModule = await this.importPageModule(pageFilePath);
+		const Page = (pageModule as any)?.default;
+		const pageMiddleware = (Page?.middleware ?? []) as Middleware[];
+		const pageCacheStrategy =
+			(Page?.cache as CacheStrategy | undefined) ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
+
+		return {
+			cacheKey,
+			request: resolvedRequest,
+			pageFilePath,
+			pageMiddleware,
+			pageCacheStrategy,
+			localsStore,
+			localsForRender: pageCacheStrategy === 'dynamic' ? localsStore : undefined,
+		};
 	}
 
 	/**

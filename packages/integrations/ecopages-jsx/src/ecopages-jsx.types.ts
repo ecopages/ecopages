@@ -5,7 +5,7 @@ import type {
 	AssetProcessingService,
 	ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
-import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
+import type { EcoPagesAppConfig } from '@ecopages/core';
 
 type MdxPluginList = NonNullable<CompileOptions['remarkPlugins']>;
 

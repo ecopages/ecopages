@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '@ecopages/core/internal-types';
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
 import type { ReactNode } from 'react';

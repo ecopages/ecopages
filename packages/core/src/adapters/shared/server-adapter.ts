@@ -30,6 +30,12 @@ import type {
 	StaticRoute,
 } from '../../types/public-types.ts';
 
+type SharedResponseHandlerDependencies = {
+	cacheService: PageCacheService | null;
+	fileSystemResponseMatcher: FileSystemResponseMatcher;
+	explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
+};
+
 export abstract class SharedServerAdapter<
 	TOptions extends ServerAdapterOptions,
 	TResult extends ServerAdapterResult,
@@ -86,36 +92,42 @@ export abstract class SharedServerAdapter<
 	 * Web Requests (`Request`) to their corresponding internal execution paths.
 	 */
 	protected async initSharedRouter(): Promise<void> {
-		const serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
-
 		this.router = new RouteRegistry({
 			pagesDir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
 			appConfig: this.appConfig,
 			origin: this.runtimeOrigin,
 			templatesExt: this.appConfig.templatesExt,
 			buildMode: !this.options?.watch,
-			pageModuleAdapter: {
-				loadPageModule: async (filePath) => {
-					const module = (await serverModuleTranspiler.importModule({
-						filePath,
-						outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-route-modules'),
-						externalPackages: false,
-						transpileErrorMessage: (details) => `Error transpiling route module: ${details}`,
-						noOutputMessage: (targetFilePath) =>
-							`No transpiled output generated for route module: ${targetFilePath}`,
-					})) as EcoPageFile;
-
-					const page = module.default;
-
-					return {
-						staticPaths: page?.staticPaths ?? module.getStaticPaths,
-						staticProps: page?.staticProps ?? module.getStaticProps,
-					};
-				},
-			},
+			pageModuleAdapter: this.createRouteRegistryPageModuleAdapter(),
 		});
 
 		await this.router.init();
+	}
+
+	private createRouteRegistryPageModuleAdapter(): RouteRegistry['pageModuleAdapter'] | {
+		loadPageModule(filePath: string): Promise<{ staticPaths?: unknown; staticProps?: unknown }>;
+	} {
+		const serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
+
+		return {
+			loadPageModule: async (filePath) => {
+				const module = (await serverModuleTranspiler.importModule({
+					filePath,
+					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-route-modules'),
+					externalPackages: false,
+					transpileErrorMessage: (details) => `Error transpiling route module: ${details}`,
+					noOutputMessage: (targetFilePath) =>
+						`No transpiled output generated for route module: ${targetFilePath}`,
+				})) as EcoPageFile;
+
+				const page = module.default;
+
+				return {
+					staticPaths: page?.staticPaths ?? module.getStaticPaths,
+					staticProps: page?.staticProps ?? module.getStaticProps,
+				};
+			},
+		};
 	}
 
 	/**
@@ -139,6 +151,21 @@ export abstract class SharedServerAdapter<
 			runtimeOrigin: this.runtimeOrigin,
 		});
 
+		const { fileSystemResponseMatcher, explicitStaticRouteMatcher } = this.createSharedResponseHandlerDependencies(
+			staticRoutes,
+		);
+
+		this.fileSystemResponseMatcher = fileSystemResponseMatcher;
+		this.routeHandler = new ServerRouteHandler({
+			router: this.router,
+			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
+			explicitStaticRouteMatcher,
+			watch: !!this.options?.watch,
+			hmrManager,
+		});
+	}
+
+	private createSharedResponseHandlerDependencies(staticRoutes: StaticRoute[]): SharedResponseHandlerDependencies {
 		const fileSystemResponseFactory = new FileSystemServerResponseFactory({
 			appConfig: this.appConfig,
 			routeRendererFactory: this.routeRendererFactory,
@@ -147,44 +174,43 @@ export abstract class SharedServerAdapter<
 			},
 		});
 
-		const cacheConfig = this.appConfig.cache;
-		const isCacheEnabled = cacheConfig?.enabled ?? !this.options?.watch;
-		let cacheService: PageCacheService | null = null;
-
-		if (isCacheEnabled) {
-			const store =
-				cacheConfig?.store === 'memory' || !cacheConfig?.store
-					? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
-					: cacheConfig.store;
-			cacheService = new PageCacheService({ store, enabled: true });
-		}
-
-		this.fileSystemResponseMatcher = new FileSystemResponseMatcher({
+		const cacheService = this.createSharedPageCacheService();
+		const fileSystemResponseMatcher = new FileSystemResponseMatcher({
 			appConfig: this.appConfig,
 			assetPrefix: path.join(this.appConfig.rootDir, this.appConfig.distDir),
 			router: this.router,
 			routeRendererFactory: this.routeRendererFactory,
 			fileSystemResponseFactory,
 			cacheService,
-			defaultCacheStrategy: cacheConfig?.defaultStrategy ?? 'static',
+			defaultCacheStrategy: this.appConfig.cache?.defaultStrategy ?? 'static',
 		});
 
-		const explicitStaticRouteMatcher =
-			staticRoutes.length > 0
-				? new ExplicitStaticRouteMatcher({
-						appConfig: this.appConfig,
-						routeRendererFactory: this.routeRendererFactory,
-						staticRoutes,
-					})
-				: undefined;
+		return {
+			cacheService,
+			fileSystemResponseMatcher,
+			explicitStaticRouteMatcher:
+				staticRoutes.length > 0
+					? new ExplicitStaticRouteMatcher({
+							appConfig: this.appConfig,
+							routeRendererFactory: this.routeRendererFactory,
+							staticRoutes,
+						})
+					: undefined,
+		};
+	}
 
-		this.routeHandler = new ServerRouteHandler({
-			router: this.router,
-			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
-			explicitStaticRouteMatcher,
-			watch: !!this.options?.watch,
-			hmrManager,
-		});
+	private createSharedPageCacheService(): PageCacheService | null {
+		const cacheConfig = this.appConfig.cache;
+		const isCacheEnabled = cacheConfig?.enabled ?? !this.options?.watch;
+		if (!isCacheEnabled) {
+			return null;
+		}
+
+		const store =
+			cacheConfig?.store === 'memory' || !cacheConfig?.store
+				? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
+				: cacheConfig.store;
+		return new PageCacheService({ store, enabled: true });
 	}
 
 	protected getCacheService(): CacheInvalidator | null {

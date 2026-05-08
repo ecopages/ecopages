@@ -37,6 +37,13 @@ type SharedResponseHandlerDependencies = {
 	explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
 };
 
+type SharedRequestContext = {
+	apiHandlers: ApiHandler[];
+	errorHandler?: ErrorHandler;
+	serverInstance?: any;
+	hmrManager?: any;
+};
+
 export abstract class SharedServerAdapter<
 	TOptions extends ServerAdapterOptions,
 	TResult extends ServerAdapterResult,
@@ -489,26 +496,7 @@ export abstract class SharedServerAdapter<
 		return null;
 	}
 
-	/**
-	 * Universally processes an incoming WinterCG Web standard Request.
-	 *
-	 * 1. Resolves static Hot Module Replacement runtime blobs if development.
-	 * 2. Checks if the incoming request matches any parsed API route schemas.
-	 *   - Routes through `executeApiHandler` which performs strict validation.
-	 * 3. Falls through to standard `ServerRouteHandler` for React/Lit filesystem pages.
-	 *
-	 * Both Bun and Node bindings fall back to this exact function once they have mapped their
-	 * native HTTP objects into Web Standard Requests.
-	 */
-	public async handleSharedRequest(
-		request: Request,
-		context: {
-			apiHandlers: ApiHandler[];
-			errorHandler?: ErrorHandler;
-			serverInstance?: any;
-			hmrManager?: any;
-		},
-	): Promise<Response> {
+	private tryHandleSharedHmrRequest(request: Request, context: SharedRequestContext): Response | null {
 		const url = new URL(request.url);
 
 		if (url.pathname === '/_hmr_runtime.js' && context.hmrManager) {
@@ -531,15 +519,50 @@ export abstract class SharedServerAdapter<
 			}
 		}
 
+		return null;
+	}
+
+	private async tryHandleSharedApiRequest(
+		request: Request,
+		context: SharedRequestContext,
+	): Promise<Response | null> {
 		const apiMatch = this.matchApiHandler(request, context.apiHandlers);
-		if (apiMatch) {
-			return this.executeApiHandler(
-				request,
-				apiMatch.params,
-				apiMatch.routeConfig,
-				context.serverInstance,
-				context.errorHandler,
-			);
+		if (!apiMatch) {
+			return null;
+		}
+
+		return await this.executeApiHandler(
+			request,
+			apiMatch.params,
+			apiMatch.routeConfig,
+			context.serverInstance,
+			context.errorHandler,
+		);
+	}
+
+	/**
+	 * Universally processes an incoming WinterCG Web standard Request.
+	 *
+	 * 1. Resolves static Hot Module Replacement runtime blobs if development.
+	 * 2. Checks if the incoming request matches any parsed API route schemas.
+	 *   - Routes through `executeApiHandler` which performs strict validation.
+	 * 3. Falls through to standard `ServerRouteHandler` for React/Lit filesystem pages.
+	 *
+	 * Both Bun and Node bindings fall back to this exact function once they have mapped their
+	 * native HTTP objects into Web Standard Requests.
+	 */
+	public async handleSharedRequest(
+		request: Request,
+		context: SharedRequestContext,
+	): Promise<Response> {
+		const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
+		if (hmrResponse) {
+			return hmrResponse;
+		}
+
+		const apiResponse = await this.tryHandleSharedApiRequest(request, context);
+		if (apiResponse) {
+			return apiResponse;
 		}
 
 		return this.routeHandler.handleResponse(request);

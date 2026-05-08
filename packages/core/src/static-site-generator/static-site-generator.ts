@@ -154,17 +154,11 @@ export class StaticSiteGenerator {
 		return Array.from(directories);
 	}
 
-	private getFilesystemOutputPath(routePath: string, directories: string[]): string {
-		if (routePath === '/') {
-			return '/index.html';
-		}
-
-		const pathnameSegments = routePath.split('/').filter(Boolean);
-		if (pathnameSegments.length >= 1 && directories.includes(`/${pathnameSegments.join('/')}`)) {
-			return `${routePath.endsWith('/') ? routePath : `${routePath}/`}index.html`;
-		}
-
-		return `${routePath}.html`;
+	private writeStaticOutput(routePath: string, contents: string | Buffer, directories: string[] = []): string {
+		const outputPath = this.getOutputPath(routePath, directories);
+		fileSystem.ensureDir(path.dirname(outputPath));
+		fileSystem.write(outputPath, contents);
+		return outputPath;
 	}
 
 	/**
@@ -188,10 +182,6 @@ export class StaticSiteGenerator {
 		);
 
 		const directories = this.getDirectories(routes.map((route) => route.requestUrl));
-
-		for (const directory of directories) {
-			fileSystem.ensureDir(path.join(this.getExportDir(), directory));
-		}
 
 		for (const route of routes) {
 			try {
@@ -225,8 +215,6 @@ export class StaticSiteGenerator {
 						continue;
 					}
 
-					const pathname = this.getFilesystemOutputPath(routePathname, directories);
-
 					const renderer = routeRendererFactory.createRenderer(filePath);
 
 					const result = await renderer.createRoute({
@@ -245,10 +233,7 @@ export class StaticSiteGenerator {
 					}
 				}
 
-				const pathname = this.getFilesystemOutputPath(routePathname, directories);
-
-				const outputPath = path.join(this.getExportDir(), pathname);
-				fileSystem.write(outputPath, contents);
+				this.writeStaticOutput(routePathname, contents, directories);
 			} catch (error) {
 				appLogger.error(
 					`Error generating static page for ${route.requestUrl}:`,
@@ -347,9 +332,7 @@ export class StaticSiteGenerator {
 			const response = await renderer.renderToResponse(view, props, {});
 			const contents = await response.text();
 
-			const outputPath = this.getOutputPath(pathname);
-			fileSystem.ensureDir(path.dirname(outputPath));
-			fileSystem.write(outputPath, contents);
+			const outputPath = this.writeStaticOutput(pathname, contents);
 
 			appLogger.debug(`Generated static page: ${pathname} -> ${outputPath}`);
 		}
@@ -414,11 +397,13 @@ export class StaticSiteGenerator {
 	/**
 	 * Get the output file path for a given route.
 	 */
-	private getOutputPath(routePath: string): string {
+	private getOutputPath(routePath: string, directories: string[] = []): string {
 		let outputName: string;
 
 		if (routePath === '/') {
 			outputName = 'index.html';
+		} else if (directories.includes(routePath)) {
+			outputName = `${routePath}/index.html`;
 		} else if (routePath.endsWith('/')) {
 			outputName = `${routePath}index.html`;
 		} else {

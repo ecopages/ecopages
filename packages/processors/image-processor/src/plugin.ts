@@ -7,8 +7,12 @@ import path from 'node:path';
 import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { fileSystem } from '@ecopages/file-system';
-import { Processor, type ProcessorConfig, type ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
-import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import {
+	Processor,
+	type EcoBuildPlugin,
+	type ProcessorConfig,
+	type ProcessorWatchConfig,
+} from '@ecopages/core/plugins/processor';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { Logger } from '@ecopages/logger';
 import { createImagePlugin, createImagePluginBundler } from './image-plugins.ts';

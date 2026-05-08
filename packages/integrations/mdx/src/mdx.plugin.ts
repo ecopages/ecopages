@@ -1,6 +1,5 @@
-import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
 import type { EcoPagesElement } from '@ecopages/core';
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import { IntegrationPlugin, type EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';

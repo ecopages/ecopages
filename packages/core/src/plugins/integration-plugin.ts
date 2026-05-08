@@ -8,6 +8,15 @@ import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-p
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
 export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
+export type {
+	EcoBuildLoader,
+	EcoBuildOnLoadArgs,
+	EcoBuildOnLoadResult,
+	EcoBuildOnResolveArgs,
+	EcoBuildOnResolveResult,
+	EcoBuildPlugin,
+	EcoBuildPluginBuilder,
+} from '../build/build-types.ts';
 
 export const INTEGRATION_PLUGIN_ERRORS = {
 	NOT_INITIALIZED_WITH_APP_CONFIG: 'Plugin not initialized with app config',

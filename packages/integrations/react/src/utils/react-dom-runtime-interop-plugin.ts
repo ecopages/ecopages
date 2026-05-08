@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 
 export function createReactDomRuntimeInteropPlugin(options?: {
 	name?: string;

@@ -3,8 +3,7 @@
  * @module
  */
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
-import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import { IntegrationPlugin, type EcoBuildPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';

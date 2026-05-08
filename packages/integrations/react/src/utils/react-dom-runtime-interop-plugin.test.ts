@@ -8,7 +8,7 @@ import type {
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildPluginBuilder,
-} from '@ecopages/core/build/build-types';
+} from '@ecopages/core/plugins/integration-plugin';
 import { createReactDomRuntimeInteropPlugin } from './react-dom-runtime-interop-plugin.ts';
 
 type OnLoadRegistration = {

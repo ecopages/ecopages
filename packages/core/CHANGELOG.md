@@ -13,6 +13,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Refactoring
 
+- Re-exported shared build-plugin authoring types through the integration and processor plugin entrypoints so extension packages depend on plugin surfaces instead of the raw `build/build-types` module.
 - Removed the legacy `@ecopages/core/errors/locals-access-error` and `@ecopages/core/adapters/bun/client-bridge` exports after moving their remaining consumers to the public `errors` and root type surfaces.
 - Removed the unused `@ecopages/core/utils/parse-cli-args` and `@ecopages/core/services/module-loading/app-server-module-transpiler.service` exports from the published package surface.
 - Removed the unused `@ecopages/core/bun/create-app` and `@ecopages/core/route-renderer/template-serialization` exports to keep the published package surface aligned with the documented entrypoints.

@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import { createDevelopmentHostRuntime } from '@ecopages/core/dev/host-runtime';
 import { normalizeHtmlResponse } from './html-transforms.ts';
 import type { ServerResponse } from 'node:http';
 import type { Connect, ViteDevServer } from 'vite';
@@ -91,6 +90,21 @@ async function sendWebResponse(res: ServerResponse, webResponse: Response): Prom
 	}
 }
 
+async function registerHostModuleLoader(server: ViteDevServer, api: EcopagesPluginApi): Promise<void> {
+	const runtimeModule = (await server.ssrLoadModule('@ecopages/core/dev/host-runtime')) as {
+		createDevelopmentHostRuntime?: (appConfig: EcopagesPluginApi['appConfig']) => {
+			registerHostModuleLoader(loader: (id: string) => Promise<unknown>): void;
+		};
+	};
+
+	if (typeof runtimeModule.createDevelopmentHostRuntime !== 'function') {
+		throw new Error('[ecopages] @ecopages/core/dev/host-runtime must export createDevelopmentHostRuntime()');
+	}
+
+	const hostRuntime = runtimeModule.createDevelopmentHostRuntime(api.appConfig);
+	hostRuntime.registerHostModuleLoader((id: string) => server.ssrLoadModule(id));
+}
+
 async function loadApp(server: ViteDevServer, appEntryPath: string): Promise<AppWithFetch> {
 	const module = await server.ssrLoadModule(appEntryPath);
 	const app = module.app as AppWithFetch | undefined;
@@ -136,7 +150,6 @@ async function sendAppResponse(res: ServerResponse, response: Response): Promise
  */
 export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 	const appEntryPath = path.join(api.appConfig.rootDir, 'app');
-	const hostRuntime = createDevelopmentHostRuntime(api.appConfig);
 
 	return {
 		name: 'ecopages:dev-server',
@@ -145,10 +158,11 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 			const middlewareServer = assertMiddlewareServer(server);
 
 			return () => {
-				hostRuntime.registerHostModuleLoader((id: string) => server.ssrLoadModule(id));
+				const hostLoaderReady = registerHostModuleLoader(server, api);
 
 				middlewareServer.middlewares.use(async (req, res, next) => {
 					try {
+						await hostLoaderReady;
 						const app = await loadApp(server, appEntryPath);
 						const webRequest = toWebRequest(req, baseUrl);
 						const response = await app.fetch(webRequest);

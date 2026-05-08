@@ -16,6 +16,7 @@ All notable changes to `@ecopages/vite-plugin` are documented here.
 - Fixed Ecopages config merging to preserve array aliases and `ssr.noExternal: true`.
 - Fixed bridged HTML responses to drop stale body-derived headers after rewriting.
 - Fixed HTML normalization to avoid injecting duplicate `/@vite/client` scripts into already-instrumented documents.
+- Fixed Vite embedded development apps to register the host module loader through Vite SSR so include-template HMR reloads use fresh server modules.
 - Fixed Vite dev-server and hot-update setup to fail fast when required Vite capabilities are unavailable.
 - Fixed Vite dev-server request bridging to convert Node headers and request bodies into Fetch-compatible `Request` inputs.
 

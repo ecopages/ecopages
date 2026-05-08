@@ -1145,6 +1145,16 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 }
 
 /**
+ * Context available to file-route page middleware.
+ *
+ * Page middleware can mutate locals, short-circuit the request, and use the
+ * response helpers, but final document rendering stays owned by the page route
+ * execution path.
+ */
+export interface FileRouteMiddlewareContext<TRequest extends Request = Request, TServer = any>
+	extends Omit<ApiHandlerContext<TRequest, TServer>, 'render' | 'renderPartial'> {}
+
+/**
  * Next function for middleware chain.
  * Call to continue to the next middleware or final handler.
  */
@@ -1183,6 +1193,15 @@ export type Middleware<
 	TRequest extends Request = Request,
 	TServer = any,
 	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+> = (context: TContext, next: MiddlewareNext) => Promise<Response> | Response;
+
+/**
+ * Middleware contract for file-based page routes.
+ */
+export type FileRouteMiddleware<
+	TRequest extends Request = Request,
+	TServer = any,
+	TContext extends FileRouteMiddlewareContext<TRequest, TServer> = FileRouteMiddlewareContext<TRequest, TServer>,
 > = (context: TContext, next: MiddlewareNext) => Promise<Response> | Response;
 
 /**

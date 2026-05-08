@@ -9,10 +9,10 @@ import type {
 	EcoLayoutComponent,
 	EcoPagesElement,
 	EcoPageComponent,
+	FileRouteMiddleware,
 	GetMetadata,
 	GetStaticPaths,
 	GetStaticProps,
-	Middleware,
 	RequestLocals,
 	RequestPageContext,
 } from '../types/public-types.ts';
@@ -129,7 +129,7 @@ function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals =
  * @returns Eco page component.
  */
 function page<T, E>(
-	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: Middleware[] },
+	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: FileRouteMiddleware[] },
 ): EcoPageComponent<T> {
 	const { layout, dependencies, render, staticPaths, staticProps, metadata, cache, requires, middleware } = options;
 

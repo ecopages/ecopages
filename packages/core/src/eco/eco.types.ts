@@ -12,12 +12,12 @@ import type {
 	EcoLayoutComponent,
 	EcoPageLayoutComponent,
 	EcoPagesElement,
+	FileRouteMiddleware,
 	GetMetadata,
 	GetStaticPaths,
 	GetStaticProps,
 	HtmlTemplateProps,
 	LayoutProps,
-	Middleware,
 	RequestLocals,
 	RequestPageContext,
 } from '../types/public-types.ts';
@@ -119,7 +119,7 @@ interface PageOptionsWithMiddleware<T, E = EcoPagesElement> extends PageOptionsB
 	 * Request-time middleware for file-based routes.
 	 * Runs before rendering and can short-circuit by returning a Response.
 	 */
-	middleware: Middleware[];
+	middleware: FileRouteMiddleware[];
 }
 
 /**
@@ -164,7 +164,7 @@ export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<Request
 	metadata?: GetMetadata<T>;
 	cache?: CacheStrategy;
 	requires?: PageRequires;
-	middleware?: Middleware[];
+	middleware?: FileRouteMiddleware[];
 };
 
 /**

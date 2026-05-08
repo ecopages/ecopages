@@ -4,10 +4,10 @@ import type {
 	EcoLayoutComponent,
 	EcoPagesElement,
 	EcoPageComponent,
+	FileRouteMiddleware,
 	GetMetadata,
 	GetStaticPaths,
 	GetStaticProps,
-	Middleware,
 	RequestPageContext,
 } from '../types/public-types.ts';
 import type { CacheStrategy } from '../services/cache/cache.types.ts';
@@ -38,7 +38,7 @@ function layout<E = EcoPagesElement>(options: LayoutOptions<E>): EcoLayoutCompon
 }
 
 function page<T, E>(
-	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: Middleware[] },
+	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: FileRouteMiddleware[] },
 ): EcoPageComponent<T> {
 	const {
 		layout: pageLayout,

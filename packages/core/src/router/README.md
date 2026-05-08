@@ -66,7 +66,7 @@ A singleton browser-side runtime stored on `window.__ECO_PAGES__.navigation`.
 Access it with:
 
 ```ts
-import { getEcoNavigationRuntime } from '@ecopages/core/router/client/navigation-coordinator';
+import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 const runtime = getEcoNavigationRuntime();
 ```
 

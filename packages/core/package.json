@@ -66,10 +66,6 @@
 			"types": "./src/router/client/link-intent.ts",
 			"default": "./src/router/client/link-intent.ts"
 		},
-		"./router/client/navigation-coordinator": {
-			"types": "./src/router/client/navigation-coordinator.ts",
-			"default": "./src/router/client/navigation-coordinator.ts"
-		},
 		"./errors/locals-access-error": {
 			"types": "./src/errors/locals-access-error.ts",
 			"default": "./src/errors/locals-access-error.ts"
@@ -78,10 +74,6 @@
 			"browser": "./src/eco/eco.browser.ts",
 			"types": "./src/eco/eco.ts",
 			"default": "./src/eco/eco.ts"
-		},
-		"./route-renderer/template-serialization": {
-			"types": "./src/route-renderer/orchestration/template-serialization.ts",
-			"default": "./src/route-renderer/orchestration/template-serialization.ts"
 		},
 		"./declarations": {
 			"types": "./src/declarations.d.ts"
@@ -101,16 +93,9 @@
 			"types": "./src/adapters/bun/index.ts",
 			"default": "./src/adapters/bun/index.ts"
 		},
-		"./bun/create-app": {
-			"types": "./src/adapters/bun/create-app.ts",
-			"default": "./src/adapters/bun/create-app.ts"
-		},
 		"./hmr/hmr-strategy": {
 			"types": "./src/hmr/hmr-strategy.ts",
 			"default": "./src/hmr/hmr-strategy.ts"
-		},
-		"./internal-types": {
-			"types": "./src/types/internal-types.ts"
 		},
 		"./services/asset-processing-service": {
 			"types": "./src/services/assets/asset-processing-service/index.ts",
@@ -119,10 +104,6 @@
 		"./services/invalidation/development-invalidation.service": {
 			"types": "./src/services/invalidation/development-invalidation.service.ts",
 			"default": "./src/services/invalidation/development-invalidation.service.ts"
-		},
-		"./services/module-loading/app-server-module-transpiler.service": {
-			"types": "./src/services/module-loading/app-server-module-transpiler.service.ts",
-			"default": "./src/services/module-loading/app-server-module-transpiler.service.ts"
 		},
 		"./host-module-loader": {
 			"types": "./src/services/module-loading/host-module-loader-registry.ts",
@@ -135,10 +116,6 @@
 		"./utils/invariant": {
 			"types": "./src/utils/invariant.ts",
 			"default": "./src/utils/invariant.ts"
-		},
-		"./utils/parse-cli-args": {
-			"types": "./src/utils/parse-cli-args.ts",
-			"default": "./src/utils/parse-cli-args.ts"
 		},
 		"./plugins/processor": {
 			"types": "./src/plugins/processor.ts",

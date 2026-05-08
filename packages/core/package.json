@@ -66,10 +66,6 @@
 			"types": "./src/router/client/link-intent.ts",
 			"default": "./src/router/client/link-intent.ts"
 		},
-		"./errors/locals-access-error": {
-			"types": "./src/errors/locals-access-error.ts",
-			"default": "./src/errors/locals-access-error.ts"
-		},
 		"./eco": {
 			"browser": "./src/eco/eco.browser.ts",
 			"types": "./src/eco/eco.ts",
@@ -148,10 +144,6 @@
 		"./plugins/foreign-jsx-override-plugin": {
 			"types": "./src/plugins/foreign-jsx-override-plugin.ts",
 			"default": "./src/plugins/foreign-jsx-override-plugin.ts"
-		},
-		"./adapters/bun/client-bridge": {
-			"types": "./src/adapters/bun/client-bridge.ts",
-			"default": "./src/adapters/bun/client-bridge.ts"
 		},
 		"./html": {
 			"import": "./src/utils/html.ts",

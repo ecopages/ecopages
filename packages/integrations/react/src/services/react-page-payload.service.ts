@@ -1,4 +1,4 @@
-import { LocalsAccessError } from '@ecopages/core/errors/locals-access-error';
+import { LocalsAccessError } from '@ecopages/core/errors';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions, RequestLocals } from '@ecopages/core';
 import type { ReactNode } from 'react';
 

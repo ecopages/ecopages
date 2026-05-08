@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import postcss from 'postcss';
 import postcssNested from 'postcss-nested';
 import { PostCssProcessorPlugin } from '../plugin';
-import type { ClientBridge } from '@ecopages/core/adapters/bun/client-bridge';
+import type { IClientBridge } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 
 const TMP_DIR = path.join(__dirname, 'tmp_test_hmr');
@@ -52,7 +52,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 				throw new Error(msg);
 			},
 			reload: () => {},
-		} as unknown as ClientBridge;
+		} as unknown as IClientBridge;
 
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 
@@ -117,7 +117,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 				throw new Error(msg);
 			},
 			reload: () => {},
-		} as unknown as ClientBridge;
+		} as unknown as IClientBridge;
 
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 		const watchConfig = plugin.getWatchConfig();
@@ -191,7 +191,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 				throw new Error(msg);
 			},
 			reload: () => {},
-		} as unknown as ClientBridge;
+		} as unknown as IClientBridge;
 
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 		const watchConfig = plugin.getWatchConfig();
@@ -264,7 +264,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 				throw new Error(msg);
 			},
 			reload: () => {},
-		} as unknown as ClientBridge;
+		} as unknown as IClientBridge;
 
 		const watchConfig = plugin.getWatchConfig();
 		if (!watchConfig?.onChange) {
@@ -340,7 +340,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 				throw new Error(msg);
 			},
 			reload: () => {},
-		} as unknown as ClientBridge;
+		} as unknown as IClientBridge;
 
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 
@@ -395,7 +395,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 				throw new Error(msg);
 			},
 			reload: () => {},
-		} as unknown as ClientBridge;
+		} as unknown as IClientBridge;
 
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 
@@ -445,7 +445,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 				throw new Error(msg);
 			},
 			reload: () => {},
-		} as unknown as ClientBridge;
+		} as unknown as IClientBridge;
 
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 

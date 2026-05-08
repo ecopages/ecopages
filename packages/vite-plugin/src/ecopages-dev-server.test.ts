@@ -32,6 +32,16 @@ function setupDevServerMiddleware(
 	const plugin = ecopagesDevServer(api);
 	const server = {
 		async ssrLoadModule(id: string) {
+			if (id === '@ecopages/core/dev/host-runtime') {
+				return {
+					createDevelopmentHostRuntime() {
+						return {
+							registerHostModuleLoader() {},
+						};
+					},
+				};
+			}
+
 			return (
 				options?.module ?? {
 					app: {

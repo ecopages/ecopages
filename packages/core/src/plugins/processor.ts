@@ -8,6 +8,15 @@ import { GENERATED_BASE_PATHS } from '../config/constants.ts';
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
 export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
+export type {
+	EcoBuildLoader,
+	EcoBuildOnLoadArgs,
+	EcoBuildOnLoadResult,
+	EcoBuildOnResolveArgs,
+	EcoBuildOnResolveResult,
+	EcoBuildPlugin,
+	EcoBuildPluginBuilder,
+} from '../build/build-types.ts';
 
 export const PROCESSOR_ERRORS = {
 	CACHE_DIRECTORY_NOT_SET: 'Cache directory not set in context',

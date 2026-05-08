@@ -3,7 +3,7 @@
  * @module @ecopages/image-processor/bun-plugins
  */
 
-import type { EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import type { EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/plugins/processor';
 import type { ImageMap } from './plugin.ts';
 import { anyCaseToCamelCase } from './utils.ts';
 

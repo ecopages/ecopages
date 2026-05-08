@@ -1,4 +1,4 @@
-import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import type { EcoBuildPlugin } from '@ecopages/core/plugins/processor';
 
 import { getFileAsBuffer } from '../postcss-processor.ts';
 import type { CssTransform } from './css-runtime-contract.ts';

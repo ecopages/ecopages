@@ -10,7 +10,7 @@
 import path from 'node:path';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
-import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { rewriteRuntimeSpecifierAliases } from '@ecopages/core/build/runtime-specifier-aliases';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import { FileNotFoundError, fileSystem } from '@ecopages/file-system';

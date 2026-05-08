@@ -5,7 +5,7 @@ import type {
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildPluginBuilder,
-} from '@ecopages/core/build/build-types';
+} from '@ecopages/core/plugins/integration-plugin';
 import { createUseSyncExternalStoreShimPlugin } from './use-sync-external-store-shim-plugin.ts';
 
 type OnResolveRegistration = {

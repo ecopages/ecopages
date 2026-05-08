@@ -1,8 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { CompileOptions } from '@mdx-js/mdx';
-import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
-import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
+import { IntegrationPlugin, type EcoBuildPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import { AssetFactory, type ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { VFile } from 'vfile';

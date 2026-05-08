@@ -6,8 +6,7 @@
 import path from 'node:path';
 import type { IClientBridge } from '@ecopages/core';
 import { fileSystem } from '@ecopages/file-system';
-import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processor';
-import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
 import { PostCssProcessor } from './postcss-processor.ts';

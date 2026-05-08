@@ -17,7 +17,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
-import type { EcoBuildPlugin } from '@ecopages/core/build/build-types';
+import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { parseSync } from 'oxc-parser';
 import { analyzeReachability } from './reachability-analyzer.ts';
 

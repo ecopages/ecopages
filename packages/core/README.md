@@ -228,3 +228,53 @@ import { defineApiHandler, defineGroupHandler, eco } from '@ecopages/core';
 Use runtime-specific subpaths only when you explicitly need Bun-native APIs that bypass the universal abstractions:
 
 - `@ecopages/core/bun`
+
+## Entry Point Roles
+
+The published subpaths are grouped by architectural role rather than by source folder.
+
+### App Authoring
+
+Use these entrypoints when building an Ecopages app:
+
+- `@ecopages/core`
+- `@ecopages/core/create-app`
+- `@ecopages/core/config-builder`
+- `@ecopages/core/errors`
+- `@ecopages/core/html`
+- `@ecopages/core/hash`
+- `@ecopages/core/declarations`
+- `@ecopages/core/env`
+- `@ecopages/core/bun`
+
+### Browser Navigation
+
+Use these entrypoints when a browser runtime needs to coordinate document ownership and link intent:
+
+- `@ecopages/core/router/navigation-coordinator`
+- `@ecopages/core/router/link-intent`
+
+### Extension Authoring
+
+Use these entrypoints when implementing integrations, processors, or source transforms:
+
+- `@ecopages/core/plugins/integration-plugin`
+- `@ecopages/core/plugins/processor`
+- `@ecopages/core/plugins/source-transform`
+- `@ecopages/core/route-renderer/integration-renderer`
+- `@ecopages/core/services/asset-processing-service`
+- `@ecopages/core/hmr/hmr-strategy`
+- `@ecopages/core/integrations/ghtml`
+
+### Host And Runtime Composition
+
+Use these entrypoints only when implementing host adapters or framework-owned bundling seams:
+
+- `@ecopages/core/dev/host-runtime`
+- `@ecopages/core/build/build-adapter`
+- `@ecopages/core/build/build-types`
+- `@ecopages/core/build/runtime-specifier-alias-plugin`
+- `@ecopages/core/build/runtime-specifier-aliases`
+- `@ecopages/core/plugins/foreign-jsx-override-plugin`
+
+These host-facing entrypoints are narrower compatibility seams. App code and most extensions should prefer the app-authoring or extension-authoring surfaces.

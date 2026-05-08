@@ -4,10 +4,10 @@
  */
 
 import path from 'node:path';
-import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { fileSystem } from '@ecopages/file-system';
 import {
+	mergeProcessorOptions,
 	Processor,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
@@ -142,7 +142,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 					extensions: extensionPatterns,
 				},
 			],
-			watch: config.watch ? deepMerge(defaultWatchConfig, config.watch) : defaultWatchConfig,
+			watch: config.watch ? mergeProcessorOptions(defaultWatchConfig, config.watch) : defaultWatchConfig,
 		});
 	}
 
@@ -196,7 +196,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 			format: 'webp' as const,
 		};
 
-		const config = this.options ? deepMerge(defaultConfig, this.options) : defaultConfig;
+		const config = this.options ? mergeProcessorOptions(defaultConfig, this.options) : defaultConfig;
 		this.resolvedConfig = config;
 
 		this.processor = new ImageProcessor(config, {

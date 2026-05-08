@@ -1,6 +1,9 @@
 import type { EcoPagesElement } from '@ecopages/core';
-import { IntegrationPlugin, type EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { deepMerge } from '@ecopages/core/utils/deep-merge';
+import {
+	IntegrationPlugin,
+	mergeIntegrationOptions,
+	type EcoBuildPlugin,
+} from '@ecopages/core/plugins/integration-plugin';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { createMdxLoaderPlugin } from './mdx-loader-plugin.ts';
@@ -72,7 +75,7 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 
 		const { mdExtensions, mdxExtensions } = splitMarkdownExtensions(this.extensions);
 
-		const finalCompilerOptions = deepMerge(
+		const finalCompilerOptions = mergeIntegrationOptions(
 			{
 				...defaultOptions,
 				mdxExtensions,

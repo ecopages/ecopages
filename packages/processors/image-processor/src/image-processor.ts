@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { deepMerge } from '@ecopages/core/utils/deep-merge';
+import { mergeProcessorOptions } from '@ecopages/core/plugins/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import sharp from 'sharp';
@@ -30,7 +30,7 @@ export class ImageProcessor {
 			writeCache: <T>(key: string, data: T) => Promise<void>;
 		},
 	) {
-		this.config = deepMerge({ cacheEnabled: true }, config);
+		this.config = mergeProcessorOptions({ cacheEnabled: true }, config);
 		this.cacheManager = cacheManager;
 		fileSystem.ensureDir(this.config.outputDir);
 	}

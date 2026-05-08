@@ -5,6 +5,8 @@ import type { EcoPagesElement } from '../types/public-types.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
+import { deepMerge } from '../utils/deep-merge.ts';
+import { invariant } from '../utils/invariant.ts';
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
 export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
@@ -22,6 +24,17 @@ export const INTEGRATION_PLUGIN_ERRORS = {
 	NOT_INITIALIZED_WITH_APP_CONFIG: 'Plugin not initialized with app config',
 	NOT_INITIALIZED_WITH_ASSET_SERVICE: 'Plugin not initialized with asset dependency service',
 } as const;
+
+export function mergeIntegrationOptions<TDefaults, TOverrides>(
+	defaults: TDefaults,
+	overrides: TOverrides,
+): TDefaults & TOverrides {
+	return deepMerge(defaults, overrides);
+}
+
+export function assertIntegrationInvariant(condition: boolean, message?: string): asserts condition {
+	invariant(condition, message);
+}
 
 /**
  * Base configuration shared by all integration plugins.

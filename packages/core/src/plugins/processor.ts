@@ -5,6 +5,7 @@ import type { EcoPagesAppConfig, IClientBridge } from '../types/internal-types.t
 import type { AssetDefinition } from '../services/assets/asset-processing-service/assets.types.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 import { GENERATED_BASE_PATHS } from '../config/constants.ts';
+import { deepMerge } from '../utils/deep-merge.ts';
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
 export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
@@ -21,6 +22,13 @@ export type {
 export const PROCESSOR_ERRORS = {
 	CACHE_DIRECTORY_NOT_SET: 'Cache directory not set in context',
 } as const;
+
+export function mergeProcessorOptions<TDefaults, TOverrides>(
+	defaults: TDefaults,
+	overrides: TOverrides,
+): TDefaults & TOverrides {
+	return deepMerge(defaults, overrides);
+}
 
 function resolveGeneratedPath(
 	type: keyof typeof GENERATED_BASE_PATHS,

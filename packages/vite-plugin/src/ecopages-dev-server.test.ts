@@ -32,12 +32,6 @@ function setupDevServerMiddleware(
 	const plugin = ecopagesDevServer(api);
 	const server = {
 		async ssrLoadModule(id: string) {
-			if (id === '@ecopages/core/host-module-loader') {
-				return {
-					setHostModuleLoader() {},
-				};
-			}
-
 			return (
 				options?.module ?? {
 					app: {
@@ -189,39 +183,6 @@ describe('ecopagesDevServer', () => {
 				},
 			}),
 		).toThrow('[ecopages] ecopagesDevServer requires a Vite dev server with Connect-style middlewares.use()');
-	});
-
-	it('surfaces a clear error when host-module-loader is missing setHostModuleLoader()', async () => {
-		const api = createApi();
-		const plugin = ecopagesDevServer(api);
-
-		let middleware: Function | undefined;
-
-		(plugin.configureServer as Function)({
-			middlewares: {
-				use(handler: Function) {
-					middleware = handler;
-				},
-			},
-			async ssrLoadModule() {
-				return {};
-			},
-		})?.();
-
-		let receivedError: unknown;
-
-		await middleware?.(
-			{ headers: {}, method: 'GET', originalUrl: '/' },
-			{ statusCode: 0, statusMessage: '', setHeader() {}, write() {}, end() {} },
-			(error?: unknown) => {
-				receivedError = error;
-			},
-		);
-
-		expect(receivedError).toBeInstanceOf(Error);
-		expect((receivedError as Error).message).toContain(
-			'@ecopages/core/host-module-loader must export setHostModuleLoader()',
-		);
 	});
 
 	it('surfaces a clear error when the app module does not export app.fetch()', async () => {

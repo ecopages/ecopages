@@ -88,7 +88,11 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			html = renderedChildren.html;
 			assets = renderedChildren.assets;
 		}
-		html = await this.resolveQueuedForeignSubtreeTokens(html, queuedResolutionsByToken, resolveToken);
+		html = await this.foreignSubtreeExecutionService.resolveQueuedTokens(
+			html,
+			queuedResolutionsByToken,
+			resolveToken,
+		);
 
 		return {
 			assets,
@@ -106,10 +110,16 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		html: string,
 		runtimeContext: EcopagesJsxForeignSubtreeResolutionContext | undefined,
 	): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		return this.resolveRendererOwnedQueuedForeignSubtreeHtml({
+		return this.foreignSubtreeExecutionService.resolveQueuedHtml({
+			currentIntegrationName: this.name,
 			html,
 			runtimeContext,
 			queueLabel: 'Ecopages JSX',
+			getOwningRenderer: (integrationName, rendererCache) =>
+				this.getIntegrationRendererForName(integrationName, rendererCache),
+			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
+				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
 				this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
 		});
@@ -219,16 +229,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		} finally {
 			this.endImportedIntrinsicScriptFrame(importedScriptFrame);
 		}
-	}
-
-	protected override createForeignChildRuntime(options: {
-		renderInput: ComponentRenderInput;
-		rendererCache: Map<string, IntegrationRenderer<any>>;
-	}) {
-		return this.createQueuedForeignSubtreeResolutionRuntime<EcopagesJsxForeignSubtreeResolutionContext>({
-			renderInput: options.renderInput,
-			rendererCache: options.rendererCache,
-		});
 	}
 
 	override async renderToResponse<P = any>(

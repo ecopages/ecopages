@@ -41,17 +41,11 @@ import {
 } from './route-render-orchestrator.ts';
 import type { ForeignChildRuntime } from './component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
-import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
 import {
-	QueuedForeignSubtreeResolutionService,
-	type QueuedForeignSubtreeResolution,
-	type QueuedForeignSubtreeResolutionContext,
-} from './queued-foreign-subtree-resolution.service.ts';
-
-type ForeignChildResolutionDecisionInput = {
-	currentIntegration: string;
-	targetIntegration?: string;
-};
+	ForeignSubtreeExecutionService,
+	type ForeignSubtreeExecutionOwningRenderer,
+} from './foreign-subtree-execution.service.ts';
+import { type QueuedForeignSubtreeResolutionContext } from './queued-foreign-subtree-resolution.service.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.
@@ -92,7 +86,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected dependencyResolverService: DependencyResolverService;
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
-	protected readonly queuedForeignSubtreeResolutionService = new QueuedForeignSubtreeResolutionService();
+	protected readonly foreignSubtreeExecutionService = new ForeignSubtreeExecutionService();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -537,32 +531,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return `__${this.name}_foreign_subtree_runtime__`;
 	}
 
-	protected getQueuedForeignSubtreeResolutionContext<TContext extends QueuedForeignSubtreeResolutionContext>(
-		input: ComponentRenderInput,
-		runtimeContextKey = this.getForeignSubtreeResolutionContextKey(),
-	): TContext | undefined {
-		return this.queuedForeignSubtreeResolutionService.getRuntimeContext<TContext>(input, runtimeContextKey);
-	}
-
-	protected async resolveQueuedForeignSubtreeTokens(
-		html: string,
-		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
-		resolveToken: (token: string) => Promise<string>,
-	): Promise<string> {
-		let resolvedHtml = html;
-
-		for (const token of queuedResolutionsByToken.keys()) {
-			if (!resolvedHtml.includes(token)) {
-				continue;
-			}
-
-			resolvedHtml = resolvedHtml.split(token).join(await resolveToken(token));
-		}
-
-		return resolvedHtml;
-	}
-
-	protected createQueuedForeignSubtreeResolutionRuntime<
+	protected createQueuedForeignSubtreeExecutionRuntime<
 		TContext extends QueuedForeignSubtreeResolutionContext,
 	>(options: {
 		renderInput: ComponentRenderInput;
@@ -574,43 +543,22 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			rendererCache: Map<string, unknown>,
 		) => TContext;
 	}): ForeignChildRuntime {
-		return this.queuedForeignSubtreeResolutionService.createRuntime<TContext>({
+		return this.foreignSubtreeExecutionService.createQueuedRuntime<TContext>({
 			renderInput: options.renderInput,
-			rendererCache: options.rendererCache as Map<string, unknown>,
+			rendererCache: options.rendererCache,
 			runtimeContextKey: options.runtimeContextKey ?? this.getForeignSubtreeResolutionContextKey(),
 			tokenPrefix: options.tokenPrefix ?? this.getForeignSubtreeTokenPrefix(),
-			shouldQueueForeignChild: (input) => this.shouldResolveForeignChildInOwningRenderer(input),
 			createRuntimeContext: options.createRuntimeContext,
 		});
 	}
 
-	protected async resolveRendererOwnedQueuedForeignSubtreeHtml<
-		TContext extends QueuedForeignSubtreeResolutionContext,
-	>(options: {
-		html: string;
-		runtimeContext?: TContext;
-		queueLabel: string;
-		renderQueuedChildren: (
-			children: unknown,
-			runtimeContext: TContext,
-			queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
-			resolveToken: (token: string) => Promise<string>,
-		) => Promise<{ assets: ProcessedAsset[]; html?: string }>;
-	}): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		return this.queuedForeignSubtreeResolutionService.resolveQueuedHtml({
-			html: options.html,
-			runtimeContext: options.runtimeContext,
-			queueLabel: options.queueLabel,
-			renderQueuedChildren: options.renderQueuedChildren,
-			resolveForeignSubtree: (input, rendererCache) =>
-				this.resolveForeignSubtreeInOwningRenderer(
-					input,
-					rendererCache as Map<string, IntegrationRenderer<any>>,
-				),
-			applyAttributesToFirstElement: (html, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(html, attributes),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-		});
+	protected getQueuedForeignSubtreeResolutionContext<TContext extends QueuedForeignSubtreeResolutionContext>(
+		input: ComponentRenderInput,
+	): TContext | undefined {
+		return this.foreignSubtreeExecutionService.getQueuedRuntimeContext<TContext>(
+			input,
+			this.getForeignSubtreeResolutionContextKey(),
+		);
 	}
 
 	/**
@@ -622,23 +570,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
 	): Promise<ComponentRenderResult> {
 		const componentRender = await this.renderStringComponentWithSerializedChildren(input, component);
-		const queuedForeignSubtreeResolution = await this.resolveRendererOwnedQueuedForeignSubtreeHtml({
+		const queuedForeignSubtreeResolution = await this.foreignSubtreeExecutionService.resolveStringQueuedHtml({
+			currentIntegrationName: this.name,
+			renderInput: input,
 			html: componentRender.html,
-			runtimeContext: this.getQueuedForeignSubtreeResolutionContext<QueuedForeignSubtreeResolutionContext>(input),
+			runtimeContextKey: this.getForeignSubtreeResolutionContextKey(),
 			queueLabel: 'String',
-			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
-				if (children === undefined) {
-					return { assets: [], html: undefined };
-				}
-
-				const html = await this.resolveQueuedForeignSubtreeTokens(
-					typeof children === 'string' ? children : String(children ?? ''),
-					queuedResolutionsByToken,
-					resolveToken,
-				);
-
-				return { assets: [], html };
-			},
+			getOwningRenderer: (integrationName, rendererCache) =>
+				this.getIntegrationRendererForName(integrationName, rendererCache),
+			applyAttributesToFirstElement: (html, attributes) =>
+				this.htmlTransformer.applyAttributesToFirstElement(html, attributes),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 		});
 		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
 			...(componentRender.assets ?? []),
@@ -1084,12 +1026,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns Renderer for the requested integration.
 	 * @throws Error when no integration plugin matches `integrationName`.
 	 */
-	private getIntegrationRendererForName(
+	protected getIntegrationRendererForName(
 		integrationName: string,
-		cache: Map<string, IntegrationRenderer<any>>,
-	): IntegrationRenderer<any> {
+		cache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
+	): ForeignSubtreeExecutionOwningRenderer {
 		if (cache.has(integrationName)) {
-			return cache.get(integrationName) as IntegrationRenderer<any>;
+			return cache.get(integrationName) as ForeignSubtreeExecutionOwningRenderer;
 		}
 
 		if (integrationName === this.name) {
@@ -1117,42 +1059,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	abstract render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
 
-	protected async resolveForeignChildInOwningRenderer(
-		input: ComponentRenderInput,
-		rendererCache: Map<string, IntegrationRenderer<any>>,
-	): Promise<ComponentRenderResult | undefined> {
-		return await this.runInForeignOwningRenderer(input, rendererCache, (owningRenderer, delegatedInput) =>
-			owningRenderer.renderComponentWithForeignChildren(delegatedInput),
-		);
-	}
-
-	protected async resolveForeignSubtreeInOwningRenderer(
-		input: ComponentRenderInput,
-		rendererCache: Map<string, IntegrationRenderer<any>>,
-	): Promise<ForeignSubtreeRenderPayload | undefined> {
-		return await this.runInForeignOwningRenderer(input, rendererCache, (owningRenderer, delegatedInput) =>
-			owningRenderer.renderForeignSubtree(delegatedInput),
-		);
-	}
-
-	private async runInForeignOwningRenderer<TResult>(
-		input: ComponentRenderInput,
-		rendererCache: Map<string, IntegrationRenderer<any>>,
-		run: (owningRenderer: IntegrationRenderer<any>, delegatedInput: ComponentRenderInput) => Promise<TResult>,
-	): Promise<TResult | undefined> {
-		const foreignOwnerIntegrationName = this.getForeignOwnerIntegrationName(input.component);
-		if (!foreignOwnerIntegrationName) {
-			return undefined;
-		}
-
-		const owningRenderer = this.getIntegrationRendererForName(foreignOwnerIntegrationName, rendererCache);
-		if (owningRenderer === this || owningRenderer.name === this.name) {
-			return undefined;
-		}
-
-		return await run(owningRenderer, this.withOwningRendererCache(input, rendererCache));
-	}
-
 	/**
 	 * Renders one component under this integration's foreign-child runtime and resolves
 	 * any nested foreign children captured during that render.
@@ -1162,44 +1068,20 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * renderer's nested foreign-child handoff.
 	 */
 	async renderComponentWithForeignChildren(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		const rendererCache =
-			this.getOwningRendererCache(input.integrationContext) ?? new Map<string, IntegrationRenderer<any>>();
-		const delegatedForeignChildRender = await this.resolveForeignChildInOwningRenderer(input, rendererCache);
-
-		if (delegatedForeignChildRender) {
-			return delegatedForeignChildRender;
-		}
-
-		const hasForeignChildren = this.hasForeignChildDescendants(input.component);
-		const activeRenderContext = getComponentRenderContext();
-
-		if (!hasForeignChildren) {
-			if (!activeRenderContext || activeRenderContext.currentIntegration === this.name) {
-				return this.normalizeComponentRenderOutput(await this.renderComponent(input));
-			}
-
-			const sameIntegrationExecution = await runWithComponentRenderContext(
-				{
-					currentIntegration: this.name,
-				},
-				async () => this.renderComponent(input),
-			);
-
-			return this.normalizeComponentRenderOutput(sameIntegrationExecution.value);
-		}
-
-		const execution = await runWithComponentRenderContext(
-			{
-				currentIntegration: this.name,
-				foreignChildRuntime: this.createForeignChildRuntime({
-					renderInput: input,
-					rendererCache,
+		return await this.foreignSubtreeExecutionService.executeComponentRender({
+			currentIntegrationName: this.name,
+			input,
+			renderComponent: (renderInput) => this.renderComponent(renderInput),
+			normalizeComponentRenderOutput: (result) => this.normalizeComponentRenderOutput(result),
+			hasForeignChildDescendants: (component) => this.hasForeignChildDescendants(component),
+			createForeignChildRuntime: ({ renderInput, rendererCache }) =>
+				this.createForeignChildRuntime({
+					renderInput,
+					rendererCache: rendererCache as Map<string, IntegrationRenderer<any>>,
 				}),
-			},
-			async () => this.renderComponent(input),
-		);
-
-		return this.normalizeComponentRenderOutput(execution.value);
+			getOwningRenderer: (integrationName, rendererCache) =>
+				this.getIntegrationRendererForName(integrationName, rendererCache),
+		});
 	}
 
 	/**
@@ -1337,44 +1219,26 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Creates the per-render foreign-child runtime adopted by the shared component
 	 * render context.
 	 *
-	 * Real mixed-integration renderers should override this and keep foreign
-	 * child resolution inside their own renderer-owned queue. The base runtime
-	 * fails fast when a renderer crosses into a foreign owner without providing its
-	 * own handoff mechanism.
+	 * The default runtime queues delegated foreign subtrees inside the owning
+	 * renderer so string and markup renderers do not need to re-declare the same
+	 * handoff boilerplate. Override only when a renderer needs custom runtime
+	 * context or a different foreign-child execution strategy.
 	 */
-	protected createForeignChildRuntime(_options: {
+	protected createForeignChildRuntime(options: {
 		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}): ForeignChildRuntime {
-		const decideForeignChildInterception = (input: ForeignChildResolutionDecisionInput) => {
-			if (!this.shouldResolveForeignChildInOwningRenderer(input)) {
-				return { kind: 'inline' as const };
-			}
-
-			throw new Error(
-				`[ecopages] ${this.name} renderer crossed into ${input.targetIntegration} without a renderer-owned foreign-child runtime. Override createForeignChildRuntime() to resolve foreign children inside the owning renderer.`,
-			);
-		};
-
-		const runtime: ForeignChildRuntime = {
-			interceptForeignChild: decideForeignChildInterception,
-			interceptForeignChildSync: decideForeignChildInterception,
-		};
-
-		return runtime;
+		return this.createQueuedForeignSubtreeExecutionRuntime({
+			renderInput: options.renderInput,
+			rendererCache: options.rendererCache,
+		});
 	}
 
 	/**
-	 * Resolves whether a foreign child should leave the current render pass and be
-	 * resolved by its owning renderer.
-	 *
-	 * Foreign children owned by the current integration always render inline.
-	 * Foreign-owned children must be handed off by a renderer-owned runtime.
-	 *
-	 * @param input Foreign-child metadata for the active render pass.
-	 * @returns `true` when the foreign child should leave the current pass; otherwise `false`.
+	 * Creates an explicit fail-fast runtime for tests or renderers that do not
+	 * support cross-integration foreign-child execution.
 	 */
-	protected shouldResolveForeignChildInOwningRenderer(input: ForeignChildResolutionDecisionInput): boolean {
-		return !!input.targetIntegration && input.targetIntegration !== input.currentIntegration;
+	protected createFailFastForeignChildRuntime(): ForeignChildRuntime {
+		return this.foreignSubtreeExecutionService.createFailFastRuntime(this.name);
 	}
 }

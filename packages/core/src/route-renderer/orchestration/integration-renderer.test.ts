@@ -31,6 +31,7 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test-renderer';
 	ForeignChildRuntimeCreationCount = 0;
 	ForeignChildRenderCount = 0;
+	UseFailFastForeignChildRuntime = false;
 
 	/** Mock data container for page module */
 	PageModule: EcoPageFile | null = null;
@@ -128,22 +129,12 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return this.processComponentDependencies(components);
 	}
 
-	public testShouldResolveForeignChildInOwningRenderer(input: {
-		currentIntegration: string;
-		targetIntegration?: string;
-	}) {
-		return this.shouldResolveForeignChildInOwningRenderer(input);
+	public testShouldDelegateForeignChild(input: { currentIntegration: string; targetIntegration?: string }) {
+		return this.foreignSubtreeExecutionService.shouldDelegateForeignChild(input);
 	}
 
 	public testHasForeignChildDescendants(component: EcoComponent) {
 		return this.hasForeignChildDescendants(component);
-	}
-
-	public async testResolveForeignChildInOwningRenderer(
-		input: ComponentRenderInput,
-		rendererCache = new Map<string, IntegrationRenderer<any>>(),
-	) {
-		return this.resolveForeignChildInOwningRenderer(input, rendererCache);
 	}
 
 	public async testGetHtmlTemplate() {
@@ -204,6 +195,11 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}): ForeignChildRuntime {
 		this.ForeignChildRuntimeCreationCount += 1;
+
+		if (this.UseFailFastForeignChildRuntime) {
+			return this.createFailFastForeignChildRuntime();
+		}
+
 		return super.createForeignChildRuntime(options);
 	}
 }
@@ -635,7 +631,7 @@ describe('IntegrationRenderer', () => {
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		const result = renderer.testShouldResolveForeignChildInOwningRenderer({
+		const result = renderer.testShouldDelegateForeignChild({
 			currentIntegration: 'ghtml',
 			targetIntegration: 'react',
 		});
@@ -650,7 +646,7 @@ describe('IntegrationRenderer', () => {
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		const result = renderer.testShouldResolveForeignChildInOwningRenderer({
+		const result = renderer.testShouldDelegateForeignChild({
 			currentIntegration: 'react',
 			targetIntegration: 'react',
 		});
@@ -658,7 +654,7 @@ describe('IntegrationRenderer', () => {
 		expect(result).toBe(false);
 	});
 
-	it('should delegate foreign component boundaries through the shared ownership helper', async () => {
+	it('should delegate foreign component boundaries through the shared execution seam', async () => {
 		const foreignRenderer = {
 			renderComponentWithForeignChildren: vi.fn(async () => ({
 				html: '<aside>Owned by foreign renderer</aside>',
@@ -694,14 +690,11 @@ describe('IntegrationRenderer', () => {
 		};
 
 		const rendererCache = new Map<string, IntegrationRenderer<any>>();
-		const result = await renderer.testResolveForeignChildInOwningRenderer(
-			{
-				component: ForeignComponent,
-				props: { label: 'foreign' },
-				integrationContext: { rendererCache },
-			},
-			rendererCache,
-		);
+		const result = await renderer.renderComponentWithForeignChildren({
+			component: ForeignComponent,
+			props: { label: 'foreign' },
+			integrationContext: { rendererCache },
+		});
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -750,29 +743,25 @@ describe('IntegrationRenderer', () => {
 			},
 		};
 
-		const rendererCache = new Map<string, IntegrationRenderer<any>>();
-		await renderer.testResolveForeignChildInOwningRenderer(
-			{
-				component: ForeignComponent,
-				props: { label: 'foreign' },
-				integrationContext: {
-					componentInstanceId: 'host-1',
-				} satisfies BaseIntegrationContext,
-			},
-			rendererCache,
-		);
+		await renderer.renderComponentWithForeignChildren({
+			component: ForeignComponent,
+			props: { label: 'foreign' },
+			integrationContext: {
+				componentInstanceId: 'host-1',
+			} satisfies BaseIntegrationContext,
+		});
 
 		expect(foreignRenderer.renderComponentWithForeignChildren).toHaveBeenCalledWith(
 			expect.objectContaining({
 				integrationContext: expect.objectContaining({
 					componentInstanceId: 'host-1',
-					rendererCache,
+					rendererCache: expect.any(Map),
 				}),
 			}),
 		);
 	});
 
-	it('should stop foreign-child delegation when the resolved owner renderer is the current renderer', async () => {
+	it('should fall back to local rendering when the resolved owner renderer is the current renderer', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...AppConfig,
@@ -786,6 +775,12 @@ describe('IntegrationRenderer', () => {
 			assetProcessingService: AssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
+		renderer.MockComponentRenderResult = {
+			html: '<aside>Local renderer</aside>',
+			canAttachAttributes: true,
+			rootTag: 'aside',
+			integrationName: 'test-renderer',
+		};
 
 		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
 		ForeignComponent.config = {
@@ -798,16 +793,13 @@ describe('IntegrationRenderer', () => {
 		};
 
 		const rendererCache = new Map<string, IntegrationRenderer<any>>();
-		const result = await renderer.testResolveForeignChildInOwningRenderer(
-			{
-				component: ForeignComponent,
-				props: { label: 'foreign' },
-				integrationContext: { rendererCache },
-			},
-			rendererCache,
-		);
+		const result = await renderer.renderComponentWithForeignChildren({
+			component: ForeignComponent,
+			props: { label: 'foreign' },
+			integrationContext: { rendererCache },
+		});
 
-		expect(result).toBeUndefined();
+		expect(result.html).toBe('<aside>Local renderer</aside>');
 	});
 
 	it('should prefer processed lazy script srcUrl for _resolvedLazyTriggers', async () => {
@@ -1680,6 +1672,7 @@ describe('IntegrationRenderer', () => {
 				assetProcessingService: AssetService,
 				runtimeOrigin: 'http://localhost:3000',
 			});
+			renderer.UseFailFastForeignChildRuntime = true;
 
 			const ForeignComponent = eco.component<{}, string>({
 				integration: 'foreign-renderer',

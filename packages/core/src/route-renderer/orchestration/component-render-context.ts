@@ -28,6 +28,12 @@ export type ForeignChildInterceptionInput = {
  * off inside the renderer instead of being left for route-level reconciliation.
  */
 export interface ForeignChildRuntime {
+	/**
+	 * Intercepts one foreign child during an active render.
+	 *
+	 * This runtime is typically installed by the Foreign Subtree execution module,
+	 * which decides whether the child stays inline or leaves the current renderer.
+	 */
 	interceptForeignChild?(
 		input: ForeignChildInterceptionInput,
 	): ForeignChildInterceptionResult | Promise<ForeignChildInterceptionResult>;

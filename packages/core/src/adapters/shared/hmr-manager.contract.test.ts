@@ -12,9 +12,7 @@ type SharedHmrManager = {
 	handleFileChange(filePath: string, options?: { broadcast?: boolean }): Promise<void>;
 	registerEntrypoint(entrypointPath: string): Promise<string>;
 	registerScriptEntrypoint(entrypointPath: string): Promise<string>;
-	registerSpecifierMap(map: Record<string, string>): void;
 	getWatchedFiles(): Map<string, string>;
-	getSpecifierMap(): Map<string, string>;
 	stop(): void;
 	appConfig: Awaited<ReturnType<ConfigBuilder['build']>>;
 };
@@ -221,12 +219,10 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 			fs.writeFileSync(outputPath, 'export default 1;', 'utf8');
 		});
 
-		manager.registerSpecifierMap({ react: '/assets/vendors/react.js' });
 		await manager.registerEntrypoint(entrypointPath);
 
 		manager.stop();
 
 		assert.equal(manager.getWatchedFiles().size, 0);
-		assert.equal(manager.getSpecifierMap().size, 0);
 	});
 });

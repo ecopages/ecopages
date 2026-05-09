@@ -37,10 +37,6 @@ import {
 	setAppEntrypointDependencyGraph,
 } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import {
-	InMemoryRuntimeSpecifierRegistry,
-	setAppRuntimeSpecifierRegistry,
-} from '../services/runtime-state/runtime-specifier-registry.service.ts';
-import {
 	CounterServerInvalidationState,
 	setAppServerInvalidationState,
 } from '../services/runtime-state/server-invalidation-state.service.ts';
@@ -727,7 +723,6 @@ export class ConfigBuilder {
 		updateAppBuildManifest(this.config, await collectConfiguredAppBuildManifestContributions(this.config));
 		setAppServerInvalidationState(this.config, new CounterServerInvalidationState());
 		setAppEntrypointDependencyGraph(this.config, new NoopEntrypointDependencyGraph());
-		setAppRuntimeSpecifierRegistry(this.config, new InMemoryRuntimeSpecifierRegistry());
 		setAppBuildExecutor(
 			this.config,
 			createAppBuildExecutor({

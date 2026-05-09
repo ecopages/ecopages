@@ -113,8 +113,8 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return [];
 	}
 
-	protected override async buildRouteRenderAssets(_file: string): Promise<ProcessedAsset[]> {
-		return [];
+	protected override async buildPageBrowserGraph(_file: string) {
+		return { assets: [] as ProcessedAsset[] };
 	}
 
 	/**

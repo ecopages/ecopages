@@ -179,40 +179,22 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * ```typescript
 	 * getHmrStrategy(): HmrStrategy {
 	 *   const context = this.hmrManager!.getDefaultContext();
-	 *   return new ReactHmrStrategy(context);
+	 *   return new ReactHmrStrategy({ context, pageMetadataCache, runtimeAliasMap });
 	 * }
 	 * ```
 	 */
 	getHmrStrategy?(): HmrStrategy | undefined;
 
 	/**
-	 * Returns bare-specifier mappings that should be registered in the active
-	 * runtime specifier registry.
-	 *
-	 * @remarks
-	 * Integrations that own browser runtime bundles can override this to expose
-	 * stable bare specifiers for client-side imports.
-	 *
-	 * Today these mappings are consumed by the development runtime and browser
-	 * bundle aliasing path. They are intentionally generic enough to grow into a
-	 * broader import-map-style facility later without moving framework-specific
-	 * map contents into core.
-	 */
-	getRuntimeSpecifierMap(): Record<string, string> {
-		return {};
-	}
-
-	/**
 	 * Attaches the shared HMR manager and registers integration-owned development hooks.
 	 *
 	 * @remarks
-	 * The default implementation registers both runtime bare-specifier mappings and
-	 * the optional integration HMR strategy. Integrations should override this only
-	 * when they need to extend that shared behavior rather than replace it.
+	 * The default implementation registers the optional integration HMR strategy.
+	 * Integrations should override this only when they need to extend that shared
+	 * behavior rather than replace it.
 	 */
 	setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
-		hmrManager.registerSpecifierMap(this.getRuntimeSpecifierMap());
 
 		const strategy = this.getHmrStrategy?.();
 		if (strategy) {

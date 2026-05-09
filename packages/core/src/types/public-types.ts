@@ -113,11 +113,6 @@ export interface DefaultHmrContext {
 	getWatchedFiles(): Map<string, string>;
 
 	/**
-	 * Map of bare specifiers to runtime URLs for browser import resolution.
-	 */
-	getSpecifierMap(): Map<string, string>;
-
-	/**
 	 * Directory where HMR bundles are written.
 	 */
 	getDistDir(): string;
@@ -219,16 +214,6 @@ export interface IHmrManager {
 	registerScriptEntrypoint(entrypointPath: string): Promise<string>;
 
 	/**
-	 * Registers mappings from bare specifiers to runtime URLs.
-	 *
-	 * @remarks
-	 * This is the shared registration seam for integration-owned runtime alias
-	 * maps. The registry may later back a broader import-map-style facility, but
-	 * the mappings themselves remain integration-owned.
-	 */
-	registerSpecifierMap(map: Record<string, string>): void;
-
-	/**
 	 * Registers a custom HMR strategy.
 	 */
 	registerStrategy(strategy: HmrStrategy): void;
@@ -262,11 +247,6 @@ export interface IHmrManager {
 	 * Gets the map of watched files.
 	 */
 	getWatchedFiles(): Map<string, string>;
-
-	/**
-	 * Gets the registered bare-specifier map.
-	 */
-	getSpecifierMap(): Map<string, string>;
 
 	/**
 	 * Gets the HMR dist directory.
@@ -822,6 +802,21 @@ export interface PagePackageResult {
 	 * Browser chunks needed after initial page bootstrap, including eager lazy-entry bundles.
 	 */
 	dynamicChunks: ProcessedAsset[];
+}
+
+/**
+ * Page-scoped browser output planned before final HTML packaging.
+ *
+ * The initial seam keeps the graph payload intentionally small: integrations
+ * return the processed assets that belong to the Page browser graph, while the
+ * surrounding route pipeline remains free to evolve toward richer entry/lazy/
+ * shared chunk structure later.
+ */
+export interface PageBrowserGraphResult {
+	/**
+	 * Processed assets owned by the current Page browser graph.
+	 */
+	assets: ProcessedAsset[];
 }
 
 export type BoundaryValidationErrorCode = 'UNKNOWN_INTEGRATION_OWNER' | 'MISSING_COMPONENT_METADATA';

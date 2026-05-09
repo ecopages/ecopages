@@ -283,13 +283,11 @@ test('NodeHmrManager stop clears retained registration state', async () => {
 		fs.writeFileSync(outputPath, 'export default 1;', 'utf8');
 	});
 
-	manager.registerSpecifierMap({ react: '/assets/vendors/react.js' });
 	await manager.registerEntrypoint(entrypointPath);
 
 	manager.stop();
 
 	assert.equal(manager.getWatchedFiles().size, 0);
-	assert.equal(manager.getSpecifierMap().size, 0);
 	assert.equal(config.runtime?.entrypointDependencyGraph?.getDependencyEntrypoints(entrypointPath).size, 0);
 });
 

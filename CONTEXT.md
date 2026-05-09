@@ -88,6 +88,14 @@ _Avoid_: Request context, server context
 Metadata declarations of what a component needs to render correctly: stylesheets, scripts, and nested components. Dependencies are not JavaScript imports — they tell the framework what to inject into the page.
 _Avoid_: Requirements, imports
 
+**Page Browser Graph**:
+The browser-reachable module graph derived from one Page and its lazy browser entries. It determines which browser code, chunks, and shared runtime code are emitted for that Page.
+_Avoid_: Client bundle, app bundle, vendor graph
+
+**SSR Policy**:
+Integration-owned rules that decide how a Page or Component is rendered on the server and what browser bootstrap contract that server output requires.
+_Avoid_: SSR flag, hydration mode, server toggle
+
 ## Relationships
 
 - A **Page** is composed from a **Component** tree, optionally wrapped by a **Layout**, all rendered within an **Html** shell
@@ -103,6 +111,8 @@ _Avoid_: Requirements, imports
 - An **Integration** owns rendering for a specific file extension; multiple Integrations coexist as peers
 - A **Processor** owns transformation of non-page assets (e.g., stylesheets); Integrations and Processors are distinct
 - **Dependencies** on a Component are separate from JavaScript imports; both may be needed
+- Each **Page** may produce one **Page Browser Graph**, including any lazy browser entries that belong to that Page
+- An **Integration** may apply an **SSR Policy** per Page or Component without forcing one global browser runtime bundle for every Page
 
 ## Example dialogue
 

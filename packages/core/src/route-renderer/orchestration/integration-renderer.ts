@@ -845,7 +845,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					routeOptions,
 				}),
 			resolveDependencies: (components) => this.resolveDependencies(components),
-			buildRouteRenderAssets: (file) => this.buildRouteRenderAssets(file),
+			buildPageBrowserGraph: (file) => this.buildPageBrowserGraph(file),
 			shouldRenderPageComponent: (input) => this.shouldRenderPageComponent(input),
 			renderPageComponent: ({ component, props }) =>
 				this.renderComponentBoundary({
@@ -1211,13 +1211,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Method to build route render assets.
+	 * Builds the Page Browser Graph owned by this integration for one Page.
 	 * This method can be optionally overridden by the specific integration renderer.
 	 *
 	 * @param file - The file path to build assets for.
-	 * @returns The processed assets or undefined.
+	 * @returns The structured Page Browser Graph or undefined.
 	 */
-	protected buildRouteRenderAssets(_file: string): Promise<ProcessedAsset[]> | undefined {
+	protected async buildPageBrowserGraph(_file: string): Promise<{ assets: ProcessedAsset[] } | undefined> {
 		return undefined;
 	}
 

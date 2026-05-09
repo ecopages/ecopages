@@ -381,34 +381,24 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		const HtmlTemplate = await this.getHtmlTemplate();
 		const metadata = await this.resolveViewMetadata(input.view, input.props);
-		const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
-		const viewRender = await this.renderComponentWithForeignChildren({
-			component: input.view as EcoComponent,
-			props: normalizedProps,
-			integrationContext: { rendererCache },
-		});
-		const layoutRender = input.layout
-			? await this.renderComponentWithForeignChildren({
-					component: input.layout,
-					props: {},
-					children: viewRender.html,
-					integrationContext: { rendererCache },
-				})
-			: undefined;
-		const documentRender = await this.renderComponentWithForeignChildren({
-			component: HtmlTemplate as EcoComponent,
-			props: {
+		const { documentHtml } = await this.composeDocumentShell({
+			primaryComponent: input.view as EcoComponent,
+			primaryProps: normalizedProps,
+			layout: input.layout
+				? {
+						component: input.layout,
+						props: {},
+					}
+				: undefined,
+			htmlTemplate: HtmlTemplate as EcoComponent,
+			documentProps: {
 				metadata,
 				pageProps: normalizedProps,
 			},
-			children: layoutRender?.html ?? viewRender.html,
-			integrationContext: { rendererCache },
 		});
 
-		this.appendProcessedDependencies(viewRender.assets, layoutRender?.assets, documentRender.assets);
-
 		const html = await this.finalizeResolvedHtml({
-			html: `${this.DOC_TYPE}${documentRender.html}`,
+			html: `${this.DOC_TYPE}${documentHtml}`,
 			partial: false,
 		});
 
@@ -442,38 +432,61 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		documentProps?: Record<string, unknown>;
 		transformDocumentHtml?: (html: string) => string;
 	}): Promise<string> {
+		const { documentHtml: composedDocumentHtml } = await this.composeDocumentShell({
+			primaryComponent: input.page.component,
+			primaryProps: input.page.props,
+			layout: input.layout,
+			htmlTemplate: input.htmlTemplate,
+			documentProps: {
+				metadata: input.metadata,
+				pageProps: input.pageProps,
+				...(input.documentProps ?? {}),
+			},
+		});
+
+		const documentHtml = input.transformDocumentHtml
+			? input.transformDocumentHtml(composedDocumentHtml)
+			: composedDocumentHtml;
+
+		return `${this.DOC_TYPE}${documentHtml}`;
+	}
+
+	private async composeDocumentShell(input: {
+		primaryComponent: EcoComponent;
+		primaryProps: Record<string, unknown>;
+		layout?: {
+			component: EcoComponent;
+			props?: Record<string, unknown>;
+		};
+		htmlTemplate: EcoComponent;
+		documentProps: Record<string, unknown>;
+	}): Promise<{ documentHtml: string }> {
 		const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
-		const pageRender = await this.renderComponentWithForeignChildren({
-			component: input.page.component,
-			props: input.page.props,
+		const primaryRender = await this.renderComponentWithForeignChildren({
+			component: input.primaryComponent,
+			props: input.primaryProps,
 			integrationContext: { rendererCache },
 		});
 		const layoutRender = input.layout
 			? await this.renderComponentWithForeignChildren({
 					component: input.layout.component,
 					props: input.layout.props ?? {},
-					children: pageRender.html,
+					children: primaryRender.html,
 					integrationContext: { rendererCache },
 				})
 			: undefined;
 		const documentRender = await this.renderComponentWithForeignChildren({
 			component: input.htmlTemplate,
-			props: {
-				metadata: input.metadata,
-				pageProps: input.pageProps,
-				...(input.documentProps ?? {}),
-			},
-			children: layoutRender?.html ?? pageRender.html,
+			props: input.documentProps,
+			children: layoutRender?.html ?? primaryRender.html,
 			integrationContext: { rendererCache },
 		});
 
-		this.appendProcessedDependencies(pageRender.assets, layoutRender?.assets, documentRender.assets);
+		this.appendProcessedDependencies(primaryRender.assets, layoutRender?.assets, documentRender.assets);
 
-		const documentHtml = input.transformDocumentHtml
-			? input.transformDocumentHtml(documentRender.html)
-			: documentRender.html;
-
-		return `${this.DOC_TYPE}${documentHtml}`;
+		return {
+			documentHtml: documentRender.html,
+		};
 	}
 
 	/**
@@ -1016,17 +1029,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		input: ComponentRenderInput,
 		rendererCache: Map<string, IntegrationRenderer<any>>,
 	): Promise<ComponentRenderResult | undefined> {
-		const foreignOwnerIntegrationName = this.getForeignOwnerIntegrationName(input.component);
-		if (!foreignOwnerIntegrationName) {
-			return undefined;
-		}
-
-		const owningRenderer = this.getIntegrationRendererForName(foreignOwnerIntegrationName, rendererCache);
-		if (owningRenderer === this || owningRenderer.name === this.name) {
-			return undefined;
-		}
-		return await owningRenderer.renderComponentWithForeignChildren(
-			this.withOwningRendererCache(input, rendererCache),
+		return await this.runInForeignOwningRenderer(input, rendererCache, (owningRenderer, delegatedInput) =>
+			owningRenderer.renderComponentWithForeignChildren(delegatedInput),
 		);
 	}
 
@@ -1034,6 +1038,16 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		input: ComponentRenderInput,
 		rendererCache: Map<string, IntegrationRenderer<any>>,
 	): Promise<ForeignSubtreeRenderPayload | undefined> {
+		return await this.runInForeignOwningRenderer(input, rendererCache, (owningRenderer, delegatedInput) =>
+			owningRenderer.renderForeignSubtree(delegatedInput),
+		);
+	}
+
+	private async runInForeignOwningRenderer<TResult>(
+		input: ComponentRenderInput,
+		rendererCache: Map<string, IntegrationRenderer<any>>,
+		run: (owningRenderer: IntegrationRenderer<any>, delegatedInput: ComponentRenderInput) => Promise<TResult>,
+	): Promise<TResult | undefined> {
 		const foreignOwnerIntegrationName = this.getForeignOwnerIntegrationName(input.component);
 		if (!foreignOwnerIntegrationName) {
 			return undefined;
@@ -1044,7 +1058,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return undefined;
 		}
 
-		return await owningRenderer.renderForeignSubtree(this.withOwningRendererCache(input, rendererCache));
+		return await run(owningRenderer, this.withOwningRendererCache(input, rendererCache));
 	}
 
 	/**

@@ -5,6 +5,7 @@ import type {
 	OwnershipValidationError,
 	EcoComponent,
 } from '../../types/public-types.ts';
+import { mapDeclaredOwnershipGraph } from './declared-ownership-graph.ts';
 
 type OwnershipPlanBuildInput = {
 	routeFile: string;
@@ -33,60 +34,43 @@ export class OwnershipPlanningService {
 	 * Builds the structural ownership plan for one route render.
 	 */
 	buildPlan(input: OwnershipPlanBuildInput): OwnershipPlan {
-		let nextSyntheticId = 0;
-
 		const validationErrors = input.validationErrors ?? [];
 		const rendererNames = new Set<string>([input.currentIntegrationName]);
 		let foreignEdgeCount = 0;
-
-		const buildNode = (
-			component: EcoComponent,
-			source: Exclude<OwnershipPlanNodeSource, 'route'>,
-			parentIntegrationName: string,
-			lineage: Set<object>,
-		): OwnershipPlanNode => {
-			const integrationName =
-				component.config?.integration ?? component.config?.__eco?.integration ?? parentIntegrationName;
-			const componentMeta = component.config?.__eco;
-			const isForeignToParent = integrationName !== parentIntegrationName;
-			const componentId = componentMeta?.id ?? componentMeta?.file ?? `${source}:${(nextSyntheticId += 1)}`;
-
-			rendererNames.add(integrationName);
-
-			if (isForeignToParent) {
-				foreignEdgeCount += 1;
-			}
-
-			const nextLineage = new Set(lineage);
-			nextLineage.add(component);
-			const children = (component.config?.dependencies?.components ?? []).flatMap((child) => {
-				if (!child || nextLineage.has(child)) {
-					return [];
-				}
-
-				return [buildNode(child, 'dependency', integrationName, nextLineage)];
-			});
-
-			return {
-				id: componentId,
-				source,
-				ownership: {
-					integrationName,
-					componentId,
-					componentFile: componentMeta?.file,
-					isPageEntry: source === 'page',
-					isForeignToParent,
-				},
-				children,
-				declaredDependenciesValid: true,
-			};
-		};
 
 		const roots: OwnershipPlanBuildEntry[] = [
 			{ component: input.HtmlTemplate, source: 'html-template' },
 			...(input.Layout ? [{ component: input.Layout, source: 'layout' as const }] : []),
 			{ component: input.Page, source: 'page' },
 		];
+
+		const children = mapDeclaredOwnershipGraph({
+			roots,
+			currentIntegrationName: input.currentIntegrationName,
+			mapNode: ({ component, source, integrationName, componentId, isForeignToParent }, children) => {
+				const componentMeta = component.config?.__eco;
+
+				rendererNames.add(integrationName);
+
+				if (isForeignToParent) {
+					foreignEdgeCount += 1;
+				}
+
+				return {
+					id: componentId,
+					source,
+					ownership: {
+						integrationName,
+						componentId,
+						componentFile: componentMeta?.file,
+						isPageEntry: source === 'page',
+						isForeignToParent,
+					},
+					children,
+					declaredDependenciesValid: true,
+				};
+			},
+		});
 
 		const root: OwnershipPlanNode = {
 			id: `route:${input.routeFile}`,
@@ -98,9 +82,7 @@ export class OwnershipPlanningService {
 				isPageEntry: false,
 				isForeignToParent: false,
 			},
-			children: roots.map(({ component, source }) =>
-				buildNode(component, source, input.currentIntegrationName, new Set()),
-			),
+			children,
 			declaredDependenciesValid: validationErrors.length === 0,
 		};
 
